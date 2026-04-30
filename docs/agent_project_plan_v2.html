@@ -1,0 +1,289 @@
+
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font-sans)}
+.root{padding:1rem 0}
+
+.tier{margin-bottom:20px;border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-lg);overflow:hidden}
+.tier-head{padding:12px 16px;display:flex;align-items:center;gap:10px;border-bottom:0.5px solid var(--color-border-tertiary);cursor:pointer;user-select:none}
+.tier-head:hover{background:var(--color-background-secondary)}
+.tier-title{font-size:14px;font-weight:500;color:var(--color-text-primary);flex:1}
+.tier-meta{font-size:12px;color:var(--color-text-secondary)}
+.chevron{font-size:11px;color:var(--color-text-tertiary);transition:transform .2s}
+.chevron.open{transform:rotate(180deg)}
+.tier-body{display:none}
+.tier-body.open{display:block}
+
+.badge{font-size:11px;padding:2px 8px;border-radius:99px;font-weight:400;white-space:nowrap}
+
+.track-row{display:grid;grid-template-columns:1fr 1fr;gap:0;border-bottom:0.5px solid var(--color-border-tertiary)}
+.track-row:last-child{border-bottom:none}
+.track-cell{padding:0;border-right:0.5px solid var(--color-border-tertiary)}
+.track-cell:last-child{border-right:none}
+.track-head{padding:8px 14px;font-size:11px;font-weight:500;color:var(--color-text-tertiary);text-transform:uppercase;letter-spacing:.04em;border-bottom:0.5px solid var(--color-border-tertiary)}
+
+.item{padding:9px 14px;border-bottom:0.5px solid var(--color-border-tertiary);cursor:pointer;transition:background .12s}
+.item:last-child{border-bottom:none}
+.item:hover{background:var(--color-background-secondary)}
+.item-top{display:flex;align-items:center;gap:8px}
+.item-num{font-size:11px;font-weight:500;min-width:28px;color:var(--color-text-tertiary)}
+.item-name{font-size:13px;font-weight:500;color:var(--color-text-primary);flex:1}
+.item-desc{font-size:12px;color:var(--color-text-secondary);margin-top:4px;line-height:1.55;padding-left:36px}
+.item-tags{display:flex;flex-wrap:wrap;gap:4px;margin-top:5px;padding-left:36px}
+.tag{font-size:11px;padding:2px 6px;border-radius:4px;background:var(--color-background-secondary);color:var(--color-text-secondary);border:0.5px solid var(--color-border-tertiary)}
+
+.p0{background:#FCEBEB;color:#791F1F}
+.p1{background:#FAEEDA;color:#633806}
+.p2{background:#E1F5EE;color:#085041}
+.p3{background:#F1EFE8;color:#444441}
+
+.legend{display:flex;gap:14px;margin-bottom:14px;flex-wrap:wrap}
+.leg{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--color-text-secondary)}
+.leg-dot{width:8px;height:8px;border-radius:50%}
+
+.two-col{display:grid;grid-template-columns:1fr 1fr;border-top:0.5px solid var(--color-border-tertiary)}
+.col{border-right:0.5px solid var(--color-border-tertiary)}
+.col:last-child{border-right:none}
+.col-head{padding:8px 14px;font-size:11px;font-weight:500;color:var(--color-text-tertiary);text-transform:uppercase;letter-spacing:.04em;border-bottom:0.5px solid var(--color-border-tertiary);display:flex;align-items:center;gap:6px}
+
+.principle{padding:10px 14px;border-bottom:0.5px solid var(--color-border-tertiary)}
+.principle:last-child{border-bottom:none}
+.p-title{font-size:13px;font-weight:500;color:var(--color-text-primary)}
+.p-body{font-size:12px;color:var(--color-text-secondary);margin-top:3px;line-height:1.55}
+</style>
+
+<div class="root">
+
+<div class="legend">
+  <div class="leg"><div class="leg-dot" style="background:#E24B4A"></div>P0 必做</div>
+  <div class="leg"><div class="leg-dot" style="background:#BA7517"></div>P1 重要</div>
+  <div class="leg"><div class="leg-dot" style="background:#1D9E75"></div>P2 增强</div>
+  <div class="leg"><div class="leg-dot" style="background:#888780"></div>P3 未来</div>
+</div>
+
+<!-- TIER 1: 设计理念 -->
+<div class="tier" id="t1">
+  <div class="tier-head" onclick="tog('t1')">
+    <span class="badge" style="background:#EEEDFE;color:#3C3489">Tier 1</span>
+    <span class="tier-title">设计理念</span>
+    <span class="tier-meta">架构决策的元原则，动手前先对齐</span>
+    <span class="chevron open" id="ch-t1">▼</span>
+  </div>
+  <div class="tier-body open" id="bd-t1">
+    <div class="two-col">
+      <div class="col">
+        <div class="col-head"><span class="badge" style="background:#E6F1FB;color:#0C447C">架构线</span>系统设计原则</div>
+        <div class="principle">
+          <div class="p-title">Action / Observation 对称</div>
+          <div class="p-body">所有操作是强类型 Action，所有反馈是对称的 Observation。CodeAction 是 Action 的子类，不破坏类型系统。</div>
+        </div>
+        <div class="principle">
+          <div class="p-title">Runtime 解耦</div>
+          <div class="p-body">Agent 核心不知道自己在哪里执行。本地进程、Docker、远程沙箱对 Agent 透明，接口不变。</div>
+        </div>
+        <div class="principle">
+          <div class="p-title">单 Agent 优先，多 Agent 预埋</div>
+          <div class="p-body">第一个可交付产品是完整的单 Agent。多 Agent 协调层（AutoGen 风格）作为上层抽象预留接口，不污染单 Agent 核心。</div>
+        </div>
+        <div class="principle">
+          <div class="p-title">Thought 旁路存储</div>
+          <div class="p-body">Thought 不是 EventStream 的一等成员，通过 event_id 映射关联。写入、回放、检索能力存在，是否开启可配置。</div>
+        </div>
+      </div>
+      <div class="col">
+        <div class="col-head"><span class="badge" style="background:#E1F5EE;color:#085041">执行线</span>工程实施原则</div>
+        <div class="principle">
+          <div class="p-title">可配置优先于硬编码</div>
+          <div class="p-body">Thought 写入、审计 Agent 开关、沙箱后端、存储后端——凡是"不是每次都需要"的能力，都做成配置项而非开关分支。</div>
+        </div>
+        <div class="principle">
+          <div class="p-title">接口先于实现</div>
+          <div class="p-body">LLMClient、ThoughtStore、AuditAgent 先定义 Protocol，再写具体实现。多 Agent 层的接口在 Phase 1 末就要定义，哪怕实现是空的。</div>
+        </div>
+        <div class="principle">
+          <div class="p-title">可观测性内置</div>
+          <div class="p-body">结构化日志、EventStream replay、ThoughtStore 查询从一开始就是一等能力，不是事后补的调试工具。</div>
+        </div>
+        <div class="principle">
+          <div class="p-title">审计不依赖 LLM 自觉</div>
+          <div class="p-body">CodeAction 的 tracking 字段由 schema 强制声明，沙箱自动插桩，不依赖 LLM 在代码里主动写 logging。</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- TIER 2: 总体规划 -->
+<div class="tier" id="t2">
+  <div class="tier-head" onclick="tog('t2')">
+    <span class="badge" style="background:#E1F5EE;color:#085041">Tier 2</span>
+    <span class="tier-title">总体规划</span>
+    <span class="tier-meta">4 个 Phase，两条并行线，交付物明确</span>
+    <span class="chevron open" id="ch-t2">▼</span>
+  </div>
+  <div class="tier-body open" id="bd-t2">
+    <div class="track-row">
+      <div class="track-cell">
+        <div class="track-head"><span class="badge" style="background:#E6F1FB;color:#0C447C">架构线</span>系统设计 &amp; 接口定义</div>
+        <div class="item" onclick="sendPrompt('Phase A1 的核心接口有哪些，LLMClient 和 Runtime Protocol 怎么定义？')">
+          <div class="item-top"><span class="item-num">A1</span><span class="item-name">核心抽象层定义</span><span class="badge p0">P0</span></div>
+          <div class="item-desc">定义 Action/Observation 类型系统、EventStream 接口、Runtime Protocol、ThoughtStore Protocol。多 Agent 协调层接口预留（空实现）。</div>
+          <div class="item-tags"><span class="tag">Week 1–2</span><span class="tag">无外部依赖</span></div>
+        </div>
+        <div class="item" onclick="sendPrompt('Phase A2 的 CodeAction schema 和审计 Agent 接口怎么设计？')">
+          <div class="item-top"><span class="item-num">A2</span><span class="item-name">CodeAction &amp; 审计层设计</span><span class="badge p1">P1</span></div>
+          <div class="item-desc">设计 CodeAction schema（intent / code / tracking），定义 AuditAgent Protocol 和 CodeExecutionObservation 结构，沙箱插桩方案确定。</div>
+          <div class="item-tags"><span class="tag">Week 3–4</span><span class="tag">配合 E2 并行</span></div>
+        </div>
+        <div class="item" onclick="sendPrompt('多 Agent 协调层怎么设计才能不污染单 Agent 核心？')">
+          <div class="item-top"><span class="item-num">A3</span><span class="item-name">多 Agent 层架构设计</span><span class="badge p2">P2</span></div>
+          <div class="item-desc">设计 AgentOrchestrator 接口，定义子任务分发、结果汇总、Agent 间消息格式。确保单 Agent 核心零修改即可被编排。</div>
+          <div class="item-tags"><span class="tag">Week 7–8</span><span class="tag">E3 完成后</span></div>
+        </div>
+        <div class="item" onclick="sendPrompt('ThoughtStore 做跨任务推理模式挖掘需要什么数据结构？')">
+          <div class="item-top"><span class="item-num">A4</span><span class="item-name">经验积累 &amp; 评估体系设计</span><span class="badge p2">P2</span></div>
+          <div class="item-desc">设计评估集 schema，定义 Thought + Event 联合回放格式，规划推理模式挖掘的数据管道。</div>
+          <div class="item-tags"><span class="tag">Week 9–10</span><span class="tag">需要足量 Thought 数据</span></div>
+        </div>
+      </div>
+      <div class="track-cell">
+        <div class="track-head"><span class="badge" style="background:#FAECE7;color:#712B13">执行线</span>功能实现 &amp; 集成</div>
+        <div class="item" onclick="sendPrompt('Phase E1 最小可运行单 Agent 需要实现哪些模块？')">
+          <div class="item-top"><span class="item-num">E1</span><span class="item-name">最小可运行单 Agent</span><span class="badge p0">P0</span></div>
+          <div class="item-desc">实现 LLMClient、基础 Tool（文件读写、shell）、ReAct 主循环、EventStream（内存版）、CLI 入口。可完成简单编码任务即达标。</div>
+          <div class="item-tags"><span class="tag">Week 1–3</span><span class="tag">第一个可交付产品</span></div>
+        </div>
+        <div class="item" onclick="sendPrompt('Phase E2 的 CodeAction 执行沙箱和审计 Agent 怎么实现？')">
+          <div class="item-top"><span class="item-num">E2</span><span class="item-name">CodeAction + 审计 Agent</span><span class="badge p1">P1</span></div>
+          <div class="item-desc">实现 CodeAction 执行器（subprocess/Docker）、自动插桩 logging、AuditAgent（LLM 驱动）、ThoughtStore（SQLite 版）并接入主循环。</div>
+          <div class="item-tags"><span class="tag">Week 4–6</span><span class="tag">配合 A2 并行</span></div>
+        </div>
+        <div class="item" onclick="sendPrompt('RAG 代码检索和持久化 EventStream 怎么集成进单 Agent？')">
+          <div class="item-top"><span class="item-num">E3</span><span class="item-name">记忆、RAG、持久化</span><span class="badge p1">P1</span></div>
+          <div class="item-desc">实现 ConversationHistory（token 预算）、ChromaDB 代码语义检索、SQLite EventStream 持久化、会话恢复。单 Agent 功能完整版。</div>
+          <div class="item-tags"><span class="tag">Week 6–8</span><span class="tag">单 Agent 完整版</span></div>
+        </div>
+        <div class="item" onclick="sendPrompt('多 Agent 编排层怎么基于 AutoGen 风格实现，不改动单 Agent 核心？')">
+          <div class="item-top"><span class="item-num">E4</span><span class="item-name">多 Agent 编排层实现</span><span class="badge p2">P2</span></div>
+          <div class="item-desc">实现 AgentOrchestrator，接入 Planner Agent + Executor Agent 分工，子 Agent 复用单 Agent 核心，协调层消息格式对接 A3 接口。</div>
+          <div class="item-tags"><span class="tag">Week 9–12</span><span class="tag">A3 完成后</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- TIER 3: 详细规划 -->
+<div class="tier" id="t3">
+  <div class="tier-head" onclick="tog('t3')">
+    <span class="badge" style="background:#FAEEDA;color:#633806">Tier 3</span>
+    <span class="tier-title">详细规划</span>
+    <span class="tier-meta">按周展开，每步有明确产出和验收标准</span>
+    <span class="chevron open" id="ch-t3">▼</span>
+  </div>
+  <div class="tier-body open" id="bd-t3">
+
+    <div style="padding:8px 14px;font-size:11px;font-weight:500;color:var(--color-text-tertiary);text-transform:uppercase;letter-spacing:.04em;border-bottom:0.5px solid var(--color-border-tertiary)">Phase 1 — 地基（Week 1–3）目标：最小可运行单 Agent</div>
+
+    <div class="item" onclick="sendPrompt('Action 和 Observation 的基类怎么用 Python dataclass 设计，包含哪些字段？')">
+      <div class="item-top"><span class="item-num">1.1</span><span class="item-name">Action / Observation 基类 + 类型注册</span><span class="badge p0">P0</span><span class="badge" style="background:#E6F1FB;color:#0C447C">架构</span></div>
+      <div class="item-desc">定义 BaseAction / BaseObservation dataclass，event_id / timestamp 等公共字段，ActionRegistry 自动收集子类。同步定义多 Agent 层的 OrchestratorProtocol（空实现占位）。</div>
+      <div class="item-tags"><span class="tag">产出：types/</span><span class="tag">验收：所有 Action 可序列化为 JSON</span></div>
+    </div>
+    <div class="item" onclick="sendPrompt('EventStream 内存版怎么实现，接口需要支持哪些操作？')">
+      <div class="item-top"><span class="item-num">1.2</span><span class="item-name">EventStream（内存版）</span><span class="badge p0">P0</span><span class="badge" style="background:#E6F1FB;color:#0C447C">架构</span></div>
+      <div class="item-desc">实现 append / iter / replay 三个核心方法，内存存储，接口和后期 SQLite 版保持一致。ThoughtStore Protocol 同步定义，NullThoughtStore 默认实现。</div>
+      <div class="item-tags"><span class="tag">产出：core/event_stream.py</span><span class="tag">验收：可 replay 完整会话</span></div>
+    </div>
+    <div class="item" onclick="sendPrompt('LLMClient 抽象层怎么封装 Anthropic SDK 支持 streaming 和 tool_use？')">
+      <div class="item-top"><span class="item-num">1.3</span><span class="item-name">LLMClient 封装 + Runtime 接口</span><span class="badge p0">P0</span><span class="badge" style="background:#FAECE7;color:#712B13">执行</span></div>
+      <div class="item-desc">封装 Anthropic SDK，支持 streaming，统一 tool_use 消息格式。定义 Runtime Protocol（execute_action → Observation），本地进程版实现。</div>
+      <div class="item-tags"><span class="tag">产出：llm/ + runtime/</span><span class="tag">验收：可换模型零修改上层</span></div>
+    </div>
+    <div class="item" onclick="sendPrompt('基础 Tool（文件读写、shell）怎么实现，BaseTool 抽象类需要哪些方法？')">
+      <div class="item-top"><span class="item-num">1.4</span><span class="item-name">基础 Tool 集（文件 + Shell）</span><span class="badge p0">P0</span><span class="badge" style="background:#FAECE7;color:#712B13">执行</span></div>
+      <div class="item-desc">实现 ReadFileTool / WriteFileTool / ListDirTool / RunCommandTool，每个工具产出对应的 Observation 类型，路径安全检查，命令超时控制。</div>
+      <div class="item-tags"><span class="tag">产出：tools/fs/ + tools/shell/</span><span class="tag">验收：全部有单元测试</span></div>
+    </div>
+    <div class="item" onclick="sendPrompt('ReAct 主循环怎么用 EventStream 驱动，循环终止条件是什么？')">
+      <div class="item-top"><span class="item-num">1.5</span><span class="item-name">ReAct 主循环 + CLI</span><span class="badge p0">P0</span><span class="badge" style="background:#FAECE7;color:#712B13">执行</span></div>
+      <div class="item-desc">实现 Thought→Action→Observation 循环，事件写入 EventStream，支持最大步数限制和 AgentFinishAction 终止。Typer CLI 入口，--model / --workspace 参数。</div>
+      <div class="item-tags"><span class="tag">产出：core/loop.py + cli/</span><span class="tag">验收：能完成"写一个 hello world 并运行"任务</span></div>
+    </div>
+
+    <div style="padding:8px 14px;font-size:11px;font-weight:500;color:var(--color-text-tertiary);text-transform:uppercase;letter-spacing:.04em;border-bottom:0.5px solid var(--color-border-tertiary);border-top:0.5px solid var(--color-border-tertiary)">Phase 2 — CodeAction + 审计（Week 4–6）目标：安全可审计的代码执行</div>
+
+    <div class="item" onclick="sendPrompt('CodeAction 的 intent / code / tracking 三个字段具体怎么定义，schema 约束怎么做？')">
+      <div class="item-top"><span class="item-num">2.1</span><span class="item-name">CodeAction schema 设计</span><span class="badge p1">P1</span><span class="badge" style="background:#E6F1FB;color:#0C447C">架构</span></div>
+      <div class="item-desc">定义 CodeAction（intent: str, code: str, language: str, tracking: TrackingConfig），TrackingConfig 声明副作用范围（文件列表、变量名），对应 CodeExecutionObservation 结构。</div>
+      <div class="item-tags"><span class="tag">产出：types/code_action.py</span><span class="tag">验收：schema 可做 LLM 输出的 JSON Schema</span></div>
+    </div>
+    <div class="item" onclick="sendPrompt('沙箱自动插桩 logging 怎么实现，根据 TrackingConfig 注入什么代码？')">
+      <div class="item-top"><span class="item-num">2.2</span><span class="item-name">沙箱执行器 + 自动插桩</span><span class="badge p1">P1</span><span class="badge" style="background:#FAECE7;color:#712B13">执行</span></div>
+      <div class="item-desc">subprocess 沙箱实现，根据 TrackingConfig 在代码前后自动注入文件 diff 快照和变量追踪 logging，不依赖 LLM 自觉写日志。超时、内存限制、危险命令拦截。</div>
+      <div class="item-tags"><span class="tag">产出：runtime/sandbox.py</span><span class="tag">验收：文件变更被完整记录</span></div>
+    </div>
+    <div class="item" onclick="sendPrompt('审计 Agent 的 verdict 字段怎么设计，事实层和判断层怎么分离？')">
+      <div class="item-top"><span class="item-num">2.3</span><span class="item-name">审计 Agent 实现</span><span class="badge p1">P1</span><span class="badge" style="background:#FAECE7;color:#712B13">执行</span></div>
+      <div class="item-desc">LLM 驱动的 AuditAgent，输入：intent + code + 执行产出，输出：结构化事实（文件变更、变量值）+ verdict（符合预期 / 偏差描述）。主 Agent 消费 verdict，可回溯原始事实。</div>
+      <div class="item-tags"><span class="tag">产出：agents/audit_agent.py</span><span class="tag">验收：误判率 &lt; 10%（手动评估 20 例）</span></div>
+    </div>
+    <div class="item" onclick="sendPrompt('ThoughtStore SQLite 版怎么实现 write / query / replay 三个接口？')">
+      <div class="item-top"><span class="item-num">2.4</span><span class="item-name">ThoughtStore SQLite 实现</span><span class="badge p1">P1</span><span class="badge" style="background:#FAECE7;color:#712B13">执行</span></div>
+      <div class="item-desc">实现 SqliteThoughtStore，ThoughtRecord 包含 event_id / phase / content / timestamp / metadata，支持按 session_id 回放和按 event_id 查询。ThoughtConfig 控制 enabled / phases / backend。</div>
+      <div class="item-tags"><span class="tag">产出：memory/thought_store.py</span><span class="tag">验收：关掉后零性能影响</span></div>
+    </div>
+
+    <div style="padding:8px 14px;font-size:11px;font-weight:500;color:var(--color-text-tertiary);text-transform:uppercase;letter-spacing:.04em;border-bottom:0.5px solid var(--color-border-tertiary);border-top:0.5px solid var(--color-border-tertiary)">Phase 3 — 记忆 + 持久化（Week 6–8）目标：单 Agent 完整版</div>
+
+    <div class="item" onclick="sendPrompt('ConversationHistory 的 token 预算管理和滑动窗口截断怎么实现？')">
+      <div class="item-top"><span class="item-num">3.1</span><span class="item-name">ConversationHistory + token 预算</span><span class="badge p1">P1</span><span class="badge" style="background:#FAECE7;color:#712B13">执行</span></div>
+      <div class="item-desc">实现滑动窗口截断，tiktoken 计数，保留系统 prompt + 最近 N 轮 + 当前任务关键 Observation，超出预算时按优先级剪裁而非直接截断。</div>
+      <div class="item-tags"><span class="tag">产出：memory/history.py</span></div>
+    </div>
+    <div class="item" onclick="sendPrompt('ChromaDB 代码语义检索怎么集成，embedding 在什么时机生成？')">
+      <div class="item-top"><span class="item-num">3.2</span><span class="item-name">RAG 代码语义检索</span><span class="badge p1">P1</span><span class="badge" style="background:#FAECE7;color:#712B13">执行</span></div>
+      <div class="item-desc">tree-sitter 解析代码结构，ChromaDB 存储函数/类 embedding，Agent 推理前自动检索相关代码片段注入 context。增量索引，文件修改后自动更新。</div>
+      <div class="item-tags"><span class="tag">产出：memory/rag.py</span></div>
+    </div>
+    <div class="item" onclick="sendPrompt('EventStream 从内存版迁移到 SQLite 版需要注意什么兼容性问题？')">
+      <div class="item-top"><span class="item-num">3.3</span><span class="item-name">EventStream 持久化 + 会话恢复</span><span class="badge p1">P1</span><span class="badge" style="background:#FAECE7;color:#712B13">执行</span></div>
+      <div class="item-desc">SQLite 版 EventStream，接口和内存版完全一致（Protocol 保证），支持从中断点恢复会话，历史任务可完整 replay。</div>
+      <div class="item-tags"><span class="tag">产出：core/event_stream_sqlite.py</span><span class="tag">验收：内存版 / SQLite 版可热切换</span></div>
+    </div>
+    <div class="item" onclick="sendPrompt('系统级 benchmark 评测脚本怎么设计，评估哪些指标？')">
+      <div class="item-top"><span class="item-num">3.4</span><span class="item-name">Benchmark 评测 + 测试集</span><span class="badge p1">P1</span><span class="badge" style="background:#E6F1FB;color:#0C447C">架构</span></div>
+      <div class="item-desc">设计 10–20 个标准编码任务，自动运行并记录成功率 / token 消耗 / 步数。开启 ThoughtStore 时自动积累评估集，Thought + Event 联合记录为后续分析准备数据。</div>
+      <div class="item-tags"><span class="tag">产出：scripts/benchmark.py</span><span class="tag">里程碑：单 Agent 完整版交付</span></div>
+    </div>
+
+    <div style="padding:8px 14px;font-size:11px;font-weight:500;color:var(--color-text-tertiary);text-transform:uppercase;letter-spacing:.04em;border-bottom:0.5px solid var(--color-border-tertiary);border-top:0.5px solid var(--color-border-tertiary)">Phase 4 — 多 Agent 编排（Week 9–12）目标：多 Agent 版本</div>
+
+    <div class="item" onclick="sendPrompt('AgentOrchestrator 怎么设计才能让单 Agent 核心代码不需要修改？')">
+      <div class="item-top"><span class="item-num">4.1</span><span class="item-name">AgentOrchestrator 实现</span><span class="badge p2">P2</span><span class="badge" style="background:#E6F1FB;color:#0C447C">架构</span></div>
+      <div class="item-desc">基于 A3 接口实现编排层，Planner Agent 生成子任务列表，Executor Agent（复用单 Agent 核心）并行或串行执行，结果汇总回主任务。单 Agent 核心零修改。</div>
+      <div class="item-tags"><span class="tag">产出：orchestration/</span></div>
+    </div>
+    <div class="item" onclick="sendPrompt('多 Agent 场景下 Thought 和 EventStream 怎么做跨 Agent 的关联？')">
+      <div class="item-top"><span class="item-num">4.2</span><span class="item-name">跨 Agent 可观测性</span><span class="badge p2">P2</span><span class="badge" style="background:#FAECE7;color:#712B13">执行</span></div>
+      <div class="item-desc">多 Agent 的 EventStream 通过 session_id / parent_session_id 形成树状关联，ThoughtStore 支持跨 Agent 回放，审计 Agent 可访问子 Agent 的完整上下文。</div>
+      <div class="item-tags"><span class="tag">产出：扩展 EventStream + ThoughtStore</span></div>
+    </div>
+    <div class="item" onclick="sendPrompt('怎么用积累的 Thought 数据做跨任务推理模式挖掘？')">
+      <div class="item-top"><span class="item-num">4.3</span><span class="item-name">经验积累 + 推理模式挖掘</span><span class="badge p3">P3</span><span class="badge" style="background:#E6F1FB;color:#0C447C">架构</span></div>
+      <div class="item-desc">对积累的 Thought 数据做向量化，聚类找推理偏差模式，成功任务的 Thought 链提取为 few-shot 示例，在后续任务推理前自动检索注入。</div>
+      <div class="item-tags"><span class="tag">需要足量数据</span><span class="tag">P3 未来</span></div>
+    </div>
+
+  </div>
+</div>
+
+</div>
+<script>
+function tog(id){
+  const bd=document.getElementById('bd-'+id);
+  const ch=document.getElementById('ch-'+id);
+  bd.classList.toggle('open');
+  ch.classList.toggle('open');
+}
+</script>
