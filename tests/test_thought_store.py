@@ -35,4 +35,4 @@ def test_thought_record_is_frozen() -> None:
 
     record = ThoughtRecord(event_id="abc", phase="plan", content="hello")
     with pytest.raises(ValidationError):
-        record.content = "mutated"  # type: ignore[misc]
+        record.content = "mutated"

@@ -10,12 +10,20 @@ kinds with the registries.
 """
 
 from code_agent.types.base import BaseAction, BaseEvent, BaseObservation
+from code_agent.types.common import (
+    AgentFinishAction,
+    AgentFinishObservation,
+    ErrorObservation,
+)
 from code_agent.types.registry import ActionRegistry, ObservationRegistry
 
 __all__ = [
     "ActionRegistry",
+    "AgentFinishAction",
+    "AgentFinishObservation",
     "BaseAction",
     "BaseEvent",
     "BaseObservation",
+    "ErrorObservation",
     "ObservationRegistry",
 ]

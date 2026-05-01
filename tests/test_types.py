@@ -95,11 +95,11 @@ def test_duplicate_kind_raises() -> None:
 
     with pytest.raises(ValueError, match="already registered"):
 
-        class _Dup(BaseAction, kind="_Dup"):  # noqa: F811 — intentional duplicate
+        class _Dup(BaseAction, kind="_Dup"):  # type: ignore[no-redef]  # noqa: F811
             y: int = 0
 
 
 def test_event_is_immutable() -> None:
     action = _PingAction(message="frozen")
     with pytest.raises(ValidationError):
-        action.message = "mutated"  # type: ignore[misc]
+        action.message = "mutated"
