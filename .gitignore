@@ -40,3 +40,8 @@ Thumbs.db
 *.sqlite3
 .code-agent/
 logs/
+
+# Secrets
+.env
+.env.*
+!.env.example
