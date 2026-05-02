@@ -10,6 +10,7 @@ import typer
 from code_agent import __version__
 from code_agent.core.loop import AgentLoop
 from code_agent.llm.client import LLMClient
+from code_agent.observability import configure_logging
 from code_agent.runtime.local import LocalRuntime
 from code_agent.tools.base import Tool
 from code_agent.tools.fs import ListDirTool, ReadFileTool, WriteFileTool
@@ -52,8 +53,16 @@ def run(
         int,
         typer.Option("--max-steps", help="Maximum ReAct iterations before stopping."),
     ] = 20,
+    log_dir: Annotated[
+        Path,
+        typer.Option(
+            "--log-dir",
+            help="Directory for tool/action/observation/llm logs.",
+        ),
+    ] = Path("./logs"),
 ) -> None:
     """Run the agent on a task inside a workspace."""
+    configure_logging(log_dir)
     workspace.mkdir(parents=True, exist_ok=True)
     ws = Workspace(workspace)
 

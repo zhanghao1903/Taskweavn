@@ -16,7 +16,11 @@ from datetime import datetime
 from threading import Lock
 from typing import Protocol, runtime_checkable
 
-from code_agent.types.base import BaseEvent
+from code_agent.observability.setup import get_channel_logger
+from code_agent.types.base import BaseAction, BaseEvent, BaseObservation
+
+_ACTION_LOGGER = get_channel_logger("action")
+_OBSERVATION_LOGGER = get_channel_logger("observation")
 
 
 @runtime_checkable
@@ -60,6 +64,10 @@ class InMemoryEventStream:
     def append(self, event: BaseEvent) -> None:
         with self._lock:
             self._events.append(event)
+        if isinstance(event, BaseAction):
+            _ACTION_LOGGER.info("emit", extra={"data": event.to_dict()})
+        elif isinstance(event, BaseObservation):
+            _OBSERVATION_LOGGER.info("emit", extra={"data": event.to_dict()})
 
     def __iter__(self) -> Iterator[BaseEvent]:
         # Snapshot under the lock so concurrent appends can't mutate the list

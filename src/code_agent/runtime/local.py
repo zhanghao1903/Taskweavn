@@ -7,12 +7,16 @@ runtime for ``CodeAction``.
 
 from __future__ import annotations
 
+import time
 from collections.abc import Callable
 
+from code_agent.observability.setup import get_channel_logger
 from code_agent.types.base import BaseAction, BaseObservation
 from code_agent.types.common import ErrorObservation
 
 Executor = Callable[[BaseAction], BaseObservation]
+
+_TOOL_LOGGER = get_channel_logger("tool")
 
 
 class LocalRuntime:
@@ -31,18 +35,45 @@ class LocalRuntime:
         self._executors[action_type] = executor
 
     def execute(self, action: BaseAction) -> BaseObservation:
+        action_kind = type(action).__name__
+        _TOOL_LOGGER.info(
+            "invoke",
+            extra={
+                "data": {
+                    "action_kind": action_kind,
+                    "action_id": action.event_id,
+                    "payload": action.to_dict(),
+                }
+            },
+        )
+        start = time.monotonic()
         executor = self._executors.get(type(action))
         if executor is None:
-            return ErrorObservation(
+            result: BaseObservation = ErrorObservation(
                 action_id=action.event_id,
                 error_type="no_executor",
-                message=f"No executor registered for action type {type(action).__name__!r}.",
+                message=f"No executor registered for action type {action_kind!r}.",
             )
-        try:
-            return executor(action)
-        except Exception as exc:  # noqa: BLE001 — Runtime contract: never raise.
-            return ErrorObservation(
-                action_id=action.event_id,
-                error_type="execution_error",
-                message=f"{type(exc).__name__}: {exc}",
-            )
+        else:
+            try:
+                result = executor(action)
+            except Exception as exc:  # noqa: BLE001 — Runtime contract: never raise.
+                result = ErrorObservation(
+                    action_id=action.event_id,
+                    error_type="execution_error",
+                    message=f"{type(exc).__name__}: {exc}",
+                )
+        duration_ms = round((time.monotonic() - start) * 1000, 3)
+        _TOOL_LOGGER.info(
+            "result",
+            extra={
+                "data": {
+                    "action_kind": action_kind,
+                    "action_id": action.event_id,
+                    "result_kind": type(result).__name__,
+                    "success": result.success,
+                    "duration_ms": duration_ms,
+                }
+            },
+        )
+        return result

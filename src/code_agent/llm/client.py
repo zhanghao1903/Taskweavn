@@ -19,6 +19,10 @@ from openhands.sdk import LLM
 from openhands.sdk.llm import LLMResponse, Message
 from openhands.sdk.tool import ToolDefinition
 
+from code_agent.observability.setup import get_channel_logger
+
+_LLM_LOGGER = get_channel_logger("llm")
+
 
 @dataclass(frozen=True)
 class ToolCall:
@@ -89,12 +93,30 @@ class LLMClient:
         litellm normalizes across providers. The ReAct loop owns the message
         history; this method is stateless on purpose.
         """
-        response = litellm.completion(
-            model=self._model,
-            api_key=self._api_key,
-            messages=messages,
-            tools=tools,
+        _LLM_LOGGER.info(
+            "request",
+            extra={
+                "data": {
+                    "model": self._model,
+                    "messages": messages,
+                    "tool_count": len(tools) if tools else 0,
+                    "tools": tools,
+                }
+            },
         )
+        try:
+            response = litellm.completion(
+                model=self._model,
+                api_key=self._api_key,
+                messages=messages,
+                tools=tools,
+            )
+        except Exception as exc:
+            _LLM_LOGGER.exception(
+                "request_failed",
+                extra={"data": {"model": self._model, "error": str(exc)}},
+            )
+            raise
         choice = response.choices[0]
         message = choice.message
         content = message.content or ""
@@ -118,6 +140,19 @@ class LLMClient:
                 }
                 for tc in tool_calls
             ]
+        _LLM_LOGGER.info(
+            "response",
+            extra={
+                "data": {
+                    "model": self._model,
+                    "content": content,
+                    "tool_calls": [
+                        {"id": tc.id, "name": tc.name, "arguments": tc.arguments}
+                        for tc in tool_calls
+                    ],
+                }
+            },
+        )
         return ChatResponse(
             content=content,
             tool_calls=tool_calls,
