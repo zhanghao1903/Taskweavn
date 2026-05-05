@@ -22,11 +22,13 @@ Termination conditions:
 
 from __future__ import annotations
 
+import contextlib
 from dataclasses import dataclass, field
 from typing import Any
 
 from pydantic import ValidationError
 
+from code_agent.audit import AuditAgent, render_audit_system_message
 from code_agent.core.event_stream import EventStream, InMemoryEventStream
 from code_agent.llm.client import (
     LLMClient,
@@ -42,6 +44,7 @@ from code_agent.memory.thought_store import (
 from code_agent.runtime.base import Runtime
 from code_agent.tools.base import Tool
 from code_agent.types.base import BaseAction, BaseObservation
+from code_agent.types.code_action import CodeAction, CodeExecutionObservation
 from code_agent.types.common import (
     AgentFinishAction,
     AgentFinishObservation,
@@ -88,6 +91,7 @@ class AgentLoop:
     thought_store: ThoughtStore = field(default_factory=NullThoughtStore)
     system_prompt: str = DEFAULT_SYSTEM_PROMPT
     max_steps: int = 20
+    auditor: AuditAgent | None = None
 
     def __post_init__(self) -> None:
         names = [t.name for t in self.tools]
@@ -118,7 +122,23 @@ class AgentLoop:
         )
 
     def run(self, task: str) -> LoopResult:
-        """Execute the loop on a single user task. Synchronous, single-threaded."""
+        """Execute the loop on a single user task. Synchronous, single-threaded.
+
+        Stateful tools allocate per-task resources via :meth:`Tool.startup`;
+        teardown happens in ``finally`` so a partially-started tool still gets
+        a chance to clean up.
+        """
+        try:
+            for tool in self.tools:
+                tool.startup()
+            return self._run_inner(task)
+        finally:
+            for tool in self.tools:
+                # Teardown must not mask the loop result.
+                with contextlib.suppress(Exception):
+                    tool.shutdown()
+
+    def _run_inner(self, task: str) -> LoopResult:
         messages: list[dict[str, Any]] = [
             {"role": "system", "content": self.system_prompt},
             {"role": "user", "content": task},
@@ -170,6 +190,7 @@ class AgentLoop:
                 observation = self.runtime.execute(action)
                 self.event_stream.append(observation)
                 messages.append(self._tool_message(tool_call.id, observation))
+                self._maybe_audit(action, observation, messages)
 
         return LoopResult(
             final_answer="",
@@ -222,3 +243,31 @@ class AgentLoop:
             "tool_call_id": tool_call_id,
             "content": observation.to_json(),
         }
+
+    def _maybe_audit(
+        self,
+        action: BaseAction,
+        observation: BaseObservation,
+        messages: list[dict[str, Any]],
+    ) -> None:
+        """Run the auditor on a CodeAction result and append a system message.
+
+        No-op when:
+          * no auditor is configured (off by default), or
+          * the action is not a CodeAction (we only audit code execution).
+
+        The auditor itself is total — it returns an inconclusive verdict on
+        any internal failure rather than raising — so this method does not
+        need extra exception handling.
+        """
+        if self.auditor is None:
+            return
+        if not isinstance(action, CodeAction) or not isinstance(
+            observation, CodeExecutionObservation
+        ):
+            return
+        audit = self.auditor.audit(action, observation)
+        self.event_stream.append(audit)
+        messages.append(
+            {"role": "system", "content": render_audit_system_message(audit)}
+        )

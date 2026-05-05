@@ -9,6 +9,7 @@ dependencies = [
     "openhands-sdk>=1.19.0",
     "typer>=0.12.0",
     "pydantic>=2.10",
+    "docker>=7.0.0",
 ]
 
 [project.scripts]
@@ -40,6 +41,9 @@ select = ["E", "F", "I", "UP", "B", "SIM"]
 testpaths = ["tests"]
 pythonpath = ["src"]
 asyncio_mode = "auto"
+markers = [
+    "integration: tests that require external services (Docker, network) and are skipped by default if unavailable",
+]
 
 [tool.mypy]
 python_version = "3.12"

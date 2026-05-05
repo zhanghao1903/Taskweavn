@@ -276,6 +276,204 @@ def test_loop_rejects_finish_tool_name_collision(workspace: Workspace) -> None:
         )
 
 
+def test_loop_runs_auditor_when_configured(workspace: Workspace) -> None:
+    """When an auditor is wired in, every CodeAction execution produces an
+    AuditObservation on the EventStream and a system message in the next turn."""
+    from typing import ClassVar
+
+    from code_agent.audit import AuditAgent, AuditObservation
+    from code_agent.tools.base import Tool
+    from code_agent.types import (
+        BaseAction as _BA,
+    )
+    from code_agent.types import (
+        BaseObservation as _BO,
+    )
+    from code_agent.types.code_action import (
+        CodeAction,
+        CodeExecutionObservation,
+    )
+
+    class _StubCodeTool(Tool[CodeAction, CodeExecutionObservation]):
+        name: ClassVar[str] = "run_code"
+        description: ClassVar[str] = "stub"
+        action_type: ClassVar[type[_BA]] = CodeAction
+        observation_type: ClassVar[type[_BO]] = CodeExecutionObservation
+
+        def execute(self, action: CodeAction) -> CodeExecutionObservation:
+            return CodeExecutionObservation(
+                action_id=action.event_id,
+                intent=action.intent,
+                exit_code=0,
+                stdout="ok",
+                stderr="",
+                duration_ms=1.0,
+            )
+
+    # Auditor LLM always returns a pass verdict.
+    audit_llm = StubLLM(
+        [
+            ChatResponse(
+                content=json.dumps(
+                    {
+                        "verdict": "pass",
+                        "rationale": "snippet matched its intent",
+                        "concerns": [],
+                        "intent_met": True,
+                        "scope_respected": True,
+                    }
+                ),
+                tool_calls=[],
+                raw_assistant_message={"role": "assistant", "content": "x"},
+            )
+        ]
+    )
+    auditor = AuditAgent(llm=audit_llm)  # type: ignore[arg-type]
+
+    main_llm = StubLLM(
+        [
+            _tool_call_response(
+                "run_code",
+                {
+                    "intent": "noop",
+                    "code": "x = 1",
+                    "tracking": {"files": [], "variables": []},
+                },
+                call_id="c1",
+            ),
+            _finish_response("done", call_id="c2"),
+        ]
+    )
+
+    runtime = LocalRuntime()
+    tool = _StubCodeTool()
+    tool.register(runtime)
+    loop = AgentLoop(
+        llm=main_llm,  # type: ignore[arg-type]
+        runtime=runtime,
+        tools=[tool],
+        auditor=auditor,
+    )
+    loop.run("audit me")
+
+    audits = [e for e in loop.event_stream if isinstance(e, AuditObservation)]
+    assert len(audits) == 1
+    assert audits[0].verdict == "pass"
+
+    # Second main-LLM call should now have a system-role audit message in its history.
+    second_messages = main_llm.calls[1]["messages"]
+    audit_systems = [
+        m
+        for m in second_messages
+        if m.get("role") == "system" and "[audit]" in m.get("content", "")
+    ]
+    assert len(audit_systems) == 1
+    assert "verdict=pass" in audit_systems[0]["content"]
+
+
+def test_loop_skips_auditor_for_non_code_actions(workspace: Workspace) -> None:
+    """A WriteFileAction must NOT be audited — only CodeActions get audited."""
+    from code_agent.audit import AuditAgent, AuditObservation
+
+    audit_llm = StubLLM([])  # would raise StopIteration if called
+    auditor = AuditAgent(llm=audit_llm)  # type: ignore[arg-type]
+
+    main_llm = StubLLM(
+        [
+            _tool_call_response(
+                "write_file",
+                {"path": "x.txt", "content": "y"},
+                call_id="c1",
+            ),
+            _finish_response("done", call_id="c2"),
+        ]
+    )
+    loop = _build_loop(workspace, main_llm)
+    loop.auditor = auditor
+    loop.run("write only")
+
+    audits = [e for e in loop.event_stream if isinstance(e, AuditObservation)]
+    assert audits == []
+    assert audit_llm.calls == []  # auditor was never invoked
+
+
+def test_loop_continues_when_auditor_returns_inconclusive(
+    workspace: Workspace,
+) -> None:
+    """An inconclusive verdict must still be appended and the loop must keep going."""
+    from typing import ClassVar
+
+    from code_agent.audit import AuditAgent, AuditObservation
+    from code_agent.tools.base import Tool
+    from code_agent.types import (
+        BaseAction as _BA,
+    )
+    from code_agent.types import (
+        BaseObservation as _BO,
+    )
+    from code_agent.types.code_action import (
+        CodeAction,
+        CodeExecutionObservation,
+    )
+
+    class _StubCodeTool(Tool[CodeAction, CodeExecutionObservation]):
+        name: ClassVar[str] = "run_code"
+        description: ClassVar[str] = "stub"
+        action_type: ClassVar[type[_BA]] = CodeAction
+        observation_type: ClassVar[type[_BO]] = CodeExecutionObservation
+
+        def execute(self, action: CodeAction) -> CodeExecutionObservation:
+            return CodeExecutionObservation(
+                action_id=action.event_id,
+                intent=action.intent,
+                exit_code=0,
+                stdout="",
+                stderr="",
+                duration_ms=1.0,
+            )
+
+    # Auditor LLM raises — agent must still record an inconclusive verdict.
+    class _RaisingLLM:
+        def chat(
+            self,
+            messages: list[dict[str, Any]],
+            tools: list[dict[str, Any]] | None = None,
+        ) -> ChatResponse:
+            raise RuntimeError("audit api 500")
+
+    auditor = AuditAgent(llm=_RaisingLLM())  # type: ignore[arg-type]
+
+    main_llm = StubLLM(
+        [
+            _tool_call_response(
+                "run_code",
+                {
+                    "intent": "noop",
+                    "code": "x = 1",
+                    "tracking": {"files": [], "variables": []},
+                },
+                call_id="c1",
+            ),
+            _finish_response("done", call_id="c2"),
+        ]
+    )
+    runtime = LocalRuntime()
+    tool = _StubCodeTool()
+    tool.register(runtime)
+    loop = AgentLoop(
+        llm=main_llm,  # type: ignore[arg-type]
+        runtime=runtime,
+        tools=[tool],
+        auditor=auditor,
+    )
+    result = loop.run("inconclusive path")
+
+    assert result.finished is True
+    audits = [e for e in loop.event_stream if isinstance(e, AuditObservation)]
+    assert len(audits) == 1
+    assert audits[0].verdict == "inconclusive"
+
+
 def test_loop_passes_tool_schemas_to_llm(workspace: Workspace) -> None:
     llm = StubLLM([_finish_response("done")])
     loop = _build_loop(workspace, llm)

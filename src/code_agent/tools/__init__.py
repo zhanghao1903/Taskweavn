@@ -1,6 +1,7 @@
 """Tool layer: file + shell tools the agent can invoke."""
 
 from code_agent.tools.base import Tool
+from code_agent.tools.code_action_tool import CodeActionTool
 from code_agent.tools.fs import (
     DirEntry,
     DirListingObservation,
@@ -21,6 +22,7 @@ from code_agent.tools.shell import (
 from code_agent.tools.workspace import PathOutsideWorkspaceError, Workspace
 
 __all__ = [
+    "CodeActionTool",
     "CommandResultObservation",
     "DirEntry",
     "DirListingObservation",
