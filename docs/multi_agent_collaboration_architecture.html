@@ -1,0 +1,958 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>多 Agent 协作架构设计</title>
+  <style>
+    :root {
+      --bg: #0f1117;
+      --surface: #1a1d27;
+      --surface2: #22263a;
+      --border: #2e3347;
+      --accent: #6c8ef7;
+      --accent2: #a78bfa;
+      --accent3: #34d399;
+      --accent4: #fb923c;
+      --text: #e2e8f0;
+      --text-muted: #8892aa;
+      --text-dim: #4a5470;
+      --danger: #f87171;
+      --warn: #fbbf24;
+      --code-bg: #141720;
+      --radius: 10px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      font-size: 15px;
+      line-height: 1.7;
+    }
+
+    /* ── Layout ── */
+    .layout { display: flex; min-height: 100vh; }
+
+    nav {
+      width: 260px;
+      flex-shrink: 0;
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow-y: auto;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      padding: 32px 0 32px;
+    }
+
+    nav .logo {
+      padding: 0 24px 24px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 20px;
+    }
+
+    nav .logo h2 {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--accent);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    nav .logo p {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    nav ul { list-style: none; padding: 0 12px; }
+
+    nav ul li a {
+      display: block;
+      padding: 7px 12px;
+      border-radius: 6px;
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 13px;
+      transition: all 0.15s;
+    }
+
+    nav ul li a:hover { background: var(--surface2); color: var(--text); }
+
+    nav ul li.section-label {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      padding: 16px 12px 4px;
+    }
+
+    main {
+      flex: 1;
+      max-width: 900px;
+      padding: 48px 56px 80px;
+    }
+
+    /* ── Typography ── */
+    h1 {
+      font-size: 34px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 8px;
+    }
+
+    .subtitle {
+      color: var(--text-muted);
+      font-size: 14px;
+      margin-bottom: 48px;
+    }
+
+    h2 {
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--text);
+      margin: 56px 0 20px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    h2 .num {
+      color: var(--accent);
+      margin-right: 8px;
+    }
+
+    h3 {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--accent2);
+      margin: 28px 0 12px;
+    }
+
+    p { margin-bottom: 14px; color: var(--text); }
+
+    strong { color: var(--accent); font-weight: 600; }
+
+    /* ── Code ── */
+    pre {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px 24px;
+      overflow-x: auto;
+      font-size: 13px;
+      line-height: 1.6;
+      margin: 16px 0;
+    }
+
+    code {
+      font-family: "JetBrains Mono", "Fira Code", "SF Mono", Consolas, monospace;
+      font-size: 12.5px;
+      color: #a8c7fa;
+    }
+
+    p code, li code {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 1px 6px;
+      color: var(--accent3);
+    }
+
+    /* ── Cards ── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+      margin: 16px 0;
+    }
+
+    .card-accent { border-left: 3px solid var(--accent); }
+    .card-green  { border-left: 3px solid var(--accent3); }
+    .card-purple { border-left: 3px solid var(--accent2); }
+    .card-orange { border-left: 3px solid var(--accent4); }
+
+    /* ── Principle Cards ── */
+    .principle-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin: 20px 0;
+    }
+
+    .principle-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+    }
+
+    .principle-card .tag {
+      display: inline-block;
+      background: rgba(108, 142, 247, 0.15);
+      color: var(--accent);
+      font-size: 11px;
+      font-weight: 600;
+      padding: 3px 10px;
+      border-radius: 20px;
+      margin-bottom: 10px;
+      letter-spacing: 0.05em;
+    }
+
+    .principle-card h4 {
+      font-size: 14px;
+      font-weight: 700;
+      margin-bottom: 8px;
+      color: var(--text);
+    }
+
+    .principle-card p {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin: 0;
+    }
+
+    /* ── Tables ── */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 16px 0;
+      font-size: 13.5px;
+    }
+
+    th {
+      background: var(--surface2);
+      color: var(--text-muted);
+      font-weight: 600;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      padding: 10px 14px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+
+    td {
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border);
+      color: var(--text);
+    }
+
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: rgba(255,255,255,0.02); }
+
+    /* ── Message Stream Viz ── */
+    .stream {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      margin: 16px 0;
+    }
+
+    .msg {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 8px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+    }
+
+    .msg:last-child { border-bottom: none; }
+
+    .msg-badge {
+      flex-shrink: 0;
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 4px;
+      margin-top: 2px;
+      letter-spacing: 0.05em;
+    }
+
+    .badge-info  { background: rgba(108,142,247,0.2); color: var(--accent); }
+    .badge-ask   { background: rgba(251,191,36,0.2);  color: var(--warn); }
+    .badge-warn  { background: rgba(248,113,113,0.2); color: var(--danger); }
+    .badge-ok    { background: rgba(52,211,153,0.2);  color: var(--accent3); }
+
+    .msg-text { font-size: 13px; color: var(--text-muted); }
+    .msg-text strong { color: var(--text); }
+
+    /* ── Architecture Diagram ── */
+    .arch-diagram {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 28px 24px;
+      margin: 20px 0;
+      overflow-x: auto;
+    }
+
+    .arch-row {
+      display: flex;
+      align-items: stretch;
+      gap: 12px;
+      margin-bottom: 8px;
+    }
+
+    .arch-layer {
+      flex: 1;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px 16px;
+    }
+
+    .layer-user   { border-color: rgba(108,142,247,0.4); background: rgba(108,142,247,0.05); }
+    .layer-orch   { border-color: rgba(167,139,250,0.4); background: rgba(167,139,250,0.05); }
+    .layer-exec   { border-color: rgba(52,211,153,0.4);  background: rgba(52,211,153,0.05); }
+
+    .layer-label {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+
+    .layer-user .layer-label   { color: var(--accent); }
+    .layer-orch .layer-label   { color: var(--accent2); }
+    .layer-exec .layer-label   { color: var(--accent3); }
+
+    .layer-content {
+      font-size: 12.5px;
+      color: var(--text-muted);
+      line-height: 1.6;
+    }
+
+    .arrow {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-dim);
+      font-size: 20px;
+      padding: 0 4px;
+    }
+
+    /* ── Autonomy Meter ── */
+    .autonomy-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      margin: 16px 0;
+    }
+
+    .autonomy-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+    }
+
+    .autonomy-card h4 { font-size: 13px; font-weight: 700; margin-bottom: 10px; }
+    .autonomy-card.high h4 { color: var(--accent3); }
+    .autonomy-card.low  h4 { color: var(--accent2); }
+
+    .meter {
+      height: 6px;
+      background: var(--surface2);
+      border-radius: 3px;
+      margin-bottom: 12px;
+      overflow: hidden;
+    }
+
+    .meter-fill {
+      height: 100%;
+      border-radius: 3px;
+    }
+
+    .high .meter-fill { width: 85%; background: linear-gradient(90deg, var(--accent3), #6ee7b7); }
+    .low  .meter-fill { width: 20%; background: linear-gradient(90deg, var(--accent2), #c4b5fd); }
+
+    .pro-con { font-size: 12.5px; }
+    .pro-con li { list-style: none; padding: 2px 0; color: var(--text-muted); }
+    .pro-con .pro::before { content: "✓  "; color: var(--accent3); }
+    .pro-con .con::before { content: "✗  "; color: var(--danger); }
+
+    /* ── Evolution Timeline ── */
+    .timeline { margin: 20px 0; }
+
+    .tl-item {
+      display: flex;
+      gap: 20px;
+      margin-bottom: 4px;
+    }
+
+    .tl-left {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      width: 60px;
+      flex-shrink: 0;
+    }
+
+    .tl-dot {
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+
+    .v1 .tl-dot { background: rgba(108,142,247,0.2); color: var(--accent); border: 1.5px solid var(--accent); }
+    .v2 .tl-dot { background: rgba(167,139,250,0.2); color: var(--accent2); border: 1.5px solid var(--accent2); }
+    .v3 .tl-dot { background: rgba(52,211,153,0.2);  color: var(--accent3); border: 1.5px solid var(--accent3); }
+
+    .tl-line {
+      width: 1px;
+      flex: 1;
+      background: var(--border);
+      margin: 4px 0;
+      min-height: 24px;
+    }
+
+    .tl-body {
+      flex: 1;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px 18px;
+      margin-bottom: 12px;
+    }
+
+    .tl-body h4 { font-size: 14px; font-weight: 700; margin-bottom: 8px; }
+    .v1 .tl-body h4 { color: var(--accent); }
+    .v2 .tl-body h4 { color: var(--accent2); }
+    .v3 .tl-body h4 { color: var(--accent3); }
+
+    .tl-body ul { list-style: none; padding: 0; }
+    .tl-body ul li {
+      font-size: 13px;
+      color: var(--text-muted);
+      padding: 2px 0;
+    }
+    .tl-body ul li::before { content: "· "; color: var(--text-dim); }
+
+    /* ── Tradeoff Grid ── */
+    .tradeoff-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      margin: 16px 0;
+    }
+
+    .tradeoff-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+    }
+
+    .tradeoff-card h4 {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--accent);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 10px;
+    }
+
+    .tradeoff-card p {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin: 0;
+    }
+
+    /* ── Quick Ref Table ── */
+    .ref-table { font-size: 13px; }
+
+    /* ── Divider ── */
+    hr { border: none; border-top: 1px solid var(--border); margin: 40px 0; }
+
+    /* ── Scrollbar ── */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+  </style>
+</head>
+<body>
+
+<div class="layout">
+
+  <!-- Sidebar -->
+  <nav>
+    <div class="logo">
+      <h2>架构设计文档</h2>
+      <p>多 Agent 协作 · v1.0 · 2026-05-07</p>
+    </div>
+    <ul>
+      <li class="section-label">核心理念</li>
+      <li><a href="#principles">设计原则</a></li>
+      <li><a href="#stream">消息流模型</a></li>
+      <li class="section-label">自主度系统</li>
+      <li><a href="#autonomy">自主度配置</a></li>
+      <li><a href="#gate">AutonomyGate</a></li>
+      <li class="section-label">编排设计</li>
+      <li><a href="#designer">对话式编排</a></li>
+      <li><a href="#draft">OrchestrationDraft</a></li>
+      <li><a href="#constraint">约束驱动 UI</a></li>
+      <li class="section-label">系统架构</li>
+      <li><a href="#architecture">整体架构图</a></li>
+      <li><a href="#evolution">演进路线</a></li>
+      <li><a href="#tradeoffs">设计权衡</a></li>
+      <li><a href="#ref">类型速查</a></li>
+    </ul>
+  </nav>
+
+  <!-- Main Content -->
+  <main>
+    <h1>多 Agent 协作架构设计</h1>
+    <p class="subtitle">版本 v1.0 · 2026-05-07 · codeAgent Phase 3–4</p>
+
+    <!-- ── Section 1: Principles ── -->
+    <h2 id="principles"><span class="num">1</span>设计核心理念</h2>
+
+    <p>本架构围绕两个正交的核心原则展开，它们共同决定了多 agent 与用户协作的方式。所有架构决策都以这两个原则为出发点。</p>
+
+    <div class="principle-grid">
+      <div class="principle-card">
+        <span class="tag">原则一</span>
+        <h4>消息流替代打断</h4>
+        <p>传统阻塞式 interrupt 由系统主导节奏，用户被迫响应。新模型将其替换为消息流：agent 向流发送请求，用户可回应也可不回应，等待行为由自主度配置决定。用户始终是主动方。</p>
+      </div>
+      <div class="principle-card">
+        <span class="tag">原则二</span>
+        <h4>约束驱动的用户编排</h4>
+        <p>不强迫用户理解图结构。LLM 作为编排设计者，在约束边界内生成合法的 agent 协作图。用户通过自然语言描述意图，通过 UI 进行局部微调。约束本身随系统成熟度演进。</p>
+      </div>
+    </div>
+
+    <h3>核心模型转变</h3>
+    <pre><code>旧模型：interrupt → pause → resume   （阻塞式，系统主导）
+新模型：agent 发消息 → 用户可回，也可以不回  （流式，用户主导）
+
+旧模型：用户填写编排配置               （填空题）
+新模型：对话描述意图 → LLM 生成草稿    （选择题）
+
+旧模型：约束是事后校验                  （生成后被拒绝）
+新模型：约束是生成时上下文              （天然合法输出）</code></pre>
+
+    <!-- ── Section 2: Message Stream ── -->
+    <h2 id="stream"><span class="num">2</span>消息流模型</h2>
+
+    <p>Agent 执行过程中所有与用户相关的通信，统一流向一条 <strong>Message Stream</strong>。用户可以实时观看、随时介入，但从不被强制阻塞。</p>
+
+    <h3>消息流示意</h3>
+    <div class="stream">
+      <div class="msg">
+        <span class="msg-badge badge-info">INFO</span>
+        <span class="msg-text"><strong>Planner</strong>：已生成执行计划，共 5 步，预计影响 3 个文件</span>
+      </div>
+      <div class="msg">
+        <span class="msg-badge badge-ask">ASK</span>
+        <span class="msg-text"><strong>Executor</strong>：即将删除文件 <code>config.py</code>，此操作不可逆，确认继续？<br><small style="color:var(--text-dim)">等待 120s，超时将使用默认值：跳过此步骤</small></span>
+      </div>
+      <div class="msg">
+        <span class="msg-badge badge-ok">INFO</span>
+        <span class="msg-text"><strong>Executor</strong>：已修改 <code>auth.py</code> 第 42–58 行，变更已记录</span>
+      </div>
+      <div class="msg">
+        <span class="msg-badge badge-warn">WARN</span>
+        <span class="msg-text"><strong>Auditor</strong>：发现潜在 SQL 注入漏洞（置信度 0.87），建议人工复查</span>
+      </div>
+    </div>
+
+    <h3>两种消息类型</h3>
+    <table>
+      <thead>
+        <tr><th>类型</th><th>含义</th><th>Agent 行为</th><th>用户行为</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>Informational</code></td>
+          <td>告知 agent 做了什么</td>
+          <td>发送后立即继续执行</td>
+          <td>可忽略，可事后查阅</td>
+        </tr>
+        <tr>
+          <td><code>Actionable</code></td>
+          <td>请求用户输入或确认</td>
+          <td>根据自主度决定等待策略</td>
+          <td>回应或不回应，超时行为可配置</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="card card-accent">
+      <strong>"完全不打断"状态</strong>
+      <p style="margin-top:8px;margin-bottom:0;font-size:13.5px;color:var(--text-muted)">
+        当用户将自主度设为最高时，所有 Actionable 消息都配置了超时自动 proceed，消息流退化为<strong style="color:var(--text)">只读执行日志</strong>。用户随时可以查看，但没有任何消息阻塞 agent 执行。这是用户的主动选择，系统只负责如实呈现任务质量与自主度的关系。
+      </p>
+    </div>
+
+    <!-- ── Section 3: Autonomy ── -->
+    <h2 id="autonomy"><span class="num">3</span>自主度系统</h2>
+
+    <p>自主度不是一个魔法数字，而是对"agent 遇到不确定时如何行动"的精确描述。核心是两个正交维度：<strong>触发维度</strong>（何时发送 Actionable 消息）和<strong>等待维度</strong>（发出后等多久、等不到时怎么办）。</p>
+
+    <h3 id="gate">AutonomyBehavior 配置</h3>
+    <pre><code>@dataclass
+class AutonomyBehavior:
+    # 触发维度：何时向消息流发送 Actionable 消息
+    trigger: Literal[
+        "never",             # 从不，所有消息都是 Informational
+        "on_risk",           # 仅高风险操作（文件删除、执行命令等）
+        "on_uncertainty",    # LLM 置信度低于阈值时
+        "always",            # 每个关键操作都请求确认
+    ]
+    confidence_threshold: float   # 0.0~1.0，仅 on_uncertainty 生效
+
+    # 等待维度：Actionable 消息发出后的等待策略
+    wait_timeout: float | None    # 秒，None = 无限等待
+    timeout_action: Literal[
+        "wait",               # 继续等待（低自主度默认）
+        "proceed_default",    # 超时后用最保守选择继续
+        "proceed_confident",  # 超时后用 LLM 最高置信选择继续
+        "skip",               # 跳过该动作
+    ]
+    notify_on_proceed: bool       # 超时自行决定后是否告知用户</code></pre>
+
+    <h3>预设自主度档位</h3>
+    <table>
+      <thead>
+        <tr><th>档位</th><th>trigger</th><th>wait_timeout</th><th>timeout_action</th><th>适合场景</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><strong>全自主</strong></td><td>never</td><td>—</td><td>—</td><td>批处理、可回滚任务</td></tr>
+        <tr><td><strong>风险确认</strong></td><td>on_risk</td><td>300s</td><td>proceed_default</td><td>日常使用默认</td></tr>
+        <tr><td><strong>协作模式</strong></td><td>on_uncertainty</td><td>None</td><td>wait</td><td>复杂、高影响任务</td></tr>
+        <tr><td><strong>全确认</strong></td><td>always</td><td>None</td><td>wait</td><td>学习、审计场景</td></tr>
+      </tbody>
+    </table>
+
+    <h3>质量与自主度的 Tradeoff</h3>
+    <div class="autonomy-grid">
+      <div class="autonomy-card high">
+        <h4>自主度高</h4>
+        <div class="meter"><div class="meter-fill"></div></div>
+        <ul class="pro-con">
+          <li class="pro">执行不被打断，速度快</li>
+          <li class="pro">用户认知负担低</li>
+          <li class="con">歧义场景 agent 自行猜测</li>
+          <li class="con">错误可能在用户不知情时累积</li>
+        </ul>
+      </div>
+      <div class="autonomy-card low">
+        <h4>自主度低</h4>
+        <div class="meter"><div class="meter-fill"></div></div>
+        <ul class="pro-con">
+          <li class="pro">关键决策用户全程参与</li>
+          <li class="pro">错误率低，可控性强</li>
+          <li class="con">需要用户持续关注消息流</li>
+          <li class="con">任务速度依赖用户响应时间</li>
+        </ul>
+      </div>
+    </div>
+
+    <p style="font-size:13.5px;color:var(--text-muted)">选择权完全在用户，系统不做道德评判。UI 应清晰呈现这一权衡，而不是隐藏它。</p>
+
+    <!-- ── Section 4: Orchestration Designer ── -->
+    <h2 id="designer"><span class="num">4</span>对话式编排设计</h2>
+
+    <p>用户不需要理解图结构。<strong>Orchestration Designer</strong>（一个 meta-agent）接收用户自然语言意图，在约束边界内生成合法的 agent 协作图，用户只需选择和微调。</p>
+
+    <pre><code>用户自然语言意图
+        ↓
+OrchestrationDesigner (meta-agent)
+  输入：用户意图 + ConstraintProfile + ToolRegistry
+  输出：OrchestrationDraft（合法图结构 + 节点配置 + rationale）
+        ↓
+UI 渲染图结构  ←→  用户局部微调（选择题，不是填空题）</code></pre>
+
+    <div class="card card-green">
+      <strong>关键原则</strong>
+      <p style="margin-top:6px;margin-bottom:0;font-size:13.5px;color:var(--text-muted)">
+        约束不是事后校验，而是生成时的上下文。LLM 在约束边界内生成，输出天然合法，不会出现"UI 允许但后端拒绝"的不一致。
+      </p>
+    </div>
+
+    <h3>生成的三个阶段</h3>
+    <pre><code># 阶段一：意图解析
+用户: "我想要一个能审计代码安全漏洞并自动修复的系统"
+→ 核心能力: [代码读取, 漏洞分析, 修复执行, 验证回环]
+→ 风险识别: 修复执行 = 高风险，需要用户确认
+→ 约束映射: 需要 auditor 节点，修复前 interrupt
+
+# 阶段二：约束内图生成
+LLM 接收 ConstraintProfile 作为 prompt 上下文
+在合法拓扑范围内生成图结构，无需后端 validator 二次校验
+
+# 阶段三：能力分配
+每个 agent 节点从 ToolRegistry 中选择工具子集
+工具是选择，不是生成  ← 系统安全底线</code></pre>
+
+    <h3 id="draft">对话即 Diff，不是全量重生成</h3>
+    <p>用户对草稿的反馈触发局部修改，而不是重新生成整张图。UI 高亮变更节点，用户看到的是 diff，不需要每次重新理解整张图。</p>
+
+    <pre><code>用户: "让 executor 更自主一点"
+
+DraftPatch:
+  target_node: "executor"
+  changes:
+    autonomy_behavior.trigger: "on_uncertainty" → "on_risk"
+    autonomy_behavior.confidence_threshold: 0.7 → 0.4
+  reason: "降低打断频率，遇到不确定时优先尝试而非询问"</code></pre>
+
+    <h3>OrchestrationDraft 结构</h3>
+    <pre><code>@dataclass
+class OrchestrationDraft:
+    nodes: list[AgentNodeDraft]
+    edges: list[EdgeDraft]
+    rationale: str                     # LLM 解释设计理由，展示给用户
+
+@dataclass
+class AgentNodeDraft:
+    id: str
+    agent_type: AgentType
+    display_name: str
+    description: str                   # 此节点在本编排中的职责
+    tool_set: list[ToolRef]            # 从 ToolRegistry 选出的子集
+    autonomy_behavior: AutonomyBehavior
+    suggested_alternatives: list[AgentType]  # 用户可替换的备选类型</code></pre>
+
+    <p><code>suggested_alternatives</code> 让节点替换成为<strong>选择题</strong>，用户不需要知道有哪些 agent 类型。</p>
+
+    <!-- ── Section 5: Constraint ── -->
+    <h2 id="constraint"><span class="num">5</span>约束驱动的 UI 编排</h2>
+
+    <h3>分层配置模型</h3>
+    <pre><code>Layer 3: 自定义 DAG（高级用户）
+  用户在约束范围内自由连接 agent 节点，调整任意参数
+
+Layer 2: Preset + 参数调节（中级用户）
+  选择最佳实践模板，通过旋钮调整关键参数
+
+Layer 1: Preset 直选（普通用户）
+  Auto-pilot / Co-pilot / Manual / Audit-Focus
+
+三层统一 normalize 到同一个 OrchestrationConfig，系统内部无差别处理</code></pre>
+
+    <h3>ConstraintProfile：约束是一等公民</h3>
+    <pre><code>@dataclass
+class ConstraintProfile:
+    version: str
+
+    # 节点维度：用户能放哪些 agent
+    allowed_agent_types: set[AgentType]
+
+    # 连接维度：允许哪些边
+    allowed_edges: list[EdgeRule]          # (src_type, dst_type, condition)
+    forbidden_patterns: list[Pattern]      # 如：禁止 executor→executor 直连
+
+    # 组合维度：整体约束
+    required_nodes: set[AgentType]         # 如：auditor 永远必须存在
+    max_parallel_branches: int
+
+    # 元信息：每条约束的存在理由
+    rationale: dict[str, str]              # constraint_key → 失败模式描述</code></pre>
+
+    <div class="card card-purple">
+      <strong>rationale 不是注释</strong>
+      <p style="margin-top:6px;margin-bottom:0;font-size:13.5px;color:var(--text-muted)">
+        <code>rationale</code> 是松绑决策的输入——你知道移除某条约束是在赌什么失败模式。有了它，"是否松绑"变成有依据的工程决策，而不是产品直觉。
+      </p>
+    </div>
+
+    <h3>约束在 UI 中的体现</h3>
+    <p>约束不是报错墙，而是<strong>自然的边界感</strong>：</p>
+    <table>
+      <thead><tr><th>约束维度</th><th>UI 体现</th><th>体验</th></tr></thead>
+      <tbody>
+        <tr><td>节点维度</td><td>palette 只显示允许的节点类型</td><td>被禁止的根本不存在，不是灰掉</td></tr>
+        <tr><td>连接维度</td><td>拖拽时实时校验，非法连接弹开</td><td>操作过程中感知，不是提交时报错</td></tr>
+        <tr><td>参数维度</td><td>面板只渲染开放的配置项</td><td>其他参数静默用默认值填充</td></tr>
+      </tbody>
+    </table>
+
+    <h3>内置最佳实践 Preset</h3>
+    <table>
+      <thead><tr><th>Preset</th><th>拓扑</th><th>自主度默认</th><th>适合场景</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Auto-pilot</strong></td><td>sequential</td><td>高（on_risk）</td><td>批量处理，不需要陪跑</td></tr>
+        <tr><td><strong>Co-pilot</strong></td><td>hierarchical</td><td>中（on_uncertainty）</td><td>日常开发辅助</td></tr>
+        <tr><td><strong>Manual</strong></td><td>sequential</td><td>低（always）</td><td>学习、敏感操作</td></tr>
+        <tr><td><strong>Audit-Focus</strong></td><td>DAG + 回流</td><td>中</td><td>代码审计 + 自动修复</td></tr>
+      </tbody>
+    </table>
+
+    <p style="font-size:13.5px;color:var(--text-muted)">Preset 是只读模板，用户选择 Preset 实际上 fork 出一个 snapshot，修改发生在 fork 上，随时可以 diff 或 reset。</p>
+
+    <!-- ── Section 6: Architecture ── -->
+    <h2 id="architecture"><span class="num">6</span>系统整体架构</h2>
+
+    <div class="arch-diagram">
+      <div class="arch-row">
+        <div class="arch-layer layer-user">
+          <div class="layer-label">用户层</div>
+          <div class="layer-content">
+            <strong style="color:var(--accent)">编排设计（一次性）</strong><br>
+            对话描述意图 → 查看/调整 Draft → 配置自主度旋钮<br><br>
+            <strong style="color:var(--accent)">任务执行（实时）</strong><br>
+            消息流面板 · [INFO] · [ASK] · [WARN]<br>
+            随时回应或忽略
+          </div>
+        </div>
+      </div>
+      <div style="text-align:center;color:var(--text-dim);font-size:18px;margin:4px 0">↕ Draft &amp; Messages</div>
+      <div class="arch-row">
+        <div class="arch-layer layer-orch">
+          <div class="layer-label">编排层</div>
+          <div class="layer-content">
+            <strong style="color:var(--accent2)">OrchestrationDesigner</strong>（meta-agent）<br>
+            意图解析 · 约束内图生成 · 工具集匹配<br><br>
+            <strong style="color:var(--accent2)">MessageStream + AutonomyGate</strong><br>
+            统一消息入口 · 自主度决策<br><br>
+            <strong style="color:var(--accent2)">ConstraintValidator</strong><br>
+            加载时静态分析，配置即合法
+          </div>
+        </div>
+      </div>
+      <div style="text-align:center;color:var(--text-dim);font-size:18px;margin:4px 0">↕ OrchestrationConfig</div>
+      <div class="arch-row">
+        <div class="arch-layer layer-exec">
+          <div class="layer-label">执行层</div>
+          <div class="layer-content">
+            <strong style="color:var(--accent3)">Agent Graph Runtime</strong><br>
+            Planner → Executor → Auditor → [自定义节点]<br>
+            每个节点经过 AutonomyGate 后向 MessageStream 发消息<br><br>
+            <strong style="color:var(--accent3)">ToolRegistry（封闭工具集）</strong><br>
+            LLM 只能选择，不能创造
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Section 7: Evolution ── -->
+    <h2 id="evolution"><span class="num">7</span>渐进式约束演进路线</h2>
+
+    <p>约束不是永久限制，而是有数据依据的阶段性护栏。松绑决策基于：成功率数据、失败归因、用户收益估算、降级路径。</p>
+
+    <div class="card card-orange" style="margin-bottom:20px">
+      <strong>约束价值密度</strong>
+      <p style="margin-top:6px;margin-bottom:0;font-size:13.5px;color:var(--text-muted)">
+        指标 = Δ失败率 / Δ可表达 use case 数。<br>
+        优先松绑<strong style="color:var(--text)">价值密度低</strong>的约束（限制多、收益少）。
+      </p>
+    </div>
+
+    <div class="timeline">
+      <div class="tl-item v1">
+        <div class="tl-left">
+          <div class="tl-dot">v1</div>
+          <div class="tl-line"></div>
+        </div>
+        <div class="tl-body">
+          <h4>高护栏期（当前）</h4>
+          <ul>
+            <li>允许节点：Planner / Executor / Auditor（三种固定）</li>
+            <li>允许连接：两条固定边 + 可选回流边</li>
+            <li>禁止并行分支</li>
+            <li>暴露参数：仅 autonomy_behavior + tool 开关</li>
+            <li>目标：成功率 &gt; 90%，用户 0 学习成本</li>
+          </ul>
+        </div>
+      </div>
+      <div class="tl-item v2">
+        <div class="tl-left">
+          <div class="tl-dot">v2</div>
+          <div class="tl-line"></div>
+        </div>
+        <div class="tl-body">
+          <h4>松绑拓扑</h4>
+          <ul>
+            <li>开放并行分支（max = 2）</li>
+            <li>开放自定义节点名称</li>
+            <li>LLM 可生成 DAG 而不只是 sequential</li>
+            <li>依据：v1 成功率数据 + 失败归因不指向拓扑问题</li>
+          </ul>
+        </div>
+      </div>
+      <div class="tl-item v3">
+        <div class="tl-left">
+          <div class="tl-dot">v3</div>
+          <div class="tl-line" style="display:none"></div>
+        </div>
+        <div class="tl-body">
+          <h4>松绑工具</h4>
+          <ul>
+            <li>开放自定义工具接入（用户提供 Tool spec）</li>
+            <li>开放 ToolRegistry 动态扩展</li>
+            <li>依据：用户反馈中最高频"希望有但没有"的工具类型</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Section 8: Tradeoffs ── -->
+    <h2 id="tradeoffs"><span class="num">8</span>关键设计权衡</h2>
+
+    <div class="tradeoff-grid">
+      <div class="tradeoff-card">
+        <h4>灵活性 vs 成功率</h4>
+        <p>早期约束严格牺牲灵活性，换取高成功率。这是主动选择，不是技术限制。随着数据积累有依据地松绑，不做功能堆砌。</p>
+      </div>
+      <div class="tradeoff-card">
+        <h4>用户控制 vs 系统复杂度</h4>
+        <p>把打断控制权交给用户，意味着系统需要处理"用户不回应"的超时情形。<code>timeout_action</code> 的四种策略覆盖主要场景，复杂度可控。</p>
+      </div>
+      <div class="tradeoff-card">
+        <h4>LLM 生成 vs 用户手动</h4>
+        <p>对话式生成的风险是 LLM 误解意图。缓解：展示 rationale 供用户验证；用 Patch 而非全量重生成；编排在 UI 中完全可见可调。</p>
+      </div>
+      <div class="tradeoff-card">
+        <h4>消息流 vs 传统打断</h4>
+        <p>消息流要求用户主动关注，而非被动被提醒。缓解：支持通知推送；支持消息过滤（只看 Actionable）；流内消息提供快捷操作。</p>
+      </div>
+    </div>
+
+    <!-- ── Section 9: Quick Ref ── -->
+    <h2 id="ref"><span class="num">9</span>核心类型速查</h2>
+
+    <table class="ref-table">
+      <thead>
+        <tr><th>类型</th><th>职责</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><code>AutonomyBehavior</code></td><td>定义 agent 自主度：触发条件 + 等待策略</td></tr>
+        <tr><td><code>AutonomyGate</code></td><td>每次操作前的自主度决策入口</td></tr>
+        <tr><td><code>AgentMessage</code></td><td>消息流中的单条消息，Informational 或 Actionable</td></tr>
+        <tr><td><code>MessageStream</code></td><td>全局消息流，agent 与用户协作的唯一通道</td></tr>
+        <tr><td><code>ConstraintProfile</code></td><td>当前版本的编排约束集合，含 rationale</td></tr>
+        <tr><td><code>OrchestrationDesigner</code></td><td>meta-agent，将用户意图转化为合法 OrchestrationDraft</td></tr>
+        <tr><td><code>OrchestrationDraft</code></td><td>LLM 生成的编排草稿，含图结构 + 节点配置 + rationale</td></tr>
+        <tr><td><code>DraftPatch</code></td><td>用户反馈触发的局部修改，对话迭代的最小单元</td></tr>
+        <tr><td><code>ToolRegistry</code></td><td>封闭工具集，LLM 只能选择不能创造</td></tr>
+        <tr><td><code>OrchestrationPreset</code></td><td>内置最佳实践模板，用户 fork 后修改</td></tr>
+      </tbody>
+    </table>
+
+    <hr>
+    <p style="font-size:12px;color:var(--text-dim);text-align:center">多 Agent 协作架构设计 · v1.0 · codeAgent</p>
+
+  </main>
+</div>
+
+</body>
+</html>
