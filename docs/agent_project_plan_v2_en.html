@@ -1,0 +1,289 @@
+
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font-sans)}
+.root{padding:1rem 0}
+
+.tier{margin-bottom:20px;border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-lg);overflow:hidden}
+.tier-head{padding:12px 16px;display:flex;align-items:center;gap:10px;border-bottom:0.5px solid var(--color-border-tertiary);cursor:pointer;user-select:none}
+.tier-head:hover{background:var(--color-background-secondary)}
+.tier-title{font-size:14px;font-weight:500;color:var(--color-text-primary);flex:1}
+.tier-meta{font-size:12px;color:var(--color-text-secondary)}
+.chevron{font-size:11px;color:var(--color-text-tertiary);transition:transform .2s}
+.chevron.open{transform:rotate(180deg)}
+.tier-body{display:none}
+.tier-body.open{display:block}
+
+.badge{font-size:11px;padding:2px 8px;border-radius:99px;font-weight:400;white-space:nowrap}
+
+.track-row{display:grid;grid-template-columns:1fr 1fr;gap:0;border-bottom:0.5px solid var(--color-border-tertiary)}
+.track-row:last-child{border-bottom:none}
+.track-cell{padding:0;border-right:0.5px solid var(--color-border-tertiary)}
+.track-cell:last-child{border-right:none}
+.track-head{padding:8px 14px;font-size:11px;font-weight:500;color:var(--color-text-tertiary);text-transform:uppercase;letter-spacing:.04em;border-bottom:0.5px solid var(--color-border-tertiary)}
+
+.item{padding:9px 14px;border-bottom:0.5px solid var(--color-border-tertiary);cursor:pointer;transition:background .12s}
+.item:last-child{border-bottom:none}
+.item:hover{background:var(--color-background-secondary)}
+.item-top{display:flex;align-items:center;gap:8px}
+.item-num{font-size:11px;font-weight:500;min-width:28px;color:var(--color-text-tertiary)}
+.item-name{font-size:13px;font-weight:500;color:var(--color-text-primary);flex:1}
+.item-desc{font-size:12px;color:var(--color-text-secondary);margin-top:4px;line-height:1.55;padding-left:36px}
+.item-tags{display:flex;flex-wrap:wrap;gap:4px;margin-top:5px;padding-left:36px}
+.tag{font-size:11px;padding:2px 6px;border-radius:4px;background:var(--color-background-secondary);color:var(--color-text-secondary);border:0.5px solid var(--color-border-tertiary)}
+
+.p0{background:#FCEBEB;color:#791F1F}
+.p1{background:#FAEEDA;color:#633806}
+.p2{background:#E1F5EE;color:#085041}
+.p3{background:#F1EFE8;color:#444441}
+
+.legend{display:flex;gap:14px;margin-bottom:14px;flex-wrap:wrap}
+.leg{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--color-text-secondary)}
+.leg-dot{width:8px;height:8px;border-radius:50%}
+
+.two-col{display:grid;grid-template-columns:1fr 1fr;border-top:0.5px solid var(--color-border-tertiary)}
+.col{border-right:0.5px solid var(--color-border-tertiary)}
+.col:last-child{border-right:none}
+.col-head{padding:8px 14px;font-size:11px;font-weight:500;color:var(--color-text-tertiary);text-transform:uppercase;letter-spacing:.04em;border-bottom:0.5px solid var(--color-border-tertiary);display:flex;align-items:center;gap:6px}
+
+.principle{padding:10px 14px;border-bottom:0.5px solid var(--color-border-tertiary)}
+.principle:last-child{border-bottom:none}
+.p-title{font-size:13px;font-weight:500;color:var(--color-text-primary)}
+.p-body{font-size:12px;color:var(--color-text-secondary);margin-top:3px;line-height:1.55}
+</style>
+
+<div class="root">
+
+<div class="legend">
+  <div class="leg"><div class="leg-dot" style="background:#E24B4A"></div>P0 Must-do</div>
+  <div class="leg"><div class="leg-dot" style="background:#BA7517"></div>P1 Important</div>
+  <div class="leg"><div class="leg-dot" style="background:#1D9E75"></div>P2 Enhancement</div>
+  <div class="leg"><div class="leg-dot" style="background:#888780"></div>P3 Future</div>
+</div>
+
+<!-- TIER 1: Design Philosophy -->
+<div class="tier" id="t1">
+  <div class="tier-head" onclick="tog('t1')">
+    <span class="badge" style="background:#EEEDFE;color:#3C3489">Tier 1</span>
+    <span class="tier-title">Design Philosophy</span>
+    <span class="tier-meta">Meta-principles for architecture decisions — align before coding</span>
+    <span class="chevron open" id="ch-t1">▼</span>
+  </div>
+  <div class="tier-body open" id="bd-t1">
+    <div class="two-col">
+      <div class="col">
+        <div class="col-head"><span class="badge" style="background:#E6F1FB;color:#0C447C">Architecture</span>System Design Principles</div>
+        <div class="principle">
+          <div class="p-title">Action / Observation Symmetry</div>
+          <div class="p-body">All operations are strongly-typed Actions; all feedback is symmetrical Observations. CodeAction is a subclass of Action and does not break the type system.</div>
+        </div>
+        <div class="principle">
+          <div class="p-title">Runtime Decoupling</div>
+          <div class="p-body">The agent core has no knowledge of where it is executing. Local process, Docker, and remote sandbox are all transparent to the agent; the interface never changes.</div>
+        </div>
+        <div class="principle">
+          <div class="p-title">Single Agent First, Multi-Agent Reserved</div>
+          <div class="p-body">The first deliverable is a complete single-agent. The multi-agent coordination layer (AutoGen-style) is reserved as an upper-layer abstraction and does not pollute the single-agent core.</div>
+        </div>
+        <div class="principle">
+          <div class="p-title">Thought Side-Channel Storage</div>
+          <div class="p-body">Thoughts are not first-class members of the EventStream; they are linked via event_id as a side channel. Write, replay, and retrieval capabilities exist and can be toggled via config.</div>
+        </div>
+      </div>
+      <div class="col">
+        <div class="col-head"><span class="badge" style="background:#E1F5EE;color:#085041">Execution</span>Engineering Principles</div>
+        <div class="principle">
+          <div class="p-title">Configurable over Hardcoded</div>
+          <div class="p-body">Thought writing, audit agent toggle, sandbox backend, storage backend — any capability that is not needed every time becomes a config option rather than a code branch.</div>
+        </div>
+        <div class="principle">
+          <div class="p-title">Interface before Implementation</div>
+          <div class="p-body">LLMClient, ThoughtStore, and AuditAgent define their Protocol first; concrete implementations come after. The multi-agent layer interface is defined at the end of Phase 1, even if the implementation is empty.</div>
+        </div>
+        <div class="principle">
+          <div class="p-title">Observability Built-in</div>
+          <div class="p-body">Structured logging, EventStream replay, and ThoughtStore queries are first-class capabilities from day one — not debugging tools bolted on later.</div>
+        </div>
+        <div class="principle">
+          <div class="p-title">Audit Does Not Rely on LLM Self-discipline</div>
+          <div class="p-body">CodeAction's tracking fields are enforced by the schema; the sandbox auto-instruments — no reliance on the LLM proactively writing logging code.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- TIER 2: Overall Roadmap -->
+<div class="tier" id="t2">
+  <div class="tier-head" onclick="tog('t2')">
+    <span class="badge" style="background:#E1F5EE;color:#085041">Tier 2</span>
+    <span class="tier-title">Overall Roadmap</span>
+    <span class="tier-meta">4 phases, two parallel tracks, clear deliverables</span>
+    <span class="chevron open" id="ch-t2">▼</span>
+  </div>
+  <div class="tier-body open" id="bd-t2">
+    <div class="track-row">
+      <div class="track-cell">
+        <div class="track-head"><span class="badge" style="background:#E6F1FB;color:#0C447C">Architecture</span>System Design &amp; Interface Definition</div>
+        <div class="item">
+          <div class="item-top"><span class="item-num">A1</span><span class="item-name">Core Abstraction Layer</span><span class="badge p0">P0</span></div>
+          <div class="item-desc">Define Action/Observation type system, EventStream interface, Runtime Protocol, ThoughtStore Protocol. Reserve multi-agent coordination layer interface (empty implementation).</div>
+          <div class="item-tags"><span class="tag">Week 1–2</span><span class="tag">No external dependencies</span></div>
+        </div>
+        <div class="item">
+          <div class="item-top"><span class="item-num">A2</span><span class="item-name">CodeAction &amp; Audit Layer Design</span><span class="badge p1">P1</span></div>
+          <div class="item-desc">Design CodeAction schema (intent / code / tracking), define AuditAgent Protocol and CodeExecutionObservation structure, finalise sandbox instrumentation approach.</div>
+          <div class="item-tags"><span class="tag">Week 3–4</span><span class="tag">Parallel with E2</span></div>
+        </div>
+        <div class="item">
+          <div class="item-top"><span class="item-num">A3</span><span class="item-name">Multi-Agent Layer Architecture</span><span class="badge p2">P2</span></div>
+          <div class="item-desc">Design AgentOrchestrator interface, define sub-task dispatch, result aggregation, and inter-agent message format. Ensure the single-agent core requires zero changes to be orchestrated.</div>
+          <div class="item-tags"><span class="tag">Week 7–8</span><span class="tag">After E3</span></div>
+        </div>
+        <div class="item">
+          <div class="item-top"><span class="item-num">A4</span><span class="item-name">Experience &amp; Evaluation System Design</span><span class="badge p2">P2</span></div>
+          <div class="item-desc">Design evaluation set schema, define Thought + Event joint replay format, plan data pipeline for reasoning-pattern mining.</div>
+          <div class="item-tags"><span class="tag">Week 9–10</span><span class="tag">Requires sufficient Thought data</span></div>
+        </div>
+      </div>
+      <div class="track-cell">
+        <div class="track-head"><span class="badge" style="background:#FAECE7;color:#712B13">Execution</span>Feature Implementation &amp; Integration</div>
+        <div class="item">
+          <div class="item-top"><span class="item-num">E1</span><span class="item-name">Minimal Runnable Single Agent</span><span class="badge p0">P0</span></div>
+          <div class="item-desc">Implement LLMClient, basic Tools (file read/write, shell), ReAct main loop, EventStream (in-memory), and CLI entry point. Passes when it can complete a simple coding task.</div>
+          <div class="item-tags"><span class="tag">Week 1–3</span><span class="tag">First deliverable</span></div>
+        </div>
+        <div class="item">
+          <div class="item-top"><span class="item-num">E2</span><span class="item-name">CodeAction + Audit Agent</span><span class="badge p1">P1</span></div>
+          <div class="item-desc">Implement CodeAction executor (subprocess/Docker), auto-instrumented logging, AuditAgent (LLM-driven), ThoughtStore (SQLite), and integrate into the main loop.</div>
+          <div class="item-tags"><span class="tag">Week 4–6</span><span class="tag">Parallel with A2</span></div>
+        </div>
+        <div class="item">
+          <div class="item-top"><span class="item-num">E3</span><span class="item-name">Memory, RAG, Persistence</span><span class="badge p1">P1</span></div>
+          <div class="item-desc">Implement ConversationHistory (token budget), ChromaDB semantic code retrieval, SQLite EventStream persistence, session resume. Full single-agent version.</div>
+          <div class="item-tags"><span class="tag">Week 6–8</span><span class="tag">Full single-agent version</span></div>
+        </div>
+        <div class="item">
+          <div class="item-top"><span class="item-num">E4</span><span class="item-name">Multi-Agent Orchestration Layer</span><span class="badge p2">P2</span></div>
+          <div class="item-desc">Implement AgentOrchestrator with Planner + Executor division of labour. Sub-agents reuse the single-agent core; coordination layer message format conforms to A3 interface.</div>
+          <div class="item-tags"><span class="tag">Week 9–12</span><span class="tag">After A3</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- TIER 3: Detailed Plan -->
+<div class="tier" id="t3">
+  <div class="tier-head" onclick="tog('t3')">
+    <span class="badge" style="background:#FAEEDA;color:#633806">Tier 3</span>
+    <span class="tier-title">Detailed Plan</span>
+    <span class="tier-meta">Weekly breakdown — every step has a clear output and acceptance criteria</span>
+    <span class="chevron open" id="ch-t3">▼</span>
+  </div>
+  <div class="tier-body open" id="bd-t3">
+
+    <div style="padding:8px 14px;font-size:11px;font-weight:500;color:var(--color-text-tertiary);text-transform:uppercase;letter-spacing:.04em;border-bottom:0.5px solid var(--color-border-tertiary)">Phase 1 — Foundation (Week 1–3) · Goal: minimal runnable single agent</div>
+
+    <div class="item">
+      <div class="item-top"><span class="item-num">1.1</span><span class="item-name">Action / Observation Base Classes + Type Registry</span><span class="badge p0">P0</span><span class="badge" style="background:#E6F1FB;color:#0C447C">Arch</span></div>
+      <div class="item-desc">Define BaseAction / BaseObservation dataclasses with common fields (event_id, timestamp, etc.) and an ActionRegistry that auto-collects subclasses. Also define OrchestratorProtocol stub for the multi-agent layer.</div>
+      <div class="item-tags"><span class="tag">Output: types/</span><span class="tag">Acceptance: all Actions serialise to JSON</span></div>
+    </div>
+    <div class="item">
+      <div class="item-top"><span class="item-num">1.2</span><span class="item-name">EventStream (in-memory)</span><span class="badge p0">P0</span><span class="badge" style="background:#E6F1FB;color:#0C447C">Arch</span></div>
+      <div class="item-desc">Implement append / iter / replay core methods with in-memory storage. Interface is identical to the future SQLite version. ThoughtStore Protocol defined simultaneously; NullThoughtStore as default.</div>
+      <div class="item-tags"><span class="tag">Output: core/event_stream.py</span><span class="tag">Acceptance: full session replay works</span></div>
+    </div>
+    <div class="item">
+      <div class="item-top"><span class="item-num">1.3</span><span class="item-name">LLMClient Wrapper + Runtime Interface</span><span class="badge p0">P0</span><span class="badge" style="background:#FAECE7;color:#712B13">Exec</span></div>
+      <div class="item-desc">Wrap Anthropic SDK with streaming support and unified tool_use message format. Define Runtime Protocol (execute_action → Observation) and implement LocalRuntime.</div>
+      <div class="item-tags"><span class="tag">Output: llm/ + runtime/</span><span class="tag">Acceptance: model swap requires zero upper-layer changes</span></div>
+    </div>
+    <div class="item">
+      <div class="item-top"><span class="item-num">1.4</span><span class="item-name">Basic Tool Set (File + Shell)</span><span class="badge p0">P0</span><span class="badge" style="background:#FAECE7;color:#712B13">Exec</span></div>
+      <div class="item-desc">Implement ReadFileTool / WriteFileTool / ListDirTool / RunCommandTool; each produces its own Observation type. Path safety checks and command timeout control included.</div>
+      <div class="item-tags"><span class="tag">Output: tools/fs/ + tools/shell/</span><span class="tag">Acceptance: all have unit tests</span></div>
+    </div>
+    <div class="item">
+      <div class="item-top"><span class="item-num">1.5</span><span class="item-name">ReAct Main Loop + CLI</span><span class="badge p0">P0</span><span class="badge" style="background:#FAECE7;color:#712B13">Exec</span></div>
+      <div class="item-desc">Implement Thought→Action→Observation loop; events written to EventStream; max-steps limit and AgentFinishAction termination. Typer CLI with --model / --workspace flags.</div>
+      <div class="item-tags"><span class="tag">Output: core/loop.py + cli/</span><span class="tag">Acceptance: completes "write hello world and run it"</span></div>
+    </div>
+
+    <div style="padding:8px 14px;font-size:11px;font-weight:500;color:var(--color-text-tertiary);text-transform:uppercase;letter-spacing:.04em;border-bottom:0.5px solid var(--color-border-tertiary);border-top:0.5px solid var(--color-border-tertiary)">Phase 2 — CodeAction + Audit (Week 4–6) · Goal: safe, auditable code execution ✅ Complete</div>
+
+    <div class="item">
+      <div class="item-top"><span class="item-num">2.1</span><span class="item-name">CodeAction Schema Design</span><span class="badge p1">P1</span><span class="badge" style="background:#E6F1FB;color:#0C447C">Arch</span></div>
+      <div class="item-desc">Define CodeAction (intent: str, code: str, language: str, tracking: TrackingConfig). TrackingConfig declares side-effect scope (file list, variable names). Corresponding CodeExecutionObservation structure.</div>
+      <div class="item-tags"><span class="tag">Output: types/code_action.py</span><span class="tag">Acceptance: schema usable as LLM JSON Schema output</span></div>
+    </div>
+    <div class="item">
+      <div class="item-top"><span class="item-num">2.2</span><span class="item-name">Sandbox Executor + Auto-instrumentation</span><span class="badge p1">P1</span><span class="badge" style="background:#FAECE7;color:#712B13">Exec</span></div>
+      <div class="item-desc">subprocess sandbox; auto-injects file-diff snapshots and variable tracking logging before/after code based on TrackingConfig. No reliance on LLM writing logs. Timeout, memory limit, dangerous command interception.</div>
+      <div class="item-tags"><span class="tag">Output: runtime/sandbox.py</span><span class="tag">Acceptance: all file changes fully recorded</span></div>
+    </div>
+    <div class="item">
+      <div class="item-top"><span class="item-num">2.3</span><span class="item-name">Audit Agent Implementation</span><span class="badge p1">P1</span><span class="badge" style="background:#FAECE7;color:#712B13">Exec</span></div>
+      <div class="item-desc">LLM-driven AuditAgent. Input: intent + code + execution output. Output: structured facts (file changes, variable values) + verdict (matches intent / deviation description). Main agent consumes verdict and can trace back to raw facts.</div>
+      <div class="item-tags"><span class="tag">Output: agents/audit_agent.py</span><span class="tag">Acceptance: false-positive rate &lt; 10% (20 manual cases)</span></div>
+    </div>
+    <div class="item">
+      <div class="item-top"><span class="item-num">2.4</span><span class="item-name">ThoughtStore SQLite Implementation</span><span class="badge p1">P1</span><span class="badge" style="background:#FAECE7;color:#712B13">Exec</span></div>
+      <div class="item-desc">Implement SqliteThoughtStore. ThoughtRecord: event_id / phase / content / timestamp / metadata. Supports replay by session_id and lookup by event_id. ThoughtConfig controls enabled / phases / backend.</div>
+      <div class="item-tags"><span class="tag">Output: memory/thought_store.py</span><span class="tag">Acceptance: zero performance impact when disabled</span></div>
+    </div>
+
+    <div style="padding:8px 14px;font-size:11px;font-weight:500;color:var(--color-text-tertiary);text-transform:uppercase;letter-spacing:.04em;border-bottom:0.5px solid var(--color-border-tertiary);border-top:0.5px solid var(--color-border-tertiary)">Phase 3 — Memory + Persistence (Week 6–8) · Goal: full single-agent version</div>
+
+    <div class="item">
+      <div class="item-top"><span class="item-num">3.1</span><span class="item-name">ConversationHistory + Token Budget</span><span class="badge p1">P1</span><span class="badge" style="background:#FAECE7;color:#712B13">Exec</span></div>
+      <div class="item-desc">Sliding-window truncation with tiktoken counting. Retains system prompt + last N turns + key Observations for the current task. Exceeding budget triggers priority-based pruning, not hard truncation.</div>
+      <div class="item-tags"><span class="tag">Output: memory/history.py</span></div>
+    </div>
+    <div class="item">
+      <div class="item-top"><span class="item-num">3.2</span><span class="item-name">RAG Semantic Code Retrieval</span><span class="badge p1">P1</span><span class="badge" style="background:#FAECE7;color:#712B13">Exec</span></div>
+      <div class="item-desc">tree-sitter parses code structure; ChromaDB stores function/class embeddings. Agent auto-retrieves relevant code snippets before reasoning. Incremental indexing; auto-updates on file modification.</div>
+      <div class="item-tags"><span class="tag">Output: memory/rag.py</span></div>
+    </div>
+    <div class="item">
+      <div class="item-top"><span class="item-num">3.3</span><span class="item-name">EventStream Persistence + Session Resume</span><span class="badge p1">P1</span><span class="badge" style="background:#FAECE7;color:#712B13">Exec</span></div>
+      <div class="item-desc">SQLite EventStream with an interface identical to the in-memory version (Protocol guarantee). Supports resuming sessions from an interruption point; past tasks can be fully replayed.</div>
+      <div class="item-tags"><span class="tag">Output: core/event_stream_sqlite.py</span><span class="tag">Acceptance: in-memory / SQLite hot-switchable</span></div>
+    </div>
+    <div class="item">
+      <div class="item-top"><span class="item-num">3.4</span><span class="item-name">Benchmark Evaluation + Test Suite</span><span class="badge p1">P1</span><span class="badge" style="background:#E6F1FB;color:#0C447C">Arch</span></div>
+      <div class="item-desc">Design 10–20 standard coding tasks; auto-run and record success rate / token usage / step count. ThoughtStore accumulates evaluation data automatically. Thought + Event jointly recorded for later analysis.</div>
+      <div class="item-tags"><span class="tag">Output: scripts/benchmark.py</span><span class="tag">Milestone: full single-agent version delivered</span></div>
+    </div>
+
+    <div style="padding:8px 14px;font-size:11px;font-weight:500;color:var(--color-text-tertiary);text-transform:uppercase;letter-spacing:.04em;border-bottom:0.5px solid var(--color-border-tertiary);border-top:0.5px solid var(--color-border-tertiary)">Phase 4 — Multi-Agent Orchestration (Week 9–12) · Goal: multi-agent version</div>
+
+    <div class="item">
+      <div class="item-top"><span class="item-num">4.1</span><span class="item-name">AgentOrchestrator Implementation</span><span class="badge p2">P2</span><span class="badge" style="background:#E6F1FB;color:#0C447C">Arch</span></div>
+      <div class="item-desc">Implement orchestration layer on A3 interface. Planner Agent generates sub-task list; Executor Agents (reusing single-agent core) run in parallel or serial; results aggregated back to the main task. Single-agent core requires zero changes.</div>
+      <div class="item-tags"><span class="tag">Output: orchestration/</span></div>
+    </div>
+    <div class="item">
+      <div class="item-top"><span class="item-num">4.2</span><span class="item-name">Cross-agent Observability</span><span class="badge p2">P2</span><span class="badge" style="background:#FAECE7;color:#712B13">Exec</span></div>
+      <div class="item-desc">Multi-agent EventStreams linked via session_id / parent_session_id into a tree. ThoughtStore supports cross-agent replay. Audit Agent can access the full context of any sub-agent.</div>
+      <div class="item-tags"><span class="tag">Output: extended EventStream + ThoughtStore</span></div>
+    </div>
+    <div class="item">
+      <div class="item-top"><span class="item-num">4.3</span><span class="item-name">Experience Accumulation + Reasoning Pattern Mining</span><span class="badge p3">P3</span><span class="badge" style="background:#E6F1FB;color:#0C447C">Arch</span></div>
+      <div class="item-desc">Vectorise accumulated Thought data; cluster to find reasoning deviation patterns; extract Thought chains from successful tasks as few-shot examples; auto-retrieve and inject before subsequent task reasoning.</div>
+      <div class="item-tags"><span class="tag">Requires sufficient data</span><span class="tag">P3 Future</span></div>
+    </div>
+
+  </div>
+</div>
+
+</div>
+<script>
+function tog(id){
+  const bd=document.getElementById('bd-'+id);
+  const ch=document.getElementById('ch-'+id);
+  bd.classList.toggle('open');
+  ch.classList.toggle('open');
+}
+</script>
