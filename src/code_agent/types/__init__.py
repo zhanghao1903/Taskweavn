@@ -10,6 +10,12 @@ kinds with the registries.
 """
 
 from code_agent.types.base import BaseAction, BaseEvent, BaseObservation
+from code_agent.types.code_action import (
+    CodeAction,
+    CodeExecutionObservation,
+    FileChange,
+    TrackingConfig,
+)
 from code_agent.types.common import (
     AgentFinishAction,
     AgentFinishObservation,
@@ -24,6 +30,10 @@ __all__ = [
     "BaseAction",
     "BaseEvent",
     "BaseObservation",
+    "CodeAction",
+    "CodeExecutionObservation",
     "ErrorObservation",
+    "FileChange",
     "ObservationRegistry",
+    "TrackingConfig",
 ]

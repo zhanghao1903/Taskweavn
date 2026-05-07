@@ -34,6 +34,23 @@ class Tool[ActionT: BaseAction, ObservationT: BaseObservation](ABC):
         """Run the action and return the observation. May raise — the Runtime
         catches exceptions and converts them to ErrorObservations."""
 
+    def startup(self) -> None:  # noqa: B027 — intentional no-op base hook.
+        """Per-task setup hook.
+
+        Called by :class:`code_agent.core.loop.AgentLoop` before the first
+        action of a run. Stateless tools (read_file, write_file, …) leave this
+        as a no-op; stateful tools (e.g. the CodeActionTool that owns a Docker
+        container) override it to allocate per-task resources.
+        """
+
+    def shutdown(self) -> None:  # noqa: B027 — intentional no-op base hook.
+        """Per-task teardown hook.
+
+        Always called by the loop in a ``finally`` block opposite
+        :meth:`startup`. Implementations must be tolerant of being called even
+        when ``startup`` failed or was never invoked.
+        """
+
     def register(self, runtime: LocalRuntime) -> None:
         """Bind this tool's executor to ``runtime`` for its declared action type."""
         runtime.register(self.action_type, self.execute)  # type: ignore[arg-type]
