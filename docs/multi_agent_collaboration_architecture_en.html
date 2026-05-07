@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Multi-Agent Collaboration Architecture</title>
+  <style>
+    :root {
+      --bg: #0f1117;
+      --surface: #1a1d27;
+      --surface2: #22263a;
+      --border: #2e3347;
+      --accent: #6c8ef7;
+      --accent2: #a78bfa;
+      --accent3: #34d399;
+      --accent4: #fb923c;
+      --text: #e2e8f0;
+      --text-muted: #8892aa;
+      --text-dim: #4a5470;
+      --danger: #f87171;
+      --warn: #fbbf24;
+      --code-bg: #141720;
+      --radius: 10px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-size: 15px;
+      line-height: 1.7;
+    }
+
+    .layout { display: flex; min-height: 100vh; }
+
+    nav {
+      width: 260px;
+      flex-shrink: 0;
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow-y: auto;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      padding: 32px 0 32px;
+    }
+
+    nav .logo { padding: 0 24px 24px; border-bottom: 1px solid var(--border); margin-bottom: 20px; }
+    nav .logo h2 { font-size: 13px; font-weight: 600; color: var(--accent); text-transform: uppercase; letter-spacing: 0.08em; }
+    nav .logo p { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+    nav ul { list-style: none; padding: 0 12px; }
+    nav ul li a { display: block; padding: 7px 12px; border-radius: 6px; color: var(--text-muted); text-decoration: none; font-size: 13px; transition: all 0.15s; }
+    nav ul li a:hover { background: var(--surface2); color: var(--text); }
+    nav ul li.section-label { font-size: 11px; font-weight: 600; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.08em; padding: 16px 12px 4px; }
+
+    main { flex: 1; max-width: 900px; padding: 48px 56px 80px; }
+
+    h1 { font-size: 34px; font-weight: 700; letter-spacing: -0.02em; background: linear-gradient(135deg, var(--accent), var(--accent2)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; margin-bottom: 8px; }
+    .subtitle { color: var(--text-muted); font-size: 14px; margin-bottom: 48px; }
+    h2 { font-size: 22px; font-weight: 700; color: var(--text); margin: 56px 0 20px; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
+    h2 .num { color: var(--accent); margin-right: 8px; }
+    h3 { font-size: 15px; font-weight: 600; color: var(--accent2); margin: 28px 0 12px; }
+    p { margin-bottom: 14px; color: var(--text); }
+    strong { color: var(--accent); font-weight: 600; }
+
+    pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px 24px; overflow-x: auto; font-size: 13px; line-height: 1.6; margin: 16px 0; }
+    code { font-family: "JetBrains Mono", "Fira Code", "SF Mono", Consolas, monospace; font-size: 12.5px; color: #a8c7fa; }
+    p code, li code { background: var(--surface2); border: 1px solid var(--border); border-radius: 4px; padding: 1px 6px; color: var(--accent3); }
+
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; margin: 16px 0; }
+    .card-accent { border-left: 3px solid var(--accent); }
+    .card-green  { border-left: 3px solid var(--accent3); }
+    .card-purple { border-left: 3px solid var(--accent2); }
+    .card-orange { border-left: 3px solid var(--accent4); }
+
+    .principle-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 20px 0; }
+    .principle-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; }
+    .principle-card .tag { display: inline-block; background: rgba(108, 142, 247, 0.15); color: var(--accent); font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 20px; margin-bottom: 10px; letter-spacing: 0.05em; }
+    .principle-card h4 { font-size: 14px; font-weight: 700; margin-bottom: 8px; color: var(--text); }
+    .principle-card p { font-size: 13px; color: var(--text-muted); margin: 0; }
+
+    table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 13.5px; }
+    th { background: var(--surface2); color: var(--text-muted); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; padding: 10px 14px; text-align: left; border-bottom: 1px solid var(--border); }
+    td { padding: 10px 14px; border-bottom: 1px solid var(--border); color: var(--text); }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: rgba(255,255,255,0.02); }
+
+    .stream { background: var(--code-bg); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin: 16px 0; }
+    .msg { display: flex; align-items: flex-start; gap: 10px; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.04); }
+    .msg:last-child { border-bottom: none; }
+    .msg-badge { flex-shrink: 0; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 4px; margin-top: 2px; letter-spacing: 0.05em; }
+    .badge-info  { background: rgba(108,142,247,0.2); color: var(--accent); }
+    .badge-ask   { background: rgba(251,191,36,0.2);  color: var(--warn); }
+    .badge-warn  { background: rgba(248,113,113,0.2); color: var(--danger); }
+    .badge-ok    { background: rgba(52,211,153,0.2);  color: var(--accent3); }
+    .msg-text { font-size: 13px; color: var(--text-muted); }
+    .msg-text strong { color: var(--text); }
+
+    .arch-diagram { background: var(--code-bg); border: 1px solid var(--border); border-radius: var(--radius); padding: 28px 24px; margin: 20px 0; }
+    .arch-layer { flex: 1; border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; margin-bottom: 8px; }
+    .layer-user   { border-color: rgba(108,142,247,0.4); background: rgba(108,142,247,0.05); }
+    .layer-orch   { border-color: rgba(167,139,250,0.4); background: rgba(167,139,250,0.05); }
+    .layer-exec   { border-color: rgba(52,211,153,0.4);  background: rgba(52,211,153,0.05); }
+    .layer-label { font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 8px; }
+    .layer-user .layer-label { color: var(--accent); }
+    .layer-orch .layer-label { color: var(--accent2); }
+    .layer-exec .layer-label { color: var(--accent3); }
+    .layer-content { font-size: 12.5px; color: var(--text-muted); line-height: 1.6; }
+
+    .autonomy-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 16px 0; }
+    .autonomy-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px; }
+    .autonomy-card h4 { font-size: 13px; font-weight: 700; margin-bottom: 10px; }
+    .autonomy-card.high h4 { color: var(--accent3); }
+    .autonomy-card.low  h4 { color: var(--accent2); }
+    .meter { height: 6px; background: var(--surface2); border-radius: 3px; margin-bottom: 12px; overflow: hidden; }
+    .meter-fill { height: 100%; border-radius: 3px; }
+    .high .meter-fill { width: 85%; background: linear-gradient(90deg, var(--accent3), #6ee7b7); }
+    .low  .meter-fill { width: 20%; background: linear-gradient(90deg, var(--accent2), #c4b5fd); }
+    .pro-con { font-size: 12.5px; }
+    .pro-con li { list-style: none; padding: 2px 0; color: var(--text-muted); }
+    .pro-con .pro::before { content: "✓  "; color: var(--accent3); }
+    .pro-con .con::before { content: "✗  "; color: var(--danger); }
+
+    .timeline { margin: 20px 0; }
+    .tl-item { display: flex; gap: 20px; margin-bottom: 4px; }
+    .tl-left { display: flex; flex-direction: column; align-items: center; width: 60px; flex-shrink: 0; }
+    .tl-dot { width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; flex-shrink: 0; }
+    .v1 .tl-dot { background: rgba(108,142,247,0.2); color: var(--accent); border: 1.5px solid var(--accent); }
+    .v2 .tl-dot { background: rgba(167,139,250,0.2); color: var(--accent2); border: 1.5px solid var(--accent2); }
+    .v3 .tl-dot { background: rgba(52,211,153,0.2);  color: var(--accent3); border: 1.5px solid var(--accent3); }
+    .tl-line { width: 1px; flex: 1; background: var(--border); margin: 4px 0; min-height: 24px; }
+    .tl-body { flex: 1; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 14px 18px; margin-bottom: 12px; }
+    .tl-body h4 { font-size: 14px; font-weight: 700; margin-bottom: 8px; }
+    .v1 .tl-body h4 { color: var(--accent); }
+    .v2 .tl-body h4 { color: var(--accent2); }
+    .v3 .tl-body h4 { color: var(--accent3); }
+    .tl-body ul { list-style: none; padding: 0; }
+    .tl-body ul li { font-size: 13px; color: var(--text-muted); padding: 2px 0; }
+    .tl-body ul li::before { content: "· "; color: var(--text-dim); }
+
+    .tradeoff-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 16px 0; }
+    .tradeoff-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px; }
+    .tradeoff-card h4 { font-size: 12px; font-weight: 700; color: var(--accent); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 10px; }
+    .tradeoff-card p { font-size: 13px; color: var(--text-muted); margin: 0; }
+
+    hr { border: none; border-top: 1px solid var(--border); margin: 40px 0; }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  </style>
+</head>
+<body>
+
+<div class="layout">
+  <nav>
+    <div class="logo">
+      <h2>Architecture Design</h2>
+      <p>Multi-Agent Collaboration · v1.0 · 2026-05-07</p>
+    </div>
+    <ul>
+      <li class="section-label">Core Principles</li>
+      <li><a href="#principles">Design Principles</a></li>
+      <li><a href="#stream">Message Stream Model</a></li>
+      <li class="section-label">Autonomy System</li>
+      <li><a href="#autonomy">Autonomy Config</a></li>
+      <li><a href="#gate">AutonomyGate</a></li>
+      <li class="section-label">Orchestration</li>
+      <li><a href="#designer">Conversation-driven Design</a></li>
+      <li><a href="#draft">OrchestrationDraft</a></li>
+      <li><a href="#constraint">Constraint-driven UI</a></li>
+      <li class="section-label">System Architecture</li>
+      <li><a href="#architecture">Architecture Overview</a></li>
+      <li><a href="#evolution">Evolution Roadmap</a></li>
+      <li><a href="#tradeoffs">Trade-offs</a></li>
+      <li><a href="#ref">Type Reference</a></li>
+    </ul>
+  </nav>
+
+  <main>
+    <h1>Multi-Agent Collaboration Architecture</h1>
+    <p class="subtitle">v1.0 · 2026-05-07 · codeAgent Phase 3–4 &nbsp;|&nbsp; <a href="multi_agent_collaboration_architecture.html" style="color:var(--accent);text-decoration:none">中文版</a></p>
+
+    <!-- Section 1 -->
+    <h2 id="principles"><span class="num">1</span>Core Design Principles</h2>
+    <p>The entire architecture is built around two orthogonal principles that together govern how agents and users collaborate.</p>
+
+    <div class="principle-grid">
+      <div class="principle-card">
+        <span class="tag">Principle 1</span>
+        <h4>Stream over Interrupt</h4>
+        <p>Traditional blocking interrupt models have the system drive the pace, forcing users to respond. The new model replaces this with a message stream: agents post requests to the stream; users respond at will. The user is always the active party.</p>
+      </div>
+      <div class="principle-card">
+        <span class="tag">Principle 2</span>
+        <h4>Constraint-driven Orchestration</h4>
+        <p>Users are not forced to understand graph structures. The LLM acts as orchestration designer, generating valid agent graphs within constraint boundaries. Users describe intent in natural language and make local adjustments via the UI. Constraints evolve as the system matures.</p>
+      </div>
+    </div>
+
+    <h3>The Core Shift</h3>
+    <pre><code>Old model: interrupt → pause → resume    (blocking, system-driven)
+New model: agent posts message → user may or may not respond  (stream, user-driven)
+
+Old model: user fills in orchestration config  (fill-in-the-blank)
+New model: describe intent → LLM generates draft  (multiple choice)
+
+Old model: constraints are post-hoc validators  (generated then rejected)
+New model: constraints are generation-time context  (valid by construction)</code></pre>
+
+    <!-- Section 2 -->
+    <h2 id="stream"><span class="num">2</span>Message Stream Model</h2>
+    <p>All user-facing communication produced during agent execution flows into a single <strong>Message Stream</strong>. Users can observe in real time and intervene at any point, but are never forced to block.</p>
+
+    <h3>Stream Example</h3>
+    <div class="stream">
+      <div class="msg">
+        <span class="msg-badge badge-info">INFO</span>
+        <span class="msg-text"><strong>Planner</strong>: execution plan generated — 5 steps, 3 files affected</span>
+      </div>
+      <div class="msg">
+        <span class="msg-badge badge-ask">ASK</span>
+        <span class="msg-text"><strong>Executor</strong>: about to delete <code>config.py</code> — this is irreversible, confirm?<br><small style="color:var(--text-dim)">Waiting 120s; timeout action: skip this step</small></span>
+      </div>
+      <div class="msg">
+        <span class="msg-badge badge-ok">INFO</span>
+        <span class="msg-text"><strong>Executor</strong>: <code>auth.py</code> lines 42–58 modified, change recorded</span>
+      </div>
+      <div class="msg">
+        <span class="msg-badge badge-warn">WARN</span>
+        <span class="msg-text"><strong>Auditor</strong>: potential SQL injection vulnerability detected (confidence 0.87) — recommend manual review</span>
+      </div>
+    </div>
+
+    <h3>Two Message Types</h3>
+    <table>
+      <thead><tr><th>Type</th><th>Meaning</th><th>Agent Behaviour</th><th>User Behaviour</th></tr></thead>
+      <tbody>
+        <tr><td><code>Informational</code></td><td>Tells user what the agent did</td><td>Sends and continues immediately</td><td>May ignore; can review later</td></tr>
+        <tr><td><code>Actionable</code></td><td>Requests user input or confirmation</td><td>Waits per autonomy config</td><td>Respond or ignore; timeout behaviour configurable</td></tr>
+      </tbody>
+    </table>
+
+    <div class="card card-accent">
+      <strong>"Never Interrupted" State</strong>
+      <p style="margin-top:8px;margin-bottom:0;font-size:13.5px;color:var(--text-muted)">
+        When autonomy is at maximum, every Actionable message has a timeout with automatic proceed, and the stream degrades to a <strong style="color:var(--text)">read-only execution log</strong>. The user can inspect it at any time, but nothing blocks execution. This is the user's active choice — the system's only job is to surface the quality/autonomy trade-off clearly.
+      </p>
+    </div>
+
+    <!-- Section 3 -->
+    <h2 id="autonomy"><span class="num">3</span>Autonomy System</h2>
+    <p>Autonomy is not a magic number — it is a precise description of "how the agent acts under uncertainty." Two orthogonal dimensions: <strong>trigger</strong> (when to send an Actionable message) and <strong>wait</strong> (how long to wait, what to do on timeout).</p>
+
+    <h3 id="gate">AutonomyBehavior Configuration</h3>
+    <pre><code>@dataclass
+class AutonomyBehavior:
+    # Trigger dimension: when to send an Actionable message
+    trigger: Literal[
+        "never",             # never; all messages are Informational
+        "on_risk",           # high-risk operations only (delete, exec, etc.)
+        "on_uncertainty",    # when LLM confidence falls below threshold
+        "always",            # every key action requests confirmation
+    ]
+    confidence_threshold: float   # 0.0–1.0; on_uncertainty only
+
+    # Wait dimension: behaviour after an Actionable message is sent
+    wait_timeout: float | None    # seconds; None = wait indefinitely
+    timeout_action: Literal[
+        "wait",              # keep waiting (low-autonomy default)
+        "proceed_default",   # continue with most conservative choice
+        "proceed_confident", # continue with highest-confidence LLM choice
+        "skip",              # skip the action entirely
+    ]
+    notify_on_proceed: bool       # notify user when agent self-decides on timeout</code></pre>
+
+    <h3>Preset Autonomy Levels</h3>
+    <table>
+      <thead><tr><th>Level</th><th>trigger</th><th>wait_timeout</th><th>timeout_action</th><th>Best for</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Full auto</strong></td><td>never</td><td>—</td><td>—</td><td>Batch jobs, reversible tasks</td></tr>
+        <tr><td><strong>Risk confirm</strong></td><td>on_risk</td><td>300s</td><td>proceed_default</td><td>Everyday default</td></tr>
+        <tr><td><strong>Collaborative</strong></td><td>on_uncertainty</td><td>None</td><td>wait</td><td>Complex, high-impact tasks</td></tr>
+        <tr><td><strong>Full confirm</strong></td><td>always</td><td>None</td><td>wait</td><td>Learning, audit scenarios</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Quality vs Autonomy Trade-off</h3>
+    <div class="autonomy-grid">
+      <div class="autonomy-card high">
+        <h4>High Autonomy</h4>
+        <div class="meter"><div class="meter-fill"></div></div>
+        <ul class="pro-con">
+          <li class="pro">Uninterrupted execution, fast</li>
+          <li class="pro">Low cognitive load for user</li>
+          <li class="con">Agent guesses on ambiguous situations</li>
+          <li class="con">Errors may accumulate silently</li>
+        </ul>
+      </div>
+      <div class="autonomy-card low">
+        <h4>Low Autonomy</h4>
+        <div class="meter"><div class="meter-fill"></div></div>
+        <ul class="pro-con">
+          <li class="pro">User participates in every key decision</li>
+          <li class="pro">Low error rate, high controllability</li>
+          <li class="con">Requires continuous user attention</li>
+          <li class="con">Speed depends on user response time</li>
+        </ul>
+      </div>
+    </div>
+    <p style="font-size:13.5px;color:var(--text-muted)">The choice belongs entirely to the user. The system makes no judgement — it only surfaces the trade-off clearly in the UI.</p>
+
+    <!-- Section 4 -->
+    <h2 id="designer"><span class="num">4</span>Conversation-driven Orchestration</h2>
+    <p>Users do not need to understand graph structures. The <strong>Orchestration Designer</strong> (a meta-agent) translates natural-language intent into a valid agent graph within constraint boundaries. Users only select and fine-tune.</p>
+
+    <pre><code>User natural language intent
+        ↓
+OrchestrationDesigner (meta-agent)
+  Input:  user intent + ConstraintProfile + ToolRegistry
+  Output: OrchestrationDraft (valid graph + node configs + rationale)
+        ↓
+UI renders graph  ←→  user fine-tunes (multiple choice, not free text)</code></pre>
+
+    <div class="card card-green">
+      <strong>Key Principle</strong>
+      <p style="margin-top:6px;margin-bottom:0;font-size:13.5px;color:var(--text-muted)">
+        Constraints are generation-time context, not post-hoc validators. The LLM generates within constraint bounds; the output is valid by construction — eliminating "UI allows but backend rejects" inconsistencies.
+      </p>
+    </div>
+
+    <h3>Three Generation Phases</h3>
+    <pre><code># Phase 1: Intent Parsing
+User: "I want a system that audits code for security vulnerabilities and auto-fixes them"
+→ Core capabilities: [code reading, vuln analysis, fix execution, validation loop]
+→ Risk identified:   fix execution = high-risk, requires user confirmation
+→ Constraint map:    auditor node required; interrupt before fix step
+
+# Phase 2: Constraint-aware Graph Generation
+LLM receives ConstraintProfile as prompt context
+Generates graph within allowed topology — no backend validator needed
+
+# Phase 3: Capability Assignment
+Each agent node selects tools from ToolRegistry
+Tools are selected, not generated  ← system security floor</code></pre>
+
+    <h3 id="draft">Conversation as Diff, Not Full Regeneration</h3>
+    <p>User feedback on the draft triggers a local patch, not a full regeneration. The UI highlights the changed node; the user sees a diff, not an entirely new graph to re-understand.</p>
+    <pre><code>User: "make the executor more autonomous"
+
+DraftPatch:
+  target_node: "executor"
+  changes:
+    autonomy_behavior.trigger: "on_uncertainty" → "on_risk"
+    autonomy_behavior.confidence_threshold: 0.7 → 0.4
+  reason: "Reduce interruption; executor tries first rather than asking"</code></pre>
+
+    <h3>OrchestrationDraft Structure</h3>
+    <pre><code>@dataclass
+class OrchestrationDraft:
+    nodes: list[AgentNodeDraft]
+    edges: list[EdgeDraft]
+    rationale: str                       # LLM explains the design; shown to user
+
+@dataclass
+class AgentNodeDraft:
+    id: str
+    agent_type: AgentType
+    display_name: str
+    description: str                     # this node's role in the orchestration
+    tool_set: list[ToolRef]              # subset selected from ToolRegistry
+    autonomy_behavior: AutonomyBehavior
+    suggested_alternatives: list[AgentType]  # types the user may swap this node to</code></pre>
+    <p><code>suggested_alternatives</code> turns node replacement into a <strong>multiple-choice question</strong> — users don't need to know what agent types exist.</p>
+
+    <!-- Section 5 -->
+    <h2 id="constraint"><span class="num">5</span>Constraint-driven UI Orchestration</h2>
+
+    <h3>Layered Configuration Model</h3>
+    <pre><code>Layer 3: Custom DAG (advanced users)
+  Freely connect agent nodes within constraint bounds, adjust any parameter
+
+Layer 2: Preset + parameter tuning (intermediate users)
+  Pick a best-practice template, adjust key parameters via sliders
+
+Layer 1: Preset selection (regular users)
+  Auto-pilot / Co-pilot / Manual / Audit-Focus
+
+All three layers normalise to the same OrchestrationConfig internally.</code></pre>
+
+    <h3>ConstraintProfile: Constraints as First-class Citizens</h3>
+    <pre><code>@dataclass
+class ConstraintProfile:
+    version: str
+
+    # Node dimension: which agent types the user may place
+    allowed_agent_types: set[AgentType]
+
+    # Edge dimension: which connections are allowed
+    allowed_edges: list[EdgeRule]          # (src_type, dst_type, condition)
+    forbidden_patterns: list[Pattern]      # e.g. no executor→executor direct link
+
+    # Composition dimension
+    required_nodes: set[AgentType]         # e.g. auditor must always be present
+    max_parallel_branches: int
+
+    # Meta: why each constraint exists
+    rationale: dict[str, str]              # constraint_key → failure mode description</code></pre>
+
+    <div class="card card-purple">
+      <strong>rationale is not a comment</strong>
+      <p style="margin-top:6px;margin-bottom:0;font-size:13.5px;color:var(--text-muted)">
+        <code>rationale</code> is the input to loosening decisions — it tells you what failure mode you're betting against when you remove a constraint. With it, "should we loosen this?" becomes a data-backed engineering decision, not a product hunch.
+      </p>
+    </div>
+
+    <h3>Constraints in the UI</h3>
+    <table>
+      <thead><tr><th>Constraint Dimension</th><th>UI Behaviour</th><th>Experience</th></tr></thead>
+      <tbody>
+        <tr><td>Node</td><td>Palette only shows <code>allowed_agent_types</code></td><td>Forbidden nodes simply don't exist — not greyed out</td></tr>
+        <tr><td>Edge</td><td>Real-time validation during drag; illegal connections snap back</td><td>Felt during the action, not at submit time</td></tr>
+        <tr><td>Parameter</td><td>Panel only renders exposed config items</td><td>Rest silently filled with system defaults</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Built-in Presets</h3>
+    <table>
+      <thead><tr><th>Preset</th><th>Topology</th><th>Default Autonomy</th><th>Best for</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Auto-pilot</strong></td><td>sequential</td><td>high (on_risk)</td><td>Batch jobs, hands-off execution</td></tr>
+        <tr><td><strong>Co-pilot</strong></td><td>hierarchical</td><td>medium (on_uncertainty)</td><td>Everyday development assistance</td></tr>
+        <tr><td><strong>Manual</strong></td><td>sequential</td><td>low (always)</td><td>Learning, sensitive operations</td></tr>
+        <tr><td><strong>Audit-Focus</strong></td><td>DAG + feedback loop</td><td>medium</td><td>Code audit + auto-fix</td></tr>
+      </tbody>
+    </table>
+    <p style="font-size:13.5px;color:var(--text-muted)">Presets are read-only templates. Selecting a preset forks a snapshot; modifications happen on the fork. User can diff or reset to preset at any time.</p>
+
+    <!-- Section 6 -->
+    <h2 id="architecture"><span class="num">6</span>System Architecture Overview</h2>
+
+    <div class="arch-diagram">
+      <div class="arch-layer layer-user">
+        <div class="layer-label">User Layer</div>
+        <div class="layer-content">
+          <strong style="color:var(--accent)">Orchestration Design (one-time)</strong><br>
+          Describe intent in chat · Review/adjust OrchestrationDraft · Configure autonomy sliders<br><br>
+          <strong style="color:var(--accent)">Task Execution (live)</strong><br>
+          Message Stream panel · [INFO] · [ASK] · [WARN] · respond or ignore at any time
+        </div>
+      </div>
+      <div style="text-align:center;color:var(--text-dim);font-size:18px;margin:4px 0">↕ Draft &amp; Messages</div>
+      <div class="arch-layer layer-orch">
+        <div class="layer-label">Orchestration Layer</div>
+        <div class="layer-content">
+          <strong style="color:var(--accent2)">OrchestrationDesigner</strong> (meta-agent) — intent parsing · constraint-aware graph gen · tool matching<br><br>
+          <strong style="color:var(--accent2)">MessageStream + AutonomyGate</strong> — unified message entry · autonomy decisions<br><br>
+          <strong style="color:var(--accent2)">ConstraintValidator</strong> — static analysis at load time; config is legal by construction
+        </div>
+      </div>
+      <div style="text-align:center;color:var(--text-dim);font-size:18px;margin:4px 0">↕ OrchestrationConfig</div>
+      <div class="arch-layer layer-exec">
+        <div class="layer-label">Execution Layer</div>
+        <div class="layer-content">
+          <strong style="color:var(--accent3)">Agent Graph Runtime</strong><br>
+          Planner → Executor → Auditor → [user-defined nodes]<br>
+          Each node passes through AutonomyGate before posting to MessageStream<br><br>
+          <strong style="color:var(--accent3)">ToolRegistry (closed tool set)</strong> — LLM selects, never creates
+        </div>
+      </div>
+    </div>
+
+    <!-- Section 7 -->
+    <h2 id="evolution"><span class="num">7</span>Progressive Constraint Evolution</h2>
+    <p>Constraints are not permanent restrictions — they are staged guardrails backed by data.</p>
+
+    <div class="card card-orange" style="margin-bottom:20px">
+      <strong>Constraint Value Density</strong>
+      <p style="margin-top:6px;margin-bottom:0;font-size:13.5px;color:var(--text-muted)">
+        Metric = Δfailure rate / Δexpressible use cases.<br>
+        Prioritise loosening <strong style="color:var(--text)">low-density</strong> constraints — those that restrict a lot but unlock little.
+      </p>
+    </div>
+
+    <div class="timeline">
+      <div class="tl-item v1">
+        <div class="tl-left"><div class="tl-dot">v1</div><div class="tl-line"></div></div>
+        <div class="tl-body">
+          <h4>High Guardrails (current)</h4>
+          <ul>
+            <li>Allowed nodes: Planner / Executor / Auditor (three fixed types)</li>
+            <li>Allowed edges: two fixed edges + optional feedback loop</li>
+            <li>Parallel branches: forbidden</li>
+            <li>Exposed params: autonomy_behavior + tool toggles only</li>
+            <li>Goal: success rate &gt; 90%, zero user learning curve</li>
+          </ul>
+        </div>
+      </div>
+      <div class="tl-item v2">
+        <div class="tl-left"><div class="tl-dot">v2</div><div class="tl-line"></div></div>
+        <div class="tl-body">
+          <h4>Loosen Topology</h4>
+          <ul>
+            <li>Open parallel branches (max = 2)</li>
+            <li>Allow custom node display names</li>
+            <li>LLM can generate DAGs, not just sequential flows</li>
+            <li>Basis: v1 success rate data + failures not caused by topology</li>
+          </ul>
+        </div>
+      </div>
+      <div class="tl-item v3">
+        <div class="tl-left"><div class="tl-dot">v3</div></div>
+        <div class="tl-body">
+          <h4>Loosen Tools</h4>
+          <ul>
+            <li>Allow custom tool integration (user provides Tool spec)</li>
+            <li>Open ToolRegistry to dynamic extension</li>
+            <li>Basis: most-requested "wish we had" tool types from user feedback</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section 8 -->
+    <h2 id="tradeoffs"><span class="num">8</span>Key Design Trade-offs</h2>
+    <div class="tradeoff-grid">
+      <div class="tradeoff-card">
+        <h4>Flexibility vs Success Rate</h4>
+        <p>Strict early constraints sacrifice flexibility for high success rates. An intentional choice, not a technical limitation. Loosening happens with data backing, not feature accumulation.</p>
+      </div>
+      <div class="tradeoff-card">
+        <h4>User Control vs System Complexity</h4>
+        <p>Giving users interruption control means handling all "no response" timeout scenarios. The four <code>timeout_action</code> strategies cover the main cases at manageable complexity.</p>
+      </div>
+      <div class="tradeoff-card">
+        <h4>LLM Generation vs Manual Config</h4>
+        <p>Risk: LLM misreads intent. Mitigations: show <code>rationale</code> for user verification; use Patch not full regeneration; orchestration fully visible and editable in UI at all times.</p>
+      </div>
+      <div class="tradeoff-card">
+        <h4>Message Stream vs Traditional Interrupt</h4>
+        <p>Cost: users must actively monitor stream. Mitigations: push notifications for Actionable messages; stream filtering (Actionable only); quick-action buttons inline in messages.</p>
+      </div>
+    </div>
+
+    <!-- Section 9 -->
+    <h2 id="ref"><span class="num">9</span>Core Type Reference</h2>
+    <table>
+      <thead><tr><th>Type</th><th>Responsibility</th></tr></thead>
+      <tbody>
+        <tr><td><code>AutonomyBehavior</code></td><td>Defines agent autonomy: trigger condition + wait strategy</td></tr>
+        <tr><td><code>AutonomyGate</code></td><td>Decision entry point before every agent action</td></tr>
+        <tr><td><code>AgentMessage</code></td><td>A single stream message — Informational or Actionable</td></tr>
+        <tr><td><code>MessageStream</code></td><td>Global stream; the sole collaboration channel between agents and user</td></tr>
+        <tr><td><code>ConstraintProfile</code></td><td>Current orchestration constraint set with rationale</td></tr>
+        <tr><td><code>OrchestrationDesigner</code></td><td>Meta-agent converting user intent to a valid OrchestrationDraft</td></tr>
+        <tr><td><code>OrchestrationDraft</code></td><td>LLM-generated orchestration proposal: graph + configs + rationale</td></tr>
+        <tr><td><code>DraftPatch</code></td><td>Local modification from user feedback; minimal iteration unit</td></tr>
+        <tr><td><code>ToolRegistry</code></td><td>Closed tool set; LLM selects, never creates</td></tr>
+        <tr><td><code>OrchestrationPreset</code></td><td>Built-in best-practice template; user forks before modifying</td></tr>
+      </tbody>
+    </table>
+
+    <hr>
+    <p style="font-size:12px;color:var(--text-dim);text-align:center">Multi-Agent Collaboration Architecture · v1.0 · codeAgent</p>
+  </main>
+</div>
+
+</body>
+</html>
