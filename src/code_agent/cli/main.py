@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import sys
+import threading
+import uuid
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -10,6 +13,15 @@ import typer
 from code_agent import __version__
 from code_agent.audit import AuditAgent, AuditConfig
 from code_agent.core.loop import AgentLoop
+from code_agent.interaction import (
+    AUTONOMY_PRESETS,
+    AgentMessage,
+    AutonomyGate,
+    BaselineOnlyAssessor,
+    InProcessMessageBus,
+    SqliteMessageStream,
+    WaitCoordinator,
+)
 from code_agent.llm.client import LLMClient
 from code_agent.memory import ThoughtConfig, build_store
 from code_agent.observability import configure_logging
@@ -113,6 +125,38 @@ def run(
             ),
         ),
     ] = None,
+    autonomy: Annotated[
+        str | None,
+        typer.Option(
+            "--autonomy",
+            help=(
+                "Autonomy preset name. One of: full_auto, risk_gated, careful, "
+                "collaborative, manual. Unset → no gate, the loop runs every "
+                "tool call without consulting the user."
+            ),
+        ),
+    ] = None,
+    session_id: Annotated[
+        str | None,
+        typer.Option(
+            "--session-id",
+            help=(
+                "Identifier used for cross-stream joins (events ⊕ messages) "
+                "and as the namespace for bus subscriptions. Defaults to a "
+                "fresh uuid hex."
+            ),
+        ),
+    ] = None,
+    messages_db: Annotated[
+        Path | None,
+        typer.Option(
+            "--messages-db",
+            help=(
+                "Path to the SQLite file backing the MessageStream when "
+                "--autonomy is set. Defaults to <log-dir>/messages.sqlite."
+            ),
+        ),
+    ] = None,
 ) -> None:
     """Run the agent on a task inside a workspace."""
     configure_logging(log_dir)
@@ -166,6 +210,34 @@ def run(
     )
     thought_store = build_store(thought_cfg)
 
+    # Autonomy wiring (Phase 3.6c). Off by default; opt in with --autonomy.
+    # When set, we own a SqliteMessageStream + InProcessMessageBus +
+    # AutonomyGate + WaitCoordinator, plus a daemon thread that prints
+    # actionables to stderr and reads replies from stdin. Everything is
+    # tied to ``resolved_session_id`` so the operator can replay later
+    # via the message stream alone.
+    resolved_session_id = session_id or uuid.uuid4().hex
+    bus: InProcessMessageBus | None = None
+    stream: SqliteMessageStream | None = None
+    gate: AutonomyGate | None = None
+    coord: WaitCoordinator | None = None
+    responder_thread: threading.Thread | None = None
+    if autonomy is not None:
+        if autonomy not in AUTONOMY_PRESETS:
+            valid = ", ".join(sorted(AUTONOMY_PRESETS))
+            raise typer.BadParameter(
+                f"unknown autonomy preset {autonomy!r}; valid: {valid}",
+                param_hint="--autonomy",
+            )
+        behavior = AUTONOMY_PRESETS[autonomy]
+        msgs_path = messages_db or (log_dir / "messages.sqlite")
+        msgs_path.parent.mkdir(parents=True, exist_ok=True)
+        stream = SqliteMessageStream(msgs_path)
+        bus = InProcessMessageBus(stream)
+        gate = AutonomyGate(behavior, BaselineOnlyAssessor())
+        coord = WaitCoordinator(bus, behavior)
+        responder_thread = _start_stdin_responder(bus, resolved_session_id)
+
     loop = AgentLoop(
         llm=llm,
         runtime=runtime,
@@ -173,13 +245,92 @@ def run(
         max_steps=max_steps,
         auditor=auditor,
         thought_store=thought_store,
+        session_id=resolved_session_id,
+        workspace_root=ws.root if gate is not None else None,
+        bus=bus,
+        gate=gate,
+        wait_coordinator=coord,
     )
-    result = loop.run(task)
+    try:
+        result = loop.run(task)
+    finally:
+        # Closing the bus signals the responder thread (and any Subscription)
+        # to unwind. Stream is closed last so the bus's close path can still
+        # commit any final notify_all reads.
+        if bus is not None:
+            bus.close()
+        if stream is not None:
+            stream.close()
+        if responder_thread is not None:
+            responder_thread.join(timeout=2.0)
 
     typer.echo(f"\n[stop_reason] {result.stop_reason} (steps={result.steps})")
     typer.echo(f"[final_answer] {result.final_answer}")
     if not result.finished:
         raise typer.Exit(code=1)
+
+
+def _start_stdin_responder(
+    bus: InProcessMessageBus,
+    session_id: str,
+) -> threading.Thread:
+    """Spawn a daemon thread that prints actionables to stderr and reads
+    yes/no/free-form replies from stdin, publishing each as a ``response``
+    on the bus. Informational messages (incl. timeout self-decisions) are
+    also surfaced so the operator sees what the agent decided on its own.
+
+    The thread is daemon=True: the process can exit cleanly even if a stale
+    stdin read is still parked. ``bus.close()`` raises ``StopIteration`` on
+    the subscription's iterator, ending the loop normally for the common
+    shutdown path.
+    """
+
+    def _run() -> None:
+        try:
+            with bus.subscribe(
+                session_id, types=["actionable", "informational"]
+            ) as sub:
+                for msg in sub:
+                    if msg.message_type == "informational":
+                        typer.secho(
+                            f"[fyi] {msg.content}", fg=typer.colors.BLUE, err=True
+                        )
+                        continue
+                    # actionable
+                    options = (
+                        f" [{', '.join(msg.action_options)}]"
+                        if msg.action_options
+                        else ""
+                    )
+                    typer.secho(
+                        f"\n[ask] {msg.content}{options}",
+                        fg=typer.colors.YELLOW,
+                        err=True,
+                    )
+                    typer.secho("> ", fg=typer.colors.YELLOW, err=True, nl=False)
+                    line = sys.stdin.readline()
+                    if not line:
+                        # EOF — operator detached. Treat as "skip".
+                        line = "no"
+                    reply = line.strip()
+                    bus.publish(
+                        AgentMessage(
+                            session_id=session_id,
+                            message_type="response",
+                            content=reply,
+                            parent_message_id=msg.message_id,
+                            response_source="user",
+                            response_value=reply or None,
+                        )
+                    )
+        except Exception as exc:  # pragma: no cover — surface in CLI mode only
+            typer.secho(
+                f"[responder] crashed: {exc!r}", fg=typer.colors.RED, err=True
+            )
+
+    t = threading.Thread(target=_run, name="cli-responder", daemon=True)
+    t.start()
+    return t
 
 
 if __name__ == "__main__":
