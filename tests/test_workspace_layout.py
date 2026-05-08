@@ -15,6 +15,17 @@ def test_layout_paths_are_derived_from_root(tmp_path: Path) -> None:
     assert layout.sessions_root == tmp_path / "sessions"
 
 
+def test_workspace_messages_db_is_workspace_scoped(tmp_path: Path) -> None:
+    """Phase 3.3: messages.sqlite lives next to workspace.sqlite (one DB per
+    workspace, row-level session isolation)."""
+    layout = WorkspaceLayout(tmp_path)
+    assert layout.workspace_messages_db == tmp_path / ".code-agent" / "messages.sqlite"
+    # Sibling of the registry — same parent dir.
+    assert (
+        layout.workspace_messages_db.parent == layout.registry_db_path.parent
+    )
+
+
 def test_session_paths(tmp_path: Path) -> None:
     layout = WorkspaceLayout(tmp_path)
     sid = "abc12345"

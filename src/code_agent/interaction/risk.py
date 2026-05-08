@@ -105,6 +105,28 @@ class RiskAssessment:
             assessor=assessor,
         )
 
+    # ── Serialization helpers ────────────────────────────────────────
+    # Used by AgentMessage and SqliteMessageStream to round-trip through
+    # SQL JSON columns. Kept on the type so the wire format lives in one
+    # place — change here, change everywhere.
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "baseline": self.baseline,
+            "dynamic": self.dynamic,
+            "rationale": list(self.rationale),
+            "assessor": self.assessor,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, object]) -> RiskAssessment:
+        return cls(
+            baseline=float(data["baseline"]),  # type: ignore[arg-type]
+            dynamic=float(data["dynamic"]),  # type: ignore[arg-type]
+            rationale=tuple(data.get("rationale", ())),  # type: ignore[arg-type]
+            assessor=str(data.get("assessor", "baseline")),
+        )
+
 
 # ---------------------------------------------------------------------------
 # Context

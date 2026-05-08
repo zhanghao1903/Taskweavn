@@ -75,6 +75,12 @@ class Session:
         return self.layout.session_thoughts_db(self.id)
 
     @property
+    def messages_db_path(self) -> Path:
+        """Workspace-scoped messages.sqlite. Returns the same path for every
+        session in the workspace; per-session reads filter on ``session_id``."""
+        return self.layout.workspace_messages_db
+
+    @property
     def plan_path(self) -> Path:
         return self.layout.session_plan_path(self.id)
 

@@ -20,6 +20,13 @@ from code_agent.interaction.autonomy import (
     AutonomyPresetName,
     get_preset,
 )
+from code_agent.interaction.message import (
+    AgentMessage,
+    MessageStream,
+    MessageStreamError,
+    MessageType,
+    ResponseSource,
+)
 from code_agent.interaction.risk import (
     AssessmentContext,
     BaselineOnlyAssessor,
@@ -27,15 +34,22 @@ from code_agent.interaction.risk import (
     RiskAssessor,
     RiskScore,
 )
+from code_agent.interaction.sqlite_message_stream import SqliteMessageStream
 
 __all__ = [
     "AUTONOMY_PRESETS",
+    "AgentMessage",
     "AssessmentContext",
     "AutonomyBehavior",
     "AutonomyPresetName",
     "BaselineOnlyAssessor",
+    "MessageStream",
+    "MessageStreamError",
+    "MessageType",
+    "ResponseSource",
     "RiskAssessment",
     "RiskAssessor",
     "RiskScore",
+    "SqliteMessageStream",
     "get_preset",
 ]

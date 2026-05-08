@@ -29,18 +29,36 @@ from code_agent.types.registry import ActionRegistry, ObservationRegistry
 _ACTION_LOGGER = get_channel_logger("action")
 _OBSERVATION_LOGGER = get_channel_logger("observation")
 
-_SCHEMA_DDL = """
+# Notes on the schema evolution:
+#   * 3.1 shipped the table without ``task_id``. 3.3 adds the column via an
+#     idempotent ALTER on first open so existing on-disk databases keep
+#     working — old rows have task_id=NULL, new ones get the run id.
+#   * The Protocol contract (``EventStream.append(event)``) is unchanged;
+#     ``task_id`` is a concrete-impl-only optional kwarg. Callers holding the
+#     Protocol type stay source-compatible.
+#   * Per design doc §7.1.5: events table is already session-scoped (one
+#     events.sqlite per session), so ``session_id`` does not appear here —
+#     the cross-stream task join uses (session_id implicit, task_id explicit).
+# Two-phase init so legacy DBs migrate cleanly:
+#   1. Create the table (or no-op for legacy) WITHOUT touching task_id.
+#   2. Add task_id column if it's missing.
+#   3. Create indexes — by now task_id is guaranteed to exist.
+_SCHEMA_BASE_DDL = """
 CREATE TABLE IF NOT EXISTS events (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     event_id    TEXT    NOT NULL,
     kind        TEXT    NOT NULL,
     family      TEXT    NOT NULL,
     timestamp   TEXT    NOT NULL,
-    payload     TEXT    NOT NULL
+    payload     TEXT    NOT NULL,
+    task_id     TEXT
 );
+"""
 
-CREATE INDEX IF NOT EXISTS idx_events_kind      ON events(kind);
-CREATE INDEX IF NOT EXISTS idx_events_timestamp ON events(timestamp);
+_SCHEMA_INDEXES_DDL = """
+CREATE INDEX IF NOT EXISTS idx_events_kind         ON events(kind);
+CREATE INDEX IF NOT EXISTS idx_events_timestamp    ON events(timestamp);
+CREATE INDEX IF NOT EXISTS idx_events_task_created ON events(task_id, timestamp, id);
 """
 
 
@@ -58,25 +76,58 @@ class SqliteEventStream:
         )
         self._conn.execute("PRAGMA journal_mode = WAL")
         self._conn.execute("PRAGMA synchronous = NORMAL")
-        self._conn.executescript(_SCHEMA_DDL)
+        self._conn.executescript(_SCHEMA_BASE_DDL)
+        self._migrate_task_id_column()
+        self._conn.executescript(_SCHEMA_INDEXES_DDL)
         # Serialize append() across threads — sqlite3 is fine, but the JSONL
         # channel logging side-effect should observe append order.
         self._lock = Lock()
+
+    def _migrate_task_id_column(self) -> None:
+        """Add ``task_id`` column to pre-3.3 databases. Idempotent.
+
+        ``CREATE TABLE IF NOT EXISTS`` won't add a column to an already-existing
+        table, so old workspaces would skip the new column entirely. We probe
+        ``PRAGMA table_info`` and ALTER if missing; the new column defaults to
+        NULL on every existing row, which is the contract.
+        """
+        cur = self._conn.execute("PRAGMA table_info(events)")
+        columns = {row[1] for row in cur.fetchall()}
+        if "task_id" not in columns:
+            self._conn.execute("ALTER TABLE events ADD COLUMN task_id TEXT")
+        # The matching index is created by ``_SCHEMA_INDEXES_DDL`` after this
+        # method returns, so both fresh and migrated databases land on the
+        # same final shape.
 
     # ------------------------------------------------------------------
     # EventStream Protocol
     # ------------------------------------------------------------------
 
-    def append(self, event: BaseEvent) -> None:
+    def append(self, event: BaseEvent, *, task_id: str | None = None) -> None:
+        """Persist an event. ``task_id`` is an optional aggregation key.
+
+        The Protocol declares only ``append(event)``; the keyword extension
+        keeps Protocol-typed callers source-compatible (omit the kwarg) while
+        AgentLoop and similar can stamp the current run id without going
+        through a side channel. Old databases that don't yet have the column
+        are migrated on connect (see :meth:`_migrate_task_id_column`).
+        """
         family = _family_of(event)
         payload = event.to_dict()
         payload_json = json.dumps(payload, ensure_ascii=False, sort_keys=True)
         timestamp_iso = event.timestamp.isoformat()
         with self._lock:
             self._conn.execute(
-                "INSERT INTO events(event_id, kind, family, timestamp, payload) "
-                "VALUES (?, ?, ?, ?, ?)",
-                (event.event_id, event.kind, family, timestamp_iso, payload_json),
+                "INSERT INTO events(event_id, kind, family, timestamp, payload, task_id) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
+                (
+                    event.event_id,
+                    event.kind,
+                    family,
+                    timestamp_iso,
+                    payload_json,
+                    task_id,
+                ),
             )
             _emit_channel(event)
 
@@ -112,6 +163,23 @@ class SqliteEventStream:
             sql += " WHERE " + " AND ".join(clauses)
         sql += " ORDER BY id ASC"
         cursor = self._conn.execute(sql, params)
+        return _iter_cursor(cursor)
+
+    # ------------------------------------------------------------------
+    # Concrete-impl extensions (not in the EventStream Protocol)
+    # ------------------------------------------------------------------
+
+    def iter_for_task(self, task_id: str) -> Iterator[BaseEvent]:
+        """Replay every event tagged with ``task_id``, in insertion order.
+
+        Pairs with :meth:`SqliteMessageStream.list_for_task` to reconstruct
+        the full timeline of one ``AgentLoop.run()``.
+        """
+        cursor = self._conn.execute(
+            "SELECT family, payload FROM events WHERE task_id = ? "
+            "ORDER BY timestamp ASC, id ASC",
+            (task_id,),
+        )
         return _iter_cursor(cursor)
 
     # ------------------------------------------------------------------

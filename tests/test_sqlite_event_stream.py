@@ -189,3 +189,119 @@ def test_creates_parent_directory(tmp_path: Path) -> None:
         assert len(stream) == 1
     finally:
         stream.close()
+
+
+# ---------------------------------------------------------------------------
+# Phase 3.3 — task_id tagging and per-task replay.
+# ---------------------------------------------------------------------------
+
+
+def test_append_accepts_task_id_kwarg(tmp_path: Path) -> None:
+    """``append(event, task_id=...)`` is the documented extension over the Protocol.
+
+    Untagged appends keep working — the column defaults to NULL, and the
+    Protocol-typed signature ``append(event)`` is still source-compatible.
+    """
+    stream = SqliteEventStream(tmp_path / "events.sqlite")
+    try:
+        stream.append(_action("a"), task_id="task-1")
+        stream.append(_action("b"))  # no kwarg → NULL row
+        assert len(stream) == 2
+    finally:
+        stream.close()
+
+
+def test_iter_for_task_filters(tmp_path: Path) -> None:
+    """``iter_for_task`` returns only events tagged with the requested id, in order."""
+    stream = SqliteEventStream(tmp_path / "events.sqlite")
+    try:
+        stream.append(_action("first"), task_id="t1")
+        stream.append(_action("other"), task_id="t2")
+        stream.append(_observation("first-obs"), task_id="t1")
+        stream.append(_action("again"), task_id="t2")
+
+        t1_events = list(stream.iter_for_task("t1"))
+        assert [getattr(e, "final_answer", None) for e in t1_events] == [
+            "first",
+            "first-obs",
+        ]
+
+        t2_events = list(stream.iter_for_task("t2"))
+        assert [e.final_answer for e in t2_events if isinstance(e, AgentFinishAction)] == [
+            "other",
+            "again",
+        ]
+    finally:
+        stream.close()
+
+
+def test_iter_for_task_excludes_untagged(tmp_path: Path) -> None:
+    """Rows with task_id=NULL must not leak into a per-task replay."""
+    stream = SqliteEventStream(tmp_path / "events.sqlite")
+    try:
+        stream.append(_action("tagged"), task_id="t1")
+        stream.append(_action("orphan"))  # NULL task_id
+
+        tagged = [
+            e.final_answer
+            for e in stream.iter_for_task("t1")
+            if isinstance(e, AgentFinishAction)
+        ]
+        assert tagged == ["tagged"]
+
+        # An empty task id query returns nothing — NULLs do not match "".
+        empty = list(stream.iter_for_task(""))
+        assert empty == []
+    finally:
+        stream.close()
+
+
+def test_task_id_column_added_on_pre_3_3_db(tmp_path: Path) -> None:
+    """Open an old-shape DB, then re-open with the new code: ALTER TABLE runs."""
+    db = tmp_path / "events.sqlite"
+
+    # Hand-roll a pre-3.3 schema (no task_id column, no index).
+    legacy = sqlite3.connect(str(db), isolation_level=None)
+    legacy.execute(
+        """
+        CREATE TABLE events (
+            id        INTEGER PRIMARY KEY AUTOINCREMENT,
+            event_id  TEXT    NOT NULL,
+            kind      TEXT    NOT NULL,
+            family    TEXT    NOT NULL,
+            timestamp TEXT    NOT NULL,
+            payload   TEXT    NOT NULL
+        )
+        """
+    )
+    legacy.execute(
+        "INSERT INTO events(event_id, kind, family, timestamp, payload) "
+        "VALUES (?, ?, ?, ?, ?)",
+        ("legacy-id", "AgentFinishAction", "action", "2026-01-01T00:00:00+00:00",
+         '{"event_id": "legacy-id", "timestamp": "2026-01-01T00:00:00+00:00", '
+         '"final_answer": "legacy"}'),
+    )
+    legacy.close()
+
+    # Re-open with the new code — migration must add the column.
+    stream = SqliteEventStream(db)
+    try:
+        cur = stream._conn.execute("PRAGMA table_info(events)")  # noqa: SLF001
+        column_names = {row[1] for row in cur.fetchall()}
+        assert "task_id" in column_names
+
+        # Existing row stays readable; its task_id is NULL, so iter_for_task
+        # with any non-empty id returns nothing for it.
+        assert len(stream) == 1
+        assert list(stream.iter_for_task("anything")) == []
+
+        # Newly tagged rows route correctly.
+        stream.append(_action("post-migration"), task_id="t-after")
+        post = [
+            e.final_answer
+            for e in stream.iter_for_task("t-after")
+            if isinstance(e, AgentFinishAction)
+        ]
+        assert post == ["post-migration"]
+    finally:
+        stream.close()

@@ -50,6 +50,14 @@ class WorkspaceLayout:
         return self.meta_dir / "workspace.sqlite"
 
     @property
+    def workspace_messages_db(self) -> Path:
+        """Workspace-scoped message log. Per Phase 3.3 design:
+        message rows from every session live here, with row-level
+        ``session_id`` isolation. Cross-session reads (Phase 4) read
+        directly; per-session reads filter by ``session_id``."""
+        return self.meta_dir / "messages.sqlite"
+
+    @property
     def shared_dir(self) -> Path:
         return self.root / "shared"
 
