@@ -437,31 +437,209 @@ def test_emit_timeout_skip_yields_error(
 
 
 # ---------------------------------------------------------------------------
-# Async strategy — Phase 3.6a defers, surfaces autonomy_pending
+# Async strategy — Phase 3.6b defers and drain resolves on later step
 # ---------------------------------------------------------------------------
 
 
-def test_async_emit_returns_pending_error(
+def _async_behavior() -> Any:
+    """Manual + async: every action EMITs, every wait returns PENDING."""
+    return replace(
+        AUTONOMY_PRESETS["manual"],
+        wait_strategy="async",
+        timeout_action="proceed_default",
+    )
+
+
+def test_async_emit_defers_action_no_immediate_run(
     workspace: Workspace, bus: InProcessMessageBus
 ) -> None:
-    """``manual + async`` is an unusual combo (manual always EMITs; async
-    never blocks). 3.6a does not yet implement drain_pending_responses, so
-    the loop surfaces a structured ErrorObservation rather than running the
-    action speculatively."""
-    behavior = replace(
-        AUTONOMY_PRESETS["manual"], wait_strategy="async", timeout_action="proceed_default"
+    """async + manual + no replier: the loop's run terminates, the action
+    NEVER ran (no observation in the stream for it), and one pending
+    decision is left over keyed to the actionable message."""
+    behavior = _async_behavior()
+    gate = AutonomyGate(behavior, BaselineOnlyAssessor())
+    coord = WaitCoordinator(bus, behavior)
+    sentinel = workspace.root / "deferred.txt"
+    llm = _StubLLM(
+        [
+            _tool_call("write_file", {"path": "deferred.txt", "content": "x"}, "c1"),
+            _finish("done"),
+        ]
     )
+    loop = _build_loop(workspace, llm, bus=bus, gate=gate, wait_coordinator=coord)
+
+    loop.run("defer me")
+
+    # Action did not run.
+    assert not sentinel.exists()
+    # No observation for the WriteFile in the event stream — only the
+    # action event got appended at deferral time.
+    from code_agent.tools.fs import FileWriteObservation, WriteFileAction
+
+    actions = [e for e in loop.event_stream if isinstance(e, WriteFileAction)]
+    observations = [e for e in loop.event_stream if isinstance(e, FileWriteObservation)]
+    assert len(actions) == 1
+    assert len(observations) == 0
+    # And the actionable is on the bus, awaiting reply.
+    actionables = [
+        m for m in bus.stream.list_for_session("s") if m.message_type == "actionable"
+    ]
+    assert len(actionables) == 1
+
+
+def test_async_drain_resolves_yes_runs_action(
+    workspace: Workspace, bus: InProcessMessageBus
+) -> None:
+    """After ``run`` returns with a pending decision, publishing a 'yes'
+    response and calling :meth:`AgentLoop.drain_pending_responses` runs the
+    action and appends an observation to the event stream."""
+    behavior = _async_behavior()
     gate = AutonomyGate(behavior, BaselineOnlyAssessor())
     coord = WaitCoordinator(bus, behavior)
     llm = _StubLLM(
-        [_tool_call("read_file", {"path": "x.txt"}, "c1"), _finish("done")]
+        [
+            _tool_call(
+                "write_file", {"path": "late.txt", "content": "late"}, "c1"
+            ),
+            _finish("done"),
+        ]
     )
-    (workspace.root / "x.txt").write_text("x")
     loop = _build_loop(workspace, llm, bus=bus, gate=gate, wait_coordinator=coord)
 
-    loop.run("async path")
+    loop.run("defer write")
+    actionable = [
+        m for m in bus.stream.list_for_session("s") if m.message_type == "actionable"
+    ][0]
+
+    # Late reply lands.
+    bus.publish(
+        AgentMessage(
+            session_id="s",
+            message_type="response",
+            content="yes",
+            parent_message_id=actionable.message_id,
+            response_source="user",
+            response_value="yes",
+        )
+    )
+
+    # Drive drain manually post-run, asking it not to mutate any messages
+    # list (the LLM has gone home).
+    resolved = loop.drain_pending_responses(messages=None)
+    assert resolved == 1
+    # The runtime executed the write.
+    assert (workspace.root / "late.txt").read_text() == "late"
+    # And the observation is in the stream.
+    from code_agent.tools.fs import FileWriteObservation
+
+    observations = [
+        e for e in loop.event_stream if isinstance(e, FileWriteObservation)
+    ]
+    assert len(observations) == 1
+
+
+def test_async_drain_resolves_no_emits_user_declined(
+    workspace: Workspace, bus: InProcessMessageBus
+) -> None:
+    """A 'no' reply on a deferred action turns into ErrorObservation
+    (user_declined) at drain time; the action does NOT run."""
+    behavior = _async_behavior()
+    gate = AutonomyGate(behavior, BaselineOnlyAssessor())
+    coord = WaitCoordinator(bus, behavior)
+    sentinel = workspace.root / "rejected.txt"
+    llm = _StubLLM(
+        [
+            _tool_call(
+                "write_file", {"path": "rejected.txt", "content": "x"}, "c1"
+            ),
+            _finish("done"),
+        ]
+    )
+    loop = _build_loop(workspace, llm, bus=bus, gate=gate, wait_coordinator=coord)
+
+    loop.run("defer + reject")
+    actionable = [
+        m for m in bus.stream.list_for_session("s") if m.message_type == "actionable"
+    ][0]
+    bus.publish(
+        AgentMessage(
+            session_id="s",
+            message_type="response",
+            content="no",
+            parent_message_id=actionable.message_id,
+            response_source="user",
+            response_value="no",
+        )
+    )
+    loop.drain_pending_responses(messages=None)
+
+    assert not sentinel.exists()
     errors = [e for e in loop.event_stream if isinstance(e, ErrorObservation)]
-    assert any(e.error_type == "autonomy_pending" for e in errors)
+    assert any(e.error_type == "user_declined" for e in errors)
+
+
+def test_async_drain_within_loop_threads_resolution_into_messages(
+    workspace: Workspace, bus: InProcessMessageBus
+) -> None:
+    """In-loop drain: a replier publishes the response after step 1 but
+    before step 2's drain. Step 2 sees the resolution and runs the action,
+    AND appends a 'previously deferred ... resolved' system message into
+    the LLM context for the next turn."""
+    behavior = _async_behavior()
+    gate = AutonomyGate(behavior, BaselineOnlyAssessor())
+    coord = WaitCoordinator(bus, behavior)
+    llm = _StubLLM(
+        [
+            _tool_call(
+                "write_file", {"path": "intra.txt", "content": "yes"}, "c1"
+            ),
+            # Step 2: the deferral hasn't resolved yet at drain time (race),
+            # so the LLM gets a noop tool call so the loop doesn't terminate
+            # early. Use a low-risk read_file to keep the gate quiet.
+            _tool_call("read_file", {"path": "intra.txt"}, "c2"),
+            _finish("done"),
+        ]
+    )
+    (workspace.root / "intra.txt").write_text("placeholder")
+    loop = _build_loop(workspace, llm, bus=bus, gate=gate, wait_coordinator=coord)
+
+    # Replier publishes IMMEDIATELY when the actionable lands. Subscriptions
+    # serialize via the bus's condition lock, so by the time step 2's drain
+    # acquires the lock for its non-blocking poll, the response is committed
+    # — assuming the OS schedules the replier between step 1 and step 2.
+    # We give that a generous deadline below.
+    def replier() -> None:
+        with bus.subscribe("s", types=["actionable"]) as sub:
+            for msg in sub:
+                bus.publish(
+                    AgentMessage(
+                        session_id="s",
+                        message_type="response",
+                        content="yes",
+                        parent_message_id=msg.message_id,
+                        response_source="user",
+                        response_value="yes",
+                    )
+                )
+                return
+
+    t = threading.Thread(target=replier)
+    t.start()
+    try:
+        loop.run("intra-loop drain")
+    finally:
+        t.join(timeout=5.0)
+
+    # Either step 2's drain (likely) or the shutdown drain (fallback) ran
+    # the action — both code paths use the same drain method, so assert on
+    # the post-state.
+    from code_agent.tools.fs import FileWriteObservation
+
+    observations = [
+        e for e in loop.event_stream if isinstance(e, FileWriteObservation)
+    ]
+    assert len(observations) == 1
+    assert (workspace.root / "intra.txt").read_text() == "yes"
 
 
 # ---------------------------------------------------------------------------

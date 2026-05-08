@@ -25,6 +25,16 @@ is gated against the user's :class:`AutonomyBehavior`. The gate may PROCEED
 (run as before, optionally posting an informational message) or EMIT (publish
 an ``actionable`` and hand off to the :class:`WaitCoordinator` for a reply).
 The gate is OFF by default — existing tests keep their current shape.
+
+Phase 3.6b extends the EMIT path: when the autonomy strategy is ``async``,
+the coordinator returns ``PENDING`` and the loop **defers** instead of
+erroring. The deferred action is queued in ``_pending_decisions`` and the
+LLM gets a synthetic placeholder tool result that says "queued, will resolve
+out-of-band". On every subsequent step (and the final shutdown drain in
+``run()``) :meth:`AgentLoop.drain_pending_responses` non-blocking-polls the
+bus for replies; resolved actions execute and surface as a system message
+spliced into the LLM's context, so the agent can reason about the late
+result on the next turn.
 """
 
 from __future__ import annotations
@@ -32,7 +42,7 @@ from __future__ import annotations
 import contextlib
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 from uuid import uuid4
 
 from pydantic import ValidationError
@@ -87,6 +97,36 @@ _REJECTION_TOKENS: frozenset[str] = frozenset(
 
 class LoopError(RuntimeError):
     """Raised on misconfiguration (e.g. duplicate tool names)."""
+
+
+@dataclass(frozen=True)
+class _GateDispatch:
+    """What :meth:`AgentLoop._consult_gate` decided.
+
+    Three terminal kinds; the loop's inner-tool-call loop branches on
+    ``kind``. ``skip_observation`` is set iff ``kind=="skip"``;
+    ``deferred_actionable_id`` is set iff ``kind=="defer"``.
+    """
+
+    kind: Literal["proceed", "skip", "defer"]
+    skip_observation: ErrorObservation | None = None
+    deferred_actionable_id: str | None = None
+    deferred_action: BaseAction | None = None
+
+
+@dataclass
+class _PendingDecision:
+    """One un-resolved async deferral waiting for a user reply.
+
+    ``actionable_message_id`` keys ``MessageBus.wait_for_response``;
+    ``action`` is the original :class:`BaseAction` that will run when the
+    reply lands and is not a rejection. The action's :attr:`event_id` is
+    already on the event stream (appended at deferral time), so on
+    resolution we only need to append the resulting observation.
+    """
+
+    actionable_message_id: str
+    action: BaseAction
 
 
 @dataclass(frozen=True)
@@ -191,6 +231,13 @@ class AgentLoop:
         # Set on every ``run()`` call so cross-stream joins (events ⊕ messages)
         # can pin every event/message of one run to a shared key.
         self._current_task_id: str | None = None
+        # Phase 3.6b: actions that were gated as EMIT under wait_strategy=
+        # "async" sit here until ``drain_pending_responses`` finds their
+        # replies on the bus. Drained on every step entry and once at
+        # shutdown. A run that ends with leftover pending entries simply
+        # discards them — the actionables are still on the message stream
+        # for an operator to inspect.
+        self._pending_decisions: list[_PendingDecision] = []
 
     def run(self, task: str) -> LoopResult:
         """Execute the loop on a single user task. Synchronous, single-threaded.
@@ -205,11 +252,20 @@ class AgentLoop:
         the events/messages produced by *this* invocation.
         """
         self._current_task_id = uuid4().hex
+        # A fresh queue per ``run()`` — leftovers from a previous task have
+        # no business resolving against this one.
+        self._pending_decisions = []
         try:
             for tool in self.tools:
                 tool.startup()
             return self._run_inner(task)
         finally:
+            # Best-effort shutdown drain: any reply that arrived while the
+            # loop was finishing should still produce an observation in the
+            # event stream so the audit trail is consistent. The LLM is
+            # done — we don't append to ``messages`` here.
+            with contextlib.suppress(Exception):
+                self.drain_pending_responses(messages=None)
             for tool in self.tools:
                 # Teardown must not mask the loop result.
                 with contextlib.suppress(Exception):
@@ -223,6 +279,12 @@ class AgentLoop:
         ]
 
         for step in range(1, self.max_steps + 1):
+            # Resolve any prior async deferrals before asking the LLM again
+            # so the resolved observation is in context when it reasons.
+            # Cheap (a non-blocking SQL poll per pending entry) and a no-op
+            # when the queue is empty.
+            self.drain_pending_responses(messages)
+
             response = self.llm.chat(messages=messages, tools=self._tool_schemas)
 
             if response.content:
@@ -266,12 +328,45 @@ class AgentLoop:
                 action = action_or_error
 
                 # Autonomy gate (Phase 3.6). When the loop has no gate wired in
-                # this short-circuits to None and the action runs as before.
-                gate_skip = self._consult_gate(action)
-                if gate_skip is not None:
+                # the dispatch is always ``proceed`` and the action runs as
+                # before. Otherwise we branch on dispatch.kind:
+                #   proceed → run normally (3.6a baseline).
+                #   skip    → emit ErrorObservation, action does not run.
+                #   defer   → enqueue pending decision; placeholder tool
+                #             message keeps the LLM moving; drain runs the
+                #             action on a future step.
+                dispatch = self._consult_gate(action)
+                if dispatch.kind == "skip":
+                    assert dispatch.skip_observation is not None
                     self._append_event(action)
-                    self._append_event(gate_skip)
-                    messages.append(self._tool_message(tool_call.id, gate_skip))
+                    self._append_event(dispatch.skip_observation)
+                    messages.append(
+                        self._tool_message(tool_call.id, dispatch.skip_observation)
+                    )
+                    continue
+                if dispatch.kind == "defer":
+                    assert dispatch.deferred_actionable_id is not None
+                    self._append_event(action)
+                    self._pending_decisions.append(
+                        _PendingDecision(
+                            actionable_message_id=dispatch.deferred_actionable_id,
+                            action=action,
+                        )
+                    )
+                    # Synthetic placeholder so the OpenAI tool-call protocol
+                    # stays well-formed (every tool_call needs a tool reply).
+                    # Not appended to the event stream — drain emits the
+                    # real observation when the response lands.
+                    placeholder = ErrorObservation(
+                        error_type="autonomy_deferred",
+                        message=(
+                            f"queued {type(action).__name__} for user "
+                            f"confirmation (message_id="
+                            f"{dispatch.deferred_actionable_id}); the result "
+                            "will resolve out-of-band on a later step"
+                        ),
+                    )
+                    messages.append(self._tool_message(tool_call.id, placeholder))
                     continue
 
                 self._append_event(action)
@@ -291,32 +386,31 @@ class AgentLoop:
     # Autonomy gate dispatch
     # ------------------------------------------------------------------
 
-    def _consult_gate(self, action: BaseAction) -> ErrorObservation | None:
-        """Return ``None`` to proceed; an :class:`ErrorObservation` to skip.
+    def _consult_gate(self, action: BaseAction) -> _GateDispatch:
+        """Resolve the autonomy contract for ``action`` into a dispatch tag.
 
-        Three outcomes:
+        Five outcomes collapse into three kinds:
 
-        * Gate not wired → always proceed.
-        * Gate says PROCEED → optionally publish an informational notice, then
-          proceed. The action runs.
-        * Gate says EMIT → publish an actionable, hand to the
-          :class:`WaitCoordinator`. Whether the action proceeds depends on the
-          :class:`WaitOutcome`:
+        * Gate not wired → ``proceed``.
+        * Gate says PROCEED → optionally publish an informational notice,
+          then ``proceed``.
+        * Gate says EMIT → publish an actionable and ask the
+          :class:`WaitCoordinator`:
 
-          * ``GOT_RESPONSE`` + non-rejection → proceed.
-          * ``GOT_RESPONSE`` + rejection ("no" / "deny" / …) → skip.
-          * ``TIMED_OUT_PROCEED`` → proceed (the synthesized default IS the
-            response).
-          * ``TIMED_OUT_SKIP`` → skip.
-          * ``PENDING`` (async) → skip for Phase 3.6a; the
-            ``drain_pending_responses`` path in 3.6b will surface async replies
-            in a later iteration.
-
-        Skips return an ErrorObservation with a stable ``error_type`` so logs /
-        UIs can distinguish "user declined" from "timeout fired".
+          * ``GOT_RESPONSE`` + non-rejection → ``proceed``.
+          * ``GOT_RESPONSE`` + rejection ("no" / "deny" / …) → ``skip`` with
+            ``error_type="user_declined"``.
+          * ``TIMED_OUT_PROCEED`` → ``proceed`` (the synthesized default IS
+            the response; the coordinator already published a notice when
+            ``notify_on_proceed`` is on).
+          * ``TIMED_OUT_SKIP`` → ``skip`` with
+            ``error_type="autonomy_timeout_skip"``.
+          * ``PENDING`` (``async`` strategy) → ``defer``; the action is
+            queued in ``_pending_decisions`` and resolved by
+            :meth:`drain_pending_responses` on a later step or at shutdown.
         """
         if self.gate is None:
-            return None
+            return _GateDispatch(kind="proceed")
 
         # Local imports so the interaction layer stays a soft dependency: a
         # consumer that never wires a gate doesn't pull risk / message code.
@@ -339,7 +433,7 @@ class AgentLoop:
         if decision.verdict == GateVerdict.PROCEED:
             if decision.inform_user:
                 self._publish_inform(action, decision)
-            return None
+            return _GateDispatch(kind="proceed")
 
         # EMIT — synthesize an actionable, publish, wait.
         actionable = self._build_actionable_message(action, decision)
@@ -348,38 +442,118 @@ class AgentLoop:
 
         if result.outcome == WaitOutcome.GOT_RESPONSE:
             if _is_rejection(result.response_value):
-                return ErrorObservation(
-                    error_type="user_declined",
-                    message=(
-                        f"user declined to run {type(action).__name__}: "
-                        f"reply={result.response_value!r}"
+                return _GateDispatch(
+                    kind="skip",
+                    skip_observation=ErrorObservation(
+                        error_type="user_declined",
+                        message=(
+                            f"user declined to run {type(action).__name__}: "
+                            f"reply={result.response_value!r}"
+                        ),
                     ),
                 )
-            return None
+            return _GateDispatch(kind="proceed")
 
         if result.outcome == WaitOutcome.TIMED_OUT_PROCEED:
-            # The coordinator already published a notice when notify_on_proceed
-            # is on; treat the synthesized default as approval.
-            return None
+            return _GateDispatch(kind="proceed")
 
         if result.outcome == WaitOutcome.TIMED_OUT_SKIP:
-            return ErrorObservation(
-                error_type="autonomy_timeout_skip",
-                message=(
-                    f"autonomy timeout fired with action=skip; "
-                    f"{type(action).__name__} not executed"
+            return _GateDispatch(
+                kind="skip",
+                skip_observation=ErrorObservation(
+                    error_type="autonomy_timeout_skip",
+                    message=(
+                        f"autonomy timeout fired with action=skip; "
+                        f"{type(action).__name__} not executed"
+                    ),
                 ),
             )
 
-        # PENDING (async). Phase 3.6a does not implement the drain loop yet;
-        # surface as an error so the action does not run speculatively.
-        return ErrorObservation(
-            error_type="autonomy_pending",
-            message=(
-                "async autonomy strategy returned PENDING; awaiting "
-                "drain_pending_responses (Phase 3.6b)"
-            ),
+        # PENDING — async strategy. Defer; drain_pending_responses owns it.
+        return _GateDispatch(
+            kind="defer",
+            deferred_actionable_id=actionable.message_id,
+            deferred_action=action,
         )
+
+    # ------------------------------------------------------------------
+    # Async deferral drain (Phase 3.6b)
+    # ------------------------------------------------------------------
+
+    def drain_pending_responses(
+        self,
+        messages: list[dict[str, Any]] | None,
+    ) -> int:
+        """Resolve any deferred async actionables whose replies have landed.
+
+        For each entry in ``_pending_decisions`` we non-blocking-poll the bus
+        (``timeout=0``) for a response. If one is present:
+
+        * Rejection ("no"/"deny"/…) → emit
+          ``ErrorObservation(error_type="user_declined")``; the action does
+          NOT run.
+        * Anything else → run the action through the runtime exactly as the
+          synchronous EMIT path would.
+
+        The resulting :class:`BaseObservation` is appended to the event
+        stream. When ``messages`` is provided, a system message is spliced
+        into the LLM context summarizing the resolution so the agent can
+        reason about the late result on its next turn. ``messages=None`` is
+        the shutdown-drain mode used by ``run()``'s finally clause — the
+        observation lands in the event stream but no LLM context update
+        happens because there is no next turn.
+
+        Returns the number of decisions that resolved this call. Cheap:
+        a single SQL ``response_for`` query per pending entry, plus a
+        :meth:`Runtime.execute` for each non-rejection.
+        """
+        if not self._pending_decisions or self.bus is None:
+            return 0
+
+        resolved = 0
+        still_pending: list[_PendingDecision] = []
+        for pending in self._pending_decisions:
+            response = self.bus.wait_for_response(
+                pending.actionable_message_id, timeout=0
+            )
+            if response is None:
+                still_pending.append(pending)
+                continue
+
+            obs: BaseObservation
+            if _is_rejection(response.response_value):
+                obs = ErrorObservation(
+                    error_type="user_declined",
+                    message=(
+                        f"user declined queued "
+                        f"{type(pending.action).__name__}: "
+                        f"reply={response.response_value!r}"
+                    ),
+                )
+            else:
+                # The runtime is itself total — any internal failure surfaces
+                # as an ErrorObservation rather than an exception, so we
+                # don't need a try/except here.
+                obs = self.runtime.execute(pending.action)
+
+            self._append_event(obs)
+            if messages is not None:
+                messages.append(
+                    {
+                        "role": "system",
+                        "content": (
+                            f"Previously deferred "
+                            f"{type(pending.action).__name__} "
+                            f"(action_id={pending.action.event_id}) has "
+                            f"resolved: {obs.to_json()}"
+                        ),
+                    }
+                )
+                self._maybe_audit(pending.action, obs, messages)
+            resolved += 1
+
+        self._pending_decisions = still_pending
+        return resolved
 
     def _build_actionable_message(
         self,
