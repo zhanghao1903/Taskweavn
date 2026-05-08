@@ -20,6 +20,11 @@ from code_agent.interaction.autonomy import (
     AutonomyPresetName,
     get_preset,
 )
+from code_agent.interaction.bus import (
+    InProcessMessageBus,
+    MessageBus,
+    Subscription,
+)
 from code_agent.interaction.message import (
     AgentMessage,
     MessageStream,
@@ -43,6 +48,8 @@ __all__ = [
     "AutonomyBehavior",
     "AutonomyPresetName",
     "BaselineOnlyAssessor",
+    "InProcessMessageBus",
+    "MessageBus",
     "MessageStream",
     "MessageStreamError",
     "MessageType",
@@ -51,5 +58,6 @@ __all__ = [
     "RiskAssessor",
     "RiskScore",
     "SqliteMessageStream",
+    "Subscription",
     "get_preset",
 ]
