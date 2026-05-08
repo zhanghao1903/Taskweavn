@@ -20,10 +20,13 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
-from code_agent.cli.main import _start_stdin_responder, app
+from code_agent.cli.main import _build_risk_assessor, _start_stdin_responder, app
 from code_agent.interaction import (
     AgentMessage,
+    BaselineOnlyAssessor,
+    CompositeAssessor,
     InProcessMessageBus,
+    LLMRiskAssessor,
     SqliteMessageStream,
 )
 
@@ -68,6 +71,65 @@ def test_autonomy_unknown_preset_rejected(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 # Stdin responder: actionable → reply round-trip
 # ---------------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------------
+# --risk-assessor flag → assessor builder
+# ---------------------------------------------------------------------------
+
+
+class _FakeLLM:
+    """Stand-in for LLMClient — _build_risk_assessor only stores the
+    reference; nothing in the builder actually calls .chat()."""
+
+    def chat(self, *a: object, **k: object) -> object:  # pragma: no cover
+        raise AssertionError("builder should not invoke the LLM")
+
+
+def test_build_risk_assessor_baseline() -> None:
+    a = _build_risk_assessor("baseline", _FakeLLM())  # type: ignore[arg-type]
+    assert isinstance(a, BaselineOnlyAssessor)
+
+
+def test_build_risk_assessor_llm() -> None:
+    a = _build_risk_assessor("llm", _FakeLLM())  # type: ignore[arg-type]
+    assert isinstance(a, LLMRiskAssessor)
+
+
+def test_build_risk_assessor_composite_layers_baseline_and_llm() -> None:
+    a = _build_risk_assessor("composite", _FakeLLM())  # type: ignore[arg-type]
+    assert isinstance(a, CompositeAssessor)
+    types_in_chain = [type(x) for x in a.assessors]
+    assert BaselineOnlyAssessor in types_in_chain
+    assert LLMRiskAssessor in types_in_chain
+
+
+def test_build_risk_assessor_rejects_unknown() -> None:
+    import typer
+
+    with pytest.raises(typer.BadParameter, match="risk assessor"):
+        _build_risk_assessor("nonsense", _FakeLLM())  # type: ignore[arg-type]
+
+
+def test_risk_assessor_unknown_via_cli(tmp_path: Path) -> None:
+    """End-to-end: an invalid --risk-assessor exits with BadParameter even
+    when --autonomy is unset (the validator runs unconditionally so the
+    error surfaces before the agent allocates any resources)."""
+    runner = CliRunner()
+    result = runner.invoke(
+        app,
+        [
+            "run",
+            "--task", "noop",
+            "--workspace", str(tmp_path / "ws"),
+            "--log-dir", str(tmp_path / "logs"),
+            "--autonomy", "risk_gated",
+            "--risk-assessor", "definitely-not-a-thing",
+            "--max-steps", "1",
+        ],
+    )
+    assert result.exit_code != 0
+    assert "definitely-not-a-thing" in result.output
 
 
 def test_responder_replies_to_actionable(

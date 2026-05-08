@@ -18,7 +18,10 @@ from code_agent.interaction import (
     AgentMessage,
     AutonomyGate,
     BaselineOnlyAssessor,
+    CompositeAssessor,
     InProcessMessageBus,
+    LLMRiskAssessor,
+    RiskAssessor,
     SqliteMessageStream,
     WaitCoordinator,
 )
@@ -157,6 +160,18 @@ def run(
             ),
         ),
     ] = None,
+    risk_assessor: Annotated[
+        str,
+        typer.Option(
+            "--risk-assessor",
+            help=(
+                "Risk assessor used by the autonomy gate. One of: baseline "
+                "(default; trust class-level baseline_risk), llm (ask the "
+                "loop's LLM to grade dynamic risk), composite (baseline + "
+                "llm chained). Only meaningful when --autonomy is set."
+            ),
+        ),
+    ] = "baseline",
 ) -> None:
     """Run the agent on a task inside a workspace."""
     configure_logging(log_dir)
@@ -234,7 +249,8 @@ def run(
         msgs_path.parent.mkdir(parents=True, exist_ok=True)
         stream = SqliteMessageStream(msgs_path)
         bus = InProcessMessageBus(stream)
-        gate = AutonomyGate(behavior, BaselineOnlyAssessor())
+        assessor = _build_risk_assessor(risk_assessor, llm)
+        gate = AutonomyGate(behavior, assessor)
         coord = WaitCoordinator(bus, behavior)
         responder_thread = _start_stdin_responder(bus, resolved_session_id)
 
@@ -268,6 +284,31 @@ def run(
     typer.echo(f"[final_answer] {result.final_answer}")
     if not result.finished:
         raise typer.Exit(code=1)
+
+
+def _build_risk_assessor(name: str, llm: LLMClient) -> RiskAssessor:
+    """Resolve ``--risk-assessor <name>`` into a concrete assessor.
+
+    ``baseline``  → :class:`BaselineOnlyAssessor` (cheap, deterministic).
+    ``llm``       → :class:`LLMRiskAssessor` using the loop's main LLM.
+    ``composite`` → ``CompositeAssessor(baseline, llm)`` so a malformed LLM
+                    reply still yields the baseline floor.
+
+    Unknown names raise :class:`typer.BadParameter` so the CLI surfaces a
+    standard "Invalid value for --risk-assessor" error.
+    """
+    if name == "baseline":
+        return BaselineOnlyAssessor()
+    if name == "llm":
+        return LLMRiskAssessor(llm=llm)
+    if name == "composite":
+        return CompositeAssessor(
+            assessors=(BaselineOnlyAssessor(), LLMRiskAssessor(llm=llm)),
+        )
+    raise typer.BadParameter(
+        f"unknown risk assessor {name!r}; valid: baseline, llm, composite",
+        param_hint="--risk-assessor",
+    )
 
 
 def _start_stdin_responder(
