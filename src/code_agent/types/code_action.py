@@ -21,7 +21,7 @@ oracle.
 from __future__ import annotations
 
 import re
-from typing import Literal
+from typing import ClassVar, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -104,6 +104,9 @@ class FileChange(BaseModel):
 
 class CodeAction(BaseAction):
     """Execute a snippet of code under a declared tracking contract."""
+
+    # See docs/interaction_layer_design.md Appendix B.
+    baseline_risk: ClassVar[float] = 0.5
 
     intent: str = Field(
         min_length=1,

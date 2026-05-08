@@ -22,6 +22,8 @@ DEFAULT_TIMEOUT_SECONDS = 30.0
 
 
 class RunCommandAction(BaseAction):
+    # See docs/interaction_layer_design.md Appendix B.
+    baseline_risk: ClassVar[float] = 0.5
     command: str = Field(description="Shell command to execute (run via /bin/sh -c).")
     cwd: str = Field(
         default=".",

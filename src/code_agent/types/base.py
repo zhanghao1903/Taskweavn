@@ -64,6 +64,19 @@ class BaseAction(BaseEvent):
 
     Subclasses define the concrete payload (what file to read, what command to
     run, etc.). The Runtime turns each Action into one or more Observations.
+
+    The class-level ``baseline_risk`` is the static lower bound on how
+    dangerous *any* instance of this Action is. Runtime risk assessors
+    (Phase 3.2+) can raise the risk further but never lower it. See
+    ``docs/interaction_layer_design.md`` Appendix B for the calibration table.
+    """
+
+    baseline_risk: ClassVar[float] = 0.0
+    """Static lower-bound risk for this Action class, in [0.0, 1.0].
+
+    Override on subclasses; default 0.0 = pure-read / no side effects.
+    Validated as a class-level constant, not a Pydantic field — instances
+    do not carry their own baseline.
     """
 
     source: str = Field(
@@ -79,6 +92,12 @@ class BaseAction(BaseEvent):
         **kwargs: Any,
     ) -> None:
         super().__init_subclass__(**kwargs)
+        risk = cls.baseline_risk
+        if not 0.0 <= float(risk) <= 1.0:
+            raise ValueError(
+                f"{cls.__name__}.baseline_risk={risk!r} out of range; "
+                f"must satisfy 0.0 <= baseline_risk <= 1.0"
+            )
         if not register:
             return
         resolved = ActionRegistry.register(cls, kind)

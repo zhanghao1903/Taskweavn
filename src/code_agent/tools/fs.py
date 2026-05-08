@@ -15,12 +15,15 @@ from code_agent.tools.base import Tool
 from code_agent.tools.workspace import Workspace
 from code_agent.types.base import BaseAction, BaseObservation
 
+# baseline_risk values track docs/interaction_layer_design.md Appendix B.
+
 # ---------------------------------------------------------------------------
 # Action / Observation types
 # ---------------------------------------------------------------------------
 
 
 class ReadFileAction(BaseAction):
+    baseline_risk: ClassVar[float] = 0.0
     path: str = Field(description="Workspace-relative or absolute file path to read.")
 
 
@@ -31,6 +34,7 @@ class FileContentObservation(BaseObservation):
 
 
 class WriteFileAction(BaseAction):
+    baseline_risk: ClassVar[float] = 0.3
     path: str = Field(description="Workspace-relative or absolute file path to write.")
     content: str
     create_parents: bool = Field(
@@ -46,6 +50,7 @@ class FileWriteObservation(BaseObservation):
 
 
 class ListDirAction(BaseAction):
+    baseline_risk: ClassVar[float] = 0.0
     path: str = Field(default=".", description="Directory path to list.")
 
 

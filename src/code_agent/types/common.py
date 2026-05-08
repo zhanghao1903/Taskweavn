@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import ClassVar
+
 from pydantic import Field
 
 from code_agent.types.base import BaseAction, BaseObservation
@@ -27,6 +29,10 @@ class AgentFinishAction(BaseAction):
     The ReAct loop short-circuits on this Action — it never reaches the
     Runtime. The ``final_answer`` is what the user sees.
     """
+
+    # See docs/interaction_layer_design.md Appendix B — control flow only,
+    # no IO, but consumes user attention so it's not literally zero.
+    baseline_risk: ClassVar[float] = 0.1
 
     final_answer: str = Field(description="Summary of what was accomplished.")
 
