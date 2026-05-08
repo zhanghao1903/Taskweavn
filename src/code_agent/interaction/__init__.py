@@ -25,6 +25,12 @@ from code_agent.interaction.bus import (
     MessageBus,
     Subscription,
 )
+from code_agent.interaction.gate import (
+    AutonomyGate,
+    ConfidenceProvider,
+    GateDecision,
+    GateVerdict,
+)
 from code_agent.interaction.message import (
     AgentMessage,
     MessageStream,
@@ -40,14 +46,19 @@ from code_agent.interaction.risk import (
     RiskScore,
 )
 from code_agent.interaction.sqlite_message_stream import SqliteMessageStream
+from code_agent.interaction.wait import WaitCoordinator, WaitOutcome, WaitResult
 
 __all__ = [
     "AUTONOMY_PRESETS",
     "AgentMessage",
     "AssessmentContext",
     "AutonomyBehavior",
+    "AutonomyGate",
     "AutonomyPresetName",
     "BaselineOnlyAssessor",
+    "ConfidenceProvider",
+    "GateDecision",
+    "GateVerdict",
     "InProcessMessageBus",
     "MessageBus",
     "MessageStream",
@@ -59,5 +70,8 @@ __all__ = [
     "RiskScore",
     "SqliteMessageStream",
     "Subscription",
+    "WaitCoordinator",
+    "WaitOutcome",
+    "WaitResult",
     "get_preset",
 ]
