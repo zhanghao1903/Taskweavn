@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>张三 - 个人网站</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- ========== Navigation ========== -->
+  <nav class="navbar">
+    <div class="container nav-container">
+      <a href="#" class="logo">张三</a>
+      <ul class="nav-links">
+        <li><a href="#hero">首页</a></li>
+        <li><a href="#about">关于</a></li>
+        <li><a href="#projects">项目</a></li>
+        <li><a href="#contact">联系</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <!-- ========== Hero ========== -->
+  <section id="hero" class="hero">
+    <div class="container hero-content">
+      <h1>你好，我是 <span class="highlight">张三</span></h1>
+      <p class="hero-subtitle">全栈开发者 · 开源爱好者 · 终身学习者</p>
+      <p class="hero-desc">
+        热爱用代码创造价值，专注于 Web 开发与用户体验设计。
+      </p>
+      <div class="hero-actions">
+        <a href="#projects" class="btn btn-primary">查看项目</a>
+        <a href="#contact" class="btn btn-outline">联系我</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== About ========== -->
+  <section id="about" class="about">
+    <div class="container">
+      <h2 class="section-title">关于我</h2>
+      <div class="about-content">
+        <div class="about-text">
+          <p>
+            我是一名全栈开发者，拥有 5 年以上的 Web 开发经验。擅长
+            React、Vue、Node.js 等技术栈，对前端工程化和性能优化有深入理解。
+          </p>
+          <p>
+            工作之余，我喜欢参与开源项目、写技术博客、探索新的编程语言。
+            我相信技术的力量可以改变世界，而分享让技术进步更快。
+          </p>
+          <ul class="skills">
+            <li>React / Vue</li>
+            <li>TypeScript</li>
+            <li>Node.js</li>
+            <li>Python</li>
+            <li>Docker</li>
+            <li>PostgreSQL</li>
+          </ul>
+        </div>
+        <div class="about-image">
+          <div class="avatar-placeholder">ZS</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== Projects ========== -->
+  <section id="projects" class="projects">
+    <div class="container">
+      <h2 class="section-title">我的项目</h2>
+      <div class="project-grid">
+        <div class="project-card">
+          <div class="card-header">
+            <h3>TaskWeavn</h3>
+            <span class="badge">AI</span>
+          </div>
+          <p>一个基于大模型的智能任务分解与执行平台，支持多工具协作。</p>
+          <div class="card-tags">
+            <span>Python</span>
+            <span>FastAPI</span>
+            <span>LLM</span>
+          </div>
+        </div>
+        <div class="project-card">
+          <div class="card-header">
+            <h3>BlogHub</h3>
+            <span class="badge">全栈</span>
+          </div>
+          <p>轻量级技术博客平台，支持 Markdown 写作、标签分类和全文检索。</p>
+          <div class="card-tags">
+            <span>Next.js</span>
+            <span>PostgreSQL</span>
+            <span>Tailwind</span>
+          </div>
+        </div>
+        <div class="project-card">
+          <div class="card-header">
+            <h3>DevStats</h3>
+            <span class="badge">工具</span>
+          </div>
+          <p>开发者数据仪表盘，聚合 GitHub 仓库统计、PR 记录和贡献热力图。</p>
+          <div class="card-tags">
+            <span>React</span>
+            <span>D3.js</span>
+            <span>GraphQL</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== Contact ========== -->
+  <section id="contact" class="contact">
+    <div class="container">
+      <h2 class="section-title">联系我</h2>
+      <p class="contact-desc">有合作意向或想聊聊技术？随时给我发邮件吧！</p>
+      <form class="contact-form" action="#" method="post">
+        <div class="form-row">
+          <input type="text" name="name" placeholder="你的名字" required>
+          <input type="email" name="email" placeholder="你的邮箱" required>
+        </div>
+        <textarea name="message" rows="5" placeholder="你想说的话……" required></textarea>
+        <button type="submit" class="btn btn-primary">发送消息</button>
+      </form>
+      <div class="contact-links">
+        <a href="mailto:zhangsan@example.com">zhangsan@example.com</a>
+        <a href="https://github.com/zhangsan" target="_blank">GitHub</a>
+        <a href="https://blog.zhangsan.dev" target="_blank">博客</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== Footer ========== -->
+  <footer class="footer">
+    <div class="container">
+      <p>&copy; 2026 张三. All rights reserved.</p>
+    </div>
+  </footer>
+
+</body>
+</html>

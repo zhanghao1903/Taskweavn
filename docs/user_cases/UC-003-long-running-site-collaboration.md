@@ -93,7 +93,7 @@ taskweavn run \
 - 第二轮修改文件：
 - `messages.sqlite` 是否聚合两轮：
 - 是否观察到不同 `task_id`：
-- 截图 / 日志链接：![img_1.png](img_1.png)
+- 截图 / 日志链接：![UC-003 screenshot](artifacts/images/UC-003-long-running-site-collaboration.png)
 - 观察到的问题：
 
 ## 测试总结

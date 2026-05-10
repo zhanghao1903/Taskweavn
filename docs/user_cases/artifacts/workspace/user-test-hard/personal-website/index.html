@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>我的个人网站</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <!-- ====== 导航栏 ====== -->
+  <nav class="navbar">
+    <div class="container nav-inner">
+      <a href="#" class="nav-logo">MySite</a>
+      <ul class="nav-links">
+        <li><a href="#hero">首页</a></li>
+        <li><a href="#about">关于</a></li>
+        <li><a href="#projects">项目</a></li>
+        <li><a href="#contact">联系</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <!-- ====== Hero 区域 ====== -->
+  <section id="hero" class="hero">
+    <div class="container">
+      <h1 class="hero-title">你好，我是<span class="highlight"> 张三</span></h1>
+      <p class="hero-subtitle">全栈开发者 · 终身学习者 · 开源爱好者</p>
+      <a href="#contact" class="btn btn-primary">联系我</a>
+    </div>
+  </section>
+
+  <!-- ====== About 区域 ====== -->
+  <section id="about" class="about">
+    <div class="container">
+      <h2 class="section-title">关于我</h2>
+      <div class="about-content">
+        <div class="about-text">
+          <p>
+            我是一名热爱技术的全栈开发者，拥有 5 年 Web 开发经验。
+            擅长使用现代前端框架构建用户友好的界面，
+            也喜欢用 Python 和 Node.js 开发后端服务。
+          </p>
+          <p>
+            工作之余，我喜欢参与开源项目、撰写技术博客、
+            以及在社区分享知识。我相信持续学习是保持竞争力的关键。
+          </p>
+        </div>
+        <div class="about-skills">
+          <h3>技能</h3>
+          <ul class="skills-list">
+            <li>HTML / CSS / JavaScript</li>
+            <li>React / Vue.js</li>
+            <li>Python / Node.js</li>
+            <li>MySQL / MongoDB</li>
+            <li>Git / Docker</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ====== Projects 区域 ====== -->
+  <section id="projects" class="projects">
+    <div class="container">
+      <h2 class="section-title">我的项目</h2>
+      <div class="projects-grid">
+
+        <div class="project-card">
+          <h3 class="project-name">📊 数据分析平台</h3>
+          <p class="project-desc">
+            一个基于 React + Flask 的交互式数据可视化平台，
+            支持拖拽式图表生成和实时数据更新。
+          </p>
+          <span class="project-tag">React</span>
+          <span class="project-tag">Flask</span>
+          <span class="project-tag">ECharts</span>
+        </div>
+
+        <div class="project-card">
+          <h3 class="project-name">🤖 智能客服机器人</h3>
+          <p class="project-desc">
+            基于 NLP 的智能客服系统，支持多轮对话、
+            意图识别和自动工单分配。
+          </p>
+          <span class="project-tag">Python</span>
+          <span class="project-tag">TensorFlow</span>
+          <span class="project-tag">Redis</span>
+        </div>
+
+        <div class="project-card">
+          <h3 class="project-name">📝 在线协作文档</h3>
+          <p class="project-desc">
+            支持多人实时协作的在线文档编辑器，
+            使用 WebSocket 实现毫秒级同步。
+          </p>
+          <span class="project-tag">Vue.js</span>
+          <span class="project-tag">Node.js</span>
+          <span class="project-tag">MongoDB</span>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ====== Contact 区域 ====== -->
+  <section id="contact" class="contact">
+    <div class="container">
+      <h2 class="section-title">联系我</h2>
+      <form class="contact-form" action="#" method="post">
+        <div class="form-group">
+          <label for="name">姓名</label>
+          <input type="text" id="name" name="name" placeholder="你的名字" required>
+        </div>
+        <div class="form-group">
+          <label for="email">邮箱</label>
+          <input type="email" id="email" name="email" placeholder="your@email.com" required>
+        </div>
+        <div class="form-group">
+          <label for="message">留言</label>
+          <textarea id="message" name="message" rows="5" placeholder="想说点什么..." required></textarea>
+        </div>
+        <button type="submit" class="btn btn-primary">发送</button>
+      </form>
+    </div>
+  </section>
+
+  <!-- ====== 页脚 ====== -->
+  <footer class="footer">
+    <div class="container">
+      <p>&copy; 2026 张三的个人网站. All rights reserved.</p>
+    </div>
+  </footer>
+
+</body>
+</html>

@@ -31,11 +31,11 @@
 | 类型 | 目录 | 命名建议 | 用途 |
 |---|---|---|---|
 | 问题修复 | `docs/issues/` | `ISSUE-<num>-<slug>.md` | 记录 bug、复现、影响面、修复建议、验收 |
-| 新特性支持 | `docs/plans/` | `<feature-slug>.md` | 记录功能目标、接口、执行切片、测试和验收 |
+| 新特性支持 | `docs/plans/feature/` | `<feature-slug>.md` | 记录功能目标、接口、执行切片、测试和验收 |
 | 项目计划 | `docs/plans/` 或 `docs/architecture/` | `<topic>.md` | 记录阶段规划、架构演进、跨模块决策 |
 
 如果任务偏“架构原则 / 长期设计”，放入 `docs/architecture/`。
-如果任务偏“近期可执行工作包”，放入 `docs/plans/`。
+如果任务偏“近期可执行工作包”，放入 `docs/plans/`；如果是明确的新功能实现包，放入 `docs/plans/feature/`。
 
 ---
 
@@ -151,7 +151,8 @@
 当前项目建议长期维护三类索引：
 
 - `docs/issues/`：bug 和缺陷记录
-- `docs/plans/`：近期 feature / improvement 工作包
+- `docs/plans/`：近期 project / improvement 工作包
+- `docs/plans/feature/`：新特性实现计划
 - `docs/architecture/`：跨阶段架构设计和长期边界
 
 后续可以增加：
