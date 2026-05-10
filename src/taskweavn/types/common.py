@@ -23,6 +23,30 @@ class ErrorObservation(BaseObservation):
     message: str = Field(description="Human-readable error description.")
 
 
+class AgentErrorObservation(BaseObservation):
+    """Loop-level failure that is not tied to a concrete tool Action.
+
+    Runtime/tool failures already flow through :class:`ErrorObservation`. This
+    event covers failures that happen before an Action exists, such as
+    ``llm.chat(...)`` failing while the loop is asking the model for the next
+    tool call.
+    """
+
+    success: bool = Field(default=False, frozen=True)
+    error_type: str = Field(description="Machine-readable category, e.g. 'llm_error'.")
+    message: str = Field(description="Human-readable failure description.")
+    phase: str = Field(description="Loop phase where the failure happened.")
+    step: int = Field(ge=1, description="1-based ReAct step.")
+    model_name: str | None = Field(
+        default=None,
+        description="LLM model identifier when available.",
+    )
+    task_id: str | None = Field(
+        default=None,
+        description="AgentLoop.run task id for cross-stream joins.",
+    )
+
+
 class AgentFinishAction(BaseAction):
     """Signals that the agent has completed the task.
 

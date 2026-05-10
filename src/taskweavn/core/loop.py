@@ -65,6 +65,7 @@ from taskweavn.tools.base import Tool
 from taskweavn.types.base import BaseAction, BaseEvent, BaseObservation
 from taskweavn.types.code_action import CodeAction, CodeExecutionObservation
 from taskweavn.types.common import (
+    AgentErrorObservation,
     AgentFinishAction,
     AgentFinishObservation,
     ErrorObservation,
@@ -136,7 +137,7 @@ class LoopResult:
     final_answer: str
     steps: int
     finished: bool  # True iff terminated via AgentFinishAction or empty tool_calls
-    stop_reason: str  # "agent_finish" | "no_tool_calls" | "max_steps"
+    stop_reason: str  # "agent_finish" | "no_tool_calls" | "max_steps" | "llm_error"
 
 
 @dataclass
@@ -285,7 +286,18 @@ class AgentLoop:
             # when the queue is empty.
             self.drain_pending_responses(messages)
 
-            response = self.llm.chat(messages=messages, tools=self._tool_schemas)
+            try:
+                response = self.llm.chat(messages=messages, tools=self._tool_schemas)
+            except Exception as exc:  # noqa: BLE001 — loop contract: return LoopResult.
+                obs = self._handle_llm_error(exc, step)
+                self._append_event(obs)
+                self._publish_llm_error(obs)
+                return LoopResult(
+                    final_answer="",
+                    steps=step,
+                    finished=False,
+                    stop_reason="llm_error",
+                )
 
             if response.content:
                 self.thought_store.write(
@@ -667,6 +679,51 @@ class AgentLoop:
                 message=f"Could not build {tool.action_type.__name__}: {exc}",
             )
         return action
+
+    def _handle_llm_error(self, exc: Exception, step: int) -> AgentErrorObservation:
+        """Convert a pre-Action LLM failure into an EventStream observation.
+
+        The Runtime can only produce :class:`ErrorObservation` after an Action
+        exists. Provider failures happen earlier, while asking the model for
+        the next tool call, so they need their own loop-level event.
+        """
+        model_name = getattr(self.llm, "model", None)
+        if model_name is not None and not isinstance(model_name, str):
+            model_name = repr(model_name)
+        return AgentErrorObservation(
+            error_type="llm_error",
+            message=f"{type(exc).__name__}: {exc}",
+            phase="llm_chat",
+            step=step,
+            model_name=model_name,
+            task_id=self._current_task_id,
+        )
+
+    def _publish_llm_error(self, observation: AgentErrorObservation) -> None:
+        """Optionally mirror an LLM failure to MessageStream for the operator UI."""
+        if self.bus is None:
+            return
+        from taskweavn.interaction import AgentMessage as _AgentMessage
+
+        message = _AgentMessage(
+            session_id=self.session_id,
+            task_id=self._current_task_id,
+            agent_id="system",
+            message_type="informational",
+            content=f"LLM request failed during {observation.phase}: {observation.message}",
+            context={
+                "error_type": observation.error_type,
+                "phase": observation.phase,
+                "step": observation.step,
+                "model_name": observation.model_name,
+                "event_id": observation.event_id,
+            },
+        )
+        # Mirroring to MessageStream is UX-only. The EventStream observation
+        # above is the durable audit fact, so a message-store failure must not
+        # re-crash the loop while handling the original LLM failure.
+        with contextlib.suppress(Exception):
+            self.bus.publish(message)
 
     @staticmethod
     def _tool_message(tool_call_id: str, observation: BaseObservation) -> dict[str, Any]:

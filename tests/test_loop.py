@@ -18,6 +18,7 @@ from taskweavn.tools import (
     WriteFileTool,
 )
 from taskweavn.types import (
+    AgentErrorObservation,
     AgentFinishAction,
     AgentFinishObservation,
     BaseAction,
@@ -48,6 +49,22 @@ class StubLLM:
             return next(self._iter)
         except StopIteration as exc:  # pragma: no cover — test misconfig signal
             raise AssertionError("StubLLM ran out of canned responses") from exc
+
+
+class FailingLLM:
+    model = "test/failing-model"
+
+    def __init__(self, exc: Exception) -> None:
+        self.exc = exc
+        self.calls: list[dict[str, Any]] = []
+
+    def chat(
+        self,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]] | None = None,
+    ) -> ChatResponse:
+        self.calls.append({"messages": list(messages), "tools": tools})
+        raise self.exc
 
 
 def _finish_response(answer: str, call_id: str = "c1") -> ChatResponse:
@@ -151,6 +168,26 @@ def test_loop_terminates_on_no_tool_calls(workspace: Workspace) -> None:
     assert result.stop_reason == "no_tool_calls"
     assert result.final_answer == "I have nothing to do."
     assert list(loop.event_stream) == []
+
+
+def test_loop_records_llm_chat_failure_as_event(workspace: Workspace) -> None:
+    llm = FailingLLM(RuntimeError("provider 500"))
+    loop = _build_loop(workspace, llm)  # type: ignore[arg-type]
+
+    result = loop.run("trigger provider failure")
+
+    assert result.finished is False
+    assert result.stop_reason == "llm_error"
+    assert result.steps == 1
+
+    events = list(loop.event_stream)
+    assert len(events) == 1
+    assert isinstance(events[0], AgentErrorObservation)
+    assert events[0].error_type == "llm_error"
+    assert events[0].phase == "llm_chat"
+    assert events[0].step == 1
+    assert events[0].model_name == "test/failing-model"
+    assert "provider 500" in events[0].message
 
 
 def test_loop_executes_tool_then_finishes(workspace: Workspace) -> None:

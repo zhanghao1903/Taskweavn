@@ -17,6 +17,7 @@ from taskweavn.types.code_action import (
     TrackingConfig,
 )
 from taskweavn.types.common import (
+    AgentErrorObservation,
     AgentFinishAction,
     AgentFinishObservation,
     ErrorObservation,
@@ -25,6 +26,7 @@ from taskweavn.types.registry import ActionRegistry, ObservationRegistry
 
 __all__ = [
     "ActionRegistry",
+    "AgentErrorObservation",
     "AgentFinishAction",
     "AgentFinishObservation",
     "BaseAction",

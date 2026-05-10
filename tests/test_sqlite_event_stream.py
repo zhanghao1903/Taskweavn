@@ -10,6 +10,7 @@ import pytest
 
 from taskweavn.core import EventStream, SqliteEventStream
 from taskweavn.types.common import (
+    AgentErrorObservation,
     AgentFinishAction,
     AgentFinishObservation,
     ErrorObservation,
@@ -303,5 +304,34 @@ def test_task_id_column_added_on_pre_3_3_db(tmp_path: Path) -> None:
             if isinstance(e, AgentFinishAction)
         ]
         assert post == ["post-migration"]
+    finally:
+        stream.close()
+
+
+def test_agent_error_observation_round_trips(tmp_path: Path) -> None:
+    stream = SqliteEventStream(tmp_path / "events.sqlite")
+    try:
+        obs = AgentErrorObservation(
+            error_type="llm_error",
+            message="RuntimeError: provider 500",
+            phase="llm_chat",
+            step=1,
+            model_name="test/failing-model",
+            task_id="task-123",
+        )
+
+        stream.append(obs, task_id="task-123")
+
+        (got,) = list(stream)
+        assert isinstance(got, AgentErrorObservation)
+        assert got.error_type == "llm_error"
+        assert got.phase == "llm_chat"
+        assert got.step == 1
+        assert got.model_name == "test/failing-model"
+        assert got.task_id == "task-123"
+
+        (task_got,) = list(stream.iter_for_task("task-123"))
+        assert isinstance(task_got, AgentErrorObservation)
+        assert task_got.event_id == obs.event_id
     finally:
         stream.close()
