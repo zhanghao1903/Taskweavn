@@ -16,7 +16,7 @@
 ## 测试命令
 
 ```bash
-code-agent run \
+taskweavn run \
   --task "在 workspace 里创建 README.md，内容包括项目名称、三条功能点、一个使用示例。" \
   --workspace ./workspace/user-test-easy \
   --max-steps 8

@@ -18,8 +18,8 @@ from typing import Any
 
 import pytest
 
-from code_agent.core.loop import AgentLoop, LoopError
-from code_agent.interaction import (
+from taskweavn.core.loop import AgentLoop, LoopError
+from taskweavn.interaction import (
     AUTONOMY_PRESETS,
     AgentMessage,
     AutonomyGate,
@@ -28,12 +28,12 @@ from code_agent.interaction import (
     SqliteMessageStream,
     WaitCoordinator,
 )
-from code_agent.llm.client import ChatResponse, ToolCall
-from code_agent.runtime import LocalRuntime
-from code_agent.tools import ReadFileTool, Workspace, WriteFileTool
-from code_agent.tools.base import Tool
-from code_agent.tools.shell import RunCommandTool
-from code_agent.types import ErrorObservation
+from taskweavn.llm.client import ChatResponse, ToolCall
+from taskweavn.runtime import LocalRuntime
+from taskweavn.tools import ReadFileTool, Workspace, WriteFileTool
+from taskweavn.tools.base import Tool
+from taskweavn.tools.shell import RunCommandTool
+from taskweavn.types import ErrorObservation
 
 # ---------------------------------------------------------------------------
 # Fixtures + LLM stubs
@@ -93,7 +93,7 @@ def _tool_call(tool_name: str, args: dict[str, Any], call_id: str = "c1") -> Cha
 
 
 def _finish(answer: str, call_id: str = "cend") -> ChatResponse:
-    from code_agent.core.loop import FINISH_TOOL_NAME
+    from taskweavn.core.loop import FINISH_TOOL_NAME
 
     arg_json = json.dumps({"final_answer": answer})
     return ChatResponse(
@@ -474,7 +474,7 @@ def test_async_emit_defers_action_no_immediate_run(
     assert not sentinel.exists()
     # No observation for the WriteFile in the event stream — only the
     # action event got appended at deferral time.
-    from code_agent.tools.fs import FileWriteObservation, WriteFileAction
+    from taskweavn.tools.fs import FileWriteObservation, WriteFileAction
 
     actions = [e for e in loop.event_stream if isinstance(e, WriteFileAction)]
     observations = [e for e in loop.event_stream if isinstance(e, FileWriteObservation)]
@@ -530,7 +530,7 @@ def test_async_drain_resolves_yes_runs_action(
     # The runtime executed the write.
     assert (workspace.root / "late.txt").read_text() == "late"
     # And the observation is in the stream.
-    from code_agent.tools.fs import FileWriteObservation
+    from taskweavn.tools.fs import FileWriteObservation
 
     observations = [
         e for e in loop.event_stream if isinstance(e, FileWriteObservation)
@@ -633,7 +633,7 @@ def test_async_drain_within_loop_threads_resolution_into_messages(
     # Either step 2's drain (likely) or the shutdown drain (fallback) ran
     # the action — both code paths use the same drain method, so assert on
     # the post-state.
-    from code_agent.tools.fs import FileWriteObservation
+    from taskweavn.tools.fs import FileWriteObservation
 
     observations = [
         e for e in loop.event_stream if isinstance(e, FileWriteObservation)

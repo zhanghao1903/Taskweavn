@@ -10,16 +10,16 @@ from unittest.mock import MagicMock
 import pytest
 from pydantic import ValidationError
 
-from code_agent.audit import (
+from taskweavn.audit import (
     AuditAgent,
     AuditConfig,
     AuditObservation,
     AuditVerdict,
     render_audit_system_message,
 )
-from code_agent.audit.agent import _truncate
-from code_agent.llm.client import ChatResponse
-from code_agent.types import (
+from taskweavn.audit.agent import _truncate
+from taskweavn.llm.client import ChatResponse
+from taskweavn.types import (
     CodeAction,
     CodeExecutionObservation,
     FileChange,

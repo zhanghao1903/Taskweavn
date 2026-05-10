@@ -6,7 +6,7 @@ Two strands:
 * The stdin responder helper — given a fake stdin, prints actionables to
   stderr and publishes a ``response`` AgentMessage on the bus.
 
-The full ``code-agent run`` command needs an LLM and is not exercised here;
+The full ``taskweavn run`` command needs an LLM and is not exercised here;
 the loop integration is already covered by ``test_loop_interaction``.
 """
 
@@ -20,8 +20,8 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
-from code_agent.cli.main import _build_risk_assessor, _start_stdin_responder, app
-from code_agent.interaction import (
+from taskweavn.cli.main import _build_risk_assessor, _start_stdin_responder, app
+from taskweavn.interaction import (
     AgentMessage,
     BaselineOnlyAssessor,
     CompositeAssessor,

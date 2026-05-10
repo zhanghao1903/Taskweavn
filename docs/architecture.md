@@ -1,4 +1,4 @@
-# Code Agent — 核心架构参考
+# TaskWeavn — 核心架构参考
 
 > 版本 v1.0 · 2026-05-08
 >
@@ -77,7 +77,7 @@
 
 ## 2. Types — 类型化事件骨架
 
-模块：`code_agent.types`
+模块：`taskweavn.types`
 
 ### 2.1 BaseEvent / BaseAction / BaseObservation
 
@@ -95,11 +95,11 @@
 
 ### 2.2 已有具体类型
 
-- `code_agent.types.common` — `AgentFinishAction`、`AgentFinishObservation`、`ErrorObservation`
-- `code_agent.types.code_action` — `CodeAction`、`CodeExecutionObservation`、`FileChange`、`TrackingConfig`
-- `code_agent.tools.fs` — `ReadFileAction/WriteFileAction/ListDirAction` + 对应 Observation
-- `code_agent.tools.shell` — `RunCommandAction` + Observation
-- `code_agent.audit.agent` — `AuditObservation`（包了 LLM 输出 `AuditVerdict`）
+- `taskweavn.types.common` — `AgentFinishAction`、`AgentFinishObservation`、`ErrorObservation`
+- `taskweavn.types.code_action` — `CodeAction`、`CodeExecutionObservation`、`FileChange`、`TrackingConfig`
+- `taskweavn.tools.fs` — `ReadFileAction/WriteFileAction/ListDirAction` + 对应 Observation
+- `taskweavn.tools.shell` — `RunCommandAction` + Observation
+- `taskweavn.audit.agent` — `AuditObservation`（包了 LLM 输出 `AuditVerdict`）
 
 ### 2.3 Registry
 
@@ -107,7 +107,7 @@
 - `ActionRegistry`
 - `ObservationRegistry`
 
-**用途**：SqliteEventStream 把行 JSON 反序列化成原类时只能拿到字符串 `kind`，需要 registry 找回 Python 类。**任何会被持久化的 Action/Observation 必须在导入路径上自动注册**——所以 `code_agent.tools` 模块得在程序入口被 import 一次。
+**用途**：SqliteEventStream 把行 JSON 反序列化成原类时只能拿到字符串 `kind`，需要 registry 找回 Python 类。**任何会被持久化的 Action/Observation 必须在导入路径上自动注册**——所以 `taskweavn.tools` 模块得在程序入口被 import 一次。
 
 ---
 
@@ -115,7 +115,7 @@
 
 ### 3.1 Runtime Protocol
 
-模块：`code_agent.runtime.base`
+模块：`taskweavn.runtime.base`
 
 ```python
 @runtime_checkable
@@ -129,7 +129,7 @@ class Runtime(Protocol):
 
 ### 3.2 LocalRuntime
 
-模块：`code_agent.runtime.local`
+模块：`taskweavn.runtime.local`
 
 进程内 Runtime，按 `type[BaseAction]` → `Executor` 字典分发。
 
@@ -144,7 +144,7 @@ class Runtime(Protocol):
 
 ### 3.3 Tool 抽象基类
 
-模块：`code_agent.tools.base`
+模块：`taskweavn.tools.base`
 
 ```python
 class Tool[ActionT: BaseAction, ObservationT: BaseObservation](ABC):
@@ -167,7 +167,7 @@ class Tool[ActionT: BaseAction, ObservationT: BaseObservation](ABC):
 
 ### 3.4 Workspace（沙盒根）
 
-模块：`code_agent.tools.workspace`
+模块：`taskweavn.tools.workspace`
 
 `Workspace(root)` 是所有文件系统工具的路径解析器：
 - `resolve(path)` 把传入路径（相对/绝对）解析到 `root` 之下；
@@ -179,7 +179,7 @@ class Tool[ActionT: BaseAction, ObservationT: BaseObservation](ABC):
 
 ## 4. LLM — 模型客户端
 
-模块：`code_agent.llm.client`
+模块：`taskweavn.llm.client`
 
 | 对象                                       | 作用                                                       |
 | ------------------------------------------ | ---------------------------------------------------------- |
@@ -200,7 +200,7 @@ class Tool[ActionT: BaseAction, ObservationT: BaseObservation](ABC):
 
 ### 5.1 EventStream Protocol
 
-模块：`code_agent.core.event_stream`
+模块：`taskweavn.core.event_stream`
 
 ```python
 @runtime_checkable
@@ -222,7 +222,7 @@ class EventStream(Protocol):
 
 ### 5.3 SqliteEventStream
 
-模块：`code_agent.core.sqlite_event_stream`
+模块：`taskweavn.core.sqlite_event_stream`
 
 | 关键点               | 说明                                                                                   |
 | -------------------- | -------------------------------------------------------------------------------------- |
@@ -236,7 +236,7 @@ class EventStream(Protocol):
 
 ### 5.4 ThoughtStore Protocol
 
-模块：`code_agent.memory.thought_store`
+模块：`taskweavn.memory.thought_store`
 
 ```python
 @runtime_checkable
@@ -259,7 +259,7 @@ class ThoughtStore(Protocol):
 
 ## 6. Audit — 审计层
 
-模块：`code_agent.audit.agent`
+模块：`taskweavn.audit.agent`
 
 | 对象                                       | 角色                                                                  |
 | ------------------------------------------ | --------------------------------------------------------------------- |
@@ -279,7 +279,7 @@ class ThoughtStore(Protocol):
 
 ## 7. Interaction — 交互层
 
-模块：`code_agent.interaction`（Phase 3 主战场）
+模块：`taskweavn.interaction`（Phase 3 主战场）
 
 > 设计动机和决策细节见 [interaction_layer_design.md]，本节只列对象表 + Protocol。
 
@@ -300,7 +300,7 @@ class RiskAssessor(Protocol):
 
 ### 7.2 Autonomy 行为契约
 
-模块：`code_agent.interaction.autonomy`
+模块：`taskweavn.interaction.autonomy`
 
 ```python
 @dataclass(frozen=True)
@@ -319,7 +319,7 @@ class AutonomyBehavior:
 
 ### 7.3 AutonomyGate
 
-模块：`code_agent.interaction.gate`
+模块：`taskweavn.interaction.gate`
 
 ```python
 class AutonomyGate:
@@ -336,7 +336,7 @@ class AutonomyGate:
 
 ### 7.4 AgentMessage + MessageStream
 
-模块：`code_agent.interaction.message`
+模块：`taskweavn.interaction.message`
 
 ```python
 class AgentMessage(BaseModel, frozen=True, extra="forbid"):
@@ -373,13 +373,13 @@ class MessageStream(Protocol):
     def __len__(self) -> int
 ```
 
-`SqliteMessageStream` 是默认实现，工作区级单库（`<workspace>/.code-agent/messages.sqlite`），用 `session_id` 列做行级隔离。
+`SqliteMessageStream` 是默认实现，工作区级单库（`<workspace>/.taskweavn/messages.sqlite`），用 `session_id` 列做行级隔离。
 
 `pending_actionable` 用 `NOT EXISTS` 反 join 找"已发但未应答"的 actionable。
 
 ### 7.5 MessageBus + Subscription
 
-模块：`code_agent.interaction.bus`
+模块：`taskweavn.interaction.bus`
 
 ```python
 @runtime_checkable
@@ -407,7 +407,7 @@ class Subscription(Protocol):
 
 ### 7.6 WaitCoordinator
 
-模块：`code_agent.interaction.wait`
+模块：`taskweavn.interaction.wait`
 
 把"actionable 已发布"翻译成"loop 下一步该干什么"。
 
@@ -442,13 +442,13 @@ class WaitResult:
 
 ### 8.1 WorkspaceLayout
 
-模块：`code_agent.core.workspace_layout`
+模块：`taskweavn.core.workspace_layout`
 
 **纯路径数学**——不开任何文件，不连任何库。
 
 ```
 <workspace_root>/
-├─ .code-agent/
+├─ .taskweavn/
 │   ├─ workspace.sqlite           # session 注册表
 │   └─ messages.sqlite            # 工作区级消息（按 session_id 隔离）
 ├─ shared/                         # 跨 session 协作（Phase 3.5+）
@@ -468,7 +468,7 @@ class WaitResult:
 
 ### 8.2 Session
 
-模块：`code_agent.core.session`
+模块：`taskweavn.core.session`
 
 ```python
 @dataclass(frozen=True)
@@ -485,7 +485,7 @@ class Session:
 
 ### 8.3 SessionManager
 
-模块：`code_agent.core.session_manager`
+模块：`taskweavn.core.session_manager`
 
 CRUD over `workspace.sqlite/sessions`：`create / get / require / list / touch / mark_status`。
 
@@ -495,7 +495,7 @@ WAL + autocommit。`__enter__` / `__exit__` 关连接，幂等。
 
 ## 9. Orchestration — 多 Agent 占位
 
-模块：`code_agent.orchestration.protocol`
+模块：`taskweavn.orchestration.protocol`
 
 ```python
 @runtime_checkable
@@ -512,7 +512,7 @@ class NullOrchestrator: ...   # submit 抛 NotImplementedError
 
 ## 10. Core — AgentLoop 编排
 
-模块：`code_agent.core.loop`
+模块：`taskweavn.core.loop`
 
 ```python
 @dataclass
@@ -802,7 +802,7 @@ Pydantic 模型同理：`model_config = ConfigDict(frozen=True, extra="forbid")`
 
 ### 15.4 Channel logger
 
-`code_agent.observability.setup.get_channel_logger(name)` 给每个频道（`tool` / `action` / `observation` / `audit` / `llm` 等）一个独立 logger，写到 `<log-dir>/<channel>.jsonl`。每个 EventStream / Runtime / LLMClient 在关键时刻都调一次，便于事后离线分析。
+`taskweavn.observability.setup.get_channel_logger(name)` 给每个频道（`tool` / `action` / `observation` / `audit` / `llm` 等）一个独立 logger，写到 `<log-dir>/<channel>.jsonl`。每个 EventStream / Runtime / LLMClient 在关键时刻都调一次，便于事后离线分析。
 
 ### 15.5 风险单调
 
@@ -824,17 +824,17 @@ Subscription 不重放历史。订阅前的消息靠 `MessageStream.list_for_*()
 
 | 模块路径                             | 主要导出                                                                        |
 | ------------------------------------ | ------------------------------------------------------------------------------- |
-| `code_agent.types`                   | `BaseEvent/Action/Observation`, `ActionRegistry/ObservationRegistry`, `ErrorObservation`, `AgentFinishAction/Observation`, `CodeAction/CodeExecutionObservation`, `FileChange`, `TrackingConfig` |
-| `code_agent.runtime`                 | `Runtime`, `LocalRuntime`                                                       |
-| `code_agent.tools`                   | `Tool`, `Workspace`, `ReadFileTool/WriteFileTool/ListDirTool`, `RunCommandTool`, `CodeActionTool` |
-| `code_agent.llm`                     | `LLMClient`, `ChatResponse`, `ToolCall`, `tool_schema_from_action`              |
-| `code_agent.memory`                  | `ThoughtStore`, `ThoughtRecord`, `NullThoughtStore`, `SqliteThoughtStore`, `ThoughtConfig`, `build_store` |
-| `code_agent.audit`                   | `AuditAgent`, `AuditConfig`, `AuditObservation`, `AuditVerdict`, `render_audit_system_message` |
-| `code_agent.interaction`             | 见 §7（risk / autonomy / gate / message / bus / wait 全集）                     |
-| `code_agent.orchestration`           | `Orchestrator`, `NullOrchestrator`                                              |
-| `code_agent.core`                    | `AgentLoop`, `LoopResult`, `LoopError`, `EventStream`, `InMemoryEventStream`, `SqliteEventStream`, `Session`, `SessionManager`, `WorkspaceLayout` |
-| `code_agent.cli.main`                | `app`（Typer）, `run`, `version`                                                |
-| `code_agent.observability`           | `configure_logging`, `get_channel_logger`                                       |
+| `taskweavn.types`                   | `BaseEvent/Action/Observation`, `ActionRegistry/ObservationRegistry`, `ErrorObservation`, `AgentFinishAction/Observation`, `CodeAction/CodeExecutionObservation`, `FileChange`, `TrackingConfig` |
+| `taskweavn.runtime`                 | `Runtime`, `LocalRuntime`                                                       |
+| `taskweavn.tools`                   | `Tool`, `Workspace`, `ReadFileTool/WriteFileTool/ListDirTool`, `RunCommandTool`, `CodeActionTool` |
+| `taskweavn.llm`                     | `LLMClient`, `ChatResponse`, `ToolCall`, `tool_schema_from_action`              |
+| `taskweavn.memory`                  | `ThoughtStore`, `ThoughtRecord`, `NullThoughtStore`, `SqliteThoughtStore`, `ThoughtConfig`, `build_store` |
+| `taskweavn.audit`                   | `AuditAgent`, `AuditConfig`, `AuditObservation`, `AuditVerdict`, `render_audit_system_message` |
+| `taskweavn.interaction`             | 见 §7（risk / autonomy / gate / message / bus / wait 全集）                     |
+| `taskweavn.orchestration`           | `Orchestrator`, `NullOrchestrator`                                              |
+| `taskweavn.core`                    | `AgentLoop`, `LoopResult`, `LoopError`, `EventStream`, `InMemoryEventStream`, `SqliteEventStream`, `Session`, `SessionManager`, `WorkspaceLayout` |
+| `taskweavn.cli.main`                | `app`（Typer）, `run`, `version`                                                |
+| `taskweavn.observability`           | `configure_logging`, `get_channel_logger`                                       |
 
 ---
 

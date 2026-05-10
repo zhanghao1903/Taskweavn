@@ -8,8 +8,8 @@ from pathlib import Path
 
 import pytest
 
-from code_agent.core import EventStream, SqliteEventStream
-from code_agent.types.common import (
+from taskweavn.core import EventStream, SqliteEventStream
+from taskweavn.types.common import (
     AgentFinishAction,
     AgentFinishObservation,
     ErrorObservation,

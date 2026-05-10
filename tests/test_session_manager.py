@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from code_agent.core import (
+from taskweavn.core import (
     Session,
     SessionManager,
     SessionManagerError,

@@ -16,7 +16,7 @@
 ## 测试命令
 
 ```bash
-code-agent run \
+taskweavn run \
   --task "帮我创建一个个人主页项目。需要 index.html、styles.css、README.md。页面包含姓名占位、简介、项目列表、联系方式。完成后可以用 shell 命令列出文件确认。" \
   --workspace ./workspace/user-test-medium \
   --max-steps 15 \

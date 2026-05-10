@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from code_agent.tools import PathOutsideWorkspaceError, Workspace
+from taskweavn.tools import PathOutsideWorkspaceError, Workspace
 
 
 def test_root_must_exist(tmp_path: Path) -> None:

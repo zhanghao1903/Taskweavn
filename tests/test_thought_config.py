@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from code_agent.memory import (
+from taskweavn.memory import (
     NullThoughtStore,
     SqliteThoughtStore,
     ThoughtConfig,
@@ -71,7 +71,7 @@ def test_build_store_passes_phase_filter(tmp_path: Path) -> None:
         # Filter is applied — non-allowed phases are dropped.
         from datetime import UTC, datetime
 
-        from code_agent.memory import ThoughtRecord
+        from taskweavn.memory import ThoughtRecord
 
         store.write(
             ThoughtRecord(

@@ -24,7 +24,7 @@ from typing import Any
 
 import pytest
 
-from code_agent.interaction import (
+from taskweavn.interaction import (
     AssessmentContext,
     BaselineOnlyAssessor,
     CompositeAssessor,
@@ -32,9 +32,9 @@ from code_agent.interaction import (
     RiskAssessment,
     RiskAssessor,
 )
-from code_agent.llm.client import ChatResponse
-from code_agent.tools.fs import ReadFileAction, WriteFileAction
-from code_agent.tools.shell import RunCommandAction
+from taskweavn.llm.client import ChatResponse
+from taskweavn.tools.fs import ReadFileAction, WriteFileAction
+from taskweavn.tools.shell import RunCommandAction
 
 # ---------------------------------------------------------------------------
 # Stub LLM
@@ -213,7 +213,7 @@ def test_llm_assessor_prompt_includes_action_payload_and_baseline(
 def test_llm_assessor_drops_observations_when_max_is_zero(
     tmp_path: Path,
 ) -> None:
-    from code_agent.types.common import ErrorObservation
+    from taskweavn.types.common import ErrorObservation
 
     ctx = AssessmentContext(
         workspace_root=tmp_path,

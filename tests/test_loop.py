@@ -9,15 +9,15 @@ from typing import Any
 
 import pytest
 
-from code_agent.core.loop import FINISH_TOOL_NAME, AgentLoop, LoopError
-from code_agent.llm.client import ChatResponse, ToolCall
-from code_agent.runtime import LocalRuntime
-from code_agent.tools import (
+from taskweavn.core.loop import FINISH_TOOL_NAME, AgentLoop, LoopError
+from taskweavn.llm.client import ChatResponse, ToolCall
+from taskweavn.runtime import LocalRuntime
+from taskweavn.tools import (
     ReadFileTool,
     Workspace,
     WriteFileTool,
 )
-from code_agent.types import (
+from taskweavn.types import (
     AgentFinishAction,
     AgentFinishObservation,
     BaseAction,
@@ -98,7 +98,7 @@ def _build_loop(
     *,
     max_steps: int = 5,
 ) -> AgentLoop:
-    from code_agent.tools.base import Tool
+    from taskweavn.tools.base import Tool
 
     runtime = LocalRuntime()
     tools: list[Tool[Any, Any]] = [
@@ -257,7 +257,7 @@ def test_loop_rejects_finish_tool_name_collision(workspace: Workspace) -> None:
 
     from typing import ClassVar
 
-    from code_agent.tools.base import Tool
+    from taskweavn.tools.base import Tool
 
     class ShadowFinishTool(Tool[_ShadowAction, _ShadowObs]):
         name: ClassVar[str] = FINISH_TOOL_NAME
@@ -281,15 +281,15 @@ def test_loop_runs_auditor_when_configured(workspace: Workspace) -> None:
     AuditObservation on the EventStream and a system message in the next turn."""
     from typing import ClassVar
 
-    from code_agent.audit import AuditAgent, AuditObservation
-    from code_agent.tools.base import Tool
-    from code_agent.types import (
+    from taskweavn.audit import AuditAgent, AuditObservation
+    from taskweavn.tools.base import Tool
+    from taskweavn.types import (
         BaseAction as _BA,
     )
-    from code_agent.types import (
+    from taskweavn.types import (
         BaseObservation as _BO,
     )
-    from code_agent.types.code_action import (
+    from taskweavn.types.code_action import (
         CodeAction,
         CodeExecutionObservation,
     )
@@ -373,7 +373,7 @@ def test_loop_runs_auditor_when_configured(workspace: Workspace) -> None:
 
 def test_loop_skips_auditor_for_non_code_actions(workspace: Workspace) -> None:
     """A WriteFileAction must NOT be audited — only CodeActions get audited."""
-    from code_agent.audit import AuditAgent, AuditObservation
+    from taskweavn.audit import AuditAgent, AuditObservation
 
     audit_llm = StubLLM([])  # would raise StopIteration if called
     auditor = AuditAgent(llm=audit_llm)  # type: ignore[arg-type]
@@ -403,15 +403,15 @@ def test_loop_continues_when_auditor_returns_inconclusive(
     """An inconclusive verdict must still be appended and the loop must keep going."""
     from typing import ClassVar
 
-    from code_agent.audit import AuditAgent, AuditObservation
-    from code_agent.tools.base import Tool
-    from code_agent.types import (
+    from taskweavn.audit import AuditAgent, AuditObservation
+    from taskweavn.tools.base import Tool
+    from taskweavn.types import (
         BaseAction as _BA,
     )
-    from code_agent.types import (
+    from taskweavn.types import (
         BaseObservation as _BO,
     )
-    from code_agent.types.code_action import (
+    from taskweavn.types.code_action import (
         CodeAction,
         CodeExecutionObservation,
     )

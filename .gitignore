@@ -39,6 +39,8 @@ Thumbs.db
 *.sqlite
 *.sqlite3
 .code-agent/
+.taskweavn/
+
 logs/
 
 # Secrets

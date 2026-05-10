@@ -18,7 +18,7 @@
 第一轮：
 
 ```bash
-code-agent run \
+taskweavn run \
   --task "帮我从零搭建一个个人网站项目。要求：1. 首页有 hero、about、projects、contact 四个区域；2. 使用独立 CSS；3. README 说明如何预览；4. 创建一个简单的 TODO.md 记录后续优化；5. 完成后检查目录结构和关键文件内容。" \
   --workspace ./workspace/user-test-hard \
   --max-steps 30 \
@@ -31,7 +31,7 @@ code-agent run \
 第二轮：
 
 ```bash
-code-agent run \
+taskweavn run \
   --task "继续完善刚才的网站：把项目列表改成 3 个卡片，contact 区域增加邮箱和 GitHub 占位，优化移动端布局。" \
   --workspace ./workspace/user-test-hard \
   --max-steps 25 \

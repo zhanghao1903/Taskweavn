@@ -7,8 +7,8 @@ import json
 import pytest
 from pydantic import ValidationError
 
-from code_agent.llm.client import tool_schema_from_action
-from code_agent.types import (
+from taskweavn.llm.client import tool_schema_from_action
+from taskweavn.types import (
     ActionRegistry,
     CodeAction,
     CodeExecutionObservation,

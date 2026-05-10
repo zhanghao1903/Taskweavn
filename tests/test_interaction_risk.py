@@ -6,16 +6,16 @@ from pathlib import Path
 
 import pytest
 
-from code_agent.interaction import (
+from taskweavn.interaction import (
     AssessmentContext,
     BaselineOnlyAssessor,
     RiskAssessment,
     RiskAssessor,
 )
-from code_agent.tools.fs import ReadFileAction, WriteFileAction
-from code_agent.tools.shell import RunCommandAction
-from code_agent.types.code_action import CodeAction, TrackingConfig
-from code_agent.types.common import AgentFinishAction
+from taskweavn.tools.fs import ReadFileAction, WriteFileAction
+from taskweavn.tools.shell import RunCommandAction
+from taskweavn.types.code_action import CodeAction, TrackingConfig
+from taskweavn.types.common import AgentFinishAction
 
 # ---------------------------------------------------------------------------
 # Baseline calibration (Appendix B)
@@ -28,7 +28,7 @@ def test_baseline_calibration_matches_appendix_b() -> None:
     If a number changes here, update Appendix B in the design doc and bump
     the doc revision.
     """
-    from code_agent.tools.fs import ListDirAction
+    from taskweavn.tools.fs import ListDirAction
 
     assert ReadFileAction.baseline_risk == 0.0
     assert ListDirAction.baseline_risk == 0.0
@@ -39,7 +39,7 @@ def test_baseline_calibration_matches_appendix_b() -> None:
 
 
 def test_baseline_risk_validated_on_subclass_creation() -> None:
-    from code_agent.types.base import BaseAction
+    from taskweavn.types.base import BaseAction
 
     with pytest.raises(ValueError, match="baseline_risk"):
 

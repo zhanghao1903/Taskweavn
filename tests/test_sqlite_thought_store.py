@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from code_agent.memory import (
+from taskweavn.memory import (
     NullThoughtStore,
     SqliteThoughtStore,
     ThoughtRecord,

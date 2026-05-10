@@ -20,7 +20,7 @@ from pathlib import Path
 
 import pytest
 
-from code_agent.interaction import (
+from taskweavn.interaction import (
     AgentMessage,
     InProcessMessageBus,
     MessageBus,

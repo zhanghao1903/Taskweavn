@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from code_agent.interaction import (
+from taskweavn.interaction import (
     AUTONOMY_PRESETS,
     AssessmentContext,
     AutonomyBehavior,
@@ -21,8 +21,8 @@ from code_agent.interaction import (
     GateVerdict,
     RiskAssessment,
 )
-from code_agent.tools.fs import ReadFileAction, WriteFileAction
-from code_agent.tools.shell import RunCommandAction
+from taskweavn.tools.fs import ReadFileAction, WriteFileAction
+from taskweavn.tools.shell import RunCommandAction
 
 # ---------------------------------------------------------------------------
 # Helpers

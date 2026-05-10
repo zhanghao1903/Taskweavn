@@ -7,7 +7,7 @@ from datetime import UTC, datetime
 import pytest
 from pydantic import ValidationError
 
-from code_agent.interaction import AgentMessage, RiskAssessment
+from taskweavn.interaction import AgentMessage, RiskAssessment
 
 
 def test_minimum_message_fills_defaults() -> None:

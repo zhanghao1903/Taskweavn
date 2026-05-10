@@ -17,8 +17,8 @@ from pathlib import Path
 
 import pytest
 
-from code_agent.runtime.sandbox import SandboxConfig, SandboxExecutor
-from code_agent.types import CodeAction, TrackingConfig
+from taskweavn.runtime.sandbox import SandboxConfig, SandboxExecutor
+from taskweavn.types import CodeAction, TrackingConfig
 
 
 def _docker_available() -> bool:

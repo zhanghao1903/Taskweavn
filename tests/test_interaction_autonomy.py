@@ -6,7 +6,7 @@ from dataclasses import replace
 
 import pytest
 
-from code_agent.interaction import (
+from taskweavn.interaction import (
     AUTONOMY_PRESETS,
     AutonomyBehavior,
     get_preset,

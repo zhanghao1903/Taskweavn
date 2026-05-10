@@ -699,7 +699,7 @@ def derive_status(session_id: str, manager: SessionManager, stream: MessageStrea
 
 ### 7.1 messages.sqlite Schema
 
-独立数据库，路径 `<workspace>/.code-agent/messages.sqlite`（workspace 级，不是
+独立数据库，路径 `<workspace>/.taskweavn/messages.sqlite`（workspace 级，不是
 session 级 —— 跨 session 协作时多个 session 共享同一份消息流读取能力，但行级
 带 `session_id` 隔离）。
 
@@ -960,7 +960,7 @@ CLI 的具体 UI 不在本文档定，但关键约束：
 | **3.5** | AutonomyGate + WaitCoordinator | gate.check 决策矩阵；WaitOutcome；timeout_action 四分支 | 单元测试覆盖 trigger × wait_strategy × timeout_action 笛卡尔积关键格 |
 | **3.6** | AgentLoop 集成 + CLI 最小可用版 | loop 调 gate；async 模式 drain_pending_responses；CLI prompt_toolkit 双栏；`/pending`、`/reply` 命令 | 端到端：用户开 session → agent 想跑高风险代码 → CLI 弹确认 → 用户授权 → 继续 |
 | **3.7** | LLMRiskAssessor + 复用 AuditAgent | 用一个轻量 LLM 评估 CodeAction.code 的风险；CompositeAssessor | 已有审计样本回归：风险评估与人工标注一致率 > 80% |
-| **3.8** | session 派生 status + CLI session 子命令 | derive_status；`code-agent list/show/resume <id>` | UI 列表正确显示 awaiting_user；resume 自动回到正确 wait 状态 |
+| **3.8** | session 派生 status + CLI session 子命令 | derive_status；`taskweavn list/show/resume <id>` | UI 列表正确显示 awaiting_user；resume 自动回到正确 wait 状态 |
 | **3.9** | PlanTool | workspace/.session/plan.md 读写工具；loop system message 注入 | LLM 维护 plan，进展可见；token 预算 < 500 |
 | **3.10** | shared/ append-only 协作 | shared/ 子目录约束；Workspace 跨根支持；按 session-id 命名 from-子目录 | session A 写 shared/from-A/x.json；session B 读到；A 不能写 from-B |
 | **3.11** | in-session RAG over EventStream | 索引 EventStream actions/observations/messages；BM25 / 向量；retrieve_relevant 工具 | 给定 query，召回准确率 > 70%（人工标注 20 例） |
@@ -990,25 +990,25 @@ CLI 的具体 UI 不在本文档定，但关键约束：
 
 | 类型 | 模块（计划）| 职责 |
 |---|---|---|
-| `RiskScore` | `code_agent.interaction.risk` | float ∈ [0,1] alias |
-| `RiskAssessment` | `code_agent.interaction.risk` | baseline + dynamic + final + rationale |
-| `RiskAssessor` (Protocol) | `code_agent.interaction.risk` | `assess(action, context) -> RiskAssessment` |
-| `BaselineOnlyAssessor` | `code_agent.interaction.risk` | 默认实现 |
-| `AssessmentContext` | `code_agent.interaction.risk` | 评估器输入 |
-| `AutonomyBehavior` | `code_agent.interaction.autonomy` | 自主度配置 |
-| `AutonomyGate` | `code_agent.interaction.autonomy` | 决策入口 |
-| `GateDecision` | `code_agent.interaction.autonomy` | 决策结果 |
-| `WaitCoordinator` | `code_agent.interaction.autonomy` | sync/async 等待协调 |
-| `WaitOutcome` | `code_agent.interaction.autonomy` | 等待结果枚举 |
-| `AgentMessage` | `code_agent.interaction.message` | 消息流单条事件（含 task_id） |
-| `MessageStream` (Protocol) | `code_agent.interaction.message` | 读接口 — list_for_session / list_for_task / list_for_agent / pending_actionable / thread |
-| `SqliteMessageStream` | `code_agent.interaction.message` | 默认读实现 |
-| `MessageBus` (Protocol) | `code_agent.interaction.bus` | 写接口 + 等待原语 |
-| `Subscription` (Protocol) | `code_agent.interaction.bus` | 增量订阅 |
-| `InProcessMessageBus` | `code_agent.interaction.bus` | 默认实现 |
-| `ConfidenceProvider` (Protocol) | `code_agent.interaction.autonomy` | 可选钩子，Phase 3 不实现 |
+| `RiskScore` | `taskweavn.interaction.risk` | float ∈ [0,1] alias |
+| `RiskAssessment` | `taskweavn.interaction.risk` | baseline + dynamic + final + rationale |
+| `RiskAssessor` (Protocol) | `taskweavn.interaction.risk` | `assess(action, context) -> RiskAssessment` |
+| `BaselineOnlyAssessor` | `taskweavn.interaction.risk` | 默认实现 |
+| `AssessmentContext` | `taskweavn.interaction.risk` | 评估器输入 |
+| `AutonomyBehavior` | `taskweavn.interaction.autonomy` | 自主度配置 |
+| `AutonomyGate` | `taskweavn.interaction.autonomy` | 决策入口 |
+| `GateDecision` | `taskweavn.interaction.autonomy` | 决策结果 |
+| `WaitCoordinator` | `taskweavn.interaction.autonomy` | sync/async 等待协调 |
+| `WaitOutcome` | `taskweavn.interaction.autonomy` | 等待结果枚举 |
+| `AgentMessage` | `taskweavn.interaction.message` | 消息流单条事件（含 task_id） |
+| `MessageStream` (Protocol) | `taskweavn.interaction.message` | 读接口 — list_for_session / list_for_task / list_for_agent / pending_actionable / thread |
+| `SqliteMessageStream` | `taskweavn.interaction.message` | 默认读实现 |
+| `MessageBus` (Protocol) | `taskweavn.interaction.bus` | 写接口 + 等待原语 |
+| `Subscription` (Protocol) | `taskweavn.interaction.bus` | 增量订阅 |
+| `InProcessMessageBus` | `taskweavn.interaction.bus` | 默认实现 |
+| `ConfidenceProvider` (Protocol) | `taskweavn.interaction.autonomy` | 可选钩子，Phase 3 不实现 |
 
-注：`code_agent.interaction.*` 是新顶级包；不污染现有 `core` / `memory` / `audit`。
+注：`taskweavn.interaction.*` 是新顶级包；不污染现有 `core` / `memory` / `audit`。
 
 ---
 

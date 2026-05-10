@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from code_agent.runtime import LocalRuntime, Runtime
-from code_agent.types import BaseAction, BaseObservation, ErrorObservation
+from taskweavn.runtime import LocalRuntime, Runtime
+from taskweavn.types import BaseAction, BaseObservation, ErrorObservation
 
 
 class _AddAction(BaseAction):

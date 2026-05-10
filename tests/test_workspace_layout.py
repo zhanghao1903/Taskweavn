@@ -4,13 +4,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from code_agent.core import WorkspaceLayout
+from taskweavn.core import WorkspaceLayout
 
 
 def test_layout_paths_are_derived_from_root(tmp_path: Path) -> None:
     layout = WorkspaceLayout(tmp_path)
-    assert layout.meta_dir == tmp_path / ".code-agent"
-    assert layout.registry_db_path == tmp_path / ".code-agent" / "workspace.sqlite"
+    assert layout.meta_dir == tmp_path / ".taskweavn"
+    assert layout.registry_db_path == tmp_path / ".taskweavn" / "workspace.sqlite"
     assert layout.shared_dir == tmp_path / "shared"
     assert layout.sessions_root == tmp_path / "sessions"
 
@@ -19,7 +19,7 @@ def test_workspace_messages_db_is_workspace_scoped(tmp_path: Path) -> None:
     """Phase 3.3: messages.sqlite lives next to workspace.sqlite (one DB per
     workspace, row-level session isolation)."""
     layout = WorkspaceLayout(tmp_path)
-    assert layout.workspace_messages_db == tmp_path / ".code-agent" / "messages.sqlite"
+    assert layout.workspace_messages_db == tmp_path / ".taskweavn" / "messages.sqlite"
     # Sibling of the registry — same parent dir.
     assert (
         layout.workspace_messages_db.parent == layout.registry_db_path.parent
