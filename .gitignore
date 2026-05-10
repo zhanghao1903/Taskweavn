@@ -46,5 +46,7 @@ logs/
 # Secrets
 .env
 .env.*
+.github_token
 !.env.example
 /workspace/
+/docs/user_cases/workspace/
