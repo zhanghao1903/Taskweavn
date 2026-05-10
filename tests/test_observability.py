@@ -10,12 +10,12 @@ from typing import Any
 
 import pytest
 
-from code_agent.core.event_stream import InMemoryEventStream
-from code_agent.observability import CHANNELS, configure_logging, get_channel_logger
-from code_agent.runtime.local import LocalRuntime
-from code_agent.tools.fs import ReadFileTool, WriteFileAction, WriteFileTool
-from code_agent.tools.workspace import Workspace
-from code_agent.types import AgentFinishAction
+from taskweavn.core.event_stream import InMemoryEventStream
+from taskweavn.observability import CHANNELS, configure_logging, get_channel_logger
+from taskweavn.runtime.local import LocalRuntime
+from taskweavn.tools.fs import ReadFileTool, WriteFileAction, WriteFileTool
+from taskweavn.tools.workspace import Workspace
+from taskweavn.types import AgentFinishAction
 
 
 @pytest.fixture()
@@ -149,7 +149,7 @@ def test_workspace_round_trip_with_read_tool(log_dir: Path, tmp_path: Path) -> N
     rt = LocalRuntime()
     ReadFileTool(ws).register(rt)
 
-    from code_agent.tools.fs import ReadFileAction
+    from taskweavn.tools.fs import ReadFileAction
 
     rt.execute(ReadFileAction(path="f.txt"))
     tool_entries = _read_jsonl(log_dir / "tool.log")

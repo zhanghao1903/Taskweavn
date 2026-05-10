@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from code_agent.memory import NullThoughtStore, ThoughtRecord, ThoughtStore
+from taskweavn.memory import NullThoughtStore, ThoughtRecord, ThoughtStore
 
 
 def test_null_store_implements_protocol() -> None:

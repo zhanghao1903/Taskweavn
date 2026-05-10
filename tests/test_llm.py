@@ -11,17 +11,17 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from code_agent.llm import (
+from taskweavn.llm import (
     ChatResponse,
     LLMClient,
     parse_tool_arguments,
     tool_schema_from_action,
 )
-from code_agent.tools.fs import WriteFileAction
-from code_agent.types import AgentFinishAction
+from taskweavn.tools.fs import WriteFileAction
+from taskweavn.types import AgentFinishAction
 
 
-@patch("code_agent.llm.client.LLM")
+@patch("taskweavn.llm.client.LLM")
 def test_construct_passes_model_and_key(mock_llm_cls: MagicMock) -> None:
     LLMClient(model="anthropic/claude-sonnet-4-5", api_key="sk-test")
     mock_llm_cls.assert_called_once_with(
@@ -29,7 +29,7 @@ def test_construct_passes_model_and_key(mock_llm_cls: MagicMock) -> None:
     )
 
 
-@patch("code_agent.llm.client.LLM")
+@patch("taskweavn.llm.client.LLM")
 def test_complete_delegates_to_underlying_llm(mock_llm_cls: MagicMock) -> None:
     fake_llm = MagicMock()
     sentinel: Any = object()
@@ -43,7 +43,7 @@ def test_complete_delegates_to_underlying_llm(mock_llm_cls: MagicMock) -> None:
     fake_llm.completion.assert_called_once_with(messages=[], tools=None)
 
 
-@patch("code_agent.llm.client.LLM")
+@patch("taskweavn.llm.client.LLM")
 def test_count_tokens_delegates(mock_llm_cls: MagicMock) -> None:
     fake_llm = MagicMock()
     fake_llm.get_token_count.return_value = 42
@@ -53,7 +53,7 @@ def test_count_tokens_delegates(mock_llm_cls: MagicMock) -> None:
     assert client.count_tokens([]) == 42
 
 
-@patch("code_agent.llm.client.LLM")
+@patch("taskweavn.llm.client.LLM")
 def test_from_env_requires_api_key(
     mock_llm_cls: MagicMock,  # noqa: ARG001
     monkeypatch: pytest.MonkeyPatch,
@@ -63,7 +63,7 @@ def test_from_env_requires_api_key(
         LLMClient.from_env()
 
 
-@patch("code_agent.llm.client.LLM")
+@patch("taskweavn.llm.client.LLM")
 def test_from_env_uses_model_override(
     mock_llm_cls: MagicMock,
     monkeypatch: pytest.MonkeyPatch,
@@ -76,7 +76,7 @@ def test_from_env_uses_model_override(
     )
 
 
-@patch("code_agent.llm.client.LLM")
+@patch("taskweavn.llm.client.LLM")
 def test_from_env_falls_back_to_default(
     mock_llm_cls: MagicMock,
     monkeypatch: pytest.MonkeyPatch,
@@ -156,8 +156,8 @@ def _fake_litellm_response(
     return response
 
 
-@patch("code_agent.llm.client.LLM")
-@patch("code_agent.llm.client.litellm")
+@patch("taskweavn.llm.client.LLM")
+@patch("taskweavn.llm.client.litellm")
 def test_chat_parses_plain_text_response(
     mock_litellm: MagicMock,
     mock_llm_cls: MagicMock,  # noqa: ARG001
@@ -171,8 +171,8 @@ def test_chat_parses_plain_text_response(
     assert result.raw_assistant_message == {"role": "assistant", "content": "hello"}
 
 
-@patch("code_agent.llm.client.LLM")
-@patch("code_agent.llm.client.litellm")
+@patch("taskweavn.llm.client.LLM")
+@patch("taskweavn.llm.client.litellm")
 def test_chat_parses_tool_calls(
     mock_litellm: MagicMock,
     mock_llm_cls: MagicMock,  # noqa: ARG001

@@ -9,15 +9,16 @@ from typing import Any
 
 import pytest
 
-from code_agent.core.loop import FINISH_TOOL_NAME, AgentLoop, LoopError
-from code_agent.llm.client import ChatResponse, ToolCall
-from code_agent.runtime import LocalRuntime
-from code_agent.tools import (
+from taskweavn.core.loop import FINISH_TOOL_NAME, AgentLoop, LoopError
+from taskweavn.llm.client import ChatResponse, ToolCall
+from taskweavn.runtime import LocalRuntime
+from taskweavn.tools import (
     ReadFileTool,
     Workspace,
     WriteFileTool,
 )
-from code_agent.types import (
+from taskweavn.types import (
+    AgentErrorObservation,
     AgentFinishAction,
     AgentFinishObservation,
     BaseAction,
@@ -48,6 +49,22 @@ class StubLLM:
             return next(self._iter)
         except StopIteration as exc:  # pragma: no cover — test misconfig signal
             raise AssertionError("StubLLM ran out of canned responses") from exc
+
+
+class FailingLLM:
+    model = "test/failing-model"
+
+    def __init__(self, exc: Exception) -> None:
+        self.exc = exc
+        self.calls: list[dict[str, Any]] = []
+
+    def chat(
+        self,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]] | None = None,
+    ) -> ChatResponse:
+        self.calls.append({"messages": list(messages), "tools": tools})
+        raise self.exc
 
 
 def _finish_response(answer: str, call_id: str = "c1") -> ChatResponse:
@@ -98,7 +115,7 @@ def _build_loop(
     *,
     max_steps: int = 5,
 ) -> AgentLoop:
-    from code_agent.tools.base import Tool
+    from taskweavn.tools.base import Tool
 
     runtime = LocalRuntime()
     tools: list[Tool[Any, Any]] = [
@@ -151,6 +168,26 @@ def test_loop_terminates_on_no_tool_calls(workspace: Workspace) -> None:
     assert result.stop_reason == "no_tool_calls"
     assert result.final_answer == "I have nothing to do."
     assert list(loop.event_stream) == []
+
+
+def test_loop_records_llm_chat_failure_as_event(workspace: Workspace) -> None:
+    llm = FailingLLM(RuntimeError("provider 500"))
+    loop = _build_loop(workspace, llm)  # type: ignore[arg-type]
+
+    result = loop.run("trigger provider failure")
+
+    assert result.finished is False
+    assert result.stop_reason == "llm_error"
+    assert result.steps == 1
+
+    events = list(loop.event_stream)
+    assert len(events) == 1
+    assert isinstance(events[0], AgentErrorObservation)
+    assert events[0].error_type == "llm_error"
+    assert events[0].phase == "llm_chat"
+    assert events[0].step == 1
+    assert events[0].model_name == "test/failing-model"
+    assert "provider 500" in events[0].message
 
 
 def test_loop_executes_tool_then_finishes(workspace: Workspace) -> None:
@@ -257,7 +294,7 @@ def test_loop_rejects_finish_tool_name_collision(workspace: Workspace) -> None:
 
     from typing import ClassVar
 
-    from code_agent.tools.base import Tool
+    from taskweavn.tools.base import Tool
 
     class ShadowFinishTool(Tool[_ShadowAction, _ShadowObs]):
         name: ClassVar[str] = FINISH_TOOL_NAME
@@ -281,15 +318,15 @@ def test_loop_runs_auditor_when_configured(workspace: Workspace) -> None:
     AuditObservation on the EventStream and a system message in the next turn."""
     from typing import ClassVar
 
-    from code_agent.audit import AuditAgent, AuditObservation
-    from code_agent.tools.base import Tool
-    from code_agent.types import (
+    from taskweavn.audit import AuditAgent, AuditObservation
+    from taskweavn.tools.base import Tool
+    from taskweavn.types import (
         BaseAction as _BA,
     )
-    from code_agent.types import (
+    from taskweavn.types import (
         BaseObservation as _BO,
     )
-    from code_agent.types.code_action import (
+    from taskweavn.types.code_action import (
         CodeAction,
         CodeExecutionObservation,
     )
@@ -373,7 +410,7 @@ def test_loop_runs_auditor_when_configured(workspace: Workspace) -> None:
 
 def test_loop_skips_auditor_for_non_code_actions(workspace: Workspace) -> None:
     """A WriteFileAction must NOT be audited — only CodeActions get audited."""
-    from code_agent.audit import AuditAgent, AuditObservation
+    from taskweavn.audit import AuditAgent, AuditObservation
 
     audit_llm = StubLLM([])  # would raise StopIteration if called
     auditor = AuditAgent(llm=audit_llm)  # type: ignore[arg-type]
@@ -403,15 +440,15 @@ def test_loop_continues_when_auditor_returns_inconclusive(
     """An inconclusive verdict must still be appended and the loop must keep going."""
     from typing import ClassVar
 
-    from code_agent.audit import AuditAgent, AuditObservation
-    from code_agent.tools.base import Tool
-    from code_agent.types import (
+    from taskweavn.audit import AuditAgent, AuditObservation
+    from taskweavn.tools.base import Tool
+    from taskweavn.types import (
         BaseAction as _BA,
     )
-    from code_agent.types import (
+    from taskweavn.types import (
         BaseObservation as _BO,
     )
-    from code_agent.types.code_action import (
+    from taskweavn.types.code_action import (
         CodeAction,
         CodeExecutionObservation,
     )

@@ -1,8 +1,8 @@
-# codeAgent
+# TaskWeavn
 
 > [English](README.md)
 
-一个具备**强类型 Action / Observation**、**EventStream 驱动的 ReAct 循环**和**可插拔 Runtime** 的代码智能体——基于 OpenHands SDK 构建 LLM 适配层。路线图涵盖四个阶段：ReAct 基础 → CodeAction 审计 → RAG 记忆 → 多 Agent 编排。
+TaskWeavn 是一个具备**强类型 Action / Observation**、**EventStream 驱动的 ReAct 循环**和**可插拔 Runtime** 的代码智能体——基于 OpenHands SDK 构建 LLM 适配层。路线图涵盖四个阶段：ReAct 基础 → CodeAction 审计 → RAG 记忆 → 多 Agent 编排。
 
 ## 当前状态
 
@@ -19,7 +19,7 @@
 
 ### 消息流替代阻塞式打断
 
-传统 human-in-the-loop 系统在等待用户响应时会暂停执行，由系统主导节奏。codeAgent 将其替换为**消息流模型**：agent 向共享消息流发送消息，用户可以随时回应，也可以不回应。没有响应时 agent 如何处理，由每个 agent 独立配置的**自主度等级**决定，而非硬编码在系统中。
+传统 human-in-the-loop 系统在等待用户响应时会暂停执行，由系统主导节奏。TaskWeavn 将其替换为**消息流模型**：agent 向共享消息流发送消息，用户可以随时回应，也可以不回应。没有响应时 agent 如何处理，由每个 agent 独立配置的**自主度等级**决定，而非硬编码在系统中。
 
 自主度最高时，消息流退化为只读执行日志；自主度最低时，每个决策都等待用户确认。任务质量与打断频率之间的权衡是用户设置，不是架构约束，选择权完全在用户。
 
@@ -48,7 +48,7 @@ uv sync                                  # 安装依赖和开发工具
 export LLM_API_KEY=sk-ant-...            # 任意 litellm 支持的 provider key
 export LLM_MODEL=anthropic/claude-sonnet-4-5-20250929  # 可选，覆盖默认模型
 
-uv run code-agent run \
+uv run taskweavn run \
     --task "write a hello.py that prints hi, then run it" \
     --workspace ./workspace \
     --max-steps 10
@@ -59,12 +59,12 @@ Agent 将每个 Action 和 Observation 写入内存 `EventStream`，在以下任
 ## 编程调用
 
 ```python
-from code_agent.core.loop import AgentLoop
-from code_agent.llm.client import LLMClient
-from code_agent.runtime.local import LocalRuntime
-from code_agent.tools.fs import ReadFileTool, WriteFileTool, ListDirTool
-from code_agent.tools.shell import RunCommandTool
-from code_agent.tools.workspace import Workspace
+from taskweavn.core.loop import AgentLoop
+from taskweavn.llm.client import LLMClient
+from taskweavn.runtime.local import LocalRuntime
+from taskweavn.tools.fs import ReadFileTool, WriteFileTool, ListDirTool
+from taskweavn.tools.shell import RunCommandTool
+from taskweavn.tools.workspace import Workspace
 
 ws = Workspace("./workspace")
 runtime = LocalRuntime()
@@ -80,7 +80,7 @@ print(result.final_answer)
 ## 项目结构
 
 ```
-src/code_agent/
+src/taskweavn/
 ├── types/          # BaseEvent / BaseAction / BaseObservation + registry
 ├── core/           # EventStream, ReAct AgentLoop
 ├── memory/         # ThoughtStore（旁路存储，可选接入）
@@ -88,7 +88,7 @@ src/code_agent/
 ├── runtime/        # Runtime Protocol + LocalRuntime
 ├── tools/          # Workspace, Tool base, ReadFile/WriteFile/ListDir/RunCommand
 ├── orchestration/  # 多 Agent Protocol（Phase 4 占位）
-└── cli/            # Typer 入口点（`code-agent`）
+└── cli/            # Typer 入口点（`taskweavn`）
 ```
 
 ## 文档

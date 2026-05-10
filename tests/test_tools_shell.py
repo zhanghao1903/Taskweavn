@@ -6,14 +6,14 @@ from pathlib import Path
 
 import pytest
 
-from code_agent.runtime import LocalRuntime
-from code_agent.tools import (
+from taskweavn.runtime import LocalRuntime
+from taskweavn.tools import (
     CommandResultObservation,
     RunCommandAction,
     RunCommandTool,
     Workspace,
 )
-from code_agent.types import ErrorObservation
+from taskweavn.types import ErrorObservation
 
 
 @pytest.fixture()

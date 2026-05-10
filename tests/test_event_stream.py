@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
-from code_agent.core import EventStream, InMemoryEventStream
-from code_agent.types import BaseAction, BaseObservation
+from taskweavn.core import EventStream, InMemoryEventStream
+from taskweavn.types import BaseAction, BaseObservation
 
 
 class _NoteAction(BaseAction):

@@ -7,7 +7,7 @@ import json
 import pytest
 from pydantic import ValidationError
 
-from code_agent.types import (
+from taskweavn.types import (
     ActionRegistry,
     BaseAction,
     BaseObservation,

@@ -14,7 +14,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from code_agent.runtime.sandbox import (
+from taskweavn.runtime.sandbox import (
     RUNS_SUBDIR,
     SCRIPT_FILENAME,
     TRACK_FILENAME,
@@ -27,22 +27,22 @@ from code_agent.runtime.sandbox import (
     _partition_changes,
     _snapshot_workspace,
 )
-from code_agent.types import CodeAction, CodeExecutionObservation, TrackingConfig
+from taskweavn.types import CodeAction, CodeExecutionObservation, TrackingConfig
 
 # ---------------------------------------------------------------------------
 # Pure helpers
 # ---------------------------------------------------------------------------
 
 
-def test_snapshot_workspace_skips_code_agent_dir(tmp_path: Path) -> None:
+def test_snapshot_workspace_skips_taskweavn_dir(tmp_path: Path) -> None:
     (tmp_path / "kept.txt").write_text("hi")
-    runs = tmp_path / ".code-agent" / "runs" / "x"
+    runs = tmp_path / ".taskweavn" / "runs" / "x"
     runs.mkdir(parents=True)
     (runs / "noise.txt").write_text("ignore me")
 
     snap = _snapshot_workspace(tmp_path)
     assert "kept.txt" in snap
-    assert all(not k.startswith(".code-agent") for k in snap)
+    assert all(not k.startswith(".taskweavn") for k in snap)
 
 
 def test_snapshot_workspace_handles_subdirs(tmp_path: Path) -> None:
@@ -86,7 +86,7 @@ def test_normalize_relpath_strips_dot_and_collapses() -> None:
 
 
 def test_partition_changes_splits_by_declared_set() -> None:
-    from code_agent.types import FileChange
+    from taskweavn.types import FileChange
 
     changes = [
         FileChange(path="declared.txt", change_type="created", after_sha256="a" * 64, size_delta=1),
@@ -427,7 +427,7 @@ def test_execute_writes_script_and_invokes_docker_with_python(tmp_path: Path) ->
     )
     ex.execute(action)
 
-    # Script file was written under .code-agent/runs/<event_id>/script.py
+    # Script file was written under .taskweavn/runs/<event_id>/script.py
     runs_dir = ws / RUNS_SUBDIR / action.event_id
     assert (runs_dir / SCRIPT_FILENAME).exists()
     body = (runs_dir / SCRIPT_FILENAME).read_text()

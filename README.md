@@ -1,8 +1,8 @@
-# codeAgent
+# TaskWeavn
 
 > [中文版](README_zh.md)
 
-A code agent with **strongly-typed Action / Observation**, an **EventStream-driven ReAct loop**, and a **pluggable Runtime** — built on top of the OpenHands SDK for LLM adaptation. Roadmap covers four phases: ReAct foundation → CodeAction audit → RAG memory → multi-agent orchestration.
+TaskWeavn is a task agent with **strongly-typed Action / Observation**, an **EventStream-driven ReAct loop**, and a **pluggable Runtime** — built on top of the OpenHands SDK for LLM adaptation. Roadmap covers four phases: ReAct foundation → CodeAction audit → RAG memory → multi-agent orchestration.
 
 ## Status
 
@@ -19,7 +19,7 @@ A code agent with **strongly-typed Action / Observation**, an **EventStream-driv
 
 ### Message Stream over Blocking Interrupt
 
-Traditional human-in-the-loop systems pause execution and force the user to respond before the agent continues. codeAgent replaces this with a **message stream model**: agents post messages to a shared stream; users respond when they want to, or not at all. What happens when no response arrives is controlled by a per-agent **autonomy level** — not hardwired into the system.
+Traditional human-in-the-loop systems pause execution and force the user to respond before the agent continues. TaskWeavn replaces this with a **message stream model**: agents post messages to a shared stream; users respond when they want to, or not at all. What happens when no response arrives is controlled by a per-agent **autonomy level** — not hardwired into the system.
 
 At full autonomy the stream becomes a read-only execution log. At minimum autonomy every decision waits for user confirmation. The tradeoff between task quality and interruption frequency is a user setting, not an architectural constraint.
 
@@ -48,7 +48,7 @@ uv sync                                  # install deps + dev tools
 export LLM_API_KEY=sk-ant-...            # any litellm-supported provider key
 export LLM_MODEL=anthropic/claude-sonnet-4-5-20250929  # optional override
 
-uv run code-agent run \
+uv run taskweavn run \
     --task "write a hello.py that prints hi, then run it" \
     --workspace ./workspace \
     --max-steps 10
@@ -59,12 +59,12 @@ The agent writes every Action and Observation to an in-memory `EventStream` and 
 ## Programmatic usage
 
 ```python
-from code_agent.core.loop import AgentLoop
-from code_agent.llm.client import LLMClient
-from code_agent.runtime.local import LocalRuntime
-from code_agent.tools.fs import ReadFileTool, WriteFileTool, ListDirTool
-from code_agent.tools.shell import RunCommandTool
-from code_agent.tools.workspace import Workspace
+from taskweavn.core.loop import AgentLoop
+from taskweavn.llm.client import LLMClient
+from taskweavn.runtime.local import LocalRuntime
+from taskweavn.tools.fs import ReadFileTool, WriteFileTool, ListDirTool
+from taskweavn.tools.shell import RunCommandTool
+from taskweavn.tools.workspace import Workspace
 
 ws = Workspace("./workspace")
 runtime = LocalRuntime()
@@ -80,7 +80,7 @@ print(result.final_answer)
 ## Project layout
 
 ```
-src/code_agent/
+src/taskweavn/
 ├── types/          # BaseEvent / BaseAction / BaseObservation + registry
 ├── core/           # EventStream, ReAct AgentLoop
 ├── memory/         # ThoughtStore (side channel, opt-in)
@@ -88,7 +88,7 @@ src/code_agent/
 ├── runtime/        # Runtime Protocol + LocalRuntime
 ├── tools/          # Workspace, Tool base, ReadFile/WriteFile/ListDir/RunCommand
 ├── orchestration/  # Multi-agent Protocol (Phase 4 placeholder)
-└── cli/            # Typer entry point (`code-agent`)
+└── cli/            # Typer entry point (`taskweavn`)
 ```
 
 ## Documentation
