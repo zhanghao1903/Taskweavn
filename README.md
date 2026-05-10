@@ -2,26 +2,56 @@
 
 > [中文版](README_zh.md)
 
-TaskWeavn is a task agent with **strongly-typed Action / Observation**, an **EventStream-driven ReAct loop**, and a **pluggable Runtime** — built on top of the OpenHands SDK for LLM adaptation. Roadmap covers four phases: ReAct foundation → CodeAction audit → RAG memory → multi-agent orchestration.
+TaskWeavn is a task agent with **strongly-typed Action / Observation**, an
+**EventStream-driven ReAct loop**, a **pluggable Runtime**, and an
+**interaction layer for user collaboration**. It is built on top of the
+OpenHands SDK for LLM adaptation.
+
+The project is currently in Phase 3: turning the single-turn ReAct foundation
+into a persistent, session-aware agent that can ask the user for input without
+collapsing the execution model into blocking interrupts.
 
 ## Status
 
-**Phase 2 complete** — CodeAction schema, sandboxed executor, AuditAgent, and SqliteThoughtStore are all in place.
+**Phase 3 in progress** — persistent workspaces/sessions, SQLite event/message
+streams, autonomy presets, user-facing message bus, loop integration, and
+LLM-backed risk assessment are in place. The next active work is tightening
+derived session status and the user-facing session surface.
 
 | Phase | Scope | State |
 | ----- | ----- | ----- |
 | 1 | Action/Observation types, EventStream, Runtime, ReAct loop | ✅ done |
 | 2 | `CodeAction` (sandboxed exec) + AuditAgent + SqliteThoughtStore | ✅ done |
-| 3 | RAG memory + SQLite EventStream + budget controller | planned |
+| 3 | Persistent sessions, MessageStream, autonomy gate, user interaction, risk assessment | 🚧 in progress |
 | 4 | Multi-agent orchestration (planner / executor / auditor) | planned |
 
 ## Project Highlights
 
-### Message Stream over Blocking Interrupt
+### Message Stream over Blocking Interrupts
 
-Traditional human-in-the-loop systems pause execution and force the user to respond before the agent continues. TaskWeavn replaces this with a **message stream model**: agents post messages to a shared stream; users respond when they want to, or not at all. What happens when no response arrives is controlled by a per-agent **autonomy level** — not hardwired into the system.
+Traditional human-in-the-loop systems pause execution and force the user to
+respond before the agent continues. TaskWeavn replaces this with a **message
+stream model**: agents post messages to a shared stream; users respond when
+they want to, or not at all. What happens when no response arrives is
+controlled by an **autonomy preset** instead of being hardwired into the loop.
 
-At full autonomy the stream becomes a read-only execution log. At minimum autonomy every decision waits for user confirmation. The tradeoff between task quality and interruption frequency is a user setting, not an architectural constraint.
+At full autonomy the stream becomes a read-only execution log. At minimum
+autonomy every risky decision waits for user confirmation. The tradeoff between
+task quality and interruption frequency is a user setting, not an architectural
+constraint.
+
+### Quantified Risk and Autonomy
+
+Every `BaseAction` has a class-level `baseline_risk`. Runtime assessors can
+raise risk dynamically, but never lower the floor. The autonomy gate combines:
+
+- the action's static baseline;
+- optional LLM-backed dynamic risk assessment;
+- the configured autonomy preset;
+- sync vs async wait behavior.
+
+That produces one of three outcomes: proceed silently, inform the user, or
+publish an actionable message and wait/defer according to the preset.
 
 ### Constraint-driven LLM Orchestration
 
@@ -56,6 +86,21 @@ uv run taskweavn run \
 
 The agent writes every Action and Observation to an in-memory `EventStream` and stops on one of: explicit `agent_finish` tool call, an LLM turn with no `tool_calls`, or `--max-steps` reached.
 
+To turn on the Phase 3 interaction layer:
+
+```bash
+uv run taskweavn run \
+    --task "inspect this project and propose a small safe improvement" \
+    --workspace ./workspace \
+    --autonomy risk_gated \
+    --risk-assessor composite \
+    --messages-db ./logs/messages.sqlite
+```
+
+Available autonomy presets are `full_auto`, `risk_gated`, `careful`,
+`collaborative`, and `manual`. Available risk assessors are `baseline`, `llm`,
+and `composite`.
+
 ## Programmatic usage
 
 ```python
@@ -77,16 +122,48 @@ result = loop.run("create README.md describing this folder")
 print(result.final_answer)
 ```
 
+With the interaction layer enabled programmatically, wire the bundle together:
+
+```python
+from taskweavn.interaction import (
+    AutonomyGate,
+    BaselineOnlyAssessor,
+    InProcessMessageBus,
+    SqliteMessageStream,
+    WaitCoordinator,
+    get_preset,
+)
+
+behavior = get_preset("risk_gated")
+stream = SqliteMessageStream("./workspace/.code-agent/messages.sqlite")
+bus = InProcessMessageBus(stream)
+gate = AutonomyGate(behavior, BaselineOnlyAssessor())
+
+loop = AgentLoop(
+    llm=LLMClient.from_env(),
+    runtime=runtime,
+    tools=tools,
+    workspace_root=ws.root,
+    session_id="demo-session",
+    bus=bus,
+    gate=gate,
+    wait_coordinator=WaitCoordinator(bus, behavior),
+)
+```
+
 ## Project layout
 
 ```
 src/taskweavn/
 ├── types/          # BaseEvent / BaseAction / BaseObservation + registry
-├── core/           # EventStream, ReAct AgentLoop
+├── core/           # EventStream, SQLite EventStream, sessions, AgentLoop
+├── interaction/    # Risk, autonomy, AgentMessage, MessageStream, MessageBus
 ├── memory/         # ThoughtStore (side channel, opt-in)
-├── llm/            # LLMClient (openhands-sdk + litellm), tool-schema helpers
+├── llm/            # LLMClient (openhands-sdk + litellm), tool schema helpers
 ├── runtime/        # Runtime Protocol + LocalRuntime
-├── tools/          # Workspace, Tool base, ReadFile/WriteFile/ListDir/RunCommand
+├── tools/          # Workspace, Tool base, fs/shell/code-action tools
+├── audit/          # AuditAgent for CodeAction review
+├── observability/  # Logging setup
 ├── orchestration/  # Multi-agent Protocol (Phase 4 placeholder)
 └── cli/            # Typer entry point (`taskweavn`)
 ```
@@ -95,8 +172,11 @@ src/taskweavn/
 
 | Document | Chinese | English |
 | -------- | ------- | ------- |
+| Architecture Reference | [architecture.md](docs/architecture.md) | - |
+| Interaction Layer Design | [interaction_layer_design.md](docs/interaction_layer_design.md) | - |
 | Project Plan | [agent_project_plan.md](docs/agent_project_plan.md) | [agent_project_plan_en.md](docs/agent_project_plan_en.md) |
 | Multi-Agent Architecture | [multi_agent_collaboration_architecture.md](docs/multi_agent_collaboration_architecture.md) | [multi_agent_collaboration_architecture_en.md](docs/multi_agent_collaboration_architecture_en.md) |
+| User Test Cases | [docs/user_cases](docs/user_cases) | - |
 
 ## Development
 
@@ -106,7 +186,9 @@ uv run ruff check .    # lint
 uv run mypy src tests  # strict type-check
 ```
 
-All three gates are required green before commits land.
+The intended quality gate is: tests, Ruff, and mypy all green. Current PR
+review follow-up: `uv run mypy src` passes, while `uv run mypy src tests` is
+tracked separately in [issue #7](https://github.com/zhanghao1903/codeAgent/issues/7).
 
 ## License
 
