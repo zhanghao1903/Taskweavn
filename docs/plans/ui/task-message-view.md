@@ -1,7 +1,7 @@
 # Task Message View
 
-> Status: planned  
-> Last Updated: 2026-05-10  
+> Status: planned
+> Last Updated: 2026-05-11
 > 关联接口：`ui-api-interfaces.md`
 
 ---
@@ -47,16 +47,21 @@ Task 视图中至少展示：
 引用 `ui-api-interfaces.md`：
 
 - `listTaskMessages`
+- `getInteractionMessages`
 - `listSessionMessages`
 - `appendTaskMessage`
+- `appendUserMessage`
 - `resolveConfirmation`
+- `respondToActionable`
 - `subscribeSessionEvents`
+- `subscribeInteractionEvents`
 
 第一版最低要求：
 
 - 支持按 Task 过滤消息
 - 支持 Task 子树消息聚合的未来扩展
 - 支持 resolved confirmation 的历史展示
+- 支持 actionable message 直接渲染为确认卡，并通过 response message 记录用户选择
 
 ---
 
@@ -65,4 +70,4 @@ Task 视图中至少展示：
 - 同一 Session Message Stream 中的消息能被 Task 过滤展示。
 - Task 局部输入不会触发全局 Task Tree 生成。
 - 确认动作处理后，结果能在 Task 视图和 Session 流中看到。
-
+- 选中 Task 时，当前可见消息面板可以替代隐藏的 Global timeline，完成交互闭环。

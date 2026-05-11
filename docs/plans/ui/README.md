@@ -9,6 +9,7 @@ This directory contains the Task-first UI planning documents.
 | [frontend-framework-design.md](frontend-framework-design.md) | Frontend framework selection, architecture, API boundary, and first implementation slices. |
 | [visual-reference.md](visual-reference.md) | Current visual sketches and prototype screenshots. |
 | [ui-api-interfaces.md](ui-api-interfaces.md) | Shared UI API and view model interface archive. |
+| [message-interaction-api.md](message-interaction-api.md) | Session/Task message interaction component APIs, command flow, and realtime events. |
 | [information-architecture.md](information-architecture.md) | Main layout regions and information hierarchy. |
 | [task-generation-flow.md](task-generation-flow.md) | Natural language to Task Tree List flow. |
 | [task-tree-view.md](task-tree-view.md) | Task tree / topology display rules. |

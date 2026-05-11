@@ -1,6 +1,6 @@
 # Frontend Framework Technical Design
 
-> Status: planned
+> Status: in_progress
 > Last Updated: 2026-05-11
 > Scope: UI-only implementation plan
 > Boundary: frontend reaches the backend only through API contracts; backend implementation is out of scope for this session
@@ -405,6 +405,12 @@ Non-goals:
 - no complex drag-and-drop;
 - no multi-agent execution UI yet.
 
+Current branch:
+
+- `codex/ui-frontend-shell`
+- Initial scaffold created under `frontend/`
+- First implementation uses `MockTaskWeavnApi`
+
 ---
 
 ## 11. Open Questions
@@ -429,4 +435,3 @@ Official docs reviewed for stack selection:
 - [TanStack Query: Overview](https://tanstack.com/query/v4/docs/react/overview)
 - [Tailwind CSS: Utility-first styling](https://tailwindcss.com/docs/utility-first)
 - [Radix Primitives: Introduction](https://www.radix-ui.com/primitives/docs/overview/introduction)
-

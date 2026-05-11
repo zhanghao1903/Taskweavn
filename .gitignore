@@ -40,6 +40,12 @@ Thumbs.db
 *.sqlite3
 .code-agent/
 .taskweavn/
+node_modules/
+frontend/node_modules/
+frontend/dist/
+*.tsbuildinfo
+frontend/vite.config.d.ts
+frontend/vite.config.js
 
 logs/
 

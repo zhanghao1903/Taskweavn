@@ -1,7 +1,7 @@
 # UI API 接口归档
 
-> Status: planned  
-> Last Updated: 2026-05-10  
+> Status: planned
+> Last Updated: 2026-05-11
 > 作用：归档 Task-first UI 各分述共同引用的接口需求。第一版只定义接口边界和最低数据能力，字段细节后续补充。
 
 ---
@@ -43,7 +43,9 @@
 | `FileChangeId` | 文件变更记录 ID |
 | `TaskStatus` | `draft` / `pending` / `running` / `done` / `failed` / `cancelled` |
 | `TaskEditMode` | `global` / `task_scoped` |
-| `MessageType` | `user` / `agent` / `system` / `confirmation` / `result` |
+| `BackendMessageType` | `informational` / `actionable` / `response` |
+| `MessageAuthorRole` | `user` / `agent` / `system` |
+| `MessageDisplayKind` | UI projection：普通消息 / 确认卡 / 回复结果 / 系统提示 |
 | `TaskMessageScope` | `direct` / `subtree` |
 | `Cursor` | 实时事件或分页查询游标 |
 
@@ -66,7 +68,7 @@
 | `SessionOverview` | Session 标识、名称、整体状态、当前选中/运行 Task、root Task 摘要、未处理确认数量 |
 | `TaskNodeSummary` | Task 标识、父子关系、标题/intent 摘要、状态、badge、排序信息 |
 | `TaskNodeDetail` | Summary + 完整 intent、约束、权限、确认摘要、文件摘要、结果摘要 |
-| `SessionMessageView` | 消息 ID、Session、可选 Task、类型、内容摘要、时间、关联确认/文件/动作 |
+| `SessionMessageView` | 消息 ID、Session、可选 Task、后端消息类型、作者角色、内容摘要、时间、关联确认/文件/动作 |
 | `ConfirmationActionView` | Confirmation ID、所属 Task、说明、风险/原因、选项、默认行为、状态 |
 | `TaskFileChangeSummary` | direct owner task、path、change type、summary、是否来自子树汇总 |
 | `TaskSummaryView` | 结果摘要、失败原因、后续建议、产物引用 |
@@ -82,7 +84,9 @@
 | `getTaskNode(session_id, task_id)` | 返回单个 Task Node 的详情、父子关系和状态 |
 | `listSessionMessages(session_id, filters)` | 返回唯一 Session Message Stream，可按时间、类型、Task、确认状态过滤 |
 | `listTaskMessages(session_id, task_id, scope)` | `listSessionMessages` 的 Task 过滤便捷视图；`scope=direct/subtree` |
+| `getInteractionMessages(session_id, task_id?, scope?, cursor?)` | 当前消息交互组件使用的统一消息查询；未选 Task 时返回 session 交互流，选中 Task 时返回 task 交互流 |
 | `listPendingConfirmations(session_id, filters)` | 返回待用户处理的确认动作，可按 Task 过滤 |
+| `listPendingActionables(session_id, task_id?)` | 返回待用户处理的 actionable messages；第一版可替代独立 confirmation 查询 |
 | `getTaskFileChanges(session_id, task_id, recursive)` | 返回 Task 文件变更；`recursive=true` 时包含所有子孙 Task |
 | `getTaskSummary(session_id, task_id)` | 返回 Task 结果摘要、失败原因、后续建议 |
 
@@ -92,6 +96,7 @@
 - 消息类列表必须支持 cursor，以便 Session Message Stream 可以增量加载。
 - Task Tree 查询必须返回足够的父子关系数据，前端不应靠 title 或顺序推断结构。
 - `listTaskMessages` 不是新存储，只是 `listSessionMessages` 的 Task 过滤视图。
+- `getInteractionMessages` 是 UI 便捷接口；它不代表第二套存储，只是为当前消息组件统一 session/task 两种作用域。
 - 父 Task 查看文件时，使用 `getTaskFileChanges(..., recursive=true)`；子 Task 直接归属不变。
 
 ---
@@ -105,7 +110,9 @@
 | `updateTaskNode(session_id, task_id, patch)` | 修改未开始 Task 的 intent、约束、状态或结构 |
 | `appendTaskMessage(session_id, task_id, content, mode)` | 给某个 Task 追加用户补充信息 |
 | `appendSessionMessage(session_id, content, mode)` | 给整个 Session 追加全局用户输入 |
+| `appendUserMessage(session_id, task_id?, content, mode)` | 当前 MessageComposer 使用的统一发送接口；`global` 不要求 task_id，`task_scoped` 必须有 task_id |
 | `resolveConfirmation(session_id, confirmation_id, value, note)` | 处理确认动作，写回消息流 |
+| `respondToActionable(session_id, message_id, value, note?)` | 直接回复 actionable message；创建 response message 并写回同一条消息流 |
 | `startTaskExecution(session_id, task_id)` | 从某个 Task 或 root Task 开始执行 |
 | `cancelTask(session_id, task_id, reason)` | 取消未开始 Task；运行中取消语义后续细化 |
 | `retryTask(session_id, task_id, instruction)` | 基于 failed Task 创建 retry/fix Task |
@@ -116,6 +123,7 @@
 - 命令成功后必须产生可订阅事件，前端以事件刷新 UI，而不是只信任本地 optimistic state。
 - `updateTaskNode` 只能修改 `draft` / `pending` Task；`running` Task 的用户补充走 `appendTaskMessage`。
 - `resolveConfirmation` 必须写入 Session Message Stream，并保留 resolved history。
+- 第一版确认动作可以不建独立后端对象，直接由 `message_type=actionable` 的 `AgentMessage` 投影为 confirmation card；用户选择选项后通过 `respondToActionable` 写入 `message_type=response`。
 - `TaskEditMode=task_scoped` 时，用户输入不应触发全局 Task Tree 重新生成。
 
 ---
@@ -136,6 +144,8 @@ subscribeSessionEvents(session_id, cursor?)
 | `task.updated` | intent / constraints / structure 变化 |
 | `task.status_changed` | 更新节点状态和 badge |
 | `message.appended` | 更新 Session Stream 和 Task Message View |
+| `message.response_recorded` | actionable message 得到 response |
+| `actionable.resolved` | actionable message 不再等待用户 |
 | `confirmation.created` | 新增待确认动作 |
 | `confirmation.resolved` | 确认动作完成 |
 | `file_change.recorded` | 更新 Task 文件变更摘要 |
@@ -163,6 +173,7 @@ subscribeSessionEvents(session_id, cursor?)
 | `task-node-detail.md` | `getTaskNode`、`updateTaskNode`、`appendTaskMessage`、`listTaskMessages`、`listPendingConfirmations`、`getTaskFileChanges`、`getTaskSummary`、`retryTask` |
 | `task-message-view.md` | `listTaskMessages`、`listSessionMessages`、`appendTaskMessage`、`resolveConfirmation`、`subscribeSessionEvents` |
 | `session-message-stream.md` | `listSessionMessages`、`appendSessionMessage`、`subscribeSessionEvents` |
+| `message-interaction-api.md` | `getInteractionMessages`、`appendUserMessage`、`respondToActionable`、`listPendingActionables`、`subscribeInteractionEvents` |
 | `confirmation-actions.md` | `listPendingConfirmations`、`resolveConfirmation`、`listTaskMessages`、`listSessionMessages`、`subscribeSessionEvents` |
 | `task-editing-rules.md` | `updateTaskNode`、`appendTaskMessage`、`cancelTask`、`retryTask`、`getTaskNode` |
 | `file-change-summary.md` | `getTaskFileChanges`、`subscribeSessionEvents` |
@@ -173,6 +184,7 @@ subscribeSessionEvents(session_id, cursor?)
 ## 9. 关键跨文档约定
 
 - `listTaskMessages` 不代表第二套存储，只是 `listSessionMessages(..., task_id=...)` 的语义别名。
+- Global timeline 第一版隐藏；当前可见消息组件使用 `getInteractionMessages`，但底层仍然来自唯一 Session Message Stream。
 - `getTaskFileChanges(..., recursive=true)` 用于父节点汇总；`recursive=false` 用于直接归属。
 - `updateTaskNode` 只能修改未开始 Task；运行中 Task 使用 `appendTaskMessage` 补充信息。
 - `resolveConfirmation` 必须把结果写回 Session Message Stream，并保留 resolved history。
