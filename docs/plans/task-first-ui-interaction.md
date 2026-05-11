@@ -445,6 +445,7 @@ Task T3 创建页面
 
 | 文件 | 内容 |
 |---|---|
+| `docs/plans/ui/visual-reference.md` | 当前 UI 草图和原型截图索引，作为视觉方向参考 |
 | `docs/plans/ui/ui-api-interfaces.md` | Task-first UI 公共接口归档：查询、命令、实时事件、视图模型和跨文档约定 |
 | `docs/plans/ui/task-tree-view.md` | Task Tree List / Topology 的展示规则、节点状态、展开折叠、排序和导航 |
 | `docs/plans/ui/task-node-detail.md` | Task Detail Panel 的信息结构：摘要、约束、消息、文件、总结、子任务 |

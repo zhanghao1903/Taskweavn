@@ -104,6 +104,9 @@
 3. 记录实际验收结果
 4. 如果实现偏离原计划，补充“实际变更”
 5. 如果产生后续任务，追加到“Follow-ups”
+6. 如果完成内容影响阶段顺序，更新 `docs/roadmap.md`
+7. 如果完成内容形成或修改架构决策，更新 `docs/decisions/`
+8. 如果完成内容是阶段 / 里程碑 / 重要 feature slice，更新 `docs/releases/`
 
 ---
 
@@ -146,17 +149,21 @@
 
 ---
 
-## 7. 推荐索引
+## 7. 长期维护索引
 
-当前项目建议长期维护三类索引：
+当前项目维护以下索引：
 
 - `docs/issues/`：bug 和缺陷记录
 - `docs/plans/`：近期 project / improvement 工作包
 - `docs/plans/feature/`：新特性实现计划
 - `docs/architecture/`：跨阶段架构设计和长期边界
-
-后续可以增加：
-
 - `docs/roadmap.md`：阶段级总路线
 - `docs/decisions/ADR-<num>-<slug>.md`：重要架构决策记录
 - `docs/releases/`：阶段完成记录和变更摘要
+
+更新规则：
+
+- 单个计划完成：至少更新原计划文档。
+- 完成改变下一步优先级：更新 `docs/project/roadmap.md` 和 `docs/roadmap.md`。
+- 完成固化了架构选择：新增或更新 ADR。
+- 完成阶段 / 里程碑：新增或更新 release record。

@@ -1,75 +1,203 @@
-# Agent 项目计划（Markdown 版）
+# TaskWeavn Project Plan
 
-## 优先级说明
-- 🔴 P0：必做  
-- 🟠 P1：重要  
-- 🟢 P2：增强  
-- ⚪ P3：未来  
+> Status: active
+> Last Updated: 2026-05-11
+> Maintained By: planning session
+> Phase Baseline: implementation completed through Phase 3.8
+> Related: [Global Roadmap](../roadmap.md), [Planning Workflow](../planning_workflow.md), [Phase 3 Release Record](../releases/phase-3-interaction-layer-through-3-8.md)
 
-# Tier 1 — 设计理念
+---
 
-## 架构线（系统设计原则）
-### Action / Observation 对称
-所有操作是强类型 Action，所有反馈是对称的 Observation。CodeAction 是 Action 的子类，不破坏类型系统。
+## 1. Current Project Shape
 
-### Runtime 解耦
-Agent 核心不知道执行环境（本地 / Docker / 远程沙箱）。接口统一，执行透明。
+TaskWeavn is being rebuilt from an early ReAct code agent into a Task-first collaboration system.
 
-### 单 Agent 优先，多 Agent 预埋
-先完成单 Agent，多 Agent 作为上层抽象。
+The original technical path came from [Interaction Layer Design](../architecture/interaction-layer.md). That path is still valid through Phase 3.8, but the next project plan is now adjusted by newer architecture work:
 
-### Thought 旁路存储
-Thought 不作为 EventStream 一等成员，通过 event_id 关联。
+- Task is the core user interaction object.
+- The UI should show Task Tree Lists, Task cards, confirmations, messages, and file summaries.
+- Collaborator Agent becomes the system role that drafts and edits Task Trees with the user.
+- TaskPublisher becomes the single boundary from user/collaborator/pipeline/scheduler/API/custom trees into TaskBus.
+- Reliability and logging must be strengthened before large user tests.
 
-## 执行线（工程原则）
-### 可配置优先于硬编码
-非核心能力全部配置化。
+---
 
-### 接口先于实现
-先定义 Protocol。
+## 2. Completed Foundation
 
-### 可观测性内置
-日志 / replay / 查询从一开始支持。
+### Phase 1 — Core ReAct Agent
 
-### 审计不依赖 LLM 自觉
-tracking 强制声明，自动插桩。
+Status: done.
 
-# Tier 2 — 总体规划
+Delivered:
 
-## 架构线（A）
-- A1 🔴 核心抽象层（Week 1–2）
-- A2 🟠 CodeAction + 审计（Week 3–4）
-- A3 🟢 多 Agent 架构（Week 7–8）
-- A4 🟢 经验与评估体系（Week 9–10）
+- Typed `Action` / `Observation`.
+- EventStream abstraction.
+- LLMClient facade.
+- Basic tools and local runtime.
+- ReAct loop and CLI entry.
 
-## 执行线（E）
-- E1 🔴 最小单 Agent（Week 1–3）
-- E2 🟠 CodeAction + 审计（Week 4–6）
-- E3 🟠 记忆 + RAG（Week 6–8）
-- E4 🟢 多 Agent 编排（Week 9–12）
+### Phase 2 — CodeAction, Sandbox, Audit, Thought Store
 
-# Tier 3 — 详细规划
+Status: done.
 
-## Phase 1（Week 1–3）
-- Action / Observation
-- EventStream
-- LLMClient
-- Tools
-- ReAct 循环
+Delivered:
 
-## Phase 2（Week 4–6）
-- CodeAction
-- 沙箱执行
-- 审计 Agent
-- ThoughtStore
+- `CodeAction`.
+- Docker sandbox execution.
+- AuditAgent.
+- SQLite ThoughtStore.
+- Phase 2 user tests and examples.
 
-## Phase 3（Week 6–8）
-- ConversationHistory
-- RAG
-- 持久化
-- Benchmark
+### Phase 3.1-3.8 — Interaction Layer Foundation
 
-## Phase 4（Week 9–12）
-- 多 Agent
-- 可观测性
-- 推理优化
+Status: done.
+
+| Slice | Delivered |
+|---|---|
+| 3.1 | Session, WorkspaceLayout, SQLite EventStream. |
+| 3.2 | RiskScore, RiskAssessment, BaselineOnlyAssessor, AutonomyBehavior, action baseline risks. |
+| 3.3 | AgentMessage, MessageStream, SQLite MessageStream, task_id correlation across events and messages. |
+| 3.4 | InProcessMessageBus and Subscription. |
+| 3.5 | AutonomyGate and WaitCoordinator. |
+| 3.6a | AgentLoop gate/wait integration. |
+| 3.6b | Async autonomy drain via pending decisions. |
+| 3.6c | Minimum interactive CLI surface for autonomy gating. |
+| 3.7 | LLMRiskAssessor and CompositeAssessor. |
+| 3.8 | Derived Session.status from EventStream + MessageStream; `archived` remains stored override. |
+
+See [Phase 3 release record](../releases/phase-3-interaction-layer-through-3-8.md).
+
+---
+
+## 3. Replanned Work Streams
+
+The next project plan is organized as work streams instead of continuing the old linear Phase 3.9-3.13 order. Each stream can produce one or more implementation branches.
+
+### P3B — Reliability And Observability
+
+Status: planned. Priority: P0.
+
+| Package | Source Plan | Implementation Goal |
+|---|---|---|
+| LLM provider/retry/thinking | [LLM provider plan](../plans/feature/llm-provider-retry-thinking.md) | Provider abstraction, retry policy, DeepSeek official provider, thinking metadata, OpenRouter provider pinning. |
+| Configurable logging | [Logging plan](../plans/feature/configurable-logging-system.md) | Global/session/object/category log rules, JSONL + pretty display, hot update, archives. |
+
+Acceptance:
+
+- Temporary LLM failures do not immediately collapse long-running sessions.
+- DeepSeek thinking can be enabled without losing reasoning/tool-call continuity.
+- Testers can raise log level for a session/category and locate archived logs.
+
+### P3C — Task Authoring Foundation
+
+Status: planned. Priority: P0.
+
+| Package | Source Plan | Implementation Goal |
+|---|---|---|
+| Task domain/UI model separation | [Task model/UI separation](../plans/feature/task-domain-ui-model-separation.md) | Stable backend Task plus TaskCard/TaskNode ViewModel projection. |
+| Collaborator Agent | [Collaborator Agent plan](../plans/feature/collaborator-agent-task-authoring.md) | Generate draft Task Trees, patch selected Task Nodes, validate/publish draft tasks. |
+| UI API contracts | [UI API interfaces](../plans/ui/ui-api-interfaces.md) | Define APIs for Task lists, selected Task detail, messages, confirmations, file summaries. |
+
+Acceptance:
+
+- Natural language can be transformed into a draft Task Tree List.
+- User edits and confirmations are recorded as replayable facts.
+- UI can render Task cards from projections without owning backend truth.
+
+### P3D — Task Publishing And Pipeline
+
+Status: planned. Priority: P0.
+
+| Package | Source Plan | Implementation Goal |
+|---|---|---|
+| TaskPublisher abstraction | [Task Publisher plan](../plans/feature/task-publishers-schedule-api.md) | Normalize and publish user/collaborator/pipeline/scheduler/API/custom Task Trees. |
+| Pipeline task loading | [Pipeline loading plan](../plans/feature/pipeline-task-loading.md) | Auto-publish before/begin/after tasks as normal TaskBus tasks. |
+| Agent assignment constraints | [Pipeline loading plan](../plans/feature/pipeline-task-loading.md) | Task can require/prefer an Agent Template while preserving capability validation. |
+
+Acceptance:
+
+- All publish sources go through one validation and publish boundary.
+- Pipeline tasks are normal Tasks with publisher metadata.
+- API and scheduled publishing are idempotent and auditable.
+
+### P3E — Task-first UI
+
+Status: planned. Priority: P0.
+
+| Package | Source Plan | Implementation Goal |
+|---|---|---|
+| UI interaction model | [Task-first UI overview](../plans/task-first-ui-interaction.md) | Overall layout, primary regions, interaction workflows. |
+| UI sub-designs | [UI plan directory](../plans/ui/) | Task tree, task detail, session stream, confirmations, file summaries, task-scoped chat. |
+| Visual references | [Visual reference](../plans/ui/visual-reference.md) | Use current UI images as non-final layout references. |
+
+Acceptance:
+
+- Users can see the Task topology and interact with Task cards.
+- Session message stream and task-scoped projections are consistent.
+- Finished Task Nodes are read-only; pending/running nodes expose only valid actions.
+
+### P4 — Multi-Agent Task Execution
+
+Status: planned. Priority: P1 after P3C/P3D.
+
+Focus:
+
+- Agent templates and capabilities.
+- TaskBus claim/complete/fail lifecycle.
+- Agent assignment constraints and fair dispatch.
+- Shared workspace collaboration.
+- Multi-agent event/message/log replay.
+
+### P5 — Memory, Retrieval, Summarization, Evaluation
+
+Status: planned. Priority: P1/P2 after UI and TaskBus stabilize.
+
+Focus:
+
+- In-session RAG over events/messages/tasks/logs.
+- Cross-session RAG with privacy boundaries.
+- Task-aware summarization.
+- Long-running user test suites.
+- Cost/quota-aware context packing.
+
+---
+
+## 4. Superseded Or Moved Items
+
+| Old Item | New Plan |
+|---|---|
+| Phase 3.9 PlanTool | Merged into Collaborator Agent and draft Task Tree authoring. A simple file-based plan tool can be revived later as support infrastructure. |
+| Phase 3.10 shared/ append-only | Moved to P4 multi-agent/shared workspace work. |
+| Phase 3.11 in-session RAG | Moved to P5 after stable Task/message/log archives. |
+| Phase 3.12 cross-session RAG | Moved to P5 and remains optional. |
+| Phase 3.13 conversation summarization | Moved to P5; should become Task-aware summarization. |
+
+---
+
+## 5. Immediate Next Work Queue
+
+Recommended implementation order:
+
+1. LLM Provider abstraction, retry, DeepSeek thinking.
+2. Configurable logging system.
+3. Task domain/UI ViewModel separation.
+4. Collaborator Agent and Task authoring tools.
+5. TaskPublisher abstraction.
+6. Pipeline task loading and agent assignment.
+7. API-backed Task-first UI prototype.
+
+This order reduces debugging pain first, then builds the Task-first data model, then exposes it in UI.
+
+---
+
+## 6. Project Governance
+
+When an implementation session finishes a package:
+
+1. Update the package plan under `docs/plans/` or `docs/issues/`.
+2. Update this file if status or priority changed.
+3. Update [Global Roadmap](../roadmap.md) if phase sequencing changed.
+4. Add/update an ADR under [../decisions/](../decisions/) if a decision changed.
+5. Add/update a release record under [../releases/](../releases/) if a milestone completed.
+
+This project plan is intentionally operational: it should help pick the next branch and understand why that branch matters.
