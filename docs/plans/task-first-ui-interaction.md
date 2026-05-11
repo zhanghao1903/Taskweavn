@@ -445,6 +445,7 @@ Task T3 创建页面
 
 | 文件 | 内容 |
 |---|---|
+| `docs/plans/ui/frontend-framework-design.md` | 前端框架选型、工程结构、API 边界和第一阶段实现切片 |
 | `docs/plans/ui/visual-reference.md` | 当前 UI 草图和原型截图索引，作为视觉方向参考 |
 | `docs/plans/ui/ui-api-interfaces.md` | Task-first UI 公共接口归档：查询、命令、实时事件、视图模型和跨文档约定 |
 | `docs/plans/ui/task-tree-view.md` | Task Tree List / Topology 的展示规则、节点状态、展开折叠、排序和导航 |
@@ -460,12 +461,13 @@ Task T3 创建页面
 
 第一版先搭框架，字段细节和视觉细节后续补充。建议优先级：
 
-1. `ui-api-interfaces.md`
-2. `task-generation-flow.md`
-3. `task-tree-view.md`
-4. `task-node-detail.md`
-5. `task-message-view.md`
-6. `confirmation-actions.md`
+1. `frontend-framework-design.md`
+2. `ui-api-interfaces.md`
+3. `task-generation-flow.md`
+4. `task-tree-view.md`
+5. `task-node-detail.md`
+6. `task-message-view.md`
+7. `confirmation-actions.md`
 
 ---
 
