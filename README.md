@@ -107,13 +107,59 @@ uv run taskweavn run \
     --task "inspect this project and propose a small safe improvement" \
     --workspace ./workspace \
     --autonomy risk_gated \
-    --risk-assessor composite \
+    --risk-assessor baseline \
     --messages-db ./logs/messages.sqlite
 ```
 
 Available autonomy presets are `full_auto`, `risk_gated`, `careful`,
 `collaborative`, and `manual`. Available risk assessors are `baseline`, `llm`,
 and `composite`.
+
+## Recommended Local Test Commands
+
+### Basic task with DeepSeek
+
+```bash
+export LLM_PROVIDER=deepseek
+export DEEPSEEK_API_KEY=sk-...
+export LLM_MODEL=deepseek-chat
+
+uv run taskweavn run \
+    --task "write a hello.py that prints hi, then run it" \
+    --workspace ./workspace \
+    --max-steps 10
+```
+
+### With autonomy gate enabled
+
+```bash
+export LLM_PROVIDER=deepseek
+export DEEPSEEK_API_KEY=sk-...
+export LLM_MODEL=deepseek-chat
+
+uv run taskweavn run \
+    --task "inspect this project and propose a small safe improvement" \
+    --workspace ./workspace \
+    --autonomy risk_gated \
+    --risk-assessor baseline \
+    --messages-db ./logs/messages.sqlite
+```
+
+### Log output location
+
+When `--log-dir` is set (default `./logs`), the agent writes four JSONL files:
+
+| File | Content |
+|------|---------|
+| `<log-dir>/tool.log` | Runtime dispatch, tool results, timing |
+| `<log-dir>/action.log` | Actions from the EventStream |
+| `<log-dir>/observation.log` | Observations from the EventStream |
+| `<log-dir>/llm.log` | LLM requests, responses, retries |
+
+Additionally, `--messages-db` (default `<log-dir>/messages.sqlite`) stores the
+interaction-layer message stream as SQLite, and `--thoughts-db` (default
+`<log-dir>/thoughts.sqlite`) stores LLM reasoning when thought persistence is
+enabled via `--thoughts`.
 
 ## Programmatic usage
 

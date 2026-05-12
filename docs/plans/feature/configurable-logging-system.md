@@ -1,11 +1,12 @@
 # Feature Plan: 可配置分层日志系统
 
-> Status: planned  
-> Type: 新特性支持  
-> Last Updated: 2026-05-10  
-> Owner/Session: planning session  
-> Target Implementation Session: independent feature session  
+> Status: in progress
+> Type: 新特性支持
+> Last Updated: 2026-05-12
+> Owner/Session: planning session
+> Target Implementation Session: independent feature session
 > Related Code: `src/taskweavn/observability/setup.py`, `tests/test_observability.py`
+> Technical Design: [Configurable Logging System](../../architecture/configurable-logging-system.md)
 
 ---
 
@@ -906,6 +907,13 @@ session:
 
 ## 19. 状态
 
-- Status: planned
+- Status: in progress
 - Created: 2026-05-10
-- Next Step: 在独立实现会话中创建 feature 分支，先完成 Slice 1 + Slice 2，确保配置模型与 manager 稳定后再迁移现有日志调用点。
+- Started: 2026-05-12
+- Current Branch: `codex/configurable-logging-design`
+- Completed in first implementation pass:
+  - Slice 1 partial/full: level helpers, config models, sink/rule/context/event models.
+  - Slice 2 partial/full: `LoggingManager`, `ObjectLogger`, file/console/null sinks, lazy payload, redaction.
+  - Slice 3 partial/full: legacy `configure_logging()` / `get_channel_logger()` bridge remains compatible with existing channel loggers.
+  - Tests added for logging models and manager; existing observability tests still pass.
+- Next Step: 继续完善 Session archive/manifest 与 CLI profile/config-file entry points，再迁移更多核心对象的 native `ObjectLogger` 调用点。

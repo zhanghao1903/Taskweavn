@@ -73,6 +73,9 @@ def test_runtime_logs_invoke_and_result(log_dir: Path, tmp_path: Path) -> None:
     tool_entries = _read_jsonl(log_dir / "tool.log")
     msgs = [e["msg"] for e in tool_entries]
     assert msgs == ["invoke", "result"]
+    assert tool_entries[0]["category"] == "tool"
+    assert tool_entries[0]["event"] == "invoke"
+    assert tool_entries[0]["level"] == "INFO"
     invoke = tool_entries[0]["data"]
     assert invoke["action_kind"] == "WriteFileAction"
     assert invoke["payload"]["path"] == "hello.txt"

@@ -11,6 +11,7 @@
 | UC-001 | 基础文件生成 | 容易 | 验证 agent 能在无用户介入的情况下完成简单文件创建任务，并用 `agent_finish` 正常收尾。 | [UC-001-basic-file-generation.md](UC-001-basic-file-generation.md) |
 | UC-002 | 风险门禁与用户确认 | 适中 | 验证 `--autonomy risk_gated` 下，高风险动作会发出 actionable 消息，用户确认或拒绝后 loop 能继续。 | [UC-002-risk-gated-user-confirmation.md](UC-002-risk-gated-user-confirmation.md) |
 | UC-003 | 长任务续作与动态风险评估 | 困难 | 验证同一 workspace/session 下的多轮项目构建、用户纠偏、拒绝恢复、消息聚合和 `--risk-assessor composite`。 | [UC-003-long-running-site-collaboration.md](UC-003-long-running-site-collaboration.md) |
+| UC-004 | 开发者上手说明整理 | 适中偏上 | 验证多文档读取、一致性检查、受限 README 修改、风险门禁、日志与消息持久化。 | [UC-004-developer-onboarding-doc-refresh.md](UC-004-developer-onboarding-doc-refresh.md) |
 
 ## Artifacts
 
