@@ -175,6 +175,7 @@ Work packages:
 |---|---|---:|
 | UI interaction overview | [Task-first UI plan](plans/task-first-ui-interaction.md) | P0 |
 | UI sub-designs | [UI plan directory](plans/ui/) | P0 |
+| Result Packaging Agent and card-based result presentation | [Result packaging plan](plans/feature/result-packaging-agent-cards.md) | P1 |
 | Visual reference iteration | [Visual reference](plans/ui/visual-reference.md) | P1 |
 | API-backed prototype | Future implementation plan | P0 |
 
@@ -183,6 +184,7 @@ Exit criteria:
 - User can enter natural language and inspect a generated Task Tree List.
 - Selecting a Task Node switches to task-scoped interaction.
 - Task cards show confirmations, status, messages, and file change summary.
+- Information-style results can be rendered as card sets when the result shape benefits from structure.
 - Session message stream and Task projections stay consistent over the same message source.
 
 ### Phase 4 — Multi-Agent Task Execution
@@ -237,8 +239,9 @@ Recommended order for upcoming implementation sessions:
 3. **Collaborator Agent and Task authoring tools** — natural language to draft Task Tree.
 4. **TaskPublisher abstraction** — one publish path for every source.
 5. **Pipeline task loading** — before/begin/after Task auto-publication.
-6. **Task-first UI prototype** — after backend projection APIs exist.
-7. **TaskBus multi-agent execution hardening** — execution semantics after publish model stabilizes.
+6. **Result packaging and card presentation** — richer result display for information-style answers.
+7. **Task-first UI prototype** — after backend projection APIs exist.
+8. **TaskBus multi-agent execution hardening** — execution semantics after publish model stabilizes.
 
 LLM Provider reliability is complete. Configurable logging is now the next operational blocker: without category/session logs, user testing will still be noisy and hard to diagnose.
 

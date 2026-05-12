@@ -128,12 +128,14 @@ Status: planned. Priority: P0.
 |---|---|---|
 | UI interaction model | [Task-first UI overview](../plans/task-first-ui-interaction.md) | Overall layout, primary regions, interaction workflows. |
 | UI sub-designs | [UI plan directory](../plans/ui/) | Task tree, task detail, session stream, confirmations, file summaries, task-scoped chat. |
+| Result packaging cards | [Result packaging plan](../plans/feature/result-packaging-agent-cards.md) | Package suitable information-style answers into UI card sets through normal Tasks. |
 | Visual references | [Visual reference](../plans/ui/visual-reference.md) | Use current UI images as non-final layout references. |
 
 Acceptance:
 
 - Users can see the Task topology and interact with Task cards.
 - Session message stream and task-scoped projections are consistent.
+- Suitable information-style answers can render as card sets without losing the raw text answer.
 - Finished Task Nodes are read-only; pending/running nodes expose only valid actions.
 
 ### P4 — Multi-Agent Task Execution
@@ -183,7 +185,8 @@ Recommended implementation order:
 3. Collaborator Agent and Task authoring tools.
 4. TaskPublisher abstraction.
 5. Pipeline task loading and agent assignment.
-6. API-backed Task-first UI prototype.
+6. Result Packaging Agent and card-based result presentation.
+7. API-backed Task-first UI prototype.
 
 LLM Provider reliability is complete. The remaining order reduces debugging pain first, then builds the Task-first data model, then exposes it in UI.
 
