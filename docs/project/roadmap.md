@@ -75,11 +75,11 @@ The next project plan is organized as work streams instead of continuing the old
 
 ### P3B — Reliability And Observability
 
-Status: planned. Priority: P0.
+Status: in progress. Priority: P0.
 
 | Package | Source Plan | Implementation Goal |
 |---|---|---|
-| LLM provider/retry/thinking | [LLM provider plan](../plans/feature/llm-provider-retry-thinking.md) | Provider abstraction, retry policy, DeepSeek official provider, thinking metadata, OpenRouter provider pinning. |
+| LLM provider/retry/thinking | [LLM provider plan](../plans/feature/llm-provider-retry-thinking.md) | Done: provider abstraction, retry policy, DeepSeek provider, thinking metadata, OpenRouter provider pinning. |
 | Configurable logging | [Logging plan](../plans/feature/configurable-logging-system.md) | Global/session/object/category log rules, JSONL + pretty display, hot update, archives. |
 
 Acceptance:
@@ -178,15 +178,14 @@ Focus:
 
 Recommended implementation order:
 
-1. LLM Provider abstraction, retry, DeepSeek thinking.
-2. Configurable logging system.
-3. Task domain/UI ViewModel separation.
-4. Collaborator Agent and Task authoring tools.
-5. TaskPublisher abstraction.
-6. Pipeline task loading and agent assignment.
-7. API-backed Task-first UI prototype.
+1. Configurable logging system.
+2. Task domain/UI ViewModel separation.
+3. Collaborator Agent and Task authoring tools.
+4. TaskPublisher abstraction.
+5. Pipeline task loading and agent assignment.
+6. API-backed Task-first UI prototype.
 
-This order reduces debugging pain first, then builds the Task-first data model, then exposes it in UI.
+LLM Provider reliability is complete. The remaining order reduces debugging pain first, then builds the Task-first data model, then exposes it in UI.
 
 ---
 

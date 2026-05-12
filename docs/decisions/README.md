@@ -27,3 +27,4 @@ Each ADR should include:
 | [ADR-0002](ADR-0002-task-domain-viewmodel-and-replay.md) | accepted | Separate backend Task domain model from UI ViewModel and preserve replayable interaction facts. |
 | [ADR-0003](ADR-0003-task-publishers-use-taskbus.md) | accepted | All Task publishers publish normal Tasks through TaskBus. |
 | [ADR-0004](ADR-0004-docs-governance-for-planning-session.md) | accepted | Use roadmap, ADRs, releases, and plan files as the planning session's control plane. |
+| [ADR-0006](ADR-0006-llm-provider-transport-boundary.md) | accepted | Treat LLM provider transport as a boundary below LLMClient. |

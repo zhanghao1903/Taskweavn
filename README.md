@@ -75,7 +75,8 @@ Requires Python 3.12+ and [`uv`](https://github.com/astral-sh/uv).
 
 ```bash
 uv sync                                  # install deps + dev tools
-export LLM_API_KEY=sk-ant-...            # any litellm-supported provider key
+export LLM_PROVIDER=litellm              # litellm | deepseek | openrouter
+export LLM_API_KEY=sk-ant-...            # provider API key
 export LLM_MODEL=anthropic/claude-sonnet-4-5-20250929  # optional override
 
 uv run taskweavn run \
@@ -85,6 +86,19 @@ uv run taskweavn run \
 ```
 
 The agent writes every Action and Observation to an in-memory `EventStream` and stops on one of: explicit `agent_finish` tool call, an LLM turn with no `tool_calls`, or `--max-steps` reached.
+
+For DeepSeek:
+
+```bash
+export LLM_PROVIDER=deepseek
+export DEEPSEEK_API_KEY=sk-...
+export LLM_MODEL=deepseek-chat
+```
+
+Do not pass `--model` when switching provider through environment variables;
+the CLI only reads `LLM_PROVIDER` through `LLMClient.from_env()` when
+`--model` is unset. See [Configuration Guide](docs/configuration.md) for all
+provider, audit, thought-store, autonomy, and logging options.
 
 To turn on the Phase 3 interaction layer:
 
@@ -172,6 +186,7 @@ src/taskweavn/
 
 | Document | Chinese | English |
 | -------- | ------- | ------- |
+| Configuration Guide | [configuration.md](docs/configuration.md) | - |
 | Architecture Reference | [architecture.md](docs/architecture.md) | - |
 | Interaction Layer Design | [interaction_layer_design.md](docs/interaction_layer_design.md) | - |
 | Project Plan | [agent_project_plan.md](docs/agent_project_plan.md) | [agent_project_plan_en.md](docs/agent_project_plan_en.md) |

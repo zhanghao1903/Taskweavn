@@ -1,7 +1,7 @@
 """Tests for LLMClient (1.3) and the chat-with-tools helpers (1.5).
 
 We don't hit a real LLM here; we patch :class:`openhands.sdk.LLM` and
-``litellm.completion`` so the test suite stays offline and key-free.
+provider transport so the test suite stays offline and key-free.
 """
 
 from __future__ import annotations
@@ -157,7 +157,7 @@ def _fake_litellm_response(
 
 
 @patch("taskweavn.llm.client.LLM")
-@patch("taskweavn.llm.client.litellm")
+@patch("taskweavn.llm.providers.litellm.litellm")
 def test_chat_parses_plain_text_response(
     mock_litellm: MagicMock,
     mock_llm_cls: MagicMock,  # noqa: ARG001
@@ -172,7 +172,7 @@ def test_chat_parses_plain_text_response(
 
 
 @patch("taskweavn.llm.client.LLM")
-@patch("taskweavn.llm.client.litellm")
+@patch("taskweavn.llm.providers.litellm.litellm")
 def test_chat_parses_tool_calls(
     mock_litellm: MagicMock,
     mock_llm_cls: MagicMock,  # noqa: ARG001

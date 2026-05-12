@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import threading
 import time
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
@@ -35,16 +36,17 @@ from taskweavn.interaction import (
 
 
 def _msg(session_id: str = "s", **kwargs: object) -> AgentMessage:
-    return AgentMessage(  # type: ignore[arg-type]
-        session_id=session_id,
-        message_type=kwargs.pop("message_type", "informational"),  # type: ignore[arg-type]
-        content=kwargs.pop("content", "x"),  # type: ignore[arg-type]
-        **kwargs,  # type: ignore[arg-type]
-    )
+    payload: dict[str, object] = {
+        "session_id": session_id,
+        "message_type": kwargs.pop("message_type", "informational"),
+        "content": kwargs.pop("content", "x"),
+        **kwargs,
+    }
+    return AgentMessage.model_validate(payload)
 
 
 @pytest.fixture
-def bus(tmp_path: Path) -> InProcessMessageBus:
+def bus(tmp_path: Path) -> Iterator[InProcessMessageBus]:
     stream = SqliteMessageStream(tmp_path / "messages.sqlite")
     bus_ = InProcessMessageBus(stream)
     yield bus_

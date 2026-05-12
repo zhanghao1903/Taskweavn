@@ -46,23 +46,25 @@ def test_message_id_unique_per_instance() -> None:
 def test_message_is_frozen() -> None:
     m = AgentMessage(session_id="s", message_type="informational", content="hi")
     with pytest.raises(ValidationError):
-        m.content = "tampered"  # type: ignore[misc]
+        m.content = "tampered"
 
 
 def test_unknown_field_rejected() -> None:
     with pytest.raises(ValidationError):
-        AgentMessage(  # type: ignore[call-arg]
-            session_id="s",
-            message_type="informational",
-            content="x",
-            extra="boom",
+        AgentMessage.model_validate(
+            {
+                "session_id": "s",
+                "message_type": "informational",
+                "content": "x",
+                "extra": "boom",
+            }
         )
 
 
 def test_message_type_must_be_one_of_three() -> None:
     with pytest.raises(ValidationError):
-        AgentMessage(  # type: ignore[arg-type]
-            session_id="s", message_type="weird", content="x"
+        AgentMessage.model_validate(
+            {"session_id": "s", "message_type": "weird", "content": "x"}
         )
 
 

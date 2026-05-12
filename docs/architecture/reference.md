@@ -177,22 +177,42 @@ class Tool[ActionT: BaseAction, ObservationT: BaseObservation](ABC):
 
 ---
 
-## 4. LLM — 模型客户端
+## 4. LLM — Provider-backed 模型客户端
 
-模块：`taskweavn.llm.client`
+模块：`taskweavn.llm.client`、`taskweavn.llm.contracts`、`taskweavn.llm.providers`
 
 | 对象                                       | 作用                                                       |
 | ------------------------------------------ | ---------------------------------------------------------- |
-| `LLMClient(model, api_key)`                | 单一 LLM 入口，复用 openhands-sdk 的 LLM + litellm。       |
-| `LLMClient.chat(messages, tools)`          | OpenAI-style 同步调用，返回 `ChatResponse`，loop 用这个。 |
-| `LLMClient.complete(messages, tools)`      | 走 openhands-sdk，audit / RAG 用。                         |
-| `LLMClient.from_env(default_model)`        | 从 `LLM_MODEL` / `LLM_API_KEY` 构造。                      |
-| `ChatResponse`                             | `content: str`、`tool_calls: list[ToolCall]`、`raw_assistant_message: dict`（直接回灌进 messages）。 |
+| `LLMClient(model, api_key, provider=...)`  | 单一应用入口；`chat()` 走 provider，`complete()` / `count_tokens()` 暂保留 OpenHands 兼容路径。 |
+| `LLMProvider`                              | provider transport Protocol，统一 `chat()` / `complete()` / `count_tokens()` 边界。 |
+| `BaseLLMProvider`                          | provider 基类，提供错误分类、自动重试、retry record 注入。 |
+| `LiteLLMProvider`                          | 默认兼容 provider，维持原有 LiteLLM 行为。                 |
+| `DeepSeekProvider`                         | DeepSeek 官方 SDK / OpenAI-compatible 路径，支持 thinking mode 与 reasoning metadata。 |
+| `OpenRouterProvider`                       | OpenRouter provider routing provider，支持固定 provider / order / fallback policy。 |
+| `ChatRequest`                              | provider 输入对象，封装 messages、tools、thinking、routing、metadata。 |
+| `ChatResponse`                             | `content`、`tool_calls`、`raw_assistant_message`，并携带可选 `reasoning_content`、usage、provider、retry metadata。 |
 | `ToolCall`                                 | `id`、`name`、`arguments`（原始 JSON 字符串）。            |
+| `ThinkingConfig`                           | thinking 开关、effort、max_tokens 等配置。                 |
+| `ProviderRoutingConfig`                    | OpenRouter provider routing 配置。                         |
+| `RetryPolicy` / `RetryRecord`              | provider 层 retry 策略与尝试记录。                         |
 | `tool_schema_from_action(name, desc, T)`   | 从 Pydantic Action 类生成 OpenAI tool schema，剥掉 `event_id` / `timestamp` / `source`。 |
-| `parse_tool_arguments(raw)`                | 容错解析 tool_call 的 `arguments` JSON。                  |
+| `parse_tool_arguments(raw)`                | 容错解析 tool_call 的 `arguments` JSON。                   |
 
-**`chat()` 是 stateless 的**——会话历史由 `AgentLoop` 自己维护并每轮全量传入。`llm` 频道 logger 记 `request` / `response` / `request_failed`。
+**`chat()` 是 stateless 的**——会话历史由 `AgentLoop` 自己维护并每轮全量传入。provider 层只负责 LLM transport：请求构造、错误分类、自动重试、响应归一化和 provider metadata。工具执行、Action 执行、TaskBus 操作不在 provider retry 范围内。
+
+`LLMClient.from_env(default_model)` 现在读取 provider 配置：
+
+- `LLM_PROVIDER=litellm|deepseek|openrouter`
+- `LLM_MODEL`
+- `LLM_API_KEY`
+- `DEEPSEEK_API_KEY` / `DEEPSEEK_BASE_URL`
+- `OPENROUTER_API_KEY`
+- `LLM_THINKING_ENABLED` / `LLM_THINKING_EFFORT`
+- `OPENROUTER_PROVIDER_ORDER` / `OPENROUTER_PROVIDER_ONLY` / `OPENROUTER_PROVIDER_IGNORE`
+- `OPENROUTER_ALLOW_FALLBACKS` / `OPENROUTER_REQUIRE_PARAMETERS`
+- `OPENROUTER_DATA_COLLECTION` / `OPENROUTER_ZDR`
+
+长期方向：这些环境变量只是第一版入口，后续应迁移到全局/session 继承式配置系统。
 
 ---
 

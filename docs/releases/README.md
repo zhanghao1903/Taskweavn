@@ -13,4 +13,5 @@ Release records should answer:
 
 | Release | Status | Summary |
 |---|---:|---|
+| [LLM Provider Reliability](llm-provider-reliability.md) | done | Provider abstraction, retry, DeepSeek thinking, and OpenRouter routing. |
 | [Phase 3 Interaction Layer through 3.8](phase-3-interaction-layer-through-3-8.md) | done | Session, risk/autonomy, messages, bus, wait, loop integration, LLM risk, derived session status. |
