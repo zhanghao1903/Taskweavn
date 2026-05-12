@@ -34,7 +34,7 @@ TaskWeavn has moved past the original "single ReAct agent with tools" shape. The
 | LLMRiskAssessor and CompositeAssessor | Done | Phase 3.7. |
 | Derived Session.status | Done | Phase 3.8; stored status is a hint except `archived`. |
 | Task-first architecture plans | Planned | UI, Collaborator Agent, Task ViewModel, Pipeline, Publisher. |
-| Reliability and observability plans | Planned | LLM provider/retry/thinking; configurable logging. |
+| Reliability and observability plans | In progress | LLM provider/retry/thinking is done; configurable logging remains next. |
 
 The project is now re-baselined around **Task-first interaction**:
 
@@ -100,7 +100,7 @@ This phase created the protocol substrate needed by Task-first UI and TaskBus wo
 
 ### Phase 3B — Reliability And Observability
 
-Status: planned.
+Status: in progress.
 
 Why now: user testing and long-running task execution need stable LLM behavior and debuggable system state.
 
@@ -108,15 +108,15 @@ Work packages:
 
 | Work | Plan | Priority |
 |---|---|---:|
-| LLM Provider abstraction, retry, DeepSeek thinking, OpenRouter routing | [LLM provider plan](plans/feature/llm-provider-retry-thinking.md) | P0 |
+| LLM Provider abstraction, retry, DeepSeek thinking, OpenRouter routing | [LLM provider plan](plans/feature/llm-provider-retry-thinking.md) | Done |
 | Configurable hierarchical logging, JSONL/pretty sinks, session inheritance, hot reload | [Logging plan](plans/feature/configurable-logging-system.md) | P0 |
 | Architecture/reference docs sync after rename and Phase 3.8 | Follow-up doc maintenance | P1 |
 
 Exit criteria:
 
-- LLM requests have provider-level retry and structured failure records.
-- DeepSeek official provider supports thinking mode and preserves reasoning metadata.
-- OpenRouter can pin provider routing.
+- LLM requests have provider-level retry and structured failure records. Done.
+- DeepSeek official provider supports thinking mode and preserves reasoning metadata. Done.
+- OpenRouter can pin provider routing. Done.
 - Logs can be configured globally and per session.
 - Testers can turn up logging for selected categories without restarting the whole mental model.
 
@@ -232,16 +232,15 @@ These remain valuable, but they should not be the next immediate build target be
 
 Recommended order for upcoming implementation sessions:
 
-1. **LLM Provider reliability** — retry, DeepSeek thinking, provider routing.
-2. **Configurable logging** — global/session config, category levels, hot update, archives.
-3. **Task model and UI ViewModel separation** — data boundary before UI implementation.
-4. **Collaborator Agent and Task authoring tools** — natural language to draft Task Tree.
-5. **TaskPublisher abstraction** — one publish path for every source.
-6. **Pipeline task loading** — before/begin/after Task auto-publication.
-7. **Task-first UI prototype** — after backend projection APIs exist.
-8. **TaskBus multi-agent execution hardening** — execution semantics after publish model stabilizes.
+1. **Configurable logging** — global/session config, category levels, hot update, archives.
+2. **Task model and UI ViewModel separation** — data boundary before UI implementation.
+3. **Collaborator Agent and Task authoring tools** — natural language to draft Task Tree.
+4. **TaskPublisher abstraction** — one publish path for every source.
+5. **Pipeline task loading** — before/begin/after Task auto-publication.
+6. **Task-first UI prototype** — after backend projection APIs exist.
+7. **TaskBus multi-agent execution hardening** — execution semantics after publish model stabilizes.
 
-The first two items are operationally important: without reliable LLM calls and configurable logs, user testing will be noisy and hard to diagnose.
+LLM Provider reliability is complete. Configurable logging is now the next operational blocker: without category/session logs, user testing will still be noisy and hard to diagnose.
 
 ---
 

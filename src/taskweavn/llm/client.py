@@ -1,69 +1,68 @@
-"""LLMClient — thin wrapper around openhands-sdk's LLM plus a litellm-backed chat path.
+"""LLMClient facade over provider-backed chat and legacy OpenHands completion.
 
-The openhands wrapper handles single-shot completions (used by audit / RAG
-later). For the ReAct loop we go straight through ``litellm.completion`` so we
-can ship our own Pydantic ``Action`` schemas as OpenAI-format tools without
-having to subclass openhands' ``Action``/``Observation`` hierarchy.
+The facade preserves the original ``LLMClient.chat(messages, tools)`` shape
+while delegating transport to an ``LLMProvider``. ``complete`` and token
+counting still use OpenHands SDK for compatibility until providers grow those
+capabilities directly.
 """
 
 from __future__ import annotations
 
 import json
-import os
 from collections.abc import Sequence
-from dataclasses import dataclass
 from typing import Any
 
-import litellm
 from openhands.sdk import LLM
 from openhands.sdk.llm import LLMResponse, Message
 from openhands.sdk.tool import ToolDefinition
 
-from taskweavn.observability.setup import get_channel_logger
-
-_LLM_LOGGER = get_channel_logger("llm")
-
-
-@dataclass(frozen=True)
-class ToolCall:
-    """One tool invocation requested by the assistant."""
-
-    id: str
-    name: str
-    arguments: str  # raw JSON string from the model
-
-
-@dataclass(frozen=True)
-class ChatResponse:
-    """Parsed chat completion response."""
-
-    content: str
-    tool_calls: list[ToolCall]
-    raw_assistant_message: dict[str, Any]
+from taskweavn.llm.config import load_client_config_from_env
+from taskweavn.llm.contracts import (
+    ChatRequest,
+    ChatResponse,
+    LLMProvider,
+    ProviderRoutingConfig,
+    RetryPolicy,
+    ThinkingConfig,
+    ToolCall,
+)
+from taskweavn.llm.providers.litellm import LiteLLMProvider
 
 
 class LLMClient:
     """Configuration + completion entry point for a single LLM."""
 
-    def __init__(self, model: str, api_key: str | None = None) -> None:
+    def __init__(
+        self,
+        model: str,
+        api_key: str | None = None,
+        *,
+        provider: LLMProvider | None = None,
+        retry_policy: RetryPolicy | None = None,
+        thinking: ThinkingConfig | None = None,
+        provider_routing: ProviderRoutingConfig | None = None,
+    ) -> None:
         self._model = model
         self._api_key = api_key
+        self._provider = provider or LiteLLMProvider(
+            api_key=api_key,
+            retry_policy=retry_policy,
+        )
+        self._thinking = thinking
+        self._provider_routing = provider_routing
         self._llm = LLM(model=model, api_key=api_key)
 
     @classmethod
     def from_env(cls, default_model: str = "anthropic/claude-sonnet-4-5-20250929") -> LLMClient:
-        """Build a client from ``LLM_MODEL`` and ``LLM_API_KEY`` env vars.
-
-        ``LLM_API_KEY`` is required. ``LLM_MODEL`` falls back to
-        ``default_model`` when unset.
-        """
-        api_key = os.environ.get("LLM_API_KEY")
-        if not api_key:
-            raise RuntimeError(
-                "LLM_API_KEY is not set; export it before using LLMClient.from_env()."
-            )
-        model = os.environ.get("LLM_MODEL", default_model)
-        return cls(model=model, api_key=api_key)
+        """Build a client from environment variables."""
+        config = load_client_config_from_env(default_model)
+        return cls(
+            model=config.model,
+            api_key=config.api_key,
+            provider=config.provider,
+            thinking=config.thinking,
+            provider_routing=config.provider_routing,
+        )
 
     @property
     def model(self) -> str:
@@ -86,78 +85,25 @@ class LLMClient:
         self,
         messages: list[dict[str, Any]],
         tools: list[dict[str, Any]] | None = None,
+        *,
+        metadata: dict[str, Any] | None = None,
+        thinking: ThinkingConfig | None = None,
+        provider_routing: ProviderRoutingConfig | None = None,
     ) -> ChatResponse:
         """Run a chat completion with optional tool schemas, parse out tool_calls.
 
-        ``messages`` and ``tools`` follow the OpenAI chat-completions shape that
-        litellm normalizes across providers. The ReAct loop owns the message
-        history; this method is stateless on purpose.
+        ``messages`` and ``tools`` follow the OpenAI chat-completions shape.
+        The ReAct loop owns the message history; providers own transport.
         """
-        _LLM_LOGGER.info(
-            "request",
-            extra={
-                "data": {
-                    "model": self._model,
-                    "messages": messages,
-                    "tool_count": len(tools) if tools else 0,
-                    "tools": tools,
-                }
-            },
+        request = ChatRequest(
+            model=self._model,
+            messages=messages,
+            tools=tools,
+            thinking=thinking or self._thinking,
+            provider_routing=provider_routing or self._provider_routing,
+            metadata=metadata or {},
         )
-        try:
-            response = litellm.completion(
-                model=self._model,
-                api_key=self._api_key,
-                messages=messages,
-                tools=tools,
-            )
-        except Exception as exc:
-            _LLM_LOGGER.exception(
-                "request_failed",
-                extra={"data": {"model": self._model, "error": str(exc)}},
-            )
-            raise
-        choice = response.choices[0]
-        message = choice.message
-        content = message.content or ""
-        raw_tool_calls = getattr(message, "tool_calls", None) or []
-        tool_calls = [
-            ToolCall(
-                id=tc.id,
-                name=tc.function.name,
-                arguments=tc.function.arguments or "{}",
-            )
-            for tc in raw_tool_calls
-        ]
-        # Build a transport-shape dict for re-appending to the message list.
-        assistant_msg: dict[str, Any] = {"role": "assistant", "content": content}
-        if tool_calls:
-            assistant_msg["tool_calls"] = [
-                {
-                    "id": tc.id,
-                    "type": "function",
-                    "function": {"name": tc.name, "arguments": tc.arguments},
-                }
-                for tc in tool_calls
-            ]
-        _LLM_LOGGER.info(
-            "response",
-            extra={
-                "data": {
-                    "model": self._model,
-                    "content": content,
-                    "tool_calls": [
-                        {"id": tc.id, "name": tc.name, "arguments": tc.arguments}
-                        for tc in tool_calls
-                    ],
-                }
-            },
-        )
-        return ChatResponse(
-            content=content,
-            tool_calls=tool_calls,
-            raw_assistant_message=assistant_msg,
-        )
+        return self._provider.chat(request)
 
 
 def tool_schema_from_action(
@@ -207,3 +153,12 @@ def parse_tool_arguments(raw_arguments: str) -> dict[str, Any]:
     if not isinstance(parsed, dict):
         raise ValueError(f"tool arguments must decode to an object, got {type(parsed).__name__}")
     return parsed
+
+
+__all__ = [
+    "ChatResponse",
+    "LLMClient",
+    "ToolCall",
+    "parse_tool_arguments",
+    "tool_schema_from_action",
+]

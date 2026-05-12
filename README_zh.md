@@ -60,7 +60,8 @@ OpenHands SDK 构建 LLM 适配层。
 
 ```bash
 uv sync                                  # 安装依赖和开发工具
-export LLM_API_KEY=sk-ant-...            # 任意 litellm 支持的 provider key
+export LLM_PROVIDER=litellm              # litellm | deepseek | openrouter
+export LLM_API_KEY=sk-ant-...            # provider API key
 export LLM_MODEL=anthropic/claude-sonnet-4-5-20250929  # 可选，覆盖默认模型
 
 uv run taskweavn run \
@@ -70,6 +71,18 @@ uv run taskweavn run \
 ```
 
 Agent 将每个 Action 和 Observation 写入内存 `EventStream`，在以下任一情况停止：显式的 `agent_finish` 工具调用、LLM 轮次中无 `tool_calls`，或达到 `--max-steps`。
+
+使用 DeepSeek：
+
+```bash
+export LLM_PROVIDER=deepseek
+export DEEPSEEK_API_KEY=sk-...
+export LLM_MODEL=deepseek-chat
+```
+
+通过环境变量切换 provider 时不要传 `--model`；当前 CLI 只有在
+`--model` 未设置时才会通过 `LLMClient.from_env()` 读取 `LLM_PROVIDER`。
+完整配置项见 [配置指南](docs/configuration.md)。
 
 开启 Phase 3 交互层：
 
@@ -155,6 +168,7 @@ src/taskweavn/
 
 | 文档 | 中文 | English |
 | ---- | ---- | ------- |
+| 配置指南 | [configuration.md](docs/configuration.md) | - |
 | 架构参考 | [architecture.md](docs/architecture.md) | - |
 | 交互层技术设计 | [interaction_layer_design.md](docs/interaction_layer_design.md) | - |
 | 项目计划 | [agent_project_plan.md](docs/agent_project_plan.md) | [agent_project_plan_en.md](docs/agent_project_plan_en.md) |

@@ -52,13 +52,13 @@ def _msg(
         "session_id": session,
         "task_id": task,
         "agent_id": agent,
-        "message_type": type_,  # type: ignore[arg-type]
+        "message_type": type_,
         "content": content,
         "parent_message_id": parent,
         "risk_assessment": risk,
         "related_action_id": related_action,
         "requires_response": requires_response,
-        "response_source": response_source,  # type: ignore[arg-type]
+        "response_source": response_source,
         "response_value": response_value,
     }
     if created_at is not None:

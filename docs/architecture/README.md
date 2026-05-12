@@ -14,6 +14,7 @@ Architecture docs describe stable concepts, object lifecycles, system contracts,
 | [agent.md](agent.md) | Agent template/instance model. |
 | [session.md](session.md) | Session architecture. |
 | [interaction-layer.md](interaction-layer.md) | Phase 3 interaction layer technical design. |
+| [llm-provider-reliability.md](llm-provider-reliability.md) | LLM provider abstraction, retry, DeepSeek thinking, and OpenRouter routing technical design. |
 | [multi-agent-collaboration.md](multi-agent-collaboration.md) | Multi-agent collaboration architecture. |
 | [multi-agent-collaboration_en.md](multi-agent-collaboration_en.md) | English version of the collaboration architecture. |
 | [review.md](review.md) | Architecture review and plan inputs. |

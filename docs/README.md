@@ -21,6 +21,7 @@ This directory is organized by document purpose, not by implementation module.
 ## Canonical Entry Points
 
 - [Global Roadmap](roadmap.md)
+- [Configuration Guide](configuration.md)
 - [Project Plan](project/roadmap.md)
 - [Architecture Reference](architecture/reference.md)
 - [Multi-Agent Collaboration Architecture](architecture/multi-agent-collaboration.md)

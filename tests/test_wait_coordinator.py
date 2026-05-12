@@ -22,6 +22,7 @@ from taskweavn.interaction import (
     SqliteMessageStream,
     WaitCoordinator,
     WaitOutcome,
+    WaitResult,
 )
 
 # ---------------------------------------------------------------------------
@@ -266,7 +267,7 @@ def test_sync_timeout_wait_skips_when_bus_closes(
     coord = WaitCoordinator(bus, behavior)
     msg = _publish_actionable(bus, timeout_seconds=0.05)
 
-    result_holder: list = []
+    result_holder: list[WaitResult] = []
 
     def runner() -> None:
         result_holder.append(coord.handle_actionable(msg))

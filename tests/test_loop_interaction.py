@@ -14,7 +14,7 @@ import time
 from collections.abc import Iterator
 from dataclasses import replace
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import pytest
 
@@ -25,6 +25,7 @@ from taskweavn.interaction import (
     AutonomyGate,
     BaselineOnlyAssessor,
     InProcessMessageBus,
+    MessageBus,
     SqliteMessageStream,
     WaitCoordinator,
 )
@@ -175,7 +176,7 @@ def test_gate_without_bus_is_rejected(workspace: Workspace) -> None:
             tools=[],
             gate=gate,
             wait_coordinator=WaitCoordinator(
-                _DummyBus(), AUTONOMY_PRESETS["risk_gated"]
+                cast(MessageBus, _DummyBus()), AUTONOMY_PRESETS["risk_gated"]
             ),
             workspace_root=workspace.root,
         )

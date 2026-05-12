@@ -1,11 +1,12 @@
 # Feature Plan: LLM Provider 抽象、自动重试与 DeepSeek Thinking
 
-> Status: planned  
-> Type: 新特性支持  
-> Last Updated: 2026-05-10  
-> Owner/Session: planning session  
-> Target Implementation Session: independent feature session  
+> Status: done
+> Type: 新特性支持
+> Last Updated: 2026-05-11
+> Owner/Session: planning session
+> Target Implementation Session: server core execution session
 > Related Code: `src/taskweavn/llm/client.py`, `tests/test_llm.py`
+> Technical Design: [LLM Provider Reliability](../../architecture/llm-provider-reliability.md)
 
 ---
 
@@ -556,6 +557,47 @@ Provider 行为要求：
 
 ## 16. 状态
 
-- Status: planned
+- Status: done
 - Created: 2026-05-10
-- Next Step: 在独立实现会话中创建 feature 分支，先做 Slice 1 + Slice 2，再落地 DeepSeek provider。
+- Completed: 2026-05-11
+- Implementation Session: server core execution line
+
+已完成内容：
+
+- `LLMClient` 改为 provider-backed facade，保留 `chat()` 上层兼容入口。
+- 新增 `LLMProvider` Protocol、`ChatRequest`、`RetryPolicy`、`ThinkingConfig`、`ProviderRoutingConfig`、`LLMUsage`、`RetryRecord` 等核心契约。
+- 新增 provider 错误层级与 `BaseLLMProvider` 自动重试循环。
+- 新增 `LiteLLMProvider` 作为默认兼容 provider。
+- 新增 `DeepSeekProvider`，支持 thinking 请求参数、`reasoning_content` 保留、模型能力约束与工具调用限制。
+- 新增 `OpenRouterProvider`，支持 provider routing 请求体，用于固定 provider / provider order / fallback policy。
+- 将 `openai` 声明为直接依赖，以支持 DeepSeek 官方 SDK 调用路径。
+
+代码变更：
+
+- `src/taskweavn/llm/contracts.py`
+- `src/taskweavn/llm/errors.py`
+- `src/taskweavn/llm/retry.py`
+- `src/taskweavn/llm/config.py`
+- `src/taskweavn/llm/providers/`
+- `src/taskweavn/llm/client.py`
+- `src/taskweavn/llm/__init__.py`
+- `pyproject.toml`
+
+测试：
+
+- `tests/test_llm.py`
+- `tests/test_llm_contracts.py`
+- `tests/test_llm_retry_policy.py`
+- `tests/test_llm_providers.py`
+
+验证：
+
+- `uv run ruff check src tests`
+- `uv run mypy src tests`
+- `uv run pytest` -> 405 passed
+
+后续事项：
+
+- 将 provider / retry / routing metadata 接入后续的可配置日志系统。
+- 将 env 配置迁移到统一配置文件体系，而不是长期停留在环境变量上。
+- 如果后续大量使用 `deepseek-reasoner`，需要补一个非 tool-call 的 reasoning-only 执行路径。
