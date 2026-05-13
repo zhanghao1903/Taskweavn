@@ -40,9 +40,12 @@ from taskweavn.interaction.risk import (
     RiskAssessment,
     RiskAssessor,
 )
+from taskweavn.observability import LogContext, get_object_logger
 
 if TYPE_CHECKING:  # pragma: no cover
     from taskweavn.types.base import BaseAction
+
+_GATE_LOGGER = get_object_logger("gate")
 
 
 # ---------------------------------------------------------------------------
@@ -143,38 +146,54 @@ class AutonomyGate:
         trigger = self._behavior.trigger
 
         if trigger == "never":
-            return GateDecision(
-                verdict=GateVerdict.PROCEED,
-                risk_assessment=assessment,
-                inform_user=self._inform_on_proceed(assessment),
-                reason="trigger=never",
+            return self._logged_decision(
+                action,
+                context,
+                GateDecision(
+                    verdict=GateVerdict.PROCEED,
+                    risk_assessment=assessment,
+                    inform_user=self._inform_on_proceed(assessment),
+                    reason="trigger=never",
+                ),
             )
 
         if trigger == "always":
-            return GateDecision(
-                verdict=GateVerdict.EMIT,
-                risk_assessment=assessment,
-                inform_user=False,
-                reason="trigger=always",
+            return self._logged_decision(
+                action,
+                context,
+                GateDecision(
+                    verdict=GateVerdict.EMIT,
+                    risk_assessment=assessment,
+                    inform_user=False,
+                    reason="trigger=always",
+                ),
             )
 
         if trigger == "on_risk":
             threshold = self._behavior.risk_threshold
             if assessment.final >= threshold:
-                return GateDecision(
-                    verdict=GateVerdict.EMIT,
-                    risk_assessment=assessment,
-                    inform_user=False,
-                    reason=(
-                        f"risk {assessment.final:.2f} >= threshold {threshold:.2f}"
+                return self._logged_decision(
+                    action,
+                    context,
+                    GateDecision(
+                        verdict=GateVerdict.EMIT,
+                        risk_assessment=assessment,
+                        inform_user=False,
+                        reason=(
+                            f"risk {assessment.final:.2f} >= threshold {threshold:.2f}"
+                        ),
                     ),
                 )
-            return GateDecision(
-                verdict=GateVerdict.PROCEED,
-                risk_assessment=assessment,
-                inform_user=self._inform_on_proceed(assessment),
-                reason=(
-                    f"risk {assessment.final:.2f} < threshold {threshold:.2f}"
+            return self._logged_decision(
+                action,
+                context,
+                GateDecision(
+                    verdict=GateVerdict.PROCEED,
+                    risk_assessment=assessment,
+                    inform_user=self._inform_on_proceed(assessment),
+                    reason=(
+                        f"risk {assessment.final:.2f} < threshold {threshold:.2f}"
+                    ),
                 ),
             )
 
@@ -182,26 +201,60 @@ class AutonomyGate:
             confidence = self._confidence(action)
             threshold = self._behavior.confidence_threshold
             if confidence < threshold:
-                return GateDecision(
-                    verdict=GateVerdict.EMIT,
-                    risk_assessment=assessment,
-                    inform_user=False,
-                    reason=(
-                        f"confidence {confidence:.2f} < threshold {threshold:.2f}"
+                return self._logged_decision(
+                    action,
+                    context,
+                    GateDecision(
+                        verdict=GateVerdict.EMIT,
+                        risk_assessment=assessment,
+                        inform_user=False,
+                        reason=(
+                            f"confidence {confidence:.2f} < threshold {threshold:.2f}"
+                        ),
                     ),
                 )
-            return GateDecision(
-                verdict=GateVerdict.PROCEED,
-                risk_assessment=assessment,
-                inform_user=self._inform_on_proceed(assessment),
-                reason=(
-                    f"confidence {confidence:.2f} >= threshold {threshold:.2f}"
+            return self._logged_decision(
+                action,
+                context,
+                GateDecision(
+                    verdict=GateVerdict.PROCEED,
+                    risk_assessment=assessment,
+                    inform_user=self._inform_on_proceed(assessment),
+                    reason=(
+                        f"confidence {confidence:.2f} >= threshold {threshold:.2f}"
+                    ),
                 ),
             )
 
         # The Literal restricts ``trigger``; an unknown value here means
         # someone forced an invalid AutonomyBehavior past validation.
         raise ValueError(f"unknown autonomy trigger: {trigger!r}")
+
+    def _logged_decision(
+        self,
+        action: BaseAction,
+        context: AssessmentContext,
+        decision: GateDecision,
+    ) -> GateDecision:
+        assessment = decision.risk_assessment
+        _GATE_LOGGER.info(
+            "decision",
+            context=LogContext(
+                session_id=context.session_id,
+                task_id=context.task_id,
+                action_id=action.event_id,
+                workspace_root=str(context.workspace_root),
+            ),
+            data={
+                "action_kind": type(action).__name__,
+                "verdict": decision.verdict.value,
+                "reason": decision.reason,
+                "inform_user": decision.inform_user,
+                "risk": assessment.to_dict(),
+                "trigger": self._behavior.trigger,
+            },
+        )
+        return decision
 
     # ------------------------------------------------------------------
     # Internal

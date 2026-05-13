@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import sys
 import threading
 import uuid
@@ -27,7 +28,13 @@ from taskweavn.interaction import (
 )
 from taskweavn.llm.client import LLMClient
 from taskweavn.memory import ThoughtConfig, build_store
-from taskweavn.observability import configure_logging
+from taskweavn.observability import (
+    LogArchiveManifest,
+    LogEvent,
+    build_session_logging_config,
+    configure_session_logging,
+)
+from taskweavn.observability.formatting import event_to_pretty
 from taskweavn.runtime.local import LocalRuntime
 from taskweavn.tools.base import Tool
 from taskweavn.tools.code_action_tool import CodeActionTool
@@ -41,11 +48,80 @@ app = typer.Typer(
     no_args_is_help=True,
 )
 
+logging_app = typer.Typer(
+    name="logging",
+    help="Inspect structured logging profiles and session archives.",
+    no_args_is_help=True,
+)
+app.add_typer(logging_app, name="logging")
+
 
 @app.command()
 def version() -> None:
     """Print the installed taskweavn version."""
     typer.echo(f"taskweavn {__version__}")
+
+
+@logging_app.command("profiles")
+def logging_profiles(
+    log_dir: Annotated[
+        Path,
+        typer.Option(
+            "--log-dir",
+            help="Log archive root used to build the default logging config.",
+        ),
+    ] = Path("./logs"),
+) -> None:
+    """List built-in session logging profiles."""
+    config = build_session_logging_config(log_dir)
+    for name, profile in sorted(config.profiles.items()):
+        typer.echo(f"{name}\t{profile.description}")
+
+
+@logging_app.command("manifest")
+def logging_manifest(
+    session_id: Annotated[str, typer.Option("--session-id", help="Session id.")],
+    log_dir: Annotated[
+        Path,
+        typer.Option("--log-dir", help="Log archive root."),
+    ] = Path("./logs"),
+) -> None:
+    """Print a session archive manifest as JSON."""
+    path = log_dir / "sessions" / session_id / "manifest.json"
+    if not path.exists():
+        typer.secho(f"manifest not found: {path}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1)
+    manifest = LogArchiveManifest.model_validate_json(path.read_text(encoding="utf-8"))
+    typer.echo(manifest.model_dump_json(indent=2, exclude_none=True))
+
+
+@logging_app.command("render")
+def logging_render(
+    log_file: Annotated[Path, typer.Argument(help="Path to a JSONL log file.")],
+    limit: Annotated[
+        int,
+        typer.Option("--limit", help="Render at most this many trailing lines; <=0 means all."),
+    ] = 50,
+) -> None:
+    """Render a JSONL structured log file into compact human-readable lines."""
+    if not log_file.exists():
+        typer.secho(f"log file not found: {log_file}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1)
+    lines = [line for line in log_file.read_text(encoding="utf-8").splitlines() if line.strip()]
+    if limit > 0:
+        lines = lines[-limit:]
+    for line in lines:
+        try:
+            payload = json.loads(line)
+            if not isinstance(payload, dict):
+                raise ValueError("log line is not a JSON object")
+            row: dict[str, Any] = dict(payload)
+            row.pop("msg", None)
+            event = LogEvent.model_validate(row)
+        except Exception:  # noqa: BLE001 — rendering should keep going.
+            typer.echo(line)
+            continue
+        typer.echo(event_to_pretty(event))
 
 
 @app.command()
@@ -75,9 +151,33 @@ def run(
         Path,
         typer.Option(
             "--log-dir",
-            help="Directory for tool/action/observation/llm logs.",
+            help="Root directory for structured log archives.",
         ),
     ] = Path("./logs"),
+    log_level: Annotated[
+        str,
+        typer.Option(
+            "--log-level",
+            help="Default structured logging level (TRACE, DEBUG, INFO, ...).",
+        ),
+    ] = "INFO",
+    logging_profile: Annotated[
+        str | None,
+        typer.Option(
+            "--logging-profile",
+            help=(
+                "Session logging profile, e.g. normal, quiet, debug-llm, "
+                "debug-tools, debug-bus, full-debug."
+            ),
+        ),
+    ] = None,
+    logging_config: Annotated[
+        Path | None,
+        typer.Option(
+            "--logging-config",
+            help="Path to a complete JSON LoggingConfig file.",
+        ),
+    ] = None,
     audit: Annotated[
         bool,
         typer.Option(
@@ -174,7 +274,21 @@ def run(
     ] = "baseline",
 ) -> None:
     """Run the agent on a task inside a workspace."""
-    configure_logging(log_dir)
+    resolved_session_id = session_id or uuid.uuid4().hex
+    try:
+        configure_session_logging(
+            log_dir,
+            session_id=resolved_session_id,
+            level=log_level,
+            profile=logging_profile,
+            config_path=logging_config,
+        )
+    except (KeyError, ValueError) as exc:
+        raise typer.BadParameter(
+            str(exc),
+            param_hint="--logging-profile/--logging-config/--log-level",
+        ) from exc
+
     workspace.mkdir(parents=True, exist_ok=True)
     ws = Workspace(workspace)
 
@@ -231,7 +345,6 @@ def run(
     # actionables to stderr and reads replies from stdin. Everything is
     # tied to ``resolved_session_id`` so the operator can replay later
     # via the message stream alone.
-    resolved_session_id = session_id or uuid.uuid4().hex
     bus: InProcessMessageBus | None = None
     stream: SqliteMessageStream | None = None
     gate: AutonomyGate | None = None

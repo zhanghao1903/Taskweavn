@@ -23,7 +23,7 @@ OpenHands SDK 构建 LLM 适配层。
 
 ### 消息流替代阻塞式打断
 
-传统 human-in-the-loop 系统在等待用户响应时会暂停执行，由系统主导节奏。TaskWeavn 将其替换为**消息流模型**：agent 向共享消息流发送消息，用户可以随时回应，也可以不回应。没有响应时 agent 如何处理，由每个 agent 独立配置的**自主度等级**决定，而非硬编码在系统中。
+传统 human-in-the-loop 系统在等待用户响应时会暂停执行，由系统主导节奏。TaskWeavn 将其替换为**消息流模型**：agent 向共享消息流发送消息，用户可以随时响应，也可以不响应。没有响应时 agent 如何处理，由每个 agent 独立配置的**自主度等级**决定，而非硬编码在系统中。
 
 自主度最高时，消息流退化为只读执行日志；自主度最低时，高风险决策会等待用户确认。任务质量与打断频率之间的权衡是用户设置，不是架构约束。
 
@@ -91,11 +91,80 @@ uv run taskweavn run \
     --task "inspect this project and propose a small safe improvement" \
     --workspace ./workspace \
     --autonomy risk_gated \
-    --risk-assessor composite \
+    --risk-assessor baseline \
     --messages-db ./logs/messages.sqlite
 ```
 
 可用 autonomy preset：`full_auto`、`risk_gated`、`careful`、`collaborative`、`manual`。可用 risk assessor：`baseline`、`llm`、`composite`。
+
+## 推荐本地测试命令
+
+### 使用 DeepSeek 的基础任务
+
+```bash
+export LLM_PROVIDER=deepseek
+export DEEPSEEK_API_KEY=sk-...
+export LLM_MODEL=deepseek-chat
+
+uv run taskweavn run \
+    --task "write a hello.py that prints hi, then run it" \
+    --workspace ./workspace \
+    --max-steps 10
+```
+
+### 开启 autonomy 门控
+
+```bash
+export LLM_PROVIDER=deepseek
+export DEEPSEEK_API_KEY=sk-...
+export LLM_MODEL=deepseek-chat
+
+uv run taskweavn run \
+    --task "inspect this project and propose a small safe improvement" \
+    --workspace ./workspace \
+    --autonomy risk_gated \
+    --risk-assessor baseline \
+    --messages-db ./logs/messages.sqlite
+```
+
+### 日志输出位置
+
+当设置 `--log-dir`（默认 `./logs`）时，CLI 运行会写入 session 归档目录：
+
+```text
+<log-dir>/
+  global/config.jsonl
+  sessions/<session-id>/
+    manifest.json
+    action.jsonl
+    observation.jsonl
+    tool.jsonl
+    llm.jsonl
+    bus.jsonl
+    gate.jsonl
+    wait.jsonl
+    audit.jsonl
+```
+
+常用日志调试开关：
+
+```bash
+uv run taskweavn run \
+    --task "inspect this project and summarize provider config" \
+    --workspace ./workspace \
+    --session-id debug-llm-run \
+    --logging-profile debug-llm \
+    --log-dir ./logs
+```
+
+可用 profile 包括 `normal`、`quiet`、`debug-llm`、`debug-tools`、`debug-bus`
+和 `full-debug`。`manifest.json` 是 UI、测试人员和归档脚本定位日志的稳定入口。
+旧的 `configure_logging()` API 仍支持 `tool.log` 这类 flat file，但
+`taskweavn run` 使用 session archive。
+
+此外，`--messages-db`（默认 `<log-dir>/messages.sqlite`）以 SQLite 存储交互层消息流，
+`--thoughts-db`（默认 `<log-dir>/thoughts.sqlite`）在通过 `--thoughts` 开启 thought
+持久化后存储 LLM 推理过程。
 
 ## 编程调用
 

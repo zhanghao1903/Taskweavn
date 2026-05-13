@@ -44,6 +44,9 @@ from taskweavn.interaction.message import (
     AgentMessage,
     ResponseSource,
 )
+from taskweavn.observability import LogContext, get_object_logger
+
+_WAIT_LOGGER = get_object_logger("wait")
 
 # ---------------------------------------------------------------------------
 # Outcome types
@@ -123,6 +126,11 @@ class WaitCoordinator:
             )
 
         if self._behavior.wait_strategy == "async":
+            _WAIT_LOGGER.info(
+                "pending",
+                context=_message_context(message),
+                data={"wait_strategy": "async"},
+            )
             return WaitResult(
                 outcome=WaitOutcome.PENDING,
                 response_value=None,
@@ -139,6 +147,15 @@ class WaitCoordinator:
             message.message_id, timeout=timeout
         )
         if response is not None:
+            _WAIT_LOGGER.info(
+                "got_response",
+                context=_message_context(message),
+                data={
+                    "response_source": response.response_source,
+                    "response_value": response.response_value,
+                    "timeout": timeout,
+                },
+            )
             return WaitResult(
                 outcome=WaitOutcome.GOT_RESPONSE,
                 response_value=response.response_value,
@@ -164,6 +181,14 @@ class WaitCoordinator:
                 message.message_id, timeout=None
             )
             if response is not None:
+                _WAIT_LOGGER.info(
+                    "got_response_after_wait",
+                    context=_message_context(message),
+                    data={
+                        "response_source": response.response_source,
+                        "response_value": response.response_value,
+                    },
+                )
                 return WaitResult(
                     outcome=WaitOutcome.GOT_RESPONSE,
                     response_value=response.response_value,
@@ -171,6 +196,11 @@ class WaitCoordinator:
                     response=response,
                 )
             # Bus closed mid-wait; treat as skip and let the loop unwind.
+            _WAIT_LOGGER.warning(
+                "bus_closed",
+                context=_message_context(message),
+                data={"timeout_action": action},
+            )
             return WaitResult(
                 outcome=WaitOutcome.TIMED_OUT_SKIP,
                 response_value=None,
@@ -183,6 +213,11 @@ class WaitCoordinator:
                 source="timeout_skip",
                 value=None,
                 summary="timed out; skipping action",
+            )
+            _WAIT_LOGGER.info(
+                "timeout_skip",
+                context=_message_context(message),
+                data={"notice_id": notice.message_id if notice is not None else None},
             )
             return WaitResult(
                 outcome=WaitOutcome.TIMED_OUT_SKIP,
@@ -205,6 +240,15 @@ class WaitCoordinator:
             source=source,
             value=chosen,
             summary=f"timed out; proceeding with {source} ({chosen_label})",
+        )
+        _WAIT_LOGGER.info(
+            "timeout_proceed",
+            context=_message_context(message),
+            data={
+                "response_source": source,
+                "response_value": chosen,
+                "notice_id": notice.message_id if notice is not None else None,
+            },
         )
         return WaitResult(
             outcome=WaitOutcome.TIMED_OUT_PROCEED,
@@ -249,3 +293,13 @@ class WaitCoordinator:
         )
         self._bus.publish(notice)
         return notice
+
+
+def _message_context(message: AgentMessage) -> LogContext:
+    return LogContext(
+        session_id=message.session_id,
+        task_id=message.task_id,
+        agent_id=message.agent_id,
+        message_id=message.message_id,
+        action_id=message.related_action_id,
+    )
