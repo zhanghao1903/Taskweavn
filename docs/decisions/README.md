@@ -29,3 +29,4 @@ Each ADR should include:
 | [ADR-0004](ADR-0004-docs-governance-for-planning-session.md) | accepted | Use roadmap, ADRs, releases, and plan files as the planning session's control plane. |
 | [ADR-0005](ADR-0005-result-packaging-task-policy.md) | accepted | Result packaging is triggered by post-task policy and executed as a normal Task. |
 | [ADR-0006](ADR-0006-llm-provider-transport-boundary.md) | accepted | Treat LLM provider transport as a boundary below LLMClient. |
+| [ADR-0007](ADR-0007-centralized-runtime-configuration.md) | accepted | Use centralized hierarchical runtime configuration with immutable snapshots and hot-update events. |

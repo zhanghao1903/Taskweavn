@@ -1,7 +1,7 @@
 # TaskWeavn Roadmap
 
 > Status: active
-> Last Updated: 2026-05-11
+> Last Updated: 2026-05-14
 > Maintained By: planning session
 > Related: [Project Plan](project/roadmap.md), [Planning Workflow](planning_workflow.md), [Architecture Decisions](decisions/), [Release Records](releases/)
 
@@ -33,8 +33,8 @@ TaskWeavn has moved past the original "single ReAct agent with tools" shape. The
 | AgentLoop autonomy integration and minimum CLI surface | Done | Phase 3.6. |
 | LLMRiskAssessor and CompositeAssessor | Done | Phase 3.7. |
 | Derived Session.status | Done | Phase 3.8; stored status is a hint except `archived`. |
-| Task-first architecture plans | Planned | UI, Collaborator Agent, Task ViewModel, Pipeline, Publisher. |
-| Reliability and observability plans | In progress | LLM provider/retry/thinking is done; configurable logging remains next. |
+| Task-first architecture plans | In progress | Task domain/UI ViewModel separation is ready for acceptance; Collaborator Agent is the next Phase 3C package. |
+| Reliability and observability plans | Accepted baseline | LLM provider/retry/thinking and configurable logging are done; centralized runtime config remains a follow-up control-plane plan. |
 
 The project is now re-baselined around **Task-first interaction**:
 
@@ -100,7 +100,7 @@ This phase created the protocol substrate needed by Task-first UI and TaskBus wo
 
 ### Phase 3B — Reliability And Observability
 
-Status: in progress.
+Status: accepted baseline, with follow-up control-plane hardening planned.
 
 Why now: user testing and long-running task execution need stable LLM behavior and debuggable system state.
 
@@ -109,7 +109,8 @@ Work packages:
 | Work | Plan | Priority |
 |---|---|---:|
 | LLM Provider abstraction, retry, DeepSeek thinking, OpenRouter routing | [LLM provider plan](plans/feature/llm-provider-retry-thinking.md) | Done |
-| Configurable hierarchical logging, JSONL/pretty sinks, session inheritance, hot reload | [Logging plan](plans/feature/configurable-logging-system.md) | P0 |
+| Configurable hierarchical logging, JSONL/pretty sinks, session inheritance, hot reload | [Logging plan](plans/feature/configurable-logging-system.md) | Done |
+| Centralized hierarchical runtime configuration and hot updates | [Runtime configuration plan](plans/feature/centralized-runtime-configuration.md) | Follow-up |
 | Architecture/reference docs sync after rename and Phase 3.8 | Follow-up doc maintenance | P1 |
 
 Exit criteria:
@@ -117,12 +118,14 @@ Exit criteria:
 - LLM requests have provider-level retry and structured failure records. Done.
 - DeepSeek official provider supports thinking mode and preserves reasoning metadata. Done.
 - OpenRouter can pin provider routing. Done.
-- Logs can be configured globally and per session.
-- Testers can turn up logging for selected categories without restarting the whole mental model.
+- Logs can be configured globally and per session. Done.
+- Testers can turn up logging for selected categories through same-process control APIs and inspect session archives. Done.
+- Global/workspace/session/task configuration should later be resolved into immutable effective snapshots through the centralized runtime configuration plan.
+- Hot-updatable config changes should eventually share a ConfigBus instead of feature-local control APIs.
 
 ### Phase 3C — Task Authoring Foundation
 
-Status: planned.
+Status: in progress; first package ready for acceptance.
 
 Why now: Task-first UI requires the backend to represent draft Tasks, UI projections, user confirmations, and task-scoped guidance.
 
@@ -130,7 +133,7 @@ Work packages:
 
 | Work | Plan | Priority |
 |---|---|---:|
-| Split backend Task domain model from UI ViewModel/projection | [Task model/UI separation](plans/feature/task-domain-ui-model-separation.md) | P0 |
+| Split backend Task domain model from UI ViewModel/projection | [Task model/UI separation](plans/feature/task-domain-ui-model-separation.md) | Ready for acceptance |
 | Collaborator Agent and Task authoring tools | [Collaborator Agent plan](plans/feature/collaborator-agent-task-authoring.md) | P0 |
 | Task-first UI API contracts | [UI API interfaces](plans/ui/ui-api-interfaces.md) | P0 |
 | Task interaction replay model | Covered by Task model and Collaborator plans | P0 |
@@ -234,16 +237,15 @@ These remain valuable, but they should not be the next immediate build target be
 
 Recommended order for upcoming implementation sessions:
 
-1. **Configurable logging** — global/session config, category levels, hot update, archives.
-2. **Task model and UI ViewModel separation** — data boundary before UI implementation.
-3. **Collaborator Agent and Task authoring tools** — natural language to draft Task Tree.
-4. **TaskPublisher abstraction** — one publish path for every source.
-5. **Pipeline task loading** — before/begin/after Task auto-publication.
-6. **Result packaging and card presentation** — richer result display for information-style answers.
-7. **Task-first UI prototype** — after backend projection APIs exist.
-8. **TaskBus multi-agent execution hardening** — execution semantics after publish model stabilizes.
+1. **Collaborator Agent and Task authoring tools** — natural language to draft Task Tree and selected-node patch workflows.
+2. **TaskPublisher abstraction** — one publish path for every source.
+3. **Pipeline task loading** — before/begin/after Task auto-publication.
+4. **Result packaging and card presentation** — richer result display for information-style answers.
+5. **Task-first UI prototype** — after backend projection APIs exist.
+6. **TaskBus multi-agent execution hardening** — execution semantics after publish model stabilizes.
+7. **Centralized runtime configuration** — shared control plane for logging/autonomy/audit/LLM/Task/UI behavior once the Task-facing server model is concrete enough to avoid overfitting.
 
-LLM Provider reliability is complete. Configurable logging is now the next operational blocker: without category/session logs, user testing will still be noisy and hard to diagnose.
+LLM Provider reliability and configurable logging are complete enough for the next round of server-core work. The Task domain boundary now has a release candidate, so the immediate blocker moves to Collaborator Agent and Task authoring tools.
 
 ---
 

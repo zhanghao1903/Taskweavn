@@ -1,7 +1,7 @@
 # TaskWeavn Project Plan
 
 > Status: active
-> Last Updated: 2026-05-11
+> Last Updated: 2026-05-14
 > Maintained By: planning session
 > Phase Baseline: implementation completed through Phase 3.8
 > Related: [Global Roadmap](../roadmap.md), [Planning Workflow](../planning_workflow.md), [Phase 3 Release Record](../releases/phase-3-interaction-layer-through-3-8.md)
@@ -75,26 +75,28 @@ The next project plan is organized as work streams instead of continuing the old
 
 ### P3B — Reliability And Observability
 
-Status: in progress. Priority: P0.
+Status: accepted baseline, follow-up hardening planned. Priority: P0/P1.
 
 | Package | Source Plan | Implementation Goal |
 |---|---|---|
 | LLM provider/retry/thinking | [LLM provider plan](../plans/feature/llm-provider-retry-thinking.md) | Done: provider abstraction, retry policy, DeepSeek provider, thinking metadata, OpenRouter provider pinning. |
-| Configurable logging | [Logging plan](../plans/feature/configurable-logging-system.md) | Global/session/object/category log rules, JSONL + pretty display, hot update, archives. |
+| Configurable logging | [Logging plan](../plans/feature/configurable-logging-system.md) | Done: global/session/category rules, JSONL + pretty display, same-process hot update, archives. |
+| Centralized runtime configuration | [Runtime configuration plan](../plans/feature/centralized-runtime-configuration.md) | Follow-up: global/workspace/session/task config, effective snapshots, config store, config bus, hot updates. |
 
 Acceptance:
 
 - Temporary LLM failures do not immediately collapse long-running sessions.
 - DeepSeek thinking can be enabled without losing reasoning/tool-call continuity.
 - Testers can raise log level for a session/category and locate archived logs.
+- Config changes should later be resolved, audited, and hot-applied through one shared control plane.
 
 ### P3C — Task Authoring Foundation
 
-Status: planned. Priority: P0.
+Status: in progress; first package ready for acceptance. Priority: P0.
 
 | Package | Source Plan | Implementation Goal |
 |---|---|---|
-| Task domain/UI model separation | [Task model/UI separation](../plans/feature/task-domain-ui-model-separation.md) | Stable backend Task plus TaskCard/TaskNode ViewModel projection. |
+| Task domain/UI model separation | [Task model/UI separation](../plans/feature/task-domain-ui-model-separation.md) | Ready for acceptance: stable backend Task plus TaskCard/TaskNode ViewModel projection. |
 | Collaborator Agent | [Collaborator Agent plan](../plans/feature/collaborator-agent-task-authoring.md) | Generate draft Task Trees, patch selected Task Nodes, validate/publish draft tasks. |
 | UI API contracts | [UI API interfaces](../plans/ui/ui-api-interfaces.md) | Define APIs for Task lists, selected Task detail, messages, confirmations, file summaries. |
 
@@ -180,15 +182,14 @@ Focus:
 
 Recommended implementation order:
 
-1. Configurable logging system.
-2. Task domain/UI ViewModel separation.
-3. Collaborator Agent and Task authoring tools.
-4. TaskPublisher abstraction.
-5. Pipeline task loading and agent assignment.
-6. Result Packaging Agent and card-based result presentation.
-7. API-backed Task-first UI prototype.
+1. Collaborator Agent and Task authoring tools.
+2. TaskPublisher abstraction.
+3. Pipeline task loading and agent assignment.
+4. Result Packaging Agent and card-based result presentation.
+5. API-backed Task-first UI prototype.
+6. Centralized runtime configuration system.
 
-LLM Provider reliability is complete. The remaining order reduces debugging pain first, then builds the Task-first data model, then exposes it in UI.
+LLM Provider reliability and configurable logging are complete enough for the next round of server-core work. The Task-first data model now has a release candidate, so the remaining order moves into authoring, publishing, and UI flows while centralized configuration stays as a control-plane hardening follow-up.
 
 ---
 

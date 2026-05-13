@@ -2,7 +2,7 @@
 
 > Status: accepted
 > Date: 2026-05-11
-> Related: [Task model/UI separation](../plans/feature/task-domain-ui-model-separation.md), [Task-first UI plan](../plans/task-first-ui-interaction.md), [UI API interfaces](../plans/ui/ui-api-interfaces.md)
+> Related: [Task model/UI separation](../plans/feature/task-domain-ui-model-separation.md), [Task domain/UI technical design](../architecture/task-domain-ui-model-separation.md), [Task-first UI plan](../plans/task-first-ui-interaction.md), [UI API interfaces](../plans/ui/ui-api-interfaces.md)
 
 ---
 

@@ -1,6 +1,8 @@
 # Plan: 配置系统
 
 > 多 Agent 协作架构 · 配置系统设计计划 · v0 · 2026-05-10
+> Status: superseded
+> Superseded By: [Feature Plan: 集中化分级运行时配置系统](feature/centralized-runtime-configuration.md)
 
 ---
 

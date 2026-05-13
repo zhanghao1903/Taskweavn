@@ -1,0 +1,113 @@
+"""Task domain boundary models and protocols.
+
+This package is the server-side start of the Task-first architecture. It keeps
+published Task facts, draft authoring facts, UI references, and store protocols
+separate so later projection/UI work does not leak into TaskBus state.
+"""
+
+from taskweavn.task.commands import (
+    CommandResult,
+    CommandStatus,
+    DefaultTaskCommandService,
+    PublishedTaskEditor,
+    TaskCommandService,
+    TaskGuidanceMode,
+    TaskPublisher,
+    TaskPublishResult,
+)
+from taskweavn.task.models import (
+    DraftTaskNode,
+    DraftTaskStatus,
+    DraftTaskTree,
+    DraftToPublishedMapping,
+    TaskDispatchConstraints,
+    TaskDomain,
+    TaskNodePatch,
+    TaskRef,
+    TaskRefKind,
+    TaskStatus,
+)
+from taskweavn.task.projection import (
+    DefaultTaskProjectionService,
+    FileChangeStore,
+    TaskProjectionService,
+    TaskSummaryStore,
+)
+from taskweavn.task.stores import DraftTaskStore, TaskStore
+from taskweavn.task.timeline import (
+    DefaultTaskInteractionTimelineService,
+    DraftPublicationStore,
+    TaskInteractionEntry,
+    TaskInteractionSnapshot,
+    TaskInteractionTimeline,
+    TaskInteractionTimelineService,
+    TimelineEntrySource,
+)
+from taskweavn.task.views import (
+    ConfirmationActionView,
+    ConfirmationOptionView,
+    FileChangeType,
+    SessionMessageView,
+    TaskCardAction,
+    TaskCardActionKind,
+    TaskCardBadges,
+    TaskCardPermissions,
+    TaskCardView,
+    TaskDetailView,
+    TaskFileChangeSummary,
+    TaskMessageViewType,
+    TaskProgressView,
+    TaskSummaryView,
+    TaskTreeView,
+    TaskViewStatus,
+)
+
+__all__ = [
+    "CommandResult",
+    "CommandStatus",
+    "ConfirmationActionView",
+    "ConfirmationOptionView",
+    "DefaultTaskCommandService",
+    "DefaultTaskInteractionTimelineService",
+    "DraftTaskNode",
+    "DraftPublicationStore",
+    "DraftTaskStatus",
+    "DraftTaskStore",
+    "DraftTaskTree",
+    "DraftToPublishedMapping",
+    "DefaultTaskProjectionService",
+    "FileChangeStore",
+    "FileChangeType",
+    "PublishedTaskEditor",
+    "SessionMessageView",
+    "TaskCardAction",
+    "TaskCardActionKind",
+    "TaskCardBadges",
+    "TaskCardPermissions",
+    "TaskCardView",
+    "TaskCommandService",
+    "TaskDetailView",
+    "TaskDispatchConstraints",
+    "TaskDomain",
+    "TaskFileChangeSummary",
+    "TaskGuidanceMode",
+    "TaskInteractionEntry",
+    "TaskInteractionSnapshot",
+    "TaskInteractionTimeline",
+    "TaskInteractionTimelineService",
+    "TaskMessageViewType",
+    "TaskNodePatch",
+    "TaskProgressView",
+    "TaskRef",
+    "TaskRefKind",
+    "TaskSummaryView",
+    "TaskStatus",
+    "TaskStore",
+    "TaskProjectionService",
+    "TaskPublisher",
+    "TaskPublishResult",
+    "TaskSummaryStore",
+    "TaskTreeView",
+    "TaskViewStatus",
+    "TimelineEntrySource",
+]

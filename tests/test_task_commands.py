@@ -1,0 +1,464 @@
+"""Tests for Task UI command mapping service."""
+
+from __future__ import annotations
+
+from collections.abc import Iterable, Iterator
+from datetime import datetime
+
+import pytest
+from pydantic import ValidationError
+
+from taskweavn.interaction import AgentMessage, MessageStream, Subscription
+from taskweavn.task import (
+    CommandResult,
+    DefaultTaskCommandService,
+    DraftTaskNode,
+    DraftTaskStore,
+    DraftTaskTree,
+    DraftToPublishedMapping,
+    PublishedTaskEditor,
+    TaskCommandService,
+    TaskDomain,
+    TaskNodePatch,
+    TaskPublisher,
+    TaskPublishResult,
+    TaskRef,
+    TaskStore,
+)
+
+
+class _TaskStore:
+    def __init__(self, tasks: list[TaskDomain]) -> None:
+        self.tasks = tasks
+
+    def get(self, session_id: str, task_id: str) -> TaskDomain | None:
+        return next(
+            (
+                task
+                for task in self.tasks
+                if task.session_id == session_id and task.task_id == task_id
+            ),
+            None,
+        )
+
+    def list_for_session(self, session_id: str) -> list[TaskDomain]:
+        return [task for task in self.tasks if task.session_id == session_id]
+
+    def list_children(self, session_id: str, parent_id: str | None) -> list[TaskDomain]:
+        return [
+            task
+            for task in self.tasks
+            if task.session_id == session_id and task.parent_id == parent_id
+        ]
+
+
+class _DraftStore:
+    def __init__(self, nodes: list[DraftTaskNode]) -> None:
+        self.nodes = {node.draft_task_id: node for node in nodes}
+        self.last_expected_version: int | None = None
+
+    def create_tree(self, session_id: str, roots: list[DraftTaskNode]) -> DraftTaskTree:
+        return DraftTaskTree(session_id=session_id, draft_tree_id="tree1", root_nodes=tuple(roots))
+
+    def get_tree(self, session_id: str, draft_tree_id: str) -> DraftTaskTree:
+        roots = tuple(node for node in self.nodes.values() if node.session_id == session_id)
+        return DraftTaskTree(session_id=session_id, draft_tree_id=draft_tree_id, root_nodes=roots)
+
+    def list_trees(self, session_id: str) -> list[DraftTaskTree]:
+        return [self.get_tree(session_id, "tree1")]
+
+    def get_node(self, session_id: str, draft_task_id: str) -> DraftTaskNode | None:
+        node = self.nodes.get(draft_task_id)
+        if node is None or node.session_id != session_id:
+            return None
+        return node
+
+    def update_node(
+        self,
+        session_id: str,
+        draft_task_id: str,
+        patch: TaskNodePatch,
+        *,
+        expected_version: int,
+    ) -> DraftTaskNode:
+        self.last_expected_version = expected_version
+        node = self.nodes[draft_task_id]
+        updated = node.model_copy(
+            update={
+                "title": patch.title or node.title,
+                "intent": patch.intent or node.intent,
+                "version": expected_version + 1,
+            }
+        )
+        self.nodes[draft_task_id] = updated
+        return updated
+
+    def mark_published(
+        self,
+        session_id: str,
+        draft_tree_id: str,
+        mappings: list[DraftToPublishedMapping],
+    ) -> DraftTaskTree:
+        return self.get_tree(session_id, draft_tree_id)
+
+
+class _MessageStream:
+    def __init__(self, messages: list[AgentMessage]) -> None:
+        self.messages = messages
+
+    def get(self, message_id: str) -> AgentMessage | None:
+        return next(
+            (message for message in self.messages if message.message_id == message_id),
+            None,
+        )
+
+    def list_for_session(
+        self,
+        session_id: str,
+        *,
+        types: Iterable[str] | None = None,
+        since: datetime | None = None,
+        limit: int | None = None,
+    ) -> Iterator[AgentMessage]:
+        return iter([message for message in self.messages if message.session_id == session_id])
+
+    def list_for_task(
+        self,
+        task_id: str,
+        *,
+        types: Iterable[str] | None = None,
+        since: datetime | None = None,
+        limit: int | None = None,
+    ) -> Iterator[AgentMessage]:
+        return iter([message for message in self.messages if message.task_id == task_id])
+
+    def list_for_agent(
+        self,
+        agent_id: str,
+        *,
+        session_id: str | None = None,
+        types: Iterable[str] | None = None,
+        since: datetime | None = None,
+        limit: int | None = None,
+    ) -> Iterator[AgentMessage]:
+        return iter([message for message in self.messages if message.agent_id == agent_id])
+
+    def pending_actionable(
+        self, session_id: str, *, task_id: str | None = None
+    ) -> list[AgentMessage]:
+        return [
+            message
+            for message in self.messages
+            if message.session_id == session_id
+            and message.task_id == task_id
+            and message.message_type == "actionable"
+        ]
+
+    def response_for(self, message_id: str) -> AgentMessage | None:
+        return next(
+            (
+                message
+                for message in self.messages
+                if message.parent_message_id == message_id and message.message_type == "response"
+            ),
+            None,
+        )
+
+    def thread(self, message_id: str) -> list[AgentMessage]:
+        parent = self.get(message_id)
+        if parent is None:
+            return []
+        return [
+            parent,
+            *[
+                message
+                for message in self.messages
+                if message.parent_message_id == message_id
+            ],
+        ]
+
+    def __len__(self) -> int:
+        return len(self.messages)
+
+
+class _Bus:
+    def __init__(self, stream: _MessageStream) -> None:
+        self._stream = stream
+        self.published: list[AgentMessage] = []
+
+    def publish(self, message: AgentMessage) -> None:
+        self.published.append(message)
+        self._stream.messages.append(message)
+
+    def subscribe(
+        self,
+        session_id: str,
+        *,
+        types: Iterable[str] | None = None,
+    ) -> Subscription:
+        raise NotImplementedError
+
+    def wait_for_response(
+        self,
+        message_id: str,
+        timeout: float | None,
+    ) -> AgentMessage | None:
+        return self._stream.response_for(message_id)
+
+    @property
+    def stream(self) -> MessageStream:
+        return self._stream
+
+
+class _PublishedEditor:
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, str, TaskNodePatch]] = []
+
+    def update_task_node(
+        self,
+        session_id: str,
+        task_id: str,
+        patch: TaskNodePatch,
+    ) -> TaskDomain:
+        self.calls.append((session_id, task_id, patch))
+        return _task(task_id, status="pending").model_copy(
+            update={"intent": patch.intent or "edited"}
+        )
+
+
+class _Publisher:
+    def __init__(self) -> None:
+        self.publish_calls: list[tuple[str, str]] = []
+        self.retry_calls: list[tuple[str, str, str | None]] = []
+
+    def publish_draft_tree(self, session_id: str, draft_tree_id: str) -> TaskPublishResult:
+        self.publish_calls.append((session_id, draft_tree_id))
+        return TaskPublishResult(root_task_ids=("published-root",))
+
+    def retry_task(
+        self,
+        session_id: str,
+        task_id: str,
+        instruction: str | None = None,
+    ) -> TaskPublishResult:
+        self.retry_calls.append((session_id, task_id, instruction))
+        return TaskPublishResult(root_task_ids=("retry-root",))
+
+
+def _task(task_id: str, *, status: str = "pending") -> TaskDomain:
+    return TaskDomain(
+        task_id=task_id,
+        session_id="s1",
+        root_id=task_id,
+        intent=f"{task_id} intent",
+        required_capability="general",
+        created_by="user",
+        status=status,  # type: ignore[arg-type]
+    )
+
+
+def _draft(status: str = "draft") -> DraftTaskNode:
+    return DraftTaskNode(
+        draft_task_id="d1",
+        session_id="s1",
+        draft_tree_id="tree1",
+        title="Draft",
+        intent="Draft intent",
+        required_capability="general",
+        status=status,  # type: ignore[arg-type]
+    )
+
+
+def test_command_service_protocol_conformance() -> None:
+    service = DefaultTaskCommandService(task_store=_TaskStore([]))
+    assert isinstance(service, TaskCommandService)
+    assert isinstance(_TaskStore([]), TaskStore)
+    assert isinstance(_DraftStore([_draft()]), DraftTaskStore)
+    assert isinstance(_PublishedEditor(), PublishedTaskEditor)
+    assert isinstance(_Publisher(), TaskPublisher)
+
+
+def test_command_result_is_frozen_and_has_accepted_property() -> None:
+    result = CommandResult(status="accepted", message="ok")
+    assert result.accepted is True
+    with pytest.raises(ValidationError):
+        result.status = "rejected"
+
+
+def test_update_draft_task_uses_draft_store_and_version() -> None:
+    draft_store = _DraftStore([_draft()])
+    service = DefaultTaskCommandService(
+        task_store=_TaskStore([]),
+        draft_store=draft_store,
+    )
+
+    result = service.update_task_node(
+        "s1",
+        TaskRef.draft("d1"),
+        TaskNodePatch(title="Updated"),
+    )
+
+    assert result.accepted is True
+    assert result.affected_task_refs == (TaskRef.draft("d1"),)
+    assert draft_store.nodes["d1"].title == "Updated"
+    assert draft_store.last_expected_version == 1
+
+
+def test_update_draft_task_rejects_non_draft_status() -> None:
+    service = DefaultTaskCommandService(
+        task_store=_TaskStore([]),
+        draft_store=_DraftStore([_draft(status="published")]),
+    )
+
+    result = service.update_task_node("s1", TaskRef.draft("d1"), TaskNodePatch(title="Nope"))
+
+    assert result.accepted is False
+    assert "status is published" in result.message
+
+
+def test_update_published_pending_task_uses_editor() -> None:
+    editor = _PublishedEditor()
+    service = DefaultTaskCommandService(
+        task_store=_TaskStore([_task("t1", status="pending")]),
+        published_task_editor=editor,
+    )
+
+    result = service.update_task_node(
+        "s1",
+        TaskRef.published("t1"),
+        TaskNodePatch(intent="Edited intent"),
+    )
+
+    assert result.accepted is True
+    assert result.affected_task_refs == (TaskRef.published("t1"),)
+    assert editor.calls[0][1] == "t1"
+
+
+def test_update_published_running_task_rejected() -> None:
+    service = DefaultTaskCommandService(task_store=_TaskStore([_task("t1", status="running")]))
+
+    result = service.update_task_node("s1", TaskRef.published("t1"), TaskNodePatch(intent="Nope"))
+
+    assert result.accepted is False
+    assert "pending" in result.message
+
+
+def test_append_task_message_publishes_user_message() -> None:
+    stream = _MessageStream([])
+    bus = _Bus(stream)
+    service = DefaultTaskCommandService(task_store=_TaskStore([]), message_bus=bus)
+
+    result = service.append_task_message(
+        "s1",
+        TaskRef.draft("d1"),
+        "Please keep tests isolated",
+        mode="guidance",
+    )
+
+    assert result.accepted is True
+    assert len(bus.published) == 1
+    message = bus.published[0]
+    assert message.agent_id == "user"
+    assert message.task_id == "d1"
+    assert message.context["mode"] == "guidance"
+    assert message.context["task_ref_kind"] == "draft"
+
+
+def test_resolve_confirmation_publishes_response() -> None:
+    parent = AgentMessage(
+        message_id="ask1",
+        session_id="s1",
+        task_id="t1",
+        message_type="actionable",
+        content="Proceed?",
+        requires_response=True,
+    )
+    bus = _Bus(_MessageStream([parent]))
+    service = DefaultTaskCommandService(task_store=_TaskStore([]), message_bus=bus)
+
+    result = service.resolve_confirmation("s1", "ask1", "yes", note="Looks good")
+
+    assert result.accepted is True
+    assert result.affected_task_refs == (TaskRef.published("t1"),)
+    response = bus.published[0]
+    assert response.message_type == "response"
+    assert response.parent_message_id == "ask1"
+    assert response.response_value == "yes"
+    assert response.content == "Looks good"
+
+
+def test_resolve_confirmation_preserves_draft_task_ref_context() -> None:
+    parent = AgentMessage(
+        message_id="ask-draft",
+        session_id="s1",
+        task_id="d1",
+        message_type="actionable",
+        content="Accept draft option?",
+        requires_response=True,
+        context={"task_ref_kind": "draft"},
+    )
+    service = DefaultTaskCommandService(
+        task_store=_TaskStore([]),
+        message_bus=_Bus(_MessageStream([parent])),
+    )
+
+    result = service.resolve_confirmation("s1", "ask-draft", "yes")
+
+    assert result.accepted is True
+    assert result.affected_task_refs == (TaskRef.draft("d1"),)
+
+
+def test_resolve_confirmation_rejects_non_actionable() -> None:
+    parent = AgentMessage(
+        message_id="info1",
+        session_id="s1",
+        task_id="t1",
+        message_type="informational",
+        content="FYI",
+    )
+    service = DefaultTaskCommandService(
+        task_store=_TaskStore([]),
+        message_bus=_Bus(_MessageStream([parent])),
+    )
+
+    result = service.resolve_confirmation("s1", "info1", "yes")
+
+    assert result.accepted is False
+    assert "actionable" in result.message
+
+
+def test_publish_task_tree_uses_publisher_boundary() -> None:
+    publisher = _Publisher()
+    service = DefaultTaskCommandService(
+        task_store=_TaskStore([]),
+        task_publisher=publisher,
+    )
+
+    result = service.publish_task_tree("s1", "tree1")
+
+    assert result.accepted is True
+    assert publisher.publish_calls == [("s1", "tree1")]
+    assert result.published_task_ids == ("published-root",)
+
+
+def test_retry_failed_task_uses_publisher_boundary() -> None:
+    publisher = _Publisher()
+    service = DefaultTaskCommandService(
+        task_store=_TaskStore([_task("failed", status="failed")]),
+        task_publisher=publisher,
+    )
+
+    result = service.retry_task("s1", "failed", "Try safer path")
+
+    assert result.accepted is True
+    assert publisher.retry_calls == [("s1", "failed", "Try safer path")]
+    assert result.published_task_ids == ("retry-root",)
+
+
+def test_retry_non_failed_task_rejected() -> None:
+    service = DefaultTaskCommandService(task_store=_TaskStore([_task("pending", status="pending")]))
+
+    result = service.retry_task("s1", "pending")
+
+    assert result.accepted is False
+    assert "failed" in result.message
