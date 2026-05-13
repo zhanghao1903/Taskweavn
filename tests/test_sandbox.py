@@ -14,6 +14,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from taskweavn.observability import LogContext, configure_session_logging, use_log_context
 from taskweavn.runtime.sandbox import (
     RUNS_SUBDIR,
     SCRIPT_FILENAME,
@@ -167,6 +168,10 @@ def _make_workspace(tmp_path: Path) -> Path:
     ws = tmp_path / "ws"
     ws.mkdir()
     return ws
+
+
+def _read_jsonl(path: Path) -> list[dict[str, Any]]:
+    return [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
 
 
 def test_start_is_idempotent(tmp_path: Path) -> None:
@@ -438,6 +443,34 @@ def test_execute_writes_script_and_invokes_docker_with_python(tmp_path: Path) ->
     assert cmd[0] == "timeout"
     assert "python" in cmd
     assert cmd[-1].endswith(SCRIPT_FILENAME)
+
+
+def test_sandbox_emits_native_structured_logs(tmp_path: Path) -> None:
+    configure_session_logging(tmp_path / "logs", session_id="s1")
+    ws = _make_workspace(tmp_path)
+    container = MagicMock()
+    container.exec_run.side_effect = _fake_run_writing(ws, track_payload={})
+    client = MagicMock()
+    client.images.get.return_value = MagicMock()
+    client.containers.run.return_value = container
+    ex = SandboxExecutor(workspace_root=ws, docker_client=client)
+    action = CodeAction(
+        intent="echo",
+        code="print('x')",
+        tracking=TrackingConfig(files=[], variables=[]),
+    )
+
+    with use_log_context(LogContext(session_id="s1", task_id="task-1")):
+        ex.start()
+        ex.execute(action)
+        ex.stop()
+
+    rows = _read_jsonl(tmp_path / "logs" / "sessions" / "s1" / "sandbox.jsonl")
+    events = [row["event"] for row in rows]
+    assert events == ["container_started", "execute_start", "execute_result", "container_stopped"]
+    assert rows[1]["context"]["action_id"] == action.event_id
+    assert rows[1]["context"]["task_id"] == "task-1"
+    assert rows[2]["data"]["success"] is True
 
 
 # ---------------------------------------------------------------------------

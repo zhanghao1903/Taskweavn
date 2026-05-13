@@ -34,12 +34,12 @@ from __future__ import annotations
 
 import hashlib
 import json
-import logging
 import time
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, Any
 
+from taskweavn.observability import LogContext, get_object_logger
 from taskweavn.types.code_action import (
     CodeAction,
     CodeExecutionObservation,
@@ -50,7 +50,7 @@ if TYPE_CHECKING:
     from docker import DockerClient  # type: ignore[import-untyped]
     from docker.models.containers import Container  # type: ignore[import-untyped]
 
-_LOGGER = logging.getLogger(__name__)
+_SANDBOX_LOGGER = get_object_logger("sandbox")
 
 #: Subdirectory inside the workspace where per-run intermediates live.
 RUNS_SUBDIR = ".taskweavn/runs"
@@ -292,7 +292,6 @@ class SandboxExecutor:
         runs_dir.mkdir(parents=True, exist_ok=True)
 
         name = f"{self.config.container_name_prefix}-{int(time.time() * 1000)}"
-        _LOGGER.info("starting sandbox container %s (image=%s)", name, self.config.image)
         # nano_cpus is the docker-py knob for --cpus.
         nano_cpus = int(self.config.cpus * 1_000_000_000)
         self._container = client.containers.run(
@@ -312,6 +311,17 @@ class SandboxExecutor:
                 }
             },
         )
+        _SANDBOX_LOGGER.info(
+            "container_started",
+            context=LogContext(workspace_root=str(self.workspace_root)),
+            data={
+                "container_name": name,
+                "image": self.config.image,
+                "network_mode": self.config.network_mode,
+                "memory_mb": self.config.memory_mb,
+                "cpus": self.config.cpus,
+            },
+        )
 
     def stop(self) -> None:
         """Stop and remove the container. Tolerates missing/already-removed."""
@@ -320,8 +330,16 @@ class SandboxExecutor:
         try:
             self._container.remove(force=True)
         except Exception:  # noqa: BLE001 — teardown must not raise.
-            _LOGGER.exception("failed to remove sandbox container")
+            _SANDBOX_LOGGER.error(
+                "container_remove_failed",
+                context=LogContext(workspace_root=str(self.workspace_root)),
+                data={"container": repr(self._container)},
+            )
         finally:
+            _SANDBOX_LOGGER.info(
+                "container_stopped",
+                context=LogContext(workspace_root=str(self.workspace_root)),
+            )
             self._container = None
 
     # ------------------------------------------------------------------
@@ -332,6 +350,10 @@ class SandboxExecutor:
         """Run a single :class:`CodeAction` inside the container."""
         if self._container is None:
             raise SandboxError("SandboxExecutor.execute() called before start().")
+        context = LogContext(
+            action_id=action.event_id,
+            workspace_root=str(self.workspace_root),
+        )
 
         run_dir = self.workspace_root / RUNS_SUBDIR / action.event_id
         run_dir.mkdir(parents=True, exist_ok=True)
@@ -370,6 +392,17 @@ class SandboxExecutor:
         ]
 
         start = time.monotonic()
+        _SANDBOX_LOGGER.info(
+            "execute_start",
+            context=context,
+            data={
+                "intent": action.intent,
+                "tracking_files": list(action.tracking.files),
+                "tracking_variables": list(action.tracking.variables),
+                "timeout_seconds": self.config.timeout_seconds,
+                "run_dir": rel_run_dir_early,
+            },
+        )
         try:
             exec_result = self._container.exec_run(
                 cmd=cmd,
@@ -379,6 +412,15 @@ class SandboxExecutor:
             )
         except Exception as exc:  # noqa: BLE001
             duration_ms = (time.monotonic() - start) * 1000
+            _SANDBOX_LOGGER.error(
+                "execute_failed",
+                context=context,
+                data={
+                    "error_type": type(exc).__name__,
+                    "error_summary": str(exc)[:500],
+                    "duration_ms": duration_ms,
+                },
+            )
             return CodeExecutionObservation(
                 action_id=action.event_id,
                 intent=action.intent,
@@ -406,6 +448,19 @@ class SandboxExecutor:
         )
 
         variable_dump = self._read_variable_dump(track_path)
+        _SANDBOX_LOGGER.info(
+            "execute_result",
+            context=context,
+            data={
+                "exit_code": exit_code,
+                "success": exit_code == 0 and not timed_out,
+                "timed_out": timed_out,
+                "duration_ms": duration_ms,
+                "declared_change_count": len(declared_changes),
+                "undeclared_change_count": len(undeclared_changes),
+                "captured_variable_count": len(variable_dump),
+            },
+        )
 
         return CodeExecutionObservation(
             action_id=action.event_id,
@@ -447,10 +502,23 @@ class SandboxExecutor:
             return
         except Exception:  # noqa: BLE001 — fall through to pull.
             pass
-        _LOGGER.info("pulling sandbox image %s (first use)", self.config.image)
+        _SANDBOX_LOGGER.info(
+            "image_pull_start",
+            context=LogContext(workspace_root=str(self.workspace_root)),
+            data={"image": self.config.image},
+        )
         try:
             client.images.pull(self.config.image)
         except Exception as exc:  # noqa: BLE001
+            _SANDBOX_LOGGER.error(
+                "image_pull_failed",
+                context=LogContext(workspace_root=str(self.workspace_root)),
+                data={
+                    "image": self.config.image,
+                    "error_type": type(exc).__name__,
+                    "error_summary": str(exc)[:500],
+                },
+            )
             raise SandboxError(
                 f"failed to pull sandbox image {self.config.image!r}: {exc}"
             ) from exc
@@ -467,5 +535,3 @@ class SandboxExecutor:
             return {}
         # Defensive: coerce any non-str values to str.
         return {str(k): str(v) for k, v in data.items()}
-
-

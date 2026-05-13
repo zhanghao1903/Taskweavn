@@ -22,12 +22,12 @@ from pathlib import Path
 from threading import Lock
 from typing import Any
 
-from taskweavn.observability.setup import get_channel_logger
+from taskweavn.observability import LogContext, get_object_logger
 from taskweavn.types.base import BaseAction, BaseEvent, BaseObservation
 from taskweavn.types.registry import ActionRegistry, ObservationRegistry
 
-_ACTION_LOGGER = get_channel_logger("action")
-_OBSERVATION_LOGGER = get_channel_logger("observation")
+_ACTION_LOGGER = get_object_logger("action")
+_OBSERVATION_LOGGER = get_object_logger("observation")
 
 # Notes on the schema evolution:
 #   * 3.1 shipped the table without ``task_id``. 3.3 adds the column via an
@@ -219,9 +219,20 @@ def _family_of(event: BaseEvent) -> str:
 
 def _emit_channel(event: BaseEvent) -> None:
     if isinstance(event, BaseAction):
-        _ACTION_LOGGER.info("emit", extra={"data": event.to_dict()})
+        _ACTION_LOGGER.info(
+            "emit",
+            context=LogContext(action_id=event.event_id),
+            data=event.to_dict(),
+        )
     elif isinstance(event, BaseObservation):
-        _OBSERVATION_LOGGER.info("emit", extra={"data": event.to_dict()})
+        _OBSERVATION_LOGGER.info(
+            "emit",
+            context=LogContext(
+                action_id=event.action_id,
+                observation_id=event.event_id,
+            ),
+            data=event.to_dict(),
+        )
 
 
 def _iter_cursor(cursor: sqlite3.Cursor) -> Iterator[BaseEvent]:

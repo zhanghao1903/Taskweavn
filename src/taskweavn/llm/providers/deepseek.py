@@ -14,11 +14,10 @@ from taskweavn.llm.contracts import (
     RetryPolicy,
 )
 from taskweavn.llm.errors import LLMCapabilityError
+from taskweavn.llm.logging import log_llm_request, log_llm_response
 from taskweavn.llm.providers._openai_compat import parse_openai_compatible_response
 from taskweavn.llm.retry import BaseLLMProvider
-from taskweavn.observability.setup import get_channel_logger
 
-_LLM_LOGGER = get_channel_logger("llm")
 _DEFAULT_BASE_URL = "https://api.deepseek.com"
 
 
@@ -113,33 +112,17 @@ class DeepSeekProvider(BaseLLMProvider):
         elif request.temperature is not None:
             kwargs["temperature"] = request.temperature
 
-        _LLM_LOGGER.info(
-            "request",
+        log_llm_request(
+            self.name,
+            request,
             extra={
-                "data": {
-                    "provider": self.name,
-                    "model": request.model,
-                    "message_count": len(messages),
-                    "tool_count": len(request.tools) if request.tools else 0,
-                    "thinking_enabled": thinking_enabled,
-                    "thinking_effort": request.thinking.effort if request.thinking else None,
-                }
+                "thinking_enabled": thinking_enabled,
+                "thinking_effort": request.thinking.effort if request.thinking else None,
             },
         )
         response = self._client_for_call().chat.completions.create(**kwargs)
         parsed = parse_openai_compatible_response(response, provider_name=self.name)
-        _LLM_LOGGER.info(
-            "response",
-            extra={
-                "data": {
-                    "provider": self.name,
-                    "model": request.model,
-                    "has_reasoning_content": parsed.reasoning_content is not None,
-                    "retry_count": parsed.retry_count,
-                    "tool_calls": [{"id": tc.id, "name": tc.name} for tc in parsed.tool_calls],
-                }
-            },
-        )
+        log_llm_response(parsed, request=request, provider=self.name)
         return parsed
 
     def _client_for_call(self) -> Any:

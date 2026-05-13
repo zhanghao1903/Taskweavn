@@ -20,7 +20,6 @@ Design pillars (locked with the user, Phase 2.3):
 from __future__ import annotations
 
 import json
-import logging
 import os
 from dataclasses import dataclass
 from typing import Any, Literal
@@ -28,10 +27,11 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from taskweavn.llm.client import LLMClient
+from taskweavn.observability import LogContext, get_object_logger
 from taskweavn.types.base import BaseObservation
 from taskweavn.types.code_action import CodeAction, CodeExecutionObservation
 
-_LOGGER = logging.getLogger(__name__)
+_AUDIT_LOGGER = get_object_logger("audit")
 
 Verdict = Literal["pass", "fail", "inconclusive"]
 
@@ -245,10 +245,30 @@ class AuditAgent:
             {"role": "system", "content": self._system_prompt},
             {"role": "user", "content": prompt},
         ]
+        context = LogContext(
+            action_id=action.event_id,
+            observation_id=observation.event_id,
+        )
+        _AUDIT_LOGGER.info(
+            "request",
+            context=context,
+            data={
+                "action_kind": type(action).__name__,
+                "observation_kind": type(observation).__name__,
+                "intent": action.intent,
+            },
+        )
         try:
             response = self._llm.chat(messages=messages, tools=None)
         except Exception as exc:  # noqa: BLE001 — auditor must not crash the loop.
-            _LOGGER.exception("auditor LLM call failed")
+            _AUDIT_LOGGER.error(
+                "llm_failed",
+                context=context,
+                data={
+                    "error_type": type(exc).__name__,
+                    "error_summary": str(exc)[:500],
+                },
+            )
             return self._inconclusive(
                 observation,
                 rationale=f"Auditor LLM call failed: {type(exc).__name__}: {exc}",
@@ -256,12 +276,27 @@ class AuditAgent:
 
         verdict_or_error = self._parse_verdict(response.content)
         if isinstance(verdict_or_error, str):  # error reason
+            _AUDIT_LOGGER.warning(
+                "parse_failed",
+                context=context,
+                data={"reason": verdict_or_error},
+            )
             return self._inconclusive(
                 observation,
                 rationale=f"Auditor response was not usable JSON: {verdict_or_error}",
             )
 
         verdict = verdict_or_error
+        _AUDIT_LOGGER.info(
+            "result",
+            context=context,
+            data={
+                "verdict": verdict.verdict,
+                "intent_met": verdict.intent_met,
+                "scope_respected": verdict.scope_respected,
+                "concern_count": len(verdict.concerns),
+            },
+        )
         return AuditObservation(
             action_id=action.event_id,
             audited_observation_id=observation.event_id,

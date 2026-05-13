@@ -107,13 +107,94 @@ uv run taskweavn run \
     --task "inspect this project and propose a small safe improvement" \
     --workspace ./workspace \
     --autonomy risk_gated \
-    --risk-assessor composite \
+    --risk-assessor baseline \
     --messages-db ./logs/messages.sqlite
 ```
 
 Available autonomy presets are `full_auto`, `risk_gated`, `careful`,
 `collaborative`, and `manual`. Available risk assessors are `baseline`, `llm`,
 and `composite`.
+
+## Recommended Local Test Commands
+
+### Basic task with DeepSeek
+
+```bash
+export LLM_PROVIDER=deepseek
+export DEEPSEEK_API_KEY=sk-...
+export LLM_MODEL=deepseek-chat
+
+uv run taskweavn run \
+    --task "write a hello.py that prints hi, then run it" \
+    --workspace ./workspace \
+    --max-steps 10
+```
+
+### With autonomy gate enabled
+
+```bash
+export LLM_PROVIDER=deepseek
+export DEEPSEEK_API_KEY=sk-...
+export LLM_MODEL=deepseek-chat
+
+uv run taskweavn run \
+    --task "inspect this project and propose a small safe improvement" \
+    --workspace ./workspace \
+    --autonomy risk_gated \
+    --risk-assessor baseline \
+    --messages-db ./logs/messages.sqlite
+```
+
+### Log output location
+
+When `--log-dir` is set (default `./logs`), CLI runs write a session archive:
+
+```text
+<log-dir>/
+  global/config.jsonl
+  sessions/<session-id>/
+    manifest.json
+    action.jsonl
+    observation.jsonl
+    tool.jsonl
+    llm.jsonl
+    bus.jsonl
+    gate.jsonl
+    wait.jsonl
+    audit.jsonl
+```
+
+Useful logging switches:
+
+```bash
+uv run taskweavn run \
+    --task "inspect this project and summarize provider config" \
+    --workspace ./workspace \
+    --session-id debug-llm-run \
+    --logging-profile debug-llm \
+    --log-dir ./logs
+```
+
+Available profiles include `normal`, `quiet`, `debug-llm`, `debug-tools`,
+`debug-bus`, and `full-debug`. `manifest.json` is the stable entry point for
+UI, testers, and archive scripts. Read `files` for concrete category JSONL
+paths; future task/agent-scoped sinks are advertised through manifest
+`templates` without changing the default session/category layout. The legacy
+`configure_logging()` API still supports flat files such as `tool.log`, but
+`taskweavn run` uses session archives.
+
+Inspect logs without mutating a running agent:
+
+```bash
+uv run taskweavn logging profiles
+uv run taskweavn logging manifest --log-dir ./logs --session-id debug-llm-run
+uv run taskweavn logging render ./logs/sessions/debug-llm-run/llm.jsonl --limit 50
+```
+
+Additionally, `--messages-db` (default `<log-dir>/messages.sqlite`) stores the
+interaction-layer message stream as SQLite, and `--thoughts-db` (default
+`<log-dir>/thoughts.sqlite`) stores LLM reasoning when thought persistence is
+enabled via `--thoughts`.
 
 ## Programmatic usage
 

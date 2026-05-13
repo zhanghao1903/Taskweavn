@@ -25,9 +25,8 @@ from taskweavn.llm.errors import (
     LLMRetryExhaustedError,
     UnsupportedCapabilityError,
 )
-from taskweavn.observability.setup import get_channel_logger
+from taskweavn.llm.logging import log_llm_retry
 
-_LLM_LOGGER = get_channel_logger("llm")
 _RETRYABLE = {ErrorClassification.RETRYABLE, ErrorClassification.RATE_LIMIT}
 
 
@@ -190,21 +189,7 @@ class BaseLLMProvider:
         )
 
     def _log_retry(self, record: RetryRecord) -> None:
-        _LLM_LOGGER.warning(
-            "retry",
-            extra={
-                "data": {
-                    "provider": record.provider_name,
-                    "model": record.model,
-                    "attempt": record.attempt,
-                    "max_attempts": record.max_attempts,
-                    "classification": record.classification.value,
-                    "delay_seconds": record.delay_seconds,
-                    "error_type": record.error_type,
-                    "error_summary": record.error_summary,
-                }
-            },
-        )
+        log_llm_retry(record)
 
     def _raise_final(
         self,

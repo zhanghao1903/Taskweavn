@@ -21,6 +21,17 @@ from taskweavn.tools.fs import WriteFileAction
 from taskweavn.types import AgentFinishAction
 
 
+def _clear_provider_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    for name in (
+        "LLM_PROVIDER",
+        "LLM_API_KEY",
+        "LLM_MODEL",
+        "DEEPSEEK_API_KEY",
+        "OPENROUTER_API_KEY",
+    ):
+        monkeypatch.delenv(name, raising=False)
+
+
 @patch("taskweavn.llm.client.LLM")
 def test_construct_passes_model_and_key(mock_llm_cls: MagicMock) -> None:
     LLMClient(model="anthropic/claude-sonnet-4-5", api_key="sk-test")
@@ -58,7 +69,7 @@ def test_from_env_requires_api_key(
     mock_llm_cls: MagicMock,  # noqa: ARG001
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.delenv("LLM_API_KEY", raising=False)
+    _clear_provider_env(monkeypatch)
     with pytest.raises(RuntimeError, match="LLM_API_KEY"):
         LLMClient.from_env()
 
@@ -68,6 +79,7 @@ def test_from_env_uses_model_override(
     mock_llm_cls: MagicMock,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    _clear_provider_env(monkeypatch)
     monkeypatch.setenv("LLM_API_KEY", "sk-env")
     monkeypatch.setenv("LLM_MODEL", "anthropic/claude-haiku-4-5")
     LLMClient.from_env()
@@ -81,8 +93,8 @@ def test_from_env_falls_back_to_default(
     mock_llm_cls: MagicMock,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    _clear_provider_env(monkeypatch)
     monkeypatch.setenv("LLM_API_KEY", "sk-env")
-    monkeypatch.delenv("LLM_MODEL", raising=False)
     LLMClient.from_env(default_model="anthropic/some-default")
     mock_llm_cls.assert_called_once_with(
         model="anthropic/some-default", api_key="sk-env"

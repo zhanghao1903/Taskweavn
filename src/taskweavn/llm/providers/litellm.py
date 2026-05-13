@@ -7,11 +7,9 @@ from typing import Any
 import litellm
 
 from taskweavn.llm.contracts import ChatRequest, ChatResponse, ProviderCapabilities, RetryPolicy
+from taskweavn.llm.logging import log_llm_request, log_llm_response
 from taskweavn.llm.providers._openai_compat import parse_openai_compatible_response
 from taskweavn.llm.retry import BaseLLMProvider
-from taskweavn.observability.setup import get_channel_logger
-
-_LLM_LOGGER = get_channel_logger("llm")
 
 
 class LiteLLMProvider(BaseLLMProvider):
@@ -44,42 +42,16 @@ class LiteLLMProvider(BaseLLMProvider):
 
         response = litellm.completion(**kwargs)
         parsed = parse_openai_compatible_response(response, provider_name=self.name)
-        _log_response(parsed)
+        _log_response(parsed, request)
         return parsed
 
 
 def _log_request(provider: str, request: ChatRequest) -> None:
-    _LLM_LOGGER.info(
-        "request",
-        extra={
-            "data": {
-                "provider": provider,
-                "model": request.model,
-                "request_purpose": request.metadata.get("request_purpose"),
-                "session_id": request.metadata.get("session_id"),
-                "task_id": request.metadata.get("task_id"),
-                "agent_id": request.metadata.get("agent_id"),
-                "message_count": len(request.messages),
-                "tool_count": len(request.tools) if request.tools else 0,
-                "thinking_enabled": bool(request.thinking and request.thinking.enabled),
-            }
-        },
-    )
+    log_llm_request(provider, request)
 
 
-def _log_response(response: ChatResponse) -> None:
-    _LLM_LOGGER.info(
-        "response",
-        extra={
-            "data": {
-                "provider": response.provider_name,
-                "content_length": len(response.content),
-                "tool_calls": [{"id": tc.id, "name": tc.name} for tc in response.tool_calls],
-                "has_reasoning_content": response.reasoning_content is not None,
-                "retry_count": response.retry_count,
-            }
-        },
-    )
+def _log_response(response: ChatResponse, request: ChatRequest) -> None:
+    log_llm_response(response, request=request, provider=response.provider_name or "litellm")
 
 
 __all__ = ["LiteLLMProvider"]

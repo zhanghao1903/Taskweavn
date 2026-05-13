@@ -10,13 +10,13 @@ from __future__ import annotations
 import time
 from collections.abc import Callable
 
-from taskweavn.observability.setup import get_channel_logger
+from taskweavn.observability import LogContext, get_object_logger
 from taskweavn.types.base import BaseAction, BaseObservation
 from taskweavn.types.common import ErrorObservation
 
 Executor = Callable[[BaseAction], BaseObservation]
 
-_TOOL_LOGGER = get_channel_logger("tool")
+_TOOL_LOGGER = get_object_logger("tool")
 
 
 class LocalRuntime:
@@ -36,14 +36,14 @@ class LocalRuntime:
 
     def execute(self, action: BaseAction) -> BaseObservation:
         action_kind = type(action).__name__
+        context = LogContext(action_id=action.event_id, tool_name=action_kind)
         _TOOL_LOGGER.info(
             "invoke",
-            extra={
-                "data": {
-                    "action_kind": action_kind,
-                    "action_id": action.event_id,
-                    "payload": action.to_dict(),
-                }
+            context=context,
+            data={
+                "action_kind": action_kind,
+                "action_id": action.event_id,
+                "payload": action.to_dict(),
             },
         )
         start = time.monotonic()
@@ -66,14 +66,13 @@ class LocalRuntime:
         duration_ms = round((time.monotonic() - start) * 1000, 3)
         _TOOL_LOGGER.info(
             "result",
-            extra={
-                "data": {
-                    "action_kind": action_kind,
-                    "action_id": action.event_id,
-                    "result_kind": type(result).__name__,
-                    "success": result.success,
-                    "duration_ms": duration_ms,
-                }
+            context=context.model_copy(update={"observation_id": result.event_id}),
+            data={
+                "action_kind": action_kind,
+                "action_id": action.event_id,
+                "result_kind": type(result).__name__,
+                "success": result.success,
+                "duration_ms": duration_ms,
             },
         )
         return result

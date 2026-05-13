@@ -1,11 +1,12 @@
 # Feature Plan: 可配置分层日志系统
 
-> Status: planned  
-> Type: 新特性支持  
-> Last Updated: 2026-05-10  
-> Owner/Session: planning session  
-> Target Implementation Session: independent feature session  
+> Status: in progress
+> Type: 新特性支持
+> Last Updated: 2026-05-12
+> Owner/Session: planning session
+> Target Implementation Session: independent feature session
 > Related Code: `src/taskweavn/observability/setup.py`, `tests/test_observability.py`
+> Technical Design: [Configurable Logging System](../../architecture/configurable-logging-system.md)
 
 ---
 
@@ -906,6 +907,54 @@ session:
 
 ## 19. 状态
 
-- Status: planned
+- Status: ready for acceptance
 - Created: 2026-05-10
-- Next Step: 在独立实现会话中创建 feature 分支，先完成 Slice 1 + Slice 2，确保配置模型与 manager 稳定后再迁移现有日志调用点。
+- Started: 2026-05-12
+- Current Branch: `codex/configurable-logging-design`
+- Completed in first implementation pass:
+  - Slice 1 partial/full: level helpers, config models, sink/rule/context/event models.
+  - Slice 2 partial/full: `LoggingManager`, `ObjectLogger`, file/console/null sinks, lazy payload, redaction.
+  - Slice 3 partial/full: legacy `configure_logging()` / `get_channel_logger()` bridge remains compatible with existing channel loggers.
+  - Tests added for logging models and manager; existing observability tests still pass.
+- Completed in second implementation pass:
+  - Slice 4 partial/full: default session archive layout, `manifest.json`, config hash, category file map, close marker, and size-rotation metadata.
+  - Slice 6 partial: CLI/runtime entry point for session logging via `configure_session_logging()`, `--logging-profile`, `--logging-config`, and `--log-level`.
+  - Built-in profiles expanded: `normal`, `quiet`, `debug-llm`, `debug-tools`, `debug-bus`, `full-debug`.
+  - Tests added for session archive manifests, profile scoping, config loading, and CLI validation.
+- Completed in third implementation pass:
+  - Added ambient log context via `use_log_context()` so `AgentLoop.run()` injects `session_id`, `task_id`, and `workspace_root` once, while lower-level objects add only local ids.
+  - Migrated core execution logs to native `ObjectLogger` call sites:
+    - `EventStream` / `SqliteEventStream`: `action.emit`, `observation.emit`.
+    - `LocalRuntime`: `tool.invoke`, `tool.result`.
+    - LLM providers and retry layer: `llm.request`, `llm.response`, `llm.retry`.
+    - `AuditAgent`: `audit.request`, `audit.result`, `audit.llm_failed`, `audit.parse_failed`.
+    - `MessageBus`, `AutonomyGate`, `WaitCoordinator`: bus publish/wait/subscribe, gate decisions, wait outcomes.
+  - User-facing docs now describe session archive layout and logging CLI switches.
+- Completed in fourth implementation pass:
+  - `SandboxExecutor` now emits native `sandbox.container_started`, `sandbox.execute_start`, `sandbox.execute_result`, `sandbox.execute_failed`, `sandbox.image_pull_*`, and `sandbox.container_stopped` events.
+  - Added CLI archive inspection commands:
+    - `taskweavn logging profiles`
+    - `taskweavn logging manifest --session-id <id>`
+    - `taskweavn logging render <jsonl>`
+  - Documented that these CLI commands inspect archive files; same-process hot update remains available through `LoggingManager` API until a daemon/control plane exists.
+- Completed in fifth implementation pass:
+  - Added `LoggingControlService` as the same-process UI/server control surface for runtime logging updates.
+  - Added typed control results for profile application, scoped level changes, and session archive close operations.
+  - `LoggingManager` now exposes the active immutable config snapshot and rejects negative temporary override durations.
+  - User-facing configuration docs now distinguish archive inspection CLI from same-process hot-update control APIs.
+  - Technical design now includes the first stable core event naming taxonomy for Action, Observation, Tool, Runtime, LLM, Audit, Bus, Gate, Wait, Sandbox, and Config logs.
+  - Added code-level `LOG_EVENTS_BY_CATEGORY` taxonomy plus static tests that verify current `ObjectLogger` call sites use documented event names.
+  - Expanded archive/manifest reading contract so UI and test tooling start from `manifest.json` instead of guessing category file paths.
+  - Kept default archive layout at session/category granularity, while adding manifest `templates` for future task/agent dynamic sink paths.
+  - Manifest generation now uses session-effective rules, so profile/session overrides are reflected in `files` and `templates`.
+  - Aligned technical design with the implemented v1 API: JSON config, `--logging-profile`, `--logging-config`, archive inspection commands, and current module layout.
+  - README now points users to manifest `files` / `templates` and logging archive inspection commands.
+- Verified:
+  - `uv run ruff check src tests`
+  - `uv run mypy src tests`
+  - `uv run pytest` — 441 passed, 1 warning
+- Acceptance Notes:
+  - Runtime logging configuration, archive layout, same-process control API, event taxonomy, and first core-object integrations are implemented.
+  - Cross-process hot update remains explicitly out of v1 scope until a daemon/server control plane exists.
+  - Risk-assessor long-call timeout/observability is tracked separately and should not block this logging-system acceptance.
+- Next Step: 阶段验收后提交；后续再规划 daemon/control plane 或 task/agent archive index。

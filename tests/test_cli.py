@@ -13,6 +13,7 @@ the loop integration is already covered by ``test_loop_interaction``.
 from __future__ import annotations
 
 import io
+import json
 import threading
 from collections.abc import Iterator
 from pathlib import Path
@@ -29,6 +30,7 @@ from taskweavn.interaction import (
     LLMRiskAssessor,
     SqliteMessageStream,
 )
+from taskweavn.observability import LogContext, configure_session_logging, get_logging_manager
 
 
 @pytest.fixture
@@ -66,6 +68,74 @@ def test_autonomy_unknown_preset_rejected(tmp_path: Path) -> None:
     assert "definitely-not-a-preset" in result.output or "definitely-not-a-preset" in (
         result.stderr if result.stderr else ""
     )
+
+
+def test_logging_profile_unknown_rejected_before_llm_allocation(tmp_path: Path) -> None:
+    runner = CliRunner()
+    result = runner.invoke(
+        app,
+        [
+            "run",
+            "--task", "noop",
+            "--workspace", str(tmp_path / "ws"),
+            "--log-dir", str(tmp_path / "logs"),
+            "--logging-profile", "not-a-profile",
+            "--max-steps", "1",
+        ],
+    )
+
+    assert result.exit_code != 0
+    assert "not-a-profile" in result.output
+
+
+def test_logging_profiles_command_lists_builtins() -> None:
+    runner = CliRunner()
+    result = runner.invoke(app, ["logging", "profiles"])
+
+    assert result.exit_code == 0
+    assert "debug-llm" in result.output
+    assert "full-debug" in result.output
+
+
+def test_logging_manifest_command_prints_session_manifest(tmp_path: Path) -> None:
+    configure_session_logging(tmp_path / "logs", session_id="s1")
+
+    runner = CliRunner()
+    result = runner.invoke(
+        app,
+        [
+            "logging",
+            "manifest",
+            "--log-dir", str(tmp_path / "logs"),
+            "--session-id", "s1",
+        ],
+    )
+
+    assert result.exit_code == 0
+    payload = json.loads(result.output)
+    assert payload["session_id"] == "s1"
+    assert payload["files"]["llm"] == "llm.jsonl"
+
+
+def test_logging_render_command_pretty_prints_jsonl(tmp_path: Path) -> None:
+    configure_session_logging(tmp_path / "logs", session_id="s1")
+    get_logging_manager().emit(
+        "llm",
+        "INFO",
+        "request",
+        context=LogContext(session_id="s1", model="deepseek-chat"),
+        data={"message_count": 1},
+    )
+    log_file = tmp_path / "logs" / "sessions" / "s1" / "llm.jsonl"
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["logging", "render", str(log_file)])
+
+    assert result.exit_code == 0
+    assert "INFO" in result.output
+    assert "llm.request" in result.output
+    assert "session=s1" in result.output
+    assert "model=deepseek-chat" in result.output
 
 
 # ---------------------------------------------------------------------------
