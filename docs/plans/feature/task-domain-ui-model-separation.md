@@ -1,11 +1,11 @@
 # Feature Plan: Task 领域模型与 UI ViewModel 分层
 
-> Status: planned  
-> Type: 新特性支持 / 架构规划  
-> Last Updated: 2026-05-10  
-> Owner/Session: planning session  
-> Target Implementation Session: independent feature session  
-> Related Docs: `docs/architecture/task.md`, `docs/plans/task-first-ui-interaction.md`, `docs/plans/ui/ui-api-interfaces.md`, `docs/plans/feature/collaborator-agent-task-authoring.md`
+> Status: ready for acceptance
+> Type: 新特性支持 / 架构规划
+> Last Updated: 2026-05-14
+> Owner/Session: planning session
+> Target Implementation Session: independent feature session
+> Related Docs: `docs/architecture/task.md`, `docs/architecture/task-domain-ui-model-separation.md`, `docs/plans/task-first-ui-interaction.md`, `docs/plans/ui/ui-api-interfaces.md`, `docs/plans/feature/collaborator-agent-task-authoring.md`
 
 ---
 
@@ -572,23 +572,7 @@ draft_task_id -> published_task_id
 - 父节点文件汇总仍遵守 recursive aggregation，不改变子节点直接归属。
 - projection 不修改 domain 数据。
 
-### Slice 4: Task Interaction Timeline
-
-产出：
-
-- `TaskInteractionTimeline`
-- `TaskInteractionEntry`
-- `TaskInteractionSnapshot`
-- draft task id 到 published task id 映射查询
-
-验收：
-
-- 能按 `task_id` 聚合用户补充、确认动作、事件、文件摘要和总结。
-- 能串联 draft 阶段和 published 阶段。
-- timeline 按时间排序。
-- timeline 不依赖 UI local state。
-
-### Slice 5: Command Mapping
+### Slice 4: Command Mapping
 
 产出：
 
@@ -604,17 +588,37 @@ draft_task_id -> published_task_id
 - 卡片操作不直接 mutate 后端 Task。
 - running/done/failed 的操作遵守状态权限。
 
-### Slice 6: UI State Store Contract
+### Slice 5: Task Interaction Timeline
 
 产出：
 
-- `TaskUiState` 前端 store 契约
-- selected/expanded/draft input/unread 的本地状态定义
+- `TaskInteractionTimeline`
+- `TaskInteractionEntry`
+- `TaskInteractionSnapshot`
+- draft task id 到 published task id 映射查询
 
 验收：
 
-- UI 临时状态不进入 TaskBus。
-- 刷新后系统状态可由 domain + message + projection 恢复。
+- 能按 `TaskRef` 聚合用户补充、确认动作、事件、文件摘要和总结。
+- 能串联 draft 阶段和 published 阶段。
+- timeline 按时间排序。
+- timeline 不依赖 UI local state。
+
+### Slice 6: UI API Doc Alignment
+
+产出：
+
+- 更新 `docs/plans/ui/ui-api-interfaces.md`
+- 明确 API 返回 `TaskTreeView` / `TaskCardView` / `TaskDetailView`
+- 明确命令返回 `CommandResult`
+- 明确 timeline/snapshot 查询接口
+- 明确 `TaskRef` 是 UI/API 边界默认引用
+
+验收：
+
+- UI API 文档不再暗示返回裸后端 Task。
+- `listTaskMessages` 明确是 Session Message Stream 的过滤视图。
+- UI local state 明确不进入后端事实源。
 
 ### Slice 7: Tests and Docs
 
@@ -637,6 +641,10 @@ draft_task_id -> published_task_id
 
 ## 16. 测试计划
 
+本分支不适合作为完整用户测试分支。它交付的是后端 Task 领域边界、ViewModel、projection、command mapping 和 replay timeline；真实用户用例需要等 Task-first UI 原型完成后，才能验证“自然语言输入 -> Task Tree 展示 -> 选择 Task Node -> 补充/确认 -> 发布/执行 -> 查看文件和总结”的完整体验。
+
+因此本分支的验收以 contract / projection / replay 测试为主：
+
 | 场景 | 期望 |
 |---|---|
 | DraftTaskNode 投影 | 生成可编辑 TaskCardView，包含 publish/edit action |
@@ -650,6 +658,19 @@ draft_task_id -> published_task_id
 | draft to published replay | timeline 能串联 draft_task_id 和 published task_id |
 | UI selected/expanded | 只影响 TaskUIState，不影响后端 Task |
 | 后端 error 字段 | UI 显示摘要，不泄漏原始调试细节 |
+
+后续 UI 完善后，需要补充至少一个端到端 user case：
+
+```text
+User intent
+  -> Collaborator Agent generates Draft Task Tree
+  -> UI renders Task cards
+  -> User selects one Task Node
+  -> User appends guidance or resolves a confirmation
+  -> Task Tree is published
+  -> Execution updates messages, file summary, and TaskInteractionTimeline
+  -> User opens completed Task detail and reviews immutable history
+```
 
 ---
 
@@ -684,6 +705,127 @@ draft_task_id -> published_task_id
 
 ## 19. 状态
 
-- Status: planned
+- Status: ready for acceptance
 - Created: 2026-05-10
-- Next Step: 在独立实现会话中先完成 Slice 1 Model Boundary Design，并同步更新 `docs/plans/ui/ui-api-interfaces.md`。
+- Started: 2026-05-13
+- Technical Design: [Task Domain And UI ViewModel Separation](../../architecture/task-domain-ui-model-separation.md)
+- Current Branch: `codex/task-domain-ui-model-design`
+- Completed in first implementation pass:
+  - Slice 1 Model Boundary And Protocols.
+  - Added `taskweavn.task` package with:
+    - `TaskRef`
+    - `TaskDomain`
+    - `TaskDispatchConstraints`
+    - `TaskNodePatch`
+    - `DraftTaskNode`
+    - `DraftTaskTree`
+    - `DraftToPublishedMapping`
+    - `TaskStore` Protocol
+    - `DraftTaskStore` Protocol
+  - Added tests for model validation, immutability, draft tree root constraints, lineage mapping, and Protocol conformance.
+- Completed in second implementation pass:
+  - Slice 2 ViewModel Schemas.
+  - Added Task-first UI projection models:
+    - `TaskTreeView`
+    - `TaskCardView`
+    - `TaskDetailView`
+    - `TaskCardBadges`
+    - `TaskCardPermissions`
+    - `TaskCardAction`
+    - `TaskProgressView`
+    - `ConfirmationActionView`
+    - `ConfirmationOptionView`
+    - `SessionMessageView`
+    - `TaskFileChangeSummary`
+    - `TaskSummaryView`
+  - Added tests for card validation, confirmation default options, duplicate tree refs, detail grouping, progress counts, and frozen ViewModels.
+- Completed in third implementation pass:
+  - Slice 3 Projection Service.
+  - Added `DefaultTaskProjectionService` plus protocols:
+    - `TaskProjectionService`
+    - `FileChangeStore`
+    - `TaskSummaryStore`
+  - Projection now supports:
+    - deterministic topological preorder for published Task trees;
+    - draft tree projection into editable Task cards;
+    - status-based permission/action resolution;
+    - latest task message and pending confirmation projection from MessageStream;
+    - direct/subtree file change summary aggregation through `FileChangeStore`;
+    - result summary aggregation through `TaskSummaryStore`;
+    - Task detail assembly for messages, confirmations, file changes, constraints, and result summary.
+  - Added tests for preorder projection, draft cards, permissions by status, message/confirmation/file/summary aggregation, missing-task errors, and Protocol conformance.
+- Completed in fourth implementation pass:
+  - Slice 4 Command Mapping.
+  - Added `DefaultTaskCommandService` plus command boundary protocols:
+    - `TaskCommandService`
+    - `PublishedTaskEditor`
+    - `TaskPublisher`
+  - Added command result models:
+    - `CommandResult`
+    - `TaskPublishResult`
+  - Command mapping now supports:
+    - draft Task patching through `DraftTaskStore`;
+    - pending published Task patching through an injected `PublishedTaskEditor`;
+    - task-scoped user guidance messages through `MessageBus`;
+    - confirmation resolution by publishing a response message;
+    - draft tree publication through an injected `TaskPublisher`;
+    - failed Task retry through the same publisher boundary.
+  - Added tests for status-based rejection, draft/published edit boundaries, message publishing, confirmation response publishing, draft Task confirmation refs, publish/retry boundaries, and Protocol conformance.
+- Completed in fifth implementation pass:
+  - Slice 5 Interaction Timeline.
+  - Added `DefaultTaskInteractionTimelineService` plus timeline protocols/models:
+    - `TaskInteractionTimelineService`
+    - `DraftPublicationStore`
+    - `TaskInteractionEntry`
+    - `TaskInteractionTimeline`
+    - `TaskInteractionSnapshot`
+  - Timeline now supports:
+    - draft creation/update/publish entries;
+    - task-scoped message entries;
+    - actionable/response messages as confirmation created/resolved entries;
+    - EventStream task entries through `iter_for_task` when available;
+    - file change entries;
+    - result summary entries;
+    - published Task timelines stitched back to draft history through draft-to-published mappings;
+    - snapshot assembly from Task detail projection + timeline.
+  - Added `recorded_at` to `TaskFileChangeSummary` and `updated_at` to `TaskSummaryView` so file/summary facts can participate in deterministic replay ordering.
+  - Added tests for draft timelines, published timelines with draft stitching, event/file/summary ordering, timeline limit, snapshot assembly, and Protocol conformance.
+- Completed in sixth implementation pass:
+  - Slice 6 UI API Doc Alignment.
+  - Rewrote `docs/plans/ui/ui-api-interfaces.md` to align with the implemented Phase 3C server-core contracts.
+  - UI API docs now state that:
+    - query APIs return ViewModels instead of raw backend `TaskDomain`;
+    - `TaskRef(kind, id)` is the default UI/API Task reference;
+    - `TaskTreeView`, `TaskCardView`, `TaskDetailView`, `CommandResult`, `TaskInteractionTimeline`, and `TaskInteractionSnapshot` are first-class API shapes;
+    - `listTaskMessages` remains a filtered view over the single Session Message Stream;
+    - Task file rollups preserve direct child ownership;
+    - UI local state does not enter TaskBus, EventStream, MessageStream, or timeline replay.
+- Completed in seventh implementation pass:
+  - Slice 7 Tests and Docs.
+  - Reconciled the implementation with architecture and UI API docs.
+  - Added a release record for the Task Domain/UI ViewModel Separation feature.
+  - Updated roadmap/project roadmap to mark Phase 3C's first package as ready for acceptance.
+  - Tightened `TaskInteractionTimeline` cursor semantics so pagination resumes after the returned entry in chronological order instead of comparing UUID strings.
+  - Added a cursor-resume timeline regression test.
+- Verified:
+  - `uv run pytest tests/test_task_models.py tests/test_task_store_protocols.py tests/test_task_views.py tests/test_task_projection.py tests/test_task_commands.py tests/test_task_timeline.py`
+  - `uv run ruff check src/taskweavn/task tests/test_task_models.py tests/test_task_store_protocols.py tests/test_task_views.py tests/test_task_projection.py tests/test_task_commands.py tests/test_task_timeline.py`
+  - `uv run mypy src/taskweavn/task tests/test_task_models.py tests/test_task_store_protocols.py tests/test_task_views.py tests/test_task_projection.py tests/test_task_commands.py tests/test_task_timeline.py`
+  - `uv run ruff check src tests`
+  - `uv run mypy src tests`
+  - `uv run pytest` — 494 passed, 1 warning
+  - `git diff --check`
+- Latest verification:
+  - `uv run pytest` in `docs/user_cases/workspace/user-test-cli` — 24 passed
+  - `uv run pytest tests/test_task_timeline.py` — 5 passed, 1 warning
+  - `uv run ruff check src/taskweavn/task tests/test_task_timeline.py`
+  - `uv run mypy src/taskweavn/task tests/test_task_timeline.py`
+  - `uv run ruff check src tests`
+  - `uv run mypy src tests`
+  - `uv run pytest` — 495 passed, 1 warning
+  - `git diff --check`
+- User-case acceptance note:
+  - 本阶段不做新的端到端 user case 验收；当前工作是 server-core Task/ViewModel contract。
+  - 已回归旧的 UC-005 生成项目测试，确认之前的用户测试产物没有因本分支破坏。
+  - UC-001-UC-004 仍保留为手工/LLM 用户测试用例，等待 Task-first UI 或后续需要时再运行。
+- Next Step: 等待验收；验收后可提交并进入 Collaborator Agent / Task authoring tools。

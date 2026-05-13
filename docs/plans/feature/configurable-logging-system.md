@@ -1,8 +1,8 @@
 # Feature Plan: 可配置分层日志系统
 
-> Status: in progress
+> Status: done / accepted
 > Type: 新特性支持
-> Last Updated: 2026-05-12
+> Last Updated: 2026-05-13
 > Owner/Session: planning session
 > Target Implementation Session: independent feature session
 > Related Code: `src/taskweavn/observability/setup.py`, `tests/test_observability.py`
@@ -907,10 +907,11 @@ session:
 
 ## 19. 状态
 
-- Status: ready for acceptance
+- Status: done / accepted
 - Created: 2026-05-10
 - Started: 2026-05-12
-- Current Branch: `codex/configurable-logging-design`
+- Completed Branch: `codex/configurable-logging-design`
+- Accepted: 2026-05-13
 - Completed in first implementation pass:
   - Slice 1 partial/full: level helpers, config models, sink/rule/context/event models.
   - Slice 2 partial/full: `LoggingManager`, `ObjectLogger`, file/console/null sinks, lazy payload, redaction.
@@ -957,4 +958,7 @@ session:
   - Runtime logging configuration, archive layout, same-process control API, event taxonomy, and first core-object integrations are implemented.
   - Cross-process hot update remains explicitly out of v1 scope until a daemon/server control plane exists.
   - Risk-assessor long-call timeout/observability is tracked separately and should not block this logging-system acceptance.
-- Next Step: 阶段验收后提交；后续再规划 daemon/control plane 或 task/agent archive index。
+- Follow-ups:
+  - daemon / server control plane can later expose cross-process hot update.
+  - Task / Agent archive index can be added when TaskBus and Agent templates stabilize.
+  - Centralized runtime configuration should eventually absorb logging config resolution into the shared control plane.

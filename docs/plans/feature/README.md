@@ -4,6 +4,7 @@ Feature plans are scoped implementation packets for independent feature sessions
 
 | File | Feature |
 |---|---|
+| [centralized-runtime-configuration.md](centralized-runtime-configuration.md) | Centralized hierarchical runtime configuration with hot updates. |
 | [collaborator-agent-task-authoring.md](collaborator-agent-task-authoring.md) | System Collaborator Agent and Task authoring tools. |
 | [configurable-logging-system.md](configurable-logging-system.md) | Configurable layered logging system. |
 | [llm-provider-retry-thinking.md](llm-provider-retry-thinking.md) | Done: LLM provider abstraction, retry, and DeepSeek thinking mode. |
