@@ -916,4 +916,29 @@ session:
   - Slice 2 partial/full: `LoggingManager`, `ObjectLogger`, file/console/null sinks, lazy payload, redaction.
   - Slice 3 partial/full: legacy `configure_logging()` / `get_channel_logger()` bridge remains compatible with existing channel loggers.
   - Tests added for logging models and manager; existing observability tests still pass.
-- Next Step: 继续完善 Session archive/manifest 与 CLI profile/config-file entry points，再迁移更多核心对象的 native `ObjectLogger` 调用点。
+- Completed in second implementation pass:
+  - Slice 4 partial/full: default session archive layout, `manifest.json`, config hash, category file map, close marker, and size-rotation metadata.
+  - Slice 6 partial: CLI/runtime entry point for session logging via `configure_session_logging()`, `--logging-profile`, `--logging-config`, and `--log-level`.
+  - Built-in profiles expanded: `normal`, `quiet`, `debug-llm`, `debug-tools`, `debug-bus`, `full-debug`.
+  - Tests added for session archive manifests, profile scoping, config loading, and CLI validation.
+- Completed in third implementation pass:
+  - Added ambient log context via `use_log_context()` so `AgentLoop.run()` injects `session_id`, `task_id`, and `workspace_root` once, while lower-level objects add only local ids.
+  - Migrated core execution logs to native `ObjectLogger` call sites:
+    - `EventStream` / `SqliteEventStream`: `action.emit`, `observation.emit`.
+    - `LocalRuntime`: `tool.invoke`, `tool.result`.
+    - LLM providers and retry layer: `llm.request`, `llm.response`, `llm.retry`.
+    - `AuditAgent`: `audit.request`, `audit.result`, `audit.llm_failed`, `audit.parse_failed`.
+    - `MessageBus`, `AutonomyGate`, `WaitCoordinator`: bus publish/wait/subscribe, gate decisions, wait outcomes.
+  - User-facing docs now describe session archive layout and logging CLI switches.
+- Completed in fourth implementation pass:
+  - `SandboxExecutor` now emits native `sandbox.container_started`, `sandbox.execute_start`, `sandbox.execute_result`, `sandbox.execute_failed`, `sandbox.image_pull_*`, and `sandbox.container_stopped` events.
+  - Added CLI archive inspection commands:
+    - `taskweavn logging profiles`
+    - `taskweavn logging manifest --session-id <id>`
+    - `taskweavn logging render <jsonl>`
+  - Documented that these CLI commands inspect archive files; same-process hot update remains available through `LoggingManager` API until a daemon/control plane exists.
+- Verified:
+  - `uv run ruff check src tests`
+  - `uv run mypy src tests`
+  - `uv run pytest` — 425 passed, 1 warning
+- Next Step: 继续补齐日志配置热更新的服务端控制面设计、归档文档细节，以及核心对象日志事件命名规范。

@@ -22,8 +22,16 @@ from pathlib import Path
 from typing import Any, cast
 
 from taskweavn.observability.bridge import StructuredLogHandler
-from taskweavn.observability.manager import build_legacy_logging_config, get_logging_manager
-from taskweavn.observability.models import LogCategory
+from taskweavn.observability.manager import (
+    build_legacy_logging_config,
+    build_session_logging_config,
+    get_logging_manager,
+)
+from taskweavn.observability.models import (
+    LogArchiveManifest,
+    LogCategory,
+    LoggingConfig,
+)
 
 LOGGER_PREFIX = "taskweavn"
 CHANNELS: tuple[str, ...] = ("tool", "action", "observation", "llm")
@@ -83,6 +91,48 @@ def configure_logging(
         paths[channel] = path
 
     return paths
+
+
+def load_logging_config(path: Path | str) -> LoggingConfig:
+    """Load a complete structured logging config from JSON.
+
+    YAML is intentionally not parsed in the first implementation because the
+    project does not depend on PyYAML. The error is explicit so users know to
+    provide JSON until a configuration subsystem owns YAML parsing.
+    """
+    config_path = Path(path)
+    if config_path.suffix.lower() in {".yaml", ".yml"}:
+        raise ValueError("YAML logging config is not supported yet; use JSON")
+    return LoggingConfig.model_validate_json(config_path.read_text(encoding="utf-8"))
+
+
+def configure_session_logging(
+    log_dir: Path | str,
+    *,
+    session_id: str,
+    level: str | int = logging.INFO,
+    profile: str | None = None,
+    config_path: Path | str | None = None,
+) -> LogArchiveManifest:
+    """Configure structured logging with a session archive manifest.
+
+    This is the preferred CLI/runtime entry point. It creates a session-scoped
+    archive layout under ``<log_dir>/sessions/<session_id>/`` and writes a
+    ``manifest.json`` that tells users and tools where category logs live.
+    """
+    config = (
+        load_logging_config(config_path)
+        if config_path is not None
+        else build_session_logging_config(log_dir, level=level)
+    )
+    manager = get_logging_manager()
+    manager.apply_config(config)
+    if profile is not None:
+        manager.apply_profile(session_id, profile)
+    return manager.write_session_manifest(
+        session_id,
+        active_config_path=config_path,
+    )
 
 
 # Attach NullHandlers at import so the loggers never warn about missing handlers.

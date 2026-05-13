@@ -147,14 +147,39 @@ uv run taskweavn run \
 
 ### Log output location
 
-When `--log-dir` is set (default `./logs`), the agent writes four JSONL files:
+When `--log-dir` is set (default `./logs`), CLI runs write a session archive:
 
-| File | Content |
-|------|---------|
-| `<log-dir>/tool.log` | Runtime dispatch, tool results, timing |
-| `<log-dir>/action.log` | Actions from the EventStream |
-| `<log-dir>/observation.log` | Observations from the EventStream |
-| `<log-dir>/llm.log` | LLM requests, responses, retries |
+```text
+<log-dir>/
+  global/config.jsonl
+  sessions/<session-id>/
+    manifest.json
+    action.jsonl
+    observation.jsonl
+    tool.jsonl
+    llm.jsonl
+    bus.jsonl
+    gate.jsonl
+    wait.jsonl
+    audit.jsonl
+```
+
+Useful logging switches:
+
+```bash
+uv run taskweavn run \
+    --task "inspect this project and summarize provider config" \
+    --workspace ./workspace \
+    --session-id debug-llm-run \
+    --logging-profile debug-llm \
+    --log-dir ./logs
+```
+
+Available profiles include `normal`, `quiet`, `debug-llm`, `debug-tools`,
+`debug-bus`, and `full-debug`. `manifest.json` is the stable entry point for
+UI, testers, and archive scripts. The legacy `configure_logging()` API still
+supports flat files such as `tool.log`, but `taskweavn run` uses session
+archives.
 
 Additionally, `--messages-db` (default `<log-dir>/messages.sqlite`) stores the
 interaction-layer message stream as SQLite, and `--thoughts-db` (default

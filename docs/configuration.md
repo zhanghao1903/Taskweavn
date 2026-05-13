@@ -145,7 +145,10 @@ export OPENROUTER_REQUIRE_PARAMETERS=true
 | `--workspace` / `-w` | `./workspace` | 工作区根目录。 |
 | `--model` / `-m` | `None` | 直接指定模型。注意：设置后不会读取 `LLM_PROVIDER`。 |
 | `--max-steps` | `20` | 最大 ReAct 迭代次数。 |
-| `--log-dir` | `./logs` | JSONL 日志目录。 |
+| `--log-dir` | `./logs` | 结构化日志归档根目录。 |
+| `--log-level` | `INFO` | 默认日志级别。 |
+| `--logging-profile` | 未设置 | 当前 session 的日志 profile。 |
+| `--logging-config` | 未设置 | 完整 JSON `LoggingConfig` 文件路径。 |
 
 示例：
 
@@ -159,7 +162,92 @@ uv run taskweavn run \
 
 ---
 
-## 5. Autonomy / 用户确认配置
+## 5. Logging / 日志配置
+
+CLI 默认使用 session 归档日志结构。每次运行会解析或生成一个 `session_id`，并在 `<log-dir>/sessions/<session_id>/` 下写入 `manifest.json` 和各 category 的 JSONL 文件。
+
+```text
+logs/
+  global/
+    config.jsonl
+  sessions/
+    <session_id>/
+      manifest.json
+      action.jsonl
+      observation.jsonl
+      tool.jsonl
+      llm.jsonl
+      bus.jsonl
+      gate.jsonl
+      wait.jsonl
+      audit.jsonl
+```
+
+常用参数：
+
+| 参数 | 默认值 | 说明 |
+|---|---:|---|
+| `--log-dir` | `./logs` | 日志归档根目录。 |
+| `--log-level` | `INFO` | 默认级别，支持 `TRACE` / `DEBUG` / `INFO` / `WARNING` / `ERROR` / `CRITICAL` / `OFF`。 |
+| `--logging-profile` | 未设置 | 对当前 session 应用内置 profile。 |
+| `--logging-config` | 未设置 | 读取完整 JSON `LoggingConfig`。第一版暂不解析 YAML。 |
+
+内置 profile：
+
+| Profile | 用途 |
+|---|---|
+| `normal` | 常规摘要日志。 |
+| `quiet` | 只记录 warning/error。 |
+| `debug-llm` | 当前 session 的 LLM category 切到 DEBUG + full payload。 |
+| `debug-tools` | 当前 session 的 tool/runtime/sandbox category 切到 DEBUG + full payload。 |
+| `debug-bus` | 当前 session 的 bus/task/agent/gate/wait category 切到 DEBUG + full payload。 |
+| `full-debug` | 当前 session 所有 category 切到 DEBUG + full payload。适合短时间调试。 |
+
+示例：只打开当前 session 的 LLM 调试日志：
+
+```bash
+uv run taskweavn run \
+  --task "inspect docs and summarize provider config" \
+  --workspace ./workspace \
+  --session-id debug-llm-run \
+  --logging-profile debug-llm \
+  --log-dir ./logs
+```
+
+输出位置：
+
+```text
+./logs/sessions/debug-llm-run/manifest.json
+./logs/sessions/debug-llm-run/llm.jsonl
+./logs/sessions/debug-llm-run/tool.jsonl
+```
+
+`manifest.json` 是 UI、测试人员和归档脚本的入口，记录当前 session 的日志文件映射、配置 hash、归档根目录和 rotation 摘要。
+
+日志调试命令：
+
+```bash
+# 查看内置 logging profiles
+uv run taskweavn logging profiles
+
+# 查看某个 session 的 manifest
+uv run taskweavn logging manifest \
+  --log-dir ./logs \
+  --session-id debug-llm-run
+
+# 将 JSONL 日志渲染成紧凑可读行
+uv run taskweavn logging render \
+  ./logs/sessions/debug-llm-run/llm.jsonl \
+  --limit 50
+```
+
+这些命令只读取当前进程外的归档文件，不会修改运行中的 agent。运行期热更新能力目前通过 `LoggingManager.apply_profile()`、`LoggingManager.update_session_config()` 和 `LoggingManager.set_level()` 暴露给同进程 UI / 调试接口；跨进程热更新需要后续 daemon 或服务端控制面。
+
+兼容说明：旧的 `configure_logging(log_dir)` API 仍保留，继续生成 `tool.log`、`action.log`、`observation.log`、`llm.log` 这类 flat file。CLI `taskweavn run` 使用新的 session archive 入口。
+
+---
+
+## 6. Autonomy / 用户确认配置
 
 交互层默认关闭。开启后，系统会创建 MessageStream、MessageBus、AutonomyGate 和 WaitCoordinator。
 
@@ -199,7 +287,7 @@ Risk assessors：
 
 ---
 
-## 6. Audit 配置
+## 7. Audit 配置
 
 AuditAgent 默认关闭。它用于对 `CodeAction` 做同步审计，审计失败不会 crash 主循环。
 
@@ -231,7 +319,7 @@ uv run taskweavn run \
 
 ---
 
-## 7. ThoughtStore 配置
+## 8. ThoughtStore 配置
 
 ThoughtStore 默认关闭。开启后，系统可以把 LLM 推理阶段写入 SQLite。
 

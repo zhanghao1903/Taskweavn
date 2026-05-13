@@ -129,14 +129,38 @@ uv run taskweavn run \
 
 ### 日志输出位置
 
-当设置 `--log-dir`（默认 `./logs`）时，agent 会写入四个 JSONL 文件：
+当设置 `--log-dir`（默认 `./logs`）时，CLI 运行会写入 session 归档目录：
 
-| 文件 | 内容 |
-|------|------|
-| `<log-dir>/tool.log` | Runtime 调度、工具结果、耗时 |
-| `<log-dir>/action.log` | EventStream 中的 Action |
-| `<log-dir>/observation.log` | EventStream 中的 Observation |
-| `<log-dir>/llm.log` | LLM 请求/响应/重试 |
+```text
+<log-dir>/
+  global/config.jsonl
+  sessions/<session-id>/
+    manifest.json
+    action.jsonl
+    observation.jsonl
+    tool.jsonl
+    llm.jsonl
+    bus.jsonl
+    gate.jsonl
+    wait.jsonl
+    audit.jsonl
+```
+
+常用日志调试开关：
+
+```bash
+uv run taskweavn run \
+    --task "inspect this project and summarize provider config" \
+    --workspace ./workspace \
+    --session-id debug-llm-run \
+    --logging-profile debug-llm \
+    --log-dir ./logs
+```
+
+可用 profile 包括 `normal`、`quiet`、`debug-llm`、`debug-tools`、`debug-bus`
+和 `full-debug`。`manifest.json` 是 UI、测试人员和归档脚本定位日志的稳定入口。
+旧的 `configure_logging()` API 仍支持 `tool.log` 这类 flat file，但
+`taskweavn run` 使用 session archive。
 
 此外，`--messages-db`（默认 `<log-dir>/messages.sqlite`）以 SQLite 存储交互层消息流，
 `--thoughts-db`（默认 `<log-dir>/thoughts.sqlite`）在通过 `--thoughts` 开启 thought

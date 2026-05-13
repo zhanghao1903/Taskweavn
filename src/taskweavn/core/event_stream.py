@@ -16,11 +16,11 @@ from datetime import datetime
 from threading import Lock
 from typing import Protocol, runtime_checkable
 
-from taskweavn.observability.setup import get_channel_logger
+from taskweavn.observability import LogContext, get_object_logger
 from taskweavn.types.base import BaseAction, BaseEvent, BaseObservation
 
-_ACTION_LOGGER = get_channel_logger("action")
-_OBSERVATION_LOGGER = get_channel_logger("observation")
+_ACTION_LOGGER = get_object_logger("action")
+_OBSERVATION_LOGGER = get_object_logger("observation")
 
 
 @runtime_checkable
@@ -65,9 +65,20 @@ class InMemoryEventStream:
         with self._lock:
             self._events.append(event)
         if isinstance(event, BaseAction):
-            _ACTION_LOGGER.info("emit", extra={"data": event.to_dict()})
+            _ACTION_LOGGER.info(
+                "emit",
+                context=LogContext(action_id=event.event_id),
+                data=event.to_dict(),
+            )
         elif isinstance(event, BaseObservation):
-            _OBSERVATION_LOGGER.info("emit", extra={"data": event.to_dict()})
+            _OBSERVATION_LOGGER.info(
+                "emit",
+                context=LogContext(
+                    action_id=event.action_id,
+                    observation_id=event.event_id,
+                ),
+                data=event.to_dict(),
+            )
 
     def __iter__(self) -> Iterator[BaseEvent]:
         # Snapshot under the lock so concurrent appends can't mutate the list

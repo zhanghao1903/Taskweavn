@@ -60,6 +60,7 @@ from taskweavn.memory.thought_store import (
     ThoughtRecord,
     ThoughtStore,
 )
+from taskweavn.observability import LogContext, use_log_context
 from taskweavn.runtime.base import Runtime
 from taskweavn.tools.base import Tool
 from taskweavn.types.base import BaseAction, BaseEvent, BaseObservation
@@ -257,20 +258,42 @@ class AgentLoop:
         # no business resolving against this one.
         self._pending_decisions = []
         try:
-            for tool in self.tools:
-                tool.startup()
-            return self._run_inner(task)
+            with use_log_context(
+                LogContext(
+                    session_id=self.session_id,
+                    task_id=self._current_task_id,
+                    workspace_root=(
+                        str(self.workspace_root)
+                        if self.workspace_root is not None
+                        else None
+                    ),
+                )
+            ):
+                for tool in self.tools:
+                    tool.startup()
+                return self._run_inner(task)
         finally:
-            # Best-effort shutdown drain: any reply that arrived while the
-            # loop was finishing should still produce an observation in the
-            # event stream so the audit trail is consistent. The LLM is
-            # done — we don't append to ``messages`` here.
-            with contextlib.suppress(Exception):
-                self.drain_pending_responses(messages=None)
-            for tool in self.tools:
-                # Teardown must not mask the loop result.
+            with use_log_context(
+                LogContext(
+                    session_id=self.session_id,
+                    task_id=self._current_task_id,
+                    workspace_root=(
+                        str(self.workspace_root)
+                        if self.workspace_root is not None
+                        else None
+                    ),
+                )
+            ):
+                # Best-effort shutdown drain: any reply that arrived while the
+                # loop was finishing should still produce an observation in the
+                # event stream so the audit trail is consistent. The LLM is
+                # done — we don't append to ``messages`` here.
                 with contextlib.suppress(Exception):
-                    tool.shutdown()
+                    self.drain_pending_responses(messages=None)
+                for tool in self.tools:
+                    # Teardown must not mask the loop result.
+                    with contextlib.suppress(Exception):
+                        tool.shutdown()
             self._current_task_id = None
 
     def _run_inner(self, task: str) -> LoopResult:

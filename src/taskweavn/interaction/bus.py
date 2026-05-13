@@ -39,6 +39,9 @@ from taskweavn.interaction.message import (
     MessageStreamError,
 )
 from taskweavn.interaction.sqlite_message_stream import SqliteMessageStream
+from taskweavn.observability import LogContext, get_object_logger
+
+_BUS_LOGGER = get_object_logger("bus")
 
 # ---------------------------------------------------------------------------
 # Protocols
@@ -135,6 +138,16 @@ class InProcessMessageBus:
                 if sub._matches(message):  # noqa: SLF001
                     sub._enqueue(message)  # noqa: SLF001
 
+            _BUS_LOGGER.info(
+                "publish",
+                context=_message_context(message),
+                data={
+                    "message_type": message.message_type,
+                    "requires_response": message.requires_response,
+                    "parent_message_id": message.parent_message_id,
+                    "subscriber_count": len(self._subs),
+                },
+            )
             self._cond.notify_all()
 
     def wait_for_response(
@@ -156,14 +169,32 @@ class InProcessMessageBus:
             while True:
                 response = self._stream.response_for(message_id)
                 if response is not None:
+                    _BUS_LOGGER.debug(
+                        "response_received",
+                        context=_message_context(response),
+                        data={
+                            "waited_message_id": message_id,
+                            "response_source": response.response_source,
+                        },
+                    )
                     return response
                 if self._closed:
+                    _BUS_LOGGER.debug(
+                        "wait_closed",
+                        context=LogContext(message_id=message_id),
+                        data={"waited_message_id": message_id},
+                    )
                     return None
                 if deadline is None:
                     self._cond.wait()
                     continue
                 remaining = deadline - _monotonic()
                 if remaining <= 0:
+                    _BUS_LOGGER.debug(
+                        "response_timeout",
+                        context=LogContext(message_id=message_id),
+                        data={"waited_message_id": message_id},
+                    )
                     return None
                 # ``wait`` may return spuriously; the loop re-checks the
                 # SQL predicate so an early wake costs only one query.
@@ -192,6 +223,14 @@ class InProcessMessageBus:
             if self._closed:
                 raise MessageStreamError("bus is closed")
             self._subs.append(sub)
+            _BUS_LOGGER.debug(
+                "subscribe",
+                context=LogContext(session_id=session_id),
+                data={
+                    "types": sorted(type_set) if type_set is not None else None,
+                    "subscriber_count": len(self._subs),
+                },
+            )
         return sub
 
     @property
@@ -214,6 +253,7 @@ class InProcessMessageBus:
             # iterate over a snapshot to avoid mutation-during-iteration.
             for sub in list(self._subs):
                 sub._mark_closed()  # noqa: SLF001
+            _BUS_LOGGER.info("close", data={"subscriber_count": len(self._subs)})
             self._cond.notify_all()
 
     def __enter__(self) -> InProcessMessageBus:
@@ -325,3 +365,13 @@ def _monotonic() -> float:
     import time
 
     return time.monotonic()
+
+
+def _message_context(message: AgentMessage) -> LogContext:
+    return LogContext(
+        session_id=message.session_id,
+        task_id=message.task_id,
+        agent_id=message.agent_id,
+        message_id=message.message_id,
+        action_id=message.related_action_id,
+    )

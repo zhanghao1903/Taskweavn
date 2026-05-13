@@ -13,11 +13,9 @@ from taskweavn.llm.contracts import (
     ProviderRoutingConfig,
     RetryPolicy,
 )
+from taskweavn.llm.logging import log_llm_request, log_llm_response
 from taskweavn.llm.providers._openai_compat import parse_openai_compatible_response
 from taskweavn.llm.retry import BaseLLMProvider
-from taskweavn.observability.setup import get_channel_logger
-
-_LLM_LOGGER = get_channel_logger("llm")
 
 
 class OpenRouterProvider(BaseLLMProvider):
@@ -48,17 +46,10 @@ class OpenRouterProvider(BaseLLMProvider):
     def _chat_once(self, request: ChatRequest) -> ChatResponse:
         routing = request.provider_routing or self._provider_routing
         extra_body = _extra_body(routing)
-        _LLM_LOGGER.info(
-            "request",
-            extra={
-                "data": {
-                    "provider": self.name,
-                    "model": request.model,
-                    "message_count": len(request.messages),
-                    "tool_count": len(request.tools) if request.tools else 0,
-                    "provider_routing": extra_body.get("provider"),
-                }
-            },
+        log_llm_request(
+            self.name,
+            request,
+            extra={"provider_routing": extra_body.get("provider")},
         )
         kwargs: dict[str, Any] = {
             "model": request.model,
@@ -71,17 +62,11 @@ class OpenRouterProvider(BaseLLMProvider):
 
         response = litellm.completion(**kwargs)
         parsed = parse_openai_compatible_response(response, provider_name=self.name)
-        _LLM_LOGGER.info(
-            "response",
-            extra={
-                "data": {
-                    "provider": self.name,
-                    "model": request.model,
-                    "retry_count": parsed.retry_count,
-                    "provider_routing": extra_body.get("provider"),
-                    "tool_calls": [{"id": tc.id, "name": tc.name} for tc in parsed.tool_calls],
-                }
-            },
+        log_llm_response(
+            parsed,
+            request=request,
+            provider=self.name,
+            extra={"provider_routing": extra_body.get("provider")},
         )
         return parsed
 
