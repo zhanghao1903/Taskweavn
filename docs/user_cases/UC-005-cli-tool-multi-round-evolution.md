@@ -37,8 +37,8 @@ taskweavn run \
   --task "继续完善 notesctl：1. 增加 search <keyword> 子命令做笔记全文检索；2. list 增加 --tag <tag> 过滤；3. 优化 show 输出格式（终端美化即可，不引入新依赖）；4. 同步更新 README 和 pytest 测试，覆盖 search；5. 不允许重建项目目录，必须基于现有文件改造。" \
   --workspace ./workspace/user-test-cli \
   --max-steps 25 \
-  --autonomy careful \
-  --risk-assessor composite \
+  --autonomy risk_gated \
+  --risk-assessor llm \
   --session-id user-test-cli-001 \
   --messages-db ./logs/user-test-cli-messages.sqlite
 ```

@@ -907,7 +907,7 @@ session:
 
 ## 19. 状态
 
-- Status: in progress
+- Status: ready for acceptance
 - Created: 2026-05-10
 - Started: 2026-05-12
 - Current Branch: `codex/configurable-logging-design`
@@ -937,8 +937,24 @@ session:
     - `taskweavn logging manifest --session-id <id>`
     - `taskweavn logging render <jsonl>`
   - Documented that these CLI commands inspect archive files; same-process hot update remains available through `LoggingManager` API until a daemon/control plane exists.
+- Completed in fifth implementation pass:
+  - Added `LoggingControlService` as the same-process UI/server control surface for runtime logging updates.
+  - Added typed control results for profile application, scoped level changes, and session archive close operations.
+  - `LoggingManager` now exposes the active immutable config snapshot and rejects negative temporary override durations.
+  - User-facing configuration docs now distinguish archive inspection CLI from same-process hot-update control APIs.
+  - Technical design now includes the first stable core event naming taxonomy for Action, Observation, Tool, Runtime, LLM, Audit, Bus, Gate, Wait, Sandbox, and Config logs.
+  - Added code-level `LOG_EVENTS_BY_CATEGORY` taxonomy plus static tests that verify current `ObjectLogger` call sites use documented event names.
+  - Expanded archive/manifest reading contract so UI and test tooling start from `manifest.json` instead of guessing category file paths.
+  - Kept default archive layout at session/category granularity, while adding manifest `templates` for future task/agent dynamic sink paths.
+  - Manifest generation now uses session-effective rules, so profile/session overrides are reflected in `files` and `templates`.
+  - Aligned technical design with the implemented v1 API: JSON config, `--logging-profile`, `--logging-config`, archive inspection commands, and current module layout.
+  - README now points users to manifest `files` / `templates` and logging archive inspection commands.
 - Verified:
   - `uv run ruff check src tests`
   - `uv run mypy src tests`
-  - `uv run pytest` — 425 passed, 1 warning
-- Next Step: 继续补齐日志配置热更新的服务端控制面设计、归档文档细节，以及核心对象日志事件命名规范。
+  - `uv run pytest` — 441 passed, 1 warning
+- Acceptance Notes:
+  - Runtime logging configuration, archive layout, same-process control API, event taxonomy, and first core-object integrations are implemented.
+  - Cross-process hot update remains explicitly out of v1 scope until a daemon/server control plane exists.
+  - Risk-assessor long-call timeout/observability is tracked separately and should not block this logging-system acceptance.
+- Next Step: 阶段验收后提交；后续再规划 daemon/control plane 或 task/agent archive index。

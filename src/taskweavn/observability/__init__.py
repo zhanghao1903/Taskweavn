@@ -5,6 +5,17 @@ from taskweavn.observability.context import (
     merge_log_context,
     use_log_context,
 )
+from taskweavn.observability.control import (
+    LoggingControlOperation,
+    LoggingControlResult,
+    LoggingControlService,
+    LoggingProfileInfo,
+)
+from taskweavn.observability.events import (
+    LOG_EVENTS_BY_CATEGORY,
+    is_known_log_event,
+    known_log_events,
+)
 from taskweavn.observability.levels import LogLevel
 from taskweavn.observability.logger import ObjectLogger, get_object_logger
 from taskweavn.observability.manager import (
@@ -42,6 +53,7 @@ __all__ = [
     "CHANNELS",
     "EffectiveLogRule",
     "LOGGER_PREFIX",
+    "LOG_EVENTS_BY_CATEGORY",
     "LogArchiveManifest",
     "LogCategory",
     "LogContext",
@@ -53,8 +65,12 @@ __all__ = [
     "LogSinkConfig",
     "LoggingConfig",
     "LoggingConfigPatch",
+    "LoggingControlOperation",
+    "LoggingControlResult",
+    "LoggingControlService",
     "LoggingManager",
     "LoggingProfile",
+    "LoggingProfileInfo",
     "ObjectLogger",
     "RotationConfig",
     "build_disabled_logging_config",
@@ -66,6 +82,8 @@ __all__ = [
     "get_log_context",
     "get_logging_manager",
     "get_object_logger",
+    "is_known_log_event",
+    "known_log_events",
     "load_logging_config",
     "merge_log_context",
     "use_log_context",

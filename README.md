@@ -177,9 +177,19 @@ uv run taskweavn run \
 
 Available profiles include `normal`, `quiet`, `debug-llm`, `debug-tools`,
 `debug-bus`, and `full-debug`. `manifest.json` is the stable entry point for
-UI, testers, and archive scripts. The legacy `configure_logging()` API still
-supports flat files such as `tool.log`, but `taskweavn run` uses session
-archives.
+UI, testers, and archive scripts. Read `files` for concrete category JSONL
+paths; future task/agent-scoped sinks are advertised through manifest
+`templates` without changing the default session/category layout. The legacy
+`configure_logging()` API still supports flat files such as `tool.log`, but
+`taskweavn run` uses session archives.
+
+Inspect logs without mutating a running agent:
+
+```bash
+uv run taskweavn logging profiles
+uv run taskweavn logging manifest --log-dir ./logs --session-id debug-llm-run
+uv run taskweavn logging render ./logs/sessions/debug-llm-run/llm.jsonl --limit 50
+```
 
 Additionally, `--messages-db` (default `<log-dir>/messages.sqlite`) stores the
 interaction-layer message stream as SQLite, and `--thoughts-db` (default

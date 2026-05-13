@@ -222,7 +222,7 @@ uv run taskweavn run \
 ./logs/sessions/debug-llm-run/tool.jsonl
 ```
 
-`manifest.json` 是 UI、测试人员和归档脚本的入口，记录当前 session 的日志文件映射、配置 hash、归档根目录和 rotation 摘要。
+`manifest.json` 是 UI、测试人员和归档脚本的入口，记录当前 session 的日志文件映射、配置 hash、归档根目录和 rotation 摘要。读取归档时应先读取 manifest，再按 `files` 中的相对路径打开 JSONL；如果存在 `templates`，说明某些日志文件需要 `task_id` / `agent_id` 等动态上下文才能确定路径。默认配置暂不按 task/agent 拆分文件。如果 `closed_at` 为空，说明该归档仍可能被运行中的进程继续写入。
 
 日志调试命令：
 
@@ -241,7 +241,7 @@ uv run taskweavn logging render \
   --limit 50
 ```
 
-这些命令只读取当前进程外的归档文件，不会修改运行中的 agent。运行期热更新能力目前通过 `LoggingManager.apply_profile()`、`LoggingManager.update_session_config()` 和 `LoggingManager.set_level()` 暴露给同进程 UI / 调试接口；跨进程热更新需要后续 daemon 或服务端控制面。
+这些命令只读取当前进程外的归档文件，不会修改运行中的 agent。运行期热更新的推荐入口是同进程 `LoggingControlService`：UI、服务端调试接口或测试工具可以调用 `list_profiles()`、`apply_profile()`、`set_level()` 和 `close_session_archive()`。底层仍由 `LoggingManager.apply_profile()`、`LoggingManager.update_session_config()` 和 `LoggingManager.set_level()` 执行原子配置更新。跨进程热更新仍需要后续 daemon 或服务端控制面。
 
 兼容说明：旧的 `configure_logging(log_dir)` API 仍保留，继续生成 `tool.log`、`action.log`、`observation.log`、`llm.log` 这类 flat file。CLI `taskweavn run` 使用新的 session archive 入口。
 
