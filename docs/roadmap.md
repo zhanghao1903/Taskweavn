@@ -1,7 +1,7 @@
 # TaskWeavn Roadmap
 
 > Status: active
-> Last Updated: 2026-05-14
+> Last Updated: 2026-05-15
 > Maintained By: planning session
 > Related: [Project Plan](project/roadmap.md), [Planning Workflow](planning_workflow.md), [Architecture Decisions](decisions/), [Release Records](releases/), [User Traceability](user_model/traceability.md)
 
@@ -33,7 +33,7 @@ TaskWeavn has moved past the original "single ReAct agent with tools" shape. The
 | AgentLoop autonomy integration and minimum CLI surface | Done | Phase 3.6. |
 | LLMRiskAssessor and CompositeAssessor | Done | Phase 3.7. |
 | Derived Session.status | Done | Phase 3.8; stored status is a hint except `archived`. |
-| Task-first architecture plans | In progress | Task domain/UI ViewModel separation is accepted; Collaborator Agent is now the active Phase 3C package. |
+| Task-first architecture plans | In progress | Task domain/UI ViewModel separation and Collaborator Agent authoring server-core package are done; TaskPublisher is now the active Phase 3C/3D bridge. |
 | Reliability and observability plans | Accepted baseline | LLM provider/retry/thinking and configurable logging are done; centralized runtime config remains a follow-up control-plane plan. |
 
 The project is now re-baselined around **Task-first interaction**:
@@ -90,6 +90,8 @@ Current user-need drivers:
 | Phase 3.6 | Done | AgentLoop gating, async response drain, minimum CLI autonomy surface. | [Phase 3 through 3.8](releases/phase-3-interaction-layer-through-3-8.md) |
 | Phase 3.7 | Done | LLMRiskAssessor and CompositeAssessor. | [Phase 3 through 3.8](releases/phase-3-interaction-layer-through-3-8.md) |
 | Phase 3.8 | Done | Derived Session.status from EventStream + MessageStream. | [Phase 3 through 3.8](releases/phase-3-interaction-layer-through-3-8.md) |
+| Phase 3C.1 | Done | Task domain/UI ViewModel separation. | [Task Domain and UI ViewModel Separation](releases/task-domain-ui-model-separation.md) |
+| Phase 3C.2 | Done | Collaborator Agent, RawTask feasibility, Authoring Commands, DraftTaskTree authoring, and publish boundary. | [Collaborator Agent And Task Authoring](releases/collaborator-agent-task-authoring.md) |
 
 ---
 
@@ -138,7 +140,7 @@ Exit criteria:
 
 ### Phase 3C — Task Authoring Foundation
 
-Status: in progress; first package accepted and Collaborator Agent active.
+Status: server-core authoring foundation done; TaskPublisher bridge is next.
 
 Why now: Task-first UI requires the backend to represent draft Tasks, UI projections, user confirmations, and task-scoped guidance.
 
@@ -147,10 +149,10 @@ Work packages:
 | Work | Plan | Priority |
 |---|---|---:|
 | Split backend Task domain model from UI ViewModel/projection | [Task model/UI separation](plans/feature/task-domain-ui-model-separation.md) | Done |
-| Collaborator Agent and Authoring Command Protocol | [Collaborator Agent plan](plans/feature/collaborator-agent-task-authoring.md), [Authoring Command Protocol](architecture/authoring-command-protocol.md) | In progress |
-| RawTask, feasibility assessment, and authoring-domain clarification flow | [Collaborator Agent plan](plans/feature/collaborator-agent-task-authoring.md) | P0 |
-| Minimal CapabilityCatalog, tool-pool boundary, and Authoring Command Protocol | [Tool Capability Layer](architecture/tool-capability-layer.md), [Authoring Command Protocol](architecture/authoring-command-protocol.md) | Design reservation / embedded in Collaborator |
-| Task-first UI API contracts | [UI API interfaces](plans/ui/ui-api-interfaces.md) | P0 |
+| Collaborator Agent and Authoring Command Protocol | [Collaborator Agent plan](plans/feature/collaborator-agent-task-authoring.md), [Authoring Command Protocol](architecture/authoring-command-protocol.md) | Done |
+| RawTask, feasibility assessment, and authoring-domain clarification flow | [Collaborator Agent plan](plans/feature/collaborator-agent-task-authoring.md) | Done |
+| Minimal CapabilityCatalog, tool-pool boundary, and Authoring Command Protocol | [Tool Capability Layer](architecture/tool-capability-layer.md), [Authoring Command Protocol](architecture/authoring-command-protocol.md) | Done as server-core boundary; future tool platform remains reserved |
+| Task-first UI API contracts | [UI API interfaces](plans/ui/ui-api-interfaces.md) | Done for authoring surface; transport pending |
 | Task interaction replay model | Covered by Task model and Collaborator plans | P0 |
 
 Exit criteria:
@@ -160,6 +162,7 @@ Exit criteria:
 - Task Node updates and confirmations are modeled before execution.
 - Backend can replay confirmation actions, guidance, and Task patches.
 - UI can render Task cards without depending on raw backend Task internals.
+- The first server-core authoring package satisfies these as local protocols/services with mock LLM tests; UI transport and persistent authoring stores remain follow-ups.
 
 ### Phase 3D — Task Publishing And Pipeline
 
@@ -253,15 +256,15 @@ These remain valuable, but they should not be the next immediate build target be
 
 Recommended order for upcoming implementation sessions:
 
-1. **Collaborator Agent and Authoring Command Protocol** — natural language to RawTask/DraftTaskTree workflows through command-backed state mutation.
-2. **TaskPublisher abstraction** — one publish path for every source.
-3. **Pipeline task loading** — before/begin/after Task auto-publication.
-4. **Result packaging and card presentation** — richer result display for information-style answers.
-5. **Task-first UI prototype** — after backend projection APIs exist.
+1. **TaskPublisher abstraction** — one publish path for user, Collaborator, pipeline, scheduler, API, and custom Task Tree sources.
+2. **Pipeline task loading** — before/begin/after Task auto-publication.
+3. **Result packaging and card presentation** — richer result display for information-style answers.
+4. **Task-first UI prototype** — after backend projection and authoring adapter APIs exist.
+5. **Persistent authoring stores and server transport** — make RawTask/DraftTaskTree authoring durable beyond in-memory tests.
 6. **TaskBus multi-agent execution hardening** — execution semantics after publish model stabilizes.
 7. **Centralized runtime configuration** — shared control plane for logging/autonomy/audit/LLM/Task/UI behavior once the Task-facing server model is concrete enough to avoid overfitting.
 
-LLM Provider reliability and configurable logging are complete enough for the next round of server-core work. The Task domain boundary is accepted, so the immediate blocker is now Collaborator Agent and command-backed Task authoring.
+LLM Provider reliability, configurable logging, Task domain/UI separation, and Collaborator authoring are complete enough for the next round of server-core work. The immediate blocker is now the TaskPublisher / TaskBus publish bridge.
 
 ---
 

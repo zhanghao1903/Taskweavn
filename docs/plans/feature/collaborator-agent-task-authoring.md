@@ -1,8 +1,8 @@
 # Feature Plan: Collaborator Agent 与 Authoring Command Protocol
 
-> Status: in progress
+> Status: done / server-core release candidate
 > Type: 新特性支持
-> Last Updated: 2026-05-14
+> Last Updated: 2026-05-15
 > Owner/Session: planning session
 > Target Implementation Session: independent feature session
 > Technical Design: `docs/architecture/collaborator-agent-task-authoring.md`
@@ -1087,11 +1087,13 @@ Draft contracts
 
 ## 17. 状态
 
-- Status: in progress
+- Status: done / server-core release candidate
 - Created: 2026-05-10
 - Started: 2026-05-14
+- Completed: 2026-05-15
 - Current Branch: `codex/collaborator-agent-task-authoring`
 - Technical Design: [Collaborator Agent And Task Authoring](../../architecture/collaborator-agent-task-authoring.md)
+- Release Record: [Collaborator Agent And Task Authoring](../../releases/collaborator-agent-task-authoring.md)
 - Completed in first implementation pass:
   - Slice 1 Draft Authoring Contracts And Validator.
   - Slice 2 RawTask Contracts And Feasibility.
@@ -1102,6 +1104,7 @@ Draft contracts
   - Slice 7 Collaborator Proposal Mapping Service.
   - Slice 8 Publish Boundary.
   - Slice 9 Collaborator Agent Template And API Adapter.
+  - Slice 10 Hardening, Docs, And Release Candidate.
   - Added `taskweavn.task.authoring` with:
     - `ActorRef`
     - `AuthoringCommandBatch`
@@ -1220,7 +1223,7 @@ Draft contracts
   - `uv run mypy src/taskweavn/task tests/test_collaborator_api_adapter.py tests/test_collaborator_authoring_service.py tests/test_authoring_command_service.py`
   - `uv run ruff check src tests`
   - `uv run mypy src tests`
-  - `uv run pytest` — 564 passed, 1 warning
+  - `uv run pytest` — 572 passed, 1 warning
   - `git diff --check`
 - Discussion promoted: [RawTask、可行性判断与 Authoring Domain](../../discussion/2026-05-14-raw-task-authoring-domain.md)
-- Revised Next Step: Slice 10 Hardening, Docs, And Release Candidate。
+- Revised Next Step: TaskPublisher abstraction and TaskBus-backed publish lifecycle。
