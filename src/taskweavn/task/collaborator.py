@@ -31,6 +31,9 @@ _SYSTEM_PROMPT = """You are TaskWeavn's Collaborator Agent.
 Return JSON only. Convert user intent into the requested authoring proposal.
 Use only capability ids provided in context. Do not emit workspace file edits.
 """
+COLLABORATOR_TEMPLATE_ID = "system.collaborator"
+COLLABORATOR_CAPABILITY = "task_authoring"
+COLLABORATOR_COMMAND_PROTOCOL = "authoring.v1"
 
 
 class _FrozenCollaboratorModel(BaseModel):
@@ -57,6 +60,104 @@ class RawTaskProposal(_FrozenCollaboratorModel):
     asks: tuple[RawTaskAskProposal, ...] = ()
     constraints: tuple[str, ...] = ()
     assumptions: tuple[str, ...] = ()
+
+
+class CollaboratorAgentTemplate(_FrozenCollaboratorModel):
+    """System template metadata for the built-in Collaborator Agent.
+
+    The template is intentionally metadata-only. It describes the system role
+    available in a session, while actual state changes still go through
+    CollaboratorAuthoringService and AuthoringCommandService.
+    """
+
+    template_id: str = COLLABORATOR_TEMPLATE_ID
+    capability: str = COLLABORATOR_CAPABILITY
+    display_name: str = "Collaborator"
+    description: str = "Helps users turn natural language goals into Task Trees."
+    command_protocol: str = COLLABORATOR_COMMAND_PROTOCOL
+    capability_catalog: str = "execution.capabilities.readonly"
+    default_autonomy: str = "manual_or_collaborative"
+    llm_visible_tool_pools: tuple[str, ...] = ()
+
+
+@runtime_checkable
+class CollaboratorTemplateRegistry(Protocol):
+    """Session-scoped registry for built-in Collaborator templates."""
+
+    def register(
+        self,
+        session_id: str,
+        template: CollaboratorAgentTemplate,
+    ) -> CollaboratorAgentTemplate: ...
+
+    def get(
+        self,
+        session_id: str,
+        template_id: str = COLLABORATOR_TEMPLATE_ID,
+    ) -> CollaboratorAgentTemplate | None: ...
+
+    def list_for_session(self, session_id: str) -> tuple[CollaboratorAgentTemplate, ...]: ...
+
+
+class InMemoryCollaboratorTemplateRegistry:
+    """Process-local template registry used by early API/server tests."""
+
+    def __init__(self) -> None:
+        self._templates: dict[tuple[str, str], CollaboratorAgentTemplate] = {}
+
+    def register(
+        self,
+        session_id: str,
+        template: CollaboratorAgentTemplate,
+    ) -> CollaboratorAgentTemplate:
+        _validate_session_id(session_id)
+        key = (session_id, template.template_id)
+        current = self._templates.get(key)
+        if current is not None and current != template:
+            raise ValueError(
+                f"collaborator template {template.template_id!r} already registered"
+            )
+        self._templates[key] = template
+        return template
+
+    def get(
+        self,
+        session_id: str,
+        template_id: str = COLLABORATOR_TEMPLATE_ID,
+    ) -> CollaboratorAgentTemplate | None:
+        _validate_session_id(session_id)
+        return self._templates.get((session_id, template_id))
+
+    def list_for_session(self, session_id: str) -> tuple[CollaboratorAgentTemplate, ...]:
+        _validate_session_id(session_id)
+        templates = [
+            template
+            for (registered_session_id, _), template in self._templates.items()
+            if registered_session_id == session_id
+        ]
+        return tuple(sorted(templates, key=lambda template: template.template_id))
+
+
+def default_collaborator_template() -> CollaboratorAgentTemplate:
+    """Return the built-in Collaborator template.
+
+    The empty ``llm_visible_tool_pools`` tuple is part of the contract:
+    Collaborator plans with read-only capability descriptors, not by mounting
+    workspace file/shell tools or low-level system mutation tools.
+    """
+
+    return CollaboratorAgentTemplate()
+
+
+def register_system_collaborator(
+    session_id: str,
+    registry: CollaboratorTemplateRegistry,
+    *,
+    template: CollaboratorAgentTemplate | None = None,
+) -> CollaboratorAgentTemplate:
+    """Register the built-in Collaborator template for one session."""
+
+    return registry.register(session_id, template or default_collaborator_template())
 
 
 @runtime_checkable
@@ -320,3 +421,8 @@ def _proposal_node(node: Any) -> dict[str, Any]:
         "rationale": node.rationale,
         "children": [_proposal_node(child) for child in node.children],
     }
+
+
+def _validate_session_id(session_id: str) -> None:
+    if not session_id.strip():
+        raise ValueError("session_id must not be blank")
