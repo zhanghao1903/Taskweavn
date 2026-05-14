@@ -172,6 +172,14 @@ class InMemoryRawTaskStore:
             self._raw_tasks[key] = updated
             return updated
 
+    def _snapshot(self) -> dict[tuple[str, str], RawTask]:
+        with self._lock:
+            return dict(self._raw_tasks)
+
+    def _restore(self, snapshot: dict[tuple[str, str], RawTask]) -> None:
+        with self._lock:
+            self._raw_tasks = dict(snapshot)
+
 
 class InMemoryDraftTaskStore:
     """Process-local DraftTaskStore with version checks and lineage indexes."""
@@ -419,6 +427,46 @@ class InMemoryDraftTaskStore:
                 raise TaskStoreError(f"DraftTaskNode {node.draft_task_id!r} already exists")
             self._nodes[node_key] = node
             self._node_tree[node_key] = tree.draft_tree_id
+
+    def _snapshot(self) -> tuple[
+        dict[tuple[str, str], DraftTaskTree],
+        dict[tuple[str, str], DraftTaskNode],
+        dict[tuple[str, str], str],
+        dict[tuple[str, str], list[DraftToPublishedMapping]],
+        dict[tuple[str, str], list[DraftToPublishedMapping]],
+    ]:
+        with self._lock:
+            return (
+                dict(self._trees),
+                dict(self._nodes),
+                dict(self._node_tree),
+                {key: list(value) for key, value in self._mappings_by_draft.items()},
+                {key: list(value) for key, value in self._mappings_by_task.items()},
+            )
+
+    def _restore(
+        self,
+        snapshot: tuple[
+            dict[tuple[str, str], DraftTaskTree],
+            dict[tuple[str, str], DraftTaskNode],
+            dict[tuple[str, str], str],
+            dict[tuple[str, str], list[DraftToPublishedMapping]],
+            dict[tuple[str, str], list[DraftToPublishedMapping]],
+        ],
+    ) -> None:
+        with self._lock:
+            trees, nodes, node_tree, mappings_by_draft, mappings_by_task = snapshot
+            self._trees = dict(trees)
+            self._nodes = dict(nodes)
+            self._node_tree = dict(node_tree)
+            self._mappings_by_draft = defaultdict(
+                list,
+                {key: list(value) for key, value in mappings_by_draft.items()},
+            )
+            self._mappings_by_task = defaultdict(
+                list,
+                {key: list(value) for key, value in mappings_by_task.items()},
+            )
 
     def _bump_tree(self, session_id: str, draft_tree_id: str) -> DraftTaskTree:
         current = self._trees[(session_id, draft_tree_id)]

@@ -48,6 +48,10 @@ from taskweavn.task.authoring import (
     TaskNodeOption,
     TaskNodeOptionSet,
 )
+from taskweavn.task.authoring_service import (
+    AuthoringCommandService,
+    DefaultAuthoringCommandService,
+)
 from taskweavn.task.commands import (
     CommandResult,
     CommandStatus,
@@ -121,6 +125,7 @@ __all__ = [
     "AuthoringCommandError",
     "AuthoringCommandMode",
     "AuthoringCommandResult",
+    "AuthoringCommandService",
     "AuthoringCommandStatus",
     "AuthoringCommandWarning",
     "AuthoringContext",
@@ -133,6 +138,7 @@ __all__ = [
     "ConfirmationActionView",
     "ConfirmationOptionView",
     "DefaultTaskCommandService",
+    "DefaultAuthoringCommandService",
     "DefaultTaskInteractionTimelineService",
     "DraftPatchScope",
     "DraftTaskTreeOperation",
