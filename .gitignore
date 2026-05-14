@@ -50,4 +50,4 @@ logs/
 !.env.example
 /workspace/
 /docs/user_cases/workspace/
-/docs/user_tests/workspace/
+/garbage_collect/user_tests/workspace/

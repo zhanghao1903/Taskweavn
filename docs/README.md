@@ -13,8 +13,8 @@ This directory is organized by document purpose, not by implementation module.
 | [plans/](plans/) | Executable plans for features, improvements, UI design, and follow-up work. |
 | [issues/](issues/) | Bug reports and defect-oriented repair plans. |
 | [user_cases/](user_cases/) | Formal user test cases and their artifacts. |
-| [user_tests/](user_tests/) | Ad-hoc manual testing prompts and screenshots. |
-| [samples/](samples/) | Small sample outputs used by docs or tests. |
+| [user_tests/](../garbage_collect/user_tests/) | Ad-hoc manual testing prompts and screenshots. |
+| [samples/](../garbage_collect/samples/) | Small sample outputs used by docs or tests. |
 | [assets/](assets/) | Shared images and other media assets. |
 | [archive/](archive/) | Generated exports and historical artifacts that are not the canonical source. |
 

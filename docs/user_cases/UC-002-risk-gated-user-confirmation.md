@@ -68,7 +68,7 @@ taskweavn run \
 - 命令是否成功退出：是
 - 生成文件：./workspace
 - `messages.sqlite` 是否生成：是
-- 截图 / 日志链接：![UC-002 screenshot](artifacts/images/UC-002-risk-gated-user-confirmation.png) [terminal input](inputs/UC-002-risk-gated-user-confirmation.txt)
+- 截图 / 日志链接：![UC-002 screenshot](../../garbage_collect/artifacts/images/UC-002-risk-gated-user-confirmation.png) [terminal input](terminal_outputs/UC-002-risk-gated-user-confirmation.txt)
 - 观察到的问题：不能看到具体命令，这是功能层面不具备的，是以后的优化方向
 
 ## 测试总结

@@ -59,7 +59,7 @@ Users describe what they want in natural language. An **Orchestration Designer**
 
 Constraints are first-class citizens with documented rationale: each rule records what failure mode it guards against, so loosening a constraint is a data-backed engineering decision rather than a guess.
 
-> Full design: [docs/multi_agent_collaboration_architecture.md](docs/multi_agent_collaboration_architecture.md) · [docs/multi_agent_collaboration_architecture_en.md](docs/multi_agent_collaboration_architecture_en.md)
+> Full design: [docs/multi_agent_collaboration_architecture.md](garbage_collect/multi_agent_collaboration_architecture.md) · [docs/multi_agent_collaboration_architecture_en.md](garbage_collect/multi_agent_collaboration_architecture_en.md)
 
 ## Why this design
 
@@ -268,10 +268,10 @@ src/taskweavn/
 | Document | Chinese | English |
 | -------- | ------- | ------- |
 | Configuration Guide | [configuration.md](docs/configuration.md) | - |
-| Architecture Reference | [architecture.md](docs/architecture.md) | - |
-| Interaction Layer Design | [interaction_layer_design.md](docs/interaction_layer_design.md) | - |
-| Project Plan | [agent_project_plan.md](docs/agent_project_plan.md) | [agent_project_plan_en.md](docs/agent_project_plan_en.md) |
-| Multi-Agent Architecture | [multi_agent_collaboration_architecture.md](docs/multi_agent_collaboration_architecture.md) | [multi_agent_collaboration_architecture_en.md](docs/multi_agent_collaboration_architecture_en.md) |
+| Architecture Reference | [architecture.md](garbage_collect/architecture.md) | - |
+| Interaction Layer Design | [interaction_layer_design.md](garbage_collect/interaction_layer_design.md) | - |
+| Project Plan | [agent_project_plan.md](garbage_collect/agent_project_plan.md) | [agent_project_plan_en.md](garbage_collect/agent_project_plan_en.md) |
+| Multi-Agent Architecture | [multi_agent_collaboration_architecture.md](garbage_collect/multi_agent_collaboration_architecture.md) | [multi_agent_collaboration_architecture_en.md](garbage_collect/multi_agent_collaboration_architecture_en.md) |
 | User Test Cases | [docs/user_cases](docs/user_cases) | - |
 
 ## Development

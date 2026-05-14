@@ -34,7 +34,7 @@ Every important decision should be traceable back to concrete user problems, not
 | [configurable-logging-system.md](configurable-logging-system.md) | Configurable structured logging, hot update, archive, and compatibility design. |
 | [multi-agent-collaboration.md](multi-agent-collaboration.md) | Multi-agent collaboration architecture. |
 | [multi-agent-collaboration_en.md](multi-agent-collaboration_en.md) | English version of the collaboration architecture. |
-| [user/README.md](user/README.md) | User modeling system: user needs/scenarios, do-or-not decisions, current vs future solution shape, and architecture mapping. |
+| [user/README.md](../user_model/README.md) | User modeling system: user needs/scenarios, do-or-not decisions, current vs future solution shape, and architecture mapping. |
 | [review.md](review.md) | Architecture review and plan inputs. |
 
 ## Rule of Thumb

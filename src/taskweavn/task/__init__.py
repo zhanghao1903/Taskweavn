@@ -5,6 +5,24 @@ published Task facts, draft authoring facts, UI references, and store protocols
 separate so later projection/UI work does not leak into TaskBus state.
 """
 
+from taskweavn.task.authoring import (
+    AuthoringCommandResult,
+    AuthoringCommandStatus,
+    AuthoringContext,
+    AuthoringMode,
+    CapabilityCatalog,
+    DraftPatchScope,
+    DraftTaskNodeProposal,
+    DraftTaskPatchProposal,
+    DraftTaskTreeProposal,
+    DraftTaskTreeValidation,
+    DraftTaskTreeValidator,
+    DraftTaskValidationIssue,
+    DraftTaskValidationSeverity,
+    StaticCapabilityCatalog,
+    TaskNodeOption,
+    TaskNodeOptionSet,
+)
 from taskweavn.task.commands import (
     CommandResult,
     CommandStatus,
@@ -63,17 +81,30 @@ from taskweavn.task.views import (
 )
 
 __all__ = [
+    "AuthoringCommandResult",
+    "AuthoringCommandStatus",
+    "AuthoringContext",
+    "AuthoringMode",
+    "CapabilityCatalog",
     "CommandResult",
     "CommandStatus",
     "ConfirmationActionView",
     "ConfirmationOptionView",
     "DefaultTaskCommandService",
     "DefaultTaskInteractionTimelineService",
+    "DraftPatchScope",
+    "DraftTaskNodeProposal",
     "DraftTaskNode",
     "DraftPublicationStore",
+    "DraftTaskPatchProposal",
     "DraftTaskStatus",
     "DraftTaskStore",
     "DraftTaskTree",
+    "DraftTaskTreeProposal",
+    "DraftTaskTreeValidation",
+    "DraftTaskTreeValidator",
+    "DraftTaskValidationIssue",
+    "DraftTaskValidationSeverity",
     "DraftToPublishedMapping",
     "DefaultTaskProjectionService",
     "FileChangeStore",
@@ -97,6 +128,8 @@ __all__ = [
     "TaskInteractionTimelineService",
     "TaskMessageViewType",
     "TaskNodePatch",
+    "TaskNodeOption",
+    "TaskNodeOptionSet",
     "TaskProgressView",
     "TaskRef",
     "TaskRefKind",
@@ -109,5 +142,6 @@ __all__ = [
     "TaskSummaryStore",
     "TaskTreeView",
     "TaskViewStatus",
+    "StaticCapabilityCatalog",
     "TimelineEntrySource",
 ]

@@ -44,7 +44,7 @@ OpenHands SDK 构建 LLM 适配层。
 
 约束是一等公民，每条规则都记录了它守护的失败模式。松绑一条约束是有数据依据的工程决策，而不是直觉猜测。
 
-> 完整设计：[docs/multi_agent_collaboration_architecture.md](docs/multi_agent_collaboration_architecture.md) · [docs/multi_agent_collaboration_architecture_en.md](docs/multi_agent_collaboration_architecture_en.md)
+> 完整设计：[docs/multi_agent_collaboration_architecture.md](garbage_collect/multi_agent_collaboration_architecture.md) · [docs/multi_agent_collaboration_architecture_en.md](garbage_collect/multi_agent_collaboration_architecture_en.md)
 
 ## 设计理念
 
@@ -238,10 +238,10 @@ src/taskweavn/
 | 文档 | 中文 | English |
 | ---- | ---- | ------- |
 | 配置指南 | [configuration.md](docs/configuration.md) | - |
-| 架构参考 | [architecture.md](docs/architecture.md) | - |
-| 交互层技术设计 | [interaction_layer_design.md](docs/interaction_layer_design.md) | - |
-| 项目计划 | [agent_project_plan.md](docs/agent_project_plan.md) | [agent_project_plan_en.md](docs/agent_project_plan_en.md) |
-| 多 Agent 协作架构 | [multi_agent_collaboration_architecture.md](docs/multi_agent_collaboration_architecture.md) | [multi_agent_collaboration_architecture_en.md](docs/multi_agent_collaboration_architecture_en.md) |
+| 架构参考 | [architecture.md](garbage_collect/architecture.md) | - |
+| 交互层技术设计 | [interaction_layer_design.md](garbage_collect/interaction_layer_design.md) | - |
+| 项目计划 | [agent_project_plan.md](garbage_collect/agent_project_plan.md) | [agent_project_plan_en.md](garbage_collect/agent_project_plan_en.md) |
+| 多 Agent 协作架构 | [multi_agent_collaboration_architecture.md](garbage_collect/multi_agent_collaboration_architecture.md) | [multi_agent_collaboration_architecture_en.md](garbage_collect/multi_agent_collaboration_architecture_en.md) |
 | 用户测试用例 | [docs/user_cases](docs/user_cases) | - |
 
 ## 开发
