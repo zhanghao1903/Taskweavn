@@ -13,7 +13,20 @@ from taskweavn.interaction import AgentMessage
 from taskweavn.task.models import DraftTaskNode, DraftTaskTree, TaskNodePatch, TaskRef
 
 AuthoringMode = Literal["session", "task"]
+ActorKind = Literal["user", "collaborator", "agent", "system", "api"]
+AuthoringCommandMode = Literal["all_or_nothing", "best_effort"]
 AuthoringCommandStatus = Literal["accepted", "rejected"]
+AuthoringMessageEffectType = Literal["informational", "actionable"]
+DraftTaskTreeOperationKind = Literal[
+    "create_tree",
+    "patch_node",
+    "add_node",
+    "remove_node",
+    "reorder_siblings",
+    "attach_options",
+    "mark_ready",
+    "mark_accepted",
+]
 FeasibilityNextAction = Literal[
     "generate_task_tree",
     "ask_user",
@@ -38,6 +51,16 @@ RawTaskStatus = Literal[
     "converted",
     "rejected",
     "cancelled",
+]
+RawTaskOperationKind = Literal[
+    "create",
+    "set_intent_summary",
+    "record_feasibility",
+    "add_clarification_ask",
+    "apply_answer",
+    "update_constraints",
+    "update_assumptions",
+    "set_status",
 ]
 
 
@@ -208,6 +231,185 @@ class RawTask(_FrozenAuthoringModel):
         return self
 
 
+class ActorRef(_FrozenAuthoringModel):
+    """Actor that submitted an authoring command."""
+
+    actor_id: str = Field(min_length=1)
+    kind: ActorKind
+    display_name: str | None = Field(default=None, min_length=1)
+
+
+class RawTaskOperation(_FrozenAuthoringModel):
+    """One operation inside a MutateRawTaskCommand."""
+
+    op: RawTaskOperationKind
+    payload: dict[str, Any] = Field(default_factory=dict)
+
+
+class DraftTaskTreeOperation(_FrozenAuthoringModel):
+    """One operation inside a MutateDraftTaskTreeCommand."""
+
+    op: DraftTaskTreeOperationKind
+    payload: dict[str, Any] = Field(default_factory=dict)
+
+
+class PublishOptions(_FrozenAuthoringModel):
+    """Options for crossing from DraftTaskTree into published execution Tasks."""
+
+    root_draft_task_ids: tuple[str, ...] = ()
+    start_immediately: bool = True
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class MutateRawTaskCommand(_FrozenAuthoringModel):
+    """Command to create or mutate one RawTask."""
+
+    command_id: str = Field(default_factory=_new_id, min_length=1)
+    session_id: str = Field(min_length=1)
+    raw_task_id: str | None = Field(default=None, min_length=1)
+    actor: ActorRef
+    causation_message_id: str | None = Field(default=None, min_length=1)
+    expected_version: int | None = Field(default=None, ge=1)
+    idempotency_key: str | None = Field(default=None, min_length=1)
+    operations: tuple[RawTaskOperation, ...] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def _validate_target(self) -> MutateRawTaskCommand:
+        creates = any(operation.op == "create" for operation in self.operations)
+        if not creates and self.raw_task_id is None:
+            raise ValueError("non-create RawTask command requires raw_task_id")
+        return self
+
+
+class MutateDraftTaskTreeCommand(_FrozenAuthoringModel):
+    """Command to create or mutate one DraftTaskTree."""
+
+    command_id: str = Field(default_factory=_new_id, min_length=1)
+    session_id: str = Field(min_length=1)
+    draft_tree_id: str | None = Field(default=None, min_length=1)
+    raw_task_id: str | None = Field(default=None, min_length=1)
+    actor: ActorRef
+    causation_message_id: str | None = Field(default=None, min_length=1)
+    expected_version: int | None = Field(default=None, ge=1)
+    idempotency_key: str | None = Field(default=None, min_length=1)
+    operations: tuple[DraftTaskTreeOperation, ...] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def _validate_target(self) -> MutateDraftTaskTreeCommand:
+        creates = any(operation.op == "create_tree" for operation in self.operations)
+        if not creates and self.draft_tree_id is None:
+            raise ValueError("non-create DraftTaskTree command requires draft_tree_id")
+        return self
+
+
+class PublishDraftTaskTreeCommand(_FrozenAuthoringModel):
+    """Command to publish a validated DraftTaskTree through TaskPublisher."""
+
+    command_id: str = Field(default_factory=_new_id, min_length=1)
+    session_id: str = Field(min_length=1)
+    draft_tree_id: str = Field(min_length=1)
+    actor: ActorRef
+    expected_version: int | None = Field(default=None, ge=1)
+    idempotency_key: str = Field(min_length=1)
+    publish_options: PublishOptions = Field(default_factory=PublishOptions)
+
+
+type AuthoringCommand = (
+    MutateRawTaskCommand | MutateDraftTaskTreeCommand | PublishDraftTaskTreeCommand
+)
+
+
+class AuthoringMessageEffect(_FrozenAuthoringModel):
+    """Requested message side effect produced by a validated command."""
+
+    message_type: AuthoringMessageEffectType
+    content: str = Field(min_length=1)
+    task_id: str | None = Field(default=None, min_length=1)
+    context: dict[str, Any] = Field(default_factory=dict)
+    action_options: tuple[str, ...] = ()
+    requires_response: bool = False
+
+    @model_validator(mode="after")
+    def _validate_actionable(self) -> AuthoringMessageEffect:
+        if self.requires_response and self.message_type != "actionable":
+            raise ValueError("requires_response message effects must be actionable")
+        if (
+            self.message_type == "actionable"
+            and self.requires_response
+            and not self.action_options
+        ):
+            raise ValueError("actionable response effects require action_options")
+        return self
+
+
+class AuthoringCommandError(_FrozenAuthoringModel):
+    code: str = Field(min_length=1)
+    message: str = Field(min_length=1)
+    command_id: str | None = Field(default=None, min_length=1)
+    path: tuple[str, ...] = ()
+
+
+class AuthoringCommandWarning(_FrozenAuthoringModel):
+    code: str = Field(min_length=1)
+    message: str = Field(min_length=1)
+    command_id: str | None = Field(default=None, min_length=1)
+    path: tuple[str, ...] = ()
+
+
+class AuthoringCommandResult(_FrozenAuthoringModel):
+    """Result returned by AuthoringCommandService after command validation."""
+
+    ok: bool
+    batch_id: str | None = Field(default=None, min_length=1)
+    applied_command_ids: tuple[str, ...] = ()
+    object_refs: tuple[TaskRef, ...] = ()
+    message_effects: tuple[AuthoringMessageEffect, ...] = ()
+    emitted_message_ids: tuple[str, ...] = ()
+    errors: tuple[AuthoringCommandError, ...] = ()
+    warnings: tuple[AuthoringCommandWarning, ...] = ()
+
+    @property
+    def accepted(self) -> bool:
+        return self.ok
+
+    @property
+    def status(self) -> AuthoringCommandStatus:
+        return "accepted" if self.ok else "rejected"
+
+    @model_validator(mode="after")
+    def _validate_result(self) -> AuthoringCommandResult:
+        if self.ok and self.errors:
+            raise ValueError("accepted authoring result must not include errors")
+        if not self.ok and not self.errors:
+            raise ValueError("rejected authoring result requires errors")
+        return self
+
+
+class AuthoringCommandBatch(_FrozenAuthoringModel):
+    """Coarse-grained authoring command submission."""
+
+    batch_id: str = Field(default_factory=_new_id, min_length=1)
+    session_id: str = Field(min_length=1)
+    actor: ActorRef
+    causation_message_id: str | None = Field(default=None, min_length=1)
+    idempotency_key: str | None = Field(default=None, min_length=1)
+    mode: AuthoringCommandMode = "all_or_nothing"
+    commands: tuple[AuthoringCommand, ...] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def _validate_batch(self) -> AuthoringCommandBatch:
+        for command in self.commands:
+            if command.session_id != self.session_id:
+                raise ValueError("authoring command session_id must match batch")
+            if command.actor != self.actor:
+                raise ValueError("authoring command actor must match batch")
+        if self.mode == "best_effort" and any(
+            isinstance(command, PublishDraftTaskTreeCommand) for command in self.commands
+        ):
+            raise ValueError("publish batches must use all_or_nothing")
+        return self
+
+
 class AuthoringContext(_FrozenAuthoringModel):
     """Read-only context passed into one Collaborator invocation."""
 
@@ -304,20 +506,6 @@ class DraftTaskTreeValidation(_FrozenAuthoringModel):
         if self.valid != (not self.errors):
             raise ValueError("valid must match whether validation has errors")
         return self
-
-
-class AuthoringCommandResult(_FrozenAuthoringModel):
-    command_id: str = Field(default_factory=_new_id, min_length=1)
-    status: AuthoringCommandStatus
-    message: str = Field(min_length=1)
-    draft_tree_id: str | None = Field(default=None, min_length=1)
-    affected_task_refs: tuple[TaskRef, ...] = ()
-    emitted_message_ids: tuple[str, ...] = ()
-    validation: DraftTaskTreeValidation | None = None
-
-    @property
-    def accepted(self) -> bool:
-        return self.status == "accepted"
 
 
 @runtime_checkable

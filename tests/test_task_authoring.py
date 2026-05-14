@@ -7,20 +7,29 @@ from pydantic import ValidationError
 
 from taskweavn.interaction import AgentMessage
 from taskweavn.task import (
+    ActorRef,
+    AuthoringCommandBatch,
+    AuthoringCommandError,
     AuthoringCommandResult,
     AuthoringContext,
+    AuthoringMessageEffect,
     CapabilityCatalog,
     DraftTaskNode,
     DraftTaskNodeProposal,
     DraftTaskPatchProposal,
     DraftTaskTree,
+    DraftTaskTreeOperation,
     DraftTaskTreeProposal,
     DraftTaskTreeValidator,
     FeasibilityReport,
+    MutateDraftTaskTreeCommand,
+    MutateRawTaskCommand,
+    PublishDraftTaskTreeCommand,
     RawTask,
     RawTaskAnswer,
     RawTaskAnswerOption,
     RawTaskAsk,
+    RawTaskOperation,
     StaticCapabilityCatalog,
     TaskNodeOption,
     TaskNodeOptionSet,
@@ -31,6 +40,10 @@ from taskweavn.task import (
 
 def _catalog() -> StaticCapabilityCatalog:
     return StaticCapabilityCatalog(["general", "writing", "testing", "writing"])
+
+
+def _actor() -> ActorRef:
+    return ActorRef(actor_id="collab", kind="collaborator", display_name="Collaborator")
 
 
 def _ready_feasibility() -> FeasibilityReport:
@@ -345,15 +358,156 @@ def test_patch_proposal_and_authoring_result_are_frozen() -> None:
         assistant_message="I will tighten the task.",
     )
     result = AuthoringCommandResult(
-        status="accepted",
-        message="draft task updated",
-        affected_task_refs=(TaskRef.draft("d1"),),
+        ok=True,
+        object_refs=(TaskRef.draft("d1"),),
     )
 
     assert proposal.affected_scope == "selected_node"
     assert result.accepted
+    assert result.status == "accepted"
     with pytest.raises(ValidationError):
-        result.message = "tamper"
+        result.ok = False
+
+
+def test_mutate_raw_task_command_allows_create_without_id() -> None:
+    command = MutateRawTaskCommand(
+        session_id="s1",
+        actor=_actor(),
+        operations=(
+            RawTaskOperation(
+                op="create",
+                payload={"source_message_id": "m1", "user_input": "Make a website"},
+            ),
+        ),
+    )
+
+    assert command.raw_task_id is None
+    assert command.operations[0].op == "create"
+
+
+def test_mutate_raw_task_command_requires_target_for_non_create() -> None:
+    with pytest.raises(ValidationError, match="requires raw_task_id"):
+        MutateRawTaskCommand(
+            session_id="s1",
+            actor=_actor(),
+            operations=(RawTaskOperation(op="set_status", payload={"status": "cancelled"}),),
+        )
+
+
+def test_mutate_draft_tree_command_requires_target_for_non_create() -> None:
+    with pytest.raises(ValidationError, match="requires draft_tree_id"):
+        MutateDraftTaskTreeCommand(
+            session_id="s1",
+            actor=_actor(),
+            operations=(DraftTaskTreeOperation(op="mark_accepted"),),
+        )
+
+    command = MutateDraftTaskTreeCommand(
+        session_id="s1",
+        raw_task_id="raw1",
+        actor=_actor(),
+        operations=(DraftTaskTreeOperation(op="create_tree", payload={"roots": []}),),
+    )
+
+    assert command.draft_tree_id is None
+
+
+def test_publish_command_requires_idempotency_key() -> None:
+    command = PublishDraftTaskTreeCommand(
+        session_id="s1",
+        draft_tree_id="tree1",
+        actor=_actor(),
+        idempotency_key="publish-tree1",
+    )
+
+    assert command.publish_options.start_immediately
+    with pytest.raises(ValidationError):
+        PublishDraftTaskTreeCommand(
+            session_id="s1",
+            draft_tree_id="tree1",
+            actor=_actor(),
+            idempotency_key="",
+        )
+
+
+def test_authoring_command_batch_validates_session_and_actor() -> None:
+    actor = _actor()
+    command = MutateRawTaskCommand(
+        session_id="s1",
+        actor=actor,
+        raw_task_id="raw1",
+        operations=(RawTaskOperation(op="set_status", payload={"status": "cancelled"}),),
+    )
+    batch = AuthoringCommandBatch(session_id="s1", actor=actor, commands=(command,))
+
+    assert batch.mode == "all_or_nothing"
+    with pytest.raises(ValidationError, match="session_id"):
+        AuthoringCommandBatch(session_id="other", actor=actor, commands=(command,))
+    with pytest.raises(ValidationError, match="actor"):
+        AuthoringCommandBatch(
+            session_id="s1",
+            actor=ActorRef(actor_id="other", kind="collaborator"),
+            commands=(command,),
+        )
+
+
+def test_authoring_command_batch_rejects_best_effort_publish() -> None:
+    actor = _actor()
+    command = PublishDraftTaskTreeCommand(
+        session_id="s1",
+        draft_tree_id="tree1",
+        actor=actor,
+        idempotency_key="publish-tree1",
+    )
+
+    with pytest.raises(ValidationError, match="all_or_nothing"):
+        AuthoringCommandBatch(
+            session_id="s1",
+            actor=actor,
+            mode="best_effort",
+            commands=(command,),
+        )
+
+
+def test_authoring_message_effect_requires_actionable_options() -> None:
+    effect = AuthoringMessageEffect(
+        message_type="actionable",
+        content="Choose an audience",
+        action_options=("beginner", "advanced"),
+        requires_response=True,
+    )
+
+    assert effect.requires_response
+    with pytest.raises(ValidationError, match="must be actionable"):
+        AuthoringMessageEffect(
+            message_type="informational",
+            content="FYI",
+            requires_response=True,
+        )
+    with pytest.raises(ValidationError, match="action_options"):
+        AuthoringMessageEffect(
+            message_type="actionable",
+            content="Choose",
+            requires_response=True,
+        )
+
+
+def test_authoring_command_result_validates_error_shape() -> None:
+    accepted = AuthoringCommandResult(ok=True, applied_command_ids=("c1",))
+    rejected = AuthoringCommandResult(
+        ok=False,
+        errors=(AuthoringCommandError(code="invalid_transition", message="cannot publish"),),
+    )
+
+    assert accepted.status == "accepted"
+    assert rejected.status == "rejected"
+    with pytest.raises(ValidationError, match="must not include errors"):
+        AuthoringCommandResult(
+            ok=True,
+            errors=(AuthoringCommandError(code="bad", message="bad"),),
+        )
+    with pytest.raises(ValidationError, match="requires errors"):
+        AuthoringCommandResult(ok=False)
 
 
 def test_validator_accepts_valid_tree() -> None:

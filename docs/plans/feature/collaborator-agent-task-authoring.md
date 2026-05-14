@@ -1095,7 +1095,19 @@ Draft contracts
 - Completed in first implementation pass:
   - Slice 1 Draft Authoring Contracts And Validator.
   - Slice 2 RawTask Contracts And Feasibility.
+  - Slice 3 Authoring Command Protocol Contracts.
   - Added `taskweavn.task.authoring` with:
+    - `ActorRef`
+    - `AuthoringCommandBatch`
+    - `MutateRawTaskCommand`
+    - `RawTaskOperation`
+    - `MutateDraftTaskTreeCommand`
+    - `DraftTaskTreeOperation`
+    - `PublishDraftTaskTreeCommand`
+    - `PublishOptions`
+    - `AuthoringMessageEffect`
+    - `AuthoringCommandError`
+    - `AuthoringCommandWarning`
     - `RawTask`
     - `RawTaskStatus`
     - `RawTaskAsk`
@@ -1112,19 +1124,19 @@ Draft contracts
     - `TaskNodeOptionSet`
     - `DraftTaskValidationIssue`
     - `DraftTaskTreeValidation`
-    - `AuthoringCommandResult` minimal shape; command-protocol Slice 3 will revise/extend it.
+    - `AuthoringCommandResult`
     - `CapabilityCatalog`
     - `StaticCapabilityCatalog`
     - `DraftTaskTreeValidator`
   - Validator now covers capability lookup, root structure, duplicate node ids, duplicate sibling order, publishable status, blank content, max depth, and max node count.
-  - Added tests for RawTask lifecycle, feasibility defaults/validation, ask/answer linkage, authoring context, proposal schemas, option schemas, validation results, capability catalog, validator errors/warnings, and frozen model behavior.
+  - Added tests for AuthoringCommand batch invariants, command target validation, message effect validation, result validation, RawTask lifecycle, feasibility defaults/validation, ask/answer linkage, authoring context, proposal schemas, option schemas, validation results, capability catalog, validator errors/warnings, and frozen model behavior.
 - Verified:
-  - `uv run pytest tests/test_task_authoring.py` — 21 passed, 1 warning
+  - `uv run pytest tests/test_task_authoring.py` — 29 passed, 1 warning
   - `uv run ruff check src/taskweavn/task tests/test_task_authoring.py`
   - `uv run mypy src/taskweavn/task tests/test_task_authoring.py`
   - `uv run ruff check src tests`
   - `uv run mypy src tests`
-  - `uv run pytest` — 516 passed, 1 warning
+  - `uv run pytest` — 524 passed, 1 warning
   - `git diff --check`
 - Discussion promoted: [RawTask、可行性判断与 Authoring Domain](../../discussion/2026-05-14-raw-task-authoring-domain.md)
-- Revised Next Step: Slice 3 Authoring Command Protocol Contracts。
+- Revised Next Step: Slice 4 In-Memory Authoring Stores。
