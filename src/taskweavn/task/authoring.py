@@ -17,6 +17,7 @@ ActorKind = Literal["user", "collaborator", "agent", "system", "api"]
 AuthoringCommandMode = Literal["all_or_nothing", "best_effort"]
 AuthoringCommandStatus = Literal["accepted", "rejected"]
 AuthoringMessageEffectType = Literal["informational", "actionable"]
+CapabilityLevel = Literal["low", "medium", "high", "unknown"]
 DraftTaskTreeOperationKind = Literal[
     "create_tree",
     "patch_node",
@@ -410,18 +411,60 @@ class AuthoringCommandBatch(_FrozenAuthoringModel):
         return self
 
 
+class CapabilityDescriptor(_FrozenAuthoringModel):
+    """Read-only execution capability descriptor visible to Collaborator."""
+
+    capability_id: str = Field(min_length=1)
+    display_name: str = Field(min_length=1)
+    summary: str = Field(min_length=1)
+    input_schema: dict[str, Any] = Field(default_factory=dict)
+    output_schema: dict[str, Any] = Field(default_factory=dict)
+    preconditions: tuple[str, ...] = ()
+    cost_level: CapabilityLevel = "unknown"
+    latency_level: CapabilityLevel = "unknown"
+    risk_level: CapabilityLevel = "unknown"
+    reliability_score: float | None = Field(default=None, ge=0.0, le=1.0)
+    applicable_domains: tuple[str, ...] = ()
+    anti_patterns: tuple[str, ...] = ()
+
+    @model_validator(mode="after")
+    def _validate_capability(self) -> CapabilityDescriptor:
+        if not self.capability_id.strip():
+            raise ValueError("capability_id must not be blank")
+        return self
+
+    @classmethod
+    def from_mapping(cls, data: dict[str, Any]) -> CapabilityDescriptor:
+        """Build from future WorkspaceCapabilityDescriptor-like mappings."""
+        capability_id = data.get("capability_id") or data.get("id") or data.get("name")
+        display_name = data.get("display_name") or data.get("name") or capability_id
+        summary = data.get("summary") or data.get("description") or display_name
+        return cls.model_validate(
+            {
+                **data,
+                "capability_id": capability_id,
+                "display_name": display_name,
+                "summary": summary,
+            }
+        )
+
+
 class AuthoringContext(_FrozenAuthoringModel):
     """Read-only context passed into one Collaborator invocation."""
 
     session_id: str = Field(min_length=1)
     mode: AuthoringMode
+    raw_task_id: str | None = Field(default=None, min_length=1)
+    feasibility_status: FeasibilityStatus | None = None
+    unresolved_asks: tuple[RawTaskAsk, ...] = ()
+    raw_tasks: tuple[RawTask, ...] = ()
     selected_task_ref: TaskRef | None = None
     draft_trees: tuple[DraftTaskTree, ...] = ()
     selected_node: DraftTaskNode | None = None
     ancestors: tuple[DraftTaskNode, ...] = ()
     children: tuple[DraftTaskNode, ...] = ()
     recent_messages: tuple[AgentMessage, ...] = ()
-    capabilities: tuple[str, ...] = ()
+    capabilities: tuple[CapabilityDescriptor, ...] = ()
     constraints: dict[str, Any] = Field(default_factory=dict)
 
     @model_validator(mode="after")
@@ -433,6 +476,9 @@ class AuthoringContext(_FrozenAuthoringModel):
                 raise ValueError("selected_node must match selected_task_ref")
             if self.selected_node.session_id != self.session_id:
                 raise ValueError("selected_node session_id must match context session_id")
+        for ask in self.unresolved_asks:
+            if self.raw_task_id is not None and ask.raw_task_id != self.raw_task_id:
+                raise ValueError("unresolved_asks must belong to raw_task_id")
         return self
 
 
@@ -510,30 +556,73 @@ class DraftTaskTreeValidation(_FrozenAuthoringModel):
 
 @runtime_checkable
 class CapabilityCatalog(Protocol):
-    def all(self) -> tuple[str, ...]: ...
+    def all(self) -> tuple[CapabilityDescriptor, ...]: ...
+
+    def get(self, capability_id: str) -> CapabilityDescriptor | None: ...
 
     def contains(self, capability: str) -> bool: ...
+
+    def query(
+        self,
+        intent: str,
+        *,
+        domains: tuple[str, ...] = (),
+        limit: int = 20,
+    ) -> tuple[CapabilityDescriptor, ...]: ...
 
 
 class StaticCapabilityCatalog:
     """Small deterministic capability catalog for early authoring tests."""
 
-    def __init__(self, capabilities: Iterable[str]) -> None:
+    def __init__(self, capabilities: Iterable[str | CapabilityDescriptor]) -> None:
         seen: set[str] = set()
-        ordered: list[str] = []
+        ordered: list[CapabilityDescriptor] = []
         for capability in capabilities:
-            normalized = capability.strip()
-            if not normalized or normalized in seen:
+            descriptor = _coerce_capability_descriptor(capability)
+            if descriptor is None or descriptor.capability_id in seen:
                 continue
-            seen.add(normalized)
-            ordered.append(normalized)
+            seen.add(descriptor.capability_id)
+            ordered.append(descriptor)
         self._capabilities = tuple(ordered)
+        self._by_id = {capability.capability_id: capability for capability in ordered}
 
-    def all(self) -> tuple[str, ...]:
+    def all(self) -> tuple[CapabilityDescriptor, ...]:
         return self._capabilities
 
+    def get(self, capability_id: str) -> CapabilityDescriptor | None:
+        return self._by_id.get(capability_id.strip())
+
     def contains(self, capability: str) -> bool:
-        return capability.strip() in self._capabilities
+        return capability.strip() in self._by_id
+
+    def query(
+        self,
+        intent: str,
+        *,
+        domains: tuple[str, ...] = (),
+        limit: int = 20,
+    ) -> tuple[CapabilityDescriptor, ...]:
+        if limit < 1:
+            return ()
+        domain_set = {domain.strip().lower() for domain in domains if domain.strip()}
+        candidates = [
+            capability
+            for capability in self._capabilities
+            if not domain_set
+            or domain_set.intersection(
+                domain.lower() for domain in capability.applicable_domains
+            )
+        ]
+        tokens = _query_tokens(intent)
+        if not tokens:
+            return tuple(candidates[:limit])
+        scored = [
+            (_capability_score(capability, tokens), capability)
+            for capability in candidates
+        ]
+        scored.sort(key=lambda item: (-item[0], item[1].capability_id))
+        positive = [capability for score, capability in scored if score > 0]
+        return tuple((positive or candidates)[:limit])
 
 
 class DraftTaskTreeValidator:
@@ -709,6 +798,45 @@ class DraftTaskTreeValidator:
                 )
             )
         return errors
+
+
+def _coerce_capability_descriptor(
+    capability: str | CapabilityDescriptor,
+) -> CapabilityDescriptor | None:
+    if isinstance(capability, CapabilityDescriptor):
+        return capability
+    normalized = capability.strip()
+    if not normalized:
+        return None
+    display = normalized.replace("_", " ").title()
+    return CapabilityDescriptor(
+        capability_id=normalized,
+        display_name=display,
+        summary=f"{display} capability",
+    )
+
+
+def _query_tokens(intent: str) -> set[str]:
+    return {
+        token
+        for token in intent.lower().replace("_", " ").replace("-", " ").split()
+        if token
+    }
+
+
+def _capability_score(
+    capability: CapabilityDescriptor,
+    tokens: set[str],
+) -> int:
+    haystack = " ".join(
+        (
+            capability.capability_id,
+            capability.display_name,
+            capability.summary,
+            " ".join(capability.applicable_domains),
+        )
+    ).lower()
+    return sum(1 for token in tokens if token in haystack)
 
 
 def _issue(

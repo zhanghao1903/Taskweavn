@@ -20,6 +20,8 @@ from taskweavn.task.authoring import (
     AuthoringMessageEffectType,
     AuthoringMode,
     CapabilityCatalog,
+    CapabilityDescriptor,
+    CapabilityLevel,
     DraftPatchScope,
     DraftTaskNodeProposal,
     DraftTaskPatchProposal,
@@ -47,6 +49,10 @@ from taskweavn.task.authoring import (
     StaticCapabilityCatalog,
     TaskNodeOption,
     TaskNodeOptionSet,
+)
+from taskweavn.task.authoring_context import (
+    AuthoringContextBuilder,
+    DefaultAuthoringContextBuilder,
 )
 from taskweavn.task.authoring_service import (
     AuthoringCommandService,
@@ -129,9 +135,12 @@ __all__ = [
     "AuthoringCommandStatus",
     "AuthoringCommandWarning",
     "AuthoringContext",
+    "AuthoringContextBuilder",
     "AuthoringMessageEffect",
     "AuthoringMessageEffectType",
     "AuthoringMode",
+    "CapabilityDescriptor",
+    "CapabilityLevel",
     "CapabilityCatalog",
     "CommandResult",
     "CommandStatus",
@@ -139,6 +148,7 @@ __all__ = [
     "ConfirmationOptionView",
     "DefaultTaskCommandService",
     "DefaultAuthoringCommandService",
+    "DefaultAuthoringContextBuilder",
     "DefaultTaskInteractionTimelineService",
     "DraftPatchScope",
     "DraftTaskTreeOperation",

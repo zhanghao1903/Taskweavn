@@ -14,6 +14,7 @@ from taskweavn.task import (
     AuthoringContext,
     AuthoringMessageEffect,
     CapabilityCatalog,
+    CapabilityDescriptor,
     DraftTaskNode,
     DraftTaskNodeProposal,
     DraftTaskPatchProposal,
@@ -268,11 +269,31 @@ def test_raw_task_rejected_requires_terminal_feasibility_when_present() -> None:
 
 
 def test_static_capability_catalog_strips_empty_and_duplicates() -> None:
-    catalog = StaticCapabilityCatalog([" writing ", "", "testing", "writing"])
+    catalog = StaticCapabilityCatalog(
+        [
+            " writing ",
+            "",
+            CapabilityDescriptor(
+                capability_id="testing",
+                display_name="Testing",
+                summary="Run and write tests",
+                applicable_domains=("quality",),
+            ),
+            "writing",
+        ]
+    )
 
-    assert catalog.all() == ("writing", "testing")
+    assert tuple(capability.capability_id for capability in catalog.all()) == (
+        "writing",
+        "testing",
+    )
+    testing = catalog.get("testing")
+    assert testing is not None
+    assert testing.display_name == "Testing"
     assert catalog.contains(" writing ")
     assert not catalog.contains("unknown")
+    assert catalog.query("write tests")[0].capability_id == "testing"
+    assert catalog.query("anything", domains=("quality",))[0].capability_id == "testing"
     assert isinstance(catalog, CapabilityCatalog)
 
 
