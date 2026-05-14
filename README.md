@@ -176,7 +176,7 @@ src/taskweavn/
 | Interaction Layer Design | [interaction_layer_design.md](docs/interaction_layer_design.md) | - |
 | Project Plan | [agent_project_plan.md](docs/agent_project_plan.md) | [agent_project_plan_en.md](docs/agent_project_plan_en.md) |
 | Multi-Agent Architecture | [multi_agent_collaboration_architecture.md](docs/multi_agent_collaboration_architecture.md) | [multi_agent_collaboration_architecture_en.md](docs/multi_agent_collaboration_architecture_en.md) |
-| User Test Cases | [docs/user_cases](docs/user_cases) | - |
+| User Test Cases | [docs/user/user_cases](docs/user/user_cases) | - |
 
 ## Development
 

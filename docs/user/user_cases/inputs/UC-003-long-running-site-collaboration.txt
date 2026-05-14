@@ -1,4 +1,4 @@
-(code-agent) (base) zhanghao@zhanghaodeMacBook-Pro user_cases % taskweavn run \
+(code-agent) (base) zhanghao@zhanghaodeMacBook-Pro user/user_cases % taskweavn run \
   --task "帮我从零搭建一个个人网站项目。要求：1. 首页有 hero、about、projects、contact 四个区域；2. 使用独立 CSS；3. README 说明如何预览；4. 创建一个简单的 TODO.md 记录后续优化；5. 完成后检查目录结构和关键文件内容。" \
   --workspace ./workspace/user-test-hard \
   --max-steps 30 \
