@@ -1099,6 +1099,7 @@ Draft contracts
   - Slice 4 In-Memory Authoring Stores.
   - Slice 5 Authoring Command Service And Handlers.
   - Slice 6 Authoring Context Builder And Capability Catalog v1.
+  - Slice 7 Collaborator Proposal Mapping Service.
   - Added `taskweavn.task.authoring` with:
     - `ActorRef`
     - `AuthoringCommandBatch`
@@ -1163,24 +1164,38 @@ Draft contracts
     - session-mode RawTask/DraftTaskTree/recent-message aggregation
     - task-mode selected-node/ancestor/children/recent-message aggregation
     - capability descriptor filtering for raw intent and selected node refinement
+  - Added `taskweavn.task.collaborator` with:
+    - `CollaboratorAuthoringService`
+    - `DefaultCollaboratorAuthoringService`
+    - `CollaboratorLLM`
+    - `RawTaskProposal`
+    - `RawTaskAskProposal`
+    - JSON-only prompt boundary
+    - RawTask feasibility/clarification proposal mapping
+    - DraftTaskTree proposal mapping
+    - selected-node patch proposal mapping
+    - invalid proposal diagnostics as structured `AuthoringCommandResult`
   - Validator now covers capability lookup, root structure, duplicate node ids, duplicate sibling order, publishable status, blank content, max depth, and max node count.
-  - Added tests for AuthoringContextBuilder session/task modes, selected-node reconstruction, capability filtering, read-only behavior, AuthoringCommandService command application, idempotency, RawTask clarification mutation, nested DraftTaskTree creation, message effects, all-or-nothing rollback, best-effort partial success, publish skeleton behavior, in-memory RawTask/DraftTask stores, version conflicts, traversal, accepted/published state transitions, lineage mapping, AuthoringCommand batch invariants, command target validation, message effect validation, result validation, RawTask lifecycle, feasibility defaults/validation, ask/answer linkage, authoring context, proposal schemas, option schemas, validation results, capability catalog, validator errors/warnings, and frozen model behavior.
+  - Added tests for CollaboratorAuthoringService mock-LLM raw feasibility/clarification proposals, draft tree generation, selected-node patching without global tree rebuild, invalid proposal rejection, AuthoringContextBuilder session/task modes, selected-node reconstruction, capability filtering, read-only behavior, AuthoringCommandService command application, idempotency, RawTask clarification mutation, nested DraftTaskTree creation, message effects, all-or-nothing rollback, best-effort partial success, publish skeleton behavior, in-memory RawTask/DraftTask stores, version conflicts, traversal, accepted/published state transitions, lineage mapping, AuthoringCommand batch invariants, command target validation, message effect validation, result validation, RawTask lifecycle, feasibility defaults/validation, ask/answer linkage, authoring context, proposal schemas, option schemas, validation results, capability catalog, validator errors/warnings, and frozen model behavior.
 - Verified:
   - `uv run pytest tests/test_task_authoring.py` — 29 passed, 1 warning
   - `uv run pytest tests/test_in_memory_authoring_stores.py tests/test_task_store_protocols.py tests/test_task_commands.py tests/test_task_projection.py tests/test_task_timeline.py` — 40 passed, 1 warning
   - `uv run pytest tests/test_authoring_command_service.py tests/test_in_memory_authoring_stores.py tests/test_task_authoring.py` — 51 passed, 1 warning
   - `uv run pytest tests/test_authoring_context_builder.py tests/test_task_authoring.py` — 37 passed, 1 warning
+  - `uv run pytest tests/test_collaborator_authoring_service.py tests/test_authoring_context_builder.py tests/test_authoring_command_service.py` — 22 passed, 1 warning
   - `uv run ruff check src/taskweavn/task tests/test_task_authoring.py`
   - `uv run ruff check src/taskweavn/task tests/test_in_memory_authoring_stores.py tests/test_task_store_protocols.py tests/test_task_commands.py tests/test_task_projection.py tests/test_task_timeline.py`
   - `uv run ruff check src/taskweavn/task tests/test_authoring_command_service.py tests/test_in_memory_authoring_stores.py tests/test_task_authoring.py`
   - `uv run ruff check src/taskweavn/task tests/test_authoring_context_builder.py tests/test_task_authoring.py`
+  - `uv run ruff check src/taskweavn/task tests/test_collaborator_authoring_service.py tests/test_authoring_context_builder.py tests/test_authoring_command_service.py`
   - `uv run mypy src/taskweavn/task tests/test_task_authoring.py`
   - `uv run mypy src/taskweavn/task tests/test_in_memory_authoring_stores.py tests/test_task_store_protocols.py tests/test_task_commands.py tests/test_task_projection.py tests/test_task_timeline.py`
   - `uv run mypy src/taskweavn/task tests/test_authoring_command_service.py tests/test_in_memory_authoring_stores.py tests/test_task_authoring.py`
   - `uv run mypy src/taskweavn/task tests/test_authoring_context_builder.py tests/test_task_authoring.py`
+  - `uv run mypy src/taskweavn/task tests/test_collaborator_authoring_service.py tests/test_authoring_context_builder.py tests/test_authoring_command_service.py`
   - `uv run ruff check src tests`
   - `uv run mypy src tests`
-  - `uv run pytest` — 554 passed, 1 warning
+  - `uv run pytest` — 560 passed, 1 warning
   - `git diff --check`
 - Discussion promoted: [RawTask、可行性判断与 Authoring Domain](../../discussion/2026-05-14-raw-task-authoring-domain.md)
-- Revised Next Step: Slice 7 Collaborator Proposal Mapping Service。
+- Revised Next Step: Slice 8 Publish Boundary。
