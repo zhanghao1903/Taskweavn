@@ -2,6 +2,19 @@
 
 Architecture docs describe stable concepts, object lifecycles, system contracts, and long-term design direction.
 
+## Core Principles
+
+1. **User needs drive architecture/plan/feature decisions.**
+2. **Architecture design drives plans and feature packages.**
+3. **Plans drive implementation.**
+
+These principles enforce one end-to-end attribution chain with two valid paths:
+
+- `User Need -> Architecture -> Plan/Feature -> Implementation (code/tests/releases)`
+- `User Need -> Plan/Feature -> Implementation (when architecture boundary is unchanged)`
+
+Every important decision should be traceable back to concrete user problems, not assumption-led design.
+
 ## Core References
 
 | File | Purpose |
@@ -21,6 +34,7 @@ Architecture docs describe stable concepts, object lifecycles, system contracts,
 | [configurable-logging-system.md](configurable-logging-system.md) | Configurable structured logging, hot update, archive, and compatibility design. |
 | [multi-agent-collaboration.md](multi-agent-collaboration.md) | Multi-agent collaboration architecture. |
 | [multi-agent-collaboration_en.md](multi-agent-collaboration_en.md) | English version of the collaboration architecture. |
+| [user/README.md](user/README.md) | User modeling system: user needs/scenarios, do-or-not decisions, current vs future solution shape, and architecture mapping. |
 | [review.md](review.md) | Architecture review and plan inputs. |
 
 ## Rule of Thumb
