@@ -1100,6 +1100,7 @@ Draft contracts
   - Slice 5 Authoring Command Service And Handlers.
   - Slice 6 Authoring Context Builder And Capability Catalog v1.
   - Slice 7 Collaborator Proposal Mapping Service.
+  - Slice 8 Publish Boundary.
   - Added `taskweavn.task.authoring` with:
     - `ActorRef`
     - `AuthoringCommandBatch`
@@ -1156,8 +1157,9 @@ Draft contracts
     - deterministic RawTask and DraftTaskTree command handlers
     - delayed message-effect publication through `MessageBus`
     - batch idempotency cache
+    - command-level idempotency fallback for single-command batches
     - in-memory rollback support for `all_or_nothing` batches
-    - explicit `PublishDraftTaskTreeCommand` skeleton deferred to Slice 8
+    - `PublishDraftTaskTreeCommand` handler with accepted-state gate, validator check, `TaskPublisher` handoff, lineage mapping persistence, duplicate-publish rejection, and publish trace message effect
   - Added `taskweavn.task.authoring_context` with:
     - `AuthoringContextBuilder`
     - `DefaultAuthoringContextBuilder`
@@ -1176,26 +1178,29 @@ Draft contracts
     - selected-node patch proposal mapping
     - invalid proposal diagnostics as structured `AuthoringCommandResult`
   - Validator now covers capability lookup, root structure, duplicate node ids, duplicate sibling order, publishable status, blank content, max depth, and max node count.
-  - Added tests for CollaboratorAuthoringService mock-LLM raw feasibility/clarification proposals, draft tree generation, selected-node patching without global tree rebuild, invalid proposal rejection, AuthoringContextBuilder session/task modes, selected-node reconstruction, capability filtering, read-only behavior, AuthoringCommandService command application, idempotency, RawTask clarification mutation, nested DraftTaskTree creation, message effects, all-or-nothing rollback, best-effort partial success, publish skeleton behavior, in-memory RawTask/DraftTask stores, version conflicts, traversal, accepted/published state transitions, lineage mapping, AuthoringCommand batch invariants, command target validation, message effect validation, result validation, RawTask lifecycle, feasibility defaults/validation, ask/answer linkage, authoring context, proposal schemas, option schemas, validation results, capability catalog, validator errors/warnings, and frozen model behavior.
+  - Added tests for Publish Boundary success, accepted-state gating, validator rejection before publisher call, command-level publish idempotency, duplicate publish rejection, publisher rejection without marking published, CollaboratorAuthoringService mock-LLM raw feasibility/clarification proposals, draft tree generation, selected-node patching without global tree rebuild, invalid proposal rejection, AuthoringContextBuilder session/task modes, selected-node reconstruction, capability filtering, read-only behavior, AuthoringCommandService command application, idempotency, RawTask clarification mutation, nested DraftTaskTree creation, message effects, all-or-nothing rollback, best-effort partial success, in-memory RawTask/DraftTask stores, version conflicts, traversal, accepted/published state transitions, lineage mapping, AuthoringCommand batch invariants, command target validation, message effect validation, result validation, RawTask lifecycle, feasibility defaults/validation, ask/answer linkage, authoring context, proposal schemas, option schemas, validation results, capability catalog, validator errors/warnings, and frozen model behavior.
 - Verified:
   - `uv run pytest tests/test_task_authoring.py` — 29 passed, 1 warning
   - `uv run pytest tests/test_in_memory_authoring_stores.py tests/test_task_store_protocols.py tests/test_task_commands.py tests/test_task_projection.py tests/test_task_timeline.py` — 40 passed, 1 warning
   - `uv run pytest tests/test_authoring_command_service.py tests/test_in_memory_authoring_stores.py tests/test_task_authoring.py` — 51 passed, 1 warning
+  - `uv run pytest tests/test_authoring_command_service.py tests/test_in_memory_authoring_stores.py tests/test_task_store_protocols.py` — 28 passed, 1 warning
   - `uv run pytest tests/test_authoring_context_builder.py tests/test_task_authoring.py` — 37 passed, 1 warning
   - `uv run pytest tests/test_collaborator_authoring_service.py tests/test_authoring_context_builder.py tests/test_authoring_command_service.py` — 22 passed, 1 warning
   - `uv run ruff check src/taskweavn/task tests/test_task_authoring.py`
   - `uv run ruff check src/taskweavn/task tests/test_in_memory_authoring_stores.py tests/test_task_store_protocols.py tests/test_task_commands.py tests/test_task_projection.py tests/test_task_timeline.py`
   - `uv run ruff check src/taskweavn/task tests/test_authoring_command_service.py tests/test_in_memory_authoring_stores.py tests/test_task_authoring.py`
+  - `uv run ruff check src/taskweavn/task tests/test_authoring_command_service.py`
   - `uv run ruff check src/taskweavn/task tests/test_authoring_context_builder.py tests/test_task_authoring.py`
   - `uv run ruff check src/taskweavn/task tests/test_collaborator_authoring_service.py tests/test_authoring_context_builder.py tests/test_authoring_command_service.py`
   - `uv run mypy src/taskweavn/task tests/test_task_authoring.py`
   - `uv run mypy src/taskweavn/task tests/test_in_memory_authoring_stores.py tests/test_task_store_protocols.py tests/test_task_commands.py tests/test_task_projection.py tests/test_task_timeline.py`
   - `uv run mypy src/taskweavn/task tests/test_authoring_command_service.py tests/test_in_memory_authoring_stores.py tests/test_task_authoring.py`
+  - `uv run mypy src/taskweavn/task tests/test_authoring_command_service.py tests/test_in_memory_authoring_stores.py tests/test_task_store_protocols.py`
   - `uv run mypy src/taskweavn/task tests/test_authoring_context_builder.py tests/test_task_authoring.py`
   - `uv run mypy src/taskweavn/task tests/test_collaborator_authoring_service.py tests/test_authoring_context_builder.py tests/test_authoring_command_service.py`
   - `uv run ruff check src tests`
   - `uv run mypy src tests`
-  - `uv run pytest` — 560 passed, 1 warning
+  - `uv run pytest` — 564 passed, 1 warning
   - `git diff --check`
 - Discussion promoted: [RawTask、可行性判断与 Authoring Domain](../../discussion/2026-05-14-raw-task-authoring-domain.md)
-- Revised Next Step: Slice 8 Publish Boundary。
+- Revised Next Step: Slice 9 Collaborator Agent Template And API Adapter。

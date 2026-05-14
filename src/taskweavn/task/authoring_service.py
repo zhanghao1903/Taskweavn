@@ -19,6 +19,7 @@ from taskweavn.task.authoring import (
     AuthoringCommandWarning,
     AuthoringMessageEffect,
     DraftTaskTreeOperation,
+    DraftTaskTreeValidator,
     FeasibilityReport,
     MutateDraftTaskTreeCommand,
     MutateRawTaskCommand,
@@ -29,6 +30,7 @@ from taskweavn.task.authoring import (
     RawTaskAsk,
     RawTaskOperation,
 )
+from taskweavn.task.commands import TaskPublisher, TaskPublishResult
 from taskweavn.task.models import DraftTaskNode, TaskNodePatch, TaskRef
 from taskweavn.task.stores import DraftTaskStore, RawTaskStore, TaskStoreError
 
@@ -66,17 +68,22 @@ class DefaultAuthoringCommandService:
         raw_task_store: RawTaskStore,
         draft_store: DraftTaskStore,
         message_bus: MessageBus | None = None,
+        task_publisher: TaskPublisher | None = None,
+        draft_validator: DraftTaskTreeValidator | None = None,
     ) -> None:
         self._raw_task_store = raw_task_store
         self._draft_store = draft_store
         self._message_bus = message_bus
+        self._task_publisher = task_publisher
+        self._draft_validator = draft_validator
         self._lock = RLock()
         self._idempotency_results: dict[str, AuthoringCommandResult] = {}
 
     def submit(self, batch: AuthoringCommandBatch) -> AuthoringCommandResult:
         with self._lock:
-            if batch.idempotency_key is not None:
-                cached = self._idempotency_results.get(batch.idempotency_key)
+            idempotency_key = _idempotency_key(batch)
+            if idempotency_key is not None:
+                cached = self._idempotency_results.get(idempotency_key)
                 if cached is not None:
                     return cached
 
@@ -93,7 +100,7 @@ class DefaultAuthoringCommandService:
                         ),
                     ),
                 )
-                self._remember(batch, result)
+                self._remember(idempotency_key, result)
                 return result
             outputs: list[_CommandOutput] = []
             errors: list[AuthoringCommandError] = []
@@ -111,7 +118,7 @@ class DefaultAuthoringCommandService:
                             batch_id=batch.batch_id,
                             errors=(error,),
                         )
-                        self._remember(batch, result)
+                        self._remember(idempotency_key, result)
                         return result
 
             message_effects = tuple(
@@ -130,7 +137,7 @@ class DefaultAuthoringCommandService:
                     warning for output in outputs for warning in output.warnings
                 ),
             )
-            self._remember(batch, result)
+            self._remember(idempotency_key, result)
             return result
 
     def _apply_command(self, command: AuthoringCommand) -> _CommandOutput:
@@ -358,9 +365,49 @@ class DefaultAuthoringCommandService:
         return refs
 
     def _publish_draft_tree(self, command: PublishDraftTaskTreeCommand) -> _CommandOutput:
-        self._draft_store.get_tree(command.session_id, command.draft_tree_id)
-        raise NotImplementedError(
-            "PublishDraftTaskTreeCommand is reserved for Slice 8 publish boundary"
+        if self._task_publisher is None:
+            raise ValueError("task publisher is not configured")
+        tree = self._draft_store.get_tree(command.session_id, command.draft_tree_id)
+        nodes = self._draft_store.list_nodes(command.session_id, command.draft_tree_id)
+        _validate_publish_request(command, nodes)
+        if command.expected_version is not None and tree.version != command.expected_version:
+            raise ValueError(
+                f"stale version for {command.draft_tree_id!r}: "
+                f"expected {command.expected_version}, current {tree.version}"
+            )
+        if self._draft_validator is not None:
+            validation = self._draft_validator.validate_tree(tree)
+            if not validation.valid:
+                details = "; ".join(issue.message for issue in validation.errors)
+                raise ValueError(f"draft task tree validation failed: {details}")
+
+        publish_result = self._task_publisher.publish_draft_tree(
+            command.session_id,
+            command.draft_tree_id,
+        )
+        _validate_publish_result(command, nodes, publish_result)
+        self._draft_store.mark_published(
+            command.session_id,
+            command.draft_tree_id,
+            list(publish_result.mappings),
+            expected_version=command.expected_version or tree.version,
+        )
+        root_ids = publish_result.root_task_ids
+        return _CommandOutput(
+            command_id=command.command_id,
+            object_refs=tuple(TaskRef.published(task_id) for task_id in root_ids),
+            message_effects=(
+                AuthoringMessageEffect(
+                    message_type="informational",
+                    content="Draft task tree published.",
+                    context={
+                        "draft_tree_id": command.draft_tree_id,
+                        "root_task_ids": list(root_ids),
+                        "mapping_count": len(publish_result.mappings),
+                        "start_immediately": command.publish_options.start_immediately,
+                    },
+                ),
+            ),
         )
 
     def _publish_effects(
@@ -426,11 +473,11 @@ class DefaultAuthoringCommandService:
 
     def _remember(
         self,
-        batch: AuthoringCommandBatch,
+        idempotency_key: str | None,
         result: AuthoringCommandResult,
     ) -> None:
-        if batch.idempotency_key is not None:
-            self._idempotency_results[batch.idempotency_key] = result
+        if idempotency_key is not None:
+            self._idempotency_results[idempotency_key] = result
 
 
 def _raw_task_from_payload(
@@ -447,6 +494,15 @@ def _raw_task_from_payload(
         constraints=_tuple_payload(payload, "constraints"),
         assumptions=_tuple_payload(payload, "assumptions"),
     )
+
+
+def _idempotency_key(batch: AuthoringCommandBatch) -> str | None:
+    if batch.idempotency_key is not None:
+        return batch.idempotency_key
+    if len(batch.commands) != 1:
+        return None
+    command = batch.commands[0]
+    return getattr(command, "idempotency_key", None)
 
 
 def _feasibility_from_payload(payload: dict[str, Any]) -> FeasibilityReport:
@@ -570,6 +626,66 @@ def _require_draft_tree_id(command: MutateDraftTaskTreeCommand) -> str:
     if command.draft_tree_id is None:
         raise ValueError("draft_tree_id is required")
     return command.draft_tree_id
+
+
+def _validate_publish_request(
+    command: PublishDraftTaskTreeCommand,
+    nodes: list[DraftTaskNode],
+) -> None:
+    if not nodes:
+        raise ValueError("draft task tree has no nodes to publish")
+    root_ids = {
+        node.draft_task_id for node in nodes if node.parent_draft_task_id is None
+    }
+    requested_roots = set(command.publish_options.root_draft_task_ids)
+    if requested_roots and requested_roots != root_ids:
+        raise ValueError("partial root publish is not supported by this boundary")
+    for node in nodes:
+        if node.status == "published":
+            raise ValueError("draft task tree is already published")
+        if node.status == "cancelled":
+            raise ValueError(f"cannot publish cancelled draft task {node.draft_task_id!r}")
+        if node.status != "accepted":
+            raise ValueError("draft task tree must be accepted before publish")
+
+
+def _validate_publish_result(
+    command: PublishDraftTaskTreeCommand,
+    nodes: list[DraftTaskNode],
+    result: TaskPublishResult,
+) -> None:
+    if result.rejected_task_ids:
+        rejected = ", ".join(result.rejected_task_ids)
+        raise ValueError(f"task publisher rejected draft tasks: {rejected}")
+    if not result.root_task_ids:
+        raise ValueError("task publisher returned no root task ids")
+    if not result.mappings:
+        raise ValueError("task publisher returned no draft-to-published mappings")
+
+    expected_draft_ids = {node.draft_task_id for node in nodes}
+    root_draft_ids = {
+        node.draft_task_id for node in nodes if node.parent_draft_task_id is None
+    }
+    seen_draft_ids: set[str] = set()
+    mapped_root_task_ids: set[str] = set()
+    for mapping in result.mappings:
+        if mapping.session_id != command.session_id:
+            raise ValueError("publisher mapping session_id does not match command")
+        if mapping.draft_tree_id != command.draft_tree_id:
+            raise ValueError("publisher mapping draft_tree_id does not match command")
+        if mapping.draft_task_id in seen_draft_ids:
+            raise ValueError(f"duplicate mapping for draft task {mapping.draft_task_id!r}")
+        seen_draft_ids.add(mapping.draft_task_id)
+        if mapping.draft_task_id in root_draft_ids:
+            mapped_root_task_ids.add(mapping.task_id)
+    missing = expected_draft_ids - seen_draft_ids
+    extra = seen_draft_ids - expected_draft_ids
+    if missing:
+        raise ValueError(f"publisher mapping missing draft tasks: {sorted(missing)!r}")
+    if extra:
+        raise ValueError(f"publisher mapping has unknown draft tasks: {sorted(extra)!r}")
+    if mapped_root_task_ids != set(result.root_task_ids):
+        raise ValueError("publisher root_task_ids must match mapped root draft tasks")
 
 
 def _require_current_raw_task(
