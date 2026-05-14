@@ -3,7 +3,7 @@
 > Status: active
 > Last Updated: 2026-05-14
 > Maintained By: planning session
-> Related: [Project Plan](project/roadmap.md), [Planning Workflow](planning_workflow.md), [Architecture Decisions](decisions/), [Release Records](releases/)
+> Related: [Project Plan](project/roadmap.md), [Planning Workflow](planning_workflow.md), [Architecture Decisions](decisions/), [Release Records](releases/), [User Traceability](user_model/traceability.md)
 
 ---
 
@@ -50,18 +50,29 @@ User intent
 
 This is a larger shift than the original Interaction Layer plan. The Interaction Layer remains the foundation, but the next major work should strengthen reliability, observability, Task modeling, and publish flows before returning to RAG and summarization.
 
+Current user-need drivers:
+
+| Need | Roadmap Impact |
+|---|---|
+| [UN-105](user_model/needs/UN-105-system-evaluability-and-capability-disclosure.md) | Makes RawTask feasibility and Authoring Domain a near-term P0, because users need to judge task fit before execution. |
+| [UN-101](user_model/needs/UN-101-photo-curation-batch-screening.md) | Validates Task-first authoring for batch workflows with review checkpoints. |
+| [UN-102](user_model/needs/UN-102-courseware-html-generation.md) | Validates editable Task Trees for content-generation workflows. |
+| [UN-103](user_model/needs/UN-103-car-purchase-decision-support.md) | Keeps high-risk information tasks in clarification/evaluation flow until constraints and evidence expectations are explicit. |
+
 ---
 
 ## 3. Roadmap Principles
 
 1. **Task is the primary user-facing object.** The UI should organize work around Task Tree Lists and Task Nodes, not files or raw chat turns.
 2. **Authoring and execution are separate domains.** RawTask, feasibility, clarification asks, and DraftTaskTree stay in Authoring Domain; only PublishedTasks enter Execution TaskBus.
-3. **Messages remain one session stream.** Messages carry `session_id`, `agent_id`, and `task_id`; Task views are projections over the same stream, not a separate Task message table.
-4. **TaskBus is the execution authority.** User, Collaborator, pipeline, scheduler, API, and custom tree inputs all publish normal Tasks through a publisher layer.
-5. **Domain model and UI model are separate.** Backend Task stays small and stable; UI Task cards are projections with temporary view state.
-6. **Interactions must be replayable.** Confirmation actions, user guidance, Task patches, publish decisions, and file summaries must be reconstructible from backend facts.
-7. **Reliability and observability are now product features.** LLM failures, retry behavior, provider routing, and logging must be first-class before complex long-running tasks become usable.
-8. **Docs are part of the system control plane.** When a plan is completed, update the plan file, this roadmap if phase direction changes, ADRs if decisions changed, and releases if a phase/work package is completed.
+3. **Planning is capability-first; system state is command-first.** Collaborator should see a read-only CapabilityCatalog and submit Authoring Commands for RawTask/DraftTaskTree changes, not mount the full workspace/external tool pool.
+4. **Messages remain one session stream.** Messages carry `session_id`, `agent_id`, and `task_id`; Task views are projections over the same stream, not a separate Task message table.
+5. **TaskBus is the execution authority.** User, Collaborator, pipeline, scheduler, API, and custom tree inputs all publish normal Tasks through a publisher layer.
+6. **Domain model and UI model are separate.** Backend Task stays small and stable; UI Task cards are projections with temporary view state.
+7. **Interactions must be replayable.** Confirmation actions, user guidance, Task patches, publish decisions, and file summaries must be reconstructible from backend facts.
+8. **Reliability and observability are now product features.** LLM failures, retry behavior, provider routing, and logging must be first-class before complex long-running tasks become usable.
+9. **Docs are part of the system control plane.** When a plan is completed, update the plan file, this roadmap if phase direction changes, ADRs if decisions changed, and releases if a phase/work package is completed.
+10. **User-need traceability is required for major changes.** Architecture and plan docs should cite `UN-*` records when they introduce or change boundaries, priorities, or product-facing behavior.
 
 ---
 
@@ -136,8 +147,9 @@ Work packages:
 | Work | Plan | Priority |
 |---|---|---:|
 | Split backend Task domain model from UI ViewModel/projection | [Task model/UI separation](plans/feature/task-domain-ui-model-separation.md) | Done |
-| Collaborator Agent and Task authoring tools | [Collaborator Agent plan](plans/feature/collaborator-agent-task-authoring.md) | In progress |
+| Collaborator Agent and Authoring Command Protocol | [Collaborator Agent plan](plans/feature/collaborator-agent-task-authoring.md), [Authoring Command Protocol](architecture/authoring-command-protocol.md) | In progress |
 | RawTask, feasibility assessment, and authoring-domain clarification flow | [Collaborator Agent plan](plans/feature/collaborator-agent-task-authoring.md) | P0 |
+| Minimal CapabilityCatalog, tool-pool boundary, and Authoring Command Protocol | [Tool Capability Layer](architecture/tool-capability-layer.md), [Authoring Command Protocol](architecture/authoring-command-protocol.md) | Design reservation / embedded in Collaborator |
 | Task-first UI API contracts | [UI API interfaces](plans/ui/ui-api-interfaces.md) | P0 |
 | Task interaction replay model | Covered by Task model and Collaborator plans | P0 |
 
@@ -241,7 +253,7 @@ These remain valuable, but they should not be the next immediate build target be
 
 Recommended order for upcoming implementation sessions:
 
-1. **Collaborator Agent and Task authoring tools** — natural language to draft Task Tree and selected-node patch workflows.
+1. **Collaborator Agent and Authoring Command Protocol** — natural language to RawTask/DraftTaskTree workflows through command-backed state mutation.
 2. **TaskPublisher abstraction** — one publish path for every source.
 3. **Pipeline task loading** — before/begin/after Task auto-publication.
 4. **Result packaging and card presentation** — richer result display for information-style answers.
@@ -249,7 +261,7 @@ Recommended order for upcoming implementation sessions:
 6. **TaskBus multi-agent execution hardening** — execution semantics after publish model stabilizes.
 7. **Centralized runtime configuration** — shared control plane for logging/autonomy/audit/LLM/Task/UI behavior once the Task-facing server model is concrete enough to avoid overfitting.
 
-LLM Provider reliability and configurable logging are complete enough for the next round of server-core work. The Task domain boundary is accepted, so the immediate blocker is now Collaborator Agent and Task authoring tools.
+LLM Provider reliability and configurable logging are complete enough for the next round of server-core work. The Task domain boundary is accepted, so the immediate blocker is now Collaborator Agent and command-backed Task authoring.
 
 ---
 

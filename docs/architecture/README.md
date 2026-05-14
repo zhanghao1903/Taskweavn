@@ -22,7 +22,10 @@ Every important decision should be traceable back to concrete user problems, not
 | [reference.md](reference.md) | Current implementation-oriented architecture reference. |
 | [overview.md](overview.md) | Task-first multi-agent architecture overview. |
 | [authoring-domain.md](authoring-domain.md) | Authoring Domain boundary: RawTask, feasibility, draft Task Tree, and the bridge into Execution TaskBus. |
+| [authoring-command-protocol.md](authoring-command-protocol.md) | Strongly typed Authoring Command Protocol for RawTask/DraftTaskTree system-state mutation. |
 | [task.md](task.md) | Task domain model and lifecycle. |
+| [tool-capability-layer.md](tool-capability-layer.md) | Tool pool, capability catalog, and capability-first planning boundary. |
+| [workspace-communication-protocol.md](workspace-communication-protocol.md) | Higher-level system/workspace communication protocol; Tools become adapters over workspace operations. |
 | [task-domain-ui-model-separation.md](task-domain-ui-model-separation.md) | Boundary between backend Task domain facts, UI ViewModels, local UI state, and replayable Task interactions. |
 | [collaborator-agent-task-authoring.md](collaborator-agent-task-authoring.md) | System Collaborator Agent, Task authoring service, draft tree generation/refinement, validation, and publish boundary. |
 | [bus.md](bus.md) | TaskBus v1 design. |

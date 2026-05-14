@@ -4,7 +4,7 @@
 > Last Updated: 2026-05-14
 > Maintained By: planning session
 > Phase Baseline: implementation completed through Phase 3.8
-> Related: [Global Roadmap](../roadmap.md), [Planning Workflow](../planning_workflow.md), [Phase 3 Release Record](../releases/phase-3-interaction-layer-through-3-8.md)
+> Related: [Global Roadmap](../roadmap.md), [Planning Workflow](../planning_workflow.md), [Phase 3 Release Record](../releases/phase-3-interaction-layer-through-3-8.md), [User Traceability](../user_model/traceability.md)
 
 ---
 
@@ -17,9 +17,17 @@ The original technical path came from [Interaction Layer Design](../architecture
 - Task is the core user interaction object.
 - The UI should show Task Tree Lists, Task cards, confirmations, messages, and file summaries.
 - RawTask and feasibility belong to Authoring Domain before Task Tree drafting.
+- Collaborator plans against a read-only CapabilityCatalog and mutates authoring state through Authoring Commands, not the full concrete tool pool.
 - Collaborator Agent becomes the system role that drafts and edits Task Trees with the user.
 - TaskPublisher becomes the single boundary from user/collaborator/pipeline/scheduler/API/custom trees into TaskBus.
 - Reliability and logging must be strengthened before large user tests.
+
+The immediate authoring work is grounded in:
+
+- [UN-105](../user_model/needs/UN-105-system-evaluability-and-capability-disclosure.md): task fit, feasibility, and capability boundary disclosure.
+- [UN-101](../user_model/needs/UN-101-photo-curation-batch-screening.md): batch task trees with human review checkpoints.
+- [UN-102](../user_model/needs/UN-102-courseware-html-generation.md): editable content-generation task trees.
+- [UN-103](../user_model/needs/UN-103-car-purchase-decision-support.md): clarification/evaluation before high-risk information work.
 
 ---
 
@@ -100,6 +108,7 @@ Status: in progress; first package accepted and Collaborator Agent active. Prior
 | Task domain/UI model separation | [Task model/UI separation](../plans/feature/task-domain-ui-model-separation.md) | Done: stable backend Task plus TaskCard/TaskNode ViewModel projection. |
 | Collaborator Agent | [Collaborator Agent plan](../plans/feature/collaborator-agent-task-authoring.md) | In progress: generate draft Task Trees, patch selected Task Nodes, validate/publish draft tasks. |
 | RawTask and feasibility authoring flow | [Collaborator Agent plan](../plans/feature/collaborator-agent-task-authoring.md) | Add RawTask, FeasibilityReport, RawTaskAsk, and Authoring Domain boundary before DraftTaskTree generation. |
+| CapabilityCatalog, tool-pool boundary, and Authoring Command Protocol | [Tool Capability Layer](../architecture/tool-capability-layer.md), [Authoring Command Protocol](../architecture/authoring-command-protocol.md) | Reserve capability-first planning, system/workspace tool separation, and command-first authoring mutation without building a full tool platform yet. |
 | UI API contracts | [UI API interfaces](../plans/ui/ui-api-interfaces.md) | Define APIs for Task lists, selected Task detail, messages, confirmations, file summaries. |
 
 Acceptance:
@@ -185,7 +194,7 @@ Focus:
 
 Recommended implementation order:
 
-1. Collaborator Agent and Task authoring tools.
+1. Collaborator Agent and Authoring Command Protocol.
 2. TaskPublisher abstraction.
 3. Pipeline task loading and agent assignment.
 4. Result Packaging Agent and card-based result presentation.

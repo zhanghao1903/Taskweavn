@@ -4,8 +4,9 @@
 > Last Updated: 2026-05-14
 > Work Stream: Phase 3C — Task Authoring Foundation
 > Related Plan: [Collaborator Agent](../plans/feature/collaborator-agent-task-authoring.md)
-> Depends On: [Task Domain/UI ViewModel Separation](task-domain-ui-model-separation.md), [Authoring Domain](authoring-domain.md)
+> Depends On: [Task Domain/UI ViewModel Separation](task-domain-ui-model-separation.md), [Authoring Domain](authoring-domain.md), [Authoring Command Protocol](authoring-command-protocol.md), [Tool Capability Layer](tool-capability-layer.md), [Workspace Communication Protocol](workspace-communication-protocol.md)
 > Related Docs: [Agent](agent.md), [Task](task.md), [TaskBus](bus.md), [UI API Interfaces](../plans/ui/ui-api-interfaces.md)
+> User Needs: [UN-105](../user_model/needs/UN-105-system-evaluability-and-capability-disclosure.md), [UN-101](../user_model/needs/UN-101-photo-curation-batch-screening.md), [UN-102](../user_model/needs/UN-102-courseware-html-generation.md), [UN-103](../user_model/needs/UN-103-car-purchase-decision-support.md)
 
 ---
 
@@ -33,7 +34,20 @@ The important constraint is that the Collaborator must not become a hidden state
 Collaborator invocation = function(input, session/task context) -> draft facts/messages/commands
 ```
 
-All durable state lives in `DraftTaskStore`, `MessageStream`, publish mappings, and future TaskBus/EventStream facts.
+All durable state lives in `RawTaskStore`, `DraftTaskStore`, `MessageStream`, publish mappings, and future TaskBus/EventStream facts.
+
+The Collaborator implementation is expected to change frequently while product behavior is explored. Therefore prompts and proposal parsing should be easy to replace, while command handlers and storage contracts stay more stable.
+
+### 1.1 User-Need Traceability
+
+Collaborator Agent is the first product-facing implementation of Authoring Domain.
+
+| Need | Collaborator Responsibility |
+|---|---|
+| [UN-105](../user_model/needs/UN-105-system-evaluability-and-capability-disclosure.md) | Produce RawTask feasibility, clarification asks, and capability boundary messages before execution. |
+| [UN-101](../user_model/needs/UN-101-photo-curation-batch-screening.md) | Convert batch screening goals into editable review/checkpoint Task Trees. |
+| [UN-102](../user_model/needs/UN-102-courseware-html-generation.md) | Convert teaching goals and constraints into editable content-generation Task Trees. |
+| [UN-103](../user_model/needs/UN-103-car-purchase-decision-support.md) | Keep high-risk decision-support prompts in clarification/evaluation mode until constraints and source expectations are explicit. |
 
 ---
 
@@ -47,9 +61,9 @@ The previous Phase 3C package already introduced the boundary objects this featu
 | Draft facts | `DraftTaskNode`, `DraftTaskTree`, `DraftToPublishedMapping` |
 | Published facts | `TaskDomain` |
 | References | `TaskRef(kind="draft"|"published", id=...)` |
-| Store protocols | `DraftTaskStore`, `TaskStore` |
+| Store protocols | `DraftTaskStore`, `TaskStore`; `RawTaskStore` is added by this package |
 | UI projection | `TaskProjectionService`, `TaskTreeView`, `TaskCardView`, `TaskDetailView` |
-| Commands | `TaskCommandService`, `TaskPublisher`, `CommandResult` |
+| Commands | `TaskCommandService`, `TaskPublisher`, `CommandResult`; Authoring commands are added by this package |
 | Replay | `TaskInteractionTimelineService` |
 | User-visible messages | `MessageStream`, `MessageBus`, `AgentMessage` |
 
@@ -61,7 +75,8 @@ CollaboratorAuthoringService
   + feasibility assessment
   + clarification asks
   + prompt/context builder
-  + authoring tools
+  + AuthoringCommandService
+  + command handlers
   + validation
   + message publishing
   + task publisher boundary
@@ -95,7 +110,9 @@ CollaboratorAuthoringService
 - Do not require real LLM calls in unit tests.
 - Do not implement cross-user collaborative editing.
 - Do not put RawTask, clarification asks, or DraftTaskTree into Execution TaskBus.
-- Do not require a separate Feasibility Agent in the first version; feasibility can be a Collaborator tool/service.
+- Do not require a separate Feasibility Agent in the first version; feasibility can live in Collaborator-owned service logic.
+- Do not rely on many LLM-visible system tools for RawTask/DraftTaskTree state mutation.
+- Do not use execution-style strong audit for every exploratory RawTask edit.
 
 ---
 
@@ -110,7 +127,8 @@ CollaboratorAgentTemplate(
     template_id="system.collaborator",
     capability="task_authoring",
     display_name="Collaborator",
-    tools=(...task authoring tools...),
+    command_protocol="authoring.v1",
+    capability_catalog="execution.capabilities.readonly",
     system_prompt=COLLABORATOR_SYSTEM_PROMPT,
 )
 ```
@@ -133,11 +151,14 @@ Invocation is one function call.
 State is external and replayable.
 ```
 
-### 5.2 Authoring Tools Are Domain Tools
+### 5.2 System State Changes Use Commands, Not Ordinary Tools
 
-Task authoring tools operate on:
+Task authoring changes TaskWeavn's own state. These changes should go through [Authoring Command Protocol](authoring-command-protocol.md), not through many LLM-visible tool calls.
+
+Authoring command handlers operate on:
 
 - `DraftTaskStore`;
+- `RawTaskStore`;
 - `MessageBus` / `MessageStream`;
 - `TaskPublisher`;
 - capability registry / validation policy.
@@ -148,6 +169,18 @@ They do not operate on:
 - shell commands;
 - sandbox;
 - arbitrary runtime tools.
+
+The LLM should produce structured proposals. Code validates and commits those proposals with object-scoped commands:
+
+```text
+Collaborator LLM -> AuthoringProposal
+DefaultCollaboratorAuthoringService -> AuthoringCommandBatch
+AuthoringCommandService -> stores/messages/events
+```
+
+Compatibility tools can exist as thin adapters over command handlers, but they are not the source of truth.
+
+Ordinary execution Agents must not submit authoring commands.
 
 ### 5.3 Publish Is A Boundary, Not Direct TaskBus Access
 
@@ -160,6 +193,41 @@ That lets the next roadmap package implement one safe publish path for:
 - pipeline loader;
 - scheduled publishers;
 - API publishers.
+
+### 5.4 Collaborator Plans With Capabilities, Not Full Tool Pools
+
+Collaborator needs to understand the system's execution capability range, but it should not mount every workspace-changing or external tool.
+
+The intended split:
+
+```text
+Collaborator
+  sees: read-only CapabilityCatalog
+  submits: AuthoringCommandBatch through service-owned commands
+  does not mount: workspace.basic / external.connectors by default
+```
+
+Task Nodes should reference `required_capability`. Execution Agents later bind that capability to workspace operations under policy. Current Tool classes can implement those operations as adapters while [Workspace Communication Protocol](workspace-communication-protocol.md) matures.
+
+This keeps RawTask and clarification coherent while preventing Collaborator from becoming an overloaded agent with the full tool universe in context.
+
+### 5.5 Collaborator Is One Role, Internally Split By Services
+
+Do not split Collaborator into multiple user-facing Agents in the first version. Splitting too early would fragment RawTask ownership and make clarification state harder to explain.
+
+Internally, keep replaceable service boundaries:
+
+| Component | Responsibility |
+|---|---|
+| `RawTaskService` | Create/update RawTask and answers. |
+| `FeasibilityAssessor` | Evaluate feasibility and missing inputs. |
+| `CapabilityCatalog` | Provide read-only capability descriptors. |
+| `TaskTopologyPlanner` | Generate DraftTaskTree proposals. |
+| `TopologyQualityGate` | Validate capability coverage and topology quality. |
+| `AuthoringCommandService` | Validate and commit authoring state changes. |
+| `TaskPublisher` | Publish confirmed draft trees. |
+
+Future specialist Agents can be introduced behind these protocols if evidence shows the single Collaborator role is too loaded.
 
 ---
 
@@ -227,18 +295,55 @@ class CollaboratorAuthoringService(Protocol):
         self,
         session_id: str,
         draft_tree_id: str,
-    ) -> CommandResult: ...
+    ) -> AuthoringCommandResult: ...
 ```
 
-The default implementation coordinates LLM calls and tools. Individual tools remain independently testable.
+The default implementation coordinates LLM calls, proposal parsing, command creation, and command submission. Command handlers remain independently testable.
 
-### 6.2 AuthoringContextBuilder
+### 6.2 AuthoringCommandService
+
+The command service is the authoritative mutation boundary for RawTask and DraftTaskTree state.
+
+```python
+class AuthoringCommandService(Protocol):
+    def submit(
+        self,
+        batch: AuthoringCommandBatch,
+    ) -> AuthoringCommandResult: ...
+```
+
+Command batches are intentionally coarse-grained:
+
+```python
+class AuthoringCommandBatch(BaseModel):
+    batch_id: str
+    session_id: str
+    actor: ActorRef
+    causation_message_id: str | None = None
+    idempotency_key: str | None = None
+    mode: Literal["all_or_nothing", "best_effort"] = "all_or_nothing"
+    commands: tuple[AuthoringCommand, ...]
+```
+
+Primary command types:
+
+| Command | Scope | Purpose |
+|---|---|---|
+| `MutateRawTaskCommand` | RawTask | Create/update RawTask, feasibility, asks, answers, assumptions, and status. |
+| `MutateDraftTaskTreeCommand` | DraftTaskTree | Create tree, patch nodes, reorder, attach options, and mark accepted. |
+| `PublishDraftTaskTreeCommand` | DraftTaskTree -> PublishedTask | Validate and publish confirmed draft tree. |
+
+First version should default to `all_or_nothing` and usually keep one object scope per batch. Cross-object batches are allowed only for safe adjacent transitions, such as RawTask `ready_to_plan` plus DraftTaskTree creation.
+
+### 6.3 AuthoringContextBuilder
 
 Builds prompt context from server facts.
 
 Inputs:
 
 - session id;
+- optional `RawTask`;
+- current feasibility report and unresolved asks;
 - optional selected `TaskRef`;
 - current draft trees;
 - selected node, ancestors, children;
@@ -253,6 +358,9 @@ Output:
 ```python
 class AuthoringContext(BaseModel):
     session_id: str
+    raw_task_id: str | None = None
+    feasibility_status: FeasibilityStatus | None = None
+    unresolved_asks: tuple[RawTaskAsk, ...] = ()
     selected_task_ref: TaskRef | None = None
     mode: Literal["session", "task"]
     draft_trees: tuple[DraftTaskTree, ...] = ()
@@ -260,27 +368,51 @@ class AuthoringContext(BaseModel):
     ancestors: tuple[DraftTaskNode, ...] = ()
     children: tuple[DraftTaskNode, ...] = ()
     recent_messages: tuple[AgentMessage, ...] = ()
-    capabilities: tuple[str, ...] = ()
+    capabilities: tuple[CapabilityDescriptor, ...] = ()
     constraints: dict[str, object] = {}
 ```
 
 The context builder is intentionally read-only.
 
-### 6.3 CapabilityCatalog
+### 6.4 CapabilityCatalog
 
 The Collaborator must not hallucinate `required_capability`.
 
-First version can be a small protocol:
+First version can be a static catalog, but the protocol should be descriptor-based so future tool supply does not force a redesign:
+
+```python
+class CapabilityDescriptor(BaseModel):
+    capability_id: str
+    display_name: str
+    summary: str
+    input_schema: dict[str, object]
+    output_schema: dict[str, object]
+    preconditions: tuple[str, ...] = ()
+    cost_level: Literal["low", "medium", "high", "unknown"] = "unknown"
+    latency_level: Literal["low", "medium", "high", "unknown"] = "unknown"
+    risk_level: Literal["low", "medium", "high", "unknown"] = "unknown"
+    reliability_score: float | None = None
+    applicable_domains: tuple[str, ...] = ()
+    anti_patterns: tuple[str, ...] = ()
+```
 
 ```python
 class CapabilityCatalog(Protocol):
-    def all(self) -> tuple[str, ...]: ...
-    def contains(self, capability: str) -> bool: ...
+    def all(self) -> tuple[CapabilityDescriptor, ...]: ...
+    def get(self, capability_id: str) -> CapabilityDescriptor | None: ...
+    def contains(self, capability_id: str) -> bool: ...
+    def query(
+        self,
+        intent: str,
+        *,
+        domains: tuple[str, ...] = (),
+        limit: int = 20,
+    ) -> tuple[CapabilityDescriptor, ...]: ...
 ```
 
-Early implementation can use a static in-memory catalog. Later this should read Agent templates.
+Early implementation can use a static in-memory catalog. Later this should read Agent templates, `WorkspaceManifest` / `WorkspaceCapabilityDescriptor`, Tool adapter metadata, validation results, and runtime reliability signals.
 
-### 6.4 DraftTaskTreeValidator
+### 6.5 DraftTaskTreeValidator
 
 Validation should be deterministic and not LLM-based.
 
@@ -307,33 +439,31 @@ class DraftTaskTreeValidation(BaseModel):
     warnings: tuple[DraftTaskValidationIssue, ...] = ()
 ```
 
-### 6.5 Task Authoring Tools
+### 6.6 Authoring Command Handlers And Optional Tool Adapters
 
-Tools are the low-level executable boundary. They can be used by `AgentLoop` later, but the first implementation can call them from `CollaboratorAuthoringService`.
+Command handlers are the low-level system-state mutation boundary. They should be called by `CollaboratorAuthoringService` and UI/API command endpoints.
 
-Minimum tools:
+Optional tool adapters can be added later for compatibility, but they must call the same command handlers. They should not become a second mutation path.
 
-| Tool | Primary Store/Boundary | Purpose |
+Minimum command handlers:
+
+| Handler | Primary Store/Boundary | Purpose |
 |---|---|---|
-| `CreateRawTaskTool` | `RawTaskStore` | Persist user intent as RawTask. |
-| `AssessRawTaskFeasibilityTool` | feasibility assessor | Produce structured feasibility and next action. |
-| `AskRawTaskQuestionTool` | `MessageBus` / `RawTaskStore` | Publish RawTask-scoped clarification asks and record answers. |
-| `GenerateDraftTaskTreeTool` | `DraftTaskStore` | Persist generated root nodes from a ready RawTask as a draft tree. |
-| `ReadDraftTaskTreeTool` | `DraftTaskStore` | Read tree or selected node context. |
-| `UpdateDraftTaskNodeTool` | `DraftTaskStore` | Apply `TaskNodePatch` with version guard. |
-| `ValidateDraftTaskTreeTool` | validator | Return deterministic validation result. |
-| `AppendTaskAuthoringMessageTool` | `MessageBus` | Publish collaborator/user-visible authoring messages. |
-| `PublishDraftTasksTool` | `TaskPublisher` | Publish validated draft tree through publisher boundary. |
+| `MutateRawTaskHandler` | `RawTaskStore` / `MessageStream` | Persist user intent, feasibility, clarification asks, answers, and RawTask status. |
+| `MutateDraftTaskTreeHandler` | `DraftTaskStore` | Persist generated roots, node patches, reorder operations, options, and accepted state. |
+| `ValidateDraftTaskTreeHandler` | validator / CapabilityCatalog | Return deterministic validation and topology warnings. |
+| `PublishDraftTaskTreeHandler` | `TaskPublisher` | Publish validated draft tree through publisher boundary. |
 
 Deferred:
 
-- `ProposeTaskNodeOptionsTool` can be implemented after the basic refine flow works. It is useful for UI, but not required for the first authoring service.
+- Tool adapters such as `CreateRawTaskTool` or `UpdateDraftTaskNodeTool` should be deferred unless AgentLoop integration requires them.
+- `ProposeTaskNodeOptions` can be an LLM proposal type first, not a separate system tool.
 
 ---
 
 ## 7. LLM Output Contracts
 
-The LLM should produce structured authoring proposals. Store writes should be performed by tools/services after validation.
+The LLM should produce structured authoring proposals. Persistent writes should be performed by command handlers/services after validation.
 
 ### 7.1 Generate Tree Proposal
 
@@ -353,7 +483,7 @@ class DraftTaskNodeProposal(BaseModel):
     children: tuple[DraftTaskNodeProposal, ...] = ()
 ```
 
-The proposal does not include final ids. The tool assigns ids and tree metadata.
+The proposal does not include final ids. The command handler assigns ids and tree metadata.
 
 ### 7.2 Patch Proposal
 
@@ -387,7 +517,7 @@ Options should be written as actionable `AgentMessage` objects when user confirm
 appendSessionMessage(user prompt)
   -> CollaboratorAuthoringService.create_raw_task
   -> CollaboratorAuthoringService.assess_raw_task
-  -> if missing info: AskRawTaskQuestionTool publishes actionable message
+  -> if missing info: MutateRawTaskCommand adds clarification ask + actionable message
   -> if ready: RawTask.status = ready_to_plan
 ```
 
@@ -407,8 +537,8 @@ generateTaskTree(raw_task_id)
   -> ContextBuilder builds session context
   -> LLM returns DraftTaskTreeProposal
   -> Validate proposal shape and capabilities
-  -> GenerateDraftTaskTreeTool persists DraftTaskTree
-  -> AppendTaskAuthoringMessageTool publishes assistant summary
+  -> MutateDraftTaskTreeCommand persists DraftTaskTree
+  -> command handler publishes assistant summary
   -> UI refreshes TaskTreeView
 ```
 
@@ -427,8 +557,8 @@ appendTaskMessage(selected draft node, instruction)
   -> ContextBuilder builds selected-node context
   -> LLM returns DraftTaskPatchProposal
   -> Validate patch against selected node/version
-  -> UpdateDraftTaskNodeTool applies patch
-  -> AppendTaskAuthoringMessageTool publishes assistant response
+  -> MutateDraftTaskTreeCommand applies patch
+  -> command handler publishes assistant response
   -> UI refreshes selected card/detail/timeline
 ```
 
@@ -468,7 +598,7 @@ Validation failures do not mutate the tree unless the user asks Collaborator to 
 publish_task_tree
   -> validate_task_tree
   -> if invalid: reject with validation message
-  -> PublishDraftTasksTool calls TaskPublisher.publish_draft_tree
+  -> PublishDraftTaskTreeCommand calls TaskPublisher.publish_draft_tree
   -> DraftTaskStore.mark_published with mappings
   -> MessageStream assistant publish summary
 ```
@@ -525,112 +655,212 @@ The existing UI API document names these commands:
 | `appendSessionMessage` | session message append; may trigger `create_raw_task` and `assess_raw_task` |
 | `answerRawTaskAsk` | `CollaboratorAuthoringService.answer_raw_task_ask` |
 | `generateTaskTree` | `CollaboratorAuthoringService.generate_task_tree(raw_task_id=...)` |
-| `updateTaskNode` | `TaskCommandService.update_task_node` or `refine_task_node` when LLM interpretation is needed |
-| `appendTaskMessage` | `TaskCommandService.append_task_message`; may trigger `refine_task_node` |
+| `updateTaskNode` | explicit patch uses `AuthoringCommandService`; natural language update uses `refine_task_node` |
+| `appendTaskMessage` | appends task-scoped message; may trigger `refine_task_node` |
 | `resolveConfirmation` | `TaskCommandService.resolve_confirmation` |
 | `publishTaskTree` | `CollaboratorAuthoringService.publish_task_tree` |
 
-The service should not expose raw LLM proposals to UI by default. UI receives `CommandResult` and refreshed ViewModels.
+The service should not expose raw LLM proposals to UI by default. UI receives `AuthoringCommandResult` and refreshed ViewModels.
 
 ---
 
-## 11. Implementation Slices
+## 11. Implementation Slices (Revised)
 
-### Slice 1 — Authoring Contracts And Validator
+### 11.1 Redesign Review Conclusion
+
+After introducing Authoring Command Protocol, the old slice shape is too coarse.
+
+The critical dependency order should be:
+
+```text
+stable facts
+  -> command contracts
+  -> stores
+  -> command handlers
+  -> context builder
+  -> LLM collaborator proposal mapping
+  -> publish boundary
+  -> UI/API adapters
+```
+
+This keeps the most volatile part, Collaborator prompt/proposal parsing, away from the foundation. It also prevents the first implementation from accidentally turning authoring state mutation into a pile of LLM-visible system tools.
+
+The current first implementation pass, `Draft authoring contracts + validator`, remains valid. It should be treated as a narrower completed slice, not as the full Authoring foundation.
+
+### Slice 1 — Draft Authoring Contracts And Validator
+
+Status: implemented / keep.
 
 Deliver:
 
-- `taskweavn.task.authoring` models:
-  - `RawTask`;
-  - `FeasibilityReport`;
-  - `RawTaskAsk`;
-  - `RawTaskAnswer`;
-  - `AuthoringContext`;
-  - `DraftTaskNodeProposal`;
-  - `DraftTaskTreeProposal`;
-  - `DraftTaskPatchProposal`;
-  - `DraftTaskValidationIssue`;
-  - `DraftTaskTreeValidation`;
-  - `TaskNodeOption`;
-- `CapabilityCatalog` protocol and static implementation;
-- feasibility status model and deterministic fallback assessor;
+- `AuthoringContext`;
+- `DraftTaskNodeProposal`;
+- `DraftTaskTreeProposal`;
+- `DraftTaskPatchProposal`;
+- `TaskNodeOption`;
+- `TaskNodeOptionSet`;
+- `DraftTaskValidationIssue`;
+- `DraftTaskTreeValidation`;
+- `CapabilityCatalog` minimal protocol and static implementation;
 - `DraftTaskTreeValidator`;
-- tests for RawTask lifecycle, valid/invalid trees, and capabilities.
+- tests for proposal shapes, option shapes, draft validation, and capability lookup.
 
-No LLM calls and no TaskBus integration in this slice.
+This slice intentionally does not include RawTask, command handlers, stores, LLM calls, or TaskBus integration.
 
-### Slice 2 — In-Memory Draft Store
-
-Deliver:
-
-- concrete `InMemoryDraftTaskStore`;
-- create/read/update/mark_published behavior;
-- version checking;
-- tree traversal helpers if needed by context builder;
-- tests for stale version, status rules, root/sibling ordering.
-
-This gives the Collaborator tools a usable test store before SQLite.
-
-### Slice 3 — Authoring Tools
+### Slice 2 — RawTask Contracts And Feasibility Model
 
 Deliver:
 
-- `GenerateDraftTaskTreeTool`;
-- `ReadDraftTaskTreeTool`;
-- `UpdateDraftTaskNodeTool`;
-- `ValidateDraftTaskTreeTool`;
-- `AppendTaskAuthoringMessageTool`;
-- action/observation types for each tool;
-- tests using in-memory store and message bus.
+- `RawTask`;
+- `RawTaskStatus`;
+- `FeasibilityReport`;
+- `FeasibilityStatus`;
+- `RawTaskAsk`;
+- `RawTaskAnswer`;
+- RawTask version and lifecycle rules;
+- deterministic fallback feasibility assessor or helper;
+- tests for status transitions, ask/answer linkage, and non-execution boundary.
 
-Tools must not include file or shell capabilities.
+This slice should answer: "Can the system represent an unclear or impossible user request without pretending it is executable?"
 
-### Slice 4 — Collaborator Authoring Service
+No stores, command handlers, LLM calls, or TaskBus integration in this slice.
+
+### Slice 3 — Authoring Command Protocol Contracts
+
+Deliver:
+
+- `ActorRef`;
+- `AuthoringCommandBatch`;
+- `MutateRawTaskCommand`;
+- `RawTaskOperation`;
+- `MutateDraftTaskTreeCommand`;
+- `DraftTaskTreeOperation`;
+- `PublishDraftTaskTreeCommand`;
+- `AuthoringCommandResult`;
+- `AuthoringCommandError`;
+- `AuthoringMessageEffect`;
+- idempotency/version fields;
+- tests for command validation, batch invariants, and error/result shape.
+
+This slice defines the stable mutation language. It should still be pure data contracts.
+
+No command handler logic yet.
+
+### Slice 4 — In-Memory Authoring Stores
+
+Deliver:
+
+- `RawTaskStore` protocol;
+- `DraftTaskStore` protocol alignment if the existing one needs extension;
+- `InMemoryRawTaskStore`;
+- `InMemoryDraftTaskStore`;
+- version checks;
+- draft tree traversal helpers;
+- publish mapping persistence in memory;
+- tests for stale version, status rules, root/sibling ordering, and read-after-write.
+
+This gives command handlers a deterministic substrate before SQLite or server API work.
+
+SQLite persistence should remain deferred until service semantics settle.
+
+### Slice 5 — Authoring Command Service And Handlers
+
+Deliver:
+
+- `AuthoringCommandService` protocol;
+- `DefaultAuthoringCommandService`;
+- `MutateRawTaskHandler`;
+- `MutateDraftTaskTreeHandler`;
+- `ValidateDraftTaskTreeHandler`;
+- message effect application through `MessageStream` / `MessageBus`;
+- command idempotency and structured errors;
+- `all_or_nothing` execution semantics for first version;
+- tests using in-memory stores and message stream.
+
+Command handlers must not include file, shell, sandbox, or external connector capabilities.
+
+This is the first slice where TaskWeavn system state actually changes through Authoring Commands.
+
+### Slice 6 — Authoring Context Builder And Capability Catalog v1
+
+Deliver:
+
+- `AuthoringContextBuilder`;
+- selected-node context reconstruction;
+- recent session/task message selection;
+- RawTask + draft tree context assembly;
+- descriptor-based `CapabilityCatalog` v1 or an adapter from the current minimal catalog;
+- tests for session mode, task mode, and capability filtering.
+
+The context builder is read-only. It should never mutate RawTask, DraftTaskTree, MessageStream, or TaskBus.
+
+### Slice 7 — Collaborator Proposal Mapping Service
 
 Deliver:
 
 - `CollaboratorAuthoringService` protocol;
 - `DefaultCollaboratorAuthoringService`;
-- `AuthoringContextBuilder`;
-- structured LLM proposal parsing;
 - prompt templates;
-- tests with stub LLM.
+- structured proposal parsing;
+- proposal-to-command-batch mapping;
+- stub-LLM tests for:
+  - RawTask feasibility proposal;
+  - DraftTaskTree proposal;
+  - selected-node patch proposal;
+  - invalid proposal repair diagnostics.
 
-This is the first slice where natural language can generate or refine a draft tree.
+This is the first slice where natural language can generate or refine draft authoring state, but durable writes still go through `AuthoringCommandService`.
 
-### Slice 5 — Publish Boundary
+### Slice 8 — Publish Boundary
 
 Deliver:
 
-- `PublishDraftTasksTool`;
-- integration with existing `TaskPublisher` protocol;
+- `PublishDraftTaskTreeCommand` handler completion;
+- integration with `TaskPublisher`;
 - validation-before-publish flow;
 - draft-to-published mapping handoff;
-- tests for invalid tree, publisher rejection, and success mapping.
+- tests for invalid tree, publisher rejection, duplicate publish, and success mapping.
 
-Concrete TaskBus publishing remains owned by the TaskPublisher roadmap package.
+Concrete TaskBus-backed publishing remains owned by the TaskPublisher roadmap package unless it is already available.
 
-### Slice 6 — System Template And API/CLI Adapter
+### Slice 9 — System Template And UI/API Adapter
 
 Deliver:
 
 - `CollaboratorAgentTemplate` metadata;
 - built-in template registration hook or factory;
-- adapter functions for `generateTaskTree`, `appendSessionMessage`, `appendTaskMessage`, and `publishTaskTree`;
-- doc updates to UI API and feature plan.
+- adapter functions for:
+  - `appendSessionMessage`;
+  - `answerRawTaskAsk`;
+  - `generateTaskTree`;
+  - `appendTaskMessage`;
+  - `publishTaskTree`;
+- UI API doc alignment.
 
-This slice should make the service callable from future UI/server endpoints, without requiring the UI to exist yet.
+This slice makes the service callable from future UI/server endpoints without requiring the frontend to exist.
 
-### Slice 7 — Tests, Docs, And Release Candidate
+### Slice 10 — Hardening, Docs, And Release Candidate
 
 Deliver:
 
 - full unit/integration test pass;
+- updated architecture docs;
+- updated feature plan;
 - release record;
-- roadmap/project roadmap updates;
+- roadmap/project roadmap status update;
 - user-case notes.
 
-End-to-end user-case testing should wait until the Task-first UI can render and operate on draft Task cards.
+End-to-end user-case testing should wait until the Task-first UI can render and operate on RawTask and DraftTask cards.
+
+### Deferred From This Package
+
+- LLM-visible authoring tool adapters;
+- AuthoringBus;
+- SQLite authoring stores;
+- typed EventStream authoring events beyond message/store traceability;
+- dedicated Feasibility Agent;
+- separate option-generation tool.
+- WorkspaceGateway / WorkspaceRequest execution binding.
 
 ---
 
@@ -645,7 +875,7 @@ End-to-end user-case testing should wait until the Task-first UI can render and 
 | authoring message | one Session Message Stream receives collaborator output |
 | publish invalid tree | no publisher call |
 | publish valid tree | publisher boundary called and mappings recorded |
-| collaborator tools | no workspace write/run-command actions are registered |
+| command handlers | no workspace write/run-command actions are registered |
 | replay timeline | task-scoped authoring messages appear under draft `TaskRef` |
 
 ---
@@ -656,7 +886,8 @@ End-to-end user-case testing should wait until the Task-first UI can render and 
 2. Should `acceptTaskTree` be distinct from `publishTaskTree`? Recommendation: yes in UI language, but first backend implementation can keep `accepted` as draft status and publish as the irreversible boundary.
 3. Should options be generated by a dedicated tool in v1? Recommendation: defer until direct generation/refinement works; keep the data model ready.
 4. Should Collaborator see workspace files? Recommendation: only through a future read-only summary provider, not direct file tools.
-5. Where should capability catalog come from? Recommendation: static catalog first, Agent template registry later.
+5. Where should capability catalog come from? Recommendation: static catalog first, then Agent template registry and WorkspaceManifest-derived descriptors later.
+6. Should authoring commands be exposed as LLM tools? Recommendation: no for v1; if needed later, expose thin adapters over command handlers.
 
 ---
 
@@ -667,6 +898,7 @@ This feature is complete when:
 - a system Collaborator template exists;
 - natural language can generate a draft Task Tree through mockable LLM flow;
 - selected draft Task nodes can be refined through natural language or explicit patches;
+- RawTask and DraftTaskTree mutations go through command handlers, not direct LLM tool calls;
 - authoring messages are written to the single Session Message Stream;
 - draft trees can be deterministically validated;
 - publish calls go through `TaskPublisher` only after validation;
