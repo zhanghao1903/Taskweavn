@@ -69,10 +69,40 @@ class _DraftStore:
     def list_trees(self, session_id: str) -> list[DraftTaskTree]:
         return [tree for tree in self._trees if tree.session_id == session_id]
 
+    def list_nodes(self, session_id: str, draft_tree_id: str) -> list[DraftTaskNode]:
+        return [
+            node
+            for node in self._nodes.values()
+            if node.session_id == session_id and node.draft_tree_id == draft_tree_id
+        ]
+
+    def list_children(
+        self,
+        session_id: str,
+        draft_tree_id: str,
+        parent_draft_task_id: str | None,
+    ) -> list[DraftTaskNode]:
+        return [
+            node
+            for node in self.list_nodes(session_id, draft_tree_id)
+            if node.parent_draft_task_id == parent_draft_task_id
+        ]
+
     def get_node(self, session_id: str, draft_task_id: str) -> DraftTaskNode | None:
         node = self._nodes.get(draft_task_id)
         if node is None or node.session_id != session_id:
             return None
+        return node
+
+    def add_node(
+        self,
+        session_id: str,
+        draft_tree_id: str,
+        node: DraftTaskNode,
+        *,
+        expected_tree_version: int,
+    ) -> DraftTaskNode:
+        self._nodes[node.draft_task_id] = node
         return node
 
     def update_node(
@@ -92,11 +122,22 @@ class _DraftStore:
             }
         )
 
+    def mark_accepted(
+        self,
+        session_id: str,
+        draft_tree_id: str,
+        *,
+        expected_version: int,
+    ) -> DraftTaskTree:
+        return self.get_tree(session_id, draft_tree_id)
+
     def mark_published(
         self,
         session_id: str,
         draft_tree_id: str,
         mappings: list[DraftToPublishedMapping],
+        *,
+        expected_version: int | None = None,
     ) -> DraftTaskTree:
         return self.get_tree(session_id, draft_tree_id)
 

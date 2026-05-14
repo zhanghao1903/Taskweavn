@@ -1096,6 +1096,7 @@ Draft contracts
   - Slice 1 Draft Authoring Contracts And Validator.
   - Slice 2 RawTask Contracts And Feasibility.
   - Slice 3 Authoring Command Protocol Contracts.
+  - Slice 4 In-Memory Authoring Stores.
   - Added `taskweavn.task.authoring` with:
     - `ActorRef`
     - `AuthoringCommandBatch`
@@ -1128,15 +1129,29 @@ Draft contracts
     - `CapabilityCatalog`
     - `StaticCapabilityCatalog`
     - `DraftTaskTreeValidator`
+  - Added `taskweavn.task.stores` authoring store contracts and implementations:
+    - `RawTaskStore`
+    - `InMemoryRawTaskStore`
+    - `InMemoryDraftTaskStore`
+    - `TaskStoreError`
+    - `VersionConflictError`
+  - `DraftTaskStore` now includes traversal and lifecycle methods:
+    - `list_nodes`
+    - `list_children`
+    - `add_node`
+    - `mark_accepted`
   - Validator now covers capability lookup, root structure, duplicate node ids, duplicate sibling order, publishable status, blank content, max depth, and max node count.
-  - Added tests for AuthoringCommand batch invariants, command target validation, message effect validation, result validation, RawTask lifecycle, feasibility defaults/validation, ask/answer linkage, authoring context, proposal schemas, option schemas, validation results, capability catalog, validator errors/warnings, and frozen model behavior.
+  - Added tests for in-memory RawTask/DraftTask stores, version conflicts, traversal, accepted/published state transitions, lineage mapping, AuthoringCommand batch invariants, command target validation, message effect validation, result validation, RawTask lifecycle, feasibility defaults/validation, ask/answer linkage, authoring context, proposal schemas, option schemas, validation results, capability catalog, validator errors/warnings, and frozen model behavior.
 - Verified:
   - `uv run pytest tests/test_task_authoring.py` — 29 passed, 1 warning
+  - `uv run pytest tests/test_in_memory_authoring_stores.py tests/test_task_store_protocols.py tests/test_task_commands.py tests/test_task_projection.py tests/test_task_timeline.py` — 40 passed, 1 warning
   - `uv run ruff check src/taskweavn/task tests/test_task_authoring.py`
+  - `uv run ruff check src/taskweavn/task tests/test_in_memory_authoring_stores.py tests/test_task_store_protocols.py tests/test_task_commands.py tests/test_task_projection.py tests/test_task_timeline.py`
   - `uv run mypy src/taskweavn/task tests/test_task_authoring.py`
+  - `uv run mypy src/taskweavn/task tests/test_in_memory_authoring_stores.py tests/test_task_store_protocols.py tests/test_task_commands.py tests/test_task_projection.py tests/test_task_timeline.py`
   - `uv run ruff check src tests`
   - `uv run mypy src tests`
-  - `uv run pytest` — 524 passed, 1 warning
+  - `uv run pytest` — 538 passed, 1 warning
   - `git diff --check`
 - Discussion promoted: [RawTask、可行性判断与 Authoring Domain](../../discussion/2026-05-14-raw-task-authoring-domain.md)
-- Revised Next Step: Slice 4 In-Memory Authoring Stores。
+- Revised Next Step: Slice 5 Authoring Command Service And Handlers。

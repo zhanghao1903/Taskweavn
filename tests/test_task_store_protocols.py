@@ -41,8 +41,31 @@ class _FakeDraftTaskStore:
     def list_trees(self, session_id: str) -> list[DraftTaskTree]:
         return []
 
+    def list_nodes(self, session_id: str, draft_tree_id: str) -> list[DraftTaskNode]:
+        return []
+
+    def list_children(
+        self,
+        session_id: str,
+        draft_tree_id: str,
+        parent_draft_task_id: str | None,
+    ) -> list[DraftTaskNode]:
+        return []
+
     def get_node(self, session_id: str, draft_task_id: str) -> DraftTaskNode | None:
         return None
+
+    def add_node(
+        self,
+        session_id: str,
+        draft_tree_id: str,
+        node: DraftTaskNode,
+        *,
+        expected_tree_version: int,
+    ) -> DraftTaskNode:
+        return node.model_copy(
+            update={"session_id": session_id, "draft_tree_id": draft_tree_id}
+        )
 
     def update_node(
         self,
@@ -62,11 +85,22 @@ class _FakeDraftTaskStore:
             version=expected_version + 1,
         )
 
+    def mark_accepted(
+        self,
+        session_id: str,
+        draft_tree_id: str,
+        *,
+        expected_version: int,
+    ) -> DraftTaskTree:
+        return self.get_tree(session_id, draft_tree_id)
+
     def mark_published(
         self,
         session_id: str,
         draft_tree_id: str,
         mappings: list[DraftToPublishedMapping],
+        *,
+        expected_version: int | None = None,
     ) -> DraftTaskTree:
         root = DraftTaskNode(
             session_id=session_id,

@@ -76,7 +76,15 @@ from taskweavn.task.projection import (
     TaskProjectionService,
     TaskSummaryStore,
 )
-from taskweavn.task.stores import DraftTaskStore, TaskStore
+from taskweavn.task.stores import (
+    DraftTaskStore,
+    InMemoryDraftTaskStore,
+    InMemoryRawTaskStore,
+    RawTaskStore,
+    TaskStore,
+    TaskStoreError,
+    VersionConflictError,
+)
 from taskweavn.task.timeline import (
     DefaultTaskInteractionTimelineService,
     DraftPublicationStore,
@@ -148,6 +156,8 @@ __all__ = [
     "FeasibilityStatus",
     "FileChangeStore",
     "FileChangeType",
+    "InMemoryDraftTaskStore",
+    "InMemoryRawTaskStore",
     "PublishedTaskEditor",
     "MutateDraftTaskTreeCommand",
     "MutateRawTaskCommand",
@@ -159,6 +169,7 @@ __all__ = [
     "RawTaskAsk",
     "RawTaskOperation",
     "RawTaskOperationKind",
+    "RawTaskStore",
     "RawTaskStatus",
     "SessionMessageView",
     "TaskCardAction",
@@ -186,6 +197,7 @@ __all__ = [
     "TaskSummaryView",
     "TaskStatus",
     "TaskStore",
+    "TaskStoreError",
     "TaskProjectionService",
     "TaskPublisher",
     "TaskPublishResult",
@@ -194,4 +206,5 @@ __all__ = [
     "TaskViewStatus",
     "StaticCapabilityCatalog",
     "TimelineEntrySource",
+    "VersionConflictError",
 ]
