@@ -33,13 +33,14 @@ TaskWeavn has moved past the original "single ReAct agent with tools" shape. The
 | AgentLoop autonomy integration and minimum CLI surface | Done | Phase 3.6. |
 | LLMRiskAssessor and CompositeAssessor | Done | Phase 3.7. |
 | Derived Session.status | Done | Phase 3.8; stored status is a hint except `archived`. |
-| Task-first architecture plans | In progress | Task domain/UI ViewModel separation is ready for acceptance; Collaborator Agent is the next Phase 3C package. |
+| Task-first architecture plans | In progress | Task domain/UI ViewModel separation is accepted; Collaborator Agent is now the active Phase 3C package. |
 | Reliability and observability plans | Accepted baseline | LLM provider/retry/thinking and configurable logging are done; centralized runtime config remains a follow-up control-plane plan. |
 
 The project is now re-baselined around **Task-first interaction**:
 
 ```text
 User intent
+  -> RawTask and feasibility assessment
   -> Collaborator Agent drafts Task Tree List
   -> User edits/confirms Task nodes
   -> TaskPublisher publishes normal Tasks
@@ -54,12 +55,13 @@ This is a larger shift than the original Interaction Layer plan. The Interaction
 ## 3. Roadmap Principles
 
 1. **Task is the primary user-facing object.** The UI should organize work around Task Tree Lists and Task Nodes, not files or raw chat turns.
-2. **Messages remain one session stream.** Messages carry `session_id`, `agent_id`, and `task_id`; Task views are projections over the same stream, not a separate Task message table.
-3. **TaskBus is the execution authority.** User, Collaborator, pipeline, scheduler, API, and custom tree inputs all publish normal Tasks through a publisher layer.
-4. **Domain model and UI model are separate.** Backend Task stays small and stable; UI Task cards are projections with temporary view state.
-5. **Interactions must be replayable.** Confirmation actions, user guidance, Task patches, publish decisions, and file summaries must be reconstructible from backend facts.
-6. **Reliability and observability are now product features.** LLM failures, retry behavior, provider routing, and logging must be first-class before complex long-running tasks become usable.
-7. **Docs are part of the system control plane.** When a plan is completed, update the plan file, this roadmap if phase direction changes, ADRs if decisions changed, and releases if a phase/work package is completed.
+2. **Authoring and execution are separate domains.** RawTask, feasibility, clarification asks, and DraftTaskTree stay in Authoring Domain; only PublishedTasks enter Execution TaskBus.
+3. **Messages remain one session stream.** Messages carry `session_id`, `agent_id`, and `task_id`; Task views are projections over the same stream, not a separate Task message table.
+4. **TaskBus is the execution authority.** User, Collaborator, pipeline, scheduler, API, and custom tree inputs all publish normal Tasks through a publisher layer.
+5. **Domain model and UI model are separate.** Backend Task stays small and stable; UI Task cards are projections with temporary view state.
+6. **Interactions must be replayable.** Confirmation actions, user guidance, Task patches, publish decisions, and file summaries must be reconstructible from backend facts.
+7. **Reliability and observability are now product features.** LLM failures, retry behavior, provider routing, and logging must be first-class before complex long-running tasks become usable.
+8. **Docs are part of the system control plane.** When a plan is completed, update the plan file, this roadmap if phase direction changes, ADRs if decisions changed, and releases if a phase/work package is completed.
 
 ---
 
@@ -125,7 +127,7 @@ Exit criteria:
 
 ### Phase 3C — Task Authoring Foundation
 
-Status: in progress; first package ready for acceptance.
+Status: in progress; first package accepted and Collaborator Agent active.
 
 Why now: Task-first UI requires the backend to represent draft Tasks, UI projections, user confirmations, and task-scoped guidance.
 
@@ -133,14 +135,16 @@ Work packages:
 
 | Work | Plan | Priority |
 |---|---|---:|
-| Split backend Task domain model from UI ViewModel/projection | [Task model/UI separation](plans/feature/task-domain-ui-model-separation.md) | Ready for acceptance |
-| Collaborator Agent and Task authoring tools | [Collaborator Agent plan](plans/feature/collaborator-agent-task-authoring.md) | P0 |
+| Split backend Task domain model from UI ViewModel/projection | [Task model/UI separation](plans/feature/task-domain-ui-model-separation.md) | Done |
+| Collaborator Agent and Task authoring tools | [Collaborator Agent plan](plans/feature/collaborator-agent-task-authoring.md) | In progress |
+| RawTask, feasibility assessment, and authoring-domain clarification flow | [Collaborator Agent plan](plans/feature/collaborator-agent-task-authoring.md) | P0 |
 | Task-first UI API contracts | [UI API interfaces](plans/ui/ui-api-interfaces.md) | P0 |
 | Task interaction replay model | Covered by Task model and Collaborator plans | P0 |
 
 Exit criteria:
 
 - User natural language can produce a draft Task Tree List.
+- Ambiguous or impossible user input can produce a RawTask with feasibility status and clarification asks instead of a forced Task Tree.
 - Task Node updates and confirmations are modeled before execution.
 - Backend can replay confirmation actions, guidance, and Task patches.
 - UI can render Task cards without depending on raw backend Task internals.
@@ -245,7 +249,7 @@ Recommended order for upcoming implementation sessions:
 6. **TaskBus multi-agent execution hardening** — execution semantics after publish model stabilizes.
 7. **Centralized runtime configuration** — shared control plane for logging/autonomy/audit/LLM/Task/UI behavior once the Task-facing server model is concrete enough to avoid overfitting.
 
-LLM Provider reliability and configurable logging are complete enough for the next round of server-core work. The Task domain boundary now has a release candidate, so the immediate blocker moves to Collaborator Agent and Task authoring tools.
+LLM Provider reliability and configurable logging are complete enough for the next round of server-core work. The Task domain boundary is accepted, so the immediate blocker is now Collaborator Agent and Task authoring tools.
 
 ---
 

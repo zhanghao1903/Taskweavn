@@ -8,8 +8,10 @@ Architecture docs describe stable concepts, object lifecycles, system contracts,
 |---|---|
 | [reference.md](reference.md) | Current implementation-oriented architecture reference. |
 | [overview.md](overview.md) | Task-first multi-agent architecture overview. |
+| [authoring-domain.md](authoring-domain.md) | Authoring Domain boundary: RawTask, feasibility, draft Task Tree, and the bridge into Execution TaskBus. |
 | [task.md](task.md) | Task domain model and lifecycle. |
 | [task-domain-ui-model-separation.md](task-domain-ui-model-separation.md) | Boundary between backend Task domain facts, UI ViewModels, local UI state, and replayable Task interactions. |
+| [collaborator-agent-task-authoring.md](collaborator-agent-task-authoring.md) | System Collaborator Agent, Task authoring service, draft tree generation/refinement, validation, and publish boundary. |
 | [bus.md](bus.md) | TaskBus v1 design. |
 | [bus-v2.md](bus-v2.md) | TaskBus evolution notes. |
 | [agent.md](agent.md) | Agent template/instance model. |

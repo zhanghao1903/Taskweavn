@@ -1,7 +1,8 @@
-# Release Candidate: Task Domain And UI ViewModel Separation
+# Release: Task Domain And UI ViewModel Separation
 
-> Status: ready for acceptance
+> Status: done / accepted
 > Date: 2026-05-14
+> Accepted: 2026-05-14
 > Work Stream: Phase 3C — Task Authoring Foundation
 > Related Plan: [Task Domain/UI Separation](../plans/feature/task-domain-ui-model-separation.md)
 > Technical Design: [Task Domain And UI ViewModel Separation](../architecture/task-domain-ui-model-separation.md)
@@ -11,7 +12,7 @@
 
 ## 1. Summary
 
-This release candidate establishes the first server-core Task model boundary for TaskWeavn's Task-first UI.
+This release establishes the first server-core Task model boundary for TaskWeavn's Task-first UI.
 
 It separates:
 
@@ -74,9 +75,9 @@ The main outcome is that the UI can render and operate on `TaskCardView` / `Task
 
 ## 3. Validation
 
-This release candidate is validated as a server-core contract slice, not as a user-facing UI workflow. Full user-case testing should wait for the Task-first UI prototype, because the meaningful user flow depends on seeing and manipulating Task cards, selected Task Nodes, confirmations, and file summaries in the UI.
+This release is validated as a server-core contract slice, not as a user-facing UI workflow. Full user-case testing should wait for the Task-first UI prototype, because the meaningful user flow depends on seeing and manipulating Task cards, selected Task Nodes, confirmations, and file summaries in the UI.
 
-Final validation for this release candidate:
+Final validation for this release:
 
 - `uv run pytest` in `docs/user_cases/workspace/user-test-cli` — 24 passed
 - `uv run pytest tests/test_task_timeline.py` — 5 passed, 1 warning

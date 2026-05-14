@@ -16,6 +16,7 @@ The original technical path came from [Interaction Layer Design](../architecture
 
 - Task is the core user interaction object.
 - The UI should show Task Tree Lists, Task cards, confirmations, messages, and file summaries.
+- RawTask and feasibility belong to Authoring Domain before Task Tree drafting.
 - Collaborator Agent becomes the system role that drafts and edits Task Trees with the user.
 - TaskPublisher becomes the single boundary from user/collaborator/pipeline/scheduler/API/custom trees into TaskBus.
 - Reliability and logging must be strengthened before large user tests.
@@ -92,17 +93,19 @@ Acceptance:
 
 ### P3C — Task Authoring Foundation
 
-Status: in progress; first package ready for acceptance. Priority: P0.
+Status: in progress; first package accepted and Collaborator Agent active. Priority: P0.
 
 | Package | Source Plan | Implementation Goal |
 |---|---|---|
-| Task domain/UI model separation | [Task model/UI separation](../plans/feature/task-domain-ui-model-separation.md) | Ready for acceptance: stable backend Task plus TaskCard/TaskNode ViewModel projection. |
-| Collaborator Agent | [Collaborator Agent plan](../plans/feature/collaborator-agent-task-authoring.md) | Generate draft Task Trees, patch selected Task Nodes, validate/publish draft tasks. |
+| Task domain/UI model separation | [Task model/UI separation](../plans/feature/task-domain-ui-model-separation.md) | Done: stable backend Task plus TaskCard/TaskNode ViewModel projection. |
+| Collaborator Agent | [Collaborator Agent plan](../plans/feature/collaborator-agent-task-authoring.md) | In progress: generate draft Task Trees, patch selected Task Nodes, validate/publish draft tasks. |
+| RawTask and feasibility authoring flow | [Collaborator Agent plan](../plans/feature/collaborator-agent-task-authoring.md) | Add RawTask, FeasibilityReport, RawTaskAsk, and Authoring Domain boundary before DraftTaskTree generation. |
 | UI API contracts | [UI API interfaces](../plans/ui/ui-api-interfaces.md) | Define APIs for Task lists, selected Task detail, messages, confirmations, file summaries. |
 
 Acceptance:
 
 - Natural language can be transformed into a draft Task Tree List.
+- Ambiguous, unsupported, unsafe, or partially feasible user input can be represented as RawTask without entering TaskBus.
 - User edits and confirmations are recorded as replayable facts.
 - UI can render Task cards from projections without owning backend truth.
 

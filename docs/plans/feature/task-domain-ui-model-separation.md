@@ -1,6 +1,6 @@
 # Feature Plan: Task 领域模型与 UI ViewModel 分层
 
-> Status: ready for acceptance
+> Status: done / accepted
 > Type: 新特性支持 / 架构规划
 > Last Updated: 2026-05-14
 > Owner/Session: planning session
@@ -705,9 +705,10 @@ User intent
 
 ## 19. 状态
 
-- Status: ready for acceptance
+- Status: done / accepted
 - Created: 2026-05-10
 - Started: 2026-05-13
+- Accepted: 2026-05-14
 - Technical Design: [Task Domain And UI ViewModel Separation](../../architecture/task-domain-ui-model-separation.md)
 - Current Branch: `codex/task-domain-ui-model-design`
 - Completed in first implementation pass:
@@ -805,6 +806,7 @@ User intent
   - Reconciled the implementation with architecture and UI API docs.
   - Added a release record for the Task Domain/UI ViewModel Separation feature.
   - Updated roadmap/project roadmap to mark Phase 3C's first package as ready for acceptance.
+  - After merge/acceptance, follow-up docs mark this package as done and Collaborator Agent as the active Phase 3C package.
   - Tightened `TaskInteractionTimeline` cursor semantics so pagination resumes after the returned entry in chronological order instead of comparing UUID strings.
   - Added a cursor-resume timeline regression test.
 - Verified:
@@ -828,4 +830,4 @@ User intent
   - 本阶段不做新的端到端 user case 验收；当前工作是 server-core Task/ViewModel contract。
   - 已回归旧的 UC-005 生成项目测试，确认之前的用户测试产物没有因本分支破坏。
   - UC-001-UC-004 仍保留为手工/LLM 用户测试用例，等待 Task-first UI 或后续需要时再运行。
-- Next Step: 等待验收；验收后可提交并进入 Collaborator Agent / Task authoring tools。
+- Next Step: 已进入 Collaborator Agent / Task authoring tools 阶段。

@@ -1,14 +1,25 @@
 # TaskBus 架构设计
 
-> 多 Agent 协作架构的核心抽象 · v1.0 · 2026-05-08
+> 多 Agent 协作架构的核心抽象 · v1.1 · 2026-05-14
 
 ---
 
 ## 1. 定义
 
-**TaskBus 是任务的中央传递媒介，是 Session 内所有任务流转的唯一通道。**
+**TaskBus 是已发布执行任务的中央传递媒介，是 Session 内 PublishedTask 流转的唯一通道。**
 
-TaskBus 不是一个被动的队列，而是**调度器 + 状态权威 + 协作枢纽**的三位一体。任何任务的发布、领取、完成、失败都必须经过 TaskBus，它是任务状态的**唯一真理来源（Single Source of Truth）**。
+TaskBus 不是一个被动的队列，而是**调度器 + 状态权威 + 协作枢纽**的三位一体。任何已发布执行任务的发布、领取、完成、失败都必须经过 TaskBus，它是执行任务状态的**唯一真理来源（Single Source of Truth）**。
+
+TaskBus 不处理 Authoring Domain 对象：
+
+```text
+RawTask
+DraftTaskTree
+RawTaskAsk
+CollaboratorProposal
+```
+
+这些对象由 Authoring Domain 管理，经过用户确认和 `TaskPublisher` 转换后才产生 PublishedTask。
 
 ```
 TaskBus ≡ FIFO 队列 + 能力匹配 + 串行执行 + 状态权威
@@ -20,17 +31,23 @@ TaskBus ≡ FIFO 队列 + 能力匹配 + 串行执行 + 状态权威
 
 ### 2.1 TaskBus 是生产-消费管道
 
-任务的发布者（用户、Agent）和消费者（Agent 实例）通过 TaskBus 解耦，互不直接通信：
+执行任务的发布者和消费者（Agent 实例）通过 TaskBus 解耦，互不直接通信：
 
 ```
-┌──────────┐  publish(task)   ┌─────────┐  claim_next(cap)  ┌──────────┐
-│ Producer │ ───────────────→ │ TaskBus │ ←──────────────── │ Consumer │
-│ (User /  │                   │  FIFO   │   complete/fail   │  (Agent) │
-│  Agent)  │ ←─── result ───── │  Queue  │ ────────────────→ │          │
-└──────────┘                   └─────────┘                   └──────────┘
+┌───────────────┐ publish(PublishedTask) ┌─────────┐ claim_next(cap) ┌──────────┐
+│ TaskPublisher │ ─────────────────────→ │ TaskBus │ ←────────────── │ Consumer │
+│ or Agent Tool │                         │  FIFO   │ complete/fail   │  Agent   │
+└───────────────┘ ←────── result ──────── │  Queue  │ ──────────────→ │          │
+                                          └─────────┘                 └──────────┘
 ```
 
 发布者不知道哪个 Agent 会执行，消费者不知道任务从哪里来——**调度的中介性是架构松耦合的核心**。
+
+用户自然语言输入的路径在 TaskBus 之前：
+
+```text
+UserMessage -> RawTask -> DraftTaskTree -> TaskPublisher -> TaskBus
+```
 
 ### 2.2 TaskBus 串行执行
 
@@ -302,7 +319,8 @@ def claim_next(self, capability: str) -> Task | None:
 ```
 
 - **与 Session：** 每个 Session 独占一个 TaskBus 实例，绑定生命周期
-- **与 Task：** TaskBus 是 Task 的容器和状态权威
+- **与 Task：** TaskBus 是 PublishedTask 的容器和状态权威
+- **与 Authoring Domain：** TaskBus 不接收 RawTask / DraftTaskTree；`TaskPublisher` 是两域边界
 - **与 Agent：** Agent 实例通过 `claim_next` 拉取任务，通过 `complete/fail` 报告结果
 - **与 EventStream：** 每次状态变迁都向 EventStream 发射事件，EventStream 是真相，TaskBus 是物化视图
 - **与 Workspace：** TaskBus 不直接操作 Workspace，但通过"串行执行"保证 Workspace 访问无冲突
@@ -513,7 +531,7 @@ class StreamingTaskBus(TaskBus):
 
 ## 12. 总结
 
-**TaskBus 是本架构的"心脏"**——所有任务流转、所有状态变迁、所有协作触发都汇聚于此。它的设计哲学是：
+**TaskBus 是执行架构的"心脏"**——所有已发布执行任务的流转、状态变迁、协作触发都汇聚于此。它的设计哲学是：
 
 ```
   做最少的事 ─ FIFO + 能力匹配 + 状态机
@@ -521,4 +539,4 @@ class StreamingTaskBus(TaskBus):
   为未来留路 ─ 单 worker 可扩为多 worker，单值依赖可扩为 DAG
 ```
 
-简洁的 TaskBus 是整个架构能保持简洁的支点。**心脏复杂，全身都难以维护。**
+简洁的 TaskBus 是整个执行架构能保持简洁的支点。Authoring Domain 承担用户意图、澄清、草案和可行性判断，正是为了让这颗心脏不要背上不属于它的生命周期。

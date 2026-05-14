@@ -1,21 +1,43 @@
 # 多 Agent 协作架构总述
 
-> 版本 v1.0 · 2026-05-08 · codeAgent Phase 4
+> 版本 v1.1 · 2026-05-14 · TaskWeavn Task-first baseline
 
 ---
 
 ## 1. 概述
 
-本架构提出一种**任务总线驱动**的多 Agent 协作模型。系统由四个一等公民概念组成：
+本架构提出一种**任务优先**的多 Agent 协作模型。系统现在明确分为两个域：
+
+```text
+Authoring Domain  ─ 用户意图如何变成可发布 Task
+Execution Domain  ─ 已发布 Task 如何被执行
+```
+
+核心一等公民概念组成：
 
 ```
-Session  ─ 用户的一次会话，承载唯一工作区
-Task     ─ 任务，工作的最小单位，树形组织
-Agent    ─ 无状态函数对象，能力 + 工具集
-TaskBus  ─ 串行任务总线，FIFO 调度 + 能力匹配
+Session           ─ 用户的一次会话，承载唯一工作区
+Authoring Domain  ─ RawTask、feasibility、DraftTaskTree
+Task              ─ 已发布的执行任务，工作的最小执行单位
+Agent             ─ 无状态函数对象，能力 + 工具集
+TaskBus           ─ 已发布任务的串行总线，FIFO 调度 + 能力匹配
 ```
 
 整个架构在一页纸上能画完，承载点是**简洁的引擎 + 灵活的用户体验**——架构层强约束，用户层渐进开放。
+
+当前最高优先级边界：
+
+```text
+UserMessage
+  -> RawTask
+  -> FeasibilityReport / RawTaskAsk
+  -> DraftTaskTree
+  -> TaskPublisher
+  -> PublishedTask
+  -> Execution TaskBus
+```
+
+`RawTask`、澄清问题、DraftTaskTree 属于 Authoring Domain。只有用户确认并经过 `TaskPublisher` 转换后的 PublishedTask 才进入 Execution TaskBus。
 
 ---
 
@@ -31,7 +53,9 @@ Agent 间不直接通信，所有协作通过 Task 流转
 任务发布权 = 协作能力，工具化（CreateTaskTool）
 ```
 
-任何挂载了 `CreateTaskTool` 的 Agent 都可以发布任务，触发其他 Agent 的协作。**用户和 Agent 在任务总线面前对等**——都是任务的发布者。
+任何挂载了 `CreateTaskTool` 的 Agent 都可以发布执行任务，触发其他 Agent 的协作。**用户和 Agent 在发布边界前对等**——都可以通过 `TaskPublisher` 产生已发布任务。
+
+用户自然语言输入不是直接进入 TaskBus 的 Task。它先进入 Authoring Domain，形成 `RawTask` 和可编辑 DraftTaskTree。这个边界保护 TaskBus 不被澄清、草案、可行性判断等非执行状态污染。
 
 ### 2.2 树形任务关系
 
@@ -78,8 +102,10 @@ complete(id, result)  完成任务，触发等待方
 | 1 | 一个 Session 一个工作区 | git fork/merge/conflict 解决机制 |
 | 2 | 任务串行执行 | 锁、CAS、心跳、孤儿任务超时 |
 | 3 | Agent 在任务间无状态 | Agent 生命周期管理、缓存亲和性调度 |
-| 4 | 任务状态只有 pending/running/done/failed | waiting/blocked/assigned 等中间态 |
+| 4 | 执行任务状态只有 pending/running/done/failed | waiting/blocked/assigned 等中间态 |
 | 5 | 任务依赖只用单值 parent_id | DAG 拓扑排序、环检测、就绪事件订阅 |
+
+Authoring Domain 有自己的生命周期，例如 `created / assessing / awaiting_user / ready_to_plan / converted`。这些状态不能塞进 Execution TaskBus。
 
 ---
 

@@ -1,18 +1,44 @@
 # Task 架构设计
 
-> 多 Agent 协作架构的核心抽象 · v1.0 · 2026-05-08
+> 多 Agent 协作架构的核心抽象 · v1.1 · 2026-05-14
 
 ---
 
 ## 1. 定义
 
-**Task 是工作的最小单位，是本架构的一等公民。**
+**PublishedTask 是工作的最小执行单位，是 Execution Domain 的一等公民。**
 
-任何需要被 Agent 完成的事情都被表达为一个 Task。用户的请求是 Task，Agent 派生的子工作是 Task，审计、验证、综合也都是 Task。**整个系统的运转就是 Task 的生产、流转、消费。**
+TaskWeavn 现在区分 Authoring Domain 和 Execution Domain。用户的自然语言输入不会直接变成可执行 Task，而是先进入 Authoring Domain：
+
+```text
+UserMessage
+  -> RawTask
+  -> DraftTaskTree
+  -> user confirmation
+  -> PublishedTask
+```
+
+本文中的 `Task` 默认指 **PublishedTask / Execution Task**：已经被确认、校验，并允许进入 TaskBus 的执行任务。
+
+任何需要被 Agent 完成的事情最终都被表达为 PublishedTask。Agent 派生的子工作、审计、验证、综合、结果包装等执行工作也都是 PublishedTask。**整个执行系统的运转就是 PublishedTask 的生产、流转、消费。**
 
 ```
-Task ≡ 一个明确的意图 + 完成它所需的能力声明 + 完成后的结果
+PublishedTask ≡ 一个明确的意图 + 完成它所需的能力声明 + 完成后的结果
 ```
+
+---
+
+## 1.1 Task Taxonomy
+
+| Object | Domain | Executable | Enters TaskBus | Purpose |
+|---|---|---:|---:|---|
+| `RawTask` | Authoring | No | No | Capture user intent before feasibility and planning are complete. |
+| `DraftTaskNode` / `DraftTaskTree` | Authoring | No | No | Editable user-facing plan. |
+| `PublishedTask` | Execution | Yes | Yes | Unit claimed and executed by Agents. |
+| `PipelineTask` | Execution | Yes | Yes | Auto-loaded before/begin/after Task. |
+| `ResultPackagingTask` | Execution | Yes | Yes | Package completed task output into UI result cards. |
+
+This distinction prevents the execution Task state machine from absorbing authoring states such as `awaiting_user`, `ready_to_plan`, or `ready_to_publish`.
 
 ---
 
@@ -190,18 +216,18 @@ running → failed    Agent 抛异常 / 子任务 failed / 显式标记失败
 
 ### 6.1 创建
 
-任务由用户或 Agent 创建，必须指定 `intent` 和 `required_capability`：
+执行任务由用户、Collaborator、pipeline、scheduler、API 或 Agent 通过发布边界创建，必须指定 `intent` 和 `required_capability`：
 
 ```
-用户创建（根任务）：
-  Session.publish(Task(parent_id=None, intent="...", capability="..."))
+用户输入（根任务）：
+  UserMessage -> RawTask -> DraftTaskTree -> TaskPublisher.publish(...)
 
 Agent 创建（子任务）：
   CreateTaskTool 在工具调用层包装：
   Tool input → Task object → bus.publish(task)
 ```
 
-创建即进入 `pending` 状态，进入总线队列。
+PublishedTask 创建即进入 `pending` 状态，进入总线队列。RawTask 和 DraftTaskTree 不进入这里。
 
 ### 6.2 等待与领取
 
@@ -248,9 +274,10 @@ Agent 自身抛异常 → status: running → failed
 ```
 ┌─────────────────────────────────────────────────────┐
 │                                                     │
-│   User      ──创建──>     Task                      │
+│   User      ──输入──> RawTask / DraftTaskTree       │
 │                            │                        │
-│   Agent     ──创建──>     Task                      │
+│                            ↓ publish boundary       │
+│   Agent     ──创建──>     PublishedTask             │
 │                            │                        │
 │                            ↓ publish                │
 │                         TaskBus                     │
