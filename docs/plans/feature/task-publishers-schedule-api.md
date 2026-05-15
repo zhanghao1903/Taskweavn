@@ -701,6 +701,20 @@ api_publish:
   - Custom Task Tree input supports JSON and YAML.
   - Parser supports nested `children` trees and flat `parent_id` trees.
   - Validator checks registered capability availability and optional `agent_ref` capability compatibility.
+  - Slice 3 Publish Service and Idempotency.
+  - Added `taskweavn.task.publisher_service`:
+    - `TaskPublishService`
+    - `PublishIdempotencyStore`
+    - `InMemoryPublishIdempotencyStore`
+    - `PublishIdempotencyRecord`
+    - `PublishIdempotencyConflictError`
+    - `TaskPublishAuditSink`
+    - `InMemoryTaskPublishAuditSink`
+    - `PublishAuditEvent`
+  - `TaskPublishService.publish(...)` supports same-key/same-payload idempotent replay.
+  - Same idempotency key with a different payload returns a skipped conflict result without writing TaskBus.
+  - `DefaultTaskPublisher` now records publish request metadata on each published Task's dispatch constraints.
+  - Publish audit hooks are defined as a thin sink boundary, ready to adapt into EventStream / MessageStream later.
 - Verified:
   - `uv run pytest tests/test_task_publisher.py tests/test_task_commands.py tests/test_authoring_command_service.py tests/test_collaborator_api_adapter.py` — 49 passed, 1 warning
   - `uv run ruff check src/taskweavn/task tests/test_task_publisher.py tests/test_task_commands.py tests/test_authoring_command_service.py tests/test_collaborator_api_adapter.py`
@@ -712,4 +726,11 @@ api_publish:
   - `uv run mypy src tests` — 135 source files
   - `uv run pytest` — 606 passed, 1 warning
   - `git diff --check`
-- Next Step: Slice 3 Publish Service and Idempotency。
+  - `uv run pytest tests/test_task_publish_service.py tests/test_task_publisher.py tests/test_task_publisher_input.py` — 43 passed, 1 warning
+  - `uv run ruff check src/taskweavn/task tests/test_task_publish_service.py tests/test_task_publisher.py tests/test_task_publisher_input.py`
+  - `uv run mypy src/taskweavn/task tests/test_task_publish_service.py tests/test_task_publisher.py tests/test_task_publisher_input.py`
+  - `uv run ruff check src tests`
+  - `uv run mypy src tests` — 137 source files
+  - `uv run pytest` — 615 passed, 1 warning
+  - `git diff --check`
+- Next Step: Slice 4 Scheduler Publisher。

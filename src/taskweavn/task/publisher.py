@@ -470,11 +470,14 @@ def _dispatch_constraints(
     node: NormalizedTaskNode,
 ) -> TaskDispatchConstraints:
     metadata = {
+        "publish_request_id": request.request_id,
+        "publish_idempotency_key": request.idempotency_key,
         "publisher_kind": request.publisher.kind,
         "publisher_actor_id": request.publisher.actor_id,
         "publisher_name": request.publisher.name,
         "source_type": request.source.source_type,
         "source_id": request.source.source_id,
+        "source_metadata": dict(request.source.metadata),
         "source_ref": tree.source_ref,
         "source_node_id": node.node_id,
         "title": node.title,
