@@ -2873,6 +2873,7 @@ dependencies = [
     { name = "openhands-sdk" },
     { name = "pydantic", version = "2.12.5", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.15'" },
     { name = "pydantic", version = "2.13.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.15'" },
+    { name = "pyyaml" },
     { name = "typer", version = "0.23.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.15'" },
     { name = "typer", version = "0.25.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.15'" },
 ]
@@ -2891,6 +2892,7 @@ requires-dist = [
     { name = "openai", specifier = ">=2.0.0" },
     { name = "openhands-sdk", specifier = ">=1.19.0" },
     { name = "pydantic", specifier = ">=2.10" },
+    { name = "pyyaml", specifier = ">=6.0" },
     { name = "typer", specifier = ">=0.12.0" },
 ]
 

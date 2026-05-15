@@ -686,8 +686,30 @@ api_publish:
   - `DefaultTaskPublisher.publish(...)` converts normalized tree nodes into pending `TaskDomain` records and writes through `TaskBus.publish(...)`.
   - `DefaultTaskPublisher.publish_draft_tree(...)` bridges accepted DraftTaskTree publication to TaskBus-backed PublishedTasks and returns draft-to-published mappings for AuthoringCommandService.
   - `DefaultTaskPublisher.retry_task(...)` creates a retry root task for failed published tasks.
+  - Slice 2 Task Tree Parser and Validator.
+  - Added `taskweavn.task.publisher_input`:
+    - `TaskTreeInputFormat`
+    - `TaskTreeInputError`
+    - `AgentCapabilityCatalog`
+    - `StaticAgentCapabilityCatalog`
+    - `AgentCapabilityBinding`
+    - `TaskTreeInputValidator`
+    - `TaskTreeValidation`
+    - `TaskTreeValidationIssue`
+    - `parse_task_tree_input(...)`
+    - `normalize_task_tree_input(...)`
+  - Custom Task Tree input supports JSON and YAML.
+  - Parser supports nested `children` trees and flat `parent_id` trees.
+  - Validator checks registered capability availability and optional `agent_ref` capability compatibility.
 - Verified:
   - `uv run pytest tests/test_task_publisher.py tests/test_task_commands.py tests/test_authoring_command_service.py tests/test_collaborator_api_adapter.py` — 49 passed, 1 warning
   - `uv run ruff check src/taskweavn/task tests/test_task_publisher.py tests/test_task_commands.py tests/test_authoring_command_service.py tests/test_collaborator_api_adapter.py`
   - `uv run mypy src/taskweavn/task tests/test_task_publisher.py tests/test_task_commands.py tests/test_authoring_command_service.py tests/test_collaborator_api_adapter.py`
-- Next Step: Slice 2 Task Tree Parser and Validator。
+  - `uv run pytest tests/test_task_publisher_input.py tests/test_task_publisher.py` — 34 passed, 1 warning
+  - `uv run ruff check src/taskweavn/task tests/test_task_publisher_input.py tests/test_task_publisher.py`
+  - `uv run mypy src/taskweavn/task tests/test_task_publisher_input.py tests/test_task_publisher.py`
+  - `uv run ruff check src tests`
+  - `uv run mypy src tests` — 135 source files
+  - `uv run pytest` — 606 passed, 1 warning
+  - `git diff --check`
+- Next Step: Slice 3 Publish Service and Idempotency。

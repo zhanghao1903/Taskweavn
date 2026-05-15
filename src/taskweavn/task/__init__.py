@@ -120,6 +120,19 @@ from taskweavn.task.publisher import (
     TaskPublishOptions,
     TaskPublishResult,
 )
+from taskweavn.task.publisher_input import (
+    AgentCapabilityBinding,
+    AgentCapabilityCatalog,
+    StaticAgentCapabilityCatalog,
+    TaskTreeInputError,
+    TaskTreeInputFormat,
+    TaskTreeInputValidator,
+    TaskTreeValidation,
+    TaskTreeValidationIssue,
+    TaskTreeValidationSeverity,
+    normalize_task_tree_input,
+    parse_task_tree_input,
+)
 from taskweavn.task.stores import (
     DraftTaskStore,
     InMemoryDraftTaskStore,
@@ -160,6 +173,8 @@ from taskweavn.task.views import (
 __all__ = [
     "ActorKind",
     "ActorRef",
+    "AgentCapabilityBinding",
+    "AgentCapabilityCatalog",
     "AuthoringCommand",
     "AuthoringCommandBatch",
     "AuthoringCommandError",
@@ -284,6 +299,15 @@ __all__ = [
     "TaskTreeView",
     "TaskViewStatus",
     "StaticCapabilityCatalog",
+    "StaticAgentCapabilityCatalog",
     "TimelineEntrySource",
+    "TaskTreeInputError",
+    "TaskTreeInputFormat",
+    "TaskTreeInputValidator",
+    "TaskTreeValidation",
+    "TaskTreeValidationIssue",
+    "TaskTreeValidationSeverity",
     "VersionConflictError",
+    "normalize_task_tree_input",
+    "parse_task_tree_input",
 ]
