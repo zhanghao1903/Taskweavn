@@ -1,10 +1,10 @@
 # Feature Plan: Task Publisher 抽象、定时发布与接口发布
 
-> Status: planned  
-> Type: 新特性支持  
-> Last Updated: 2026-05-11  
-> Owner/Session: planning session  
-> Target Implementation Session: independent feature session  
+> Status: in progress
+> Type: 新特性支持
+> Last Updated: 2026-05-15
+> Owner/Session: planning session
+> Target Implementation Session: independent feature session
 > Related Docs: `docs/architecture/task.md`, `docs/architecture/bus.md`, `docs/plans/feature/pipeline-task-loading.md`, `docs/plans/feature/collaborator-agent-task-authoring.md`
 
 ---
@@ -95,6 +95,7 @@ class TaskPublisher(Protocol):
 - `preview` 不写 TaskBus。
 - `publish` 必须走统一校验和 TaskBus。
 - 不同 publisher 可以有自己的 request adapter，但进入核心发布层前必须归一化为 `NormalizedTaskTree`。
+- 当前实现为了兼容已存在的 draft publish command，也保留 `publish_draft_tree(...)` / `retry_task(...)` compatibility hooks；后续可以在 TaskBus 完整生命周期稳定后再决定是否拆成更小协议。
 
 ### 5.3 PublishRequest
 
@@ -367,6 +368,8 @@ class PublishOptions(BaseModel):
     source_label: str | None = None
     failure_policy: Literal["fail_all", "publish_valid"] = "fail_all"
 ```
+
+实现命名说明：Authoring Domain 已经有 `PublishOptions`，因此执行发布层第一版代码命名为 `TaskPublishOptions`，语义对应本节。
 
 语义：
 
@@ -657,6 +660,34 @@ api_publish:
 
 ## 19. 状态
 
-- Status: planned
+- Status: in progress
 - Created: 2026-05-11
-- Next Step: 在独立实现会话中先完成 Slice 1 Task Publisher Contracts，再做自定义 Task Tree parser / validator。
+- Started: 2026-05-15
+- Current Branch: `codex/collaborator-agent-task-authoring`
+- Completed:
+  - Slice 1 Task Publisher Contracts and minimal TaskBus-backed publish boundary.
+  - Added `taskweavn.task.bus`:
+    - `TaskBus`
+    - `InMemoryTaskBus`
+  - Added `taskweavn.task.publisher`:
+    - `PublisherKind`
+    - `PublisherRef`
+    - `PublishSource`
+    - `TaskPublishOptions`
+    - `NormalizedTaskNode`
+    - `NormalizedTaskTree`
+    - `PublishRequest`
+    - `PublishPreview`
+    - `PublishResult`
+    - `TaskPublishResult`
+    - `TaskPublisher`
+    - `DefaultTaskPublisher`
+  - `DefaultTaskPublisher.preview(...)` validates normalized trees without writing TaskBus.
+  - `DefaultTaskPublisher.publish(...)` converts normalized tree nodes into pending `TaskDomain` records and writes through `TaskBus.publish(...)`.
+  - `DefaultTaskPublisher.publish_draft_tree(...)` bridges accepted DraftTaskTree publication to TaskBus-backed PublishedTasks and returns draft-to-published mappings for AuthoringCommandService.
+  - `DefaultTaskPublisher.retry_task(...)` creates a retry root task for failed published tasks.
+- Verified:
+  - `uv run pytest tests/test_task_publisher.py tests/test_task_commands.py tests/test_authoring_command_service.py tests/test_collaborator_api_adapter.py` — 49 passed, 1 warning
+  - `uv run ruff check src/taskweavn/task tests/test_task_publisher.py tests/test_task_commands.py tests/test_authoring_command_service.py tests/test_collaborator_api_adapter.py`
+  - `uv run mypy src/taskweavn/task tests/test_task_publisher.py tests/test_task_commands.py tests/test_authoring_command_service.py tests/test_collaborator_api_adapter.py`
+- Next Step: Slice 2 Task Tree Parser and Validator。

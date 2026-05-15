@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from taskweavn.interaction import AgentMessage
 from taskweavn.task import (
     ActorRef,
@@ -33,9 +35,17 @@ class _MessageBus:
 
 
 class _Publisher:
+    kind: Any = "collaborator"
+
     def __init__(self, result: TaskPublishResult) -> None:
         self.result = result
         self.calls: list[tuple[str, str]] = []
+
+    def preview(self, request: Any) -> Any:
+        raise NotImplementedError
+
+    def publish(self, request: Any) -> Any:
+        raise NotImplementedError
 
     def publish_draft_tree(self, session_id: str, draft_tree_id: str) -> TaskPublishResult:
         self.calls.append((session_id, draft_tree_id))

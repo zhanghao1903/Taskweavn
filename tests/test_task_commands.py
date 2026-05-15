@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Iterator
 from datetime import datetime
+from typing import Any
 
 import pytest
 from pydantic import ValidationError
@@ -268,9 +269,17 @@ class _PublishedEditor:
 
 
 class _Publisher:
+    kind: Any = "collaborator"
+
     def __init__(self) -> None:
         self.publish_calls: list[tuple[str, str]] = []
         self.retry_calls: list[tuple[str, str, str | None]] = []
+
+    def preview(self, request: Any) -> Any:
+        raise NotImplementedError
+
+    def publish(self, request: Any) -> Any:
+        raise NotImplementedError
 
     def publish_draft_tree(self, session_id: str, draft_tree_id: str) -> TaskPublishResult:
         self.publish_calls.append((session_id, draft_tree_id))

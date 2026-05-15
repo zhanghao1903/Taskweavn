@@ -30,8 +30,8 @@ from taskweavn.task.authoring import (
     RawTaskAsk,
     RawTaskOperation,
 )
-from taskweavn.task.commands import TaskPublisher, TaskPublishResult
 from taskweavn.task.models import DraftTaskNode, TaskNodePatch, TaskRef
+from taskweavn.task.publisher import TaskPublisher, TaskPublishResult
 from taskweavn.task.stores import DraftTaskStore, RawTaskStore, TaskStoreError
 
 

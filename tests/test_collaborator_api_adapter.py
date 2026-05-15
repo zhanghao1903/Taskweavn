@@ -56,6 +56,13 @@ class _StubLLM:
 class _Publisher:
     result: TaskPublishResult
     calls: list[tuple[str, str]] = field(default_factory=list)
+    kind: Any = field(default="collaborator", init=False)
+
+    def preview(self, request: Any) -> Any:
+        raise NotImplementedError
+
+    def publish(self, request: Any) -> Any:
+        raise NotImplementedError
 
     def publish_draft_tree(self, session_id: str, draft_tree_id: str) -> TaskPublishResult:
         self.calls.append((session_id, draft_tree_id))
