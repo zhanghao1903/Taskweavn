@@ -176,6 +176,7 @@ from taskweavn.task.scheduler import (
     SessionSelector,
     SessionSelectorMode,
 )
+from taskweavn.task.sqlite_bus import SqliteTaskBus
 from taskweavn.task.stores import (
     DraftTaskStore,
     InMemoryDraftTaskStore,
@@ -340,6 +341,7 @@ __all__ = [
     "SchedulerPublisher",
     "SessionSelector",
     "SessionSelectorMode",
+    "SqliteTaskBus",
     "TaskCardAction",
     "TaskCardActionKind",
     "TaskCardBadges",

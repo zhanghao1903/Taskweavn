@@ -125,7 +125,7 @@ Status: TaskPublisher server-core release candidate done; pipeline loading parti
 
 | Package | Source Plan | Implementation Goal |
 |---|---|---|
-| TaskPublisher abstraction | [Task Publisher plan](../plans/feature/task-publishers-schedule-api.md), [release](../releases/task-publishers-schedule-api.md) | Done: TaskBus-backed publisher, custom tree parser, idempotent publish service, scheduler/API adapters, publish-time pipeline expansion. |
+| TaskPublisher abstraction | [Task Publisher plan](../plans/feature/task-publishers-schedule-api.md), [release](../releases/task-publishers-schedule-api.md) | Done: TaskBus-backed publisher, SQLite TaskBus, custom tree parser, idempotent publish service, scheduler/API adapters, publish-time pipeline expansion. |
 | Pipeline task loading | [Pipeline loading plan](../plans/feature/pipeline-task-loading.md) | Partial: task_before/task_begin publish-time expansion done; task_after completion-time orchestration remains. |
 | Agent assignment constraints | [Pipeline loading plan](../plans/feature/pipeline-task-loading.md) | Task can require/prefer an Agent Template while preserving capability validation. |
 
@@ -195,7 +195,7 @@ Focus:
 
 Recommended implementation order:
 
-1. Persistent TaskBus / publish stores and server transport.
+1. Persistent publish stores and server transport; SQLite TaskBus is done.
 2. Pipeline task loading completion-time orchestration and agent assignment.
 3. Result Packaging Agent and card-based result presentation.
 4. API-backed Task-first UI prototype.

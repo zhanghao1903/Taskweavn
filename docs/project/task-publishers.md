@@ -268,6 +268,7 @@ Pipeline task metadata 会保留：
 已完成：
 
 - TaskPublisher / TaskBus-backed publish。
+- SQLite-backed published TaskBus。
 - JSON/YAML custom Task Tree parser。
 - Capability / agent validation。
 - Publish service with idempotency。
@@ -277,10 +278,9 @@ Pipeline task metadata 会保留：
 
 未完成：
 
-- 持久化 TaskBus / publisher stores。
+- 持久化 publisher stores。
 - HTTP/RPC server transport。
 - cron evaluator。
 - completion-time `task_after` orchestration。
 - 分布式 scheduler。
 - 用户界面中的 preview/confirm 体验。
-

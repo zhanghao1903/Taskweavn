@@ -174,7 +174,7 @@ Work packages:
 
 | Work | Plan | Priority |
 |---|---|---:|
-| TaskPublisher abstraction for user/collaborator/pipeline/scheduler/API/custom tree | [Task Publisher plan](plans/feature/task-publishers-schedule-api.md), [release](releases/task-publishers-schedule-api.md) | Done |
+| TaskPublisher abstraction for user/collaborator/pipeline/scheduler/API/custom tree | [Task Publisher plan](plans/feature/task-publishers-schedule-api.md), [release](releases/task-publishers-schedule-api.md) | Done, including SQLite TaskBus |
 | Pipeline task auto-loading and agent assignment constraints | [Pipeline loading plan](plans/feature/pipeline-task-loading.md) | Partial: task_before/task_begin publish-time expansion done; task_after and assignment semantics remain P0 |
 | TaskBus publish/claim state authority hardening | Future implementation plan | P0 |
 
@@ -256,7 +256,7 @@ These remain valuable, but they should not be the next immediate build target be
 
 Recommended order for upcoming implementation sessions:
 
-1. **Persistent TaskBus / publish stores and server transport** — make published Task state durable and expose API publisher semantics through a real transport.
+1. **Persistent publish stores and server transport** — SQLite TaskBus is done; remaining work is durable publisher/scheduler stores and exposing API publisher semantics through a real transport.
 2. **Pipeline task loading completion** — completion-time `task_after`, pipeline config persistence, and agent assignment semantics.
 3. **Result packaging and card presentation** — richer result display for information-style answers.
 4. **Task-first UI prototype** — after backend projection and authoring adapter APIs exist.
@@ -264,7 +264,7 @@ Recommended order for upcoming implementation sessions:
 6. **TaskBus multi-agent execution hardening** — execution semantics after publish model stabilizes.
 7. **Centralized runtime configuration** — shared control plane for logging/autonomy/audit/LLM/Task/UI behavior once the Task-facing server model is concrete enough to avoid overfitting.
 
-LLM Provider reliability, configurable logging, Task domain/UI separation, Collaborator authoring, and TaskPublisher are complete enough for the next round of server-core work. The immediate blocker is now durable TaskBus/server transport plus completion-time pipeline orchestration.
+LLM Provider reliability, configurable logging, Task domain/UI separation, Collaborator authoring, and TaskPublisher are complete enough for the next round of server-core work. The immediate blocker is now durable publisher stores/server transport plus completion-time pipeline orchestration.
 
 ---
 
