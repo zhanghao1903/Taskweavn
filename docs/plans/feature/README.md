@@ -11,4 +11,4 @@ Feature plans are scoped implementation packets for independent feature sessions
 | [pipeline-task-loading.md](pipeline-task-loading.md) | Pipeline task loading before/begin/after normal tasks. |
 | [result-packaging-agent-cards.md](result-packaging-agent-cards.md) | Result Packaging Agent and card-based result presentation. |
 | [task-domain-ui-model-separation.md](task-domain-ui-model-separation.md) | Task domain model and UI ViewModel separation. |
-| [task-publishers-schedule-api.md](task-publishers-schedule-api.md) | TaskPublisher abstraction, scheduled publish, API publish, and custom task trees. |
+| [task-publishers-schedule-api.md](task-publishers-schedule-api.md) | Done: TaskPublisher abstraction, scheduled publish, API publish, custom task trees, and publish-time pipeline expansion. |

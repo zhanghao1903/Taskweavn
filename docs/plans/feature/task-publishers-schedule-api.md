@@ -1,8 +1,8 @@
 # Feature Plan: Task Publisher 抽象、定时发布与接口发布
 
-> Status: in progress
+> Status: done / server-core release candidate
 > Type: 新特性支持
-> Last Updated: 2026-05-15
+> Last Updated: 2026-05-16
 > Owner/Session: planning session
 > Target Implementation Session: independent feature session
 > Related Docs: `docs/architecture/task.md`, `docs/architecture/bus.md`, `docs/plans/feature/pipeline-task-loading.md`, `docs/plans/feature/collaborator-agent-task-authoring.md`
@@ -660,7 +660,7 @@ api_publish:
 
 ## 19. 状态
 
-- Status: in progress
+- Status: done / server-core release candidate
 - Created: 2026-05-11
 - Started: 2026-05-15
 - Current Branch: `codex/collaborator-agent-task-authoring`
@@ -760,6 +760,10 @@ api_publish:
   - `task_after` is modeled but not loaded during publish-time expansion; it belongs to completion-time orchestration.
   - `TaskPublishOptions.allow_pipeline=false` disables expansion for a request.
   - Pipeline-generated Tasks retain metadata for `pipeline_stage`, `pipeline_spec_id`, original request id, and original publisher kind.
+  - Slice 7 Docs and Tests.
+  - Added [Task Publisher 使用说明](../../project/task-publishers.md) with custom Task Tree, scheduler, API, and pipeline examples.
+  - Added [release record](../../releases/task-publishers-schedule-api.md).
+  - Updated release index and project docs index.
 - Verified:
   - `uv run pytest tests/test_task_publisher.py tests/test_task_commands.py tests/test_authoring_command_service.py tests/test_collaborator_api_adapter.py` — 49 passed, 1 warning
   - `uv run ruff check src/taskweavn/task tests/test_task_publisher.py tests/test_task_commands.py tests/test_authoring_command_service.py tests/test_collaborator_api_adapter.py`
@@ -799,4 +803,4 @@ api_publish:
   - `uv run mypy src tests` — 143 source files
   - `uv run pytest` — 648 passed, 1 warning
   - `git diff --check`
-- Next Step: Slice 7 Docs and Tests。
+- Next Step: Continue persistent TaskBus / publish stores or completion-time `task_after` orchestration as follow-up work。

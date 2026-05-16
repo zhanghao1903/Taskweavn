@@ -1,7 +1,7 @@
 # TaskWeavn Project Plan
 
 > Status: active
-> Last Updated: 2026-05-15
+> Last Updated: 2026-05-16
 > Maintained By: planning session
 > Phase Baseline: implementation completed through Phase 3.8 plus Phase 3C Task Domain and Collaborator Authoring server-core packages
 > Related: [Global Roadmap](../roadmap.md), [Planning Workflow](../planning_workflow.md), [Phase 3 Release Record](../releases/phase-3-interaction-layer-through-3-8.md), [Collaborator Authoring Release](../releases/collaborator-agent-task-authoring.md), [User Traceability](../user_model/traceability.md)
@@ -101,7 +101,7 @@ Acceptance:
 
 ### P3C — Task Authoring Foundation
 
-Status: server-core authoring foundation done; TaskPublisher bridge next. Priority: P0.
+Status: server-core authoring foundation done; TaskPublisher bridge done in P3D. Priority: P0.
 
 | Package | Source Plan | Implementation Goal |
 |---|---|---|
@@ -121,12 +121,12 @@ Acceptance:
 
 ### P3D — Task Publishing And Pipeline
 
-Status: planned. Priority: P0.
+Status: TaskPublisher server-core release candidate done; pipeline loading partially implemented at publish-time. Priority: P0.
 
 | Package | Source Plan | Implementation Goal |
 |---|---|---|
-| TaskPublisher abstraction | [Task Publisher plan](../plans/feature/task-publishers-schedule-api.md) | Normalize and publish user/collaborator/pipeline/scheduler/API/custom Task Trees. |
-| Pipeline task loading | [Pipeline loading plan](../plans/feature/pipeline-task-loading.md) | Auto-publish before/begin/after tasks as normal TaskBus tasks. |
+| TaskPublisher abstraction | [Task Publisher plan](../plans/feature/task-publishers-schedule-api.md), [release](../releases/task-publishers-schedule-api.md) | Done: TaskBus-backed publisher, custom tree parser, idempotent publish service, scheduler/API adapters, publish-time pipeline expansion. |
+| Pipeline task loading | [Pipeline loading plan](../plans/feature/pipeline-task-loading.md) | Partial: task_before/task_begin publish-time expansion done; task_after completion-time orchestration remains. |
 | Agent assignment constraints | [Pipeline loading plan](../plans/feature/pipeline-task-loading.md) | Task can require/prefer an Agent Template while preserving capability validation. |
 
 Acceptance:
@@ -195,8 +195,8 @@ Focus:
 
 Recommended implementation order:
 
-1. TaskPublisher abstraction.
-2. Pipeline task loading and agent assignment.
+1. Persistent TaskBus / publish stores and server transport.
+2. Pipeline task loading completion-time orchestration and agent assignment.
 3. Result Packaging Agent and card-based result presentation.
 4. API-backed Task-first UI prototype.
 5. Persistent authoring stores and server transport.
