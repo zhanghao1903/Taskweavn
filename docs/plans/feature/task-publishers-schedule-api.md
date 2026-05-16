@@ -715,6 +715,23 @@ api_publish:
   - Same idempotency key with a different payload returns a skipped conflict result without writing TaskBus.
   - `DefaultTaskPublisher` now records publish request metadata on each published Task's dispatch constraints.
   - Publish audit hooks are defined as a thin sink boundary, ready to adapt into EventStream / MessageStream later.
+  - Slice 4 Scheduler Publisher.
+  - Added `taskweavn.task.scheduler`:
+    - `ScheduledPublishConfig`
+    - `ScheduleExpression`
+    - `SessionSelector`
+    - `IdempotencyPolicy`
+    - `ScheduledPublishState`
+    - `ScheduledPublishTickResult`
+    - `ScheduledPublishStore`
+    - `InMemoryScheduledPublishStore`
+    - `SchedulerPublisher`
+  - Scheduler tick evaluates due configs and builds scheduler `PublishRequest` objects.
+  - Interval and daily schedules are executable in the first implementation.
+  - Cron is accepted as reserved configuration shape but returns `unsupported schedule type` until a cron evaluator is introduced.
+  - Scheduler state records `last_run_at`, `next_run_at`, and `last_result`.
+  - Schedule enable / disable is supported through the store.
+  - Scheduler idempotency keys are stable per schedule tick by default and may be customized with `key_template`.
 - Verified:
   - `uv run pytest tests/test_task_publisher.py tests/test_task_commands.py tests/test_authoring_command_service.py tests/test_collaborator_api_adapter.py` — 49 passed, 1 warning
   - `uv run ruff check src/taskweavn/task tests/test_task_publisher.py tests/test_task_commands.py tests/test_authoring_command_service.py tests/test_collaborator_api_adapter.py`
@@ -733,4 +750,11 @@ api_publish:
   - `uv run mypy src tests` — 137 source files
   - `uv run pytest` — 615 passed, 1 warning
   - `git diff --check`
-- Next Step: Slice 4 Scheduler Publisher。
+  - `uv run pytest tests/test_task_scheduler_publisher.py tests/test_task_publish_service.py` — 21 passed, 1 warning
+  - `uv run ruff check src/taskweavn/task tests/test_task_scheduler_publisher.py tests/test_task_publish_service.py`
+  - `uv run mypy src/taskweavn/task tests/test_task_scheduler_publisher.py tests/test_task_publish_service.py`
+  - `uv run ruff check src tests`
+  - `uv run mypy src tests` — 139 source files
+  - `uv run pytest` — 627 passed, 1 warning
+  - `git diff --check`
+- Next Step: Slice 5 API Publisher。
