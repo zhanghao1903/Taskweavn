@@ -732,6 +732,21 @@ api_publish:
   - Scheduler state records `last_run_at`, `next_run_at`, and `last_result`.
   - Schedule enable / disable is supported through the store.
   - Scheduler idempotency keys are stable per schedule tick by default and may be customized with `key_template`.
+  - Slice 5 API Publisher.
+  - Added `taskweavn.task.api_publisher`:
+    - `ApiAuthContext`
+    - `ApiPublishPolicy`
+    - `ApiPublishRequest`
+    - `ApiRateLimiter`
+    - `ApiRateLimitDecision`
+    - `AllowAllApiRateLimiter`
+    - `ApiTaskPublisher`
+    - `DefaultApiTaskPublisher`
+  - API preview returns `PublishPreview` without writing TaskBus.
+  - API publish returns `PublishResult` and writes through `TaskPublishService`.
+  - API publish requires idempotency keys by default, with policy override.
+  - API layer validates session access, capability allowlists, agent allowlists, catalog capability, and agent capability compatibility.
+  - Rate limiting is represented as a transport-neutral hook.
 - Verified:
   - `uv run pytest tests/test_task_publisher.py tests/test_task_commands.py tests/test_authoring_command_service.py tests/test_collaborator_api_adapter.py` — 49 passed, 1 warning
   - `uv run ruff check src/taskweavn/task tests/test_task_publisher.py tests/test_task_commands.py tests/test_authoring_command_service.py tests/test_collaborator_api_adapter.py`
@@ -757,4 +772,11 @@ api_publish:
   - `uv run mypy src tests` — 139 source files
   - `uv run pytest` — 627 passed, 1 warning
   - `git diff --check`
-- Next Step: Slice 5 API Publisher。
+  - `uv run pytest tests/test_task_api_publisher.py tests/test_task_publish_service.py` — 22 passed, 1 warning
+  - `uv run ruff check src/taskweavn/task tests/test_task_api_publisher.py tests/test_task_publish_service.py`
+  - `uv run mypy src/taskweavn/task tests/test_task_api_publisher.py tests/test_task_publish_service.py`
+  - `uv run ruff check src tests`
+  - `uv run mypy src tests` — 141 source files
+  - `uv run pytest` — 640 passed, 1 warning
+  - `git diff --check`
+- Next Step: Slice 6 Pipeline Integration。

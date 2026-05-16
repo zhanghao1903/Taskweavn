@@ -5,6 +5,16 @@ published Task facts, draft authoring facts, UI references, and store protocols
 separate so later projection/UI work does not leak into TaskBus state.
 """
 
+from taskweavn.task.api_publisher import (
+    AllowAllApiRateLimiter,
+    ApiAuthContext,
+    ApiPublishPolicy,
+    ApiPublishRequest,
+    ApiRateLimitDecision,
+    ApiRateLimiter,
+    ApiTaskPublisher,
+    DefaultApiTaskPublisher,
+)
 from taskweavn.task.authoring import (
     ActorKind,
     ActorRef,
@@ -198,8 +208,15 @@ from taskweavn.task.views import (
 __all__ = [
     "ActorKind",
     "ActorRef",
+    "AllowAllApiRateLimiter",
     "AgentCapabilityBinding",
     "AgentCapabilityCatalog",
+    "ApiAuthContext",
+    "ApiPublishPolicy",
+    "ApiPublishRequest",
+    "ApiRateLimitDecision",
+    "ApiRateLimiter",
+    "ApiTaskPublisher",
     "AuthoringCommand",
     "AuthoringCommandBatch",
     "AuthoringCommandError",
@@ -232,6 +249,7 @@ __all__ = [
     "DefaultTaskCommandService",
     "DefaultAuthoringCommandService",
     "DefaultAuthoringContextBuilder",
+    "DefaultApiTaskPublisher",
     "DefaultCollaboratorAuthoringService",
     "DefaultTaskInteractionTimelineService",
     "DefaultTaskPublisher",
