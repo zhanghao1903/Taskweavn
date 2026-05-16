@@ -1,10 +1,10 @@
 # Feature Plan: Task Publisher 抽象、定时发布与接口发布
 
-> Status: planned  
-> Type: 新特性支持  
-> Last Updated: 2026-05-11  
-> Owner/Session: planning session  
-> Target Implementation Session: independent feature session  
+> Status: done / server-core release candidate
+> Type: 新特性支持
+> Last Updated: 2026-05-16
+> Owner/Session: planning session
+> Target Implementation Session: independent feature session
 > Related Docs: `docs/architecture/task.md`, `docs/architecture/bus.md`, `docs/plans/feature/pipeline-task-loading.md`, `docs/plans/feature/collaborator-agent-task-authoring.md`
 
 ---
@@ -95,6 +95,7 @@ class TaskPublisher(Protocol):
 - `preview` 不写 TaskBus。
 - `publish` 必须走统一校验和 TaskBus。
 - 不同 publisher 可以有自己的 request adapter，但进入核心发布层前必须归一化为 `NormalizedTaskTree`。
+- 当前实现为了兼容已存在的 draft publish command，也保留 `publish_draft_tree(...)` / `retry_task(...)` compatibility hooks；后续可以在 TaskBus 完整生命周期稳定后再决定是否拆成更小协议。
 
 ### 5.3 PublishRequest
 
@@ -367,6 +368,8 @@ class PublishOptions(BaseModel):
     source_label: str | None = None
     failure_policy: Literal["fail_all", "publish_valid"] = "fail_all"
 ```
+
+实现命名说明：Authoring Domain 已经有 `PublishOptions`，因此执行发布层第一版代码命名为 `TaskPublishOptions`，语义对应本节。
 
 语义：
 
@@ -657,6 +660,147 @@ api_publish:
 
 ## 19. 状态
 
-- Status: planned
+- Status: done / server-core release candidate
 - Created: 2026-05-11
-- Next Step: 在独立实现会话中先完成 Slice 1 Task Publisher Contracts，再做自定义 Task Tree parser / validator。
+- Started: 2026-05-15
+- Current Branch: `codex/collaborator-agent-task-authoring`
+- Completed:
+  - Slice 1 Task Publisher Contracts and minimal TaskBus-backed publish boundary.
+  - Added `taskweavn.task.bus`:
+    - `TaskBus`
+    - `InMemoryTaskBus`
+  - Added `taskweavn.task.publisher`:
+    - `PublisherKind`
+    - `PublisherRef`
+    - `PublishSource`
+    - `TaskPublishOptions`
+    - `NormalizedTaskNode`
+    - `NormalizedTaskTree`
+    - `PublishRequest`
+    - `PublishPreview`
+    - `PublishResult`
+    - `TaskPublishResult`
+    - `TaskPublisher`
+    - `DefaultTaskPublisher`
+  - `DefaultTaskPublisher.preview(...)` validates normalized trees without writing TaskBus.
+  - `DefaultTaskPublisher.publish(...)` converts normalized tree nodes into pending `TaskDomain` records and writes through `TaskBus.publish(...)`.
+  - `DefaultTaskPublisher.publish_draft_tree(...)` bridges accepted DraftTaskTree publication to TaskBus-backed PublishedTasks and returns draft-to-published mappings for AuthoringCommandService.
+  - `DefaultTaskPublisher.retry_task(...)` creates a retry root task for failed published tasks.
+  - Slice 2 Task Tree Parser and Validator.
+  - Added `taskweavn.task.publisher_input`:
+    - `TaskTreeInputFormat`
+    - `TaskTreeInputError`
+    - `AgentCapabilityCatalog`
+    - `StaticAgentCapabilityCatalog`
+    - `AgentCapabilityBinding`
+    - `TaskTreeInputValidator`
+    - `TaskTreeValidation`
+    - `TaskTreeValidationIssue`
+    - `parse_task_tree_input(...)`
+    - `normalize_task_tree_input(...)`
+  - Custom Task Tree input supports JSON and YAML.
+  - Parser supports nested `children` trees and flat `parent_id` trees.
+  - Validator checks registered capability availability and optional `agent_ref` capability compatibility.
+  - Slice 3 Publish Service and Idempotency.
+  - Added `taskweavn.task.publisher_service`:
+    - `TaskPublishService`
+    - `PublishIdempotencyStore`
+    - `InMemoryPublishIdempotencyStore`
+    - `PublishIdempotencyRecord`
+    - `PublishIdempotencyConflictError`
+    - `TaskPublishAuditSink`
+    - `InMemoryTaskPublishAuditSink`
+    - `PublishAuditEvent`
+  - `TaskPublishService.publish(...)` supports same-key/same-payload idempotent replay.
+  - Same idempotency key with a different payload returns a skipped conflict result without writing TaskBus.
+  - `DefaultTaskPublisher` now records publish request metadata on each published Task's dispatch constraints.
+  - Publish audit hooks are defined as a thin sink boundary, ready to adapt into EventStream / MessageStream later.
+  - Slice 4 Scheduler Publisher.
+  - Added `taskweavn.task.scheduler`:
+    - `ScheduledPublishConfig`
+    - `ScheduleExpression`
+    - `SessionSelector`
+    - `IdempotencyPolicy`
+    - `ScheduledPublishState`
+    - `ScheduledPublishTickResult`
+    - `ScheduledPublishStore`
+    - `InMemoryScheduledPublishStore`
+    - `SchedulerPublisher`
+  - Scheduler tick evaluates due configs and builds scheduler `PublishRequest` objects.
+  - Interval and daily schedules are executable in the first implementation.
+  - Cron is accepted as reserved configuration shape but returns `unsupported schedule type` until a cron evaluator is introduced.
+  - Scheduler state records `last_run_at`, `next_run_at`, and `last_result`.
+  - Schedule enable / disable is supported through the store.
+  - Scheduler idempotency keys are stable per schedule tick by default and may be customized with `key_template`.
+  - Slice 5 API Publisher.
+  - Added `taskweavn.task.api_publisher`:
+    - `ApiAuthContext`
+    - `ApiPublishPolicy`
+    - `ApiPublishRequest`
+    - `ApiRateLimiter`
+    - `ApiRateLimitDecision`
+    - `AllowAllApiRateLimiter`
+    - `ApiTaskPublisher`
+    - `DefaultApiTaskPublisher`
+  - API preview returns `PublishPreview` without writing TaskBus.
+  - API publish returns `PublishResult` and writes through `TaskPublishService`.
+  - API publish requires idempotency keys by default, with policy override.
+  - API layer validates session access, capability allowlists, agent allowlists, catalog capability, and agent capability compatibility.
+  - Rate limiting is represented as a transport-neutral hook.
+  - Slice 6 Pipeline Integration.
+  - Added `taskweavn.task.pipeline`:
+    - `PipelineStage`
+    - `PipelineContextPolicy`
+    - `PipelineTaskSpec`
+    - `PipelineConfig`
+    - `PipelineTaskLoader`
+    - `DefaultPipelineTaskLoader`
+  - `TaskPublishService` can optionally use a `PipelineTaskLoader` before preview/publish.
+  - Publish-time pipeline expansion turns `task_before` and `task_begin` specs into ordinary `NormalizedTaskNode` roots.
+  - `task_after` is modeled but not loaded during publish-time expansion; it belongs to completion-time orchestration.
+  - `TaskPublishOptions.allow_pipeline=false` disables expansion for a request.
+  - Pipeline-generated Tasks retain metadata for `pipeline_stage`, `pipeline_spec_id`, original request id, and original publisher kind.
+  - Slice 7 Docs and Tests.
+  - Added [Task Publisher 使用说明](../../project/task-publishers.md) with custom Task Tree, scheduler, API, and pipeline examples.
+  - Added [release record](../../releases/task-publishers-schedule-api.md).
+  - Updated release index and project docs index.
+- Verified:
+  - `uv run pytest tests/test_task_publisher.py tests/test_task_commands.py tests/test_authoring_command_service.py tests/test_collaborator_api_adapter.py` — 49 passed, 1 warning
+  - `uv run ruff check src/taskweavn/task tests/test_task_publisher.py tests/test_task_commands.py tests/test_authoring_command_service.py tests/test_collaborator_api_adapter.py`
+  - `uv run mypy src/taskweavn/task tests/test_task_publisher.py tests/test_task_commands.py tests/test_authoring_command_service.py tests/test_collaborator_api_adapter.py`
+  - `uv run pytest tests/test_task_publisher_input.py tests/test_task_publisher.py` — 34 passed, 1 warning
+  - `uv run ruff check src/taskweavn/task tests/test_task_publisher_input.py tests/test_task_publisher.py`
+  - `uv run mypy src/taskweavn/task tests/test_task_publisher_input.py tests/test_task_publisher.py`
+  - `uv run ruff check src tests`
+  - `uv run mypy src tests` — 135 source files
+  - `uv run pytest` — 606 passed, 1 warning
+  - `git diff --check`
+  - `uv run pytest tests/test_task_publish_service.py tests/test_task_publisher.py tests/test_task_publisher_input.py` — 43 passed, 1 warning
+  - `uv run ruff check src/taskweavn/task tests/test_task_publish_service.py tests/test_task_publisher.py tests/test_task_publisher_input.py`
+  - `uv run mypy src/taskweavn/task tests/test_task_publish_service.py tests/test_task_publisher.py tests/test_task_publisher_input.py`
+  - `uv run ruff check src tests`
+  - `uv run mypy src tests` — 137 source files
+  - `uv run pytest` — 615 passed, 1 warning
+  - `git diff --check`
+  - `uv run pytest tests/test_task_scheduler_publisher.py tests/test_task_publish_service.py` — 21 passed, 1 warning
+  - `uv run ruff check src/taskweavn/task tests/test_task_scheduler_publisher.py tests/test_task_publish_service.py`
+  - `uv run mypy src/taskweavn/task tests/test_task_scheduler_publisher.py tests/test_task_publish_service.py`
+  - `uv run ruff check src tests`
+  - `uv run mypy src tests` — 139 source files
+  - `uv run pytest` — 627 passed, 1 warning
+  - `git diff --check`
+  - `uv run pytest tests/test_task_api_publisher.py tests/test_task_publish_service.py` — 22 passed, 1 warning
+  - `uv run ruff check src/taskweavn/task tests/test_task_api_publisher.py tests/test_task_publish_service.py`
+  - `uv run mypy src/taskweavn/task tests/test_task_api_publisher.py tests/test_task_publish_service.py`
+  - `uv run ruff check src tests`
+  - `uv run mypy src tests` — 141 source files
+  - `uv run pytest` — 640 passed, 1 warning
+  - `git diff --check`
+  - `uv run pytest tests/test_task_pipeline.py tests/test_task_publish_service.py` — 17 passed, 1 warning
+  - `uv run ruff check src/taskweavn/task tests/test_task_pipeline.py tests/test_task_publish_service.py`
+  - `uv run mypy src/taskweavn/task tests/test_task_pipeline.py tests/test_task_publish_service.py`
+  - `uv run ruff check src tests`
+  - `uv run mypy src tests` — 143 source files
+  - `uv run pytest` — 648 passed, 1 warning
+  - `git diff --check`
+- Next Step: Continue persistent TaskBus / publish stores or completion-time `task_after` orchestration as follow-up work。

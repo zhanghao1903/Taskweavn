@@ -5,6 +5,8 @@
 > Related Discussion: [RawTask、可行性判断与 Authoring Domain](../discussion/2026-05-14-raw-task-authoring-domain.md)
 > Related ADR: [ADR-0008](../decisions/ADR-0008-authoring-domain-execution-boundary.md)
 > Related Plans: [Collaborator Agent](../plans/feature/collaborator-agent-task-authoring.md), [Task model/UI separation](../plans/feature/task-domain-ui-model-separation.md)
+> Related Protocol: [Authoring Command Protocol](authoring-command-protocol.md)
+> User Needs: [UN-105](../user_model/needs/UN-105-system-evaluability-and-capability-disclosure.md), [UN-101](../user_model/needs/UN-101-photo-curation-batch-screening.md), [UN-102](../user_model/needs/UN-102-courseware-html-generation.md), [UN-103](../user_model/needs/UN-103-car-purchase-decision-support.md)
 
 ---
 
@@ -33,6 +35,17 @@ The key rule is:
 Authoring objects do not enter Execution TaskBus.
 Only published execution Tasks enter TaskBus.
 ```
+
+### 1.1 User-Need Traceability
+
+This boundary is not only a technical cleanup. It exists because users need to judge whether a task is suitable before committing to execution.
+
+| Need | How Authoring Domain Responds |
+|---|---|
+| [UN-105](../user_model/needs/UN-105-system-evaluability-and-capability-disclosure.md) | RawTask and FeasibilityReport expose "can we do this, what is missing, what is risky" before TaskBus execution. |
+| [UN-101](../user_model/needs/UN-101-photo-curation-batch-screening.md) | Batch screening goals can first become editable RawTask/DraftTaskTree flows with review checkpoints before execution. |
+| [UN-102](../user_model/needs/UN-102-courseware-html-generation.md) | Courseware generation can collect teaching constraints before drafting executable content tasks. |
+| [UN-103](../user_model/needs/UN-103-car-purchase-decision-support.md) | High-risk information tasks can stay in clarification/evaluation mode when constraints or sources are insufficient. |
 
 ---
 
@@ -296,7 +309,23 @@ Candidate events:
 
 These are authoring/audit events, not TaskBus state events.
 
-### 5.3 Stores
+### 5.3 Audit Strength
+
+Authoring audit is intentionally lighter than execution audit.
+
+RawTask is an exploration object. Users may revise intent, answer clarifying questions, abandon paths, or try multiple formulations. The system should preserve traceability without making exploratory language feel like a formal execution commitment.
+
+Recommended audit posture:
+
+| Layer | Audit Posture | Reason |
+|---|---|---|
+| RawTask | lightweight traceability | exploratory, often revised, not executable |
+| DraftTaskTree | medium traceability | user-visible plan that may become execution tasks |
+| PublishedTask | strong audit | executable, affects workspace and user outcomes |
+
+For RawTask, prefer command summaries, causation message ids, versions, and compact snapshots. Avoid heavyweight immutable events for every minor text or assumption change.
+
+### 5.4 Stores
 
 First-class store boundaries:
 
@@ -310,14 +339,41 @@ The first implementation can be in-memory for service tests, but the architectur
 
 ---
 
-## 6. Collaborator Responsibility
+## 6. Authoring Command Protocol
+
+Authoring Domain state changes should go through [Authoring Command Protocol](authoring-command-protocol.md), not through many LLM-visible tools.
+
+The stable rule:
+
+```text
+LLM produces proposals.
+AuthoringCommandService validates and commits commands.
+Stores/messages/events are mutated by command handlers.
+```
+
+This is especially important because authoring happens in the interaction path. Repeated LLM tool calls increase latency and error rate. Coarse object-scoped commands reduce failure points while keeping code-side validation strong.
+
+Primary command groups:
+
+| Command | Object Scope | Purpose |
+|---|---|---|
+| `MutateRawTaskCommand` | RawTask | Create/update RawTask, feasibility, asks, answers, assumptions, status. |
+| `MutateDraftTaskTreeCommand` | DraftTaskTree | Create tree, patch nodes, reorder, attach options, mark accepted. |
+| `PublishDraftTaskTreeCommand` | DraftTaskTree -> PublishedTask | Validate and cross into Execution Domain. |
+| `AuthoringCommandBatch` | One object scope by default | Submit multiple operations with one validation/transaction boundary. |
+
+Natural language authoring uses this protocol after LLM proposal parsing. Strongly typed Task Tree input can skip RawTask exploration and go directly to validate/publish.
+
+---
+
+## 7. Collaborator Responsibility
 
 The Collaborator Agent remains the primary authoring assistant, but Authoring Domain prevents it from becoming an overloaded hidden actor.
 
 Collaborator should coordinate:
 
 - RawTask creation from user input;
-- feasibility assessment through a tool/service;
+- feasibility assessment through command-backed service logic;
 - clarification questions;
 - DraftTaskTree generation;
 - selected-node refinement;
@@ -334,7 +390,7 @@ Collaborator should not:
 
 ---
 
-## 7. TaskBus Boundary
+## 8. TaskBus Boundary
 
 TaskBus receives only executable PublishedTasks.
 
@@ -365,13 +421,13 @@ This keeps TaskBus clean:
 
 ---
 
-## 8. Routing And Future AuthoringBus
+## 9. Routing And Future AuthoringBus
 
 The current decision does not require an AuthoringBus.
 
 First implementation can use:
 
-- command/service methods;
+- `AuthoringCommandService`;
 - RawTaskStore and DraftTaskStore;
 - MessageStream actionables;
 - EventStream authoring events.
@@ -382,7 +438,7 @@ If an AuthoringBus is introduced, it must be separate from Execution TaskBus or 
 
 ---
 
-## 9. Complexity Rule
+## 10. Complexity Rule
 
 Authoring Domain adds a concept. It is accepted because it prevents pollution of a more central concept.
 
@@ -401,19 +457,19 @@ RawTask and Authoring Domain pass this test because they make ambiguous, infeasi
 
 ---
 
-## 10. Open Questions
+## 11. Open Questions
 
 These are intentionally not locked in the first baseline:
 
 1. Should RawTaskStore be a dedicated table or derived from messages/events first?
-2. Should Feasibility assessment be a Collaborator tool, an assessor service, or both?
+2. Should RawTask traceability use selected command events plus snapshots, or full append-only command events?
 3. Should RawTaskAsk have a domain table, or can MessageStream actionable plus event facts be sufficient?
 4. Should RawTask Card and DraftTaskNode Card share a UI ViewModel base?
 5. Should a future generic WorkBus unify Authoring and Execution, or would that reintroduce the same pollution under a new name?
 
 ---
 
-## 11. Architecture Summary
+## 12. Architecture Summary
 
 The stable mental model:
 

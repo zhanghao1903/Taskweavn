@@ -58,6 +58,15 @@ class WorkspaceLayout:
         return self.meta_dir / "messages.sqlite"
 
     @property
+    def workspace_tasks_db(self) -> Path:
+        """Workspace-scoped published Task store.
+
+        Published Tasks are row-isolated by ``session_id`` but live at the
+        workspace level so cross-session projections can be added later.
+        """
+        return self.meta_dir / "tasks.sqlite"
+
+    @property
     def shared_dir(self) -> Path:
         return self.root / "shared"
 

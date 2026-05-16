@@ -26,6 +26,12 @@ def test_workspace_messages_db_is_workspace_scoped(tmp_path: Path) -> None:
     )
 
 
+def test_workspace_tasks_db_is_workspace_scoped(tmp_path: Path) -> None:
+    layout = WorkspaceLayout(tmp_path)
+    assert layout.workspace_tasks_db == tmp_path / ".taskweavn" / "tasks.sqlite"
+    assert layout.workspace_tasks_db.parent == layout.registry_db_path.parent
+
+
 def test_session_paths(tmp_path: Path) -> None:
     layout = WorkspaceLayout(tmp_path)
     sid = "abc12345"

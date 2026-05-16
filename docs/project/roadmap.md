@@ -1,10 +1,10 @@
 # TaskWeavn Project Plan
 
 > Status: active
-> Last Updated: 2026-05-14
+> Last Updated: 2026-05-16
 > Maintained By: planning session
-> Phase Baseline: implementation completed through Phase 3.8
-> Related: [Global Roadmap](../roadmap.md), [Planning Workflow](../planning_workflow.md), [Phase 3 Release Record](../releases/phase-3-interaction-layer-through-3-8.md)
+> Phase Baseline: implementation completed through Phase 3.8 plus Phase 3C Task Domain and Collaborator Authoring server-core packages
+> Related: [Global Roadmap](../roadmap.md), [Planning Workflow](../planning_workflow.md), [Phase 3 Release Record](../releases/phase-3-interaction-layer-through-3-8.md), [Collaborator Authoring Release](../releases/collaborator-agent-task-authoring.md), [User Traceability](../user_model/traceability.md)
 
 ---
 
@@ -17,9 +17,17 @@ The original technical path came from [Interaction Layer Design](../architecture
 - Task is the core user interaction object.
 - The UI should show Task Tree Lists, Task cards, confirmations, messages, and file summaries.
 - RawTask and feasibility belong to Authoring Domain before Task Tree drafting.
+- Collaborator plans against a read-only CapabilityCatalog and mutates authoring state through Authoring Commands, not the full concrete tool pool.
 - Collaborator Agent becomes the system role that drafts and edits Task Trees with the user.
 - TaskPublisher becomes the single boundary from user/collaborator/pipeline/scheduler/API/custom trees into TaskBus.
 - Reliability and logging must be strengthened before large user tests.
+
+The immediate authoring work is grounded in:
+
+- [UN-105](../user_model/needs/UN-105-system-evaluability-and-capability-disclosure.md): task fit, feasibility, and capability boundary disclosure.
+- [UN-101](../user_model/needs/UN-101-photo-curation-batch-screening.md): batch task trees with human review checkpoints.
+- [UN-102](../user_model/needs/UN-102-courseware-html-generation.md): editable content-generation task trees.
+- [UN-103](../user_model/needs/UN-103-car-purchase-decision-support.md): clarification/evaluation before high-risk information work.
 
 ---
 
@@ -93,14 +101,15 @@ Acceptance:
 
 ### P3C — Task Authoring Foundation
 
-Status: in progress; first package accepted and Collaborator Agent active. Priority: P0.
+Status: server-core authoring foundation done; TaskPublisher bridge done in P3D. Priority: P0.
 
 | Package | Source Plan | Implementation Goal |
 |---|---|---|
 | Task domain/UI model separation | [Task model/UI separation](../plans/feature/task-domain-ui-model-separation.md) | Done: stable backend Task plus TaskCard/TaskNode ViewModel projection. |
-| Collaborator Agent | [Collaborator Agent plan](../plans/feature/collaborator-agent-task-authoring.md) | In progress: generate draft Task Trees, patch selected Task Nodes, validate/publish draft tasks. |
-| RawTask and feasibility authoring flow | [Collaborator Agent plan](../plans/feature/collaborator-agent-task-authoring.md) | Add RawTask, FeasibilityReport, RawTaskAsk, and Authoring Domain boundary before DraftTaskTree generation. |
-| UI API contracts | [UI API interfaces](../plans/ui/ui-api-interfaces.md) | Define APIs for Task lists, selected Task detail, messages, confirmations, file summaries. |
+| Collaborator Agent | [Collaborator Agent plan](../plans/feature/collaborator-agent-task-authoring.md) | Done: mock-LLM draft Task Tree generation, selected-node refinement, validation, publish boundary, and UI/API adapter. |
+| RawTask and feasibility authoring flow | [Collaborator Agent plan](../plans/feature/collaborator-agent-task-authoring.md) | Done: RawTask, FeasibilityReport, RawTaskAsk, RawTaskAnswer, and Authoring Domain boundary before DraftTaskTree generation. |
+| CapabilityCatalog, tool-pool boundary, and Authoring Command Protocol | [Tool Capability Layer](../architecture/tool-capability-layer.md), [Authoring Command Protocol](../architecture/authoring-command-protocol.md) | Done as first server-core boundary: capability-first planning, no workspace tool pool on Collaborator, command-first system-state mutation. |
+| UI API contracts | [UI API interfaces](../plans/ui/ui-api-interfaces.md) | Done for authoring adapter surface; concrete transport and UI integration remain follow-ups. |
 
 Acceptance:
 
@@ -108,15 +117,16 @@ Acceptance:
 - Ambiguous, unsupported, unsafe, or partially feasible user input can be represented as RawTask without entering TaskBus.
 - User edits and confirmations are recorded as replayable facts.
 - UI can render Task cards from projections without owning backend truth.
+- Current server-core satisfies these through services, in-memory stores, mock LLM tests, and `CommandResult` adapter contracts. User-facing end-to-end validation waits for API transport and UI.
 
 ### P3D — Task Publishing And Pipeline
 
-Status: planned. Priority: P0.
+Status: TaskPublisher server-core release candidate done; pipeline loading partially implemented at publish-time. Priority: P0.
 
 | Package | Source Plan | Implementation Goal |
 |---|---|---|
-| TaskPublisher abstraction | [Task Publisher plan](../plans/feature/task-publishers-schedule-api.md) | Normalize and publish user/collaborator/pipeline/scheduler/API/custom Task Trees. |
-| Pipeline task loading | [Pipeline loading plan](../plans/feature/pipeline-task-loading.md) | Auto-publish before/begin/after tasks as normal TaskBus tasks. |
+| TaskPublisher abstraction | [Task Publisher plan](../plans/feature/task-publishers-schedule-api.md), [release](../releases/task-publishers-schedule-api.md) | Done: TaskBus-backed publisher, SQLite TaskBus, custom tree parser, idempotent publish service, scheduler/API adapters, publish-time pipeline expansion. |
+| Pipeline task loading | [Pipeline loading plan](../plans/feature/pipeline-task-loading.md) | Partial: task_before/task_begin publish-time expansion done; task_after completion-time orchestration remains. |
 | Agent assignment constraints | [Pipeline loading plan](../plans/feature/pipeline-task-loading.md) | Task can require/prefer an Agent Template while preserving capability validation. |
 
 Acceptance:
@@ -185,14 +195,14 @@ Focus:
 
 Recommended implementation order:
 
-1. Collaborator Agent and Task authoring tools.
-2. TaskPublisher abstraction.
-3. Pipeline task loading and agent assignment.
-4. Result Packaging Agent and card-based result presentation.
-5. API-backed Task-first UI prototype.
+1. Persistent publish stores and server transport; SQLite TaskBus is done.
+2. Pipeline task loading completion-time orchestration and agent assignment.
+3. Result Packaging Agent and card-based result presentation.
+4. API-backed Task-first UI prototype.
+5. Persistent authoring stores and server transport.
 6. Centralized runtime configuration system.
 
-LLM Provider reliability and configurable logging are complete enough for the next round of server-core work. The Task-first data model now has a release candidate, so the remaining order moves into authoring, publishing, and UI flows while centralized configuration stays as a control-plane hardening follow-up.
+LLM Provider reliability, configurable logging, the Task-first data model, and Collaborator authoring now have server-core release candidates. The remaining order moves into publishing, pipeline loading, and UI flows while centralized configuration stays as a control-plane hardening follow-up.
 
 ---
 

@@ -7,6 +7,7 @@ This directory is organized by document purpose, not by implementation module.
 | Directory | Purpose |
 |---|---|
 | [architecture/](architecture/) | Core architecture, long-term design principles, object lifecycles, and protocol boundaries. |
+| [product/](product/) | Product principles, user mental models, core interaction objects, and UX lifecycle direction. |
 | [project/](project/) | Project roadmap and historical phase planning. |
 | [decisions/](decisions/) | Architecture decision records for important long-term choices. |
 | [releases/](releases/) | Completed phase and milestone records. |
@@ -23,6 +24,8 @@ This directory is organized by document purpose, not by implementation module.
 - [Global Roadmap](roadmap.md)
 - [Configuration Guide](configuration.md)
 - [Project Plan](project/roadmap.md)
+- [Product Principles](product/core-product-principles.md)
+- [Workflow / Session / Task UX Model](product/workflow-session-task-ux-model.md)
 - [Architecture Reference](architecture/reference.md)
 - [Multi-Agent Collaboration Architecture](architecture/multi-agent-collaboration.md)
 - [Interaction Layer Design](architecture/interaction-layer.md)

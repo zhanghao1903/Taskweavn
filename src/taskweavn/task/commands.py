@@ -13,12 +13,8 @@ from uuid import uuid4
 from pydantic import BaseModel, ConfigDict, Field
 
 from taskweavn.interaction import AgentMessage, MessageBus
-from taskweavn.task.models import (
-    DraftToPublishedMapping,
-    TaskDomain,
-    TaskNodePatch,
-    TaskRef,
-)
+from taskweavn.task.models import TaskDomain, TaskNodePatch, TaskRef
+from taskweavn.task.publisher import TaskPublisher
 from taskweavn.task.stores import DraftTaskStore, TaskStore
 
 TaskGuidanceMode = Literal["guidance", "constraint", "clarification", "correction"]
@@ -35,14 +31,6 @@ class _FrozenCommandModel(BaseModel):
         frozen=True,
         validate_assignment=True,
     )
-
-
-class TaskPublishResult(_FrozenCommandModel):
-    """Result from publishing draft/retry tasks through a publisher boundary."""
-
-    root_task_ids: tuple[str, ...] = ()
-    mappings: tuple[DraftToPublishedMapping, ...] = ()
-    rejected_task_ids: tuple[str, ...] = ()
 
 
 class CommandResult(_FrozenCommandModel):
@@ -70,20 +58,6 @@ class PublishedTaskEditor(Protocol):
         task_id: str,
         patch: TaskNodePatch,
     ) -> TaskDomain: ...
-
-
-@runtime_checkable
-class TaskPublisher(Protocol):
-    """Boundary for publish/retry flows that should later call TaskBus."""
-
-    def publish_draft_tree(self, session_id: str, draft_tree_id: str) -> TaskPublishResult: ...
-
-    def retry_task(
-        self,
-        session_id: str,
-        task_id: str,
-        instruction: str | None = None,
-    ) -> TaskPublishResult: ...
 
 
 @runtime_checkable

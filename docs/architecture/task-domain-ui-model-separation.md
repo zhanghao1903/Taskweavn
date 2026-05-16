@@ -1,11 +1,12 @@
 # Task Domain And UI ViewModel Separation
 
-> Status: implemented / ready for acceptance
+> Status: implemented / accepted
 > Last Updated: 2026-05-14
 > Work Stream: Phase 3C — Task Authoring Foundation
 > Related Plan: [Task Domain/UI Separation](../plans/feature/task-domain-ui-model-separation.md)
 > Related ADR: [ADR-0002](../decisions/ADR-0002-task-domain-viewmodel-and-replay.md)
-> Related Docs: [Task Architecture](task.md), [TaskBus](bus.md), [UI API Interfaces](../plans/ui/ui-api-interfaces.md), [Collaborator Agent](../plans/feature/collaborator-agent-task-authoring.md)
+> Related Docs: [Task Architecture](task.md), [TaskBus](bus.md), [Authoring Command Protocol](authoring-command-protocol.md), [UI API Interfaces](../plans/ui/ui-api-interfaces.md), [Collaborator Agent](../plans/feature/collaborator-agent-task-authoring.md)
+> User Needs: [UN-101](../user_model/needs/UN-101-photo-curation-batch-screening.md), [UN-102](../user_model/needs/UN-102-courseware-html-generation.md), [UN-105](../user_model/needs/UN-105-system-evaluability-and-capability-disclosure.md)
 
 ---
 
@@ -23,7 +24,17 @@ This design defines the boundary between:
 
 The first implementation should build the model boundary and projection contracts. It should not try to build the full UI, TaskBus v2, or a complete persistence layer in one pass.
 
-Implementation note: the first server-core pass now lives under `src/taskweavn/task/` and covers domain/draft models, view models, projection, command mapping, replay timeline, and UI API alignment. It remains intentionally storage-light: concrete TaskBus persistence, Collaborator Agent tools, and API transport are follow-up work packages.
+Implementation note: the first server-core pass now lives under `src/taskweavn/task/` and covers domain/draft models, view models, projection, command mapping, replay timeline, and UI API alignment. It remains intentionally storage-light: concrete TaskBus persistence, Collaborator Authoring Command handlers, and API transport are follow-up work packages.
+
+### 1.1 User-Need Traceability
+
+This boundary supports user needs that require editable, replayable Task structure instead of chat-only output.
+
+| Need | Model Boundary Response |
+|---|---|
+| [UN-101](../user_model/needs/UN-101-photo-curation-batch-screening.md) | Task cards can show screening checkpoints, thresholds, confirmations, and review history without polluting execution Task state. |
+| [UN-102](../user_model/needs/UN-102-courseware-html-generation.md) | Draft courseware tasks can be edited at node level while published tasks stay execution-focused. |
+| [UN-105](../user_model/needs/UN-105-system-evaluability-and-capability-disclosure.md) | ViewModels can expose capability/quality/evaluation signals while backend Tasks remain stable. |
 
 ---
 
@@ -37,7 +48,7 @@ The current repository has these architectural facts:
 | TaskBus | `docs/architecture/bus.md` treats TaskBus as the execution/state authority for published Tasks. |
 | MessageStream | Interaction Layer already stores session messages with `session_id`, `agent_id`, `task_id`, `created_at`. Task views should filter/aggregate this single stream. |
 | UI API | `docs/plans/ui/ui-api-interfaces.md` already defines query/command/event boundaries for Task-first UI. |
-| Collaborator Agent | `docs/plans/feature/collaborator-agent-task-authoring.md` defines `DraftTaskNode`, `DraftTaskTree`, patching, validation, and publish tools. |
+| Collaborator Agent | `docs/plans/feature/collaborator-agent-task-authoring.md` defines `DraftTaskNode`, `DraftTaskTree`, patching, validation, and Authoring Commands. |
 | ADR | `ADR-0002` already accepts domain/view/local-state separation and replayable interactions. |
 
 The next server-core design should turn those docs into an implementation-ready module boundary.
@@ -136,7 +147,7 @@ Notes:
 
 ### 6.2 DraftTaskNode
 
-`DraftTaskNode` is an unpublished authoring fact. It can be created and patched by Collaborator Agent tools before any Task enters TaskBus.
+`DraftTaskNode` is an unpublished authoring fact. It can be created and patched by Collaborator Agent through Authoring Commands before any Task enters TaskBus.
 
 Minimum fields:
 
