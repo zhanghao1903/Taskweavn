@@ -27,6 +27,7 @@ Every important decision should be traceable back to concrete user problems, not
 | [tool-capability-layer.md](tool-capability-layer.md) | Tool pool, capability catalog, and capability-first planning boundary. |
 | [workspace-communication-protocol.md](workspace-communication-protocol.md) | Higher-level system/workspace communication protocol; Tools become adapters over workspace operations. |
 | [task-domain-ui-model-separation.md](task-domain-ui-model-separation.md) | Boundary between backend Task domain facts, UI ViewModels, local UI state, and replayable Task interactions. |
+| [ui-backend-communication.md](ui-backend-communication.md) | UI/backend communication contract: Query, Command, Event, HTTP/SSE direction, consistency, and lifecycle. |
 | [collaborator-agent-task-authoring.md](collaborator-agent-task-authoring.md) | System Collaborator Agent, Task authoring service, draft tree generation/refinement, validation, and publish boundary. |
 | [bus.md](bus.md) | TaskBus v1 design. |
 | [bus-v2.md](bus-v2.md) | TaskBus evolution notes. |

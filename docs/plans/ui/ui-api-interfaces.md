@@ -1,8 +1,9 @@
 # UI API 接口归档
 
 > Status: aligned with Phase 3C Slice 9
-> Last Updated: 2026-05-15
+> Last Updated: 2026-05-16
 > 作用：归档 Task-first UI 各分述共同引用的接口需求。第一版定义接口边界、返回 ViewModel、命令语义和实时事件；字段细节以后随实现继续收紧。
+> Transport: 具体 UI/后端通信契约见 [UI And Backend Communication](../../architecture/ui-backend-communication.md)。
 
 ---
 
