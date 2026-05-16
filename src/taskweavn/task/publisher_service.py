@@ -13,6 +13,7 @@ from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from taskweavn.task.pipeline import PipelineTaskLoader
 from taskweavn.task.publisher import (
     PublisherKind,
     PublishPreview,
@@ -165,44 +166,70 @@ class TaskPublishService:
         publisher: TaskPublisher,
         idempotency_store: PublishIdempotencyStore | None = None,
         audit_sink: TaskPublishAuditSink | None = None,
+        pipeline_loader: PipelineTaskLoader | None = None,
     ) -> None:
         self._publisher = publisher
         self._idempotency_store = idempotency_store or InMemoryPublishIdempotencyStore()
         self._audit_sink = audit_sink
+        self._pipeline_loader = pipeline_loader
 
     def preview(self, request: PublishRequest) -> PublishPreview:
-        preview = self._publisher.preview(request)
-        self._emit_from_preview("task_publish.previewed", request, preview)
+        effective_request = self._expand_pipeline_or_none(request)
+        if effective_request is None:
+            preview = PublishPreview(
+                request_id=request.request_id,
+                session_id=request.session_id,
+                publisher=request.publisher,
+                valid=False,
+                errors=("pipeline expansion failed",),
+            )
+            self._emit_from_preview("task_publish.rejected", request, preview)
+            return preview
+        preview = self._publisher.preview(effective_request)
+        self._emit_from_preview("task_publish.previewed", effective_request, preview)
         return preview
 
     def publish(self, request: PublishRequest) -> PublishResult:
-        request_hash = _request_hash(request)
-        if request.idempotency_key is not None:
-            replay = self._check_idempotency(request, request_hash)
-            if replay is not None:
-                return replay
-
-        preview = self._publisher.preview(request)
-        if preview.ok:
-            self._emit_preview_validated(request, preview.task_count)
-        else:
+        effective_request = self._expand_pipeline_or_none(request)
+        if effective_request is None:
             rejected = PublishResult(
                 request_id=request.request_id,
                 session_id=request.session_id,
                 publisher=request.publisher,
                 skipped=True,
-                reason="; ".join(preview.errors) or "publish preview failed",
+                reason="pipeline expansion failed",
                 idempotency_key=request.idempotency_key,
             )
             self._emit_from_result("task_publish.rejected", request, rejected)
-            self._store_idempotency(request, request_hash, rejected)
             return rejected
 
-        result = self._publisher.publish(request)
-        self._store_idempotency(request, request_hash, result)
+        request_hash = _request_hash(effective_request)
+        if effective_request.idempotency_key is not None:
+            replay = self._check_idempotency(effective_request, request_hash)
+            if replay is not None:
+                return replay
+
+        preview = self._publisher.preview(effective_request)
+        if preview.ok:
+            self._emit_preview_validated(effective_request, preview.task_count)
+        else:
+            rejected = PublishResult(
+                request_id=effective_request.request_id,
+                session_id=effective_request.session_id,
+                publisher=effective_request.publisher,
+                skipped=True,
+                reason="; ".join(preview.errors) or "publish preview failed",
+                idempotency_key=effective_request.idempotency_key,
+            )
+            self._emit_from_result("task_publish.rejected", effective_request, rejected)
+            self._store_idempotency(effective_request, request_hash, rejected)
+            return rejected
+
+        result = self._publisher.publish(effective_request)
+        self._store_idempotency(effective_request, request_hash, result)
         self._emit_from_result(
             "task_publish.published" if result.accepted else "task_publish.rejected",
-            request,
+            effective_request,
             result,
         )
         return result
@@ -258,6 +285,14 @@ class TaskPublishService:
         )
         with suppress(PublishIdempotencyConflictError):
             self._idempotency_store.put(record)
+
+    def _expand_pipeline_or_none(self, request: PublishRequest) -> PublishRequest | None:
+        if self._pipeline_loader is None:
+            return request
+        try:
+            return self._pipeline_loader.expand_for_publish(request)
+        except Exception:  # noqa: BLE001 - publish service returns skipped/invalid results.
+            return None
 
     def _emit_preview_validated(self, request: PublishRequest, task_count: int) -> None:
         self._emit(

@@ -747,6 +747,19 @@ api_publish:
   - API publish requires idempotency keys by default, with policy override.
   - API layer validates session access, capability allowlists, agent allowlists, catalog capability, and agent capability compatibility.
   - Rate limiting is represented as a transport-neutral hook.
+  - Slice 6 Pipeline Integration.
+  - Added `taskweavn.task.pipeline`:
+    - `PipelineStage`
+    - `PipelineContextPolicy`
+    - `PipelineTaskSpec`
+    - `PipelineConfig`
+    - `PipelineTaskLoader`
+    - `DefaultPipelineTaskLoader`
+  - `TaskPublishService` can optionally use a `PipelineTaskLoader` before preview/publish.
+  - Publish-time pipeline expansion turns `task_before` and `task_begin` specs into ordinary `NormalizedTaskNode` roots.
+  - `task_after` is modeled but not loaded during publish-time expansion; it belongs to completion-time orchestration.
+  - `TaskPublishOptions.allow_pipeline=false` disables expansion for a request.
+  - Pipeline-generated Tasks retain metadata for `pipeline_stage`, `pipeline_spec_id`, original request id, and original publisher kind.
 - Verified:
   - `uv run pytest tests/test_task_publisher.py tests/test_task_commands.py tests/test_authoring_command_service.py tests/test_collaborator_api_adapter.py` — 49 passed, 1 warning
   - `uv run ruff check src/taskweavn/task tests/test_task_publisher.py tests/test_task_commands.py tests/test_authoring_command_service.py tests/test_collaborator_api_adapter.py`
@@ -779,4 +792,11 @@ api_publish:
   - `uv run mypy src tests` — 141 source files
   - `uv run pytest` — 640 passed, 1 warning
   - `git diff --check`
-- Next Step: Slice 6 Pipeline Integration。
+  - `uv run pytest tests/test_task_pipeline.py tests/test_task_publish_service.py` — 17 passed, 1 warning
+  - `uv run ruff check src/taskweavn/task tests/test_task_pipeline.py tests/test_task_publish_service.py`
+  - `uv run mypy src/taskweavn/task tests/test_task_pipeline.py tests/test_task_publish_service.py`
+  - `uv run ruff check src tests`
+  - `uv run mypy src tests` — 143 source files
+  - `uv run pytest` — 648 passed, 1 warning
+  - `git diff --check`
+- Next Step: Slice 7 Docs and Tests。

@@ -108,6 +108,14 @@ from taskweavn.task.models import (
     TaskRefKind,
     TaskStatus,
 )
+from taskweavn.task.pipeline import (
+    DefaultPipelineTaskLoader,
+    PipelineConfig,
+    PipelineContextPolicy,
+    PipelineStage,
+    PipelineTaskLoader,
+    PipelineTaskSpec,
+)
 from taskweavn.task.projection import (
     DefaultTaskProjectionService,
     FileChangeStore,
@@ -251,6 +259,7 @@ __all__ = [
     "DefaultAuthoringContextBuilder",
     "DefaultApiTaskPublisher",
     "DefaultCollaboratorAuthoringService",
+    "DefaultPipelineTaskLoader",
     "DefaultTaskInteractionTimelineService",
     "DefaultTaskPublisher",
     "DraftPatchScope",
@@ -287,6 +296,11 @@ __all__ = [
     "NormalizedTaskTree",
     "IdempotencyPolicy",
     "IdempotencyPolicyMode",
+    "PipelineConfig",
+    "PipelineContextPolicy",
+    "PipelineStage",
+    "PipelineTaskLoader",
+    "PipelineTaskSpec",
     "PublishedTaskEditor",
     "MutateDraftTaskTreeCommand",
     "MutateRawTaskCommand",
