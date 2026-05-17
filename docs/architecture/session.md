@@ -1,6 +1,8 @@
 # Session 架构设计
 
 > 多 Agent 协作架构的核心抽象 · v1.0 · 2026-05-08
+>
+> 2026-05-17 review note: 本文中的 `Workspace` 指 **Session Workspace / 执行工作区**，不是产品 UI 中用户长期管理的 `Project`。当前产品层级是 `Project -> Workflow -> Session -> Session Workspace`；Session Workspace 仍然是文件读写和权限隔离边界。
 
 ---
 

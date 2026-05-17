@@ -1,9 +1,16 @@
 # Task-first UI 交互设计总述
 
-> Status: planned  
-> Last Updated: 2026-05-10  
-> 类型：新特性支持 / 产品交互设计  
+> Status: superseded as implementation plan; retained as concept seed
+> Last Updated: 2026-05-17
+> 类型：新特性支持 / 产品交互设计
 > 关联架构：`docs/architecture/overview.md`、`docs/architecture/task.md`、`docs/architecture/bus.md`
+
+> 2026-05-17 review note:
+> 本文仍可作为 Task-first UI 的早期理念说明，但不再是当前 UI 实施入口。
+> 当前 Plato UI 以 [Plato MVP PRD](../product/plato-mvp-prd.md)、
+> [Main Page UX Flow](../product/plato-main-page-ux-flow.md)、
+> [Figma UI Baseline](../product/plato-figma-ui-baseline.md) 和
+> [Frontend Technical Design](../product/plato-frontend-technical-design.md) 为准。
 
 ---
 
@@ -441,6 +448,11 @@ Task T3 创建页面
 
 ## 7. 后续分述文件清单
 
+> Current note:
+> 下面清单是早期拆分建议。当前前端实施入口已经迁移到
+> `docs/product/plato-frontend-technical-design.md`。本节保留用于理解当时
+> 的设计拆分，不再作为执行顺序。
+
 建议将 UI 设计拆成以下分述文件：
 
 | 文件 | 内容 |
@@ -461,13 +473,10 @@ Task T3 创建页面
 
 第一版先搭框架，字段细节和视觉细节后续补充。建议优先级：
 
-1. `frontend-framework-design.md`
-2. `ui-api-interfaces.md`
-3. `task-generation-flow.md`
-4. `task-tree-view.md`
-5. `task-node-detail.md`
-6. `task-message-view.md`
-7. `confirmation-actions.md`
+1. `docs/product/plato-frontend-technical-design.md`
+2. `docs/product/plato-ui-api-contract.md`（待创建）
+3. `ui-api-interfaces.md`（作为历史接口归档参考）
+4. 其他 `docs/plans/ui/` 子文档按需迁移到新的产品/前端计划中
 
 ---
 

@@ -7,13 +7,14 @@
 
 ## 1. Core User-Facing Objects
 
-TaskWeavn should keep a small set of objects stable in the user's mind.
+Plato should keep a small set of objects stable in the user's mind.
 
 | Object | User meaning | Product role |
 |---|---|---|
-| Workspace | A project or working area. | Long-lived container for Sessions, files, and shared context. |
+| Project | A user-facing project or space. | Long-lived container for Workflows, Sessions, results, and shared context. It is not the default file execution boundary. |
 | Workflow | A mode of work. | Defines input style, expected deliverable, interaction rhythm, and defaults. |
-| Session | One run of a Workflow. | Holds the current collaboration, messages, Tasks, and results. |
+| Session | One run of a Workflow. | Holds the current collaboration, messages, Tasks, results, and isolated execution workspace. |
+| Session Workspace | The file execution boundary for one Session. | Keeps file writes isolated so sessions do not default to concurrent writes into the same workspace. |
 | RawTask | The user's original intention before structure. | Captures natural language and clarification history. |
 | TaskTree / WorkTree | A structured plan or work graph. | Lets the user review, edit, publish, and track work. |
 | TaskNode | One actionable unit in the tree. | Smallest anchor for status, confirmation, instruction, result, and file changes. |
@@ -47,6 +48,29 @@ Examples:
 | Research | Question, constraints, sources | Structured answer, result cards, citations |
 | Bug Fix | Problem report, repo context | Patch, tests, explanation |
 | Result Packaging | Existing result or session summary | UI-ready result cards |
+
+## 2.1 Project Vs Session Workspace
+
+`Project` and `Session Workspace` must stay separate in the user model.
+
+```text
+Project
+  -> Workflow
+      -> Session
+          -> Session Workspace
+```
+
+The Project is the long-lived user container. It helps the user organize related
+work, sessions, results, and shared context.
+
+The Session Workspace is the execution boundary. It is where Agents read and
+write files for one Session. This is intentionally session-scoped so the first
+product version does not need to solve cross-session concurrent writes,
+permission conflicts, or merge semantics.
+
+If a Session produces something valuable, the user can later promote, export,
+merge, or archive it into the Project through explicit actions. It should not
+happen implicitly by having every Session write into the same shared workspace.
 
 ## 3. Authoring Workflow Vs Execution Workflow
 

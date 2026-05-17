@@ -28,10 +28,12 @@ MVP 应该证明一件事：
 ```text
 MVP PRD
   -> UX Flow Spec
-  -> Figma / UX 原型
+  -> Figma UI baseline 1.0
   -> 设计评审与微调
-  -> 前端组件代码
-  -> Mock 数据联调
+  -> 前端技术设计
+  -> 前端工程重建
+  -> 组件与静态状态
+  -> 交互原型
   -> API 合约
   -> 后端通信
   -> 用户测试
@@ -43,7 +45,8 @@ MVP PRD
 PRD 解决“做什么”。
 UX Flow Spec 解决“用户怎么走”。
 Figma 解决“用户看到什么”。
-前端 Mock 解决“体验是否成立”。
+前端技术设计解决“怎么长期实现”。
+前端交互原型解决“体验是否成立”。
 API 合约和后端通信解决“真实数据如何进入体验”。
 
 ## 3. 阶段一：MVP PRD
@@ -191,15 +194,27 @@ docs/product/plato-main-page-ux-flow.md
 - 微动效是否完整。
 - 所有边缘状态是否覆盖。
 
-## 6. 阶段四：前端组件代码
+## 6. 阶段四：前端技术设计与工程重建
 
 ### 6.1 目标
 
-把 Figma 初稿转成可运行的前端骨架。
+以 Figma UI baseline 1.0 为起点，重新设计前端技术方案并建立产品级前端工程。
+
+旧的实验性 `frontend` 代码不作为产品基线继续演进。当前阶段应先完成：
+
+```text
+Figma UI baseline 1.0
+  -> frontend technical design
+  -> clean frontend scaffold
+  -> design tokens
+  -> component boundaries
+  -> static Figma state stories
+  -> interactive prototype
+```
 
 ### 6.2 实施原则
 
-先做 Mock 数据版本，不急着接后端。
+先做 fixtures / stories / interactive prototype，不急着接后端。
 
 原因：
 
@@ -207,31 +222,37 @@ docs/product/plato-main-page-ux-flow.md
 - 避免 API 未稳定导致 UI 返工。
 - 可以让用户测试提前发生。
 - 可以倒推后端 API 的真实需求。
+- 可以避免把后端 Task DTO 直接泄漏成 UI 模型。
 
 ### 6.3 推荐组件边界
 
-组件应围绕产品对象拆分：
+组件应围绕产品对象拆分，而不是围绕 Figma layer 或后端内部对象拆分：
 
-- `WorkflowSwitcher`
-- `SessionHeader`
+- `TopBar`
+- `WorkflowSessionSidebar`
+- `TaskTreeWorkspace`
 - `TaskTreeView`
-- `TaskNodeItem`
-- `TaskNodeDetail`
+- `TaskNodeCard`
 - `SessionMessageStream`
-- `TaskScopedMessageView`
-- `ConfirmationCard`
-- `ResultCard`
-- `FileChangeSummary`
-- `AuditEntryPoint`
+- `TaskMessageProjection`
+- `DetailPanel`
+- `WorkflowInspector`
+- `SessionInspector`
+- `TaskNodeInspector`
+- `ConfirmationInspector`
+- `ResultInspector`
+- `FileChangeInspector`
+- `ContextInput`
 
-组件命名可以之后根据前端框架调整，但边界应尽量保持对象导向，而不是布局导向。
+组件命名可以之后根据前端框架调整，但边界应尽量保持对象导向。
 
 ### 6.4 退出标准
 
-- 使用 Mock 数据可以走通主路径。
-- 页面状态可以手动切换或通过 mock scenario 切换。
-- TaskTree、TaskNode、Message、Result 之间的关系清楚。
-- 用户测试可以开始。
+- 前端工程可启动、可构建、可测试。
+- design tokens 不散落在业务组件中。
+- Figma 9 个主状态可通过 stories 或 fixtures 对照查看。
+- TaskTree、TaskNode、Message、Result、File Change 之间的关系清楚。
+- 可以进入 UI API Contract 阶段。
 
 ## 7. 阶段五：API 合约
 
@@ -275,7 +296,7 @@ docs/product/plato-ui-api-contract.md
 
 ### 8.1 目标
 
-把 Mock UI 接到真实后端能力。
+把前端交互原型接到真实后端能力。
 
 ### 8.2 推荐顺序
 
@@ -335,12 +356,13 @@ docs/product/plato-ui-api-contract.md
 |---|---|---|
 | P1 | 写 Plato MVP PRD | `plato-mvp-prd.md` |
 | P2 | 写 Main Page UX Flow Spec | `plato-main-page-ux-flow.md` |
-| P3 | 用 Figma 插件生成第一版 UX 文件 | Figma 初稿 |
-| P4 | 评审并修订 UX 文件 | Figma v0.2 / review notes |
-| P5 | 生成前端 Mock UI | 可运行页面 |
-| P6 | 定义 Plato UI API Contract | API 合约文档 |
-| P7 | 接入真实后端通信 | 可运行 MVP |
-| P8 | 做第一轮用户测试 | 用户测试记录 |
+| P3 | 用 Figma 插件生成第一版 UX 文件 | Figma UI baseline 1.0 |
+| P4 | 评审并修订 UX 文件 | Figma review notes / baseline updates |
+| P5 | 前端技术设计与工程重建 | `plato-frontend-technical-design.md` + clean frontend scaffold |
+| P6 | 实现 9 个 Figma 状态 stories | 可运行前端交互原型 |
+| P7 | 定义 Plato UI API Contract | API 合约文档 |
+| P8 | 接入真实后端通信 | 可运行 MVP |
+| P9 | 做第一轮用户测试 | 用户测试记录 |
 
 ## 11. 当前决策
 
@@ -349,8 +371,9 @@ docs/product/plato-ui-api-contract.md
 ```text
 先产品定义
 再交互规格
-再 Figma 原型
-再 Mock UI
+再 Figma UI baseline 1.0
+再前端技术设计与工程重建
+再交互原型
 再 API 合约
 再真实后端
 最后用户测试和迭代
