@@ -158,7 +158,7 @@ user-guide.md
 | Agent | 完成任务的"工人"，按需实例化 | §2.4 |
 | AgentTemplate | Agent 的"图纸" | §6.1 |
 | AgentInstance | Agent 的运行实例 | §6.1 |
-| Workspace | Session 共享的工作目录 | §2.2 |
+| Session Workspace | 单个 Session 的隔离工作目录 | §2.2 |
 | Capability | Agent 能做的事的类别（如 audit / fix） | §2.4 |
 | AutonomyBehavior | "什么时候打扰你 + 是否等你回应"的双维度 | §2.5 |
 | ConstraintProfile | 任务可以做什么、不能做什么的约束集 | §4.3 |

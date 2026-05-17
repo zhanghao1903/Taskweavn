@@ -7,8 +7,8 @@ Plans are executable work packages for future implementation sessions. They shou
 | Directory / File | Purpose |
 |---|---|
 | [feature/](feature/) | New feature plans. |
-| [ui/](ui/) | Task-first UI interaction sub-designs. |
-| [task-first-ui-interaction.md](task-first-ui-interaction.md) | Task-first UI overview. |
+| [ui/](ui/) | Early Task-first UI interaction sub-design archive. Current Plato UI planning starts from `docs/product/`. |
+| [task-first-ui-interaction.md](task-first-ui-interaction.md) | Early Task-first UI concept seed; superseded as an implementation plan. |
 | [configuration.md](configuration.md) | Configuration system plan. |
 | [observability.md](observability.md) | Trace / metrics / debug observability plan. |
 | [cost-quota.md](cost-quota.md) | Cost and quota plan. |

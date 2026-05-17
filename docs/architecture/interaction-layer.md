@@ -2,9 +2,21 @@
 
 > 版本 v1.1 · 2026-05-08
 >
+> Status: implemented historical baseline
+>
 > 关联文档：[多 Agent 协作架构设计](multi-agent-collaboration.md)
 >
 > 本文档落实 Phase 3 的实现接口。架构理念见上方关联文档；本文档只解决"具体怎么做"。
+
+> 2026-05-17 review note:
+> 本文是 Phase 3.1-3.8 interaction substrate 的历史技术设计，仍可用于理解
+> `RiskAssessment`、`AutonomyBehavior`、`AgentMessage`、`MessageStream`、
+> `MessageBus`、`AutonomyGate` 和 `WaitCoordinator` 的来源。
+> 它不再是当前 Plato Main Page / frontend implementation 的规划入口。
+> 当前 UI 规划以 [Plato MVP PRD](../product/plato-mvp-prd.md)、
+> [Main Page UX Flow](../product/plato-main-page-ux-flow.md)、
+> [Figma UI Baseline](../product/plato-figma-ui-baseline.md) 和
+> [Frontend Technical Design](../product/plato-frontend-technical-design.md) 为准。
 
 ---
 

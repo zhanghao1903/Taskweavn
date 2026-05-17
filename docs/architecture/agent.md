@@ -8,10 +8,10 @@
 
 **Agent 是无状态的能力载体，Task 的执行单元。**
 
-Agent 本质上是一个**一次性函数对象**：接收一个 Task 作为输入，访问 Workspace 作为环境，调用 LLM + 工具集完成执行，输出 result。**任务结束即销毁。**
+Agent 本质上是一个**一次性函数对象**：接收一个 Task 作为输入，访问所属 Session 的 Session Workspace 作为环境，调用 LLM + 工具集完成执行，输出 result。**任务结束即销毁。**
 
 ```
-Agent ≡ 一次性函数(Task, Workspace) → Result
+Agent ≡ 一次性函数(Task, Session Workspace) → Result
         capability + tools + llm_config 是它的"签名"
 ```
 

@@ -1,7 +1,7 @@
 # TaskWeavn Roadmap
 
 > Status: active
-> Last Updated: 2026-05-16
+> Last Updated: 2026-05-17
 > Maintained By: planning session
 > Related: [Project Plan](project/roadmap.md), [Planning Workflow](planning_workflow.md), [Architecture Decisions](decisions/), [Release Records](releases/), [User Traceability](user_model/traceability.md)
 
@@ -187,7 +187,7 @@ Exit criteria:
 
 ### Phase 3E — Task-first UI System
 
-Status: planned.
+Status: active planning; frontend implementation should restart from Figma UI baseline 1.0.
 
 Why now: CLI has reached its usefulness ceiling. The product value is in Task topology, Task cards, confirmations, and real-time message streams.
 
@@ -195,11 +195,16 @@ Work packages:
 
 | Work | Plan | Priority |
 |---|---|---:|
-| UI interaction overview | [Task-first UI plan](plans/task-first-ui-interaction.md) | P0 |
-| UI sub-designs | [UI plan directory](plans/ui/) | P0 |
+| Plato MVP product requirements | [Plato MVP PRD](product/plato-mvp-prd.md) | Done as product baseline |
+| Main Page UX flow and screen states | [Main Page UX Flow](product/plato-main-page-ux-flow.md) | Done as UX baseline |
+| Figma UI baseline 1.0 | [Figma UI Baseline](product/plato-figma-ui-baseline.md) | Done as visual/source baseline |
+| Frontend restart technical design | [Plato Frontend Technical Design](product/plato-frontend-technical-design.md) | Done as implementation design |
+| Early UI interaction overview | [Task-first UI plan](plans/task-first-ui-interaction.md) | Superseded as implementation plan; retained as concept seed |
+| Early UI sub-designs | [UI plan directory](plans/ui/) | Superseded unless explicitly referenced by new frontend work |
 | Result Packaging Agent and card-based result presentation | [Result packaging plan](plans/feature/result-packaging-agent-cards.md) | P1 |
-| Visual reference iteration | [Visual reference](plans/ui/visual-reference.md) | P1 |
-| API-backed prototype | Future implementation plan | P0 |
+| Clean frontend scaffold and Figma-state stories | [Plato Frontend Technical Design](product/plato-frontend-technical-design.md) | P0 |
+| UI API Contract | Future document: `docs/product/plato-ui-api-contract.md` | P0 |
+| API-backed prototype | Future implementation plan after UI API Contract | P0 |
 
 Exit criteria:
 
@@ -208,6 +213,7 @@ Exit criteria:
 - Task cards show confirmations, status, messages, and file change summary.
 - Information-style results can be rendered as card sets when the result shape benefits from structure.
 - Session message stream and Task projections stay consistent over the same message source.
+- Frontend components are built from Figma UI baseline 1.0 through stories/fixtures, not from the deprecated experimental frontend.
 
 ### Phase 4 — Multi-Agent Task Execution
 
@@ -256,15 +262,16 @@ These remain valuable, but they should not be the next immediate build target be
 
 Recommended order for upcoming implementation sessions:
 
-1. **Persistent publish stores and server transport** — SQLite TaskBus is done; remaining work is durable publisher/scheduler stores and exposing API publisher semantics through a real transport.
-2. **Pipeline task loading completion** — completion-time `task_after`, pipeline config persistence, and agent assignment semantics.
-3. **Result packaging and card presentation** — richer result display for information-style answers.
-4. **Task-first UI prototype** — after backend projection and authoring adapter APIs exist.
-5. **Persistent authoring stores** — make RawTask/DraftTaskTree authoring durable beyond in-memory tests.
-6. **TaskBus multi-agent execution hardening** — execution semantics after publish model stabilizes.
-7. **Centralized runtime configuration** — shared control plane for logging/autonomy/audit/LLM/Task/UI behavior once the Task-facing server model is concrete enough to avoid overfitting.
+1. **Plato frontend engineering reset** — clean `frontend/` scaffold, design tokens, primitives, and Figma-state stories from [Frontend Technical Design](product/plato-frontend-technical-design.md).
+2. **UI API Contract** — define `plato-ui-api-contract.md` around snapshot/query/command/event shapes before real backend integration.
+3. **Persistent publish stores and server transport** — SQLite TaskBus is done; remaining work is durable publisher/scheduler stores and exposing API publisher semantics through a real transport.
+4. **Pipeline task loading completion** — completion-time `task_after`, pipeline config persistence, and agent assignment semantics.
+5. **Result packaging and card presentation** — richer result display for information-style answers.
+6. **Persistent authoring stores** — make RawTask/DraftTaskTree authoring durable beyond in-memory tests.
+7. **TaskBus multi-agent execution hardening** — execution semantics after publish model stabilizes.
+8. **Centralized runtime configuration** — shared control plane for logging/autonomy/audit/LLM/Task/UI behavior once the Task-facing server model is concrete enough to avoid overfitting.
 
-LLM Provider reliability, configurable logging, Task domain/UI separation, Collaborator authoring, and TaskPublisher are complete enough for the next round of server-core work. The immediate blocker is now durable publisher stores/server transport plus completion-time pipeline orchestration.
+LLM Provider reliability, configurable logging, Task domain/UI separation, Collaborator authoring, and TaskPublisher are complete enough for the next round. The immediate product blocker is now the Plato frontend engineering reset plus UI API Contract; server transport and pipeline completion remain the next backend blockers.
 
 ---
 
