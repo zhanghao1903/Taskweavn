@@ -1,0 +1,467 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import type { ReactNode } from "react";
+import { describe, expect, it, vi } from "vitest";
+
+import { App } from "./App";
+import { AppProviders } from "./providers";
+import { MainPage } from "../pages/main-page/MainPage";
+import type { CommandResponse, UiEvent } from "../shared/api/types";
+import type {
+  AppendSessionInputCommand,
+  AppendTaskInputCommand,
+  LoadMainPageSnapshot,
+  MainPageAdapter,
+  ResolveConfirmationCommand,
+  SubscribeSessionEvents,
+} from "../pages/main-page/mockPlatoApi";
+import {
+  createMainPageMockAdapter,
+  getMainPageMockSnapshot,
+  listMainPageStateOptions,
+} from "../pages/main-page/mockPlatoApi";
+
+describe("App", () => {
+  it("renders the Plato main page shell", async () => {
+    render(
+      <AppProviders>
+        <App />
+      </AppProviders>,
+    );
+
+    expect(screen.getByRole("banner")).toHaveTextContent("Plato");
+    expect(await screen.findByText("Personal Website")).toBeInTheDocument();
+    expect(screen.getByText("TaskTree")).toBeInTheDocument();
+  });
+
+  it("exposes the nine Figma baseline states", () => {
+    render(
+      <AppProviders>
+        <App />
+      </AppProviders>,
+    );
+
+    const statePicker = screen.getByLabelText("State");
+
+    for (const state of listMainPageStateOptions()) {
+      expect(statePicker).toHaveTextContent(state.label);
+    }
+  });
+
+  it("switches between confirmation and file-change states", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <AppProviders>
+        <App />
+      </AppProviders>,
+    );
+
+    await user.selectOptions(screen.getByLabelText("State"), "s7-confirmation");
+    expect(await screen.findByText("Confirm baseline")).toBeInTheDocument();
+
+    await user.selectOptions(screen.getByLabelText("State"), "s9-file-changes");
+    expect(await screen.findByText("package.json")).toBeInTheDocument();
+  });
+
+  it("selects a TaskNode and scopes the input to that task", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <AppProviders>
+        <App />
+      </AppProviders>,
+    );
+
+    await user.click(
+      await screen.findByRole("button", { name: /Initial implementation/i }),
+    );
+
+    expect(screen.getByRole("heading", { name: "Initial implementation" })).toBeInTheDocument();
+    expect(screen.getByText("Task interaction")).toBeInTheDocument();
+    expect(screen.getByText("Scope: selected task / Initial implementation")).toBeInTheDocument();
+    expect(screen.getByText("Task-scoped projection")).toBeInTheDocument();
+  });
+
+  it("filters the session message projection by the selected TaskNode", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <AppProviders>
+        <App />
+      </AppProviders>,
+    );
+
+    await user.selectOptions(screen.getByLabelText("State"), "s6-running");
+    expect(await screen.findByText("Implementation started")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /Visual direction/i }));
+
+    expect(screen.queryByText("Implementation started")).not.toBeInTheDocument();
+    expect(screen.getByText("1/2 shown")).toBeInTheDocument();
+    expect(screen.getByText("Session-wide")).toBeInTheDocument();
+  });
+
+  it("scopes result and file-change detail to the selected TaskNode", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <AppProviders>
+        <App />
+      </AppProviders>,
+    );
+
+    await user.selectOptions(screen.getByLabelText("State"), "s9-file-changes");
+    expect(await screen.findByText("Changed files")).toBeInTheDocument();
+    expect(screen.getByText("package.json")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /Visual direction/i }));
+
+    expect(screen.getByRole("heading", { name: "Visual direction" })).toBeInTheDocument();
+    expect(screen.queryByText("package.json")).not.toBeInTheDocument();
+    expect(screen.getByText("Task interaction")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /Initial implementation/i }));
+
+    expect(await screen.findByText("Changed files")).toBeInTheDocument();
+    expect(screen.getByText("package.json")).toBeInTheDocument();
+  });
+
+  it("captures a confirmation decision and appends it to session messages", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <AppProviders>
+        <App />
+      </AppProviders>,
+    );
+
+    await user.selectOptions(screen.getByLabelText("State"), "s7-confirmation");
+    await user.click(await screen.findByRole("button", { name: "Confirm baseline" }));
+
+    expect(await screen.findByText("Confirmed")).toBeInTheDocument();
+    expect(screen.getByText("Confirmation resolved")).toBeInTheDocument();
+    expect(screen.getByText("User decision captured")).toBeInTheDocument();
+  });
+
+  it("shows command pending state while resolving a confirmation", async () => {
+    const user = userEvent.setup();
+    const pendingResolve: ResolveConfirmationCommand = () =>
+      new Promise(() => {
+        // Keep the command pending so the pending UI can be asserted.
+      });
+
+    renderWithQueryClient(
+      <MainPage
+        adapter={testAdapter({
+          loadSnapshot: loadImmediateSnapshot,
+          resolveConfirmation: pendingResolve,
+        })}
+        initialStateId="s7-confirmation"
+      />,
+    );
+
+    await user.click(await screen.findByRole("button", { name: "Confirm baseline" }));
+
+    expect(screen.getByText("Submitting decision")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Confirm baseline" })).toBeDisabled();
+  });
+
+  it("shows command error state when resolving a confirmation fails", async () => {
+    const user = userEvent.setup();
+    const failingResolve: ResolveConfirmationCommand = async () => {
+      throw new Error("command unavailable");
+    };
+
+    renderWithQueryClient(
+      <MainPage
+        adapter={testAdapter({
+          loadSnapshot: loadImmediateSnapshot,
+          resolveConfirmation: failingResolve,
+        })}
+        initialStateId="s7-confirmation"
+      />,
+    );
+
+    await user.click(await screen.findByRole("button", { name: "Confirm baseline" }));
+
+    expect(
+      await screen.findByText("Confirmation command failed. Please retry."),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Decision needed")).toBeInTheDocument();
+  });
+
+  it("submits session-scoped input when no TaskNode is selected", async () => {
+    const user = userEvent.setup();
+    const appendSessionInput = vi.fn<AppendSessionInputCommand>(
+      async (request) => acceptedCommandResponse(request.commandId),
+    );
+    const appendTaskInput = vi.fn<AppendTaskInputCommand>(
+      async (_sessionId, _taskNodeId, request) =>
+        acceptedCommandResponse(request.commandId),
+    );
+
+    renderWithQueryClient(
+      <MainPage
+        adapter={testAdapter({
+          appendSessionInput,
+          appendTaskInput,
+          loadSnapshot: loadImmediateSnapshot,
+        })}
+      />,
+    );
+
+    await user.type(
+      await screen.findByLabelText("Context message"),
+      "Please make the plan smaller.",
+    );
+    await user.click(screen.getByRole("button", { name: "Send message" }));
+
+    expect(appendSessionInput).toHaveBeenCalledOnce();
+    expect(appendTaskInput).not.toHaveBeenCalled();
+    expect(await screen.findByText("Session guidance captured")).toBeInTheDocument();
+    expect(screen.getByText("Please make the plan smaller.")).toBeInTheDocument();
+  });
+
+  it("submits task-scoped input when a TaskNode is selected", async () => {
+    const user = userEvent.setup();
+    const appendSessionInput = vi.fn<AppendSessionInputCommand>(
+      async (request) => acceptedCommandResponse(request.commandId),
+    );
+    const appendTaskInput = vi.fn<AppendTaskInputCommand>(
+      async (_sessionId, _taskNodeId, request) =>
+        acceptedCommandResponse(request.commandId),
+    );
+
+    renderWithQueryClient(
+      <MainPage
+        adapter={testAdapter({
+          appendSessionInput,
+          appendTaskInput,
+          loadSnapshot: loadImmediateSnapshot,
+        })}
+        initialStateId="s4-task-selected"
+      />,
+    );
+
+    await user.type(
+      await screen.findByLabelText("Context message"),
+      "Use warmer typography.",
+    );
+    await user.click(screen.getByRole("button", { name: "Send message" }));
+
+    expect(appendSessionInput).not.toHaveBeenCalled();
+    expect(appendTaskInput).toHaveBeenCalledWith(
+      "session-website-plan",
+      "task-visual-direction",
+      expect.objectContaining({
+        payload: {
+          content: "Use warmer typography.",
+          mode: "guidance",
+        },
+      }),
+    );
+    expect(await screen.findByText("Task guidance captured")).toBeInTheDocument();
+    expect(screen.getByText("Use warmer typography.")).toBeInTheDocument();
+  });
+
+  it("appends session messages received from the event stream", async () => {
+    const subscribeSessionEvents = vi.fn<SubscribeSessionEvents>(
+      (sessionId, _cursor, onEvent) => {
+        onEvent({
+          eventId: "event-message-appended",
+          sessionId,
+          eventType: "message.appended",
+          cursor: "cursor-after-event",
+          taskNodeIds: [],
+          messageIds: ["message-from-event"],
+          payload: {
+            title: "Worker update",
+            body: "The event stream appended a message.",
+            kind: "informational",
+          },
+          createdAt: "2026-05-17T10:21:00+08:00",
+        });
+
+        return () => undefined;
+      },
+    );
+
+    renderWithQueryClient(
+      <MainPage
+        adapter={testAdapter({
+          loadSnapshot: loadImmediateSnapshot,
+          subscribeSessionEvents,
+        })}
+      />,
+    );
+
+    expect(await screen.findByText("Events live")).toBeInTheDocument();
+    expect(await screen.findByText("Worker update")).toBeInTheDocument();
+    expect(
+      screen.getByText("The event stream appended a message."),
+    ).toBeInTheDocument();
+    expect(subscribeSessionEvents).toHaveBeenCalledWith(
+      "session-website-plan",
+      "cursor-s3-draft-ready",
+      expect.any(Function),
+    );
+  });
+
+  it("refetches the snapshot when the event stream requests resync", async () => {
+    let emitted = false;
+    let loadCount = 0;
+    const loadSnapshot = vi.fn<LoadMainPageSnapshot>(async (stateId) => {
+      loadCount += 1;
+
+      if (loadCount > 1) {
+        await new Promise((resolve) => {
+          window.setTimeout(resolve, 80);
+        });
+      }
+
+      return getMainPageMockSnapshot(stateId);
+    });
+    const subscribeSessionEvents: SubscribeSessionEvents = (
+      sessionId,
+      _cursor,
+      onEvent,
+    ) => {
+      if (!emitted) {
+        emitted = true;
+        onEvent(resyncRequiredEvent(sessionId));
+      }
+
+      return () => undefined;
+    };
+
+    renderWithQueryClient(
+      <MainPage
+        adapter={testAdapter({
+          loadSnapshot,
+          subscribeSessionEvents,
+        })}
+      />,
+    );
+
+    expect(await screen.findByText("Resyncing")).toBeInTheDocument();
+    await screen.findByText("Events live");
+    expect(loadSnapshot).toHaveBeenCalledTimes(2);
+  });
+
+  it("toggles between file changes and result detail views", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <AppProviders>
+        <App />
+      </AppProviders>,
+    );
+
+    await user.selectOptions(screen.getByLabelText("State"), "s9-file-changes");
+    expect(await screen.findByText("Changed files")).toBeInTheDocument();
+    expect(screen.getByText("Recursive subtree summary")).toBeInTheDocument();
+    expect(
+      screen.getByText("Updated frontend dependencies and scripts."),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "View result" }));
+
+    expect(screen.getByText("Result card")).toBeInTheDocument();
+    expect(screen.getByText("Delivered structure")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "The first implementation plan is ready, including page structure, styling direction, and build tasks.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("shows a loading frame while the snapshot query is pending", () => {
+    const pendingLoader: LoadMainPageSnapshot = () =>
+      new Promise(() => {
+        // Keep the promise pending so the loading state remains visible.
+      });
+
+    renderWithQueryClient(
+      <MainPage adapter={testAdapter({ loadSnapshot: pendingLoader })} />,
+    );
+
+    expect(screen.getByText("Loading session snapshot")).toBeInTheDocument();
+    expect(screen.getByLabelText("State")).toBeInTheDocument();
+  });
+
+  it("shows an error frame when the snapshot query fails", async () => {
+    const failingLoader: LoadMainPageSnapshot = async () => {
+      throw new Error("snapshot unavailable");
+    };
+
+    renderWithQueryClient(
+      <MainPage adapter={testAdapter({ loadSnapshot: failingLoader })} />,
+    );
+
+    expect(
+      await screen.findByText("Unable to load session snapshot"),
+    ).toBeInTheDocument();
+  });
+});
+
+function renderWithQueryClient(children: ReactNode) {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: {
+        retry: false,
+      },
+    },
+  });
+
+  return render(
+    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>,
+  );
+}
+
+const loadImmediateSnapshot: LoadMainPageSnapshot = async (stateId) =>
+  getMainPageMockSnapshot(stateId);
+
+function testAdapter(overrides: Partial<MainPageAdapter> = {}): MainPageAdapter {
+  return createMainPageMockAdapter({
+    loadSnapshot: loadImmediateSnapshot,
+    ...overrides,
+  });
+}
+
+function acceptedCommandResponse(commandId: string): CommandResponse {
+  return {
+    requestId: `request-${commandId}`,
+    ok: true,
+    result: {
+      commandId,
+      status: "accepted",
+      message: "accepted",
+      affectedTaskRefs: [],
+      emittedMessageIds: [`message-${commandId}`],
+      publishedTaskIds: [],
+    },
+    error: null,
+    refresh: {
+      waitForEvents: true,
+      suggestedQueries: [],
+      affectedTaskRefs: [],
+    },
+  };
+}
+
+function resyncRequiredEvent(sessionId: string): UiEvent {
+  return {
+    eventId: "event-resync-required",
+    sessionId,
+    eventType: "session.resync_required",
+    cursor: "cursor-resync",
+    taskNodeIds: [],
+    messageIds: [],
+    payload: {
+      reason: "cursor_expired",
+    },
+    createdAt: "2026-05-17T10:22:00+08:00",
+  };
+}

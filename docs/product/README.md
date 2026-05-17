@@ -20,3 +20,4 @@ They are intentionally separate from architecture docs:
 | [plato-main-page-ux-flow.md](plato-main-page-ux-flow.md) | Main Page UX flow spec: key screen states, task interactions, confirmation flow, result/file/audit visibility, and Figma input. |
 | [plato-figma-ui-baseline.md](plato-figma-ui-baseline.md) | Figma UI baseline 1.0 record: target file, screen list, visual direction, sample data, and implementation handoff notes. |
 | [plato-frontend-technical-design.md](plato-frontend-technical-design.md) | Frontend restart technical design: Figma 1.0 source of truth, technology selection, architecture, state/API boundaries, implementation slices, and risks. |
+| [plato-ui-api-contract.md](plato-ui-api-contract.md) | Plato Main Page 1.0 UI API contract: snapshot, ViewModel, command, event, frontend adapter, and F6 backend integration boundaries. |
