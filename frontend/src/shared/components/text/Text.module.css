@@ -1,0 +1,49 @@
+.eyebrow,
+.heading,
+.subheading,
+.body,
+.muted,
+.label {
+  margin: 0;
+}
+
+.eyebrow {
+  color: var(--plato-color-muted);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.heading {
+  color: var(--plato-color-ink);
+  font-size: 24px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.subheading {
+  color: var(--plato-color-ink);
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.body {
+  color: var(--plato-color-ink);
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+.muted {
+  color: var(--plato-color-muted);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.label {
+  color: var(--plato-color-ink);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.3;
+}
