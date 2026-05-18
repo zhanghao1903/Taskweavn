@@ -1,290 +1,234 @@
 # TaskWeavn
 
-> [中文版](README_zh.md)
+> User-facing product name: Plato
+> Chinese: [README_zh.md](README_zh.md)
+> Canonical docs entry: [docs/README.md](docs/README.md)
 
-TaskWeavn is a task agent with **strongly-typed Action / Observation**, an
-**EventStream-driven ReAct loop**, a **pluggable Runtime**, and an
-**interaction layer for user collaboration**. It is built on top of the
-OpenHands SDK for LLM adaptation.
+TaskWeavn is the local task-agent system behind Plato. Its core idea is simple:
+turn natural-language intent into task-centered plans, let users inspect and
+guide those tasks, then execute them with visible messages, confirmations,
+file changes, audit evidence, and diagnostics.
 
-The project is currently in Phase 3: turning the single-turn ReAct foundation
-into a persistent, session-aware agent that can ask the user for input without
-collapsing the execution model into blocking interrupts.
+Plato is not designed as a wrapped CLI chat. The product model is:
 
-## Status
+```text
+User intent
+  -> RawTask and feasibility assessment
+  -> Collaborator drafts Task Tree List
+  -> user edits/confirms Task nodes
+  -> TaskPublisher publishes Tasks
+  -> TaskBus dispatches execution
+  -> UI observes topology, messages, confirmations, files, audit, and results
+```
 
-**Phase 3 in progress** — persistent workspaces/sessions, SQLite event/message
-streams, autonomy presets, user-facing message bus, loop integration, and
-LLM-backed risk assessment are in place. The next active work is tightening
-derived session status and the user-facing session surface.
+## Current Status
 
-| Phase | Scope | State |
-| ----- | ----- | ----- |
-| 1 | Action/Observation types, EventStream, Runtime, ReAct loop | ✅ done |
-| 2 | `CodeAction` (sandboxed exec) + AuditAgent + SqliteThoughtStore | ✅ done |
-| 3 | Persistent sessions, MessageStream, autonomy gate, user interaction, risk assessment | 🚧 in progress |
-| 4 | Multi-agent orchestration (planner / executor / auditor) | planned |
+The project has moved beyond the original single-turn ReAct agent. Current
+work is focused on Plato 1.0 productization: making the server-core foundations
+usable as a local desktop product.
 
-## Project Highlights
+| Area | State | Notes |
+|---|---:|---|
+| Phase 1 core agent | done | Typed Action/Observation, EventStream, Runtime, ReAct loop, CLI. |
+| Phase 2 sandbox/audit/memory | done | CodeAction, Docker sandbox, AuditAgent, SQLite ThoughtStore. |
+| Phase 3.1-3.8 Interaction Layer | done | Sessions, workspaces, risk/autonomy, messages, bus, wait, loop integration, LLM risk, derived session status. |
+| LLM provider reliability | done | Provider abstraction, retry, DeepSeek thinking, OpenRouter routing. |
+| Configurable logging | done | Structured JSONL logs, session archives, profiles, runtime control. |
+| Task authoring foundation | done | RawTask, feasibility, DraftTaskTree, Collaborator authoring commands. |
+| Task publishing foundation | partial / server-core done | TaskPublisher, SQLite TaskBus publish surface, SQLite publish control plane, API publish transport. Execution lifecycle remains. |
+| Plato frontend baseline | done / integration pending | `frontend/src` has Main Page scaffold, state catalog, typed mock/API adapter, shared API types, UI primitives. |
+| Plato 1.0 productization | active | UI/backend contracts, sidecar API, real backend integration, settings, audit, diagnostics, packaging. |
 
-### Message Stream over Blocking Interrupts
+For the living roadmap, read [docs/roadmap.md](docs/roadmap.md) and
+[docs/project/roadmap.md](docs/project/roadmap.md).
 
-Traditional human-in-the-loop systems pause execution and force the user to
-respond before the agent continues. TaskWeavn replaces this with a **message
-stream model**: agents post messages to a shared stream; users respond when
-they want to, or not at all. What happens when no response arrives is
-controlled by an **autonomy preset** instead of being hardwired into the loop.
+## Product And Architecture Highlights
 
-At full autonomy the stream becomes a read-only execution log. At minimum
-autonomy every risky decision waits for user confirmation. The tradeoff between
-task quality and interruption frequency is a user setting, not an architectural
-constraint.
+### Task-First UX
 
-### Quantified Risk and Autonomy
+Task is the primary user-facing object. Chat is input, clarification, and
+explanation; it is not the main state model. Users should be able to select a
+TaskNode, see its status, add guidance, answer confirmations, inspect related
+messages, and review file changes.
 
-Every `BaseAction` has a class-level `baseline_risk`. Runtime assessors can
-raise risk dynamically, but never lower the floor. The autonomy gate combines:
+### Strongly Typed Agent Core
 
-- the action's static baseline;
-- optional LLM-backed dynamic risk assessment;
-- the configured autonomy preset;
-- sync vs async wait behavior.
+Actions and Observations are frozen Pydantic models with a `kind`
+discriminator. Tools expose Action schemas to the LLM, and Runtime implementations
+return Observations. Runtime errors become `ErrorObservation` values instead of
+crashing the loop.
 
-That produces one of three outcomes: proceed silently, inform the user, or
-publish an actionable message and wait/defer according to the preset.
+### Interaction Layer
 
-### Constraint-driven LLM Orchestration
+TaskWeavn uses one session message stream with task-scoped projections. The
+interaction layer includes:
 
-Users describe what they want in natural language. An **Orchestration Designer** meta-agent translates that intent into a valid agent graph within a **ConstraintProfile** — so the output is legal by construction, not validated after the fact. The constraint profile is itself versioned and progressively relaxed as success-rate data accumulates, keeping the early experience simple and reliable while expanding capability over time.
+- `AgentMessage` and `SqliteMessageStream`;
+- `InProcessMessageBus`;
+- quantified risk and autonomy presets;
+- `AutonomyGate` and `WaitCoordinator`;
+- sync wait and async deferred response paths.
 
-Constraints are first-class citizens with documented rationale: each rule records what failure mode it guards against, so loosening a constraint is a data-backed engineering decision rather than a guess.
+### Task Authoring And Publishing
 
-> Full design: [docs/multi_agent_collaboration_architecture.md](garbage_collect/multi_agent_collaboration_architecture.md) · [docs/multi_agent_collaboration_architecture_en.md](garbage_collect/multi_agent_collaboration_architecture_en.md)
+The authoring domain is separate from execution:
 
-## Why this design
+- RawTask and DraftTaskTree support exploratory planning before execution.
+- Collaborator authoring tools refine task trees with user input.
+- TaskPublisher publishes approved task trees into TaskBus.
+- API, scheduler, pipeline, and custom tree publishers route through the same
+  publish boundary.
 
-- **Action / Observation symmetry.** Every event flowing through the agent is one of the two — Pydantic v2 frozen models with a `kind` discriminator so they round-trip through JSON without losing their type. A single `EventStream` is the source of truth for *what happened*; consumers (loop, audit, replay, persistence) read the same Protocol regardless of storage.
-- **Tool = Action class + executor.** A `Tool[ActionT, ObservationT]` exposes its schema to the LLM and registers itself with the Runtime. Adding a tool is one file; the loop never has to know about it.
-- **Runtime is swappable.** `LocalRuntime` (in-process) today, sandboxed / Docker tomorrow (Phase 2.2). Same `execute(action) -> observation` contract, no consumer changes.
-- **Never-raise contract.** The Runtime catches every executor exception and returns an `ErrorObservation`. The loop feeds it back to the LLM as a tool message — errors become recoverable signals instead of crashes.
-- **LLM layer leans on `litellm`.** `LLMClient.chat()` goes straight through `litellm.completion`, so our Pydantic Actions become OpenAI-format tool schemas without subclassing openhands' `Action` / `Observation` hierarchy.
+### Plato 1.0 Direction
 
-## Quick start
+Plato 1.0 targets a local single-user desktop assistant. The current P0 path is:
+
+1. UI/backend contract baseline.
+2. Local sidecar API shell.
+3. Main Page real backend integration.
+4. Settings and first run.
+5. Task execution lifecycle.
+6. Message and confirmation integration.
+7. File Change Summary.
+8. Audit / Trust page.
+9. Product error handling.
+10. Diagnostic bundle.
+11. Packaging and distribution.
+
+## Quick Start: CLI Agent
 
 Requires Python 3.12+ and [`uv`](https://github.com/astral-sh/uv).
 
 ```bash
-uv sync                                  # install deps + dev tools
-export LLM_PROVIDER=litellm              # litellm | deepseek | openrouter
-export LLM_API_KEY=sk-ant-...            # provider API key
-export LLM_MODEL=anthropic/claude-sonnet-4-5-20250929  # optional override
+uv sync
 
-uv run taskweavn run \
-    --task "write a hello.py that prints hi, then run it" \
-    --workspace ./workspace \
-    --max-steps 10
-```
-
-The agent writes every Action and Observation to an in-memory `EventStream` and stops on one of: explicit `agent_finish` tool call, an LLM turn with no `tool_calls`, or `--max-steps` reached.
-
-For DeepSeek:
-
-```bash
-export LLM_PROVIDER=deepseek
-export DEEPSEEK_API_KEY=sk-...
-export LLM_MODEL=deepseek-chat
-```
-
-Do not pass `--model` when switching provider through environment variables;
-the CLI only reads `LLM_PROVIDER` through `LLMClient.from_env()` when
-`--model` is unset. See [Configuration Guide](docs/configuration.md) for all
-provider, audit, thought-store, autonomy, and logging options.
-
-To turn on the Phase 3 interaction layer:
-
-```bash
-uv run taskweavn run \
-    --task "inspect this project and propose a small safe improvement" \
-    --workspace ./workspace \
-    --autonomy risk_gated \
-    --risk-assessor baseline \
-    --messages-db ./logs/messages.sqlite
-```
-
-Available autonomy presets are `full_auto`, `risk_gated`, `careful`,
-`collaborative`, and `manual`. Available risk assessors are `baseline`, `llm`,
-and `composite`.
-
-## Recommended Local Test Commands
-
-### Basic task with DeepSeek
-
-```bash
 export LLM_PROVIDER=deepseek
 export DEEPSEEK_API_KEY=sk-...
 export LLM_MODEL=deepseek-chat
 
 uv run taskweavn run \
-    --task "write a hello.py that prints hi, then run it" \
-    --workspace ./workspace \
-    --max-steps 10
+  --task "write a hello.py that prints hi, then run it" \
+  --workspace ./workspace \
+  --max-steps 10
 ```
 
-### With autonomy gate enabled
+With the interaction layer enabled:
 
 ```bash
-export LLM_PROVIDER=deepseek
-export DEEPSEEK_API_KEY=sk-...
-export LLM_MODEL=deepseek-chat
-
 uv run taskweavn run \
-    --task "inspect this project and propose a small safe improvement" \
-    --workspace ./workspace \
-    --autonomy risk_gated \
-    --risk-assessor baseline \
-    --messages-db ./logs/messages.sqlite
+  --task "inspect this project and propose a small safe improvement" \
+  --workspace ./workspace \
+  --autonomy risk_gated \
+  --risk-assessor baseline \
+  --messages-db ./logs/messages.sqlite
 ```
 
-### Log output location
-
-When `--log-dir` is set (default `./logs`), CLI runs write a session archive:
+Available autonomy presets:
 
 ```text
-<log-dir>/
-  global/config.jsonl
-  sessions/<session-id>/
-    manifest.json
-    action.jsonl
-    observation.jsonl
-    tool.jsonl
-    llm.jsonl
-    bus.jsonl
-    gate.jsonl
-    wait.jsonl
-    audit.jsonl
+full_auto, risk_gated, careful, collaborative, manual
 ```
 
-Useful logging switches:
+Available risk assessors:
+
+```text
+baseline, llm, composite
+```
+
+Configuration planning lives in
+[Settings and First Run](docs/capabilities/settings-and-first-run/) and
+[Configuration Control Plane](docs/capabilities/configuration-control-plane/).
+The older CLI configuration guide is archived at
+[docs/archive/legacy-2026-05-18/root/configuration.md](docs/archive/legacy-2026-05-18/root/configuration.md).
+
+## Quick Start: Frontend Baseline
+
+The Plato frontend baseline lives under `frontend/`.
 
 ```bash
-uv run taskweavn run \
-    --task "inspect this project and summarize provider config" \
-    --workspace ./workspace \
-    --session-id debug-llm-run \
-    --logging-profile debug-llm \
-    --log-dir ./logs
+cd frontend
+npm install
+npm run dev
 ```
 
-Available profiles include `normal`, `quiet`, `debug-llm`, `debug-tools`,
-`debug-bus`, and `full-debug`. `manifest.json` is the stable entry point for
-UI, testers, and archive scripts. Read `files` for concrete category JSONL
-paths; future task/agent-scoped sinks are advertised through manifest
-`templates` without changing the default session/category layout. The legacy
-`configure_logging()` API still supports flat files such as `tool.log`, but
-`taskweavn run` uses session archives.
-
-Inspect logs without mutating a running agent:
+Useful frontend checks:
 
 ```bash
-uv run taskweavn logging profiles
-uv run taskweavn logging manifest --log-dir ./logs --session-id debug-llm-run
-uv run taskweavn logging render ./logs/sessions/debug-llm-run/llm.jsonl --limit 50
+npm test
+npm run lint
+npm run build
 ```
 
-Additionally, `--messages-db` (default `<log-dir>/messages.sqlite`) stores the
-interaction-layer message stream as SQLite, and `--thoughts-db` (default
-`<log-dir>/thoughts.sqlite`) stores LLM reasoning when thought persistence is
-enabled via `--thoughts`.
+The current frontend is a Main Page baseline with typed mock scenarios and an
+HTTP adapter contract. Real backend sidecar integration is still a Plato 1.0
+gap, tracked from [docs/contracts/ui-backend/](docs/contracts/ui-backend/) and
+[docs/capabilities/main-page-real-backend/](docs/capabilities/main-page-real-backend/).
 
-## Programmatic usage
+## Project Layout
 
-```python
-from taskweavn.core.loop import AgentLoop
-from taskweavn.llm.client import LLMClient
-from taskweavn.runtime.local import LocalRuntime
-from taskweavn.tools.fs import ReadFileTool, WriteFileTool, ListDirTool
-from taskweavn.tools.shell import RunCommandTool
-from taskweavn.tools.workspace import Workspace
-
-ws = Workspace("./workspace")
-runtime = LocalRuntime()
-tools = [ReadFileTool(ws), WriteFileTool(ws), ListDirTool(ws), RunCommandTool(ws)]
-for t in tools:
-    t.register(runtime)
-
-loop = AgentLoop(llm=LLMClient.from_env(), runtime=runtime, tools=tools)
-result = loop.run("create README.md describing this folder")
-print(result.final_answer)
-```
-
-With the interaction layer enabled programmatically, wire the bundle together:
-
-```python
-from taskweavn.interaction import (
-    AutonomyGate,
-    BaselineOnlyAssessor,
-    InProcessMessageBus,
-    SqliteMessageStream,
-    WaitCoordinator,
-    get_preset,
-)
-
-behavior = get_preset("risk_gated")
-stream = SqliteMessageStream("./workspace/.code-agent/messages.sqlite")
-bus = InProcessMessageBus(stream)
-gate = AutonomyGate(behavior, BaselineOnlyAssessor())
-
-loop = AgentLoop(
-    llm=LLMClient.from_env(),
-    runtime=runtime,
-    tools=tools,
-    workspace_root=ws.root,
-    session_id="demo-session",
-    bus=bus,
-    gate=gate,
-    wait_coordinator=WaitCoordinator(bus, behavior),
-)
-```
-
-## Project layout
-
-```
+```text
 src/taskweavn/
-├── types/          # BaseEvent / BaseAction / BaseObservation + registry
-├── core/           # EventStream, SQLite EventStream, sessions, AgentLoop
-├── interaction/    # Risk, autonomy, AgentMessage, MessageStream, MessageBus
-├── memory/         # ThoughtStore (side channel, opt-in)
-├── llm/            # LLMClient (openhands-sdk + litellm), tool schema helpers
-├── runtime/        # Runtime Protocol + LocalRuntime
-├── tools/          # Workspace, Tool base, fs/shell/code-action tools
-├── audit/          # AuditAgent for CodeAction review
-├── observability/  # Logging setup
-├── orchestration/  # Multi-agent Protocol (Phase 4 placeholder)
-└── cli/            # Typer entry point (`taskweavn`)
+  audit/          AuditAgent and audit observations
+  cli/            Typer CLI entry point
+  core/           AgentLoop, EventStream, sessions, workspace layout
+  interaction/    Risk, autonomy, messages, bus, gate, wait coordination
+  llm/            LLM client and provider implementations
+  memory/         ThoughtStore side channel
+  observability/  Structured logging and session archives
+  orchestration/  Multi-agent placeholders and protocol boundaries
+  runtime/        Runtime protocol and LocalRuntime
+  server/         Framework-neutral server/transport adapters
+  task/           Task domain, authoring, publishing, pipeline, stores
+  tools/          Workspace, Tool base, fs/shell/code-action tools
+  types/          BaseEvent, BaseAction, BaseObservation, registries
+
+frontend/
+  src/            Plato Main Page baseline, API types, UI primitives
+
+docs/
+  README.md       Canonical docs entry
 ```
 
 ## Documentation
 
-| Document | Chinese | English |
-| -------- | ------- | ------- |
-| Configuration Guide | [configuration.md](docs/configuration.md) | - |
-| Architecture Reference | [architecture.md](garbage_collect/architecture.md) | - |
-| Interaction Layer Design | [interaction_layer_design.md](garbage_collect/interaction_layer_design.md) | - |
-| Project Plan | [agent_project_plan.md](garbage_collect/agent_project_plan.md) | [agent_project_plan_en.md](garbage_collect/agent_project_plan_en.md) |
-| Multi-Agent Architecture | [multi_agent_collaboration_architecture.md](garbage_collect/multi_agent_collaboration_architecture.md) | [multi_agent_collaboration_architecture_en.md](garbage_collect/multi_agent_collaboration_architecture_en.md) |
-| User Test Cases | [docs/user_cases](docs/user_cases) | - |
+Start with [docs/README.md](docs/README.md). The main active docs are:
 
-## Development
+| Need | Entry |
+|---|---|
+| Product version | [Plato 1.0 Overview](docs/product/versions/1.0/overview.md) |
+| Current gaps | [Plato 1.0 Gap Analysis](docs/product/versions/1.0/gap-analysis.md) |
+| Capability map | [docs/capabilities/index.md](docs/capabilities/index.md) |
+| Current architecture | [docs/architecture/current.md](docs/architecture/current.md) |
+| UI/backend contracts | [docs/contracts/ui-backend/](docs/contracts/ui-backend/) |
+| Roadmap | [docs/roadmap.md](docs/roadmap.md) |
+| Operational project plan | [docs/project/roadmap.md](docs/project/roadmap.md) |
+| Docs workflow | [docs/project/docs-operating-model.md](docs/project/docs-operating-model.md) |
+| Release records | [docs/releases/](docs/releases/) |
+
+Historical docs are kept under `docs/archive/legacy-2026-05-18/` and are no
+longer the active workflow entry points.
+
+## Development Checks
+
+Backend:
 
 ```bash
-uv run pytest          # run test suite
-uv run ruff check .    # lint
-uv run mypy src tests  # strict type-check
+uv run pytest
+uv run ruff check .
+uv run mypy src tests
 ```
 
-The intended quality gate is: tests, Ruff, and mypy all green. Current PR
-review follow-up: `uv run mypy src` passes, while `uv run mypy src tests` is
-tracked separately in [issue #7](https://github.com/zhanghao1903/codeAgent/issues/7).
+Frontend:
+
+```bash
+cd frontend
+npm test
+npm run lint
+npm run build
+```
+
+Target quality gate: tests, lint, type checks, and relevant product docs all
+updated together when a capability changes.
 
 ## License
 
