@@ -21,12 +21,12 @@ The biggest gap is not a missing idea. The biggest gap is connecting existing se
 | Requirement | Current Capability | Gap | Plan | Status |
 |---|---|---|---|---|
 | First-run provider/workspace setup | Env-based LLM config; provider/retry support; workspace layout | No Settings UI, config store, Keychain path, or connectivity test | unplanned | open |
-| Main Page real backend | Backend task projection exists; frontend source is not in the current canonical repo baseline | No canonical Main Page source, no local sidecar API, no real snapshot adapter, no event subscription | unplanned | open |
+| Main Page real backend | Frontend baseline, shared API types, HTTP adapter, backend task projection, publish persistence, and API publish transport exist | No local sidecar API binding for Main Page snapshot/commands/events; no real projection adapter wired to UI | unplanned | open |
 | Task authoring | RawTask, feasibility, DraftTaskTree, Collaborator server-core | UI transport and persistence not productized | partial | open |
 | Task execution | AgentLoop, TaskPublisher, SQLite TaskBus publish/read | No complete TaskBus claim/execute/update lifecycle | unplanned | open |
 | Message/confirmation | MessageStream, MessageBus, WaitCoordinator, UI mock confirmations | No real UI command/event integration | unplanned | open |
 | File Change Summary | ViewModel and projection protocol | No concrete collection/store/recursive aggregation | unplanned | open |
-| Audit Trust page | AuditAgent, EventStream, MessageStream, observability archive | No user-facing evidence projection or Audit Page | unplanned | open |
+| Audit Trust page | AuditAgent, EventStream, MessageStream, observability archive, Audit Page PRD/UX | No user-facing evidence projection or implemented Audit Page | unplanned | open |
 | Product error handling | Provider errors/retry, API error types | No unified product error model and recovery UX | unplanned | open |
 | Diagnostic bundle | Structured logs and manifests | No one-click export/bundle/redaction policy | unplanned | open |
 | Signed local app | Packaging strategy | No Electron shell, sidecar executable, signing/notarization pipeline | [packaging plan](../../../plans/release/packaging-and-distribution-strategy.md) | planned |
@@ -120,7 +120,7 @@ Create these under `docs/plans/features/`:
 |---|---:|---|
 | `ui-backend-contract-baseline` | P0 | May also update `docs/contracts/`. |
 | `local-sidecar-api-shell` | P0 | Health, auth token, snapshot, commands, events. |
-| `main-page-real-backend` | P0 | Establish canonical frontend source and connect it to the real contract. |
+| `main-page-real-backend` | P0 | Connect the tracked frontend baseline to the real contract and local backend sidecar. |
 | `settings-and-first-run` | P0 | Provider/workspace setup. |
 | `task-execution-lifecycle` | P0 | TaskBus claim/execute/complete/fail. |
 | `message-confirmation-integration` | P0 | Real confirmation and task-scoped inputs. |

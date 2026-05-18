@@ -13,7 +13,7 @@ Users need to see what Plato is doing, answer confirmations in context, and unde
 
 - AgentMessage, MessageStream, SQLite message persistence, task_id aggregation, MessageBus, AutonomyGate, and WaitCoordinator exist.
 - Session Message Stream and task-scoped projection are defined as product/architecture requirements.
-- Current repository baseline does not include canonical frontend source for message or confirmation UI.
+- Frontend baseline includes session message and confirmation view types plus Main Page panels, but these still run on fixtures/mocks.
 
 ## Target Capability
 
@@ -45,7 +45,9 @@ One session message stream is the source of truth. Task views project relevant m
 - `src/taskweavn/interaction/sqlite_message_stream.py`
 - `src/taskweavn/interaction/bus.py`
 - `src/taskweavn/interaction/wait.py`
-- Future frontend message entity path should be defined by the Main Page real backend plan.
+- `frontend/src/entities/message/model.ts`
+- `frontend/src/shared/api/types.ts`
+- `frontend/src/pages/main-page/SessionMessagePanel.tsx`
 
 ## Open Questions
 

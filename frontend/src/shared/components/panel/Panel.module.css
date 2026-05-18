@@ -1,0 +1,45 @@
+.panel {
+  min-width: 0;
+  border: 1px solid var(--plato-color-line);
+  border-radius: var(--plato-radius-lg);
+  padding: var(--plato-space-5);
+}
+
+.surface {
+  background: var(--plato-color-panel);
+  box-shadow: var(--plato-shadow-panel);
+}
+
+.muted {
+  background: var(--plato-color-marble);
+}
+
+.header {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--plato-space-3);
+  margin-bottom: var(--plato-space-4);
+}
+
+.titleGroup {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--plato-space-2);
+}
+
+.title {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  font-size: 18px;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.actions {
+  flex: 0 0 auto;
+}

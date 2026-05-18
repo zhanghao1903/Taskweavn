@@ -23,18 +23,18 @@ Electron renderer / Vite frontend
 
 ---
 
-## 2. Initial Contract Files To Create
+## 2. Initial Contract Files To Create Or Split
 
 | Contract | Capability | Status |
 |---|---|---|
-| `main-page-snapshot.md` | Main Page real backend | to_create |
+| `main-page-snapshot.md` | Main Page real backend | draft source exists in product contract and frontend API types |
 | `task-authoring.md` | Task authoring | to_create |
-| `commands.md` | Session/task/publish/confirmation commands | to_create |
-| `events-sse.md` | Session event stream | to_create |
+| `commands.md` | Session/task/publish/confirmation commands | draft source exists in product contract and frontend API types |
+| `events-sse.md` | Session event stream | draft source exists in product contract and frontend API types |
 | `settings.md` | Settings and first run | to_create |
-| `audit-trust.md` | Audit / Trust page | to_create |
+| `audit-trust.md` | Audit / Trust page | product PRD/UX exists |
 | `file-change-summary.md` | File Change Summary | to_create |
-| `error-model.md` | Product-level error handling | to_create |
+| `error-model.md` | Product-level error handling | draft source exists in frontend API types |
 
 ---
 
@@ -42,12 +42,18 @@ Electron renderer / Vite frontend
 
 Existing documents and code to reconcile:
 
+- [Plato UI API Contract](../../product/plato-ui-api-contract.md)
+- [Plato Audit Page PRD](../../product/plato-audit-page-prd.md)
+- [Plato Audit Page UX Flow](../../product/plato-audit-page-ux-flow.md)
 - [Legacy UI Backend Communication](../../archive/legacy-2026-05-18/architecture/ui-backend-communication.md)
 - [Legacy Plato Frontend Technical Design](../../archive/legacy-2026-05-18/product/plato-frontend-technical-design.md)
-- Future canonical frontend API source paths, to be created by the frontend scaffold / Main Page real backend plan.
+- `frontend/src/shared/api/types.ts`
+- `frontend/src/shared/api/platoApi.ts`
+- `frontend/src/pages/main-page/httpMainPageAdapter.ts`
 - `src/taskweavn/task/views.py`
 - `src/taskweavn/task/projection.py`
 - `src/taskweavn/task/collaborator_api.py`
+- `src/taskweavn/server/api_publish.py`
 
 ---
 

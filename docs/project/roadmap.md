@@ -72,6 +72,9 @@ natural language
 | Task domain/UI model separation | done | [release](../releases/task-domain-ui-model-separation.md) |
 | Collaborator authoring foundation | done | [release](../releases/collaborator-agent-task-authoring.md) |
 | Task publishers and initial TaskBus publish path | done / partial | [release](../releases/task-publishers-schedule-api.md) |
+| Publish persistence foundation | done | [release](../releases/publish-persistence-foundation.md) |
+| API publish server transport | done | [release](../releases/api-publish-server-transport.md) |
+| Plato frontend baseline | done / integration pending | `frontend/src` Main Page scaffold, state catalog, typed mock/API adapter, shared API types, and UI primitives. |
 
 ---
 
@@ -81,8 +84,8 @@ Recommended order for Plato 1.0:
 
 | Order | Capability | Why Now | Plan State |
 |---:|---|---|---|
-| 1 | [Main Page real backend](../capabilities/main-page-real-backend/) | The product must stop being fixture-driven. | create feature package |
-| 2 | [UI/backend contracts](../contracts/ui-backend/) | Frontend/backend split needs stable query, command, event, error, and viewmodel contracts. | expand contract docs |
+| 1 | [UI/backend contracts](../contracts/ui-backend/) | `plato-ui-api-contract.md` and frontend API types exist; the contract now needs canonical split files and backend examples. | expand contract docs |
+| 2 | [Main Page real backend](../capabilities/main-page-real-backend/) | The tracked frontend baseline must stop being fixture-driven. | create feature package |
 | 3 | [Settings and first run](../capabilities/settings-and-first-run/) | Non-developer users need provider/workspace setup before testing. | create feature package |
 | 4 | [Task execution](../capabilities/task-execution/) | Published Tasks need a real claim/execute/update lifecycle. | create feature package |
 | 5 | [Message and confirmation](../capabilities/message-and-confirmation/) | Human-in-the-loop UX must be real, not CLI-only. | create feature package |

@@ -85,7 +85,7 @@ Each test should record:
 Block 1.0 beta if:
 
 - provider setup requires editing env vars;
-- Main Page has no canonical tracked source or depends on fixtures;
+- Main Page cannot leave fixture-only mode for the primary workflow;
 - Task publish does not lead to visible execution;
 - confirmations cannot be resolved through UI;
 - file changes cannot be attributed to Tasks;

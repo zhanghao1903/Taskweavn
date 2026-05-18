@@ -25,12 +25,12 @@ Each important capability has a packet under `docs/capabilities/<capability>/`.
 
 | Capability | Current Status | 1.0 Priority | Gap Summary | Routed Plan |
 |---|---|---:|---|---|
-| [Main Page real backend](main-page-real-backend/) | active | P0 | Frontend is mock-driven; backend projection exists but no sidecar transport. | unplanned |
+| [Main Page real backend](main-page-real-backend/) | active | P0 | Frontend baseline and backend projection exist, but no sidecar snapshot/command/event integration. | unplanned |
 | [Settings and first run](settings-and-first-run/) | planned | P0 | Provider config exists through env; no user-facing setup or secure secret store. | unplanned |
 | [Task authoring](task-authoring/) | current / active | P0 | Server-core authoring exists; UI transport and persistence need productization. | partial |
 | [Task execution](task-execution/) | planned | P0 | Task publishing exists; TaskBus claim/execute/update loop is incomplete. | unplanned |
 | [Message and confirmation](message-and-confirmation/) | current / active | P0 | Message substrate exists; UI event/command integration is still missing. | unplanned |
-| [Audit trust](audit-trust/) | planned | P0 | Audit/logging facts exist; user-facing trust page and evidence projection are missing. | unplanned |
+| [Audit trust](audit-trust/) | planned | P0 | Audit/logging facts and product PRD/UX exist; user-facing implementation and evidence projection are missing. | unplanned |
 | [File change summary](file-change-summary/) | planned | P0 | ViewModel interface exists; real collection, storage, and parent-child aggregation are missing. | unplanned |
 | [Diagnostic bundle](diagnostic-bundle/) | planned | P0 | Observability archive exists; one-click bundle/export/redaction is missing. | unplanned |
 | [Product error handling](product-error-handling/) | planned | P0 | Provider/core errors exist; user-facing recovery model is missing. | unplanned |

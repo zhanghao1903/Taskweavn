@@ -16,6 +16,7 @@ Users need trust evidence: what Plato did, why it asked for confirmation, what c
 - MessageStream records user-facing messages.
 - Structured observability and session archives exist.
 - Main Page has audit link concepts.
+- Audit Page PRD and UX flow exist as product-level specs.
 
 ## Target Capability
 
@@ -25,7 +26,7 @@ Plato has a user-facing Audit / Trust page that aggregates task evidence, action
 
 | Gap | Plan | Status | Notes |
 |---|---|---|---|
-| No Audit Page UI | unplanned | open | P0 trust surface. |
+| No Audit Page UI implementation | unplanned | open | P0 trust surface; product PRD/UX exists. |
 | No audit evidence projection API | unplanned | open | Needs aggregation across EventStream, MessageStream, logs, tasks. |
 | AuditAgent scope is code-action centric | unplanned | open | 1.0 trust page needs broader task/session evidence. |
 | No user-readable severity model | unplanned | open | Need labels that are useful without leaking internals. |
@@ -34,6 +35,8 @@ Plato has a user-facing Audit / Trust page that aggregates task evidence, action
 
 - [Plato 1.0 Overview](../../product/versions/1.0/overview.md)
 - [Plato 1.0 P0 Scope](../../product/versions/1.0/p0-scope.md)
+- [Plato Audit Page PRD](../../product/plato-audit-page-prd.md)
+- [Plato Audit Page UX Flow](../../product/plato-audit-page-ux-flow.md)
 
 ## Related Architecture Docs
 

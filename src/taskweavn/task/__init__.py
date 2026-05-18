@@ -177,6 +177,13 @@ from taskweavn.task.scheduler import (
     SessionSelectorMode,
 )
 from taskweavn.task.sqlite_bus import SqliteTaskBus
+from taskweavn.task.sqlite_publish import (
+    PublishStoreError,
+    SqlitePublishIdempotencyStore,
+    SqliteScheduledPublishStore,
+    SqliteTaskPublishAuditSink,
+    build_sqlite_publish_service,
+)
 from taskweavn.task.stores import (
     DraftTaskStore,
     InMemoryDraftTaskStore,
@@ -317,6 +324,7 @@ __all__ = [
     "PublishIdempotencyConflictError",
     "PublishIdempotencyRecord",
     "PublishIdempotencyStore",
+    "PublishStoreError",
     "PublisherKind",
     "PublisherRef",
     "RawTask",
@@ -341,6 +349,9 @@ __all__ = [
     "SchedulerPublisher",
     "SessionSelector",
     "SessionSelectorMode",
+    "SqlitePublishIdempotencyStore",
+    "SqliteScheduledPublishStore",
+    "SqliteTaskPublishAuditSink",
     "SqliteTaskBus",
     "TaskCardAction",
     "TaskCardActionKind",
@@ -388,6 +399,7 @@ __all__ = [
     "TaskTreeValidationIssue",
     "TaskTreeValidationSeverity",
     "VersionConflictError",
+    "build_sqlite_publish_service",
     "normalize_task_tree_input",
     "parse_task_tree_input",
 ]

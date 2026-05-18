@@ -105,13 +105,14 @@ Current implementation has strong server-core foundations:
 - Structured logging and archives.
 - RawTask / DraftTaskTree / Collaborator authoring.
 - TaskPublisher and SQLite TaskBus publish/read surface.
-- Frontend source is not part of the current canonical repository baseline; only prior generated/build artifacts may exist locally.
+- Publish persistence and framework-neutral API publish transport.
+- Plato frontend baseline under `frontend/src`: Main Page scaffold, state catalog, typed mock/API adapter, shared API types, and UI primitives.
 
 The main 1.0 gap is productization:
 
 ```text
-server-core foundations + frontend gap
-  -> real desktop product with sidecar API, Main Page source, settings, audit, diagnostics, and packaging
+server-core foundations + frontend baseline
+  -> real desktop product with sidecar API, real Main Page integration, settings, audit, diagnostics, and packaging
 ```
 
 ---

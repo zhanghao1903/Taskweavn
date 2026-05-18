@@ -11,10 +11,10 @@ Users need the Main Page to control a real Plato session, not a fixture demo.
 
 ## Current System Capability
 
-- Backend Task projection models and services exist.
-- Frontend source is not part of the current canonical repository baseline; any local `frontend/` build artifacts are not treated as source of truth.
+- `frontend/src` contains the Plato Main Page baseline: state catalog, typed fixtures, shared API types, HTTP adapter, and UI primitives.
 - Backend has Task projection models and services.
-- UI/backend communication architecture is drafted.
+- UI/backend communication architecture and a draft Main Page API contract exist.
+- Publish persistence and API publish transport exist for the publishing path; they do not yet provide the Main Page snapshot/command/event contract.
 
 ## Target Capability
 
@@ -24,8 +24,7 @@ Main Page loads real session snapshots, sends commands, receives events, and ref
 
 | Gap | Plan | Status | Notes |
 |---|---|---|---|
-| No canonical Main Page source | unplanned | open | Need tracked frontend scaffold/source before product integration. |
-| No local sidecar transport for UI | unplanned | open | Need HTTP + SSE or equivalent local channel. |
+| No local sidecar transport for Main Page | unplanned | open | Need HTTP + SSE or equivalent local channel for snapshot, commands, and events. |
 | No backend snapshot adapter | unplanned | open | Need adapter from server-core views to UI contract. |
 | No command transport | unplanned | open | Need command routing for session input, task input, publish, confirmation. |
 | No event transport | unplanned | open | Need session event stream and cursor semantics. |
@@ -55,9 +54,11 @@ Main Page loads real session snapshots, sends commands, receives events, and ref
 
 ## Related Code
 
-- Future canonical frontend paths should be defined by the Main Page real backend plan.
+- `frontend/src/pages/main-page/`
+- `frontend/src/shared/api/`
 - `src/taskweavn/task/projection.py`
 - `src/taskweavn/task/views.py`
+- `src/taskweavn/server/api_publish.py`
 
 ## Open Questions
 

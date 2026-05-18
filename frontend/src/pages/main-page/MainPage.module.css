@@ -1,0 +1,462 @@
+.page {
+  display: grid;
+  min-height: 100vh;
+  grid-template:
+    "top top top" 72px
+    "side work detail" 1fr
+    "side input input" 96px / 260px minmax(520px, 1fr) 360px;
+  gap: var(--plato-space-5);
+  padding: var(--plato-space-5);
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 70%), transparent 260px),
+    var(--plato-color-classic-cream);
+}
+
+.topBar,
+.sidebar,
+.workspace,
+.detailPanel,
+.contextInput {
+  border: 1px solid var(--plato-color-line);
+  border-radius: var(--plato-radius-lg);
+  background: var(--plato-color-panel);
+  box-shadow: var(--plato-shadow-panel);
+}
+
+.topBar {
+  grid-area: top;
+  display: flex;
+  align-items: center;
+  gap: var(--plato-space-6);
+  padding: 0 var(--plato-space-6);
+}
+
+.brand {
+  color: var(--plato-color-reason-blue);
+  font-family: var(--plato-font-serif);
+  font-size: 24px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.contextStack {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  align-items: center;
+  gap: var(--plato-space-3);
+  color: var(--plato-color-muted);
+  font-size: 14px;
+}
+
+.contextStack span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.contextStack span:not(:last-child)::after {
+  margin-left: var(--plato-space-3);
+  color: var(--plato-color-line);
+  content: "/";
+}
+
+.statePicker {
+  display: inline-flex;
+  flex: 0 0 auto;
+  min-width: 0;
+  align-items: center;
+  gap: var(--plato-space-2);
+  color: var(--plato-color-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.statePicker select {
+  max-width: 160px;
+  border: 1px solid var(--plato-color-line);
+  border-radius: var(--plato-radius-md);
+  padding: var(--plato-space-2) var(--plato-space-3);
+  background: var(--plato-color-panel);
+  color: var(--plato-color-ink);
+  font-weight: 700;
+}
+
+.sidebar {
+  grid-area: side;
+  padding: var(--plato-space-5);
+}
+
+.sidebarHeader,
+.sectionHeader,
+.panelTitleRow {
+  display: flex;
+  align-items: center;
+}
+
+.sidebarHeader,
+.sectionHeader {
+  justify-content: space-between;
+}
+
+.sidebarHeader {
+  margin-bottom: var(--plato-space-6);
+  font-weight: 700;
+}
+
+.sidebarHeader button,
+.secondaryButton,
+.contextInput button {
+  border: 1px solid var(--plato-color-line);
+  border-radius: var(--plato-radius-md);
+  background: var(--plato-color-panel);
+  color: var(--plato-color-reason-blue);
+  font-weight: 700;
+}
+
+.sidebarHeader button,
+.secondaryButton {
+  padding: var(--plato-space-2) var(--plato-space-3);
+}
+
+.sidebarGroupTitle,
+.eyebrow {
+  color: var(--plato-color-muted);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.navItem,
+.activeNavItem {
+  display: block;
+  width: 100%;
+  margin: var(--plato-space-2) 0;
+  border: 1px solid transparent;
+  border-radius: var(--plato-radius-md);
+  padding: var(--plato-space-3);
+  background: transparent;
+  color: var(--plato-color-muted);
+  text-align: left;
+}
+
+.activeNavItem {
+  border-color: var(--plato-color-cave-blue);
+  background: var(--plato-color-clear-blue);
+  color: var(--plato-color-reason-blue);
+  font-weight: 700;
+}
+
+.workspace {
+  grid-area: work;
+  min-width: 0;
+  overflow: hidden;
+  padding: var(--plato-space-6);
+}
+
+.sectionHeader {
+  margin-bottom: var(--plato-space-6);
+}
+
+.sectionHeader h1,
+.detailPanel h2 {
+  margin: var(--plato-space-1) 0 0;
+  font-size: 24px;
+}
+
+.workGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 0.8fr);
+  gap: var(--plato-space-5);
+}
+
+.panel {
+  min-width: 0;
+  min-height: 520px;
+  border: 1px solid var(--plato-color-line);
+  border-radius: var(--plato-radius-lg);
+  padding: var(--plato-space-5);
+  background: var(--plato-color-marble);
+}
+
+.panelTitleRow {
+  gap: var(--plato-space-2);
+  margin-bottom: var(--plato-space-4);
+}
+
+.panelTitleRow h2 {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  font-size: 18px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.taskList,
+.messageList {
+  display: grid;
+  gap: var(--plato-space-3);
+}
+
+.emptyState {
+  display: grid;
+  min-height: 220px;
+  align-content: center;
+  gap: var(--plato-space-3);
+  border: 1px dashed var(--plato-color-line);
+  border-radius: var(--plato-radius-lg);
+  padding: var(--plato-space-6);
+  background: rgb(255 255 255 / 54%);
+  text-align: center;
+}
+
+.taskCard,
+.selectedTaskCard {
+  display: grid;
+  width: 100%;
+  grid-template-columns: 16px minmax(0, 1fr) 94px;
+  align-items: center;
+  gap: var(--plato-space-3);
+  border: 1px solid var(--plato-color-line);
+  border-radius: var(--plato-radius-lg);
+  padding: var(--plato-space-3);
+  background: var(--plato-color-panel);
+  color: var(--plato-color-ink);
+  text-align: left;
+}
+
+.selectedTaskCard {
+  border-color: var(--plato-color-reason-blue);
+  background: var(--plato-color-clear-blue);
+}
+
+.taskText {
+  display: grid;
+  min-width: 0;
+  gap: var(--plato-space-1);
+}
+
+.taskText strong,
+.taskText small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.taskText small,
+.messageCard p,
+.detailPanel p,
+.contextInput p {
+  margin: 0;
+  color: var(--plato-color-muted);
+}
+
+.taskStatus {
+  min-height: 32px;
+  padding: 0 var(--plato-space-2);
+}
+
+.messageCard {
+  border-left: 3px solid var(--plato-color-wisdom-gold);
+  border-radius: var(--plato-radius-md);
+  padding: var(--plato-space-3);
+  background: var(--plato-color-panel);
+}
+
+.messageScope,
+.messageMeta {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--plato-space-2);
+}
+
+.messageScope {
+  justify-content: space-between;
+  margin-bottom: var(--plato-space-3);
+}
+
+.messageMeta {
+  flex-wrap: wrap;
+  margin-bottom: var(--plato-space-1);
+}
+
+.messageMeta span:last-child {
+  min-width: 0;
+  color: var(--plato-color-muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.messageCard strong {
+  display: block;
+  margin-bottom: var(--plato-space-1);
+}
+
+.messageCard strong,
+.messageCard p {
+  overflow-wrap: anywhere;
+}
+
+.detailPanel {
+  grid-area: detail;
+  padding: var(--plato-space-6);
+}
+
+.detailBox {
+  display: grid;
+  gap: var(--plato-space-3);
+  margin-top: var(--plato-space-5);
+  border-radius: var(--plato-radius-lg);
+  padding: var(--plato-space-4);
+  background: var(--plato-color-classic-cream);
+}
+
+.detailTitleRow {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--plato-space-3);
+}
+
+.detailTitleRow strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.resultSections,
+.fileChangeList {
+  display: grid;
+  gap: var(--plato-space-3);
+}
+
+.resultSection,
+.fileChangeItem {
+  display: grid;
+  min-width: 0;
+  gap: var(--plato-space-2);
+  border: 1px solid var(--plato-color-line);
+  border-radius: var(--plato-radius-md);
+  padding: var(--plato-space-3);
+  background: rgb(255 255 255 / 66%);
+}
+
+.resultSection p,
+.fileChangeItem p {
+  margin: 0;
+  color: var(--plato-color-muted);
+  font-size: 14px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.actionRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--plato-space-2);
+  margin-top: var(--plato-space-2);
+}
+
+.filePath {
+  color: var(--plato-color-ink);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    "Liberation Mono", "Courier New", monospace;
+  font-size: 13px;
+}
+
+.fileOwner {
+  color: var(--plato-color-muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.contextInput {
+  grid-area: input;
+  display: grid;
+  grid-template-columns: minmax(220px, 0.6fr) minmax(280px, 1fr) 48px;
+  align-items: center;
+  gap: var(--plato-space-4);
+  padding: var(--plato-space-5);
+}
+
+.contextInputField {
+  display: grid;
+  min-width: 0;
+  gap: var(--plato-space-1);
+}
+
+.contextInputField span {
+  color: var(--plato-color-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.contextInputField input {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--plato-color-line);
+  border-radius: var(--plato-radius-md);
+  padding: var(--plato-space-3);
+  background: var(--plato-color-panel);
+  color: var(--plato-color-ink);
+  font: inherit;
+}
+
+.contextInputField input:disabled {
+  color: var(--plato-color-muted);
+}
+
+.contextInput button {
+  display: inline-grid;
+  width: 48px;
+  height: 40px;
+  place-items: center;
+  background: var(--plato-color-reason-blue);
+  color: #fff;
+}
+
+.contextInput button:disabled {
+  opacity: 0.55;
+}
+
+@media (max-width: 1180px) {
+  .page {
+    grid-template:
+      "top" auto
+      "side" auto
+      "work" auto
+      "detail" auto
+      "input" auto / 1fr;
+  }
+
+  .topBar {
+    flex-wrap: wrap;
+    min-height: 72px;
+    padding: var(--plato-space-4) var(--plato-space-5);
+  }
+
+  .workGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .contextInput {
+    grid-template-columns: 1fr 48px;
+  }
+
+  .contextInput > div {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 1440px) {
+  .workGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .panel {
+    min-height: auto;
+  }
+}

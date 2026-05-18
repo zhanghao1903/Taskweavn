@@ -44,8 +44,9 @@ TaskWeavn has moved beyond the original single ReAct code-agent shape.
 | LLM risk assessment | Done | Phase 3.7. |
 | Derived session status | Done | Phase 3.8. |
 | Task authoring foundation | Done as server-core baseline | RawTask, feasibility, DraftTaskTree, Collaborator authoring, authoring commands. |
-| Task publishing foundation | Done as server-core baseline | TaskPublisher and SQLite TaskBus publish surfaces; full execution lifecycle remains. |
-| Plato 1.0 productization | Active | UI/backend contracts, real backend integration, settings, audit, packaging, diagnostics. |
+| Task publishing foundation | Done as server-core baseline | TaskPublisher, SQLite TaskBus publish surfaces, SQLite publish control-plane stores, and framework-neutral API publish transport; full execution lifecycle remains. |
+| Plato frontend baseline | Done as product/UI baseline | `frontend/src` contains the Main Page scaffold, state catalog, typed mock/API adapter, shared API types, and UI primitives; real backend integration remains. |
+| Plato 1.0 productization | Active | UI/backend contract hardening, local sidecar API, real backend integration, settings, audit, packaging, diagnostics. |
 
 The current product direction is **Task-first personal assistant**:
 
@@ -98,7 +99,7 @@ User intent
 | Phase 3.1-3.8 | Done | Session/workspace persistence and Interaction Layer foundation. | [Phase 3 Interaction Layer through 3.8](releases/phase-3-interaction-layer-through-3-8.md) |
 | Phase 3B | Done / follow-up | LLM provider reliability and configurable logging; centralized config remains planned. | [LLM provider](releases/llm-provider-reliability.md), [logging](releases/configurable-logging-system.md) |
 | Phase 3C | Done as server-core | Task domain/UI viewmodel separation and Collaborator authoring foundation. | [Task model](releases/task-domain-ui-model-separation.md), [Collaborator authoring](releases/collaborator-agent-task-authoring.md) |
-| Phase 3D | Partial | TaskPublisher and publish-time pipeline expansion are done; task execution lifecycle remains. | [Task publishers](releases/task-publishers-schedule-api.md) |
+| Phase 3D | Partial | TaskPublisher, publish-time pipeline expansion, publish persistence, and API publish transport are done; task execution lifecycle remains. | [Task publishers](releases/task-publishers-schedule-api.md), [Publish persistence](releases/publish-persistence-foundation.md), [API publish transport](releases/api-publish-server-transport.md) |
 | Phase 3E | Active | Plato 1.0 productization: UI, contracts, settings, audit, diagnostics, packaging. | Pending |
 
 ---
@@ -110,6 +111,7 @@ The immediate roadmap is organized by Plato 1.0 capabilities.
 | Capability | Status | Priority | Entry |
 |---|---:|---:|---|
 | Main Page real backend | active gap | P0 | [capability](capabilities/main-page-real-backend/) |
+| UI/backend contract baseline | active | P0 | [contract](contracts/ui-backend/) |
 | Settings and first run | planned gap | P0 | [capability](capabilities/settings-and-first-run/) |
 | Task authoring | current / active | P0 | [capability](capabilities/task-authoring/) |
 | Task execution | planned gap | P0 | [capability](capabilities/task-execution/) |
@@ -136,7 +138,22 @@ Every P0 gap should eventually route to a package under `docs/plans/features/<fe
 
 ---
 
-## 8. Update Rule
+## 8. Immediate Sequencing Notes
+
+The next work should not restart the UI from zero. `frontend/src` is now a tracked baseline. The remaining productization blocker is making the baseline real:
+
+1. harden the UI/backend contract into specific contract files under [contracts/ui-backend/](contracts/ui-backend/);
+2. build the local sidecar API shell for snapshot, command, and event surfaces;
+3. connect Main Page to real session/task/message projections;
+4. complete TaskBus claim/execute/complete/fail lifecycle;
+5. integrate message/confirmation commands and SSE updates;
+6. build File Change Summary, Audit Trust, product error handling, diagnostics, and packaging.
+
+Publish persistence and API publish transport are complete enough for the next backend round. Completion-time `task_after`, agent assignment, and execution lifecycle remain backend blockers.
+
+---
+
+## 9. Maintenance Rules
 
 When a plan completes:
 

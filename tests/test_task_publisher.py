@@ -128,6 +128,46 @@ def test_publish_writes_pending_tasks_through_task_bus() -> None:
     assert child.dispatch_constraints.metadata["title"] == "Child"
 
 
+def test_idempotent_publish_replays_existing_tasks_without_store_record() -> None:
+    bus = InMemoryTaskBus()
+    publisher = DefaultTaskPublisher(task_bus=bus)
+    first = publisher.publish(_request(request_id="req-1"))
+
+    replay = publisher.publish(_request(request_id="req-2"))
+
+    assert replay.accepted
+    assert replay.published_task_ids == first.published_task_ids
+    assert replay.root_task_ids == first.root_task_ids
+    assert replay.metadata["idempotent_existing_tasks"] is True
+    assert len(bus.list_for_session("s1")) == 2
+
+
+def test_partial_idempotent_publish_is_rejected_without_duplicate_tasks() -> None:
+    bus = InMemoryTaskBus()
+    publisher = DefaultTaskPublisher(task_bus=bus)
+
+    publisher.publish(_request(include_child=False, request_id="req-1"))
+    result = publisher.publish(_request(request_id="req-2"))
+
+    assert result.skipped
+    assert result.reason == "incomplete idempotent publish"
+    assert len(bus.list_for_session("s1")) == 1
+    assert len(result.metadata["missing_task_ids"]) == 1
+
+
+def test_existing_idempotent_tasks_with_different_payload_are_rejected() -> None:
+    bus = InMemoryTaskBus()
+    publisher = DefaultTaskPublisher(task_bus=bus)
+
+    publisher.publish(_request(request_id="req-1"))
+    result = publisher.publish(_request(request_id="req-2", root_intent="Do something else"))
+
+    assert result.skipped
+    assert result.reason == "idempotent publish target already exists with different task payload"
+    assert len(bus.list_for_session("s1")) == 2
+    assert result.metadata["skip_idempotency_record"] is True
+
+
 def test_dry_run_publish_is_skipped_without_writing_task_bus() -> None:
     bus = InMemoryTaskBus()
     publisher = DefaultTaskPublisher(task_bus=bus)
@@ -206,26 +246,37 @@ def test_retry_failed_task_publishes_retry_root() -> None:
     assert retry.dispatch_constraints.metadata["retry_of"] == "failed"
 
 
-def _request(*, dry_run: bool = False) -> PublishRequest:
+def _request(
+    *,
+    dry_run: bool = False,
+    include_child: bool = True,
+    request_id: str = "req-1",
+    root_intent: str = "Do root",
+) -> PublishRequest:
     publisher = PublisherRef(kind="custom_tree", actor_id="user-1")
+    children: tuple[NormalizedTaskNode, ...] = ()
+    if include_child:
+        children = (
+            _node(
+                "child",
+                parent_id="root",
+                capability="testing",
+                agent_ref="agent.test",
+            ),
+        )
     tree = NormalizedTaskTree(
         root_nodes=(
             _node(
                 "root",
-                children=(
-                    _node(
-                        "child",
-                        parent_id="root",
-                        capability="testing",
-                        agent_ref="agent.test",
-                    ),
-                ),
+                intent=root_intent,
+                children=children,
             ),
         ),
         source=publisher,
         source_ref="custom-1",
     )
     return PublishRequest(
+        request_id=request_id,
         session_id="s1",
         publisher=publisher,
         source=PublishSource(source_type="custom_tree", source_id="custom-1"),
@@ -241,13 +292,14 @@ def _node(
     parent_id: str | None = None,
     capability: str = "general",
     agent_ref: str | None = None,
+    intent: str | None = None,
     children: tuple[NormalizedTaskNode, ...] = (),
 ) -> NormalizedTaskNode:
     return NormalizedTaskNode(
         node_id=node_id,
         parent_id=parent_id,
         title=node_id.title(),
-        intent=f"Do {node_id}",
+        intent=intent or f"Do {node_id}",
         required_capability=capability,
         agent_ref=agent_ref,
         children=children,

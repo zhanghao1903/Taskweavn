@@ -12,7 +12,7 @@ When Plato fails, users need to know what happened, whether they can retry, what
 ## Current System Capability
 
 - LLM provider errors and retry exhaustion are classified.
-- No canonical frontend error API source is currently tracked.
+- Frontend shared API types include `ApiError` and query/command envelopes.
 - Task and authoring command services return structured command errors in several places.
 - Observability can record structured failure logs.
 
@@ -35,8 +35,9 @@ Plato has a product-level error taxonomy and recovery UX covering provider setup
 
 ## Related Code
 
+- `frontend/src/shared/api/types.ts`
+- `frontend/src/shared/api/client.ts`
 - `src/taskweavn/llm/errors.py`
-- Future frontend API error model path should be defined by the UI/backend contract plan.
 - `src/taskweavn/task/authoring_service.py`
 - `src/taskweavn/task/publisher_service.py`
 
