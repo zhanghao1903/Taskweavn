@@ -264,7 +264,7 @@ Recommended order for upcoming implementation sessions:
 
 1. **Plato frontend engineering reset** — clean `frontend/` scaffold, design tokens, primitives, and Figma-state stories from [Frontend Technical Design](product/plato-frontend-technical-design.md).
 2. **UI API Contract** — define `plato-ui-api-contract.md` around snapshot/query/command/event shapes before real backend integration.
-3. **Persistent publish stores and server transport** — SQLite TaskBus is done; remaining work is durable publisher/scheduler stores and exposing API publisher semantics through a real transport.
+3. **Pipeline completion-time orchestration and agent assignment** — API publish server transport is now available as a framework-neutral adapter; next backend blocker is completing `task_after` and assignment semantics.
 4. **Pipeline task loading completion** — completion-time `task_after`, pipeline config persistence, and agent assignment semantics.
 5. **Result packaging and card presentation** — richer result display for information-style answers.
 6. **Persistent authoring stores** — make RawTask/DraftTaskTree authoring durable beyond in-memory tests.

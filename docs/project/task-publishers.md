@@ -3,6 +3,8 @@
 > Status: server-core release candidate
 > Last Updated: 2026-05-16
 > Related Plan: [Task Publisher 抽象、定时发布与接口发布](../plans/feature/task-publishers-schedule-api.md)
+> Follow-up Plan: [Publish Persistence Foundation](../plans/feature/publish-persistence-foundation.md)
+> Follow-up Technical Design: [发布持久化基础中文详细技术方案](../plans/feature/publish-persistence-foundation-technical-design.zh-CN.md)
 > Related Release: [Task Publishers, Schedule, API, And Pipeline Expansion](../releases/task-publishers-schedule-api.md)
 
 ---
@@ -89,6 +91,26 @@ service = TaskPublishService(
     audit_sink=InMemoryTaskPublishAuditSink(),
 )
 ```
+
+SQLite-backed publish control-plane stores can be wired with the helper:
+
+```python
+service = build_sqlite_publish_service(
+    task_bus=task_bus,
+    publish_db_path=workspace / ".taskweavn" / "publish.sqlite",
+)
+```
+
+This stores publish idempotency and publish audit facts in `publish.sqlite`.
+Scheduled publish config/state uses `SqliteScheduledPublishStore` against the
+same database.
+
+Idempotent publishes also use deterministic Task ids. If the process crashes
+after `TaskBus.publish(...)` succeeds but before the idempotency record is
+stored, retrying the same request can detect the existing Task set, reconstruct
+a `PublishResult`, and backfill the idempotency record. If only part of the
+expected Task set exists, publish is rejected with `incomplete idempotent
+publish` instead of creating duplicate Tasks.
 
 行为：
 
@@ -208,7 +230,56 @@ request = ApiPublishRequest(
 
 ---
 
-## 6. Pipeline Expansion
+## 6. API Publish Server Transport
+
+第一版 server transport 是无框架 HTTP/RPC adapter：`ApiPublishHttpTransport`。
+
+它不启动真实 HTTP server，也不依赖 FastAPI/Starlette。真实 web 框架只需要把自己的 request/response 对象转成以下小模型：
+
+- `HttpApiRequest`
+- `HttpApiResponse`
+
+支持路由：
+
+```text
+POST /sessions/{session_id}/api-publish/preview
+POST /sessions/{session_id}/api-publish
+```
+
+请求 body 使用 `ApiPublishRequest` 形状，但 `session_id` 来自 path；如果 body 中也带 `session_id`，必须和 path 一致。
+
+必需 header：
+
+```text
+x-taskweavn-actor-id: api-key-1
+```
+
+可选 header：
+
+```text
+x-request-id: request-123
+idempotency-key: external-job-123
+x-taskweavn-allowed-sessions: s1,s2
+x-taskweavn-allowed-capabilities: summarize,testing
+x-taskweavn-allowed-agents: system.summarizer,system.tester
+```
+
+响应 envelope：
+
+```json
+{
+  "ok": true,
+  "request_id": "request-123",
+  "data": {},
+  "error": null
+}
+```
+
+Transport/auth/body/path 错误返回 `ok=false` 和 4xx status。业务级拒绝仍由 `PublishPreview` / `PublishResult` 表达，例如 `valid=false` 或 `skipped=true`。
+
+---
+
+## 7. Pipeline Expansion
 
 Pipeline Loader 在 publish-time 只负责自动装载普通 Task，不负责执行任务。
 
@@ -263,7 +334,7 @@ Pipeline task metadata 会保留：
 
 ---
 
-## 7. 当前边界
+## 8. 当前边界
 
 已完成：
 
@@ -284,3 +355,6 @@ Pipeline task metadata 会保留：
 - completion-time `task_after` orchestration。
 - 分布式 scheduler。
 - 用户界面中的 preview/confirm 体验。
+
+持久化 publisher stores 的详细后端方案见
+[Publish Persistence Foundation](../plans/feature/publish-persistence-foundation.md)。

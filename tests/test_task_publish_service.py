@@ -144,6 +144,36 @@ def test_publish_rejects_invalid_preview_and_records_audit() -> None:
     assert sink.list()[0].kind == "task_publish.rejected"
 
 
+def test_incomplete_idempotent_publish_does_not_store_rejected_result() -> None:
+    bus = InMemoryTaskBus()
+    publisher = DefaultTaskPublisher(task_bus=bus)
+    publisher.publish(
+        _request(
+            request_id="direct-publish",
+            idempotency_key="same-key",
+            include_child=False,
+        )
+    )
+    store = InMemoryPublishIdempotencyStore()
+    service = TaskPublishService(
+        publisher=publisher,
+        idempotency_store=store,
+    )
+
+    result = service.publish(
+        _request(
+            request_id="req-2",
+            idempotency_key="same-key",
+            include_child=True,
+        )
+    )
+
+    assert result.skipped
+    assert result.reason == "incomplete idempotent publish"
+    assert store.get("s1", "custom_tree", "same-key") is None
+    assert len(bus.list_for_session("s1")) == 1
+
+
 def test_idempotency_store_rejects_conflicting_record() -> None:
     store = InMemoryPublishIdempotencyStore()
     record = PublishIdempotencyRecord(
@@ -188,9 +218,21 @@ def _request(
     request_id: str = "req-1",
     idempotency_key: str | None = "publish-1",
     intent: str = "Do root",
+    include_child: bool = False,
     source_metadata: dict[str, object] | None = None,
 ) -> PublishRequest:
     publisher = _publisher()
+    children: tuple[NormalizedTaskNode, ...] = ()
+    if include_child:
+        children = (
+            NormalizedTaskNode(
+                node_id="child",
+                parent_id="root",
+                title="Child",
+                intent="Do child",
+                required_capability="general",
+            ),
+        )
     tree = NormalizedTaskTree(
         root_nodes=(
             NormalizedTaskNode(
@@ -198,6 +240,7 @@ def _request(
                 title="Root",
                 intent=intent,
                 required_capability="general",
+                children=children,
             ),
         ),
         source=publisher,

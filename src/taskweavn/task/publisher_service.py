@@ -276,6 +276,8 @@ class TaskPublishService:
     ) -> None:
         if request.idempotency_key is None:
             return
+        if result.metadata.get("skip_idempotency_record") is True:
+            return
         record = PublishIdempotencyRecord(
             session_id=request.session_id,
             publisher_kind=request.publisher.kind,
