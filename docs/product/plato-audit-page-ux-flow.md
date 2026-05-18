@@ -3,7 +3,7 @@
 > Status: draft
 > Last Updated: 2026-05-17
 > Scope: Audit Page 的 UX 交互规格。本文把 [Audit Page PRD](plato-audit-page-prd.md) 转换为可用于 Figma 设计、设计评审和后续 UI 实现的交互说明。
-> Related: [Core Product Principles](core-product-principles.md), [Workflow, Session, And Task UX Model](workflow-session-task-ux-model.md), [Plato Audit Page PRD](plato-audit-page-prd.md), [Settings, Logs, And Audit Boundary](plato-settings-logs-audit-boundary.md), [Audit Page 项目实施计划](../plans/ui/audit-page-project-implementation-plan.md)
+> Related: [Core Product Principles](../archive/legacy-2026-05-18/product/core-product-principles.md), [Workflow, Session, And Task UX Model](../archive/legacy-2026-05-18/product/workflow-session-task-ux-model.md), [Plato Audit Page PRD](plato-audit-page-prd.md), [Settings, Logs, And Audit Boundary](plato-settings-logs-audit-boundary.md), [Legacy Audit Page 项目实施计划](../archive/legacy-2026-05-18/plans/ui/audit-page-project-implementation-plan.md)
 
 ---
 

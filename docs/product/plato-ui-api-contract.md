@@ -7,11 +7,11 @@
 > Scope: Plato Main Page 1.0 的前后端通信合约。本文服务 F6 Backend Integration，不替代后端领域模型、数据库 schema 或完整 transport 实现。
 >
 > Related:
-> [Plato Frontend Technical Design](plato-frontend-technical-design.md),
-> [Main Page UX Flow](plato-main-page-ux-flow.md),
-> [UI And Backend Communication](../architecture/ui-backend-communication.md),
-> [Task Domain/UI Model Separation](../architecture/task-domain-ui-model-separation.md),
-> [legacy UI API archive](../plans/ui/ui-api-interfaces.md)
+> [Legacy Plato Frontend Technical Design](../archive/legacy-2026-05-18/product/plato-frontend-technical-design.md),
+> [Legacy Main Page UX Flow](../archive/legacy-2026-05-18/product/plato-main-page-ux-flow.md),
+> [Legacy UI And Backend Communication](../archive/legacy-2026-05-18/architecture/ui-backend-communication.md),
+> [Legacy Task Domain/UI Model Separation](../archive/legacy-2026-05-18/architecture/task-domain-ui-model-separation.md),
+> [legacy UI API archive](../archive/legacy-2026-05-18/plans/ui/ui-api-interfaces.md)
 
 ## 1. 目标
 

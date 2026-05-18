@@ -2,9 +2,9 @@
 
 > Status: accepted
 > Date: 2026-05-11
-> Related Plan: [LLM provider retry thinking](../plans/feature/llm-provider-retry-thinking.md)
-> Related Design: [LLM provider reliability](../architecture/llm-provider-reliability.md)
-> Related Release: [LLM provider reliability](../releases/llm-provider-reliability.md)
+> Related Plan: [Legacy LLM provider retry thinking](../../archive/legacy-2026-05-18/plans/feature/llm-provider-retry-thinking.md)
+> Related Design: [Legacy LLM provider reliability](../../archive/legacy-2026-05-18/architecture/llm-provider-reliability.md)
+> Related Release: [LLM provider reliability](../../releases/llm-provider-reliability.md)
 
 ---
 

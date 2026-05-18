@@ -3,9 +3,10 @@
 > Status: done
 > Date: 2026-05-11
 > Work Stream: Phase 3B — Reliability And Observability
-> Related Plan: [LLM provider retry thinking](../plans/feature/llm-provider-retry-thinking.md)
-> Related Design: [LLM provider reliability](../architecture/llm-provider-reliability.md)
-> Related ADR: [ADR-0006](../decisions/ADR-0006-llm-provider-transport-boundary.md)
+> Related Capability: [Settings and First Run](../capabilities/settings-and-first-run/), [Configuration Control Plane](../capabilities/configuration-control-plane/)
+> Related Plan: [Legacy LLM provider retry thinking](../archive/legacy-2026-05-18/plans/feature/llm-provider-retry-thinking.md)
+> Related Design: [Legacy LLM provider reliability](../archive/legacy-2026-05-18/architecture/llm-provider-reliability.md)
+> Related ADR: [ADR-0006](../decisions/technology/ADR-0006-llm-provider-transport-boundary.md)
 
 ---
 

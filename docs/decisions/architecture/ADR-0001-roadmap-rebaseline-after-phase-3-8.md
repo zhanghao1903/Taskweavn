@@ -2,7 +2,7 @@
 
 > Status: accepted
 > Date: 2026-05-11
-> Related: [Roadmap](../roadmap.md), [Project Plan](../project/roadmap.md), [Interaction Layer Design](../architecture/interaction-layer.md)
+> Related: [Roadmap](../../roadmap.md), [Project Plan](../../project/roadmap.md), [Legacy Interaction Layer Design](../../archive/legacy-2026-05-18/architecture/interaction-layer.md)
 
 ---
 

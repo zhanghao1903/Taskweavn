@@ -48,13 +48,13 @@
 
 ## 8) Architecture mapping
 
-- Related architecture docs/sections: `docs/architecture/overview.md`, `docs/architecture/authoring-domain.md`, `docs/architecture/interaction-layer.md`
+- Related capability docs: `docs/capabilities/task-authoring/`, `docs/capabilities/audit-trust/`, `docs/capabilities/diagnostic-bundle/`
 - Architecture impact: `cross-module`
 - Breaking change risk: `no`
 
 ## 9) Plan/feature mapping
 
-- Related plan docs: `docs/plans/observability.md`, `docs/plans/cost-quota.md`（可作为输入）
+- Related plan docs: future feature packages under `docs/plans/features/`; legacy observability/cost sources live under `docs/archive/legacy-2026-05-18/plans/`
 - Related feature packages: 能力评估器、任务匹配评分、结果可信度信号、评估数据 API
 - Milestone target: TBD
 

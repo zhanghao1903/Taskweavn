@@ -4,9 +4,10 @@
 > Date: 2026-05-14
 > Accepted: 2026-05-14
 > Work Stream: Phase 3C — Task Authoring Foundation
-> Related Plan: [Task Domain/UI Separation](../plans/feature/task-domain-ui-model-separation.md)
-> Technical Design: [Task Domain And UI ViewModel Separation](../architecture/task-domain-ui-model-separation.md)
-> Related ADR: [ADR-0002](../decisions/ADR-0002-task-domain-viewmodel-and-replay.md)
+> Related Capability: [Task Authoring](../capabilities/task-authoring/), [Main Page Real Backend](../capabilities/main-page-real-backend/)
+> Related Plan: [Legacy Task Domain/UI Separation](../archive/legacy-2026-05-18/plans/feature/task-domain-ui-model-separation.md)
+> Technical Design: [Legacy Task Domain And UI ViewModel Separation](../archive/legacy-2026-05-18/architecture/task-domain-ui-model-separation.md)
+> Related ADR: [ADR-0002](../decisions/architecture/ADR-0002-task-domain-viewmodel-and-replay.md)
 
 ---
 
@@ -67,7 +68,7 @@ The main outcome is that the UI can render and operate on `TaskCardView` / `Task
 
 ### 2.6 UI API Alignment
 
-- `docs/plans/ui/ui-api-interfaces.md` now states that query APIs return ViewModels rather than raw backend Tasks.
+- Legacy `docs/plans/ui/ui-api-interfaces.md` stated that query APIs return ViewModels rather than raw backend Tasks; current contract work should promote stable details into `docs/contracts/`.
 - `listTaskMessages` is documented as a filtered view over the single Session Message Stream, not a second physical Task message stream.
 - API docs name `TaskRef`, `CommandResult`, `TaskInteractionTimeline`, and `TaskInteractionSnapshot` as first-class boundary objects.
 

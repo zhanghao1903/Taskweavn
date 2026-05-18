@@ -44,11 +44,11 @@
 - Evidence type: `interview`
 - Evidence strength: `medium`
 - Last validated at: 2026-05-11
-- Source references: `docs/discussion/2026-05-11-product-positioning-and-boundaries.md`（10.3）
+- Source references: `docs/archive/legacy-2026-05-18/discussion/2026-05-11-product-positioning-and-boundaries.md`（10.3）
 
 ## 8) Architecture mapping
 
-- Related architecture docs/sections: `docs/architecture/authoring-domain.md`, `docs/architecture/interaction-layer.md`
+- Related capability docs: `docs/capabilities/task-authoring/`, `docs/capabilities/message-and-confirmation/`, `docs/capabilities/audit-trust/`
 - Architecture impact: `none`
 - Breaking change risk: `no`
 

@@ -2,7 +2,7 @@
 
 > Status: accepted
 > Date: 2026-05-11
-> Related: [Task model/UI separation](../plans/feature/task-domain-ui-model-separation.md), [Task domain/UI technical design](../architecture/task-domain-ui-model-separation.md), [Task-first UI plan](../plans/task-first-ui-interaction.md), [UI API interfaces](../plans/ui/ui-api-interfaces.md)
+> Related: [Architecture A1](../../architecture/versions/a1-product-1.0/overview.md), [Task Authoring Capability](../../capabilities/task-authoring/), [Main Page Real Backend Capability](../../capabilities/main-page-real-backend/), [Legacy Task Domain/UI Design](../../archive/legacy-2026-05-18/architecture/task-domain-ui-model-separation.md), [Legacy Task-first UI Plan](../../archive/legacy-2026-05-18/plans/task-first-ui-interaction.md)
 
 ---
 

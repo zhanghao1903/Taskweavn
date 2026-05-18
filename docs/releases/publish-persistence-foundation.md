@@ -4,9 +4,9 @@
 > Date: 2026-05-17
 > Accepted: 2026-05-17
 > Work Stream: Phase 3D — Task Publishing And Pipeline
-> Related Plan: [Publish Persistence Foundation](../plans/feature/publish-persistence-foundation.md)
-> Technical Design: [发布持久化基础中文详细技术方案](../plans/feature/publish-persistence-foundation-technical-design.zh-CN.md)
-> Usage Guide: [Task Publisher 使用说明](../project/task-publishers.md)
+> Related Plan: [Legacy Publish Persistence Foundation](../archive/legacy-2026-05-18/plans/feature/publish-persistence-foundation.md)
+> Technical Design: [发布持久化基础中文详细技术方案](../archive/legacy-2026-05-18/plans/feature/publish-persistence-foundation-technical-design.zh-CN.md)
+> Usage Guide: [Legacy Task Publisher 使用说明](../archive/legacy-2026-05-18/project/task-publishers.md)
 
 ---
 

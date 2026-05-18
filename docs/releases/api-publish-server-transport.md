@@ -4,7 +4,7 @@
 > Date: 2026-05-17
 > Accepted: 2026-05-17
 > Work Stream: Phase 3D — Task Publishing And Pipeline
-> Related: [Task Publisher 使用说明](../project/task-publishers.md), [Publish Persistence Foundation](publish-persistence-foundation.md)
+> Related: [Legacy Task Publisher 使用说明](../archive/legacy-2026-05-18/project/task-publishers.md), [Publish Persistence Foundation](publish-persistence-foundation.md)
 
 ---
 

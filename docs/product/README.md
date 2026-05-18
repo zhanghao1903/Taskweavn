@@ -1,26 +1,50 @@
-# Product Docs
+# Product
 
-Product docs describe Plato, the user-facing product layer of TaskWeavn, from
-the user's point of view.
+> Status: canonical product entry
+> Last Updated: 2026-05-18
 
-They are intentionally separate from architecture docs:
+Product docs describe what users experience, what a product version promises, and what is deliberately outside scope.
 
-- Architecture docs explain how the system is built.
-- Product docs explain what users believe they are using, what objects they can
-  act on, and which interaction principles must stay stable across UI changes.
+---
+
+## 1. Current Product Version
+
+| Version | Status | Architecture | Entry |
+|---|---|---|---|
+| Plato 1.0 | active | A1 | [Overview](versions/1.0/overview.md) |
+
+---
+
+## 2. Plato 1.0 Version Package
 
 | File | Purpose |
 |---|---|
-| [core-product-principles.md](core-product-principles.md) | Product-level principles: Task-first, Workflow-first entry, Draft before execution, Main Page vs Audit Page. |
-| [workflow-session-task-ux-model.md](workflow-session-task-ux-model.md) | User-facing object model and UX lifecycles for Workflow, Session, TaskTree, TaskNode, Agent routing, Result, and Audit. |
+| [versions/1.0/overview.md](versions/1.0/overview.md) | Product promise, target user, core flow, architecture binding, non-goals. |
+| [versions/1.0/p0-scope.md](versions/1.0/p0-scope.md) | P0 capability scope and boundaries. |
+| [versions/1.0/gap-analysis.md](versions/1.0/gap-analysis.md) | Current system vs Plato 1.0 P0 gap table and required plan packages. |
+| [versions/1.0/acceptance.md](versions/1.0/acceptance.md) | Product and technical acceptance checklist. |
+
+---
+
+## 3. Active Product Specs
+
+These documents are active product inputs for Plato 1.0. They should be reconciled into the version package, capability packets, and contracts when their scope changes.
+
+| File | Purpose |
+|---|---|
 | [plato-audit-page-prd.md](plato-audit-page-prd.md) | Product requirements for Plato Audit Page as the Trust Plane for Session and Task traceability. |
-| [plato-audit-page-ux-flow.md](plato-audit-page-ux-flow.md) | UX interaction specification for Audit Page entry, scope, overview, filters, records, details, and edge states. |
+| [plato-audit-page-ux-flow.md](plato-audit-page-ux-flow.md) | Audit Page UX flow: entry, scope, overview, filters, records, details, and edge states. |
 | [plato-settings-logs-audit-boundary.md](plato-settings-logs-audit-boundary.md) | Product boundary for Settings, configuration change history, Diagnostics / Logs, and Audit Page reserved links. |
-| [plato-brand-and-ux-direction.md](plato-brand-and-ux-direction.md) | User-facing product name, naming boundary, tone, and first UX direction for Plato. |
-| [plato-design-philosophy-style-guide.md](plato-design-philosophy-style-guide.md) | Design philosophy, visual principles, interaction tone, color direction, typography, and UI style guardrails for Plato. |
-| [plato-mvp-implementation-plan.md](plato-mvp-implementation-plan.md) | MVP implementation workflow from PRD to UX flow, Figma UI baseline, frontend technical design, API contract, backend integration, and user testing. |
-| [plato-mvp-prd.md](plato-mvp-prd.md) | MVP product requirements: user, scope, main flows, requirements, non-goals, success criteria, and PRD-to-UX handoff. |
-| [plato-main-page-ux-flow.md](plato-main-page-ux-flow.md) | Main Page UX flow spec: key screen states, task interactions, confirmation flow, result/file/audit visibility, and Figma input. |
-| [plato-figma-ui-baseline.md](plato-figma-ui-baseline.md) | Figma UI baseline 1.0 record: target file, screen list, visual direction, sample data, and implementation handoff notes. |
-| [plato-frontend-technical-design.md](plato-frontend-technical-design.md) | Frontend restart technical design: Figma 1.0 source of truth, technology selection, architecture, state/API boundaries, implementation slices, and risks. |
-| [plato-ui-api-contract.md](plato-ui-api-contract.md) | Plato Main Page 1.0 UI API contract: snapshot, ViewModel, command, event, frontend adapter, and F6 backend integration boundaries. |
+| [plato-ui-api-contract.md](plato-ui-api-contract.md) | Plato Main Page 1.0 UI API contract: snapshot, ViewModel, command, event, frontend adapter, and backend integration boundaries. |
+
+---
+
+## 4. Legacy Product Docs
+
+Earlier product/UX documents were archived to:
+
+```text
+docs/archive/legacy-2026-05-18/product/
+```
+
+They are source material only. New product decisions should update the active version package, a capability packet, a contract, or a Product Decision Record.

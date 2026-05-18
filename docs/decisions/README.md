@@ -1,33 +1,47 @@
-# Architecture Decision Records
+# Decisions
 
-This directory records decisions that affect TaskWeavn's architecture, roadmap, or long-term maintenance model.
+> Status: canonical decisions entry
+> Last Updated: 2026-05-18
 
-## Format
+Decision records preserve expensive product, architecture, and technology choices.
 
-Use:
+---
+
+## 1. Decision Families
+
+| Family | Directory | Use For |
+|---|---|---|
+| PDR | [product/](product/) | Product principles, scope trade-offs, UX commitments, explicit non-goals. |
+| ADR | [architecture/](architecture/) | Core object boundaries, protocols, lifecycles, storage/replay models, trust model. |
+| TDR | [technology/](technology/) | Frameworks, providers, packaging choices, SDK/runtime decisions with switching cost. |
+
+---
+
+## 2. Naming
 
 ```text
+PDR-<num>-<slug>.md
 ADR-<num>-<slug>.md
+TDR-<num>-<slug>.md
 ```
 
-Each ADR should include:
+Recommended metadata:
 
-- status;
-- date;
-- context;
-- decision;
-- consequences;
-- related docs.
+```md
+> Status: proposed | accepted | superseded | rejected
+> Date: YYYY-MM-DD
+> Product Version: 1.0
+> Architecture Version: A1
+> Capability: <capability>
+> Affects: frontend, backend, release
+```
 
-## Index
+---
 
-| ADR | Status | Decision |
-|---|---:|---|
-| [ADR-0001](ADR-0001-roadmap-rebaseline-after-phase-3-8.md) | accepted | Rebaseline the roadmap after Phase 3.8 around Task-first architecture. |
-| [ADR-0002](ADR-0002-task-domain-viewmodel-and-replay.md) | accepted | Separate backend Task domain model from UI ViewModel and preserve replayable interaction facts. |
-| [ADR-0003](ADR-0003-task-publishers-use-taskbus.md) | accepted | All Task publishers publish normal Tasks through TaskBus. |
-| [ADR-0004](ADR-0004-docs-governance-for-planning-session.md) | accepted | Use roadmap, ADRs, releases, and plan files as the planning session's control plane. |
-| [ADR-0005](ADR-0005-result-packaging-task-policy.md) | accepted | Result packaging is triggered by post-task policy and executed as a normal Task. |
-| [ADR-0006](ADR-0006-llm-provider-transport-boundary.md) | accepted | Treat LLM provider transport as a boundary below LLMClient. |
-| [ADR-0007](ADR-0007-centralized-runtime-configuration.md) | accepted | Use centralized hierarchical runtime configuration with immutable snapshots and hot-update events. |
-| [ADR-0008](ADR-0008-authoring-domain-execution-boundary.md) | accepted | Separate Authoring Domain objects from Execution TaskBus; only published Tasks enter TaskBus. |
+## 3. Existing Accepted Records
+
+Existing `ADR-*` records have been classified into decision family directories:
+
+- [Architecture decisions](architecture/)
+- [Product decisions](product/)
+- [Technology decisions](technology/)

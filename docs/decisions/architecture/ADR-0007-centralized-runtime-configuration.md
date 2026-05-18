@@ -2,7 +2,7 @@
 
 > Status: accepted
 > Date: 2026-05-13
-> Related: [Runtime Configuration Plan](../plans/feature/centralized-runtime-configuration.md), [Logging Plan](../plans/feature/configurable-logging-system.md), [Roadmap](../roadmap.md)
+> Related: [Configuration Control Plane Capability](../../capabilities/configuration-control-plane/), [Roadmap](../../roadmap.md), [Legacy Runtime Configuration Plan](../../archive/legacy-2026-05-18/plans/feature/centralized-runtime-configuration.md), [Legacy Logging Plan](../../archive/legacy-2026-05-18/plans/feature/configurable-logging-system.md)
 
 ---
 

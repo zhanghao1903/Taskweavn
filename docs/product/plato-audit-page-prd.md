@@ -3,7 +3,7 @@
 > Status: draft
 > Last Updated: 2026-05-17
 > Scope: Audit Page 的产品需求定义。本文回答“为什么做、为谁做、第一版做什么、不做什么、如何判断成功”，不规定具体页面布局、组件 API、Figma frame 或后端 transport 合约。
-> Related: [Core Product Principles](core-product-principles.md), [Workflow, Session, And Task UX Model](workflow-session-task-ux-model.md), [Settings, Logs, And Audit Boundary](plato-settings-logs-audit-boundary.md), [Plato Audit Page 项目实施计划](../plans/ui/audit-page-project-implementation-plan.md), [UN-105](../user_model/needs/UN-105-system-evaluability-and-capability-disclosure.md)
+> Related: [Core Product Principles](../archive/legacy-2026-05-18/product/core-product-principles.md), [Workflow, Session, And Task UX Model](../archive/legacy-2026-05-18/product/workflow-session-task-ux-model.md), [Settings, Logs, And Audit Boundary](plato-settings-logs-audit-boundary.md), [Legacy Plato Audit Page 项目实施计划](../archive/legacy-2026-05-18/plans/ui/audit-page-project-implementation-plan.md), [UN-105](../user_model/needs/UN-105-system-evaluability-and-capability-disclosure.md)
 
 ---
 

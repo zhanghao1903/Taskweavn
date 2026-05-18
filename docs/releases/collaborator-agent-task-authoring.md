@@ -4,10 +4,11 @@
 > Date: 2026-05-15
 > Accepted: 2026-05-15
 > Work Stream: Phase 3C — Task Authoring Foundation
-> Related Plan: [Collaborator Agent](../plans/feature/collaborator-agent-task-authoring.md)
-> Technical Design: [Collaborator Agent And Task Authoring](../architecture/collaborator-agent-task-authoring.md)
-> Related Architecture: [Authoring Domain](../architecture/authoring-domain.md), [Authoring Command Protocol](../architecture/authoring-command-protocol.md), [Tool Capability Layer](../architecture/tool-capability-layer.md)
-> Related ADR: [ADR-0008](../decisions/ADR-0008-authoring-domain-execution-boundary.md)
+> Related Capability: [Task Authoring](../capabilities/task-authoring/)
+> Related Plan: [Legacy Collaborator Agent](../archive/legacy-2026-05-18/plans/feature/collaborator-agent-task-authoring.md)
+> Technical Design: [Legacy Collaborator Agent And Task Authoring](../archive/legacy-2026-05-18/architecture/collaborator-agent-task-authoring.md)
+> Related Architecture: [Legacy Authoring Domain](../archive/legacy-2026-05-18/architecture/authoring-domain.md), [Legacy Authoring Command Protocol](../archive/legacy-2026-05-18/architecture/authoring-command-protocol.md), [Legacy Tool Capability Layer](../archive/legacy-2026-05-18/architecture/tool-capability-layer.md)
+> Related ADR: [ADR-0008](../decisions/architecture/ADR-0008-authoring-domain-execution-boundary.md)
 
 ---
 

@@ -4,9 +4,10 @@
 > Date: 2026-05-16
 > Accepted: 2026-05-16
 > Work Stream: Phase 3D — Task Publishing And Pipeline
-> Related Plan: [Task Publisher 抽象、定时发布与接口发布](../plans/feature/task-publishers-schedule-api.md)
-> Usage Guide: [Task Publisher 使用说明](../project/task-publishers.md)
-> Related ADR: [ADR-0003](../decisions/ADR-0003-task-publishers-use-taskbus.md)
+> Related Capability: [Task Execution](../capabilities/task-execution/)
+> Related Plan: [Legacy Task Publisher 抽象、定时发布与接口发布](../archive/legacy-2026-05-18/plans/feature/task-publishers-schedule-api.md)
+> Usage Guide: [Legacy Task Publisher 使用说明](../archive/legacy-2026-05-18/project/task-publishers.md)
+> Related ADR: [ADR-0003](../decisions/architecture/ADR-0003-task-publishers-use-taskbus.md)
 
 ---
 
@@ -168,4 +169,3 @@ Focused coverage added:
 - Completion-time orchestration for `task_after`.
 - Full Pipeline loading plan continuation, especially Agent assignment semantics.
 - UI preview/confirm surfaces for custom Task Trees, scheduler configs, API dry-run results, and pipeline badges.
-

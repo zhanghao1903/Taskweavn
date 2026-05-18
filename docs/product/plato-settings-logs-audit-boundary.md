@@ -3,7 +3,7 @@
 > Status: product boundary draft
 > Last Updated: 2026-05-17
 > Scope: 重新考量用户配置、配置变更历史、日志查看与 Audit Page 的产品边界。本文用于给后续 Settings、Diagnostics / Logs、Audit Page 设计预留入口和信息关系，不要求本期实现完整页面。
-> Related: [Audit Page PRD](plato-audit-page-prd.md), [Audit Page UX Flow](plato-audit-page-ux-flow.md), [Centralized Runtime Configuration](../plans/feature/centralized-runtime-configuration.md), [Configurable Logging System](../plans/feature/configurable-logging-system.md), [UN-104](../user_model/needs/UN-104-config-personality-visualization.md), [UN-105](../user_model/needs/UN-105-system-evaluability-and-capability-disclosure.md)
+> Related: [Audit Page PRD](plato-audit-page-prd.md), [Audit Page UX Flow](plato-audit-page-ux-flow.md), [Legacy Centralized Runtime Configuration](../archive/legacy-2026-05-18/plans/feature/centralized-runtime-configuration.md), [Legacy Configurable Logging System](../archive/legacy-2026-05-18/plans/feature/configurable-logging-system.md), [UN-104](../user_model/needs/UN-104-config-personality-visualization.md), [UN-105](../user_model/needs/UN-105-system-evaluability-and-capability-disclosure.md)
 
 ---
 

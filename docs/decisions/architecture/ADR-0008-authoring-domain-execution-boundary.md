@@ -2,8 +2,8 @@
 
 > Status: accepted
 > Date: 2026-05-14
-> Related: [Authoring Domain](../architecture/authoring-domain.md), [Authoring Command Protocol](../architecture/authoring-command-protocol.md), [RawTask discussion](../discussion/2026-05-14-raw-task-authoring-domain.md), [Collaborator Agent plan](../plans/feature/collaborator-agent-task-authoring.md), [TaskBus](../architecture/bus.md)
-> User Needs: [UN-105](../user_model/needs/UN-105-system-evaluability-and-capability-disclosure.md), [UN-101](../user_model/needs/UN-101-photo-curation-batch-screening.md), [UN-102](../user_model/needs/UN-102-courseware-html-generation.md), [UN-103](../user_model/needs/UN-103-car-purchase-decision-support.md)
+> Related: [Task Authoring Capability](../../capabilities/task-authoring/), [Task Execution Capability](../../capabilities/task-execution/), [Legacy Authoring Domain](../../archive/legacy-2026-05-18/architecture/authoring-domain.md), [Legacy Authoring Command Protocol](../../archive/legacy-2026-05-18/architecture/authoring-command-protocol.md), [Legacy RawTask Discussion](../../archive/legacy-2026-05-18/discussion/2026-05-14-raw-task-authoring-domain.md)
+> User Needs: [UN-105](../../user_model/needs/UN-105-system-evaluability-and-capability-disclosure.md), [UN-101](../../user_model/needs/UN-101-photo-curation-batch-screening.md), [UN-102](../../user_model/needs/UN-102-courseware-html-generation.md), [UN-103](../../user_model/needs/UN-103-car-purchase-decision-support.md)
 
 ---
 

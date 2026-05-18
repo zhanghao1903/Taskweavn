@@ -3,7 +3,7 @@
 > Status: done
 > Date: 2026-05-11
 > Scope: Phase 3.1-3.8
-> Related: [Interaction Layer Design](../architecture/interaction-layer.md), [Roadmap](../roadmap.md), [Project Plan](../project/roadmap.md)
+> Related: [Legacy Interaction Layer Design](../archive/legacy-2026-05-18/architecture/interaction-layer.md), [Roadmap](../roadmap.md), [Project Plan](../project/roadmap.md)
 
 ---
 
