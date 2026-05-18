@@ -1,4 +1,4 @@
-# TaskWeavn Core Product Principles
+# Plato Core Product Principles
 
 > Status: product direction baseline
 >
@@ -7,7 +7,7 @@
 
 ## 1. Product Thesis
 
-TaskWeavn is a Task-first intelligent workbench.
+Plato is the user-facing Task-first intelligent workbench built on the TaskWeavn engine.
 
 The user expresses an intention in natural language. The system turns that
 intention into understandable, editable, confirmable, executable, and traceable
@@ -25,7 +25,7 @@ Natural language goal
   -> Execution, confirmation, result, and audit
 ```
 
-## 2. What Makes TaskWeavn Different
+## 2. What Makes Plato Different
 
 Traditional assistant products usually center one of three objects:
 
@@ -35,9 +35,9 @@ Traditional assistant products usually center one of three objects:
 | Coding agent | Files and terminal actions | User asks, agent edits and runs tools. |
 | Workflow tool | Steps and forms | User configures a fixed process. |
 
-TaskWeavn should center the Task:
+Plato should center the Task:
 
-| TaskWeavn | Main object | User experience |
+| Plato | Main object | User experience |
 |---|---|---|
 | Task-first workbench | Workflow + TaskTree + TaskNode | User states a goal, reviews Tasks, confirms risky steps, tracks execution, and accepts results. |
 
@@ -196,7 +196,7 @@ The product should keep this capability powerful but restrained.
 
 ## 10. User-Facing Complexity Budget
 
-TaskWeavn will have real internal complexity. The product should spend that
+Plato will have real internal complexity. The product should spend that
 complexity carefully.
 
 Expose complexity when it gives the user control:

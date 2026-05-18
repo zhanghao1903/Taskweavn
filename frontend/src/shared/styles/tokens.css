@@ -1,0 +1,40 @@
+:root {
+  color-scheme: light;
+
+  --plato-color-reason-blue: #2b5caa;
+  --plato-color-cave-blue: #5b8fd9;
+  --plato-color-clear-blue: #e8f1fb;
+  --plato-color-wisdom-gold: #d4af37;
+  --plato-color-classic-cream: #f5f2ec;
+  --plato-color-marble: #fbfaf7;
+  --plato-color-ink: #182033;
+  --plato-color-muted: #697386;
+  --plato-color-line: #dce3ee;
+  --plato-color-panel: #ffffff;
+  --plato-color-success-bg: #e9f5ee;
+  --plato-color-success-text: #3e7a55;
+  --plato-color-warning-bg: #fff4d8;
+  --plato-color-warning-text: #9a6a1d;
+  --plato-color-danger-bg: #fff0ed;
+  --plato-color-danger-text: #b24a3d;
+
+  --plato-font-sans: Inter, "PingFang SC", "Microsoft YaHei", system-ui,
+    sans-serif;
+  --plato-font-serif: "Source Serif 4", "Noto Serif SC", Georgia, serif;
+
+  --plato-space-1: 4px;
+  --plato-space-2: 8px;
+  --plato-space-3: 12px;
+  --plato-space-4: 16px;
+  --plato-space-5: 20px;
+  --plato-space-6: 24px;
+  --plato-space-8: 32px;
+  --plato-space-10: 40px;
+
+  --plato-radius-sm: 4px;
+  --plato-radius-md: 6px;
+  --plato-radius-lg: 8px;
+
+  --plato-shadow-panel: 0 10px 30px rgb(24 32 51 / 8%);
+  --plato-shadow-focus: 0 0 0 3px rgb(43 92 170 / 16%);
+}

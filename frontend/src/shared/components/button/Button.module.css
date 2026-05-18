@@ -1,0 +1,81 @@
+.button {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: center;
+  gap: var(--plato-space-2);
+  border: 1px solid transparent;
+  border-radius: var(--plato-radius-md);
+  font-weight: 700;
+  line-height: 1;
+  text-decoration: none;
+  transition:
+    border-color 140ms ease,
+    background 140ms ease,
+    color 140ms ease,
+    box-shadow 140ms ease;
+}
+
+.button:focus-visible {
+  outline: none;
+  box-shadow: var(--plato-shadow-focus);
+}
+
+.button:disabled {
+  cursor: not-allowed;
+  opacity: 0.56;
+}
+
+.sm {
+  min-height: 36px;
+  padding: 0 var(--plato-space-3);
+  font-size: 14px;
+}
+
+.md {
+  min-height: 40px;
+  padding: 0 var(--plato-space-4);
+  font-size: 14px;
+}
+
+.icon {
+  width: 44px;
+  height: 40px;
+  padding: 0;
+}
+
+.primary {
+  border-color: var(--plato-color-reason-blue);
+  background: var(--plato-color-reason-blue);
+  color: #fff;
+}
+
+.secondary {
+  border-color: var(--plato-color-line);
+  background: var(--plato-color-panel);
+  color: var(--plato-color-reason-blue);
+}
+
+.ghost {
+  border-color: transparent;
+  background: transparent;
+  color: var(--plato-color-muted);
+}
+
+.danger {
+  border-color: var(--plato-color-danger-text);
+  background: var(--plato-color-danger-bg);
+  color: var(--plato-color-danger-text);
+}
+
+.primary:hover:not(:disabled),
+.secondary:hover:not(:disabled),
+.ghost:hover:not(:disabled) {
+  border-color: var(--plato-color-cave-blue);
+  background: var(--plato-color-clear-blue);
+  color: var(--plato-color-reason-blue);
+}
+
+.danger:hover:not(:disabled) {
+  background: #ffe5df;
+}

@@ -1,22 +1,22 @@
 # UI Visual Reference
 
-> Status: draft  
-> Last Updated: 2026-05-11  
+> Status: superseded visual reference
+> Last Updated: 2026-05-17
 > Scope: Task-first UI visual exploration  
-> Note: These images are not final design specs. They are current visual anchors for future UI planning and implementation.
+> Note: These images are not final design specs. The current visual source is the Figma UI baseline 1.0 in [Plato Figma UI Baseline](../../product/plato-figma-ui-baseline.md).
 
 ---
 
 ## 1. Purpose
 
-This document indexes the current UI sketches and prototype screenshots under `docs/plans/ui/images/`.
+This document indexes historical UI sketches and prototype screenshots under `docs/plans/ui/images/`.
 
 The textual plans remain the source of truth for concepts, APIs, and interaction rules. The images serve as visual references for:
 
-- main page layout
-- Task card shape
-- Task map / topology exploration
-- hand-drawn information structure
+- early main page layout exploration;
+- early Task card shape exploration;
+- Task map / topology exploration;
+- hand-drawn information structure.
 
 ---
 

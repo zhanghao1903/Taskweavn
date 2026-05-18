@@ -1,10 +1,16 @@
 # Frontend Framework Technical Design
 
-> Status: planned
+> Status: superseded
 > Last Updated: 2026-05-11
 > Scope: UI-only implementation plan
 > Boundary: frontend reaches the backend only through API contracts; backend implementation is out of scope for this session
 > Related: [Task-first UI overview](../task-first-ui-interaction.md), [UI API interfaces](ui-api-interfaces.md), [Information architecture](information-architecture.md), [Visual reference](visual-reference.md)
+
+> Superseded by: [Plato Frontend Technical Design](../../product/plato-frontend-technical-design.md)
+>
+> This document is kept as an early planning artifact. Do not use it as the
+> current frontend implementation plan. The current source of truth starts from
+> Figma UI baseline 1.0 and the Plato product docs.
 
 ---
 
@@ -429,4 +435,3 @@ Official docs reviewed for stack selection:
 - [TanStack Query: Overview](https://tanstack.com/query/v4/docs/react/overview)
 - [Tailwind CSS: Utility-first styling](https://tailwindcss.com/docs/utility-first)
 - [Radix Primitives: Introduction](https://www.radix-ui.com/primitives/docs/overview/introduction)
-

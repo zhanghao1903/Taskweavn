@@ -1,7 +1,7 @@
 # TaskWeavn Project Plan
 
 > Status: active
-> Last Updated: 2026-05-16
+> Last Updated: 2026-05-17
 > Maintained By: planning session
 > Phase Baseline: implementation completed through Phase 3.8 plus Phase 3C Task Domain and Collaborator Authoring server-core packages
 > Related: [Global Roadmap](../roadmap.md), [Planning Workflow](../planning_workflow.md), [Phase 3 Release Record](../releases/phase-3-interaction-layer-through-3-8.md), [Collaborator Authoring Release](../releases/collaborator-agent-task-authoring.md), [User Traceability](../user_model/traceability.md)
@@ -137,14 +137,16 @@ Acceptance:
 
 ### P3E — Task-first UI
 
-Status: planned. Priority: P0.
+Status: active planning; frontend implementation should restart from Figma UI baseline 1.0. Priority: P0.
 
 | Package | Source Plan | Implementation Goal |
 |---|---|---|
-| UI interaction model | [Task-first UI overview](../plans/task-first-ui-interaction.md) | Overall layout, primary regions, interaction workflows. |
-| UI sub-designs | [UI plan directory](../plans/ui/) | Task tree, task detail, session stream, confirmations, file summaries, task-scoped chat. |
+| Plato MVP product/UX baseline | [Plato MVP PRD](../product/plato-mvp-prd.md), [Main Page UX Flow](../product/plato-main-page-ux-flow.md) | Product scope, user path, screen states, and Main Page behavior. |
+| Figma UI baseline 1.0 | [Figma UI Baseline](../product/plato-figma-ui-baseline.md) | Current visual/layout source for implementation. |
+| Frontend technical design | [Plato Frontend Technical Design](../product/plato-frontend-technical-design.md) | Technology choice, architecture, state/API boundaries, implementation slices. |
+| Early UI interaction model | [Task-first UI overview](../plans/task-first-ui-interaction.md) | Superseded as implementation plan; retained as concept seed. |
+| Early UI sub-designs | [UI plan directory](../plans/ui/) | Historical planning archive unless explicitly pulled into new frontend work. |
 | Result packaging cards | [Result packaging plan](../plans/feature/result-packaging-agent-cards.md) | Package suitable information-style answers into UI card sets through normal Tasks. |
-| Visual references | [Visual reference](../plans/ui/visual-reference.md) | Use current UI images as non-final layout references. |
 
 Acceptance:
 
@@ -152,6 +154,7 @@ Acceptance:
 - Session message stream and task-scoped projections are consistent.
 - Suitable information-style answers can render as card sets without losing the raw text answer.
 - Finished Task Nodes are read-only; pending/running nodes expose only valid actions.
+- Frontend work starts from a clean scaffold and Figma-state stories, not the deprecated experimental frontend.
 
 ### P4 — Multi-Agent Task Execution
 
@@ -195,12 +198,13 @@ Focus:
 
 Recommended implementation order:
 
-1. Persistent publish stores and server transport; SQLite TaskBus is done.
-2. Pipeline task loading completion-time orchestration and agent assignment.
-3. Result Packaging Agent and card-based result presentation.
-4. API-backed Task-first UI prototype.
-5. Persistent authoring stores and server transport.
-6. Centralized runtime configuration system.
+1. Plato frontend engineering reset from Figma UI baseline 1.0.
+2. UI API Contract and frontend/backend snapshot/event boundary.
+3. Pipeline task loading completion-time orchestration and agent assignment.
+4. Publish audit query/debug API and concrete HTTP framework binding, if needed by UI/API integration.
+5. Result Packaging Agent and card-based result presentation.
+6. Persistent authoring stores and server transport.
+7. Centralized runtime configuration system.
 
 LLM Provider reliability, configurable logging, the Task-first data model, and Collaborator authoring now have server-core release candidates. The remaining order moves into publishing, pipeline loading, and UI flows while centralized configuration stays as a control-plane hardening follow-up.
 

@@ -1,8 +1,8 @@
 # UI And Backend Communication
 
-> Status: planned
-> Last Updated: 2026-05-16
-> Related: [UI API Interfaces](../plans/ui/ui-api-interfaces.md), [Task Domain/UI Model Separation](task-domain-ui-model-separation.md), [Authoring Domain](authoring-domain.md), [TaskBus](bus.md)
+> Status: active architecture boundary
+> Last Updated: 2026-05-17
+> Related: [Plato Frontend Technical Design](../product/plato-frontend-technical-design.md), [Figma UI Baseline](../product/plato-figma-ui-baseline.md), [UI API Interfaces](../plans/ui/ui-api-interfaces.md), [Task Domain/UI Model Separation](task-domain-ui-model-separation.md), [Authoring Domain](authoring-domain.md), [TaskBus](bus.md)
 
 ---
 
@@ -26,6 +26,8 @@ TaskWeavn 的 UI 不是传统聊天窗口，也不是文件浏览器。核心交
 - 后端 transport 层如何包住现有 server-core service。
 
 本文不规定具体前端框架，也不要求第一版必须实现完整 HTTP server。它定义的是长期接口方向。
+
+当前前端实现路线已经重新锚定到 Figma UI baseline 1.0。本文只定义 UI/backend 通信边界；具体前端技术栈、目录结构、状态库和 Story 实施切片见 [Plato Frontend Technical Design](../product/plato-frontend-technical-design.md)。
 
 ---
 
@@ -82,6 +84,24 @@ Session
 ```
 
 Task Message View 不是第二条物理消息流。它仍然来自唯一 Session Message Stream，只是按 `TaskRef` / `task_id` 聚合过滤。
+
+### 2.3.1 Project 与 Session Workspace
+
+产品 UI 会展示：
+
+```text
+Project
+  -> Workflow
+      -> Session
+          -> Session Workspace
+```
+
+但后端通信的写入边界仍以 Session 为主。
+
+- `Project` 是用户组织工作的容器，可用于导航、归档和跨 Session 结果沉淀。
+- `Session Workspace` 是执行用文件工作区，默认挂在 Session 下并与其他 Session 隔离。
+- UI 可以展示 `Session workspace: isolated` 这类提示，但不应要求用户直接管理底层目录。
+- 跨 Session 合并、导出、沉淀到 Project baseline 都应该是显式 command，不应通过多个 Session 默认共享同一个文件 workspace 实现。
 
 ### 2.4 Command accepted 不等于最终状态
 

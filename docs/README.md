@@ -26,14 +26,18 @@ This directory is organized by document purpose, not by implementation module.
 - [Project Plan](project/roadmap.md)
 - [Product Principles](product/core-product-principles.md)
 - [Workflow / Session / Task UX Model](product/workflow-session-task-ux-model.md)
+- [Plato MVP PRD](product/plato-mvp-prd.md)
+- [Plato Main Page UX Flow](product/plato-main-page-ux-flow.md)
+- [Plato Figma UI Baseline](product/plato-figma-ui-baseline.md)
+- [Plato Frontend Technical Design](product/plato-frontend-technical-design.md)
 - [Architecture Reference](architecture/reference.md)
 - [Multi-Agent Collaboration Architecture](architecture/multi-agent-collaboration.md)
-- [Interaction Layer Design](architecture/interaction-layer.md)
+- [Interaction Layer Design](architecture/interaction-layer.md) — implemented Phase 3 substrate, not the current UI plan
 - [Architecture Decisions](decisions/)
 - [Release Records](releases/)
 - [Planning Workflow](planning_workflow.md)
 - [Feature Plans](plans/feature/)
-- [Task-first UI Plan](plans/task-first-ui-interaction.md)
+- [Task-first UI Plan](plans/task-first-ui-interaction.md) — early concept seed; current UI implementation starts from Plato product docs
 - [User Test Cases](user_cases/)
 
 ## Compatibility Files

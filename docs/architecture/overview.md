@@ -16,12 +16,14 @@ Execution Domain  ─ 已发布 Task 如何被执行
 核心一等公民概念组成：
 
 ```
-Session           ─ 用户的一次会话，承载唯一工作区
+Session           ─ 用户的一次会话，承载唯一 Session Workspace
 Authoring Domain  ─ RawTask、feasibility、DraftTaskTree
 Task              ─ 已发布的执行任务，工作的最小执行单位
 Agent             ─ 无状态函数对象，能力 + 工具集
 TaskBus           ─ 已发布任务的串行总线，FIFO 调度 + 能力匹配
 ```
+
+术语边界：产品 UI 中的 `Project` 是长期用户容器；架构中的 `Session Workspace` 是一次 Session 的执行工作区和文件写入边界。当前设计不让多个 Session 默认并发写同一个 Project 级工作区。
 
 整个架构在一页纸上能画完，承载点是**简洁的引擎 + 灵活的用户体验**——架构层强约束，用户层渐进开放。
 

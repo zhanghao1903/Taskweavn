@@ -13,7 +13,9 @@ Release records should answer:
 
 | Release | Status | Summary |
 |---|---:|---|
+| [API Publish Server Transport](api-publish-server-transport.md) | done | Framework-neutral HTTP/RPC adapter for `DefaultApiTaskPublisher` routes and response envelopes. |
 | [Configurable Logging System](configurable-logging-system.md) | done | Structured JSONL logging, session archives, profiles, same-process control API, and core object integrations. |
+| [Publish Persistence Foundation](publish-persistence-foundation.md) | done | SQLite publish idempotency, audit, scheduler stores, service assembly, and deterministic idempotency hardening. |
 | [Task Publishers, Schedule, API, And Pipeline Expansion](task-publishers-schedule-api.md) | done | TaskBus-backed publishing, custom tree parsing, idempotent publish service, scheduler/API publisher adapters, and publish-time pipeline expansion. |
 | [Collaborator Agent And Task Authoring](collaborator-agent-task-authoring.md) | done | RawTask feasibility, Authoring Commands, DraftTaskTree stores, Collaborator service, publish boundary, and UI/API adapter. |
 | [LLM Provider Reliability](llm-provider-reliability.md) | done | Provider abstraction, retry, DeepSeek thinking, and OpenRouter routing. |

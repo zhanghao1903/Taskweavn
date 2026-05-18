@@ -1,6 +1,8 @@
 # Task 架构设计
 
 > 多 Agent 协作架构的核心抽象 · v1.1 · 2026-05-14
+>
+> 2026-05-17 review note: 本文中的 Task 默认运行在所属 Session 的 **Session Workspace** 内。产品 UI 可以把多个 Session 组织在同一个 `Project` 下，但 PublishedTask 的文件读写边界仍然跟随 Session，而不是直接写入 Project 级共享工作区。
 
 ---
 

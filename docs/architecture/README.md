@@ -33,13 +33,35 @@ Every important decision should be traceable back to concrete user problems, not
 | [bus-v2.md](bus-v2.md) | TaskBus evolution notes. |
 | [agent.md](agent.md) | Agent template/instance model. |
 | [session.md](session.md) | Session architecture. |
-| [interaction-layer.md](interaction-layer.md) | Phase 3 interaction layer technical design. |
+| [interaction-layer.md](interaction-layer.md) | Implemented Phase 3 interaction substrate. Historical technical baseline, not the current product UI plan. |
 | [llm-provider-reliability.md](llm-provider-reliability.md) | LLM provider abstraction, retry, DeepSeek thinking, and OpenRouter routing technical design. |
 | [configurable-logging-system.md](configurable-logging-system.md) | Configurable structured logging, hot update, archive, and compatibility design. |
 | [multi-agent-collaboration.md](multi-agent-collaboration.md) | Multi-agent collaboration architecture. |
 | [multi-agent-collaboration_en.md](multi-agent-collaboration_en.md) | English version of the collaboration architecture. |
 | [user/README.md](../user_model/README.md) | User modeling system: user needs/scenarios, do-or-not decisions, current vs future solution shape, and architecture mapping. |
 | [review.md](review.md) | Architecture review and plan inputs. |
+
+## UI And Interaction Canonical Paths
+
+UI and interaction documents are now split by responsibility:
+
+| Layer | Canonical docs | Status |
+|---|---|---|
+| Product UX | [Plato MVP PRD](../product/plato-mvp-prd.md), [Main Page UX Flow](../product/plato-main-page-ux-flow.md), [Figma UI Baseline](../product/plato-figma-ui-baseline.md) | Active |
+| Frontend implementation | [Plato Frontend Technical Design](../product/plato-frontend-technical-design.md) | Active |
+| UI/backend protocol | [UI And Backend Communication](ui-backend-communication.md), [Task Domain/UI Model Separation](task-domain-ui-model-separation.md) | Active architecture |
+| Interaction substrate | [Interaction Layer](interaction-layer.md) | Implemented historical baseline |
+| Early UI plans | [Task-first UI plan](../plans/task-first-ui-interaction.md), [UI plan directory](../plans/ui/) | Superseded by the Plato product/Figma/frontend design line unless a file is explicitly referenced by a new plan |
+
+The current UI source of truth is:
+
+```text
+Figma UI baseline 1.0
+  -> product UX docs
+  -> frontend technical design
+  -> UI/backend protocol
+  -> implementation slices
+```
 
 ## Rule of Thumb
 
