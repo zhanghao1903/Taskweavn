@@ -3,8 +3,9 @@
 > Status: done
 > Date: 2026-05-13
 > Work Stream: Phase 3B — Reliability And Observability
-> Related Plan: [Configurable Logging System](../plans/feature/configurable-logging-system.md)
-> Technical Design: [Configurable Logging System](../architecture/configurable-logging-system.md)
+> Related Capability: [Audit Trust](../capabilities/audit-trust/), [Diagnostic Bundle](../capabilities/diagnostic-bundle/)
+> Related Plan: [Legacy Configurable Logging System](../archive/legacy-2026-05-18/plans/feature/configurable-logging-system.md)
+> Technical Design: [Legacy Configurable Logging System](../archive/legacy-2026-05-18/architecture/configurable-logging-system.md)
 
 ---
 

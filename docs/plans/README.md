@@ -1,21 +1,39 @@
 # Plans
 
-Plans are executable work packages for future implementation sessions. They should contain enough context, scope, APIs, slices, and acceptance criteria for another session to execute without re-opening major design questions.
+> Status: canonical plans entry
+> Last Updated: 2026-05-18
 
-## Categories
+Plans are executable work packages for implementation sessions.
 
-| Directory / File | Purpose |
+New product capability work should use plan packages:
+
+```text
+docs/plans/features/<feature>/
+  overview.md
+  contract.md
+  frontend.md
+  backend.md
+  integration.md
+  acceptance.md
+```
+
+---
+
+## 1. Active Plan Areas
+
+| Directory | Purpose |
 |---|---|
-| [feature/](feature/) | New feature plans. |
-| [ui/](ui/) | Early Task-first UI interaction sub-design archive. Current Plato UI planning starts from `docs/product/`. |
-| [task-first-ui-interaction.md](task-first-ui-interaction.md) | Early Task-first UI concept seed; superseded as an implementation plan. |
-| [configuration.md](configuration.md) | Configuration system plan. |
-| [observability.md](observability.md) | Trace / metrics / debug observability plan. |
-| [cost-quota.md](cost-quota.md) | Cost and quota plan. |
-| [ux-interaction.md](ux-interaction.md) | HITL / autonomy UX plan. |
-| [walkthrough.md](walkthrough.md) | End-to-end walkthrough plan. |
-| [user-guide.md](user-guide.md) | User guide plan. |
+| [features/](features/) | Product capability feature plan packages. |
+| [release/](release/) | Packaging, signing, distribution, and release operations plans. |
 
-## Status Convention
+---
 
-Use `Status: planned | in_progress | done | blocked | superseded` in each plan header.
+## 2. Legacy Plans
+
+Older single-file feature plans, broad root plans, and early UI sub-designs were archived to:
+
+```text
+docs/archive/legacy-2026-05-18/plans/
+```
+
+They are not canonical implementation plans for new work. If a legacy plan is revived, create a new package under [features/](features/) and cite the archive as source material.

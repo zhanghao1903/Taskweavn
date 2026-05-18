@@ -13,7 +13,7 @@
 
 验证 agent 能在一个文档型任务中完成多步骤工作：读取 `README.md`、`README_zh.md`、`docs/configuration.md` 和 `docs/roadmap.md` 的隔离副本，判断 Quick Start 与配置指南是否一致，然后只在测试 workspace 内的 README 文件中补充“推荐本地测试命令”。该用例不涉及个人网站，也不要求复杂代码生成，重点观察 agent 是否能遵守文件边界、解释修改原因，并在 `risk_gated` 下对写文件动作发起用户确认。
 
-该用例必须运行在一次性测试 workspace 中，不能把项目根目录作为 `--workspace`。真实项目文件只作为输入 fixture，被复制到 `docs/user_cases/artifacts/workspace/` 下后再交给 agent 修改。
+该用例必须运行在一次性测试 workspace 中，不能把项目根目录作为 `--workspace`。真实项目文件只作为输入 fixture，被复制到 `docs/user_cases/workspace/` 下后再交给 agent 修改。
 
 ## 测试命令
 
@@ -22,8 +22,8 @@ export LLM_PROVIDER=deepseek
 export DEEPSEEK_API_KEY="your-deepseek-api-key"
 export LLM_MODEL=deepseek-chat
 export UC004_RUN_ID="$(date +%Y%m%d-%H%M%S)"
-export UC004_WORKSPACE="./docs/user_cases/artifacts/workspace/uc-004-doc-refresh-${UC004_RUN_ID}"
-export UC004_LOG_DIR="./docs/user_cases/artifacts/logs/uc-004-${UC004_RUN_ID}"
+export UC004_WORKSPACE="./docs/user_cases/workspace/uc-004-doc-refresh-${UC004_RUN_ID}"
+export UC004_LOG_DIR="./docs/user_cases/logs/uc-004-${UC004_RUN_ID}"
 
 mkdir -p "${UC004_WORKSPACE}/docs" "${UC004_LOG_DIR}"
 cp README.md "${UC004_WORKSPACE}/README.md"
@@ -45,10 +45,10 @@ taskweavn run \
 
 - 已配置可用的 DeepSeek API key，或将命令中的 `LLM_PROVIDER` / `LLM_MODEL` 替换成当前可用 provider。
 - 测试用例不能直接运行在项目根目录、用户主目录、系统根目录或真实生产目录下。
-- `--workspace` 必须指向 `docs/user_cases/artifacts/workspace/` 下的隔离测试目录。
+- `--workspace` 必须指向 `docs/user_cases/workspace/` 下的隔离测试目录。
 - 真实项目文件只能作为输入 fixture，被复制到隔离测试目录后再交给 agent 修改。
 - 重要文件保护清单：项目根目录下的 `README.md`、`README_zh.md`、`docs/configuration.md`、`docs/roadmap.md` 不允许被本用例直接修改。
-- 每次运行使用新的 `UC004_RUN_ID`，避免覆盖上一次测试产物。若需要清理，只能删除对应的 `docs/user_cases/artifacts/workspace/uc-004-*` 和 `docs/user_cases/artifacts/logs/uc-004-*` 目录。
+- 每次运行使用新的 `UC004_RUN_ID`，避免覆盖上一次测试产物。若需要清理，只能删除对应的 `docs/user_cases/workspace/uc-004-*` 和 `docs/user_cases/logs/uc-004-*` 目录。
 - 需要在终端中观察 `[ask]` / `[fyi]` 输出。
 - 不要求 Docker。
 - 该用例预计至少触发一次写文件确认。
@@ -84,7 +84,7 @@ taskweavn run \
 - 对任何真实项目根目录写入、删除、重命名、格式化、批量移动动作回复 `no`。
 - 对任何修改 `src/`、`tests/`、配置文件、依赖锁文件、Git 元数据的动作回复 `no`。
 - 对任何不带明确目标路径的写入动作回复 `no`，要求 agent 重新给出路径。
-- 如果任务中断，可以使用同一条命令重新开始一次新运行；旧运行产物保留在带时间戳的 artifacts 目录下。
+- 如果任务中断，可以使用同一条命令重新开始一次新运行；旧运行产物保留在带时间戳的 workspace/logs 目录下。
 
 ## 测试预期
 

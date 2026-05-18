@@ -2,7 +2,7 @@
 
 > Status: accepted
 > Date: 2026-05-11
-> Related: [Task Publisher plan](../plans/feature/task-publishers-schedule-api.md), [Pipeline loading plan](../plans/feature/pipeline-task-loading.md), [Collaborator Agent plan](../plans/feature/collaborator-agent-task-authoring.md)
+> Related: [Task Execution Capability](../../capabilities/task-execution/), [Task Publishers Release](../../releases/task-publishers-schedule-api.md), [Legacy Task Publisher Plan](../../archive/legacy-2026-05-18/plans/feature/task-publishers-schedule-api.md), [Legacy Pipeline Plan](../../archive/legacy-2026-05-18/plans/feature/pipeline-task-loading.md)
 
 ---
 

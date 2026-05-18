@@ -2,7 +2,7 @@
 
 > Status: accepted
 > Date: 2026-05-11
-> Related: [Result Packaging Plan](../plans/feature/result-packaging-agent-cards.md), [Task Publisher Plan](../plans/feature/task-publishers-schedule-api.md), [Pipeline Task Loading](../plans/feature/pipeline-task-loading.md)
+> Related: [Task Execution Capability](../../capabilities/task-execution/), [Legacy Result Packaging Plan](../../archive/legacy-2026-05-18/plans/feature/result-packaging-agent-cards.md), [Legacy Task Publisher Plan](../../archive/legacy-2026-05-18/plans/feature/task-publishers-schedule-api.md), [Legacy Pipeline Plan](../../archive/legacy-2026-05-18/plans/feature/pipeline-task-loading.md)
 
 ---
 

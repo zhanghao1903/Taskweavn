@@ -1,45 +1,74 @@
-# TaskWeavn Docs
+# TaskWeavn / Plato Docs
 
-This directory is organized by document purpose, not by implementation module.
+> Status: canonical docs entry
+> Last Updated: 2026-05-18
+> Rule: new work starts from this page, the capability map, and the active product version package.
 
-## Directory Map
+---
+
+## 1. Start Here
+
+| Need | Start With |
+|---|---|
+| What are we building now? | [Plato 1.0 Overview](product/versions/1.0/overview.md) |
+| What is in / out of 1.0? | [Plato 1.0 P0 Scope](product/versions/1.0/p0-scope.md) |
+| What gaps remain? | [Plato 1.0 Gap Analysis](product/versions/1.0/gap-analysis.md) |
+| What can the system do? | [Capability Map](capabilities/index.md) |
+| What architecture version is active? | [Current Architecture](architecture/current.md) |
+| How do frontend/backend agree? | [Contracts](contracts/) |
+| How do we plan new work? | [Docs Operating Model](project/docs-operating-model.md) |
+| What moved to archive? | [Docs Migration Inventory](project/docs-migration-inventory.md) |
+
+---
+
+## 2. Canonical Directory Map
 
 | Directory | Purpose |
 |---|---|
-| [architecture/](architecture/) | Core architecture, long-term design principles, object lifecycles, and protocol boundaries. |
-| [product/](product/) | Product principles, user mental models, core interaction objects, and UX lifecycle direction. |
-| [project/](project/) | Project roadmap and historical phase planning. |
-| [decisions/](decisions/) | Architecture decision records for important long-term choices. |
-| [releases/](releases/) | Completed phase and milestone records. |
-| [plans/](plans/) | Executable plans for features, improvements, UI design, and follow-up work. |
-| [issues/](issues/) | Bug reports and defect-oriented repair plans. |
-| [user_cases/](user_cases/) | Formal user test cases and their artifacts. |
-| [user_tests/](../garbage_collect/user_tests/) | Ad-hoc manual testing prompts and screenshots. |
-| [samples/](../garbage_collect/samples/) | Small sample outputs used by docs or tests. |
-| [assets/](assets/) | Shared images and other media assets. |
-| [archive/](archive/) | Generated exports and historical artifacts that are not the canonical source. |
+| [product/](product/) | Product version packages, scope, gap analysis, and acceptance. |
+| [architecture/](architecture/) | Active architecture version and long-lived system boundaries. |
+| [capabilities/](capabilities/) | Capability packets: current/planned/not-now status and gap routing. |
+| [contracts/](contracts/) | Stable boundary contracts, especially UI/backend. |
+| [plans/](plans/) | Executable feature/release plan packages. |
+| [decisions/](decisions/) | Product, architecture, and technology decision records. |
+| [project/](project/) | Roadmap, docs operating model, migration inventory. |
+| [releases/](releases/) | Completed milestone and feature-slice records. |
+| [issues/](issues/) | Active bug/defect records. |
+| [discussion/](discussion/) | Active unresolved discussions before decision or plan. |
+| [user_model/](user_model/) | User needs, scenarios, metrics, and traceability. |
+| [user_cases/](user_cases/) | Active user test cases for current product versions. |
+| [assets/](assets/) | Shared media assets. |
+| [archive/](archive/) | Historical docs and generated exports. |
 
-## Canonical Entry Points
+---
 
-- [Global Roadmap](roadmap.md)
-- [Configuration Guide](configuration.md)
-- [Project Plan](project/roadmap.md)
-- [Product Principles](product/core-product-principles.md)
-- [Workflow / Session / Task UX Model](product/workflow-session-task-ux-model.md)
-- [Plato MVP PRD](product/plato-mvp-prd.md)
-- [Plato Main Page UX Flow](product/plato-main-page-ux-flow.md)
-- [Plato Figma UI Baseline](product/plato-figma-ui-baseline.md)
-- [Plato Frontend Technical Design](product/plato-frontend-technical-design.md)
-- [Architecture Reference](architecture/reference.md)
-- [Multi-Agent Collaboration Architecture](architecture/multi-agent-collaboration.md)
-- [Interaction Layer Design](architecture/interaction-layer.md) — implemented Phase 3 substrate, not the current UI plan
-- [Architecture Decisions](decisions/)
-- [Release Records](releases/)
-- [Planning Workflow](planning_workflow.md)
-- [Feature Plans](plans/feature/)
-- [Task-first UI Plan](plans/task-first-ui-interaction.md) — early concept seed; current UI implementation starts from Plato product docs
-- [User Test Cases](user_cases/)
+## 3. Current Product / Architecture
 
-## Compatibility Files
+| Layer | Current |
+|---|---|
+| Product version | [Plato 1.0](product/versions/1.0/overview.md) |
+| Architecture version | [A1 for Plato 1.0](architecture/versions/a1-product-1.0/overview.md) |
+| Primary roadmap | [Global Roadmap](roadmap.md) |
+| Operational roadmap | [Project Roadmap](project/roadmap.md) |
+| Capability map | [Capability Map](capabilities/index.md) |
 
-Some root-level files are kept as small "moved" stubs so older README links and external bookmarks continue to work. New docs should link to the canonical paths above.
+---
+
+## 4. Workflow Rule
+
+New product work should follow:
+
+```text
+Product version / Capability packet
+  -> Contract, if boundary is affected
+  -> Feature plan package
+  -> Implementation session
+  -> Release record
+  -> Capability and gap update
+```
+
+Old docs are not the source of truth for new work. They are archived under:
+
+```text
+docs/archive/legacy-2026-05-18/
+```

@@ -48,13 +48,13 @@
 
 ## 8) Architecture mapping
 
-- Related architecture docs/sections: `docs/architecture/task-domain-ui-model-separation.md`, `docs/architecture/configurable-logging-system.md`
+- Related capability docs: `docs/capabilities/settings-and-first-run/`, `docs/capabilities/configuration-control-plane/`
 - Architecture impact: `none`
 - Breaking change risk: `no`
 
 ## 9) Plan/feature mapping
 
-- Related plan docs: `docs/plans/ui/visual-reference.md`（后续可补专属 plan）
+- Related plan docs: future feature package under `docs/plans/features/`; legacy visual sources live under `docs/archive/legacy-2026-05-18/plans/ui/`
 - Related feature packages: UI 主题系统、配置到视觉 token 映射、主题预设管理
 - Milestone target: TBD
 

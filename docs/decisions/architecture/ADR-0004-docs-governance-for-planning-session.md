@@ -2,7 +2,7 @@
 
 > Status: accepted
 > Date: 2026-05-11
-> Related: [Planning Workflow](../planning_workflow.md), [Roadmap](../roadmap.md), [Project Plan](../project/roadmap.md), [Release Records](../releases/)
+> Related: [Docs Operating Model](../../project/docs-operating-model.md), [Roadmap](../../roadmap.md), [Project Plan](../../project/roadmap.md), [Release Records](../../releases/)
 
 ---
 
@@ -27,7 +27,7 @@ Use four document types as the planning control plane:
 |---|---|---|
 | Roadmap | `docs/roadmap.md` | Phase-level route and priority sequencing. |
 | Project plan | `docs/project/roadmap.md` | More operational plan with completed baseline and next work queue. |
-| ADRs | `docs/decisions/ADR-<num>-<slug>.md` | Important architecture decisions and trade-offs. |
+| Decision records | `docs/decisions/{product,architecture,technology}/` | Important product, architecture, and technology decisions. |
 | Releases | `docs/releases/` | Completed phase/milestone summaries and change records. |
 
 When a plan is completed, update:

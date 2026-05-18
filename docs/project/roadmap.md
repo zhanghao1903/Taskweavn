@@ -1,223 +1,131 @@
 # TaskWeavn Project Plan
 
 > Status: active
-> Last Updated: 2026-05-17
+> Last Updated: 2026-05-18
 > Maintained By: planning session
-> Phase Baseline: implementation completed through Phase 3.8 plus Phase 3C Task Domain and Collaborator Authoring server-core packages
-> Related: [Global Roadmap](../roadmap.md), [Planning Workflow](../planning_workflow.md), [Phase 3 Release Record](../releases/phase-3-interaction-layer-through-3-8.md), [Collaborator Authoring Release](../releases/collaborator-agent-task-authoring.md), [User Traceability](../user_model/traceability.md)
+> Product Baseline: Plato 1.0
+> Architecture Baseline: A1
+> Related: [Global Roadmap](../roadmap.md), [Docs Operating Model](docs-operating-model.md), [Capability Map](../capabilities/index.md), [Plato 1.0 Gap Analysis](../product/versions/1.0/gap-analysis.md), [Current Architecture](../architecture/current.md), [Release Records](../releases/)
 
 ---
 
-## 1. Current Project Shape
+## 1. Purpose
 
-TaskWeavn is being rebuilt from an early ReAct code agent into a Task-first collaboration system.
+This file is the operational project plan. It is narrower than the global roadmap:
 
-The original technical path came from [Interaction Layer Design](../architecture/interaction-layer.md). That path is still valid through Phase 3.8, but the next project plan is now adjusted by newer architecture work:
+- the roadmap explains phase direction;
+- this file explains the next work queue and how implementation sessions should start.
 
-- Task is the core user interaction object.
-- The UI should show Task Tree Lists, Task cards, confirmations, messages, and file summaries.
-- RawTask and feasibility belong to Authoring Domain before Task Tree drafting.
-- Collaborator plans against a read-only CapabilityCatalog and mutates authoring state through Authoring Commands, not the full concrete tool pool.
-- Collaborator Agent becomes the system role that drafts and edits Task Trees with the user.
-- TaskPublisher becomes the single boundary from user/collaborator/pipeline/scheduler/API/custom trees into TaskBus.
-- Reliability and logging must be strengthened before large user tests.
+Current rule: new implementation work should start from a capability packet and then create or update a feature plan package.
 
-The immediate authoring work is grounded in:
+```text
+docs/capabilities/<capability>/README.md
+  -> docs/plans/features/<feature>/
+      overview.md
+      contract.md
+      frontend.md
+      backend.md
+      integration.md
+      acceptance.md
+```
 
-- [UN-105](../user_model/needs/UN-105-system-evaluability-and-capability-disclosure.md): task fit, feasibility, and capability boundary disclosure.
-- [UN-101](../user_model/needs/UN-101-photo-curation-batch-screening.md): batch task trees with human review checkpoints.
-- [UN-102](../user_model/needs/UN-102-courseware-html-generation.md): editable content-generation task trees.
-- [UN-103](../user_model/needs/UN-103-car-purchase-decision-support.md): clarification/evaluation before high-risk information work.
-
----
-
-## 2. Completed Foundation
-
-### Phase 1 — Core ReAct Agent
-
-Status: done.
-
-Delivered:
-
-- Typed `Action` / `Observation`.
-- EventStream abstraction.
-- LLMClient facade.
-- Basic tools and local runtime.
-- ReAct loop and CLI entry.
-
-### Phase 2 — CodeAction, Sandbox, Audit, Thought Store
-
-Status: done.
-
-Delivered:
-
-- `CodeAction`.
-- Docker sandbox execution.
-- AuditAgent.
-- SQLite ThoughtStore.
-- Phase 2 user tests and examples.
-
-### Phase 3.1-3.8 — Interaction Layer Foundation
-
-Status: done.
-
-| Slice | Delivered |
-|---|---|
-| 3.1 | Session, WorkspaceLayout, SQLite EventStream. |
-| 3.2 | RiskScore, RiskAssessment, BaselineOnlyAssessor, AutonomyBehavior, action baseline risks. |
-| 3.3 | AgentMessage, MessageStream, SQLite MessageStream, task_id correlation across events and messages. |
-| 3.4 | InProcessMessageBus and Subscription. |
-| 3.5 | AutonomyGate and WaitCoordinator. |
-| 3.6a | AgentLoop gate/wait integration. |
-| 3.6b | Async autonomy drain via pending decisions. |
-| 3.6c | Minimum interactive CLI surface for autonomy gating. |
-| 3.7 | LLMRiskAssessor and CompositeAssessor. |
-| 3.8 | Derived Session.status from EventStream + MessageStream; `archived` remains stored override. |
-
-See [Phase 3 release record](../releases/phase-3-interaction-layer-through-3-8.md).
+Historical plans are archived in [legacy docs](../archive/legacy-2026-05-18/). They can be mined for detail, but they are not the active work queue.
 
 ---
 
-## 3. Replanned Work Streams
+## 2. Current Project Shape
 
-The next project plan is organized as work streams instead of continuing the old linear Phase 3.9-3.13 order. Each stream can produce one or more implementation branches.
+TaskWeavn is now a Task-first local assistant platform. Plato is the first product built on it.
 
-### P3B — Reliability And Observability
+Current working model:
 
-Status: accepted baseline, follow-up hardening planned. Priority: P0/P1.
+- **User-facing product:** Plato.
+- **Project/system name:** TaskWeavn.
+- **Active product version:** Plato 1.0.
+- **Active architecture version:** A1.
+- **Current implementation focus:** turn the server-core Task/authoring/message foundations into a usable desktop product.
 
-| Package | Source Plan | Implementation Goal |
-|---|---|---|
-| LLM provider/retry/thinking | [LLM provider plan](../plans/feature/llm-provider-retry-thinking.md) | Done: provider abstraction, retry policy, DeepSeek provider, thinking metadata, OpenRouter provider pinning. |
-| Configurable logging | [Logging plan](../plans/feature/configurable-logging-system.md) | Done: global/session/category rules, JSONL + pretty display, same-process hot update, archives. |
-| Centralized runtime configuration | [Runtime configuration plan](../plans/feature/centralized-runtime-configuration.md) | Follow-up: global/workspace/session/task config, effective snapshots, config store, config bus, hot updates. |
+The key product workflow is:
 
-Acceptance:
-
-- Temporary LLM failures do not immediately collapse long-running sessions.
-- DeepSeek thinking can be enabled without losing reasoning/tool-call continuity.
-- Testers can raise log level for a session/category and locate archived logs.
-- Config changes should later be resolved, audited, and hot-applied through one shared control plane.
-
-### P3C — Task Authoring Foundation
-
-Status: server-core authoring foundation done; TaskPublisher bridge done in P3D. Priority: P0.
-
-| Package | Source Plan | Implementation Goal |
-|---|---|---|
-| Task domain/UI model separation | [Task model/UI separation](../plans/feature/task-domain-ui-model-separation.md) | Done: stable backend Task plus TaskCard/TaskNode ViewModel projection. |
-| Collaborator Agent | [Collaborator Agent plan](../plans/feature/collaborator-agent-task-authoring.md) | Done: mock-LLM draft Task Tree generation, selected-node refinement, validation, publish boundary, and UI/API adapter. |
-| RawTask and feasibility authoring flow | [Collaborator Agent plan](../plans/feature/collaborator-agent-task-authoring.md) | Done: RawTask, FeasibilityReport, RawTaskAsk, RawTaskAnswer, and Authoring Domain boundary before DraftTaskTree generation. |
-| CapabilityCatalog, tool-pool boundary, and Authoring Command Protocol | [Tool Capability Layer](../architecture/tool-capability-layer.md), [Authoring Command Protocol](../architecture/authoring-command-protocol.md) | Done as first server-core boundary: capability-first planning, no workspace tool pool on Collaborator, command-first system-state mutation. |
-| UI API contracts | [UI API interfaces](../plans/ui/ui-api-interfaces.md) | Done for authoring adapter surface; concrete transport and UI integration remain follow-ups. |
-
-Acceptance:
-
-- Natural language can be transformed into a draft Task Tree List.
-- Ambiguous, unsupported, unsafe, or partially feasible user input can be represented as RawTask without entering TaskBus.
-- User edits and confirmations are recorded as replayable facts.
-- UI can render Task cards from projections without owning backend truth.
-- Current server-core satisfies these through services, in-memory stores, mock LLM tests, and `CommandResult` adapter contracts. User-facing end-to-end validation waits for API transport and UI.
-
-### P3D — Task Publishing And Pipeline
-
-Status: TaskPublisher server-core release candidate done; pipeline loading partially implemented at publish-time. Priority: P0.
-
-| Package | Source Plan | Implementation Goal |
-|---|---|---|
-| TaskPublisher abstraction | [Task Publisher plan](../plans/feature/task-publishers-schedule-api.md), [release](../releases/task-publishers-schedule-api.md) | Done: TaskBus-backed publisher, SQLite TaskBus, custom tree parser, idempotent publish service, scheduler/API adapters, publish-time pipeline expansion. |
-| Pipeline task loading | [Pipeline loading plan](../plans/feature/pipeline-task-loading.md) | Partial: task_before/task_begin publish-time expansion done; task_after completion-time orchestration remains. |
-| Agent assignment constraints | [Pipeline loading plan](../plans/feature/pipeline-task-loading.md) | Task can require/prefer an Agent Template while preserving capability validation. |
-
-Acceptance:
-
-- All publish sources go through one validation and publish boundary.
-- Pipeline tasks are normal Tasks with publisher metadata.
-- API and scheduled publishing are idempotent and auditable.
-
-### P3E — Task-first UI
-
-Status: active planning; frontend implementation should restart from Figma UI baseline 1.0. Priority: P0.
-
-| Package | Source Plan | Implementation Goal |
-|---|---|---|
-| Plato MVP product/UX baseline | [Plato MVP PRD](../product/plato-mvp-prd.md), [Main Page UX Flow](../product/plato-main-page-ux-flow.md) | Product scope, user path, screen states, and Main Page behavior. |
-| Figma UI baseline 1.0 | [Figma UI Baseline](../product/plato-figma-ui-baseline.md) | Current visual/layout source for implementation. |
-| Frontend technical design | [Plato Frontend Technical Design](../product/plato-frontend-technical-design.md) | Technology choice, architecture, state/API boundaries, implementation slices. |
-| Early UI interaction model | [Task-first UI overview](../plans/task-first-ui-interaction.md) | Superseded as implementation plan; retained as concept seed. |
-| Early UI sub-designs | [UI plan directory](../plans/ui/) | Historical planning archive unless explicitly pulled into new frontend work. |
-| Result packaging cards | [Result packaging plan](../plans/feature/result-packaging-agent-cards.md) | Package suitable information-style answers into UI card sets through normal Tasks. |
-
-Acceptance:
-
-- Users can see the Task topology and interact with Task cards.
-- Session message stream and task-scoped projections are consistent.
-- Suitable information-style answers can render as card sets without losing the raw text answer.
-- Finished Task Nodes are read-only; pending/running nodes expose only valid actions.
-- Frontend work starts from a clean scaffold and Figma-state stories, not the deprecated experimental frontend.
-
-### P4 — Multi-Agent Task Execution
-
-Status: planned. Priority: P1 after P3C/P3D.
-
-Focus:
-
-- Agent templates and capabilities.
-- TaskBus claim/complete/fail lifecycle.
-- Agent assignment constraints and fair dispatch.
-- Shared workspace collaboration.
-- Multi-agent event/message/log replay.
-
-### P5 — Memory, Retrieval, Summarization, Evaluation
-
-Status: planned. Priority: P1/P2 after UI and TaskBus stabilize.
-
-Focus:
-
-- In-session RAG over events/messages/tasks/logs.
-- Cross-session RAG with privacy boundaries.
-- Task-aware summarization.
-- Long-running user test suites.
-- Cost/quota-aware context packing.
+```text
+natural language
+  -> RawTask
+  -> feasibility / clarification
+  -> DraftTaskTree
+  -> user edits and confirms
+  -> publish to TaskBus
+  -> execute Tasks
+  -> project messages, files, audit, diagnostics, and results into UI
+```
 
 ---
 
-## 4. Superseded Or Moved Items
+## 3. Completed Foundation
 
-| Old Item | New Plan |
-|---|---|
-| Phase 3.9 PlanTool | Merged into Collaborator Agent and draft Task Tree authoring. A simple file-based plan tool can be revived later as support infrastructure. |
-| Phase 3.10 shared/ append-only | Moved to P4 multi-agent/shared workspace work. |
-| Phase 3.11 in-session RAG | Moved to P5 after stable Task/message/log archives. |
-| Phase 3.12 cross-session RAG | Moved to P5 and remains optional. |
-| Phase 3.13 conversation summarization | Moved to P5; should become Task-aware summarization. |
-
----
-
-## 5. Immediate Next Work Queue
-
-Recommended implementation order:
-
-1. Plato frontend engineering reset from Figma UI baseline 1.0.
-2. UI API Contract and frontend/backend snapshot/event boundary.
-3. Persistent publish stores and server transport; SQLite TaskBus is done.
-4. Pipeline task loading completion-time orchestration and agent assignment.
-5. Result Packaging Agent and card-based result presentation.
-6. Persistent authoring stores and server transport.
-7. Centralized runtime configuration system.
-
-LLM Provider reliability, configurable logging, the Task-first data model, and Collaborator authoring now have server-core release candidates. The remaining order moves into publishing, pipeline loading, and UI flows while centralized configuration stays as a control-plane hardening follow-up.
+| Foundation | Status | Evidence |
+|---|---:|---|
+| Phase 1 core ReAct agent | done | Typed events, tools, runtime, LLM client, CLI. |
+| Phase 2 sandbox/audit/thought store | done | CodeAction, Docker sandbox, AuditAgent, SQLite ThoughtStore. |
+| Phase 3.1-3.8 Interaction Layer | done | [release](../releases/phase-3-interaction-layer-through-3-8.md) |
+| LLM provider reliability | done | [release](../releases/llm-provider-reliability.md) |
+| Configurable logging | done | [release](../releases/configurable-logging-system.md) |
+| Task domain/UI model separation | done | [release](../releases/task-domain-ui-model-separation.md) |
+| Collaborator authoring foundation | done | [release](../releases/collaborator-agent-task-authoring.md) |
+| Task publishers and initial TaskBus publish path | done / partial | [release](../releases/task-publishers-schedule-api.md) |
 
 ---
 
-## 6. Project Governance
+## 4. Immediate Work Queue
 
-When an implementation session finishes a package:
+Recommended order for Plato 1.0:
 
-1. Update the package plan under `docs/plans/` or `docs/issues/`.
-2. Update this file if status or priority changed.
-3. Update [Global Roadmap](../roadmap.md) if phase sequencing changed.
-4. Add/update an ADR under [../decisions/](../decisions/) if a decision changed.
-5. Add/update a release record under [../releases/](../releases/) if a milestone completed.
+| Order | Capability | Why Now | Plan State |
+|---:|---|---|---|
+| 1 | [Main Page real backend](../capabilities/main-page-real-backend/) | The product must stop being fixture-driven. | create feature package |
+| 2 | [UI/backend contracts](../contracts/ui-backend/) | Frontend/backend split needs stable query, command, event, error, and viewmodel contracts. | expand contract docs |
+| 3 | [Settings and first run](../capabilities/settings-and-first-run/) | Non-developer users need provider/workspace setup before testing. | create feature package |
+| 4 | [Task execution](../capabilities/task-execution/) | Published Tasks need a real claim/execute/update lifecycle. | create feature package |
+| 5 | [Message and confirmation](../capabilities/message-and-confirmation/) | Human-in-the-loop UX must be real, not CLI-only. | create feature package |
+| 6 | [File change summary](../capabilities/file-change-summary/) | Task-centered trust depends on visible file impact. | create feature package |
+| 7 | [Audit trust](../capabilities/audit-trust/) | Trust page is key for early users and testers. | create feature package |
+| 8 | [Product error handling](../capabilities/product-error-handling/) | Failures must become recoverable user states. | create feature package |
+| 9 | [Diagnostic bundle](../capabilities/diagnostic-bundle/) | Early testing needs supportable failure reports. | create feature package |
+| 10 | [Packaging and distribution](../capabilities/packaging-and-distribution/) | Trusted alpha needs double-click app packaging. | release plan exists |
 
-This project plan is intentionally operational: it should help pick the next branch and understand why that branch matters.
+The order can change, but a change should update this file and the relevant capability packets.
+
+---
+
+## 5. Plan Package Rule
+
+For each substantial capability, create:
+
+```text
+docs/plans/features/<feature>/
+  overview.md
+  contract.md
+  frontend.md
+  backend.md
+  integration.md
+  acceptance.md
+```
+
+Use only the needed files. For example, packaging work belongs under `docs/plans/release/`, not `docs/plans/features/`.
+
+Frontend and backend should not become separate product plans. They are separate implementation tracks inside one capability plan. This keeps product intent unified while keeping implementation context small.
+
+---
+
+## 6. Completion Rule
+
+When an implementation session completes a package:
+
+1. mark the package result in its plan files;
+2. update the relevant capability packet;
+3. update [Plato 1.0 Gap Analysis](../product/versions/1.0/gap-analysis.md) if status changed;
+4. update [contracts](../contracts/) if UI/backend boundaries changed;
+5. add or update a decision record under [decisions](../decisions/) if a costly choice changed;
+6. add a release record under [releases](../releases/) for completed milestones;
+7. update [global roadmap](../roadmap.md) only if sequence or baseline changed.
+
+This keeps project state readable without turning every implementation detail into roadmap noise.
