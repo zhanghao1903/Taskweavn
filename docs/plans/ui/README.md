@@ -7,6 +7,9 @@ This directory contains the Task-first UI planning documents.
 | File | Purpose |
 |---|---|
 | [frontend-framework-design.md](frontend-framework-design.md) | Frontend framework selection, architecture, API boundary, and first implementation slices. |
+| [page-project-implementation-template.md](page-project-implementation-template.md) | Reusable end-to-end workflow template for creating a new UI page from PRD through user testing. |
+| [main-page-project-implementation-plan.md](main-page-project-implementation-plan.md) | End-to-end Main Page project plan from PRD through UX, Figma, mock UI, API contract, backend integration, and user testing. |
+| [audit-page-project-implementation-plan.md](audit-page-project-implementation-plan.md) | End-to-end Audit Page project plan from PRD through UX, Figma, mock UI, API contract, backend integration, and user testing. |
 | [visual-reference.md](visual-reference.md) | Current visual sketches and prototype screenshots. |
 | [ui-api-interfaces.md](ui-api-interfaces.md) | Shared UI API and view model interface archive. |
 | [information-architecture.md](information-architecture.md) | Main layout regions and information hierarchy. |
