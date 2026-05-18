@@ -200,8 +200,8 @@ Recommended implementation order:
 
 1. Plato frontend engineering reset from Figma UI baseline 1.0.
 2. UI API Contract and frontend/backend snapshot/event boundary.
-3. Persistent publish stores and server transport; SQLite TaskBus is done.
-4. Pipeline task loading completion-time orchestration and agent assignment.
+3. Pipeline task loading completion-time orchestration and agent assignment.
+4. Publish audit query/debug API and concrete HTTP framework binding, if needed by UI/API integration.
 5. Result Packaging Agent and card-based result presentation.
 6. Persistent authoring stores and server transport.
 7. Centralized runtime configuration system.

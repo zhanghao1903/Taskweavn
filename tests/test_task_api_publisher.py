@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 
 from taskweavn.task import (
     ApiAuthContext,
@@ -15,10 +16,13 @@ from taskweavn.task import (
     DefaultTaskPublisher,
     InMemoryPublishIdempotencyStore,
     InMemoryTaskBus,
+    SqliteTaskBus,
+    SqliteTaskPublishAuditSink,
     StaticAgentCapabilityCatalog,
     StaticCapabilityCatalog,
     TaskPublishOptions,
     TaskPublishService,
+    build_sqlite_publish_service,
 )
 
 
@@ -189,6 +193,51 @@ def test_invalid_task_tree_returns_rejected_preview_and_publish_result() -> None
     assert "requires required_capability or capability" in (result.reason or "")
 
 
+def test_api_publish_with_sqlite_stores_replays_after_reopen(tmp_path: Path) -> None:
+    task_db = tmp_path / "tasks.sqlite"
+    publish_db = tmp_path / "publish.sqlite"
+
+    first_bus = SqliteTaskBus(task_db)
+    try:
+        first_adapter = _adapter_from_service(
+            build_sqlite_publish_service(
+                task_bus=first_bus,
+                publish_db_path=publish_db,
+            )
+        )
+        first = first_adapter.publish(_request(), auth=_auth())
+
+        assert first.accepted
+        assert len(first_bus.list_for_session("s1")) == 1
+    finally:
+        first_bus.close()
+
+    second_bus = SqliteTaskBus(task_db)
+    try:
+        second_adapter = _adapter_from_service(
+            build_sqlite_publish_service(
+                task_bus=second_bus,
+                publish_db_path=publish_db,
+            )
+        )
+        replay = second_adapter.publish(_request(), auth=_auth())
+
+        assert replay == first
+        assert len(second_bus.list_for_session("s1")) == 1
+    finally:
+        second_bus.close()
+
+    audit_sink = SqliteTaskPublishAuditSink(publish_db)
+    try:
+        assert [event.kind for event in audit_sink.list_for_session("s1")] == [
+            "task_publish.validated",
+            "task_publish.published",
+            "task_publish.idempotent_replayed",
+        ]
+    finally:
+        audit_sink.close()
+
+
 @dataclass(frozen=True)
 class _RateLimiter:
     allowed: bool
@@ -226,6 +275,24 @@ def _adapter(
             ]
         ),
         rate_limiter=rate_limiter,
+    )
+
+
+def _adapter_from_service(
+    service: TaskPublishService,
+    *,
+    policy: ApiPublishPolicy | None = None,
+) -> DefaultApiTaskPublisher:
+    return DefaultApiTaskPublisher(
+        publish_service=service,
+        policy=policy,
+        capability_catalog=StaticCapabilityCatalog(("summarize", "testing")),
+        agent_catalog=StaticAgentCapabilityCatalog(
+            [
+                {"agent_ref": "agent.summary", "capabilities": ("summarize",)},
+                {"agent_ref": "agent.test", "capabilities": ("testing",)},
+            ]
+        ),
     )
 
 

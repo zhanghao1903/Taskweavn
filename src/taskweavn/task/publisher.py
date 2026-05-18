@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime
 from typing import Any, ClassVar, Literal, Protocol, runtime_checkable
-from uuid import uuid4
+from uuid import NAMESPACE_URL, uuid4, uuid5
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -281,28 +282,27 @@ class DefaultTaskPublisher:
             )
 
         tree = _require_tree(request)
-        node_task_ids = {node.node_id: _new_id() for node in tree.iter_nodes()}
+        node_task_ids = _task_ids_for_request(request, tree)
         root_task_ids = tuple(node_task_ids[root.node_id] for root in tree.root_nodes)
         root_by_node = _root_by_node(tree)
-        published: list[TaskDomain] = []
-        for node in tree.iter_nodes():
-            task_id = node_task_ids[node.node_id]
-            parent_task_id = None
-            if node.parent_id is not None:
-                parent_task_id = node_task_ids[node.parent_id]
-            root_task_id = node_task_ids[root_by_node[node.node_id]]
-            task = TaskDomain(
-                task_id=task_id,
-                session_id=request.session_id,
-                parent_id=parent_task_id,
-                root_id=root_task_id,
-                order_index=_order_index(tree, node),
-                intent=node.intent,
-                required_capability=node.required_capability,
-                dispatch_constraints=_dispatch_constraints(request, tree, node),
-                created_by=request.publisher.label,
+        tasks = _tasks_for_request(
+            request,
+            tree=tree,
+            node_task_ids=node_task_ids,
+            root_by_node=root_by_node,
+        )
+        if request.idempotency_key is not None:
+            existing_result = self._result_from_existing_idempotent_tasks(
+                request,
+                tasks=tasks,
+                tree=tree,
+                node_task_ids=node_task_ids,
+                root_task_ids=root_task_ids,
             )
-            published.append(self._task_bus.publish(task))
+            if existing_result is not None:
+                return existing_result
+
+        published = [self._task_bus.publish(task) for task in tasks]
 
         return PublishResult(
             request_id=request.request_id,
@@ -315,6 +315,74 @@ class DefaultTaskPublisher:
                 "node_task_ids": dict(node_task_ids),
                 "source_type": request.source.source_type,
                 "published_at": _utcnow().isoformat(),
+            },
+        )
+
+    def _result_from_existing_idempotent_tasks(
+        self,
+        request: PublishRequest,
+        *,
+        tasks: tuple[TaskDomain, ...],
+        tree: NormalizedTaskTree,
+        node_task_ids: dict[str, str],
+        root_task_ids: tuple[str, ...],
+    ) -> PublishResult | None:
+        existing = {
+            task.task_id: self._task_bus.get(request.session_id, task.task_id)
+            for task in tasks
+        }
+        existing_tasks = {task_id: task for task_id, task in existing.items() if task is not None}
+        if not existing_tasks:
+            return None
+        if len(existing_tasks) != len(tasks):
+            missing = tuple(task.task_id for task in tasks if task.task_id not in existing_tasks)
+            return PublishResult(
+                request_id=request.request_id,
+                session_id=request.session_id,
+                publisher=request.publisher,
+                skipped=True,
+                reason="incomplete idempotent publish",
+                idempotency_key=request.idempotency_key,
+                metadata={
+                    "node_task_ids": dict(node_task_ids),
+                    "source_type": request.source.source_type,
+                    "existing_task_ids": tuple(existing_tasks),
+                    "missing_task_ids": missing,
+                    "skip_idempotency_record": True,
+                },
+            )
+        mismatched = tuple(
+            task.task_id
+            for task in tasks
+            if not _task_matches_expected(existing_tasks[task.task_id], task)
+        )
+        if mismatched:
+            return PublishResult(
+                request_id=request.request_id,
+                session_id=request.session_id,
+                publisher=request.publisher,
+                skipped=True,
+                reason="idempotent publish target already exists with different task payload",
+                idempotency_key=request.idempotency_key,
+                metadata={
+                    "node_task_ids": dict(node_task_ids),
+                    "source_type": request.source.source_type,
+                    "mismatched_task_ids": mismatched,
+                    "skip_idempotency_record": True,
+                },
+            )
+        return PublishResult(
+            request_id=request.request_id,
+            session_id=request.session_id,
+            publisher=request.publisher,
+            published_task_ids=tuple(task.task_id for task in tasks),
+            root_task_ids=root_task_ids,
+            idempotency_key=request.idempotency_key,
+            metadata={
+                "node_task_ids": dict(node_task_ids),
+                "source_type": request.source.source_type,
+                "idempotent_existing_tasks": True,
+                "replayed_at": _utcnow().isoformat(),
             },
         )
 
@@ -428,6 +496,98 @@ def _validate_request_tree(request: PublishRequest) -> list[str]:
         if not node.required_capability.strip():
             errors.append(f"node {node.node_id!r} has empty required_capability")
     return errors
+
+
+def _task_ids_for_request(
+    request: PublishRequest,
+    tree: NormalizedTaskTree,
+) -> dict[str, str]:
+    if request.idempotency_key is None:
+        return {node.node_id: _new_id() for node in tree.iter_nodes()}
+    return {
+        node.node_id: _idempotent_task_id(request, node)
+        for node in tree.iter_nodes()
+    }
+
+
+def _idempotent_task_id(request: PublishRequest, node: NormalizedTaskNode) -> str:
+    payload = {
+        "session_id": request.session_id,
+        "publisher_kind": request.publisher.kind,
+        "idempotency_key": request.idempotency_key,
+        "source_node_id": node.node_id,
+    }
+    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+    return uuid5(NAMESPACE_URL, f"taskweavn.publish:{encoded}").hex
+
+
+def _tasks_for_request(
+    request: PublishRequest,
+    *,
+    tree: NormalizedTaskTree,
+    node_task_ids: dict[str, str],
+    root_by_node: dict[str, str],
+) -> tuple[TaskDomain, ...]:
+    tasks: list[TaskDomain] = []
+    for node in tree.iter_nodes():
+        task_id = node_task_ids[node.node_id]
+        parent_task_id = None
+        if node.parent_id is not None:
+            parent_task_id = node_task_ids[node.parent_id]
+        root_task_id = node_task_ids[root_by_node[node.node_id]]
+        tasks.append(
+            TaskDomain(
+                task_id=task_id,
+                session_id=request.session_id,
+                parent_id=parent_task_id,
+                root_id=root_task_id,
+                order_index=_order_index(tree, node),
+                intent=node.intent,
+                required_capability=node.required_capability,
+                dispatch_constraints=_dispatch_constraints(request, tree, node),
+                created_by=request.publisher.label,
+            )
+        )
+    return tuple(tasks)
+
+
+def _task_matches_expected(existing: TaskDomain, expected: TaskDomain) -> bool:
+    if (
+        existing.session_id != expected.session_id
+        or existing.parent_id != expected.parent_id
+        or existing.root_id != expected.root_id
+        or existing.order_index != expected.order_index
+        or existing.intent != expected.intent
+        or existing.required_capability != expected.required_capability
+        or existing.created_by != expected.created_by
+    ):
+        return False
+    return _dispatch_constraints_match(
+        existing.dispatch_constraints,
+        expected.dispatch_constraints,
+    )
+
+
+def _dispatch_constraints_match(
+    existing: TaskDispatchConstraints | None,
+    expected: TaskDispatchConstraints | None,
+) -> bool:
+    if existing is None or expected is None:
+        return existing == expected
+    return (
+        existing.required_agent_id == expected.required_agent_id
+        and existing.preferred_agent_id == expected.preferred_agent_id
+        and existing.required_capabilities == expected.required_capabilities
+        and _stable_metadata(existing.metadata) == _stable_metadata(expected.metadata)
+    )
+
+
+def _stable_metadata(metadata: dict[str, Any]) -> dict[str, Any]:
+    return {
+        key: value
+        for key, value in metadata.items()
+        if key != "publish_request_id"
+    }
 
 
 def _require_tree(request: PublishRequest) -> NormalizedTaskTree:
