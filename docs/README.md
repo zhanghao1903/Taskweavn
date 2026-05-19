@@ -1,45 +1,94 @@
 # TaskWeavn Docs
 
-This directory is organized by document purpose, not by implementation module.
+> Status: active documentation entry
+> Last Updated: 2026-05-19
 
-## Directory Map
+This directory is organized by document responsibility, not by implementation
+module.
 
-| Directory | Purpose |
+The current V2 documentation model is intentionally narrow:
+
+- no product version directory;
+- no architecture version directory;
+- active architecture remains the source of system facts;
+- roadmap and gap registry coordinate planning;
+- plans are executable work packages, not global product structure.
+
+---
+
+## 1. Start Here
+
+| Need | Start With |
 |---|---|
-| [architecture/](architecture/) | Core architecture, long-term design principles, object lifecycles, and protocol boundaries. |
-| [product/](product/) | Product principles, user mental models, core interaction objects, and UX lifecycle direction. |
-| [project/](project/) | Project roadmap and historical phase planning. |
-| [decisions/](decisions/) | Architecture decision records for important long-term choices. |
-| [releases/](releases/) | Completed phase and milestone records. |
-| [plans/](plans/) | Executable plans for features, improvements, UI design, and follow-up work. |
+| What is the current system direction? | [Global Roadmap](roadmap.md) |
+| What is the current execution queue? | [Project Plan](project/roadmap.md) |
+| What gaps exist and how are they routed? | [Gap Registry](gaps/) |
+| What architecture facts must a technical design obey? | [Architecture](architecture/) |
+| What user/product experience is intended? | [Product Docs](product/) |
+| What implementation plans exist? | [Plans](plans/) |
+| What decisions are expensive to reverse? | [ADRs](decisions/) |
+| What actually shipped? | [Release Records](releases/) |
+
+---
+
+## 2. Directory Map
+
+| Directory / File | Responsibility |
+|---|---|
+| [architecture/](architecture/) | Active system facts, object boundaries, lifecycles, protocols, and technical constraints. Required reading before technical design. |
+| [product/](product/) | Product intent, user mental models, PRDs, UX flows, and UI direction. |
+| [roadmap.md](roadmap.md) | Phase-level direction and current sequencing. |
+| [project/](project/) | Operational project plan and project-specific supporting docs. |
+| [gaps/](gaps/) | Known capability gaps, priorities, status, architecture references, and plan routing. |
+| [plans/](plans/) | Executable plans for selected gaps and implementation sessions. |
+| [decisions/](decisions/) | Architecture/product/technology decisions that are costly to reverse. |
+| [releases/](releases/) | Completed phase and feature-slice records. |
 | [issues/](issues/) | Bug reports and defect-oriented repair plans. |
-| [user_cases/](user_cases/) | Formal user test cases and their artifacts. |
-| [user_tests/](../garbage_collect/user_tests/) | Ad-hoc manual testing prompts and screenshots. |
-| [samples/](../garbage_collect/samples/) | Small sample outputs used by docs or tests. |
-| [assets/](assets/) | Shared images and other media assets. |
-| [archive/](archive/) | Generated exports and historical artifacts that are not the canonical source. |
+| [discussion/](discussion/) | Exploratory thinking before a plan or ADR exists. |
+| [user_model/](user_model/) | User needs, scenarios, metrics, and traceability. |
+| [user_cases/](user_cases/) | Formal user test cases and artifacts. |
+| [assets/](assets/) | Shared images and media assets. |
+| [archive/](archive/) | Generated exports and historical artifacts that are not canonical. |
 
-## Canonical Entry Points
+---
 
-- [Global Roadmap](roadmap.md)
-- [Configuration Guide](configuration.md)
-- [Project Plan](project/roadmap.md)
-- [Product Principles](product/core-product-principles.md)
-- [Workflow / Session / Task UX Model](product/workflow-session-task-ux-model.md)
-- [Plato MVP PRD](product/plato-mvp-prd.md)
-- [Plato Main Page UX Flow](product/plato-main-page-ux-flow.md)
-- [Plato Figma UI Baseline](product/plato-figma-ui-baseline.md)
-- [Plato Frontend Technical Design](product/plato-frontend-technical-design.md)
-- [Architecture Reference](architecture/reference.md)
-- [Multi-Agent Collaboration Architecture](architecture/multi-agent-collaboration.md)
-- [Interaction Layer Design](architecture/interaction-layer.md) — implemented Phase 3 substrate, not the current UI plan
-- [Architecture Decisions](decisions/)
-- [Release Records](releases/)
-- [Planning Workflow](planning_workflow.md)
-- [Feature Plans](plans/feature/)
-- [Task-first UI Plan](plans/task-first-ui-interaction.md) — early concept seed; current UI implementation starts from Plato product docs
-- [User Test Cases](user_cases/)
+## 3. Working Model
 
-## Compatibility Files
+Use this chain when starting new work:
 
-Some root-level files are kept as small "moved" stubs so older README links and external bookmarks continue to work. New docs should link to the canonical paths above.
+```text
+Product intent + Architecture facts
+  -> Roadmap priority
+  -> Gap registry
+  -> Plan package
+  -> Implementation
+  -> Release record
+```
+
+The chain is not meant to create bureaucracy. It prevents work from starting
+from stale chat context or from a single isolated plan file.
+
+---
+
+## 4. Authority Rules
+
+| Document Type | Authority |
+|---|---|
+| Product docs / PRD | Defines user intent and UX expectations. |
+| Architecture docs | Defines active system facts and technical boundaries. |
+| Roadmap | Defines sequencing and priority. |
+| Gap registry | Defines known gaps and whether a plan exists. |
+| Plans | Define how selected gaps are implemented. |
+| Releases | Define what is actually done. |
+| ADRs | Define durable decisions and consequences. |
+
+If a plan conflicts with active architecture, update architecture or write an
+ADR before implementation. If a release closes a gap, update the gap registry.
+
+---
+
+## 5. Compatibility Files
+
+Some root-level files are kept as small "moved" stubs so older README links and
+external bookmarks continue to work. New docs should link to the canonical
+paths above.

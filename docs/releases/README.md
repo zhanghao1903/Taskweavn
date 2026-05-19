@@ -9,6 +9,9 @@ Release records should answer:
 - what was validated;
 - which follow-ups remain.
 
+When a release closes or changes a known gap, update [Gap Registry](../gaps/)
+alongside the release record.
+
 ## Index
 
 | Release | Status | Summary |

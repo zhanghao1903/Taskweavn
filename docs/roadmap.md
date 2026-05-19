@@ -3,7 +3,7 @@
 > Status: active
 > Last Updated: 2026-05-17
 > Maintained By: planning session
-> Related: [Project Plan](project/roadmap.md), [Planning Workflow](planning_workflow.md), [Architecture Decisions](decisions/), [Release Records](releases/), [User Traceability](user_model/traceability.md)
+> Related: [Project Plan](project/roadmap.md), [Gap Registry](gaps/), [Planning Workflow](planning_workflow.md), [Architecture](architecture/), [Architecture Decisions](decisions/), [Release Records](releases/), [User Traceability](user_model/traceability.md)
 
 ---
 
@@ -16,7 +16,31 @@ This document is the phase-level route for TaskWeavn. It answers:
 - what should be built next;
 - which planning documents must be updated when work is completed.
 
-Detailed executable work packages live under [plans/](plans/), [plans/feature/](plans/feature/), and [issues/](issues/). This roadmap stays higher level and should not duplicate every API detail.
+Detailed executable work packages live under [plans/](plans/), [plans/feature/](plans/feature/), [plans/ui/](plans/ui/), and [issues/](issues/). Known gaps and plan routing live in [Gap Registry](gaps/). This roadmap stays higher level and should not duplicate every API detail.
+
+### Planning Model
+
+Roadmap, gap registry, architecture, product docs, plans, ADRs, and releases
+have separate responsibilities:
+
+```text
+Product intent + Architecture facts
+  -> Roadmap priority
+  -> Gap registry
+  -> Plan package
+  -> Implementation
+  -> Release record
+```
+
+- Product docs define user intent and UX expectations.
+- Architecture docs define current system facts and technical boundaries.
+- Roadmap defines sequencing and priority.
+- Gap registry records capability gaps and whether a plan exists.
+- Plans are executable work packages for selected gaps.
+- Releases record what actually shipped.
+
+Do not create a plan for every unplanned gap. Keep a gap unplanned until it is
+selected for execution or needs detailed technical design.
 
 ---
 
@@ -262,16 +286,20 @@ These remain valuable, but they should not be the next immediate build target be
 
 Recommended order for upcoming implementation sessions:
 
-1. **Plato frontend engineering reset** — clean `frontend/` scaffold, design tokens, primitives, and Figma-state stories from [Frontend Technical Design](product/plato-frontend-technical-design.md).
-2. **UI API Contract** — define `plato-ui-api-contract.md` around snapshot/query/command/event shapes before real backend integration.
-3. **Pipeline completion-time orchestration and agent assignment** — API publish server transport is now available as a framework-neutral adapter; next backend blocker is completing `task_after` and assignment semantics.
-4. **Pipeline task loading completion** — completion-time `task_after`, pipeline config persistence, and agent assignment semantics.
-5. **Result packaging and card presentation** — richer result display for information-style answers.
-6. **Persistent authoring stores** — make RawTask/DraftTaskTree authoring durable beyond in-memory tests.
-7. **TaskBus multi-agent execution hardening** — execution semantics after publish model stabilizes.
-8. **Centralized runtime configuration** — shared control plane for logging/autonomy/audit/LLM/Task/UI behavior once the Task-facing server model is concrete enough to avoid overfitting.
+1. **UI/backend contract baseline** — split and harden snapshot/query/command/event/error contracts from [Plato UI API Contract](product/plato-ui-api-contract.md).
+2. **Local sidecar API shell** — expose the minimum local backend shell needed by Plato UI.
+3. **Main Page real backend integration** — connect the frontend baseline to real session/task/message projections.
+4. **Pipeline completion-time orchestration and agent assignment** — API publish server transport is available as a framework-neutral adapter; next backend blocker is completing `task_after` and assignment semantics.
+5. **TaskBus execution lifecycle** — claim, execute, complete, fail, retry/recovery semantics.
+6. **Message and confirmation UI integration** — make HITL confirmations real through UI commands/events.
+7. **File Change Summary and Audit / Trust implementation** — turn trust facts into user-readable surfaces.
+8. **Result packaging and card presentation** — richer result display for information-style answers.
+9. **Persistent authoring stores** — make RawTask/DraftTaskTree authoring durable beyond in-memory tests.
+10. **Centralized runtime configuration** — shared control plane for logging/autonomy/audit/LLM/Task/UI behavior once the Task-facing server model is concrete enough to avoid overfitting.
 
-LLM Provider reliability, configurable logging, Task domain/UI separation, Collaborator authoring, and TaskPublisher are complete enough for the next round. The immediate product blocker is now the Plato frontend engineering reset plus UI API Contract; server transport and pipeline completion remain the next backend blockers.
+LLM Provider reliability, configurable logging, Task domain/UI separation, Collaborator authoring, TaskPublisher, publish persistence, API publish transport, and the frontend baseline are complete enough for the next round. The immediate product blocker is now contract/sidecar/Main Page real-backend integration.
+
+For status and routing of each gap, see [Gap Registry](gaps/).
 
 ---
 
@@ -280,9 +308,10 @@ LLM Provider reliability, configurable logging, Task domain/UI separation, Colla
 When a plan is completed:
 
 1. Update the original plan file status, implementation references, actual result, tests, and follow-ups.
-2. Update [Project Plan](project/roadmap.md) if the completed work changes the phase status or next priority.
-3. Update this roadmap if the completion changes phase direction or milestone sequencing.
-4. Add or update an ADR under [decisions/](decisions/) if an architectural decision was made or reversed.
-5. Add or update a release record under [releases/](releases/) if a phase, milestone, or important feature slice completed.
+2. Update [Gap Registry](gaps/) if a gap status, plan route, or priority changed.
+3. Update [Project Plan](project/roadmap.md) if the completed work changes the phase status or next priority.
+4. Update this roadmap if the completion changes phase direction or milestone sequencing.
+5. Add or update an ADR under [decisions/](decisions/) if an architectural decision was made or reversed.
+6. Add or update a release record under [releases/](releases/) if a phase, milestone, or important feature slice completed.
 
 This rule keeps the planning session useful as a global overview rather than a pile of stale plans.

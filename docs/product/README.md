@@ -8,6 +8,11 @@ They are intentionally separate from architecture docs:
 - Architecture docs explain how the system is built.
 - Product docs explain what users believe they are using, what objects they can
   act on, and which interaction principles must stay stable across UI changes.
+- Roadmap and [Gap Registry](../gaps/) decide sequencing and plan routing.
+- Plans under [../plans/](../plans/) describe how selected work is executed.
+
+Product docs are active product intent sources. They are not archives, but they
+also do not replace architecture facts or project scheduling.
 
 | File | Purpose |
 |---|---|

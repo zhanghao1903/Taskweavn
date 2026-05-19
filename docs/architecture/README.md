@@ -1,68 +1,67 @@
 # Architecture Docs
 
-Architecture docs describe stable concepts, object lifecycles, system contracts, and long-term design direction.
+> Status: active architecture fact baseline
+> Last Updated: 2026-05-19
 
-## Core Principles
+Architecture docs describe active system facts: object boundaries, lifecycles,
+protocols, storage ownership, agent/task responsibilities, and long-term
+technical constraints.
 
-1. **User needs drive architecture/plan/feature decisions.**
-2. **Architecture design drives plans and feature packages.**
-3. **Plans drive implementation.**
+These documents are not historical reference material. They are required inputs
+for technical design and implementation planning.
 
-These principles enforce one end-to-end attribution chain with two valid paths:
+---
 
-- `User Need -> Architecture -> Plan/Feature -> Implementation (code/tests/releases)`
-- `User Need -> Plan/Feature -> Implementation (when architecture boundary is unchanged)`
+## 1. Must Read Before Technical Design
 
-Every important decision should be traceable back to concrete user problems, not assumption-led design.
+For any non-trivial feature plan or code implementation, read:
 
-## Core References
+1. [reference.md](reference.md) — current implementation-oriented architecture reference.
+2. [overview.md](overview.md) — Task-first multi-agent architecture overview.
+3. [task.md](task.md) — Task domain model and lifecycle.
+4. [authoring-domain.md](authoring-domain.md) — RawTask, feasibility, DraftTaskTree, and publish boundary.
+5. [task-domain-ui-model-separation.md](task-domain-ui-model-separation.md) — backend facts, UI ViewModels, local UI state, replayable interactions.
+6. [ui-backend-communication.md](ui-backend-communication.md) — Query / Command / Event boundary and HTTP/SSE direction.
+7. [tool-capability-layer.md](tool-capability-layer.md) — tool pool, capability catalog, and capability-first planning boundary.
+8. [workspace-communication-protocol.md](workspace-communication-protocol.md) — system/workspace communication protocol and tool adapter direction.
 
-| File | Purpose |
-|---|---|
-| [reference.md](reference.md) | Current implementation-oriented architecture reference. |
-| [overview.md](overview.md) | Task-first multi-agent architecture overview. |
-| [authoring-domain.md](authoring-domain.md) | Authoring Domain boundary: RawTask, feasibility, draft Task Tree, and the bridge into Execution TaskBus. |
-| [authoring-command-protocol.md](authoring-command-protocol.md) | Strongly typed Authoring Command Protocol for RawTask/DraftTaskTree system-state mutation. |
-| [task.md](task.md) | Task domain model and lifecycle. |
-| [tool-capability-layer.md](tool-capability-layer.md) | Tool pool, capability catalog, and capability-first planning boundary. |
-| [workspace-communication-protocol.md](workspace-communication-protocol.md) | Higher-level system/workspace communication protocol; Tools become adapters over workspace operations. |
-| [task-domain-ui-model-separation.md](task-domain-ui-model-separation.md) | Boundary between backend Task domain facts, UI ViewModels, local UI state, and replayable Task interactions. |
-| [ui-backend-communication.md](ui-backend-communication.md) | UI/backend communication contract: Query, Command, Event, HTTP/SSE direction, consistency, and lifecycle. |
-| [collaborator-agent-task-authoring.md](collaborator-agent-task-authoring.md) | System Collaborator Agent, Task authoring service, draft tree generation/refinement, validation, and publish boundary. |
-| [bus.md](bus.md) | TaskBus v1 design. |
-| [bus-v2.md](bus-v2.md) | TaskBus evolution notes. |
-| [agent.md](agent.md) | Agent template/instance model. |
-| [session.md](session.md) | Session architecture. |
-| [interaction-layer.md](interaction-layer.md) | Implemented Phase 3 interaction substrate. Historical technical baseline, not the current product UI plan. |
-| [llm-provider-reliability.md](llm-provider-reliability.md) | LLM provider abstraction, retry, DeepSeek thinking, and OpenRouter routing technical design. |
-| [configurable-logging-system.md](configurable-logging-system.md) | Configurable structured logging, hot update, archive, and compatibility design. |
-| [multi-agent-collaboration.md](multi-agent-collaboration.md) | Multi-agent collaboration architecture. |
-| [multi-agent-collaboration_en.md](multi-agent-collaboration_en.md) | English version of the collaboration architecture. |
-| [user/README.md](../user_model/README.md) | User modeling system: user needs/scenarios, do-or-not decisions, current vs future solution shape, and architecture mapping. |
-| [review.md](review.md) | Architecture review and plan inputs. |
+Feature-specific work should then read the relevant area documents below.
 
-## UI And Interaction Canonical Paths
+---
 
-UI and interaction documents are now split by responsibility:
+## 2. Architecture Fact Areas
 
-| Layer | Canonical docs | Status |
+| Area | Canonical Docs | Notes |
 |---|---|---|
-| Product UX | [Plato MVP PRD](../product/plato-mvp-prd.md), [Main Page UX Flow](../product/plato-main-page-ux-flow.md), [Figma UI Baseline](../product/plato-figma-ui-baseline.md) | Active |
-| Frontend implementation | [Plato Frontend Technical Design](../product/plato-frontend-technical-design.md) | Active |
-| UI/backend protocol | [UI And Backend Communication](ui-backend-communication.md), [Task Domain/UI Model Separation](task-domain-ui-model-separation.md) | Active architecture |
-| Interaction substrate | [Interaction Layer](interaction-layer.md) | Implemented historical baseline |
-| Early UI plans | [Task-first UI plan](../plans/task-first-ui-interaction.md), [UI plan directory](../plans/ui/) | Superseded by the Plato product/Figma/frontend design line unless a file is explicitly referenced by a new plan |
+| Core agent loop and implemented substrate | [reference.md](reference.md), [interaction-layer.md](interaction-layer.md) | Action/Observation, EventStream, MessageStream, autonomy gate, wait coordination, loop integration. |
+| Task domain and TaskBus | [task.md](task.md), [bus.md](bus.md), [bus-v2.md](bus-v2.md) | Task lifecycle, TaskBus authority, publish/dispatch direction. |
+| Authoring domain | [authoring-domain.md](authoring-domain.md), [authoring-command-protocol.md](authoring-command-protocol.md), [collaborator-agent-task-authoring.md](collaborator-agent-task-authoring.md) | RawTask, feasibility, DraftTaskTree, Collaborator, Authoring Commands, publish boundary. |
+| UI/backend boundary | [ui-backend-communication.md](ui-backend-communication.md), [task-domain-ui-model-separation.md](task-domain-ui-model-separation.md) | ViewModel projection, Query/Command/Event, frontend/backend contract direction. |
+| Tool and workspace capability | [tool-capability-layer.md](tool-capability-layer.md), [workspace-communication-protocol.md](workspace-communication-protocol.md) | CapabilityCatalog, tool pools, system-state mutation, workspace operations. |
+| Agent model | [agent.md](agent.md), [multi-agent-collaboration.md](multi-agent-collaboration.md), [multi-agent-collaboration_en.md](multi-agent-collaboration_en.md) | Agent templates, instances, future multi-agent collaboration direction. |
+| Sessions | [session.md](session.md) | Session boundary, status, persistence, workspace relationship. |
+| LLM providers | [llm-provider-reliability.md](llm-provider-reliability.md) | Provider abstraction, retry, DeepSeek thinking, OpenRouter routing. |
+| Logging and observability | [configurable-logging-system.md](configurable-logging-system.md) | Structured logging, session archives, hot update, diagnostics substrate. |
+| Architecture review | [review.md](review.md) | Review notes and plan inputs. |
 
-The current UI source of truth is:
+---
 
-```text
-Figma UI baseline 1.0
-  -> product UX docs
-  -> frontend technical design
-  -> UI/backend protocol
-  -> implementation slices
-```
+## 3. Relationship To Other Docs
 
-## Rule of Thumb
+| Doc Type | Relationship |
+|---|---|
+| [Product docs](../product/) | Define user intent and UX expectations. Architecture turns that into system boundaries. |
+| [Gap registry](../gaps/) | Lists missing capabilities and points to the architecture docs that constrain them. |
+| [Plans](../plans/) | Explain how a selected gap will be implemented. Plans must cite relevant architecture docs. |
+| [ADRs](../decisions/) | Record durable decisions when architecture changes or tradeoffs are expensive to reverse. |
+| [Releases](../releases/) | Record what actually shipped and what architecture facts are now implemented. |
 
-Put a document here when it defines a long-lived system boundary or mental model. Put implementation work packages under [../plans/](../plans/).
+---
+
+## 4. Rules
+
+1. Do not start detailed technical design without reading the relevant active architecture docs.
+2. If a plan needs a system boundary that architecture does not describe, update architecture first or create an ADR.
+3. If implementation disproves an architecture assumption, update the architecture doc and release record.
+4. Do not move active architecture facts to archive merely to tidy the tree.
+5. Archive only generated exports, superseded experiments, or historical material that no longer defines current system facts.

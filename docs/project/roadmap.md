@@ -4,7 +4,7 @@
 > Last Updated: 2026-05-17
 > Maintained By: planning session
 > Phase Baseline: implementation completed through Phase 3.8 plus Phase 3C Task Domain and Collaborator Authoring server-core packages
-> Related: [Global Roadmap](../roadmap.md), [Planning Workflow](../planning_workflow.md), [Phase 3 Release Record](../releases/phase-3-interaction-layer-through-3-8.md), [Collaborator Authoring Release](../releases/collaborator-agent-task-authoring.md), [User Traceability](../user_model/traceability.md)
+> Related: [Global Roadmap](../roadmap.md), [Gap Registry](../gaps/), [Planning Workflow](../planning_workflow.md), [Architecture](../architecture/), [Phase 3 Release Record](../releases/phase-3-interaction-layer-through-3-8.md), [Collaborator Authoring Release](../releases/collaborator-agent-task-authoring.md), [User Traceability](../user_model/traceability.md)
 
 ---
 
@@ -28,6 +28,20 @@ The immediate authoring work is grounded in:
 - [UN-101](../user_model/needs/UN-101-photo-curation-batch-screening.md): batch task trees with human review checkpoints.
 - [UN-102](../user_model/needs/UN-102-courseware-html-generation.md): editable content-generation task trees.
 - [UN-103](../user_model/needs/UN-103-car-purchase-decision-support.md): clarification/evaluation before high-risk information work.
+
+Planning now uses a lightweight routing model:
+
+```text
+Architecture facts
+  -> Gap Registry
+  -> Plan package
+  -> Implementation
+  -> Release record
+```
+
+Do not convert every unplanned gap into a plan. Create a plan only when the gap
+is selected for current or near-term execution, or when detailed technical
+design is needed before implementation.
 
 ---
 
@@ -198,15 +212,19 @@ Focus:
 
 Recommended implementation order:
 
-1. Plato frontend engineering reset from Figma UI baseline 1.0.
-2. UI API Contract and frontend/backend snapshot/event boundary.
-3. Pipeline task loading completion-time orchestration and agent assignment.
-4. Publish audit query/debug API and concrete HTTP framework binding, if needed by UI/API integration.
-5. Result Packaging Agent and card-based result presentation.
-6. Persistent authoring stores and server transport.
-7. Centralized runtime configuration system.
+1. UI/backend contract baseline and frontend/backend snapshot/event boundary.
+2. Local sidecar API shell for Plato UI.
+3. Main Page real backend integration from the frontend baseline.
+4. Pipeline task loading completion-time orchestration and agent assignment.
+5. TaskBus execution lifecycle.
+6. Publish audit query/debug API and concrete HTTP framework binding, if needed by UI/API integration.
+7. Result Packaging Agent and card-based result presentation.
+8. Persistent authoring stores.
+9. Centralized runtime configuration system.
 
-LLM Provider reliability, configurable logging, the Task-first data model, and Collaborator authoring now have server-core release candidates. The remaining order moves into publishing, pipeline loading, and UI flows while centralized configuration stays as a control-plane hardening follow-up.
+LLM Provider reliability, configurable logging, the Task-first data model, Collaborator authoring, TaskPublisher, publish persistence, API publish transport, and frontend baseline now have server-core or UI baseline release candidates. The remaining order moves into contract, sidecar, real backend integration, execution lifecycle, and trust surfaces while centralized configuration stays as a control-plane hardening follow-up.
+
+The source of truth for gap status is [Gap Registry](../gaps/).
 
 ---
 
@@ -215,9 +233,10 @@ LLM Provider reliability, configurable logging, the Task-first data model, and C
 When an implementation session finishes a package:
 
 1. Update the package plan under `docs/plans/` or `docs/issues/`.
-2. Update this file if status or priority changed.
-3. Update [Global Roadmap](../roadmap.md) if phase sequencing changed.
-4. Add/update an ADR under [../decisions/](../decisions/) if a decision changed.
+2. Update [Gap Registry](../gaps/) if status, priority, or plan routing changed.
+3. Update this file if status or priority changed.
+4. Update [Global Roadmap](../roadmap.md) if phase sequencing changed.
+5. Add/update an ADR under [../decisions/](../decisions/) if a decision changed.
 5. Add/update a release record under [../releases/](../releases/) if a milestone completed.
 
 This project plan is intentionally operational: it should help pick the next branch and understand why that branch matters.

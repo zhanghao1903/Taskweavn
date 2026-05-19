@@ -2,6 +2,10 @@
 
 This directory records decisions that affect TaskWeavn's architecture, roadmap, or long-term maintenance model.
 
+ADRs are used when a choice is costly to reverse. They should be linked from
+architecture docs, plans, the [Gap Registry](../gaps/), or release records when
+they constrain future work.
+
 ## Format
 
 Use:
