@@ -1,13 +1,13 @@
 # Feature Plan: UI/backend Contract Baseline
 
-> Status: in_progress
+> Status: done
 > Type: 后端主线 / UI contract foundation
 > Last Updated: 2026-05-20
 > Gap: [UI/backend contract baseline](../../gaps/README.md)
 > Architecture: [UI And Backend Communication](../../architecture/ui-backend-communication.md), [Task Domain/UI Model Separation](../../architecture/task-domain-ui-model-separation.md), [Authoring Domain](../../architecture/authoring-domain.md), [Interaction Layer](../../architecture/interaction-layer.md)
 > Product: [Plato UI API Contract](../../product/plato-ui-api-contract.md), [Plato Main Page UX Flow](../../product/plato-main-page-ux-flow.md), [Plato Frontend Technical Design](../../product/plato-frontend-technical-design.md)
 > Technical Design: [中文详细技术方案](ui-backend-contract-baseline-technical-design.zh-CN.md)
-> Release Record: TBD
+> Release Record: [UI/backend Contract Baseline](../../releases/ui-backend-contract-baseline.md)
 
 ---
 
@@ -417,8 +417,9 @@ Current implementation:
 - Slice 4 Command Gateway baseline has started with framework-neutral `DefaultUiCommandGateway` wrappers for session input, generate tree, task input, node update, publish tree, and resolve confirmation.
 - Slice 5 Event Projection baseline has started with pure `UiEvent` constructors for session status, resync, task tree/node changes, message append, confirmation lifecycle, result/file/audit updates, and command completion/failure.
 - Event projection remains framework-neutral: no SSE server, no durable event replay store, and no UI state reads.
+- Slice 6 contract parity is implemented with shared backend-generated JSON fixtures for `QueryResponse[MainPageSnapshot]`, `CommandResponse`, and `UiEvent`; Python tests validate canonical Pydantic output and frontend tests consume the same fixtures through TypeScript types.
 
-The gap is closed for the current roadmap when:
+The gap is closed for the current roadmap:
 
 - backend has stable UI contract models;
 - snapshot/query/command/event/error contracts are covered by tests;

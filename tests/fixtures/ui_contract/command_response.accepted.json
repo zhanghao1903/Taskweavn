@@ -1,0 +1,59 @@
+{
+  "requestId": "request-command-min",
+  "ok": true,
+  "result": {
+    "commandId": "command-1",
+    "status": "accepted",
+    "message": "accepted",
+    "affectedTaskRefs": [
+      {
+        "kind": "draft",
+        "id": "draft-1"
+      }
+    ],
+    "objectRefs": [
+      {
+        "kind": "raw_task",
+        "id": "raw-1"
+      }
+    ],
+    "affectedObjects": [
+      {
+        "ref": {
+          "kind": "draft_tree",
+          "id": "tree-1"
+        },
+        "impact": "changed",
+        "reason": "Draft tree updated."
+      }
+    ],
+    "emittedMessageIds": [
+      "message-1"
+    ],
+    "publishedTaskIds": [],
+    "debugRefs": {
+      "rawTaskId": "raw-1"
+    }
+  },
+  "error": null,
+  "refresh": {
+    "waitForEvents": true,
+    "suggestedQueries": [
+      "session.snapshot",
+      "task.tree"
+    ],
+    "affectedTaskRefs": [
+      {
+        "kind": "draft",
+        "id": "draft-1"
+      }
+    ],
+    "affectedScopes": [
+      {
+        "kind": "task_tree",
+        "taskRef": null,
+        "reason": "Draft tree changed."
+      }
+    ]
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "eventId": "event-1",
+  "sessionId": "session-1",
+  "eventType": "message.appended",
+  "cursor": "cursor-2",
+  "taskNodeIds": [
+    "draft-1"
+  ],
+  "taskRefs": [
+    {
+      "kind": "draft",
+      "id": "draft-1"
+    }
+  ],
+  "messageIds": [
+    "message-1"
+  ],
+  "commandId": null,
+  "payload": {
+    "message_type": "informational",
+    "agent_id": "collaborator"
+  },
+  "createdAt": "2026-05-20T10:31:00Z"
+}

@@ -24,3 +24,4 @@ alongside the release record.
 | [LLM Provider Reliability](llm-provider-reliability.md) | done | Provider abstraction, retry, DeepSeek thinking, and OpenRouter routing. |
 | [Phase 3 Interaction Layer through 3.8](phase-3-interaction-layer-through-3-8.md) | done | Session, risk/autonomy, messages, bus, wait, loop integration, LLM risk, derived session status. |
 | [Task Domain and UI ViewModel Separation](task-domain-ui-model-separation.md) | done | Task domain/draft models, UI ViewModels, projection, command mapping, replay timeline, and UI API alignment. |
+| [UI/backend Contract Baseline](ui-backend-contract-baseline.md) | done | Framework-neutral Plato UI contract package, mapping/query/command/event gateways, frontend type alignment, and shared JSON fixture parity. |
