@@ -212,16 +212,15 @@ Focus:
 
 Recommended implementation order:
 
-1. Local sidecar API shell for Plato UI.
-2. Main Page real backend integration from the frontend baseline.
-3. Pipeline task loading completion-time orchestration and agent assignment.
-4. TaskBus execution lifecycle.
-5. Publish audit query/debug API and concrete HTTP framework binding, if needed by UI/API integration.
-6. Result Packaging Agent and card-based result presentation.
-7. Persistent authoring stores.
-8. Centralized runtime configuration system.
+1. Main Page real backend integration from the frontend baseline and local sidecar shell.
+2. Pipeline task loading completion-time orchestration and agent assignment.
+3. TaskBus execution lifecycle.
+4. Publish audit query/debug API and concrete HTTP framework binding, if needed by UI/API integration.
+5. Result Packaging Agent and card-based result presentation.
+6. Persistent authoring stores.
+7. Centralized runtime configuration system.
 
-LLM Provider reliability, configurable logging, the Task-first data model, Collaborator authoring, TaskPublisher, publish persistence, API publish transport, frontend baseline, and UI/backend contract baseline now have server-core or UI baseline release candidates. The remaining order moves into sidecar, real backend integration, execution lifecycle, and trust surfaces while centralized configuration stays as a control-plane hardening follow-up.
+LLM Provider reliability, configurable logging, the Task-first data model, Collaborator authoring, TaskPublisher, publish persistence, API publish transport, frontend baseline, UI/backend contract baseline, and local sidecar API shell now have server-core or UI baseline release candidates. The remaining order moves into real backend integration, execution lifecycle, and trust surfaces while centralized configuration stays as a control-plane hardening follow-up.
 
 The source of truth for gap status is [Gap Registry](../gaps/).
 
