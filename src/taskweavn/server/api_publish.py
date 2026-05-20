@@ -2,49 +2,15 @@
 
 from __future__ import annotations
 
-from typing import Any, ClassVar, Literal
+from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import ValidationError
 
+from taskweavn.server.transport import ApiErrorBody, HttpApiRequest, HttpApiResponse
 from taskweavn.task.api_publisher import ApiAuthContext, ApiPublishRequest, ApiTaskPublisher
 from taskweavn.task.publisher import PublishPreview, PublishResult
 
 ApiPublishRoute = Literal["preview", "publish"]
-
-
-class _FrozenTransportModel(BaseModel):
-    model_config: ClassVar[ConfigDict] = ConfigDict(
-        extra="forbid",
-        frozen=True,
-        validate_assignment=True,
-    )
-
-
-class HttpApiRequest(_FrozenTransportModel):
-    """Small framework-neutral request shape used by HTTP/RPC adapters."""
-
-    method: str = Field(min_length=1)
-    path: str = Field(min_length=1)
-    headers: dict[str, str] = Field(default_factory=dict)
-    body: dict[str, Any] | None = None
-
-
-class ApiErrorBody(_FrozenTransportModel):
-    """Stable transport error body."""
-
-    code: str = Field(min_length=1)
-    message: str = Field(min_length=1)
-    details: dict[str, Any] = Field(default_factory=dict)
-
-
-class HttpApiResponse(_FrozenTransportModel):
-    """Small framework-neutral response shape used by HTTP/RPC adapters."""
-
-    status_code: int = Field(ge=100, le=599)
-    headers: dict[str, str] = Field(
-        default_factory=lambda: {"content-type": "application/json"}
-    )
-    body: dict[str, Any]
 
 
 class ApiPublishHttpTransport:

@@ -286,17 +286,16 @@ These remain valuable, but they should not be the next immediate build target be
 
 Recommended order for upcoming implementation sessions:
 
-1. **Local sidecar API shell** — expose the minimum local backend shell needed by Plato UI.
-2. **Main Page real backend integration** — connect the frontend baseline to real session/task/message projections.
-3. **Pipeline completion-time orchestration and agent assignment** — API publish server transport is available as a framework-neutral adapter; next backend blocker is completing `task_after` and assignment semantics.
-4. **TaskBus execution lifecycle** — claim, execute, complete, fail, retry/recovery semantics.
-5. **Message and confirmation UI integration** — make HITL confirmations real through UI commands/events.
-6. **File Change Summary and Audit / Trust implementation** — turn trust facts into user-readable surfaces.
-7. **Result packaging and card presentation** — richer result display for information-style answers.
-8. **Persistent authoring stores** — make RawTask/DraftTaskTree authoring durable beyond in-memory tests.
-9. **Centralized runtime configuration** — shared control plane for logging/autonomy/audit/LLM/Task/UI behavior once the Task-facing server model is concrete enough to avoid overfitting.
+1. **Main Page real backend integration** — connect the frontend baseline to real session/task/message projections through the local sidecar shell.
+2. **Pipeline completion-time orchestration and agent assignment** — API publish server transport is available as a framework-neutral adapter; next backend blocker is completing `task_after` and assignment semantics.
+3. **TaskBus execution lifecycle** — claim, execute, complete, fail, retry/recovery semantics.
+4. **Message and confirmation UI integration** — make HITL confirmations real through UI commands/events.
+5. **File Change Summary and Audit / Trust implementation** — turn trust facts into user-readable surfaces.
+6. **Result packaging and card presentation** — richer result display for information-style answers.
+7. **Persistent authoring stores** — make RawTask/DraftTaskTree authoring durable beyond in-memory tests.
+8. **Centralized runtime configuration** — shared control plane for logging/autonomy/audit/LLM/Task/UI behavior once the Task-facing server model is concrete enough to avoid overfitting.
 
-LLM Provider reliability, configurable logging, Task domain/UI separation, Collaborator authoring, TaskPublisher, publish persistence, API publish transport, frontend baseline, and UI/backend contract baseline are complete enough for the next round. The immediate product blocker is now sidecar/Main Page real-backend integration.
+LLM Provider reliability, configurable logging, Task domain/UI separation, Collaborator authoring, TaskPublisher, publish persistence, API publish transport, frontend baseline, UI/backend contract baseline, and local sidecar API shell are complete enough for the next round. The immediate product blocker is now Main Page real-backend integration.
 
 For status and routing of each gap, see [Gap Registry](gaps/).
 
