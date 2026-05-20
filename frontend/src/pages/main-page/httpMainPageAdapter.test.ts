@@ -163,14 +163,18 @@ function acceptedCommandResponse(commandId: string): CommandResponse {
       status: "accepted",
       message: "accepted",
       affectedTaskRefs: [],
+      objectRefs: [],
+      affectedObjects: [],
       emittedMessageIds: [],
       publishedTaskIds: [],
+      debugRefs: {},
     },
     error: null,
     refresh: {
       waitForEvents: true,
       suggestedQueries: [],
       affectedTaskRefs: [],
+      affectedScopes: [],
     },
   };
 }

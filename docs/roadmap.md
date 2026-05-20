@@ -1,7 +1,7 @@
 # TaskWeavn Roadmap
 
 > Status: active
-> Last Updated: 2026-05-17
+> Last Updated: 2026-05-20
 > Maintained By: planning session
 > Related: [Project Plan](project/roadmap.md), [Gap Registry](gaps/), [Planning Workflow](planning_workflow.md), [Architecture](architecture/), [Architecture Decisions](decisions/), [Release Records](releases/), [User Traceability](user_model/traceability.md)
 
@@ -227,7 +227,7 @@ Work packages:
 | Early UI sub-designs | [UI plan directory](plans/ui/) | Superseded unless explicitly referenced by new frontend work |
 | Result Packaging Agent and card-based result presentation | [Result packaging plan](plans/feature/result-packaging-agent-cards.md) | P1 |
 | Clean frontend scaffold and Figma-state stories | [Plato Frontend Technical Design](product/plato-frontend-technical-design.md) | P0 |
-| UI API Contract | Future document: `docs/product/plato-ui-api-contract.md` | P0 |
+| UI/backend contract baseline | [Contract baseline plan](plans/feature/ui-backend-contract-baseline.md), [Plato UI API Contract](product/plato-ui-api-contract.md) | Done |
 | API-backed prototype | Future implementation plan after UI API Contract | P0 |
 
 Exit criteria:
@@ -286,18 +286,17 @@ These remain valuable, but they should not be the next immediate build target be
 
 Recommended order for upcoming implementation sessions:
 
-1. **UI/backend contract baseline** — split and harden snapshot/query/command/event/error contracts from [Plato UI API Contract](product/plato-ui-api-contract.md).
-2. **Local sidecar API shell** — expose the minimum local backend shell needed by Plato UI.
-3. **Main Page real backend integration** — connect the frontend baseline to real session/task/message projections.
-4. **Pipeline completion-time orchestration and agent assignment** — API publish server transport is available as a framework-neutral adapter; next backend blocker is completing `task_after` and assignment semantics.
-5. **TaskBus execution lifecycle** — claim, execute, complete, fail, retry/recovery semantics.
-6. **Message and confirmation UI integration** — make HITL confirmations real through UI commands/events.
-7. **File Change Summary and Audit / Trust implementation** — turn trust facts into user-readable surfaces.
-8. **Result packaging and card presentation** — richer result display for information-style answers.
-9. **Persistent authoring stores** — make RawTask/DraftTaskTree authoring durable beyond in-memory tests.
-10. **Centralized runtime configuration** — shared control plane for logging/autonomy/audit/LLM/Task/UI behavior once the Task-facing server model is concrete enough to avoid overfitting.
+1. **Local sidecar API shell** — expose the minimum local backend shell needed by Plato UI.
+2. **Main Page real backend integration** — connect the frontend baseline to real session/task/message projections.
+3. **Pipeline completion-time orchestration and agent assignment** — API publish server transport is available as a framework-neutral adapter; next backend blocker is completing `task_after` and assignment semantics.
+4. **TaskBus execution lifecycle** — claim, execute, complete, fail, retry/recovery semantics.
+5. **Message and confirmation UI integration** — make HITL confirmations real through UI commands/events.
+6. **File Change Summary and Audit / Trust implementation** — turn trust facts into user-readable surfaces.
+7. **Result packaging and card presentation** — richer result display for information-style answers.
+8. **Persistent authoring stores** — make RawTask/DraftTaskTree authoring durable beyond in-memory tests.
+9. **Centralized runtime configuration** — shared control plane for logging/autonomy/audit/LLM/Task/UI behavior once the Task-facing server model is concrete enough to avoid overfitting.
 
-LLM Provider reliability, configurable logging, Task domain/UI separation, Collaborator authoring, TaskPublisher, publish persistence, API publish transport, and the frontend baseline are complete enough for the next round. The immediate product blocker is now contract/sidecar/Main Page real-backend integration.
+LLM Provider reliability, configurable logging, Task domain/UI separation, Collaborator authoring, TaskPublisher, publish persistence, API publish transport, frontend baseline, and UI/backend contract baseline are complete enough for the next round. The immediate product blocker is now sidecar/Main Page real-backend integration.
 
 For status and routing of each gap, see [Gap Registry](gaps/).
 

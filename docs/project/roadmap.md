@@ -1,7 +1,7 @@
 # TaskWeavn Project Plan
 
 > Status: active
-> Last Updated: 2026-05-17
+> Last Updated: 2026-05-20
 > Maintained By: planning session
 > Phase Baseline: implementation completed through Phase 3.8 plus Phase 3C Task Domain and Collaborator Authoring server-core packages
 > Related: [Global Roadmap](../roadmap.md), [Gap Registry](../gaps/), [Planning Workflow](../planning_workflow.md), [Architecture](../architecture/), [Phase 3 Release Record](../releases/phase-3-interaction-layer-through-3-8.md), [Collaborator Authoring Release](../releases/collaborator-agent-task-authoring.md), [User Traceability](../user_model/traceability.md)
@@ -212,17 +212,16 @@ Focus:
 
 Recommended implementation order:
 
-1. UI/backend contract baseline and frontend/backend snapshot/event boundary.
-2. Local sidecar API shell for Plato UI.
-3. Main Page real backend integration from the frontend baseline.
-4. Pipeline task loading completion-time orchestration and agent assignment.
-5. TaskBus execution lifecycle.
-6. Publish audit query/debug API and concrete HTTP framework binding, if needed by UI/API integration.
-7. Result Packaging Agent and card-based result presentation.
-8. Persistent authoring stores.
-9. Centralized runtime configuration system.
+1. Local sidecar API shell for Plato UI.
+2. Main Page real backend integration from the frontend baseline.
+3. Pipeline task loading completion-time orchestration and agent assignment.
+4. TaskBus execution lifecycle.
+5. Publish audit query/debug API and concrete HTTP framework binding, if needed by UI/API integration.
+6. Result Packaging Agent and card-based result presentation.
+7. Persistent authoring stores.
+8. Centralized runtime configuration system.
 
-LLM Provider reliability, configurable logging, the Task-first data model, Collaborator authoring, TaskPublisher, publish persistence, API publish transport, and frontend baseline now have server-core or UI baseline release candidates. The remaining order moves into contract, sidecar, real backend integration, execution lifecycle, and trust surfaces while centralized configuration stays as a control-plane hardening follow-up.
+LLM Provider reliability, configurable logging, the Task-first data model, Collaborator authoring, TaskPublisher, publish persistence, API publish transport, frontend baseline, and UI/backend contract baseline now have server-core or UI baseline release candidates. The remaining order moves into sidecar, real backend integration, execution lifecycle, and trust surfaces while centralized configuration stays as a control-plane hardening follow-up.
 
 The source of truth for gap status is [Gap Registry](../gaps/).
 

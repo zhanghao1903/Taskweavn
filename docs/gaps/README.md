@@ -1,7 +1,7 @@
 # Gap Registry
 
 > Status: active
-> Last Updated: 2026-05-19
+> Last Updated: 2026-05-20
 > Scope: current capability gaps, routing, and planning readiness
 > Related: [Roadmap](../roadmap.md), [Project Plan](../project/roadmap.md), [Architecture](../architecture/), [Plans](../plans/)
 
@@ -42,7 +42,7 @@ unnecessary coordination load.
 
 | Gap | Area | Priority | Status | Architecture Facts | Plan / Source | Notes |
 |---|---|---:|---|---|---|---|
-| UI/backend contract baseline | UI / backend | P0 | unplanned | [ui-backend-communication](../architecture/ui-backend-communication.md), [task-domain-ui-model-separation](../architecture/task-domain-ui-model-separation.md) | [product contract draft](../product/plato-ui-api-contract.md) | Next recommended planning item. |
+| UI/backend contract baseline | UI / backend | P0 | done | [ui-backend-communication](../architecture/ui-backend-communication.md), [task-domain-ui-model-separation](../architecture/task-domain-ui-model-separation.md) | [contract baseline plan](../plans/feature/ui-backend-contract-baseline.md), [technical design](../plans/feature/ui-backend-contract-baseline-technical-design.zh-CN.md), [release](../releases/ui-backend-contract-baseline.md), [product contract draft](../product/plato-ui-api-contract.md) | Contract models, mapping adapters, Query Gateway baseline, Command Gateway baseline, Event Projection constructors, and shared frontend/backend JSON fixture parity are in place. Sidecar transport and durable SSE replay remain separate gaps. |
 | Local sidecar API shell | Server / UI | P0 | unplanned | [ui-backend-communication](../architecture/ui-backend-communication.md), [llm-provider-reliability](../architecture/llm-provider-reliability.md) | TBD | Depends on contract baseline. |
 | Main Page real backend integration | UI / backend | P0 | unplanned | [ui-backend-communication](../architecture/ui-backend-communication.md), [task-domain-ui-model-separation](../architecture/task-domain-ui-model-separation.md), [authoring-domain](../architecture/authoring-domain.md) | [Main Page UX](../product/plato-main-page-ux-flow.md), [Frontend design](../product/plato-frontend-technical-design.md) | Connect frontend baseline to real backend facts. |
 | TaskBus execution lifecycle | Task / agents | P0 | unplanned | [task](../architecture/task.md), [bus-v2](../architecture/bus-v2.md), [agent](../architecture/agent.md) | TBD | Publish path exists; claim / execute / complete / fail remains. |

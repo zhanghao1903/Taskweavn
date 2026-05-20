@@ -175,8 +175,11 @@ export async function resolveConfirmationMockCommand(
           id: confirmationId.replace("confirmation-", "task-"),
         },
       ],
+      objectRefs: [],
+      affectedObjects: [],
       emittedMessageIds: [`message-${request.commandId}`],
       publishedTaskIds: [],
+      debugRefs: {},
     },
     error: null,
     refresh: {
@@ -186,6 +189,7 @@ export async function resolveConfirmationMockCommand(
         `GET /api/v1/sessions/${sessionId}/task-tree`,
       ],
       affectedTaskRefs: [],
+      affectedScopes: [],
     },
   };
 }
@@ -264,8 +268,11 @@ function acceptedCommandResponse({
             },
           ]
         : [],
+      objectRefs: [],
+      affectedObjects: [],
       emittedMessageIds: [`message-${commandId}`],
       publishedTaskIds: [],
+      debugRefs: {},
     },
     error: null,
     refresh: {
@@ -279,6 +286,7 @@ function acceptedCommandResponse({
             },
           ]
         : [],
+      affectedScopes: [],
     },
   };
 }
