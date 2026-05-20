@@ -212,7 +212,7 @@ Focus:
 
 Recommended implementation order:
 
-1. UI/backend contract baseline and frontend/backend snapshot/event boundary.
+1. [UI/backend contract baseline](../plans/feature/ui-backend-contract-baseline.md) and frontend/backend snapshot/event boundary.
 2. Local sidecar API shell for Plato UI.
 3. Main Page real backend integration from the frontend baseline.
 4. Pipeline task loading completion-time orchestration and agent assignment.

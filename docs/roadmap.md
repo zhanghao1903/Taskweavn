@@ -227,7 +227,7 @@ Work packages:
 | Early UI sub-designs | [UI plan directory](plans/ui/) | Superseded unless explicitly referenced by new frontend work |
 | Result Packaging Agent and card-based result presentation | [Result packaging plan](plans/feature/result-packaging-agent-cards.md) | P1 |
 | Clean frontend scaffold and Figma-state stories | [Plato Frontend Technical Design](product/plato-frontend-technical-design.md) | P0 |
-| UI API Contract | Future document: `docs/product/plato-ui-api-contract.md` | P0 |
+| UI/backend contract baseline | [Contract baseline plan](plans/feature/ui-backend-contract-baseline.md), [Plato UI API Contract](product/plato-ui-api-contract.md) | P0 |
 | API-backed prototype | Future implementation plan after UI API Contract | P0 |
 
 Exit criteria:
@@ -286,7 +286,7 @@ These remain valuable, but they should not be the next immediate build target be
 
 Recommended order for upcoming implementation sessions:
 
-1. **UI/backend contract baseline** — split and harden snapshot/query/command/event/error contracts from [Plato UI API Contract](product/plato-ui-api-contract.md).
+1. **[UI/backend contract baseline](plans/feature/ui-backend-contract-baseline.md)** — split and harden snapshot/query/command/event/error contracts from [Plato UI API Contract](product/plato-ui-api-contract.md).
 2. **Local sidecar API shell** — expose the minimum local backend shell needed by Plato UI.
 3. **Main Page real backend integration** — connect the frontend baseline to real session/task/message projections.
 4. **Pipeline completion-time orchestration and agent assignment** — API publish server transport is available as a framework-neutral adapter; next backend blocker is completing `task_after` and assignment semantics.

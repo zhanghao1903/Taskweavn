@@ -1,7 +1,7 @@
 # UI And Backend Communication
 
 > Status: active architecture boundary
-> Last Updated: 2026-05-17
+> Last Updated: 2026-05-20
 > Related: [Plato Frontend Technical Design](../product/plato-frontend-technical-design.md), [Figma UI Baseline](../product/plato-figma-ui-baseline.md), [UI API Interfaces](../plans/ui/ui-api-interfaces.md), [Task Domain/UI Model Separation](task-domain-ui-model-separation.md), [Authoring Domain](authoring-domain.md), [TaskBus](bus.md)
 
 ---
@@ -280,14 +280,46 @@ class CommandRequest(BaseModel):
 统一返回现有 `CommandResult` 语义：
 
 ```python
+class ObjectRef(BaseModel):
+    kind: Literal[
+        "raw_task",
+        "raw_task_ask",
+        "draft_task",
+        "draft_tree",
+        "draft_subtree",
+        "published_task",
+        "message",
+        "command",
+    ]
+    id: str
+
+class AffectedObjectRef(BaseModel):
+    ref: ObjectRef
+    impact: Literal[
+        "changed",
+        "created",
+        "deleted",
+        "may_need_update",
+        "needs_review",
+        "invalidated",
+        "replaced",
+        "superseded",
+    ]
+    reason: str | None = None
+
 class CommandResult(BaseModel):
     command_id: str
     status: Literal["accepted", "rejected"]
     message: str
     affected_task_refs: tuple[TaskRef, ...]
+    object_refs: tuple[ObjectRef, ...]
+    affected_objects: tuple[AffectedObjectRef, ...]
     emitted_message_ids: tuple[str, ...]
     published_task_ids: tuple[str, ...]
+    debug_refs: dict[str, str]
 ```
+
+`affected_task_refs` 只表达真实 draft/published Task。RawTask、RawTaskAsk、draft tree、draft subtree 等 authoring-only/system objects 通过 `ObjectRef` / `AffectedObjectRef` 表达，避免把 RawTask 伪装成 Task，也避免自由 metadata 变成隐式协议。
 
 扩展建议：
 
@@ -301,18 +333,33 @@ class CommandResponse(BaseModel):
 `RefreshHint` 告诉 UI accepted 后应该等事件还是主动重查：
 
 ```python
+class AffectedScope(BaseModel):
+    kind: Literal[
+        "session",
+        "task_tree",
+        "task_subtree",
+        "task_detail",
+        "messages",
+        "confirmations",
+    ]
+    task_ref: TaskRef | None = None
+    reason: str | None = None
+
 class RefreshHint(BaseModel):
     wait_for_events: bool = True
     suggested_queries: tuple[str, ...] = ()
-    affected_refs: tuple[TaskRef, ...] = ()
+    affected_task_refs: tuple[TaskRef, ...] = ()
+    affected_scopes: tuple[AffectedScope, ...] = ()
 ```
+
+`affected_scopes` 是 UI invalidation 的粗粒度边界。父节点语义变化导致子树重建时，command response 应返回 `AffectedScope(kind="task_subtree", task_ref=parent_ref)`，UI 重查 subtree/detail，而不是依赖局部 optimistic patch。
 
 ### 5.2 Required Commands
 
 | API 语义 | 作用 | 后端边界 |
 |---|---|---|
 | `appendSessionMessage` | 全局自然语言输入 | `CollaboratorApiAdapter.append_session_message` |
-| `generateTaskTree` | 生成 draft Task Tree | `CollaboratorApiAdapter.generate_task_tree` |
+| `generateTaskTree` | 从 ready RawTask 或特定工作流生成 draft Task Tree | `CollaboratorApiAdapter.generate_task_tree` |
 | `appendTaskMessage` | 选中 Task 后补充信息 | draft: Collaborator authoring; published: TaskCommandService |
 | `updateTaskNode` | 修改 draft/pending Task | TaskCommandService / AuthoringCommandService |
 | `answerRawTaskAsk` | 回答可行性/澄清问题 | CollaboratorApiAdapter |
@@ -328,6 +375,8 @@ class RefreshHint(BaseModel):
 - 会产生写入的命令应支持 `idempotency_key`。
 - 修改已有对象的命令应支持 `expected_version`。
 - rejected 命令也应该产生可调试的错误信息，但不一定进入用户消息流。
+- `updateTaskNode` 需要保留 `update_mode` 语义：`node_fields` 只改当前节点，`replace_children` / `replace_subtree` 允许后端重建受影响的子节点并通过 `AffectedScope` 通知 UI 重查。
+- Main Page 自然语言主入口走 `appendSessionMessage` / `appendSessionInput(mode="generate_task_tree")`，不直接调用 `generateTaskTree(prompt)`；独立 generate endpoint 保留给未来特定工作流、高级入口或 ready RawTask continue。
 - accepted 命令如果创建消息、确认、Task，应返回相关 id，方便 UI 关联 loading 状态。
 - 命令处理不应要求 UI 了解内部 store 顺序。
 
@@ -350,11 +399,13 @@ SSE event frame：
 
 ```text
 id: <cursor>
-event: task.card.changed
+event: task.node.changed
 data: {"session_id":"...","task_ref":{...},"reason":"status_changed"}
 ```
 
 SSE 断线后，UI 使用最后一个 event id 作为 cursor 重连。
+
+第一版 UI/backend contract 不要求 durable event store。后端如果无法 replay cursor 之后的事件，必须返回/发送 `session.resync_required`，让 UI 重新查询 snapshot。durable replay、retention、cursor 过期策略放入 sidecar/SSE plan。
 
 ### 6.2 Event Envelope
 
@@ -383,15 +434,16 @@ class UiEvent(BaseModel):
 
 | Event Type | 触发 | UI 建议动作 |
 |---|---|---|
-| `session.overview.changed` | session 状态、未处理确认数、root 摘要变化 | 刷新 SessionOverview |
+| `session.status_changed` | session 派生状态变化 | 刷新 SessionOverview / Session header |
+| `session.resync_required` | cursor 过期或无法 replay | 重新查询 `MainPageSnapshot` |
 | `task.tree.changed` | Task 拓扑变化、新增/删除/发布 | 刷新 TaskTreeView |
-| `task.card.changed` | 单个 Task 状态、badge、权限变化 | 刷新 TaskCardView |
-| `task.detail.changed` | intent、约束、summary、文件变化 | 刷新 TaskDetailView |
+| `task.node.changed` | 单个 Task 状态、badge、权限、intent 或约束变化 | 刷新 TaskNodeCard / Task detail |
 | `message.appended` | Session Message Stream 新消息 | 追加或重查 messages |
 | `confirmation.created` | 新确认动作 | 显示确认 UI，更新 pending count |
 | `confirmation.resolved` | 确认完成 | 刷新对应消息和 Task card |
 | `file_changes.updated` | 文件变更摘要更新 | 刷新 Task 文件区域 |
-| `task.summary.updated` | 结果摘要更新 | 刷新 TaskSummaryView |
+| `result.updated` | 结果卡片或任务结果摘要更新 | 刷新 result cards / Task summary |
+| `audit.summary_updated` | 审计摘要更新 | 刷新 Audit / trust projection |
 | `command.completed` | 长命令完成 | 清理 UI pending state |
 | `command.failed` | 长命令失败 | 显示错误并建议重查 |
 
@@ -648,8 +700,8 @@ Add end-to-end tests around:
 ## 12. Open Questions
 
 1. 第一版 HTTP server 用 FastAPI、Starlette，还是先保持无框架 gateway？
-2. SSE event retention 存在哪里：MessageStream、EventStream，还是独立 UiEventStore？
-3. `CommandResult` 是否需要扩展 `refresh` 字段，还是 transport response 包一层？
+2. sidecar/SSE plan 中再决定 event retention 存在哪里：MessageStream、EventStream，还是独立 UiEventStore？
+3. 第一版是否需要为 `ObjectRef` 增加 stable URI 格式，还是保持 `{kind, id}`？
 4. UI 是否需要 local-first cache；如果需要，cursor/version 设计要更严格。
 5. 多用户/多浏览器同时连接同一个 Session 时，是否需要 user identity 和 presence？
 6. WebSocket 何时升级：多人协作、浏览器端 agent worker，还是高频日志流？

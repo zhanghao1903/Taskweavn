@@ -14,12 +14,54 @@ export type TaskRef = {
   id: string;
 };
 
+export type ObjectRef = {
+  kind:
+    | "raw_task"
+    | "raw_task_ask"
+    | "draft_task"
+    | "draft_tree"
+    | "draft_subtree"
+    | "published_task"
+    | "message"
+    | "command";
+  id: string;
+};
+
+export type AffectedObjectImpact =
+  | "changed"
+  | "created"
+  | "deleted"
+  | "may_need_update"
+  | "needs_review"
+  | "invalidated"
+  | "replaced"
+  | "superseded";
+
+export type AffectedObjectRef = {
+  ref: ObjectRef;
+  impact: AffectedObjectImpact;
+  reason?: string | null;
+};
+
+export type AffectedScope = {
+  kind:
+    | "session"
+    | "task_tree"
+    | "task_subtree"
+    | "task_detail"
+    | "messages"
+    | "confirmations";
+  taskRef?: TaskRef | null;
+  reason?: string | null;
+};
+
 export type ApiError = {
   code:
     | "bad_request"
     | "not_found"
     | "version_conflict"
     | "command_rejected"
+    | "permission_denied"
     | "backend_busy"
     | "resync_required"
     | "internal_error";
@@ -50,14 +92,18 @@ export type CommandResult = {
   status: "accepted" | "rejected";
   message: string;
   affectedTaskRefs: TaskRef[];
+  objectRefs: ObjectRef[];
+  affectedObjects: AffectedObjectRef[];
   emittedMessageIds: MessageId[];
   publishedTaskIds: string[];
+  debugRefs: Record<string, string>;
 };
 
 export type RefreshHint = {
   waitForEvents: boolean;
   suggestedQueries: string[];
   affectedTaskRefs: TaskRef[];
+  affectedScopes: AffectedScope[];
 };
 
 export type CommandResponse = {

@@ -1,8 +1,10 @@
-"""UI projection models for Task-first views.
+"""Server-core projection/read models for Task-first views.
 
-These are not backend Task facts. They are stable server-to-UI shapes projected
+These are not backend Task facts and not transport-facing UI contracts. They
+are stable server-core read models projected
 from TaskDomain, DraftTaskNode, MessageStream, confirmations, files, summaries,
-and permission rules.
+and permission rules. The Plato API layer maps them into
+``taskweavn.server.ui_contract`` models before exposing JSON to the frontend.
 """
 
 from __future__ import annotations

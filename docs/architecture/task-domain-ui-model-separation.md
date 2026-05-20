@@ -86,11 +86,13 @@ Backend facts
 
 Projection layer
   TaskProjectionService
+  taskweavn.task.views
   TaskInteractionTimelineService
   Permission and action resolver
 
-UI view data
-  TaskTreeView / TaskCardView / TaskDetailView / TaskInteractionTimeline
+Transport contract
+  taskweavn.server.ui_contract
+  MainPageSnapshot / CommandResponse / UiEvent
 
 Frontend local state
   selected / expanded / focused / draft input / optimistic patch
@@ -105,6 +107,8 @@ MessageStream owns user-visible message and confirmation history.
 Projection owns UI shape.
 Frontend store owns local visual state.
 ```
+
+Implementation note: `taskweavn.task.views` is the server-core read/projection model layer, not the JSON contract exposed to Plato UI. The transport-facing contract lives under `taskweavn.server.ui_contract`; mapping functions convert from server-core projections to that API contract. This keeps the backend read model free to carry projection-only fields such as permissions, primary actions, progress, latest message, and roll-up markers without forcing those fields into the frontend contract.
 
 ---
 

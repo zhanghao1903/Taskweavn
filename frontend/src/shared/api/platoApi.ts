@@ -34,6 +34,8 @@ export type UpdateTaskNodePayload = {
   summary?: string;
   fullIntent?: string;
   constraints?: string[];
+  updateMode?: "node_fields" | "replace_children" | "replace_subtree";
+  preserveRootId?: boolean;
 };
 
 export type AppendTaskInputPayload = {
