@@ -1,7 +1,7 @@
 # TaskWeavn Roadmap
 
 > Status: active
-> Last Updated: 2026-05-20
+> Last Updated: 2026-05-21
 > Maintained By: planning session
 > Related: [Project Plan](project/roadmap.md), [Gap Registry](gaps/), [Planning Workflow](planning_workflow.md), [Architecture](architecture/), [Architecture Decisions](decisions/), [Release Records](releases/), [User Traceability](user_model/traceability.md)
 
@@ -57,7 +57,7 @@ TaskWeavn has moved past the original "single ReAct agent with tools" shape. The
 | AgentLoop autonomy integration and minimum CLI surface | Done | Phase 3.6. |
 | LLMRiskAssessor and CompositeAssessor | Done | Phase 3.7. |
 | Derived Session.status | Done | Phase 3.8; stored status is a hint except `archived`. |
-| Task-first architecture plans | In progress | Task domain/UI ViewModel separation, Collaborator authoring, and TaskPublisher server-core packages are done; publish-time pipeline expansion is done, while completion-time task_after orchestration remains. |
+| Task-first architecture plans | In progress | Task domain/UI ViewModel separation, Collaborator authoring, and TaskPublisher server-core packages are done; publish-time pipeline expansion is done. Completion-time `task_after` orchestration is moved to Product 1.1. |
 | Reliability and observability plans | Accepted baseline | LLM provider/retry/thinking and configurable logging are done; centralized runtime config remains a follow-up control-plane plan. |
 
 The project is now re-baselined around **Task-first interaction**:
@@ -199,7 +199,7 @@ Work packages:
 | Work | Plan | Priority |
 |---|---|---:|
 | TaskPublisher abstraction for user/collaborator/pipeline/scheduler/API/custom tree | [Task Publisher plan](plans/feature/task-publishers-schedule-api.md), [release](releases/task-publishers-schedule-api.md) | Done, including SQLite TaskBus |
-| Pipeline task auto-loading and agent assignment constraints | [Pipeline loading plan](plans/feature/pipeline-task-loading.md) | Partial: task_before/task_begin publish-time expansion done; task_after and assignment semantics remain P0 |
+| Pipeline task auto-loading and agent assignment constraints | [Pipeline loading plan](plans/feature/pipeline-task-loading.md) | Partial: task_before/task_begin publish-time expansion done; minimal assignment semantics remain P0; completion-time task_after is Product 1.1 / P1 |
 | TaskBus publish/claim state authority hardening | Future implementation plan | P0 |
 
 Exit criteria:
@@ -225,7 +225,7 @@ Work packages:
 | Frontend restart technical design | [Plato Frontend Technical Design](product/plato-frontend-technical-design.md) | Done as implementation design |
 | Early UI interaction overview | [Task-first UI plan](plans/task-first-ui-interaction.md) | Superseded as implementation plan; retained as concept seed |
 | Early UI sub-designs | [UI plan directory](plans/ui/) | Superseded unless explicitly referenced by new frontend work |
-| Result Packaging Agent and card-based result presentation | [Result packaging plan](plans/feature/result-packaging-agent-cards.md) | P1 |
+| Result Packaging Agent and card-based result presentation | [Result packaging plan](plans/feature/result-packaging-agent-cards.md), [Product 1.1 plan](product/plato-1-1-product-plan.md) | Product 1.1 / P1 |
 | Clean frontend scaffold and Figma-state stories | [Plato Frontend Technical Design](product/plato-frontend-technical-design.md) | P0 |
 | UI/backend contract baseline | [Contract baseline plan](plans/feature/ui-backend-contract-baseline.md), [Plato UI API Contract](product/plato-ui-api-contract.md) | Done |
 | API-backed prototype | Future implementation plan after UI API Contract | P0 |
@@ -235,7 +235,6 @@ Exit criteria:
 - User can enter natural language and inspect a generated Task Tree List.
 - Selecting a Task Node switches to task-scoped interaction.
 - Task cards show confirmations, status, messages, and file change summary.
-- Information-style results can be rendered as card sets when the result shape benefits from structure.
 - Session message stream and Task projections stay consistent over the same message source.
 - Frontend components are built from Figma UI baseline 1.0 through stories/fixtures, not from the deprecated experimental frontend.
 
@@ -287,15 +286,14 @@ These remain valuable, but they should not be the next immediate build target be
 Recommended order for upcoming implementation sessions:
 
 1. **[Main Page real backend integration](plans/feature/main-page-real-backend-integration.md)** — finish the UI runtime convergence from fixture-centric Main Page behavior to session snapshot / command response / UiEvent-driven backend facts. The implementation packet is [Main Page Frontend Runtime Integration](plans/feature/main-page-frontend-runtime-integration.md). The local sidecar target, HTTP client, runtime env switch, and named SSE subscription already exist.
-2. **Pipeline completion-time orchestration and agent assignment** — API publish server transport is available as a framework-neutral adapter; next backend blocker is completing `task_after` and assignment semantics.
-3. **TaskBus execution lifecycle** — claim, execute, complete, fail, retry/recovery semantics.
-4. **Message and confirmation UI integration** — make HITL confirmations real through UI commands/events.
-5. **File Change Summary and Audit / Trust implementation** — turn trust facts into user-readable surfaces.
-6. **Result packaging and card presentation** — richer result display for information-style answers.
-7. **Persistent authoring stores** — make RawTask/DraftTaskTree authoring durable beyond in-memory tests.
-8. **Centralized runtime configuration** — shared control plane for logging/autonomy/audit/LLM/Task/UI behavior once the Task-facing server model is concrete enough to avoid overfitting.
+2. **Minimal agent assignment semantics** — enough Task-to-agent/capability routing to support Product 1.0 execution without full multi-agent breadth.
+3. **Message and confirmation UI integration** — make HITL confirmations real through UI commands/events.
+4. **File Change Summary and Audit / Trust implementation** — turn trust facts into user-readable surfaces.
+5. **Persistent authoring stores** — make RawTask/DraftTaskTree authoring durable beyond in-memory tests if 1.0 user testing requires it.
+6. **Product 1.1 research and planning** — completion-time `task_after`, Result Packaging cards, skills integration, MCP integration, and file/multimodal support.
+7. **Centralized runtime configuration** — shared control plane for logging/autonomy/audit/LLM/Task/UI behavior once the Task-facing server model is concrete enough to avoid overfitting.
 
-LLM Provider reliability, configurable logging, Task domain/UI separation, Collaborator authoring, TaskPublisher, publish persistence, API publish transport, frontend baseline, UI/backend contract baseline, local sidecar API shell, and Main Page sidecar assembly are complete enough for the next round. The immediate product blocker is now Main Page frontend runtime convergence against that backend target.
+LLM Provider reliability, configurable logging, Task domain/UI separation, Collaborator authoring, TaskPublisher, TaskBus execution lifecycle, publish persistence, API publish transport, frontend baseline, UI/backend contract baseline, local sidecar API shell, and Main Page sidecar assembly are complete enough for the next round. The immediate product blocker is now Main Page frontend runtime convergence against that backend target.
 
 For status and routing of each gap, see [Gap Registry](gaps/).
 

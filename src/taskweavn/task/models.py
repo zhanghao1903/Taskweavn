@@ -83,6 +83,7 @@ class TaskDomain(_FrozenModel):
     status: TaskStatus = "pending"
     result_ref: str | None = Field(default=None, min_length=1)
     error_ref: str | None = Field(default=None, min_length=1)
+    claimed_by: str | None = Field(default=None, min_length=1)
 
     created_by: str = Field(min_length=1)
     created_at: datetime = Field(default_factory=_utcnow)
