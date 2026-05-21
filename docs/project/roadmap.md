@@ -1,7 +1,7 @@
 # TaskWeavn Project Plan
 
 > Status: active
-> Last Updated: 2026-05-20
+> Last Updated: 2026-05-21
 > Maintained By: planning session
 > Phase Baseline: implementation completed through Phase 3.8 plus Phase 3C Task Domain and Collaborator Authoring server-core packages
 > Related: [Global Roadmap](../roadmap.md), [Gap Registry](../gaps/), [Planning Workflow](../planning_workflow.md), [Architecture](../architecture/), [Phase 3 Release Record](../releases/phase-3-interaction-layer-through-3-8.md), [Collaborator Authoring Release](../releases/collaborator-agent-task-authoring.md), [User Traceability](../user_model/traceability.md)
@@ -140,7 +140,7 @@ Status: TaskPublisher server-core release candidate done; pipeline loading parti
 | Package | Source Plan | Implementation Goal |
 |---|---|---|
 | TaskPublisher abstraction | [Task Publisher plan](../plans/feature/task-publishers-schedule-api.md), [release](../releases/task-publishers-schedule-api.md) | Done: TaskBus-backed publisher, SQLite TaskBus, custom tree parser, idempotent publish service, scheduler/API adapters, publish-time pipeline expansion. |
-| Pipeline task loading | [Pipeline loading plan](../plans/feature/pipeline-task-loading.md) | Partial: task_before/task_begin publish-time expansion done; task_after completion-time orchestration remains. |
+| Pipeline task loading | [Pipeline loading plan](../plans/feature/pipeline-task-loading.md) | Partial: task_before/task_begin publish-time expansion done; task_after completion-time orchestration is moved to Product 1.1. |
 | Agent assignment constraints | [Pipeline loading plan](../plans/feature/pipeline-task-loading.md) | Task can require/prefer an Agent Template while preserving capability validation. |
 
 Acceptance:
@@ -160,7 +160,7 @@ Status: active planning; frontend implementation should restart from Figma UI ba
 | Frontend technical design | [Plato Frontend Technical Design](../product/plato-frontend-technical-design.md) | Technology choice, architecture, state/API boundaries, implementation slices. |
 | Early UI interaction model | [Task-first UI overview](../plans/task-first-ui-interaction.md) | Superseded as implementation plan; retained as concept seed. |
 | Early UI sub-designs | [UI plan directory](../plans/ui/) | Historical planning archive unless explicitly pulled into new frontend work. |
-| Result packaging cards | [Result packaging plan](../plans/feature/result-packaging-agent-cards.md) | Package suitable information-style answers into UI card sets through normal Tasks. |
+| Result packaging cards | [Result packaging plan](../plans/feature/result-packaging-agent-cards.md), [Product 1.1 plan](../product/plato-1-1-product-plan.md) | Product 1.1 capability for richer information-style presentation; not a Product 1.0 blocker. |
 
 Acceptance:
 
@@ -213,14 +213,13 @@ Focus:
 Recommended implementation order:
 
 1. [Main Page real backend integration](../plans/feature/main-page-real-backend-integration.md): finish frontend runtime convergence from fixture-centric behavior to session snapshot / command response / UiEvent-driven backend facts. The implementation packet is [Main Page Frontend Runtime Integration](../plans/feature/main-page-frontend-runtime-integration.md). The local sidecar target, HTTP client, runtime env switch, and named SSE subscription already exist.
-2. Pipeline task loading completion-time orchestration and agent assignment.
-3. TaskBus execution lifecycle.
-4. Publish audit query/debug API and concrete HTTP framework binding, if needed by UI/API integration.
-5. Result Packaging Agent and card-based result presentation.
-6. Persistent authoring stores.
-7. Centralized runtime configuration system.
+2. Minimal agent assignment semantics.
+3. Publish audit query/debug API and concrete HTTP framework binding, if needed by UI/API integration.
+4. Persistent authoring stores, if Product 1.0 user testing requires durable authoring beyond the current server-core boundary.
+5. Product 1.1 planning: completion-time `task_after`, Result Packaging Agent, skills integration, MCP integration, and file/multimodal support.
+6. Centralized runtime configuration system.
 
-LLM Provider reliability, configurable logging, the Task-first data model, Collaborator authoring, TaskPublisher, publish persistence, API publish transport, frontend baseline, UI/backend contract baseline, local sidecar API shell, and Main Page sidecar assembly now have server-core or UI baseline release candidates. The remaining order moves into Main Page frontend runtime convergence, execution lifecycle, and trust surfaces while centralized configuration stays as a control-plane hardening follow-up.
+LLM Provider reliability, configurable logging, the Task-first data model, Collaborator authoring, TaskPublisher, TaskBus execution lifecycle, publish persistence, API publish transport, frontend baseline, UI/backend contract baseline, local sidecar API shell, and Main Page sidecar assembly now have server-core or UI baseline release candidates. The remaining Product 1.0 order moves into Main Page frontend runtime convergence, minimal assignment semantics, confirmations, file changes, and trust surfaces. Completion-time `task_after` and Result Packaging cards are Product 1.1 capabilities, alongside skills integration, MCP integration, and file/multimodal support research.
 
 The source of truth for gap status is [Gap Registry](../gaps/).
 

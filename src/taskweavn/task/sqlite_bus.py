@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sqlite3
+from datetime import UTC, datetime
 from pathlib import Path
 from threading import RLock
 from typing import Any
@@ -36,8 +37,8 @@ CREATE INDEX IF NOT EXISTS idx_tasks_root
 class SqliteTaskBus:
     """SQLite TaskBus materialized view.
 
-    This persists the same publish/read surface as :class:`InMemoryTaskBus`.
-    Claim/complete/fail lifecycle remains future TaskBus work.
+    This persists the same publish/read/lifecycle surface as
+    :class:`InMemoryTaskBus`.
     """
 
     def __init__(self, db_path: str | Path) -> None:
@@ -91,6 +92,107 @@ class SqliteTaskBus:
                 ),
             )
             return task
+
+    def claim_next(
+        self,
+        session_id: str,
+        *,
+        capability: str,
+        agent_id: str,
+    ) -> TaskDomain | None:
+        if not capability.strip():
+            raise TaskStoreError("claim capability must not be empty")
+        if not agent_id.strip():
+            raise TaskStoreError("claim agent_id must not be empty")
+        with self._lock:
+            rows = self._conn.execute(
+                """
+                SELECT child.payload
+                FROM tasks AS child
+                LEFT JOIN tasks AS parent
+                  ON parent.session_id = child.session_id
+                 AND parent.task_id = child.parent_id
+                WHERE child.session_id = ?
+                  AND child.status = 'pending'
+                  AND (
+                    child.parent_id IS NULL
+                    OR parent.status = 'done'
+                  )
+                ORDER BY child.created_at ASC, child.order_index ASC, child.task_id ASC
+                """,
+                (session_id,),
+            ).fetchall()
+            for row in rows:
+                task = _task_from_row(row)
+                if task.required_capability != capability:
+                    continue
+                updated = task.model_copy(
+                    update={
+                        "status": "running",
+                        "claimed_by": agent_id,
+                        "started_at": _utcnow(),
+                    }
+                )
+                self._save_task(updated)
+                return updated
+        return None
+
+    def complete(
+        self,
+        session_id: str,
+        task_id: str,
+        *,
+        result_ref: str | None = None,
+    ) -> TaskDomain:
+        return self._transition_running(
+            session_id,
+            task_id,
+            status="done",
+            result_ref=result_ref,
+            error_ref=None,
+        )
+
+    def fail(
+        self,
+        session_id: str,
+        task_id: str,
+        *,
+        error_ref: str,
+    ) -> TaskDomain:
+        if not error_ref.strip():
+            raise TaskStoreError("failed task requires error_ref")
+        return self._transition_running(
+            session_id,
+            task_id,
+            status="failed",
+            result_ref=None,
+            error_ref=error_ref,
+        )
+
+    def skip(
+        self,
+        session_id: str,
+        task_id: str,
+        *,
+        reason: str,
+    ) -> TaskDomain:
+        if not reason.strip():
+            raise TaskStoreError("skipped task requires reason")
+        with self._lock:
+            task = self._require_task(session_id, task_id)
+            if task.status not in {"pending", "running"}:
+                raise TaskStoreError(
+                    f"only pending or running tasks can be skipped; got {task.status}"
+                )
+            updated = task.model_copy(
+                update={
+                    "status": "failed",
+                    "error_ref": f"skipped: {reason}",
+                    "completed_at": _utcnow(),
+                }
+            )
+            self._save_task(updated)
+            return updated
 
     def get(self, session_id: str, task_id: str) -> TaskDomain | None:
         with self._lock:
@@ -149,9 +251,60 @@ class SqliteTaskBus:
     def __exit__(self, *exc: Any) -> None:
         self.close()
 
+    def _transition_running(
+        self,
+        session_id: str,
+        task_id: str,
+        *,
+        status: str,
+        result_ref: str | None,
+        error_ref: str | None,
+    ) -> TaskDomain:
+        with self._lock:
+            task = self._require_task(session_id, task_id)
+            if task.status != "running":
+                raise TaskStoreError(
+                    f"only running tasks can transition to {status}; got {task.status}"
+                )
+            updated = task.model_copy(
+                update={
+                    "status": status,
+                    "result_ref": result_ref,
+                    "error_ref": error_ref,
+                    "completed_at": _utcnow(),
+                }
+            )
+            self._save_task(updated)
+            return updated
+
+    def _require_task(self, session_id: str, task_id: str) -> TaskDomain:
+        task = self.get(session_id, task_id)
+        if task is None:
+            raise TaskStoreError(f"task {task_id!r} not found")
+        return task
+
+    def _save_task(self, task: TaskDomain) -> None:
+        self._conn.execute(
+            """
+            UPDATE tasks
+            SET status = ?, payload = ?
+            WHERE session_id = ? AND task_id = ?
+            """,
+            (
+                task.status,
+                task.model_dump_json(),
+                task.session_id,
+                task.task_id,
+            ),
+        )
+
 
 def _task_from_row(row: sqlite3.Row) -> TaskDomain:
     return TaskDomain.model_validate_json(str(row["payload"]))
+
+
+def _utcnow() -> datetime:
+    return datetime.now(UTC)
 
 
 __all__ = ["SqliteTaskBus"]
