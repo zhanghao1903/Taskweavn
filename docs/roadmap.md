@@ -286,7 +286,7 @@ These remain valuable, but they should not be the next immediate build target be
 
 Recommended order for upcoming implementation sessions:
 
-1. **Main Page real backend integration** — connect the frontend baseline to real session/task/message projections through the local sidecar shell.
+1. **[Main Page real backend integration](plans/feature/main-page-real-backend-integration.md)** — finish the UI runtime convergence from fixture-centric Main Page behavior to session snapshot / command response / UiEvent-driven backend facts. The implementation packet is [Main Page Frontend Runtime Integration](plans/feature/main-page-frontend-runtime-integration.md). The local sidecar target, HTTP client, runtime env switch, and named SSE subscription already exist.
 2. **Pipeline completion-time orchestration and agent assignment** — API publish server transport is available as a framework-neutral adapter; next backend blocker is completing `task_after` and assignment semantics.
 3. **TaskBus execution lifecycle** — claim, execute, complete, fail, retry/recovery semantics.
 4. **Message and confirmation UI integration** — make HITL confirmations real through UI commands/events.
@@ -295,7 +295,7 @@ Recommended order for upcoming implementation sessions:
 7. **Persistent authoring stores** — make RawTask/DraftTaskTree authoring durable beyond in-memory tests.
 8. **Centralized runtime configuration** — shared control plane for logging/autonomy/audit/LLM/Task/UI behavior once the Task-facing server model is concrete enough to avoid overfitting.
 
-LLM Provider reliability, configurable logging, Task domain/UI separation, Collaborator authoring, TaskPublisher, publish persistence, API publish transport, frontend baseline, UI/backend contract baseline, and local sidecar API shell are complete enough for the next round. The immediate product blocker is now Main Page real-backend integration.
+LLM Provider reliability, configurable logging, Task domain/UI separation, Collaborator authoring, TaskPublisher, publish persistence, API publish transport, frontend baseline, UI/backend contract baseline, local sidecar API shell, and Main Page sidecar assembly are complete enough for the next round. The immediate product blocker is now Main Page frontend runtime convergence against that backend target.
 
 For status and routing of each gap, see [Gap Registry](gaps/).
 

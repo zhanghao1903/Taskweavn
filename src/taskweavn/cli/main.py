@@ -3,11 +3,15 @@
 from __future__ import annotations
 
 import json
+import os
+import subprocess
 import sys
 import threading
+import time
 import uuid
 from pathlib import Path
 from typing import Annotated, Any
+from urllib.parse import quote
 
 import typer
 
@@ -36,6 +40,12 @@ from taskweavn.observability import (
 )
 from taskweavn.observability.formatting import event_to_pretty
 from taskweavn.runtime.local import LocalRuntime
+from taskweavn.server import (
+    DEFAULT_PLATO_SIDECAR_PORT,
+    MainPageSidecarConfig,
+    MainPageSidecarDependencies,
+    build_main_page_sidecar_app,
+)
 from taskweavn.tools.base import Tool
 from taskweavn.tools.code_action_tool import CodeActionTool
 from taskweavn.tools.fs import ListDirTool, ReadFileTool, WriteFileTool
@@ -60,6 +70,200 @@ app.add_typer(logging_app, name="logging")
 def version() -> None:
     """Print the installed taskweavn version."""
     typer.echo(f"taskweavn {__version__}")
+
+
+@app.command("plato-sidecar")
+def plato_sidecar(
+    workspace: Annotated[
+        Path,
+        typer.Option(
+            "--workspace",
+            "-w",
+            help="Plato workspace root used by the local sidecar.",
+        ),
+    ] = Path("./plato-workspace"),
+    session_id: Annotated[
+        str | None,
+        typer.Option(
+            "--session-id",
+            help="Existing session id to serve. If omitted, creates a new session.",
+        ),
+    ] = None,
+    session_name: Annotated[
+        str,
+        typer.Option("--session-name", help="Name used when creating a new session."),
+    ] = "Plato session",
+    host: Annotated[
+        str,
+        typer.Option("--host", help="Loopback host for the local sidecar."),
+    ] = "127.0.0.1",
+    port: Annotated[
+        int,
+        typer.Option(
+            "--port",
+            help=(
+                "Port for the local sidecar. Defaults to the stable Plato dev "
+                "port; use 0 to choose a free port."
+            ),
+        ),
+    ] = DEFAULT_PLATO_SIDECAR_PORT,
+    model: Annotated[
+        str | None,
+        typer.Option(
+            "--model",
+            "-m",
+            help="LLM model identifier for Collaborator authoring. Defaults to env.",
+        ),
+    ] = None,
+) -> None:
+    """Start the local Plato Main Page backend sidecar."""
+
+    llm = LLMClient.from_env() if model is None else LLMClient(model=model)
+    sidecar = build_main_page_sidecar_app(
+        MainPageSidecarConfig(
+            workspace_root=workspace,
+            session_id=session_id,
+            session_name=session_name,
+            host=host,
+            port=port,
+        ),
+        MainPageSidecarDependencies(llm=llm),
+    )
+    try:
+        sidecar.start_in_thread()
+        for line in _plato_sidecar_env_lines(
+            base_url=sidecar.base_url,
+            session_id=sidecar.session.id,
+        ):
+            typer.echo(line)
+        typer.echo("[plato-sidecar] press Ctrl-C to stop")
+        while True:
+            time.sleep(3600)
+    except KeyboardInterrupt:
+        typer.echo("\n[plato-sidecar] stopping")
+    finally:
+        sidecar.close()
+
+
+@app.command("plato-dev")
+def plato_dev(
+    workspace: Annotated[
+        Path,
+        typer.Option(
+            "--workspace",
+            "-w",
+            help="Plato workspace root used by the local sidecar.",
+        ),
+    ] = Path("./plato-workspace"),
+    session_id: Annotated[
+        str | None,
+        typer.Option(
+            "--session-id",
+            help="Existing session id to serve. If omitted, creates a new session.",
+        ),
+    ] = None,
+    session_name: Annotated[
+        str,
+        typer.Option("--session-name", help="Name used when creating a new session."),
+    ] = "Plato session",
+    sidecar_host: Annotated[
+        str,
+        typer.Option("--sidecar-host", help="Loopback host for the local sidecar."),
+    ] = "127.0.0.1",
+    sidecar_port: Annotated[
+        int,
+        typer.Option(
+            "--sidecar-port",
+            help=(
+                "Port for the local sidecar. Defaults to the stable Plato dev "
+                "port; use 0 to choose a free port."
+            ),
+        ),
+    ] = DEFAULT_PLATO_SIDECAR_PORT,
+    frontend_dir: Annotated[
+        Path,
+        typer.Option("--frontend-dir", help="Path to the Plato frontend package."),
+    ] = Path("./frontend"),
+    frontend_host: Annotated[
+        str,
+        typer.Option("--frontend-host", help="Host passed to Vite."),
+    ] = "127.0.0.1",
+    frontend_port: Annotated[
+        int,
+        typer.Option("--frontend-port", help="Port passed to Vite."),
+    ] = 5173,
+    model: Annotated[
+        str | None,
+        typer.Option(
+            "--model",
+            "-m",
+            help="LLM model identifier for Collaborator authoring. Defaults to env.",
+        ),
+    ] = None,
+) -> None:
+    """Start Plato backend sidecar and frontend dev server together."""
+
+    if not frontend_dir.exists():
+        typer.secho(f"frontend dir not found: {frontend_dir}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1)
+    if not (frontend_dir / "package.json").exists():
+        typer.secho(
+            f"frontend package.json not found: {frontend_dir / 'package.json'}",
+            fg=typer.colors.RED,
+            err=True,
+        )
+        raise typer.Exit(code=1)
+
+    llm = LLMClient.from_env() if model is None else LLMClient(model=model)
+    sidecar = build_main_page_sidecar_app(
+        MainPageSidecarConfig(
+            workspace_root=workspace,
+            session_id=session_id,
+            session_name=session_name,
+            host=sidecar_host,
+            port=sidecar_port,
+        ),
+        MainPageSidecarDependencies(llm=llm),
+    )
+    frontend_process: subprocess.Popen[str] | None = None
+    try:
+        sidecar.start_in_thread()
+        env = _plato_frontend_env(
+            base_url=sidecar.base_url,
+            session_id=sidecar.session.id,
+        )
+        frontend_url = f"http://{frontend_host}:{frontend_port}"
+        typer.echo(f"[plato-dev] frontend={frontend_url}")
+        for line in _plato_sidecar_env_lines(
+            base_url=sidecar.base_url,
+            session_id=sidecar.session.id,
+        ):
+            typer.echo(line)
+        typer.echo("[plato-dev] starting frontend dev server")
+        try:
+            frontend_process = _start_plato_frontend(
+                frontend_dir=frontend_dir,
+                frontend_host=frontend_host,
+                frontend_port=frontend_port,
+                env=env,
+            )
+        except FileNotFoundError:
+            typer.secho(
+                "npm not found; install Node.js/npm before running taskweavn plato-dev",
+                fg=typer.colors.RED,
+                err=True,
+            )
+            raise typer.Exit(code=1) from None
+        typer.echo("[plato-dev] press Ctrl-C to stop frontend and sidecar")
+        return_code = frontend_process.wait()
+        if return_code != 0:
+            raise typer.Exit(code=return_code)
+    except KeyboardInterrupt:
+        typer.echo("\n[plato-dev] stopping")
+    finally:
+        if frontend_process is not None:
+            _terminate_process(frontend_process)
+        sidecar.close()
 
 
 @logging_app.command("profiles")
@@ -422,6 +626,62 @@ def _build_risk_assessor(name: str, llm: LLMClient) -> RiskAssessor:
         f"unknown risk assessor {name!r}; valid: baseline, llm, composite",
         param_hint="--risk-assessor",
     )
+
+
+def _plato_sidecar_env_lines(*, base_url: str, session_id: str) -> tuple[str, ...]:
+    encoded_session_id = quote(session_id, safe="")
+    return (
+        f"[plato-sidecar] baseUrl={base_url}",
+        f"[plato-sidecar] sessionId={session_id}",
+        f"[plato-sidecar] health={base_url}/api/v1/health",
+        f"[plato-sidecar] snapshot={base_url}/api/v1/sessions/{encoded_session_id}/snapshot",
+        "[plato-sidecar] Vite env:",
+        "VITE_PLATO_API_MODE=http",
+        f"VITE_PLATO_API_BASE_URL={base_url}",
+        f"VITE_PLATO_SESSION_ID={session_id}",
+    )
+
+
+def _plato_frontend_env(*, base_url: str, session_id: str) -> dict[str, str]:
+    env = os.environ.copy()
+    env.update(
+        {
+            "VITE_PLATO_API_MODE": "http",
+            "VITE_PLATO_API_BASE_URL": base_url,
+            "VITE_PLATO_SESSION_ID": session_id,
+        }
+    )
+    return env
+
+
+def _plato_frontend_command(*, host: str, port: int) -> list[str]:
+    return ["npm", "run", "dev", "--", "--host", host, "--port", str(port)]
+
+
+def _start_plato_frontend(
+    *,
+    frontend_dir: Path,
+    frontend_host: str,
+    frontend_port: int,
+    env: dict[str, str],
+) -> subprocess.Popen[str]:
+    return subprocess.Popen(  # noqa: S603 - developer command, args are fixed.
+        _plato_frontend_command(host=frontend_host, port=frontend_port),
+        cwd=frontend_dir,
+        env=env,
+        text=True,
+    )
+
+
+def _terminate_process(process: subprocess.Popen[str]) -> None:
+    if process.poll() is not None:
+        return
+    process.terminate()
+    try:
+        process.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        process.wait(timeout=5)
 
 
 def _start_stdin_responder(

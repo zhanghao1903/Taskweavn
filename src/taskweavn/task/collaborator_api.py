@@ -149,11 +149,16 @@ class DefaultCollaboratorApiAdapter:
     ) -> CommandResult:
         if not content.strip():
             return _rejected("session message content must not be empty")
-        message_id = source_message_id or self._publish_user_message(
-            session_id=session_id,
-            content=content,
-            context={"surface": "session", "operation": "appendSessionMessage"},
-        )
+        emitted: tuple[str, ...] = ()
+        if source_message_id is None:
+            message_id = self._publish_user_message(
+                session_id=session_id,
+                content=content,
+                context={"surface": "session", "operation": "appendSessionMessage"},
+            )
+            emitted = (message_id,)
+        else:
+            message_id = source_message_id
         result = self._collaborator_service.create_raw_task_from_message(
             session_id=session_id,
             source_message_id=message_id,
@@ -163,6 +168,7 @@ class DefaultCollaboratorApiAdapter:
             result,
             accepted_message="session message processed",
             rejected_message="session message rejected",
+            emitted_message_ids=emitted,
         )
 
     def answer_raw_task_ask(
@@ -177,16 +183,21 @@ class DefaultCollaboratorApiAdapter:
     ) -> CommandResult:
         if not value.strip():
             return _rejected("RawTask answer value must not be empty")
-        message_id = source_message_id or self._publish_user_message(
-            session_id=session_id,
-            content=value,
-            context={
-                "surface": "raw_task_ask",
-                "operation": "answerRawTaskAsk",
-                "raw_task_id": raw_task_id,
-                "ask_id": ask_id,
-            },
-        )
+        emitted: tuple[str, ...] = ()
+        if source_message_id is None:
+            message_id = self._publish_user_message(
+                session_id=session_id,
+                content=value,
+                context={
+                    "surface": "raw_task_ask",
+                    "operation": "answerRawTaskAsk",
+                    "raw_task_id": raw_task_id,
+                    "ask_id": ask_id,
+                },
+            )
+            emitted = (message_id,)
+        else:
+            message_id = source_message_id
         command = MutateRawTaskCommand(
             session_id=session_id,
             raw_task_id=raw_task_id,
@@ -217,6 +228,7 @@ class DefaultCollaboratorApiAdapter:
             result,
             accepted_message="RawTask answer recorded",
             rejected_message="RawTask answer rejected",
+            emitted_message_ids=emitted,
         )
 
     def generate_task_tree(
@@ -246,7 +258,7 @@ class DefaultCollaboratorApiAdapter:
             return _rejected("Collaborator authoring currently supports draft tasks only")
         if not content.strip():
             return _rejected("task message content must not be empty")
-        self._publish_user_message(
+        message_id = self._publish_user_message(
             session_id=session_id,
             content=content,
             task_ref=task_ref,
@@ -265,6 +277,7 @@ class DefaultCollaboratorApiAdapter:
             result,
             accepted_message="task message processed",
             rejected_message="task message rejected",
+            emitted_message_ids=(message_id,),
         )
 
     def publish_task_tree(
@@ -325,6 +338,7 @@ def _command_result(
     *,
     accepted_message: str,
     rejected_message: str,
+    emitted_message_ids: tuple[str, ...] = (),
 ) -> CommandResult:
     if result.ok:
         return CommandResult(
@@ -332,7 +346,7 @@ def _command_result(
             status="accepted",
             message=accepted_message,
             affected_task_refs=result.object_refs,
-            emitted_message_ids=result.emitted_message_ids,
+            emitted_message_ids=_dedupe_ids((*emitted_message_ids, *result.emitted_message_ids)),
             published_task_ids=tuple(
                 ref.id for ref in result.object_refs if ref.kind == "published"
             ),
@@ -342,7 +356,7 @@ def _command_result(
         status="rejected",
         message=f"{rejected_message}: {_error_summary(result.errors)}",
         affected_task_refs=result.object_refs,
-        emitted_message_ids=result.emitted_message_ids,
+        emitted_message_ids=_dedupe_ids((*emitted_message_ids, *result.emitted_message_ids)),
     )
 
 
@@ -354,6 +368,10 @@ def _error_summary(errors: tuple[AuthoringCommandError, ...]) -> str:
     if not errors:
         return "unknown error"
     return "; ".join(error.message for error in errors)
+
+
+def _dedupe_ids(ids: tuple[str, ...]) -> tuple[str, ...]:
+    return tuple(dict.fromkeys(ids))
 
 
 __all__ = [

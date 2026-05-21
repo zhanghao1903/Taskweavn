@@ -61,6 +61,7 @@ from taskweavn.memory.thought_store import (
     ThoughtStore,
 )
 from taskweavn.observability import LogContext, use_log_context
+from taskweavn.prompts import AGENT_LOOP_SYSTEM_PROMPT
 from taskweavn.runtime.base import Runtime
 from taskweavn.tools.base import Tool
 from taskweavn.types.base import BaseAction, BaseEvent, BaseObservation
@@ -81,12 +82,7 @@ if TYPE_CHECKING:  # pragma: no cover
         WaitCoordinator,
     )
 
-DEFAULT_SYSTEM_PROMPT = (
-    "You are a TaskWeavn operating inside a sandboxed workspace.\n"
-    "Decompose the task, then call the provided tools to make progress.\n"
-    "When the task is complete, call the `agent_finish` tool with a short summary.\n"
-    "Prefer small, verifiable steps over large speculative ones."
-)
+DEFAULT_SYSTEM_PROMPT = AGENT_LOOP_SYSTEM_PROMPT
 
 FINISH_TOOL_NAME = "agent_finish"
 

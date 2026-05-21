@@ -212,7 +212,7 @@ Focus:
 
 Recommended implementation order:
 
-1. Main Page real backend integration from the frontend baseline and local sidecar shell.
+1. [Main Page real backend integration](../plans/feature/main-page-real-backend-integration.md): finish frontend runtime convergence from fixture-centric behavior to session snapshot / command response / UiEvent-driven backend facts. The implementation packet is [Main Page Frontend Runtime Integration](../plans/feature/main-page-frontend-runtime-integration.md). The local sidecar target, HTTP client, runtime env switch, and named SSE subscription already exist.
 2. Pipeline task loading completion-time orchestration and agent assignment.
 3. TaskBus execution lifecycle.
 4. Publish audit query/debug API and concrete HTTP framework binding, if needed by UI/API integration.
@@ -220,7 +220,7 @@ Recommended implementation order:
 6. Persistent authoring stores.
 7. Centralized runtime configuration system.
 
-LLM Provider reliability, configurable logging, the Task-first data model, Collaborator authoring, TaskPublisher, publish persistence, API publish transport, frontend baseline, UI/backend contract baseline, and local sidecar API shell now have server-core or UI baseline release candidates. The remaining order moves into real backend integration, execution lifecycle, and trust surfaces while centralized configuration stays as a control-plane hardening follow-up.
+LLM Provider reliability, configurable logging, the Task-first data model, Collaborator authoring, TaskPublisher, publish persistence, API publish transport, frontend baseline, UI/backend contract baseline, local sidecar API shell, and Main Page sidecar assembly now have server-core or UI baseline release candidates. The remaining order moves into Main Page frontend runtime convergence, execution lifecycle, and trust surfaces while centralized configuration stays as a control-plane hardening follow-up.
 
 The source of truth for gap status is [Gap Registry](../gaps/).
 

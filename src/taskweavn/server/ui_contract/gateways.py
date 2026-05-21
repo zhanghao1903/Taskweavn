@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from typing import Protocol, runtime_checkable
 
 from taskweavn.core.session import Session
+from taskweavn.interaction import AgentMessage
 from taskweavn.server.ui_contract.commands import (
     AppendSessionInputPayload,
     AppendTaskInputPayload,
@@ -28,6 +29,7 @@ from taskweavn.server.ui_contract.errors import (
     not_found,
 )
 from taskweavn.server.ui_contract.mapping import (
+    map_agent_message_view,
     map_confirmation_action_view,
     map_session_message_view,
     map_task_tree_view,
@@ -84,6 +86,16 @@ class WorkflowProvider(Protocol):
 @runtime_checkable
 class AuditLinkProvider(Protocol):
     def list_for_session(self, session_id: str) -> tuple[AuditLinkView, ...]: ...
+
+
+@runtime_checkable
+class SessionMessageProvider(Protocol):
+    def list_for_session(
+        self,
+        session_id: str,
+        *,
+        limit: int | None = None,
+    ) -> Iterable[AgentMessage]: ...
 
 
 @runtime_checkable
@@ -175,12 +187,14 @@ class DefaultUiQueryGateway:
         project_provider: ProjectProvider | None = None,
         workflow_provider: WorkflowProvider | None = None,
         audit_link_provider: AuditLinkProvider | None = None,
+        session_message_provider: SessionMessageProvider | None = None,
     ) -> None:
         self._session_reader = session_reader
         self._task_projection = task_projection
         self._project_provider = project_provider or StaticProjectProvider()
         self._workflow_provider = workflow_provider or StaticWorkflowProvider()
         self._audit_link_provider = audit_link_provider
+        self._session_message_provider = session_message_provider
 
     def get_session_snapshot(
         self,
@@ -201,7 +215,10 @@ class DefaultUiQueryGateway:
 
             source_tree = self._task_projection.list_task_tree(session.id)
             task_tree = _map_optional_task_tree(source_tree)
-            messages = _messages_from_tree(source_tree)
+            messages = _merge_messages(
+                _messages_from_tree(source_tree),
+                self._session_messages(session.id),
+            )
             confirmations = _confirmations_from_tree(source_tree, session_id=session.id)
             project = self._project_provider.get_project()
             workflow = self._workflow_provider.get_workflow(session)
@@ -261,6 +278,14 @@ class DefaultUiQueryGateway:
             return ()
         return self._audit_link_provider.list_for_session(session_id)
 
+    def _session_messages(self, session_id: str) -> tuple[SessionMessageView, ...]:
+        if self._session_message_provider is None:
+            return ()
+        return tuple(
+            map_agent_message_view(message)
+            for message in self._session_message_provider.list_for_session(session_id)
+        )
+
 
 class DefaultUiCommandGateway:
     """Default command gateway that wraps server-core command services."""
@@ -284,7 +309,6 @@ class DefaultUiCommandGateway:
             result = self._collaborator.append_session_message(
                 session_id=request.session_id,
                 content=request.payload.content,
-                source_message_id=request.command_id,
             )
             return _command_response(
                 request,
@@ -494,6 +518,21 @@ def _messages_from_tree(source: CoreTaskTreeView) -> tuple[SessionMessageView, .
         seen.add(node.latest_message.message_id)
     messages.sort(key=lambda message: (message.created_at, message.message_id))
     return tuple(map_session_message_view(message) for message in messages)
+
+
+def _merge_messages(
+    *groups: Sequence[SessionMessageView],
+) -> tuple[SessionMessageView, ...]:
+    by_id: dict[str, SessionMessageView] = {}
+    for group in groups:
+        for message in group:
+            by_id.setdefault(message.id, message)
+    return tuple(
+        sorted(
+            by_id.values(),
+            key=lambda message: (message.created_at, message.id),
+        )
+    )
 
 
 def _confirmations_from_tree(

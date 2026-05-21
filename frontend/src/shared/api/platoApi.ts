@@ -8,6 +8,7 @@ import type {
   SessionId,
   TaskNodeId,
   UiEvent,
+  UiEventType,
 } from "./types";
 import { ApiClient } from "./client";
 import type { ApiClientOptions } from "./client";
@@ -90,7 +91,7 @@ export type PlatoApi = {
 
 export type EventSourceLike = {
   addEventListener(
-    type: "message",
+    type: string,
     listener: (event: { data: string }) => void,
   ): void;
   close(): void;
@@ -101,6 +102,21 @@ export type EventSourceFactory = (url: string) => EventSourceLike;
 export type HttpPlatoApiOptions = ApiClientOptions & {
   eventSourceFactory?: EventSourceFactory;
 };
+
+const uiEventTypes: UiEventType[] = [
+  "session.status_changed",
+  "session.resync_required",
+  "task.tree.changed",
+  "task.node.changed",
+  "message.appended",
+  "confirmation.created",
+  "confirmation.resolved",
+  "result.updated",
+  "file_changes.updated",
+  "audit.summary_updated",
+  "command.completed",
+  "command.failed",
+];
 
 export function createHttpPlatoApi(options: HttpPlatoApiOptions): PlatoApi {
   const client = new ApiClient(options);
@@ -156,10 +172,14 @@ export function createHttpPlatoApi(options: HttpPlatoApiOptions): PlatoApi {
       const source = eventSourceFactory(
         `${client.baseUrl}/api/v1/sessions/${segment(sessionId)}/events${query}`,
       );
-
-      source.addEventListener("message", (event) => {
+      const handleEvent = (event: { data: string }) => {
         onEvent(JSON.parse(event.data) as UiEvent);
-      });
+      };
+
+      source.addEventListener("message", handleEvent);
+      for (const eventType of uiEventTypes) {
+        source.addEventListener(eventType, handleEvent);
+      }
 
       return () => source.close();
     },

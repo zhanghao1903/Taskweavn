@@ -32,6 +32,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
+from taskweavn.prompts import LLM_RISK_SYSTEM_PROMPT
+
 if TYPE_CHECKING:  # pragma: no cover
     from taskweavn.llm.client import LLMClient
     from taskweavn.types.base import BaseAction, BaseObservation
@@ -206,29 +208,6 @@ class BaselineOnlyAssessor:
 # ---------------------------------------------------------------------------
 
 
-_LLM_RISK_SYSTEM_PROMPT = """\
-You are a security risk evaluator for a TaskWeavn.
-
-You are given:
-* the class-level *baseline* risk of an action (a float in [0,1])
-* the action payload (JSON)
-* recent observations from the agent's runtime
-
-Rate the *dynamic* risk of this specific instance on a 0.0–1.0 scale.
-Your score MUST be >= the baseline; assessors may only RAISE risk, never
-lower it. If the action looks routine, return the baseline. If the
-arguments make it more dangerous (e.g. ``rm -rf`` on a wide path,
-writing to a config file outside the workspace, running a command with
-credentials), raise the score proportionally.
-
-Respond with a single JSON object and NOTHING else:
-
-    {"score": <float in [0,1]>, "rationale": "<one sentence>"}
-
-No prose outside the JSON. No markdown fences. No additional fields.
-"""
-
-
 # Models occasionally wrap JSON in ```json fences despite instructions; this
 # regex extracts the first balanced object so the parser is forgiving.
 _JSON_OBJECT_RE = re.compile(r"\{.*\}", re.DOTALL)
@@ -266,7 +245,7 @@ class LLMRiskAssessor:
             user_payload = self._build_user_payload(action, context, baseline)
             response = self.llm.chat(
                 messages=[
-                    {"role": "system", "content": _LLM_RISK_SYSTEM_PROMPT},
+                    {"role": "system", "content": LLM_RISK_SYSTEM_PROMPT},
                     {"role": "user", "content": user_payload},
                 ],
                 tools=None,
