@@ -259,7 +259,7 @@ def test_append_session_input_wraps_collaborator_result() -> None:
     assert response.result.object_refs[0].kind == "command"
     assert response.refresh.affected_scopes[0].kind == "session"
     assert collaborator.calls[0][0] == "append_session_message"
-    assert collaborator.calls[0][1]["source_message_id"] == "ui-command"
+    assert collaborator.calls[0][1]["source_message_id"] is None
 
 
 def test_generate_task_tree_with_raw_task_carries_object_refs() -> None:

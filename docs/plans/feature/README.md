@@ -10,6 +10,10 @@ Feature plans are scoped implementation packets for independent feature sessions
 | [llm-provider-retry-thinking.md](llm-provider-retry-thinking.md) | Done: LLM provider abstraction, retry, and DeepSeek thinking mode. |
 | [local-sidecar-api-shell.md](local-sidecar-api-shell.md) | Done: local HTTP/SSE sidecar shell for Plato UI over the backend UI contract gateways. |
 | [local-sidecar-api-shell-technical-design.zh-CN.md](local-sidecar-api-shell-technical-design.zh-CN.md) | 中文详细技术方案：Plato local sidecar transport、route mapping、SSE shell、local security 和 lifecycle。 |
+| [main-page-real-backend-integration.md](main-page-real-backend-integration.md) | In progress: compose the local sidecar shell with real Main Page backend services and frontend HTTP/SSE runtime. |
+| [main-page-real-backend-integration-technical-design.zh-CN.md](main-page-real-backend-integration-technical-design.zh-CN.md) | 中文详细技术方案：Main Page backend composition、sidecar app lifecycle、named SSE compatibility 和 dev entrypoint。 |
+| [main-page-frontend-runtime-integration.md](main-page-frontend-runtime-integration.md) | Planned: converge Main Page from fixture-compatible prototype runtime to session snapshot / command response / UiEvent-driven backend facts. |
+| [main-page-frontend-runtime-integration-technical-design.zh-CN.md](main-page-frontend-runtime-integration-technical-design.zh-CN.md) | 中文详细技术方案：Main Page adapter boundary、session-centric query、CommandResponse lifecycle、event router 和 resync loop guard。 |
 | [pipeline-task-loading.md](pipeline-task-loading.md) | Pipeline task loading before/begin/after normal tasks. |
 | [publish-persistence-foundation.md](publish-persistence-foundation.md) | Done: SQLite publish stores, service assembly, API integration coverage, and deterministic idempotency hardening. |
 | [publish-persistence-foundation-technical-design.zh-CN.md](publish-persistence-foundation-technical-design.zh-CN.md) | 中文详细技术方案：发布持久化 SQLite schema、store、事务、错误处理和测试设计。 |

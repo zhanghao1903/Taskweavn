@@ -6,7 +6,12 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from taskweavn.core import Session
-from taskweavn.server.ui_contract import DefaultUiQueryGateway, UiQueryGateway
+from taskweavn.interaction import AgentMessage
+from taskweavn.server.ui_contract import (
+    DefaultUiQueryGateway,
+    SessionMessageProvider,
+    UiQueryGateway,
+)
 from taskweavn.task import (
     ConfirmationActionView,
     ConfirmationOptionView,
@@ -63,6 +68,22 @@ class _Projection:
         return TaskDetailView(card=card, full_intent=card.intent_preview)
 
 
+class _SessionMessageProvider:
+    def __init__(self, messages: list[AgentMessage]) -> None:
+        self._messages = messages
+
+    def list_for_session(
+        self,
+        session_id: str,
+        *,
+        limit: int | None = None,
+    ) -> list[AgentMessage]:
+        messages = [message for message in self._messages if message.session_id == session_id]
+        if limit is not None:
+            return messages[-limit:]
+        return messages
+
+
 def _session(session_id: str = "session-1", *, status: str = "active") -> Session:
     return Session(
         id=session_id,
@@ -99,6 +120,7 @@ def test_query_gateway_protocol_conformance() -> None:
     )
 
     assert isinstance(gateway, UiQueryGateway)
+    assert isinstance(_SessionMessageProvider([]), SessionMessageProvider)
 
 
 def test_get_session_snapshot_returns_not_found_envelope() -> None:
@@ -174,6 +196,33 @@ def test_empty_tree_snapshot_has_no_task_tree_and_new_session_status() -> None:
     assert response.data.messages == ()
     assert response.data.pending_confirmations == ()
     assert response.data.session.status == "new"
+
+
+def test_get_session_snapshot_includes_session_level_messages_without_task_tree() -> None:
+    message = AgentMessage(
+        message_id="message-user",
+        session_id="session-1",
+        agent_id="user",
+        message_type="informational",
+        content="Build a quiet personal website.",
+        created_at=NOW,
+    )
+    gateway = DefaultUiQueryGateway(
+        session_reader=_SessionReader([_session()]),
+        task_projection=_Projection(TaskTreeView(session_id="session-1")),
+        session_message_provider=_SessionMessageProvider([message]),
+    )
+
+    response = gateway.get_session_snapshot("session-1")
+
+    assert response.ok is True
+    assert response.data is not None
+    assert response.data.task_tree is None
+    assert response.data.messages[0].id == "message-user"
+    assert response.data.messages[0].kind == "informational"
+    assert response.data.messages[0].title == "User message"
+    assert response.data.messages[0].body == "Build a quiet personal website."
+    assert response.data.session.status == "understanding"
 
 
 def test_query_gateway_converts_unexpected_errors_to_internal_error() -> None:

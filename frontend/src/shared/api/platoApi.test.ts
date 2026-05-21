@@ -154,7 +154,7 @@ describe("createHttpPlatoApi", () => {
       "cursor/1",
       onEvent,
     );
-    sources[0].emit(uiEvent);
+    sources[0].emit("message", uiEvent);
     unsubscribe();
 
     expect(sources[0].url).toBe(
@@ -163,27 +163,57 @@ describe("createHttpPlatoApi", () => {
     expect(onEvent).toHaveBeenCalledWith(uiEvent);
     expect(sources[0].closed).toBe(true);
   });
+
+  it("subscribes to named SSE event types emitted by the sidecar", () => {
+    const sources: FakeEventSource[] = [];
+    const api = createHttpPlatoApi({
+      baseUrl: "https://plato.test/",
+      eventSourceFactory: (url) => {
+        const source = new FakeEventSource(url);
+        sources.push(source);
+        return source;
+      },
+    });
+    const onEvent = vi.fn<(event: UiEvent) => void>();
+
+    api.subscribeSessionEvents("session-1", null, onEvent);
+    sources[0].emit("session.resync_required", {
+      ...uiEvent,
+      eventType: "session.resync_required",
+    });
+    sources[0].emit("message.appended", uiEvent);
+
+    expect(onEvent).toHaveBeenCalledTimes(2);
+    expect(onEvent).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ eventType: "session.resync_required" }),
+    );
+    expect(onEvent).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ eventType: "message.appended" }),
+    );
+  });
 });
 
 class FakeEventSource implements EventSourceLike {
   closed = false;
-  private listener: ((event: { data: string }) => void) | null = null;
+  private listeners = new Map<string, (event: { data: string }) => void>();
 
   constructor(readonly url: string) {}
 
   addEventListener(
-    _type: "message",
+    type: string,
     listener: (event: { data: string }) => void,
   ): void {
-    this.listener = listener;
+    this.listeners.set(type, listener);
   }
 
   close(): void {
     this.closed = true;
   }
 
-  emit(event: UiEvent): void {
-    this.listener?.({
+  emit(type: string, event: UiEvent): void {
+    this.listeners.get(type)?.({
       data: JSON.stringify(event),
     });
   }

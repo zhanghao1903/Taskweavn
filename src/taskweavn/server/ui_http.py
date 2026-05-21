@@ -101,6 +101,25 @@ class PlatoUiHttpTransport:
             )
 
         try:
+            if route_name == "root":
+                return _json_response(
+                    {
+                        "ok": True,
+                        "data": {
+                            "name": "Plato Sidecar",
+                            "version": "0.1.0",
+                            "api_base_path": "/api/v1",
+                            "health_url": "/api/v1/health",
+                            "snapshot_url_template": (
+                                "/api/v1/sessions/{sessionId}/snapshot"
+                            ),
+                            "events_url_template": (
+                                "/api/v1/sessions/{sessionId}/events"
+                            ),
+                        },
+                        "error": None,
+                    }
+                )
             if route_name == "health":
                 return _json_response(
                     {
@@ -233,6 +252,8 @@ class _Route:
 
 def _match_route(path: str) -> _Route | None:
     parts = _path_parts(path)
+    if parts == ():
+        return _Route(name="root", method="GET")
     if parts == ("api", "v1", "health"):
         return _Route(name="health", method="GET")
     if len(parts) < 5 or parts[:3] != ("api", "v1", "sessions"):

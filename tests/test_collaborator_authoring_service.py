@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from taskweavn.llm import ChatResponse
+from taskweavn.prompts import COLLABORATOR_AUTHORING_SYSTEM_PROMPT
 from taskweavn.task import (
     CollaboratorAuthoringService,
     DefaultAuthoringCommandService,
@@ -120,6 +121,122 @@ def test_create_raw_task_from_message_maps_feasibility_to_command_service() -> N
     assert raw.status == "ready_to_plan"
     assert raw.constraints == ("concise",)
     assert "capabilities" in llm.calls[0][1]["content"]
+
+
+def test_collaborator_prompt_contains_exact_authoring_protocols() -> None:
+    llm = _StubLLM(
+        [
+            """
+            {
+              "intent_summary": "Write docs",
+              "feasibility": {"status": "ready", "confidence": 0.9}
+            }
+            """
+        ]
+    )
+    service, _, _ = _service(llm)
+
+    service.create_raw_task_from_message(
+        session_id="s1",
+        source_message_id="m1",
+        user_input="Write docs",
+    )
+
+    system_prompt = llm.calls[0][0]["content"]
+    assert system_prompt == COLLABORATOR_AUTHORING_SYSTEM_PROMPT
+    assert "System role and positioning:" in system_prompt
+    assert "You are a built-in system collaborator" in system_prompt
+    assert "Why this work matters:" in system_prompt
+    assert "first structured boundary" in system_prompt
+    assert "product-facing contract" in system_prompt
+    assert "Work scenario:" in system_prompt
+    assert "Authoring lifecycle:" in system_prompt
+    assert "RawTaskProposal" in system_prompt
+    assert "DraftTaskTreeProposal" in system_prompt
+    assert "DraftTaskPatchProposal" in system_prompt
+    assert "RawTaskProposal dependency rules:" in system_prompt
+    assert "DraftTaskTreeProposal dependency rules:" in system_prompt
+    assert "DraftTaskPatchProposal dependency rules:" in system_prompt
+    assert "Do not return feasibility as a string" in system_prompt
+    assert "Never return asks as a string list" in system_prompt
+    assert "Do not generate ids, timestamps" in system_prompt
+    assert '"ready", "needs_clarification", "needs_user_permission"' in system_prompt
+    assert "Final checklist before returning:" in system_prompt
+
+
+def test_create_raw_task_from_message_accepts_wrapped_raw_task_payload() -> None:
+    service, raw_store, _ = _service(
+        _StubLLM(
+            [
+                """
+                {
+                  "raw_task": {
+                    "task_id": "task-2026-05-20T17:44:44Z",
+                    "title": "Design a simple professional personal website",
+                    "constraints": ["simple", "professional"],
+                    "created_at": "2026-05-20T17:44:44Z"
+                  },
+                  "feasibility": {
+                    "status": "ready",
+                    "confidence": 0.88
+                  }
+                }
+                """
+            ]
+        )
+    )
+
+    result = service.create_raw_task_from_message(
+        session_id="s1",
+        source_message_id="m1",
+        user_input="Design a simple professional personal website",
+    )
+    raw = raw_store.list_for_session("s1")[0]
+
+    assert result.ok
+    assert raw.intent_summary == "Design a simple professional personal website"
+    assert raw.status == "ready_to_plan"
+    assert raw.constraints == ("simple", "professional")
+
+
+def test_create_raw_task_from_message_accepts_string_feasibility_and_asks() -> None:
+    service, raw_store, _ = _service(
+        _StubLLM(
+            [
+                """
+                {
+                  "raw_task": {
+                    "title": "Design a concise professional personal website"
+                  },
+                  "feasibility": "Feasible",
+                  "asks": [
+                    "请确认网站的目标受众。",
+                    "需要展示哪些主要信息？"
+                  ],
+                  "constraints": "简洁专业"
+                }
+                """
+            ]
+        )
+    )
+
+    result = service.create_raw_task_from_message(
+        session_id="s1",
+        source_message_id="m1",
+        user_input="帮我设计一个简洁专业的个人网站",
+    )
+    raw = raw_store.list_for_session("s1")[0]
+
+    assert result.ok
+    assert raw.intent_summary == "Design a concise professional personal website"
+    assert raw.status == "awaiting_user"
+    assert raw.feasibility is not None
+    assert raw.feasibility.status == "ready"
+    assert raw.constraints == ("简洁专业",)
+    assert [ask.question for ask in raw.asks] == [
+        "请确认网站的目标受众。",
+        "需要展示哪些主要信息？",
+    ]
 
 
 def test_create_raw_task_from_message_can_emit_clarification() -> None:

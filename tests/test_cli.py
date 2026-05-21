@@ -21,7 +21,14 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
-from taskweavn.cli.main import _build_risk_assessor, _start_stdin_responder, app
+from taskweavn.cli.main import (
+    _build_risk_assessor,
+    _plato_frontend_command,
+    _plato_frontend_env,
+    _plato_sidecar_env_lines,
+    _start_stdin_responder,
+    app,
+)
 from taskweavn.interaction import (
     AgentMessage,
     BaselineOnlyAssessor,
@@ -136,6 +143,63 @@ def test_logging_render_command_pretty_prints_jsonl(tmp_path: Path) -> None:
     assert "llm.request" in result.output
     assert "session=s1" in result.output
     assert "model=deepseek-chat" in result.output
+
+
+def test_plato_sidecar_env_lines_include_vite_runtime_settings() -> None:
+    lines = _plato_sidecar_env_lines(
+        base_url="http://127.0.0.1:53123",
+        session_id="session-live",
+    )
+
+    assert "baseUrl=http://127.0.0.1:53123" in lines[0]
+    assert "sessionId=session-live" in lines[1]
+    assert "[plato-sidecar] health=http://127.0.0.1:53123/api/v1/health" in lines
+    assert (
+        "[plato-sidecar] snapshot="
+        "http://127.0.0.1:53123/api/v1/sessions/session-live/snapshot"
+    ) in lines
+    assert "VITE_PLATO_API_MODE=http" in lines
+    assert "VITE_PLATO_API_BASE_URL=http://127.0.0.1:53123" in lines
+    assert "VITE_PLATO_SESSION_ID=session-live" in lines
+
+
+def test_plato_frontend_env_sets_http_runtime() -> None:
+    env = _plato_frontend_env(
+        base_url="http://127.0.0.1:53123",
+        session_id="session-live",
+    )
+
+    assert env["VITE_PLATO_API_MODE"] == "http"
+    assert env["VITE_PLATO_API_BASE_URL"] == "http://127.0.0.1:53123"
+    assert env["VITE_PLATO_SESSION_ID"] == "session-live"
+
+
+def test_plato_frontend_command_runs_vite_on_requested_host_port() -> None:
+    assert _plato_frontend_command(host="127.0.0.1", port=5174) == [
+        "npm",
+        "run",
+        "dev",
+        "--",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        "5174",
+    ]
+
+
+def test_plato_dev_rejects_missing_frontend_dir(tmp_path: Path) -> None:
+    runner = CliRunner()
+    result = runner.invoke(
+        app,
+        [
+            "plato-dev",
+            "--workspace", str(tmp_path / "workspace"),
+            "--frontend-dir", str(tmp_path / "missing-frontend"),
+        ],
+    )
+
+    assert result.exit_code == 1
+    assert "frontend dir not found" in result.stderr
 
 
 # ---------------------------------------------------------------------------

@@ -8,6 +8,7 @@ from typing import Any, ClassVar, Protocol, runtime_checkable
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
+from taskweavn.prompts import COLLABORATOR_AUTHORING_SYSTEM_PROMPT
 from taskweavn.task.authoring import (
     ActorRef,
     AuthoringCommandBatch,
@@ -27,10 +28,7 @@ from taskweavn.task.authoring_service import AuthoringCommandService
 from taskweavn.task.models import TaskRef
 
 _JSON_OBJECT_RE = re.compile(r"\{.*\}", re.DOTALL)
-_SYSTEM_PROMPT = """You are TaskWeavn's Collaborator Agent.
-Return JSON only. Convert user intent into the requested authoring proposal.
-Use only capability ids provided in context. Do not emit workspace file edits.
-"""
+_SYSTEM_PROMPT = COLLABORATOR_AUTHORING_SYSTEM_PROMPT
 COLLABORATOR_TEMPLATE_ID = "system.collaborator"
 COLLABORATOR_CAPABILITY = "task_authoring"
 COLLABORATOR_COMMAND_PROTOCOL = "authoring.v1"
@@ -231,7 +229,9 @@ class DefaultCollaboratorAuthoringService:
             },
         )
         try:
-            proposal = RawTaskProposal.model_validate(_json_from_response(response))
+            proposal = RawTaskProposal.model_validate(
+                _raw_task_payload_from_response(response)
+            )
             operations = [
                 RawTaskOperation(
                     op="create",
@@ -385,6 +385,238 @@ def _json_from_response(content: str) -> dict[str, Any]:
     if not isinstance(parsed, dict):
         raise ValueError("LLM response JSON must be an object")
     return parsed
+
+
+def _raw_task_payload_from_response(content: str) -> dict[str, Any]:
+    return _normalize_raw_task_payload(_json_from_response(content))
+
+
+def _normalize_raw_task_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    """Accept common LLM wrapper shapes while preserving strict domain input.
+
+    Real models often return ``{"raw_task": {...}}`` and include generated ids
+    or timestamps. Authoring commands own those fields, so the collaborator
+    parser should discard them instead of rejecting an otherwise valid proposal.
+    """
+
+    raw_task = payload.get("raw_task")
+    secondary = raw_task if isinstance(raw_task, dict) else payload
+
+    normalized: dict[str, Any] = {"kind": payload.get("kind", "raw_task")}
+    intent_summary = _first_present(
+        payload,
+        secondary,
+        keys=(
+            "intent_summary",
+            "summary",
+            "title",
+            "task_title",
+            "goal",
+            "description",
+            "user_goal",
+        ),
+    )
+    if intent_summary is not None:
+        normalized["intent_summary"] = intent_summary
+
+    asks = _normalize_raw_task_asks(
+        _first_present(payload, secondary, keys=("asks", "questions", "clarifications"))
+    )
+
+    feasibility = _first_present(
+        payload,
+        secondary,
+        keys=("feasibility", "feasibility_report", "assessment"),
+    )
+    if feasibility is not None:
+        normalized["feasibility"] = _normalize_feasibility(feasibility, asks=asks)
+
+    if asks:
+        normalized["asks"] = asks
+
+    for key in ("constraints", "assumptions"):
+        value = _first_present(payload, secondary, keys=(key,))
+        if value is not None:
+            normalized[key] = _normalize_text_sequence(value)
+
+    return normalized
+
+
+def _normalize_feasibility(
+    value: Any,
+    *,
+    asks: tuple[dict[str, Any], ...],
+) -> Any:
+    if isinstance(value, str):
+        status = _feasibility_status_from_text(value)
+        report: dict[str, Any] = {
+            "status": status,
+            "confidence": _default_confidence(status),
+            "reasons": (value,),
+        }
+        if status in {"needs_clarification", "needs_user_permission"}:
+            report["missing_inputs"] = _ask_questions(asks) or (value,)
+        return report
+    if not isinstance(value, dict):
+        return value
+
+    normalized = dict(value)
+    raw_status: Any = normalized.get("status")
+    if isinstance(raw_status, str):
+        normalized["status"] = _feasibility_status_from_text(raw_status)
+    status_value: Any = normalized.get("status")
+    if isinstance(status_value, str) and "confidence" not in normalized:
+        normalized["confidence"] = _default_confidence(status_value)
+    if (
+        status_value in {"needs_clarification", "needs_user_permission"}
+        and not normalized.get("missing_inputs")
+        and not normalized.get("required_permissions")
+    ):
+        normalized["missing_inputs"] = _ask_questions(asks)
+    return normalized
+
+
+def _feasibility_status_from_text(value: str) -> str:
+    normalized = value.strip().lower().replace("-", "_").replace(" ", "_")
+    ready = {"feasible", "ready", "yes", "can_do", "supported", "可行", "可以"}
+    partial = {"partially_feasible", "partial", "partly_feasible", "部分可行"}
+    clarification = {
+        "needs_clarification",
+        "need_clarification",
+        "clarification",
+        "needs_more_info",
+        "need_more_info",
+        "unclear",
+        "需要澄清",
+        "需要补充信息",
+    }
+    permission = {
+        "needs_user_permission",
+        "need_user_permission",
+        "permission_required",
+        "requires_permission",
+        "需要授权",
+    }
+    unsupported = {
+        "not_supported",
+        "unsupported",
+        "infeasible",
+        "unfeasible",
+        "not_feasible",
+        "不可行",
+        "不支持",
+    }
+    unsafe = {"unsafe", "dangerous", "risk", "不安全"}
+    if normalized in ready:
+        return "ready"
+    if normalized in partial:
+        return "partially_feasible"
+    if normalized in clarification:
+        return "needs_clarification"
+    if normalized in permission:
+        return "needs_user_permission"
+    if normalized in unsupported:
+        return "not_supported"
+    if normalized in unsafe:
+        return "unsafe"
+    if "clarification" in normalized or "more_info" in normalized:
+        return "needs_clarification"
+    if "permission" in normalized:
+        return "needs_user_permission"
+    if "unsafe" in normalized or "danger" in normalized:
+        return "unsafe"
+    if "unsupported" in normalized or "not_feasible" in normalized:
+        return "not_supported"
+    return "ready"
+
+
+def _default_confidence(status: str) -> float:
+    if status == "ready":
+        return 0.8
+    if status == "partially_feasible":
+        return 0.6
+    if status in {"needs_clarification", "needs_user_permission"}:
+        return 0.5
+    return 0.7
+
+
+def _normalize_raw_task_asks(value: Any) -> tuple[dict[str, Any], ...]:
+    if value is None:
+        return ()
+    if isinstance(value, str):
+        return (_ask_from_text(value),)
+    if isinstance(value, dict):
+        return (_normalize_raw_task_ask_dict(value),)
+    if not isinstance(value, (list, tuple)):
+        return ()
+
+    asks: list[dict[str, Any]] = []
+    for item in value:
+        if isinstance(item, str):
+            asks.append(_ask_from_text(item))
+        elif isinstance(item, dict):
+            asks.append(_normalize_raw_task_ask_dict(item))
+    return tuple(asks)
+
+
+def _normalize_raw_task_ask_dict(value: dict[str, Any]) -> dict[str, Any]:
+    ask = dict(value)
+    question = ask.get("question") or ask.get("content") or ask.get("text")
+    if question is not None:
+        ask["question"] = question
+    ask.setdefault("reason", "Clarify the user's intended task.")
+    if "options" in ask:
+        ask["options"] = _normalize_answer_options(ask["options"])
+    return ask
+
+
+def _ask_from_text(value: str) -> dict[str, Any]:
+    return {
+        "question": value,
+        "reason": "Clarify the user's intended task.",
+        "required": True,
+    }
+
+
+def _normalize_answer_options(value: Any) -> Any:
+    if isinstance(value, str):
+        return ({"label": value, "value": value},)
+    if not isinstance(value, (list, tuple)):
+        return value
+    options: list[Any] = []
+    for option in value:
+        if isinstance(option, str):
+            options.append({"label": option, "value": option})
+        else:
+            options.append(option)
+    return tuple(options)
+
+
+def _normalize_text_sequence(value: Any) -> Any:
+    if isinstance(value, str):
+        return (value,)
+    return value
+
+
+def _ask_questions(asks: tuple[dict[str, Any], ...]) -> tuple[str, ...]:
+    return tuple(
+        question
+        for ask in asks
+        if isinstance((question := ask.get("question")), str) and question.strip()
+    )
+
+
+def _first_present(
+    primary: dict[str, Any],
+    secondary: dict[str, Any],
+    *,
+    keys: tuple[str, ...],
+) -> Any | None:
+    for source in (primary, secondary):
+        for key in keys:
+            if key in source and source[key] is not None:
+                return source[key]
+    return None
 
 
 def _proposal_error(kind: str, exc: Exception) -> AuthoringCommandResult:

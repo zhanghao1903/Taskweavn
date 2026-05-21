@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Iterable, Sequence
 from typing import Literal
 
+from taskweavn.interaction import AgentMessage
 from taskweavn.server.ui_contract.view_models import (
     ConfirmationActionView as ContractConfirmationActionView,
 )
@@ -111,6 +112,27 @@ def map_session_message_view(
         created_at=view.created_at,
         related_confirmation_id=view.related_confirmation_id,
         related_command_id=view.related_action_id,
+    )
+
+
+def map_agent_message_view(message: AgentMessage) -> ContractSessionMessageView:
+    """Map an interaction-layer AgentMessage into the UI message contract."""
+
+    task_ref = _task_ref_from_agent_message(message)
+    kind = _agent_message_kind(message)
+    return ContractSessionMessageView(
+        id=message.message_id,
+        session_id=message.session_id,
+        task_node_id=None if task_ref is None else task_ref.id,
+        task_ref=task_ref,
+        kind=kind,
+        title=_agent_message_title(message, kind),
+        body=message.content,
+        created_at=message.created_at,
+        related_confirmation_id=(
+            message.parent_message_id if message.message_type == "response" else None
+        ),
+        related_command_id=message.related_action_id,
     )
 
 
@@ -263,6 +285,34 @@ def _message_title(message_type: task_views.TaskMessageViewType) -> str:
         "confirmation": "Confirmation required",
         "result": "Result",
     }[message_type]
+
+
+def _task_ref_from_agent_message(message: AgentMessage) -> TaskRef | None:
+    if message.task_id is None:
+        return None
+    if message.context.get("task_ref_kind") == "draft":
+        return TaskRef.draft(message.task_id)
+    return TaskRef.published(message.task_id)
+
+
+def _agent_message_kind(message: AgentMessage) -> MessageKind:
+    if message.message_type == "actionable":
+        return "actionable"
+    if message.message_type == "response":
+        return "response"
+    return "informational"
+
+
+def _agent_message_title(message: AgentMessage, kind: MessageKind) -> str:
+    if kind == "actionable":
+        return "Confirmation required"
+    if kind == "response":
+        return "User response"
+    if message.agent_id == "user":
+        return "User message"
+    if message.agent_id == "system":
+        return "System message"
+    return "Agent message"
 
 
 def _default_option_value(

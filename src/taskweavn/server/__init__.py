@@ -3,6 +3,14 @@
 from taskweavn.server.api_publish import (
     ApiPublishHttpTransport,
 )
+from taskweavn.server.main_page import (
+    DEFAULT_PLATO_SIDECAR_PORT,
+    MainPageSidecarApp,
+    MainPageSidecarConfig,
+    MainPageSidecarDependencies,
+    MainPageTaskRefResolver,
+    build_main_page_sidecar_app,
+)
 from taskweavn.server.sidecar import LocalSidecarConfig, LocalSidecarServer
 from taskweavn.server.transport import (
     ApiErrorBody,
@@ -25,11 +33,17 @@ __all__ = [
     "HttpApiResponse",
     "LocalSidecarConfig",
     "LocalSidecarServer",
+    "DEFAULT_PLATO_SIDECAR_PORT",
+    "MainPageSidecarApp",
+    "MainPageSidecarConfig",
+    "MainPageSidecarDependencies",
+    "MainPageTaskRefResolver",
     "PlatoUiHttpTransport",
     "ResyncOnlyEventSource",
     "SidecarAuth",
     "StaticUiEventSource",
     "UiEventSource",
+    "build_main_page_sidecar_app",
     "sse_frame",
     "sse_stream",
 ]

@@ -27,6 +27,22 @@ from taskweavn.server.ui_contract import (
 NOW = datetime(2026, 5, 21, 9, 0, tzinfo=UTC)
 
 
+def test_root_route_returns_sidecar_api_hint() -> None:
+    transport = _transport()
+
+    response = transport.handle(HttpApiRequest(method="GET", path="/"))
+    body = _dict_body(response.body)
+
+    assert response.status_code == 200
+    assert body["ok"] is True
+    assert body["data"]["name"] == "Plato Sidecar"
+    assert body["data"]["api_base_path"] == "/api/v1"
+    assert body["data"]["health_url"] == "/api/v1/health"
+    assert body["data"]["snapshot_url_template"] == (
+        "/api/v1/sessions/{sessionId}/snapshot"
+    )
+
+
 def test_health_route_returns_sidecar_identity() -> None:
     transport = _transport()
 

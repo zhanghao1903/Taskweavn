@@ -32,6 +32,16 @@ from taskweavn.server.ui_contract import (
 NOW = datetime(2026, 5, 21, 10, 0, tzinfo=UTC)
 
 
+def test_local_sidecar_root_serves_api_hint() -> None:
+    with _server() as server:
+        response = _request(server, "GET", "/")
+
+    assert response.status == 200
+    assert response.json["ok"] is True
+    assert response.json["data"]["name"] == "Plato Sidecar"
+    assert response.json["data"]["health_url"] == "/api/v1/health"
+
+
 def test_local_sidecar_serves_health_over_loopback() -> None:
     with _server() as server:
         response = _request(server, "GET", "/api/v1/health")
