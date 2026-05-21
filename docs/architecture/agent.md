@@ -1,14 +1,14 @@
 # Agent 架构设计
 
-> 多 Agent 协作架构的核心抽象 · v1.0 · 2026-05-08
+> 多 Agent 协作架构的核心抽象 · v1.1 · 2026-05-22
 
 ---
 
 ## 1. 定义
 
-**Agent 是无状态的能力载体，Task 的执行单元。**
+**Agent 是无状态的能力载体。Execution Agent 是 Task 的执行单元；Routing Agent 是 Task assignment 的策略单元。**
 
-Agent 本质上是一个**一次性函数对象**：接收一个 Task 作为输入，访问所属 Session 的 Session Workspace 作为环境，调用 LLM + 工具集完成执行，输出 result。**任务结束即销毁。**
+Execution Agent 本质上是一个**一次性函数对象**：接收一个 Task 作为输入，访问所属 Session 的 Session Workspace 作为环境，调用 LLM + 工具集完成执行，输出 result。**任务结束即销毁。**
 
 ```
 Agent ≡ 一次性函数(Task, Session Workspace) → Result
@@ -16,6 +16,8 @@ Agent ≡ 一次性函数(Task, Session Workspace) → Result
 ```
 
 不存在"长生命周期 Agent"的概念。同种能力的 N 个并发任务对应 N 个独立的 Agent 实例。
+
+Routing Agent 是一个特殊 Agent role：它观察 pending Tasks 和可用 Agent 描述，提交 assignment command。它可以是硬规则、LLM 策略或高级用户自定义策略，但不能直接修改 Task 状态。
 
 ---
 
@@ -100,6 +102,53 @@ audit agent:
 ```
 
 **协作能力（创建子任务）通过 `CreateTaskTool` 工具暴露**，与其他能力同等管理。挂载了它的 Agent 是协作节点，没挂载的是叶子节点。
+
+### 2.5 Routing Agent 是可插拔策略对象
+
+Task 路由策略不写死在 TaskBus。Routing Agent 负责决定 pending Task 应该交给哪个 Execution Agent：
+
+```text
+pending Tasks + Agent descriptors
+  -> Routing Agent
+  -> AssignmentCommand(task_id, assigned_agent_id, rationale)
+  -> TaskBus validates and records assignment
+```
+
+Routing Agent 可以很严格，也可以很灵活：
+
+- hard router：按 `required_agent_id` / `required_capability` 做确定性分配；
+- LLM router：根据任务意图、上下文、成本、历史成功率和 fallback 策略做判断；
+- custom router：高级用户接入自己的策略。
+
+Routing Agent 的边界：
+
+- 可以提交 assignment command；
+- 可以说明 rationale；
+- 可以在无可用 Agent 时发 routing notice；
+- 不能直接把 Task 改成 running/done/failed；
+- 不能绕过 TaskBus assignment / claim / completion validation。
+
+这让路由成为可插拔能力，同时保持 TaskBus 的状态权威。
+
+### 2.6 Agent Control Capabilities
+
+中断不是 TaskBus 的能力，而是 Agent/runtime 的能力。不同 Agent 应声明自己支持哪些控制语义：
+
+```text
+supports_interrupt: bool
+supports_pause: bool
+supports_hard_cancel: bool
+safe_point_description: str
+```
+
+1.0 默认采用 cooperative interruption：
+
+- 外界只记录停止意图；
+- Agent 在安全点检查 interruption；
+- Runtime/tool 可以提供 best-effort hard cancel；
+- UI 在 Agent 确认前显示 "stopping"，不承诺立即停止。
+
+常见安全点包括 tool call 前后、文件写入前后、shell command 结束后、搜索批次结束后、等待用户确认时。
 
 ---
 

@@ -213,13 +213,14 @@ Focus:
 Recommended implementation order:
 
 1. [Main Page real backend integration](../plans/feature/main-page-real-backend-integration.md): finish frontend runtime convergence from fixture-centric behavior to session snapshot / command response / UiEvent-driven backend facts. The implementation packet is [Main Page Frontend Runtime Integration](../plans/feature/main-page-frontend-runtime-integration.md). The local sidecar target, HTTP client, runtime env switch, and named SSE subscription already exist.
-2. Minimal agent assignment semantics.
-3. Publish audit query/debug API and concrete HTTP framework binding, if needed by UI/API integration.
-4. Persistent authoring stores, if Product 1.0 user testing requires durable authoring beyond the current server-core boundary.
-5. Product 1.1 planning: completion-time `task_after`, Result Packaging Agent, skills integration, MCP integration, and file/multimodal support.
-6. Centralized runtime configuration system.
+2. Routing Agent assignment semantics.
+3. Cooperative task interruption.
+4. Publish audit query/debug API and concrete HTTP framework binding, if needed by UI/API integration.
+5. Persistent authoring stores, if Product 1.0 user testing requires durable authoring beyond the current server-core boundary.
+6. Product 1.1 planning: completion-time `task_after`, Result Packaging Agent, skills integration, MCP integration, and file/multimodal support.
+7. Centralized runtime configuration system.
 
-LLM Provider reliability, configurable logging, the Task-first data model, Collaborator authoring, TaskPublisher, TaskBus execution lifecycle, publish persistence, API publish transport, frontend baseline, UI/backend contract baseline, local sidecar API shell, and Main Page sidecar assembly now have server-core or UI baseline release candidates. The remaining Product 1.0 order moves into Main Page frontend runtime convergence, minimal assignment semantics, confirmations, file changes, and trust surfaces. Completion-time `task_after` and Result Packaging cards are Product 1.1 capabilities, alongside skills integration, MCP integration, and file/multimodal support research.
+LLM Provider reliability, configurable logging, the Task-first data model, Collaborator authoring, TaskPublisher, TaskBus execution lifecycle, publish persistence, API publish transport, frontend baseline, UI/backend contract baseline, local sidecar API shell, and Main Page sidecar assembly now have server-core or UI baseline release candidates. The remaining Product 1.0 order moves into Main Page frontend runtime convergence, Routing Agent assignment, cooperative interruption, confirmations, file changes, and trust surfaces. Completion-time `task_after` and Result Packaging cards are Product 1.1 capabilities, alongside skills integration, MCP integration, and file/multimodal support research.
 
 The source of truth for gap status is [Gap Registry](../gaps/).
 

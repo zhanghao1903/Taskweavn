@@ -91,7 +91,7 @@ Current user-need drivers:
 2. **Authoring and execution are separate domains.** RawTask, feasibility, clarification asks, and DraftTaskTree stay in Authoring Domain; only PublishedTasks enter Execution TaskBus.
 3. **Planning is capability-first; system state is command-first.** Collaborator should see a read-only CapabilityCatalog and submit Authoring Commands for RawTask/DraftTaskTree changes, not mount the full workspace/external tool pool.
 4. **Messages remain one session stream.** Messages carry `session_id`, `agent_id`, and `task_id`; Task views are projections over the same stream, not a separate Task message table.
-5. **TaskBus is the execution authority.** User, Collaborator, pipeline, scheduler, API, and custom tree inputs all publish normal Tasks through a publisher layer.
+5. **TaskBus is the execution state authority, not the routing brain.** User, Collaborator, pipeline, scheduler, API, and custom tree inputs all publish normal Tasks through a publisher layer; Routing Agent assigns responsibility through commands that TaskBus validates.
 6. **Domain model and UI model are separate.** Backend Task stays small and stable; UI Task cards are projections with temporary view state.
 7. **Interactions must be replayable.** Confirmation actions, user guidance, Task patches, publish decisions, and file summaries must be reconstructible from backend facts.
 8. **Reliability and observability are now product features.** LLM failures, retry behavior, provider routing, and logging must be first-class before complex long-running tasks become usable.
@@ -286,12 +286,13 @@ These remain valuable, but they should not be the next immediate build target be
 Recommended order for upcoming implementation sessions:
 
 1. **[Main Page real backend integration](plans/feature/main-page-real-backend-integration.md)** — finish the UI runtime convergence from fixture-centric Main Page behavior to session snapshot / command response / UiEvent-driven backend facts. The implementation packet is [Main Page Frontend Runtime Integration](plans/feature/main-page-frontend-runtime-integration.md). The local sidecar target, HTTP client, runtime env switch, and named SSE subscription already exist.
-2. **Minimal agent assignment semantics** — enough Task-to-agent/capability routing to support Product 1.0 execution without full multi-agent breadth.
-3. **Message and confirmation UI integration** — make HITL confirmations real through UI commands/events.
-4. **File Change Summary and Audit / Trust implementation** — turn trust facts into user-readable surfaces.
-5. **Persistent authoring stores** — make RawTask/DraftTaskTree authoring durable beyond in-memory tests if 1.0 user testing requires it.
-6. **Product 1.1 research and planning** — completion-time `task_after`, Result Packaging cards, skills integration, MCP integration, and file/multimodal support.
-7. **Centralized runtime configuration** — shared control plane for logging/autonomy/audit/LLM/Task/UI behavior once the Task-facing server model is concrete enough to avoid overfitting.
+2. **Routing Agent assignment semantics** — make Task assignment a pluggable Routing Agent decision, with TaskBus validating assignment commands and assigned-agent claims.
+3. **Cooperative task interruption** — let users request stop while Agents/runtime own safe points and acknowledge terminal outcomes.
+4. **Message and confirmation UI integration** — make HITL confirmations real through UI commands/events.
+5. **File Change Summary and Audit / Trust implementation** — turn trust facts into user-readable surfaces.
+6. **Persistent authoring stores** — make RawTask/DraftTaskTree authoring durable beyond in-memory tests if 1.0 user testing requires it.
+7. **Product 1.1 research and planning** — completion-time `task_after`, Result Packaging cards, skills integration, MCP integration, and file/multimodal support.
+8. **Centralized runtime configuration** — shared control plane for logging/autonomy/audit/LLM/Task/UI behavior once the Task-facing server model is concrete enough to avoid overfitting.
 
 LLM Provider reliability, configurable logging, Task domain/UI separation, Collaborator authoring, TaskPublisher, TaskBus execution lifecycle, publish persistence, API publish transport, frontend baseline, UI/backend contract baseline, local sidecar API shell, and Main Page sidecar assembly are complete enough for the next round. The immediate product blocker is now Main Page frontend runtime convergence against that backend target.
 

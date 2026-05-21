@@ -1,7 +1,7 @@
 # Architecture Docs
 
 > Status: active architecture fact baseline
-> Last Updated: 2026-05-19
+> Last Updated: 2026-05-22
 
 Architecture docs describe active system facts: object boundaries, lifecycles,
 protocols, storage ownership, agent/task responsibilities, and long-term
@@ -34,11 +34,11 @@ Feature-specific work should then read the relevant area documents below.
 | Area | Canonical Docs | Notes |
 |---|---|---|
 | Core agent loop and implemented substrate | [reference.md](reference.md), [interaction-layer.md](interaction-layer.md) | Action/Observation, EventStream, MessageStream, autonomy gate, wait coordination, loop integration. |
-| Task domain and TaskBus | [task.md](task.md), [bus.md](bus.md), [bus-v2.md](bus-v2.md) | Task lifecycle, TaskBus authority, publish/dispatch direction. |
+| Task domain and TaskBus | [task.md](task.md), [bus.md](bus.md), [bus-v2.md](bus-v2.md) | Task lifecycle, TaskBus authority, Routing Agent assignment, cooperative interruption, publish/dispatch direction. |
 | Authoring domain | [authoring-domain.md](authoring-domain.md), [authoring-command-protocol.md](authoring-command-protocol.md), [collaborator-agent-task-authoring.md](collaborator-agent-task-authoring.md) | RawTask, feasibility, DraftTaskTree, Collaborator, Authoring Commands, publish boundary. |
 | UI/backend boundary | [ui-backend-communication.md](ui-backend-communication.md), [task-domain-ui-model-separation.md](task-domain-ui-model-separation.md) | ViewModel projection, Query/Command/Event, frontend/backend contract direction. |
 | Tool and workspace capability | [tool-capability-layer.md](tool-capability-layer.md), [workspace-communication-protocol.md](workspace-communication-protocol.md) | CapabilityCatalog, tool pools, system-state mutation, workspace operations. |
-| Agent model | [agent.md](agent.md), [multi-agent-collaboration.md](multi-agent-collaboration.md), [multi-agent-collaboration_en.md](multi-agent-collaboration_en.md) | Agent templates, instances, future multi-agent collaboration direction. |
+| Agent model | [agent.md](agent.md), [multi-agent-collaboration.md](multi-agent-collaboration.md), [multi-agent-collaboration_en.md](multi-agent-collaboration_en.md) | Agent templates, Routing Agent role, Execution Agent instances, future multi-agent collaboration direction. |
 | Sessions | [session.md](session.md) | Session boundary, status, persistence, workspace relationship. |
 | LLM providers | [llm-provider-reliability.md](llm-provider-reliability.md) | Provider abstraction, retry, DeepSeek thinking, OpenRouter routing. |
 | Logging and observability | [configurable-logging-system.md](configurable-logging-system.md) | Structured logging, session archives, hot update, diagnostics substrate. |

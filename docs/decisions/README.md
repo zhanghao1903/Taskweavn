@@ -35,3 +35,4 @@ Each ADR should include:
 | [ADR-0006](ADR-0006-llm-provider-transport-boundary.md) | accepted | Treat LLM provider transport as a boundary below LLMClient. |
 | [ADR-0007](ADR-0007-centralized-runtime-configuration.md) | accepted | Use centralized hierarchical runtime configuration with immutable snapshots and hot-update events. |
 | [ADR-0008](ADR-0008-authoring-domain-execution-boundary.md) | accepted | Separate Authoring Domain objects from Execution TaskBus; only published Tasks enter TaskBus. |
+| [ADR-0009](ADR-0009-routing-agent-assignment-and-cooperative-interruption.md) | accepted | Use Routing Agent assignment commands and cooperative interruption instead of TaskBus-owned routing strategy or hard cancellation. |

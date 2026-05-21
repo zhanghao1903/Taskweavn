@@ -66,8 +66,11 @@ Result:
 
 - Wire lifecycle events into the UI event projection / sidecar event source
   when Main Page needs live task-status updates beyond snapshot refresh.
-- Add minimal agent assignment semantics on top of the current capability
-  claim filter.
+- Add Routing Agent assignment semantics on top of the current lifecycle
+  boundary: router submits assignment commands, TaskBus validates and records
+  assignment, and Execution Agent claims only tasks assigned to itself.
+- Add cooperative task interruption: TaskBus records stop intent while
+  Agent/runtime owns safe-point behavior.
 - Decide later whether product needs an explicit `skipped` or `cancelled`
   published Task status. The current architecture intentionally keeps Product
   1.0 execution at four states.
