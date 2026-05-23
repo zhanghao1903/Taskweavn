@@ -45,6 +45,7 @@ logs/
 
 # Frontend
 frontend/node_modules/
+frontend/.vite/
 frontend/dist/
 frontend/*.tsbuildinfo
 frontend/vite.config.d.ts

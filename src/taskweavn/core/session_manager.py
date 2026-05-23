@@ -10,6 +10,7 @@ created lazily by the consumers — the manager only owns the registry.
 from __future__ import annotations
 
 import contextlib
+import shutil
 import sqlite3
 from datetime import UTC, datetime
 from typing import Any, get_args
@@ -121,6 +122,33 @@ class SessionManager:
             raise SessionManagerError(f"no such session: {session_id!r}")
         return self.require(session_id)
 
+    def rename(self, session_id: str, name: str) -> Session:
+        """Rename a session and bump its activity timestamp."""
+        if not name.strip():
+            raise SessionManagerError("session name must not be empty")
+        now = _utcnow()
+        result = self._conn.execute(
+            "UPDATE sessions SET name = ?, last_active_at = ? WHERE id = ?",
+            (name.strip(), now.isoformat(), session_id),
+        )
+        if result.rowcount == 0:
+            raise SessionManagerError(f"no such session: {session_id!r}")
+        return self.require(session_id)
+
+    def delete(self, session_id: str) -> Session | None:
+        """Delete a session registry row and archive its on-disk directory.
+
+        The local 1.0 UI exposes this as "delete", but we archive files under
+        ``.taskweavn/deleted-sessions`` instead of physically removing the
+        project directory. That keeps user work recoverable while making the
+        session disappear from normal lists.
+        """
+        self.require(session_id)
+        self._conn.execute("DELETE FROM sessions WHERE id = ?", (session_id,))
+        self._archive_session_dir(session_id)
+        remaining = self.list()
+        return remaining[0] if remaining else None
+
     def mark_status(self, session_id: str, status: SessionStatus) -> Session:
         """Transition a session's lifecycle status."""
         if status not in _VALID_STATUSES:
@@ -162,6 +190,15 @@ class SessionManager:
             last_active_at=datetime.fromisoformat(last_active_at),
             status=_parse_status(status),
         )
+
+    def _archive_session_dir(self, session_id: str) -> None:
+        source = self.layout.session_dir(session_id)
+        if not source.exists():
+            return
+        archive_root = self.layout.meta_dir / "deleted-sessions"
+        archive_root.mkdir(parents=True, exist_ok=True)
+        destination = archive_root / f"{session_id}-{_utcnow().strftime('%Y%m%d%H%M%S%f')}"
+        shutil.move(str(source), str(destination))
 
 
 def _utcnow() -> datetime:

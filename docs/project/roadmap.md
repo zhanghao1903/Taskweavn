@@ -151,13 +151,14 @@ Acceptance:
 
 ### P3E — Task-first UI
 
-Status: active planning; frontend implementation should restart from Figma UI baseline 1.0. Priority: P0.
+Status: active implementation; Main Page frontend runtime integration is done with a real-browser smoke caveat. Priority: P0.
 
 | Package | Source Plan | Implementation Goal |
 |---|---|---|
 | Plato MVP product/UX baseline | [Plato MVP PRD](../product/plato-mvp-prd.md), [Main Page UX Flow](../product/plato-main-page-ux-flow.md) | Product scope, user path, screen states, and Main Page behavior. |
 | Figma UI baseline 1.0 | [Figma UI Baseline](../product/plato-figma-ui-baseline.md) | Current visual/layout source for implementation. |
 | Frontend technical design | [Plato Frontend Technical Design](../product/plato-frontend-technical-design.md) | Technology choice, architecture, state/API boundaries, implementation slices. |
+| Main Page frontend runtime integration | [Frontend runtime plan](../plans/feature/main-page-frontend-runtime-integration.md), [release](../releases/main-page-frontend-runtime-integration.md) | Done: session-centric runtime adapter, HTTP-hidden fixture StatePicker, command lifecycle convergence, command coverage, and event invalidation. Real Chrome/Safari/Electron smoke remains before broader testing. |
 | Early UI interaction model | [Task-first UI overview](../plans/task-first-ui-interaction.md) | Superseded as implementation plan; retained as concept seed. |
 | Early UI sub-designs | [UI plan directory](../plans/ui/) | Historical planning archive unless explicitly pulled into new frontend work. |
 | Result packaging cards | [Result packaging plan](../plans/feature/result-packaging-agent-cards.md) | Package suitable information-style answers into UI card sets through normal Tasks. |

@@ -211,7 +211,7 @@ Exit criteria:
 
 ### Phase 3E — Task-first UI System
 
-Status: active planning; frontend implementation should restart from Figma UI baseline 1.0.
+Status: active implementation; Main Page frontend runtime integration is done with a real-browser smoke caveat.
 
 Why now: CLI has reached its usefulness ceiling. The product value is in Task topology, Task cards, confirmations, and real-time message streams.
 
@@ -228,7 +228,8 @@ Work packages:
 | Result Packaging Agent and card-based result presentation | [Result packaging plan](plans/feature/result-packaging-agent-cards.md) | P1 |
 | Clean frontend scaffold and Figma-state stories | [Plato Frontend Technical Design](product/plato-frontend-technical-design.md) | P0 |
 | UI/backend contract baseline | [Contract baseline plan](plans/feature/ui-backend-contract-baseline.md), [Plato UI API Contract](product/plato-ui-api-contract.md) | Done |
-| API-backed prototype | Future implementation plan after UI API Contract | P0 |
+| Main Page frontend runtime integration | [Frontend runtime plan](plans/feature/main-page-frontend-runtime-integration.md), [release](releases/main-page-frontend-runtime-integration.md) | Done with smoke caveat |
+| API-backed prototype | Follow-up after real browser/Electron smoke | P0 |
 
 Exit criteria:
 
@@ -286,16 +287,16 @@ These remain valuable, but they should not be the next immediate build target be
 
 Recommended order for upcoming implementation sessions:
 
-1. **[Main Page real backend integration](plans/feature/main-page-real-backend-integration.md)** — finish the UI runtime convergence from fixture-centric Main Page behavior to session snapshot / command response / UiEvent-driven backend facts. The implementation packet is [Main Page Frontend Runtime Integration](plans/feature/main-page-frontend-runtime-integration.md). The local sidecar target, HTTP client, runtime env switch, and named SSE subscription already exist.
+1. **Real browser/Electron Main Page smoke** — `taskweavn plato-dev` sidecar API works and frontend runtime convergence is implemented, but Codex in-app browser cannot complete HTTP mode because that browser context lacks `fetch` / `XMLHttpRequest`.
 2. **Pipeline completion-time orchestration and agent assignment** — API publish server transport is available as a framework-neutral adapter; next backend blocker is completing `task_after` and assignment semantics.
 3. **TaskBus execution lifecycle** — claim, execute, complete, fail, retry/recovery semantics.
-4. **Message and confirmation UI integration** — make HITL confirmations real through UI commands/events.
+4. **Message and confirmation UI integration hardening** — Main Page now routes commands/events through the backend contract; next work is deeper HITL confirmation UX and richer pending states.
 5. **File Change Summary and Audit / Trust implementation** — turn trust facts into user-readable surfaces.
 6. **Result packaging and card presentation** — richer result display for information-style answers.
 7. **Persistent authoring stores** — make RawTask/DraftTaskTree authoring durable beyond in-memory tests.
 8. **Centralized runtime configuration** — shared control plane for logging/autonomy/audit/LLM/Task/UI behavior once the Task-facing server model is concrete enough to avoid overfitting.
 
-LLM Provider reliability, configurable logging, Task domain/UI separation, Collaborator authoring, TaskPublisher, publish persistence, API publish transport, frontend baseline, UI/backend contract baseline, local sidecar API shell, and Main Page sidecar assembly are complete enough for the next round. The immediate product blocker is now Main Page frontend runtime convergence against that backend target.
+LLM Provider reliability, configurable logging, Task domain/UI separation, Collaborator authoring, TaskPublisher, publish persistence, API publish transport, frontend baseline, UI/backend contract baseline, local sidecar API shell, Main Page sidecar assembly, and Main Page frontend runtime convergence are complete enough for the next round. The immediate product blocker is now real-browser runtime smoke plus the next TaskBus/UI trust surfaces.
 
 For status and routing of each gap, see [Gap Registry](gaps/).
 

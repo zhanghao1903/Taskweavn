@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Protocol
 from urllib.parse import parse_qsl, unquote, urlsplit
 
 from pydantic import ValidationError
 
+from taskweavn.server.client_logs import ClientErrorLogSink
 from taskweavn.server.transport import HttpApiRequest, HttpApiResponse
 from taskweavn.server.ui_contract import (
     ApiError,
@@ -30,6 +31,18 @@ _SSE_HEADERS = {
     "connection": "keep-alive",
     "content-type": "text/event-stream",
 }
+
+
+class SessionLifecycleGateway(Protocol):
+    """Small session lifecycle boundary used by the local Main Page sidecar."""
+
+    def list_sessions(self) -> dict[str, Any]: ...
+
+    def create_session(self, name: str) -> dict[str, Any]: ...
+
+    def rename_session(self, session_id: str, name: str) -> dict[str, Any]: ...
+
+    def delete_session(self, session_id: str) -> dict[str, Any]: ...
 
 
 @dataclass(frozen=True)
@@ -61,11 +74,15 @@ class PlatoUiHttpTransport:
         command_gateway: UiCommandGateway,
         event_source: UiEventSource | None = None,
         auth: SidecarAuth | None = None,
+        client_error_log_sink: ClientErrorLogSink | None = None,
+        session_lifecycle_gateway: SessionLifecycleGateway | None = None,
     ) -> None:
         self._query_gateway = query_gateway
         self._command_gateway = command_gateway
         self._event_source = event_source or ResyncOnlyEventSource()
         self._auth = auth
+        self._client_error_log_sink = client_error_log_sink
+        self._session_lifecycle_gateway = session_lifecycle_gateway
 
     def handle(self, request: HttpApiRequest) -> HttpApiResponse:
         route = _match_route(request.path)
@@ -88,7 +105,7 @@ class PlatoUiHttpTransport:
                 request_id=_request_id_hint(request),
             )
 
-        if request.method.upper() != route.method:
+        if route.method != "*" and request.method.upper() != route.method:
             return _error_response(
                 405,
                 ApiError(
@@ -131,9 +148,67 @@ class PlatoUiHttpTransport:
                         "error": None,
                     }
                 )
+            if route_name == "sessions":
+                lifecycle = self._require_session_lifecycle(request)
+                if isinstance(lifecycle, HttpApiResponse):
+                    return lifecycle
+                if request.method.upper() == "GET":
+                    return _json_response(
+                        {
+                            "ok": True,
+                            "data": lifecycle.list_sessions(),
+                            "error": None,
+                        }
+                    )
+                if request.method.upper() != "POST":
+                    return _error_response(
+                        405,
+                        ApiError(
+                            code="bad_request",
+                            message="sessions requires GET or POST",
+                            details={"allowed_methods": ["GET", "POST"]},
+                        ),
+                        request_id=_request_id_hint(request),
+                        headers={"allow": "GET, POST"},
+                    )
+                name = _string_body_value(request, "name", default="New session")
+                if isinstance(name, HttpApiResponse):
+                    return name
+                return _json_response(
+                    {
+                        "ok": True,
+                        "data": lifecycle.create_session(name),
+                        "error": None,
+                    }
+                )
             if route_name == "snapshot":
                 return _contract_response(
                     self._query_gateway.get_session_snapshot(route.session_id)
+                )
+            if route_name == "rename_session":
+                lifecycle = self._require_session_lifecycle(request)
+                if isinstance(lifecycle, HttpApiResponse):
+                    return lifecycle
+                name = _string_body_value(request, "name")
+                if isinstance(name, HttpApiResponse):
+                    return name
+                return _json_response(
+                    {
+                        "ok": True,
+                        "data": lifecycle.rename_session(route.session_id, name),
+                        "error": None,
+                    }
+                )
+            if route_name == "delete_session":
+                lifecycle = self._require_session_lifecycle(request)
+                if isinstance(lifecycle, HttpApiResponse):
+                    return lifecycle
+                return _json_response(
+                    {
+                        "ok": True,
+                        "data": lifecycle.delete_session(route.session_id),
+                        "error": None,
+                    }
                 )
             if route_name == "append_session_input":
                 append_session_request = _parse_command_request(
@@ -207,6 +282,25 @@ class PlatoUiHttpTransport:
                         resolve_request,
                     )
                 )
+            if route_name == "client_error_log":
+                if request.body is None:
+                    return _error_response(
+                        400,
+                        ApiError(
+                            code="bad_request",
+                            message="request body must be a JSON object",
+                        ),
+                        request_id=_request_id_hint(request),
+                    )
+                if self._client_error_log_sink is not None:
+                    self._client_error_log_sink.write_error(route.session_id, request.body)
+                return _json_response(
+                    {
+                        "ok": True,
+                        "data": {"stored": self._client_error_log_sink is not None},
+                        "error": None,
+                    }
+                )
             if route_name == "events":
                 events = self._event_source.subscribe(
                     route.session_id,
@@ -240,6 +334,21 @@ class PlatoUiHttpTransport:
             request_id=_request_id_hint(request),
         )
 
+    def _require_session_lifecycle(
+        self,
+        request: HttpApiRequest,
+    ) -> SessionLifecycleGateway | HttpApiResponse:
+        if self._session_lifecycle_gateway is not None:
+            return self._session_lifecycle_gateway
+        return _error_response(
+            501,
+            ApiError(
+                code="internal_error",
+                message="session lifecycle gateway is not configured",
+            ),
+            request_id=_request_id_hint(request),
+        )
+
 
 @dataclass(frozen=True)
 class _Route:
@@ -256,12 +365,18 @@ def _match_route(path: str) -> _Route | None:
         return _Route(name="root", method="GET")
     if parts == ("api", "v1", "health"):
         return _Route(name="health", method="GET")
-    if len(parts) < 5 or parts[:3] != ("api", "v1", "sessions"):
+    if parts == ("api", "v1", "sessions"):
+        return _Route(name="sessions", method="*")
+    if len(parts) < 4 or parts[:3] != ("api", "v1", "sessions"):
         return None
     session_id = parts[3]
     suffix = parts[4:]
     if suffix == ("snapshot",):
         return _Route(name="snapshot", method="GET", session_id=session_id)
+    if suffix == ():
+        return _Route(name="rename_session", method="PATCH", session_id=session_id)
+    if suffix == ("delete",):
+        return _Route(name="delete_session", method="POST", session_id=session_id)
     if suffix == ("input",):
         return _Route(name="append_session_input", method="POST", session_id=session_id)
     if suffix == ("task-tree", "generate"):
@@ -270,6 +385,8 @@ def _match_route(path: str) -> _Route | None:
         return _Route(name="publish_task_tree", method="POST", session_id=session_id)
     if suffix == ("events",):
         return _Route(name="events", method="GET", session_id=session_id)
+    if suffix == ("client-logs", "errors"):
+        return _Route(name="client_error_log", method="POST", session_id=session_id)
     if len(suffix) == 2 and suffix[0] == "tasks":
         return _Route(
             name="update_task_node",
@@ -344,6 +461,27 @@ def _parse_command_request[PayloadT](
             request_id=parsed.command_id,
         )
     return parsed
+
+
+def _string_body_value(
+    request: HttpApiRequest,
+    key: str,
+    *,
+    default: str | None = None,
+) -> str | HttpApiResponse:
+    raw = None if request.body is None else request.body.get(key)
+    if raw is None:
+        raw = default
+    if not isinstance(raw, str) or not raw.strip():
+        return _error_response(
+            400,
+            ApiError(
+                code="bad_request",
+                message=f"request body field {key!r} must be a non-empty string",
+            ),
+            request_id=_request_id_hint(request),
+        )
+    return raw.strip()
 
 
 def _contract_response(response: QueryResponse[Any] | Any) -> HttpApiResponse:

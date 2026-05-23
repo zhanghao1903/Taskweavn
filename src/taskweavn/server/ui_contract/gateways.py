@@ -345,11 +345,22 @@ class DefaultUiCommandGateway:
                     raw_task_id=request.payload.raw_task_id,
                 )
             else:
-                result = self._collaborator.append_session_message(
+                raw_result = self._collaborator.append_session_message(
                     session_id=request.session_id,
                     content=request.payload.prompt or "",
                     source_message_id=request.command_id,
                 )
+                if raw_result.accepted:
+                    tree_result = self._collaborator.generate_task_tree(
+                        session_id=request.session_id,
+                        raw_task_id=None,
+                    )
+                    result = _merge_prompt_task_tree_results(
+                        raw_result,
+                        tree_result,
+                    )
+                else:
+                    result = raw_result
             return _command_response(
                 request,
                 result,
@@ -652,6 +663,22 @@ def _command_response[T](
     )
 
 
+def _merge_prompt_task_tree_results(
+    raw_result: CoreCommandResult,
+    tree_result: CoreCommandResult,
+) -> CoreCommandResult:
+    return CoreCommandResult(
+        command_id=tree_result.command_id,
+        status=tree_result.status,
+        message=tree_result.message,
+        affected_task_refs=tree_result.affected_task_refs,
+        emitted_message_ids=_dedupe_ids(
+            (*raw_result.emitted_message_ids, *tree_result.emitted_message_ids)
+        ),
+        published_task_ids=tree_result.published_task_ids,
+    )
+
+
 def _command_not_found_response[T](
     request: CommandRequest[T],
     message: str,
@@ -733,6 +760,17 @@ def _dedupe_object_refs(refs: list[ObjectRef]) -> tuple[ObjectRef, ...]:
             continue
         seen.add(key)
         result.append(ref)
+    return tuple(result)
+
+
+def _dedupe_ids(ids: tuple[str, ...]) -> tuple[str, ...]:
+    seen: set[str] = set()
+    result: list[str] = []
+    for item in ids:
+        if item in seen:
+            continue
+        seen.add(item)
+        result.append(item)
     return tuple(result)
 
 

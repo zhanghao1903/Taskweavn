@@ -28,26 +28,31 @@ def test_main_page_sidecar_config_uses_stable_dev_port_by_default(
     assert config.port == DEFAULT_PLATO_SIDECAR_PORT
 
 
-def test_build_main_page_sidecar_app_creates_session_and_serves_empty_snapshot(
+def test_build_main_page_sidecar_app_starts_without_session_and_frontend_creates_one(
     tmp_path: Any,
 ) -> None:
     app = build_main_page_sidecar_app(
         MainPageSidecarConfig(
             workspace_root=tmp_path,
-            session_name="Demo session",
             port=0,
         ),
         MainPageSidecarDependencies(llm=_StubLLM()),
     )
     try:
-        response = _request(app, "GET", f"/api/v1/sessions/{app.session.id}/snapshot")
+        listed = _request(app, "GET", "/api/v1/sessions")
+        created = _request(app, "POST", "/api/v1/sessions", body={"name": "Demo session"})
+        session_id = created.json["data"]["sessionId"]
+        response = _request(app, "GET", f"/api/v1/sessions/{session_id}/snapshot")
     finally:
         app.close()
 
-    assert app.session.name == "Demo session"
+    assert app.session is None
+    assert listed.status == 200
+    assert listed.json["data"]["sessions"] == []
+    assert created.json["data"]["session"]["name"] == "Demo session"
     assert response.status == 200
     assert response.json["ok"] is True
-    assert response.json["data"]["session"]["id"] == app.session.id
+    assert response.json["data"]["session"]["id"] == session_id
     assert response.json["data"]["session"]["status"] == "new"
     assert response.json["data"]["taskTree"] is None
 
@@ -65,10 +70,50 @@ def test_build_main_page_sidecar_app_reuses_existing_session(tmp_path: Any) -> N
         MainPageSidecarDependencies(llm=_StubLLM()),
     )
     try:
+        assert app.session is not None
         assert app.session.id == session.id
         assert app.session.name == "Existing"
     finally:
         app.close()
+
+
+def test_main_page_sidecar_app_session_lifecycle_routes(tmp_path: Any) -> None:
+    app = build_main_page_sidecar_app(
+        MainPageSidecarConfig(workspace_root=tmp_path, port=0),
+        MainPageSidecarDependencies(llm=_StubLLM()),
+    )
+    try:
+        first = _request(app, "POST", "/api/v1/sessions", body={"name": "First"})
+        first_id = first.json["data"]["sessionId"]
+        created = _request(
+            app,
+            "POST",
+            "/api/v1/sessions",
+            body={"name": "Second"},
+        )
+        created_id = created.json["data"]["sessionId"]
+        renamed = _request(
+            app,
+            "PATCH",
+            f"/api/v1/sessions/{created_id}",
+            body={"name": "Renamed"},
+        )
+        deleted = _request(
+            app,
+            "POST",
+            f"/api/v1/sessions/{created_id}/delete",
+        )
+        snapshot = _request(app, "GET", f"/api/v1/sessions/{first_id}/snapshot")
+    finally:
+        app.close()
+
+    assert created.status == 200
+    assert created.json["data"]["session"]["name"] == "Second"
+    assert renamed.status == 200
+    assert renamed.json["data"]["session"]["name"] == "Renamed"
+    assert deleted.status == 200
+    assert deleted.json["data"]["deletedSessionId"] == created_id
+    assert snapshot.json["data"]["sessions"][0]["id"] == first_id
 
 
 def test_build_main_page_sidecar_app_rejects_unknown_session_id(tmp_path: Any) -> None:
@@ -85,21 +130,22 @@ def test_main_page_sidecar_app_routes_session_input_to_real_services(tmp_path: A
         MainPageSidecarDependencies(llm=_StubLLM()),
     )
     try:
+        session_id = _create_session(app)
         command = _request(
             app,
             "POST",
-            f"/api/v1/sessions/{app.session.id}/input",
+            f"/api/v1/sessions/{session_id}/input",
             body={
                 "commandId": "command-1",
-                "sessionId": app.session.id,
+                "sessionId": session_id,
                 "payload": {
                     "content": "Build a quiet personal website.",
                     "mode": "global_guidance",
                 },
             },
         )
-        snapshot = _request(app, "GET", f"/api/v1/sessions/{app.session.id}/snapshot")
-        raw_tasks = app.raw_task_store.list_for_session(app.session.id)
+        snapshot = _request(app, "GET", f"/api/v1/sessions/{session_id}/snapshot")
+        raw_tasks = app.raw_task_store.list_for_session(session_id)
     finally:
         app.close()
 
@@ -111,6 +157,95 @@ def test_main_page_sidecar_app_routes_session_input_to_real_services(tmp_path: A
     assert snapshot.json["data"]["messages"][0]["body"] == (
         "Build a quiet personal website."
     )
+
+
+def test_main_page_sidecar_app_generates_task_tree_from_prompt(tmp_path: Any) -> None:
+    app = build_main_page_sidecar_app(
+        MainPageSidecarConfig(workspace_root=tmp_path, port=0),
+        MainPageSidecarDependencies(
+            llm=_StubLLM(
+                [
+                    """
+                    {
+                      "intent_summary": "Build a quiet website",
+                      "feasibility": {
+                        "status": "ready",
+                        "confidence": 0.95,
+                        "suggested_next_action": "generate_task_tree"
+                      },
+                      "constraints": ["quiet visual style"]
+                    }
+                    """,
+                    """
+                    {
+                      "assistant_message": "Drafted the first TaskTree.",
+                      "roots": [
+                        {
+                          "title": "Plan structure",
+                          "intent": "Plan the website structure.",
+                          "required_capability": "general"
+                        }
+                      ]
+                    }
+                    """,
+                ]
+            )
+        ),
+    )
+    try:
+        session_id = _create_session(app)
+        command = _request(
+            app,
+            "POST",
+            f"/api/v1/sessions/{session_id}/task-tree/generate",
+            body={
+                "commandId": "generate-1",
+                "sessionId": session_id,
+                "payload": {"prompt": "Build a quiet personal website."},
+            },
+        )
+        snapshot = _request(app, "GET", f"/api/v1/sessions/{session_id}/snapshot")
+    finally:
+        app.close()
+
+    assert command.status == 200
+    assert command.json["ok"] is True
+    assert snapshot.json["data"]["taskTree"]["nodes"][0]["title"] == "Plan structure"
+    assert snapshot.json["data"]["taskTree"]["nodes"][0]["taskRef"]["kind"] == "draft"
+
+
+def test_main_page_sidecar_app_writes_frontend_error_log_file(tmp_path: Any) -> None:
+    app = build_main_page_sidecar_app(
+        MainPageSidecarConfig(workspace_root=tmp_path, port=0),
+        MainPageSidecarDependencies(llm=_StubLLM()),
+    )
+    try:
+        session_id = _create_session(app)
+        response = _request(
+            app,
+            "POST",
+            f"/api/v1/sessions/{session_id}/client-logs/errors",
+            body={
+                "entry": {
+                    "createdAt": "2026-05-22T00:00:00.000Z",
+                    "level": "error",
+                    "message": "render.failed",
+                    "namespace": "app-error-boundary",
+                }
+            },
+        )
+        log_path = (
+            WorkspaceLayout(tmp_path).session_logs_dir(session_id)
+            / "frontend-errors.jsonl"
+        )
+        rows = [json.loads(line) for line in log_path.read_text().splitlines()]
+    finally:
+        app.close()
+
+    assert response.status == 200
+    assert response.json["ok"] is True
+    assert rows[0]["sessionId"] == session_id
+    assert rows[0]["payload"]["entry"]["message"] == "render.failed"
 
 
 def test_main_page_task_ref_resolver_prefers_draft_then_published(tmp_path: Any) -> None:
@@ -150,6 +285,9 @@ class _HttpResult:
 
 
 class _StubLLM:
+    def __init__(self, responses: list[str] | None = None) -> None:
+        self._responses = list(responses or [])
+
     def chat(
         self,
         messages: list[dict[str, Any]],
@@ -157,6 +295,8 @@ class _StubLLM:
         *,
         metadata: dict[str, Any] | None = None,
     ) -> _LLMResponse:
+        if self._responses:
+            return _LLMResponse(self._responses.pop(0))
         return _LLMResponse(
             """
             {
@@ -196,3 +336,8 @@ def _request(
         return _HttpResult(status=response.status, text=raw.decode("utf-8"))
     finally:
         conn.close()
+
+
+def _create_session(app: Any, name: str = "Demo session") -> str:
+    response = _request(app, "POST", "/api/v1/sessions", body={"name": name})
+    return cast(str, response.json["data"]["sessionId"])

@@ -3,8 +3,13 @@ import { describe, expect, it, vi } from "vitest";
 import type {
   AppendSessionInputPayload,
   AppendTaskInputPayload,
+  GenerateTaskTreePayload,
   PlatoApi,
+  PublishTaskTreePayload,
   ResolveConfirmationPayload,
+  SessionLifecycleResult,
+  SessionListResult,
+  UpdateTaskNodePayload,
 } from "../../shared/api/platoApi";
 import type {
   CommandRequest,
@@ -37,6 +42,51 @@ describe("HTTP MainPage adapter bridge", () => {
     );
   });
 
+  it("loads an explicitly selected session id", async () => {
+    const snapshot = getMainPageMockSnapshot("s3-draft-ready").snapshot;
+    const api = stubPlatoApi(snapshot);
+    const adapter = createHttpMainPageAdapter({
+      api,
+      sessionId: "initial-session",
+    });
+
+    await adapter.loadSnapshot("s3-draft-ready", "selected-session");
+
+    expect(api.getSessionSnapshot).toHaveBeenCalledWith("selected-session");
+  });
+
+  it("bootstraps from the session list when no startup session is configured", async () => {
+    const snapshot = getMainPageMockSnapshot("s3-draft-ready").snapshot;
+    const api = stubPlatoApi(snapshot);
+    const adapter = createHttpMainPageAdapter({
+      api,
+    });
+
+    await adapter.loadSnapshot("s3-draft-ready");
+
+    expect(api.listSessions).toHaveBeenCalled();
+    expect(api.createSession).not.toHaveBeenCalled();
+    expect(api.getSessionSnapshot).toHaveBeenCalledWith(snapshot.session.id);
+  });
+
+  it("reports an empty workspace without creating a session implicitly", async () => {
+    const snapshot = getMainPageMockSnapshot("s3-draft-ready").snapshot;
+    const api = stubPlatoApi(snapshot);
+    api.listSessions.mockResolvedValueOnce(
+      lifecycleResponse({ sessions: [] }),
+    );
+    const adapter = createHttpMainPageAdapter({
+      api,
+    });
+
+    await expect(adapter.loadSnapshot("s3-draft-ready")).rejects.toThrow(
+      "No Plato sessions exist yet",
+    );
+
+    expect(api.createSession).not.toHaveBeenCalled();
+    expect(api.getSessionSnapshot).not.toHaveBeenCalled();
+  });
+
   it("delegates commands and event subscriptions to the Plato API", async () => {
     const snapshot = getMainPageMockSnapshot("s3-draft-ready").snapshot;
     const api = stubPlatoApi(snapshot);
@@ -67,10 +117,45 @@ describe("HTTP MainPage adapter bridge", () => {
         value: "confirmed",
       },
     };
+    const generateRequest: CommandRequest<GenerateTaskTreePayload> = {
+      commandId: "generate-tree",
+      sessionId: snapshot.session.id,
+      payload: {
+        prompt: "Plan a small website.",
+      },
+    };
+    const updateRequest: CommandRequest<UpdateTaskNodePayload> = {
+      commandId: "update-task",
+      sessionId: snapshot.session.id,
+      payload: {
+        title: "Smaller task",
+      },
+    };
+    const publishRequest: CommandRequest<PublishTaskTreePayload> = {
+      commandId: "publish-tree",
+      sessionId: snapshot.session.id,
+      payload: {
+        taskTreeId: snapshot.taskTree?.id ?? "task-tree",
+        startImmediately: true,
+      },
+    };
     const eventHandler = vi.fn<(event: UiEvent) => void>();
 
     await adapter.appendSessionInput(sessionRequest);
     await adapter.appendTaskInput(snapshot.session.id, "task-implementation", taskRequest);
+    await adapter.generateTaskTree(generateRequest);
+    await adapter.updateTaskNode(
+      snapshot.session.id,
+      "task-implementation",
+      updateRequest,
+    );
+    await adapter.publishTaskTree(publishRequest);
+    await adapter.createSession({ name: "New session" });
+    await adapter.renameSession({
+      name: "Renamed",
+      sessionId: snapshot.session.id,
+    });
+    await adapter.deleteSession(snapshot.session.id);
     await adapter.resolveConfirmation(
       snapshot.session.id,
       "confirmation-1",
@@ -89,6 +174,18 @@ describe("HTTP MainPage adapter bridge", () => {
       "task-implementation",
       taskRequest,
     );
+    expect(api.generateTaskTree).toHaveBeenCalledWith(generateRequest);
+    expect(api.updateTaskNode).toHaveBeenCalledWith(
+      snapshot.session.id,
+      "task-implementation",
+      updateRequest,
+    );
+    expect(api.publishTaskTree).toHaveBeenCalledWith(publishRequest);
+    expect(api.createSession).toHaveBeenCalledWith({ name: "New session" });
+    expect(api.renameSession).toHaveBeenCalledWith(snapshot.session.id, {
+      name: "Renamed",
+    });
+    expect(api.deleteSession).toHaveBeenCalledWith(snapshot.session.id);
     expect(api.resolveConfirmation).toHaveBeenCalledWith(
       snapshot.session.id,
       "confirmation-1",
@@ -130,7 +227,15 @@ describe("HTTP MainPage adapter bridge", () => {
 function stubPlatoApi(snapshot: MainPageSnapshot) {
   const response = acceptedCommandResponse("accepted");
   return {
+    listSessions: vi.fn(async () =>
+      lifecycleResponse({ sessions: snapshot.sessions }),
+    ),
+    createSession: vi.fn(async () => lifecycleResponse({ sessionId: "new-session" })),
     getSessionSnapshot: vi.fn(async () => snapshotResponse(snapshot)),
+    renameSession: vi.fn(async () =>
+      lifecycleResponse({ sessionId: snapshot.session.id }),
+    ),
+    deleteSession: vi.fn(async () => lifecycleResponse({ nextSessionId: null })),
     appendSessionInput: vi.fn(async () => response),
     generateTaskTree: vi.fn(async () => response),
     updateTaskNode: vi.fn(async () => response),
@@ -139,6 +244,18 @@ function stubPlatoApi(snapshot: MainPageSnapshot) {
     resolveConfirmation: vi.fn(async () => response),
     subscribeSessionEvents: vi.fn(() => () => undefined),
   } satisfies PlatoApi;
+}
+
+function lifecycleResponse<T extends SessionLifecycleResult | SessionListResult>(
+  data: T,
+): QueryResponse<T> {
+  return {
+    requestId: "request-session-lifecycle",
+    ok: true,
+    data,
+    error: null,
+    generatedAt: "2026-05-17T10:20:00+08:00",
+  };
 }
 
 function snapshotResponse(

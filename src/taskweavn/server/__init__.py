@@ -3,8 +3,10 @@
 from taskweavn.server.api_publish import (
     ApiPublishHttpTransport,
 )
+from taskweavn.server.client_logs import ClientErrorLogSink, FileClientErrorLogSink
 from taskweavn.server.main_page import (
     DEFAULT_PLATO_SIDECAR_PORT,
+    MainPageSessionLifecycleGateway,
     MainPageSidecarApp,
     MainPageSidecarConfig,
     MainPageSidecarDependencies,
@@ -34,9 +36,12 @@ __all__ = [
     "LocalSidecarConfig",
     "LocalSidecarServer",
     "DEFAULT_PLATO_SIDECAR_PORT",
+    "ClientErrorLogSink",
+    "FileClientErrorLogSink",
     "MainPageSidecarApp",
     "MainPageSidecarConfig",
     "MainPageSidecarDependencies",
+    "MainPageSessionLifecycleGateway",
     "MainPageTaskRefResolver",
     "PlatoUiHttpTransport",
     "ResyncOnlyEventSource",

@@ -70,6 +70,45 @@ def test_snapshot_route_decodes_session_and_returns_contract_json() -> None:
     assert body["data"]["generatedAt"] == "2026-05-21T09:00:00Z"
 
 
+def test_session_lifecycle_routes_dispatch_to_gateway() -> None:
+    lifecycle = _SessionLifecycleGateway()
+    transport = _transport(session_lifecycle_gateway=lifecycle)
+
+    listed = transport.handle(HttpApiRequest(method="GET", path="/api/v1/sessions"))
+    created = transport.handle(
+        HttpApiRequest(
+            method="POST",
+            path="/api/v1/sessions",
+            body={"name": "New session"},
+        )
+    )
+    renamed = transport.handle(
+        HttpApiRequest(
+            method="PATCH",
+            path="/api/v1/sessions/session%201",
+            body={"name": "Renamed"},
+        )
+    )
+    deleted = transport.handle(
+        HttpApiRequest(method="POST", path="/api/v1/sessions/session%201/delete")
+    )
+
+    assert listed.status_code == 200
+    assert _dict_body(listed.body)["data"]["sessions"][0]["id"] == "session-1"
+    assert created.status_code == 200
+    assert _dict_body(created.body)["data"]["sessionId"] == "created-session"
+    assert renamed.status_code == 200
+    assert _dict_body(renamed.body)["data"]["session"]["name"] == "Renamed"
+    assert deleted.status_code == 200
+    assert _dict_body(deleted.body)["data"]["nextSessionId"] == "next-session"
+    assert lifecycle.calls == [
+        ("list",),
+        ("create", "New session"),
+        ("rename", "session 1", "Renamed"),
+        ("delete", "session 1"),
+    ]
+
+
 def test_command_routes_validate_and_dispatch_to_gateway_methods() -> None:
     commands = _CommandGateway()
     transport = _transport(commands=commands)
@@ -216,6 +255,57 @@ def test_event_route_uses_resync_fallback_by_default() -> None:
     assert '"cursor":"old"' in body
 
 
+def test_client_error_log_route_dispatches_to_sink() -> None:
+    sink = _ClientErrorSink()
+    transport = _transport(client_error_log_sink=sink)
+
+    response = transport.handle(
+        HttpApiRequest(
+            method="POST",
+            path="/api/v1/sessions/session%201/client-logs/errors",
+            body={
+                "entry": {
+                    "level": "error",
+                    "message": "snapshot failed",
+                    "namespace": "main-page",
+                }
+            },
+        )
+    )
+    body = _dict_body(response.body)
+
+    assert response.status_code == 200
+    assert body["ok"] is True
+    assert body["data"] == {"stored": True}
+    assert sink.calls == [
+        (
+            "session 1",
+            {
+                "entry": {
+                    "level": "error",
+                    "message": "snapshot failed",
+                    "namespace": "main-page",
+                }
+            },
+        )
+    ]
+
+
+def test_client_error_log_route_rejects_empty_body() -> None:
+    transport = _transport(client_error_log_sink=_ClientErrorSink())
+
+    response = transport.handle(
+        HttpApiRequest(
+            method="POST",
+            path="/api/v1/sessions/session-1/client-logs/errors",
+        )
+    )
+    body = _dict_body(response.body)
+
+    assert response.status_code == 400
+    assert body["error"]["code"] == "bad_request"
+
+
 @dataclass
 class _QueryGateway:
     snapshot_calls: list[str] = field(default_factory=list)
@@ -305,18 +395,51 @@ class _CommandGateway:
         return _accepted(request.command_id)
 
 
+@dataclass
+class _ClientErrorSink:
+    calls: list[tuple[str, dict[str, Any]]] = field(default_factory=list)
+
+    def write_error(self, session_id: str, payload: dict[str, Any]) -> None:
+        self.calls.append((session_id, payload))
+
+
+@dataclass
+class _SessionLifecycleGateway:
+    calls: list[tuple[Any, ...]] = field(default_factory=list)
+
+    def list_sessions(self) -> dict[str, Any]:
+        self.calls.append(("list",))
+        return {"sessions": [{"id": "session-1", "name": "Session 1"}]}
+
+    def create_session(self, name: str) -> dict[str, Any]:
+        self.calls.append(("create", name))
+        return {"sessionId": "created-session", "session": {"name": name}}
+
+    def rename_session(self, session_id: str, name: str) -> dict[str, Any]:
+        self.calls.append(("rename", session_id, name))
+        return {"sessionId": session_id, "session": {"id": session_id, "name": name}}
+
+    def delete_session(self, session_id: str) -> dict[str, Any]:
+        self.calls.append(("delete", session_id))
+        return {"deletedSessionId": session_id, "nextSessionId": "next-session"}
+
+
 def _transport(
     *,
     query: _QueryGateway | None = None,
     commands: _CommandGateway | None = None,
     event_source: StaticUiEventSource | None = None,
     auth: SidecarAuth | None = None,
+    client_error_log_sink: _ClientErrorSink | None = None,
+    session_lifecycle_gateway: _SessionLifecycleGateway | None = None,
 ) -> PlatoUiHttpTransport:
     return PlatoUiHttpTransport(
         query_gateway=query or _QueryGateway(),
         command_gateway=commands or _CommandGateway(),
         event_source=event_source,
         auth=auth,
+        client_error_log_sink=client_error_log_sink,
+        session_lifecycle_gateway=session_lifecycle_gateway,
     )
 
 

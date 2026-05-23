@@ -1,8 +1,10 @@
-import type { BadgeTone } from "../../shared/components";
 import type {
   AppendSessionInputPayload,
   AppendTaskInputPayload,
+  GenerateTaskTreePayload,
+  PublishTaskTreePayload,
   ResolveConfirmationPayload,
+  UpdateTaskNodePayload,
 } from "../../shared/api/platoApi";
 import type {
   CommandRequest,
@@ -10,7 +12,6 @@ import type {
   ConfirmationId,
   ConfirmationActionView,
   FileChangeSummaryView,
-  MainPageSnapshot,
   ResultCardView,
   SessionId,
   SessionStatus,
@@ -18,7 +19,6 @@ import type {
   TaskNodeCardView,
   TaskTreeStatus,
   TaskTreeView,
-  UiEvent,
 } from "../../shared/api/types";
 import {
   defaultMainPageStateId,
@@ -26,66 +26,43 @@ import {
   mainPageStates,
 } from "./fixtures";
 import { mainPageStateCatalog } from "./mainPageStateCatalog";
+import type { MainPageStateId } from "./fixtures";
 import type {
-  MainPageDetail,
-  MainPageInputScope,
-  MainPageStateId,
-} from "./fixtures";
+  AppendSessionInputCommand,
+  AppendTaskInputCommand,
+  GenerateTaskTreeCommand,
+  LoadMainPageSnapshot,
+  MainPageAdapter,
+  MainPageRuntimeSnapshot,
+  MainPageStateMetadata as RuntimeMainPageStateMetadata,
+  PublishTaskTreeCommand,
+  ResolveConfirmationCommand,
+  SubscribeSessionEvents,
+  UpdateTaskNodeCommand,
+} from "./runtime/adapter";
 
 export type MainPageStateOption = {
   id: MainPageStateId;
   label: string;
 };
 
-export type MainPageStateMetadata = MainPageStateOption & {
-  detail: MainPageDetail;
-  initialSelectedTaskNodeId: string | null;
-  inputScope: MainPageInputScope;
-  topStatus: string;
-  topStatusTone: BadgeTone;
-};
-
-export type MainPageMockSnapshot = {
-  metadata: MainPageStateMetadata;
-  snapshot: MainPageSnapshot;
-};
-
-export type LoadMainPageSnapshot = (
-  stateId: MainPageStateId,
-) => Promise<MainPageMockSnapshot>;
-
-export type ResolveConfirmationCommand = (
-  sessionId: SessionId,
-  confirmationId: ConfirmationId,
-  request: CommandRequest<ResolveConfirmationPayload>,
-) => Promise<CommandResponse>;
-
-export type AppendSessionInputCommand = (
-  request: CommandRequest<AppendSessionInputPayload>,
-) => Promise<CommandResponse>;
-
-export type AppendTaskInputCommand = (
-  sessionId: SessionId,
-  taskNodeId: string,
-  request: CommandRequest<AppendTaskInputPayload>,
-) => Promise<CommandResponse>;
-
-export type SubscribeSessionEvents = (
-  sessionId: SessionId,
-  cursor: string | null,
-  onEvent: (event: UiEvent) => void,
-) => () => void;
-
-export type MainPageAdapter = {
-  appendSessionInput: AppendSessionInputCommand;
-  appendTaskInput: AppendTaskInputCommand;
-  loadSnapshot: LoadMainPageSnapshot;
-  resolveConfirmation: ResolveConfirmationCommand;
-  subscribeSessionEvents: SubscribeSessionEvents;
-};
+export type MainPageStateMetadata = MainPageStateOption &
+  RuntimeMainPageStateMetadata;
 
 export { defaultMainPageStateId };
-export type { MainPageStateId };
+export type {
+  AppendSessionInputCommand,
+  AppendTaskInputCommand,
+  GenerateTaskTreeCommand,
+  LoadMainPageSnapshot,
+  MainPageAdapter,
+  MainPageRuntimeSnapshot as MainPageMockSnapshot,
+  MainPageStateId,
+  PublishTaskTreeCommand,
+  ResolveConfirmationCommand,
+  SubscribeSessionEvents,
+  UpdateTaskNodeCommand,
+};
 
 export function listMainPageStateOptions(): MainPageStateOption[] {
   return mainPageStateCatalog.map((state) => ({
@@ -96,7 +73,7 @@ export function listMainPageStateOptions(): MainPageStateOption[] {
 
 export function getMainPageMockSnapshot(
   stateId: MainPageStateId,
-): MainPageMockSnapshot {
+): MainPageRuntimeSnapshot {
   const fixture = getMainPageState(stateId);
 
   return {
@@ -148,11 +125,11 @@ export function getMainPageMockSnapshot(
 }
 
 export async function loadMainPageMockSnapshot(
-  stateId: MainPageStateId,
-): Promise<MainPageMockSnapshot> {
+  stateId: string,
+): Promise<MainPageRuntimeSnapshot> {
   await delay(40);
 
-  return getMainPageMockSnapshot(stateId);
+  return getMainPageMockSnapshot(stateId as MainPageStateId);
 }
 
 export async function resolveConfirmationMockCommand(
@@ -221,6 +198,45 @@ export async function appendTaskInputMockCommand(
   });
 }
 
+export async function generateTaskTreeMockCommand(
+  request: CommandRequest<GenerateTaskTreePayload>,
+): Promise<CommandResponse> {
+  await delay(60);
+
+  return acceptedCommandResponse({
+    commandId: request.commandId,
+    message: "TaskTree generation accepted.",
+    sessionId: request.sessionId,
+  });
+}
+
+export async function updateTaskNodeMockCommand(
+  sessionId: SessionId,
+  taskNodeId: string,
+  request: CommandRequest<UpdateTaskNodePayload>,
+): Promise<CommandResponse> {
+  await delay(60);
+
+  return acceptedCommandResponse({
+    commandId: request.commandId,
+    message: `TaskNode update accepted for ${taskNodeId}.`,
+    sessionId,
+    taskNodeId,
+  });
+}
+
+export async function publishTaskTreeMockCommand(
+  request: CommandRequest<PublishTaskTreePayload>,
+): Promise<CommandResponse> {
+  await delay(60);
+
+  return acceptedCommandResponse({
+    commandId: request.commandId,
+    message: "TaskTree publish accepted.",
+    sessionId: request.sessionId,
+  });
+}
+
 export const subscribeSessionEventsMock: SubscribeSessionEvents = () => () => {
   // The default mock stream is intentionally quiet. Tests inject events.
 };
@@ -228,9 +244,42 @@ export const subscribeSessionEventsMock: SubscribeSessionEvents = () => () => {
 export const mainPageMockAdapter: MainPageAdapter = {
   appendSessionInput: appendSessionInputMockCommand,
   appendTaskInput: appendTaskInputMockCommand,
+  async createSession(payload) {
+    await delay(20);
+    return {
+      sessionId: "mock-session-new",
+      session: {
+        id: "mock-session-new",
+        name: payload.name ?? "New session",
+      },
+    };
+  },
+  async deleteSession() {
+    await delay(20);
+    return {
+      deletedSessionId: "mock-session",
+      nextSessionId: null,
+    };
+  },
+  generateTaskTree: generateTaskTreeMockCommand,
   loadSnapshot: loadMainPageMockSnapshot,
+  publishTaskTree: publishTaskTreeMockCommand,
+  async renameSession(payload) {
+    await delay(20);
+    return {
+      sessionId: payload.sessionId,
+      session: {
+        id: payload.sessionId,
+        name: payload.name,
+      },
+    };
+  },
   resolveConfirmation: resolveConfirmationMockCommand,
+  runtimeKind: "mock",
+  sessionId: null,
+  showStatePicker: true,
   subscribeSessionEvents: subscribeSessionEventsMock,
+  updateTaskNode: updateTaskNodeMockCommand,
 };
 
 export function createMainPageMockAdapter(

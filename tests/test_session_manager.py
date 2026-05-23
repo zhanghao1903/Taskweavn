@@ -90,6 +90,37 @@ def test_touch_unknown_raises(manager: SessionManager) -> None:
         manager.touch("nope")
 
 
+def test_rename_updates_name_and_activity(manager: SessionManager) -> None:
+    s = manager.create("site")
+    time.sleep(0.01)
+    refreshed = manager.rename(s.id, "renamed site")
+
+    assert refreshed.name == "renamed site"
+    assert refreshed.last_active_at > s.last_active_at
+    assert manager.require(s.id).name == "renamed site"
+
+
+def test_rename_rejects_empty_name(manager: SessionManager) -> None:
+    s = manager.create("site")
+    with pytest.raises(SessionManagerError):
+        manager.rename(s.id, " ")
+
+
+def test_delete_removes_registry_row_and_archives_directory(manager: SessionManager) -> None:
+    first = manager.create("first")
+    second = manager.create("second")
+    first_dir = first.session_dir
+
+    next_session = manager.delete(first.id)
+
+    assert next_session is not None
+    assert next_session.id == second.id
+    assert manager.get(first.id) is None
+    assert not first_dir.exists()
+    archive_root = manager.layout.meta_dir / "deleted-sessions"
+    assert any(path.name.startswith(first.id) for path in archive_root.iterdir())
+
+
 def test_mark_status_round_trip(manager: SessionManager) -> None:
     s = manager.create("site")
     refreshed = manager.mark_status(s.id, "awaiting_user")

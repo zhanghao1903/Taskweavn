@@ -8,10 +8,14 @@ describe("Plato runtime wiring", () => {
     expect(createMainPageAdapterFromRuntimeEnv({ VITE_PLATO_API_MODE: "mock" })).toBeUndefined();
   });
 
-  it("requires a session id for HTTP-backed runtime mode", () => {
-    expect(() =>
-      createMainPageAdapterFromRuntimeEnv({ VITE_PLATO_API_MODE: "http" }),
-    ).toThrow("VITE_PLATO_SESSION_ID is required");
+  it("creates an HTTP-backed MainPage adapter without a startup session", () => {
+    const adapter = createMainPageAdapterFromRuntimeEnv({
+      VITE_PLATO_API_BASE_URL: "https://plato.example",
+      VITE_PLATO_API_MODE: "http",
+    });
+
+    expect(adapter).toBeDefined();
+    expect(adapter?.sessionId).toBeNull();
   });
 
   it("creates an HTTP-backed MainPage adapter when configured", () => {
