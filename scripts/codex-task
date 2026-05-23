@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+PREFIX_FILE="$REPO_ROOT/prompts/codex-task-prefix.md"
+
+if [ ! -f "$PREFIX_FILE" ]; then
+  echo "Missing prompt prefix: $PREFIX_FILE" >&2
+  exit 1
+fi
+
+TASK="${*:-}"
+
+if [ -z "$TASK" ]; then
+  echo "Usage: scripts/codex-task \"your task here\"" >&2
+  exit 1
+fi
+
+PROMPT="$(
+  cat "$PREFIX_FILE"
+  printf '\n\nUser task:\n%s\n' "$TASK"
+)"
+
+codex --cd "$REPO_ROOT" "$PROMPT"
