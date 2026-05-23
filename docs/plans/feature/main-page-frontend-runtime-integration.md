@@ -1,6 +1,6 @@
 # Feature Plan: Main Page Frontend Runtime Integration
 
-> Status: done
+> Status: in_progress / checkpoint submitted
 > Type: frontend runtime / UI-backend integration
 > Last Updated: 2026-05-21
 > Parent Plan: [Main Page Real Backend Integration](main-page-real-backend-integration.md)
@@ -8,7 +8,7 @@
 > Architecture: [UI And Backend Communication](../../architecture/ui-backend-communication.md), [Task Domain/UI Model Separation](../../architecture/task-domain-ui-model-separation.md), [Authoring Domain](../../architecture/authoring-domain.md)
 > Product: [Plato Main Page UX Flow](../../product/plato-main-page-ux-flow.md), [Plato UI API Contract](../../product/plato-ui-api-contract.md), [Plato Frontend Technical Design](../../product/plato-frontend-technical-design.md)
 > Technical Design: [中文详细技术方案](main-page-frontend-runtime-integration-technical-design.zh-CN.md)
-> Release Record: [Main Page Frontend Runtime Integration](../../releases/main-page-frontend-runtime-integration.md)
+> Checkpoint Record: [Main Page Frontend Runtime Integration](../../releases/main-page-frontend-runtime-integration.md)
 
 ---
 
@@ -21,7 +21,7 @@
 | 2026-05-21 | Slice 3 — Command response lifecycle | done | Added central command response handling; accepted commands now clear local pending/error state and refetch backend facts instead of creating durable synthetic messages. |
 | 2026-05-21 | Slice 4 — Main Page command coverage | done | Added adapter coverage for generate/update/publish commands; empty-session input now generates TaskTree; draft TaskTree can be published from Main Page. |
 | 2026-05-21 | Slice 5 — Event router and invalidation | done | Added conservative event router; all canonical events refetch by default, `message.appended` no longer creates local message cards, and resync events use a loop guard. |
-| 2026-05-21 | Slice 6 — Integration smoke and docs closure | done with caveat | Frontend tests/build/lint pass; sidecar health/snapshot pass through loopback API; Codex in-app browser sidecar page smoke is blocked because that browser context exposes no `fetch` / `XMLHttpRequest`. |
+| 2026-05-21 | Slice 6 — Integration smoke and docs closure | checkpoint | Frontend tests/build/lint pass; sidecar health/snapshot pass through loopback API; runtime logging exposed real browser issues and the stage PR fixed the default `fetch` receiver bug. This still does not close the Main Page real-backend gap. |
 
 ---
 

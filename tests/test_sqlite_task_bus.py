@@ -145,12 +145,136 @@ def test_non_pending_publish_is_rejected(tmp_path: Path) -> None:
         bus.close()
 
 
+def test_claim_next_moves_first_eligible_task_to_running(tmp_path: Path) -> None:
+    bus = SqliteTaskBus(tmp_path / "tasks.sqlite")
+    try:
+        bus.publish(_root("general-a", order_index=1))
+        bus.publish(_root("special", capability="special", order_index=0))
+        bus.publish(_root("general-b", order_index=0))
+
+        claimed = bus.claim_next("s1", capability="general", agent_id="agent-1")
+
+        assert claimed is not None
+        # Claim order follows TaskBus listing: created_at first, then order_index.
+        assert claimed.task_id == "general-a"
+        assert claimed.status == "running"
+        assert claimed.claimed_by == "agent-1"
+        assert claimed.started_at is not None
+        assert bus.get("s1", "general-a") == claimed
+
+        assert bus.claim_next("s1", capability="missing", agent_id="agent-1") is None
+    finally:
+        bus.close()
+
+
+def test_claim_next_waits_for_parent_done(tmp_path: Path) -> None:
+    bus = SqliteTaskBus(tmp_path / "tasks.sqlite")
+    try:
+        bus.publish(_root("root"))
+        bus.publish(_child("child", parent_id="root", root_id="root"))
+
+        claimed = bus.claim_next("s1", capability="general", agent_id="agent-1")
+        assert claimed is not None
+        assert claimed.task_id == "root"
+        assert bus.claim_next("s1", capability="general", agent_id="agent-1") is None
+
+        bus.complete("s1", "root", result_ref="result:root")
+        child = bus.claim_next("s1", capability="general", agent_id="agent-1")
+
+        assert child is not None
+        assert child.task_id == "child"
+    finally:
+        bus.close()
+
+
+def test_complete_running_task_records_result(tmp_path: Path) -> None:
+    bus = SqliteTaskBus(tmp_path / "tasks.sqlite")
+    try:
+        bus.publish(_root("root"))
+        claimed = bus.claim_next("s1", capability="general", agent_id="agent-1")
+        assert claimed is not None
+
+        completed = bus.complete("s1", "root", result_ref="result:root")
+
+        assert completed.status == "done"
+        assert completed.result_ref == "result:root"
+        assert completed.error_ref is None
+        assert completed.completed_at is not None
+        assert bus.get("s1", "root") == completed
+    finally:
+        bus.close()
+
+
+def test_complete_requires_running_task(tmp_path: Path) -> None:
+    bus = SqliteTaskBus(tmp_path / "tasks.sqlite")
+    try:
+        bus.publish(_root("root"))
+
+        with pytest.raises(TaskStoreError, match="only running tasks"):
+            bus.complete("s1", "root")
+    finally:
+        bus.close()
+
+
+def test_fail_running_task_records_error(tmp_path: Path) -> None:
+    bus = SqliteTaskBus(tmp_path / "tasks.sqlite")
+    try:
+        bus.publish(_root("root"))
+        assert bus.claim_next("s1", capability="general", agent_id="agent-1") is not None
+
+        failed = bus.fail("s1", "root", error_ref="error:root")
+
+        assert failed.status == "failed"
+        assert failed.error_ref == "error:root"
+        assert failed.result_ref is None
+        assert failed.completed_at is not None
+    finally:
+        bus.close()
+
+
+def test_skip_marks_pending_task_failed_with_reason(tmp_path: Path) -> None:
+    bus = SqliteTaskBus(tmp_path / "tasks.sqlite")
+    try:
+        bus.publish(_root("root"))
+
+        skipped = bus.skip("s1", "root", reason="user skipped optional work")
+
+        assert skipped.status == "failed"
+        assert skipped.error_ref == "skipped: user skipped optional work"
+        assert skipped.completed_at is not None
+        assert bus.claim_next("s1", capability="general", agent_id="agent-1") is None
+    finally:
+        bus.close()
+
+
+def test_lifecycle_persists_across_reopen(tmp_path: Path) -> None:
+    db = tmp_path / "tasks.sqlite"
+    first = SqliteTaskBus(db)
+    try:
+        first.publish(_root("root"))
+        assert first.claim_next("s1", capability="general", agent_id="agent-1") is not None
+        first.complete("s1", "root", result_ref="result:root")
+    finally:
+        first.close()
+
+    second = SqliteTaskBus(db)
+    try:
+        loaded = second.get("s1", "root")
+        assert loaded is not None
+        assert loaded.status == "done"
+        assert loaded.result_ref == "result:root"
+        assert loaded.claimed_by == "agent-1"
+    finally:
+        second.close()
+
+
 def _root(
     task_id: str,
     *,
     session_id: str = "s1",
     order_index: int = 0,
     status: TaskStatus = "pending",
+    capability: str = "general",
     metadata: dict[str, object] | None = None,
 ) -> TaskDomain:
     return TaskDomain(
@@ -159,11 +283,11 @@ def _root(
         root_id=task_id,
         order_index=order_index,
         intent=f"Do {task_id}",
-        required_capability="general",
+        required_capability=capability,
         status=status,
         created_by="tester",
         dispatch_constraints=TaskDispatchConstraints(
-            required_capabilities=("general",),
+            required_capabilities=(capability,),
             metadata=dict(metadata or {"title": task_id.title()}),
         ),
     )

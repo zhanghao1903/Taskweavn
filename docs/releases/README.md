@@ -19,11 +19,12 @@ alongside the release record.
 | [API Publish Server Transport](api-publish-server-transport.md) | done | Framework-neutral HTTP/RPC adapter for `DefaultApiTaskPublisher` routes and response envelopes. |
 | [Configurable Logging System](configurable-logging-system.md) | done | Structured JSONL logging, session archives, profiles, same-process control API, and core object integrations. |
 | [Publish Persistence Foundation](publish-persistence-foundation.md) | done | SQLite publish idempotency, audit, scheduler stores, service assembly, and deterministic idempotency hardening. |
+| [TaskBus Execution Lifecycle](taskbus-execution-lifecycle.md) | done | Minimal published Task lifecycle: claim, running, complete, fail, skip, and persistent status projection. |
 | [Task Publishers, Schedule, API, And Pipeline Expansion](task-publishers-schedule-api.md) | done | TaskBus-backed publishing, custom tree parsing, idempotent publish service, scheduler/API publisher adapters, and publish-time pipeline expansion. |
 | [Collaborator Agent And Task Authoring](collaborator-agent-task-authoring.md) | done | RawTask feasibility, Authoring Commands, DraftTaskTree stores, Collaborator service, publish boundary, and UI/API adapter. |
 | [LLM Provider Reliability](llm-provider-reliability.md) | done | Provider abstraction, retry, DeepSeek thinking, and OpenRouter routing. |
 | [Local Sidecar API Shell](local-sidecar-api-shell.md) | done | Framework-neutral Plato UI HTTP/SSE transport, optional auth, and stdlib loopback sidecar binding. |
-| [Main Page Frontend Runtime Integration](main-page-frontend-runtime-integration.md) | done with smoke caveat | Session-centric Main Page runtime adapter, command lifecycle, event invalidation, command coverage, and UI interaction fact docs. |
+| [Main Page Frontend Runtime Integration](main-page-frontend-runtime-integration.md) | checkpoint | Stage submission for session-centric Main Page runtime adapter, command lifecycle, event invalidation, command coverage, frontend logs, and UI interaction fact docs. Gap remains open. |
 | [Phase 3 Interaction Layer through 3.8](phase-3-interaction-layer-through-3-8.md) | done | Session, risk/autonomy, messages, bus, wait, loop integration, LLM risk, derived session status. |
 | [Task Domain and UI ViewModel Separation](task-domain-ui-model-separation.md) | done | Task domain/draft models, UI ViewModels, projection, command mapping, replay timeline, and UI API alignment. |
 | [UI/backend Contract Baseline](ui-backend-contract-baseline.md) | done | Framework-neutral Plato UI contract package, mapping/query/command/event gateways, frontend type alignment, and shared JSON fixture parity. |
