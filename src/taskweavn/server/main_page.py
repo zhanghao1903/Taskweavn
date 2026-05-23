@@ -12,6 +12,7 @@ from taskweavn.interaction import (
     InProcessMessageBus,
     SqliteMessageStream,
 )
+from taskweavn.server.client_logs import FileClientErrorLogSink
 from taskweavn.server.sidecar import LocalSidecarConfig, LocalSidecarServer
 from taskweavn.server.ui_contract import (
     DefaultUiCommandGateway,
@@ -70,7 +71,7 @@ class MainPageSidecarApp:
     """Owns the composed Main Page backend and local sidecar lifecycle."""
 
     layout: WorkspaceLayout
-    session: Session
+    session: Session | None
     session_manager: SessionManager
     message_stream: SqliteMessageStream
     message_bus: InProcessMessageBus
@@ -189,6 +190,10 @@ def build_main_page_sidecar_app(
             command_gateway=command_gateway,
             event_source=dependencies.event_source or ResyncOnlyEventSource(),
             auth=None if config.auth_token is None else SidecarAuth(config.auth_token),
+            client_error_log_sink=FileClientErrorLogSink(layout),
+            session_lifecycle_gateway=MainPageSessionLifecycleGateway(
+                session_manager=session_manager,
+            ),
         )
         server = LocalSidecarServer(
             transport,
@@ -230,13 +235,40 @@ class MainPageTaskRefResolver:
         raise LookupError(f"task node {task_node_id!r} not found")
 
 
+@dataclass(frozen=True)
+class MainPageSessionLifecycleGateway:
+    """Session lifecycle commands for the local Main Page sidecar."""
+
+    session_manager: SessionManager
+
+    def list_sessions(self) -> dict[str, object]:
+        return {
+            "sessions": [_session_payload(session) for session in self.session_manager.list()]
+        }
+
+    def create_session(self, name: str) -> dict[str, object]:
+        session = self.session_manager.create(name)
+        return {"sessionId": session.id, "session": _session_payload(session)}
+
+    def rename_session(self, session_id: str, name: str) -> dict[str, object]:
+        session = self.session_manager.rename(session_id, name)
+        return {"sessionId": session.id, "session": _session_payload(session)}
+
+    def delete_session(self, session_id: str) -> dict[str, object]:
+        next_session = self.session_manager.delete(session_id)
+        return {
+            "deletedSessionId": session_id,
+            "nextSessionId": None if next_session is None else next_session.id,
+        }
+
+
 def _resolve_session(
     session_manager: SessionManager,
     config: MainPageSidecarConfig,
-) -> Session:
-    if config.session_id is None:
-        return session_manager.create(config.session_name)
-    return session_manager.require(config.session_id)
+) -> Session | None:
+    if config.session_id is not None:
+        return session_manager.require(config.session_id)
+    return None
 
 
 def _default_capability_catalog() -> StaticCapabilityCatalog:
@@ -251,11 +283,22 @@ def _default_capability_catalog() -> StaticCapabilityCatalog:
     )
 
 
+def _session_payload(session: Session) -> dict[str, object]:
+    return {
+        "id": session.id,
+        "name": session.name,
+        "createdAt": session.created_at.isoformat(),
+        "updatedAt": session.last_active_at.isoformat(),
+        "status": session.status,
+    }
+
+
 __all__ = [
     "DEFAULT_PLATO_SIDECAR_PORT",
     "MainPageSidecarApp",
     "MainPageSidecarConfig",
     "MainPageSidecarDependencies",
+    "MainPageSessionLifecycleGateway",
     "MainPageTaskRefResolver",
     "build_main_page_sidecar_app",
 ]

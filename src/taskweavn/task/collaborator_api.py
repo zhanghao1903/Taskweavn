@@ -67,7 +67,7 @@ class CollaboratorApiAdapter(Protocol):
         self,
         *,
         session_id: str,
-        raw_task_id: str,
+        raw_task_id: str | None = None,
     ) -> CommandResult: ...
 
     def append_task_message(
@@ -235,7 +235,7 @@ class DefaultCollaboratorApiAdapter:
         self,
         *,
         session_id: str,
-        raw_task_id: str,
+        raw_task_id: str | None = None,
     ) -> CommandResult:
         result = self._collaborator_service.generate_task_tree(
             session_id=session_id,

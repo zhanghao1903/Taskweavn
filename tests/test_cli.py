@@ -148,30 +148,27 @@ def test_logging_render_command_pretty_prints_jsonl(tmp_path: Path) -> None:
 def test_plato_sidecar_env_lines_include_vite_runtime_settings() -> None:
     lines = _plato_sidecar_env_lines(
         base_url="http://127.0.0.1:53123",
-        session_id="session-live",
     )
 
     assert "baseUrl=http://127.0.0.1:53123" in lines[0]
-    assert "sessionId=session-live" in lines[1]
     assert "[plato-sidecar] health=http://127.0.0.1:53123/api/v1/health" in lines
     assert (
-        "[plato-sidecar] snapshot="
-        "http://127.0.0.1:53123/api/v1/sessions/session-live/snapshot"
+        "[plato-sidecar] sessions="
+        "http://127.0.0.1:53123/api/v1/sessions"
     ) in lines
     assert "VITE_PLATO_API_MODE=http" in lines
     assert "VITE_PLATO_API_BASE_URL=http://127.0.0.1:53123" in lines
-    assert "VITE_PLATO_SESSION_ID=session-live" in lines
+    assert not any("VITE_PLATO_SESSION_ID" in line for line in lines)
 
 
 def test_plato_frontend_env_sets_http_runtime() -> None:
     env = _plato_frontend_env(
         base_url="http://127.0.0.1:53123",
-        session_id="session-live",
     )
 
     assert env["VITE_PLATO_API_MODE"] == "http"
     assert env["VITE_PLATO_API_BASE_URL"] == "http://127.0.0.1:53123"
-    assert env["VITE_PLATO_SESSION_ID"] == "session-live"
+    assert "VITE_PLATO_SESSION_ID" not in env
 
 
 def test_plato_frontend_command_runs_vite_on_requested_host_port() -> None:
@@ -185,6 +182,17 @@ def test_plato_frontend_command_runs_vite_on_requested_host_port() -> None:
         "--port",
         "5174",
     ]
+
+
+def test_plato_dev_help_does_not_expose_session_startup_flags() -> None:
+    runner = CliRunner()
+    result = runner.invoke(app, ["plato-dev", "--help"])
+
+    assert result.exit_code == 0
+    assert "--session-id" not in result.output
+    assert "--session-name" not in result.output
+    assert "--new-session" not in result.output
+    assert "--no-create-session" not in result.output
 
 
 def test_plato_dev_rejects_missing_frontend_dir(tmp_path: Path) -> None:

@@ -185,7 +185,7 @@ class CollaboratorAuthoringService(Protocol):
         self,
         *,
         session_id: str,
-        raw_task_id: str,
+        raw_task_id: str | None = None,
     ) -> AuthoringCommandResult: ...
 
     def refine_task_node(
@@ -279,12 +279,17 @@ class DefaultCollaboratorAuthoringService:
         self,
         *,
         session_id: str,
-        raw_task_id: str,
+        raw_task_id: str | None = None,
     ) -> AuthoringCommandResult:
         context = self._context_builder.build_session_context(
             session_id,
             raw_task_id=raw_task_id,
         )
+        if context.raw_task_id is None:
+            return _proposal_error(
+                "draft_task_tree",
+                ValueError("RawTask is required before generating a draft task tree"),
+            )
         response = self._chat(
             task="Generate a draft task tree proposal for the selected RawTask.",
             payload={"context": _context_payload(context)},
@@ -293,7 +298,7 @@ class DefaultCollaboratorAuthoringService:
             proposal = DraftTaskTreeProposal.model_validate(_json_from_response(response))
             command = MutateDraftTaskTreeCommand(
                 session_id=session_id,
-                raw_task_id=raw_task_id,
+                raw_task_id=context.raw_task_id,
                 actor=self._actor,
                 operations=(
                     DraftTaskTreeOperation(

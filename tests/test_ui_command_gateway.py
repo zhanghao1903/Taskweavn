@@ -70,7 +70,7 @@ class _Collaborator:
         self,
         *,
         session_id: str,
-        raw_task_id: str,
+        raw_task_id: str | None = None,
     ) -> CoreCommandResult:
         self.calls.append(
             (
@@ -283,6 +283,42 @@ def test_generate_task_tree_with_raw_task_carries_object_refs() -> None:
         "generate_task_tree",
         {"session_id": "session-1", "raw_task_id": "raw-1"},
     )
+
+
+def test_generate_task_tree_with_prompt_creates_raw_then_tree() -> None:
+    collaborator = _Collaborator(
+        result=CoreCommandResult(
+            command_id="backend-command",
+            status="accepted",
+            message="ok",
+            affected_task_refs=(TaskRef.draft("draft-1"),),
+            emitted_message_ids=("message-1",),
+        )
+    )
+    gateway = _gateway(collaborator=collaborator)
+    request = CommandRequest[GenerateTaskTreePayload](
+        command_id="generate-1",
+        session_id="session-1",
+        payload=GenerateTaskTreePayload(prompt="Build a website"),
+    )
+
+    response = gateway.generate_task_tree(request)
+
+    assert response.ok is True
+    assert response.result is not None
+    assert response.result.affected_task_refs == (TaskRef.draft("draft-1"),)
+    assert response.refresh.affected_scopes[1].kind == "task_tree"
+    assert collaborator.calls == [
+        (
+            "append_session_message",
+            {
+                "session_id": "session-1",
+                "content": "Build a website",
+                "source_message_id": "generate-1",
+            },
+        ),
+        ("generate_task_tree", {"session_id": "session-1", "raw_task_id": None}),
+    ]
 
 
 def test_update_task_node_resolves_task_ref_and_preserves_subtree_intent() -> None:

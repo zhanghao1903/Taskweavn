@@ -6,6 +6,17 @@ import type { SessionSummary } from "../../entities/session/model";
 import type { TaskNodeId, TaskTree } from "../../entities/task/model";
 import type { FileChangeSummary } from "../../entities/file-change/model";
 import type { WorkflowSummary } from "../../entities/workflow/model";
+import type {
+  MainPageDetail,
+  MainPageDetailMode,
+  MainPageInputScope,
+} from "./runtime/adapter";
+
+export type {
+  MainPageDetail,
+  MainPageDetailMode,
+  MainPageInputScope,
+};
 
 export type MainPageStateId =
   | "s1-empty"
@@ -17,28 +28,6 @@ export type MainPageStateId =
   | "s7-confirmation"
   | "s8-completed"
   | "s9-file-changes";
-
-export type MainPageDetailMode =
-  | "workflow"
-  | "session"
-  | "task"
-  | "editing"
-  | "confirmation"
-  | "result"
-  | "fileChanges";
-
-export type MainPageDetail = {
-  mode: MainPageDetailMode;
-  eyebrow: string;
-  title: string;
-  body: string;
-  actionLabel?: string;
-};
-
-export type MainPageInputScope = {
-  label: string;
-  placeholder: string;
-};
 
 export type MainPageFixture = {
   id: MainPageStateId;

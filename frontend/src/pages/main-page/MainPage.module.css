@@ -148,6 +148,13 @@
   font-weight: 700;
 }
 
+.sidebarActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--plato-space-2);
+  margin-top: var(--plato-space-4);
+}
+
 .workspace {
   grid-area: work;
   min-width: 0;

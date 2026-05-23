@@ -17,6 +17,8 @@ from taskweavn.server import (
     SidecarAuth,
     StaticUiEventSource,
 )
+from taskweavn.server.sidecar import _SidecarRequestHandler
+from taskweavn.server.transport import HttpApiResponse
 from taskweavn.server.ui_contract import (
     CommandRequest,
     CommandResponse,
@@ -155,6 +157,33 @@ def test_local_sidecar_refuses_remote_bind_by_default() -> None:
         )
 
 
+def test_local_sidecar_suppresses_client_disconnect_during_response_write() -> None:
+    handler = _FakeDisconnectingHandler()
+
+    handler._send_response(
+        HttpApiResponse(
+            status_code=200,
+            headers={"content-type": "text/plain"},
+            body="client already went away",
+        )
+    )
+
+    assert handler.sent_status_codes == [200]
+
+
+def test_local_sidecar_suppresses_client_disconnect_before_request_dispatch(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with _server() as server:
+        try:
+            raise ConnectionResetError("connection reset by peer")
+        except ConnectionResetError:
+            server._server.handle_error(None, ("127.0.0.1", 60519))  # noqa: SLF001
+
+    captured = capsys.readouterr()
+    assert "ConnectionResetError" not in captured.err
+
+
 @dataclass(frozen=True)
 class _HttpResult:
     status: int
@@ -253,6 +282,28 @@ class _CommandGateway:
     ) -> CommandResponse:
         self.calls.append(f"resolve_confirmation:{confirmation_id}")
         return _accepted(request.command_id)
+
+
+class _BrokenPipeWriter:
+    def write(self, data: bytes) -> int:
+        raise BrokenPipeError("client disconnected")
+
+
+class _FakeDisconnectingHandler(_SidecarRequestHandler):
+    def __init__(self) -> None:
+        self.command = "GET"
+        self.sent_headers: list[tuple[str, str]] = []
+        self.sent_status_codes: list[int] = []
+        self.wfile = cast(Any, _BrokenPipeWriter())
+
+    def send_response(self, code: int, message: str | None = None) -> None:
+        self.sent_status_codes.append(code)
+
+    def send_header(self, keyword: str, value: str) -> None:
+        self.sent_headers.append((keyword, value))
+
+    def end_headers(self) -> None:
+        return
 
 
 def _server(

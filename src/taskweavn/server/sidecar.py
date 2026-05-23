@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import sys
 import threading
 from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -16,6 +17,11 @@ from taskweavn.server.ui_http import PlatoUiHttpTransport
 _LOOPBACK_HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
 _DEFAULT_ALLOWED_METHODS = "GET, POST, PATCH, OPTIONS"
 _DEFAULT_ALLOWED_HEADERS = "authorization, content-type, accept, x-request-id"
+_CLIENT_DISCONNECT_ERRORS = (
+    BrokenPipeError,
+    ConnectionAbortedError,
+    ConnectionResetError,
+)
 
 
 @dataclass(frozen=True)
@@ -106,6 +112,20 @@ class _SidecarHTTPServer(ThreadingHTTPServer):
         self.transport = transport
         self.config = config
 
+    def handle_error(self, request: Any, client_address: Any) -> None:
+        """Suppress expected client disconnect tracebacks.
+
+        ``BaseHTTPRequestHandler`` can raise before it reaches our request
+        methods, for example while reading the request line after a browser
+        closes or resets a socket. The stdlib default is to print a traceback;
+        for a local browser sidecar this is normal transport churn, not a
+        server failure.
+        """
+        _, exc, _ = sys.exc_info()
+        if isinstance(exc, _CLIENT_DISCONNECT_ERRORS):
+            return
+        super().handle_error(request, client_address)
+
 
 class _SidecarRequestHandler(BaseHTTPRequestHandler):
     server: _SidecarHTTPServer
@@ -191,12 +211,18 @@ class _SidecarRequestHandler(BaseHTTPRequestHandler):
         headers.update(extra_headers or {})
         body_bytes = _response_body_bytes(response)
         headers.setdefault("content-length", str(len(body_bytes)))
-        self.send_response(response.status_code)
-        for key, value in headers.items():
-            self.send_header(key, value)
-        self.end_headers()
-        if self.command != "HEAD" and body_bytes:
-            self.wfile.write(body_bytes)
+        try:
+            self.send_response(response.status_code)
+            for key, value in headers.items():
+                self.send_header(key, value)
+            self.end_headers()
+            if self.command != "HEAD" and body_bytes:
+                self.wfile.write(body_bytes)
+        except _CLIENT_DISCONNECT_ERRORS:
+            # Browsers and dev servers can cancel in-flight requests during
+            # navigation, reload, or React query retries. This is not a
+            # sidecar failure; suppress the stdlib handler traceback.
+            return
 
 
 def _response_body_bytes(response: HttpApiResponse) -> bytes:

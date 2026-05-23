@@ -103,6 +103,61 @@ describe("createHttpPlatoApi", () => {
     ]);
   });
 
+  it("sends session lifecycle requests to documented endpoints", async () => {
+    const calls: Array<{
+      body: unknown;
+      method: string | undefined;
+      url: string;
+    }> = [];
+    const fetcher = vi.fn<FetchFn>(async (input, init) => {
+      calls.push({
+        body: init?.body ? JSON.parse(String(init.body)) : null,
+        method: init?.method,
+        url: String(input),
+      });
+
+      return jsonResponse({
+        ok: true,
+        data: {
+          sessionId: "session-1",
+        },
+        error: null,
+      });
+    });
+    const api = createHttpPlatoApi({
+      baseUrl: "https://plato.test",
+      fetcher,
+    });
+
+    await api.listSessions();
+    await api.createSession({ name: "New session" });
+    await api.renameSession("session 1", { name: "Renamed" });
+    await api.deleteSession("session 1");
+
+    expect(calls).toEqual([
+      {
+        body: null,
+        method: "GET",
+        url: "https://plato.test/api/v1/sessions",
+      },
+      {
+        body: { name: "New session" },
+        method: "POST",
+        url: "https://plato.test/api/v1/sessions",
+      },
+      {
+        body: { name: "Renamed" },
+        method: "PATCH",
+        url: "https://plato.test/api/v1/sessions/session%201",
+      },
+      {
+        body: {},
+        method: "POST",
+        url: "https://plato.test/api/v1/sessions/session%201/delete",
+      },
+    ]);
+  });
+
   it("patches TaskNode updates and publishes TaskTrees", async () => {
     const calls: string[] = [];
     const fetcher = vi.fn<FetchFn>(async (input, init) => {

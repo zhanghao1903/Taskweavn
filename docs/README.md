@@ -25,6 +25,7 @@ The current V2 documentation model is intentionally narrow:
 | What gaps exist and how are they routed? | [Gap Registry](gaps/) |
 | What architecture facts must a technical design obey? | [Architecture](architecture/) |
 | What user/product experience is intended? | [Product Docs](product/) |
+| What exact UI interactions are allowed? | [UI Interaction Model](interaction-model/) |
 | What implementation plans exist? | [Plans](plans/) |
 | What decisions are expensive to reverse? | [ADRs](decisions/) |
 | What actually shipped? | [Release Records](releases/) |
@@ -37,6 +38,7 @@ The current V2 documentation model is intentionally narrow:
 |---|---|
 | [architecture/](architecture/) | Active system facts, object boundaries, lifecycles, protocols, and technical constraints. Required reading before technical design. |
 | [product/](product/) | Product intent, user mental models, PRDs, UX flows, and UI direction. |
+| [interaction-model/](interaction-model/) | Page-level UI interaction facts: user action -> UI change -> backend/API call. Also owns the centralized external call registry for UI-triggered calls. |
 | [roadmap.md](roadmap.md) | Phase-level direction and current sequencing. |
 | [project/](project/) | Operational project plan and project-specific supporting docs. |
 | [gaps/](gaps/) | Known capability gaps, priorities, status, architecture references, and plan routing. |

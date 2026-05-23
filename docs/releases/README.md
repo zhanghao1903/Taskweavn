@@ -24,6 +24,7 @@ alongside the release record.
 | [Collaborator Agent And Task Authoring](collaborator-agent-task-authoring.md) | done | RawTask feasibility, Authoring Commands, DraftTaskTree stores, Collaborator service, publish boundary, and UI/API adapter. |
 | [LLM Provider Reliability](llm-provider-reliability.md) | done | Provider abstraction, retry, DeepSeek thinking, and OpenRouter routing. |
 | [Local Sidecar API Shell](local-sidecar-api-shell.md) | done | Framework-neutral Plato UI HTTP/SSE transport, optional auth, and stdlib loopback sidecar binding. |
+| [Main Page Frontend Runtime Integration](main-page-frontend-runtime-integration.md) | checkpoint | Stage submission for session-centric Main Page runtime adapter, command lifecycle, event invalidation, command coverage, frontend logs, and UI interaction fact docs. Gap remains open. |
 | [Phase 3 Interaction Layer through 3.8](phase-3-interaction-layer-through-3-8.md) | done | Session, risk/autonomy, messages, bus, wait, loop integration, LLM risk, derived session status. |
 | [Task Domain and UI ViewModel Separation](task-domain-ui-model-separation.md) | done | Task domain/draft models, UI ViewModels, projection, command mapping, replay timeline, and UI API alignment. |
 | [UI/backend Contract Baseline](ui-backend-contract-baseline.md) | done | Framework-neutral Plato UI contract package, mapping/query/command/event gateways, frontend type alignment, and shared JSON fixture parity. |

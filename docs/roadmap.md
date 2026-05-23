@@ -211,7 +211,7 @@ Exit criteria:
 
 ### Phase 3E — Task-first UI System
 
-Status: active planning; frontend implementation should restart from Figma UI baseline 1.0.
+Status: active implementation; Main Page frontend runtime integration is a stage checkpoint, not a completed gap.
 
 Why now: CLI has reached its usefulness ceiling. The product value is in Task topology, Task cards, confirmations, and real-time message streams.
 
@@ -228,7 +228,8 @@ Work packages:
 | Result Packaging Agent and card-based result presentation | [Result packaging plan](plans/feature/result-packaging-agent-cards.md), [Product 1.1 plan](product/plato-1-1-product-plan.md) | Product 1.1 / P1 |
 | Clean frontend scaffold and Figma-state stories | [Plato Frontend Technical Design](product/plato-frontend-technical-design.md) | P0 |
 | UI/backend contract baseline | [Contract baseline plan](plans/feature/ui-backend-contract-baseline.md), [Plato UI API Contract](product/plato-ui-api-contract.md) | Done |
-| API-backed prototype | Future implementation plan after UI API Contract | P0 |
+| Main Page frontend runtime integration | [Frontend runtime plan](plans/feature/main-page-frontend-runtime-integration.md), [checkpoint](releases/main-page-frontend-runtime-integration.md) | In progress: stage checkpoint only; runtime convergence has landed, but user-facing validation and several UX/backend gaps remain |
+| API-backed prototype | Follow-up after real browser/Electron smoke | P0 |
 
 Exit criteria:
 
@@ -285,15 +286,15 @@ These remain valuable, but they should not be the next immediate build target be
 
 Recommended order for upcoming implementation sessions:
 
-1. **[Main Page real backend integration](plans/feature/main-page-real-backend-integration.md)** — finish the UI runtime convergence from fixture-centric Main Page behavior to session snapshot / command response / UiEvent-driven backend facts. The implementation packet is [Main Page Frontend Runtime Integration](plans/feature/main-page-frontend-runtime-integration.md). The local sidecar target, HTTP client, runtime env switch, and named SSE subscription already exist.
+1. **[Main Page real backend integration](plans/feature/main-page-real-backend-integration.md)** — continue from the [Main Page Frontend Runtime Integration](plans/feature/main-page-frontend-runtime-integration.md) checkpoint. The current branch is a useful stage submission, not completion: real browser/Electron smoke, session creation/selection, pending/error UX, confirmation/message hardening, TaskNode edit controls, file-change projection, audit/trust surfaces, and durable event behavior still need follow-up work.
 2. **Minimal agent assignment semantics** — enough Task-to-agent/capability routing to support Product 1.0 execution without full multi-agent breadth.
-3. **Message and confirmation UI integration** — make HITL confirmations real through UI commands/events.
+3. **Message and confirmation UI integration hardening** — make HITL confirmations real through UI commands/events, including richer pending states and recovery paths.
 4. **File Change Summary and Audit / Trust implementation** — turn trust facts into user-readable surfaces.
 5. **Persistent authoring stores** — make RawTask/DraftTaskTree authoring durable beyond in-memory tests if 1.0 user testing requires it.
 6. **Product 1.1 research and planning** — completion-time `task_after`, Result Packaging cards, skills integration, MCP integration, and file/multimodal support.
 7. **Centralized runtime configuration** — shared control plane for logging/autonomy/audit/LLM/Task/UI behavior once the Task-facing server model is concrete enough to avoid overfitting.
 
-LLM Provider reliability, configurable logging, Task domain/UI separation, Collaborator authoring, TaskPublisher, TaskBus execution lifecycle, publish persistence, API publish transport, frontend baseline, UI/backend contract baseline, local sidecar API shell, and Main Page sidecar assembly are complete enough for the next round. The immediate product blocker is now Main Page frontend runtime convergence against that backend target.
+LLM Provider reliability, configurable logging, Task domain/UI separation, Collaborator authoring, TaskPublisher, TaskBus execution lifecycle, publish persistence, API publish transport, frontend baseline, UI/backend contract baseline, local sidecar API shell, and Main Page sidecar assembly now have server-core or UI baseline release candidates. Main Page frontend runtime integration remains open: the latest work is a checkpoint that proves core wiring and diagnostics, but it should stay in the active gap queue until broader UI/runtime behavior is user-testable.
 
 For status and routing of each gap, see [Gap Registry](gaps/).
 

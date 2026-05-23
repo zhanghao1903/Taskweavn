@@ -11,7 +11,6 @@ import time
 import uuid
 from pathlib import Path
 from typing import Annotated, Any
-from urllib.parse import quote
 
 import typer
 
@@ -82,17 +81,6 @@ def plato_sidecar(
             help="Plato workspace root used by the local sidecar.",
         ),
     ] = Path("./plato-workspace"),
-    session_id: Annotated[
-        str | None,
-        typer.Option(
-            "--session-id",
-            help="Existing session id to serve. If omitted, creates a new session.",
-        ),
-    ] = None,
-    session_name: Annotated[
-        str,
-        typer.Option("--session-name", help="Name used when creating a new session."),
-    ] = "Plato session",
     host: Annotated[
         str,
         typer.Option("--host", help="Loopback host for the local sidecar."),
@@ -122,8 +110,6 @@ def plato_sidecar(
     sidecar = build_main_page_sidecar_app(
         MainPageSidecarConfig(
             workspace_root=workspace,
-            session_id=session_id,
-            session_name=session_name,
             host=host,
             port=port,
         ),
@@ -133,7 +119,6 @@ def plato_sidecar(
         sidecar.start_in_thread()
         for line in _plato_sidecar_env_lines(
             base_url=sidecar.base_url,
-            session_id=sidecar.session.id,
         ):
             typer.echo(line)
         typer.echo("[plato-sidecar] press Ctrl-C to stop")
@@ -155,17 +140,6 @@ def plato_dev(
             help="Plato workspace root used by the local sidecar.",
         ),
     ] = Path("./plato-workspace"),
-    session_id: Annotated[
-        str | None,
-        typer.Option(
-            "--session-id",
-            help="Existing session id to serve. If omitted, creates a new session.",
-        ),
-    ] = None,
-    session_name: Annotated[
-        str,
-        typer.Option("--session-name", help="Name used when creating a new session."),
-    ] = "Plato session",
     sidecar_host: Annotated[
         str,
         typer.Option("--sidecar-host", help="Loopback host for the local sidecar."),
@@ -218,8 +192,6 @@ def plato_dev(
     sidecar = build_main_page_sidecar_app(
         MainPageSidecarConfig(
             workspace_root=workspace,
-            session_id=session_id,
-            session_name=session_name,
             host=sidecar_host,
             port=sidecar_port,
         ),
@@ -230,13 +202,11 @@ def plato_dev(
         sidecar.start_in_thread()
         env = _plato_frontend_env(
             base_url=sidecar.base_url,
-            session_id=sidecar.session.id,
         )
         frontend_url = f"http://{frontend_host}:{frontend_port}"
         typer.echo(f"[plato-dev] frontend={frontend_url}")
         for line in _plato_sidecar_env_lines(
             base_url=sidecar.base_url,
-            session_id=sidecar.session.id,
         ):
             typer.echo(line)
         typer.echo("[plato-dev] starting frontend dev server")
@@ -628,27 +598,23 @@ def _build_risk_assessor(name: str, llm: LLMClient) -> RiskAssessor:
     )
 
 
-def _plato_sidecar_env_lines(*, base_url: str, session_id: str) -> tuple[str, ...]:
-    encoded_session_id = quote(session_id, safe="")
+def _plato_sidecar_env_lines(*, base_url: str) -> tuple[str, ...]:
     return (
         f"[plato-sidecar] baseUrl={base_url}",
-        f"[plato-sidecar] sessionId={session_id}",
         f"[plato-sidecar] health={base_url}/api/v1/health",
-        f"[plato-sidecar] snapshot={base_url}/api/v1/sessions/{encoded_session_id}/snapshot",
+        f"[plato-sidecar] sessions={base_url}/api/v1/sessions",
         "[plato-sidecar] Vite env:",
         "VITE_PLATO_API_MODE=http",
         f"VITE_PLATO_API_BASE_URL={base_url}",
-        f"VITE_PLATO_SESSION_ID={session_id}",
     )
 
 
-def _plato_frontend_env(*, base_url: str, session_id: str) -> dict[str, str]:
+def _plato_frontend_env(*, base_url: str) -> dict[str, str]:
     env = os.environ.copy()
     env.update(
         {
             "VITE_PLATO_API_MODE": "http",
             "VITE_PLATO_API_BASE_URL": base_url,
-            "VITE_PLATO_SESSION_ID": session_id,
         }
     )
     return env

@@ -1,5 +1,3 @@
-import type { TaskNodeId } from "../../shared/api/types";
-
 export type DetailOverride = "auto" | "result" | "fileChanges";
 
 export type ConfirmationDecision =
@@ -14,13 +12,6 @@ export type EventConnectionStatus =
   | "resyncing";
 
 export type InputTarget = "session" | "task";
-
-export type LocalInputMessage = {
-  content: string;
-  createdAt: string;
-  target: InputTarget;
-  taskNodeId: TaskNodeId | null;
-};
 
 export type MainPageDetailHeader = {
   body: string;
