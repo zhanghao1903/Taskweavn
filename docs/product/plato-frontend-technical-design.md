@@ -2,7 +2,8 @@
 
 > Status: living frontend implementation design
 >
-> Source of truth: Figma UI baseline 1.0
+> Design reference: Figma UI baseline 1.0 is now historical/reference input.
+> New canonical Figma work must follow `docs/design/figma-governance.md`.
 >
 > Figma file: <https://www.figma.com/design/wHFPOBaxeImyhJer7BnMaq>
 >
@@ -10,7 +11,10 @@
 
 ## 1. 背景
 
-当前 Figma 文件 `wHFPOBaxeImyhJer7BnMaq` 已经可以作为 Plato UI 1.0 的起点。
+当前 Figma 文件 `wHFPOBaxeImyhJer7BnMaq` 是 Plato UI 1.0 的历史起点和
+参考文件。新的 canonical Figma 工作必须进入
+`Plato Product Design System and Prototype`，并遵守
+`docs/design/figma-governance.md`。
 
 本文最初用于指导前端从 Figma baseline 1.0 重新起步。当前事实已经推进：
 
@@ -23,7 +27,8 @@
 因此，后续工作不再是“销毁旧前端重新开始”，而是沿着当前产品前端基线继续收敛：
 
 ```text
-Figma UI baseline 1.0
+Figma UI baseline 1.0 reference
+  -> governed canonical Figma file
   -> frontend technical design
   -> frontend scaffold
   -> design tokens
@@ -515,7 +520,8 @@ MainPage.FileChanges
 
 ## 13. 当前决策
 
-1. Figma `wHFPOBaxeImyhJer7BnMaq` 是 UI 1.0 起点。
+1. Figma `wHFPOBaxeImyhJer7BnMaq` 是 UI 1.0 历史起点；新的
+   canonical Figma 工作进入 `Plato Product Design System and Prototype`。
 2. 当前 `frontend/` 已经是产品前端基线，不再视为 throwaway demo。
 3. fixture/state catalog 仍作为 dev/demo/visual regression 输入保留，但不能继续作为真实运行态的核心状态机。
 4. API 合约已经制定，并有前后端 fixture parity 测试。

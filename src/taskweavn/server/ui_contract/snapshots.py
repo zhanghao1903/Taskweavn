@@ -1,20 +1,35 @@
-"""Snapshot query models for Plato Main Page."""
+"""Snapshot query models for Plato Main Page and Audit Page."""
 
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from taskweavn.server.ui_contract.base import UiContractModel, utcnow
 from taskweavn.server.ui_contract.view_models import (
+    AuditEntryContext,
+    AuditFilterView,
     AuditLinkView,
+    AuditOverview,
+    AuditPageRequestView,
+    AuditPageState,
+    AuditPermissions,
+    AuditReadyPageState,
+    AuditRecord,
+    AuditRecordDetail,
+    AuditScope,
     ConfirmationActionView,
+    EffectiveConfigSummary,
     FileChangeSummaryView,
+    MainPageReturnTarget,
     ProjectSummary,
+    RelatedLogsLink,
     ResultCardView,
     SessionMessageView,
     SessionSummary,
+    TaskNodeCardView,
     TaskTreeView,
     WorkflowSummary,
 )
@@ -34,3 +49,39 @@ class MainPageSnapshot(UiContractModel):
     audit_links: tuple[AuditLinkView, ...] = ()
     cursor: str | None = None
     generated_at: datetime = Field(default_factory=utcnow)
+
+
+class AuditPageSnapshot(UiContractModel):
+    schema_version: Literal["plato.audit.v1"] = "plato.audit.v1"
+    request: AuditPageRequestView = Field(default_factory=AuditPageRequestView)
+    scope: AuditScope
+    entry_context: AuditEntryContext
+    return_target: MainPageReturnTarget
+
+    project: ProjectSummary | None = None
+    workflow: WorkflowSummary | None = None
+    session: SessionSummary
+    selected_task: TaskNodeCardView | None = None
+
+    overview: AuditOverview
+    filters: tuple[AuditFilterView, ...] = ()
+    records: tuple[AuditRecord, ...] = ()
+    selected_record: AuditRecordDetail | None = None
+
+    effective_config: EffectiveConfigSummary | None = None
+    related_logs: tuple[RelatedLogsLink, ...] = ()
+    permissions: AuditPermissions = Field(default_factory=AuditPermissions)
+    page_state: AuditPageState = Field(default_factory=AuditReadyPageState)
+
+    cursor: str | None = None
+    generated_at: datetime = Field(default_factory=utcnow)
+
+    @model_validator(mode="after")
+    def _validate_selected_record_matches_request(self) -> AuditPageSnapshot:
+        if (
+            self.request.record_id is not None
+            and self.selected_record is not None
+            and self.selected_record.id != self.request.record_id
+        ):
+            raise ValueError("selected_record must match request.record_id")
+        return self

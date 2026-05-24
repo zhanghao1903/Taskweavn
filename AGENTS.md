@@ -44,6 +44,32 @@ You must produce a short "Workflow Gate Report" containing:
 10. Acceptance criteria
 11. Risks and assumptions
 
+## Figma governance gate
+
+For every Figma-related task, including inspecting, creating, editing,
+migrating, prototyping, componentizing, or producing dev handoff from Figma,
+use the repo-scoped skill:
+
+```text
+.agents/skills/plato-figma-governance/SKILL.md
+```
+
+This skill is required after the product workflow gate and before any Figma
+plugin/MCP operation. It must produce a Figma Operation Gate Report that says
+whether a Figma write is allowed.
+
+Canonical Figma rules:
+
+- The canonical file name is `Plato Product Design System and Prototype`.
+- Old Figma files are reference/archive only.
+- Do not create assets, tokens, components, screen states, prototype flows, or
+  dev handoff mappings unless the Figma governance docs allow that operation.
+- Do not bulk-migrate old Figma content into the canonical file.
+- Follow `docs/design/figma-governance.md`,
+  `docs/design/figma-new-file-plan.md`,
+  `docs/design/figma-migration-plan.md`, and
+  `docs/design/figma-readiness-checklist.md`.
+
 ## Missing dependency policy
 
 If an upstream artifact is missing:

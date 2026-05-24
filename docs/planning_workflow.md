@@ -37,6 +37,15 @@
 如果任务偏“架构原则 / 长期设计”，放入 `docs/architecture/`。
 如果任务偏“近期可执行工作包”，放入 `docs/plans/`；如果是明确的新功能实现包，放入 `docs/plans/feature/`。
 
+如果任务是重要 UI 页面或页面级交互，除了本文件的通用计划流程，还必须遵循
+[`docs/plans/ui/README.md`](plans/ui/README.md) 中的 UI Page Delivery Workflow：
+
+```text
+PRD -> UX spec -> Figma -> design review -> UI code
+```
+
+除非页面计划明确标记为一次性技术 spike，否则不应在 Figma v0.1 和设计评审前进入生产 UI 代码实现。
+
 ---
 
 ## 3. 文档最小结构

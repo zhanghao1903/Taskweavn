@@ -3,7 +3,9 @@
 > Status: superseded visual reference
 > Last Updated: 2026-05-17
 > Scope: Task-first UI visual exploration  
-> Note: These images are not final design specs. The current visual source is the Figma UI baseline 1.0 in [Plato Figma UI Baseline](../../product/plato-figma-ui-baseline.md).
+> Note: These images are not final design specs. Current canonical Figma work
+> is governed by [Plato Figma Governance](../../design/figma-governance.md);
+> the Figma UI baseline 1.0 is historical/reference input.
 
 ---
 
