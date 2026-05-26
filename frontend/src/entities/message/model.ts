@@ -3,7 +3,7 @@ import type { TaskNodeId } from "../task/model";
 
 export type MessageId = string;
 
-export type MessageKind = "informational" | "actionable" | "response";
+export type MessageKind = "informational" | "actionable" | "response" | "error";
 
 export type SessionMessage = {
   id: MessageId;

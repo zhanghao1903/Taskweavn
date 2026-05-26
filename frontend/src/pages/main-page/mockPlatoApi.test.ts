@@ -17,7 +17,7 @@ import {
 
 describe("mock Plato API adapter", () => {
   it("exposes the Figma baseline states as API-backed state options", () => {
-    expect(listMainPageStateOptions()).toHaveLength(9);
+    expect(listMainPageStateOptions()).toHaveLength(13);
   });
 
   it("keeps the state catalog aligned with fixture states", () => {
@@ -114,5 +114,21 @@ describe("mock Plato API adapter", () => {
         kind: "text",
       }),
     ]);
+  });
+
+  it("projects separated canonical dimensions into mock snapshots", () => {
+    const { snapshot } = getMainPageMockSnapshot("s7-confirmation");
+
+    expect(snapshot.schemaVersion).toBe("plato.main.v1");
+    expect(snapshot.planning?.state).toBe("published");
+    expect(snapshot.taskTree?.readiness).toBe("published");
+    expect(snapshot.taskTree?.executionRollup?.blockedByConfirmation).toBe(1);
+    expect(
+      snapshot.taskTree?.nodes.find((node) => node.status === "waiting_user"),
+    ).toMatchObject({
+      confirmation: "pending",
+      execution: "pending",
+      readiness: "published",
+    });
   });
 });

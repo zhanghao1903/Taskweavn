@@ -9,7 +9,8 @@ export type SessionStatus =
   | "draft_ready"
   | "running"
   | "waiting_user"
-  | "completed";
+  | "completed"
+  | "failed";
 
 export type SessionSummary = {
   id: SessionId;

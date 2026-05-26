@@ -18,6 +18,7 @@ import type {
   QueryResponse,
   UiEvent,
 } from "../../shared/api/types";
+import { createAuditMockApi } from "../audit-page/mockAuditApi";
 import { createHttpMainPageAdapter } from "./httpMainPageAdapter";
 import { getMainPageMockSnapshot } from "./mockPlatoApi";
 
@@ -226,6 +227,7 @@ describe("HTTP MainPage adapter bridge", () => {
 
 function stubPlatoApi(snapshot: MainPageSnapshot) {
   const response = acceptedCommandResponse("accepted");
+  const auditApi = createAuditMockApi();
   return {
     listSessions: vi.fn(async () =>
       lifecycleResponse({ sessions: snapshot.sessions }),
@@ -243,6 +245,10 @@ function stubPlatoApi(snapshot: MainPageSnapshot) {
     publishTaskTree: vi.fn(async () => response),
     resolveConfirmation: vi.fn(async () => response),
     subscribeSessionEvents: vi.fn(() => () => undefined),
+    getAuditSnapshot: vi.fn(auditApi.getAuditSnapshot),
+    listAuditRecords: vi.fn(auditApi.listAuditRecords),
+    getAuditRecordDetail: vi.fn(auditApi.getAuditRecordDetail),
+    getEvidenceDetail: vi.fn(auditApi.getEvidenceDetail),
   } satisfies PlatoApi;
 }
 

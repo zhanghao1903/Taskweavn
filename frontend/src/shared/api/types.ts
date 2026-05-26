@@ -385,6 +385,27 @@ export type InputView = {
   placeholder: string;
 };
 
+export type MockScenarioManifest<TFixtureId extends string = string> = {
+  id: string;
+  page: "main" | "audit";
+  title: string;
+  route: string;
+  fixtureId: TFixtureId;
+  canonicalStates: {
+    planning?: PlanningState;
+    readiness?: TaskNodeReadiness | TaskTreeReadiness;
+    execution?: ExecutionStatus;
+    confirmation?: ConfirmationStatus | LocalConfirmationStatus;
+    auditVerdict?: AuditVerdict;
+    permission?: ActionAvailability;
+    pageState?: string;
+  };
+  expectedVisibleComponents: string[];
+  expectedPrimaryActions: string[];
+  expectedDisabledActions: string[];
+  expectedRecoveryBehavior?: string | null;
+};
+
 export type ResultSectionView = {
   title: string;
   body: string;
