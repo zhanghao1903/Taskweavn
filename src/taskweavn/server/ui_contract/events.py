@@ -23,6 +23,10 @@ UiEventType = Literal[
     "result.updated",
     "file_changes.updated",
     "audit.summary_updated",
+    "audit.records_changed",
+    "audit.record_updated",
+    "audit.evidence_hidden",
+    "audit.snapshot_stale",
     "command.completed",
     "command.failed",
 ]
@@ -220,6 +224,94 @@ def audit_summary_updated(
     )
 
 
+def audit_records_changed(
+    session_id: str,
+    *,
+    cursor: str,
+    scope: object,
+    record_ids: tuple[str, ...] = (),
+    reason: str | None = None,
+) -> UiEvent:
+    payload: dict[str, object] = {
+        "scope": _contract_payload_value(scope),
+        "record_ids": record_ids,
+    }
+    if reason is not None:
+        payload["reason"] = reason
+    return UiEvent(
+        session_id=session_id,
+        event_type="audit.records_changed",
+        cursor=cursor,
+        payload=payload,
+    )
+
+
+def audit_record_updated(
+    session_id: str,
+    *,
+    cursor: str,
+    record_id: str,
+    scope: object | None = None,
+    kind: str | None = None,
+    verdict: str | None = None,
+) -> UiEvent:
+    payload: dict[str, object] = {"record_id": record_id}
+    if scope is not None:
+        payload["scope"] = _contract_payload_value(scope)
+    if kind is not None:
+        payload["kind"] = kind
+    if verdict is not None:
+        payload["verdict"] = verdict
+    return UiEvent(
+        session_id=session_id,
+        event_type="audit.record_updated",
+        cursor=cursor,
+        payload=payload,
+    )
+
+
+def audit_evidence_hidden(
+    session_id: str,
+    *,
+    cursor: str,
+    record_id: str,
+    evidence_ids: tuple[str, ...],
+    reason_code: str,
+) -> UiEvent:
+    return UiEvent(
+        session_id=session_id,
+        event_type="audit.evidence_hidden",
+        cursor=cursor,
+        payload={
+            "record_id": record_id,
+            "evidence_ids": evidence_ids,
+            "reason_code": reason_code,
+        },
+    )
+
+
+def audit_snapshot_stale(
+    session_id: str,
+    *,
+    cursor: str,
+    scope: object,
+    reason: str,
+    last_good_cursor: str | None = None,
+) -> UiEvent:
+    payload: dict[str, object] = {
+        "scope": _contract_payload_value(scope),
+        "reason": reason,
+    }
+    if last_good_cursor is not None:
+        payload["last_good_cursor"] = last_good_cursor
+    return UiEvent(
+        session_id=session_id,
+        event_type="audit.snapshot_stale",
+        cursor=cursor,
+        payload=payload,
+    )
+
+
 def command_completed(
     session_id: str,
     *,
@@ -275,6 +367,21 @@ def _task_event(
         command_id=command_id,
         payload=event_payload,
     )
+
+
+def _contract_payload_value(value: object) -> object:
+    if isinstance(value, UiContractModel):
+        return value.to_contract_dict()
+    if isinstance(value, tuple):
+        return tuple(_contract_payload_value(item) for item in value)
+    if isinstance(value, list):
+        return [_contract_payload_value(item) for item in value]
+    if isinstance(value, dict):
+        return {
+            str(key): _contract_payload_value(payload_value)
+            for key, payload_value in value.items()
+        }
+    return value
 
 
 def _task_node_ids_from_message(message: AgentMessage) -> tuple[str, ...]:

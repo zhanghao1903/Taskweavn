@@ -9,8 +9,9 @@
 > Superseded by: [Plato Frontend Technical Design](../../product/plato-frontend-technical-design.md)
 >
 > This document is kept as an early planning artifact. Do not use it as the
-> current frontend implementation plan. The current source of truth starts from
-> Figma UI baseline 1.0 and the Plato product docs.
+> current frontend implementation plan. New Figma work is governed by
+> [Plato Figma Governance](../../design/figma-governance.md); Figma UI
+> baseline 1.0 is historical/reference input.
 
 ---
 

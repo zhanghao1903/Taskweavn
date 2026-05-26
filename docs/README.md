@@ -25,6 +25,8 @@ The current V2 documentation model is intentionally narrow:
 | What gaps exist and how are they routed? | [Gap Registry](gaps/) |
 | What architecture facts must a technical design obey? | [Architecture](architecture/) |
 | What user/product experience is intended? | [Product Docs](product/) |
+| What governs Figma files, design assets, components, and prototype handoff? | [Design Governance](design/) |
+| What backend/frontend contracts are being shaped for implementation? | [Engineering Contracts](engineering/) |
 | What exact UI interactions are allowed? | [UI Interaction Model](interaction-model/) |
 | What implementation plans exist? | [Plans](plans/) |
 | What decisions are expensive to reverse? | [ADRs](decisions/) |
@@ -38,6 +40,8 @@ The current V2 documentation model is intentionally narrow:
 |---|---|
 | [architecture/](architecture/) | Active system facts, object boundaries, lifecycles, protocols, and technical constraints. Required reading before technical design. |
 | [product/](product/) | Product intent, user mental models, PRDs, UX flows, and UI direction. |
+| [design/](design/) | Figma governance, canonical file plan, migration rules, readiness gates, design tokens/components/prototype handoff rules. |
+| [engineering/](engineering/) | Implementation-facing contracts and handoff specs that bridge product/UX intent to backend/frontend work. |
 | [interaction-model/](interaction-model/) | Page-level UI interaction facts: user action -> UI change -> backend/API call. Also owns the centralized external call registry for UI-triggered calls. |
 | [roadmap.md](roadmap.md) | Phase-level direction and current sequencing. |
 | [project/](project/) | Operational project plan and project-specific supporting docs. |
@@ -69,6 +73,15 @@ Product intent + Architecture facts
 
 The chain is not meant to create bureaucracy. It prevents work from starting
 from stale chat context or from a single isolated plan file.
+
+UI page work has an additional delivery workflow:
+
+```text
+PRD -> UX spec -> Figma -> design review -> UI code
+```
+
+See [UI Page Delivery Workflow](plans/ui/README.md#ui-page-delivery-workflow)
+before starting page-level implementation work.
 
 ---
 
