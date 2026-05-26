@@ -143,6 +143,10 @@ const uiEventTypes: UiEventType[] = [
   "result.updated",
   "file_changes.updated",
   "audit.summary_updated",
+  "audit.records_changed",
+  "audit.record_updated",
+  "audit.evidence_hidden",
+  "audit.snapshot_stale",
   "command.completed",
   "command.failed",
 ];
