@@ -9,6 +9,28 @@ This document mirrors the governed `11 - Dev Handoff` page in the canonical
 Figma file. It is an input to P5 frontend architecture. It is not frontend
 implementation completion.
 
+P4.11/P4.12 note: `04 - Layout Components` and `05 - Domain Components` have
+been upgraded from skeletons to visual baseline aligned drafts with run markers
+`plato-layout-visual-upgrade-2026-05-25` and
+`plato-domain-visual-upgrade-2026-05-25`. Main screen states have since been
+recomposed against the upgraded components; Audit screen states still need the
+same visual recomposition before visual implementation.
+Final frontend implementation remains incomplete.
+
+P4 acceptance note: on 2026-05-26 CST, `04 - Layout Components` was accepted as
+the P4 product-aligned layout reference, and `05 - Domain Components` was
+accepted for P4 domain component skeleton and semantic coverage. This acceptance
+does not cover final high-fidelity visual polish, production copy, responsive
+mobile design, frontend implementation, visual regression baseline, or full dev
+handoff readiness.
+
+P4.9 UX flow fidelity note: `06 - Main UX Flow` was upgraded on 2026-05-26 CST
+with run marker `plato-main-ux-flow-fidelity-2026-05-26`. The existing state
+inventory node `69:2` was preserved, and readable overview node `292:2` was
+created for Main happy path, recovery/negative branches, and Main-to-Audit
+entry/return context. This is a Figma flow overview, not executable prototype
+interaction wiring.
+
 ## 1. Source Documents
 
 - `docs/product/canonical-status-model.md`
@@ -19,9 +41,23 @@ implementation completion.
 - `docs/design/component-spec.md`
 - `docs/design/component-state-matrix.md`
 - `docs/design/figma-component-mapping.md`
+- `docs/design/figma-layout-contract.md`
 - `docs/frontend/ui-viewmodel-contract.md`
 - `docs/frontend/api-ui-mapping.md`
 - `docs/frontend/event-reducer-contract.md`
+
+## 1.1 Metadata Ownership
+
+Figma Dev Handoff and Screen State frames are summary and inspection surfaces.
+They should show concise mapping summaries, visible state intent, and links to
+repo docs. Full route, ViewModel, backend/API, event, permission, stale/resync,
+error, and recovery metadata lives in this document and the source contracts
+listed above.
+
+Future Figma handoff work must follow
+`docs/design/figma-layout-contract.md`: keep frame metadata short, move long
+details into docs, and avoid placing component usage proof inside screen
+preview zones.
 
 ## 2. Figma Handoff Sections
 
@@ -37,6 +73,7 @@ implementation completion.
 | `Dev Handoff / Frontend Architecture Input Summary` | `142:12` | created |
 | `Dev Handoff / Implementation Readiness Checklist` | `142:17` | created |
 | `Dev Handoff / Not Ready and Blocked` | `142:22` | created |
+| `Dev Handoff / Layout Templates` | `188:2` | created |
 
 Run marker: `plato-dev-handoff-2026-05-24-batched`.
 
@@ -46,10 +83,100 @@ Handoff hygiene note:
   `plato-handoff-hygiene-2026-05-25`.
 - Base, Layout, and Domain component galleries were reflowed for readability;
   component node IDs and semantics were preserved.
+- Domain component visual upgrade completed on 2026-05-25 CST with run marker
+  `plato-domain-visual-upgrade-2026-05-25`; overlap/bounds follow-up completed
+  with `plato-domain-overlap-and-bounds-fix-2026-05-25`.
+- Page-level stale note/title overlap on `05 - Domain Components` was fixed
+  with `plato-domain-page-overlap-fix-2026-05-25`; all visible top-level page
+  siblings must be included in future Figma overlap checks.
+- Variant root offset on `05 - Domain Components` was fixed with
+  `plato-domain-variant-root-zero-origin-fix-2026-05-25`; visible root
+  presentation frames should start at `x=0, y=0`, with padding inside the root
+  frame rather than as root offset.
+- `Domain/TaskTree` was refined on 2026-05-25 CST with
+  `plato-domain-tasktree-visual-refinement-2026-05-25` and follow-up
+  `plato-domain-tasktree-height-fix-2026-05-25`; it now uses the S7-style
+  product tree pattern with compact card rows, hierarchy rhythm, selected-node
+  treatment, and contained loading/empty/error variants.
+- Domain component verification passed for effective-visible text overlap,
+  clipping, component-set descendant bounds, page-level set/note overlap, and
+  representative exports. Use the upgraded Domain component drafts as visual
+  inputs for future screen-state recomposition, not as completed frontend code.
 - Placeholder labels such as `Primary`, `Neutral`, `Card title`, and repeated
   skeleton text are non-production labels used only to describe component
   variants. Engineers should use props, ViewModels, and backend mappings from
   this document instead of copying placeholder text into runtime UI.
+
+Screen-state handoff hygiene note:
+
+- Screen-state readability pass completed on 2026-05-25 CST with run marker
+  `plato-screen-state-handoff-hygiene-2026-05-25`.
+- S1-S13 and A1-A14 state frame node IDs were preserved.
+- Main state frames were normalized for screenshot readability; S10 now
+  separates screen composition, state metadata, component usage, and
+  implementation notes.
+- Audit states A1-A14 now use visible handoff metadata panels. Hidden legacy
+  metadata overlay nodes remain only for traceability and are not the handoff
+  source.
+- Permission/error states must be read from the visible handoff panels and this
+  document: permission denied, stale snapshot, query error, evidence error,
+  hidden evidence, and partial evidence remain separate UI states.
+- Screenshot verification passed for S10, A11, S1, and A4. A3 screenshot
+  transport failed twice, but A3 structural verification passed.
+- Screen-state layout normalization completed on 2026-05-25 CST with run
+  marker `plato-screen-state-layout-normalization-2026-05-25`.
+- S1-S13 were normalized to the governed `ScreenStateTemplate` zone model:
+  header, screen composition preview, metadata summary, implementation notes,
+  and component usage summary.
+- A1-A14 were normalized to the governed `AuditStateTemplate` zone model with
+  the same five handoff zones and Audit-specific metadata summaries.
+- All S1-S13 and A1-A14 state frame node IDs were preserved. Generated P4.7
+  child layout zones are the current visible Figma handoff source.
+- Full state, ViewModel, API, and recovery mappings remain in this document;
+  Figma state frames intentionally contain short summaries only.
+- Normalization verification passed structurally for all S1-S13 and A1-A14,
+  including S10, S11, S12, S13, A5, A6, A11, A12, A13, and A14. Screenshot
+  verification passed for S10, S8, A11, and A3; S1 had one screenshot transport
+  failure via `backend-api/wham/apps`.
+- Screen-state semantic fidelity pass applied on 2026-05-25 CST with run marker
+  `plato-screen-state-semantic-fidelity-2026-05-25`.
+- The pass restored low/mid-fidelity state-specific preview content while
+  preserving the normalized zone layout and state frame IDs.
+- Main previews now distinguish empty input, planning/loading, draft task tree,
+  selected task, editing, running, confirmation, completed result, file/audit
+  entry, permission denied, stale/resync, backend busy, and recoverable error
+  states.
+- Audit previews now distinguish empty, loading, records ready, selected
+  record, partial evidence, hidden evidence, warning, failed, inconclusive, not
+  available, permission denied, stale records, query error, and evidence load
+  error states.
+- S7 had one detected title/risk-badge overlap after semantic content was
+  restored; it was fixed in place while preserving frame `75:432`.
+- Post-write automated read verification and screenshots became blocked by
+  Figma MCP 120s timeouts. Treat the semantic pass as applied but not fully
+  visually verified until a verification-only follow-up succeeds.
+
+Layout template note:
+
+- Layout templates were created on 2026-05-25 CST with run marker
+  `plato-layout-templates-2026-05-25`.
+- Template nodes: `ScreenStateTemplate` (`188:5`), `AuditStateTemplate`
+  (`188:56`), `DevHandoffSectionTemplate` (`188:107`),
+  `MetadataSummaryCard` (`188:132`), `ImplementationNotesCard` (`188:141`),
+  and `ComponentUsageSummaryCard` (`188:145`).
+- These templates are reusable layout references, not production components and
+  not new product states.
+- Future Figma screen-state or handoff work should keep full metadata in this
+  document and use the templates for readable Figma summaries.
+- Text hygiene pass `plato-layout-template-text-hygiene-2026-05-25` fixed
+  collapsed text heights in these templates while preserving template node IDs.
+- Visible P4.10 screen composition size normalization
+  `plato-visible-p410-preview-1440x1024-2026-05-26` updated the visible
+  `07 - Main Screen States` S1-S13 `P4.10 / Screen composition preview` zones
+  to a fixed `1440x1024`. S1-S13 state frame IDs were preserved; the outer Main
+  state frames were widened to keep metadata outside the screen composition
+  zone. The reusable template is `Template / P4.10 Screen composition preview`
+  (`341:2`) inside `11 - Dev Handoff / Layout Templates`.
 
 ## 3. Token-To-Code Mapping
 
@@ -121,19 +248,19 @@ P5 should reconcile paths without changing Figma semantics.
 | `Base/EmptyState` | `34:11` | `src/components/ui/EmptyState.tsx` | `title`, `message`, `action` | skeleton |
 | `Base/ErrorState` | `34:25` | `src/components/ui/ErrorState.tsx` | `kind`, `severity`, `retryAction`, `details` | formalized skeleton |
 | `Base/Skeleton` | `34:50` | `src/components/ui/Skeleton.tsx` | `shape`, `size` | skeleton |
-| `Layout/AppShell` | `45:24` | `src/components/layout/AppShell.tsx` | `route`, `pageState`, slots | skeleton |
-| `Layout/TopBar` | `45:52` | `src/components/layout/TopBar.tsx` | `project`, `workflow`, `session`, `actions` | skeleton |
-| `Layout/SideNav` | `46:43` | `src/components/layout/SideNav.tsx` | `items`, `selectedId`, `collapsed`, `onSelect` | skeleton |
-| `Layout/MainWorkArea` | `46:76` | `src/components/layout/MainWorkArea.tsx` | `mode`, `pageState`, slots | skeleton |
-| `Layout/DetailPanel` | `48:72` | `src/components/layout/DetailPanel.tsx` | `selectedEntity`, `detailKind`, `pageState` | skeleton |
-| `Layout/ContextInputBar` | `48:134` | `src/components/layout/ContextInputBar.tsx` | `inputMode`, `value`, `actions`, `onSubmit` | skeleton |
-| `Domain/TaskTree` | `58:55` | `src/features/task-tree/components/TaskTree.tsx` | `TaskTreeView`, selection, permissions | skeleton |
-| `Domain/TaskNode` | `58:203` | `src/features/task-tree/components/TaskNode.tsx` | readiness, execution, confirmation, permission | skeleton |
-| `Domain/MessageStream` | `59:113` | `src/features/session/components/MessageStream.tsx` | messages, stream state, partial/hidden evidence | skeleton |
-| `Domain/MessageCard` | `59:201` | `src/features/session/components/MessageCard.tsx` | `type`, `display`, content slots | skeleton |
-| `Domain/ConfirmationPanel` | `60:333` | `src/features/confirmation/components/ConfirmationPanel.tsx` | `risk`, lifecycle, permissions | skeleton |
-| `Domain/FileChangeTable` | `61:316` | `src/features/audit/components/FileChangeTable.tsx` | file changes, evidence visibility, permissions | skeleton |
-| `Domain/AuditEntryCard` | `61:409` | `src/features/audit/components/AuditEntryCard.tsx` | verdict, display, evidence/permission/stale flags | skeleton |
+| `Layout/AppShell` | `45:24` | `src/components/layout/AppShell.tsx` | `route`, `pageState`, slots, `stale`, `error` | visual baseline aligned draft |
+| `Layout/TopBar` | `45:52` | `src/components/layout/TopBar.tsx` | `project`, `workflow`, `session`, `actions`, `readonly`, `stale` | visual baseline aligned draft |
+| `Layout/SideNav` | `46:43` | `src/components/layout/SideNav.tsx` | `items`, `selectedId`, `collapsed`, `loading`, `onSelect` | visual baseline aligned draft |
+| `Layout/MainWorkArea` | `46:76` | `src/components/layout/MainWorkArea.tsx` | `mode`, `pageState`, slots, `emptyState`, `error`, `stale` | visual baseline aligned draft |
+| `Layout/DetailPanel` | `48:72` | `src/components/layout/DetailPanel.tsx` | `selectedEntity`, `detailKind`, `pageState`, `permission`, `stale` | visual baseline aligned draft |
+| `Layout/ContextInputBar` | `48:134` | `src/components/layout/ContextInputBar.tsx` | `inputMode`, `value`, `actions`, `disabled`, `submitting`, `onSubmit` | visual baseline aligned draft |
+| `Domain/TaskTree` | `58:55` | `src/features/task-tree/components/TaskTree.tsx` | `TaskTreeView`, selection, permissions | visual baseline aligned draft |
+| `Domain/TaskNode` | `58:203` | `src/features/task-tree/components/TaskNode.tsx` | readiness, execution, confirmation, permission | visual baseline aligned draft |
+| `Domain/MessageStream` | `59:113` | `src/features/session/components/MessageStream.tsx` | messages, stream state, partial/hidden evidence | visual baseline aligned draft |
+| `Domain/MessageCard` | `59:201` | `src/features/session/components/MessageCard.tsx` | `type`, `display`, content slots | visual baseline aligned draft |
+| `Domain/ConfirmationPanel` | `60:333` | `src/features/confirmation/components/ConfirmationPanel.tsx` | `risk`, lifecycle, permissions | visual baseline aligned draft |
+| `Domain/FileChangeTable` | `61:316` | `src/features/audit/components/FileChangeTable.tsx` | file changes, evidence visibility, permissions | visual baseline aligned draft |
+| `Domain/AuditEntryCard` | `61:409` | `src/features/audit/components/AuditEntryCard.tsx` | verdict, display, evidence/permission/stale flags | visual baseline aligned draft |
 
 ## 5. Main State Handoff
 
@@ -188,6 +315,20 @@ snapshot freshness, and query state are separate dimensions.
 | `A14` Evidence Load Error | `98:1040` | `audit.session` or `audit.task` | EvidenceDetail error, selectedRecord intact | evidence detail error, snapshot fresh | retry evidence | do not collapse page into `A13` |
 
 ## 7. Prototype Flow Handoff
+
+The canonical `06 - Main UX Flow` page now includes a readable overview
+(`292:2`) in addition to the preserved state inventory (`69:2`). It summarizes
+the Main happy path, recovery branches, and Audit entry/return context with
+short transition labels. The detailed route/API/ViewModel semantics remain in
+the tables below.
+
+The canonical `07 - Main Screen States` page was recomposed on 2026-05-26 with
+run marker `plato-main-screen-state-recomposition-2026-05-26`. S1-S13 preserve
+their frame node IDs and definitions, but their preview zones now use the
+accepted `04 - Layout Components`, accepted `05 - Domain Components`, and the
+upgraded `06 - Main UX Flow` overview. This is a P4 product-aligned handoff
+reference only; it is not a final visual regression baseline and does not mean
+frontend implementation is complete.
 
 | Flow | Node ID | Entry | Exit | Trigger / dependency | Recovery |
 |---|---|---|---|---|---|
@@ -277,7 +418,10 @@ Ready for P5 architecture input:
 
 - canonical Figma file exists;
 - tokens are created and documented;
-- Base, Layout, and Domain components are created as governed skeletons;
+- Base components are created as governed skeletons; Layout and Domain
+  components are visual baseline aligned drafts;
+- `04 - Layout Components` and `05 - Domain Components` are accepted for their
+  P4 reference/skeleton scopes;
 - Main states `S1`-`S13` and Audit states `A1`-`A14` are created;
 - Prototype Flows `1`-`7` are created as references;
 - Dev Handoff mapping sections are created on `11 - Dev Handoff`.
@@ -309,6 +453,8 @@ Minimum P5 acceptance criteria:
 - Prototype flows are not executable UI interactions.
 - Dev Handoff mapping is a bridge into P5, not proof of runtime behavior.
 - Component-gallery placeholder labels are not approved production copy.
+- Hidden legacy metadata overlay nodes in Audit state frames are not the
+  engineering handoff source; use the visible handoff metadata panels.
 
 Known blockers:
 

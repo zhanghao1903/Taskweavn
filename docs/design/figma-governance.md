@@ -1,7 +1,7 @@
 # Plato Figma Governance
 
 > Status: active governance draft
-> Last Updated: 2026-05-24
+> Last Updated: 2026-05-25
 > Scope: Rules for controlled Plato/Taskweavn Figma creation, migration,
 > prototype work, and dev handoff.
 > Non-goals: this document does not modify Figma, implement frontend code, or
@@ -85,6 +85,7 @@ Any additional page must be approved by updating this document first.
 | `docs/design/design-system.md` | Token and component-layer contract. |
 | `docs/design/component-spec.md` | Production-grade component creation beyond initial skeleton. |
 | `docs/design/component-state-matrix.md` | Variant-complete component library work. |
+| `docs/design/figma-layout-contract.md` | Screen State and Dev Handoff layout zones, text limits, no-overlap checks, and screenshot-width verification. |
 | `docs/ux/prototype-state-map.md` | High-confidence prototype wiring beyond simple skeleton flows. |
 
 Production-grade component/prototype work must verify these docs in the Figma
@@ -172,10 +173,31 @@ Domain components:
   traces, secrets, or raw prompts.
 - Must not infer permissions from visual status. Permission and disabled state
   must come from the ViewModel or mapping docs.
+- Must run post-write layout verification before completion. Verification must
+  use effective visibility by walking ancestors to the checked root, so hidden
+  archived descendants are not counted as visible handoff content.
+- Must verify visible text collisions, text clipping, component-set descendant
+  bounds, note/gallery overlap, screenshot-width safety, and screenshot/export
+  transport separately. If a component variant extends outside its component-set
+  bounds, resize/reflow the set before placing notes or following galleries.
+- Must verify each component variant's internal root presentation frame. If a
+  variant has one visible root draft/presentation frame, that root must start at
+  `x=0, y=0`, and the variant bounds must match or fully contain the root.
+  Padding belongs inside the root frame, not as a root offset such as `14,14`.
+- Must include every visible top-level sibling on the target page in page-level
+  overlap verification, including old title frames, skeleton notes, hygiene
+  notes, archive/reference notes, and generated warning frames. A component
+  pass is incomplete if these stale page-level nodes still overlap the visible
+  component galleries.
 
 ## 10. Screen State Creation Rules
 
 Screen states must be derived from `docs/ux/screen-state-spec.md`.
+
+Screen State frames must also follow `docs/design/figma-layout-contract.md`.
+Use separate header, screen preview, metadata summary, and implementation notes
+zones. Keep Figma metadata as summary copy and keep full metadata in repo docs,
+especially `docs/design/dev-handoff.md`.
 
 Main Page states must account for:
 
@@ -199,6 +221,11 @@ Audit Page states must account for:
 
 Do not create a screen state that communicates a trust or execution result that
 does not exist in the canonical status model or backend-to-UI mapping.
+
+Do not place component usage proof galleries inside the screen preview zone.
+Future Screen State writes must verify structural completeness, layout
+readability, screenshot-width behavior, metadata overflow, and node ID
+preservation before being marked complete.
 
 ## 11. Prototype Flow Rules
 
@@ -235,6 +262,10 @@ Rules:
 - Do not imply real backend integration when only fixtures exist.
 - Handoff rows for Audit Page must reference
   `docs/engineering/audit-page-contract.md`.
+- Dev Handoff sections must follow `docs/design/figma-layout-contract.md`.
+  Figma should summarize mappings and point to repo docs; complete route,
+  ViewModel, API, event, permission, stale/resync, and recovery metadata lives
+  in `docs/design/dev-handoff.md`.
 
 ## 13. Old File Migration Rules
 

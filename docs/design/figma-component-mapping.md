@@ -3,10 +3,10 @@
 > Status: base, layout, domain, screen-state, prototype-flow, and Dev Handoff
 > mapping
 > Last Updated: 2026-05-25
-> Scope: Figma-to-code mapping for governed base, layout, and domain component
-> skeletons plus Main Page screen states, Audit Page screen states, and
-> prototype flow references and Dev Handoff sections in the canonical Figma
-> file.
+> Scope: Figma-to-code mapping for governed base component skeletons,
+> layout/domain visual drafts, Main Page screen states, Audit Page screen
+> states, prototype flow references, and Dev Handoff sections in the canonical
+> Figma file.
 
 ## 1. Source And Status
 
@@ -35,10 +35,22 @@ Run markers:
 - Prototype flows: `plato-prototype-flows-2026-05-24-batched`
 - Dev Handoff: `plato-dev-handoff-2026-05-24-batched`
 - Handoff hygiene: `plato-handoff-hygiene-2026-05-25`
+- layout visual upgrade: `plato-layout-visual-upgrade-2026-05-25`
+- domain visual upgrade: `plato-domain-visual-upgrade-2026-05-25`
+- domain overlap/bounds fix: `plato-domain-overlap-and-bounds-fix-2026-05-25`
+- domain page-level overlap fix: `plato-domain-page-overlap-fix-2026-05-25`
+- domain variant root zero-origin fix: `plato-domain-variant-root-zero-origin-fix-2026-05-25`
+- domain TaskTree visual refinement: `plato-domain-tasktree-visual-refinement-2026-05-25`
+- domain TaskTree height fix: `plato-domain-tasktree-height-fix-2026-05-25`
+- P4 04/05 acceptance recorded: 2026-05-26 CST
+- Main screen state recomposition: `plato-main-screen-state-recomposition-2026-05-26`
 
 This mapping documents governed Figma artifacts and their handoff mappings.
 It is an input to P5 frontend architecture. It does not mark frontend
 implementation complete.
+The 2026-05-26 P4 acceptance confirms that component mapping remains valid for
+`04 - Layout Components` and `05 - Domain Components` within their accepted
+reference/skeleton scopes.
 
 Source docs:
 
@@ -92,24 +104,24 @@ Source docs:
 
 | Figma component | Node ID | Variant axes | Covered states | Code component path | Canonical prop mapping | Base components reused | Readiness | Pending blockers |
 |---|---|---|---|---|---|---|---|---|
-| `Layout/AppShell` | `45:24` | `variant`: main; `state`: default, loading | default shell, loading shell | `frontend/src/shared/components/layout/AppShell.tsx` | `route`, `pageState`, `navigation`, `mainSlot`, `detailSlot`, `contextInputSlot`, `stale` | `Base/Panel`, `Base/Skeleton` | skeleton created | audit variant, error/stale, tablet/mobile concrete variants deferred |
-| `Layout/TopBar` | `45:52` | `variant`: main; `state`: default, loading, readonly | default, loading, readonly/permission-limited | `frontend/src/shared/components/layout/TopBar.tsx` | `productMark`, `project`, `workflow`, `session`, `actions`, `readonly`, `stale` | `Base/Button`, `Base/Badge`, `Base/Skeleton` | skeleton created | audit variant, stale, final product mark binding, responsive overflow deferred |
-| `Layout/SideNav` | `46:43` | `state`: expanded, collapsed, selectedItem, disabledItem, empty | expanded, collapsed, selected item, disabled item, empty | `frontend/src/shared/components/layout/WorkflowSidebar.tsx` or future `SideNav.tsx` alias | `items`, `selectedId`, `collapsed`, `disabledItemIds`, `emptyState`, `onSelect` | `Base/Button`, `Base/Badge`, `Base/EmptyState` | skeleton created | loading state, workflow/session hierarchy slot typing, frontend naming decision |
-| `Layout/MainWorkArea` | `46:76` | `state`: default, loading, empty, error, splitPanel | default, loading, empty, error placeholder, split-panel mode | `frontend/src/shared/components/layout/WorkbenchGrid.tsx` or future `MainWorkArea.tsx` alias | `mode`, `pageState`, `primarySlot`, `secondarySlot`, `emptyState`, `error`, `scrollBehavior` | `Base/Panel`, `Base/Badge`, `Base/Skeleton`, `Base/EmptyState` | skeleton created | exact grid semantics, stale state, scroll behavior, future optional replacement of placeholder error panel with `Base/ErrorState` |
-| `Layout/DetailPanel` | `48:72` | `state`: empty, selected, loading, error, permissionDenied, readonly | empty, selected, loading, error placeholder, permission denied, readonly | `frontend/src/shared/components/layout/DetailPanel.tsx` | `selectedEntity`, `detailKind`, `pageState`, `permission`, `readonly`, `error`, `evidenceLinks` | `Base/Panel`, `Base/Badge`, `Base/Skeleton`, `Base/EmptyState` | skeleton created | task/result/audit slot typing, stale state, future optional replacement of placeholder error panel with `Base/ErrorState` |
-| `Layout/ContextInputBar` | `48:134` | `state`: goalInput, taskInstruction, clarificationAnswer, confirmationResponse, disabled, loadingSubmitting, error | goal input, task instruction, clarification answer, confirmation response, disabled, loading/submitting, error | `frontend/src/shared/components/layout/BottomInputDock.tsx` or future `ContextInputBar.tsx` alias | `inputMode`, `value`, `placeholder`, `disabled`, `submitting`, `error`, `actions`, `onSubmit` | `Base/Input`, `Base/TextArea`, `Base/Button`, `Base/Badge`, `Base/Skeleton` | skeleton created | reducer wiring, keyboard shortcuts, mobile dock behavior, frontend naming decision |
+| `Layout/AppShell` | `45:24` | `variant`: main; `state`: ready, loading, stale, error | desktop workbench shell, loading shell, stale shell, error shell | `frontend/src/shared/components/layout/AppShell.tsx` | `route`, `pageState`, `navigation`, `mainSlot`, `detailSlot`, `contextInputSlot`, `stale`, `error` | `Base/Panel`, `Base/Skeleton`, `Base/ErrorState`, `Base/Badge` | visual baseline aligned draft | audit-specific shell, tablet/mobile concrete variants, final route chrome deferred |
+| `Layout/TopBar` | `45:52` | `variant`: main; `state`: default, loading, readonly, stale | project/workflow/session title area, status badges, loading, readonly, stale indicator | `frontend/src/shared/components/layout/TopBar.tsx` | `productMark`, `project`, `workflow`, `session`, `actions`, `readonly`, `stale`, `busy` | `Base/Button`, `Base/Badge`, `Base/Skeleton` | visual baseline aligned draft | final product mark binding, audit-return context, responsive overflow deferred |
+| `Layout/SideNav` | `46:43` | `state`: expanded, collapsed, selectedItem, disabledItem, empty, loading | workflow/session hierarchy, selected item, disabled item, empty, loading | `frontend/src/shared/components/layout/WorkflowSidebar.tsx` or future `SideNav.tsx` alias | `items`, `selectedId`, `collapsed`, `disabledItemIds`, `emptyState`, `loading`, `onSelect` | `Base/Button`, `Base/Badge`, `Base/EmptyState`, `Base/Skeleton` | visual baseline aligned draft | 5 obsolete skeleton variants are hidden/archived; workflow/session hierarchy slot typing and frontend naming decision remain |
+| `Layout/MainWorkArea` | `46:76` | `state`: ready, loading, empty, error, splitPanel, stale | dense workbench grid, loading, empty, error, split-panel, stale content | `frontend/src/shared/components/layout/WorkbenchGrid.tsx` or future `MainWorkArea.tsx` alias | `mode`, `pageState`, `primarySlot`, `secondarySlot`, `emptyState`, `error`, `stale`, `scrollBehavior` | `Base/Panel`, `Base/Badge`, `Base/Skeleton`, `Base/EmptyState`, `Base/ErrorState` | visual baseline aligned draft | 5 obsolete skeleton variants are hidden/archived; exact grid semantics, scroll behavior, and responsive stacking remain P5 work |
+| `Layout/DetailPanel` | `48:72` | `state`: empty, selectedTask, sessionWorkflow, result, auditEntry, loading, error, stale, permissionDenied, readonly | task, session/workflow, result, audit entry, loading, error, stale, permission denied, readonly | `frontend/src/shared/components/layout/DetailPanel.tsx` | `selectedEntity`, `detailKind`, `pageState`, `permission`, `readonly`, `error`, `stale`, `evidenceLinks` | `Base/Panel`, `Base/Badge`, `Base/Skeleton`, `Base/EmptyState`, `Base/ErrorState` | visual baseline aligned draft | 6 obsolete skeleton variants are hidden/archived; final detail slot typing and route-specific copy remain |
+| `Layout/ContextInputBar` | `48:134` | `state`: goalInput, taskInstruction, clarificationAnswer, confirmationResponse, disabledReadonly, loadingSubmitting, error | goal input, task instruction, clarification answer, confirmation response, disabled/readonly, submitting, error | `frontend/src/shared/components/layout/BottomInputDock.tsx` or future `ContextInputBar.tsx` alias | `inputMode`, `value`, `placeholder`, `disabled`, `readonly`, `submitting`, `error`, `actions`, `onSubmit` | `Base/Input`, `Base/TextArea`, `Base/Button`, `Base/Badge`, `Base/Skeleton`, `Base/ErrorState` | visual baseline aligned draft | 7 obsolete skeleton variants are hidden/archived; reducer wiring, keyboard shortcuts, mobile dock behavior, frontend naming decision remain |
 
 ## 5. Domain Component Mapping
 
 | Figma component | Node ID | Variant axes | Covered states | Code component path | Canonical prop/ViewModel mapping | Base/layout reused | Readiness | Pending blockers |
 |---|---|---|---|---|---|---|---|---|
-| `Domain/TaskTree` | `58:55` | `state`: default, loading, empty, error, readonly, permissionLimited, selectedNode | default, loading, empty, error, readonly, permission-limited, selected node, nested hierarchy note | `src/features/task-tree/components/TaskTree.tsx`; spec equivalent `frontend/src/entities/task/ui/TaskTree.tsx` | `TaskTreeView.readiness`, execution rollup, selected id, permission/action availability | `Base/Badge`, `Base/Card`, `Base/EmptyState`, `Base/ErrorState`, `Base/Skeleton` | skeleton created | final data slots, keyboard navigation, exact tree indentation, implementation path decision |
-| `Domain/TaskNode` | `58:203` | `status`: ready, suggested, running, waiting, completed, failed; `state`: default, hover, focus, selected, editing, disabled, permissionDenied | requested status and interaction states | `src/features/task-tree/components/TaskNode.tsx`; spec equivalent `frontend/src/entities/task/ui/TaskNodeCard.tsx` | task readiness, execution status, confirmation status, audit verdict, permissions, `ActionAvailabilityView` | `Base/Badge`, `Base/Card` | skeleton created | final status presentation names, edit affordance, action slots, exact code path |
-| `Domain/MessageStream` | `59:113` | `state`: empty, loading, streaming, error, partialData, hiddenEvidenceNote | empty, loading, streaming, error, partial data, hidden evidence note, scroll note | `src/features/session/components/MessageStream.tsx`; spec equivalent message stream composition around `Domain/SessionMessageRow` | message stream projection, event reducer streaming/partial/stale behavior, hidden/redacted evidence disclosure | `Base/Badge`, `Base/Card`, `Base/EmptyState`, `Base/ErrorState`, `Base/Skeleton` | skeleton created | final virtualization/scroll behavior, event reducer wiring |
-| `Domain/MessageCard` | `59:201` | `type`: info, userRequest, assistantResponse, result, warning, error; `display`: compact, expanded | all requested tone/type variants and display variants | `src/features/session/components/MessageCard.tsx`; spec equivalent `frontend/src/entities/message/ui/SessionMessageRow.tsx` | `SessionMessageView` actor/type, local streaming/partial/error display facts | `Base/Badge`, `Base/Card`, `Base/ErrorState` | skeleton created | final message content slots, markdown/code handling, streaming cursor |
-| `Domain/ConfirmationPanel` | `60:333` | `risk`: low, medium, high; `state`: pending, resolving, confirmed, skipped, rejected, expired, stale, permissionDenied, conflict | risk variants and confirmation lifecycle states | `src/features/confirmation/components/ConfirmationPanel.tsx`; spec equivalent `frontend/src/features/confirm-action/ui/ConfirmationCard.tsx` | backend confirmation status, local command overlay, decision outcome, action availability, audit/risk signals | `Base/Button`, `Base/Badge`, `Base/Panel`, `Base/Skeleton`, `Base/ErrorState` | skeleton created | exact outcome value model, conflict retry behavior, action copy |
-| `Domain/FileChangeTable` | `61:316` | `state`: empty, loading, partial, hiddenEvidence, permissionDenied, added, modified, deleted, riskyChange | file-change and evidence disclosure states | `src/features/audit/components/FileChangeTable.tsx`; spec equivalent `frontend/src/entities/file-change/ui/FileChangeSummary.tsx` plus audit file evidence rows | `FileChangeSummaryView`, `AuditRecord.kind=file_change`, `EvidenceRef`, `AuditPermissions` | `Base/Badge`, `Base/Panel`, `Base/EmptyState`, `Base/ErrorState`, `Base/Skeleton` | skeleton created | table density, path truncation, evidence-link behavior |
-| `Domain/AuditEntryCard` | `61:409` | `state`: passed, warning, failed, inconclusive, notAvailable, expanded, hiddenEvidence, permissionDenied, staleSnapshot | audit verdict and display/disclosure states | `src/features/audit/components/AuditEntryCard.tsx`; spec equivalent `Domain/AuditRecordCard` or `Domain/AuditSummaryLink` | `AuditVerdict`, `AuditRecord.flags`, `AuditPermissions`, `audit.snapshot_stale` | `Base/Badge`, `Base/Card`, `Base/ErrorState`, `Base/Skeleton` | skeleton created | final compact/expanded API, selected state, route/deep-link behavior |
+| `Domain/TaskTree` | `58:55` | `state`: default, loading, empty, error, readonly, permissionLimited, selectedNode | default, loading, empty, error, readonly, permission-limited, selected node, nested hierarchy note, S7-style card-row hierarchy | `src/features/task-tree/components/TaskTree.tsx`; spec equivalent `frontend/src/entities/task/ui/TaskTree.tsx` | `TaskTreeView.readiness`, execution rollup, selected id, permission/action availability | `Base/Badge`, `Base/Card`, `Base/EmptyState`, `Base/ErrorState`, `Base/Skeleton` | visual baseline aligned draft; TaskTree static-baseline refinement applied | final data slots, keyboard navigation, implementation path decision |
+| `Domain/TaskNode` | `58:203` | `status`: ready, suggested, running, waiting, completed, failed; `state`: default, hover, focus, selected, editing, disabled, permissionDenied | requested status and interaction states | `src/features/task-tree/components/TaskNode.tsx`; spec equivalent `frontend/src/entities/task/ui/TaskNodeCard.tsx` | task readiness, execution status, confirmation status, audit verdict, permissions, `ActionAvailabilityView` | `Base/Badge`, `Base/Card` | visual baseline aligned draft | final status presentation names, edit affordance, action slots, exact code path |
+| `Domain/MessageStream` | `59:113` | `state`: empty, loading, streaming, error, partialData, hiddenEvidenceNote | empty, loading, streaming, error, partial data, hidden evidence note, scroll note | `src/features/session/components/MessageStream.tsx`; spec equivalent message stream composition around `Domain/SessionMessageRow` | message stream projection, event reducer streaming/partial/stale behavior, hidden/redacted evidence disclosure | `Base/Badge`, `Base/Card`, `Base/EmptyState`, `Base/ErrorState`, `Base/Skeleton` | visual baseline aligned draft | final virtualization/scroll behavior, event reducer wiring |
+| `Domain/MessageCard` | `59:201` | `type`: info, userRequest, assistantResponse, result, warning, error; `display`: compact, expanded | all requested tone/type variants and display variants | `src/features/session/components/MessageCard.tsx`; spec equivalent `frontend/src/entities/message/ui/SessionMessageRow.tsx` | `SessionMessageView` actor/type, local streaming/partial/error display facts | `Base/Badge`, `Base/Card`, `Base/ErrorState` | visual baseline aligned draft | final message content slots, markdown/code handling, streaming cursor |
+| `Domain/ConfirmationPanel` | `60:333` | `risk`: low, medium, high; `state`: pending, resolving, confirmed, skipped, rejected, expired, stale, permissionDenied, conflict | risk variants and confirmation lifecycle states | `src/features/confirmation/components/ConfirmationPanel.tsx`; spec equivalent `frontend/src/features/confirm-action/ui/ConfirmationCard.tsx` | backend confirmation status, local command overlay, decision outcome, action availability, audit/risk signals | `Base/Button`, `Base/Badge`, `Base/Panel`, `Base/Skeleton`, `Base/ErrorState` | visual baseline aligned draft | exact outcome value model, conflict retry behavior, action copy |
+| `Domain/FileChangeTable` | `61:316` | `state`: empty, loading, partial, hiddenEvidence, permissionDenied, added, modified, deleted, riskyChange | file-change and evidence disclosure states | `src/features/audit/components/FileChangeTable.tsx`; spec equivalent `frontend/src/entities/file-change/ui/FileChangeSummary.tsx` plus audit file evidence rows | `FileChangeSummaryView`, `AuditRecord.kind=file_change`, `EvidenceRef`, `AuditPermissions` | `Base/Badge`, `Base/Panel`, `Base/EmptyState`, `Base/ErrorState`, `Base/Skeleton` | visual baseline aligned draft | table density, path truncation, evidence-link behavior |
+| `Domain/AuditEntryCard` | `61:409` | `state`: passed, warning, failed, inconclusive, notAvailable, expanded, hiddenEvidence, permissionDenied, staleSnapshot | audit verdict and display/disclosure states | `src/features/audit/components/AuditEntryCard.tsx`; spec equivalent `Domain/AuditRecordCard` or `Domain/AuditSummaryLink` | `AuditVerdict`, `AuditRecord.flags`, `AuditPermissions`, `audit.snapshot_stale` | `Base/Badge`, `Base/Card`, `Base/ErrorState`, `Base/Skeleton` | visual baseline aligned draft | final compact/expanded API, selected state, route/deep-link behavior |
 
 ## 6. Stabilization Notes
 
@@ -149,6 +161,32 @@ The domain component page was created and verified on 2026-05-24:
 - at domain-component creation time, screen states, prototype interactions,
   and frontend implementation files were out of scope.
 
+The domain component page was visually upgraded on 2026-05-25:
+
+- all seven domain component set node IDs were preserved;
+- skeleton-only placeholders were replaced with product-real sample content
+  from `docs/design/domain-components-visual-upgrade-brief.md`;
+- permission, hidden evidence, partial evidence, stale, confirmation, file
+  change, and audit verdict states remain semantically separate;
+- post-write effective-visible verification reported zero text overlaps, zero
+  clipping, zero page-level set/note overlap pairs, and all visible descendants
+  contained by component/note bounds;
+- follow-up page-level verification included all 16 visible top-level siblings
+  on `05 - Domain Components` and fixed stale title/hygiene note overlap with
+  the `Domain/TaskTree` gallery;
+- variant root normalization removed `14,14` root offsets by forcing visible
+  `P4.12 visual draft` root frames to `x=0, y=0` inside fixed-layout variants;
+- `Domain/TaskTree` was refined with
+  `plato-domain-tasktree-visual-refinement-2026-05-25` to match the S7 static
+  visual baseline more closely: compact card rows, indentation rhythm, connector
+  markers, status pills, selected-node treatment, and state-specific
+  loading/empty/error/read-only previews;
+- `plato-domain-tasktree-height-fix-2026-05-25` fixed loading/empty/error
+  variant overflow while preserving component set node ID `58:55`;
+- representative exports passed for `Domain/TaskTree`,
+  `Domain/ConfirmationPanel`, `Domain/FileChangeTable`, and
+  `Domain/AuditEntryCard`.
+
 Handoff hygiene was completed on 2026-05-25:
 
 - Base, Layout, and Domain component galleries were reflowed into readable
@@ -163,32 +201,36 @@ Handoff hygiene was completed on 2026-05-25:
 
 The Main UX flow map and Main screen state frames were created and verified on
 2026-05-24 with run marker `plato-main-screen-states-2026-05-24-batched`.
-These frames are governed skeletons only. They are not prototype-wired and do
-not mark frontend implementation complete.
+The screen state frames were recomposed on 2026-05-26 with run marker
+`plato-main-screen-state-recomposition-2026-05-26` using the accepted
+`04 - Layout Components`, accepted `05 - Domain Components`, and upgraded
+`06 - Main UX Flow` overview. They are product-aligned P4 references only:
+not prototype-wired and not frontend-implemented.
 
 Flow map:
 
 | Figma element | Node ID | Purpose | Readiness |
 |---|---|---|---|
-| `Main UX Flow Map / Governed States` | `69:2` | Main Page state storyboard and transition intent | created, no prototype interactions |
+| `Main UX Flow Overview / P4.9` | `292:2` | readable Main Page UX flow overview with happy path, recovery/negative path, and Main-to-Audit entry/return context | created, no prototype interactions |
+| `State Inventory / Governed S1-S13 (preserved)` | `69:2` | preserved Main Page state inventory storyboard | preserved, no prototype interactions |
 
 Screen state frames:
 
 | Figma frame | Node ID | Canonical state mapping | Primary component reuse | Backend/ViewModel dimensions represented | Readiness |
 |---|---|---|---|---|---|
-| `S1 - Empty New Session` | `71:2` | `prototype-state-map S1 Empty` | `Layout/AppShell`, `Layout/TopBar`, `Layout/SideNav`, `Layout/MainWorkArea`, `Layout/DetailPanel`, `Layout/ContextInputBar`, `Domain/MessageStream`, `Base/EmptyState`, `Base/Input`, `Base/Button` | planning `empty`, execution `not_started`, confirmation none, can create goal, audit `not_available` | governed skeleton |
-| `S2 - Understanding / Planning` | `71:110` | `prototype-state-map S2 Understanding` | layout shell, `Domain/MessageStream`, `Domain/TaskTree`, `Base/Skeleton`, `Base/Badge` | planning `capturing_input` or `assessing`, execution `not_started`, limited planning actions | governed skeleton |
-| `S3 - Draft Task Tree Ready` | `71:217` | user label mapped to `prototype-state-map S4 Draft Ready` | layout shell, `Domain/TaskTree`, `Domain/TaskNode`, `Domain/MessageCard`, `Base/Badge`, `Base/Button` | planning `draft_ready`, readiness `draft` or `accepted`, can edit/publish when valid | governed skeleton |
-| `S4 - Task Node Selected` | `73:216` | user label mapped to `prototype-state-map S5 Task Selected` | layout shell, `Domain/TaskTree`, `Domain/TaskNode`, `Domain/MessageStream`, `Base/Badge`, `Base/Panel` | selected task id, readiness/execution/confirmation/audit dimensions for selected node | governed skeleton |
-| `S5 - Task Node Editing` | `73:334` | user label mapped to `prototype-state-map S6 Task Editing` | layout shell, `Domain/TaskTree`, `Domain/TaskNode`, `Base/TextArea`, `Base/Input`, `Base/Button` | planning `draft_ready`, readiness `draft`, local edit buffer, can edit/append guidance | governed skeleton |
-| `S6 - Published / Running` | `73:450` | user combined state mapped to `prototype-state-map S7 Published/Pending` plus `S8 Running` | layout shell, `Domain/TaskTree`, `Domain/TaskNode`, `Domain/MessageStream`, `Base/Skeleton`, `Base/Badge` | planning `published`, readiness `published`, execution `pending` or `running`, edit disabled | governed skeleton |
-| `S7 - Waiting For Confirmation` | `75:432` | user label mapped to `prototype-state-map S9 Waiting Confirmation` | layout shell, `Domain/ConfirmationPanel`, `Domain/TaskNode`, `Domain/MessageCard`, `Base/Button`, `Base/Badge` | confirmation `pending`, local `resolving`/`resolve_failed`, can resolve confirmation | governed skeleton |
-| `S8 - Completed With Result` | `75:563` | user label mapped to `prototype-state-map S10 Completed` | layout shell, `Domain/MessageCard`, `Domain/FileChangeTable`, `Domain/AuditEntryCard`, `Domain/TaskNode`, `Base/Badge` | execution `done`, confirmation resolved/none, audit verdict separate from execution | governed skeleton |
-| `S9 - File Change Summary / Audit Entry` | `75:686` | focused `completed-with-result-file-audit` Main Page state | layout shell, `Domain/FileChangeTable`, `Domain/AuditEntryCard`, `Domain/MessageCard`, `Base/Badge`, `Base/Panel` | result/file summary, audit entry route context, evidence visibility and permissions | governed skeleton |
-| `S10 - Permission Denied` | `77:659` | permission-denied-readonly scenario | layout shell, `Base/ErrorState`, `Domain/TaskTree`, `Domain/TaskNode`, `Base/Badge`, `Base/Button` | permission/action availability and `readonlyReason` independent from status | governed skeleton |
-| `S11 - Stale Snapshot / Resync Required` | `77:775` | user label mapped to `prototype-state-map S12 Stale/Resync` | layout shell, `Base/ErrorState`, `Base/Skeleton`, `Domain/MessageStream`, `Domain/TaskTree`, `Base/Badge` | stale snapshot, last-known state retained, high-risk actions disabled | governed skeleton |
-| `S12 - Backend Busy / Command Accepted But Delayed` | `77:883` | command accepted / `pending_command` overlay | layout shell, `Base/Skeleton`, `Domain/MessageStream`, `Domain/TaskNode`, `Base/Badge`, `Base/Button` | last-known state plus local pending command, duplicate command disabled | governed skeleton |
-| `S13 - Command Failed / Recoverable Error` | `77:986` | recoverable command failure related to `S13 Load Error` | layout shell, `Base/ErrorState`, `Domain/MessageStream`, `Domain/MessageCard`, `Base/Button`, `Base/Badge` | command error envelope, retry eligibility, last safe snapshot retained | governed skeleton |
+| `S1 - Empty New Session` | `71:2` | `prototype-state-map S1 Empty` | `Layout/AppShell`, `Layout/TopBar`, `Layout/SideNav`, `Layout/MainWorkArea`, `Layout/DetailPanel`, `Layout/ContextInputBar`, `Domain/MessageStream`, `Base/EmptyState`, `Base/Input`, `Base/Button` | planning `empty`, execution `not_started`, confirmation none, can create goal, audit `not_available` | recomposed product-aligned reference |
+| `S2 - Understanding / Planning` | `71:110` | `prototype-state-map S2 Understanding` | layout shell, `Domain/MessageStream`, `Domain/TaskTree`, `Base/Skeleton`, `Base/Badge` | planning `capturing_input` or `assessing`, execution `not_started`, limited planning actions | recomposed product-aligned reference |
+| `S3 - Draft Task Tree Ready` | `71:217` | user label mapped to `prototype-state-map S4 Draft Ready` | layout shell, `Domain/TaskTree`, `Domain/TaskNode`, `Domain/MessageCard`, `Base/Badge`, `Base/Button` | planning `draft_ready`, readiness `draft` or `accepted`, can edit/publish when valid | recomposed product-aligned reference |
+| `S4 - Task Node Selected` | `73:216` | user label mapped to `prototype-state-map S5 Task Selected` | layout shell, `Domain/TaskTree`, `Domain/TaskNode`, `Domain/MessageStream`, `Base/Badge`, `Base/Panel` | selected task id, readiness/execution/confirmation/audit dimensions for selected node | recomposed product-aligned reference |
+| `S5 - Task Node Editing` | `73:334` | user label mapped to `prototype-state-map S6 Task Editing` | layout shell, `Domain/TaskTree`, `Domain/TaskNode`, `Base/TextArea`, `Base/Input`, `Base/Button` | planning `draft_ready`, readiness `draft`, local edit buffer, can edit/append guidance | recomposed product-aligned reference |
+| `S6 - Published / Running` | `73:450` | user combined state mapped to `prototype-state-map S7 Published/Pending` plus `S8 Running` | layout shell, `Domain/TaskTree`, `Domain/TaskNode`, `Domain/MessageStream`, `Base/Skeleton`, `Base/Badge` | planning `published`, readiness `published`, execution `pending` or `running`, edit disabled | recomposed product-aligned reference |
+| `S7 - Waiting For Confirmation` | `75:432` | user label mapped to `prototype-state-map S9 Waiting Confirmation` | layout shell, `Domain/ConfirmationPanel`, `Domain/TaskNode`, `Domain/MessageCard`, `Base/Button`, `Base/Badge` | confirmation `pending`, local `resolving`/`resolve_failed`, can resolve confirmation | recomposed product-aligned reference |
+| `S8 - Completed With Result` | `75:563` | user label mapped to `prototype-state-map S10 Completed` | layout shell, `Domain/MessageCard`, `Domain/FileChangeTable`, `Domain/AuditEntryCard`, `Domain/TaskNode`, `Base/Badge` | execution `done`, confirmation resolved/none, audit verdict separate from execution | recomposed product-aligned reference |
+| `S9 - File Change Summary / Audit Entry` | `75:686` | focused `completed-with-result-file-audit` Main Page state | layout shell, `Domain/FileChangeTable`, `Domain/AuditEntryCard`, `Domain/MessageCard`, `Base/Badge`, `Base/Panel` | result/file summary, audit entry route context, evidence visibility and permissions | recomposed product-aligned reference |
+| `S10 - Permission Denied` | `77:659` | permission-denied-readonly scenario | layout shell, `Base/ErrorState`, `Domain/TaskTree`, `Domain/TaskNode`, `Base/Badge`, `Base/Button` | permission/action availability and `readonlyReason` independent from status | recomposed product-aligned reference |
+| `S11 - Stale Snapshot / Resync Required` | `77:775` | user label mapped to `prototype-state-map S12 Stale/Resync` | layout shell, `Base/ErrorState`, `Base/Skeleton`, `Domain/MessageStream`, `Domain/TaskTree`, `Base/Badge` | stale snapshot, last-known state retained, high-risk actions disabled | recomposed product-aligned reference |
+| `S12 - Backend Busy / Command Accepted But Delayed` | `77:883` | command accepted / `pending_command` overlay | layout shell, `Base/Skeleton`, `Domain/MessageStream`, `Domain/TaskNode`, `Base/Badge`, `Base/Button` | last-known state plus local pending command, duplicate command disabled | recomposed product-aligned reference |
+| `S13 - Command Failed / Recoverable Error` | `77:986` | recoverable command failure related to `S13 Load Error` | layout shell, `Base/ErrorState`, `Domain/MessageStream`, `Domain/MessageCard`, `Base/Button`, `Base/Badge` | command error envelope, retry eligibility, last safe snapshot retained | recomposed product-aligned reference |
 
 State frame metadata:
 

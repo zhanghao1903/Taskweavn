@@ -23,6 +23,8 @@ Read the relevant sources before allowing a Figma write:
 - `docs/design/figma-new-file-plan.md`
 - `docs/design/figma-migration-plan.md`
 - `docs/design/figma-readiness-checklist.md`
+- `docs/design/figma-layout-contract.md` for Screen State, Prototype Flow
+  handoff, and Dev Handoff layout/readability work
 - `docs/design/design-system.md`
 - `docs/design/component-spec.md`
 - `docs/design/component-state-matrix.md`
@@ -149,15 +151,70 @@ Components:
 - Every interactive component must include default, hover, focus-visible,
   active, disabled, loading, and error variants when applicable.
 - Domain components must map to ViewModel fields, not raw backend rows.
+- Every Figma write that creates or edits visible components, component sets,
+  screen states, prototype flow references, or Dev Handoff sections must run a
+  post-write overlap and clipping verification before being reported complete.
+- Overlap verification must inspect visible descendants inside each changed
+  component/frame, not only top-level page nodes. Check visible text collisions
+  with sibling/cousin nodes, text clipping against its parent bounds, note-frame
+  overlap with component galleries, and page-level screenshot-width overflow.
+- Page-level verification must include **all visible top-level siblings on the
+  target page**, including old title frames, skeleton notes, hygiene notes,
+  archive/reference notes, and generated warning frames. Do not limit the check
+  to the nodes changed in the current script, because stale top-level notes can
+  still overlap newly positioned component galleries.
+- Visible descendant checks must use **effective visibility**: walk from the
+  candidate node to the verification root and treat the node as hidden if any
+  ancestor has `visible = false`. Do not count stale descendants inside hidden
+  archived frames as visible overlap, but do keep those hidden descendants out
+  of handoff/source-of-truth notes.
+- For component sets, verification must compare note frames and neighboring
+  galleries against the effective bounds of visible descendants, not only the
+  component set node's own `width`/`height`. If a variant extends outside the
+  component set bounds, resize/reflow the set before placing notes or following
+  components.
+- Component/page reflow must be driven by effective descendant bounds. Place
+  note frames, following galleries, and section frames after the effective
+  visible bottom/right edge, not after stale `node.width`/`node.height` values
+  alone.
+- Component variant internals must also be verified. If a variant uses one
+  visible root presentation frame, that root frame must start at `x=0, y=0`
+  and the variant bounds must match or fully contain the root. Do not create
+  padding by offsetting the root frame to `14,14` or similar; put padding inside
+  the root frame. Offset roots are blockers because they make the visible
+  variant exceed the component boundary and overlap neighboring variants.
+- Intentional text-on-background overlap is allowed only when the containing
+  chip/button/panel encloses the text as its own label. Text colliding with
+  another chip, button, panel, metadata block, or component preview is a
+  blocker.
+- If overlap or clipping is found, fix it in the same task or mark the Figma
+  write incomplete. Do not mark structural verification as sufficient when a
+  human-readable screenshot shows overlap.
+- Each visible Figma write must report overlap results separately for: visible
+  text collisions, text clipping, component-set descendant bounds, page-level
+  set/note collisions, screenshot-width safety, and export/screenshot attempt.
+  If Figma screenshot/export transport fails, keep structural verification
+  separate and record screenshot/export as pending rather than silently passing.
 
 Screen states:
 
 - Derive states from `docs/ux/screen-state-spec.md` and
   `docs/product/canonical-status-model.md`.
+- Before creating or editing Screen State frames, apply
+  `docs/design/figma-layout-contract.md`.
+- Use the standard ScreenState zones: header, screen preview, metadata summary,
+  and implementation notes.
+- Keep Figma metadata summary-length only. Full route, ViewModel, API, event,
+  permission, stale/resync, and recovery metadata belongs in repo docs such as
+  `docs/design/dev-handoff.md`.
+- Do not place component usage proof galleries inside the screen preview zone.
 - Do not collapse planning, readiness, execution, confirmation, permission, and
   audit verdict into one visual status.
 - Include loading, empty, partial, error, permission denied, stale/resync, and
   success states when the page can reach them.
+- Verify structural completeness, layout readability, screenshot-width safety,
+  metadata overflow, and node ID preservation before marking state work
+  complete.
 
 Prototype flows:
 
@@ -166,6 +223,8 @@ Prototype flows:
   targets.
 - Audit Page flows must remain read-only and return to Main Page for mutating
   actions.
+- Flow handoff frames that include state references or metadata must follow the
+  relevant layout contract summary and overflow rules.
 
 Dev handoff:
 
@@ -174,6 +233,15 @@ Dev handoff:
 - Handoff notes must say whether the component is base, layout, or domain.
 - If no code component exists yet, mark it as `new component required`; do not
   imply implementation exists.
+- Before creating or editing Dev Handoff sections, apply
+  `docs/design/figma-layout-contract.md`.
+- Use the standard DevHandoff section layout: section header, mapping table or
+  list, gaps/blockers, and source references.
+- Keep Figma Dev Handoff sections scannable. Full mapping detail lives in
+  `docs/design/dev-handoff.md`; Figma sections should summarize and point to
+  the repo docs.
+- Verify no-overlap, screenshot-width readability, metadata overflow, and node
+  ID preservation for future handoff hygiene passes.
 
 Migration:
 
