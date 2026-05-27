@@ -10,6 +10,7 @@ import { NO_SESSION_AVAILABLE_MESSAGE } from "./httpMainPageAdapter";
 import { MainPageDetailPanel } from "./MainPageDetailPanel";
 import { MainPageSessionSidebar } from "./MainPageSessionSidebar";
 import { MainPageTopBar } from "./MainPageTopBar";
+import { MainPageWorkspaceHeader } from "./MainPageWorkspaceHeader";
 import { SessionMessagePanel } from "./SessionMessagePanel";
 import { TaskTreePanel } from "./TaskTreePanel";
 import {
@@ -207,46 +208,26 @@ export function MainPage({
         className={styles.workspace}
         aria-label="Task workspace"
       >
-        <div className={styles.sectionHeader}>
-          <div>
-            <Text variant="eyebrow">Session workspace</Text>
-            <Text as="h1" variant="heading">
-              {snapshot.taskTree?.title ?? "Start a new session"}
-            </Text>
-            {taskTreeCommandError ? (
-              <Text variant="muted">{taskTreeCommandError}</Text>
-            ) : null}
-            {eventError ? <Text variant="muted">{eventError}</Text> : null}
-            {uiNotice ? <Text variant="muted">{uiNotice}</Text> : null}
-          </div>
-          <div className={styles.actionRow}>
-            {canPublishTaskTree ? (
-              <Button
-                disabled={isPublishingTaskTree}
-                onClick={() =>
-                  actions.publishTaskTree({
-                    sessionId: snapshot.session.id,
-                    taskTreeId: snapshot.taskTree?.id ?? null,
-                  })
-                }
-              >
-                {isPublishingTaskTree
-                  ? "Publishing"
-                  : "Publish TaskTree"}
-              </Button>
-            ) : null}
-            <Button
-              onClick={() =>
-                actions.showUnavailableNotice({
-                  action: "Audit view",
-                  sessionId: snapshot.session.id,
-                })
-              }
-            >
-              View audit
-            </Button>
-          </div>
-        </div>
+        <MainPageWorkspaceHeader
+          eventError={eventError}
+          isPublishingTaskTree={isPublishingTaskTree}
+          onPublishTaskTree={() =>
+            actions.publishTaskTree({
+              sessionId: snapshot.session.id,
+              taskTreeId: snapshot.taskTree?.id ?? null,
+            })
+          }
+          onViewAudit={() =>
+            actions.showUnavailableNotice({
+              action: "Audit view",
+              sessionId: snapshot.session.id,
+            })
+          }
+          showPublishTaskTree={canPublishTaskTree}
+          taskTreeCommandError={taskTreeCommandError}
+          title={snapshot.taskTree?.title ?? "Start a new session"}
+          uiNotice={uiNotice}
+        />
 
         <div className={styles.workGrid}>
           <TaskTreePanel
