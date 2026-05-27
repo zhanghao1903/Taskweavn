@@ -4,7 +4,16 @@ import {
   type AuditMockApi,
 } from "../pages/audit-page/mockAuditApi";
 import { createHttpMainPageAdapter } from "../pages/main-page/httpMainPageAdapter";
+import {
+  routeMainPageEventWithReducerCompatibility,
+  type MainPageEventCompatibilityResult,
+} from "../pages/main-page/runtime/eventRouterCompatibility";
+import {
+  createMainPageMockRuntimeFacade,
+  type MainPageMockRuntimeFacade,
+} from "../pages/main-page/runtime/mockRuntimeFacade";
 import type { MainPageAdapter } from "../pages/main-page/runtime/adapter";
+import type { UiEvent } from "../shared/api/types";
 import { createHttpPlatoApi } from "../shared/api/platoApi";
 import {
   configureFrontendLogSink,
@@ -18,6 +27,7 @@ export type PlatoRuntimeEnv = {
   VITE_PLATO_API_MODE?: "mock" | "http";
   VITE_PLATO_SESSION_ID?: string;
   VITE_PLATO_AUDIT_MOCK_SCENARIO?: AuditMockScenarioId;
+  VITE_PLATO_RUNTIME_REDUCER_HARNESS?: "off" | "test";
 };
 
 const runtimeLogger = createFrontendLogger("runtime");
@@ -74,6 +84,32 @@ export function createAuditApiFromRuntimeEnv(
   });
 
   return createAuditMockApi(scenarioId);
+}
+
+export type MainPageRuntimeReducerHarness = {
+  facade: MainPageMockRuntimeFacade;
+  routeEvent: (event: UiEvent) => MainPageEventCompatibilityResult;
+};
+
+export function createMainPageRuntimeReducerHarnessFromEnv(
+  env: PlatoRuntimeEnv = import.meta.env,
+): MainPageRuntimeReducerHarness | null {
+  if (env.VITE_PLATO_RUNTIME_REDUCER_HARNESS !== "test") {
+    return null;
+  }
+
+  runtimeLogger.info("main-page.runtime-reducer-harness.enabled", {
+    mode: env.VITE_PLATO_RUNTIME_REDUCER_HARNESS,
+  });
+
+  const facade = createMainPageMockRuntimeFacade();
+
+  return {
+    facade,
+    routeEvent(event) {
+      return routeMainPageEventWithReducerCompatibility(facade, event);
+    },
+  };
 }
 
 function createHttpErrorLogSink(
