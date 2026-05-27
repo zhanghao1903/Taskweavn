@@ -6,30 +6,10 @@ import type {
   TaskNodeStatus,
   TaskTreeView,
 } from "../../shared/api/types";
-import type { BadgeTone } from "../../shared/components";
 import { Badge, Panel, Text } from "../../shared/components";
 import type { ConfirmationDecision } from "./mainPageUiTypes";
+import { selectTaskNodeStatusPresentation } from "./mainPageSelectors";
 import styles from "./MainPage.module.css";
-
-const taskStatusTone: Record<TaskNodeStatus, BadgeTone> = {
-  cancelled: "danger",
-  done: "success",
-  draft: "neutral",
-  failed: "danger",
-  queued: "neutral",
-  running: "blue",
-  waiting_user: "warning",
-};
-
-const taskStatusLabel: Record<TaskNodeStatus, string> = {
-  cancelled: "cancelled",
-  done: "done",
-  draft: "draft",
-  failed: "failed",
-  queued: "queued",
-  running: "running",
-  waiting_user: "waiting user",
-};
 
 export type TaskTreePanelProps = {
   confirmationDecision: ConfirmationDecision;
@@ -56,6 +36,7 @@ export function TaskTreePanel({
         <div className={styles.taskList}>
           {taskTree.nodes.map((node) => {
             const status = statusForNode(node, confirmationDecision);
+            const statusPresentation = selectTaskNodeStatusPresentation(status);
 
             return (
               <button
@@ -73,8 +54,11 @@ export function TaskTreePanel({
                   <strong>{node.title}</strong>
                   <small>{node.summary}</small>
                 </span>
-                <Badge className={styles.taskStatus} tone={taskStatusTone[status]}>
-                  {taskStatusLabel[status]}
+                <Badge
+                  className={styles.taskStatus}
+                  tone={statusPresentation.tone}
+                >
+                  {statusPresentation.label}
                 </Badge>
               </button>
             );

@@ -4,13 +4,16 @@ import type {
   ResultCardView,
   TaskNodeCardView,
 } from "../../shared/api/types";
-import type { BadgeTone, ButtonVariant } from "../../shared/components";
 import { Badge, Button, Panel, Text } from "../../shared/components";
 import type {
   ConfirmationDecision,
   MainPageDetailHeader,
 } from "./mainPageUiTypes";
 import { confirmationResolutionText } from "./mainPageCopy";
+import {
+  selectConfirmationOptionVariant,
+  selectFileChangeTypePresentation,
+} from "./mainPageSelectors";
 import styles from "./MainPage.module.css";
 
 export type MainPageDetailPanelProps = {
@@ -124,7 +127,7 @@ function DetailContent({
               <Button
                 disabled={isResolvingConfirmation}
                 key={option.value}
-                variant={confirmationOptionVariant(option.tone)}
+                variant={selectConfirmationOptionVariant(option.tone)}
                 onClick={() =>
                   onConfirmationDecision(toConfirmationDecision(option.value))
                 }
@@ -202,22 +205,32 @@ function DetailContent({
         </div>
         <Text variant="muted">{fileChangeSummary.summary}</Text>
         <div className={styles.fileChangeList} role="list">
-          {fileChangeSummary.changedFiles.map((file) => (
-            <article className={styles.fileChangeItem} key={file.path} role="listitem">
-              <div className={styles.detailTitleRow}>
-                <strong className={styles.filePath}>{file.path}</strong>
-                <Badge size="sm" tone={fileChangeTone(file.changeType)}>
-                  {file.changeType}
-                </Badge>
-              </div>
-              {file.summary && <p>{file.summary}</p>}
-              {file.ownerTaskNodeId && (
-                <span className={styles.fileOwner}>
-                  Owner TaskNode: {file.ownerTaskNodeId}
-                </span>
-              )}
-            </article>
-          ))}
+          {fileChangeSummary.changedFiles.map((file) => {
+            const changePresentation = selectFileChangeTypePresentation(
+              file.changeType,
+            );
+
+            return (
+              <article
+                className={styles.fileChangeItem}
+                key={file.path}
+                role="listitem"
+              >
+                <div className={styles.detailTitleRow}>
+                  <strong className={styles.filePath}>{file.path}</strong>
+                  <Badge size="sm" tone={changePresentation.tone}>
+                    {changePresentation.label}
+                  </Badge>
+                </div>
+                {file.summary && <p>{file.summary}</p>}
+                {file.ownerTaskNodeId && (
+                  <span className={styles.fileOwner}>
+                    Owner TaskNode: {file.ownerTaskNodeId}
+                  </span>
+                )}
+              </article>
+            );
+          })}
         </div>
         {result && (
           <div className={styles.actionRow}>
@@ -259,38 +272,6 @@ const fallbackConfirmationOptions: NonNullable<
   { value: "revise", label: "Revise task", tone: "secondary" },
   { value: "skipped", label: "Skip", tone: "danger" },
 ];
-
-function confirmationOptionVariant(
-  tone: ConfirmationActionView["options"][number]["tone"],
-): ButtonVariant {
-  if (tone === "primary") {
-    return "primary";
-  }
-
-  if (tone === "danger") {
-    return "danger";
-  }
-
-  return "secondary";
-}
-
-function fileChangeTone(
-  changeType: FileChangeSummaryView["changedFiles"][number]["changeType"],
-): BadgeTone {
-  if (changeType === "created") {
-    return "success";
-  }
-
-  if (changeType === "deleted") {
-    return "danger";
-  }
-
-  if (changeType === "renamed") {
-    return "blue";
-  }
-
-  return "warning";
-}
 
 function toConfirmationDecision(value: string): Exclude<ConfirmationDecision, null> {
   if (value === "revise" || value === "skipped") {

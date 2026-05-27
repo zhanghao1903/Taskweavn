@@ -1,5 +1,5 @@
 import type { MainPageSnapshot } from "../../../shared/api/types";
-import type { BadgeTone } from "../../../shared/components";
+import { selectSessionStatusPresentation } from "../mainPageSelectors";
 import type {
   MainPageDetail,
   MainPageInputScope,
@@ -16,6 +16,7 @@ export function deriveMainPageMetadataFromSnapshot(
   { id, label }: MainPageMetadataOptions,
 ): MainPageStateMetadata {
   const selectedTaskNodeId = selectInitialTaskNodeId(snapshot);
+  const sessionStatus = selectSessionStatusPresentation(snapshot.session.status);
 
   return {
     id,
@@ -23,8 +24,8 @@ export function deriveMainPageMetadataFromSnapshot(
     detail: detailFromSnapshot(snapshot, selectedTaskNodeId),
     initialSelectedTaskNodeId: selectedTaskNodeId,
     inputScope: inputScopeFromSnapshot(selectedTaskNodeId),
-    topStatus: sessionStatusLabel(snapshot.session.status),
-    topStatusTone: sessionStatusTone(snapshot.session.status),
+    topStatus: sessionStatus.label,
+    topStatusTone: sessionStatus.tone,
   };
 }
 
@@ -117,33 +118,5 @@ function inputScopeFromSnapshot(
     label: "Scope: session",
     placeholder: "Describe the goal or add guidance for this session.",
   };
-}
-
-function sessionStatusLabel(status: MainPageSnapshot["session"]["status"]): string {
-  const labels: Record<MainPageSnapshot["session"]["status"], string> = {
-    completed: "Completed",
-    draft_ready: "Draft ready",
-    failed: "Failed",
-    new: "New session",
-    running: "Running",
-    understanding: "Understanding",
-    waiting_user: "Waiting for user",
-  };
-
-  return labels[status];
-}
-
-function sessionStatusTone(status: MainPageSnapshot["session"]["status"]): BadgeTone {
-  const tones: Record<MainPageSnapshot["session"]["status"], BadgeTone> = {
-    completed: "success",
-    draft_ready: "blue",
-    failed: "danger",
-    new: "neutral",
-    running: "blue",
-    understanding: "blue",
-    waiting_user: "warning",
-  };
-
-  return tones[status];
 }
 

@@ -20,7 +20,11 @@ import { NO_SESSION_AVAILABLE_MESSAGE } from "./httpMainPageAdapter";
 import { MainPageDetailPanel } from "./MainPageDetailPanel";
 import { SessionMessagePanel } from "./SessionMessagePanel";
 import { TaskTreePanel } from "./TaskTreePanel";
-import { buildTaskScopedProjection } from "./mainPageSelectors";
+import {
+  buildTaskScopedProjection,
+  selectEventConnectionStatusPresentation,
+  selectTopStatusPresentation,
+} from "./mainPageSelectors";
 import type {
   ConfirmationDecision,
   DetailOverride,
@@ -45,25 +49,7 @@ import { handleCommandResponse } from "./runtime/commandRefresh";
 import { resyncEventKey, routeMainPageEvent } from "./runtime/eventRouter";
 import styles from "./MainPage.module.css";
 
-const eventStatusLabel: Record<EventConnectionStatus, string> = {
-  connected: "Events live",
-  disconnected: "Events offline",
-  resyncing: "Resyncing",
-};
-
 const mainPageLogger = createFrontendLogger("main-page");
-
-function eventStatusTone(status: EventConnectionStatus): BadgeTone {
-  if (status === "resyncing") {
-    return "warning";
-  }
-
-  if (status === "connected") {
-    return "success";
-  }
-
-  return "neutral";
-}
 
 const stateOptions = listMainPageStateOptions();
 
@@ -490,7 +476,10 @@ export function MainPage({
   const wantsFileChangeView =
     detailOverride === "fileChanges" ||
     (detailOverride === "auto" && metadata.detail.mode === "fileChanges");
-  const displayTopStatus = topStatusFor(metadata);
+  const displayTopStatus = selectTopStatusPresentation(metadata);
+  const eventStatus = selectEventConnectionStatusPresentation(
+    eventConnectionStatus,
+  );
   const displayMessages = messagesFor(snapshot);
   const scopedProjection = buildTaskScopedProjection({
     fileChangeSummary: snapshot.fileChangeSummary,
@@ -655,9 +644,7 @@ export function MainPage({
           <span>{snapshot.session.name}</span>
         </div>
         <Badge tone={displayTopStatus.tone}>{displayTopStatus.label}</Badge>
-        <Badge tone={eventStatusTone(eventConnectionStatus)}>
-          {eventStatusLabel[eventConnectionStatus]}
-        </Badge>
+        <Badge tone={eventStatus.tone}>{eventStatus.label}</Badge>
         {adapter.showStatePicker ? (
           <StatePicker stateId={stateId} onStateChange={handleStateChange} />
         ) : null}
@@ -896,12 +883,6 @@ function MainPageStatusFrame({
       </Panel>
     </main>
   );
-}
-
-function topStatusFor(
-  metadata: MainPageStateMetadata,
-): { label: string; tone: BadgeTone } {
-  return { label: metadata.topStatus, tone: metadata.topStatusTone };
 }
 
 function messagesFor(snapshot: MainPageSnapshot): SessionMessageView[] {

@@ -9,6 +9,14 @@ import type {
 import {
   buildTaskScopedProjection,
   isTaskNodeInScope,
+  selectAuditSummaryPresentation,
+  selectAuditVerdictPresentation,
+  selectConfirmationOptionVariant,
+  selectEventConnectionStatusPresentation,
+  selectFileChangeTypePresentation,
+  selectMessageKindPresentation,
+  selectSessionStatusPresentation,
+  selectTaskNodeStatusPresentation,
 } from "./mainPageSelectors";
 
 describe("main page selectors", () => {
@@ -116,6 +124,61 @@ describe("main page selectors", () => {
     ];
 
     expect(isTaskNodeInScope("task-x", "task-a", cyclicNodes)).toBe(false);
+  });
+
+  it("centralizes session and task status badge presentation", () => {
+    expect(selectSessionStatusPresentation("waiting_user")).toEqual({
+      label: "Waiting for user",
+      tone: "warning",
+    });
+    expect(selectSessionStatusPresentation("completed")).toEqual({
+      label: "Completed",
+      tone: "success",
+    });
+    expect(selectTaskNodeStatusPresentation("waiting_user")).toEqual({
+      label: "waiting user",
+      tone: "warning",
+    });
+    expect(selectTaskNodeStatusPresentation("failed")).toEqual({
+      label: "failed",
+      tone: "danger",
+    });
+  });
+
+  it("centralizes auxiliary badge and action presentation", () => {
+    expect(selectMessageKindPresentation("actionable")).toEqual({
+      label: "actionable",
+      tone: "warning",
+    });
+    expect(selectMessageKindPresentation("error")).toEqual({
+      label: "error",
+      tone: "danger",
+    });
+    expect(selectEventConnectionStatusPresentation("resyncing")).toEqual({
+      label: "Resyncing",
+      tone: "warning",
+    });
+    expect(selectFileChangeTypePresentation("renamed")).toEqual({
+      label: "renamed",
+      tone: "blue",
+    });
+    expect(selectConfirmationOptionVariant("danger")).toBe("danger");
+    expect(selectConfirmationOptionVariant("secondary")).toBe("secondary");
+  });
+
+  it("centralizes audit verdict presentation for Main Page audit affordances", () => {
+    expect(selectAuditVerdictPresentation("not_available")).toEqual({
+      label: "Not available",
+      tone: "neutral",
+    });
+    expect(selectAuditVerdictPresentation("warning")).toEqual({
+      label: "Warning",
+      tone: "warning",
+    });
+    expect(selectAuditSummaryPresentation(null)).toEqual({
+      label: "Not available",
+      tone: "neutral",
+    });
   });
 });
 
