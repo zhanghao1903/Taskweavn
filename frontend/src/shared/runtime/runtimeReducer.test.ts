@@ -104,6 +104,27 @@ describe("runtime reducer foundation", () => {
     expect(failed.pendingCommands["resolve-confirmation"]).toMatchObject({
       status: "failed",
     });
+
+    const failedEvent = reduceRuntimeState(accepted, {
+      kind: "event.received",
+      event: uiEvent("command.failed", {
+        commandId: "resolve-confirmation",
+        cursor: "cursor-command-failed",
+        payload: { message: "User decision was rejected." },
+      }),
+    });
+
+    expect(confirmationById(failedEvent.state, confirmation?.id)).toMatchObject({
+      localStatus: "resolve_failed",
+      status: "pending",
+    });
+    expect(failedEvent.effects).toEqual([
+      {
+        kind: "query_snapshot",
+        page: "main",
+        reason: "command.failed invalidated page snapshot.",
+      },
+    ]);
   });
 
   it("requests resync for stale events and resync-class command failures", () => {

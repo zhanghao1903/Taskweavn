@@ -207,7 +207,7 @@ Command response `accepted` should create pending command state only. Final UI s
 | `audit.evidence_hidden` | Query selected audit record detail or evidence detail; do not reconstruct hidden evidence client-side. |
 | `audit.snapshot_stale` | Enter Audit Page stale/resync flow and query AuditPageSnapshot. |
 | `command.completed` | Mark pending command complete. |
-| `command.failed` | Mark pending command failed and show local error. |
+| `command.failed` | Mark pending command failed, show local error, and query current MainPageSnapshot for compatibility with the existing Main Page event router. |
 
 Unsupported events follow `docs/frontend/event-reducer-contract.md`: log, ignore if harmless, resync if visible state may be affected.
 

@@ -111,10 +111,10 @@ describe("MainPage event router reducer compatibility", () => {
     });
     expect(result.reducerIntent).toEqual({
       errorMessage: null,
-      refetch: false,
+      refetch: true,
       resync: false,
     });
-    expect(result.compatible).toBe(false);
+    expect(result.compatible).toBe(true);
     expect(result.state.pendingCommands["resolve-confirmation"]).toMatchObject({
       status: "failed",
     });

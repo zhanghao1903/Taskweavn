@@ -323,13 +323,8 @@ function applyEvent<TSnapshot extends RuntimeSnapshot>(
       return applyConfirmationResolved(withCursor, event);
 
     case "command.failed":
-      return event.commandId
-        ? failCommand(
-            withCursor,
-            event.commandId,
-            apiErrorFromEvent(event) ?? new Error(eventFailureMessage(event)),
-          )
-        : requestResync(withCursor, "Command failed event missing commandId.", [
+      if (!event.commandId) {
+        return requestResync(withCursor, "Command failed event missing commandId.", [
             {
               code: "event_malformed",
               eventId: event.eventId,
@@ -337,6 +332,16 @@ function applyEvent<TSnapshot extends RuntimeSnapshot>(
               message: "Command failed event missing commandId.",
             },
           ]);
+      }
+
+      return addMainSnapshotQueryEffect(
+        failCommand(
+          withCursor,
+          event.commandId,
+          apiErrorFromEvent(event) ?? new Error(eventFailureMessage(event)),
+        ),
+        "command.failed invalidated page snapshot.",
+      );
 
     case "audit.records_changed":
     case "audit.record_updated":
@@ -440,6 +445,30 @@ function result<TSnapshot extends RuntimeSnapshot>(
   warnings: RuntimeWarning[] = [],
 ): RuntimeReducerResult<TSnapshot> {
   return { effects, state, warnings };
+}
+
+function addMainSnapshotQueryEffect<TSnapshot extends RuntimeSnapshot>(
+  reducerResult: RuntimeReducerResult<TSnapshot>,
+  reason: string,
+): RuntimeReducerResult<TSnapshot> {
+  if (
+    reducerResult.state.page !== "main" ||
+    reducerResult.effects.some((effect) => effect.kind === "resync")
+  ) {
+    return reducerResult;
+  }
+
+  return {
+    ...reducerResult,
+    effects: [
+      ...reducerResult.effects,
+      {
+        kind: "query_snapshot",
+        page: "main",
+        reason,
+      },
+    ],
+  };
 }
 
 function setConfirmationLocalStatus<TSnapshot extends RuntimeSnapshot>(
