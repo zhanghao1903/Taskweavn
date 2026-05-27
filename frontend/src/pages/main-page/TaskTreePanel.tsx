@@ -1,25 +1,20 @@
 import { GitBranch } from "lucide-react";
 
 import type {
-  TaskNodeCardView,
   TaskNodeId,
-  TaskNodeStatus,
   TaskTreeView,
 } from "../../shared/api/types";
 import { Panel, Text } from "../../shared/components";
-import type { ConfirmationDecision } from "./mainPageUiTypes";
 import { TaskNodeCard } from "./TaskNodeCard";
 import styles from "./MainPage.module.css";
 
 export type TaskTreePanelProps = {
-  confirmationDecision: ConfirmationDecision;
   onSelectTask: (nodeId: TaskNodeId) => void;
   selectedTaskNodeId: TaskNodeId | null;
   taskTree: TaskTreeView | null;
 };
 
 export function TaskTreePanel({
-  confirmationDecision,
   onSelectTask,
   selectedTaskNodeId,
   taskTree,
@@ -40,7 +35,7 @@ export function TaskTreePanel({
               key={node.id}
               node={node}
               onSelectTask={onSelectTask}
-              status={statusForNode(node, confirmationDecision)}
+              status={node.status}
             />
           ))}
         </div>
@@ -57,23 +52,4 @@ export function TaskTreePanel({
       )}
     </Panel>
   );
-}
-
-function statusForNode(
-  node: TaskNodeCardView,
-  decision: ConfirmationDecision,
-): TaskNodeStatus {
-  if (node.id !== "task-visual-direction") {
-    return node.status;
-  }
-
-  if (decision === "confirmed") {
-    return "done";
-  }
-
-  if (decision === "revise") {
-    return "draft";
-  }
-
-  return node.status;
 }

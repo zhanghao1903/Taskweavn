@@ -82,7 +82,6 @@ export function MainPageWorkbench({
 
         <div className={styles.workGrid}>
           <TaskTreePanel
-            confirmationDecision={null}
             onSelectTask={actions.selectTask}
             selectedTaskNodeId={viewModel.taskWorkspace.selectedTaskNodeId}
             taskTree={viewModel.taskWorkspace.taskTree}
