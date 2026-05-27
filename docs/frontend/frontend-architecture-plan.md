@@ -595,6 +595,12 @@ status migration more expensive.
 - Replace flat status reads with separated dimension selectors.
 - Keep CSS/token changes scoped.
 
+P7.2 decision update: further Main Page work should follow
+`docs/frontend/main-page-refactor-rewrite-plan.md`. Do not continue mechanical
+component extraction when it preserves bad boundaries. The next implementation
+step should extract a `useMainPageController` runtime boundary, then introduce a
+typed `MainPageViewModel`, then recompose the workbench layout.
+
 ### P7.3 Audit Page Mock Vertical Slice
 
 - Implement read-only Audit Page against mock `AuditPageSnapshot`.
