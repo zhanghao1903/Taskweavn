@@ -8,6 +8,7 @@ import { Badge, Button, Panel, Text } from "../../shared/components";
 import { ContextInputPanel } from "./ContextInputPanel";
 import { NO_SESSION_AVAILABLE_MESSAGE } from "./httpMainPageAdapter";
 import { MainPageDetailPanel } from "./MainPageDetailPanel";
+import { MainPageSessionSidebar } from "./MainPageSessionSidebar";
 import { SessionMessagePanel } from "./SessionMessagePanel";
 import { TaskTreePanel } from "./TaskTreePanel";
 import {
@@ -184,61 +185,17 @@ export function MainPage({
         ) : null}
       </header>
 
-      <Panel
-        as="aside"
-        className={styles.sidebar}
-        aria-label="Workflow sessions"
-      >
-        <div className={styles.sidebarHeader}>
-          <Text as="span" variant="label">
-            Workflow
-          </Text>
-          <Button
-            disabled={isCreatingSession}
-            onClick={actions.createSession}
-            size="sm"
-          >
-            {isCreatingSession ? "Creating" : "New"}
-          </Button>
-        </div>
-        <Text as="div" variant="eyebrow">
-          Sessions
-        </Text>
-        {snapshot.sessions.map((session) => (
-          <button
-            className={
-              session.id === snapshot.session.id
-                ? styles.activeNavItem
-                : styles.navItem
-            }
-            key={session.id}
-            onClick={() =>
-              actions.selectSession(session, snapshot.session.id)
-            }
-            type="button"
-          >
-            {session.name}
-          </button>
-        ))}
-        <div className={styles.sidebarActions}>
-          <Button
-            disabled={isRenamingSession}
-            onClick={() => actions.renameSession(snapshot.session)}
-            size="sm"
-            variant="ghost"
-          >
-            Rename
-          </Button>
-          <Button
-            disabled={isDeletingSession}
-            onClick={() => actions.deleteSession(snapshot.session)}
-            size="sm"
-            variant="danger"
-          >
-            Delete
-          </Button>
-        </div>
-      </Panel>
+      <MainPageSessionSidebar
+        activeSession={snapshot.session}
+        isCreatingSession={isCreatingSession}
+        isDeletingSession={isDeletingSession}
+        isRenamingSession={isRenamingSession}
+        onCreateSession={actions.createSession}
+        onDeleteSession={actions.deleteSession}
+        onRenameSession={actions.renameSession}
+        onSelectSession={actions.selectSession}
+        sessions={snapshot.sessions}
+      />
 
       <Panel
         as="section"
