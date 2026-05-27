@@ -1,8 +1,3 @@
-import type {
-  MainPageSnapshot,
-  SessionMessageView,
-  TaskNodeCardView,
-} from "../../shared/api/types";
 import type { BadgeTone } from "../../shared/components";
 import { Button, Panel, Text } from "../../shared/components";
 import { ContextInputPanel } from "./ContextInputPanel";
@@ -13,22 +8,14 @@ import { MainPageTopBar } from "./MainPageTopBar";
 import { MainPageWorkspaceHeader } from "./MainPageWorkspaceHeader";
 import { SessionMessagePanel } from "./SessionMessagePanel";
 import { TaskTreePanel } from "./TaskTreePanel";
-import {
-  buildTaskScopedProjection,
-  selectEventConnectionStatusPresentation,
-  selectTopStatusPresentation,
-} from "./mainPageSelectors";
-import type { DetailOverride } from "./mainPageUiTypes";
+import { buildMainPageViewModel } from "./mainPageViewModel";
 import {
   defaultMainPageStateId,
   listMainPageStateOptions,
   mainPageMockAdapter,
 } from "./mockPlatoApi";
 import type { MainPageStateId } from "./mockPlatoApi";
-import type {
-  MainPageAdapter,
-  MainPageStateMetadata,
-} from "./runtime/adapter";
+import type { MainPageAdapter } from "./runtime/adapter";
 import { useMainPageController } from "./useMainPageController";
 import styles from "./MainPage.module.css";
 
@@ -125,62 +112,27 @@ export function MainPage({
   }
 
   const { metadata, snapshot } = snapshotData;
-  const taskNodes = snapshot.taskTree?.nodes ?? [];
-  const effectiveSelectedTaskNodeId =
-    selectedTaskNodeId ?? metadata.initialSelectedTaskNodeId;
-  const activeConfirmation =
-    snapshot.pendingConfirmations.find(
-      (confirmation) => confirmation.taskNodeId === effectiveSelectedTaskNodeId,
-    ) ?? snapshot.pendingConfirmations[0];
-  const hasConfirmationFocus =
-    metadata.detail.mode === "confirmation" &&
-    effectiveSelectedTaskNodeId === metadata.initialSelectedTaskNodeId;
-  const wantsResultView =
-    detailOverride === "result" ||
-    (detailOverride === "auto" && metadata.detail.mode === "result");
-  const wantsFileChangeView =
-    detailOverride === "fileChanges" ||
-    (detailOverride === "auto" && metadata.detail.mode === "fileChanges");
-  const displayTopStatus = selectTopStatusPresentation(metadata);
-  const eventStatus = selectEventConnectionStatusPresentation(
-    eventConnectionStatus,
-  );
-  const displayMessages = messagesFor(snapshot);
-  const scopedProjection = buildTaskScopedProjection({
-    fileChangeSummary: snapshot.fileChangeSummary,
-    messages: displayMessages,
-    nodes: taskNodes,
-    result: snapshot.result,
-    selectedTaskNodeId: effectiveSelectedTaskNodeId,
-  });
-  const {
-    fileChangeSummary: visibleFileChangeSummary,
-    messages: scopedMessages,
-    result: visibleResult,
-    selectedTask,
-  } = scopedProjection;
-  const hasResultView = wantsResultView && visibleResult !== null;
-  const hasFileChangeView =
-    wantsFileChangeView && visibleFileChangeSummary !== null;
-  const inputScope = inputScopeFor(
-    metadata,
-    selectedTask,
-    hasConfirmationFocus,
+  const viewModel = buildMainPageViewModel({
+    confirmationError,
     detailOverride,
-  );
-  const inputTarget = selectedTask ? "task" : "session";
-  const canPublishTaskTree = snapshot.taskTree?.status === "draft";
+    eventConnectionStatus,
+    eventError,
+    inputDisabled: isInputSubmitting,
+    isPublishingTaskTree,
+    isResolvingConfirmation,
+    metadata,
+    selectedTaskNodeId,
+    snapshot,
+    taskTreeCommandError,
+    uiNotice,
+  });
 
   return (
     <main className={styles.page}>
       <MainPageTopBar
-        brandLabel="柏拉图 Plato"
-        contextItems={[
-          snapshot.project.name,
-          snapshot.workflow.name,
-          snapshot.session.name,
-        ]}
-        statuses={[displayTopStatus, eventStatus]}
+        brandLabel={viewModel.topBar.brandLabel}
+        contextItems={viewModel.topBar.contextItems}
+        statuses={viewModel.topBar.statuses}
         trailing={
           adapter.showStatePicker ? (
             <StatePicker
@@ -192,7 +144,7 @@ export function MainPage({
       />
 
       <MainPageSessionSidebar
-        activeSession={snapshot.session}
+        activeSession={viewModel.sidebar.activeSession}
         isCreatingSession={isCreatingSession}
         isDeletingSession={isDeletingSession}
         isRenamingSession={isRenamingSession}
@@ -200,7 +152,7 @@ export function MainPage({
         onDeleteSession={actions.deleteSession}
         onRenameSession={actions.renameSession}
         onSelectSession={actions.selectSession}
-        sessions={snapshot.sessions}
+        sessions={viewModel.sidebar.sessions}
       />
 
       <Panel
@@ -209,85 +161,71 @@ export function MainPage({
         aria-label="Task workspace"
       >
         <MainPageWorkspaceHeader
-          eventError={eventError}
-          isPublishingTaskTree={isPublishingTaskTree}
+          eventError={viewModel.workspace.eventError}
+          isPublishingTaskTree={viewModel.workspace.isPublishingTaskTree}
           onPublishTaskTree={() =>
             actions.publishTaskTree({
-              sessionId: snapshot.session.id,
-              taskTreeId: snapshot.taskTree?.id ?? null,
+              sessionId: viewModel.sessionId,
+              taskTreeId: viewModel.workspace.taskTreeId,
             })
           }
           onViewAudit={() =>
             actions.showUnavailableNotice({
               action: "Audit view",
-              sessionId: snapshot.session.id,
+              sessionId: viewModel.sessionId,
             })
           }
-          showPublishTaskTree={canPublishTaskTree}
-          taskTreeCommandError={taskTreeCommandError}
-          title={snapshot.taskTree?.title ?? "Start a new session"}
-          uiNotice={uiNotice}
+          showPublishTaskTree={viewModel.workspace.showPublishTaskTree}
+          taskTreeCommandError={viewModel.workspace.taskTreeCommandError}
+          title={viewModel.workspace.title}
+          uiNotice={viewModel.workspace.uiNotice}
         />
 
         <div className={styles.workGrid}>
           <TaskTreePanel
             confirmationDecision={null}
             onSelectTask={actions.selectTask}
-            selectedTaskNodeId={effectiveSelectedTaskNodeId}
-            taskTree={snapshot.taskTree}
+            selectedTaskNodeId={viewModel.taskWorkspace.selectedTaskNodeId}
+            taskTree={viewModel.taskWorkspace.taskTree}
           />
 
           <SessionMessagePanel
-            isMessageScoped={scopedProjection.isMessageScoped}
-            messages={scopedMessages}
-            selectedTask={selectedTask}
-            totalMessageCount={scopedProjection.totalMessageCount}
-            visibleMessageCount={scopedProjection.visibleMessageCount}
+            isMessageScoped={viewModel.taskWorkspace.isMessageScoped}
+            messages={viewModel.taskWorkspace.messages}
+            selectedTask={viewModel.taskWorkspace.selectedTask}
+            totalMessageCount={viewModel.taskWorkspace.totalMessageCount}
+            visibleMessageCount={viewModel.taskWorkspace.visibleMessageCount}
           />
         </div>
       </Panel>
 
       <MainPageDetailPanel
-        activeConfirmation={activeConfirmation}
-        commandError={confirmationError}
-        confirmationDecision={null}
-        fileChangeSummary={visibleFileChangeSummary}
-        hasConfirmationFocus={hasConfirmationFocus}
-        hasFileChangeView={hasFileChangeView}
-        hasResultView={hasResultView}
-        header={detailHeaderFor(
-          metadata,
-          selectedTask,
-          hasConfirmationFocus,
-          hasResultView,
-          hasFileChangeView,
-        )}
-        isResolvingConfirmation={isResolvingConfirmation}
+        detail={viewModel.detail}
         onConfirmationDecision={(decision) =>
           actions.resolveConfirmation({
-            confirmation: activeConfirmation,
+            confirmation:
+              viewModel.detail.kind === "confirmation"
+                ? viewModel.detail.confirmation
+                : undefined,
             decision,
-            sessionId: snapshot.session.id,
+            sessionId: viewModel.sessionId,
           })
         }
         onShowFileChanges={actions.showFileChanges}
         onShowResult={actions.showResult}
-        result={visibleResult}
-        selectedTask={selectedTask}
       />
 
       <ContextInputPanel
-        disabled={isInputSubmitting}
         draft={inputDraft}
         error={inputError}
-        inputScope={inputScope}
+        input={viewModel.input}
         onDraftChange={actions.changeInputDraft}
         onSubmit={() =>
           actions.submitInput({
-            hasTaskTree: snapshot.taskTree !== null,
-            sessionId: snapshot.session.id,
-            target: inputTarget,
-            taskNodeId: selectedTask?.id ?? null,
+            mode: viewModel.input.mode,
+            sessionId: viewModel.sessionId,
+            target: viewModel.input.target,
+            taskNodeId: viewModel.input.taskNodeId,
           })
         }
       />
@@ -392,56 +330,10 @@ function MainPageStatusFrame({
   );
 }
 
-function messagesFor(snapshot: MainPageSnapshot): SessionMessageView[] {
-  return snapshot.messages;
-}
-
 function snapshotErrorSummary(error: unknown): string {
   if (error instanceof Error) {
     return `Error: ${error.message}`;
   }
 
   return "Check the browser console for the captured error payload.";
-}
-
-function detailHeaderFor(
-  metadata: MainPageStateMetadata,
-  selectedTask: TaskNodeCardView | undefined,
-  hasConfirmationFocus: boolean,
-  hasResultView: boolean,
-  hasFileChangeView: boolean,
-) {
-  if (hasConfirmationFocus || hasResultView || hasFileChangeView) {
-    return metadata.detail;
-  }
-
-  if (selectedTask) {
-    return {
-      eyebrow: "TaskNode",
-      title: selectedTask.title,
-      body: selectedTask.summary,
-    };
-  }
-
-  return metadata.detail;
-}
-
-function inputScopeFor(
-  metadata: MainPageStateMetadata,
-  selectedTask: TaskNodeCardView | undefined,
-  hasConfirmationFocus: boolean,
-  detailOverride: DetailOverride,
-) {
-  if (hasConfirmationFocus || detailOverride !== "auto") {
-    return metadata.inputScope;
-  }
-
-  if (selectedTask) {
-    return {
-      label: `Scope: selected task / ${selectedTask.title}`,
-      placeholder: "Add guidance that only applies to this TaskNode.",
-    };
-  }
-
-  return metadata.inputScope;
 }

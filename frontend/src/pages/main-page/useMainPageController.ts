@@ -17,6 +17,7 @@ import type {
   EventConnectionStatus,
   InputTarget,
 } from "./mainPageUiTypes";
+import type { MainPageInputCommandMode } from "./mainPageViewModel";
 import type { MainPageStateId } from "./mockPlatoApi";
 import type {
   MainPageAdapter,
@@ -32,7 +33,7 @@ import { resyncEventKey, routeMainPageEvent } from "./runtime/eventRouter";
 const mainPageLogger = createFrontendLogger("main-page");
 
 export type InputSubmitContext = {
-  hasTaskTree: boolean;
+  mode: MainPageInputCommandMode;
   sessionId: string;
   target: InputTarget;
   taskNodeId: TaskNodeId | null;
@@ -201,20 +202,20 @@ export function useMainPageController({
   const inputMutation = useMutation({
     mutationFn: async ({
       content,
-      hasTaskTree,
+      mode,
       sessionId,
       target,
       taskNodeId,
     }: {
       content: string;
-      hasTaskTree: boolean;
+      mode: MainPageInputCommandMode;
       sessionId: string;
       target: InputTarget;
       taskNodeId: TaskNodeId | null;
     }) => {
       const commandId = `append-${target}-${Date.now()}`;
 
-      if (target === "task" && taskNodeId) {
+      if (mode === "append_task_input" && taskNodeId) {
         return adapter.appendTaskInput(sessionId, taskNodeId, {
           commandId,
           sessionId,
@@ -225,7 +226,7 @@ export function useMainPageController({
         });
       }
 
-      if (!hasTaskTree) {
+      if (mode === "generate_task_tree") {
         return adapter.generateTaskTree({
           commandId: `generate-task-tree-${Date.now()}`,
           sessionId,
@@ -543,7 +544,7 @@ export function useMainPageController({
   }
 
   function handleInputSubmit({
-    hasTaskTree,
+    mode,
     sessionId,
     target,
     taskNodeId,
@@ -558,7 +559,7 @@ export function useMainPageController({
     setUiNotice(null);
     inputMutation.mutate({
       content,
-      hasTaskTree,
+      mode,
       sessionId,
       target,
       taskNodeId,
