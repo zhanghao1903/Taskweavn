@@ -155,6 +155,49 @@
   margin-top: var(--plato-space-4);
 }
 
+.sessionLifecyclePanel {
+  display: grid;
+  gap: var(--plato-space-3);
+  margin-top: var(--plato-space-4);
+  border: 1px solid var(--plato-color-line);
+  border-radius: var(--plato-radius-lg);
+  padding: var(--plato-space-4);
+  background: rgb(255 255 255 / 70%);
+}
+
+.sessionLifecyclePanel h3 {
+  margin: 0;
+}
+
+.sessionLifecycleField {
+  display: grid;
+  gap: var(--plato-space-2);
+  color: var(--plato-color-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.sessionLifecycleField input {
+  min-width: 0;
+  border: 1px solid var(--plato-color-line);
+  border-radius: var(--plato-radius-md);
+  padding: var(--plato-space-2) var(--plato-space-3);
+  background: var(--plato-color-panel);
+  color: var(--plato-color-ink);
+  font-size: 14px;
+}
+
+.sessionLifecycleField input:focus-visible {
+  outline: none;
+  box-shadow: var(--plato-shadow-focus);
+}
+
+.sessionLifecycleActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--plato-space-2);
+}
+
 .workspace {
   grid-area: work;
   min-width: 0;

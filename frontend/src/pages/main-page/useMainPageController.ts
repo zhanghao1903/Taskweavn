@@ -50,6 +50,27 @@ export type ConfirmationDecisionContext = {
   sessionId: string;
 };
 
+export type SessionLifecycleDialog =
+  | {
+      mode: "idle";
+    }
+  | {
+      draftName: string;
+      error: string | null;
+      mode: "create";
+    }
+  | {
+      draftName: string;
+      error: string | null;
+      mode: "rename";
+      session: SessionSummary;
+    }
+  | {
+      error: string | null;
+      mode: "delete";
+      session: SessionSummary;
+    };
+
 export type MainPageController = {
   activeSessionId: string | null;
   confirmationError: string | null;
@@ -64,6 +85,7 @@ export type MainPageController = {
   isPublishingTaskTree: boolean;
   isRenamingSession: boolean;
   isResolvingConfirmation: boolean;
+  sessionDialog: SessionLifecycleDialog;
   isSnapshotError: boolean;
   isSnapshotPending: boolean;
   selectedTaskNodeId: TaskNodeId | null;
@@ -73,6 +95,8 @@ export type MainPageController = {
   taskTreeCommandError: string | null;
   uiNotice: string | null;
   actions: {
+    cancelSessionDialog: () => void;
+    changeSessionDialogDraft: (draftName: string) => void;
     changeInputDraft: (draft: string) => void;
     changeState: (nextStateId: MainPageStateId) => void;
     createSession: () => void;
@@ -83,6 +107,7 @@ export type MainPageController = {
     selectTask: (nodeId: TaskNodeId) => void;
     showFileChanges: () => void;
     showResult: () => void;
+    submitSessionDialog: () => void;
     submitInput: (context: InputSubmitContext) => void;
     publishTaskTree: (context: PublishTaskTreeContext) => void;
   };
@@ -111,6 +136,9 @@ export function useMainPageController({
     null,
   );
   const [uiNotice, setUiNotice] = useState<string | null>(null);
+  const [sessionDialog, setSessionDialog] = useState<SessionLifecycleDialog>({
+    mode: "idle",
+  });
   const [eventError, setEventError] = useState<string | null>(null);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(
     adapter.sessionId,
@@ -304,17 +332,18 @@ export function useMainPageController({
         name,
       }),
     onError: () => {
-      setUiNotice("New session command failed. Please retry.");
+      setSessionDialogError("New session command failed. Please retry.");
     },
     onSuccess: (result) => {
       const nextSessionId = result.sessionId ?? result.session?.id ?? null;
       if (nextSessionId === null) {
-        setUiNotice("New session command did not return a session id.");
+        setSessionDialogError("New session command did not return a session id.");
         return;
       }
 
       setActiveSessionId(nextSessionId);
       setUiNotice(`Created session ${result.session?.name ?? nextSessionId}.`);
+      setSessionDialog({ mode: "idle" });
     },
   });
 
@@ -331,10 +360,11 @@ export function useMainPageController({
         sessionId,
       }),
     onError: () => {
-      setUiNotice("Rename session command failed. Please retry.");
+      setSessionDialogError("Rename session command failed. Please retry.");
     },
     onSuccess: (result) => {
       setUiNotice(`Renamed session to ${result.session?.name ?? "new name"}.`);
+      setSessionDialog({ mode: "idle" });
       void refetchSnapshot();
     },
   });
@@ -342,12 +372,13 @@ export function useMainPageController({
   const deleteSessionMutation = useMutation({
     mutationFn: async (sessionId: string) => adapter.deleteSession(sessionId),
     onError: () => {
-      setUiNotice("Delete session command failed. Please retry.");
+      setSessionDialogError("Delete session command failed. Please retry.");
     },
     onSuccess: (result) => {
       const nextSessionId = result.nextSessionId ?? null;
       setActiveSessionId(nextSessionId);
       setUiNotice("Session deleted.");
+      setSessionDialog({ mode: "idle" });
     },
   });
 
@@ -365,6 +396,7 @@ export function useMainPageController({
     setInputError(null);
     setTaskTreeCommandError(null);
     setUiNotice(null);
+    setSessionDialog({ mode: "idle" });
     setEventError(null);
   }, [snapshotIdentity]);
 
@@ -452,6 +484,7 @@ export function useMainPageController({
     setInputError(null);
     setTaskTreeCommandError(null);
     setUiNotice(null);
+    setSessionDialog({ mode: "idle" });
     setEventError(null);
     resolveConfirmationMutation.reset();
     inputMutation.reset();
@@ -480,48 +513,102 @@ export function useMainPageController({
   }
 
   function handleCreateSession() {
-    const name = safePrompt("New session name", "New session");
-    if (name === null) {
-      return;
-    }
-    const trimmed = name.trim();
-    if (!trimmed) {
-      setUiNotice("Session name must not be empty.");
+    if (!snapshotDataRef.current) {
+      createSessionMutation.mutate("New session");
       return;
     }
 
-    setUiNotice(null);
-    createSessionMutation.mutate(trimmed);
+    setSessionDialog({
+      draftName: "New session",
+      error: null,
+      mode: "create",
+    });
   }
 
   function handleRenameSession(session: SessionSummary) {
-    const nextName = safePrompt("Rename session", session.name);
-    if (nextName === null) {
-      return;
-    }
-    const trimmed = nextName.trim();
-    if (!trimmed) {
-      setUiNotice("Session name must not be empty.");
-      return;
-    }
-
-    setUiNotice(null);
-    renameSessionMutation.mutate({
-      name: trimmed,
-      sessionId: session.id,
+    setSessionDialog({
+      draftName: session.name,
+      error: null,
+      mode: "rename",
+      session,
     });
   }
 
   function handleDeleteSession(session: SessionSummary) {
-    const confirmed = safeConfirm(
-      `Delete session "${session.name}"? Its files will be archived locally.`,
-    );
-    if (!confirmed) {
+    setSessionDialog({
+      error: null,
+      mode: "delete",
+      session,
+    });
+  }
+
+  function handleSessionDialogDraftChange(draftName: string) {
+    setSessionDialog((current) => {
+      if (current.mode !== "create" && current.mode !== "rename") {
+        return current;
+      }
+
+      return {
+        ...current,
+        draftName,
+        error: null,
+      };
+    });
+  }
+
+  function handleSessionDialogCancel() {
+    if (
+      createSessionMutation.isPending ||
+      renameSessionMutation.isPending ||
+      deleteSessionMutation.isPending
+    ) {
+      return;
+    }
+
+    setSessionDialog({ mode: "idle" });
+  }
+
+  function handleSessionDialogSubmit() {
+    if (sessionDialog.mode === "idle") {
+      return;
+    }
+
+    if (sessionDialog.mode === "delete") {
+      setUiNotice(null);
+      deleteSessionMutation.mutate(sessionDialog.session.id);
+      return;
+    }
+
+    const trimmed = sessionDialog.draftName.trim();
+    if (!trimmed) {
+      setSessionDialogError("Session name must not be empty.");
       return;
     }
 
     setUiNotice(null);
-    deleteSessionMutation.mutate(session.id);
+
+    if (sessionDialog.mode === "create") {
+      createSessionMutation.mutate(trimmed);
+      return;
+    }
+
+    renameSessionMutation.mutate({
+      name: trimmed,
+      sessionId: sessionDialog.session.id,
+    });
+  }
+
+  function setSessionDialogError(message: string) {
+    setSessionDialog((current) => {
+      if (current.mode === "idle") {
+        return current;
+      }
+
+      return {
+        ...current,
+        error: message,
+      };
+    });
   }
 
   function handleInputSubmit({
@@ -597,6 +684,7 @@ export function useMainPageController({
     isPublishingTaskTree: publishTaskTreeMutation.isPending,
     isRenamingSession: renameSessionMutation.isPending,
     isResolvingConfirmation: resolveConfirmationMutation.isPending,
+    sessionDialog,
     isSnapshotError: snapshotQuery.isError,
     isSnapshotPending: snapshotQuery.isPending,
     selectedTaskNodeId,
@@ -606,6 +694,8 @@ export function useMainPageController({
     taskTreeCommandError,
     uiNotice,
     actions: {
+      cancelSessionDialog: handleSessionDialogCancel,
+      changeSessionDialogDraft: handleSessionDialogDraftChange,
       changeInputDraft: setInputDraft,
       changeState: handleStateChange,
       createSession: handleCreateSession,
@@ -616,25 +706,9 @@ export function useMainPageController({
       selectTask,
       showFileChanges: () => setDetailOverride("fileChanges"),
       showResult: () => setDetailOverride("result"),
+      submitSessionDialog: handleSessionDialogSubmit,
       submitInput: handleInputSubmit,
       publishTaskTree: handlePublishTaskTree,
     },
   };
-}
-
-function safePrompt(message: string, defaultValue: string): string | null {
-  try {
-    const value = globalThis.prompt?.(message, defaultValue);
-    return value === undefined ? defaultValue : value;
-  } catch {
-    return defaultValue;
-  }
-}
-
-function safeConfirm(message: string): boolean {
-  try {
-    return globalThis.confirm?.(message) ?? false;
-  } catch {
-    return false;
-  }
 }

@@ -1,5 +1,7 @@
 import type { SessionSummary } from "../../shared/api/types";
 import { Button, Panel, Text } from "../../shared/components";
+import { SessionLifecyclePanel } from "./SessionLifecyclePanel";
+import type { MainPageController } from "./useMainPageController";
 import styles from "./MainPage.module.css";
 
 export type MainPageSessionSidebarProps = {
@@ -7,10 +9,14 @@ export type MainPageSessionSidebarProps = {
   isCreatingSession: boolean;
   isDeletingSession: boolean;
   isRenamingSession: boolean;
+  onCancelSessionDialog: () => void;
+  onChangeSessionDialogDraft: (draftName: string) => void;
   onCreateSession: () => void;
   onDeleteSession: (session: SessionSummary) => void;
   onRenameSession: (session: SessionSummary) => void;
   onSelectSession: (session: SessionSummary, currentSessionId: string) => void;
+  onSubmitSessionDialog: () => void;
+  sessionDialog: MainPageController["sessionDialog"];
   sessions: SessionSummary[];
 };
 
@@ -19,10 +25,14 @@ export function MainPageSessionSidebar({
   isCreatingSession,
   isDeletingSession,
   isRenamingSession,
+  onCancelSessionDialog,
+  onChangeSessionDialogDraft,
   onCreateSession,
   onDeleteSession,
   onRenameSession,
   onSelectSession,
+  onSubmitSessionDialog,
+  sessionDialog,
   sessions,
 }: MainPageSessionSidebarProps) {
   return (
@@ -78,6 +88,15 @@ export function MainPageSessionSidebar({
           Delete
         </Button>
       </div>
+      <SessionLifecyclePanel
+        dialog={sessionDialog}
+        isCreatingSession={isCreatingSession}
+        isDeletingSession={isDeletingSession}
+        isRenamingSession={isRenamingSession}
+        onCancel={onCancelSessionDialog}
+        onChangeDraft={onChangeSessionDialogDraft}
+        onSubmit={onSubmitSessionDialog}
+      />
     </Panel>
   );
 }

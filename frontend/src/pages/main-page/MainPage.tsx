@@ -41,6 +41,7 @@ export function MainPage({
     isPublishingTaskTree,
     isRenamingSession,
     isResolvingConfirmation,
+    sessionDialog,
     isSnapshotError,
     isSnapshotPending,
     selectedTaskNodeId,
@@ -133,6 +134,7 @@ export function MainPage({
       isCreatingSession={isCreatingSession}
       isDeletingSession={isDeletingSession}
       isRenamingSession={isRenamingSession}
+      sessionDialog={sessionDialog}
       statePicker={
         adapter.showStatePicker ? (
           <StatePicker stateId={stateId} onStateChange={actions.changeState} />

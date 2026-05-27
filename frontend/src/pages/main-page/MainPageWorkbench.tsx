@@ -19,6 +19,7 @@ export type MainPageWorkbenchProps = {
   isCreatingSession: boolean;
   isDeletingSession: boolean;
   isRenamingSession: boolean;
+  sessionDialog: MainPageController["sessionDialog"];
   statePicker?: ReactNode;
   viewModel: MainPageViewModel;
 };
@@ -30,6 +31,7 @@ export function MainPageWorkbench({
   isCreatingSession,
   isDeletingSession,
   isRenamingSession,
+  sessionDialog,
   statePicker = null,
   viewModel,
 }: MainPageWorkbenchProps) {
@@ -47,10 +49,14 @@ export function MainPageWorkbench({
         isCreatingSession={isCreatingSession}
         isDeletingSession={isDeletingSession}
         isRenamingSession={isRenamingSession}
+        onCancelSessionDialog={actions.cancelSessionDialog}
+        onChangeSessionDialogDraft={actions.changeSessionDialogDraft}
         onCreateSession={actions.createSession}
         onDeleteSession={actions.deleteSession}
         onRenameSession={actions.renameSession}
         onSelectSession={actions.selectSession}
+        onSubmitSessionDialog={actions.submitSessionDialog}
+        sessionDialog={sessionDialog}
         sessions={viewModel.sidebar.sessions}
       />
 
