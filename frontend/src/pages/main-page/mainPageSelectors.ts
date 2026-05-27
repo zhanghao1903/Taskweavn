@@ -2,13 +2,18 @@ import type {
   AuditSummaryView,
   AuditVerdict,
   ConfirmationActionView,
+  ConfirmationStatus,
+  ExecutionStatus,
+  MainPageSnapshot,
   FileChangeSummaryView,
   MessageKind,
+  PlanningState,
   ResultCardView,
   SessionStatus,
   SessionMessageView,
   TaskNodeCardView,
   TaskNodeId,
+  TaskNodeReadiness,
   TaskNodeStatus,
 } from "../../shared/api/types";
 import type { BadgeTone, ButtonVariant } from "../../shared/components";
@@ -50,6 +55,93 @@ export function selectTaskNodeStatusPresentation(
   };
 
   return presentations[status];
+}
+
+export function selectPlanningStatePresentation(
+  state: PlanningState,
+): BadgePresentation {
+  const presentations: Record<PlanningState, BadgePresentation> = {
+    assessing: { label: "Understanding", tone: "blue" },
+    awaiting_user: { label: "Waiting for user", tone: "warning" },
+    cancelled: { label: "Cancelled", tone: "danger" },
+    capturing_input: { label: "Capturing input", tone: "blue" },
+    draft_ready: { label: "Draft ready", tone: "blue" },
+    empty: { label: "New session", tone: "neutral" },
+    published: { label: "Published", tone: "success" },
+    ready_to_plan: { label: "Ready to plan", tone: "blue" },
+    rejected: { label: "Rejected", tone: "danger" },
+    unknown: { label: "Unknown", tone: "neutral" },
+  };
+
+  return presentations[state];
+}
+
+export function selectTaskReadinessPresentation(
+  readiness: TaskNodeReadiness,
+): BadgePresentation {
+  const presentations: Record<TaskNodeReadiness, BadgePresentation> = {
+    accepted: { label: "accepted", tone: "blue" },
+    cancelled: { label: "cancelled", tone: "danger" },
+    draft: { label: "draft", tone: "neutral" },
+    published: { label: "published", tone: "blue" },
+    unknown: { label: "unknown", tone: "neutral" },
+  };
+
+  return presentations[readiness];
+}
+
+export function selectExecutionStatusPresentation(
+  status: ExecutionStatus,
+): BadgePresentation {
+  const presentations: Record<ExecutionStatus, BadgePresentation> = {
+    cancelled: { label: "cancelled", tone: "danger" },
+    done: { label: "done", tone: "success" },
+    failed: { label: "failed", tone: "danger" },
+    not_started: { label: "not started", tone: "neutral" },
+    pending: { label: "queued", tone: "neutral" },
+    running: { label: "running", tone: "blue" },
+    unknown: { label: "unknown", tone: "neutral" },
+  };
+
+  return presentations[status];
+}
+
+export function selectConfirmationStatusPresentation(
+  status: ConfirmationStatus,
+): BadgePresentation {
+  const presentations: Record<ConfirmationStatus, BadgePresentation> = {
+    expired: { label: "expired", tone: "danger" },
+    pending: { label: "waiting user", tone: "warning" },
+    resolved: { label: "confirmed", tone: "success" },
+  };
+
+  return presentations[status];
+}
+
+export function selectTaskNodeDimensionPresentation(
+  node: TaskNodeCardView,
+): BadgePresentation {
+  if (node.readiness === "draft") {
+    return selectTaskReadinessPresentation(node.readiness);
+  }
+
+  if (node.confirmation) {
+    return selectConfirmationStatusPresentation(node.confirmation);
+  }
+
+  if (
+    node.execution &&
+    node.execution !== "not_started" &&
+    node.execution !== "unknown"
+  ) {
+    return selectExecutionStatusPresentation(node.execution);
+  }
+
+  if (node.readiness) {
+    return selectTaskReadinessPresentation(node.readiness);
+  }
+
+  return selectTaskNodeStatusPresentation(node.status);
 }
 
 export function selectMessageKindPresentation(
@@ -121,6 +213,77 @@ export function selectTopStatusPresentation(
   metadata: MainPageStateMetadata,
 ): BadgePresentation {
   return { label: metadata.topStatus, tone: metadata.topStatusTone };
+}
+
+export function selectMainPagePrimaryStatusPresentation(
+  snapshot: MainPageSnapshot,
+  metadata: MainPageStateMetadata,
+): BadgePresentation {
+  const permissions = snapshot.permissions;
+
+  if (permissions?.readonlyReason && !permissions.canAppendGuidance) {
+    return permissions.readonlyReason.toLowerCase().includes("stale")
+      ? { label: "Stale", tone: "warning" }
+      : { label: "Read-only", tone: "danger" };
+  }
+
+  const planningState = snapshot.planning?.state;
+  const planningPresentation = planningState
+    ? selectPlanningStatePresentation(planningState)
+    : selectTopStatusPresentation(metadata);
+
+  const executionRollup = snapshot.taskTree?.executionRollup;
+
+  if (executionRollup && executionRollup.failed > 0) {
+    return metadata.topStatus === "Recoverable error"
+      ? selectTopStatusPresentation(metadata)
+      : { label: "Failed", tone: "danger" };
+  }
+
+  if (planningState !== "published") {
+    if (
+      planningState === "draft_ready" &&
+      (metadata.topStatus === "Task selected" ||
+        metadata.topStatus === "Editing task")
+    ) {
+      return selectTopStatusPresentation(metadata);
+    }
+
+    return planningPresentation;
+  }
+
+  const hasPendingConfirmation =
+    snapshot.pendingConfirmations.some(
+      (confirmation) => confirmation.status === "pending",
+    ) || (executionRollup?.blockedByConfirmation ?? 0) > 0;
+
+  if (hasPendingConfirmation) {
+    return { label: "Waiting for user", tone: "warning" };
+  }
+
+  if (metadata.topStatus === "Backend busy") {
+    return selectTopStatusPresentation(metadata);
+  }
+
+  if ((executionRollup?.running ?? 0) > 0) {
+    return { label: "Executing", tone: "blue" };
+  }
+
+  if (
+    executionRollup &&
+    executionRollup.total > 0 &&
+    executionRollup.done === executionRollup.total
+  ) {
+    return metadata.topStatus === "Review"
+      ? selectTopStatusPresentation(metadata)
+      : { label: "Completed", tone: "success" };
+  }
+
+  if ((executionRollup?.pending ?? 0) > 0) {
+    return { label: "Queued", tone: "neutral" };
+  }
+
+  return planningPresentation;
 }
 
 export function selectConfirmationOptionVariant(

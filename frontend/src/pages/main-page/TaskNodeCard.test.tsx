@@ -15,7 +15,6 @@ describe("TaskNodeCard", () => {
         isSelected={false}
         node={taskNode}
         onSelectTask={onSelectTask}
-        status="waiting_user"
       />,
     );
 

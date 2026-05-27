@@ -47,6 +47,33 @@ describe("buildMainPageViewModel", () => {
     });
   });
 
+  it("surfaces canonical permission reasons for disabled input", () => {
+    const viewModel = buildViewModel("s10-permission-denied");
+
+    expect(viewModel.input.disabled).toBe(true);
+    expect(viewModel.input.disabledReason).toBe(
+      "Current permission context is read-only.",
+    );
+    expect(viewModel.topBar.statuses[0]).toEqual({
+      label: "Read-only",
+      tone: "danger",
+    });
+  });
+
+  it("uses TaskNode permission dimensions for selected task input availability", () => {
+    const viewModel = buildViewModel("s3-draft-ready", {
+      selectedTaskNodeId: "task-requirements",
+    });
+
+    expect(viewModel.input).toMatchObject({
+      disabled: true,
+      disabledReason: "Completed tasks are read-only.",
+      mode: "append_task_input",
+      target: "task",
+      taskNodeId: "task-requirements",
+    });
+  });
+
   it("keeps confirmation focus as an explicit detail variant", () => {
     const viewModel = buildViewModel("s7-confirmation");
 

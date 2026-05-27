@@ -35,7 +35,6 @@ export function TaskTreePanel({
               key={node.id}
               node={node}
               onSelectTask={onSelectTask}
-              status={node.status}
             />
           ))}
         </div>

@@ -12,7 +12,7 @@ import type { BadgePresentation } from "./mainPageSelectors";
 import {
   buildTaskScopedProjection,
   selectEventConnectionStatusPresentation,
-  selectTopStatusPresentation,
+  selectMainPagePrimaryStatusPresentation,
 } from "./mainPageSelectors";
 import type {
   DetailOverride,
@@ -184,6 +184,7 @@ export function buildMainPageViewModel({
     selectedTask,
   });
   const input = inputViewFor({
+    sessionPermissions: snapshot.permissions,
     inputDisabled,
     metadata,
     selectedTask,
@@ -230,7 +231,7 @@ export function buildMainPageViewModel({
         snapshot.session.name,
       ],
       statuses: [
-        selectTopStatusPresentation(metadata),
+        selectMainPagePrimaryStatusPresentation(snapshot, metadata),
         selectEventConnectionStatusPresentation(eventConnectionStatus),
       ],
     },
@@ -346,6 +347,7 @@ function inputViewFor({
   hasConfirmationFocus,
   inputDisabled,
   metadata,
+  sessionPermissions,
   selectedTask,
   taskTree,
 }: {
@@ -353,6 +355,7 @@ function inputViewFor({
   hasConfirmationFocus: boolean;
   inputDisabled: boolean;
   metadata: MainPageStateMetadata;
+  sessionPermissions: MainPageSnapshot["permissions"];
   selectedTask: TaskNodeCardView | undefined;
   taskTree: MainPageSnapshot["taskTree"];
 }): MainPageInputViewModel {
@@ -363,10 +366,17 @@ function inputViewFor({
     selectedTask,
   });
 
+  const availability = inputAvailabilityFor({
+    inputDisabled,
+    selectedTask,
+    sessionPermissions,
+    taskTree,
+  });
+
   if (selectedTask) {
     return {
-      disabled: inputDisabled,
-      disabledReason: inputDisabled ? "Input command is submitting." : null,
+      disabled: availability.disabled,
+      disabledReason: availability.disabledReason,
       mode: "append_task_input",
       scope,
       target: "task",
@@ -375,12 +385,71 @@ function inputViewFor({
   }
 
   return {
-    disabled: inputDisabled,
-    disabledReason: inputDisabled ? "Input command is submitting." : null,
+    disabled: availability.disabled,
+    disabledReason: availability.disabledReason,
     mode: taskTree === null ? "generate_task_tree" : "append_session_input",
     scope,
     target: "session",
     taskNodeId: null,
+  };
+}
+
+function inputAvailabilityFor({
+  inputDisabled,
+  selectedTask,
+  sessionPermissions,
+  taskTree,
+}: {
+  inputDisabled: boolean;
+  selectedTask: TaskNodeCardView | undefined;
+  sessionPermissions: MainPageSnapshot["permissions"];
+  taskTree: MainPageSnapshot["taskTree"];
+}): Pick<MainPageInputViewModel, "disabled" | "disabledReason"> {
+  if (inputDisabled) {
+    return {
+      disabled: true,
+      disabledReason: "Input command is submitting.",
+    };
+  }
+
+  if (
+    taskTree === null &&
+    sessionPermissions !== undefined &&
+    !sessionPermissions.canCreateTaskTree
+  ) {
+    return {
+      disabled: true,
+      disabledReason:
+        sessionPermissions.readonlyReason ??
+        "Creating a TaskTree is unavailable in the current state.",
+    };
+  }
+
+  if (
+    taskTree !== null &&
+    sessionPermissions !== undefined &&
+    !sessionPermissions.canAppendGuidance
+  ) {
+    return {
+      disabled: true,
+      disabledReason:
+        sessionPermissions.readonlyReason ??
+        "This session does not accept guidance in the current state.",
+    };
+  }
+
+  if (selectedTask && !selectedTask.permissions.canAppendGuidance) {
+    return {
+      disabled: true,
+      disabledReason:
+        selectedTask.readonlyReason ??
+        "The selected TaskNode does not accept guidance in the current state.",
+    };
+  }
+
+  return {
+    disabled: false,
+    disabledReason: null,
   };
 }
 

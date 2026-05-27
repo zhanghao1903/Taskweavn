@@ -15,9 +15,12 @@ import {
   selectEventConnectionStatusPresentation,
   selectFileChangeTypePresentation,
   selectMessageKindPresentation,
+  selectMainPagePrimaryStatusPresentation,
   selectSessionStatusPresentation,
+  selectTaskNodeDimensionPresentation,
   selectTaskNodeStatusPresentation,
 } from "./mainPageSelectors";
+import { getMainPageMockSnapshot } from "./mockPlatoApi";
 
 describe("main page selectors", () => {
   it("keeps the full projection when no TaskNode is selected", () => {
@@ -142,6 +145,68 @@ describe("main page selectors", () => {
     expect(selectTaskNodeStatusPresentation("failed")).toEqual({
       label: "failed",
       tone: "danger",
+    });
+  });
+
+  it("derives TaskNode badges from canonical dimensions before flat status fallback", () => {
+    expect(
+      selectTaskNodeDimensionPresentation({
+        ...taskNode("task-waiting", null),
+        confirmation: "pending",
+        execution: "running",
+        readiness: "published",
+        status: "running",
+      }),
+    ).toEqual({
+      label: "waiting user",
+      tone: "warning",
+    });
+
+    expect(
+      selectTaskNodeDimensionPresentation({
+        ...taskNode("task-done", null),
+        confirmation: null,
+        execution: "done",
+        readiness: "published",
+        status: "waiting_user",
+      }),
+    ).toEqual({
+      label: "done",
+      tone: "success",
+    });
+
+    expect(
+      selectTaskNodeDimensionPresentation({
+        ...taskNode("task-legacy", null),
+        status: "waiting_user",
+      }),
+    ).toEqual({
+      label: "waiting user",
+      tone: "warning",
+    });
+  });
+
+  it("derives page status from canonical dimensions and permission state", () => {
+    const confirmationState = getMainPageMockSnapshot("s7-confirmation");
+    expect(
+      selectMainPagePrimaryStatusPresentation(
+        confirmationState.snapshot,
+        confirmationState.metadata,
+      ),
+    ).toEqual({
+      label: "Waiting for user",
+      tone: "warning",
+    });
+
+    const staleState = getMainPageMockSnapshot("s11-stale-snapshot");
+    expect(
+      selectMainPagePrimaryStatusPresentation(
+        staleState.snapshot,
+        staleState.metadata,
+      ),
+    ).toEqual({
+      label: "Stale",
+      tone: "warning",
     });
   });
 

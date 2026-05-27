@@ -1,28 +1,22 @@
 import { Circle } from "lucide-react";
 
-import type {
-  TaskNodeCardView,
-  TaskNodeId,
-  TaskNodeStatus,
-} from "../../shared/api/types";
+import type { TaskNodeCardView, TaskNodeId } from "../../shared/api/types";
 import { Badge } from "../../shared/components";
-import { selectTaskNodeStatusPresentation } from "./mainPageSelectors";
+import { selectTaskNodeDimensionPresentation } from "./mainPageSelectors";
 import styles from "./MainPage.module.css";
 
 export type TaskNodeCardProps = {
   isSelected: boolean;
   node: TaskNodeCardView;
   onSelectTask: (nodeId: TaskNodeId) => void;
-  status: TaskNodeStatus;
 };
 
 export function TaskNodeCard({
   isSelected,
   node,
   onSelectTask,
-  status,
 }: TaskNodeCardProps) {
-  const statusPresentation = selectTaskNodeStatusPresentation(status);
+  const statusPresentation = selectTaskNodeDimensionPresentation(node);
 
   return (
     <button

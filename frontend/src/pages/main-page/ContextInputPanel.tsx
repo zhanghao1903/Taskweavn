@@ -31,11 +31,9 @@ export function ContextInputPanel({
         <Text as="strong" variant="label">
           {input.scope.label}
         </Text>
-        {error ? (
-          <Text variant="muted">{error}</Text>
-        ) : (
-          <Text variant="muted">{input.scope.placeholder}</Text>
-        )}
+        <Text variant="muted">
+          {error ?? input.disabledReason ?? input.scope.placeholder}
+        </Text>
       </div>
       <label className={styles.contextInputField}>
         <span>Message</span>
