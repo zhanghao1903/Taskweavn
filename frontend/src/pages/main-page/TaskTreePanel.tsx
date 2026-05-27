@@ -1,4 +1,4 @@
-import { Circle, GitBranch } from "lucide-react";
+import { GitBranch } from "lucide-react";
 
 import type {
   TaskNodeCardView,
@@ -6,9 +6,9 @@ import type {
   TaskNodeStatus,
   TaskTreeView,
 } from "../../shared/api/types";
-import { Badge, Panel, Text } from "../../shared/components";
+import { Panel, Text } from "../../shared/components";
 import type { ConfirmationDecision } from "./mainPageUiTypes";
-import { selectTaskNodeStatusPresentation } from "./mainPageSelectors";
+import { TaskNodeCard } from "./TaskNodeCard";
 import styles from "./MainPage.module.css";
 
 export type TaskTreePanelProps = {
@@ -34,35 +34,15 @@ export function TaskTreePanel({
     >
       {taskTree ? (
         <div className={styles.taskList}>
-          {taskTree.nodes.map((node) => {
-            const status = statusForNode(node, confirmationDecision);
-            const statusPresentation = selectTaskNodeStatusPresentation(status);
-
-            return (
-              <button
-                className={
-                  node.id === selectedTaskNodeId
-                    ? styles.selectedTaskCard
-                    : styles.taskCard
-                }
-                key={node.id}
-                onClick={() => onSelectTask(node.id)}
-                type="button"
-              >
-                <Circle size={12} aria-hidden="true" />
-                <span className={styles.taskText}>
-                  <strong>{node.title}</strong>
-                  <small>{node.summary}</small>
-                </span>
-                <Badge
-                  className={styles.taskStatus}
-                  tone={statusPresentation.tone}
-                >
-                  {statusPresentation.label}
-                </Badge>
-              </button>
-            );
-          })}
+          {taskTree.nodes.map((node) => (
+            <TaskNodeCard
+              isSelected={node.id === selectedTaskNodeId}
+              key={node.id}
+              node={node}
+              onSelectTask={onSelectTask}
+              status={statusForNode(node, confirmationDecision)}
+            />
+          ))}
         </div>
       ) : (
         <div className={styles.emptyState}>

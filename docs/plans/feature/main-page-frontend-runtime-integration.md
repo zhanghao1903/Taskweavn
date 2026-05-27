@@ -24,6 +24,8 @@
 | 2026-05-21 | Slice 6 — Integration smoke and docs closure | checkpoint | Frontend tests/build/lint pass; sidecar health/snapshot pass through loopback API; runtime logging exposed real browser issues and the stage PR fixed the default `fetch` receiver bug. This still does not close the Main Page real-backend gap. |
 | 2026-05-27 | P7.1A — Main Page route/runtime compatibility wrapper | done | Added `MainPageRoute` so `App` composes runtime env into the current `MainPage` without changing visible behavior. API mock happy path is deferred. |
 | 2026-05-27 | P7.1B — Wrapper boundary and next-step decision | done | Documented `MainPageRoute` ownership boundaries and decided to centralize status presentation mapping before P7.2 component extraction. |
+| 2026-05-27 | P7.1C — Status presentation mapping | done | Moved session, task, message, event, file-change, confirmation option, and audit verdict label/tone derivation into `mainPageSelectors.ts` without changing visible UI. |
+| 2026-05-27 | P7.2 — Light presentation component extraction | in_progress | Started low-risk extraction with `TaskNodeCard` and `SessionMessageCard`; panels still own data flow, selection state, and layout. |
 
 ---
 

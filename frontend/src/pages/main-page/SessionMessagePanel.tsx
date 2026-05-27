@@ -1,8 +1,11 @@
 import { MessagesSquare } from "lucide-react";
 
-import type { SessionMessageView, TaskNodeCardView } from "../../shared/api/types";
+import type {
+  SessionMessageView,
+  TaskNodeCardView,
+} from "../../shared/api/types";
 import { Badge, Panel, Text } from "../../shared/components";
-import { selectMessageKindPresentation } from "./mainPageSelectors";
+import { SessionMessageCard } from "./SessionMessageCard";
 import styles from "./MainPage.module.css";
 
 export type SessionMessagePanelProps = {
@@ -38,26 +41,9 @@ export function SessionMessagePanel({
       </div>
       {messages.length > 0 ? (
         <div className={styles.messageList}>
-          {messages.map((message) => {
-            const kindPresentation = selectMessageKindPresentation(message.kind);
-
-            return (
-              <article className={styles.messageCard} key={message.id}>
-                <div className={styles.messageMeta}>
-                  <Badge size="sm" tone={kindPresentation.tone}>
-                    {kindPresentation.label}
-                  </Badge>
-                  <span>
-                    {message.taskNodeId
-                      ? `TaskNode: ${message.taskNodeId}`
-                      : "Session-wide"}
-                  </span>
-                </div>
-                <strong>{message.title}</strong>
-                <p>{message.body}</p>
-              </article>
-            );
-          })}
+          {messages.map((message) => (
+            <SessionMessageCard key={message.id} message={message} />
+          ))}
         </div>
       ) : (
         <div className={styles.emptyState}>
