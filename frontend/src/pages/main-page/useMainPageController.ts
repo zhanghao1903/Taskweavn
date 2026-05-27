@@ -50,11 +50,6 @@ export type ConfirmationDecisionContext = {
   sessionId: string;
 };
 
-export type UnavailableNoticeContext = {
-  action: string;
-  sessionId: string;
-};
-
 export type MainPageController = {
   activeSessionId: string | null;
   confirmationError: string | null;
@@ -88,7 +83,6 @@ export type MainPageController = {
     selectTask: (nodeId: TaskNodeId) => void;
     showFileChanges: () => void;
     showResult: () => void;
-    showUnavailableNotice: (context: UnavailableNoticeContext) => void;
     submitInput: (context: InputSubmitContext) => void;
     publishTaskTree: (context: PublishTaskTreeContext) => void;
   };
@@ -485,19 +479,6 @@ export function useMainPageController({
     setActiveSessionId(session.id);
   }
 
-  function showUnavailableNotice({
-    action,
-    sessionId,
-  }: UnavailableNoticeContext) {
-    const message = `${action} is not connected in this build yet.`;
-    mainPageLogger.warn("ui.action.unavailable", {
-      action,
-      runtimeKind: adapter.runtimeKind,
-      sessionId,
-    });
-    setUiNotice(message);
-  }
-
   function handleCreateSession() {
     const name = safePrompt("New session name", "New session");
     if (name === null) {
@@ -635,7 +616,6 @@ export function useMainPageController({
       selectTask,
       showFileChanges: () => setDetailOverride("fileChanges"),
       showResult: () => setDetailOverride("result"),
-      showUnavailableNotice,
       submitInput: handleInputSubmit,
       publishTaskTree: handlePublishTaskTree,
     },

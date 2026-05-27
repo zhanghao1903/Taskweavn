@@ -517,16 +517,20 @@ describe("App", () => {
     }
   });
 
-  it("surfaces feedback for visible controls that are not wired yet", async () => {
-    const user = userEvent.setup();
-
+  it("renders Audit as a reserved route entry until the Audit Page UI exists", async () => {
     renderWithQueryClient(
       <MainPage adapter={testAdapter({ loadSnapshot: loadImmediateSnapshot })} />,
     );
 
-    await user.click(await screen.findByRole("button", { name: "View audit" }));
+    const auditButton = await screen.findByRole("button", {
+      name: "View audit",
+    });
+
+    expect(auditButton).toBeDisabled();
     expect(
-      screen.getByText("Audit view is not connected in this build yet."),
+      screen.getByText(
+        "Audit entry is reserved until the Audit Page UI is implemented.",
+      ),
     ).toBeInTheDocument();
   });
 

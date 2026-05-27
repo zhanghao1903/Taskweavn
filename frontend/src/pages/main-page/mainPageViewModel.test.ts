@@ -95,11 +95,53 @@ describe("buildMainPageViewModel", () => {
     expect(viewModel.detail.fileChangeSummary.changedFiles).toHaveLength(3);
     expect(viewModel.taskWorkspace.fileChangeSummary?.recursive).toBe(true);
   });
+
+  it("builds a reserved audit entry while the Audit Page UI is absent", () => {
+    const viewModel = buildViewModel("s9-file-changes");
+
+    expect(viewModel.workspace.auditEntry).toMatchObject({
+      disabledReason:
+        "Audit entry is reserved until the Audit Page UI is implemented.",
+      href: "/sessions/session-website-plan/tasks/task-implementation/audit?entry=from_file_change&filter=files&returnFocus=file_change&returnSessionId=session-website-plan&returnTaskNodeId=task-implementation",
+      isEnabled: false,
+      returnFocus: "file_change",
+      scope: "task",
+    });
+  });
+
+  it("builds route-ready task audit entries with return context when enabled", () => {
+    const viewModel = buildViewModel("s7-confirmation", {
+      auditRouteAvailable: true,
+    });
+
+    expect(viewModel.workspace.auditEntry).toMatchObject({
+      disabledReason: null,
+      href: "/sessions/session-website-plan/tasks/task-visual-direction/audit?entry=from_confirmation&filter=confirmations&returnFocus=confirmation&returnSessionId=session-website-plan&returnTaskNodeId=task-visual-direction",
+      isEnabled: true,
+      returnFocus: "confirmation",
+      scope: "task",
+    });
+  });
+
+  it("builds route-ready session audit entries with return context when enabled", () => {
+    const viewModel = buildViewModel("s8-completed", {
+      auditRouteAvailable: true,
+    });
+
+    expect(viewModel.workspace.auditEntry).toMatchObject({
+      disabledReason: null,
+      href: "/sessions/session-website-plan/audit?entry=from_result&filter=results&returnFocus=result&returnSessionId=session-website-plan",
+      isEnabled: true,
+      returnFocus: "result",
+      scope: "session",
+    });
+  });
 });
 
 function buildViewModel(
   stateId: MainPageStateId,
   overrides: {
+    auditRouteAvailable?: boolean;
     detailOverride?: DetailOverride;
     eventConnectionStatus?: EventConnectionStatus;
     inputDisabled?: boolean;
@@ -109,6 +151,7 @@ function buildViewModel(
   const { metadata, snapshot } = getMainPageMockSnapshot(stateId);
 
   return buildMainPageViewModel({
+    auditRouteAvailable: overrides.auditRouteAvailable,
     confirmationError: null,
     detailOverride: overrides.detailOverride ?? "auto",
     eventConnectionStatus: overrides.eventConnectionStatus ?? "disconnected",

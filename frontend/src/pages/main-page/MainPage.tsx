@@ -18,11 +18,13 @@ const stateOptions = listMainPageStateOptions();
 
 export type MainPageProps = {
   adapter?: MainPageAdapter;
+  auditRouteAvailable?: boolean;
   initialStateId?: MainPageStateId;
 };
 
 export function MainPage({
   adapter = mainPageMockAdapter,
+  auditRouteAvailable = false,
   initialStateId = defaultMainPageStateId,
 }: MainPageProps = {}) {
   const {
@@ -108,6 +110,7 @@ export function MainPage({
 
   const { metadata, snapshot } = snapshotData;
   const viewModel = buildMainPageViewModel({
+    auditRouteAvailable,
     confirmationError,
     detailOverride,
     eventConnectionStatus,

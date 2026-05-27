@@ -10,12 +10,14 @@ import {
 
 export type MainPageRouteProps = {
   adapter?: MainPageAdapter;
+  auditRouteAvailable?: boolean;
   initialStateId?: MainPageStateId;
   runtimeEnv?: PlatoRuntimeEnv;
 };
 
 export function MainPageRoute({
   adapter,
+  auditRouteAvailable = false,
   initialStateId,
   runtimeEnv,
 }: MainPageRouteProps = {}) {
@@ -24,5 +26,11 @@ export function MainPageRoute({
     [adapter, runtimeEnv],
   );
 
-  return <MainPage adapter={runtimeAdapter} initialStateId={initialStateId} />;
+  return (
+    <MainPage
+      adapter={runtimeAdapter}
+      auditRouteAvailable={auditRouteAvailable}
+      initialStateId={initialStateId}
+    />
+  );
 }

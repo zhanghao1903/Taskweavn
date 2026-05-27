@@ -60,18 +60,13 @@ export function MainPageWorkbench({
         aria-label="Task workspace"
       >
         <MainPageWorkspaceHeader
+          auditEntry={viewModel.workspace.auditEntry}
           eventError={viewModel.workspace.eventError}
           isPublishingTaskTree={viewModel.workspace.isPublishingTaskTree}
           onPublishTaskTree={() =>
             actions.publishTaskTree({
               sessionId: viewModel.sessionId,
               taskTreeId: viewModel.workspace.taskTreeId,
-            })
-          }
-          onViewAudit={() =>
-            actions.showUnavailableNotice({
-              action: "Audit view",
-              sessionId: viewModel.sessionId,
             })
           }
           showPublishTaskTree={viewModel.workspace.showPublishTaskTree}

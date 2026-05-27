@@ -1,4 +1,5 @@
 import type {
+  AuditFilterKind,
   ConfirmationActionView,
   FileChangeSummaryView,
   MainPageSnapshot,
@@ -8,6 +9,10 @@ import type {
   TaskNodeCardView,
   TaskNodeId,
 } from "../../shared/api/types";
+import {
+  buildAuditSessionRoute,
+  buildAuditTaskRoute,
+} from "../../app/routes";
 import type { BadgePresentation } from "./mainPageSelectors";
 import {
   buildTaskScopedProjection,
@@ -85,6 +90,7 @@ export type MainPageSidebarViewModel = {
 };
 
 export type MainPageWorkspaceViewModel = {
+  auditEntry: MainPageAuditEntryViewModel;
   eventError: string | null;
   isPublishingTaskTree: boolean;
   showPublishTaskTree: boolean;
@@ -92,6 +98,15 @@ export type MainPageWorkspaceViewModel = {
   taskTreeId: string | null;
   title: string;
   uiNotice: string | null;
+};
+
+export type MainPageAuditEntryViewModel = {
+  disabledReason: string | null;
+  href: string;
+  isEnabled: boolean;
+  label: string;
+  returnFocus: "session" | "task" | "confirmation" | "result" | "file_change";
+  scope: "session" | "task";
 };
 
 export type MainPageTaskWorkspaceViewModel = {
@@ -117,6 +132,7 @@ export type MainPageViewModel = {
 };
 
 export type BuildMainPageViewModelInput = {
+  auditRouteAvailable?: boolean;
   confirmationError: string | null;
   detailOverride: DetailOverride;
   eventConnectionStatus: EventConnectionStatus;
@@ -132,6 +148,7 @@ export type BuildMainPageViewModelInput = {
 };
 
 export function buildMainPageViewModel({
+  auditRouteAvailable = false,
   confirmationError,
   detailOverride,
   eventConnectionStatus,
@@ -192,6 +209,18 @@ export function buildMainPageViewModel({
     detailOverride,
     taskTree: snapshot.taskTree,
   });
+  const auditEntry = auditEntryFor({
+    activeConfirmation,
+    auditRouteAvailable,
+    fileChangeSummary,
+    hasConfirmationFocus,
+    hasFileChangeView: wantsFileChangeView && fileChangeSummary !== null,
+    hasResultView: wantsResultView && result !== null,
+    result,
+    selectedTask,
+    sessionId: snapshot.session.id,
+    sessionPermissions: snapshot.permissions,
+  });
 
   return {
     detail: detailViewFor({
@@ -236,6 +265,7 @@ export function buildMainPageViewModel({
       ],
     },
     workspace: {
+      auditEntry,
       eventError,
       isPublishingTaskTree,
       showPublishTaskTree: snapshot.taskTree?.status === "draft",
@@ -244,6 +274,155 @@ export function buildMainPageViewModel({
       title: snapshot.taskTree?.title ?? "Start a new session",
       uiNotice,
     },
+  };
+}
+
+function auditEntryFor({
+  activeConfirmation,
+  auditRouteAvailable,
+  fileChangeSummary,
+  hasConfirmationFocus,
+  hasFileChangeView,
+  hasResultView,
+  result,
+  selectedTask,
+  sessionId,
+  sessionPermissions,
+}: {
+  activeConfirmation: ConfirmationActionView | undefined;
+  auditRouteAvailable: boolean;
+  fileChangeSummary: FileChangeSummaryView | null;
+  hasConfirmationFocus: boolean;
+  hasFileChangeView: boolean;
+  hasResultView: boolean;
+  result: ResultCardView | null;
+  selectedTask: TaskNodeCardView | undefined;
+  sessionId: string;
+  sessionPermissions: MainPageSnapshot["permissions"];
+}): MainPageAuditEntryViewModel {
+  const route = auditRouteFor({
+    activeConfirmation,
+    fileChangeSummary,
+    hasConfirmationFocus,
+    hasFileChangeView,
+    hasResultView,
+    result,
+    selectedTask,
+    sessionId,
+  });
+  const permissionReason =
+    sessionPermissions && !sessionPermissions.canOpenAudit
+      ? sessionPermissions.readonlyReason ??
+        "Audit is unavailable in the current permission context."
+      : null;
+
+  return {
+    ...route,
+    disabledReason:
+      permissionReason ??
+      (auditRouteAvailable
+        ? null
+        : "Audit entry is reserved until the Audit Page UI is implemented."),
+    isEnabled: auditRouteAvailable && permissionReason === null,
+    label: "View audit",
+  };
+}
+
+function auditRouteFor({
+  activeConfirmation,
+  fileChangeSummary,
+  hasConfirmationFocus,
+  hasFileChangeView,
+  hasResultView,
+  result,
+  selectedTask,
+  sessionId,
+}: {
+  activeConfirmation: ConfirmationActionView | undefined;
+  fileChangeSummary: FileChangeSummaryView | null;
+  hasConfirmationFocus: boolean;
+  hasFileChangeView: boolean;
+  hasResultView: boolean;
+  result: ResultCardView | null;
+  selectedTask: TaskNodeCardView | undefined;
+  sessionId: string;
+}): Pick<MainPageAuditEntryViewModel, "href" | "returnFocus" | "scope"> {
+  if (hasConfirmationFocus && activeConfirmation) {
+    return taskAuditRoute({
+      entry: "from_confirmation",
+      filter: "confirmations",
+      returnFocus: "confirmation",
+      sessionId,
+      taskNodeId: activeConfirmation.taskNodeId,
+    });
+  }
+
+  if (hasFileChangeView && fileChangeSummary?.taskNodeId) {
+    return taskAuditRoute({
+      entry: "from_file_change",
+      filter: "files",
+      returnFocus: "file_change",
+      sessionId,
+      taskNodeId: fileChangeSummary.taskNodeId,
+    });
+  }
+
+  if (hasResultView && result) {
+    return {
+      href: buildAuditSessionRoute(sessionId, {
+        entry: "from_result",
+        filter: "results",
+        returnFocus: "result",
+        returnSessionId: sessionId,
+      }),
+      returnFocus: "result",
+      scope: "session",
+    };
+  }
+
+  if (selectedTask) {
+    return taskAuditRoute({
+      entry: "from_task",
+      returnFocus: "task",
+      sessionId,
+      taskNodeId: selectedTask.id,
+    });
+  }
+
+  return {
+    href: buildAuditSessionRoute(sessionId, {
+      entry: "from_session",
+      returnFocus: "session",
+      returnSessionId: sessionId,
+    }),
+    returnFocus: "session",
+    scope: "session",
+  };
+}
+
+function taskAuditRoute({
+  entry,
+  filter,
+  returnFocus,
+  sessionId,
+  taskNodeId,
+}: {
+  entry: "from_task" | "from_confirmation" | "from_file_change";
+  filter?: AuditFilterKind;
+  returnFocus: "task" | "confirmation" | "file_change";
+  sessionId: string;
+  taskNodeId: string;
+}): Pick<MainPageAuditEntryViewModel, "href" | "returnFocus" | "scope"> {
+  return {
+    href: buildAuditTaskRoute(sessionId, taskNodeId, {
+      entry,
+      filter,
+      returnFocus,
+      returnSessionId: sessionId,
+      returnTaskNodeId: taskNodeId,
+    }),
+    returnFocus,
+    scope: "task",
   };
 }
 

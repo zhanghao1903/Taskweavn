@@ -1,11 +1,12 @@
 import { Button, Text } from "../../shared/components";
+import type { MainPageAuditEntryViewModel } from "./mainPageViewModel";
 import styles from "./MainPage.module.css";
 
 export type MainPageWorkspaceHeaderProps = {
+  auditEntry: MainPageAuditEntryViewModel;
   eventError: string | null;
   isPublishingTaskTree: boolean;
   onPublishTaskTree: () => void;
-  onViewAudit: () => void;
   showPublishTaskTree: boolean;
   taskTreeCommandError: string | null;
   title: string;
@@ -13,10 +14,10 @@ export type MainPageWorkspaceHeaderProps = {
 };
 
 export function MainPageWorkspaceHeader({
+  auditEntry,
   eventError,
   isPublishingTaskTree,
   onPublishTaskTree,
-  onViewAudit,
   showPublishTaskTree,
   taskTreeCommandError,
   title,
@@ -44,7 +45,18 @@ export function MainPageWorkspaceHeader({
             {isPublishingTaskTree ? "Publishing" : "Publish TaskTree"}
           </Button>
         ) : null}
-        <Button onClick={onViewAudit}>View audit</Button>
+        {auditEntry.isEnabled ? (
+          <Button asChild>
+            <a href={auditEntry.href}>{auditEntry.label}</a>
+          </Button>
+        ) : (
+          <>
+            <Button disabled>{auditEntry.label}</Button>
+            {auditEntry.disabledReason ? (
+              <Text variant="muted">{auditEntry.disabledReason}</Text>
+            ) : null}
+          </>
+        )}
       </div>
     </div>
   );
