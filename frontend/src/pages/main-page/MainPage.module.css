@@ -4,7 +4,7 @@
   grid-template:
     "top top top" 72px
     "side work detail" 1fr
-    "side input input" 96px / 260px minmax(520px, 1fr) 360px;
+    "side input input" 96px / 260px minmax(680px, 1fr) 360px;
   gap: var(--plato-space-5);
   padding: var(--plato-space-5);
   background:
@@ -174,17 +174,24 @@
 
 .workGrid {
   display: grid;
-  grid-template-columns: minmax(0, 1.35fr) minmax(0, 0.8fr);
+  grid-template-columns: minmax(360px, 1.45fr) minmax(220px, 0.75fr);
   gap: var(--plato-space-5);
+  align-items: stretch;
 }
 
-.panel {
+.panel,
+.workPanel {
   min-width: 0;
   min-height: 520px;
   border: 1px solid var(--plato-color-line);
   border-radius: var(--plato-radius-lg);
   padding: var(--plato-space-5);
   background: var(--plato-color-marble);
+}
+
+.workPanel {
+  min-height: clamp(420px, calc(100vh - 260px), 640px);
+  overflow: auto;
 }
 
 .panelTitleRow {
@@ -458,7 +465,7 @@
   }
 }
 
-@media (max-width: 1440px) {
+@media (max-width: 1320px) {
   .workGrid {
     grid-template-columns: 1fr;
   }
