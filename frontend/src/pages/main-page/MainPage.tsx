@@ -1,20 +1,10 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
-
 import type {
-  ConfirmationActionView,
   MainPageSnapshot,
   SessionMessageView,
   TaskNodeCardView,
-  TaskNodeId,
 } from "../../shared/api/types";
 import type { BadgeTone } from "../../shared/components";
 import { Badge, Button, Panel, Text } from "../../shared/components";
-import {
-  createFrontendLogger,
-  summarizeLoggableError,
-  toLoggableError,
-} from "../../shared/logging/frontendLogger";
 import { ContextInputPanel } from "./ContextInputPanel";
 import { NO_SESSION_AVAILABLE_MESSAGE } from "./httpMainPageAdapter";
 import { MainPageDetailPanel } from "./MainPageDetailPanel";
@@ -25,12 +15,7 @@ import {
   selectEventConnectionStatusPresentation,
   selectTopStatusPresentation,
 } from "./mainPageSelectors";
-import type {
-  ConfirmationDecision,
-  DetailOverride,
-  EventConnectionStatus,
-  InputTarget,
-} from "./mainPageUiTypes";
+import type { DetailOverride } from "./mainPageUiTypes";
 import {
   defaultMainPageStateId,
   listMainPageStateOptions,
@@ -41,15 +26,8 @@ import type {
   MainPageAdapter,
   MainPageStateMetadata,
 } from "./runtime/adapter";
-import {
-  mainPageSnapshotIdentity,
-  mainPageSnapshotQueryKey,
-} from "./runtime/adapter";
-import { handleCommandResponse } from "./runtime/commandRefresh";
-import { resyncEventKey, routeMainPageEvent } from "./runtime/eventRouter";
+import { useMainPageController } from "./useMainPageController";
 import styles from "./MainPage.module.css";
-
-const mainPageLogger = createFrontendLogger("main-page");
 
 const stateOptions = listMainPageStateOptions();
 
@@ -62,354 +40,38 @@ export function MainPage({
   adapter = mainPageMockAdapter,
   initialStateId = defaultMainPageStateId,
 }: MainPageProps = {}) {
-  const [stateId, setStateId] = useState<MainPageStateId>(
+  const {
+    actions,
+    confirmationError,
+    detailOverride,
+    eventConnectionStatus,
+    eventError,
+    inputDraft,
+    inputError,
+    isCreatingSession,
+    isDeletingSession,
+    isInputSubmitting,
+    isPublishingTaskTree,
+    isRenamingSession,
+    isResolvingConfirmation,
+    isSnapshotError,
+    isSnapshotPending,
+    selectedTaskNodeId,
+    snapshotData,
+    snapshotError,
+    stateId,
+    taskTreeCommandError,
+    uiNotice,
+  } = useMainPageController({
+    adapter,
     initialStateId,
-  );
-  const [selectedTaskNodeId, setSelectedTaskNodeId] =
-    useState<TaskNodeId | null>(null);
-  const [detailOverride, setDetailOverride] =
-    useState<DetailOverride>("auto");
-  const [confirmationError, setConfirmationError] = useState<string | null>(
-    null,
-  );
-  const [inputDraft, setInputDraft] = useState("");
-  const [inputError, setInputError] = useState<string | null>(null);
-  const [taskTreeCommandError, setTaskTreeCommandError] = useState<string | null>(
-    null,
-  );
-  const [uiNotice, setUiNotice] = useState<string | null>(null);
-  const [eventError, setEventError] = useState<string | null>(null);
-  const [activeSessionId, setActiveSessionId] = useState<string | null>(
-    adapter.sessionId,
-  );
-  const [eventConnectionStatus, setEventConnectionStatus] =
-    useState<EventConnectionStatus>("disconnected");
-
-  const snapshotQuery = useQuery({
-    queryKey: mainPageSnapshotQueryKey(adapter, stateId, activeSessionId),
-    queryFn: () => adapter.loadSnapshot(stateId, activeSessionId),
-  });
-  const snapshotData = snapshotQuery.data;
-  const snapshotDataRef = useRef(snapshotData);
-  const lastResyncEventKeyRef = useRef<string | null>(null);
-  snapshotDataRef.current = snapshotData;
-  const snapshotIdentity = snapshotData
-    ? mainPageSnapshotIdentity(adapter, stateId, snapshotData, activeSessionId)
-    : null;
-  const refetchSnapshot = snapshotQuery.refetch;
-
-  useEffect(() => {
-    if (!snapshotData || activeSessionId !== null) {
-      return;
-    }
-    setActiveSessionId(snapshotData.snapshot.session.id);
-  }, [activeSessionId, snapshotData]);
-
-  useEffect(() => {
-    if (!snapshotQuery.isError) {
-      return;
-    }
-
-    mainPageLogger.error(
-      `snapshot.query.failed ${stateId} -> ${summarizeLoggableError(
-        snapshotQuery.error,
-      )}`,
-      {
-        error: toLoggableError(snapshotQuery.error),
-        runtimeKind: adapter.runtimeKind,
-        stateId,
-      },
-    );
-  }, [adapter.runtimeKind, snapshotQuery.error, snapshotQuery.isError, stateId]);
-
-  const resolveConfirmationMutation = useMutation({
-    mutationFn: async ({
-      confirmation,
-      decision,
-      sessionId,
-    }: {
-      confirmation: ConfirmationActionView;
-      decision: Exclude<ConfirmationDecision, null>;
-      sessionId: string;
-    }) =>
-      adapter.resolveConfirmation(sessionId, confirmation.id, {
-        commandId: `resolve-${confirmation.id}-${decision}`,
-        sessionId,
-        payload: {
-          value: decision,
-        },
-      }),
-    onError: () => {
-      setConfirmationError("Confirmation command failed. Please retry.");
-    },
-    onSuccess: (response) => {
-      const result = handleCommandResponse(
-        response,
-        "Confirmation command was rejected.",
-      );
-
-      if (result.errorMessage) {
-        setConfirmationError(result.errorMessage);
-        return;
-      }
-
-      setConfirmationError(null);
-      if (result.shouldRefetch) {
-        void refetchSnapshot();
-      }
-    },
-  });
-  const inputMutation = useMutation({
-    mutationFn: async ({
-      content,
-      hasTaskTree,
-      sessionId,
-      target,
-      taskNodeId,
-    }: {
-      content: string;
-      hasTaskTree: boolean;
-      sessionId: string;
-      target: InputTarget;
-      taskNodeId: TaskNodeId | null;
-    }) => {
-      const commandId = `append-${target}-${Date.now()}`;
-
-      if (target === "task" && taskNodeId) {
-        return adapter.appendTaskInput(sessionId, taskNodeId, {
-          commandId,
-          sessionId,
-          payload: {
-            content,
-            mode: "guidance",
-          },
-        });
-      }
-
-      if (!hasTaskTree) {
-        return adapter.generateTaskTree({
-          commandId: `generate-task-tree-${Date.now()}`,
-          sessionId,
-          payload: {
-            prompt: content,
-          },
-        });
-      }
-
-      return adapter.appendSessionInput({
-        commandId,
-        sessionId,
-        payload: {
-          content,
-          mode: "global_guidance",
-        },
-      });
-    },
-    onError: () => {
-      setInputError("Input command failed. Please retry.");
-    },
-    onSuccess: (response) => {
-      const result = handleCommandResponse(
-        response,
-        "Input command was rejected.",
-      );
-
-      if (result.errorMessage) {
-        setInputError(result.errorMessage);
-        return;
-      }
-
-      setInputError(null);
-      setInputDraft("");
-      if (result.shouldRefetch) {
-        void refetchSnapshot();
-      }
-    },
-  });
-  const publishTaskTreeMutation = useMutation({
-    mutationFn: async ({
-      sessionId,
-      taskTreeId,
-    }: {
-      sessionId: string;
-      taskTreeId: string;
-    }) =>
-      adapter.publishTaskTree({
-        commandId: `publish-task-tree-${Date.now()}`,
-        sessionId,
-        payload: {
-          taskTreeId,
-          startImmediately: true,
-        },
-      }),
-    onError: () => {
-      setTaskTreeCommandError("Publish command failed. Please retry.");
-    },
-    onSuccess: (response) => {
-      const result = handleCommandResponse(
-        response,
-        "Publish command was rejected.",
-      );
-
-      if (result.errorMessage) {
-        setTaskTreeCommandError(result.errorMessage);
-        return;
-      }
-
-      setTaskTreeCommandError(null);
-      if (result.shouldRefetch) {
-        void refetchSnapshot();
-      }
-    },
-  });
-  const createSessionMutation = useMutation({
-    mutationFn: async (name: string) =>
-      adapter.createSession({
-        name,
-      }),
-    onError: () => {
-      setUiNotice("New session command failed. Please retry.");
-    },
-    onSuccess: (result) => {
-      const nextSessionId = result.sessionId ?? result.session?.id ?? null;
-      if (nextSessionId === null) {
-        setUiNotice("New session command did not return a session id.");
-        return;
-      }
-
-      setActiveSessionId(nextSessionId);
-      setUiNotice(`Created session ${result.session?.name ?? nextSessionId}.`);
-    },
-  });
-  const renameSessionMutation = useMutation({
-    mutationFn: async ({
-      name,
-      sessionId,
-    }: {
-      name: string;
-      sessionId: string;
-    }) =>
-      adapter.renameSession({
-        name,
-        sessionId,
-      }),
-    onError: () => {
-      setUiNotice("Rename session command failed. Please retry.");
-    },
-    onSuccess: (result) => {
-      setUiNotice(`Renamed session to ${result.session?.name ?? "new name"}.`);
-      void refetchSnapshot();
-    },
-  });
-  const deleteSessionMutation = useMutation({
-    mutationFn: async (sessionId: string) => adapter.deleteSession(sessionId),
-    onError: () => {
-      setUiNotice("Delete session command failed. Please retry.");
-    },
-    onSuccess: (result) => {
-      const nextSessionId = result.nextSessionId ?? null;
-      setActiveSessionId(nextSessionId);
-      setUiNotice("Session deleted.");
-    },
   });
 
-  useEffect(() => {
-    const currentSnapshot = snapshotDataRef.current;
-
-    if (!currentSnapshot) {
-      return;
-    }
-
-    setSelectedTaskNodeId(currentSnapshot.metadata.initialSelectedTaskNodeId);
-    setDetailOverride("auto");
-    setConfirmationError(null);
-    setInputDraft("");
-    setInputError(null);
-    setTaskTreeCommandError(null);
-    setUiNotice(null);
-    setEventError(null);
-  }, [snapshotIdentity]);
-
-  useEffect(() => {
-    if (!snapshotData) {
-      return undefined;
-    }
-
-    mainPageLogger.info("events.subscribe.start", {
-      cursor: snapshotData.snapshot.cursor,
-      runtimeKind: adapter.runtimeKind,
-      sessionId: snapshotData.snapshot.session.id,
-    });
-
-    let active = true;
-    setEventConnectionStatus("connected");
-
-    let unsubscribe: (() => void) | null = null;
-    try {
-      unsubscribe = adapter.subscribeSessionEvents(
-        snapshotData.snapshot.session.id,
-        snapshotData.snapshot.cursor,
-        (event) => {
-          mainPageLogger.debug("events.received", {
-            eventId: event.eventId,
-            eventType: event.eventType,
-            sessionId: event.sessionId,
-          });
-
-          const nextResyncEventKey = resyncEventKey(event);
-          if (
-            nextResyncEventKey !== null &&
-            nextResyncEventKey === lastResyncEventKeyRef.current
-          ) {
-            return;
-          }
-          lastResyncEventKeyRef.current = nextResyncEventKey;
-
-          const action = routeMainPageEvent(event);
-          if (action.kind === "ignore") {
-            return;
-          }
-
-          if (action.errorMessage) {
-            setEventError(action.errorMessage);
-          }
-          setEventConnectionStatus(action.status);
-          void refetchSnapshot().finally(() => {
-            if (active) {
-              setEventConnectionStatus("connected");
-            }
-          });
-        },
-      );
-    } catch (error) {
-      mainPageLogger.error("events.subscribe.failed", {
-        error: toLoggableError(error),
-        runtimeKind: adapter.runtimeKind,
-        sessionId: snapshotData.snapshot.session.id,
-      });
-      setEventConnectionStatus("disconnected");
-      setEventError(
-        error instanceof Error
-          ? `Event stream unavailable: ${error.message}`
-          : "Event stream unavailable.",
-      );
-    }
-
-    return () => {
-      active = false;
-      mainPageLogger.info("events.subscribe.stop", {
-        runtimeKind: adapter.runtimeKind,
-        sessionId: snapshotData.snapshot.session.id,
-      });
-      unsubscribe?.();
-    };
-  }, [adapter, refetchSnapshot, snapshotData]);
-
-  if (snapshotQuery.isPending) {
+  if (isSnapshotPending) {
     return (
       <MainPageStatusFrame
         stateId={stateId}
-        onStateChange={handleStateChange}
+        onStateChange={actions.changeState}
         showStatePicker={adapter.showStatePicker}
         statusLabel="Loading snapshot"
         statusTone="blue"
@@ -419,29 +81,29 @@ export function MainPage({
     );
   }
 
-  if (snapshotQuery.isError || !snapshotData) {
-    const errorSummary = snapshotQuery.isError
-      ? snapshotErrorSummary(snapshotQuery.error)
+  if (isSnapshotError || !snapshotData) {
+    const errorSummary = isSnapshotError
+      ? snapshotErrorSummary(snapshotError)
       : "Snapshot data is empty.";
     const noSessionAvailable =
-      snapshotQuery.error instanceof Error &&
-      snapshotQuery.error.message === NO_SESSION_AVAILABLE_MESSAGE;
+      snapshotError instanceof Error &&
+      snapshotError.message === NO_SESSION_AVAILABLE_MESSAGE;
 
     return (
       <MainPageStatusFrame
         action={
           noSessionAvailable
             ? {
-                disabled: createSessionMutation.isPending,
-                label: createSessionMutation.isPending
+                disabled: isCreatingSession,
+                label: isCreatingSession
                   ? "Creating session"
                   : "New session",
-                onClick: handleCreateSession,
+                onClick: actions.createSession,
               }
             : undefined
         }
         stateId={stateId}
-        onStateChange={handleStateChange}
+        onStateChange={actions.changeState}
         showStatePicker={adapter.showStatePicker}
         statusLabel={noSessionAvailable ? "No sessions" : "Snapshot error"}
         statusTone={noSessionAvailable ? "neutral" : "danger"}
@@ -503,136 +165,8 @@ export function MainPage({
     hasConfirmationFocus,
     detailOverride,
   );
-  const inputTarget: InputTarget = selectedTask ? "task" : "session";
+  const inputTarget = selectedTask ? "task" : "session";
   const canPublishTaskTree = snapshot.taskTree?.status === "draft";
-
-  function handleStateChange(nextStateId: MainPageStateId) {
-    setStateId(nextStateId);
-    setSelectedTaskNodeId(null);
-    setDetailOverride("auto");
-    setConfirmationError(null);
-    setInputDraft("");
-    setInputError(null);
-    setTaskTreeCommandError(null);
-    setUiNotice(null);
-    setEventError(null);
-    resolveConfirmationMutation.reset();
-    inputMutation.reset();
-    publishTaskTreeMutation.reset();
-    createSessionMutation.reset();
-    renameSessionMutation.reset();
-    deleteSessionMutation.reset();
-  }
-
-  function selectTask(nodeId: TaskNodeId) {
-    setSelectedTaskNodeId(nodeId);
-    setDetailOverride("auto");
-    setUiNotice(null);
-  }
-
-  function showUnavailableNotice(action: string) {
-    const message = `${action} is not connected in this build yet.`;
-    mainPageLogger.warn("ui.action.unavailable", {
-      action,
-      runtimeKind: adapter.runtimeKind,
-      sessionId: snapshot.session.id,
-    });
-    setUiNotice(message);
-  }
-
-  function handleCreateSession() {
-    const name = safePrompt("New session name", "New session");
-    if (name === null) {
-      return;
-    }
-    const trimmed = name.trim();
-    if (!trimmed) {
-      setUiNotice("Session name must not be empty.");
-      return;
-    }
-
-    setUiNotice(null);
-    createSessionMutation.mutate(trimmed);
-  }
-
-  function handleRenameSession() {
-    const nextName = safePrompt("Rename session", snapshot.session.name);
-    if (nextName === null) {
-      return;
-    }
-    const trimmed = nextName.trim();
-    if (!trimmed) {
-      setUiNotice("Session name must not be empty.");
-      return;
-    }
-
-    setUiNotice(null);
-    renameSessionMutation.mutate({
-      name: trimmed,
-      sessionId: snapshot.session.id,
-    });
-  }
-
-  function handleDeleteSession() {
-    const confirmed = safeConfirm(
-      `Delete session "${snapshot.session.name}"? Its files will be archived locally.`,
-    );
-    if (!confirmed) {
-      return;
-    }
-
-    setUiNotice(null);
-    deleteSessionMutation.mutate(snapshot.session.id);
-  }
-
-  function handleInputSubmit() {
-    const content = inputDraft.trim();
-
-    if (!content) {
-      return;
-    }
-
-    setInputError(null);
-    setUiNotice(null);
-    inputMutation.mutate({
-      content,
-      hasTaskTree: snapshot.taskTree !== null,
-      sessionId: snapshot.session.id,
-      target: inputTarget,
-      taskNodeId: selectedTask?.id ?? null,
-    });
-  }
-
-  function handlePublishTaskTree() {
-    if (!snapshot.taskTree) {
-      setTaskTreeCommandError("No draft TaskTree is available to publish.");
-      return;
-    }
-
-    setTaskTreeCommandError(null);
-    setUiNotice(null);
-    publishTaskTreeMutation.mutate({
-      sessionId: snapshot.session.id,
-      taskTreeId: snapshot.taskTree.id,
-    });
-  }
-
-  function handleConfirmationDecision(
-    decision: Exclude<ConfirmationDecision, null>,
-  ) {
-    if (!activeConfirmation) {
-      setConfirmationError("No pending confirmation is available.");
-      return;
-    }
-
-    setConfirmationError(null);
-    setUiNotice(null);
-    resolveConfirmationMutation.mutate({
-      confirmation: activeConfirmation,
-      decision,
-      sessionId: snapshot.session.id,
-    });
-  }
 
   return (
     <main className={styles.page}>
@@ -646,7 +180,7 @@ export function MainPage({
         <Badge tone={displayTopStatus.tone}>{displayTopStatus.label}</Badge>
         <Badge tone={eventStatus.tone}>{eventStatus.label}</Badge>
         {adapter.showStatePicker ? (
-          <StatePicker stateId={stateId} onStateChange={handleStateChange} />
+          <StatePicker stateId={stateId} onStateChange={actions.changeState} />
         ) : null}
       </header>
 
@@ -660,11 +194,11 @@ export function MainPage({
             Workflow
           </Text>
           <Button
-            disabled={createSessionMutation.isPending}
-            onClick={handleCreateSession}
+            disabled={isCreatingSession}
+            onClick={actions.createSession}
             size="sm"
           >
-            {createSessionMutation.isPending ? "Creating" : "New"}
+            {isCreatingSession ? "Creating" : "New"}
           </Button>
         </div>
         <Text as="div" variant="eyebrow">
@@ -679,9 +213,7 @@ export function MainPage({
             }
             key={session.id}
             onClick={() =>
-              session.id === snapshot.session.id
-                ? setUiNotice("This session is already open.")
-                : setActiveSessionId(session.id)
+              actions.selectSession(session, snapshot.session.id)
             }
             type="button"
           >
@@ -690,16 +222,16 @@ export function MainPage({
         ))}
         <div className={styles.sidebarActions}>
           <Button
-            disabled={renameSessionMutation.isPending}
-            onClick={handleRenameSession}
+            disabled={isRenamingSession}
+            onClick={() => actions.renameSession(snapshot.session)}
             size="sm"
             variant="ghost"
           >
             Rename
           </Button>
           <Button
-            disabled={deleteSessionMutation.isPending}
-            onClick={handleDeleteSession}
+            disabled={isDeletingSession}
+            onClick={() => actions.deleteSession(snapshot.session)}
             size="sm"
             variant="danger"
           >
@@ -728,15 +260,27 @@ export function MainPage({
           <div className={styles.actionRow}>
             {canPublishTaskTree ? (
               <Button
-                disabled={publishTaskTreeMutation.isPending}
-                onClick={handlePublishTaskTree}
+                disabled={isPublishingTaskTree}
+                onClick={() =>
+                  actions.publishTaskTree({
+                    sessionId: snapshot.session.id,
+                    taskTreeId: snapshot.taskTree?.id ?? null,
+                  })
+                }
               >
-                {publishTaskTreeMutation.isPending
+                {isPublishingTaskTree
                   ? "Publishing"
                   : "Publish TaskTree"}
               </Button>
             ) : null}
-            <Button onClick={() => showUnavailableNotice("Audit view")}>
+            <Button
+              onClick={() =>
+                actions.showUnavailableNotice({
+                  action: "Audit view",
+                  sessionId: snapshot.session.id,
+                })
+              }
+            >
               View audit
             </Button>
           </div>
@@ -745,7 +289,7 @@ export function MainPage({
         <div className={styles.workGrid}>
           <TaskTreePanel
             confirmationDecision={null}
-            onSelectTask={selectTask}
+            onSelectTask={actions.selectTask}
             selectedTaskNodeId={effectiveSelectedTaskNodeId}
             taskTree={snapshot.taskTree}
           />
@@ -775,21 +319,34 @@ export function MainPage({
           hasResultView,
           hasFileChangeView,
         )}
-        isResolvingConfirmation={resolveConfirmationMutation.isPending}
-        onConfirmationDecision={handleConfirmationDecision}
-        onShowFileChanges={() => setDetailOverride("fileChanges")}
-        onShowResult={() => setDetailOverride("result")}
+        isResolvingConfirmation={isResolvingConfirmation}
+        onConfirmationDecision={(decision) =>
+          actions.resolveConfirmation({
+            confirmation: activeConfirmation,
+            decision,
+            sessionId: snapshot.session.id,
+          })
+        }
+        onShowFileChanges={actions.showFileChanges}
+        onShowResult={actions.showResult}
         result={visibleResult}
         selectedTask={selectedTask}
       />
 
       <ContextInputPanel
-        disabled={inputMutation.isPending}
+        disabled={isInputSubmitting}
         draft={inputDraft}
         error={inputError}
         inputScope={inputScope}
-        onDraftChange={setInputDraft}
-        onSubmit={handleInputSubmit}
+        onDraftChange={actions.changeInputDraft}
+        onSubmit={() =>
+          actions.submitInput({
+            hasTaskTree: snapshot.taskTree !== null,
+            sessionId: snapshot.session.id,
+            target: inputTarget,
+            taskNodeId: selectedTask?.id ?? null,
+          })
+        }
       />
     </main>
   );
@@ -895,23 +452,6 @@ function snapshotErrorSummary(error: unknown): string {
   }
 
   return "Check the browser console for the captured error payload.";
-}
-
-function safePrompt(message: string, defaultValue: string): string | null {
-  try {
-    const value = globalThis.prompt?.(message, defaultValue);
-    return value === undefined ? defaultValue : value;
-  } catch {
-    return defaultValue;
-  }
-}
-
-function safeConfirm(message: string): boolean {
-  try {
-    return globalThis.confirm?.(message) ?? false;
-  } catch {
-    return false;
-  }
 }
 
 function detailHeaderFor(
