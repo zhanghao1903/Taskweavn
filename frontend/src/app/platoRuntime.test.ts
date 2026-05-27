@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import type { CommandResponse, UiEvent } from "../shared/api/types";
 import {
   createAuditApiFromRuntimeEnv,
   createMainPageAdapterFromRuntimeEnv,
@@ -129,4 +130,188 @@ describe("Plato runtime wiring", () => {
       },
     });
   });
+
+  it("uses the test-only harness to cover representative MainPage event behavior", async () => {
+    const messageHarness = await createLoadedHarness("s7-confirmation");
+
+    expect(
+      messageHarness.routeEvent(
+        uiEvent("message.appended", { cursor: "cursor-message" }),
+      ),
+    ).toMatchObject({
+      compatible: true,
+      legacyAction: {
+        kind: "refetch",
+        status: "connected",
+      },
+      reducerIntent: {
+        refetch: true,
+        resync: false,
+      },
+    });
+
+    const resyncHarness = await createLoadedHarness("s7-confirmation");
+
+    expect(
+      resyncHarness.routeEvent(
+        uiEvent("session.resync_required", {
+          cursor: "cursor-resync",
+          payload: { reason: "cursor_expired" },
+        }),
+      ),
+    ).toMatchObject({
+      compatible: true,
+      legacyAction: {
+        kind: "refetch",
+        status: "resyncing",
+      },
+      reducerIntent: {
+        refetch: false,
+        resync: true,
+      },
+    });
+
+    const failedCommandHarness = await createLoadedHarness("s7-confirmation");
+    const confirmationId =
+      failedCommandHarness.facade.state.snapshot?.pendingConfirmations[0]?.id;
+    expect(confirmationId).toBeTruthy();
+
+    failedCommandHarness.facade.applyCommandResponse(
+      acceptedCommandResponse("resolve-confirmation"),
+      {
+        fallbackCommandId: "resolve-confirmation",
+        target: {
+          confirmationId: confirmationId ?? "confirmation-missing",
+          kind: "confirmation",
+        },
+      },
+    );
+
+    expect(
+      failedCommandHarness.routeEvent(
+        uiEvent("command.failed", {
+          commandId: "resolve-confirmation",
+          cursor: "cursor-command-failed",
+          payload: { message: "Command could not be applied." },
+        }),
+      ),
+    ).toMatchObject({
+      compatible: true,
+      legacyAction: {
+        errorMessage: "Command could not be applied.",
+        kind: "refetch",
+        status: "connected",
+      },
+      reducerIntent: {
+        refetch: true,
+        resync: false,
+      },
+      state: {
+        pendingCommands: {
+          "resolve-confirmation": {
+            status: "failed",
+          },
+        },
+      },
+    });
+
+    const unsupportedHarmlessHarness = await createLoadedHarness("s7-confirmation");
+
+    expect(
+      unsupportedHarmlessHarness.routeEvent(
+        uiEvent("plato.future_event", {
+          cursor: "cursor-unsupported-harmless",
+        }),
+      ),
+    ).toMatchObject({
+      compatible: false,
+      legacyAction: {
+        kind: "refetch",
+        status: "connected",
+      },
+      reducerIntent: {
+        refetch: false,
+        resync: false,
+      },
+      warnings: [expect.objectContaining({ code: "event_unsupported" })],
+    });
+
+    const unsupportedVisibleHarness = await createLoadedHarness("s7-confirmation");
+
+    expect(
+      unsupportedVisibleHarness.routeEvent(
+        uiEvent("plato.future_event", {
+          cursor: "cursor-unsupported-visible",
+          taskNodeIds: ["task-implementation"],
+        }),
+      ),
+    ).toMatchObject({
+      compatible: true,
+      legacyAction: {
+        kind: "refetch",
+        status: "connected",
+      },
+      reducerIntent: {
+        refetch: false,
+        resync: true,
+      },
+      warnings: [expect.objectContaining({ code: "event_unsupported" })],
+    });
+  });
 });
+
+async function createLoadedHarness(stateId: string) {
+  const harness = createMainPageRuntimeReducerHarnessFromEnv({
+    VITE_PLATO_API_MODE: "mock",
+    VITE_PLATO_RUNTIME_REDUCER_HARNESS: "test",
+  });
+  if (harness === null) {
+    throw new Error("Expected runtime reducer harness.");
+  }
+
+  await harness.facade.load(stateId);
+  return harness;
+}
+
+function uiEvent(
+  eventType: string,
+  overrides: Partial<UiEvent> = {},
+): UiEvent {
+  return {
+    commandId: null,
+    createdAt: "2026-05-17T10:20:00+08:00",
+    cursor: "cursor-event",
+    eventId: `event-${eventType}`,
+    eventType: eventType as UiEvent["eventType"],
+    messageIds: [],
+    payload: {},
+    sessionId: "session-website-plan",
+    taskNodeIds: [],
+    ...overrides,
+  };
+}
+
+function acceptedCommandResponse(commandId: string): CommandResponse {
+  return {
+    error: null,
+    ok: true,
+    refresh: {
+      affectedScopes: [],
+      affectedTaskRefs: [],
+      suggestedQueries: [],
+      waitForEvents: true,
+    },
+    requestId: `request-${commandId}`,
+    result: {
+      affectedObjects: [],
+      affectedTaskRefs: [],
+      commandId,
+      debugRefs: {},
+      emittedMessageIds: [],
+      message: "accepted",
+      objectRefs: [],
+      publishedTaskIds: [],
+      status: "accepted",
+    },
+  };
+}
