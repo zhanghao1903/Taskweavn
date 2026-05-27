@@ -486,47 +486,139 @@ describe("App", () => {
     const createSession = vi.fn(async () => ({
       session: {
         id: "session-new",
-        name: "New session",
+        name: "Launch session",
       },
       sessionId: "session-new",
     }));
     const loadSnapshot = vi.fn<LoadMainPageSnapshot>(loadImmediateSnapshot);
-    vi.stubGlobal("prompt", vi.fn(() => "New session"));
 
-    try {
-      renderWithQueryClient(
-        <MainPage
-          adapter={testAdapter({
-            createSession,
-            loadSnapshot,
-            runtimeKind: "http",
-            sessionId: "session-website-plan",
-            showStatePicker: false,
-          })}
-        />,
-      );
+    renderWithQueryClient(
+      <MainPage
+        adapter={testAdapter({
+          createSession,
+          loadSnapshot,
+          runtimeKind: "http",
+          sessionId: "session-website-plan",
+          showStatePicker: false,
+        })}
+      />,
+    );
 
-      await user.click(await screen.findByRole("button", { name: "New" }));
+    await user.click(await screen.findByRole("button", { name: "New" }));
+    await user.clear(screen.getByRole("textbox", { name: "Session name" }));
+    await user.type(
+      screen.getByRole("textbox", { name: "Session name" }),
+      "Launch session",
+    );
+    await user.click(screen.getByRole("button", { name: "Create session" }));
 
-      expect(createSession).toHaveBeenCalledWith({ name: "New session" });
-      await waitFor(() => {
-        expect(loadSnapshot).toHaveBeenCalledWith("s3-draft-ready", "session-new");
-      });
-    } finally {
-      vi.unstubAllGlobals();
-    }
+    expect(createSession).toHaveBeenCalledWith({ name: "Launch session" });
+    await waitFor(() => {
+      expect(loadSnapshot).toHaveBeenCalledWith("s3-draft-ready", "session-new");
+    });
   });
 
-  it("surfaces feedback for visible controls that are not wired yet", async () => {
+  it("validates and cancels the inline session create flow", async () => {
     const user = userEvent.setup();
+    const createSession = vi.fn(async () => ({
+      sessionId: "session-new",
+    }));
 
+    renderWithQueryClient(
+      <MainPage
+        adapter={testAdapter({
+          createSession,
+          loadSnapshot: loadImmediateSnapshot,
+        })}
+      />,
+    );
+
+    await user.click(await screen.findByRole("button", { name: "New" }));
+    await user.clear(screen.getByRole("textbox", { name: "Session name" }));
+    await user.click(screen.getByRole("button", { name: "Create session" }));
+
+    expect(createSession).not.toHaveBeenCalled();
+    expect(screen.getByText("Session name must not be empty.")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(
+      screen.queryByRole("form", { name: "Create session form" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("renames the active session from the inline sidebar flow", async () => {
+    const user = userEvent.setup();
+    const renameSession = vi.fn(async () => ({
+      session: {
+        id: "session-website-plan",
+        name: "Renamed session",
+      },
+    }));
+
+    renderWithQueryClient(
+      <MainPage
+        adapter={testAdapter({
+          loadSnapshot: loadImmediateSnapshot,
+          renameSession,
+        })}
+      />,
+    );
+
+    await user.click(await screen.findByRole("button", { name: "Rename" }));
+    await user.clear(screen.getByRole("textbox", { name: "Session name" }));
+    await user.type(
+      screen.getByRole("textbox", { name: "Session name" }),
+      "Renamed session",
+    );
+    await user.click(screen.getByRole("button", { name: "Rename session" }));
+
+    expect(renameSession).toHaveBeenCalledWith({
+      name: "Renamed session",
+      sessionId: "session-website-plan",
+    });
+    expect(await screen.findByText("Renamed session to Renamed session.")).toBeInTheDocument();
+  });
+
+  it("confirms session delete with product UI copy", async () => {
+    const user = userEvent.setup();
+    const deleteSession = vi.fn(async () => ({
+      deletedSessionId: "session-website-plan",
+      nextSessionId: "session-archive",
+    }));
+
+    renderWithQueryClient(
+      <MainPage
+        adapter={testAdapter({
+          deleteSession,
+          loadSnapshot: loadImmediateSnapshot,
+        })}
+      />,
+    );
+
+    await user.click(await screen.findByRole("button", { name: "Delete" }));
+    expect(
+      screen.getByText(/Plato will archive the local workspace state/),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Delete session" }));
+
+    expect(deleteSession).toHaveBeenCalledWith("session-website-plan");
+    expect(await screen.findByText("Session deleted.")).toBeInTheDocument();
+  });
+
+  it("renders Audit as a reserved route entry until the Audit Page UI exists", async () => {
     renderWithQueryClient(
       <MainPage adapter={testAdapter({ loadSnapshot: loadImmediateSnapshot })} />,
     );
 
-    await user.click(await screen.findByRole("button", { name: "View audit" }));
+    const auditButton = await screen.findByRole("button", {
+      name: "View audit",
+    });
+
+    expect(auditButton).toBeDisabled();
     expect(
-      screen.getByText("Audit view is not connected in this build yet."),
+      screen.getByText(
+        "Audit entry is reserved until the Audit Page UI is implemented.",
+      ),
     ).toBeInTheDocument();
   });
 

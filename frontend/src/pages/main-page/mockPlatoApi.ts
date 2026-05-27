@@ -21,6 +21,11 @@ import type {
   TaskTreeView,
 } from "../../shared/api/types";
 import {
+  deriveLegacyTaskNodeStatusDimensions,
+  mapLegacySessionStatusToPlanningState,
+  mapLegacyTaskTreeStatusToReadiness,
+} from "../../shared/api/statusCompatibility";
+import {
   defaultMainPageStateId,
   getMainPageState,
   mainPageStates,
@@ -75,6 +80,7 @@ export function getMainPageMockSnapshot(
   stateId: MainPageStateId,
 ): MainPageRuntimeSnapshot {
   const fixture = getMainPageState(stateId);
+  const sessionStatus = sessionStatusForFixture(fixture.id);
 
   return {
     metadata: {
@@ -87,6 +93,7 @@ export function getMainPageMockSnapshot(
       topStatusTone: fixture.topStatusTone,
     },
     snapshot: {
+      schemaVersion: "plato.main.v1",
       project: fixture.project,
       workflows: [
         {
@@ -101,9 +108,19 @@ export function getMainPageMockSnapshot(
         inputHint: "Describe the work you want Plato to plan.",
       },
       sessions: fixture.sessions.map(toSessionSummary),
-      session: toSessionSummary(fixture.session),
+      session: toSessionSummary({
+        ...fixture.session,
+        status: sessionStatus,
+      }),
+      planning: {
+        asks: [],
+        state: mapLegacySessionStatusToPlanningState(sessionStatus),
+        summary: fixture.detail.body,
+        title: fixture.detail.title,
+        validation: null,
+      },
       taskTree: fixture.taskTree
-        ? toTaskTreeView(fixture.taskTree, fixture.session.id, fixture.session.status)
+        ? toTaskTreeView(fixture.taskTree, fixture.session.id, sessionStatus)
         : null,
       messages: fixture.messages,
       pendingConfirmations: toPendingConfirmations(fixture),
@@ -115,9 +132,20 @@ export function getMainPageMockSnapshot(
         {
           label: "View audit",
           href: `/sessions/${fixture.session.id}/audit`,
-          severity: "info",
+          severity: fixture.id === "s9-file-changes" ? "warning" : "info",
         },
       ],
+      auditSummary: {
+        completeness: fixture.id === "s9-file-changes" ? "partial" : "not_started",
+        href: `/sessions/${fixture.session.id}/audit`,
+        summary:
+          fixture.id === "s9-file-changes"
+            ? "Audit has a warning for file-change validation coverage."
+            : "Audit is not available for this state yet.",
+        updatedAt: "2026-05-17T10:20:00+08:00",
+        verdict: fixture.id === "s9-file-changes" ? "warning" : "not_available",
+      },
+      permissions: permissionsForFixture(fixture.id),
       cursor: `cursor-${fixture.id}`,
       generatedAt: "2026-05-17T10:20:00+08:00",
     },
@@ -356,49 +384,114 @@ function toSessionSummary(session: (typeof mainPageStates)[number]["session"]): 
   };
 }
 
+function sessionStatusForFixture(stateId: MainPageStateId): SessionStatus {
+  switch (stateId) {
+    case "s1-empty":
+      return "new";
+    case "s2-understanding":
+      return "understanding";
+    case "s3-draft-ready":
+    case "s4-task-selected":
+    case "s5-task-editing":
+    case "s10-permission-denied":
+      return "draft_ready";
+    case "s6-running":
+    case "s11-stale-snapshot":
+    case "s12-backend-busy":
+      return "running";
+    case "s7-confirmation":
+      return "waiting_user";
+    case "s8-completed":
+    case "s9-file-changes":
+      return "completed";
+    case "s13-command-failed":
+      return "failed";
+  }
+}
+
+function permissionsForFixture(
+  stateId: MainPageStateId,
+): NonNullable<MainPageRuntimeSnapshot["snapshot"]["permissions"]> {
+  const readonly = stateId === "s10-permission-denied";
+  const stale = stateId === "s11-stale-snapshot";
+
+  return {
+    canAppendGuidance: !readonly && !stale,
+    canCreateTaskTree: stateId === "s1-empty",
+    canOpenAudit: true,
+    canOpenSettings: true,
+    canPublishTaskTree: stateId === "s3-draft-ready",
+    readonlyReason: readonly
+      ? "Current permission context is read-only."
+      : stale
+        ? "Snapshot is stale; resync before mutating."
+        : null,
+  };
+}
+
 function toTaskTreeView(
   taskTree: NonNullable<(typeof mainPageStates)[number]["taskTree"]>,
   sessionId: string,
   sessionStatus: string,
 ): TaskTreeView {
+  const status = taskTreeStatusFor(sessionStatus);
+  const nodes = taskTree.nodes.map((node, index): TaskNodeCardView => {
+    const nodeStatus = node.status as TaskNodeCardView["status"];
+    const dimensions = deriveLegacyTaskNodeStatusDimensions({
+      badges: {
+        directFileChangeCount: node.id === "task-implementation" ? 3 : 0,
+        pendingConfirmationCount: nodeStatus === "waiting_user" ? 1 : 0,
+        subtreeFileChangeCount: node.id === "task-implementation" ? 3 : 0,
+        unreadMessageCount: 0,
+      },
+      status: nodeStatus,
+    });
+
+    return {
+      id: node.id,
+      taskRef: {
+        kind: sessionStatus === "draft_ready" ? "draft" : "published",
+        id: node.id,
+      },
+      parentId: node.parentId,
+      title: node.title,
+      summary: node.summary,
+      status: nodeStatus,
+      readiness: dimensions.readiness,
+      execution: dimensions.execution,
+      confirmation: dimensions.confirmation,
+      auditVerdict: dimensions.auditVerdict,
+      depth: 0,
+      orderIndex: index,
+      badges: {
+        pendingConfirmationCount: nodeStatus === "waiting_user" ? 1 : 0,
+        unreadMessageCount: 0,
+        directFileChangeCount: node.id === "task-implementation" ? 3 : 0,
+        subtreeFileChangeCount: node.id === "task-implementation" ? 3 : 0,
+      },
+      permissions: {
+        canEdit: nodeStatus === "draft" || nodeStatus === "queued",
+        canAppendGuidance: nodeStatus === "running" || nodeStatus === "waiting_user",
+        canResolveConfirmation: nodeStatus === "waiting_user",
+        canPublish: sessionStatus === "draft_ready",
+        canCancel: nodeStatus === "draft" || nodeStatus === "queued",
+        canRetry: nodeStatus === "failed",
+      },
+      readonlyReason: nodeStatus === "done" ? "Completed tasks are read-only." : null,
+      version: 1,
+    };
+  });
+
   return {
     id: taskTree.id,
     sessionId,
     title: taskTree.title,
-    status: taskTreeStatusFor(sessionStatus),
-    nodes: taskTree.nodes.map((node, index): TaskNodeCardView => {
-      const status = node.status as TaskNodeCardView["status"];
-
-      return {
-        id: node.id,
-        taskRef: {
-          kind: sessionStatus === "draft_ready" ? "draft" : "published",
-          id: node.id,
-        },
-        parentId: node.parentId,
-        title: node.title,
-        summary: node.summary,
-        status,
-        depth: 0,
-        orderIndex: index,
-        badges: {
-          pendingConfirmationCount: status === "waiting_user" ? 1 : 0,
-          unreadMessageCount: 0,
-          directFileChangeCount: node.id === "task-implementation" ? 3 : 0,
-          subtreeFileChangeCount: node.id === "task-implementation" ? 3 : 0,
-        },
-        permissions: {
-          canEdit: status === "draft" || status === "queued",
-          canAppendGuidance: status === "running" || status === "waiting_user",
-          canResolveConfirmation: status === "waiting_user",
-          canPublish: sessionStatus === "draft_ready",
-          canCancel: status === "draft" || status === "queued",
-          canRetry: status === "failed",
-        },
-        version: 1,
-      };
-    }),
+    status,
+    readiness: mapLegacyTaskTreeStatusToReadiness(status),
+    executionRollup: executionRollupForNodes(nodes),
+    nodes,
     version: 1,
+    generatedAt: "2026-05-17T10:20:00+08:00",
   };
 }
 
@@ -411,7 +504,46 @@ function taskTreeStatusFor(sessionStatus: string): TaskTreeStatus {
     return "running";
   }
 
+  if (sessionStatus === "failed") {
+    return "failed";
+  }
+
   return "draft";
+}
+
+function executionRollupForNodes(
+  nodes: TaskNodeCardView[],
+): NonNullable<TaskTreeView["executionRollup"]> {
+  return nodes.reduce(
+    (rollup, node) => {
+      const execution = node.execution ?? "unknown";
+
+      return {
+        ...rollup,
+        blockedByConfirmation:
+          rollup.blockedByConfirmation + (node.confirmation === "pending" ? 1 : 0),
+        cancelled: rollup.cancelled + (execution === "cancelled" ? 1 : 0),
+        done: rollup.done + (execution === "done" ? 1 : 0),
+        failed: rollup.failed + (execution === "failed" ? 1 : 0),
+        notStarted: rollup.notStarted + (execution === "not_started" ? 1 : 0),
+        pending: rollup.pending + (execution === "pending" ? 1 : 0),
+        running: rollup.running + (execution === "running" ? 1 : 0),
+        total: rollup.total + 1,
+        unknown: rollup.unknown + (execution === "unknown" ? 1 : 0),
+      };
+    },
+    {
+      blockedByConfirmation: 0,
+      cancelled: 0,
+      done: 0,
+      failed: 0,
+      notStarted: 0,
+      pending: 0,
+      running: 0,
+      total: 0,
+      unknown: 0,
+    },
+  );
 }
 
 function toPendingConfirmations(

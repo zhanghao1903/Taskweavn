@@ -5,7 +5,9 @@ export type TaskNodeStatus =
   | "running"
   | "waiting_user"
   | "queued"
-  | "draft";
+  | "draft"
+  | "failed"
+  | "cancelled";
 
 export type TaskNode = {
   id: TaskNodeId;

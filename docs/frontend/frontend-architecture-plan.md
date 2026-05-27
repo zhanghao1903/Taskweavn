@@ -1,7 +1,7 @@
 # Plato Frontend Architecture Plan
 
 > Status: P5 architecture plan
-> Last Updated: 2026-05-26
+> Last Updated: 2026-05-27
 > Scope: Plato Main Page and Audit Page frontend architecture before P6 API/mock
 > contracts and P7 vertical slice implementation.
 > Non-goals: no production UI implementation, no MainPage refactor, no Audit
@@ -65,9 +65,13 @@ Target routes:
 
 Current state:
 
-- `frontend/src/app/routes.ts` only exposes `main: "/"`.
-- `frontend/src/app/App.tsx` renders `MainPage` directly and has no route
-  switch.
+- `frontend/src/app/routes.ts` exposes typed Main, Audit, diagnostics, and
+  settings route constants/builders.
+- `frontend/src/app/App.tsx` mounts `MainPageRoute`, not `MainPage` directly.
+- `frontend/src/app/MainPageRoute.tsx` is the P7.1A route/runtime
+  compatibility wrapper for the existing `MainPage`.
+- There is still no browser route switch. Main Page remains mounted at `/` for
+  the current dev flow.
 
 P5/P6 target:
 
@@ -78,6 +82,35 @@ P5/P6 target:
 - Preserve Audit return context through query/state:
   `returnSessionId`, `returnTaskNodeId`, `returnFocus`, `recordId`, and
   `filter`.
+
+### 3.1 MainPageRoute Responsibility Boundary
+
+`MainPageRoute` is a route-level composition wrapper. It is intentionally thin.
+
+It owns:
+
+- resolving the `MainPageAdapter` from runtime env via
+  `createMainPageAdapterFromRuntimeEnv`;
+- allowing explicit adapter injection for tests and future route/runtime
+  providers;
+- forwarding `initialStateId` during the fixture-to-route compatibility period;
+- preserving workspace-first startup, including HTTP mode without a startup
+  session id.
+
+It does not own:
+
+- `MainPageSnapshot` query behavior;
+- command submission or command response handling;
+- event routing, reducer replacement, or resync loop behavior;
+- status presentation mapping;
+- local UI state such as selected task, detail override, pending input, or
+  confirmation errors;
+- CSS layout, visual density, or component extraction;
+- API mock happy path behavior.
+
+P7.1B should keep this boundary stable. Any logic that projects backend facts
+into visible labels, tones, or disabled states should move to selectors/mappers
+before layout/domain component extraction.
 
 ## 4. Feature And Module Structure
 
@@ -548,11 +581,25 @@ Visual acceptance for P7:
 - Move status presentation mapping into one selector module.
 - Do not redesign UI in this slice.
 
+P7.1A status: `MainPageRoute` now wraps the current `MainPage` while preserving
+fixture and HTTP adapter behavior.
+
+P7.1B decision: centralize status presentation mapping before P7.2 component
+extraction. Extracting layout/domain components first would spread the current
+flat status compatibility logic across more files and make the later canonical
+status migration more expensive.
+
 ### P7.2 Main Page Component Extraction
 
 - Extract layout/domain components only when each extracted unit has tests.
 - Replace flat status reads with separated dimension selectors.
 - Keep CSS/token changes scoped.
+
+P7.2 decision update: further Main Page work should follow
+`docs/frontend/main-page-refactor-rewrite-plan.md`. Do not continue mechanical
+component extraction when it preserves bad boundaries. The next implementation
+step should extract a `useMainPageController` runtime boundary, then introduce a
+typed `MainPageViewModel`, then recompose the workbench layout.
 
 ### P7.3 Audit Page Mock Vertical Slice
 

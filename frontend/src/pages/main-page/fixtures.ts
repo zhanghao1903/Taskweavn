@@ -27,7 +27,11 @@ export type MainPageStateId =
   | "s6-running"
   | "s7-confirmation"
   | "s8-completed"
-  | "s9-file-changes";
+  | "s9-file-changes"
+  | "s10-permission-denied"
+  | "s11-stale-snapshot"
+  | "s12-backend-busy"
+  | "s13-command-failed";
 
 export type MainPageFixture = {
   id: MainPageStateId;
@@ -120,6 +124,13 @@ const runningTaskTree: TaskTree = {
 const completedTaskTree: TaskTree = {
   ...baseTaskTree,
   nodes: baseTaskTree.nodes.map((node) => ({ ...node, status: "done" })),
+};
+
+const failedTaskTree: TaskTree = {
+  ...baseTaskTree,
+  nodes: baseTaskTree.nodes.map((node) =>
+    node.id === "task-implementation" ? { ...node, status: "failed" } : node,
+  ),
 };
 
 const baseMessages: SessionMessage[] = [
@@ -416,6 +427,136 @@ export const mainPageStates: MainPageFixture[] = [
     },
     result,
     fileChangeSummary,
+  }),
+  state({
+    id: "s10-permission-denied",
+    label: "S10 Permission Denied",
+    topStatus: "Read-only",
+    topStatusTone: "danger",
+    taskTree: baseTaskTree,
+    selectedTaskNodeId: "task-visual-direction",
+    messages: [
+      ...baseMessages,
+      {
+        id: "message-permission-denied",
+        sessionId: sessions[0].id,
+        taskNodeId: "task-visual-direction",
+        kind: "error",
+        title: "Permission boundary",
+        body: "This task is read-only in the current context. Edit and publish actions are disabled.",
+        createdAt: "2026-05-17T10:18:00+08:00",
+      },
+    ],
+    detail: {
+      mode: "task",
+      eyebrow: "Permission",
+      title: "Editing is unavailable",
+      body: "The selected TaskNode can be inspected, but mutation actions are disabled by the current permission state.",
+    },
+    inputScope: {
+      label: "Scope: read-only task",
+      placeholder: "Input disabled until permission changes.",
+    },
+    result: null,
+    fileChangeSummary: null,
+  }),
+  state({
+    id: "s11-stale-snapshot",
+    label: "S11 Stale Snapshot",
+    topStatus: "Stale",
+    topStatusTone: "warning",
+    taskTree: runningTaskTree,
+    selectedTaskNodeId: "task-implementation",
+    messages: [
+      ...baseMessages,
+      {
+        id: "message-stale",
+        sessionId: sessions[0].id,
+        taskNodeId: "task-implementation",
+        kind: "error",
+        title: "Snapshot needs resync",
+        body: "The backend reported that visible task data changed after this snapshot was generated.",
+        createdAt: "2026-05-17T10:19:00+08:00",
+      },
+    ],
+    detail: {
+      mode: "session",
+      eyebrow: "Resync required",
+      title: "Refresh before continuing",
+      body: "High-risk actions stay disabled until Plato reloads the latest session snapshot.",
+      actionLabel: "Resync",
+    },
+    inputScope: {
+      label: "Scope: stale session",
+      placeholder: "Input disabled while waiting for resync.",
+    },
+    result: null,
+    fileChangeSummary: null,
+  }),
+  state({
+    id: "s12-backend-busy",
+    label: "S12 Backend Busy",
+    topStatus: "Backend busy",
+    topStatusTone: "warning",
+    taskTree: runningTaskTree,
+    selectedTaskNodeId: "task-implementation",
+    messages: [
+      ...baseMessages,
+      {
+        id: "message-backend-busy",
+        sessionId: sessions[0].id,
+        taskNodeId: "task-implementation",
+        kind: "informational",
+        title: "Command accepted",
+        body: "The command was accepted, but backend processing is delayed. Duplicate submit is disabled.",
+        createdAt: "2026-05-17T10:20:00+08:00",
+      },
+    ],
+    detail: {
+      mode: "task",
+      eyebrow: "Pending command",
+      title: "Waiting for backend",
+      body: "Plato is keeping the current TaskTree visible while waiting for command completion or the next event.",
+    },
+    inputScope: {
+      label: "Scope: running task / Initial implementation",
+      placeholder: "Command is pending; duplicate submit is disabled.",
+    },
+    result: null,
+    fileChangeSummary: null,
+  }),
+  state({
+    id: "s13-command-failed",
+    label: "S13 Command Failed",
+    topStatus: "Recoverable error",
+    topStatusTone: "danger",
+    taskTree: failedTaskTree,
+    selectedTaskNodeId: "task-implementation",
+    messages: [
+      ...baseMessages,
+      {
+        id: "message-command-failed",
+        sessionId: sessions[0].id,
+        taskNodeId: "task-implementation",
+        kind: "error",
+        title: "Command failed",
+        body: "The last command failed before changing the canonical task state. Retry is available.",
+        createdAt: "2026-05-17T10:21:00+08:00",
+      },
+    ],
+    detail: {
+      mode: "task",
+      eyebrow: "Recoverable error",
+      title: "Retry the failed command",
+      body: "The current TaskTree is still available. Retry or revise the task before continuing.",
+      actionLabel: "Retry",
+    },
+    inputScope: {
+      label: "Scope: failed command / Initial implementation",
+      placeholder: "Revise the instruction or retry the command.",
+    },
+    result: null,
+    fileChangeSummary: null,
   }),
 ];
 

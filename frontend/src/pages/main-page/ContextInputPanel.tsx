@@ -2,23 +2,21 @@ import { SendHorizontal } from "lucide-react";
 import type { FormEvent } from "react";
 
 import { Button, Panel, Text } from "../../shared/components";
-import type { MainPageInputScopeView } from "./mainPageUiTypes";
+import type { MainPageInputViewModel } from "./mainPageViewModel";
 import styles from "./MainPage.module.css";
 
 export type ContextInputPanelProps = {
-  disabled: boolean;
   draft: string;
   error: string | null;
-  inputScope: MainPageInputScopeView;
+  input: MainPageInputViewModel;
   onDraftChange: (draft: string) => void;
   onSubmit: () => void;
 };
 
 export function ContextInputPanel({
-  disabled,
   draft,
   error,
-  inputScope,
+  input,
   onDraftChange,
   onSubmit,
 }: ContextInputPanelProps) {
@@ -31,26 +29,24 @@ export function ContextInputPanel({
     <Panel as="form" className={styles.contextInput} onSubmit={handleSubmit}>
       <div>
         <Text as="strong" variant="label">
-          {inputScope.label}
+          {input.scope.label}
         </Text>
-        {error ? (
-          <Text variant="muted">{error}</Text>
-        ) : (
-          <Text variant="muted">{inputScope.placeholder}</Text>
-        )}
+        <Text variant="muted">
+          {error ?? input.disabledReason ?? input.scope.placeholder}
+        </Text>
       </div>
       <label className={styles.contextInputField}>
         <span>Message</span>
         <input
           aria-label="Context message"
-          disabled={disabled}
+          disabled={input.disabled}
           onChange={(event) => onDraftChange(event.currentTarget.value)}
-          placeholder={inputScope.placeholder}
+          placeholder={input.scope.placeholder}
           value={draft}
         />
       </label>
       <Button
-        disabled={!draft.trim() || disabled}
+        disabled={!draft.trim() || input.disabled}
         type="submit"
         aria-label="Send message"
         size="icon"

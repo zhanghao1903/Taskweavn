@@ -101,7 +101,7 @@ exist additively. Runtime emission and frontend handling are still future work.
 | `audit.evidence_hidden` | Mark affected evidence stale/hidden only if payload is complete; otherwise refetch detail. | Query selected record detail or evidence detail. |
 | `audit.snapshot_stale` | Enter stale/resync for the current Audit Page scope. | Query AuditPageSnapshot. |
 | `command.completed` | Mark pending command completed; wait for fact events if no affected data. | None or targeted query. |
-| `command.failed` | Mark pending command failed; show user-visible local error if command originated from current UI. | None or query affected view. |
+| `command.failed` | Mark pending command failed; show user-visible local error if command originated from current UI. Main Page replacement behavior must also query the current snapshot so legacy refetch semantics are preserved while reducer-local failure state remains visible. | Query current MainPageSnapshot by default; later replace with targeted query when event payloads include enough affected-scope data. |
 
 ## 6. Unsupported Event Handling
 

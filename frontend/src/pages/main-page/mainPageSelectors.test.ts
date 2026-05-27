@@ -9,7 +9,18 @@ import type {
 import {
   buildTaskScopedProjection,
   isTaskNodeInScope,
+  selectAuditSummaryPresentation,
+  selectAuditVerdictPresentation,
+  selectConfirmationOptionVariant,
+  selectEventConnectionStatusPresentation,
+  selectFileChangeTypePresentation,
+  selectMessageKindPresentation,
+  selectMainPagePrimaryStatusPresentation,
+  selectSessionStatusPresentation,
+  selectTaskNodeDimensionPresentation,
+  selectTaskNodeStatusPresentation,
 } from "./mainPageSelectors";
+import { getMainPageMockSnapshot } from "./mockPlatoApi";
 
 describe("main page selectors", () => {
   it("keeps the full projection when no TaskNode is selected", () => {
@@ -116,6 +127,123 @@ describe("main page selectors", () => {
     ];
 
     expect(isTaskNodeInScope("task-x", "task-a", cyclicNodes)).toBe(false);
+  });
+
+  it("centralizes session and task status badge presentation", () => {
+    expect(selectSessionStatusPresentation("waiting_user")).toEqual({
+      label: "Waiting for user",
+      tone: "warning",
+    });
+    expect(selectSessionStatusPresentation("completed")).toEqual({
+      label: "Completed",
+      tone: "success",
+    });
+    expect(selectTaskNodeStatusPresentation("waiting_user")).toEqual({
+      label: "waiting user",
+      tone: "warning",
+    });
+    expect(selectTaskNodeStatusPresentation("failed")).toEqual({
+      label: "failed",
+      tone: "danger",
+    });
+  });
+
+  it("derives TaskNode badges from canonical dimensions before flat status fallback", () => {
+    expect(
+      selectTaskNodeDimensionPresentation({
+        ...taskNode("task-waiting", null),
+        confirmation: "pending",
+        execution: "running",
+        readiness: "published",
+        status: "running",
+      }),
+    ).toEqual({
+      label: "waiting user",
+      tone: "warning",
+    });
+
+    expect(
+      selectTaskNodeDimensionPresentation({
+        ...taskNode("task-done", null),
+        confirmation: null,
+        execution: "done",
+        readiness: "published",
+        status: "waiting_user",
+      }),
+    ).toEqual({
+      label: "done",
+      tone: "success",
+    });
+
+    expect(
+      selectTaskNodeDimensionPresentation({
+        ...taskNode("task-legacy", null),
+        status: "waiting_user",
+      }),
+    ).toEqual({
+      label: "waiting user",
+      tone: "warning",
+    });
+  });
+
+  it("derives page status from canonical dimensions and permission state", () => {
+    const confirmationState = getMainPageMockSnapshot("s7-confirmation");
+    expect(
+      selectMainPagePrimaryStatusPresentation(
+        confirmationState.snapshot,
+        confirmationState.metadata,
+      ),
+    ).toEqual({
+      label: "Waiting for user",
+      tone: "warning",
+    });
+
+    const staleState = getMainPageMockSnapshot("s11-stale-snapshot");
+    expect(
+      selectMainPagePrimaryStatusPresentation(
+        staleState.snapshot,
+        staleState.metadata,
+      ),
+    ).toEqual({
+      label: "Stale",
+      tone: "warning",
+    });
+  });
+
+  it("centralizes auxiliary badge and action presentation", () => {
+    expect(selectMessageKindPresentation("actionable")).toEqual({
+      label: "actionable",
+      tone: "warning",
+    });
+    expect(selectMessageKindPresentation("error")).toEqual({
+      label: "error",
+      tone: "danger",
+    });
+    expect(selectEventConnectionStatusPresentation("resyncing")).toEqual({
+      label: "Resyncing",
+      tone: "warning",
+    });
+    expect(selectFileChangeTypePresentation("renamed")).toEqual({
+      label: "renamed",
+      tone: "blue",
+    });
+    expect(selectConfirmationOptionVariant("danger")).toBe("danger");
+    expect(selectConfirmationOptionVariant("secondary")).toBe("secondary");
+  });
+
+  it("centralizes audit verdict presentation for Main Page audit affordances", () => {
+    expect(selectAuditVerdictPresentation("not_available")).toEqual({
+      label: "Not available",
+      tone: "neutral",
+    });
+    expect(selectAuditVerdictPresentation("warning")).toEqual({
+      label: "Warning",
+      tone: "warning",
+    });
+    expect(selectAuditSummaryPresentation(null)).toEqual({
+      label: "Not available",
+      tone: "neutral",
+    });
   });
 });
 

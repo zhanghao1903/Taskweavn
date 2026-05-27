@@ -1,7 +1,16 @@
 import type {
+  AuditEntryKind,
+  AuditFilterKind,
+  AuditPageSnapshot,
+  AuditRecord,
+  AuditRecordDetail,
+  AuditRecordId,
+  AuditRecordKind,
   CommandRequest,
   CommandResponse,
   ConfirmationId,
+  EvidenceDetail,
+  EvidenceId,
   EventCursor,
   MainPageSnapshot,
   QueryResponse,
@@ -72,6 +81,48 @@ export type ResolveConfirmationPayload = {
   note?: string;
 };
 
+export type AuditSnapshotRequest = {
+  sessionId: SessionId;
+  taskNodeId?: TaskNodeId;
+  entry?: AuditEntryKind;
+  filter?: AuditFilterKind;
+  recordId?: AuditRecordId;
+  includeDetail?: boolean;
+  limit?: number;
+  cursor?: string | null;
+};
+
+export type AuditRecordsRequest = {
+  sessionId: SessionId;
+  taskNodeId?: TaskNodeId;
+  filter?: AuditFilterKind;
+  kind?: AuditRecordKind;
+  from?: string;
+  to?: string;
+  limit?: number;
+  cursor?: string | null;
+  includeHiddenReasons?: boolean;
+};
+
+export type AuditRecordsResult = {
+  records: AuditRecord[];
+  nextCursor: string | null;
+  totalCount: number | null;
+};
+
+export type AuditRecordDetailRequest = {
+  sessionId: SessionId;
+  recordId: AuditRecordId;
+  includeEvidence?: boolean;
+  includeSanitizedPayload?: boolean;
+};
+
+export type EvidenceDetailRequest = {
+  sessionId: SessionId;
+  evidenceId: EvidenceId;
+  includeSanitizedPayload?: boolean;
+};
+
 export type PlatoApi = {
   listSessions(): Promise<QueryResponse<SessionListResult>>;
   createSession(
@@ -80,6 +131,18 @@ export type PlatoApi = {
   getSessionSnapshot(
     sessionId: SessionId,
   ): Promise<QueryResponse<MainPageSnapshot>>;
+  getAuditSnapshot(
+    request: AuditSnapshotRequest,
+  ): Promise<QueryResponse<AuditPageSnapshot>>;
+  listAuditRecords(
+    request: AuditRecordsRequest,
+  ): Promise<QueryResponse<AuditRecordsResult>>;
+  getAuditRecordDetail(
+    request: AuditRecordDetailRequest,
+  ): Promise<QueryResponse<AuditRecordDetail>>;
+  getEvidenceDetail(
+    request: EvidenceDetailRequest,
+  ): Promise<QueryResponse<EvidenceDetail>>;
   renameSession(
     sessionId: SessionId,
     payload: RenameSessionPayload,
@@ -143,6 +206,10 @@ const uiEventTypes: UiEventType[] = [
   "result.updated",
   "file_changes.updated",
   "audit.summary_updated",
+  "audit.records_changed",
+  "audit.record_updated",
+  "audit.evidence_hidden",
+  "audit.snapshot_stale",
   "command.completed",
   "command.failed",
 ];
@@ -167,6 +234,60 @@ export function createHttpPlatoApi(options: HttpPlatoApiOptions): PlatoApi {
     getSessionSnapshot(sessionId) {
       return client.getJson<QueryResponse<MainPageSnapshot>>(
         `/api/v1/sessions/${segment(sessionId)}/snapshot`,
+      );
+    },
+    getAuditSnapshot(request) {
+      return client.getJson<QueryResponse<AuditPageSnapshot>>(
+        withQuery(auditBasePath(request), {
+          cursor: request.cursor ?? undefined,
+          entry: request.entry,
+          filter: request.filter,
+          includeDetail: booleanQuery(request.includeDetail),
+          limit: numberQuery(request.limit),
+          recordId: request.recordId,
+        }),
+      );
+    },
+    listAuditRecords(request) {
+      return client.getJson<QueryResponse<AuditRecordsResult>>(
+        withQuery(`${auditBasePath(request)}/records`, {
+          cursor: request.cursor ?? undefined,
+          filter: request.filter,
+          from: request.from,
+          includeHiddenReasons: booleanQuery(request.includeHiddenReasons),
+          kind: request.kind,
+          limit: numberQuery(request.limit),
+          to: request.to,
+        }),
+      );
+    },
+    getAuditRecordDetail(request) {
+      return client.getJson<QueryResponse<AuditRecordDetail>>(
+        withQuery(
+          `/api/v1/sessions/${segment(request.sessionId)}/audit/records/${segment(
+            request.recordId,
+          )}`,
+          {
+            includeEvidence: booleanQuery(request.includeEvidence),
+            includeSanitizedPayload: booleanQuery(
+              request.includeSanitizedPayload,
+            ),
+          },
+        ),
+      );
+    },
+    getEvidenceDetail(request) {
+      return client.getJson<QueryResponse<EvidenceDetail>>(
+        withQuery(
+          `/api/v1/sessions/${segment(request.sessionId)}/audit/evidence/${segment(
+            request.evidenceId,
+          )}`,
+          {
+            includeSanitizedPayload: booleanQuery(
+              request.includeSanitizedPayload,
+            ),
+          },
+        ),
       );
     },
     renameSession(sessionId, payload) {
@@ -278,6 +399,43 @@ export function createHttpPlatoApi(options: HttpPlatoApiOptions): PlatoApi {
 
 function segment(value: string): string {
   return encodeURIComponent(value);
+}
+
+function auditBasePath(request: {
+  sessionId: SessionId;
+  taskNodeId?: TaskNodeId;
+}): string {
+  if (request.taskNodeId !== undefined) {
+    return `/api/v1/sessions/${segment(request.sessionId)}/tasks/${segment(
+      request.taskNodeId,
+    )}/audit`;
+  }
+
+  return `/api/v1/sessions/${segment(request.sessionId)}/audit`;
+}
+
+function withQuery(
+  path: string,
+  query: Record<string, string | undefined>,
+): string {
+  const params = new URLSearchParams();
+
+  for (const [key, value] of Object.entries(query)) {
+    if (value !== undefined && value !== "") {
+      params.set(key, value);
+    }
+  }
+
+  const queryString = params.toString();
+  return queryString.length > 0 ? `${path}?${queryString}` : path;
+}
+
+function booleanQuery(value: boolean | undefined): string | undefined {
+  return value === undefined ? undefined : String(value);
+}
+
+function numberQuery(value: number | undefined): string | undefined {
+  return value === undefined ? undefined : String(value);
 }
 
 function createDefaultEventSource(url: string): EventSourceLike {
