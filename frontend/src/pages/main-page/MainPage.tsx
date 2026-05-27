@@ -4,11 +4,12 @@ import type {
   TaskNodeCardView,
 } from "../../shared/api/types";
 import type { BadgeTone } from "../../shared/components";
-import { Badge, Button, Panel, Text } from "../../shared/components";
+import { Button, Panel, Text } from "../../shared/components";
 import { ContextInputPanel } from "./ContextInputPanel";
 import { NO_SESSION_AVAILABLE_MESSAGE } from "./httpMainPageAdapter";
 import { MainPageDetailPanel } from "./MainPageDetailPanel";
 import { MainPageSessionSidebar } from "./MainPageSessionSidebar";
+import { MainPageTopBar } from "./MainPageTopBar";
 import { SessionMessagePanel } from "./SessionMessagePanel";
 import { TaskTreePanel } from "./TaskTreePanel";
 import {
@@ -171,19 +172,23 @@ export function MainPage({
 
   return (
     <main className={styles.page}>
-      <header className={styles.topBar}>
-        <div className={styles.brand}>柏拉图 Plato</div>
-        <div className={styles.contextStack}>
-          <span>{snapshot.project.name}</span>
-          <span>{snapshot.workflow.name}</span>
-          <span>{snapshot.session.name}</span>
-        </div>
-        <Badge tone={displayTopStatus.tone}>{displayTopStatus.label}</Badge>
-        <Badge tone={eventStatus.tone}>{eventStatus.label}</Badge>
-        {adapter.showStatePicker ? (
-          <StatePicker stateId={stateId} onStateChange={actions.changeState} />
-        ) : null}
-      </header>
+      <MainPageTopBar
+        brandLabel="柏拉图 Plato"
+        contextItems={[
+          snapshot.project.name,
+          snapshot.workflow.name,
+          snapshot.session.name,
+        ]}
+        statuses={[displayTopStatus, eventStatus]}
+        trailing={
+          adapter.showStatePicker ? (
+            <StatePicker
+              stateId={stateId}
+              onStateChange={actions.changeState}
+            />
+          ) : null
+        }
+      />
 
       <MainPageSessionSidebar
         activeSession={snapshot.session}
@@ -361,18 +366,25 @@ function MainPageStatusFrame({
 }: MainPageStatusFrameProps) {
   return (
     <main className={styles.page}>
-      <header className={styles.topBar}>
-        <div className={styles.brand}>柏拉图 Plato</div>
-        <div className={styles.contextStack}>
-          <span>Plato workspace</span>
-          <span>Snapshot boundary</span>
-          <span>Session projection</span>
-        </div>
-        <Badge tone={statusTone}>{statusLabel}</Badge>
-        {showStatePicker ? (
-          <StatePicker stateId={stateId} onStateChange={onStateChange} />
-        ) : null}
-      </header>
+      <MainPageTopBar
+        brandLabel="柏拉图 Plato"
+        contextItems={[
+          "Plato workspace",
+          "Snapshot boundary",
+          "Session projection",
+        ]}
+        statuses={[
+          {
+            label: statusLabel,
+            tone: statusTone,
+          },
+        ]}
+        trailing={
+          showStatePicker ? (
+            <StatePicker stateId={stateId} onStateChange={onStateChange} />
+          ) : null
+        }
+      />
 
       <Panel
         as="section"
