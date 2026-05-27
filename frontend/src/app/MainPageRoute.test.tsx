@@ -3,7 +3,11 @@ import { render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { getMainPageMockSnapshot } from "../pages/main-page/mockPlatoApi";
+import {
+  createMainPageMockAdapter,
+  getMainPageMockSnapshot,
+} from "../pages/main-page/mockPlatoApi";
+import type { LoadMainPageSnapshot } from "../pages/main-page/runtime/adapter";
 import { MainPageRoute } from "./MainPageRoute";
 
 describe("MainPageRoute", () => {
@@ -57,6 +61,34 @@ describe("MainPageRoute", () => {
     expect(calls).toContain(
       "https://plato.example/api/v1/sessions/session-live/snapshot",
     );
+  });
+
+  it("treats an explicit adapter as the route boundary and forwards the initial state", async () => {
+    const loadSnapshot = vi.fn<LoadMainPageSnapshot>(async (stateId) =>
+      getMainPageMockSnapshot(
+        stateId as Parameters<typeof getMainPageMockSnapshot>[0],
+      ),
+    );
+    const adapter = createMainPageMockAdapter({
+      loadSnapshot,
+      showStatePicker: false,
+    });
+
+    renderWithQueryClient(
+      <MainPageRoute
+        adapter={adapter}
+        initialStateId="s1-empty"
+        runtimeEnv={{
+          VITE_PLATO_API_BASE_URL: "https://plato.example",
+          VITE_PLATO_API_MODE: "http",
+          VITE_PLATO_SESSION_ID: "session-live",
+        }}
+      />,
+    );
+
+    expect(await screen.findByText("No TaskTree yet")).toBeInTheDocument();
+    expect(screen.queryByLabelText("State")).not.toBeInTheDocument();
+    expect(loadSnapshot).toHaveBeenCalledWith("s1-empty", null);
   });
 });
 

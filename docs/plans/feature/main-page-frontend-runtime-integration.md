@@ -2,7 +2,7 @@
 
 > Status: in_progress / checkpoint submitted
 > Type: frontend runtime / UI-backend integration
-> Last Updated: 2026-05-21
+> Last Updated: 2026-05-27
 > Parent Plan: [Main Page Real Backend Integration](main-page-real-backend-integration.md)
 > Gap: [Main Page real backend integration](../../gaps/README.md)
 > Architecture: [UI And Backend Communication](../../architecture/ui-backend-communication.md), [Task Domain/UI Model Separation](../../architecture/task-domain-ui-model-separation.md), [Authoring Domain](../../architecture/authoring-domain.md)
@@ -22,6 +22,8 @@
 | 2026-05-21 | Slice 4 — Main Page command coverage | done | Added adapter coverage for generate/update/publish commands; empty-session input now generates TaskTree; draft TaskTree can be published from Main Page. |
 | 2026-05-21 | Slice 5 — Event router and invalidation | done | Added conservative event router; all canonical events refetch by default, `message.appended` no longer creates local message cards, and resync events use a loop guard. |
 | 2026-05-21 | Slice 6 — Integration smoke and docs closure | checkpoint | Frontend tests/build/lint pass; sidecar health/snapshot pass through loopback API; runtime logging exposed real browser issues and the stage PR fixed the default `fetch` receiver bug. This still does not close the Main Page real-backend gap. |
+| 2026-05-27 | P7.1A — Main Page route/runtime compatibility wrapper | done | Added `MainPageRoute` so `App` composes runtime env into the current `MainPage` without changing visible behavior. API mock happy path is deferred. |
+| 2026-05-27 | P7.1B — Wrapper boundary and next-step decision | done | Documented `MainPageRoute` ownership boundaries and decided to centralize status presentation mapping before P7.2 component extraction. |
 
 ---
 
