@@ -1,6 +1,6 @@
 # Feature Plan: Fixed-Route Task Execution Bridge
 
-> Status: planned
+> Status: in_progress
 > Last Updated: 2026-05-28
 > Gap: [Fixed-route task execution bridge](../../gaps/README.md)
 > Architecture: [Task](../../architecture/task.md), [TaskBus](../../architecture/bus.md), [Agent](../../architecture/agent.md)
@@ -12,6 +12,16 @@
 ---
 
 ## 1. Problem / Gap
+
+Implementation has started with the Slice 1 / Slice 2 service boundary:
+
+- `FixedRouteTaskExecutor`
+- `ResidentDefaultAgent` protocol
+- one-tick execution over existing TaskBus `claim_next -> complete / fail`
+- focused unit tests using a fake resident Default Agent
+
+Sidecar/runtime wiring, Main Page projection closure, and release record remain
+follow-up work.
 
 Product 1.0 needs a complete execution loop, not a flexible routing system.
 ADR-0010 sets the default as single-task, single-agent, fixed-route flow.

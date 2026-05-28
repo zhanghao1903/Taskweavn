@@ -1,6 +1,6 @@
 # Fixed-Route Task Execution Bridge 技术设计
 
-> Status: planned
+> Status: in_progress
 > Last Updated: 2026-05-28
 > Feature Plan: [Fixed-Route Task Execution Bridge](fixed-route-task-execution-bridge.md)
 > Gap: [Fixed-route task execution bridge](../../gaps/README.md)
@@ -9,6 +9,15 @@
 ---
 
 ## 1. 背景
+
+当前实现已进入 Slice 1 / Slice 2 的服务边界：
+
+- `FixedRouteTaskExecutor`；
+- `ResidentDefaultAgent` protocol；
+- 基于现有 TaskBus `claim_next -> complete / fail` 的单次 tick；
+- 使用 fake resident Default Agent 的 focused unit tests。
+
+Sidecar/runtime 接入、Main Page projection closure 和 release record 尚未完成。
 
 ADR-0010 明确 1.0 默认是 line-first：
 
