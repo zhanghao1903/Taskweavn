@@ -36,3 +36,4 @@ Each ADR should include:
 | [ADR-0007](ADR-0007-centralized-runtime-configuration.md) | accepted | Use centralized hierarchical runtime configuration with immutable snapshots and hot-update events. |
 | [ADR-0008](ADR-0008-authoring-domain-execution-boundary.md) | accepted | Separate Authoring Domain objects from Execution TaskBus; only published Tasks enter TaskBus. |
 | [ADR-0009](ADR-0009-single-active-session-worktree.md) | accepted | Use one active RawTask, draft tree, and work-tree projection per Session for the MVP product model. |
+| [ADR-0010](ADR-0010-line-first-authoring-experience-for-1-0.md) | accepted | Keep tree-capable architecture but adopt line-first authoring experience defaults for 1.0. |
