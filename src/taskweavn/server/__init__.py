@@ -19,6 +19,13 @@ from taskweavn.server.transport import (
     HttpApiRequest,
     HttpApiResponse,
 )
+from taskweavn.server.ui_command_idempotency import (
+    InMemoryUiCommandResponseIdempotencyStore,
+    SqliteUiCommandResponseIdempotencyStore,
+    UiCommandResponseIdempotencyRecord,
+    UiCommandResponseIdempotencyStore,
+    UiCommandResponseIdempotencyStoreError,
+)
 from taskweavn.server.ui_events import (
     ResyncOnlyEventSource,
     StaticUiEventSource,
@@ -33,6 +40,7 @@ __all__ = [
     "ApiPublishHttpTransport",
     "HttpApiRequest",
     "HttpApiResponse",
+    "InMemoryUiCommandResponseIdempotencyStore",
     "LocalSidecarConfig",
     "LocalSidecarServer",
     "DEFAULT_PLATO_SIDECAR_PORT",
@@ -46,8 +54,12 @@ __all__ = [
     "PlatoUiHttpTransport",
     "ResyncOnlyEventSource",
     "SidecarAuth",
+    "SqliteUiCommandResponseIdempotencyStore",
     "StaticUiEventSource",
     "UiEventSource",
+    "UiCommandResponseIdempotencyRecord",
+    "UiCommandResponseIdempotencyStore",
+    "UiCommandResponseIdempotencyStoreError",
     "build_main_page_sidecar_app",
     "sse_frame",
     "sse_stream",

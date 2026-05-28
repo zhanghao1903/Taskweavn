@@ -54,7 +54,7 @@ class AppendTaskInputPayload(UiContractModel):
 
 
 class PublishTaskTreePayload(UiContractModel):
-    task_tree_id: str = Field(min_length=1)
+    task_tree_id: str | None = Field(default=None, min_length=1)
     start_immediately: bool = True
 
 

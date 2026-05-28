@@ -24,6 +24,7 @@ from taskweavn.server.ui_contract.envelopes import (
     RefreshHint,
 )
 from taskweavn.server.ui_contract.errors import (
+    bad_request,
     command_rejected,
     internal_error,
     not_found,
@@ -51,6 +52,7 @@ from taskweavn.task.commands import CommandResult as CoreCommandResult
 from taskweavn.task.commands import TaskCommandService, TaskGuidanceMode
 from taskweavn.task.models import TaskNodePatch, TaskRef
 from taskweavn.task.projection import TaskProjectionService
+from taskweavn.task.stores import AuthoringStateStore
 from taskweavn.task.views import (
     ConfirmationActionView as CoreConfirmationActionView,
 )
@@ -188,6 +190,7 @@ class DefaultUiQueryGateway:
         workflow_provider: WorkflowProvider | None = None,
         audit_link_provider: AuditLinkProvider | None = None,
         session_message_provider: SessionMessageProvider | None = None,
+        authoring_state_store: AuthoringStateStore | None = None,
     ) -> None:
         self._session_reader = session_reader
         self._task_projection = task_projection
@@ -195,6 +198,7 @@ class DefaultUiQueryGateway:
         self._workflow_provider = workflow_provider or StaticWorkflowProvider()
         self._audit_link_provider = audit_link_provider
         self._session_message_provider = session_message_provider
+        self._authoring_state_store = authoring_state_store
 
     def get_session_snapshot(
         self,
@@ -214,7 +218,10 @@ class DefaultUiQueryGateway:
                 )
 
             source_tree = self._task_projection.list_task_tree(session.id)
-            task_tree = _map_optional_task_tree(source_tree)
+            task_tree = _map_optional_task_tree(
+                source_tree,
+                authoring_state_store=self._authoring_state_store,
+            )
             messages = _merge_messages(
                 _messages_from_tree(source_tree),
                 self._session_messages(session.id),
@@ -296,10 +303,12 @@ class DefaultUiCommandGateway:
         collaborator: CollaboratorApiAdapter,
         task_commands: TaskCommandService,
         task_ref_resolver: TaskRefResolver,
+        authoring_state_store: AuthoringStateStore | None = None,
     ) -> None:
         self._collaborator = collaborator
         self._task_commands = task_commands
         self._task_ref_resolver = task_ref_resolver
+        self._authoring_state_store = authoring_state_store
 
     def append_session_input(
         self,
@@ -309,6 +318,7 @@ class DefaultUiCommandGateway:
             result = self._collaborator.append_session_message(
                 session_id=request.session_id,
                 content=request.payload.content,
+                idempotency_key=request.idempotency_key,
             )
             return _command_response(
                 request,
@@ -343,17 +353,26 @@ class DefaultUiCommandGateway:
                 result = self._collaborator.generate_task_tree(
                     session_id=request.session_id,
                     raw_task_id=request.payload.raw_task_id,
+                    idempotency_key=request.idempotency_key,
                 )
             else:
                 raw_result = self._collaborator.append_session_message(
                     session_id=request.session_id,
                     content=request.payload.prompt or "",
                     source_message_id=request.command_id,
+                    idempotency_key=_child_idempotency_key(
+                        request.idempotency_key,
+                        "raw",
+                    ),
                 )
                 if raw_result.accepted:
                     tree_result = self._collaborator.generate_task_tree(
                         session_id=request.session_id,
                         raw_task_id=None,
+                        idempotency_key=_child_idempotency_key(
+                            request.idempotency_key,
+                            "tree",
+                        ),
                     )
                     result = _merge_prompt_task_tree_results(
                         raw_result,
@@ -439,14 +458,20 @@ class DefaultUiCommandGateway:
         request: CommandRequest[PublishTaskTreePayload],
     ) -> CommandResponse:
         try:
-            tree_ref = ObjectRef(kind="draft_tree", id=request.payload.task_tree_id)
+            draft_tree_id = self._resolve_publish_draft_tree_id(request)
+            tree_ref = ObjectRef(kind="draft_tree", id=draft_tree_id)
             result = self._collaborator.publish_task_tree(
                 session_id=request.session_id,
-                draft_tree_id=request.payload.task_tree_id,
+                draft_tree_id=draft_tree_id,
                 expected_version=request.expected_version,
                 idempotency_key=request.idempotency_key,
                 start_immediately=request.payload.start_immediately,
             )
+            if result.accepted and self._authoring_state_store is not None:
+                self._authoring_state_store.mark_published(
+                    request.session_id,
+                    draft_tree_id,
+                )
             return _command_response(
                 request,
                 result,
@@ -464,6 +489,8 @@ class DefaultUiCommandGateway:
                     AffectedScope(kind="task_tree"),
                 ),
             )
+        except _TaskTreeIdentityError as exc:
+            return _command_bad_request_response(request, str(exc), **exc.details)
         except Exception as exc:
             return _command_exception_response(request, exc)
 
@@ -512,11 +539,89 @@ class DefaultUiCommandGateway:
     def _resolve_task_ref(self, session_id: str, task_node_id: str) -> TaskRef:
         return self._task_ref_resolver.resolve(session_id, task_node_id)
 
+    def _resolve_publish_draft_tree_id(
+        self,
+        request: CommandRequest[PublishTaskTreePayload],
+    ) -> str:
+        provided = request.payload.task_tree_id
+        if self._authoring_state_store is None:
+            if provided is None:
+                raise _TaskTreeIdentityError(
+                    "publish requires a draft tree id when active authoring state is unavailable",
+                    reason="missing_task_tree_identity",
+                    session_id=request.session_id,
+                )
+            if provided == _synthetic_task_tree_id(request.session_id):
+                raise _TaskTreeIdentityError(
+                    "synthetic task tree id cannot be published without active authoring state",
+                    reason="synthetic_task_tree_identity_unresolved",
+                    session_id=request.session_id,
+                    provided_task_tree_id=provided,
+                )
+            return provided
 
-def _map_optional_task_tree(source: CoreTaskTreeView) -> TaskTreeView | None:
+        active = self._authoring_state_store.get_active(request.session_id)
+        active_id = active.active_draft_tree_id
+        if (
+            active.active_state == "published"
+            and active_id is not None
+            and request.idempotency_key is not None
+            and provided in {None, active_id, _synthetic_task_tree_id(request.session_id)}
+        ):
+            return active_id
+        if active.active_state != "draft_tree" or active_id is None:
+            raise _TaskTreeIdentityError(
+                "publish requires an active draft tree",
+                reason="no_active_draft_tree",
+                session_id=request.session_id,
+                active_state=active.active_state,
+            )
+
+        if provided in {None, active_id, _synthetic_task_tree_id(request.session_id)}:
+            return active_id
+
+        raise _TaskTreeIdentityError(
+            "publish draft tree identity does not match the active draft tree",
+            reason="invalid_task_tree_identity",
+            session_id=request.session_id,
+            provided_task_tree_id=provided,
+            active_draft_tree_id=active_id,
+        )
+
+
+def _child_idempotency_key(idempotency_key: str | None, suffix: str) -> str | None:
+    if idempotency_key is None:
+        return None
+    return f"{idempotency_key}:{suffix}"
+
+
+class _TaskTreeIdentityError(ValueError):
+    def __init__(self, message: str, **details: object) -> None:
+        super().__init__(message)
+        self.details = details
+
+
+def _map_optional_task_tree(
+    source: CoreTaskTreeView,
+    *,
+    authoring_state_store: AuthoringStateStore | None = None,
+) -> TaskTreeView | None:
     if not source.nodes:
         return None
-    return map_task_tree_view(source)
+    tree_id = None
+    if authoring_state_store is not None and _is_draft_tree(source):
+        active = authoring_state_store.get_active(source.session_id)
+        if active.active_state == "draft_tree" and active.active_draft_tree_id is not None:
+            tree_id = active.active_draft_tree_id
+    return map_task_tree_view(source, tree_id=tree_id)
+
+
+def _is_draft_tree(source: CoreTaskTreeView) -> bool:
+    return all(node.task_ref.kind == "draft" for node in source.nodes)
+
+
+def _synthetic_task_tree_id(session_id: str) -> str:
+    return f"session:{session_id}:task-tree"
 
 
 def _messages_from_tree(source: CoreTaskTreeView) -> tuple[SessionMessageView, ...]:
@@ -688,6 +793,20 @@ def _command_not_found_response[T](
         ok=False,
         result=None,
         error=not_found(message),
+        refresh=RefreshHint(wait_for_events=False),
+    )
+
+
+def _command_bad_request_response[T](
+    request: CommandRequest[T],
+    message: str,
+    **details: object,
+) -> CommandResponse:
+    return CommandResponse(
+        request_id=request.command_id,
+        ok=False,
+        result=None,
+        error=bad_request(message, **details),
         refresh=RefreshHint(wait_for_events=False),
     )
 

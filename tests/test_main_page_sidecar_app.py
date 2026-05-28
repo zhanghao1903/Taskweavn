@@ -214,6 +214,180 @@ def test_main_page_sidecar_app_generates_task_tree_from_prompt(tmp_path: Any) ->
     assert snapshot.json["data"]["taskTree"]["nodes"][0]["taskRef"]["kind"] == "draft"
 
 
+def test_main_page_sidecar_app_recovers_draft_tree_after_restart_and_publishes(
+    tmp_path: Any,
+) -> None:
+    app = build_main_page_sidecar_app(
+        MainPageSidecarConfig(workspace_root=tmp_path, port=0),
+        MainPageSidecarDependencies(
+            llm=_StubLLM(
+                [
+                    """
+                    {
+                      "intent_summary": "Build a quiet website",
+                      "feasibility": {
+                        "status": "ready",
+                        "confidence": 0.95,
+                        "suggested_next_action": "generate_task_tree"
+                      },
+                      "constraints": ["quiet visual style"]
+                    }
+                    """,
+                    """
+                    {
+                      "assistant_message": "Drafted the first TaskTree.",
+                      "roots": [
+                        {
+                          "title": "Plan structure",
+                          "intent": "Plan the website structure.",
+                          "required_capability": "general"
+                        }
+                      ]
+                    }
+                    """,
+                ]
+            )
+        ),
+    )
+    try:
+        session_id = _create_session(app)
+        generate = _request(
+            app,
+            "POST",
+            f"/api/v1/sessions/{session_id}/task-tree/generate",
+            body={
+                "commandId": "generate-restart",
+                "sessionId": session_id,
+                "idempotencyKey": "generate-restart-key",
+                "payload": {"prompt": "Build a quiet personal website."},
+            },
+        )
+        first_snapshot = _request(app, "GET", f"/api/v1/sessions/{session_id}/snapshot")
+        assert app.authoring_state_store is not None
+        active_before_restart = app.authoring_state_store.get_active(session_id)
+    finally:
+        app.close()
+
+    replay_llm = _StubLLM(
+        [
+            """
+            {
+              "intent_summary": "Build a different quiet website",
+              "feasibility": {
+                "status": "ready",
+                "confidence": 0.95,
+                "suggested_next_action": "generate_task_tree"
+              }
+            }
+            """,
+            """
+            {
+              "assistant_message": "Drafted a different TaskTree.",
+              "roots": [
+                {
+                  "title": "Different plan",
+                  "intent": "This should be replayed away.",
+                  "required_capability": "general"
+                }
+              ]
+            }
+            """,
+        ]
+    )
+    restarted = build_main_page_sidecar_app(
+        MainPageSidecarConfig(workspace_root=tmp_path, port=0),
+        MainPageSidecarDependencies(llm=replay_llm),
+    )
+    try:
+        duplicate_generate = _request(
+            restarted,
+            "POST",
+            f"/api/v1/sessions/{session_id}/task-tree/generate",
+            body={
+                "commandId": "generate-restart",
+                "sessionId": session_id,
+                "idempotencyKey": "generate-restart-key",
+                "payload": {"prompt": "Build a quiet personal website."},
+            },
+        )
+        recovered_snapshot = _request(
+            restarted,
+            "GET",
+            f"/api/v1/sessions/{session_id}/snapshot",
+        )
+        publish = _request(
+            restarted,
+            "POST",
+            f"/api/v1/sessions/{session_id}/task-tree/publish",
+            body={
+                "commandId": "publish-recovered",
+                "sessionId": session_id,
+                "idempotencyKey": "publish-recovered-key",
+                "payload": {"startImmediately": False},
+            },
+        )
+        assert restarted.authoring_state_store is not None
+        active_after_publish = restarted.authoring_state_store.get_active(session_id)
+        published_tasks = restarted.task_bus.list_for_session(session_id)
+    finally:
+        restarted.close()
+
+    replayed = build_main_page_sidecar_app(
+        MainPageSidecarConfig(workspace_root=tmp_path, port=0),
+        MainPageSidecarDependencies(llm=_StubLLM()),
+    )
+    try:
+        duplicate_publish = _request(
+            replayed,
+            "POST",
+            f"/api/v1/sessions/{session_id}/task-tree/publish",
+            body={
+                "commandId": "publish-recovered",
+                "sessionId": session_id,
+                "idempotencyKey": "publish-recovered-key",
+                "payload": {"startImmediately": False},
+            },
+        )
+        replayed_tasks = replayed.task_bus.list_for_session(session_id)
+    finally:
+        replayed.close()
+
+    assert generate.status == 200
+    assert generate.json["ok"] is True
+    assert active_before_restart.active_state == "draft_tree"
+    assert active_before_restart.active_draft_tree_id is not None
+    assert WorkspaceLayout(tmp_path).workspace_authoring_db.is_file()
+    assert first_snapshot.json["data"]["taskTree"]["id"] == (
+        active_before_restart.active_draft_tree_id
+    )
+    assert recovered_snapshot.status == 200
+    assert recovered_snapshot.json["ok"] is True
+    assert recovered_snapshot.json["data"]["taskTree"]["id"] == (
+        active_before_restart.active_draft_tree_id
+    )
+    assert duplicate_generate.status == 200
+    assert duplicate_generate.json["ok"] is True
+    assert duplicate_generate.json == generate.json
+    assert replay_llm.calls == 0
+    assert recovered_snapshot.json["data"]["taskTree"]["nodes"][0]["title"] == (
+        "Plan structure"
+    )
+    assert publish.status == 200
+    assert publish.json["ok"] is True
+    assert {"kind": "draft_tree", "id": active_before_restart.active_draft_tree_id} in (
+        publish.json["result"]["objectRefs"]
+    )
+    assert publish.json["result"]["publishedTaskIds"]
+    assert active_after_publish.active_state == "published"
+    assert len(published_tasks) == 1
+    assert duplicate_publish.status == 200
+    assert duplicate_publish.json["ok"] is True
+    assert duplicate_publish.json["result"]["publishedTaskIds"] == (
+        publish.json["result"]["publishedTaskIds"]
+    )
+    assert len(replayed_tasks) == 1
+
+
 def test_main_page_sidecar_app_writes_frontend_error_log_file(tmp_path: Any) -> None:
     app = build_main_page_sidecar_app(
         MainPageSidecarConfig(workspace_root=tmp_path, port=0),
@@ -287,6 +461,7 @@ class _HttpResult:
 class _StubLLM:
     def __init__(self, responses: list[str] | None = None) -> None:
         self._responses = list(responses or [])
+        self.calls = 0
 
     def chat(
         self,
@@ -295,6 +470,7 @@ class _StubLLM:
         *,
         metadata: dict[str, Any] | None = None,
     ) -> _LLMResponse:
+        self.calls += 1
         if self._responses:
             return _LLMResponse(self._responses.pop(0))
         return _LLMResponse(

@@ -8,6 +8,7 @@ from typing import Any
 
 from taskweavn.server import (
     HttpApiRequest,
+    InMemoryUiCommandResponseIdempotencyStore,
     PlatoUiHttpTransport,
     SidecarAuth,
     StaticUiEventSource,
@@ -195,6 +196,88 @@ def test_command_route_rejects_invalid_body_with_validation_details() -> None:
     assert response.status_code == 400
     assert body["error"]["code"] == "bad_request"
     assert body["error"]["details"]["errors"]
+
+
+def test_command_route_replays_idempotent_response_before_gateway_dispatch() -> None:
+    commands = _CommandGateway()
+    transport = _transport(
+        commands=commands,
+        command_idempotency_store=InMemoryUiCommandResponseIdempotencyStore(),
+    )
+
+    first = transport.handle(
+        HttpApiRequest(
+            method="POST",
+            path="/api/v1/sessions/session%201/task-tree/generate",
+            body=_command_body(
+                "session 1",
+                {"prompt": "Build a site"},
+                command_id="command-1",
+                idempotency_key="idem-1",
+            ),
+        )
+    )
+    replay = transport.handle(
+        HttpApiRequest(
+            method="POST",
+            path="/api/v1/sessions/session%201/task-tree/generate",
+            body=_command_body(
+                "session 1",
+                {"prompt": "Build a site"},
+                command_id="command-2",
+                idempotency_key="idem-1",
+            ),
+        )
+    )
+
+    assert first.status_code == 200
+    assert replay.status_code == 200
+    assert _dict_body(replay.body) == _dict_body(first.body)
+    assert commands.calls == ["generate_task_tree"]
+
+
+def test_command_route_rejects_idempotency_key_reused_for_different_payload() -> None:
+    commands = _CommandGateway()
+    transport = _transport(
+        commands=commands,
+        command_idempotency_store=InMemoryUiCommandResponseIdempotencyStore(),
+    )
+
+    first = transport.handle(
+        HttpApiRequest(
+            method="POST",
+            path="/api/v1/sessions/session%201/task-tree/generate",
+            body=_command_body(
+                "session 1",
+                {"prompt": "Build a site"},
+                command_id="command-1",
+                idempotency_key="idem-1",
+            ),
+        )
+    )
+    conflict = transport.handle(
+        HttpApiRequest(
+            method="POST",
+            path="/api/v1/sessions/session%201/task-tree/generate",
+            body=_command_body(
+                "session 1",
+                {"prompt": "Build another site"},
+                command_id="command-2",
+                idempotency_key="idem-1",
+            ),
+        )
+    )
+    body = _dict_body(conflict.body)
+
+    assert first.status_code == 200
+    assert conflict.status_code == 409
+    assert body["requestId"] == "command-2"
+    assert body["error"]["code"] == "idempotency_conflict"
+    assert body["error"]["details"] == {
+        "idempotency_key": "idem-1",
+        "route": "generate_task_tree",
+    }
+    assert commands.calls == ["generate_task_tree"]
 
 
 def test_method_mismatch_and_unknown_route_return_transport_errors() -> None:
@@ -432,6 +515,7 @@ def _transport(
     auth: SidecarAuth | None = None,
     client_error_log_sink: _ClientErrorSink | None = None,
     session_lifecycle_gateway: _SessionLifecycleGateway | None = None,
+    command_idempotency_store: InMemoryUiCommandResponseIdempotencyStore | None = None,
 ) -> PlatoUiHttpTransport:
     return PlatoUiHttpTransport(
         query_gateway=query or _QueryGateway(),
@@ -440,6 +524,7 @@ def _transport(
         auth=auth,
         client_error_log_sink=client_error_log_sink,
         session_lifecycle_gateway=session_lifecycle_gateway,
+        command_idempotency_store=command_idempotency_store,
     )
 
 
@@ -455,12 +540,21 @@ def _accepted(command_id: str) -> CommandResponse:
     )
 
 
-def _command_body(session_id: str, payload: dict[str, object]) -> dict[str, object]:
-    return {
-        "commandId": "command-1",
+def _command_body(
+    session_id: str,
+    payload: dict[str, object],
+    *,
+    command_id: str = "command-1",
+    idempotency_key: str | None = None,
+) -> dict[str, object]:
+    body: dict[str, object] = {
+        "commandId": command_id,
         "sessionId": session_id,
         "payload": payload,
     }
+    if idempotency_key is not None:
+        body["idempotencyKey"] = idempotency_key
+    return body
 
 
 def _dict_body(body: dict[str, Any] | str) -> dict[str, Any]:
