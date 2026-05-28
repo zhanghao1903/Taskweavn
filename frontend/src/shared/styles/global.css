@@ -12,7 +12,7 @@ body,
 
 body {
   margin: 0;
-  background: var(--plato-color-classic-cream);
+  background: var(--plato-color-project-bg);
   color: var(--plato-color-ink);
   font-family: var(--plato-font-sans);
   letter-spacing: 0;

@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
@@ -546,7 +546,7 @@ describe("App", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("renames the active session from the inline sidebar flow", async () => {
+  it("renames the active session by double-clicking it in the sidebar", async () => {
     const user = userEvent.setup();
     const renameSession = vi.fn(async () => ({
       session: {
@@ -564,7 +564,9 @@ describe("App", () => {
       />,
     );
 
-    await user.click(await screen.findByRole("button", { name: "Rename" }));
+    await user.dblClick(
+      await screen.findByRole("button", { name: "Personal website plan" }),
+    );
     await user.clear(screen.getByRole("textbox", { name: "Session name" }));
     await user.type(
       screen.getByRole("textbox", { name: "Session name" }),
@@ -579,7 +581,7 @@ describe("App", () => {
     expect(await screen.findByText("Renamed session to Renamed session.")).toBeInTheDocument();
   });
 
-  it("confirms session delete with product UI copy", async () => {
+  it("confirms session delete from the sidebar context menu", async () => {
     const user = userEvent.setup();
     const deleteSession = vi.fn(async () => ({
       deletedSessionId: "session-website-plan",
@@ -595,7 +597,10 @@ describe("App", () => {
       />,
     );
 
-    await user.click(await screen.findByRole("button", { name: "Delete" }));
+    fireEvent.contextMenu(
+      await screen.findByRole("button", { name: "Personal website plan" }),
+    );
+    await user.click(screen.getByRole("menuitem", { name: "Delete session" }));
     expect(
       screen.getByText(/Plato will archive the local workspace state/),
     ).toBeInTheDocument();

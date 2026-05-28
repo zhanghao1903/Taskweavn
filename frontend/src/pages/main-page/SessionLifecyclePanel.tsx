@@ -39,37 +39,44 @@ export function SessionLifecyclePanel({
 
   if (dialog.mode === "delete") {
     return (
-      <section
-        aria-label="Delete session confirmation"
-        className={styles.sessionLifecyclePanel}
+      <div
+        aria-label="Delete session"
+        aria-modal="true"
+        className={styles.sessionLifecycleOverlay}
+        role="dialog"
       >
-        <Text as="h3" variant="subheading">
-          Delete session?
-        </Text>
-        <Text variant="muted">
-          Delete session "{dialog.session.name}"? Plato will archive the local
-          workspace state and move to the next available session.
-        </Text>
-        {dialog.error ? <Text variant="muted">{dialog.error}</Text> : null}
-        <div className={styles.sessionLifecycleActions}>
-          <Button
-            disabled={isPending}
-            onClick={onSubmit}
-            size="sm"
-            variant="danger"
-          >
-            {isPending ? "Deleting" : "Delete session"}
-          </Button>
-          <Button
-            disabled={isPending}
-            onClick={onCancel}
-            size="sm"
-            variant="ghost"
-          >
-            Cancel
-          </Button>
-        </div>
-      </section>
+        <section
+          aria-label="Delete session confirmation"
+          className={styles.sessionLifecyclePanel}
+        >
+          <Text as="h3" variant="subheading">
+            Delete session?
+          </Text>
+          <Text variant="muted">
+            Delete session "{dialog.session.name}"? Plato will archive the local
+            workspace state and move to the next available session.
+          </Text>
+          {dialog.error ? <Text variant="muted">{dialog.error}</Text> : null}
+          <div className={styles.sessionLifecycleActions}>
+            <Button
+              disabled={isPending}
+              onClick={onSubmit}
+              size="sm"
+              variant="danger"
+            >
+              {isPending ? "Deleting" : "Delete session"}
+            </Button>
+            <Button
+              disabled={isPending}
+              onClick={onCancel}
+              size="sm"
+              variant="ghost"
+            >
+              Cancel
+            </Button>
+          </div>
+        </section>
+      </div>
     );
   }
 
@@ -84,32 +91,44 @@ export function SessionLifecyclePanel({
         : "Rename session";
 
   return (
-    <form
-      aria-label={`${title} form`}
-      className={styles.sessionLifecyclePanel}
-      onSubmit={handleSubmit}
+    <div
+      aria-label={title}
+      aria-modal="true"
+      className={styles.sessionLifecycleOverlay}
+      role="dialog"
     >
-      <Text as="h3" variant="subheading">
-        {title}
-      </Text>
-      <label className={styles.sessionLifecycleField}>
-        <span>Session name</span>
-        <input
-          aria-label="Session name"
-          disabled={isPending}
-          onChange={(event) => onChangeDraft(event.currentTarget.value)}
-          value={dialog.draftName}
-        />
-      </label>
-      {dialog.error ? <Text variant="muted">{dialog.error}</Text> : null}
-      <div className={styles.sessionLifecycleActions}>
-        <Button disabled={isPending} size="sm" type="submit">
-          {submitLabel}
-        </Button>
-        <Button disabled={isPending} onClick={onCancel} size="sm" variant="ghost">
-          Cancel
-        </Button>
-      </div>
-    </form>
+      <form
+        aria-label={`${title} form`}
+        className={styles.sessionLifecyclePanel}
+        onSubmit={handleSubmit}
+      >
+        <Text as="h3" variant="subheading">
+          {title}
+        </Text>
+        <label className={styles.sessionLifecycleField}>
+          <span>Session name</span>
+          <input
+            aria-label="Session name"
+            disabled={isPending}
+            onChange={(event) => onChangeDraft(event.currentTarget.value)}
+            value={dialog.draftName}
+          />
+        </label>
+        {dialog.error ? <Text variant="muted">{dialog.error}</Text> : null}
+        <div className={styles.sessionLifecycleActions}>
+          <Button disabled={isPending} size="sm" type="submit">
+            {submitLabel}
+          </Button>
+          <Button
+            disabled={isPending}
+            onClick={onCancel}
+            size="sm"
+            variant="ghost"
+          >
+            Cancel
+          </Button>
+        </div>
+      </form>
+    </div>
   );
 }
