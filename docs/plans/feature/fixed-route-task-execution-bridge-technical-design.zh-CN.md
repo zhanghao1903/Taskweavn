@@ -16,8 +16,11 @@
 - `ResidentDefaultAgent` protocol；
 - 基于现有 TaskBus `claim_next -> complete / fail` 的单次 tick；
 - 使用 fake resident Default Agent 的 focused unit tests。
+- `MainPageSidecarApp.run_fixed_route_tick(...)` runtime assembly seam；
+- 覆盖 publish -> tick -> projected `done` 的 sidecar smoke tests。
 
-Sidecar/runtime 接入、Main Page projection closure 和 release record 尚未完成。
+后台循环 / HTTP control route、真实 AgentLoop adapter、更完整的 Main Page
+projection closure 和 release record 尚未完成。
 
 ADR-0010 明确 1.0 默认是 line-first：
 

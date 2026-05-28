@@ -19,9 +19,11 @@ Implementation has started with the Slice 1 / Slice 2 service boundary:
 - `ResidentDefaultAgent` protocol
 - one-tick execution over existing TaskBus `claim_next -> complete / fail`
 - focused unit tests using a fake resident Default Agent
+- `MainPageSidecarApp.run_fixed_route_tick(...)` runtime assembly seam
+- sidecar smoke tests covering publish -> tick -> projected `done`
 
-Sidecar/runtime wiring, Main Page projection closure, and release record remain
-follow-up work.
+Background loop / HTTP control route, real AgentLoop adapter, broader Main Page
+projection closure, and release record remain follow-up work.
 
 Product 1.0 needs a complete execution loop, not a flexible routing system.
 ADR-0010 sets the default as single-task, single-agent, fixed-route flow.

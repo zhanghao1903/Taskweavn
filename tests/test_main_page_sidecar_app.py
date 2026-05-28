@@ -17,7 +17,14 @@ from taskweavn.server import (
     MainPageTaskRefResolver,
     build_main_page_sidecar_app,
 )
-from taskweavn.task import DraftTaskNode, InMemoryDraftTaskStore, SqliteTaskBus, TaskRef
+from taskweavn.task import (
+    DraftTaskNode,
+    InMemoryDraftTaskStore,
+    SqliteTaskBus,
+    TaskDomain,
+    TaskRef,
+    TaskRunResult,
+)
 
 
 def test_main_page_sidecar_config_uses_stable_dev_port_by_default(
@@ -388,6 +395,130 @@ def test_main_page_sidecar_app_recovers_draft_tree_after_restart_and_publishes(
     assert len(replayed_tasks) == 1
 
 
+def test_main_page_sidecar_app_runs_fixed_route_tick_after_publish(
+    tmp_path: Any,
+) -> None:
+    app = build_main_page_sidecar_app(
+        MainPageSidecarConfig(workspace_root=tmp_path, port=0),
+        MainPageSidecarDependencies(
+            llm=_StubLLM(
+                [
+                    """
+                    {
+                      "intent_summary": "Build a quiet website",
+                      "feasibility": {
+                        "status": "ready",
+                        "confidence": 0.95,
+                        "suggested_next_action": "generate_task_tree"
+                      }
+                    }
+                    """,
+                    """
+                    {
+                      "assistant_message": "Drafted the first TaskTree.",
+                      "roots": [
+                        {
+                          "title": "Plan structure",
+                          "intent": "Plan the website structure.",
+                          "required_capability": "general"
+                        }
+                      ]
+                    }
+                    """,
+                ]
+            ),
+            default_agent=_FakeDefaultAgent(TaskRunResult(result_ref="result:plan")),
+        ),
+    )
+    try:
+        session_id = _create_session(app)
+        generate = _request(
+            app,
+            "POST",
+            f"/api/v1/sessions/{session_id}/task-tree/generate",
+            body={
+                "commandId": "generate-executable",
+                "sessionId": session_id,
+                "payload": {"prompt": "Build a quiet personal website."},
+            },
+        )
+        publish = _request(
+            app,
+            "POST",
+            f"/api/v1/sessions/{session_id}/task-tree/publish",
+            body={
+                "commandId": "publish-executable",
+                "sessionId": session_id,
+                "payload": {"startImmediately": False},
+            },
+        )
+        pending_tasks = app.task_bus.list_for_session(session_id)
+        tick = app.run_fixed_route_tick(session_id)
+        done_tasks = app.task_bus.list_for_session(session_id)
+        snapshot = _request(app, "GET", f"/api/v1/sessions/{session_id}/snapshot")
+    finally:
+        app.close()
+
+    assert generate.status == 200
+    assert publish.status == 200
+    assert [task.status for task in pending_tasks] == ["pending"]
+    assert tick.status == "completed"
+    assert tick.completed_task_id == pending_tasks[0].task_id
+    assert tick.result_ref == "result:plan"
+    assert done_tasks[0].status == "done"
+    assert done_tasks[0].claimed_by == "default_agent"
+    assert done_tasks[0].result_ref == "result:plan"
+    assert snapshot.json["data"]["taskTree"]["nodes"][0]["status"] == "done"
+
+
+def test_main_page_sidecar_app_fixed_route_tick_failure_path(tmp_path: Any) -> None:
+    app = build_main_page_sidecar_app(
+        MainPageSidecarConfig(workspace_root=tmp_path, port=0),
+        MainPageSidecarDependencies(
+            llm=_StubLLM(),
+            default_agent=_FakeDefaultAgent(TaskRunResult(error_ref="agent:error")),
+        ),
+    )
+    try:
+        session_id = _create_session(app)
+        app.task_bus.publish(_published_task("failing-task", session_id=session_id))
+
+        tick = app.run_fixed_route_tick(session_id)
+        task = app.task_bus.get(session_id, "failing-task")
+    finally:
+        app.close()
+
+    assert tick.status == "failed"
+    assert tick.failed_task_id == "failing-task"
+    assert tick.error_ref == "agent:error"
+    assert task is not None
+    assert task.status == "failed"
+    assert task.error_ref == "agent:error"
+
+
+def test_main_page_sidecar_app_fixed_route_tick_reports_missing_default_agent(
+    tmp_path: Any,
+) -> None:
+    app = build_main_page_sidecar_app(
+        MainPageSidecarConfig(workspace_root=tmp_path, port=0),
+        MainPageSidecarDependencies(llm=_StubLLM()),
+    )
+    try:
+        session_id = _create_session(app)
+        app.task_bus.publish(_published_task("waiting-task", session_id=session_id))
+
+        tick = app.run_fixed_route_tick(session_id)
+        task = app.task_bus.get(session_id, "waiting-task")
+    finally:
+        app.close()
+
+    assert tick.status == "health_error"
+    assert tick.error_ref == "default_agent_unavailable"
+    assert task is not None
+    assert task.status == "pending"
+    assert task.claimed_by is None
+
+
 def test_main_page_sidecar_app_writes_frontend_error_log_file(tmp_path: Any) -> None:
     app = build_main_page_sidecar_app(
         MainPageSidecarConfig(workspace_root=tmp_path, port=0),
@@ -488,6 +619,18 @@ class _StubLLM:
         )
 
 
+@dataclass
+class _FakeDefaultAgent:
+    result: TaskRunResult
+    seen: list[str] | None = None
+
+    def run(self, task: TaskDomain) -> TaskRunResult:
+        if self.seen is None:
+            self.seen = []
+        self.seen.append(task.task_id)
+        return self.result
+
+
 @dataclass(frozen=True)
 class _LLMResponse:
     content: str
@@ -517,3 +660,14 @@ def _request(
 def _create_session(app: Any, name: str = "Demo session") -> str:
     response = _request(app, "POST", "/api/v1/sessions", body={"name": name})
     return cast(str, response.json["data"]["sessionId"])
+
+
+def _published_task(task_id: str, *, session_id: str) -> TaskDomain:
+    return TaskDomain(
+        task_id=task_id,
+        session_id=session_id,
+        root_id=task_id,
+        intent=f"Run {task_id}",
+        required_capability="general",
+        created_by="test",
+    )

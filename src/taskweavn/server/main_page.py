@@ -25,6 +25,7 @@ from taskweavn.server.ui_contract import (
 from taskweavn.server.ui_events import ResyncOnlyEventSource, UiEventSource
 from taskweavn.server.ui_http import PlatoUiHttpTransport, SidecarAuth
 from taskweavn.task import (
+    DEFAULT_FIXED_ROUTE_AGENT_ID,
     AuthoringCommandIdempotencyStore,
     AuthoringStateStore,
     CapabilityCatalog,
@@ -37,16 +38,20 @@ from taskweavn.task import (
     DefaultTaskProjectionService,
     DefaultTaskPublisher,
     DraftTaskStore,
+    FixedRouteTaskExecutor,
+    FixedRouteTaskExecutorConfig,
     InMemoryCollaboratorTemplateRegistry,
     InMemoryDraftTaskStore,
     InMemoryRawTaskStore,
     RawTaskStore,
+    ResidentDefaultAgent,
     SqliteAuthoringCommandIdempotencyStore,
     SqliteAuthoringStateStore,
     SqliteDraftTaskStore,
     SqliteRawTaskStore,
     SqliteTaskBus,
     StaticCapabilityCatalog,
+    TaskExecutionTickResult,
     TaskRef,
 )
 
@@ -77,6 +82,7 @@ class MainPageSidecarDependencies:
     authoring_state_store: AuthoringStateStore | None = None
     authoring_idempotency_store: AuthoringCommandIdempotencyStore | None = None
     ui_command_idempotency_store: UiCommandResponseIdempotencyStore | None = None
+    default_agent: ResidentDefaultAgent | None = None
 
 
 @dataclass
@@ -94,6 +100,7 @@ class MainPageSidecarApp:
     authoring_state_store: AuthoringStateStore | None
     authoring_idempotency_store: AuthoringCommandIdempotencyStore | None
     ui_command_idempotency_store: UiCommandResponseIdempotencyStore | None
+    default_agent: ResidentDefaultAgent | None
     query_gateway: DefaultUiQueryGateway
     command_gateway: DefaultUiCommandGateway
     transport: PlatoUiHttpTransport
@@ -110,6 +117,22 @@ class MainPageSidecarApp:
 
     def serve_forever(self) -> None:
         self.server.serve_forever()
+
+    def run_fixed_route_tick(
+        self,
+        session_id: str,
+        *,
+        default_agent_id: str = DEFAULT_FIXED_ROUTE_AGENT_ID,
+    ) -> TaskExecutionTickResult:
+        executor = FixedRouteTaskExecutor(
+            task_bus=self.task_bus,
+            default_agent=self.default_agent,
+            config=FixedRouteTaskExecutorConfig(
+                session_id=session_id,
+                default_agent_id=default_agent_id,
+            ),
+        )
+        return executor.tick()
 
     def close(self) -> None:
         if self._server_thread is not None:
@@ -259,6 +282,7 @@ def build_main_page_sidecar_app(
         authoring_state_store=authoring_state_store,
         authoring_idempotency_store=authoring_idempotency_store,
         ui_command_idempotency_store=ui_command_idempotency_store,
+        default_agent=dependencies.default_agent,
         query_gateway=query_gateway,
         command_gateway=command_gateway,
         transport=transport,
