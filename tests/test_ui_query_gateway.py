@@ -13,6 +13,7 @@ from taskweavn.server.ui_contract import (
     UiQueryGateway,
 )
 from taskweavn.task import (
+    ActiveAuthoringState,
     ConfirmationActionView,
     ConfirmationOptionView,
     SessionMessageView,
@@ -84,6 +85,28 @@ class _SessionMessageProvider:
         return messages
 
 
+class _AuthoringStateStore:
+    def __init__(self, state: ActiveAuthoringState) -> None:
+        self._state = state
+
+    def get_active(self, session_id: str) -> ActiveAuthoringState:
+        return self._state
+
+    def set_active_raw_task(self, session_id: str, raw_task_id: str) -> None:
+        raise NotImplementedError
+
+    def set_active_draft_tree(
+        self,
+        session_id: str,
+        raw_task_id: str | None,
+        draft_tree_id: str,
+    ) -> None:
+        raise NotImplementedError
+
+    def mark_published(self, session_id: str, draft_tree_id: str) -> None:
+        raise NotImplementedError
+
+
 def _session(session_id: str = "session-1", *, status: str = "active") -> Session:
     return Session(
         id=session_id,
@@ -110,6 +133,17 @@ def _card(
         status="pending",
         latest_message=message,
         confirmation=confirmation,
+    )
+
+
+def _draft_card(task_id: str = "draft-1") -> TaskCardView:
+    ref = TaskRef.draft(task_id)
+    return TaskCardView(
+        task_ref=ref,
+        root_ref=ref,
+        title="Draft website plan",
+        intent_preview="Draft a personal website",
+        status="draft",
     )
 
 
@@ -223,6 +257,30 @@ def test_get_session_snapshot_includes_session_level_messages_without_task_tree(
     assert response.data.messages[0].title == "User message"
     assert response.data.messages[0].body == "Build a quiet personal website."
     assert response.data.session.status == "understanding"
+
+
+def test_get_session_snapshot_uses_active_draft_tree_id_for_draft_task_tree() -> None:
+    tree = TaskTreeView(session_id="session-1", nodes=(_draft_card(),))
+    state_store = _AuthoringStateStore(
+        ActiveAuthoringState(
+            session_id="session-1",
+            active_raw_task_id="raw-1",
+            active_draft_tree_id="tree-active",
+            active_state="draft_tree",
+        )
+    )
+    gateway = DefaultUiQueryGateway(
+        session_reader=_SessionReader([_session()]),
+        task_projection=_Projection(tree),
+        authoring_state_store=state_store,
+    )
+
+    response = gateway.get_session_snapshot("session-1")
+
+    assert response.ok is True
+    assert response.data is not None
+    assert response.data.task_tree is not None
+    assert response.data.task_tree.id == "tree-active"
 
 
 def test_query_gateway_converts_unexpected_errors_to_internal_error() -> None:

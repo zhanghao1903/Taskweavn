@@ -7,6 +7,7 @@ from datetime import datetime
 
 from taskweavn.interaction import AgentMessage
 from taskweavn.task import (
+    ActiveAuthoringState,
     DefaultTaskProjectionService,
     DraftTaskNode,
     DraftTaskTree,
@@ -140,6 +141,28 @@ class _DraftStore:
         expected_version: int | None = None,
     ) -> DraftTaskTree:
         return self.get_tree(session_id, draft_tree_id)
+
+
+class _AuthoringStateStore:
+    def __init__(self, state: ActiveAuthoringState) -> None:
+        self._state = state
+
+    def get_active(self, session_id: str) -> ActiveAuthoringState:
+        return self._state
+
+    def set_active_raw_task(self, session_id: str, raw_task_id: str) -> None:
+        raise NotImplementedError
+
+    def set_active_draft_tree(
+        self,
+        session_id: str,
+        raw_task_id: str | None,
+        draft_tree_id: str,
+    ) -> None:
+        raise NotImplementedError
+
+    def mark_published(self, session_id: str, draft_tree_id: str) -> None:
+        raise NotImplementedError
 
 
 class _MessageStream:
@@ -322,6 +345,72 @@ def test_draft_tree_projection_uses_editable_draft_cards() -> None:
     assert tree.nodes[0].task_ref == TaskRef.draft("draft-1")
     assert tree.nodes[0].permissions.can_edit is True
     assert tree.nodes[0].permissions.can_publish is True
+
+
+def test_draft_projection_uses_only_active_draft_tree_when_state_store_is_configured() -> None:
+    draft_a = DraftTaskNode(
+        draft_task_id="draft-a",
+        session_id="s1",
+        draft_tree_id="tree-a",
+        title="Inactive draft",
+        intent="Old plan",
+        required_capability="planning",
+    )
+    draft_b = DraftTaskNode(
+        draft_task_id="draft-b",
+        session_id="s1",
+        draft_tree_id="tree-b",
+        title="Active draft",
+        intent="Current plan",
+        required_capability="planning",
+    )
+    draft_store = _DraftStore(
+        [
+            DraftTaskTree(draft_tree_id="tree-a", session_id="s1", root_nodes=(draft_a,)),
+            DraftTaskTree(draft_tree_id="tree-b", session_id="s1", root_nodes=(draft_b,)),
+        ]
+    )
+    state_store = _AuthoringStateStore(
+        ActiveAuthoringState(
+            session_id="s1",
+            active_raw_task_id="raw-1",
+            active_draft_tree_id="tree-b",
+            active_state="draft_tree",
+        )
+    )
+    service = DefaultTaskProjectionService(
+        task_store=_TaskStore([]),
+        draft_store=draft_store,
+        authoring_state_store=state_store,
+    )
+
+    tree = service.list_task_tree("s1", include_published=False)
+
+    assert [node.task_ref.id for node in tree.nodes] == ["draft-b"]
+
+
+def test_draft_projection_hides_drafts_without_active_draft_tree() -> None:
+    draft = DraftTaskNode(
+        draft_task_id="draft-a",
+        session_id="s1",
+        draft_tree_id="tree-a",
+        title="Inactive draft",
+        intent="Old plan",
+        required_capability="planning",
+    )
+    draft_store = _DraftStore(
+        [DraftTaskTree(draft_tree_id="tree-a", session_id="s1", root_nodes=(draft,))]
+    )
+    state_store = _AuthoringStateStore(ActiveAuthoringState(session_id="s1"))
+    service = DefaultTaskProjectionService(
+        task_store=_TaskStore([]),
+        draft_store=draft_store,
+        authoring_state_store=state_store,
+    )
+
+    tree = service.list_task_tree("s1", include_published=False)
+
+    assert tree.nodes == ()
 
 
 def test_published_permissions_follow_status() -> None:

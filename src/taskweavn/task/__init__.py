@@ -64,6 +64,11 @@ from taskweavn.task.authoring_context import (
     AuthoringContextBuilder,
     DefaultAuthoringContextBuilder,
 )
+from taskweavn.task.authoring_idempotency import (
+    AuthoringCommandIdempotencyRecord,
+    AuthoringCommandIdempotencyStore,
+    InMemoryAuthoringCommandIdempotencyStore,
+)
 from taskweavn.task.authoring_service import (
     AuthoringCommandService,
     DefaultAuthoringCommandService,
@@ -176,6 +181,13 @@ from taskweavn.task.scheduler import (
     SessionSelector,
     SessionSelectorMode,
 )
+from taskweavn.task.sqlite_authoring import (
+    AuthoringStoreError,
+    SqliteAuthoringCommandIdempotencyStore,
+    SqliteAuthoringStateStore,
+    SqliteDraftTaskStore,
+    SqliteRawTaskStore,
+)
 from taskweavn.task.sqlite_bus import SqliteTaskBus
 from taskweavn.task.sqlite_publish import (
     PublishStoreError,
@@ -185,6 +197,9 @@ from taskweavn.task.sqlite_publish import (
     build_sqlite_publish_service,
 )
 from taskweavn.task.stores import (
+    ActiveAuthoringState,
+    AuthoringActiveState,
+    AuthoringStateStore,
     DraftTaskStore,
     InMemoryDraftTaskStore,
     InMemoryRawTaskStore,
@@ -233,9 +248,13 @@ __all__ = [
     "ApiRateLimitDecision",
     "ApiRateLimiter",
     "ApiTaskPublisher",
+    "ActiveAuthoringState",
+    "AuthoringActiveState",
     "AuthoringCommand",
     "AuthoringCommandBatch",
     "AuthoringCommandError",
+    "AuthoringCommandIdempotencyRecord",
+    "AuthoringCommandIdempotencyStore",
     "AuthoringCommandMode",
     "AuthoringCommandResult",
     "AuthoringCommandService",
@@ -246,6 +265,8 @@ __all__ = [
     "AuthoringMessageEffect",
     "AuthoringMessageEffectType",
     "AuthoringMode",
+    "AuthoringStateStore",
+    "AuthoringStoreError",
     "CapabilityDescriptor",
     "CapabilityLevel",
     "CapabilityCatalog",
@@ -294,6 +315,7 @@ __all__ = [
     "FileChangeType",
     "FailurePolicy",
     "InMemoryCollaboratorTemplateRegistry",
+    "InMemoryAuthoringCommandIdempotencyStore",
     "InMemoryDraftTaskStore",
     "InMemoryPublishIdempotencyStore",
     "InMemoryRawTaskStore",
@@ -350,6 +372,10 @@ __all__ = [
     "SessionSelector",
     "SessionSelectorMode",
     "SqlitePublishIdempotencyStore",
+    "SqliteAuthoringCommandIdempotencyStore",
+    "SqliteAuthoringStateStore",
+    "SqliteDraftTaskStore",
+    "SqliteRawTaskStore",
     "SqliteScheduledPublishStore",
     "SqliteTaskPublishAuditSink",
     "SqliteTaskBus",

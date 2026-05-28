@@ -67,6 +67,16 @@ class WorkspaceLayout:
         return self.meta_dir / "tasks.sqlite"
 
     @property
+    def workspace_authoring_db(self) -> Path:
+        """Workspace-scoped authoring store for RawTask and DraftTaskTree facts."""
+        return self.meta_dir / "authoring.sqlite"
+
+    @property
+    def workspace_ui_commands_db(self) -> Path:
+        """Workspace-scoped UI command response idempotency store."""
+        return self.meta_dir / "ui_commands.sqlite"
+
+    @property
     def shared_dir(self) -> Path:
         return self.root / "shared"
 

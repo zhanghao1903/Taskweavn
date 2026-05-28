@@ -179,6 +179,7 @@ class CollaboratorAuthoringService(Protocol):
         session_id: str,
         source_message_id: str,
         user_input: str,
+        idempotency_key: str | None = None,
     ) -> AuthoringCommandResult: ...
 
     def generate_task_tree(
@@ -186,6 +187,7 @@ class CollaboratorAuthoringService(Protocol):
         *,
         session_id: str,
         raw_task_id: str | None = None,
+        idempotency_key: str | None = None,
     ) -> AuthoringCommandResult: ...
 
     def refine_task_node(
@@ -219,6 +221,7 @@ class DefaultCollaboratorAuthoringService:
         session_id: str,
         source_message_id: str,
         user_input: str,
+        idempotency_key: str | None = None,
     ) -> AuthoringCommandResult:
         context = self._context_builder.build_session_context(session_id)
         response = self._chat(
@@ -263,12 +266,14 @@ class DefaultCollaboratorAuthoringService:
             command = MutateRawTaskCommand(
                 session_id=session_id,
                 actor=self._actor,
+                idempotency_key=idempotency_key,
                 operations=tuple(operations),
             )
             return self._command_service.submit(
                 AuthoringCommandBatch(
                     session_id=session_id,
                     actor=self._actor,
+                    idempotency_key=idempotency_key,
                     commands=(command,),
                 )
             )
@@ -280,6 +285,7 @@ class DefaultCollaboratorAuthoringService:
         *,
         session_id: str,
         raw_task_id: str | None = None,
+        idempotency_key: str | None = None,
     ) -> AuthoringCommandResult:
         context = self._context_builder.build_session_context(
             session_id,
@@ -300,6 +306,7 @@ class DefaultCollaboratorAuthoringService:
                 session_id=session_id,
                 raw_task_id=context.raw_task_id,
                 actor=self._actor,
+                idempotency_key=idempotency_key,
                 operations=(
                     DraftTaskTreeOperation(
                         op="create_tree",
@@ -311,6 +318,7 @@ class DefaultCollaboratorAuthoringService:
                 AuthoringCommandBatch(
                     session_id=session_id,
                     actor=self._actor,
+                    idempotency_key=idempotency_key,
                     commands=(command,),
                 )
             )
