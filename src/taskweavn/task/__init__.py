@@ -176,6 +176,11 @@ from taskweavn.task.scheduler import (
     SessionSelector,
     SessionSelectorMode,
 )
+from taskweavn.task.sqlite_authoring import (
+    AuthoringStoreError,
+    SqliteDraftTaskStore,
+    SqliteRawTaskStore,
+)
 from taskweavn.task.sqlite_bus import SqliteTaskBus
 from taskweavn.task.sqlite_publish import (
     PublishStoreError,
@@ -246,6 +251,7 @@ __all__ = [
     "AuthoringMessageEffect",
     "AuthoringMessageEffectType",
     "AuthoringMode",
+    "AuthoringStoreError",
     "CapabilityDescriptor",
     "CapabilityLevel",
     "CapabilityCatalog",
@@ -350,6 +356,8 @@ __all__ = [
     "SessionSelector",
     "SessionSelectorMode",
     "SqlitePublishIdempotencyStore",
+    "SqliteDraftTaskStore",
+    "SqliteRawTaskStore",
     "SqliteScheduledPublishStore",
     "SqliteTaskPublishAuditSink",
     "SqliteTaskBus",
