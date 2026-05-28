@@ -26,6 +26,7 @@ also do not replace architecture facts or project scheduling.
 | [plato-design-philosophy-style-guide.md](plato-design-philosophy-style-guide.md) | Design philosophy, visual principles, interaction tone, color direction, typography, and UI style guardrails for Plato. |
 | [plato-mvp-implementation-plan.md](plato-mvp-implementation-plan.md) | MVP implementation workflow from PRD to UX flow, Figma UI baseline, frontend technical design, API contract, backend integration, and user testing. |
 | [plato-mvp-prd.md](plato-mvp-prd.md) | MVP product requirements: user, scope, main flows, requirements, non-goals, success criteria, and PRD-to-UX handoff. |
+| [plato-1-0-line-first-authoring-policy.md](plato-1-0-line-first-authoring-policy.md) | Plato 1.0 policy baseline: line-first authoring UX, single-task/single-agent defaults, and complexity-hiding rules. |
 | [plato-1-1-product-plan.md](plato-1-1-product-plan.md) | Product 1.1 planning baseline: items moved out of 1.0, plus skills, MCP, file, and multimodal research themes. |
 | [plato-main-page-ux-flow.md](plato-main-page-ux-flow.md) | Main Page UX flow spec: key screen states, task interactions, confirmation flow, result/file/audit visibility, and Figma input. |
 | [plato-figma-ui-baseline.md](plato-figma-ui-baseline.md) | Historical/reference Figma UI baseline 1.0 record: target file, screen list, visual direction, sample data, and implementation handoff notes. |
