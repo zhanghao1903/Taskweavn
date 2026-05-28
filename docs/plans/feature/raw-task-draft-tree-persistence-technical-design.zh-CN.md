@@ -217,27 +217,37 @@ CREATE INDEX IF NOT EXISTS idx_draft_mapping_task
 - audit / timeline 可以从 published task 追溯 draft task；
 - retry/follow-up 策略后续可以复用 lineage。
 
-### 3.7 `authoring_idempotency_records`
+### 3.7 `authoring_command_idempotency_records`
 
-建议后续 P8.5 再实现。
+P8.5 实现，用于保存 authoring command 层的最终 `AuthoringCommandResult`。
+同一个 `(session_id, idempotency_key)` 以第一次写入的结果为准，后续重试
+直接 replay，不再重复写 RawTask、DraftTaskTree 或 publish side effects。
 
 ```sql
-CREATE TABLE IF NOT EXISTS authoring_idempotency_records (
+CREATE TABLE IF NOT EXISTS authoring_command_idempotency_records (
     session_id TEXT NOT NULL,
-    command_scope TEXT NOT NULL,
     idempotency_key TEXT NOT NULL,
-    command_hash TEXT NOT NULL,
+    request_hash TEXT NOT NULL,
     result_json TEXT NOT NULL,
     created_at TEXT NOT NULL,
-    PRIMARY KEY (session_id, command_scope, idempotency_key)
+    PRIMARY KEY (session_id, idempotency_key)
 );
+
+CREATE INDEX IF NOT EXISTS idx_authoring_command_idempotency_session_created
+    ON authoring_command_idempotency_records(session_id, created_at, idempotency_key);
 ```
 
-暂缓原因：
+设计决策：
 
-- 当前首要问题是 restart recovery；
-- version check 和 active-state uniqueness 足够支撑第一版；
-- durable command idempotency 应在更广泛 HTTP retry/write path 暴露前实现。
+- `idempotency_key` 是语义权威；第一次结果胜出。
+- `request_hash` 作为诊断/后续强化字段保留，但 P8.5 不把 hash mismatch
+  转成 conflict。原因是 `generate_task_tree` 的结构化 command payload 可能受
+  LLM retry 输出影响，如果同 key 不 replay 而改成 conflict，会避免重复写入但
+  不能给 UI 稳定结果。
+- HTTP/UI gateway 负责把 generate/publish 的 idempotency key 传入 authoring
+  command batch；prompt-to-generate 会拆成 `:raw` 和 `:tree` 两个子 key。
+- publish 在 active state 已经是 `published` 时，如果请求携带同一个
+  idempotency key，允许解析到上次 active draft tree 并 replay cached result。
 
 ---
 
@@ -494,6 +504,10 @@ PRAGMA busy_timeout=5000;
 6. Implement `SqliteAuthoringStateStore`.
 7. Add active-state tests.
 8. Only after store foundation is stable, update projection/gateway.
+9. Implement `SqliteAuthoringCommandIdempotencyStore`.
+10. Propagate UI generate/publish idempotency keys through the collaborator
+    adapter into authoring command batches.
+11. Add restart duplicate generate/publish smoke coverage.
 
 ---
 
@@ -503,8 +517,9 @@ PRAGMA busy_timeout=5000;
    Current recommendation: not required for P8.1.
 2. Should archived RawTasks/DraftTaskTrees be queryable through API?
    Current recommendation: no, trace/debug only.
-3. Should authoring command idempotency be implemented before gateway publish
-   identity fixes?
-   Current recommendation: no; solve restart recovery and active tree first.
+3. Should authoring command idempotency use conflict behavior for hash mismatch?
+   Current recommendation: no for P8.5. Same-key replay is safer for generate
+   retries because LLM proposal variance can change the command payload before
+   the deterministic command service sees it.
 4. Should `authoring.sqlite` share a transaction with `tasks.sqlite` during publish?
    Current recommendation: no for MVP; use explicit lineage and recovery tests.

@@ -258,6 +258,7 @@ def test_main_page_sidecar_app_recovers_draft_tree_after_restart_and_publishes(
             body={
                 "commandId": "generate-restart",
                 "sessionId": session_id,
+                "idempotencyKey": "generate-restart-key",
                 "payload": {"prompt": "Build a quiet personal website."},
             },
         )
@@ -269,9 +270,47 @@ def test_main_page_sidecar_app_recovers_draft_tree_after_restart_and_publishes(
 
     restarted = build_main_page_sidecar_app(
         MainPageSidecarConfig(workspace_root=tmp_path, port=0),
-        MainPageSidecarDependencies(llm=_StubLLM()),
+        MainPageSidecarDependencies(
+            llm=_StubLLM(
+                [
+                    """
+                    {
+                      "intent_summary": "Build a different quiet website",
+                      "feasibility": {
+                        "status": "ready",
+                        "confidence": 0.95,
+                        "suggested_next_action": "generate_task_tree"
+                      }
+                    }
+                    """,
+                    """
+                    {
+                      "assistant_message": "Drafted a different TaskTree.",
+                      "roots": [
+                        {
+                          "title": "Different plan",
+                          "intent": "This should be replayed away.",
+                          "required_capability": "general"
+                        }
+                      ]
+                    }
+                    """,
+                ]
+            )
+        ),
     )
     try:
+        duplicate_generate = _request(
+            restarted,
+            "POST",
+            f"/api/v1/sessions/{session_id}/task-tree/generate",
+            body={
+                "commandId": "generate-restart",
+                "sessionId": session_id,
+                "idempotencyKey": "generate-restart-key",
+                "payload": {"prompt": "Build a quiet personal website."},
+            },
+        )
         recovered_snapshot = _request(
             restarted,
             "GET",
@@ -284,6 +323,7 @@ def test_main_page_sidecar_app_recovers_draft_tree_after_restart_and_publishes(
             body={
                 "commandId": "publish-recovered",
                 "sessionId": session_id,
+                "idempotencyKey": "publish-recovered-key",
                 "payload": {"startImmediately": False},
             },
         )
@@ -292,6 +332,26 @@ def test_main_page_sidecar_app_recovers_draft_tree_after_restart_and_publishes(
         published_tasks = restarted.task_bus.list_for_session(session_id)
     finally:
         restarted.close()
+
+    replayed = build_main_page_sidecar_app(
+        MainPageSidecarConfig(workspace_root=tmp_path, port=0),
+        MainPageSidecarDependencies(llm=_StubLLM()),
+    )
+    try:
+        duplicate_publish = _request(
+            replayed,
+            "POST",
+            f"/api/v1/sessions/{session_id}/task-tree/publish",
+            body={
+                "commandId": "publish-recovered",
+                "sessionId": session_id,
+                "idempotencyKey": "publish-recovered-key",
+                "payload": {"startImmediately": False},
+            },
+        )
+        replayed_tasks = replayed.task_bus.list_for_session(session_id)
+    finally:
+        replayed.close()
 
     assert generate.status == 200
     assert generate.json["ok"] is True
@@ -306,6 +366,8 @@ def test_main_page_sidecar_app_recovers_draft_tree_after_restart_and_publishes(
     assert recovered_snapshot.json["data"]["taskTree"]["id"] == (
         active_before_restart.active_draft_tree_id
     )
+    assert duplicate_generate.status == 200
+    assert duplicate_generate.json["ok"] is True
     assert recovered_snapshot.json["data"]["taskTree"]["nodes"][0]["title"] == (
         "Plan structure"
     )
@@ -317,6 +379,12 @@ def test_main_page_sidecar_app_recovers_draft_tree_after_restart_and_publishes(
     assert publish.json["result"]["publishedTaskIds"]
     assert active_after_publish.active_state == "published"
     assert len(published_tasks) == 1
+    assert duplicate_publish.status == 200
+    assert duplicate_publish.json["ok"] is True
+    assert duplicate_publish.json["result"]["publishedTaskIds"] == (
+        publish.json["result"]["publishedTaskIds"]
+    )
+    assert len(replayed_tasks) == 1
 
 
 def test_main_page_sidecar_app_writes_frontend_error_log_file(tmp_path: Any) -> None:

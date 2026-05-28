@@ -169,14 +169,27 @@ Acceptance:
 
 Deliver:
 
-- optional `SqliteAuthoringIdempotencyStore`;
-- command-result replay for idempotency keys;
-- conflict behavior for same idempotency key with different command hash.
+- optional `SqliteAuthoringCommandIdempotencyStore`;
+- command-result replay for idempotency keys across service restart;
+- gateway propagation of generate/publish idempotency keys into authoring
+  command batches;
+- idempotent publish replay when the active draft tree has already moved to
+  published state.
+
+Decision:
+
+- The first result for `(session_id, idempotency_key)` is authoritative.
+- Reusing the same key replays the cached authoring command result rather than
+  treating a changed generated command payload as a conflict. This preserves
+  the previous in-memory behavior and prevents LLM retry variance from causing
+  duplicate RawTask/DraftTaskTree writes or publish drift.
 
 Acceptance:
 
 - duplicate authoring commands do not create duplicate RawTasks or draft trees
-  after retry/restart.
+  after retry/restart;
+- duplicate publish commands do not create duplicate published tasks after
+  retry/restart.
 
 ---
 
@@ -191,6 +204,8 @@ Acceptance:
 6. Store-level tests cover create, update, version conflict, publish mapping, and
    reopen behavior.
 7. No Main Page UI rewrite is required for the first persistence slice.
+8. Authoring command idempotency records survive restart and replay generate /
+   publish command results without duplicate writes.
 
 ---
 

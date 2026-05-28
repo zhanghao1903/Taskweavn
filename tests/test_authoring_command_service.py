@@ -14,6 +14,7 @@ from taskweavn.task import (
     DraftTaskTreeOperation,
     DraftTaskTreeValidator,
     DraftToPublishedMapping,
+    InMemoryAuthoringCommandIdempotencyStore,
     InMemoryDraftTaskStore,
     InMemoryRawTaskStore,
     MutateDraftTaskTreeCommand,
@@ -71,6 +72,7 @@ def _service(
     bus: _MessageBus | None = None,
     publisher: _Publisher | None = None,
     validator: DraftTaskTreeValidator | None = None,
+    idempotency_store: InMemoryAuthoringCommandIdempotencyStore | None = None,
 ) -> DefaultAuthoringCommandService:
     return DefaultAuthoringCommandService(
         raw_task_store=raw_store or InMemoryRawTaskStore(),
@@ -78,6 +80,7 @@ def _service(
         message_bus=bus,  # type: ignore[arg-type]
         task_publisher=publisher,
         draft_validator=validator,
+        idempotency_store=idempotency_store,
     )
 
 
@@ -124,6 +127,31 @@ def test_submit_creates_raw_task_and_is_idempotent() -> None:
     assert first.ok
     assert second == first
     assert raw_store.get("s1", "raw1") is not None
+    assert len(raw_store.list_for_session("s1")) == 1
+
+
+def test_submit_replays_idempotent_result_across_service_instances() -> None:
+    raw_store = InMemoryRawTaskStore()
+    idempotency_store = InMemoryAuthoringCommandIdempotencyStore()
+    batch = AuthoringCommandBatch(
+        batch_id="batch1",
+        session_id="s1",
+        actor=_actor(),
+        idempotency_key="raw-create",
+        commands=(_raw_create_command(),),
+    )
+
+    first = _service(
+        raw_store=raw_store,
+        idempotency_store=idempotency_store,
+    ).submit(batch)
+    second = _service(
+        raw_store=raw_store,
+        idempotency_store=idempotency_store,
+    ).submit(batch.model_copy(update={"batch_id": "batch2"}))
+
+    assert first.ok
+    assert second == first
     assert len(raw_store.list_for_session("s1")) == 1
 
 

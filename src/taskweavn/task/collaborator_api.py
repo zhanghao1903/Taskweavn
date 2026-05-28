@@ -52,6 +52,7 @@ class CollaboratorApiAdapter(Protocol):
         session_id: str,
         content: str,
         source_message_id: str | None = None,
+        idempotency_key: str | None = None,
     ) -> CommandResult: ...
 
     def answer_raw_task_ask(
@@ -70,6 +71,7 @@ class CollaboratorApiAdapter(Protocol):
         *,
         session_id: str,
         raw_task_id: str | None = None,
+        idempotency_key: str | None = None,
     ) -> CommandResult: ...
 
     def append_task_message(
@@ -148,6 +150,7 @@ class DefaultCollaboratorApiAdapter:
         session_id: str,
         content: str,
         source_message_id: str | None = None,
+        idempotency_key: str | None = None,
     ) -> CommandResult:
         if not content.strip():
             return _rejected("session message content must not be empty")
@@ -165,6 +168,7 @@ class DefaultCollaboratorApiAdapter:
             session_id=session_id,
             source_message_id=message_id,
             user_input=content,
+            idempotency_key=idempotency_key,
         )
         return _command_result(
             result,
@@ -238,10 +242,12 @@ class DefaultCollaboratorApiAdapter:
         *,
         session_id: str,
         raw_task_id: str | None = None,
+        idempotency_key: str | None = None,
     ) -> CommandResult:
         result = self._collaborator_service.generate_task_tree(
             session_id=session_id,
             raw_task_id=raw_task_id,
+            idempotency_key=idempotency_key,
         )
         return _command_result(
             result,

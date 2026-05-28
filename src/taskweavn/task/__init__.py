@@ -64,6 +64,11 @@ from taskweavn.task.authoring_context import (
     AuthoringContextBuilder,
     DefaultAuthoringContextBuilder,
 )
+from taskweavn.task.authoring_idempotency import (
+    AuthoringCommandIdempotencyRecord,
+    AuthoringCommandIdempotencyStore,
+    InMemoryAuthoringCommandIdempotencyStore,
+)
 from taskweavn.task.authoring_service import (
     AuthoringCommandService,
     DefaultAuthoringCommandService,
@@ -178,6 +183,7 @@ from taskweavn.task.scheduler import (
 )
 from taskweavn.task.sqlite_authoring import (
     AuthoringStoreError,
+    SqliteAuthoringCommandIdempotencyStore,
     SqliteAuthoringStateStore,
     SqliteDraftTaskStore,
     SqliteRawTaskStore,
@@ -247,6 +253,8 @@ __all__ = [
     "AuthoringCommand",
     "AuthoringCommandBatch",
     "AuthoringCommandError",
+    "AuthoringCommandIdempotencyRecord",
+    "AuthoringCommandIdempotencyStore",
     "AuthoringCommandMode",
     "AuthoringCommandResult",
     "AuthoringCommandService",
@@ -307,6 +315,7 @@ __all__ = [
     "FileChangeType",
     "FailurePolicy",
     "InMemoryCollaboratorTemplateRegistry",
+    "InMemoryAuthoringCommandIdempotencyStore",
     "InMemoryDraftTaskStore",
     "InMemoryPublishIdempotencyStore",
     "InMemoryRawTaskStore",
@@ -363,6 +372,7 @@ __all__ = [
     "SessionSelector",
     "SessionSelectorMode",
     "SqlitePublishIdempotencyStore",
+    "SqliteAuthoringCommandIdempotencyStore",
     "SqliteAuthoringStateStore",
     "SqliteDraftTaskStore",
     "SqliteRawTaskStore",

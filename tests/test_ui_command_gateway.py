@@ -47,6 +47,7 @@ class _Collaborator:
         session_id: str,
         content: str,
         source_message_id: str | None = None,
+        idempotency_key: str | None = None,
     ) -> CoreCommandResult:
         self.calls.append(
             (
@@ -55,6 +56,7 @@ class _Collaborator:
                     "session_id": session_id,
                     "content": content,
                     "source_message_id": source_message_id,
+                    "idempotency_key": idempotency_key,
                 },
             )
         )
@@ -77,11 +79,16 @@ class _Collaborator:
         *,
         session_id: str,
         raw_task_id: str | None = None,
+        idempotency_key: str | None = None,
     ) -> CoreCommandResult:
         self.calls.append(
             (
                 "generate_task_tree",
-                {"session_id": session_id, "raw_task_id": raw_task_id},
+                {
+                    "session_id": session_id,
+                    "raw_task_id": raw_task_id,
+                    "idempotency_key": idempotency_key,
+                },
             )
         )
         return self.result
@@ -312,7 +319,11 @@ def test_generate_task_tree_with_raw_task_carries_object_refs() -> None:
     assert response.result.affected_objects[0].impact == "changed"
     assert collaborator.calls[0] == (
         "generate_task_tree",
-        {"session_id": "session-1", "raw_task_id": "raw-1"},
+        {
+            "session_id": "session-1",
+            "raw_task_id": "raw-1",
+            "idempotency_key": None,
+        },
     )
 
 
@@ -346,9 +357,17 @@ def test_generate_task_tree_with_prompt_creates_raw_then_tree() -> None:
                 "session_id": "session-1",
                 "content": "Build a website",
                 "source_message_id": "generate-1",
+                "idempotency_key": None,
             },
         ),
-        ("generate_task_tree", {"session_id": "session-1", "raw_task_id": None}),
+        (
+            "generate_task_tree",
+            {
+                "session_id": "session-1",
+                "raw_task_id": None,
+                "idempotency_key": None,
+            },
+        ),
     ]
 
 

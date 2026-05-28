@@ -14,7 +14,8 @@ from uuid import uuid4
 
 from pydantic import ValidationError
 
-from taskweavn.task.authoring import RawTask
+from taskweavn.task.authoring import AuthoringCommandResult, RawTask
+from taskweavn.task.authoring_idempotency import AuthoringCommandIdempotencyRecord
 from taskweavn.task.models import (
     DraftTaskNode,
     DraftTaskTree,
@@ -124,6 +125,18 @@ CREATE TABLE IF NOT EXISTS draft_to_published_mappings (
 
 CREATE INDEX IF NOT EXISTS idx_draft_mapping_task
     ON draft_to_published_mappings(session_id, task_id);
+
+CREATE TABLE IF NOT EXISTS authoring_command_idempotency_records (
+    session_id TEXT NOT NULL,
+    idempotency_key TEXT NOT NULL,
+    request_hash TEXT NOT NULL,
+    result_json TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (session_id, idempotency_key)
+);
+
+CREATE INDEX IF NOT EXISTS idx_authoring_command_idempotency_session_created
+    ON authoring_command_idempotency_records(session_id, created_at, idempotency_key);
 """
 
 
@@ -179,6 +192,64 @@ class _SqliteAuthoringStore:
 
     def __exit__(self, *exc: Any) -> None:
         self.close()
+
+
+class SqliteAuthoringCommandIdempotencyStore(_SqliteAuthoringStore):
+    """SQLite-backed AuthoringCommandIdempotencyStore implementation."""
+
+    def get(
+        self,
+        session_id: str,
+        idempotency_key: str,
+    ) -> AuthoringCommandIdempotencyRecord | None:
+        with self._lock:
+            row = self._conn.execute(
+                """
+                SELECT * FROM authoring_command_idempotency_records
+                WHERE session_id = ? AND idempotency_key = ?
+                """,
+                (session_id, idempotency_key),
+            ).fetchone()
+        if row is None:
+            return None
+        return _idempotency_record_from_row(row)
+
+    def put(
+        self,
+        record: AuthoringCommandIdempotencyRecord,
+    ) -> AuthoringCommandIdempotencyRecord:
+        with self._lock:
+            try:
+                with self._write_transaction():
+                    self._conn.execute(
+                        """
+                        INSERT OR IGNORE INTO authoring_command_idempotency_records(
+                            session_id,
+                            idempotency_key,
+                            request_hash,
+                            result_json,
+                            created_at
+                        ) VALUES (?, ?, ?, ?, ?)
+                        """,
+                        (
+                            record.session_id,
+                            record.idempotency_key,
+                            record.request_hash,
+                            record.result.model_dump_json(),
+                            record.created_at.isoformat(),
+                        ),
+                    )
+            except sqlite3.Error as exc:
+                raise AuthoringStoreError(
+                    "failed to save authoring command idempotency record"
+                ) from exc
+
+        current = self.get(record.session_id, record.idempotency_key)
+        if current is None:
+            raise AuthoringStoreError(
+                "authoring command idempotency record was not saved"
+            )
+        return current
 
 
 class SqliteRawTaskStore(_SqliteAuthoringStore):
@@ -1042,6 +1113,23 @@ def _active_state_from_row(row: sqlite3.Row) -> ActiveAuthoringState:
         raise AuthoringStoreError("invalid ActiveAuthoringState row") from exc
 
 
+def _idempotency_record_from_row(
+    row: sqlite3.Row,
+) -> AuthoringCommandIdempotencyRecord:
+    try:
+        return AuthoringCommandIdempotencyRecord(
+            session_id=str(row["session_id"]),
+            idempotency_key=str(row["idempotency_key"]),
+            request_hash=str(row["request_hash"]),
+            result=AuthoringCommandResult.model_validate_json(str(row["result_json"])),
+            created_at=datetime.fromisoformat(str(row["created_at"])),
+        )
+    except (TypeError, ValueError, ValidationError) as exc:
+        raise AuthoringStoreError(
+            "invalid AuthoringCommandIdempotencyRecord row"
+        ) from exc
+
+
 def _model_json(model: Any | None) -> str | None:
     if model is None:
         return None
@@ -1115,6 +1203,7 @@ def _utcnow() -> datetime:
 
 __all__ = [
     "AuthoringStoreError",
+    "SqliteAuthoringCommandIdempotencyStore",
     "SqliteAuthoringStateStore",
     "SqliteDraftTaskStore",
     "SqliteRawTaskStore",

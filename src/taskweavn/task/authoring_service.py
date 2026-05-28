@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 from collections.abc import Iterable
+from contextlib import suppress
 from dataclasses import dataclass
 from threading import RLock
 from typing import Any, Protocol, runtime_checkable
@@ -29,6 +32,11 @@ from taskweavn.task.authoring import (
     RawTaskAnswerOption,
     RawTaskAsk,
     RawTaskOperation,
+)
+from taskweavn.task.authoring_idempotency import (
+    AuthoringCommandIdempotencyRecord,
+    AuthoringCommandIdempotencyStore,
+    InMemoryAuthoringCommandIdempotencyStore,
 )
 from taskweavn.task.models import DraftTaskNode, TaskNodePatch, TaskRef
 from taskweavn.task.publisher import TaskPublisher, TaskPublishResult
@@ -76,6 +84,7 @@ class DefaultAuthoringCommandService:
         task_publisher: TaskPublisher | None = None,
         draft_validator: DraftTaskTreeValidator | None = None,
         authoring_state_store: AuthoringStateStore | None = None,
+        idempotency_store: AuthoringCommandIdempotencyStore | None = None,
     ) -> None:
         self._raw_task_store = raw_task_store
         self._draft_store = draft_store
@@ -83,16 +92,34 @@ class DefaultAuthoringCommandService:
         self._task_publisher = task_publisher
         self._draft_validator = draft_validator
         self._authoring_state_store = authoring_state_store
+        self._idempotency_store = (
+            idempotency_store or InMemoryAuthoringCommandIdempotencyStore()
+        )
         self._lock = RLock()
-        self._idempotency_results: dict[str, AuthoringCommandResult] = {}
 
     def submit(self, batch: AuthoringCommandBatch) -> AuthoringCommandResult:
         with self._lock:
             idempotency_key = _idempotency_key(batch)
+            request_hash = _request_hash(batch) if idempotency_key is not None else None
             if idempotency_key is not None:
-                cached = self._idempotency_results.get(idempotency_key)
+                try:
+                    cached = self._idempotency_store.get(
+                        batch.session_id,
+                        idempotency_key,
+                    )
+                except Exception as exc:  # noqa: BLE001 - returned as structured error
+                    return AuthoringCommandResult(
+                        ok=False,
+                        batch_id=batch.batch_id,
+                        errors=(
+                            AuthoringCommandError(
+                                code="idempotency_unavailable",
+                                message=str(exc),
+                            ),
+                        ),
+                    )
                 if cached is not None:
-                    return cached
+                    return cached.result
 
             try:
                 snapshot = self._snapshot(batch)
@@ -107,7 +134,7 @@ class DefaultAuthoringCommandService:
                         ),
                     ),
                 )
-                self._remember(idempotency_key, result)
+                self._remember(idempotency_key, batch, request_hash, result)
                 return result
             outputs: list[_CommandOutput] = []
             errors: list[AuthoringCommandError] = []
@@ -125,7 +152,7 @@ class DefaultAuthoringCommandService:
                             batch_id=batch.batch_id,
                             errors=(error,),
                         )
-                        self._remember(idempotency_key, result)
+                        self._remember(idempotency_key, batch, request_hash, result)
                         return result
 
             message_effects = tuple(
@@ -144,7 +171,7 @@ class DefaultAuthoringCommandService:
                     warning for output in outputs for warning in output.warnings
                 ),
             )
-            self._remember(idempotency_key, result)
+            self._remember(idempotency_key, batch, request_hash, result)
             return result
 
     def _apply_command(self, command: AuthoringCommand) -> _CommandOutput:
@@ -497,10 +524,20 @@ class DefaultAuthoringCommandService:
     def _remember(
         self,
         idempotency_key: str | None,
+        batch: AuthoringCommandBatch,
+        request_hash: str | None,
         result: AuthoringCommandResult,
     ) -> None:
-        if idempotency_key is not None:
-            self._idempotency_results[idempotency_key] = result
+        if idempotency_key is None or request_hash is None:
+            return
+        record = AuthoringCommandIdempotencyRecord(
+            session_id=batch.session_id,
+            idempotency_key=idempotency_key,
+            request_hash=request_hash,
+            result=result,
+        )
+        with suppress(Exception):
+            self._idempotency_store.put(record)
 
 
 def _raw_task_from_payload(
@@ -526,6 +563,24 @@ def _idempotency_key(batch: AuthoringCommandBatch) -> str | None:
         return None
     command = batch.commands[0]
     return getattr(command, "idempotency_key", None)
+
+
+def _request_hash(batch: AuthoringCommandBatch) -> str:
+    payload = batch.model_dump(
+        mode="json",
+        exclude={"batch_id": True, "commands": True},
+    )
+    payload["commands"] = [
+        command.model_dump(mode="json", exclude={"command_id": True})
+        for command in batch.commands
+    ]
+    encoded = json.dumps(
+        payload,
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    )
+    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 
 
 def _feasibility_from_payload(payload: dict[str, Any]) -> FeasibilityReport:

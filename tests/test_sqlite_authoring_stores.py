@@ -8,6 +8,8 @@ from pathlib import Path
 import pytest
 
 from taskweavn.task import (
+    AuthoringCommandIdempotencyRecord,
+    AuthoringCommandResult,
     AuthoringStateStore,
     DraftTaskNode,
     DraftTaskStatus,
@@ -18,6 +20,7 @@ from taskweavn.task import (
     RawTaskAnswer,
     RawTaskAsk,
     RawTaskStore,
+    SqliteAuthoringCommandIdempotencyStore,
     SqliteAuthoringStateStore,
     SqliteDraftTaskStore,
     SqliteRawTaskStore,
@@ -89,6 +92,38 @@ def test_sqlite_raw_task_store_protocol_conformance(tmp_path: Path) -> None:
         assert isinstance(store, RawTaskStore)
     finally:
         store.close()
+
+
+def test_sqlite_authoring_command_idempotency_store_reopens(
+    tmp_path: Path,
+) -> None:
+    db = tmp_path / "authoring.sqlite"
+    first = SqliteAuthoringCommandIdempotencyStore(db)
+    record = AuthoringCommandIdempotencyRecord(
+        session_id="s1",
+        idempotency_key="generate-1",
+        request_hash="hash-1",
+        result=AuthoringCommandResult(
+            ok=True,
+            batch_id="batch-1",
+        ),
+    )
+    try:
+        saved = first.put(record)
+        replay = first.put(record.model_copy(update={"request_hash": "hash-2"}))
+
+        assert saved == record
+        assert replay == record
+    finally:
+        first.close()
+
+    second = SqliteAuthoringCommandIdempotencyStore(db)
+    try:
+        loaded = second.get("s1", "generate-1")
+
+        assert loaded == record
+    finally:
+        second.close()
 
 
 def test_sqlite_raw_task_create_save_and_reopen(tmp_path: Path) -> None:

@@ -318,6 +318,7 @@ class DefaultUiCommandGateway:
             result = self._collaborator.append_session_message(
                 session_id=request.session_id,
                 content=request.payload.content,
+                idempotency_key=request.idempotency_key,
             )
             return _command_response(
                 request,
@@ -352,17 +353,26 @@ class DefaultUiCommandGateway:
                 result = self._collaborator.generate_task_tree(
                     session_id=request.session_id,
                     raw_task_id=request.payload.raw_task_id,
+                    idempotency_key=request.idempotency_key,
                 )
             else:
                 raw_result = self._collaborator.append_session_message(
                     session_id=request.session_id,
                     content=request.payload.prompt or "",
                     source_message_id=request.command_id,
+                    idempotency_key=_child_idempotency_key(
+                        request.idempotency_key,
+                        "raw",
+                    ),
                 )
                 if raw_result.accepted:
                     tree_result = self._collaborator.generate_task_tree(
                         session_id=request.session_id,
                         raw_task_id=None,
+                        idempotency_key=_child_idempotency_key(
+                            request.idempotency_key,
+                            "tree",
+                        ),
                     )
                     result = _merge_prompt_task_tree_results(
                         raw_result,
@@ -552,6 +562,13 @@ class DefaultUiCommandGateway:
 
         active = self._authoring_state_store.get_active(request.session_id)
         active_id = active.active_draft_tree_id
+        if (
+            active.active_state == "published"
+            and active_id is not None
+            and request.idempotency_key is not None
+            and provided in {None, active_id, _synthetic_task_tree_id(request.session_id)}
+        ):
+            return active_id
         if active.active_state != "draft_tree" or active_id is None:
             raise _TaskTreeIdentityError(
                 "publish requires an active draft tree",
@@ -570,6 +587,12 @@ class DefaultUiCommandGateway:
             provided_task_tree_id=provided,
             active_draft_tree_id=active_id,
         )
+
+
+def _child_idempotency_key(idempotency_key: str | None, suffix: str) -> str | None:
+    if idempotency_key is None:
+        return None
+    return f"{idempotency_key}:{suffix}"
 
 
 class _TaskTreeIdentityError(ValueError):
