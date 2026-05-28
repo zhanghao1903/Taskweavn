@@ -1,12 +1,11 @@
 import { MessagesSquare } from "lucide-react";
 
 import type {
-  MessageKind,
   SessionMessageView,
   TaskNodeCardView,
 } from "../../shared/api/types";
-import type { BadgeTone } from "../../shared/components";
 import { Badge, Panel, Text } from "../../shared/components";
+import { SessionMessageCard } from "./SessionMessageCard";
 import styles from "./MainPage.module.css";
 
 export type SessionMessagePanelProps = {
@@ -43,20 +42,7 @@ export function SessionMessagePanel({
       {messages.length > 0 ? (
         <div className={styles.messageList}>
           {messages.map((message) => (
-            <article className={styles.messageCard} key={message.id}>
-              <div className={styles.messageMeta}>
-                <Badge size="sm" tone={messageTone(message.kind)}>
-                  {message.kind}
-                </Badge>
-                <span>
-                  {message.taskNodeId
-                    ? `TaskNode: ${message.taskNodeId}`
-                    : "Session-wide"}
-                </span>
-              </div>
-              <strong>{message.title}</strong>
-              <p>{message.body}</p>
-            </article>
+            <SessionMessageCard key={message.id} message={message} />
           ))}
         </div>
       ) : (
@@ -73,12 +59,4 @@ export function SessionMessagePanel({
       )}
     </Panel>
   );
-}
-
-function messageTone(kind: MessageKind): BadgeTone {
-  if (kind === "error") {
-    return "danger";
-  }
-
-  return kind === "actionable" ? "warning" : "blue";
 }

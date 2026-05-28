@@ -12,8 +12,8 @@ from collections.abc import Iterable
 from typing import Protocol, runtime_checkable
 
 from taskweavn.interaction import AgentMessage, MessageStream
-from taskweavn.task.models import DraftTaskNode, TaskDomain, TaskRef
-from taskweavn.task.stores import DraftTaskStore, TaskStore
+from taskweavn.task.models import DraftTaskNode, DraftTaskTree, TaskDomain, TaskRef
+from taskweavn.task.stores import AuthoringStateStore, DraftTaskStore, TaskStore
 from taskweavn.task.views import (
     ConfirmationActionView,
     ConfirmationOptionView,
@@ -81,12 +81,14 @@ class DefaultTaskProjectionService:
         message_stream: MessageStream | None = None,
         file_change_store: FileChangeStore | None = None,
         summary_store: TaskSummaryStore | None = None,
+        authoring_state_store: AuthoringStateStore | None = None,
     ) -> None:
         self._task_store = task_store
         self._draft_store = draft_store
         self._message_stream = message_stream
         self._file_change_store = file_change_store
         self._summary_store = summary_store
+        self._authoring_state_store = authoring_state_store
 
     def list_task_tree(
         self,
@@ -164,7 +166,7 @@ class DefaultTaskProjectionService:
             return []
 
         cards: list[TaskCardView] = []
-        for tree in self._draft_store.list_trees(session_id):
+        for tree in self._draft_trees_for_projection(session_id):
             roots = sorted(
                 tree.root_nodes,
                 key=lambda n: (n.order_index, n.created_at, n.draft_task_id),
@@ -175,6 +177,17 @@ class DefaultTaskProjectionService:
                 ref = TaskRef.draft(node.draft_task_id)
                 cards.append(self._project_draft_node(node, depth=0, parent_ref=None, root_ref=ref))
         return cards
+
+    def _draft_trees_for_projection(self, session_id: str) -> list[DraftTaskTree]:
+        if self._draft_store is None:
+            return []
+        if self._authoring_state_store is None:
+            return self._draft_store.list_trees(session_id)
+
+        active = self._authoring_state_store.get_active(session_id)
+        if active.active_state != "draft_tree" or active.active_draft_tree_id is None:
+            return []
+        return [self._draft_store.get_tree(session_id, active.active_draft_tree_id)]
 
     def _project_draft_node(
         self,

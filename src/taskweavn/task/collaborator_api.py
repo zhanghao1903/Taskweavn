@@ -16,6 +16,8 @@ from taskweavn.task.authoring import (
     AuthoringCommandBatch,
     AuthoringCommandError,
     AuthoringCommandResult,
+    DraftTaskTreeOperation,
+    MutateDraftTaskTreeCommand,
     MutateRawTaskCommand,
     PublishDraftTaskTreeCommand,
     PublishOptions,
@@ -50,6 +52,7 @@ class CollaboratorApiAdapter(Protocol):
         session_id: str,
         content: str,
         source_message_id: str | None = None,
+        idempotency_key: str | None = None,
     ) -> CommandResult: ...
 
     def answer_raw_task_ask(
@@ -67,7 +70,8 @@ class CollaboratorApiAdapter(Protocol):
         self,
         *,
         session_id: str,
-        raw_task_id: str,
+        raw_task_id: str | None = None,
+        idempotency_key: str | None = None,
     ) -> CommandResult: ...
 
     def append_task_message(
@@ -146,6 +150,7 @@ class DefaultCollaboratorApiAdapter:
         session_id: str,
         content: str,
         source_message_id: str | None = None,
+        idempotency_key: str | None = None,
     ) -> CommandResult:
         if not content.strip():
             return _rejected("session message content must not be empty")
@@ -163,6 +168,7 @@ class DefaultCollaboratorApiAdapter:
             session_id=session_id,
             source_message_id=message_id,
             user_input=content,
+            idempotency_key=idempotency_key,
         )
         return _command_result(
             result,
@@ -235,11 +241,13 @@ class DefaultCollaboratorApiAdapter:
         self,
         *,
         session_id: str,
-        raw_task_id: str,
+        raw_task_id: str | None = None,
+        idempotency_key: str | None = None,
     ) -> CommandResult:
         result = self._collaborator_service.generate_task_tree(
             session_id=session_id,
             raw_task_id=raw_task_id,
+            idempotency_key=idempotency_key,
         )
         return _command_result(
             result,
@@ -290,11 +298,34 @@ class DefaultCollaboratorApiAdapter:
         start_immediately: bool = True,
     ) -> CommandResult:
         key = idempotency_key or _new_id()
-        command = PublishDraftTaskTreeCommand(
+        accept_key = f"{key}:accept"
+        accept_command = MutateDraftTaskTreeCommand(
             session_id=session_id,
             draft_tree_id=draft_tree_id,
             actor=self._user_actor,
             expected_version=expected_version,
+            idempotency_key=accept_key,
+            operations=(DraftTaskTreeOperation(op="mark_accepted"),),
+        )
+        accept_result = self._command_service.submit(
+            AuthoringCommandBatch(
+                session_id=session_id,
+                actor=self._user_actor,
+                idempotency_key=accept_key,
+                commands=(accept_command,),
+            )
+        )
+        if not accept_result.accepted:
+            return _command_result(
+                accept_result,
+                accepted_message="draft task tree accepted",
+                rejected_message="draft task tree accept rejected",
+            )
+
+        command = PublishDraftTaskTreeCommand(
+            session_id=session_id,
+            draft_tree_id=draft_tree_id,
+            actor=self._user_actor,
             idempotency_key=key,
             publish_options=PublishOptions(start_immediately=start_immediately),
         )

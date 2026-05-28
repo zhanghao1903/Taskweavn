@@ -1,4 +1,4 @@
-# ADR-0009: Routing Agent Assignment And Cooperative Interruption
+# ADR-0011: Routing Agent Assignment And Cooperative Interruption
 
 > Status: accepted
 > Date: 2026-05-22

@@ -1,51 +1,39 @@
-import type {
-  ConfirmationActionView,
-  FileChangeSummaryView,
-  ResultCardView,
-  TaskNodeCardView,
-} from "../../shared/api/types";
-import type { BadgeTone, ButtonVariant } from "../../shared/components";
+import type { ConfirmationActionView } from "../../shared/api/types";
 import { Badge, Button, Panel, Text } from "../../shared/components";
-import type {
-  ConfirmationDecision,
-  MainPageDetailHeader,
-} from "./mainPageUiTypes";
+import type { ConfirmationDecision } from "./mainPageUiTypes";
 import { confirmationResolutionText } from "./mainPageCopy";
+import {
+  selectConfirmationOptionVariant,
+  selectFileChangeTypePresentation,
+} from "./mainPageSelectors";
+import type { MainPageDetailView } from "./mainPageViewModel";
 import styles from "./MainPage.module.css";
 
 export type MainPageDetailPanelProps = {
-  activeConfirmation: ConfirmationActionView | undefined;
-  commandError: string | null;
-  confirmationDecision: ConfirmationDecision;
-  fileChangeSummary: FileChangeSummaryView | null;
-  hasConfirmationFocus: boolean;
-  hasFileChangeView: boolean;
-  hasResultView: boolean;
-  header: MainPageDetailHeader;
-  isResolvingConfirmation: boolean;
+  detail: MainPageDetailView;
   onConfirmationDecision: (decision: Exclude<ConfirmationDecision, null>) => void;
   onShowFileChanges: () => void;
   onShowResult: () => void;
-  result: ResultCardView | null;
-  selectedTask: TaskNodeCardView | undefined;
 };
 
+type ConfirmationDetail = Extract<MainPageDetailView, { kind: "confirmation" }>;
+type ConfirmationResolvedDetail = Extract<
+  MainPageDetailView,
+  { kind: "confirmationResolved" }
+>;
+type ResultDetail = Extract<MainPageDetailView, { kind: "result" }>;
+type FileChangesDetail = Extract<MainPageDetailView, { kind: "fileChanges" }>;
+type TaskDetail = Extract<MainPageDetailView, { kind: "task" }>;
+type StateNoteDetail = Extract<MainPageDetailView, { kind: "note" }>;
+
 export function MainPageDetailPanel({
-  activeConfirmation,
-  commandError,
-  confirmationDecision,
-  fileChangeSummary,
-  hasConfirmationFocus,
-  hasFileChangeView,
-  hasResultView,
-  header,
-  isResolvingConfirmation,
+  detail,
   onConfirmationDecision,
   onShowFileChanges,
   onShowResult,
-  result,
-  selectedTask,
 }: MainPageDetailPanelProps) {
+  const { header } = detail;
+
   return (
     <Panel
       as="aside"
@@ -58,156 +46,201 @@ export function MainPageDetailPanel({
       </Text>
       <Text variant="muted">{header.body}</Text>
       <DetailContent
-        activeConfirmation={activeConfirmation}
-        commandError={commandError}
-        confirmationDecision={confirmationDecision}
-        fallbackBody={header.body}
-        fileChangeSummary={fileChangeSummary}
-        hasConfirmationFocus={hasConfirmationFocus}
-        hasFileChangeView={hasFileChangeView}
-        hasResultView={hasResultView}
-        isResolvingConfirmation={isResolvingConfirmation}
+        detail={detail}
         onConfirmationDecision={onConfirmationDecision}
         onShowFileChanges={onShowFileChanges}
         onShowResult={onShowResult}
-        result={result}
-        selectedTask={selectedTask}
       />
     </Panel>
   );
 }
 
 type DetailContentProps = {
-  activeConfirmation: ConfirmationActionView | undefined;
-  commandError: string | null;
-  confirmationDecision: ConfirmationDecision;
-  fallbackBody: string;
-  fileChangeSummary: FileChangeSummaryView | null;
-  hasConfirmationFocus: boolean;
-  hasFileChangeView: boolean;
-  hasResultView: boolean;
-  isResolvingConfirmation: boolean;
+  detail: MainPageDetailView;
   onConfirmationDecision: (decision: Exclude<ConfirmationDecision, null>) => void;
   onShowFileChanges: () => void;
   onShowResult: () => void;
-  result: ResultCardView | null;
-  selectedTask: TaskNodeCardView | undefined;
 };
 
 function DetailContent({
-  activeConfirmation,
-  commandError,
-  confirmationDecision,
-  fallbackBody,
-  fileChangeSummary,
-  hasConfirmationFocus,
-  hasFileChangeView,
-  hasResultView,
-  isResolvingConfirmation,
+  detail,
   onConfirmationDecision,
   onShowFileChanges,
   onShowResult,
-  result,
-  selectedTask,
 }: DetailContentProps) {
-  if (hasConfirmationFocus) {
-    return (
-      <Panel className={styles.detailBox} tone="muted">
+  switch (detail.kind) {
+    case "confirmation":
+      return (
+        <ConfirmationPanel
+          detail={detail}
+          onConfirmationDecision={onConfirmationDecision}
+        />
+      );
+    case "confirmationResolved":
+      return <ConfirmationResolvedPanel detail={detail} />;
+    case "result":
+      return (
+        <ResultSummaryPanel
+          detail={detail}
+          onShowFileChanges={onShowFileChanges}
+        />
+      );
+    case "fileChanges":
+      return (
+        <FileChangeSummaryPanel
+          detail={detail}
+          onShowResult={onShowResult}
+        />
+      );
+    case "task":
+      return <TaskDetailPanel detail={detail} />;
+    case "note":
+      return <StateNotePanel detail={detail} />;
+  }
+}
+
+type ConfirmationPanelProps = {
+  detail: ConfirmationDetail;
+  onConfirmationDecision: (decision: Exclude<ConfirmationDecision, null>) => void;
+};
+
+function ConfirmationPanel({
+  detail,
+  onConfirmationDecision,
+}: ConfirmationPanelProps) {
+  return (
+    <Panel className={styles.detailBox} tone="muted">
+      <Text as="strong" variant="label">
+        {detail.isResolvingConfirmation
+          ? "Submitting decision"
+          : "Decision needed"}
+      </Text>
+      <Text variant="muted">
+        {detail.confirmation?.body ?? detail.fallbackBody}
+      </Text>
+      {detail.commandError && (
+        <Text variant="muted">{detail.commandError}</Text>
+      )}
+      <div className={styles.actionRow}>
+        {(detail.confirmation?.options ?? fallbackConfirmationOptions).map(
+          (option) => (
+            <Button
+              disabled={detail.isResolvingConfirmation}
+              key={option.value}
+              variant={selectConfirmationOptionVariant(option.tone)}
+              onClick={() =>
+                onConfirmationDecision(toConfirmationDecision(option.value))
+              }
+            >
+              {option.label}
+            </Button>
+          ),
+        )}
+      </div>
+    </Panel>
+  );
+}
+
+function ConfirmationResolvedPanel({
+  detail,
+}: {
+  detail: ConfirmationResolvedDetail;
+}) {
+  return (
+    <Panel className={styles.detailBox} tone="muted">
+      <Text as="strong" variant="label">
+        Confirmation resolved
+      </Text>
+      <Text variant="muted">{confirmationResolutionText[detail.decision]}</Text>
+    </Panel>
+  );
+}
+
+type ResultSummaryPanelProps = {
+  detail: ResultDetail;
+  onShowFileChanges: () => void;
+};
+
+function ResultSummaryPanel({
+  detail,
+  onShowFileChanges,
+}: ResultSummaryPanelProps) {
+  return (
+    <Panel className={styles.detailBox} tone="muted">
+      <div className={styles.detailTitleRow}>
         <Text as="strong" variant="label">
-          {isResolvingConfirmation ? "Submitting decision" : "Decision needed"}
+          Result card
         </Text>
-        <Text variant="muted">{activeConfirmation?.body ?? fallbackBody}</Text>
-        {commandError && <Text variant="muted">{commandError}</Text>}
+        <Badge size="sm" tone="blue">
+          structured
+        </Badge>
+      </div>
+      <Text variant="muted">{detail.result.summary}</Text>
+      {detail.result.sections && detail.result.sections.length > 0 && (
+        <div className={styles.resultSections}>
+          {detail.result.sections.map((section) => (
+            <article className={styles.resultSection} key={section.title}>
+              <div className={styles.detailTitleRow}>
+                <strong>{section.title}</strong>
+                <Badge size="sm" tone="neutral">
+                  {section.kind ?? "text"}
+                </Badge>
+              </div>
+              <p>{section.body}</p>
+            </article>
+          ))}
+        </div>
+      )}
+      {detail.fileChangeSummary && (
         <div className={styles.actionRow}>
-          {(activeConfirmation?.options ?? fallbackConfirmationOptions).map(
-            (option) => (
-              <Button
-                disabled={isResolvingConfirmation}
-                key={option.value}
-                variant={confirmationOptionVariant(option.tone)}
-                onClick={() =>
-                  onConfirmationDecision(toConfirmationDecision(option.value))
-                }
-              >
-                {option.label}
-              </Button>
-            ),
-          )}
+          <Button onClick={onShowFileChanges}>View file changes</Button>
         </div>
-      </Panel>
-    );
-  }
+      )}
+    </Panel>
+  );
+}
 
-  if (confirmationDecision !== null) {
-    return (
-      <Panel className={styles.detailBox} tone="muted">
+type FileChangeSummaryPanelProps = {
+  detail: FileChangesDetail;
+  onShowResult: () => void;
+};
+
+function FileChangeSummaryPanel({
+  detail,
+  onShowResult,
+}: FileChangeSummaryPanelProps) {
+  return (
+    <Panel className={styles.detailBox} tone="muted">
+      <div className={styles.detailTitleRow}>
         <Text as="strong" variant="label">
-          Confirmation resolved
+          Changed files
         </Text>
-        <Text variant="muted">
-          {confirmationResolutionText[confirmationDecision]}
-        </Text>
-      </Panel>
-    );
-  }
+        <Badge
+          size="sm"
+          tone={detail.fileChangeSummary.recursive ? "blue" : "neutral"}
+        >
+          {detail.fileChangeSummary.recursive
+            ? "Recursive subtree summary"
+            : "Direct task changes"}
+        </Badge>
+      </div>
+      <Text variant="muted">{detail.fileChangeSummary.summary}</Text>
+      <div className={styles.fileChangeList} role="list">
+        {detail.fileChangeSummary.changedFiles.map((file) => {
+          const changePresentation = selectFileChangeTypePresentation(
+            file.changeType,
+          );
 
-  if (hasResultView && result) {
-    return (
-      <Panel className={styles.detailBox} tone="muted">
-        <div className={styles.detailTitleRow}>
-          <Text as="strong" variant="label">
-            Result card
-          </Text>
-          <Badge size="sm" tone="blue">
-            structured
-          </Badge>
-        </div>
-        <Text variant="muted">{result.summary}</Text>
-        {result.sections && result.sections.length > 0 && (
-          <div className={styles.resultSections}>
-            {result.sections.map((section) => (
-              <article className={styles.resultSection} key={section.title}>
-                <div className={styles.detailTitleRow}>
-                  <strong>{section.title}</strong>
-                  <Badge size="sm" tone="neutral">
-                    {section.kind ?? "text"}
-                  </Badge>
-                </div>
-                <p>{section.body}</p>
-              </article>
-            ))}
-          </div>
-        )}
-        {fileChangeSummary && (
-          <div className={styles.actionRow}>
-            <Button onClick={onShowFileChanges}>View file changes</Button>
-          </div>
-        )}
-      </Panel>
-    );
-  }
-
-  if (hasFileChangeView && fileChangeSummary) {
-    return (
-      <Panel className={styles.detailBox} tone="muted">
-        <div className={styles.detailTitleRow}>
-          <Text as="strong" variant="label">
-            Changed files
-          </Text>
-          <Badge size="sm" tone={fileChangeSummary.recursive ? "blue" : "neutral"}>
-            {fileChangeSummary.recursive
-              ? "Recursive subtree summary"
-              : "Direct task changes"}
-          </Badge>
-        </div>
-        <Text variant="muted">{fileChangeSummary.summary}</Text>
-        <div className={styles.fileChangeList} role="list">
-          {fileChangeSummary.changedFiles.map((file) => (
-            <article className={styles.fileChangeItem} key={file.path} role="listitem">
+          return (
+            <article
+              className={styles.fileChangeItem}
+              key={file.path}
+              role="listitem"
+            >
               <div className={styles.detailTitleRow}>
                 <strong className={styles.filePath}>{file.path}</strong>
-                <Badge size="sm" tone={fileChangeTone(file.changeType)}>
-                  {file.changeType}
+                <Badge size="sm" tone={changePresentation.tone}>
+                  {changePresentation.label}
                 </Badge>
               </div>
               {file.summary && <p>{file.summary}</p>}
@@ -217,37 +250,43 @@ function DetailContent({
                 </span>
               )}
             </article>
-          ))}
+          );
+        })}
+      </div>
+      {detail.result && (
+        <div className={styles.actionRow}>
+          <Button onClick={onShowResult}>View result</Button>
         </div>
-        {result && (
-          <div className={styles.actionRow}>
-            <Button onClick={onShowResult}>View result</Button>
-          </div>
-        )}
-      </Panel>
-    );
-  }
+      )}
+    </Panel>
+  );
+}
 
-  if (selectedTask) {
-    return (
-      <Panel className={styles.detailBox} tone="muted">
-        <Text as="strong" variant="label">
-          Task interaction
-        </Text>
-        <Text variant="muted">
-          Input now applies to this TaskNode. Completed TaskNodes are read-only;
-          running TaskNodes accept appended guidance.
-        </Text>
-      </Panel>
-    );
-  }
+function TaskDetailPanel({ detail }: { detail: TaskDetail }) {
+  return (
+    <Panel
+      className={styles.detailBox}
+      data-task-node-id={detail.selectedTask.id}
+      tone="muted"
+    >
+      <Text as="strong" variant="label">
+        Task interaction
+      </Text>
+      <Text variant="muted">
+        Input now applies to this TaskNode. Completed TaskNodes are read-only;
+        running TaskNodes accept appended guidance.
+      </Text>
+    </Panel>
+  );
+}
 
+function StateNotePanel({ detail }: { detail: StateNoteDetail }) {
   return (
     <Panel className={styles.detailBox} tone="muted">
       <Text as="strong" variant="label">
         State note
       </Text>
-      <Text variant="muted">{fallbackBody}</Text>
+      <Text variant="muted">{detail.body}</Text>
     </Panel>
   );
 }
@@ -259,38 +298,6 @@ const fallbackConfirmationOptions: NonNullable<
   { value: "revise", label: "Revise task", tone: "secondary" },
   { value: "skipped", label: "Skip", tone: "danger" },
 ];
-
-function confirmationOptionVariant(
-  tone: ConfirmationActionView["options"][number]["tone"],
-): ButtonVariant {
-  if (tone === "primary") {
-    return "primary";
-  }
-
-  if (tone === "danger") {
-    return "danger";
-  }
-
-  return "secondary";
-}
-
-function fileChangeTone(
-  changeType: FileChangeSummaryView["changedFiles"][number]["changeType"],
-): BadgeTone {
-  if (changeType === "created") {
-    return "success";
-  }
-
-  if (changeType === "deleted") {
-    return "danger";
-  }
-
-  if (changeType === "renamed") {
-    return "blue";
-  }
-
-  return "warning";
-}
 
 function toConfirmationDecision(value: string): Exclude<ConfirmationDecision, null> {
   if (value === "revise" || value === "skipped") {

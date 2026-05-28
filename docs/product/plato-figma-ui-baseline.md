@@ -1,12 +1,16 @@
 # Plato Figma UI Baseline
 
-> Status: Figma UI baseline 1.0
+> Status: historical/reference Figma baseline 1.0
 >
 > Target file: <https://www.figma.com/design/wHFPOBaxeImyhJer7BnMaq>
 >
 > Generated: 9 desktop Main Page state frames plus one review notes frame.
 >
 > Revision: v0.2 clarifies `Project -> Workflow -> Session -> Session Workspace` and fixes text overflow.
+
+> Governance note: this baseline is now reference/archive input. New canonical
+> Figma work must happen in `Plato Product Design System and Prototype` and
+> follow `docs/design/figma-governance.md`.
 
 ## 1. Objective
 

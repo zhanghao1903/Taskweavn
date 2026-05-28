@@ -1,21 +1,25 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { App } from "./App";
+import { AppErrorBoundary } from "./AppErrorBoundary";
 import { AppProviders } from "./providers";
 import { MainPage } from "../pages/main-page/MainPage";
 import type { CommandResponse, UiEvent } from "../shared/api/types";
 import type {
   AppendSessionInputCommand,
   AppendTaskInputCommand,
+  GenerateTaskTreeCommand,
   LoadMainPageSnapshot,
   MainPageAdapter,
+  PublishTaskTreeCommand,
   ResolveConfirmationCommand,
   SubscribeSessionEvents,
-} from "../pages/main-page/mockPlatoApi";
+} from "../pages/main-page/runtime/adapter";
+import type { MainPageStateId } from "../pages/main-page/mockPlatoApi";
 import {
   createMainPageMockAdapter,
   getMainPageMockSnapshot,
@@ -128,21 +132,26 @@ describe("App", () => {
     expect(screen.getByText("package.json")).toBeInTheDocument();
   });
 
-  it("captures a confirmation decision and appends it to session messages", async () => {
+  it("refetches backend facts after an accepted confirmation command", async () => {
     const user = userEvent.setup();
+    const loadSnapshot = vi.fn<LoadMainPageSnapshot>(loadImmediateSnapshot);
 
-    render(
-      <AppProviders>
-        <App />
-      </AppProviders>,
+    renderWithQueryClient(
+      <MainPage
+        adapter={testAdapter({
+          loadSnapshot,
+        })}
+        initialStateId="s7-confirmation"
+      />,
     );
 
-    await user.selectOptions(screen.getByLabelText("State"), "s7-confirmation");
     await user.click(await screen.findByRole("button", { name: "Confirm baseline" }));
 
-    expect(await screen.findByText("Confirmed")).toBeInTheDocument();
-    expect(screen.getByText("Confirmation resolved")).toBeInTheDocument();
-    expect(screen.getByText("User decision captured")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(loadSnapshot).toHaveBeenCalledTimes(2);
+    });
+    expect(screen.queryByText("User decision captured")).not.toBeInTheDocument();
+    expect(screen.getByText("Decision needed")).toBeInTheDocument();
   });
 
   it("shows command pending state while resolving a confirmation", async () => {
@@ -192,6 +201,21 @@ describe("App", () => {
     expect(screen.getByText("Decision needed")).toBeInTheDocument();
   });
 
+  it("hides the fixture StatePicker when the adapter disables it", async () => {
+    renderWithQueryClient(
+      <MainPage
+        adapter={testAdapter({
+          runtimeKind: "http",
+          sessionId: "session-website-plan",
+          showStatePicker: false,
+        })}
+      />,
+    );
+
+    expect(await screen.findByText("Personal Website")).toBeInTheDocument();
+    expect(screen.queryByLabelText("State")).not.toBeInTheDocument();
+  });
+
   it("submits session-scoped input when no TaskNode is selected", async () => {
     const user = userEvent.setup();
     const appendSessionInput = vi.fn<AppendSessionInputCommand>(
@@ -201,27 +225,101 @@ describe("App", () => {
       async (_sessionId, _taskNodeId, request) =>
         acceptedCommandResponse(request.commandId),
     );
+    const loadSnapshot = vi.fn<LoadMainPageSnapshot>(loadImmediateSnapshot);
 
     renderWithQueryClient(
       <MainPage
         adapter={testAdapter({
           appendSessionInput,
           appendTaskInput,
-          loadSnapshot: loadImmediateSnapshot,
+          loadSnapshot,
         })}
       />,
     );
 
+    const input = await screen.findByLabelText("Context message");
     await user.type(
-      await screen.findByLabelText("Context message"),
+      input,
       "Please make the plan smaller.",
     );
     await user.click(screen.getByRole("button", { name: "Send message" }));
 
     expect(appendSessionInput).toHaveBeenCalledOnce();
     expect(appendTaskInput).not.toHaveBeenCalled();
-    expect(await screen.findByText("Session guidance captured")).toBeInTheDocument();
-    expect(screen.getByText("Please make the plan smaller.")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(loadSnapshot).toHaveBeenCalledTimes(2);
+    });
+    expect(input).toHaveValue("");
+    expect(screen.queryByText("Session guidance captured")).not.toBeInTheDocument();
+  });
+
+  it("generates a TaskTree from session input when none exists", async () => {
+    const user = userEvent.setup();
+    const appendSessionInput = vi.fn<AppendSessionInputCommand>(
+      async (request) => acceptedCommandResponse(request.commandId),
+    );
+    const generateTaskTree = vi.fn<GenerateTaskTreeCommand>(
+      async (request) => acceptedCommandResponse(request.commandId),
+    );
+    const loadSnapshot = vi.fn<LoadMainPageSnapshot>(loadImmediateSnapshot);
+
+    renderWithQueryClient(
+      <MainPage
+        adapter={testAdapter({
+          appendSessionInput,
+          generateTaskTree,
+          loadSnapshot,
+        })}
+        initialStateId="s1-empty"
+      />,
+    );
+
+    const input = await screen.findByLabelText("Context message");
+    await user.type(input, "Plan my personal website.");
+    await user.click(screen.getByRole("button", { name: "Send message" }));
+
+    expect(generateTaskTree).toHaveBeenCalledWith(
+      expect.objectContaining({
+        payload: {
+          prompt: "Plan my personal website.",
+        },
+      }),
+    );
+    expect(appendSessionInput).not.toHaveBeenCalled();
+    await waitFor(() => {
+      expect(loadSnapshot).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  it("publishes a draft TaskTree through the adapter boundary", async () => {
+    const user = userEvent.setup();
+    const publishTaskTree = vi.fn<PublishTaskTreeCommand>(
+      async (request) => acceptedCommandResponse(request.commandId),
+    );
+    const loadSnapshot = vi.fn<LoadMainPageSnapshot>(loadImmediateSnapshot);
+
+    renderWithQueryClient(
+      <MainPage
+        adapter={testAdapter({
+          loadSnapshot,
+          publishTaskTree,
+        })}
+      />,
+    );
+
+    await user.click(await screen.findByRole("button", { name: "Publish TaskTree" }));
+
+    expect(publishTaskTree).toHaveBeenCalledWith(
+      expect.objectContaining({
+        payload: {
+          taskTreeId: "task-tree-website",
+          startImmediately: true,
+        },
+      }),
+    );
+    await waitFor(() => {
+      expect(loadSnapshot).toHaveBeenCalledTimes(2);
+    });
   });
 
   it("submits task-scoped input when a TaskNode is selected", async () => {
@@ -233,20 +331,22 @@ describe("App", () => {
       async (_sessionId, _taskNodeId, request) =>
         acceptedCommandResponse(request.commandId),
     );
+    const loadSnapshot = vi.fn<LoadMainPageSnapshot>(loadImmediateSnapshot);
 
     renderWithQueryClient(
       <MainPage
         adapter={testAdapter({
           appendSessionInput,
           appendTaskInput,
-          loadSnapshot: loadImmediateSnapshot,
+          loadSnapshot,
         })}
         initialStateId="s4-task-selected"
       />,
     );
 
+    const input = await screen.findByLabelText("Context message");
     await user.type(
-      await screen.findByLabelText("Context message"),
+      input,
       "Use warmer typography.",
     );
     await user.click(screen.getByRole("button", { name: "Send message" }));
@@ -262,11 +362,15 @@ describe("App", () => {
         },
       }),
     );
-    expect(await screen.findByText("Task guidance captured")).toBeInTheDocument();
-    expect(screen.getByText("Use warmer typography.")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(loadSnapshot).toHaveBeenCalledTimes(2);
+    });
+    expect(input).toHaveValue("");
+    expect(screen.queryByText("Task guidance captured")).not.toBeInTheDocument();
   });
 
-  it("appends session messages received from the event stream", async () => {
+  it("refetches snapshot facts for lightweight message events", async () => {
+    const loadSnapshot = vi.fn<LoadMainPageSnapshot>(loadImmediateSnapshot);
     const subscribeSessionEvents = vi.fn<SubscribeSessionEvents>(
       (sessionId, _cursor, onEvent) => {
         onEvent({
@@ -291,17 +395,17 @@ describe("App", () => {
     renderWithQueryClient(
       <MainPage
         adapter={testAdapter({
-          loadSnapshot: loadImmediateSnapshot,
+          loadSnapshot,
           subscribeSessionEvents,
         })}
       />,
     );
 
     expect(await screen.findByText("Events live")).toBeInTheDocument();
-    expect(await screen.findByText("Worker update")).toBeInTheDocument();
-    expect(
-      screen.getByText("The event stream appended a message."),
-    ).toBeInTheDocument();
+    await waitFor(() => {
+      expect(loadSnapshot).toHaveBeenCalledTimes(2);
+    });
+    expect(screen.queryByText("Worker update")).not.toBeInTheDocument();
     expect(subscribeSessionEvents).toHaveBeenCalledWith(
       "session-website-plan",
       "cursor-s3-draft-ready",
@@ -321,7 +425,7 @@ describe("App", () => {
         });
       }
 
-      return getMainPageMockSnapshot(stateId);
+      return getMainPageMockSnapshot(stateId as MainPageStateId);
     });
     const subscribeSessionEvents: SubscribeSessionEvents = (
       sessionId,
@@ -377,6 +481,172 @@ describe("App", () => {
     ).toBeInTheDocument();
   });
 
+  it("creates a new session from the sidebar", async () => {
+    const user = userEvent.setup();
+    const createSession = vi.fn(async () => ({
+      session: {
+        id: "session-new",
+        name: "Launch session",
+      },
+      sessionId: "session-new",
+    }));
+    const loadSnapshot = vi.fn<LoadMainPageSnapshot>(loadImmediateSnapshot);
+
+    renderWithQueryClient(
+      <MainPage
+        adapter={testAdapter({
+          createSession,
+          loadSnapshot,
+          runtimeKind: "http",
+          sessionId: "session-website-plan",
+          showStatePicker: false,
+        })}
+      />,
+    );
+
+    await user.click(await screen.findByRole("button", { name: "New" }));
+    await user.clear(screen.getByRole("textbox", { name: "Session name" }));
+    await user.type(
+      screen.getByRole("textbox", { name: "Session name" }),
+      "Launch session",
+    );
+    await user.click(screen.getByRole("button", { name: "Create session" }));
+
+    expect(createSession).toHaveBeenCalledWith({ name: "Launch session" });
+    await waitFor(() => {
+      expect(loadSnapshot).toHaveBeenCalledWith("s3-draft-ready", "session-new");
+    });
+  });
+
+  it("validates and cancels the inline session create flow", async () => {
+    const user = userEvent.setup();
+    const createSession = vi.fn(async () => ({
+      sessionId: "session-new",
+    }));
+
+    renderWithQueryClient(
+      <MainPage
+        adapter={testAdapter({
+          createSession,
+          loadSnapshot: loadImmediateSnapshot,
+        })}
+      />,
+    );
+
+    await user.click(await screen.findByRole("button", { name: "New" }));
+    await user.clear(screen.getByRole("textbox", { name: "Session name" }));
+    await user.click(screen.getByRole("button", { name: "Create session" }));
+
+    expect(createSession).not.toHaveBeenCalled();
+    expect(screen.getByText("Session name must not be empty.")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(
+      screen.queryByRole("form", { name: "Create session form" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("renames the active session from the inline sidebar flow", async () => {
+    const user = userEvent.setup();
+    const renameSession = vi.fn(async () => ({
+      session: {
+        id: "session-website-plan",
+        name: "Renamed session",
+      },
+    }));
+
+    renderWithQueryClient(
+      <MainPage
+        adapter={testAdapter({
+          loadSnapshot: loadImmediateSnapshot,
+          renameSession,
+        })}
+      />,
+    );
+
+    await user.click(await screen.findByRole("button", { name: "Rename" }));
+    await user.clear(screen.getByRole("textbox", { name: "Session name" }));
+    await user.type(
+      screen.getByRole("textbox", { name: "Session name" }),
+      "Renamed session",
+    );
+    await user.click(screen.getByRole("button", { name: "Rename session" }));
+
+    expect(renameSession).toHaveBeenCalledWith({
+      name: "Renamed session",
+      sessionId: "session-website-plan",
+    });
+    expect(await screen.findByText("Renamed session to Renamed session.")).toBeInTheDocument();
+  });
+
+  it("confirms session delete with product UI copy", async () => {
+    const user = userEvent.setup();
+    const deleteSession = vi.fn(async () => ({
+      deletedSessionId: "session-website-plan",
+      nextSessionId: "session-archive",
+    }));
+
+    renderWithQueryClient(
+      <MainPage
+        adapter={testAdapter({
+          deleteSession,
+          loadSnapshot: loadImmediateSnapshot,
+        })}
+      />,
+    );
+
+    await user.click(await screen.findByRole("button", { name: "Delete" }));
+    expect(
+      screen.getByText(/Plato will archive the local workspace state/),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Delete session" }));
+
+    expect(deleteSession).toHaveBeenCalledWith("session-website-plan");
+    expect(await screen.findByText("Session deleted.")).toBeInTheDocument();
+  });
+
+  it("renders Audit as a reserved route entry until the Audit Page UI exists", async () => {
+    renderWithQueryClient(
+      <MainPage adapter={testAdapter({ loadSnapshot: loadImmediateSnapshot })} />,
+    );
+
+    const auditButton = await screen.findByRole("button", {
+      name: "View audit",
+    });
+
+    expect(auditButton).toBeDisabled();
+    expect(
+      screen.getByText(
+        "Audit entry is reserved until the Audit Page UI is implemented.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("switches sessions from the sidebar", async () => {
+    const user = userEvent.setup();
+    const loadSnapshot = vi.fn<LoadMainPageSnapshot>(loadImmediateSnapshot);
+
+    renderWithQueryClient(
+      <MainPage
+        adapter={testAdapter({
+          loadSnapshot,
+          runtimeKind: "http",
+          sessionId: "session-website-plan",
+          showStatePicker: false,
+        })}
+      />,
+    );
+
+    await user.click(await screen.findByRole("button", { name: "Product intro" }));
+
+    await waitFor(() => {
+      expect(loadSnapshot).toHaveBeenCalledWith(
+        "s3-draft-ready",
+        "session-product-intro",
+      );
+    });
+  });
+
   it("shows a loading frame while the snapshot query is pending", () => {
     const pendingLoader: LoadMainPageSnapshot = () =>
       new Promise(() => {
@@ -404,6 +674,41 @@ describe("App", () => {
       await screen.findByText("Unable to load session snapshot"),
     ).toBeInTheDocument();
   });
+
+  it("keeps the main page visible when event subscription is unavailable", async () => {
+    const subscribeSessionEvents: SubscribeSessionEvents = () => {
+      throw new Error("event source missing");
+    };
+
+    renderWithQueryClient(
+      <MainPage
+        adapter={testAdapter({
+          subscribeSessionEvents,
+        })}
+      />,
+    );
+
+    expect(await screen.findByText("Personal Website")).toBeInTheDocument();
+    expect(screen.getByText("Events offline")).toBeInTheDocument();
+    expect(
+      screen.getByText("Event stream unavailable: event source missing"),
+    ).toBeInTheDocument();
+  });
+
+  it("shows a render error boundary when the app view crashes", () => {
+    const BrokenView = () => {
+      throw new Error("panel crashed");
+    };
+
+    render(
+      <AppErrorBoundary>
+        <BrokenView />
+      </AppErrorBoundary>,
+    );
+
+    expect(screen.getByText("Plato could not render this view")).toBeInTheDocument();
+    expect(screen.getByText("Error: panel crashed")).toBeInTheDocument();
+  });
 });
 
 function renderWithQueryClient(children: ReactNode) {
@@ -421,7 +726,7 @@ function renderWithQueryClient(children: ReactNode) {
 }
 
 const loadImmediateSnapshot: LoadMainPageSnapshot = async (stateId) =>
-  getMainPageMockSnapshot(stateId);
+  getMainPageMockSnapshot(stateId as MainPageStateId);
 
 function testAdapter(overrides: Partial<MainPageAdapter> = {}): MainPageAdapter {
   return createMainPageMockAdapter({

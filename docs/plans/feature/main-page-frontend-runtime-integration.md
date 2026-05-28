@@ -1,14 +1,31 @@
 # Feature Plan: Main Page Frontend Runtime Integration
 
-> Status: planned
+> Status: in_progress / checkpoint submitted
 > Type: frontend runtime / UI-backend integration
-> Last Updated: 2026-05-21
+> Last Updated: 2026-05-27
 > Parent Plan: [Main Page Real Backend Integration](main-page-real-backend-integration.md)
 > Gap: [Main Page real backend integration](../../gaps/README.md)
 > Architecture: [UI And Backend Communication](../../architecture/ui-backend-communication.md), [Task Domain/UI Model Separation](../../architecture/task-domain-ui-model-separation.md), [Authoring Domain](../../architecture/authoring-domain.md)
 > Product: [Plato Main Page UX Flow](../../product/plato-main-page-ux-flow.md), [Plato UI API Contract](../../product/plato-ui-api-contract.md), [Plato Frontend Technical Design](../../product/plato-frontend-technical-design.md)
 > Technical Design: [中文详细技术方案](main-page-frontend-runtime-integration-technical-design.zh-CN.md)
-> Release Record: TBD
+> Checkpoint Record: [Main Page Frontend Runtime Integration](../../releases/main-page-frontend-runtime-integration.md)
+
+---
+
+## 0. Progress
+
+| Date | Slice | Status | Notes |
+|---|---|---|---|
+| 2026-05-21 | Slice 1 — Runtime adapter boundary cleanup | done | Extracted stable Main Page runtime adapter types into `frontend/src/pages/main-page/runtime/adapter.ts`; moved HTTP metadata derivation into `runtime/metadata.ts`; HTTP adapter no longer imports fixture types. |
+| 2026-05-21 | Slice 2 — HTTP mode gating and session-centric snapshot query | done | Added adapter runtime mode/config, session-centric HTTP query keys, HTTP-hidden StatePicker, and snapshot-identity-based local state reset. |
+| 2026-05-21 | Slice 3 — Command response lifecycle | done | Added central command response handling; accepted commands now clear local pending/error state and refetch backend facts instead of creating durable synthetic messages. |
+| 2026-05-21 | Slice 4 — Main Page command coverage | done | Added adapter coverage for generate/update/publish commands; empty-session input now generates TaskTree; draft TaskTree can be published from Main Page. |
+| 2026-05-21 | Slice 5 — Event router and invalidation | done | Added conservative event router; all canonical events refetch by default, `message.appended` no longer creates local message cards, and resync events use a loop guard. |
+| 2026-05-21 | Slice 6 — Integration smoke and docs closure | checkpoint | Frontend tests/build/lint pass; sidecar health/snapshot pass through loopback API; runtime logging exposed real browser issues and the stage PR fixed the default `fetch` receiver bug. This still does not close the Main Page real-backend gap. |
+| 2026-05-27 | P7.1A — Main Page route/runtime compatibility wrapper | done | Added `MainPageRoute` so `App` composes runtime env into the current `MainPage` without changing visible behavior. API mock happy path is deferred. |
+| 2026-05-27 | P7.1B — Wrapper boundary and next-step decision | done | Documented `MainPageRoute` ownership boundaries and decided to centralize status presentation mapping before P7.2 component extraction. |
+| 2026-05-27 | P7.1C — Status presentation mapping | done | Moved session, task, message, event, file-change, confirmation option, and audit verdict label/tone derivation into `mainPageSelectors.ts` without changing visible UI. |
+| 2026-05-27 | P7.2 — Light presentation component extraction | in_progress | Started low-risk extraction with `TaskNodeCard` and `SessionMessageCard`; panels still own data flow, selection state, and layout. |
 
 ---
 
@@ -220,7 +237,7 @@ The frontend must avoid a refetch-subscribe-resync loop:
 
 ## 7. Implementation Slices
 
-### Slice 1 — Runtime adapter boundary cleanup
+### Slice 1 — Runtime adapter boundary cleanup ✅ Done
 
 Output:
 
@@ -236,7 +253,17 @@ Acceptance:
 - `httpMainPageAdapter.test.ts` still proves snapshot loading;
 - no production runtime type imports `fixtures.ts`.
 
-### Slice 2 — HTTP mode gating and session-centric snapshot query
+Completion notes:
+
+- `frontend/src/pages/main-page/runtime/adapter.ts` now owns `MainPageAdapter`,
+  command function types, metadata shape, and runtime snapshot shape.
+- `frontend/src/pages/main-page/runtime/metadata.ts` derives UI metadata from
+  `MainPageSnapshot`.
+- `frontend/src/pages/main-page/httpMainPageAdapter.ts` delegates API calls and
+  imports no fixture-only types.
+- Verified with `npm test`, `npm run build`, and `npm run lint`.
+
+### Slice 2 — HTTP mode gating and session-centric snapshot query ✅ Done
 
 Output:
 
@@ -252,7 +279,19 @@ Acceptance:
 - snapshot fetches are keyed by session id;
 - fixture mode still exposes the 9 states.
 
-### Slice 3 — Command response lifecycle
+Completion notes:
+
+- `MainPageAdapter` now carries `runtimeKind`, `sessionId`, and
+  `showStatePicker`.
+- `mainPageSnapshotQueryKey()` keys mock mode by fixture state and HTTP mode by
+  session id.
+- `mainPageSnapshotIdentity()` keeps local UI reset scoped to fixture state or
+  HTTP session identity.
+- HTTP adapters hide `StatePicker` by default; mock adapters still show the 9
+  Figma baseline states.
+- Verified with `npm test`, `npm run build`, and `npm run lint`.
+
+### Slice 3 — Command response lifecycle ✅ Done
 
 Output:
 
@@ -268,7 +307,17 @@ Acceptance:
 - confirmation response does not permanently mutate TaskNode status locally;
 - command errors remain visible and retryable when appropriate.
 
-### Slice 4 — Main Page command coverage
+Completion notes:
+
+- `frontend/src/pages/main-page/runtime/commandRefresh.ts` centralizes accepted
+  versus rejected command handling.
+- Confirmation, session input, and task input commands now refetch through the
+  existing snapshot query after accepted responses.
+- Frontend no longer appends durable synthetic confirmation or input messages
+  after accepted commands.
+- Verified with `npm test`, `npm run build`, and `npm run lint`.
+
+### Slice 4 — Main Page command coverage ✅ Done
 
 Output:
 
@@ -284,7 +333,18 @@ Acceptance:
 - UI only exposes actions allowed by snapshot permissions/status;
 - tests cover command request payloads.
 
-### Slice 5 — Event router and invalidation
+Completion notes:
+
+- `MainPageAdapter` now exposes `generateTaskTree`, `updateTaskNode`, and
+  `publishTaskTree` in addition to existing input and confirmation commands.
+- Empty-session input uses `generateTaskTree` instead of generic session input.
+- Draft TaskTrees expose a `Publish TaskTree` action that submits
+  `publishTaskTree` and refetches backend facts.
+- Structured TaskNode edit UI is still a later surface, but the runtime adapter
+  boundary already exposes `updateTaskNode`.
+- Verified with `npm test`, `npm run build`, and `npm run lint`.
+
+### Slice 5 — Event router and invalidation ✅ Done
 
 Output:
 
@@ -299,7 +359,17 @@ Acceptance:
 - `confirmation.resolved`, `task.tree.changed`, and `command.failed` are covered;
 - no event creates durable UI facts from incomplete payloads.
 
-### Slice 6 — Integration smoke and docs closure
+Completion notes:
+
+- `frontend/src/pages/main-page/runtime/eventRouter.ts` maps events to
+  refetch/error actions.
+- `message.appended` is treated as an invalidation hint, not a complete message
+  card payload.
+- `session.resync_required` uses a cursor/reason loop guard.
+- Unsupported canonical events fail safe by refetching snapshot facts.
+- Verified with `npm test`, `npm run build`, and `npm run lint`.
+
+### Slice 6 — Integration smoke and docs closure ✅ Done With Caveat
 
 Output:
 
@@ -313,6 +383,17 @@ Acceptance:
 - focused backend/frontend integration tests pass;
 - manual or automated `plato-dev` smoke proves the page can load a sidecar
   snapshot and submit at least one command.
+
+Completion notes:
+
+- `npm test`, `npm run build`, and `npm run lint` pass from `frontend/`.
+- `taskweavn plato-dev` starts a temporary sidecar and Vite dev server.
+- Sidecar `health` and `snapshot` endpoints return valid JSON over loopback.
+- The Codex in-app browser can load the Vite page and confirms HTTP mode hides
+  the fixture StatePicker, but this browser context reports no `fetch`,
+  `Response`, `Headers`, or `XMLHttpRequest`, so the page cannot complete the
+  HTTP snapshot request inside that browser. A real Chrome/Safari/Electron smoke
+  remains a follow-up.
 
 ---
 

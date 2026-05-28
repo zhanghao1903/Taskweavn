@@ -4,7 +4,7 @@
 > Last Updated: 2026-05-23
 > Feature Plan: [Minimal Agent Assignment Semantics](minimal-agent-assignment-semantics.md)
 > Gap: [Routing Agent assignment productization](../../gaps/README.md)
-> Decisions: [ADR-0009](../../decisions/ADR-0009-routing-agent-assignment-and-cooperative-interruption.md), [ADR-0010](../../decisions/ADR-0010-taskbus-centered-agent-assignment-convergence.md)
+> Decisions: [ADR-0011](../../decisions/ADR-0011-routing-agent-assignment-and-cooperative-interruption.md), [ADR-0012](../../decisions/ADR-0012-taskbus-centered-agent-assignment-convergence.md)
 
 ---
 
@@ -36,7 +36,7 @@ pending unassigned
   -> running
 ```
 
-这个设计必须遵守 ADR-0010：
+这个设计必须遵守 ADR-0012：
 
 - TaskBus 是 Published Task 生命周期事实权威；
 - Router / Agent Manager 是单实例收敛循环；

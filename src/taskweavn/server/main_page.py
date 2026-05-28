@@ -12,7 +12,12 @@ from taskweavn.interaction import (
     InProcessMessageBus,
     SqliteMessageStream,
 )
+from taskweavn.server.client_logs import FileClientErrorLogSink
 from taskweavn.server.sidecar import LocalSidecarConfig, LocalSidecarServer
+from taskweavn.server.ui_command_idempotency import (
+    SqliteUiCommandResponseIdempotencyStore,
+    UiCommandResponseIdempotencyStore,
+)
 from taskweavn.server.ui_contract import (
     DefaultUiCommandGateway,
     DefaultUiQueryGateway,
@@ -20,6 +25,8 @@ from taskweavn.server.ui_contract import (
 from taskweavn.server.ui_events import ResyncOnlyEventSource, UiEventSource
 from taskweavn.server.ui_http import PlatoUiHttpTransport, SidecarAuth
 from taskweavn.task import (
+    AuthoringCommandIdempotencyStore,
+    AuthoringStateStore,
     CapabilityCatalog,
     CollaboratorLLM,
     DefaultAuthoringCommandService,
@@ -34,6 +41,10 @@ from taskweavn.task import (
     InMemoryDraftTaskStore,
     InMemoryRawTaskStore,
     RawTaskStore,
+    SqliteAuthoringCommandIdempotencyStore,
+    SqliteAuthoringStateStore,
+    SqliteDraftTaskStore,
+    SqliteRawTaskStore,
     SqliteTaskBus,
     StaticCapabilityCatalog,
     TaskRef,
@@ -63,6 +74,9 @@ class MainPageSidecarDependencies:
     event_source: UiEventSource | None = None
     raw_task_store: RawTaskStore | None = None
     draft_store: DraftTaskStore | None = None
+    authoring_state_store: AuthoringStateStore | None = None
+    authoring_idempotency_store: AuthoringCommandIdempotencyStore | None = None
+    ui_command_idempotency_store: UiCommandResponseIdempotencyStore | None = None
 
 
 @dataclass
@@ -70,13 +84,16 @@ class MainPageSidecarApp:
     """Owns the composed Main Page backend and local sidecar lifecycle."""
 
     layout: WorkspaceLayout
-    session: Session
+    session: Session | None
     session_manager: SessionManager
     message_stream: SqliteMessageStream
     message_bus: InProcessMessageBus
     task_bus: SqliteTaskBus
     raw_task_store: RawTaskStore
     draft_store: DraftTaskStore
+    authoring_state_store: AuthoringStateStore | None
+    authoring_idempotency_store: AuthoringCommandIdempotencyStore | None
+    ui_command_idempotency_store: UiCommandResponseIdempotencyStore | None
     query_gateway: DefaultUiQueryGateway
     command_gateway: DefaultUiCommandGateway
     transport: PlatoUiHttpTransport
@@ -106,6 +123,17 @@ class MainPageSidecarApp:
             self.message_stream.close()
         with contextlib.suppress(Exception):
             self.task_bus.close()
+        for store in (
+            self.authoring_state_store,
+            self.authoring_idempotency_store,
+            self.ui_command_idempotency_store,
+            self.draft_store,
+            self.raw_task_store,
+        ):
+            close = getattr(store, "close", None)
+            if close is not None:
+                with contextlib.suppress(Exception):
+                    close()
         with contextlib.suppress(Exception):
             self.session_manager.close()
 
@@ -130,8 +158,15 @@ def build_main_page_sidecar_app(
         message_stream = SqliteMessageStream(layout.workspace_messages_db)
         message_bus = InProcessMessageBus(message_stream)
         task_bus = SqliteTaskBus(layout.workspace_tasks_db)
-        raw_task_store = dependencies.raw_task_store or InMemoryRawTaskStore()
-        draft_store = dependencies.draft_store or InMemoryDraftTaskStore()
+        (
+            raw_task_store,
+            draft_store,
+            authoring_state_store,
+            authoring_idempotency_store,
+        ) = _authoring_stores(
+            layout,
+            dependencies,
+        )
         task_publisher = DefaultTaskPublisher(
             task_bus=task_bus,
             draft_store=draft_store,
@@ -141,6 +176,8 @@ def build_main_page_sidecar_app(
             draft_store=draft_store,
             message_bus=message_bus,
             task_publisher=task_publisher,
+            authoring_state_store=authoring_state_store,
+            idempotency_store=authoring_idempotency_store,
         )
         capability_catalog = dependencies.capability_catalog or _default_capability_catalog()
         context_builder = DefaultAuthoringContextBuilder(
@@ -170,11 +207,13 @@ def build_main_page_sidecar_app(
             task_store=task_bus,
             draft_store=draft_store,
             message_stream=message_stream,
+            authoring_state_store=authoring_state_store,
         )
         query_gateway = DefaultUiQueryGateway(
             session_reader=session_manager,
             task_projection=task_projection,
             session_message_provider=message_stream,
+            authoring_state_store=authoring_state_store,
         )
         command_gateway = DefaultUiCommandGateway(
             collaborator=collaborator,
@@ -183,12 +222,22 @@ def build_main_page_sidecar_app(
                 draft_store=draft_store,
                 task_bus=task_bus,
             ),
+            authoring_state_store=authoring_state_store,
+        )
+        ui_command_idempotency_store = (
+            dependencies.ui_command_idempotency_store
+            or SqliteUiCommandResponseIdempotencyStore(layout.workspace_ui_commands_db)
         )
         transport = PlatoUiHttpTransport(
             query_gateway=query_gateway,
             command_gateway=command_gateway,
             event_source=dependencies.event_source or ResyncOnlyEventSource(),
             auth=None if config.auth_token is None else SidecarAuth(config.auth_token),
+            client_error_log_sink=FileClientErrorLogSink(layout),
+            session_lifecycle_gateway=MainPageSessionLifecycleGateway(
+                session_manager=session_manager,
+            ),
+            command_idempotency_store=ui_command_idempotency_store,
         )
         server = LocalSidecarServer(
             transport,
@@ -207,10 +256,40 @@ def build_main_page_sidecar_app(
         task_bus=task_bus,
         raw_task_store=raw_task_store,
         draft_store=draft_store,
+        authoring_state_store=authoring_state_store,
+        authoring_idempotency_store=authoring_idempotency_store,
+        ui_command_idempotency_store=ui_command_idempotency_store,
         query_gateway=query_gateway,
         command_gateway=command_gateway,
         transport=transport,
         server=server,
+    )
+
+
+def _authoring_stores(
+    layout: WorkspaceLayout,
+    dependencies: MainPageSidecarDependencies,
+) -> tuple[
+    RawTaskStore,
+    DraftTaskStore,
+    AuthoringStateStore | None,
+    AuthoringCommandIdempotencyStore | None,
+]:
+    if dependencies.raw_task_store is None and dependencies.draft_store is None:
+        authoring_db = layout.workspace_authoring_db
+        return (
+            SqliteRawTaskStore(authoring_db),
+            SqliteDraftTaskStore(authoring_db),
+            dependencies.authoring_state_store or SqliteAuthoringStateStore(authoring_db),
+            dependencies.authoring_idempotency_store
+            or SqliteAuthoringCommandIdempotencyStore(authoring_db),
+        )
+
+    return (
+        dependencies.raw_task_store or InMemoryRawTaskStore(),
+        dependencies.draft_store or InMemoryDraftTaskStore(),
+        dependencies.authoring_state_store,
+        dependencies.authoring_idempotency_store,
     )
 
 
@@ -230,13 +309,40 @@ class MainPageTaskRefResolver:
         raise LookupError(f"task node {task_node_id!r} not found")
 
 
+@dataclass(frozen=True)
+class MainPageSessionLifecycleGateway:
+    """Session lifecycle commands for the local Main Page sidecar."""
+
+    session_manager: SessionManager
+
+    def list_sessions(self) -> dict[str, object]:
+        return {
+            "sessions": [_session_payload(session) for session in self.session_manager.list()]
+        }
+
+    def create_session(self, name: str) -> dict[str, object]:
+        session = self.session_manager.create(name)
+        return {"sessionId": session.id, "session": _session_payload(session)}
+
+    def rename_session(self, session_id: str, name: str) -> dict[str, object]:
+        session = self.session_manager.rename(session_id, name)
+        return {"sessionId": session.id, "session": _session_payload(session)}
+
+    def delete_session(self, session_id: str) -> dict[str, object]:
+        next_session = self.session_manager.delete(session_id)
+        return {
+            "deletedSessionId": session_id,
+            "nextSessionId": None if next_session is None else next_session.id,
+        }
+
+
 def _resolve_session(
     session_manager: SessionManager,
     config: MainPageSidecarConfig,
-) -> Session:
-    if config.session_id is None:
-        return session_manager.create(config.session_name)
-    return session_manager.require(config.session_id)
+) -> Session | None:
+    if config.session_id is not None:
+        return session_manager.require(config.session_id)
+    return None
 
 
 def _default_capability_catalog() -> StaticCapabilityCatalog:
@@ -251,11 +357,22 @@ def _default_capability_catalog() -> StaticCapabilityCatalog:
     )
 
 
+def _session_payload(session: Session) -> dict[str, object]:
+    return {
+        "id": session.id,
+        "name": session.name,
+        "createdAt": session.created_at.isoformat(),
+        "updatedAt": session.last_active_at.isoformat(),
+        "status": session.status,
+    }
+
+
 __all__ = [
     "DEFAULT_PLATO_SIDECAR_PORT",
     "MainPageSidecarApp",
     "MainPageSidecarConfig",
     "MainPageSidecarDependencies",
+    "MainPageSessionLifecycleGateway",
     "MainPageTaskRefResolver",
     "build_main_page_sidecar_app",
 ]

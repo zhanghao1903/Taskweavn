@@ -60,6 +60,45 @@ describe("ApiClient", () => {
     );
   });
 
+  it("calls the default browser fetch with the global object as receiver", async () => {
+    const originalFetch = globalThis.fetch;
+    const fetcher = vi.fn(function (
+      this: typeof globalThis,
+      _input: RequestInfo | URL,
+      _init?: RequestInit,
+    ) {
+      void _input;
+      void _init;
+
+      if (this !== globalThis) {
+        throw new TypeError("Illegal invocation");
+      }
+
+      return Promise.resolve(
+        jsonResponse({
+          ok: true,
+        }),
+      );
+    });
+    vi.stubGlobal("fetch", fetcher);
+
+    try {
+      const client = new ApiClient({
+        baseUrl: "https://plato.test",
+      });
+
+      await expect(client.getJson("/snapshot")).resolves.toEqual({ ok: true });
+      expect(fetcher).toHaveBeenCalledWith(
+        "https://plato.test/snapshot",
+        expect.objectContaining({
+          method: "GET",
+        }),
+      );
+    } finally {
+      vi.stubGlobal("fetch", originalFetch);
+    }
+  });
+
   it("raises ApiClientError for non-2xx responses", async () => {
     const fetcher = vi.fn<FetchFn>(async () =>
       jsonResponse(

@@ -4,7 +4,7 @@
 > Last Updated: 2026-05-23
 > Gap: [Routing Agent assignment productization](../../gaps/README.md)
 > Architecture: [Task](../../architecture/task.md), [TaskBus](../../architecture/bus.md), [Agent](../../architecture/agent.md)
-> Decisions: [ADR-0009](../../decisions/ADR-0009-routing-agent-assignment-and-cooperative-interruption.md), [ADR-0010](../../decisions/ADR-0010-taskbus-centered-agent-assignment-convergence.md)
+> Decisions: [ADR-0011](../../decisions/ADR-0011-routing-agent-assignment-and-cooperative-interruption.md), [ADR-0012](../../decisions/ADR-0012-taskbus-centered-agent-assignment-convergence.md)
 > Product: [Plato MVP PRD](../../product/plato-mvp-prd.md), [Main Page UX Flow](../../product/plato-main-page-ux-flow.md)
 > Technical Design: [中文详细技术方案](minimal-agent-assignment-semantics-technical-design.zh-CN.md)
 > Release Record: TBD
@@ -39,7 +39,7 @@ through `claim_next`, which bypasses the agreed routing model:
 - Pending Tasks should not hang forever if Router or Agent Manager stops
   advancing them.
 
-This plan turns ADR-0010 into an executable Product 1.0 work package.
+This plan turns ADR-0012 into an executable Product 1.0 work package.
 
 ---
 
@@ -266,7 +266,7 @@ Output:
 
 Acceptance:
 
-- implemented behavior is traceable to this plan and ADR-0010;
+- implemented behavior is traceable to this plan and ADR-0012;
 - non-goals remain documented follow-ups.
 
 ---

@@ -1,8 +1,10 @@
-import { MainPage } from "../pages/main-page/MainPage";
-import { createMainPageAdapterFromRuntimeEnv } from "./platoRuntime";
-
-const mainPageAdapter = createMainPageAdapterFromRuntimeEnv();
+import { AppErrorBoundary } from "./AppErrorBoundary";
+import { MainPageRoute } from "./MainPageRoute";
 
 export function App() {
-  return <MainPage adapter={mainPageAdapter} />;
+  return (
+    <AppErrorBoundary>
+      <MainPageRoute />
+    </AppErrorBoundary>
+  );
 }

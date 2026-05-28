@@ -103,6 +103,61 @@ describe("createHttpPlatoApi", () => {
     ]);
   });
 
+  it("sends session lifecycle requests to documented endpoints", async () => {
+    const calls: Array<{
+      body: unknown;
+      method: string | undefined;
+      url: string;
+    }> = [];
+    const fetcher = vi.fn<FetchFn>(async (input, init) => {
+      calls.push({
+        body: init?.body ? JSON.parse(String(init.body)) : null,
+        method: init?.method,
+        url: String(input),
+      });
+
+      return jsonResponse({
+        ok: true,
+        data: {
+          sessionId: "session-1",
+        },
+        error: null,
+      });
+    });
+    const api = createHttpPlatoApi({
+      baseUrl: "https://plato.test",
+      fetcher,
+    });
+
+    await api.listSessions();
+    await api.createSession({ name: "New session" });
+    await api.renameSession("session 1", { name: "Renamed" });
+    await api.deleteSession("session 1");
+
+    expect(calls).toEqual([
+      {
+        body: null,
+        method: "GET",
+        url: "https://plato.test/api/v1/sessions",
+      },
+      {
+        body: { name: "New session" },
+        method: "POST",
+        url: "https://plato.test/api/v1/sessions",
+      },
+      {
+        body: { name: "Renamed" },
+        method: "PATCH",
+        url: "https://plato.test/api/v1/sessions/session%201",
+      },
+      {
+        body: {},
+        method: "POST",
+        url: "https://plato.test/api/v1/sessions/session%201/delete",
+      },
+    ]);
+  });
+
   it("patches TaskNode updates and publishes TaskTrees", async () => {
     const calls: string[] = [];
     const fetcher = vi.fn<FetchFn>(async (input, init) => {
@@ -134,6 +189,59 @@ describe("createHttpPlatoApi", () => {
     expect(calls).toEqual([
       "PATCH https://plato.test/api/v1/sessions/session-1/tasks/task-1",
       "POST https://plato.test/api/v1/sessions/session-1/task-tree/publish",
+    ]);
+  });
+
+  it("loads Audit Page query resources through documented endpoint candidates", async () => {
+    const calls: string[] = [];
+    const fetcher = vi.fn<FetchFn>(async (input, init) => {
+      calls.push(`${init?.method ?? "GET"} ${String(input)}`);
+
+      return jsonResponse({
+        data: null,
+        error: null,
+        generatedAt: "2026-05-24T10:00:00Z",
+        ok: true,
+        requestId: "audit-query",
+      });
+    });
+    const api = createHttpPlatoApi({
+      baseUrl: "https://plato.test",
+      fetcher,
+    });
+
+    await api.getAuditSnapshot({
+      entry: "from_task",
+      filter: "risks",
+      includeDetail: true,
+      limit: 50,
+      recordId: "record 1",
+      sessionId: "session/1",
+      taskNodeId: "task 1",
+    });
+    await api.listAuditRecords({
+      filter: "files",
+      includeHiddenReasons: true,
+      kind: "file_change",
+      sessionId: "session/1",
+      taskNodeId: "task 1",
+    });
+    await api.getAuditRecordDetail({
+      includeEvidence: true,
+      recordId: "record 1",
+      sessionId: "session/1",
+    });
+    await api.getEvidenceDetail({
+      evidenceId: "evidence 1",
+      includeSanitizedPayload: false,
+      sessionId: "session/1",
+    });
+
+    expect(calls).toEqual([
+      "GET https://plato.test/api/v1/sessions/session%2F1/tasks/task%201/audit?entry=from_task&filter=risks&includeDetail=true&limit=50&recordId=record+1",
+      "GET https://plato.test/api/v1/sessions/session%2F1/tasks/task%201/audit/records?filter=files&includeHiddenReasons=true&kind=file_change",
+      "GET https://plato.test/api/v1/sessions/session%2F1/audit/records/record%201?includeEvidence=true",
+      "GET https://plato.test/api/v1/sessions/session%2F1/audit/evidence/evidence%201?includeSanitizedPayload=false",
     ]);
   });
 
@@ -181,15 +289,23 @@ describe("createHttpPlatoApi", () => {
       ...uiEvent,
       eventType: "session.resync_required",
     });
+    sources[0].emit("audit.records_changed", {
+      ...uiEvent,
+      eventType: "audit.records_changed",
+    });
     sources[0].emit("message.appended", uiEvent);
 
-    expect(onEvent).toHaveBeenCalledTimes(2);
+    expect(onEvent).toHaveBeenCalledTimes(3);
     expect(onEvent).toHaveBeenNthCalledWith(
       1,
       expect.objectContaining({ eventType: "session.resync_required" }),
     );
     expect(onEvent).toHaveBeenNthCalledWith(
       2,
+      expect.objectContaining({ eventType: "audit.records_changed" }),
+    );
+    expect(onEvent).toHaveBeenNthCalledWith(
+      3,
       expect.objectContaining({ eventType: "message.appended" }),
     );
   });

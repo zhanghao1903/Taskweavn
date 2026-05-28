@@ -1,14 +1,14 @@
-# ADR-0010: TaskBus-Centered Agent Assignment Convergence
+# ADR-0012: TaskBus-Centered Agent Assignment Convergence
 
 > Status: accepted
 > Date: 2026-05-23
-> Related: [Task](../architecture/task.md), [TaskBus](../architecture/bus.md), [Agent](../architecture/agent.md), [ADR-0009](ADR-0009-routing-agent-assignment-and-cooperative-interruption.md), [Gap Registry](../gaps/)
+> Related: [Task](../architecture/task.md), [TaskBus](../architecture/bus.md), [Agent](../architecture/agent.md), [ADR-0011](ADR-0011-routing-agent-assignment-and-cooperative-interruption.md), [Gap Registry](../gaps/)
 
 ---
 
 ## Context
 
-ADR-0009 established that assignment strategy belongs outside TaskBus and that
+ADR-0011 established that assignment strategy belongs outside TaskBus and that
 Routing Agent submits assignment commands instead of directly changing Task
 state.
 

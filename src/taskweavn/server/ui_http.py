@@ -2,13 +2,21 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Protocol
 from urllib.parse import parse_qsl, unquote, urlsplit
 
 from pydantic import ValidationError
 
+from taskweavn.server.client_logs import ClientErrorLogSink
 from taskweavn.server.transport import HttpApiRequest, HttpApiResponse
+from taskweavn.server.ui_command_idempotency import (
+    UiCommandResponseIdempotencyRecord,
+    UiCommandResponseIdempotencyStore,
+)
 from taskweavn.server.ui_contract import (
     ApiError,
     AppendSessionInputPayload,
@@ -30,6 +38,18 @@ _SSE_HEADERS = {
     "connection": "keep-alive",
     "content-type": "text/event-stream",
 }
+
+
+class SessionLifecycleGateway(Protocol):
+    """Small session lifecycle boundary used by the local Main Page sidecar."""
+
+    def list_sessions(self) -> dict[str, Any]: ...
+
+    def create_session(self, name: str) -> dict[str, Any]: ...
+
+    def rename_session(self, session_id: str, name: str) -> dict[str, Any]: ...
+
+    def delete_session(self, session_id: str) -> dict[str, Any]: ...
 
 
 @dataclass(frozen=True)
@@ -61,11 +81,17 @@ class PlatoUiHttpTransport:
         command_gateway: UiCommandGateway,
         event_source: UiEventSource | None = None,
         auth: SidecarAuth | None = None,
+        client_error_log_sink: ClientErrorLogSink | None = None,
+        session_lifecycle_gateway: SessionLifecycleGateway | None = None,
+        command_idempotency_store: UiCommandResponseIdempotencyStore | None = None,
     ) -> None:
         self._query_gateway = query_gateway
         self._command_gateway = command_gateway
         self._event_source = event_source or ResyncOnlyEventSource()
         self._auth = auth
+        self._client_error_log_sink = client_error_log_sink
+        self._session_lifecycle_gateway = session_lifecycle_gateway
+        self._command_idempotency_store = command_idempotency_store
 
     def handle(self, request: HttpApiRequest) -> HttpApiResponse:
         route = _match_route(request.path)
@@ -88,7 +114,7 @@ class PlatoUiHttpTransport:
                 request_id=_request_id_hint(request),
             )
 
-        if request.method.upper() != route.method:
+        if route.method != "*" and request.method.upper() != route.method:
             return _error_response(
                 405,
                 ApiError(
@@ -131,9 +157,67 @@ class PlatoUiHttpTransport:
                         "error": None,
                     }
                 )
+            if route_name == "sessions":
+                lifecycle = self._require_session_lifecycle(request)
+                if isinstance(lifecycle, HttpApiResponse):
+                    return lifecycle
+                if request.method.upper() == "GET":
+                    return _json_response(
+                        {
+                            "ok": True,
+                            "data": lifecycle.list_sessions(),
+                            "error": None,
+                        }
+                    )
+                if request.method.upper() != "POST":
+                    return _error_response(
+                        405,
+                        ApiError(
+                            code="bad_request",
+                            message="sessions requires GET or POST",
+                            details={"allowed_methods": ["GET", "POST"]},
+                        ),
+                        request_id=_request_id_hint(request),
+                        headers={"allow": "GET, POST"},
+                    )
+                name = _string_body_value(request, "name", default="New session")
+                if isinstance(name, HttpApiResponse):
+                    return name
+                return _json_response(
+                    {
+                        "ok": True,
+                        "data": lifecycle.create_session(name),
+                        "error": None,
+                    }
+                )
             if route_name == "snapshot":
                 return _contract_response(
                     self._query_gateway.get_session_snapshot(route.session_id)
+                )
+            if route_name == "rename_session":
+                lifecycle = self._require_session_lifecycle(request)
+                if isinstance(lifecycle, HttpApiResponse):
+                    return lifecycle
+                name = _string_body_value(request, "name")
+                if isinstance(name, HttpApiResponse):
+                    return name
+                return _json_response(
+                    {
+                        "ok": True,
+                        "data": lifecycle.rename_session(route.session_id, name),
+                        "error": None,
+                    }
+                )
+            if route_name == "delete_session":
+                lifecycle = self._require_session_lifecycle(request)
+                if isinstance(lifecycle, HttpApiResponse):
+                    return lifecycle
+                return _json_response(
+                    {
+                        "ok": True,
+                        "data": lifecycle.delete_session(route.session_id),
+                        "error": None,
+                    }
                 )
             if route_name == "append_session_input":
                 append_session_request = _parse_command_request(
@@ -143,8 +227,12 @@ class PlatoUiHttpTransport:
                 )
                 if isinstance(append_session_request, HttpApiResponse):
                     return append_session_request
-                return _contract_response(
-                    self._command_gateway.append_session_input(append_session_request)
+                return self._command_response(
+                    route,
+                    append_session_request,
+                    lambda: self._command_gateway.append_session_input(
+                        append_session_request
+                    ),
                 )
             if route_name == "generate_task_tree":
                 generate_request = _parse_command_request(
@@ -154,8 +242,10 @@ class PlatoUiHttpTransport:
                 )
                 if isinstance(generate_request, HttpApiResponse):
                     return generate_request
-                return _contract_response(
-                    self._command_gateway.generate_task_tree(generate_request)
+                return self._command_response(
+                    route,
+                    generate_request,
+                    lambda: self._command_gateway.generate_task_tree(generate_request),
                 )
             if route_name == "update_task_node":
                 update_request = _parse_command_request(
@@ -165,8 +255,13 @@ class PlatoUiHttpTransport:
                 )
                 if isinstance(update_request, HttpApiResponse):
                     return update_request
-                return _contract_response(
-                    self._command_gateway.update_task_node(route.task_node_id, update_request)
+                return self._command_response(
+                    route,
+                    update_request,
+                    lambda: self._command_gateway.update_task_node(
+                        route.task_node_id,
+                        update_request,
+                    ),
                 )
             if route_name == "append_task_input":
                 append_task_request = _parse_command_request(
@@ -176,11 +271,13 @@ class PlatoUiHttpTransport:
                 )
                 if isinstance(append_task_request, HttpApiResponse):
                     return append_task_request
-                return _contract_response(
-                    self._command_gateway.append_task_input(
+                return self._command_response(
+                    route,
+                    append_task_request,
+                    lambda: self._command_gateway.append_task_input(
                         route.task_node_id,
                         append_task_request,
-                    )
+                    ),
                 )
             if route_name == "publish_task_tree":
                 publish_request = _parse_command_request(
@@ -190,8 +287,10 @@ class PlatoUiHttpTransport:
                 )
                 if isinstance(publish_request, HttpApiResponse):
                     return publish_request
-                return _contract_response(
-                    self._command_gateway.publish_task_tree(publish_request)
+                return self._command_response(
+                    route,
+                    publish_request,
+                    lambda: self._command_gateway.publish_task_tree(publish_request),
                 )
             if route_name == "resolve_confirmation":
                 resolve_request = _parse_command_request(
@@ -201,11 +300,32 @@ class PlatoUiHttpTransport:
                 )
                 if isinstance(resolve_request, HttpApiResponse):
                     return resolve_request
-                return _contract_response(
-                    self._command_gateway.resolve_confirmation(
+                return self._command_response(
+                    route,
+                    resolve_request,
+                    lambda: self._command_gateway.resolve_confirmation(
                         route.confirmation_id,
                         resolve_request,
+                    ),
+                )
+            if route_name == "client_error_log":
+                if request.body is None:
+                    return _error_response(
+                        400,
+                        ApiError(
+                            code="bad_request",
+                            message="request body must be a JSON object",
+                        ),
+                        request_id=_request_id_hint(request),
                     )
+                if self._client_error_log_sink is not None:
+                    self._client_error_log_sink.write_error(route.session_id, request.body)
+                return _json_response(
+                    {
+                        "ok": True,
+                        "data": {"stored": self._client_error_log_sink is not None},
+                        "error": None,
+                    }
                 )
             if route_name == "events":
                 events = self._event_source.subscribe(
@@ -240,6 +360,81 @@ class PlatoUiHttpTransport:
             request_id=_request_id_hint(request),
         )
 
+    def _require_session_lifecycle(
+        self,
+        request: HttpApiRequest,
+    ) -> SessionLifecycleGateway | HttpApiResponse:
+        if self._session_lifecycle_gateway is not None:
+            return self._session_lifecycle_gateway
+        return _error_response(
+            501,
+            ApiError(
+                code="internal_error",
+                message="session lifecycle gateway is not configured",
+            ),
+            request_id=_request_id_hint(request),
+        )
+
+    def _command_response(
+        self,
+        route: _Route,
+        request: CommandRequest[Any],
+        dispatch: Callable[[], Any],
+    ) -> HttpApiResponse:
+        idempotency_key = request.idempotency_key
+        if idempotency_key is None or self._command_idempotency_store is None:
+            return _contract_response(dispatch())
+
+        request_hash = _command_request_hash(route, request)
+        try:
+            cached = self._command_idempotency_store.get(
+                request.session_id,
+                idempotency_key,
+            )
+        except Exception as exc:
+            return _error_response(
+                500,
+                ApiError(
+                    code="internal_error",
+                    message="UI command idempotency store is unavailable",
+                    retryable=True,
+                    details={"error_type": type(exc).__name__},
+                ),
+                request_id=request.command_id,
+            )
+
+        if cached is not None:
+            if cached.request_hash != request_hash:
+                return _error_response(
+                    409,
+                    ApiError(
+                        code="idempotency_conflict",
+                        message=(
+                            "idempotencyKey was reused for a different command request"
+                        ),
+                        details={
+                            "idempotency_key": idempotency_key,
+                            "route": route.name,
+                        },
+                    ),
+                    request_id=request.command_id,
+                )
+            return cached.to_response()
+
+        response = _contract_response(dispatch())
+        try:
+            self._command_idempotency_store.put(
+                UiCommandResponseIdempotencyRecord.from_response(
+                    session_id=request.session_id,
+                    idempotency_key=idempotency_key,
+                    request_hash=request_hash,
+                    response=response,
+                )
+            )
+        except Exception:
+            return response
+        return response
+
 
 @dataclass(frozen=True)
 class _Route:
@@ -256,12 +451,18 @@ def _match_route(path: str) -> _Route | None:
         return _Route(name="root", method="GET")
     if parts == ("api", "v1", "health"):
         return _Route(name="health", method="GET")
-    if len(parts) < 5 or parts[:3] != ("api", "v1", "sessions"):
+    if parts == ("api", "v1", "sessions"):
+        return _Route(name="sessions", method="*")
+    if len(parts) < 4 or parts[:3] != ("api", "v1", "sessions"):
         return None
     session_id = parts[3]
     suffix = parts[4:]
     if suffix == ("snapshot",):
         return _Route(name="snapshot", method="GET", session_id=session_id)
+    if suffix == ():
+        return _Route(name="rename_session", method="PATCH", session_id=session_id)
+    if suffix == ("delete",):
+        return _Route(name="delete_session", method="POST", session_id=session_id)
     if suffix == ("input",):
         return _Route(name="append_session_input", method="POST", session_id=session_id)
     if suffix == ("task-tree", "generate"):
@@ -270,6 +471,8 @@ def _match_route(path: str) -> _Route | None:
         return _Route(name="publish_task_tree", method="POST", session_id=session_id)
     if suffix == ("events",):
         return _Route(name="events", method="GET", session_id=session_id)
+    if suffix == ("client-logs", "errors"):
+        return _Route(name="client_error_log", method="POST", session_id=session_id)
     if len(suffix) == 2 and suffix[0] == "tasks":
         return _Route(
             name="update_task_node",
@@ -344,6 +547,45 @@ def _parse_command_request[PayloadT](
             request_id=parsed.command_id,
         )
     return parsed
+
+
+def _command_request_hash(route: _Route, request: CommandRequest[Any]) -> str:
+    payload = {
+        "route": route.name,
+        "session_id": request.session_id,
+        "task_node_id": route.task_node_id or None,
+        "confirmation_id": route.confirmation_id or None,
+        "expected_version": request.expected_version,
+        "payload": request.payload.model_dump(mode="json"),
+    }
+    encoded = json.dumps(
+        payload,
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    )
+    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+
+def _string_body_value(
+    request: HttpApiRequest,
+    key: str,
+    *,
+    default: str | None = None,
+) -> str | HttpApiResponse:
+    raw = None if request.body is None else request.body.get(key)
+    if raw is None:
+        raw = default
+    if not isinstance(raw, str) or not raw.strip():
+        return _error_response(
+            400,
+            ApiError(
+                code="bad_request",
+                message=f"request body field {key!r} must be a non-empty string",
+            ),
+            request_id=_request_id_hint(request),
+        )
+    return raw.strip()
 
 
 def _contract_response(response: QueryResponse[Any] | Any) -> HttpApiResponse:

@@ -6,8 +6,10 @@ from collections import defaultdict
 from collections.abc import Iterable
 from datetime import UTC, datetime
 from threading import RLock
-from typing import Protocol, runtime_checkable
+from typing import ClassVar, Literal, Protocol, runtime_checkable
 from uuid import uuid4
+
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from taskweavn.task.authoring import RawTask
 from taskweavn.task.models import (
@@ -33,6 +35,59 @@ class TaskStoreError(RuntimeError):
 
 class VersionConflictError(TaskStoreError):
     """Raised when expected_version does not match the stored object version."""
+
+
+AuthoringActiveState = Literal["none", "raw_task", "draft_tree", "published", "cancelled"]
+
+
+class ActiveAuthoringState(BaseModel):
+    """Session-level pointer to the active authoring/work-tree state."""
+
+    model_config: ClassVar[ConfigDict] = ConfigDict(
+        extra="forbid",
+        frozen=True,
+        validate_assignment=True,
+    )
+
+    session_id: str = Field(min_length=1)
+    active_raw_task_id: str | None = Field(default=None, min_length=1)
+    active_draft_tree_id: str | None = Field(default=None, min_length=1)
+    active_state: AuthoringActiveState = "none"
+    updated_at: datetime = Field(default_factory=_utcnow)
+
+    @model_validator(mode="after")
+    def _validate_state_pointers(self) -> ActiveAuthoringState:
+        if self.active_state == "none" and (
+            self.active_raw_task_id is not None or self.active_draft_tree_id is not None
+        ):
+            raise ValueError("none active state cannot reference RawTask or DraftTaskTree")
+        if self.active_state == "raw_task" and self.active_raw_task_id is None:
+            raise ValueError("raw_task active state requires active_raw_task_id")
+        if self.active_state in {"draft_tree", "published"} and (
+            self.active_draft_tree_id is None
+        ):
+            raise ValueError(
+                f"{self.active_state} active state requires active_draft_tree_id"
+            )
+        return self
+
+
+@runtime_checkable
+class AuthoringStateStore(Protocol):
+    """Persistence boundary for one active authoring state per Session."""
+
+    def get_active(self, session_id: str) -> ActiveAuthoringState: ...
+
+    def set_active_raw_task(self, session_id: str, raw_task_id: str) -> None: ...
+
+    def set_active_draft_tree(
+        self,
+        session_id: str,
+        raw_task_id: str | None,
+        draft_tree_id: str,
+    ) -> None: ...
+
+    def mark_published(self, session_id: str, draft_tree_id: str) -> None: ...
 
 
 @runtime_checkable

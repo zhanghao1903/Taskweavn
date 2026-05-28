@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import Field, model_validator
+from pydantic import Field, field_validator, model_validator
 
 from taskweavn.server.ui_contract.base import UiContractModel, utcnow
+from taskweavn.server.ui_contract.refs import ObjectRef
 from taskweavn.task.models import TaskRef
 
 SessionStatus = Literal[
@@ -197,3 +198,420 @@ class AuditLinkView(UiContractModel):
     label: str = Field(min_length=1)
     href: str = Field(min_length=1)
     severity: Literal["info", "warning", "danger"] | None = None
+
+
+AuditVerdict = Literal[
+    "passed",
+    "warning",
+    "failed",
+    "inconclusive",
+    "not_available",
+]
+AuditCompleteness = Literal[
+    "not_started",
+    "running",
+    "partial",
+    "complete",
+    "failed",
+    "hidden",
+]
+AuditFilterKind = Literal[
+    "all",
+    "confirmations",
+    "actions",
+    "risks",
+    "files",
+    "results",
+    "system",
+    "config",
+    "logs",
+]
+AuditRecordKind = Literal[
+    "confirmation",
+    "action",
+    "observation",
+    "risk",
+    "file_change",
+    "result",
+    "message",
+    "config_change",
+    "audit_verdict",
+    "system",
+    "log_evidence",
+]
+AuditActorKind = Literal["user", "agent", "tool", "system", "audit_agent"]
+AuditSeverity = Literal["info", "success", "warning", "danger"]
+AuditConfidence = Literal["high", "medium", "low", "unknown"]
+EvidenceKind = Literal[
+    "message",
+    "event",
+    "action",
+    "observation",
+    "file_change",
+    "result",
+    "audit_observation",
+    "config_snapshot",
+    "log_excerpt",
+]
+AuditEvidenceSource = Literal[
+    "event_stream",
+    "message_stream",
+    "task_projection",
+    "audit_agent",
+    "config_store",
+    "log_archive",
+    "mock",
+]
+
+
+class AuditSessionScope(UiContractModel):
+    kind: Literal["session"] = "session"
+    session_id: str = Field(min_length=1)
+
+
+class AuditWorkflowScope(UiContractModel):
+    kind: Literal["workflow"] = "workflow"
+    workflow_id: str = Field(min_length=1)
+    project_id: str | None = None
+
+
+class AuditTaskScope(UiContractModel):
+    kind: Literal["task"] = "task"
+    session_id: str = Field(min_length=1)
+    task_node_id: str = Field(min_length=1)
+    task_ref: TaskRef | None = None
+
+
+class AuditActionScope(UiContractModel):
+    kind: Literal["action"] = "action"
+    session_id: str = Field(min_length=1)
+    action_id: str = Field(min_length=1)
+    task_node_id: str | None = None
+
+
+class AuditConfirmationScope(UiContractModel):
+    kind: Literal["confirmation"] = "confirmation"
+    session_id: str = Field(min_length=1)
+    confirmation_id: str = Field(min_length=1)
+    task_node_id: str | None = None
+
+
+class AuditFileScope(UiContractModel):
+    kind: Literal["file"] = "file"
+    session_id: str = Field(min_length=1)
+    path: str = Field(min_length=1)
+    task_node_id: str | None = None
+
+
+class AuditResultScope(UiContractModel):
+    kind: Literal["result"] = "result"
+    session_id: str = Field(min_length=1)
+    result_id: str = Field(min_length=1)
+    task_node_id: str | None = None
+
+
+class AuditConfigScope(UiContractModel):
+    kind: Literal["config"] = "config"
+    session_id: str | None = None
+    workflow_id: str | None = None
+    config_key: str | None = None
+
+    @model_validator(mode="after")
+    def _validate_anchor(self) -> AuditConfigScope:
+        if self.session_id is None and self.workflow_id is None and self.config_key is None:
+            raise ValueError("config audit scope requires session_id, workflow_id, or config_key")
+        return self
+
+
+class AuditLogEvidenceScope(UiContractModel):
+    kind: Literal["log_evidence"] = "log_evidence"
+    session_id: str = Field(min_length=1)
+    evidence_id: str = Field(min_length=1)
+    task_node_id: str | None = None
+
+
+type AuditScope = Annotated[
+    AuditSessionScope
+    | AuditWorkflowScope
+    | AuditTaskScope
+    | AuditActionScope
+    | AuditConfirmationScope
+    | AuditFileScope
+    | AuditResultScope
+    | AuditConfigScope
+    | AuditLogEvidenceScope,
+    Field(discriminator="kind"),
+]
+
+
+class AuditEntryContext(UiContractModel):
+    kind: Literal[
+        "from_session",
+        "from_task",
+        "from_confirmation",
+        "from_result",
+        "from_file_change",
+    ]
+    session_id: str = Field(min_length=1)
+    task_node_id: str | None = None
+    task_ref: TaskRef | None = None
+    confirmation_id: str | None = None
+    result_id: str | None = None
+    file_path: str | None = None
+    source_route: str = Field(min_length=1)
+    preferred_filter: AuditFilterKind | None = None
+    preferred_record_id: str | None = None
+
+
+class MainPageReturnTarget(UiContractModel):
+    route_name: Literal["main.session", "main.sessionFallback"]
+    session_id: str = Field(min_length=1)
+    project_id: str | None = None
+    workflow_id: str | None = None
+    task_node_id: str | None = None
+    focus: Literal["session", "task", "confirmation", "result", "file_change"]
+    record_id: str | None = None
+
+
+class AuditPageRequestView(UiContractModel):
+    filter: AuditFilterKind = "all"
+    record_id: str | None = None
+    include_detail: bool = False
+    limit: int = Field(default=50, ge=1, le=200)
+    cursor: str | None = None
+
+
+class AuditOverview(UiContractModel):
+    verdict: AuditVerdict
+    completeness: AuditCompleteness
+    summary: str = Field(min_length=1)
+    key_issue: str | None = None
+    record_counts: dict[AuditFilterKind, int] = Field(default_factory=dict)
+    important_record_ids: tuple[str, ...] = ()
+    hidden_evidence_count: int = Field(default=0, ge=0)
+    partial_reason: str | None = None
+    generated_by: Literal["audit_agent", "projection", "rules", "mock"]
+    updated_at: datetime = Field(default_factory=utcnow)
+
+    @field_validator("record_counts")
+    @classmethod
+    def _validate_record_counts(
+        cls,
+        value: dict[AuditFilterKind, int],
+    ) -> dict[AuditFilterKind, int]:
+        negative_counts = [count for count in value.values() if count < 0]
+        if negative_counts:
+            raise ValueError("audit record counts must be non-negative")
+        return value
+
+
+class AuditFilterView(UiContractModel):
+    kind: AuditFilterKind
+    label: str = Field(min_length=1)
+    count: int = Field(default=0, ge=0)
+    enabled: bool = True
+    disabled_reason: str | None = None
+
+
+class AuditLoadingPageState(UiContractModel):
+    kind: Literal["loading"] = "loading"
+    message: str = Field(min_length=1)
+
+
+class AuditReadyPageState(UiContractModel):
+    kind: Literal["ready"] = "ready"
+
+
+class AuditEmptyPageState(UiContractModel):
+    kind: Literal["empty"] = "empty"
+    reason: str = Field(min_length=1)
+
+
+class AuditPartialPageState(UiContractModel):
+    kind: Literal["partial"] = "partial"
+    reason: str = Field(min_length=1)
+
+
+class AuditHiddenEvidencePageState(UiContractModel):
+    kind: Literal["hidden_evidence"] = "hidden_evidence"
+    reason: str = Field(min_length=1)
+    hidden_count: int = Field(ge=1)
+
+
+class AuditPermissionDeniedPageState(UiContractModel):
+    kind: Literal["permission_denied"] = "permission_denied"
+    reason: str = Field(min_length=1)
+
+
+class AuditErrorPageState(UiContractModel):
+    kind: Literal["error"] = "error"
+    code: str = Field(min_length=1)
+    message: str = Field(min_length=1)
+    retryable: bool = False
+
+
+class AuditStalePageState(UiContractModel):
+    kind: Literal["stale"] = "stale"
+    reason: str = Field(min_length=1)
+
+
+type AuditPageState = Annotated[
+    AuditLoadingPageState
+    | AuditReadyPageState
+    | AuditEmptyPageState
+    | AuditPartialPageState
+    | AuditHiddenEvidencePageState
+    | AuditPermissionDeniedPageState
+    | AuditErrorPageState
+    | AuditStalePageState,
+    Field(discriminator="kind"),
+]
+
+
+class AuditPermissions(UiContractModel):
+    can_view_audit: bool = True
+    can_view_evidence: bool = True
+    can_view_hidden_evidence_reason: bool = False
+    can_open_related_logs: bool = False
+    readonly_reason: str | None = None
+
+
+class EvidenceRef(UiContractModel):
+    id: str = Field(min_length=1)
+    kind: EvidenceKind
+    label: str = Field(min_length=1)
+    summary: str = Field(min_length=1)
+    available: bool = True
+    hidden: bool = False
+    redacted: bool = False
+
+
+class AuditRecordFlags(UiContractModel):
+    partial: bool = False
+    hidden: bool = False
+    redacted: bool = False
+    stale: bool = False
+    user_visible: bool = True
+
+
+class AuditRecord(UiContractModel):
+    id: str = Field(min_length=1)
+    scope: AuditScope
+    kind: AuditRecordKind
+    filter_kind: AuditFilterKind
+
+    title: str = Field(min_length=1)
+    summary: str = Field(min_length=1)
+    actor: AuditActorKind
+    source_label: str = Field(min_length=1)
+    occurred_at: datetime = Field(default_factory=utcnow)
+
+    severity: AuditSeverity = "info"
+    confidence: AuditConfidence = "unknown"
+    verdict: AuditVerdict | None = None
+    completeness: AuditCompleteness = "complete"
+
+    task_node_id: str | None = None
+    task_ref: TaskRef | None = None
+    action_id: str | None = None
+    confirmation_id: str | None = None
+    result_id: str | None = None
+    file_path: str | None = None
+    config_key: str | None = None
+
+    evidence_refs: tuple[EvidenceRef, ...] = ()
+    related_record_ids: tuple[str, ...] = ()
+    flags: AuditRecordFlags = Field(default_factory=AuditRecordFlags)
+
+
+class AuditReference(UiContractModel):
+    kind: Literal[
+        "task",
+        "message",
+        "confirmation",
+        "action",
+        "observation",
+        "file",
+        "result",
+        "config",
+        "log",
+        "external",
+    ]
+    label: str = Field(min_length=1)
+    href: str | None = None
+    ref: ObjectRef | None = None
+
+
+class AuditDisclosure(UiContractModel):
+    raw_payload_available: bool = False
+    raw_payload_shown: bool = False
+    redaction_reason: str | None = None
+    hidden_reason: str | None = None
+    partial_reason: str | None = None
+    permission_reason: str | None = None
+
+    @model_validator(mode="after")
+    def _validate_raw_payload_disclosure(self) -> AuditDisclosure:
+        if self.raw_payload_shown and not self.raw_payload_available:
+            raise ValueError("shown raw payload must also be available")
+        return self
+
+
+class EvidenceSummary(EvidenceRef):
+    source: AuditEvidenceSource
+    occurred_at: datetime | None = None
+
+
+class SanitizedRawPayload(UiContractModel):
+    format: Literal["json", "text"]
+    content: str = Field(min_length=1)
+    redactions: tuple[str, ...] = ()
+
+
+class EvidenceDetail(EvidenceSummary):
+    body: str = Field(min_length=1)
+    sanitized_payload: SanitizedRawPayload | None = None
+    disclosure: AuditDisclosure = Field(default_factory=AuditDisclosure)
+
+    @model_validator(mode="after")
+    def _validate_payload_matches_disclosure(self) -> EvidenceDetail:
+        if self.sanitized_payload is not None and not self.disclosure.raw_payload_shown:
+            raise ValueError("sanitized payload requires raw_payload_shown disclosure")
+        if self.disclosure.raw_payload_shown and self.sanitized_payload is None:
+            raise ValueError("raw_payload_shown disclosure requires sanitized payload")
+        return self
+
+
+class RelatedLogsLink(UiContractModel):
+    label: str = Field(min_length=1)
+    href: str = Field(min_length=1)
+    filters: dict[str, str | None] = Field(default_factory=dict)
+    enabled: bool = True
+    disabled_reason: str | None = None
+
+
+class AuditRecordDetail(AuditRecord):
+    body: str = Field(min_length=1)
+    why_it_matters: str = Field(min_length=1)
+    outcome: str | None = None
+    references: tuple[AuditReference, ...] = ()
+    evidence: tuple[EvidenceSummary, ...] = ()
+    disclosure: AuditDisclosure = Field(default_factory=AuditDisclosure)
+    related_logs: tuple[RelatedLogsLink, ...] = ()
+    raw_payload: SanitizedRawPayload | None = None
+
+    @model_validator(mode="after")
+    def _validate_payload_matches_disclosure(self) -> AuditRecordDetail:
+        if self.raw_payload is not None and not self.disclosure.raw_payload_shown:
+            raise ValueError("raw payload requires raw_payload_shown disclosure")
+        if self.disclosure.raw_payload_shown and self.raw_payload is None:
+            raise ValueError("raw_payload_shown disclosure requires raw payload")
+        return self
+
+
+class EffectiveConfigSummary(UiContractModel):
+    summary: str = Field(min_length=1)
+    profile_label: str = Field(min_length=1)
+    effective_at: datetime = Field(default_factory=utcnow)
+    relevant_record_ids: tuple[str, ...] = ()
+    settings_href: str | None = None

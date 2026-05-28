@@ -6,7 +6,8 @@ export type MainPageStateLifecycle =
   | "planning"
   | "task_focus"
   | "execution"
-  | "review";
+  | "review"
+  | "recovery";
 
 export type MainPageStateCatalogEntry = {
   id: MainPageStateId;
@@ -99,6 +100,42 @@ export const mainPageStateCatalog = [
     pageFocus: "Explain concrete workspace changes before acceptance or audit.",
     primarySurfaces: ["File Change Summary", "TaskTree", "Audit link"],
     expectedUserAction: "Inspect changed files or ask Plato to explain a change.",
+  },
+  {
+    id: "s10-permission-denied",
+    label: "S10 Permission Denied",
+    lifecycle: "recovery",
+    userSituation: "The user can inspect the selected task but cannot mutate it.",
+    pageFocus: "Keep the permission boundary explicit while preserving context.",
+    primarySurfaces: ["TaskTree", "Permission detail", "Disabled input"],
+    expectedUserAction: "Return, inspect, or wait for permission context to change.",
+  },
+  {
+    id: "s11-stale-snapshot",
+    label: "S11 Stale Snapshot",
+    lifecycle: "recovery",
+    userSituation: "The visible snapshot is stale after backend state changed.",
+    pageFocus: "Disable high-risk actions and make resync the next safe action.",
+    primarySurfaces: ["TaskTree", "Resync detail", "Stale warning"],
+    expectedUserAction: "Refresh the snapshot before continuing.",
+  },
+  {
+    id: "s12-backend-busy",
+    label: "S12 Backend Busy",
+    lifecycle: "recovery",
+    userSituation: "A command was accepted but backend processing is delayed.",
+    pageFocus: "Keep the current state readable while duplicate submit is disabled.",
+    primarySurfaces: ["TaskTree", "Pending command detail", "Session messages"],
+    expectedUserAction: "Wait for the next event or retry only after timeout.",
+  },
+  {
+    id: "s13-command-failed",
+    label: "S13 Command Failed",
+    lifecycle: "recovery",
+    userSituation: "A recoverable command error occurred without losing context.",
+    pageFocus: "Show the error and keep retry/revise paths available.",
+    primarySurfaces: ["TaskTree", "Recoverable error detail", "Context input"],
+    expectedUserAction: "Retry the command or revise the task instruction.",
   },
 ] as const satisfies readonly MainPageStateCatalogEntry[];
 
