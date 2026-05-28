@@ -1,7 +1,7 @@
 # TaskWeavn Roadmap
 
 > Status: active
-> Last Updated: 2026-05-21
+> Last Updated: 2026-05-22
 > Maintained By: planning session
 > Related: [Project Plan](project/roadmap.md), [Gap Registry](gaps/), [Planning Workflow](planning_workflow.md), [Architecture](architecture/), [Architecture Decisions](decisions/), [Release Records](releases/), [User Traceability](user_model/traceability.md)
 
@@ -91,7 +91,7 @@ Current user-need drivers:
 2. **Authoring and execution are separate domains.** RawTask, feasibility, clarification asks, and DraftTaskTree stay in Authoring Domain; only PublishedTasks enter Execution TaskBus.
 3. **Planning is capability-first; system state is command-first.** Collaborator should see a read-only CapabilityCatalog and submit Authoring Commands for RawTask/DraftTaskTree changes, not mount the full workspace/external tool pool.
 4. **Messages remain one session stream.** Messages carry `session_id`, `agent_id`, and `task_id`; Task views are projections over the same stream, not a separate Task message table.
-5. **TaskBus is the execution authority.** User, Collaborator, pipeline, scheduler, API, and custom tree inputs all publish normal Tasks through a publisher layer.
+5. **TaskBus is the execution state authority, not the routing brain.** User, Collaborator, pipeline, scheduler, API, and custom tree inputs all publish normal Tasks through a publisher layer; Routing Agent assigns responsibility through commands that TaskBus validates.
 6. **Domain model and UI model are separate.** Backend Task stays small and stable; UI Task cards are projections with temporary view state.
 7. **Interactions must be replayable.** Confirmation actions, user guidance, Task patches, publish decisions, and file summaries must be reconstructible from backend facts.
 8. **Reliability and observability are now product features.** LLM failures, retry behavior, provider routing, and logging must be first-class before complex long-running tasks become usable.
@@ -199,7 +199,7 @@ Work packages:
 | Work | Plan | Priority |
 |---|---|---:|
 | TaskPublisher abstraction for user/collaborator/pipeline/scheduler/API/custom tree | [Task Publisher plan](plans/feature/task-publishers-schedule-api.md), [release](releases/task-publishers-schedule-api.md) | Done, including SQLite TaskBus |
-| Pipeline task auto-loading and agent assignment constraints | [Pipeline loading plan](plans/feature/pipeline-task-loading.md) | Partial: task_before/task_begin publish-time expansion done; minimal assignment semantics remain P0; completion-time task_after is Product 1.1 / P1 |
+| Pipeline task auto-loading and agent assignment constraints | [Pipeline loading plan](plans/feature/pipeline-task-loading.md) | Partial: task_before/task_begin publish-time expansion done; routing/assignment foundation is Product 1.1 / P1; completion-time task_after is Product 1.1 / P1 |
 | TaskBus publish/claim state authority hardening | Future implementation plan | P0 |
 
 Exit criteria:
@@ -287,11 +287,11 @@ These remain valuable, but they should not be the next immediate build target be
 Recommended order for upcoming implementation sessions:
 
 1. **[Main Page real backend integration](plans/feature/main-page-real-backend-integration.md)** — continue from the [Main Page Frontend Runtime Integration](plans/feature/main-page-frontend-runtime-integration.md) checkpoint. The current branch is a useful stage submission, not completion: real browser/Electron smoke, session creation/selection, pending/error UX, confirmation/message hardening, TaskNode edit controls, file-change projection, audit/trust surfaces, and durable event behavior still need follow-up work.
-2. **Minimal agent assignment semantics** — enough Task-to-agent/capability routing to support Product 1.0 execution without full multi-agent breadth.
+2. **Fixed-route task execution bridge** — close Product 1.0 execution with a resident universal Default Agent and a single route from TaskBus pending Tasks to complete/fail.
 3. **Message and confirmation UI integration hardening** — make HITL confirmations real through UI commands/events, including richer pending states and recovery paths.
 4. **File Change Summary and Audit / Trust implementation** — turn trust facts into user-readable surfaces.
 5. **Persistent authoring stores** — make RawTask/DraftTaskTree authoring durable beyond in-memory tests if 1.0 user testing requires it.
-6. **Product 1.1 research and planning** — completion-time `task_after`, Result Packaging cards, skills integration, MCP integration, and file/multimodal support.
+6. **Product 1.1 research and planning** — completion-time `task_after`, Result Packaging cards, routing/assignment foundation, Agent protocol/governance, skills integration, MCP integration, and file/multimodal support.
 7. **Centralized runtime configuration** — shared control plane for logging/autonomy/audit/LLM/Task/UI behavior once the Task-facing server model is concrete enough to avoid overfitting.
 
 LLM Provider reliability, configurable logging, Task domain/UI separation, Collaborator authoring, TaskPublisher, TaskBus execution lifecycle, publish persistence, API publish transport, frontend baseline, UI/backend contract baseline, local sidecar API shell, and Main Page sidecar assembly now have server-core or UI baseline release candidates. Main Page frontend runtime integration remains open: the latest work is a checkpoint that proves core wiring and diagnostics, but it should stay in the active gap queue until broader UI/runtime behavior is user-testable.

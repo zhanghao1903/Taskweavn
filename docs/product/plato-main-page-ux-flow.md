@@ -57,6 +57,7 @@ Project
 | Detail Panel | 当前焦点对象是什么？我能做什么？ | 动态 Context Inspector |
 | Message Stream | 系统过程发生了什么？ | Session 消息流 + Task scoped projection |
 | Result / File Change / Audit | 产出了什么，改了什么，能否追溯？ | 结果卡、文件变更摘要、审计入口 |
+| Routing / Assignment | 谁负责这个 TaskNode？为什么？ | 轻量 Agent/capability 标记，必要时进入 Audit |
 
 ### 3.1 Detail Panel 动态语义
 

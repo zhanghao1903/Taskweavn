@@ -365,9 +365,11 @@ class RefreshHint(BaseModel):
 | `answerRawTaskAsk` | 回答可行性/澄清问题 | CollaboratorApiAdapter |
 | `resolveConfirmation` | 处理确认动作 | TaskCommandService + MessageStream |
 | `publishTaskTree` | 发布 draft tree 到 TaskBus | CollaboratorApiAdapter + TaskPublisher |
-| `cancelTask` | 取消 draft/pending Task | 待实现 |
+| `assignTask` | Routing Agent 分配 pending Task 给 Execution Agent | Routing Agent + TaskBus assignment command |
+| `requestTaskInterrupt` | 用户或系统请求停止 Task | TaskCommandService + TaskBus interrupt intent |
+| `cancelTask` | 取消 draft/pending Task | draft: AuthoringCommandService; pending: TaskBus terminal update |
 | `retryTask` | failed Task 创建 retry Task | TaskCommandService + TaskPublisher |
-| `startTaskExecution` | 从 Task 或 root 开始执行 | 待 TaskBus lifecycle 完成 |
+| `startTaskExecution` | 领取已分配 Task 并进入 running | TaskBus claim_assigned + Execution Agent runtime |
 
 ### 5.3 Command Rules
 
@@ -609,7 +611,8 @@ UI 可以为一次用户点击生成稳定 idempotency key，避免刷新/重试
 | Publish draft/custom tree | `TaskPublisher`, `TaskPublishService`, `TaskBus` |
 | Scheduled/API publish | `SchedulerPublisher`, `DefaultApiTaskPublisher` |
 | Message stream and confirmations | `MessageStream`, `InProcessMessageBus`, `WaitCoordinator` |
-| Execution status | TaskBus v2 claim/complete/fail lifecycle |
+| Assignment and execution status | Routing Agent assignment commands + TaskBus claim/complete/fail lifecycle |
+| Interruption | TaskBus interrupt intent + Agent/runtime cooperative safe points |
 | Logs/diagnostics | Configurable logging and archives |
 
 The first UI transport should wrap these services; it should not create a second business layer.

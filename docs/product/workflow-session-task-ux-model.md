@@ -216,14 +216,15 @@ User-facing rules:
 ## 9. Agent Routing Lifecycle
 
 ```text
-Agent Defined
-  -> Capability Available
-  -> Assigned to TaskNode
+Routing Agent Available
+  -> TaskNode Awaiting Assignment
+  -> Assigned to Execution Agent
   -> Working
   -> Reported Result
 ```
 
-Agent routing should be understandable as responsibility assignment:
+Agent routing should be understandable as responsibility assignment, not as a
+workflow-programming surface:
 
 ```text
 This TaskNode is handled by this Agent or capability.
@@ -233,6 +234,46 @@ This is enough for a first version of flexible multi-Agent orchestration.
 
 It should remain Task-routed. The user should not need to operate a full
 workflow engine to gain meaningful control over Agent assignment.
+
+Product 1.0 should treat routing as mostly system-internal. A default Routing
+Agent can decide which Execution Agent should receive a TaskNode and submit an
+assignment command. This assignment should be traceable, but ordinary users
+should not be forced to confirm it because assignment changes system
+responsibility, not the user's external world.
+
+High-impact confirmation belongs closer to execution:
+
+```text
+Routing Agent assigns TaskNode
+  -> Execution Agent prepares high-privilege action
+  -> user confirmation if needed
+  -> tool/action executes
+```
+
+Advanced users may later configure or replace the Routing Agent.
+
+### 9.1 Interruption UX
+
+Stopping a running TaskNode is cooperative by default.
+
+```text
+User clicks Stop
+  -> Main Page shows "Stopping..."
+  -> system asks the running Agent to stop at the next safe point
+  -> Agent acknowledges stopped / failed / completed
+```
+
+The UI should not promise immediate cancellation. Safe points belong to the
+Agent/runtime because only the executor knows whether the current action can be
+stopped without leaving partial writes, orphan processes, or inconsistent
+external state.
+
+For Product 1.0:
+
+- queued / unclaimed TaskNodes may stop quickly;
+- running TaskNodes enter a visible stopping affordance until acknowledged;
+- "pause/resume" is not part of the first product contract;
+- hard cancellation is best-effort and runtime-specific.
 
 ## 10. Message Model In UX
 
@@ -308,10 +349,12 @@ These questions are intentionally left open for future design work:
 2. When should the system auto-select a Workflow versus asking the user?
 3. Should Authoring Workflow and Execution Workflow appear as two explicit
    steps, or as one guided experience with a visible transition?
-4. How much Agent routing should be exposed to ordinary users?
+4. How much Routing Agent configuration should be exposed to advanced users?
 5. What is the default recovery path when a running TaskNode receives new user
    instructions?
-6. When should result packaging run automatically versus as an explicit Task?
+6. When should Product 1.0 show routing notices to the user versus keeping them
+   in Audit / diagnostics?
+7. When should result packaging run automatically versus as an explicit Task?
 
 The stable baseline is not the answer to every question. The stable baseline is
 the object model: Workflow, Session, TaskTree, TaskNode, Result, and Audit.

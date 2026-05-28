@@ -107,6 +107,7 @@ MVP 必须遵守以下原则：
 9. Agent routing 是高级能力，默认不抢占普通用户心智。
 10. UI 优先展示用户能行动的信息。
 11. 内部系统对象只在提升控制或信任时暴露。
+12. 路由是系统责任分配，默认不要求用户确认；高风险确认应靠近执行动作。
 
 ## 6. MVP 范围
 
@@ -436,7 +437,7 @@ MVP 支持初版文件变更摘要。
 | 编号 | 需求 |
 |---|---|
 | P1-1 | 支持多个 Workflow 模板的入口展示。 |
-| P1-2 | 支持 TaskNode agent/capability routing 的只读展示。 |
+| P1-2 | 支持 TaskNode agent/capability routing 的只读展示，包括被分配给哪个 Execution Agent。 |
 | P1-3 | 支持失败 TaskNode 的 retry / skip 操作入口。 |
 | P1-4 | 支持 Result Card 的多种展示类型。 |
 | P1-5 | 支持更完整的 File Change Summary 聚合。 |
