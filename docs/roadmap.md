@@ -290,11 +290,10 @@ Recommended order for upcoming implementation sessions:
 2. **Fixed-route task execution bridge** — close Product 1.0 execution with a resident universal Default Agent and a single route from TaskBus pending Tasks to complete/fail.
 3. **Message and confirmation UI integration hardening** — make HITL confirmations real through UI commands/events, including richer pending states and recovery paths.
 4. **File Change Summary and Audit / Trust implementation** — turn trust facts into user-readable surfaces.
-5. **Persistent authoring stores** — make RawTask/DraftTaskTree authoring durable beyond in-memory tests if 1.0 user testing requires it.
-6. **Product 1.1 research and planning** — completion-time `task_after`, Result Packaging cards, routing/assignment foundation, Agent protocol/governance, skills integration, MCP integration, and file/multimodal support.
-7. **Centralized runtime configuration** — shared control plane for logging/autonomy/audit/LLM/Task/UI behavior once the Task-facing server model is concrete enough to avoid overfitting.
+5. **Product 1.1 research and planning** — completion-time `task_after`, Result Packaging cards, routing/assignment foundation, Agent protocol/governance, skills integration, MCP integration, and file/multimodal support.
+6. **Centralized runtime configuration** — shared control plane for logging/autonomy/audit/LLM/Task/UI behavior once the Task-facing server model is concrete enough to avoid overfitting.
 
-LLM Provider reliability, configurable logging, Task domain/UI separation, Collaborator authoring, TaskPublisher, TaskBus execution lifecycle, publish persistence, API publish transport, frontend baseline, UI/backend contract baseline, local sidecar API shell, and Main Page sidecar assembly now have server-core or UI baseline release candidates. Main Page frontend runtime integration remains open: the latest work is a checkpoint that proves core wiring and diagnostics, but it should stay in the active gap queue until broader UI/runtime behavior is user-testable.
+LLM Provider reliability, configurable logging, Task domain/UI separation, Collaborator authoring, TaskPublisher, TaskBus execution lifecycle, publish persistence, API publish transport, RawTask/DraftTaskTree authoring persistence, frontend baseline, UI/backend contract baseline, local sidecar API shell, and Main Page sidecar assembly now have server-core or UI baseline release candidates. RawTask/DraftTaskTree authoring persistence and publish identity recovery are closed for Product 1.0 authoring recovery. Main Page frontend runtime integration remains open: the latest work is a checkpoint that proves core wiring and diagnostics, but it should stay in the active gap queue until broader UI/runtime behavior is user-testable.
 
 For status and routing of each gap, see [Gap Registry](gaps/).
 

@@ -1,12 +1,35 @@
 # RawTask / DraftTaskTree 持久化基础：中文详细技术方案
 
-> Status: planned
+> Status: implemented
 > Type: backend persistence / authoring-domain reliability technical design
 > Last Updated: 2026-05-28
 > Parent Plan: [RawTask And DraftTaskTree Persistence Foundation](raw-task-draft-tree-persistence.md)
 > Decision: [ADR-0009: Single Active Session Work Tree](../../decisions/ADR-0009-single-active-session-worktree.md)
+> Release Record: [RawTask And DraftTaskTree Persistence](../../releases/raw-task-draft-tree-persistence.md)
 
 ---
+
+## 0. 实施状态
+
+本技术方案已按 P8.1-P8.6 落地，并通过 Product 1.0 authoring recovery
+验收。
+
+已实现范围：
+
+- SQLite RawTask / DraftTaskTree / active authoring state stores；
+- backend restart 后恢复当前 active RawTask / DraftTaskTree；
+- projection 和 gateway 不再把 synthetic `TaskTreeView.id` 当作真实
+  `draft_tree_id`；
+- local sidecar 接入 `authoring.sqlite`；
+- authoring command result 幂等；
+- API command response 幂等和 request hash conflict。
+
+仍不包含：
+
+- post-publish editing 策略；
+- fixed-route task execution bridge；
+- Audit Page 完整实现；
+- durable SSE replay。
 
 ## 1. 设计结论
 
@@ -28,18 +51,18 @@
 5. `TaskTreeView` 继续是 UI projection，不是 domain truth。
 6. publish 必须使用真实 `draft_tree_id`，或由 gateway 解析 active draft tree。
 
-第一批实现建议只做 P8.1 + P8.2：
+原始第一批实现建议只做 P8.1 + P8.2：
 
 - `SqliteRawTaskStore`
 - `SqliteDraftTaskStore`
 - `SqliteAuthoringStateStore`
 - reopen / version conflict / mapping persistence tests
 
-Projection、gateway、sidecar assembly 后续分片再接入。
+Projection、gateway、sidecar assembly 和幂等能力随后已按 P8.3-P8.6 接入。
 
 ---
 
-## 2. 当前代码基线
+## 2. 实施前代码基线
 
 | Area | Current fact | Persistence gap |
 |---|---|---|
