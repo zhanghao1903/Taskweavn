@@ -777,6 +777,10 @@ type PublishTaskTreePayload = {
 前端不应把 `TaskTreeView.id` 当成可发布 domain primary key；发布路径应依赖
 Gateway 的 active draft tree 解析，或在 contract 明确返回真实 draft tree id。
 
+UI/API 层的 publish 动作语义是“用户接受当前草稿并发布”。因此 adapter 可以先把
+DraftTaskTree 标记为 accepted，再调用底层 authoring publish boundary。底层
+`PublishDraftTaskTreeCommand` 仍保持更严格的规则：未 accepted 的 tree 不能被直接发布。
+
 发布后 UI 应看到：
 
 - TaskTree status 从 `draft` 进入 `published` 或 `running`；

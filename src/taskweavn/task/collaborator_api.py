@@ -16,6 +16,8 @@ from taskweavn.task.authoring import (
     AuthoringCommandBatch,
     AuthoringCommandError,
     AuthoringCommandResult,
+    DraftTaskTreeOperation,
+    MutateDraftTaskTreeCommand,
     MutateRawTaskCommand,
     PublishDraftTaskTreeCommand,
     PublishOptions,
@@ -290,11 +292,34 @@ class DefaultCollaboratorApiAdapter:
         start_immediately: bool = True,
     ) -> CommandResult:
         key = idempotency_key or _new_id()
-        command = PublishDraftTaskTreeCommand(
+        accept_key = f"{key}:accept"
+        accept_command = MutateDraftTaskTreeCommand(
             session_id=session_id,
             draft_tree_id=draft_tree_id,
             actor=self._user_actor,
             expected_version=expected_version,
+            idempotency_key=accept_key,
+            operations=(DraftTaskTreeOperation(op="mark_accepted"),),
+        )
+        accept_result = self._command_service.submit(
+            AuthoringCommandBatch(
+                session_id=session_id,
+                actor=self._user_actor,
+                idempotency_key=accept_key,
+                commands=(accept_command,),
+            )
+        )
+        if not accept_result.accepted:
+            return _command_result(
+                accept_result,
+                accepted_message="draft task tree accepted",
+                rejected_message="draft task tree accept rejected",
+            )
+
+        command = PublishDraftTaskTreeCommand(
+            session_id=session_id,
+            draft_tree_id=draft_tree_id,
+            actor=self._user_actor,
             idempotency_key=key,
             publish_options=PublishOptions(start_immediately=start_immediately),
         )

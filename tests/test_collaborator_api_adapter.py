@@ -398,6 +398,63 @@ def test_publish_task_tree_uses_authoring_publish_boundary(tmp_path: Any) -> Non
     assert messages[-1].content == "Draft task tree published."
 
 
+def test_publish_task_tree_accepts_draft_before_authoring_publish(tmp_path: Any) -> None:
+    draft_store = InMemoryDraftTaskStore()
+    tree = draft_store.create_tree(
+        "s1",
+        [
+            DraftTaskNode(
+                draft_task_id="root",
+                session_id="s1",
+                draft_tree_id="placeholder",
+                title="Write docs",
+                intent="Write docs",
+                required_capability="writing",
+            )
+        ],
+    )
+    publisher = _Publisher(
+        TaskPublishResult(
+            root_task_ids=("task-root",),
+            mappings=(
+                DraftToPublishedMapping(
+                    session_id="s1",
+                    draft_tree_id=tree.draft_tree_id,
+                    draft_task_id="root",
+                    task_id="task-root",
+                    publish_command_id="publish-1",
+                ),
+            ),
+        )
+    )
+    harness = _adapter(
+        tmp_path,
+        _StubLLM(
+            [
+                """
+                {"intent_summary": "unused",
+                 "feasibility": {"status": "ready", "confidence": 0.9}}
+                """
+            ]
+        ),
+        draft_store=draft_store,
+        publisher=publisher,
+    )
+
+    result = harness.adapter.publish_task_tree(
+        session_id="s1",
+        draft_tree_id=tree.draft_tree_id,
+        idempotency_key="publish-1",
+    )
+
+    assert result.accepted
+    assert result.published_task_ids == ("task-root",)
+    node = draft_store.get_node("s1", "root")
+    assert node is not None
+    assert node.status == "published"
+    assert publisher.calls == [("s1", tree.draft_tree_id)]
+
+
 def _raw_task() -> RawTask:
     return RawTask(
         raw_task_id="raw1",

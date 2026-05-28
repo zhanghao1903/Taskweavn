@@ -32,7 +32,12 @@ from taskweavn.task.authoring import (
 )
 from taskweavn.task.models import DraftTaskNode, TaskNodePatch, TaskRef
 from taskweavn.task.publisher import TaskPublisher, TaskPublishResult
-from taskweavn.task.stores import DraftTaskStore, RawTaskStore, TaskStoreError
+from taskweavn.task.stores import (
+    AuthoringStateStore,
+    DraftTaskStore,
+    RawTaskStore,
+    TaskStoreError,
+)
 
 
 def _new_id() -> str:
@@ -70,12 +75,14 @@ class DefaultAuthoringCommandService:
         message_bus: MessageBus | None = None,
         task_publisher: TaskPublisher | None = None,
         draft_validator: DraftTaskTreeValidator | None = None,
+        authoring_state_store: AuthoringStateStore | None = None,
     ) -> None:
         self._raw_task_store = raw_task_store
         self._draft_store = draft_store
         self._message_bus = message_bus
         self._task_publisher = task_publisher
         self._draft_validator = draft_validator
+        self._authoring_state_store = authoring_state_store
         self._lock = RLock()
         self._idempotency_results: dict[str, AuthoringCommandResult] = {}
 
@@ -161,7 +168,12 @@ class DefaultAuthoringCommandService:
         if raw_task is None:
             raise ValueError("RawTask command did not produce a RawTask")
         if creating:
-            self._raw_task_store.create(raw_task)
+            raw_task = self._raw_task_store.create(raw_task)
+            if self._authoring_state_store is not None:
+                self._authoring_state_store.set_active_raw_task(
+                    raw_task.session_id,
+                    raw_task.raw_task_id,
+                )
         else:
             expected = command.expected_version or self._require_raw_version(raw_task)
             raw_task = self._raw_task_store.save(raw_task, expected_version=expected)
@@ -264,6 +276,12 @@ class DefaultAuthoringCommandService:
                         root_node.draft_task_id,
                         root_payload,
                     )
+                )
+            if self._authoring_state_store is not None:
+                self._authoring_state_store.set_active_draft_tree(
+                    command.session_id,
+                    command.raw_task_id,
+                    tree.draft_tree_id,
                 )
             return _CommandOutput(command_id=command.command_id, object_refs=tuple(refs))
 
@@ -392,6 +410,11 @@ class DefaultAuthoringCommandService:
             list(publish_result.mappings),
             expected_version=command.expected_version or tree.version,
         )
+        if self._authoring_state_store is not None:
+            self._authoring_state_store.mark_published(
+                command.session_id,
+                command.draft_tree_id,
+            )
         root_ids = publish_result.root_task_ids
         return _CommandOutput(
             command_id=command.command_id,
