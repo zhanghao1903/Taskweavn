@@ -14,6 +14,10 @@ from taskweavn.interaction import (
 )
 from taskweavn.server.client_logs import FileClientErrorLogSink
 from taskweavn.server.sidecar import LocalSidecarConfig, LocalSidecarServer
+from taskweavn.server.ui_command_idempotency import (
+    SqliteUiCommandResponseIdempotencyStore,
+    UiCommandResponseIdempotencyStore,
+)
 from taskweavn.server.ui_contract import (
     DefaultUiCommandGateway,
     DefaultUiQueryGateway,
@@ -72,6 +76,7 @@ class MainPageSidecarDependencies:
     draft_store: DraftTaskStore | None = None
     authoring_state_store: AuthoringStateStore | None = None
     authoring_idempotency_store: AuthoringCommandIdempotencyStore | None = None
+    ui_command_idempotency_store: UiCommandResponseIdempotencyStore | None = None
 
 
 @dataclass
@@ -88,6 +93,7 @@ class MainPageSidecarApp:
     draft_store: DraftTaskStore
     authoring_state_store: AuthoringStateStore | None
     authoring_idempotency_store: AuthoringCommandIdempotencyStore | None
+    ui_command_idempotency_store: UiCommandResponseIdempotencyStore | None
     query_gateway: DefaultUiQueryGateway
     command_gateway: DefaultUiCommandGateway
     transport: PlatoUiHttpTransport
@@ -120,6 +126,7 @@ class MainPageSidecarApp:
         for store in (
             self.authoring_state_store,
             self.authoring_idempotency_store,
+            self.ui_command_idempotency_store,
             self.draft_store,
             self.raw_task_store,
         ):
@@ -217,6 +224,10 @@ def build_main_page_sidecar_app(
             ),
             authoring_state_store=authoring_state_store,
         )
+        ui_command_idempotency_store = (
+            dependencies.ui_command_idempotency_store
+            or SqliteUiCommandResponseIdempotencyStore(layout.workspace_ui_commands_db)
+        )
         transport = PlatoUiHttpTransport(
             query_gateway=query_gateway,
             command_gateway=command_gateway,
@@ -226,6 +237,7 @@ def build_main_page_sidecar_app(
             session_lifecycle_gateway=MainPageSessionLifecycleGateway(
                 session_manager=session_manager,
             ),
+            command_idempotency_store=ui_command_idempotency_store,
         )
         server = LocalSidecarServer(
             transport,
@@ -246,6 +258,7 @@ def build_main_page_sidecar_app(
         draft_store=draft_store,
         authoring_state_store=authoring_state_store,
         authoring_idempotency_store=authoring_idempotency_store,
+        ui_command_idempotency_store=ui_command_idempotency_store,
         query_gateway=query_gateway,
         command_gateway=command_gateway,
         transport=transport,

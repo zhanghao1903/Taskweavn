@@ -249,6 +249,46 @@ CREATE INDEX IF NOT EXISTS idx_authoring_command_idempotency_session_created
 - publish 在 active state 已经是 `published` 时，如果请求携带同一个
   idempotency key，允许解析到上次 active draft tree 并 replay cached result。
 
+### 3.8 `ui_command_response_idempotency_records`
+
+P8.6 实现，用于在 HTTP/UI command 边界保存最终 `CommandResponse`。该层在
+gateway、Collaborator、LLM、authoring command service 之前执行，因此可以避免
+同一 logical user action 的 API retry 再次触发下游执行。
+
+```sql
+CREATE TABLE IF NOT EXISTS ui_command_response_idempotency_records (
+    session_id TEXT NOT NULL,
+    idempotency_key TEXT NOT NULL,
+    request_hash TEXT NOT NULL,
+    status_code INTEGER NOT NULL,
+    headers_json TEXT NOT NULL,
+    body_json TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (session_id, idempotency_key)
+);
+
+CREATE INDEX IF NOT EXISTS idx_ui_command_response_idempotency_session_created
+    ON ui_command_response_idempotency_records(session_id, created_at, idempotency_key);
+```
+
+设计决策：
+
+- 前端生成 `idempotencyKey`，并在同一个 logical user action 的 retry 中复用。
+- `commandId` 是 trace/request id，不参与 request hash。
+- request hash 包含：
+  - route name；
+  - path target，如 `task_node_id` / `confirmation_id`；
+  - `session_id`；
+  - `expected_version`；
+  - payload。
+- 同一个 `(session_id, idempotency_key)` 且 request hash 相同：直接 replay
+  第一次保存的 HTTP response，不再进入 gateway。
+- 同一个 `(session_id, idempotency_key)` 但 request hash 不同：返回
+  `idempotency_conflict`，避免前端错误复用 key 后悄悄执行错误动作。
+- P8.6 只保存 completed response；不实现 `in_progress` reservation。并发
+  duplicate request 与 side-effect 成功但 response record 尚未写入之间的崩溃，
+  仍由 P8.5 authoring command idempotency 作为下游兜底。
+
 ---
 
 ## 4. Store API
@@ -508,6 +548,10 @@ PRAGMA busy_timeout=5000;
 10. Propagate UI generate/publish idempotency keys through the collaborator
     adapter into authoring command batches.
 11. Add restart duplicate generate/publish smoke coverage.
+12. Implement `UiCommandResponseIdempotencyStore` and SQLite persistence.
+13. Wrap UI HTTP command route dispatch with API response replay/conflict
+    handling.
+14. Add restart duplicate generate/publish API response replay tests.
 
 ---
 
@@ -523,3 +567,7 @@ PRAGMA busy_timeout=5000;
    the deterministic command service sees it.
 4. Should `authoring.sqlite` share a transaction with `tasks.sqlite` during publish?
    Current recommendation: no for MVP; use explicit lineage and recovery tests.
+5. Should API command idempotency implement `in_progress` reservation?
+   Current recommendation: not in P8.6. Completed-response replay gives the
+   main user-test benefit. Reservation/recovery can be added if concurrent
+   duplicate submits become observable.

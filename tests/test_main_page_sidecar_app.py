@@ -268,36 +268,35 @@ def test_main_page_sidecar_app_recovers_draft_tree_after_restart_and_publishes(
     finally:
         app.close()
 
+    replay_llm = _StubLLM(
+        [
+            """
+            {
+              "intent_summary": "Build a different quiet website",
+              "feasibility": {
+                "status": "ready",
+                "confidence": 0.95,
+                "suggested_next_action": "generate_task_tree"
+              }
+            }
+            """,
+            """
+            {
+              "assistant_message": "Drafted a different TaskTree.",
+              "roots": [
+                {
+                  "title": "Different plan",
+                  "intent": "This should be replayed away.",
+                  "required_capability": "general"
+                }
+              ]
+            }
+            """,
+        ]
+    )
     restarted = build_main_page_sidecar_app(
         MainPageSidecarConfig(workspace_root=tmp_path, port=0),
-        MainPageSidecarDependencies(
-            llm=_StubLLM(
-                [
-                    """
-                    {
-                      "intent_summary": "Build a different quiet website",
-                      "feasibility": {
-                        "status": "ready",
-                        "confidence": 0.95,
-                        "suggested_next_action": "generate_task_tree"
-                      }
-                    }
-                    """,
-                    """
-                    {
-                      "assistant_message": "Drafted a different TaskTree.",
-                      "roots": [
-                        {
-                          "title": "Different plan",
-                          "intent": "This should be replayed away.",
-                          "required_capability": "general"
-                        }
-                      ]
-                    }
-                    """,
-                ]
-            )
-        ),
+        MainPageSidecarDependencies(llm=replay_llm),
     )
     try:
         duplicate_generate = _request(
@@ -368,6 +367,8 @@ def test_main_page_sidecar_app_recovers_draft_tree_after_restart_and_publishes(
     )
     assert duplicate_generate.status == 200
     assert duplicate_generate.json["ok"] is True
+    assert duplicate_generate.json == generate.json
+    assert replay_llm.calls == 0
     assert recovered_snapshot.json["data"]["taskTree"]["nodes"][0]["title"] == (
         "Plan structure"
     )
@@ -460,6 +461,7 @@ class _HttpResult:
 class _StubLLM:
     def __init__(self, responses: list[str] | None = None) -> None:
         self._responses = list(responses or [])
+        self.calls = 0
 
     def chat(
         self,
@@ -468,6 +470,7 @@ class _StubLLM:
         *,
         metadata: dict[str, Any] | None = None,
     ) -> _LLMResponse:
+        self.calls += 1
         if self._responses:
             return _LLMResponse(self._responses.pop(0))
         return _LLMResponse(

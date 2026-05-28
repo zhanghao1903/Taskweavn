@@ -17,6 +17,7 @@ ApiErrorCode = Literal[
     "backend_busy",
     "resync_required",
     "internal_error",
+    "idempotency_conflict",
 ]
 
 
