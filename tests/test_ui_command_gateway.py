@@ -16,8 +16,14 @@ from taskweavn.server.ui_contract import (
     UiCommandGateway,
     UpdateTaskNodePayload,
 )
-from taskweavn.task import CommandResult as CoreCommandResult
-from taskweavn.task import TaskNodePatch, TaskRef
+from taskweavn.task import (
+    ActiveAuthoringState,
+    TaskNodePatch,
+    TaskRef,
+)
+from taskweavn.task import (
+    CommandResult as CoreCommandResult,
+)
 
 
 @dataclass
@@ -217,17 +223,42 @@ class _Resolver:
             raise LookupError(f"task node {task_node_id!r} not found") from exc
 
 
+@dataclass
+class _AuthoringStateStore:
+    state: ActiveAuthoringState
+    published: list[tuple[str, str]] = field(default_factory=list)
+
+    def get_active(self, session_id: str) -> ActiveAuthoringState:
+        return self.state
+
+    def set_active_raw_task(self, session_id: str, raw_task_id: str) -> None:
+        raise NotImplementedError
+
+    def set_active_draft_tree(
+        self,
+        session_id: str,
+        raw_task_id: str | None,
+        draft_tree_id: str,
+    ) -> None:
+        raise NotImplementedError
+
+    def mark_published(self, session_id: str, draft_tree_id: str) -> None:
+        self.published.append((session_id, draft_tree_id))
+
+
 def _gateway(
     *,
     collaborator: _Collaborator | None = None,
     task_commands: _TaskCommands | None = None,
     resolver: _Resolver | None = None,
+    authoring_state_store: _AuthoringStateStore | None = None,
 ) -> DefaultUiCommandGateway:
     return DefaultUiCommandGateway(
         collaborator=collaborator or _Collaborator(),
         task_commands=task_commands or _TaskCommands(),
         task_ref_resolver=resolver
         or _Resolver({"draft-1": TaskRef.draft("draft-1"), "task-1": TaskRef.published("task-1")}),
+        authoring_state_store=authoring_state_store,
     )
 
 
@@ -404,6 +435,124 @@ def test_publish_task_tree_wraps_draft_tree_and_published_task_refs() -> None:
     )["objectRefs"]
     assert response.result.debug_refs["idempotencyKey"] == "publish-key"
     assert collaborator.calls[0][1]["start_immediately"] is False
+
+
+def test_publish_task_tree_rejects_synthetic_id_without_active_state_store() -> None:
+    collaborator = _Collaborator()
+    gateway = _gateway(collaborator=collaborator)
+    request = CommandRequest[PublishTaskTreePayload](
+        command_id="publish-synthetic-without-state",
+        session_id="session-1",
+        payload=PublishTaskTreePayload(task_tree_id="session:session-1:task-tree"),
+    )
+
+    response = gateway.publish_task_tree(request)
+
+    assert response.ok is False
+    assert response.error is not None
+    assert response.error.code == "bad_request"
+    assert (
+        response.error.details["reason"]
+        == "synthetic_task_tree_identity_unresolved"
+    )
+    assert collaborator.calls == []
+
+
+def test_publish_task_tree_without_id_uses_active_draft_tree() -> None:
+    collaborator = _Collaborator()
+    state_store = _AuthoringStateStore(
+        ActiveAuthoringState(
+            session_id="session-1",
+            active_raw_task_id="raw-1",
+            active_draft_tree_id="tree-active",
+            active_state="draft_tree",
+        )
+    )
+    gateway = _gateway(collaborator=collaborator, authoring_state_store=state_store)
+    request = CommandRequest[PublishTaskTreePayload](
+        command_id="publish-active",
+        session_id="session-1",
+        payload=PublishTaskTreePayload(start_immediately=False),
+    )
+
+    response = gateway.publish_task_tree(request)
+
+    assert response.ok is True
+    assert collaborator.calls[0][1]["draft_tree_id"] == "tree-active"
+    assert collaborator.calls[0][1]["start_immediately"] is False
+    assert state_store.published == [("session-1", "tree-active")]
+
+
+def test_publish_task_tree_resolves_synthetic_tree_id_to_active_draft_tree() -> None:
+    collaborator = _Collaborator()
+    state_store = _AuthoringStateStore(
+        ActiveAuthoringState(
+            session_id="session-1",
+            active_raw_task_id="raw-1",
+            active_draft_tree_id="tree-active",
+            active_state="draft_tree",
+        )
+    )
+    gateway = _gateway(collaborator=collaborator, authoring_state_store=state_store)
+    request = CommandRequest[PublishTaskTreePayload](
+        command_id="publish-synthetic",
+        session_id="session-1",
+        payload=PublishTaskTreePayload(
+            task_tree_id="session:session-1:task-tree",
+            start_immediately=True,
+        ),
+    )
+
+    response = gateway.publish_task_tree(request)
+
+    assert response.ok is True
+    assert collaborator.calls[0][1]["draft_tree_id"] == "tree-active"
+
+
+def test_publish_task_tree_rejects_non_active_tree_identity() -> None:
+    collaborator = _Collaborator()
+    state_store = _AuthoringStateStore(
+        ActiveAuthoringState(
+            session_id="session-1",
+            active_raw_task_id="raw-1",
+            active_draft_tree_id="tree-active",
+            active_state="draft_tree",
+        )
+    )
+    gateway = _gateway(collaborator=collaborator, authoring_state_store=state_store)
+    request = CommandRequest[PublishTaskTreePayload](
+        command_id="publish-invalid",
+        session_id="session-1",
+        payload=PublishTaskTreePayload(task_tree_id="tree-other"),
+    )
+
+    response = gateway.publish_task_tree(request)
+
+    assert response.ok is False
+    assert response.error is not None
+    assert response.error.code == "bad_request"
+    assert response.error.details["reason"] == "invalid_task_tree_identity"
+    assert response.error.details["active_draft_tree_id"] == "tree-active"
+    assert collaborator.calls == []
+
+
+def test_publish_task_tree_rejects_missing_active_draft_tree() -> None:
+    collaborator = _Collaborator()
+    state_store = _AuthoringStateStore(ActiveAuthoringState(session_id="session-1"))
+    gateway = _gateway(collaborator=collaborator, authoring_state_store=state_store)
+    request = CommandRequest[PublishTaskTreePayload](
+        command_id="publish-missing-active",
+        session_id="session-1",
+        payload=PublishTaskTreePayload(),
+    )
+
+    response = gateway.publish_task_tree(request)
+
+    assert response.ok is False
+    assert response.error is not None
+    assert response.error.code == "bad_request"
+    assert response.error.details["reason"] == "no_active_draft_tree"
+    assert collaborator.calls == []
 
 
 def test_resolve_confirmation_rejection_maps_to_command_rejected_error() -> None:
