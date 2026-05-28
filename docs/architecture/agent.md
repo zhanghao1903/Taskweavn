@@ -150,6 +150,18 @@ safe_point_description: str
 
 常见安全点包括 tool call 前后、文件写入前后、shell command 结束后、搜索批次结束后、等待用户确认时。
 
+### 2.7 Product 1.1 TODO：Agent Protocol
+
+当前文档先定义 Agent 的系统边界，不在 1.0 内完成公开协议。Product 1.1 需要补一层 Agent 接入协议，先回答“什么样的 Agent 允许接入系统”：
+
+- 是否有稳定 `agent_id` / `template_id`、版本和 role；
+- 是否声明 capability、工具需求、输入/输出 schema 和可观测事件；
+- 是否声明 lifecycle hooks、启动前动作、健康检查、失败语义和控制能力；
+- 是否通过 command 请求系统状态变化，而不是直接改 Task、Session、Audit 等状态；
+- 是否能被 TaskBus、CapabilityCatalog、Interaction Layer 和 Audit Page 验证、观测和追溯。
+
+特殊 Agent 的协议作为后续 TODO 补完，包括 Routing Agent、Execution Agent、Collaborator Agent、Audit Agent、Result Packaging Agent 等。高级用户自定义 Agent、router-style policy Agent、模板化创建 Agent 和 workflow 生成 Agent 都归入 Product 1.1+ 的扩展性规划，不作为 1.0 闭环阻塞项。
+
 ---
 
 ## 3. 核心属性

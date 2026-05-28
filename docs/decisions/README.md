@@ -36,3 +36,4 @@ Each ADR should include:
 | [ADR-0007](ADR-0007-centralized-runtime-configuration.md) | accepted | Use centralized hierarchical runtime configuration with immutable snapshots and hot-update events. |
 | [ADR-0008](ADR-0008-authoring-domain-execution-boundary.md) | accepted | Separate Authoring Domain objects from Execution TaskBus; only published Tasks enter TaskBus. |
 | [ADR-0009](ADR-0009-routing-agent-assignment-and-cooperative-interruption.md) | accepted | Use Routing Agent assignment commands and cooperative interruption instead of TaskBus-owned routing strategy or hard cancellation. |
+| [ADR-0010](ADR-0010-taskbus-centered-agent-assignment-convergence.md) | accepted | Use TaskBus-centered convergence loops for minimal Agent assignment and stale pending degradation. |

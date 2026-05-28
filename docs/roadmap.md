@@ -1,7 +1,7 @@
 # TaskWeavn Roadmap
 
 > Status: active
-> Last Updated: 2026-05-21
+> Last Updated: 2026-05-22
 > Maintained By: planning session
 > Related: [Project Plan](project/roadmap.md), [Gap Registry](gaps/), [Planning Workflow](planning_workflow.md), [Architecture](architecture/), [Architecture Decisions](decisions/), [Release Records](releases/), [User Traceability](user_model/traceability.md)
 
@@ -291,7 +291,7 @@ Recommended order for upcoming implementation sessions:
 4. **Message and confirmation UI integration** — make HITL confirmations real through UI commands/events.
 5. **File Change Summary and Audit / Trust implementation** — turn trust facts into user-readable surfaces.
 6. **Persistent authoring stores** — make RawTask/DraftTaskTree authoring durable beyond in-memory tests if 1.0 user testing requires it.
-7. **Product 1.1 research and planning** — completion-time `task_after`, Result Packaging cards, skills integration, MCP integration, and file/multimodal support.
+7. **Product 1.1 research and planning** — completion-time `task_after`, Result Packaging cards, Agent protocol/governance, skills integration, MCP integration, and file/multimodal support.
 8. **Centralized runtime configuration** — shared control plane for logging/autonomy/audit/LLM/Task/UI behavior once the Task-facing server model is concrete enough to avoid overfitting.
 
 LLM Provider reliability, configurable logging, Task domain/UI separation, Collaborator authoring, TaskPublisher, TaskBus execution lifecycle, publish persistence, API publish transport, frontend baseline, UI/backend contract baseline, local sidecar API shell, and Main Page sidecar assembly are complete enough for the next round. The immediate product blocker is now Main Page frontend runtime convergence against that backend target.

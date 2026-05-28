@@ -2,7 +2,7 @@
 
 > Status: planning baseline
 >
-> Last Updated: 2026-05-21
+> Last Updated: 2026-05-22
 >
 > Scope: Product 1.1 capability direction after the Plato 1.0 closed loop.
 > This document records what is intentionally moved out of Product 1.0 and
@@ -83,14 +83,39 @@ Research questions:
 - How should multimodal inputs be represented in audit records and file change
   summaries?
 
+### 3.4 Agent Protocol And Governance
+
+Goal: define what an Agent must satisfy before it can be plugged into the
+system, while deferring the full Agent protocol and special Agent role protocols
+until the Agent model is better understood.
+
+TODO:
+
+- define the baseline Agent contract: stable identity, protocol version, role,
+  capability declaration, tool/capability requirements, input/output schema,
+  lifecycle hooks, health/failure behavior, observability events, and control
+  capability declaration;
+- define which state changes an Agent may request through commands, and which
+  system state it must never mutate directly;
+- define special Agent protocols later, including Routing Agent, Execution
+  Agent, Collaborator Agent, Audit Agent, and Result Packaging Agent;
+- decide how advanced users can plug in custom Agents, including router-style
+  policy Agents, without making Agent extensibility part of Product 1.0;
+- decide what templates, workflow scaffolding, or validation checks are needed
+  to help users create compatible Agents.
+
+This is a Product 1.1 planning item. Product 1.0 may keep conservative internal
+Agent shapes, but it should not block on public Agent protocol finalization.
+
 ## 4. 1.1 Planning Principles
 
 1. Keep Product 1.0 focused on the complete loop.
 2. Treat 1.1 features as capability expansion, not prerequisites for 1.0.
 3. Preserve TaskNode as the interaction anchor for skills, MCP calls, files,
-   multimodal inputs, result packaging, and after-task automation.
-4. Do research before committing implementation plans for skills, MCP, and
-   multimodal support.
+   multimodal inputs, Agent assignment, result packaging, and after-task
+   automation.
+4. Do research before committing implementation plans for skills, MCP,
+   multimodal support, and public Agent extensibility.
 5. Update Gap Registry before turning any 1.1 research topic into an executable
    plan.
 
@@ -103,7 +128,9 @@ feature plans for:
 - Result Packaging Agent and cards;
 - skills integration;
 - MCP integration;
-- file and multimodal support.
+- file and multimodal support;
+- Agent protocol, special Agent protocols, and custom Agent creation /
+  validation workflow.
 
 Each plan should state whether it extends Authoring Domain, TaskBus execution,
 CapabilityCatalog, UI API contract, Audit Page, or all of them.

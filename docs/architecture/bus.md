@@ -1,6 +1,6 @@
 # TaskBus 架构设计
 
-> 多 Agent 协作架构的核心抽象 · v1.2 · 2026-05-22
+> 多 Agent 协作架构的核心抽象 · v1.3 · 2026-05-23
 
 ---
 
@@ -8,7 +8,7 @@
 
 **TaskBus 是已发布执行任务的中央传递媒介，是 Session 内 PublishedTask 流转的唯一通道。**
 
-TaskBus 不是一个被动的队列，而是**状态权威 + assignment 执法者 + 协作枢纽**的三位一体。任何已发布执行任务的发布、分配、领取、完成、失败都必须经过 TaskBus，它是执行任务状态的**唯一真理来源（Single Source of Truth）**。
+TaskBus 不是一个被动的队列，而是**状态权威 + assignment 执法者 + 协作枢纽 + stale pending 收敛点**的组合。任何已发布执行任务的发布、分配、领取、完成、失败都必须经过 TaskBus，它是执行任务状态的**唯一真理来源（Single Source of Truth）**。
 
 TaskBus 不处理 Authoring Domain 对象：
 
@@ -22,7 +22,7 @@ CollaboratorProposal
 这些对象由 Authoring Domain 管理，经过用户确认和 `TaskPublisher` 转换后才产生 PublishedTask。
 
 ```
-TaskBus ≡ PublishedTask 状态权威 + assignment 验证 + 生命周期转换
+TaskBus ≡ PublishedTask 状态权威 + assignment 验证 + 生命周期转换 + pending sweep
 ```
 
 ---
@@ -31,20 +31,22 @@ TaskBus ≡ PublishedTask 状态权威 + assignment 验证 + 生命周期转换
 
 ### 2.1 TaskBus 是生产-消费管道
 
-执行任务的发布者、Routing Agent 和执行消费者（Execution Agent 实例）通过 TaskBus 解耦，互不直接通信：
+执行任务的发布者、Router、Agent Manager 和执行消费者（Execution Agent 实例）通过 TaskBus 解耦，互不直接通信：
 
 ```
 ┌───────────────┐ publish(PublishedTask) ┌─────────┐ assign(task, agent) ┌───────────────┐
-│ TaskPublisher │ ─────────────────────→ │ TaskBus │ ←────────────────── │ Routing Agent │
-│ or Agent Tool │                         │         │                     └───────────────┘
-└───────────────┘                         │         │ claim_assigned      ┌───────────────┐
-                                          │         │ ←────────────────── │ Execution     │
-                                          │         │ complete/fail       │ Agent         │
-                                          │         │ ─────────────────→ │               │
-                                          └─────────┘                    └───────────────┘
+│ TaskPublisher │ ─────────────────────→ │ TaskBus │ ←────────────────── │ Router        │
+│ or Agent Tool │                         │         │                     │ + policy      │
+└───────────────┘                         │         │                     └───────────────┘
+                                          │         │ claim_assigned      ┌───────────────┐
+                                          │         │ ←────────────────── │ Agent Manager │
+                                          │         │                     └───────────────┘
+                                          │         │ complete/fail       ┌───────────────┐
+                                          │         │ ←────────────────── │ Agent Instance│
+                                          └─────────┘                     └───────────────┘
 ```
 
-发布者不知道哪个 Agent 会执行，Execution Agent 不决定任务交接，Routing Agent 不直接改 Task 状态——**路由决策和状态权威分离**是架构松耦合的核心。
+发布者不知道哪个 Agent 会执行，Execution Agent 不决定任务交接，Router 不直接改 Task 状态——**路由决策和状态权威分离**是架构松耦合的核心。
 
 用户自然语言输入的路径在 TaskBus 之前：
 
@@ -72,17 +74,17 @@ NOT：
 
 ```
 1. 单工作区约束的必然结果：并行写会冲突
-2. 调度极简：无锁、无 CAS、无心跳、无超时
+2. 调度极简：无锁、无 CAS、无心跳；pending 健康由确定性 sweep 收敛
 3. 可观测性极佳：任意时刻系统状态明确
 4. LLM 不是 CPU：LLM 调用本身就是百毫秒~秒级，串行损失有限
 ```
 
 ### 2.3 TaskBus 是 assignment 执法者
 
-任务路由由专门的 Routing Agent 负责。TaskBus 不内置完整路由策略，不做 LLM 推理，也不替高级用户决定路由策略。TaskBus 只验证和记录 Routing Agent 提交的 assignment：
+任务路由由 Router 负责。Router 可以包含 Routing Agent policy，但不要求所有路由流程都由 LLM Agent 完成。TaskBus 不内置完整路由策略，不做 LLM 推理，也不替高级用户决定路由策略。TaskBus 只验证和记录 Router 提交的 assignment：
 
 ```
-Routing Agent:
+Router:
   inspect pending Tasks + available Agent descriptors
   decide T1 -> agent-a
   submit AssignmentCommand
@@ -93,7 +95,18 @@ TaskBus:
   later allow only agent-a to claim T1
 ```
 
-Routing Agent 可以是硬路由、LLM 路由、用户自定义路由或混合策略。TaskBus 不关心策略细节，只保证 assignment command 合法、可审计、可回放。
+Router 可以使用硬路由、LLM Routing Agent、用户自定义策略或混合策略。TaskBus 不关心策略细节，只保证 assignment command 合法、可审计、可回放。
+
+### 2.3.1 TaskBus 收敛 stale pending
+
+TaskBus 不依赖 Router / Agent Manager 的回调来保证 pending Task 永不悬挂。Product 1.0 采用确定性扫描：
+
+```text
+sweep_stale_pending_tasks(now)
+  pending too long -> failed(dispatch_timeout)
+```
+
+这不是 TaskBus 接管路由策略，而是 TaskBus 维护自身事实账本健康：一个已发布 Task 不能无限停留在 pending。Router / Agent Manager 的具体失败细节由日志和 Audit 记录辅助定位。
 
 ### 2.4 TaskBus 是任务状态权威
 
@@ -150,7 +163,7 @@ Agent 不能直接修改 Task 对象的状态。这种集中化让：
 
 并发能力作为**可松绑的约束**保留在未来发展点中（见第 7 节）。
 
-### 4.2 策略在 Routing Agent，不在 TaskBus
+### 4.2 策略在 Router / Routing Agent policy，不在 TaskBus
 
 TaskBus 不应该承载完整路由策略。原因：
 
@@ -159,7 +172,7 @@ TaskBus 不应该承载完整路由策略。原因：
 3. LLM routing、硬路由、成本路由、权限路由和 fallback 策略会并存；
 4. TaskBus 的职责是保证状态一致性，不是做智能调度。
 
-默认 Routing Agent 可以很保守，例如按 capability 做硬匹配和简单 fallback。未来可以替换成配置化或用户自定义 Routing Agent。
+默认 Router 可以很保守，例如按 capability 做硬匹配和简单 fallback。需要 LLM 判断时，Router 内部可以调用 Routing Agent policy。未来可以替换成配置化或用户自定义 Router policy。
 
 ### 4.3 无 Work Stealing，无亲和性调度
 
@@ -244,7 +257,7 @@ class TaskBus:
     def publish(self, task: Task) -> TaskId:
         """任务进入 pending 队列。"""
 
-    # 分配任务（Routing Agent 或系统策略调用）
+    # 分配任务（Router 或系统策略调用）
     def assign(self, task_id: TaskId, agent_id: AgentId, *, assigned_by: AgentId) -> Task:
         """pending 任务记录当前负责的 Execution Agent。"""
 
@@ -280,7 +293,7 @@ class TaskBus:
         """阻塞至所有子任务进入终态。"""
 ```
 
-API 表面仍然**极小**。Routing Agent 的复杂策略不进入 TaskBus API。
+API 表面仍然**极小**。Router / Routing Agent policy 的复杂策略不进入 TaskBus API。
 
 ---
 
@@ -324,7 +337,7 @@ def claim_assigned(self, task_id: TaskId, agent_id: AgentId) -> Task | None:
     return running_task
 ```
 
-TaskBus 不扫描 Agent pool，也不选择 Agent。选择发生在 Routing Agent；TaskBus 只验证状态、assignment、parent readiness 和串行约束。
+TaskBus 不扫描 Agent pool，也不选择 Agent。选择发生在 Router / Routing Agent policy；TaskBus 只验证状态、assignment、parent readiness 和串行约束。
 
 ---
 
@@ -359,7 +372,7 @@ User requests stop
    User ──┐     │  ┌──────────┐              │
           ├───→ │  │ TaskBus  │ ←─── publish │
    Agent ─┘     │  │          │              │
-                │  │  - queue │ ←─ assign    │ ── Routing Agent
+                │  │  - queue │ ←─ assign    │ ── Router / policy
                 │  │  - index │ ←─ claim/    │
                 │  │  - state │     complete │ ── Execution Agent
                 │  └──────────┘              │
@@ -377,8 +390,8 @@ User requests stop
 - **与 Session：** 每个 Session 独占一个 TaskBus 实例，绑定生命周期
 - **与 Task：** TaskBus 是 PublishedTask 的容器和状态权威
 - **与 Authoring Domain：** TaskBus 不接收 RawTask / DraftTaskTree；`TaskPublisher` 是两域边界
-- **与 Routing Agent：** Routing Agent 观察 pending tasks 和 Agent registry，提交 assignment command
-- **与 Execution Agent：** Execution Agent 通过 `claim_assigned` 领取被分配给自己的任务，通过 `complete/fail` 报告结果
+- **与 Router：** Router 观察 pending tasks 和 Agent registry，提交 assignment command；Routing Agent 是 Router 内部可插拔 policy
+- **与 Agent Manager / Execution Agent：** Agent Manager 创建实例并通过 `claim_assigned` 领取被分配给自己的任务；Execution Agent 通过 `complete/fail` 报告结果
 - **与 EventStream：** 每次状态变迁都向 EventStream 发射事件，EventStream 是真相，TaskBus 是物化视图
 - **与 Workspace：** TaskBus 不直接操作 Workspace，但通过"串行执行"保证 Workspace 访问无冲突
 
@@ -391,7 +404,7 @@ User requests stop
 ─────────────────────────────────────────────────────────────────
 调度单位             线程 / 进程                  Task
 执行粒度             微秒~毫秒                    百毫秒~分钟
-调度策略             抢占式 + 优先级 + 亲和性     Routing Agent + assignment validation
+调度策略             抢占式 + 优先级 + 亲和性     Router policy + assignment validation
 并发度               多核并行                    严格串行
 负载均衡             work stealing               不需要
 就绪判定             资源 + 信号                 parent.done == True
@@ -424,8 +437,8 @@ TaskBus 在 Session active 期间持续接受任务：
 ```
 持续循环：
   Loop 1: 用户/Agent publish 任务
-  Loop 2: Routing Agent assign pending tasks
-  Loop 3: Execution Agent claim_assigned
+  Loop 2: Router assign pending tasks
+  Loop 3: Agent Manager claim_assigned
   Loop 4: Agent 完成或失败 → bus.complete / bus.fail
   Loop 5: 父任务 wait_for_children 解除阻塞
 ```
@@ -443,7 +456,7 @@ bus.pause()
   - publish 仍然接受（任务进入 pending 但不被领取）
 
 bus.resume()
-  - 恢复 claim_next 的正常行为
+  - 恢复 claim_assigned 的正常行为
 ```
 
 v1.x 不实现，因为没有典型用例。
@@ -479,9 +492,9 @@ class Task:
 
 让任务可以表达"需要 audit 或 review 任一能力的 Agent"。**当且仅当**单值匹配的表达力被实证不足时引入。
 
-**能力评分（放到 Routing Agent）**
+**能力评分（放到 Router / Routing Agent policy）**
 
-TaskBus 不引入能力评分排序。如果需要评分、成本估计、历史成功率或 LLM 判断，应由 Routing Agent 产生 assignment rationale，并通过 assignment command 落入 TaskBus。
+TaskBus 不引入能力评分排序。如果需要评分、成本估计、历史成功率或 LLM 判断，应由 Router / Routing Agent policy 产生 assignment rationale，并通过 assignment command 落入 TaskBus。
 
 ### 10.2 v2.x：并发执行
 
@@ -576,15 +589,15 @@ class StreamingTaskBus(TaskBus):
 
 | 决策 | 选择 | 替代方案 | 选择理由 |
 |------|------|---------|---------|
-| 路由策略 | Routing Agent | TaskBus 内置 matcher | 策略可插拔，支持硬路由、LLM 路由和高级用户自定义 |
+| 路由策略 | Router / Routing Agent policy | TaskBus 内置 matcher | 策略可插拔，支持硬路由、LLM 路由和高级用户自定义 |
 | 并发度 | 严格串行 | 多 worker 并发 | 单工作区 + 调度极简 |
-| Assignment 权威 | TaskBus 验证并记录 | Routing Agent 直接改状态 | 保持状态一致性和可审计性 |
+| Assignment 权威 | TaskBus 验证并记录 | Router / Routing Agent 直接改状态 | 保持状态一致性和可审计性 |
 | 状态权威 | 集中在 TaskBus | 分散在各 Agent | 状态合法性、事件发射在一处实现 |
 | 中断 | Cooperative interruption | TaskBus 强杀运行中动作 | 安全点属于 Agent/runtime 能力 |
 | 失败传播 | 不自动传播 | 父任务自动失败 | 父任务可决定重试或捕获，灵活性更高 |
 | 持久化 | 通过 EventStream | TaskBus 自管 | TaskBus 是物化视图，EventStream 是真相 |
 | Work stealing | 不引入 | 多 worker 抢任务 | 串行架构下无意义 |
-| 心跳与超时 | 不引入 | 检测孤儿任务 | 串行 + 同步执行，无孤儿任务可能 |
+| 心跳与超时 | 不引入 per-task timer；pending 用 sweep 收敛 | 检测孤儿任务 | 串行 + 同步执行下避免复杂 timer，pending 不无限悬挂 |
 
 ---
 
@@ -595,7 +608,7 @@ class StreamingTaskBus(TaskBus):
 ```
   做最少的事 ─ assignment 验证 + 状态机
   做对所有事 ─ 串行 + 集中 + 事件溯源
-  为未来留路 ─ Routing Agent 可替换，单 worker 可扩为多 worker，单值依赖可扩为 DAG
+  为未来留路 ─ Router policy 可替换，单 worker 可扩为多 worker，单值依赖可扩为 DAG
 ```
 
 简洁的 TaskBus 是整个执行架构能保持简洁的支点。Authoring Domain 承担用户意图、澄清、草案和可行性判断，正是为了让这颗心脏不要背上不属于它的生命周期。
