@@ -22,7 +22,7 @@
 }
 
 .neutral {
-  background: #edf1f5;
+  background: var(--plato-color-placeholder-neutral-bg);
   color: var(--plato-color-muted);
 }
 

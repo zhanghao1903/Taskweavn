@@ -43,7 +43,11 @@
   gap: var(--plato-layout-gap);
   padding: var(--plato-page-padding);
   background:
-    linear-gradient(180deg, rgb(255 255 255 / 72%), transparent 260px),
+    linear-gradient(
+      180deg,
+      var(--plato-color-placeholder-page-tint),
+      var(--plato-color-transparent) 260px
+    ),
     var(--plato-color-project-bg);
 }
 
@@ -176,10 +180,10 @@
   display: block;
   width: 100%;
   margin: var(--plato-space-2) 0;
-  border: 1px solid transparent;
+  border: 1px solid var(--plato-color-transparent);
   border-radius: var(--plato-radius-md);
   padding: var(--plato-space-3);
-  background: transparent;
+  background: var(--plato-color-transparent);
   color: var(--plato-color-muted);
   overflow: hidden;
   text-align: left;
@@ -199,13 +203,13 @@
   z-index: 40;
   display: grid;
   min-width: 180px;
-  border: 1px solid rgb(120 135 160 / 26%);
+  border: 1px solid var(--plato-color-placeholder-popover-border);
   border-radius: 16px;
   padding: var(--plato-space-2);
-  background: rgb(255 255 255 / 94%);
+  background: var(--plato-color-placeholder-popover-surface);
   box-shadow:
-    0 18px 45px rgb(24 32 51 / 16%),
-    0 2px 8px rgb(24 32 51 / 10%);
+    0 18px 45px var(--plato-color-placeholder-popover-shadow-strong),
+    0 2px 8px var(--plato-color-placeholder-popover-shadow-soft);
   backdrop-filter: blur(18px);
 }
 
@@ -214,7 +218,7 @@
   border: 0;
   border-radius: var(--plato-radius-md);
   padding: 10px var(--plato-space-3);
-  background: transparent;
+  background: var(--plato-color-transparent);
   color: var(--plato-color-ink);
   font-weight: 700;
   text-align: left;
@@ -256,7 +260,7 @@
   display: grid;
   place-items: center;
   padding: var(--plato-space-6);
-  background: rgb(24 32 51 / 18%);
+  background: var(--plato-color-placeholder-dialog-scrim);
 }
 
 .sessionLifecyclePanel {
@@ -266,8 +270,8 @@
   border: 1px solid var(--plato-color-line);
   border-radius: 20px;
   padding: var(--plato-space-8);
-  background: rgb(255 255 255 / 96%);
-  box-shadow: 0 24px 80px rgb(24 32 51 / 22%);
+  background: var(--plato-color-placeholder-dialog-surface);
+  box-shadow: 0 24px 80px var(--plato-color-placeholder-dialog-shadow);
   backdrop-filter: blur(20px);
 }
 
@@ -380,7 +384,7 @@
   border: 1px dashed var(--plato-color-line);
   border-radius: var(--plato-radius-lg);
   padding: var(--plato-space-6);
-  background: rgb(255 255 255 / 54%);
+  background: var(--plato-color-placeholder-empty-surface);
   text-align: center;
 }
 
@@ -519,7 +523,7 @@
   border: 1px solid var(--plato-color-line);
   border-radius: var(--plato-radius-md);
   padding: var(--plato-space-3);
-  background: rgb(255 255 255 / 66%);
+  background: var(--plato-color-placeholder-card-surface);
 }
 
 .resultSection p,
@@ -601,7 +605,7 @@
   height: 40px;
   place-items: center;
   background: var(--plato-color-reason-blue);
-  color: #fff;
+  color: var(--plato-color-semantic-on-action-primary);
 }
 
 .contextInput button:disabled {

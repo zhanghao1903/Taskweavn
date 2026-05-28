@@ -4,7 +4,7 @@
   align-items: center;
   justify-content: center;
   gap: var(--plato-space-2);
-  border: 1px solid transparent;
+  border: 1px solid var(--plato-color-transparent);
   border-radius: var(--plato-radius-md);
   font-weight: 700;
   line-height: 1;
@@ -51,7 +51,7 @@
 .primary {
   border-color: var(--plato-color-reason-blue);
   background: var(--plato-color-reason-blue);
-  color: #fff;
+  color: var(--plato-color-semantic-on-action-primary);
 }
 
 .secondary {
@@ -61,8 +61,8 @@
 }
 
 .ghost {
-  border-color: transparent;
-  background: transparent;
+  border-color: var(--plato-color-transparent);
+  background: var(--plato-color-transparent);
   color: var(--plato-color-muted);
 }
 
@@ -81,5 +81,5 @@
 }
 
 .danger:hover:not(:disabled) {
-  background: #ffe5df;
+  background: var(--plato-color-placeholder-danger-hover-bg);
 }

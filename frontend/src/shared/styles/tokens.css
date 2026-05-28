@@ -32,6 +32,10 @@
   );
   --plato-color-semantic-text-primary: var(--plato-color-primitive-ink);
   --plato-color-semantic-text-secondary: var(--plato-color-primitive-muted);
+  --plato-color-semantic-on-action-primary: var(
+    --plato-color-primitive-panel
+  );
+  --plato-color-transparent: transparent;
 
   /* Plato Color / status */
   --plato-color-status-audit-verdict-failed-bg: var(
@@ -229,6 +233,20 @@
 
   /* Project-specific extension; not yet represented in the Figma variables. */
   --plato-color-project-bg: #f7f9fc;
+
+  /* Placeholder colors awaiting explicit Figma variables. */
+  --plato-color-placeholder-page-tint: rgb(255 255 255 / 72%);
+  --plato-color-placeholder-neutral-bg: #edf1f5;
+  --plato-color-placeholder-danger-hover-bg: #ffe5df;
+  --plato-color-placeholder-popover-border: rgb(120 135 160 / 26%);
+  --plato-color-placeholder-popover-surface: rgb(255 255 255 / 94%);
+  --plato-color-placeholder-popover-shadow-strong: rgb(24 32 51 / 16%);
+  --plato-color-placeholder-popover-shadow-soft: rgb(24 32 51 / 10%);
+  --plato-color-placeholder-dialog-scrim: rgb(24 32 51 / 18%);
+  --plato-color-placeholder-dialog-surface: rgb(255 255 255 / 96%);
+  --plato-color-placeholder-dialog-shadow: rgb(24 32 51 / 22%);
+  --plato-color-placeholder-empty-surface: rgb(255 255 255 / 54%);
+  --plato-color-placeholder-card-surface: rgb(255 255 255 / 66%);
 
   /* Backward-compatible color aliases. */
   --plato-color-reason-blue: var(--plato-color-primitive-reason-blue);
