@@ -1,28 +1,282 @@
 :root {
   color-scheme: light;
 
-  --plato-color-reason-blue: #2b5caa;
-  --plato-color-cave-blue: #5b8fd9;
-  --plato-color-clear-blue: #e8f1fb;
-  --plato-color-wisdom-gold: #d4af37;
+  /* Plato Color / primitive */
+  --plato-color-primitive-cave-blue: #5b8fd9;
+  --plato-color-primitive-classic-cream: #f5f2ec;
+  --plato-color-primitive-clear-blue: #e8f1fb;
+  --plato-color-primitive-danger-bg: #fff0ed;
+  --plato-color-primitive-danger-text: #b24a3d;
+  --plato-color-primitive-ink: #182033;
+  --plato-color-primitive-line: #dce3ee;
+  --plato-color-primitive-marble: #fbfaf7;
+  --plato-color-primitive-muted: #697386;
+  --plato-color-primitive-panel: #ffffff;
+  --plato-color-primitive-reason-blue: #2b5caa;
+  --plato-color-primitive-success-bg: #e9f5ee;
+  --plato-color-primitive-success-text: #3e7a55;
+  --plato-color-primitive-warning-bg: #fff4d8;
+  --plato-color-primitive-warning-text: #9a6a1d;
+  --plato-color-primitive-wisdom-gold: #d4af37;
+
+  /* Plato Color / semantic */
+  --plato-color-semantic-action-primary: var(
+    --plato-color-primitive-reason-blue
+  );
+  --plato-color-semantic-border: var(--plato-color-primitive-line);
+  --plato-color-semantic-focus-ring: rgb(43 92 170 / 16%);
+  --plato-color-semantic-page-bg: var(--plato-color-primitive-marble);
+  --plato-color-semantic-surface: var(--plato-color-primitive-panel);
+  --plato-color-semantic-surface-muted: var(
+    --plato-color-primitive-classic-cream
+  );
+  --plato-color-semantic-text-primary: var(--plato-color-primitive-ink);
+  --plato-color-semantic-text-secondary: var(--plato-color-primitive-muted);
+
+  /* Plato Color / status */
+  --plato-color-status-audit-verdict-failed-bg: var(
+    --plato-color-primitive-danger-bg
+  );
+  --plato-color-status-audit-verdict-failed-text: var(
+    --plato-color-primitive-danger-text
+  );
+  --plato-color-status-audit-verdict-inconclusive-bg: var(
+    --plato-color-primitive-clear-blue
+  );
+  --plato-color-status-audit-verdict-inconclusive-text: var(
+    --plato-color-primitive-reason-blue
+  );
+  --plato-color-status-audit-verdict-not-available-bg: var(
+    --plato-color-primitive-classic-cream
+  );
+  --plato-color-status-audit-verdict-not-available-text: var(
+    --plato-color-primitive-muted
+  );
+  --plato-color-status-audit-verdict-passed-bg: var(
+    --plato-color-primitive-success-bg
+  );
+  --plato-color-status-audit-verdict-passed-text: var(
+    --plato-color-primitive-success-text
+  );
+  --plato-color-status-audit-verdict-warning-bg: var(
+    --plato-color-primitive-warning-bg
+  );
+  --plato-color-status-audit-verdict-warning-text: var(
+    --plato-color-primitive-warning-text
+  );
+  --plato-color-status-confirmation-expired-bg: var(
+    --plato-color-primitive-classic-cream
+  );
+  --plato-color-status-confirmation-expired-text: var(
+    --plato-color-primitive-muted
+  );
+  --plato-color-status-confirmation-pending-bg: var(
+    --plato-color-primitive-warning-bg
+  );
+  --plato-color-status-confirmation-pending-text: var(
+    --plato-color-primitive-warning-text
+  );
+  --plato-color-status-confirmation-resolve-failed-bg: var(
+    --plato-color-primitive-danger-bg
+  );
+  --plato-color-status-confirmation-resolve-failed-text: var(
+    --plato-color-primitive-danger-text
+  );
+  --plato-color-status-confirmation-resolved-bg: var(
+    --plato-color-primitive-success-bg
+  );
+  --plato-color-status-confirmation-resolved-text: var(
+    --plato-color-primitive-success-text
+  );
+  --plato-color-status-confirmation-resolving-bg: var(
+    --plato-color-primitive-warning-bg
+  );
+  --plato-color-status-confirmation-resolving-text: var(
+    --plato-color-primitive-warning-text
+  );
+  --plato-color-status-execution-cancelled-bg: var(
+    --plato-color-primitive-classic-cream
+  );
+  --plato-color-status-execution-cancelled-text: var(
+    --plato-color-primitive-muted
+  );
+  --plato-color-status-execution-done-bg: var(
+    --plato-color-primitive-success-bg
+  );
+  --plato-color-status-execution-done-text: var(
+    --plato-color-primitive-success-text
+  );
+  --plato-color-status-execution-failed-bg: var(
+    --plato-color-primitive-danger-bg
+  );
+  --plato-color-status-execution-failed-text: var(
+    --plato-color-primitive-danger-text
+  );
+  --plato-color-status-execution-not-started-bg: var(
+    --plato-color-primitive-classic-cream
+  );
+  --plato-color-status-execution-not-started-text: var(
+    --plato-color-primitive-muted
+  );
+  --plato-color-status-execution-pending-bg: var(
+    --plato-color-primitive-clear-blue
+  );
+  --plato-color-status-execution-pending-text: var(
+    --plato-color-primitive-reason-blue
+  );
+  --plato-color-status-execution-running-bg: var(
+    --plato-color-primitive-warning-bg
+  );
+  --plato-color-status-execution-running-text: var(
+    --plato-color-primitive-warning-text
+  );
+  --plato-color-status-execution-unknown-bg: var(
+    --plato-color-primitive-danger-bg
+  );
+  --plato-color-status-execution-unknown-text: var(
+    --plato-color-primitive-danger-text
+  );
+  --plato-color-status-planning-assessing-bg: var(
+    --plato-color-primitive-clear-blue
+  );
+  --plato-color-status-planning-assessing-text: var(
+    --plato-color-primitive-reason-blue
+  );
+  --plato-color-status-planning-awaiting-user-bg: var(
+    --plato-color-primitive-warning-bg
+  );
+  --plato-color-status-planning-awaiting-user-text: var(
+    --plato-color-primitive-warning-text
+  );
+  --plato-color-status-planning-cancelled-bg: var(
+    --plato-color-primitive-classic-cream
+  );
+  --plato-color-status-planning-cancelled-text: var(
+    --plato-color-primitive-muted
+  );
+  --plato-color-status-planning-capturing-input-bg: var(
+    --plato-color-primitive-clear-blue
+  );
+  --plato-color-status-planning-capturing-input-text: var(
+    --plato-color-primitive-reason-blue
+  );
+  --plato-color-status-planning-draft-ready-bg: var(
+    --plato-color-primitive-success-bg
+  );
+  --plato-color-status-planning-draft-ready-text: var(
+    --plato-color-primitive-success-text
+  );
+  --plato-color-status-planning-empty-bg: var(
+    --plato-color-primitive-classic-cream
+  );
+  --plato-color-status-planning-empty-text: var(
+    --plato-color-primitive-muted
+  );
+  --plato-color-status-planning-published-bg: var(
+    --plato-color-primitive-success-bg
+  );
+  --plato-color-status-planning-published-text: var(
+    --plato-color-primitive-success-text
+  );
+  --plato-color-status-planning-ready-to-plan-bg: var(
+    --plato-color-primitive-clear-blue
+  );
+  --plato-color-status-planning-ready-to-plan-text: var(
+    --plato-color-primitive-reason-blue
+  );
+  --plato-color-status-planning-rejected-bg: var(
+    --plato-color-primitive-danger-bg
+  );
+  --plato-color-status-planning-rejected-text: var(
+    --plato-color-primitive-danger-text
+  );
+  --plato-color-status-planning-unknown-bg: var(
+    --plato-color-primitive-danger-bg
+  );
+  --plato-color-status-planning-unknown-text: var(
+    --plato-color-primitive-danger-text
+  );
+  --plato-color-status-task-readiness-accepted-bg: var(
+    --plato-color-primitive-clear-blue
+  );
+  --plato-color-status-task-readiness-accepted-text: var(
+    --plato-color-primitive-reason-blue
+  );
+  --plato-color-status-task-readiness-cancelled-bg: var(
+    --plato-color-primitive-classic-cream
+  );
+  --plato-color-status-task-readiness-cancelled-text: var(
+    --plato-color-primitive-muted
+  );
+  --plato-color-status-task-readiness-draft-bg: var(
+    --plato-color-primitive-classic-cream
+  );
+  --plato-color-status-task-readiness-draft-text: var(
+    --plato-color-primitive-muted
+  );
+  --plato-color-status-task-readiness-published-bg: var(
+    --plato-color-primitive-success-bg
+  );
+  --plato-color-status-task-readiness-published-text: var(
+    --plato-color-primitive-success-text
+  );
+  --plato-color-status-task-readiness-unknown-bg: var(
+    --plato-color-primitive-danger-bg
+  );
+  --plato-color-status-task-readiness-unknown-text: var(
+    --plato-color-primitive-danger-text
+  );
+
+  /* Project-specific extension; not yet represented in the Figma variables. */
   --plato-color-project-bg: #f7f9fc;
-  --plato-color-classic-cream: #f5f2ec;
-  --plato-color-marble: #fbfaf7;
-  --plato-color-ink: #182033;
-  --plato-color-muted: #697386;
-  --plato-color-line: #dce3ee;
-  --plato-color-panel: #ffffff;
-  --plato-color-success-bg: #e9f5ee;
-  --plato-color-success-text: #3e7a55;
-  --plato-color-warning-bg: #fff4d8;
-  --plato-color-warning-text: #9a6a1d;
-  --plato-color-danger-bg: #fff0ed;
-  --plato-color-danger-text: #b24a3d;
 
-  --plato-font-sans: Inter, "PingFang SC", "Microsoft YaHei", system-ui,
-    sans-serif;
-  --plato-font-serif: "Source Serif 4", "Noto Serif SC", Georgia, serif;
+  /* Backward-compatible color aliases. */
+  --plato-color-reason-blue: var(--plato-color-primitive-reason-blue);
+  --plato-color-cave-blue: var(--plato-color-primitive-cave-blue);
+  --plato-color-clear-blue: var(--plato-color-primitive-clear-blue);
+  --plato-color-wisdom-gold: var(--plato-color-primitive-wisdom-gold);
+  --plato-color-classic-cream: var(--plato-color-primitive-classic-cream);
+  --plato-color-marble: var(--plato-color-primitive-marble);
+  --plato-color-ink: var(--plato-color-semantic-text-primary);
+  --plato-color-muted: var(--plato-color-semantic-text-secondary);
+  --plato-color-line: var(--plato-color-semantic-border);
+  --plato-color-panel: var(--plato-color-semantic-surface);
+  --plato-color-success-bg: var(--plato-color-primitive-success-bg);
+  --plato-color-success-text: var(--plato-color-primitive-success-text);
+  --plato-color-warning-bg: var(--plato-color-primitive-warning-bg);
+  --plato-color-warning-text: var(--plato-color-primitive-warning-text);
+  --plato-color-danger-bg: var(--plato-color-primitive-danger-bg);
+  --plato-color-danger-text: var(--plato-color-primitive-danger-text);
 
+  /* Plato Typography variables and text style tokens. */
+  --plato-typography-family-sans: Inter, "PingFang SC", "Microsoft YaHei",
+    system-ui, sans-serif;
+  --plato-typography-family-serif: "Source Serif 4", "Noto Serif SC", Georgia,
+    serif;
+  --plato-type-eyebrow-size: 12px;
+  --plato-type-eyebrow-line-height: normal;
+  --plato-type-eyebrow-weight: 700;
+  --plato-type-heading-size: 24px;
+  --plato-type-heading-line-height: 1.2;
+  --plato-type-heading-weight: 800;
+  --plato-type-subheading-size: 18px;
+  --plato-type-subheading-line-height: 1.2;
+  --plato-type-subheading-weight: 800;
+  --plato-type-body-size: 15px;
+  --plato-type-body-line-height: 1.45;
+  --plato-type-body-weight: 400;
+  --plato-type-muted-size: 14px;
+  --plato-type-muted-line-height: 1.45;
+  --plato-type-muted-weight: 400;
+  --plato-type-label-size: 14px;
+  --plato-type-label-line-height: 1.3;
+  --plato-type-label-weight: 700;
+  --plato-type-letter-spacing: 0;
+
+  --plato-font-sans: var(--plato-typography-family-sans);
+  --plato-font-serif: var(--plato-typography-family-serif);
+
+  /* Plato Spacing */
   --plato-space-1: 4px;
   --plato-space-2: 8px;
   --plato-space-3: 12px;
@@ -32,10 +286,30 @@
   --plato-space-8: 32px;
   --plato-space-10: 40px;
 
+  /* Plato Radius */
   --plato-radius-sm: 4px;
   --plato-radius-md: 6px;
   --plato-radius-lg: 8px;
 
+  /* Plato Motion */
+  --plato-motion-duration-fast: 120ms;
+  --plato-motion-duration-base: 180ms;
+  --plato-motion-duration-slow: 240ms;
+  --plato-motion-easing-standard: cubic-bezier(0.2, 0, 0, 1);
+
+  /* Plato Breakpoint */
+  --plato-breakpoint-mobile: 0;
+  --plato-breakpoint-tablet: 768px;
+  --plato-breakpoint-desktop: 1200px;
+  --plato-breakpoint-wide: 1440px;
+
+  /* Plato Z Index */
+  --plato-z-base: 0;
+  --plato-z-sticky: 10;
+  --plato-z-popover: 20;
+  --plato-z-dialog: 30;
+  --plato-z-toast: 40;
+
   --plato-shadow-panel: 0 10px 30px rgb(24 32 51 / 8%);
-  --plato-shadow-focus: 0 0 0 3px rgb(43 92 170 / 16%);
+  --plato-shadow-focus: 0 0 0 3px var(--plato-color-semantic-focus-ring);
 }

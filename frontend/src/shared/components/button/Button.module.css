@@ -10,10 +10,14 @@
   line-height: 1;
   text-decoration: none;
   transition:
-    border-color 140ms ease,
-    background 140ms ease,
-    color 140ms ease,
-    box-shadow 140ms ease;
+    border-color var(--plato-motion-duration-fast)
+      var(--plato-motion-easing-standard),
+    background var(--plato-motion-duration-fast)
+      var(--plato-motion-easing-standard),
+    color var(--plato-motion-duration-fast)
+      var(--plato-motion-easing-standard),
+    box-shadow var(--plato-motion-duration-fast)
+      var(--plato-motion-easing-standard);
 }
 
 .button:focus-visible {
