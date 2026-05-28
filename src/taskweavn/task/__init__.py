@@ -178,6 +178,7 @@ from taskweavn.task.scheduler import (
 )
 from taskweavn.task.sqlite_authoring import (
     AuthoringStoreError,
+    SqliteAuthoringStateStore,
     SqliteDraftTaskStore,
     SqliteRawTaskStore,
 )
@@ -190,6 +191,9 @@ from taskweavn.task.sqlite_publish import (
     build_sqlite_publish_service,
 )
 from taskweavn.task.stores import (
+    ActiveAuthoringState,
+    AuthoringActiveState,
+    AuthoringStateStore,
     DraftTaskStore,
     InMemoryDraftTaskStore,
     InMemoryRawTaskStore,
@@ -238,6 +242,8 @@ __all__ = [
     "ApiRateLimitDecision",
     "ApiRateLimiter",
     "ApiTaskPublisher",
+    "ActiveAuthoringState",
+    "AuthoringActiveState",
     "AuthoringCommand",
     "AuthoringCommandBatch",
     "AuthoringCommandError",
@@ -251,6 +257,7 @@ __all__ = [
     "AuthoringMessageEffect",
     "AuthoringMessageEffectType",
     "AuthoringMode",
+    "AuthoringStateStore",
     "AuthoringStoreError",
     "CapabilityDescriptor",
     "CapabilityLevel",
@@ -356,6 +363,7 @@ __all__ = [
     "SessionSelector",
     "SessionSelectorMode",
     "SqlitePublishIdempotencyStore",
+    "SqliteAuthoringStateStore",
     "SqliteDraftTaskStore",
     "SqliteRawTaskStore",
     "SqliteScheduledPublishStore",

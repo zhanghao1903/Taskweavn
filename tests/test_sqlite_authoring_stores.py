@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from taskweavn.task import (
+    AuthoringStateStore,
     DraftTaskNode,
     DraftTaskStatus,
     DraftTaskStore,
@@ -17,6 +18,7 @@ from taskweavn.task import (
     RawTaskAnswer,
     RawTaskAsk,
     RawTaskStore,
+    SqliteAuthoringStateStore,
     SqliteDraftTaskStore,
     SqliteRawTaskStore,
     TaskNodePatch,
@@ -343,3 +345,155 @@ def test_sqlite_authoring_store_context_manager_closes_connection(
 
     with pytest.raises(sqlite3.ProgrammingError):
         store.list_for_session("s1")
+
+
+def test_sqlite_authoring_state_store_protocol_conformance(tmp_path: Path) -> None:
+    store = SqliteAuthoringStateStore(tmp_path / "authoring.sqlite")
+    try:
+        assert isinstance(store, AuthoringStateStore)
+    finally:
+        store.close()
+
+
+def test_sqlite_authoring_state_defaults_to_none(tmp_path: Path) -> None:
+    store = SqliteAuthoringStateStore(tmp_path / "authoring.sqlite")
+    try:
+        active = store.get_active("s1")
+
+        assert active.session_id == "s1"
+        assert active.active_state == "none"
+        assert active.active_raw_task_id is None
+        assert active.active_draft_tree_id is None
+    finally:
+        store.close()
+
+
+def test_sqlite_authoring_state_tracks_active_raw_task_across_reopen(
+    tmp_path: Path,
+) -> None:
+    db = tmp_path / "authoring.sqlite"
+    raw_store = SqliteRawTaskStore(db)
+    state_store = SqliteAuthoringStateStore(db)
+    try:
+        raw_store.create(_raw_task())
+        state_store.set_active_raw_task("s1", "raw1")
+    finally:
+        raw_store.close()
+        state_store.close()
+
+    reopened = SqliteAuthoringStateStore(db)
+    try:
+        active = reopened.get_active("s1")
+
+        assert active.active_state == "raw_task"
+        assert active.active_raw_task_id == "raw1"
+        assert active.active_draft_tree_id is None
+    finally:
+        reopened.close()
+
+
+def test_sqlite_authoring_state_tracks_active_draft_tree_across_reopen(
+    tmp_path: Path,
+) -> None:
+    db = tmp_path / "authoring.sqlite"
+    raw_store = SqliteRawTaskStore(db)
+    draft_store = SqliteDraftTaskStore(db)
+    state_store = SqliteAuthoringStateStore(db)
+    try:
+        raw_store.create(_raw_task())
+        tree = draft_store.create_tree("s1", [_draft_node("root")])
+        state_store.set_active_draft_tree("s1", "raw1", tree.draft_tree_id)
+    finally:
+        raw_store.close()
+        draft_store.close()
+        state_store.close()
+
+    reopened = SqliteAuthoringStateStore(db)
+    try:
+        active = reopened.get_active("s1")
+
+        assert active.active_state == "draft_tree"
+        assert active.active_raw_task_id == "raw1"
+        assert active.active_draft_tree_id == tree.draft_tree_id
+    finally:
+        reopened.close()
+
+
+def test_sqlite_authoring_state_replaces_active_draft_tree_without_deleting_old_tree(
+    tmp_path: Path,
+) -> None:
+    db = tmp_path / "authoring.sqlite"
+    raw_store = SqliteRawTaskStore(db)
+    draft_store = SqliteDraftTaskStore(db)
+    state_store = SqliteAuthoringStateStore(db)
+    try:
+        raw_store.create(_raw_task())
+        first_tree = draft_store.create_tree("s1", [_draft_node("first")])
+        state_store.set_active_draft_tree("s1", "raw1", first_tree.draft_tree_id)
+        second_tree = draft_store.create_tree("s1", [_draft_node("second")])
+        state_store.set_active_draft_tree("s1", "raw1", second_tree.draft_tree_id)
+
+        active = state_store.get_active("s1")
+
+        assert active.active_state == "draft_tree"
+        assert active.active_draft_tree_id == second_tree.draft_tree_id
+        assert draft_store.get_tree("s1", first_tree.draft_tree_id) == first_tree
+        assert [tree.draft_tree_id for tree in draft_store.list_trees("s1")] == [
+            first_tree.draft_tree_id,
+            second_tree.draft_tree_id,
+        ]
+    finally:
+        raw_store.close()
+        draft_store.close()
+        state_store.close()
+
+
+def test_sqlite_authoring_state_marks_active_draft_tree_published(
+    tmp_path: Path,
+) -> None:
+    db = tmp_path / "authoring.sqlite"
+    raw_store = SqliteRawTaskStore(db)
+    draft_store = SqliteDraftTaskStore(db)
+    state_store = SqliteAuthoringStateStore(db)
+    try:
+        raw_store.create(_raw_task())
+        tree = draft_store.create_tree("s1", [_draft_node("root")])
+        state_store.set_active_draft_tree("s1", "raw1", tree.draft_tree_id)
+        state_store.mark_published("s1", tree.draft_tree_id)
+
+        active = state_store.get_active("s1")
+
+        assert active.active_state == "published"
+        assert active.active_raw_task_id == "raw1"
+        assert active.active_draft_tree_id == tree.draft_tree_id
+    finally:
+        raw_store.close()
+        draft_store.close()
+        state_store.close()
+
+
+def test_sqlite_authoring_state_rejects_missing_or_inactive_refs(
+    tmp_path: Path,
+) -> None:
+    db = tmp_path / "authoring.sqlite"
+    raw_store = SqliteRawTaskStore(db)
+    draft_store = SqliteDraftTaskStore(db)
+    state_store = SqliteAuthoringStateStore(db)
+    try:
+        raw_store.create(_raw_task())
+        first_tree = draft_store.create_tree("s1", [_draft_node("first")])
+        second_tree = draft_store.create_tree("s1", [_draft_node("second")])
+        state_store.set_active_draft_tree("s1", "raw1", first_tree.draft_tree_id)
+
+        with pytest.raises(LookupError, match="RawTask 'missing' not found"):
+            state_store.set_active_raw_task("s1", "missing")
+
+        with pytest.raises(LookupError, match="DraftTaskTree 'missing' not found"):
+            state_store.set_active_draft_tree("s1", "raw1", "missing")
+
+        with pytest.raises(TaskStoreError, match="not the active draft tree"):
+            state_store.mark_published("s1", second_tree.draft_tree_id)
+    finally:
+        raw_store.close()
+        draft_store.close()
+        state_store.close()

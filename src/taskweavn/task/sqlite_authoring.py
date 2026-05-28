@@ -21,7 +21,11 @@ from taskweavn.task.models import (
     DraftToPublishedMapping,
     TaskNodePatch,
 )
-from taskweavn.task.stores import TaskStoreError, VersionConflictError
+from taskweavn.task.stores import (
+    ActiveAuthoringState,
+    TaskStoreError,
+    VersionConflictError,
+)
 
 _SCHEMA_VERSION = "1"
 
@@ -29,6 +33,14 @@ _SCHEMA_DDL = """
 CREATE TABLE IF NOT EXISTS authoring_schema_meta (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS authoring_active_sessions (
+    session_id TEXT PRIMARY KEY,
+    active_raw_task_id TEXT,
+    active_draft_tree_id TEXT,
+    active_state TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );
 
@@ -291,6 +303,132 @@ class SqliteRawTaskStore(_SqliteAuthoringStore):
                 raw_task.raw_task_id,
             ),
         )
+
+
+class SqliteAuthoringStateStore(_SqliteAuthoringStore):
+    """SQLite-backed AuthoringStateStore implementation."""
+
+    def get_active(self, session_id: str) -> ActiveAuthoringState:
+        with self._lock:
+            row = self._conn.execute(
+                """
+                SELECT * FROM authoring_active_sessions
+                WHERE session_id = ?
+                """,
+                (session_id,),
+            ).fetchone()
+        if row is None:
+            return ActiveAuthoringState(
+                session_id=session_id,
+                active_state="none",
+                updated_at=_utcnow(),
+            )
+        return _active_state_from_row(row)
+
+    def set_active_raw_task(self, session_id: str, raw_task_id: str) -> None:
+        with self._lock:
+            if not self._raw_task_exists(session_id, raw_task_id):
+                raise LookupError(f"RawTask {raw_task_id!r} not found")
+            self._upsert_active(
+                ActiveAuthoringState(
+                    session_id=session_id,
+                    active_raw_task_id=raw_task_id,
+                    active_state="raw_task",
+                    updated_at=_utcnow(),
+                )
+            )
+
+    def set_active_draft_tree(
+        self,
+        session_id: str,
+        raw_task_id: str | None,
+        draft_tree_id: str,
+    ) -> None:
+        with self._lock:
+            if raw_task_id is not None and not self._raw_task_exists(
+                session_id,
+                raw_task_id,
+            ):
+                raise LookupError(f"RawTask {raw_task_id!r} not found")
+            if not self._draft_tree_exists(session_id, draft_tree_id):
+                raise LookupError(f"DraftTaskTree {draft_tree_id!r} not found")
+            self._upsert_active(
+                ActiveAuthoringState(
+                    session_id=session_id,
+                    active_raw_task_id=raw_task_id,
+                    active_draft_tree_id=draft_tree_id,
+                    active_state="draft_tree",
+                    updated_at=_utcnow(),
+                )
+            )
+
+    def mark_published(self, session_id: str, draft_tree_id: str) -> None:
+        with self._lock:
+            active = self.get_active(session_id)
+            if active.active_draft_tree_id != draft_tree_id:
+                raise AuthoringStoreError(
+                    f"DraftTaskTree {draft_tree_id!r} is not the active draft tree"
+                )
+            if not self._draft_tree_exists(session_id, draft_tree_id):
+                raise LookupError(f"DraftTaskTree {draft_tree_id!r} not found")
+            self._upsert_active(
+                ActiveAuthoringState(
+                    session_id=session_id,
+                    active_raw_task_id=active.active_raw_task_id,
+                    active_draft_tree_id=draft_tree_id,
+                    active_state="published",
+                    updated_at=_utcnow(),
+                )
+            )
+
+    def _upsert_active(self, state: ActiveAuthoringState) -> None:
+        try:
+            with self._write_transaction():
+                self._conn.execute(
+                    """
+                    INSERT INTO authoring_active_sessions(
+                        session_id,
+                        active_raw_task_id,
+                        active_draft_tree_id,
+                        active_state,
+                        updated_at
+                    ) VALUES (?, ?, ?, ?, ?)
+                    ON CONFLICT(session_id) DO UPDATE SET
+                        active_raw_task_id = excluded.active_raw_task_id,
+                        active_draft_tree_id = excluded.active_draft_tree_id,
+                        active_state = excluded.active_state,
+                        updated_at = excluded.updated_at
+                    """,
+                    (
+                        state.session_id,
+                        state.active_raw_task_id,
+                        state.active_draft_tree_id,
+                        state.active_state,
+                        state.updated_at.isoformat(),
+                    ),
+                )
+        except sqlite3.Error as exc:
+            raise AuthoringStoreError("failed to save active authoring state") from exc
+
+    def _raw_task_exists(self, session_id: str, raw_task_id: str) -> bool:
+        row = self._conn.execute(
+            """
+            SELECT 1 FROM raw_tasks
+            WHERE session_id = ? AND raw_task_id = ?
+            """,
+            (session_id, raw_task_id),
+        ).fetchone()
+        return row is not None
+
+    def _draft_tree_exists(self, session_id: str, draft_tree_id: str) -> bool:
+        row = self._conn.execute(
+            """
+            SELECT 1 FROM draft_task_trees
+            WHERE session_id = ? AND draft_tree_id = ?
+            """,
+            (session_id, draft_tree_id),
+        ).fetchone()
+        return row is not None
 
 
 class SqliteDraftTaskStore(_SqliteAuthoringStore):
@@ -889,6 +1027,21 @@ def _mapping_from_row(row: sqlite3.Row) -> DraftToPublishedMapping:
         raise AuthoringStoreError("invalid DraftToPublishedMapping row") from exc
 
 
+def _active_state_from_row(row: sqlite3.Row) -> ActiveAuthoringState:
+    try:
+        return ActiveAuthoringState.model_validate(
+            {
+                "session_id": row["session_id"],
+                "active_raw_task_id": row["active_raw_task_id"],
+                "active_draft_tree_id": row["active_draft_tree_id"],
+                "active_state": row["active_state"],
+                "updated_at": row["updated_at"],
+            }
+        )
+    except (TypeError, ValueError, ValidationError) as exc:
+        raise AuthoringStoreError("invalid ActiveAuthoringState row") from exc
+
+
 def _model_json(model: Any | None) -> str | None:
     if model is None:
         return None
@@ -962,6 +1115,7 @@ def _utcnow() -> datetime:
 
 __all__ = [
     "AuthoringStoreError",
+    "SqliteAuthoringStateStore",
     "SqliteDraftTaskStore",
     "SqliteRawTaskStore",
 ]
