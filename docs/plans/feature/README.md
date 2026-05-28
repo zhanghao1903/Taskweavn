@@ -14,8 +14,10 @@ Feature plans are scoped implementation packets for independent feature sessions
 | [main-page-real-backend-integration-technical-design.zh-CN.md](main-page-real-backend-integration-technical-design.zh-CN.md) | 中文详细技术方案：Main Page backend composition、sidecar app lifecycle、named SSE compatibility 和 dev entrypoint。 |
 | [main-page-frontend-runtime-integration.md](main-page-frontend-runtime-integration.md) | Planned: converge Main Page from fixture-compatible prototype runtime to session snapshot / command response / UiEvent-driven backend facts. |
 | [main-page-frontend-runtime-integration-technical-design.zh-CN.md](main-page-frontend-runtime-integration-technical-design.zh-CN.md) | 中文详细技术方案：Main Page adapter boundary、session-centric query、CommandResponse lifecycle、event router 和 resync loop guard。 |
-| [minimal-agent-assignment-semantics.md](minimal-agent-assignment-semantics.md) | Planned: TaskBus-centered assignment facts, Router tick, Agent Manager tick, and stale pending sweep. |
-| [minimal-agent-assignment-semantics-technical-design.zh-CN.md](minimal-agent-assignment-semantics-technical-design.zh-CN.md) | 中文详细技术方案：assignment 字段、TaskBus API、SQLite、Router、Agent Manager、projection 和测试设计。 |
+| [fixed-route-task-execution-bridge.md](fixed-route-task-execution-bridge.md) | Planned: Product 1.0 fixed-route bridge from TaskBus pending Tasks to resident universal Default Agent execution and complete/fail. |
+| [fixed-route-task-execution-bridge-technical-design.zh-CN.md](fixed-route-task-execution-bridge-technical-design.zh-CN.md) | 中文详细技术方案：常驻万能 Default Agent、TaskBus claim_next、complete/fail 和测试设计。 |
+| [minimal-agent-assignment-semantics.md](minimal-agent-assignment-semantics.md) | Deferred: Product 1.1+ TaskBus-centered assignment facts, Router tick, Agent Manager tick, and stale pending sweep. |
+| [minimal-agent-assignment-semantics-technical-design.zh-CN.md](minimal-agent-assignment-semantics-technical-design.zh-CN.md) | Deferred 中文详细技术方案：assignment 字段、TaskBus API、SQLite、Router、Agent Manager、projection 和测试设计。 |
 | [frontend-api-mock-happy-path.md](frontend-api-mock-happy-path.md) | Deferred: in-memory `PlatoApi` happy path mock for Main/Audit frontend integration. |
 | [frontend-api-mock-happy-path-technical-design.zh-CN.md](frontend-api-mock-happy-path-technical-design.zh-CN.md) | Deferred 中文详细技术方案：单 session happy path API mock、状态机、Main/Audit snapshot builders、事件/cursor 和测试设计。 |
 | [pipeline-task-loading.md](pipeline-task-loading.md) | Pipeline task loading before/begin/after normal tasks. |

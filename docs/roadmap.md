@@ -199,7 +199,7 @@ Work packages:
 | Work | Plan | Priority |
 |---|---|---:|
 | TaskPublisher abstraction for user/collaborator/pipeline/scheduler/API/custom tree | [Task Publisher plan](plans/feature/task-publishers-schedule-api.md), [release](releases/task-publishers-schedule-api.md) | Done, including SQLite TaskBus |
-| Pipeline task auto-loading and agent assignment constraints | [Pipeline loading plan](plans/feature/pipeline-task-loading.md) | Partial: task_before/task_begin publish-time expansion done; minimal assignment semantics remain P0; completion-time task_after is Product 1.1 / P1 |
+| Pipeline task auto-loading and agent assignment constraints | [Pipeline loading plan](plans/feature/pipeline-task-loading.md) | Partial: task_before/task_begin publish-time expansion done; routing/assignment foundation is Product 1.1 / P1; completion-time task_after is Product 1.1 / P1 |
 | TaskBus publish/claim state authority hardening | Future implementation plan | P0 |
 
 Exit criteria:
@@ -287,11 +287,11 @@ These remain valuable, but they should not be the next immediate build target be
 Recommended order for upcoming implementation sessions:
 
 1. **[Main Page real backend integration](plans/feature/main-page-real-backend-integration.md)** — continue from the [Main Page Frontend Runtime Integration](plans/feature/main-page-frontend-runtime-integration.md) checkpoint. The current branch is a useful stage submission, not completion: real browser/Electron smoke, session creation/selection, pending/error UX, confirmation/message hardening, TaskNode edit controls, file-change projection, audit/trust surfaces, and durable event behavior still need follow-up work.
-2. **Minimal agent assignment semantics** — enough Task-to-agent/capability routing to support Product 1.0 execution without full multi-agent breadth.
+2. **Fixed-route task execution bridge** — close Product 1.0 execution with a resident universal Default Agent and a single route from TaskBus pending Tasks to complete/fail.
 3. **Message and confirmation UI integration hardening** — make HITL confirmations real through UI commands/events, including richer pending states and recovery paths.
 4. **File Change Summary and Audit / Trust implementation** — turn trust facts into user-readable surfaces.
 5. **Persistent authoring stores** — make RawTask/DraftTaskTree authoring durable beyond in-memory tests if 1.0 user testing requires it.
-6. **Product 1.1 research and planning** — completion-time `task_after`, Result Packaging cards, Agent protocol/governance, skills integration, MCP integration, and file/multimodal support.
+6. **Product 1.1 research and planning** — completion-time `task_after`, Result Packaging cards, routing/assignment foundation, Agent protocol/governance, skills integration, MCP integration, and file/multimodal support.
 7. **Centralized runtime configuration** — shared control plane for logging/autonomy/audit/LLM/Task/UI behavior once the Task-facing server model is concrete enough to avoid overfitting.
 
 LLM Provider reliability, configurable logging, Task domain/UI separation, Collaborator authoring, TaskPublisher, TaskBus execution lifecycle, publish persistence, API publish transport, frontend baseline, UI/backend contract baseline, local sidecar API shell, and Main Page sidecar assembly now have server-core or UI baseline release candidates. Main Page frontend runtime integration remains open: the latest work is a checkpoint that proves core wiring and diagnostics, but it should stay in the active gap queue until broader UI/runtime behavior is user-testable.

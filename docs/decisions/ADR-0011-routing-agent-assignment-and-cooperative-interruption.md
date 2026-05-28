@@ -14,9 +14,10 @@ TaskBus now owns the minimal published Task lifecycle:
 pending -> running -> done / failed
 ```
 
-The next Product 1.0 gap is assignment: deciding which Agent should execute a
-pending Task. A simple matcher inside TaskBus would be easy to implement, but
-it would freeze routing strategy too early.
+The routing gap is assignment: deciding which Agent should execute a pending
+Task once the product needs more than a fixed default execution route. A simple
+matcher inside TaskBus would be easy to implement, but it would freeze routing
+strategy too early.
 
 Routing may need to consider:
 
@@ -41,6 +42,13 @@ point exists.
 
 Route Tasks through a **Routing Agent** instead of hardcoding routing strategy
 inside TaskBus.
+
+2026-05-28 scope note: ADR-0010 later narrowed the Product 1.0 default to a
+line-first, single-agent, fixed-route flow. The Routing Agent direction in this
+ADR remains the accepted architecture direction for Product 1.1+ routing and
+advanced orchestration, but it is not a Product 1.0 implementation requirement.
+Product 1.0 should use a fixed-route execution bridge to close the execution
+loop.
 
 The responsibility split is:
 
@@ -93,7 +101,7 @@ runtime/tool-specific best-effort capability.
 Positive:
 
 - Routing strategy becomes pluggable without weakening TaskBus consistency.
-- Product 1.0 can ship with a conservative default Routing Agent.
+- A future routing release can ship with a conservative default Routing Agent.
 - Advanced users can later replace or configure Routing Agent behavior.
 - TaskBus remains a small state authority instead of an LLM scheduler.
 - Assignment facts are replayable and auditable.
@@ -103,7 +111,7 @@ Positive:
 Trade-offs:
 
 - Assignment requires an additional command path and event.
-- A default Routing Agent is now required for real execution.
+- A default Routing Agent is required once dynamic routing is enabled.
 - UI may need a routing notice surface for unassigned Tasks.
 - Some running actions may not stop immediately, because safe points are owned
   by Agent/runtime.
@@ -115,6 +123,6 @@ Rejected alternatives:
 - **Execution Agent self-handoff:** makes routing implicit and hard to audit.
 - **Immediate UI-driven running-state mutation on stop:** can diverge from real
   runtime side effects.
-- **New `blocked` / `paused` / `cancelled` execution states in Product 1.0:**
+- **New `blocked` / `paused` / `cancelled` execution states in the first routing implementation:**
   premature; use `pending` plus routing notice or `failed` with cancellation
   reason until product evidence requires more states.

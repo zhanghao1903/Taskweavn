@@ -1,7 +1,7 @@
 # Feature Plan: Minimal Agent Assignment Semantics
 
-> Status: planned
-> Last Updated: 2026-05-23
+> Status: deferred
+> Last Updated: 2026-05-28
 > Gap: [Routing Agent assignment productization](../../gaps/README.md)
 > Architecture: [Task](../../architecture/task.md), [TaskBus](../../architecture/bus.md), [Agent](../../architecture/agent.md)
 > Decisions: [ADR-0011](../../decisions/ADR-0011-routing-agent-assignment-and-cooperative-interruption.md), [ADR-0012](../../decisions/ADR-0012-taskbus-centered-agent-assignment-convergence.md)
@@ -39,13 +39,18 @@ through `claim_next`, which bypasses the agreed routing model:
 - Pending Tasks should not hang forever if Router or Agent Manager stops
   advancing them.
 
-This plan turns ADR-0012 into an executable Product 1.0 work package.
+This plan records the Product 1.1+ routing foundation direction. It is no
+longer a Product 1.0 implementation work package.
+
+Product 1.0 follows ADR-0010 line-first defaults and should implement the
+smaller [Fixed-Route Task Execution Bridge](fixed-route-task-execution-bridge.md)
+instead.
 
 ---
 
 ## 2. Goals
 
-Deliver the minimal semantics needed for Product 1.0:
+Deliver the minimal semantics needed when Product 1.1+ introduces real routing:
 
 1. Add assignment facts to Published Tasks without adding a new `assigned`
    status.
@@ -55,7 +60,7 @@ Deliver the minimal semantics needed for Product 1.0:
    assigns Agent identities.
 4. Introduce a minimal Agent Manager service that observes pending assigned
    Tasks, creates Agent instances, and claims execution.
-5. Keep Product 1.0 single-instance: one Router loop and one Agent Manager loop
+5. Keep the first routing implementation single-instance: one Router loop and one Agent Manager loop
    per TaskBus instance.
 6. Make stale pending Tasks degrade through TaskBus sweep into a normal failure
    path.
@@ -67,7 +72,7 @@ Deliver the minimal semantics needed for Product 1.0:
 
 ## 3. Non-goals
 
-- Do not implement the public Product 1.1 Agent protocol.
+- Do not implement the public Agent protocol.
 - Do not implement special Agent protocols beyond the minimal interfaces needed
   by Router and Agent Manager.
 - Do not implement skills integration, MCP integration, or multimodal support.
@@ -77,7 +82,7 @@ Deliver the minimal semantics needed for Product 1.0:
 - Do not implement Main Page manual reassignment.
 - Do not implement running execution timeout, hard cancellation, or cooperative
   interruption behavior.
-- Do not replace existing TaskPublisher retry behavior unless the implementation
+- Do not replace existing TaskPublisher retry behavior unless a future implementation
   explicitly chooses to add in-place retry later.
 
 ---
@@ -154,7 +159,7 @@ Tasks healthy. It exposes a deterministic sweep:
 sweep_stale_pending_tasks(now) -> failed dispatch_timeout Tasks
 ```
 
-The sweep uses one dispatch timeout for Product 1.0. It does not distinguish
+The sweep uses one dispatch timeout for the first routing implementation. It does not distinguish
 assignment timeout from claim timeout; logs and audit records carry details when
 available.
 
@@ -294,7 +299,11 @@ work package.
 
 ## 7. Open Follow-ups
 
-Not for this plan:
+Related 1.0 work:
+
+- [Fixed-Route Task Execution Bridge](fixed-route-task-execution-bridge.md).
+
+Not for this deferred plan:
 
 - public Product 1.1 Agent protocol;
 - custom user-created Router policies;

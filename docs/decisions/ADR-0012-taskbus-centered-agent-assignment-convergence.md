@@ -12,7 +12,8 @@ ADR-0011 established that assignment strategy belongs outside TaskBus and that
 Routing Agent submits assignment commands instead of directly changing Task
 state.
 
-The implementation still needs minimal assignment semantics for Product 1.0:
+The routing foundation still needs minimal assignment semantics once Product
+1.1+ needs real multi-Agent routing:
 
 - what TaskBus owns after a Task is published;
 - whether Router or Agent Manager owns Task lifecycle;
@@ -22,14 +23,21 @@ The implementation still needs minimal assignment semantics for Product 1.0:
 
 The project should avoid complex bidirectional callback protocols. Systems with
 many cross-component callbacks, handshakes, confirmations, cancellations, and
-compensation paths are hard to debug and test. Product 1.0 should prefer a
-small number of authoritative facts and deterministic convergence loops.
+compensation paths are hard to debug and test. The routing foundation should
+prefer a small number of authoritative facts and deterministic convergence
+loops.
 
 ---
 
 ## Decision
 
 Use a **TaskBus-centered convergence model** for minimal Agent assignment.
+
+2026-05-28 scope note: after ADR-0010, this convergence model is no longer a
+Product 1.0 implementation requirement. It remains the accepted foundation for
+Product 1.1+ routing, when multiple execution Agents, custom routing policy, or
+assignment visibility become real product needs. Product 1.0 should close the
+loop with a fixed-route execution bridge over the existing TaskBus lifecycle.
 
 TaskBus remains the authority for Published Task lifecycle facts. Router and
 Agent Manager observe TaskBus and submit commands that advance Task facts; they
@@ -42,7 +50,8 @@ Agent Manager = observes pending assigned Tasks, creates Agent instances, and cl
 Agent Instance = executes the claimed Task and reports complete / fail
 ```
 
-Do not introduce a separate `assigned` Task status for Product 1.0.
+Do not introduce a separate `assigned` Task status for the first routing
+foundation.
 
 ```text
 pending + no assigned_agent_id = waiting for routing
@@ -88,9 +97,10 @@ Clear on retry:
 
 Keep historical events, logs, and attempt counters.
 
-For Product 1.0, use a single Router loop and a single Agent Manager loop per
-TaskBus instance. Do not add locks, leases, task versions, compare-and-swap, or
-distributed-router coordination until the product needs them.
+For the first routing implementation, use a single Router loop and a single
+Agent Manager loop per TaskBus instance. Do not add locks, leases, task
+versions, compare-and-swap, or distributed-router coordination until the
+product needs them.
 
 TaskBus provides a deterministic sweep for stale pending Tasks instead of
 per-task timers or callback-dependent health. The sweep collapses stale pending
@@ -102,8 +112,8 @@ TaskBus.sweep_stale_pending_tasks(now)
 ```
 
 The sweep does not need to distinguish assignment timeout from claim timeout in
-Product 1.0. It should provide a reason when available; otherwise diagnosis
-belongs to logs and audit records.
+the first routing implementation. It should provide a reason when available;
+otherwise diagnosis belongs to logs and audit records.
 
 Agent Manager startup failure is also reported through normal `fail` semantics:
 
@@ -116,8 +126,8 @@ Do not implement running execution timeout or hard interruption as part of
 minimal assignment semantics. Running cancellation remains a cooperative
 Agent/runtime capability.
 
-Main Page 1.0 only displays assignment projection state. It does not provide
-manual reassignment.
+The first routing UI should only display assignment projection state. It should
+not provide manual reassignment.
 
 ---
 
@@ -128,8 +138,8 @@ Positive:
 - Task lifecycle has one authoritative owner after publish.
 - Router and Agent Manager become simple convergence loops instead of lifecycle
   co-owners.
-- Product 1.0 avoids callback-heavy handshakes, per-task timers, locks, leases,
-  and optimistic versioning.
+- The first routing implementation avoids callback-heavy handshakes, per-task
+  timers, locks, leases, and optimistic versioning.
 - Tests can be deterministic: create TaskBus facts, call router tick, call Agent
   Manager tick, call TaskBus sweep, assert resulting facts.
 - Retry naturally re-enters routing and can recover from a bad assignment.
@@ -139,7 +149,8 @@ Trade-offs:
 
 - A stale pending Task may fail by sweep rather than receiving a precise
   component-specific failure reason.
-- Single Router and Agent Manager loops are a 1.0 scaling constraint.
+- Single Router and Agent Manager loops are an initial routing scaling
+  constraint.
 - Logs and audit records become important for distinguishing Router failure
   from Agent Manager failure.
 - Manual reassignment is intentionally deferred.
@@ -149,13 +160,15 @@ Rejected alternatives:
 - **Router or Agent Manager owns lifecycle after taking a Task from TaskBus:**
   creates multiple lifecycle authorities and makes Main Page, audit, retry, and
   failure recovery ambiguous.
-- **Callback-driven lifecycle handshakes:** too many failure paths for Product
-  1.0; harder to debug and test than convergence over TaskBus facts.
+- **Callback-driven lifecycle handshakes:** too many failure paths for the
+  first routing implementation; harder to debug and test than convergence over
+  TaskBus facts.
 - **Per-task timeout timers:** adds runtime complexity and timer failure modes;
   deterministic sweep is simpler.
 - **New `assigned` status:** premature. `pending + assigned_agent_id` is enough
   until product evidence shows that assignment is a user-facing bottleneck.
-- **Assignment versions / leases / locks:** unnecessary while Product 1.0 uses
-  one Router loop and one Agent Manager loop per TaskBus instance.
+- **Assignment versions / leases / locks:** unnecessary while the first routing
+  implementation uses one Router loop and one Agent Manager loop per TaskBus
+  instance.
 - **Running timeout in this work package:** belongs with cooperative
   interruption and Agent runtime safety points.

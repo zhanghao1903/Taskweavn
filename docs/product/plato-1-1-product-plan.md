@@ -2,7 +2,7 @@
 
 > Status: planning baseline
 >
-> Last Updated: 2026-05-22
+> Last Updated: 2026-05-28
 >
 > Scope: Product 1.1 capability direction after the Plato 1.0 closed loop.
 > This document records what is intentionally moved out of Product 1.0 and
@@ -99,6 +99,8 @@ TODO:
   system state it must never mutate directly;
 - define special Agent protocols later, including Routing Agent, Execution
   Agent, Collaborator Agent, Audit Agent, and Result Packaging Agent;
+- define the routing/assignment foundation when multiple execution Agents,
+  custom routing policy, or assignment visibility become product needs;
 - decide how advanced users can plug in custom Agents, including router-style
   policy Agents, without making Agent extensibility part of Product 1.0;
 - decide what templates, workflow scaffolding, or validation checks are needed
@@ -126,6 +128,7 @@ feature plans for:
 
 - completion-time `task_after` pipeline;
 - Result Packaging Agent and cards;
+- routing/assignment foundation;
 - skills integration;
 - MCP integration;
 - file and multimodal support;

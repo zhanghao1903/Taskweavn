@@ -1,7 +1,7 @@
 # Minimal Agent Assignment Semantics 技术设计
 
-> Status: planned
-> Last Updated: 2026-05-23
+> Status: deferred
+> Last Updated: 2026-05-28
 > Feature Plan: [Minimal Agent Assignment Semantics](minimal-agent-assignment-semantics.md)
 > Gap: [Routing Agent assignment productization](../../gaps/README.md)
 > Decisions: [ADR-0011](../../decisions/ADR-0011-routing-agent-assignment-and-cooperative-interruption.md), [ADR-0012](../../decisions/ADR-0012-taskbus-centered-agent-assignment-convergence.md)
@@ -26,7 +26,7 @@ pending -> running -> done / failed
 - SQLite TaskBus 对应持久化实现。
 
 但 `claim_next(capability, agent_id)` 仍然让 Execution Agent 可以按
-capability 直接领取任务。下一步需要把领取前的 assignment 变成明确事实：
+capability 直接领取任务。后续版本需要把领取前的 assignment 变成明确事实：
 
 ```text
 pending unassigned
@@ -36,14 +36,17 @@ pending unassigned
   -> running
 ```
 
-这个设计必须遵守 ADR-0012：
+这个设计必须遵守 ADR-0012，但不再作为 Product 1.0 实施范围：
 
 - TaskBus 是 Published Task 生命周期事实权威；
-- Router / Agent Manager 是单实例收敛循环；
+- Router / Agent Manager 是首个 routing foundation 的单实例收敛循环；
 - assignment 不是新状态；
 - 不做复杂 callback handshake；
 - 不做锁、lease、version/CAS；
 - stale pending 由 TaskBus sweep 退化为普通 failed。
+
+Product 1.0 按 ADR-0010 采用 line-first / fixed-route 默认，当前应实现
+[Fixed-Route Task Execution Bridge](fixed-route-task-execution-bridge.md)，不实现本方案中的 assignment 字段、Router 或 Agent Manager。
 
 ---
 
@@ -589,7 +592,7 @@ Product 1.0 不增加 manual reassign。失败后仍走现有 retry action。
 | `task.agent_manager` | `agent_start_failed` | task_id, agent_id, reason |
 | `task.bus` | `dispatch_timeout` | task_id, assigned_agent_id, reference_time |
 
-这些日志用于弥补 Product 1.0 不细分 assignment timeout / claim timeout 的选择。
+这些日志用于弥补首个 routing foundation 不细分 assignment timeout / claim timeout 的选择。
 
 ---
 
@@ -669,7 +672,7 @@ Product 1.0 不增加 manual reassign。失败后仍走现有 retry action。
 | Assignment fields duplicate dispatch constraints. | Keep constraints as requirements/preferences; assignment is the final routing fact. |
 | Sweep failure reason is too coarse. | Rely on structured logs and audit; add finer failure taxonomy only if debugging pain appears. |
 | Agent Manager synchronous execution blocks tick. | Accept for minimal implementation; async runtime can be a later execution orchestration plan. |
-| Product 1.1 Agent protocol work leaks into 1.0. | Keep only descriptor/template interfaces needed for Router and Agent Manager. |
+| Agent protocol work leaks into routing foundation. | Keep only descriptor/template interfaces needed for Router and Agent Manager. |
 
 ---
 
