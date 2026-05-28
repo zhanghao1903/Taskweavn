@@ -1,18 +1,48 @@
 # Feature Plan: RawTask And DraftTaskTree Persistence Foundation
 
-> Status: planned
+> Status: done
 > Type: backend persistence / authoring-domain reliability
 > Last Updated: 2026-05-28
 > Decision: [ADR-0009: Single Active Session Work Tree](../../decisions/ADR-0009-single-active-session-worktree.md)
 > Architecture: [Authoring Domain](../../architecture/authoring-domain.md), [Authoring Command Protocol](../../architecture/authoring-command-protocol.md), [Task Domain/UI Model Separation](../../architecture/task-domain-ui-model-separation.md)
 > Product/API: [Workflow, Session, And Task UX Model](../../product/workflow-session-task-ux-model.md), [Plato UI API Contract](../../product/plato-ui-api-contract.md)
 > Technical Design: [中文详细技术方案](raw-task-draft-tree-persistence-technical-design.zh-CN.md)
+> Release Record: [RawTask And DraftTaskTree Persistence](../../releases/raw-task-draft-tree-persistence.md)
 
 ---
 
-## 1. Gate Decision
+## 0. Completion Status
 
-RawTask/DraftTaskTree persistence design can proceed now.
+RawTask/DraftTaskTree persistence is complete for Product 1.0 authoring
+recovery.
+
+Implemented scope:
+
+- `SqliteRawTaskStore`
+- `SqliteDraftTaskStore`
+- `SqliteAuthoringStateStore`
+- active RawTask / DraftTaskTree recovery after restart
+- projection and gateway alignment so publish resolves the real active
+  `draft_tree_id`
+- local sidecar assembly with SQLite authoring stores
+- durable authoring command idempotency
+- API command response idempotency
+
+Closed user-visible issues:
+
+- unpublished draft work survives backend restart;
+- publish no longer depends on synthetic `TaskTreeView.id`.
+
+Not closed by this plan:
+
+- post-publish editing policy;
+- fixed-route task execution bridge;
+- full Audit Page implementation;
+- durable SSE replay.
+
+## 1. Original Gate Decision
+
+RawTask/DraftTaskTree persistence design was allowed to proceed.
 
 Required upstream dependencies are sufficiently satisfied:
 
@@ -29,15 +59,15 @@ Required upstream dependencies are sufficiently satisfied:
 - `SqliteTaskBus` and SQLite publish stores provide local-first persistence
   patterns.
 
-Backend store implementation can start after this plan is accepted. Projection,
-gateway, and UI-facing publish changes should wait until the API/product
-contract updates reference ADR-0009's active-tree rule.
+Backend store implementation, projection/gateway alignment, sidecar assembly,
+and command idempotency have since been implemented and accepted for Product 1.0
+authoring recovery.
 
 ---
 
 ## 2. Problem
 
-Current authoring state is process-local:
+Before this work, authoring state was process-local:
 
 - RawTask facts are stored in `InMemoryRawTaskStore`.
 - DraftTaskTree and DraftTaskNode facts are stored in `InMemoryDraftTaskStore`.
@@ -47,7 +77,7 @@ Current authoring state is process-local:
 - `TaskTreeView.id` may be a synthetic projection id, while publish requires the
   real `draft_tree_id`.
 
-This breaks the product expectation that a user can close or restart Plato and
+This broke the product expectation that a user can close or restart Plato and
 return to the last working Session without losing an unpublished draft plan.
 
 ---
@@ -91,7 +121,7 @@ The persistence foundation uses a dedicated authoring database:
   authoring.sqlite    # Authoring Domain: RawTask, DraftTaskTree, active state
 ```
 
-Implementation should add SQLite-backed stores for:
+The implementation added SQLite-backed stores for:
 
 - RawTask snapshots;
 - DraftTaskTree and DraftTaskNode facts;
@@ -253,7 +283,9 @@ Acceptance:
 | P8.5 command idempotency | 0.5-1 day | Can defer if not needed for first recovery fix. |
 | P8.6 API command response idempotency | 0.5-1 day | Required before broader user testing of retry/restart flows. |
 
-Recommended first implementation batch: P8.1 + P8.2 only.
+Actual implementation completed P8.1-P8.6. The original estimate is retained as
+planning history; future work should not reopen these slices unless a regression
+or new product requirement appears.
 
 ---
 
@@ -269,36 +301,13 @@ Recommended first implementation batch: P8.1 + P8.2 only.
 
 ---
 
-## 10. Recommended Next Prompt
+## 10. Follow-up Routing
 
-```text
-Use the product-workflow-gate skill first.
+This plan is complete. Related work now routes to:
 
-Task:
-Implement P8.1 SQLite Authoring Store Foundation.
-
-Context:
-docs/plans/feature/raw-task-draft-tree-persistence.md and
-docs/plans/feature/raw-task-draft-tree-persistence-technical-design.zh-CN.md
-define the persistence plan. Start with SQLite-backed RawTaskStore and
-DraftTaskStore only.
-
-Do not change Main Page UI.
-Do not implement post-publish editing.
-Do not rewrite TaskBus or TaskPublisher.
-Do not wire HTTP routes yet.
-
-Required work:
-1. Add `src/taskweavn/task/sqlite_authoring.py`.
-2. Implement `SqliteRawTaskStore`.
-3. Implement `SqliteDraftTaskStore`.
-4. Add schema initialization for `authoring.sqlite`.
-5. Add focused persistence/reopen tests mirroring in-memory store behavior.
-
-Output:
-- files changed
-- stores implemented
-- schema summary
-- tests run
-- remaining gaps
-```
+- fixed-route task execution bridge, to close the Product 1.0 execution loop;
+- post-publish editing policy, to define how published work trees can change
+  after execution starts;
+- Audit / Trust implementation, to expose evidence and recovery context to the
+  user;
+- durable SSE replay, if event replay becomes necessary for user testing.
