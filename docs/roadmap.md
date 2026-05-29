@@ -1,7 +1,7 @@
 # TaskWeavn Roadmap
 
 > Status: active
-> Last Updated: 2026-05-22
+> Last Updated: 2026-05-29
 > Maintained By: planning session
 > Related: [Project Plan](project/roadmap.md), [Gap Registry](gaps/), [Planning Workflow](planning_workflow.md), [Architecture](architecture/), [Architecture Decisions](decisions/), [Release Records](releases/), [User Traceability](user_model/traceability.md)
 
@@ -287,7 +287,7 @@ These remain valuable, but they should not be the next immediate build target be
 Recommended order for upcoming implementation sessions:
 
 1. **[Main Page real backend integration](plans/feature/main-page-real-backend-integration.md)** — continue from the [Main Page Frontend Runtime Integration](plans/feature/main-page-frontend-runtime-integration.md) checkpoint. The current branch is a useful stage submission, not completion: real browser/Electron smoke, session creation/selection, pending/error UX, confirmation/message hardening, TaskNode edit controls, file-change projection, audit/trust surfaces, and durable event behavior still need follow-up work.
-2. **Fixed-route task execution bridge** — close Product 1.0 execution with a resident universal Default Agent and a single route from TaskBus pending Tasks to complete/fail.
+2. **[Fixed-route task execution bridge](plans/feature/fixed-route-task-execution-bridge.md)** — continue from the [checkpoint](releases/fixed-route-task-execution-bridge.md). The one-tick TaskBus -> resident Default Agent -> Main Page snapshot path works, but production runtime trigger/background dispatch, durable result payload behavior, and user-facing smoke remain before gap closure.
 3. **Message and confirmation UI integration hardening** — make HITL confirmations real through UI commands/events, including richer pending states and recovery paths.
 4. **File Change Summary and Audit / Trust implementation** — turn trust facts into user-readable surfaces.
 5. **Product 1.1 research and planning** — completion-time `task_after`, Result Packaging cards, routing/assignment foundation, Agent protocol/governance, skills integration, MCP integration, and file/multimodal support.

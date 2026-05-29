@@ -7,7 +7,7 @@
 > Decisions: [ADR-0010](../../decisions/ADR-0010-line-first-authoring-experience-for-1-0.md), [ADR-0011](../../decisions/ADR-0011-routing-agent-assignment-and-cooperative-interruption.md), [ADR-0012](../../decisions/ADR-0012-taskbus-centered-agent-assignment-convergence.md)
 > Product: [Plato MVP PRD](../../product/plato-mvp-prd.md), [Line-first Authoring Policy](../../product/plato-1-0-line-first-authoring-policy.md), [Main Page UX Flow](../../product/plato-main-page-ux-flow.md)
 > Technical Design: [中文详细技术方案](fixed-route-task-execution-bridge-technical-design.zh-CN.md)
-> Release Record: TBD
+> Release Record: [Checkpoint: Fixed-Route Task Execution Bridge](../../releases/fixed-route-task-execution-bridge.md)
 
 ---
 
@@ -32,7 +32,7 @@ Implementation has started with the Slice 1-3 service boundary:
 
 Background loop / HTTP control route, durable result summary storage, broader
 Main Page projection polish, CodeAction/Docker-backed tool inclusion, and
-release record remain follow-up work.
+user-facing runtime smoke remain follow-up work.
 
 Product 1.0 needs a complete execution loop, not a flexible routing system.
 ADR-0010 sets the default as single-task, single-agent, fixed-route flow.
@@ -252,6 +252,14 @@ Acceptance:
 - fixed-route success and failure paths are deterministic;
 - existing TaskBus lifecycle tests still pass.
 
+Current status:
+
+- Checkpoint release record created.
+- Focused bridge/projection/UI contract validation is recorded in the release
+  checkpoint.
+- The gap remains open until execution can be triggered through a production
+  runtime path and result payload behavior is decided.
+
 ---
 
 ## 6. Testing Strategy
@@ -269,6 +277,19 @@ Regression tests:
 
 - existing TaskBus lifecycle tests;
 - Task projection tests touched by result/failure display.
+
+Checkpoint validation:
+
+- `uv run pytest tests/test_task_projection.py tests/test_ui_contract_mapping.py tests/test_main_page_sidecar_app.py tests/test_ui_contract_models.py`
+  - 41 passed, 1 warning
+- `uv run mypy src/taskweavn/task/projection.py src/taskweavn/task/views.py src/taskweavn/server/ui_contract/view_models.py src/taskweavn/server/ui_contract/mapping.py src/taskweavn/server/ui_contract/__init__.py tests/test_task_projection.py tests/test_ui_contract_mapping.py tests/test_main_page_sidecar_app.py tests/test_ui_contract_models.py`
+  - passed
+- `uv run ruff check src/taskweavn/task/projection.py src/taskweavn/task/views.py src/taskweavn/server/ui_contract/view_models.py src/taskweavn/server/ui_contract/mapping.py src/taskweavn/server/ui_contract/__init__.py tests/test_task_projection.py tests/test_ui_contract_mapping.py tests/test_main_page_sidecar_app.py tests/test_ui_contract_models.py`
+  - passed
+- `npm run build --prefix frontend`
+  - passed
+- `git diff --check`
+  - passed
 
 ---
 
