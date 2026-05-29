@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Literal, Protocol, runtime_checkable
 
@@ -52,6 +53,9 @@ class AgentLoopRunner(Protocol):
     """Small subset of AgentLoop used by the resident Default Agent adapter."""
 
     def run(self, task: str) -> LoopResult: ...
+
+
+AgentLoopRunnerFactory = Callable[[TaskDomain], AgentLoopRunner]
 
 
 @dataclass(frozen=True)
@@ -170,11 +174,19 @@ class FixedRouteTaskExecutor:
 class AgentLoopResidentDefaultAgent:
     """Resident Default Agent adapter backed by an AgentLoop-compatible runner."""
 
-    loop: AgentLoopRunner
+    loop: AgentLoopRunner | None = None
     result_ref_prefix: str = "agent_loop"
+    loop_factory: AgentLoopRunnerFactory | None = None
+
+    def __post_init__(self) -> None:
+        if (self.loop is None) == (self.loop_factory is None):
+            raise ValueError("provide exactly one of loop or loop_factory")
 
     def run(self, task: TaskDomain) -> TaskRunResult:
-        result = self.loop.run(task.intent)
+        runner = self.loop_factory(task) if self.loop_factory is not None else self.loop
+        if runner is None:  # guarded by __post_init__, kept for type narrowing.
+            return TaskRunResult(error_ref="agent_loop_unavailable")
+        result = runner.run(task.intent)
         if result.finished:
             return TaskRunResult(
                 result_ref=(
@@ -203,6 +215,7 @@ def _select_next_eligible_pending_task(
 __all__ = [
     "AgentLoopResidentDefaultAgent",
     "AgentLoopRunner",
+    "AgentLoopRunnerFactory",
     "DEFAULT_FIXED_ROUTE_AGENT_ID",
     "FixedRouteTaskExecutor",
     "FixedRouteTaskExecutorConfig",

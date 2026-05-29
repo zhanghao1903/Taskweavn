@@ -10,6 +10,7 @@ from typing import Any, cast
 import pytest
 
 from taskweavn.core import SessionManager, SessionManagerError, WorkspaceLayout
+from taskweavn.llm.contracts import ChatResponse
 from taskweavn.server import (
     DEFAULT_PLATO_SIDECAR_PORT,
     MainPageSidecarConfig,
@@ -496,11 +497,42 @@ def test_main_page_sidecar_app_fixed_route_tick_failure_path(tmp_path: Any) -> N
     assert task.error_ref == "agent:error"
 
 
+def test_main_page_sidecar_app_fixed_route_tick_runs_agent_loop_default_agent(
+    tmp_path: Any,
+) -> None:
+    llm = _AgentLoopLLM("Loop completed.")
+    app = build_main_page_sidecar_app(
+        MainPageSidecarConfig(workspace_root=tmp_path, port=0),
+        MainPageSidecarDependencies(llm=llm),
+    )
+    try:
+        session_id = _create_session(app)
+        app.task_bus.publish(_published_task("loop-task", session_id=session_id))
+
+        tick = app.run_fixed_route_tick(session_id)
+        task = app.task_bus.get(session_id, "loop-task")
+        events_db = WorkspaceLayout(tmp_path).session_events_db(session_id)
+    finally:
+        app.close()
+
+    assert tick.status == "completed"
+    assert tick.result_ref == f"agent_loop:{session_id}:loop-task:no_tool_calls"
+    assert task is not None
+    assert task.status == "done"
+    assert task.result_ref == f"agent_loop:{session_id}:loop-task:no_tool_calls"
+    assert llm.calls[0]["messages"][1]["content"] == "Run loop-task"
+    assert events_db.exists()
+
+
 def test_main_page_sidecar_app_fixed_route_tick_reports_missing_default_agent(
     tmp_path: Any,
 ) -> None:
     app = build_main_page_sidecar_app(
-        MainPageSidecarConfig(workspace_root=tmp_path, port=0),
+        MainPageSidecarConfig(
+            workspace_root=tmp_path,
+            port=0,
+            enable_default_agent=False,
+        ),
         MainPageSidecarDependencies(llm=_StubLLM()),
     )
     try:
@@ -616,6 +648,35 @@ class _StubLLM:
               "constraints": ["quiet visual style"]
             }
             """
+        )
+
+
+class _AgentLoopLLM:
+    def __init__(self, final_answer: str) -> None:
+        self.final_answer = final_answer
+        self.calls: list[dict[str, Any]] = []
+
+    def chat(
+        self,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]] | None = None,
+        *,
+        metadata: dict[str, Any] | None = None,
+    ) -> ChatResponse:
+        self.calls.append(
+            {
+                "messages": list(messages),
+                "tools": tools,
+                "metadata": metadata,
+            }
+        )
+        return ChatResponse(
+            content=self.final_answer,
+            tool_calls=[],
+            raw_assistant_message={
+                "role": "assistant",
+                "content": self.final_answer,
+            },
         )
 
 

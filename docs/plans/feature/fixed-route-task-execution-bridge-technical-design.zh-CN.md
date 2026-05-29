@@ -10,11 +10,13 @@
 
 ## 1. 背景
 
-当前实现已进入 Slice 1 / Slice 2 的服务边界：
+当前实现已进入 Slice 1-3 的服务边界：
 
 - `FixedRouteTaskExecutor`；
 - `ResidentDefaultAgent` protocol；
 - `AgentLoopRunner` protocol 与 `AgentLoopResidentDefaultAgent` adapter；
+- 支持 task-scoped AgentLoop runner factory，用于按 Session 构造 workspace
+  和 EventStream 上下文；
 - 基于现有 TaskBus `claim_next -> complete / fail` 的单次 tick；
 - 使用 fake resident Default Agent 的 focused unit tests。
 - `MainPageSidecarApp.run_fixed_route_tick(...)` runtime assembly seam；
@@ -22,9 +24,12 @@
 - `LoopResult.finished=True` 映射为稳定的
   `agent_loop:{session_id}:{task_id}:{stop_reason}` result ref；
 - `LoopResult.finished=False` 映射为 `agent_loop_failed:{stop_reason}` failure ref。
+- `build_agent_loop_resident_default_agent(...)` 在 sidecar 装配层构造
+  session-scoped AgentLoop，使用 LocalRuntime、文件/命令工具和 SqliteEventStream。
 
-后台循环 / HTTP control route、生产 AgentLoop 构造与注入、durable result
-summary storage、更完整的 Main Page projection closure 和 release record 尚未完成。
+后台循环 / HTTP control route、durable result summary storage、更完整的
+Main Page projection closure、CodeAction/Docker-backed tool 纳入和 release
+record 尚未完成。
 
 ADR-0010 明确 1.0 默认是 line-first：
 
@@ -112,7 +117,7 @@ class FixedRouteTaskExecutor:
         self,
         *,
         task_bus: TaskBus,
-        default_agent: ResidentDefaultAgent,
+        default_agent: ResidentDefaultAgent | None,
         config: FixedRouteTaskExecutorConfig,
     ) -> None: ...
 
@@ -120,6 +125,10 @@ class FixedRouteTaskExecutor:
 ```
 
 `tick()` 第一版只处理一个 Task，符合 1.0 单任务/单 Agent 约束。
+
+当前实现中 `default_agent` 允许为 `None`。这不是 routing failure，而是
+runtime health path：`tick()` 返回 `TaskExecutionTickResult(status="health_error",
+error_ref="default_agent_unavailable")`，并且不会 claim Task。
 
 ### 3.2 ResidentDefaultAgent
 
@@ -156,21 +165,70 @@ class AgentLoopRunner(Protocol):
 
 @dataclass(frozen=True)
 class AgentLoopResidentDefaultAgent:
-    loop: AgentLoopRunner
+    loop: AgentLoopRunner | None = None
     result_ref_prefix: str = "agent_loop"
+    loop_factory: AgentLoopRunnerFactory | None = None
 
     def run(self, task: TaskDomain) -> TaskRunResult: ...
 ```
 
 映射规则：
 
+- `loop` 与 `loop_factory` 必须二选一；两者同时为空或同时设置都会在
+  `__post_init__` 抛 `ValueError`；
 - `TaskDomain.intent` 是传入 `AgentLoopRunner.run(...)` 的输入；
 - `LoopResult.finished=True` 映射为 `TaskRunResult(result_ref=...)`；
 - `LoopResult.finished=False` 映射为
   `TaskRunResult(error_ref="agent_loop_failed: {stop_reason}")`；
-- 该 adapter 只证明 AgentLoop 可以作为 resident Default Agent 的执行内核；
-- 生产环境的 AgentLoop 生命周期、依赖注入、工具上下文、result payload
-  持久化仍由后续 slice 处理。
+- `loop` 适合 focused tests 和固定 fake loop；
+- `loop_factory` 适合 sidecar runtime，按 `TaskDomain.session_id` 创建
+  session-scoped AgentLoop；
+- 当前 `result_ref` 只保存可追踪引用：
+  `agent_loop:{session_id}:{task_id}:{stop_reason}`，不保存 `final_answer`
+  payload；durable result summary store 是后续 slice；
+- 生产环境的 durable result payload 持久化仍由后续 slice 处理。
+
+### 3.3 Sidecar AgentLoop assembly
+
+当前 Slice 3 已补 `build_agent_loop_resident_default_agent(...)`：
+
+```python
+def build_agent_loop_resident_default_agent(
+    *,
+    layout: WorkspaceLayout,
+    llm: Any,
+    max_steps: int = 20,
+) -> AgentLoopResidentDefaultAgent: ...
+```
+
+装配规则：
+
+- `MainPageSidecarConfig` 当前新增：
+  - `enable_default_agent: bool = True`;
+  - `default_agent_max_steps: int = 20`;
+- `MainPageSidecarDependencies.default_agent` 优先级最高：测试或未来 packaging
+  可以显式注入 fake / production-specific Default Agent；
+- 当 `dependencies.default_agent is None` 且
+  `config.enable_default_agent is True` 时，`build_main_page_sidecar_app(...)`
+  默认启用 AgentLoop-backed Default Agent；
+- 测试或诊断可以通过 `MainPageSidecarConfig(enable_default_agent=False)`
+  保留 missing Default Agent 的 runtime health path；
+- 每次 `run_fixed_route_tick(session_id)` 被显式调用时，adapter 为被 claim
+  的 Task 创建一个新的 AgentLoop runner；
+- runner 使用 `layout.session_project_dir(session_id)` 作为模型可见 workspace；
+- runner 使用 `layout.session_events_db(session_id)` 作为 EventStream；
+- runner 使用 `LocalRuntime` 并在 run 前注册工具；
+- 第一版工具集仅包含 `ReadFileTool`、`WriteFileTool`、`ListDirTool`、
+  `RunCommandTool`。
+
+暂缓项：
+
+- 不自动后台轮询；
+- 不新增 HTTP control route；
+- 不自动响应 publish 的 `startImmediately`；
+- 不引入 Router / Agent Manager / assignment；
+- 不默认启用 `CodeActionTool`，因为它在 startup 阶段会启动 Docker-backed
+  sandbox，需要单独的 runtime readiness 策略。
 
 ---
 
@@ -178,9 +236,19 @@ class AgentLoopResidentDefaultAgent:
 
 ```python
 def tick(self) -> TaskExecutionTickResult:
+    if default_agent is None:
+        return TaskExecutionTickResult(
+            status="health_error",
+            skipped_reason="default_agent_unavailable",
+            error_ref="default_agent_unavailable",
+        )
+
     task = select_next_pending_task_for_fixed_route(...)
     if task is None:
-        return TaskExecutionTickResult(skipped_reason="no_eligible_task")
+        return TaskExecutionTickResult(
+            status="idle",
+            skipped_reason="no_eligible_task",
+        )
 
     claimed = task_bus.claim_next(
         task.session_id,
@@ -188,7 +256,10 @@ def tick(self) -> TaskExecutionTickResult:
         agent_id=default_agent_id,
     )
     if claimed is None:
-        return TaskExecutionTickResult(skipped_reason="claim_not_available")
+        return TaskExecutionTickResult(
+            status="claim_not_available",
+            skipped_reason="claim_not_available",
+        )
 
     try:
         result = default_agent.run(claimed)
@@ -220,10 +291,12 @@ def tick(self) -> TaskExecutionTickResult:
 
 | Failure | TaskBus result |
 |---|---|
-| no eligible Task | no-op |
-| resident Default Agent unavailable | runtime health error / no Task claim |
+| no eligible Task | `TaskExecutionTickResult(status="idle")`; no-op |
+| claim not available | `TaskExecutionTickResult(status="claim_not_available")`; no-op |
+| resident Default Agent unavailable | `TaskExecutionTickResult(status="health_error")`; no Task claim |
 | Default Agent execution exception | `failed`, `error_ref=agent_execution_failed: ...` |
 | Default Agent returns error | `failed`, agent-provided `error_ref` |
+| AgentLoop returns `finished=False` | `failed`, `error_ref=agent_loop_failed: {stop_reason}` |
 
 不实现：
 
@@ -261,6 +334,10 @@ Main Page 只需要现有状态投影：
 - Default Agent 未启动时不 claim Task，并产生 runtime health error；
 - parent 未完成的子 Task 不被 claim；
 - `claimed_by` 使用固定 Default Agent id。
+- `AgentLoopResidentDefaultAgent(loop_factory=...)` 会按 Task 创建 runner；
+- sidecar 默认 AgentLoop-backed Default Agent 可以通过显式 tick 推进
+  `pending -> done`，并写入 session events sqlite；
+- `enable_default_agent=False` 保留 missing Default Agent health path。
 
 ---
 

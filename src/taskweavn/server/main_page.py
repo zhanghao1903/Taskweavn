@@ -6,12 +6,21 @@ import contextlib
 import threading
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
-from taskweavn.core import Session, SessionManager, WorkspaceLayout
+from taskweavn.core import (
+    AgentLoop,
+    LoopResult,
+    Session,
+    SessionManager,
+    SqliteEventStream,
+    WorkspaceLayout,
+)
 from taskweavn.interaction import (
     InProcessMessageBus,
     SqliteMessageStream,
 )
+from taskweavn.runtime import LocalRuntime
 from taskweavn.server.client_logs import FileClientErrorLogSink
 from taskweavn.server.sidecar import LocalSidecarConfig, LocalSidecarServer
 from taskweavn.server.ui_command_idempotency import (
@@ -26,6 +35,7 @@ from taskweavn.server.ui_events import ResyncOnlyEventSource, UiEventSource
 from taskweavn.server.ui_http import PlatoUiHttpTransport, SidecarAuth
 from taskweavn.task import (
     DEFAULT_FIXED_ROUTE_AGENT_ID,
+    AgentLoopResidentDefaultAgent,
     AuthoringCommandIdempotencyStore,
     AuthoringStateStore,
     CapabilityCatalog,
@@ -54,6 +64,14 @@ from taskweavn.task import (
     TaskExecutionTickResult,
     TaskRef,
 )
+from taskweavn.tools import (
+    ListDirTool,
+    ReadFileTool,
+    RunCommandTool,
+    Tool,
+    Workspace,
+    WriteFileTool,
+)
 
 DEFAULT_PLATO_SIDECAR_PORT = 52789
 
@@ -68,6 +86,8 @@ class MainPageSidecarConfig:
     host: str = "127.0.0.1"
     port: int = DEFAULT_PLATO_SIDECAR_PORT
     auth_token: str | None = None
+    enable_default_agent: bool = True
+    default_agent_max_steps: int = 20
 
 
 @dataclass(frozen=True)
@@ -203,6 +223,13 @@ def build_main_page_sidecar_app(
             idempotency_store=authoring_idempotency_store,
         )
         capability_catalog = dependencies.capability_catalog or _default_capability_catalog()
+        default_agent = dependencies.default_agent
+        if default_agent is None and config.enable_default_agent:
+            default_agent = build_agent_loop_resident_default_agent(
+                layout=layout,
+                llm=dependencies.llm,
+                max_steps=config.default_agent_max_steps,
+            )
         context_builder = DefaultAuthoringContextBuilder(
             raw_task_store=raw_task_store,
             draft_store=draft_store,
@@ -282,7 +309,7 @@ def build_main_page_sidecar_app(
         authoring_state_store=authoring_state_store,
         authoring_idempotency_store=authoring_idempotency_store,
         ui_command_idempotency_store=ui_command_idempotency_store,
-        default_agent=dependencies.default_agent,
+        default_agent=default_agent,
         query_gateway=query_gateway,
         command_gateway=command_gateway,
         transport=transport,
@@ -315,6 +342,62 @@ def _authoring_stores(
         dependencies.authoring_state_store,
         dependencies.authoring_idempotency_store,
     )
+
+
+def build_agent_loop_resident_default_agent(
+    *,
+    layout: WorkspaceLayout,
+    llm: Any,
+    max_steps: int = 20,
+) -> AgentLoopResidentDefaultAgent:
+    """Build the resident Default Agent used by the fixed-route sidecar bridge."""
+
+    return AgentLoopResidentDefaultAgent(
+        loop_factory=lambda task: _SessionAgentLoopRunner(
+            layout=layout,
+            llm=llm,
+            session_id=task.session_id,
+            max_steps=max_steps,
+        )
+    )
+
+
+@dataclass(frozen=True)
+class _SessionAgentLoopRunner:
+    """Create one AgentLoop run with session-scoped workspace and events."""
+
+    layout: WorkspaceLayout
+    llm: Any
+    session_id: str
+    max_steps: int
+
+    def run(self, task: str) -> LoopResult:
+        self.layout.bootstrap_session(self.session_id)
+        workspace = Workspace(self.layout.session_project_dir(self.session_id))
+        runtime = LocalRuntime()
+        tools: list[Tool[Any, Any]] = [
+            ReadFileTool(workspace),
+            WriteFileTool(workspace),
+            ListDirTool(workspace),
+            RunCommandTool(workspace),
+        ]
+        for tool in tools:
+            tool.register(runtime)
+
+        event_stream = SqliteEventStream(self.layout.session_events_db(self.session_id))
+        try:
+            loop = AgentLoop(
+                llm=self.llm,
+                runtime=runtime,
+                tools=tools,
+                event_stream=event_stream,
+                max_steps=self.max_steps,
+                session_id=self.session_id,
+                workspace_root=workspace.root,
+            )
+            return loop.run(task)
+        finally:
+            event_stream.close()
 
 
 @dataclass(frozen=True)
@@ -398,5 +481,6 @@ __all__ = [
     "MainPageSidecarDependencies",
     "MainPageSessionLifecycleGateway",
     "MainPageTaskRefResolver",
+    "build_agent_loop_resident_default_agent",
     "build_main_page_sidecar_app",
 ]

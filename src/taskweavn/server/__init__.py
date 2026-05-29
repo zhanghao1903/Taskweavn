@@ -11,6 +11,7 @@ from taskweavn.server.main_page import (
     MainPageSidecarConfig,
     MainPageSidecarDependencies,
     MainPageTaskRefResolver,
+    build_agent_loop_resident_default_agent,
     build_main_page_sidecar_app,
 )
 from taskweavn.server.sidecar import LocalSidecarConfig, LocalSidecarServer
@@ -60,6 +61,7 @@ __all__ = [
     "UiCommandResponseIdempotencyRecord",
     "UiCommandResponseIdempotencyStore",
     "UiCommandResponseIdempotencyStoreError",
+    "build_agent_loop_resident_default_agent",
     "build_main_page_sidecar_app",
     "sse_frame",
     "sse_stream",

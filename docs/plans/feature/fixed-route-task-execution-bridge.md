@@ -13,11 +13,13 @@
 
 ## 1. Problem / Gap
 
-Implementation has started with the Slice 1 / Slice 2 service boundary:
+Implementation has started with the Slice 1-3 service boundary:
 
 - `FixedRouteTaskExecutor`
 - `ResidentDefaultAgent` protocol
 - `AgentLoopRunner` protocol and `AgentLoopResidentDefaultAgent` adapter
+- task-scoped AgentLoop runner factory support for session-specific workspace
+  and event context
 - one-tick execution over existing TaskBus `claim_next -> complete / fail`
 - focused unit tests using a fake resident Default Agent
 - `MainPageSidecarApp.run_fixed_route_tick(...)` runtime assembly seam
@@ -25,10 +27,12 @@ Implementation has started with the Slice 1 / Slice 2 service boundary:
 - `LoopResult.finished` maps to a stable `agent_loop:{session_id}:{task_id}:{stop_reason}`
   result ref
 - unfinished loop results map to `agent_loop_failed:{stop_reason}` failure refs
+- `build_agent_loop_resident_default_agent(...)` assembles a session-scoped
+  AgentLoop with LocalRuntime, file/shell tools, and SqliteEventStream
 
-Background loop / HTTP control route, production AgentLoop construction and
-injection, durable result summary storage, broader Main Page projection closure,
-and release record remain follow-up work.
+Background loop / HTTP control route, durable result summary storage, broader
+Main Page projection closure, CodeAction/Docker-backed tool inclusion, and
+release record remain follow-up work.
 
 Product 1.0 needs a complete execution loop, not a flexible routing system.
 ADR-0010 sets the default as single-task, single-agent, fixed-route flow.
@@ -168,10 +172,42 @@ Current status:
   `AgentLoopRunner.run(...)`.
 - `LoopResult.finished=True` becomes a stable TaskBus `result_ref`.
 - `LoopResult.finished=False` becomes a TaskBus-compatible failure ref.
-- Production construction of the AgentLoop instance and durable result payload
-  storage remain outside this slice.
+- Production construction of the AgentLoop instance is handled by Slice 3.
+  Durable result payload storage remains outside this slice.
 
-### Slice 3 — Main Page projection closure
+### Slice 3 — Sidecar AgentLoop assembly
+
+Output:
+
+- production sidecar can construct a resident Default Agent backed by
+  AgentLoop;
+- AgentLoop construction is task-scoped so each run gets the correct session
+  workspace and event stream;
+- tests can still inject a fake Default Agent or disable the default agent to
+  cover runtime health behavior.
+
+Acceptance:
+
+- `build_main_page_sidecar_app(...)` wires an AgentLoop-backed default agent by
+  default;
+- explicit `run_fixed_route_tick(session_id)` can publish `pending -> done`
+  through the real AgentLoop adapter without requiring a background loop;
+- no Router, Agent Manager, assignment field, or UI reassignment behavior is
+  introduced.
+
+Current status:
+
+- `build_agent_loop_resident_default_agent(...)` builds an
+  `AgentLoopResidentDefaultAgent` with a per-Task runner factory.
+- Each run uses `WorkspaceLayout.session_project_dir(session_id)` as the tool
+  workspace and `WorkspaceLayout.session_events_db(session_id)` as the
+  EventStream.
+- First sidecar tool set is intentionally conservative: read file, write file,
+  list directory, run command.
+- `CodeActionTool` is deferred because it starts a Docker-backed sandbox during
+  tool startup and needs a separate runtime readiness decision.
+
+### Slice 4 — Main Page projection closure
 
 Output:
 
@@ -183,7 +219,7 @@ Acceptance:
 - Main Page can observe Task status progressing through backend facts;
 - no assignment-specific UI is added.
 
-### Slice 4 — Tests and docs
+### Slice 5 — Tests and docs
 
 Output:
 

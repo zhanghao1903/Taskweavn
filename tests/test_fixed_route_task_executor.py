@@ -173,6 +173,29 @@ def test_agent_loop_resident_default_agent_maps_unfinished_loop_to_error() -> No
     assert result.error_ref == "agent_loop_failed: max_steps"
 
 
+def test_agent_loop_resident_default_agent_uses_task_scoped_runner_factory() -> None:
+    seen_tasks: list[str] = []
+
+    def factory(task: TaskDomain) -> _FakeLoop:
+        seen_tasks.append(task.task_id)
+        return _FakeLoop(
+            LoopResult(
+                final_answer="Done",
+                steps=1,
+                finished=True,
+                stop_reason="agent_finish",
+            )
+        )
+
+    agent = AgentLoopResidentDefaultAgent(loop_factory=factory)
+
+    result = agent.run(_task("task-1"))
+
+    assert result.ok is True
+    assert result.result_ref == "agent_loop:s1:task-1:agent_finish"
+    assert seen_tasks == ["task-1"]
+
+
 def test_fixed_route_executor_can_use_agent_loop_resident_default_agent() -> None:
     bus = InMemoryTaskBus([_task("task-1")])
     agent = AgentLoopResidentDefaultAgent(
