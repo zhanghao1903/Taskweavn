@@ -1,7 +1,7 @@
 # Feature Plan: Fixed-Route Task Execution Bridge
 
 > Status: in_progress
-> Last Updated: 2026-05-28
+> Last Updated: 2026-05-29
 > Gap: [Fixed-route task execution bridge](../../gaps/README.md)
 > Architecture: [Task](../../architecture/task.md), [TaskBus](../../architecture/bus.md), [Agent](../../architecture/agent.md)
 > Decisions: [ADR-0010](../../decisions/ADR-0010-line-first-authoring-experience-for-1-0.md), [ADR-0011](../../decisions/ADR-0011-routing-agent-assignment-and-cooperative-interruption.md), [ADR-0012](../../decisions/ADR-0012-taskbus-centered-agent-assignment-convergence.md)
@@ -17,13 +17,18 @@ Implementation has started with the Slice 1 / Slice 2 service boundary:
 
 - `FixedRouteTaskExecutor`
 - `ResidentDefaultAgent` protocol
+- `AgentLoopRunner` protocol and `AgentLoopResidentDefaultAgent` adapter
 - one-tick execution over existing TaskBus `claim_next -> complete / fail`
 - focused unit tests using a fake resident Default Agent
 - `MainPageSidecarApp.run_fixed_route_tick(...)` runtime assembly seam
 - sidecar smoke tests covering publish -> tick -> projected `done`
+- `LoopResult.finished` maps to a stable `agent_loop:{session_id}:{task_id}:{stop_reason}`
+  result ref
+- unfinished loop results map to `agent_loop_failed:{stop_reason}` failure refs
 
-Background loop / HTTP control route, real AgentLoop adapter, broader Main Page
-projection closure, and release record remain follow-up work.
+Background loop / HTTP control route, production AgentLoop construction and
+injection, durable result summary storage, broader Main Page projection closure,
+and release record remain follow-up work.
 
 Product 1.0 needs a complete execution loop, not a flexible routing system.
 ADR-0010 sets the default as single-task, single-agent, fixed-route flow.
@@ -146,8 +151,7 @@ Output:
 
 - minimal protocol for submitting a claimed Task to the resident Default Agent;
 - fake resident Default Agent for tests;
-- adapter around the current AgentLoop or execution implementation if already
-  available.
+- adapter around the current AgentLoop-compatible execution implementation.
 
 Acceptance:
 
@@ -155,6 +159,17 @@ Acceptance:
 - resident Default Agent task failure or exception maps to `TaskBus.fail`;
 - missing Default Agent is treated as app/runtime health failure, not Agent
   Manager startup failure.
+
+Current status:
+
+- `AgentLoopRunner` captures the small `run(task: str) -> LoopResult` contract
+  needed by the resident Default Agent.
+- `AgentLoopResidentDefaultAgent` maps a `TaskDomain.intent` into
+  `AgentLoopRunner.run(...)`.
+- `LoopResult.finished=True` becomes a stable TaskBus `result_ref`.
+- `LoopResult.finished=False` becomes a TaskBus-compatible failure ref.
+- Production construction of the AgentLoop instance and durable result payload
+  storage remain outside this slice.
 
 ### Slice 3 — Main Page projection closure
 

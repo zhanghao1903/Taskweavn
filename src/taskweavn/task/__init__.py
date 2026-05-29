@@ -103,6 +103,8 @@ from taskweavn.task.commands import (
 )
 from taskweavn.task.execution import (
     DEFAULT_FIXED_ROUTE_AGENT_ID,
+    AgentLoopResidentDefaultAgent,
+    AgentLoopRunner,
     FixedRouteTaskExecutor,
     FixedRouteTaskExecutorConfig,
     ResidentDefaultAgent,
@@ -258,6 +260,8 @@ __all__ = [
     "ApiRateLimiter",
     "ApiTaskPublisher",
     "ActiveAuthoringState",
+    "AgentLoopResidentDefaultAgent",
+    "AgentLoopRunner",
     "AuthoringActiveState",
     "AuthoringCommand",
     "AuthoringCommandBatch",

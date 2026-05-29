@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from taskweavn.core.loop import LoopResult
 from taskweavn.task import (
+    AgentLoopResidentDefaultAgent,
     FixedRouteTaskExecutor,
     FixedRouteTaskExecutorConfig,
     InMemoryTaskBus,
@@ -136,6 +138,70 @@ def test_fixed_route_executor_respects_parent_dependency() -> None:
     assert child.claimed_by is None
 
 
+def test_agent_loop_resident_default_agent_maps_finished_loop_to_result_ref() -> None:
+    loop = _FakeLoop(
+        LoopResult(
+            final_answer="Done",
+            steps=1,
+            finished=True,
+            stop_reason="agent_finish",
+        )
+    )
+    agent = AgentLoopResidentDefaultAgent(loop=loop)
+
+    result = agent.run(_task("task-1"))
+
+    assert result.ok is True
+    assert result.result_ref == "agent_loop:s1:task-1:agent_finish"
+    assert loop.seen == ["Do task-1"]
+
+
+def test_agent_loop_resident_default_agent_maps_unfinished_loop_to_error() -> None:
+    loop = _FakeLoop(
+        LoopResult(
+            final_answer="",
+            steps=20,
+            finished=False,
+            stop_reason="max_steps",
+        )
+    )
+    agent = AgentLoopResidentDefaultAgent(loop=loop)
+
+    result = agent.run(_task("task-1"))
+
+    assert result.ok is False
+    assert result.error_ref == "agent_loop_failed: max_steps"
+
+
+def test_fixed_route_executor_can_use_agent_loop_resident_default_agent() -> None:
+    bus = InMemoryTaskBus([_task("task-1")])
+    agent = AgentLoopResidentDefaultAgent(
+        loop=_FakeLoop(
+            LoopResult(
+                final_answer="Done",
+                steps=1,
+                finished=True,
+                stop_reason="no_tool_calls",
+            )
+        )
+    )
+    executor = FixedRouteTaskExecutor(
+        task_bus=bus,
+        default_agent=agent,
+        config=FixedRouteTaskExecutorConfig(session_id="s1"),
+    )
+
+    result = executor.tick()
+
+    assert result.status == "completed"
+    assert result.result_ref == "agent_loop:s1:task-1:no_tool_calls"
+
+    task = bus.get("s1", "task-1")
+    assert task is not None
+    assert task.status == "done"
+    assert task.result_ref == "agent_loop:s1:task-1:no_tool_calls"
+
+
 @dataclass
 class _FakeAgent:
     result: TaskRunResult | None = None
@@ -147,6 +213,16 @@ class _FakeAgent:
         if self.raises is not None:
             raise self.raises
         return self.result or TaskRunResult()
+
+
+@dataclass
+class _FakeLoop:
+    result: LoopResult
+    seen: list[str] = field(default_factory=list)
+
+    def run(self, task: str) -> LoopResult:
+        self.seen.append(task)
+        return self.result
 
 
 def _task(

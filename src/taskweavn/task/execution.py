@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal, Protocol, runtime_checkable
 
+from taskweavn.core.loop import LoopResult
 from taskweavn.task.bus import TaskBus
 from taskweavn.task.models import TaskDomain
 
@@ -44,6 +45,13 @@ class ResidentDefaultAgent(Protocol):
     """Minimal resident Default Agent contract for Product 1.0."""
 
     def run(self, task: TaskDomain) -> TaskRunResult: ...
+
+
+@runtime_checkable
+class AgentLoopRunner(Protocol):
+    """Small subset of AgentLoop used by the resident Default Agent adapter."""
+
+    def run(self, task: str) -> LoopResult: ...
 
 
 @dataclass(frozen=True)
@@ -158,6 +166,25 @@ class FixedRouteTaskExecutor:
         )
 
 
+@dataclass(frozen=True)
+class AgentLoopResidentDefaultAgent:
+    """Resident Default Agent adapter backed by an AgentLoop-compatible runner."""
+
+    loop: AgentLoopRunner
+    result_ref_prefix: str = "agent_loop"
+
+    def run(self, task: TaskDomain) -> TaskRunResult:
+        result = self.loop.run(task.intent)
+        if result.finished:
+            return TaskRunResult(
+                result_ref=(
+                    f"{self.result_ref_prefix}:"
+                    f"{task.session_id}:{task.task_id}:{result.stop_reason}"
+                )
+            )
+        return TaskRunResult(error_ref=f"agent_loop_failed: {result.stop_reason}")
+
+
 def _select_next_eligible_pending_task(
     task_bus: TaskBus,
     session_id: str,
@@ -174,6 +201,8 @@ def _select_next_eligible_pending_task(
 
 
 __all__ = [
+    "AgentLoopResidentDefaultAgent",
+    "AgentLoopRunner",
     "DEFAULT_FIXED_ROUTE_AGENT_ID",
     "FixedRouteTaskExecutor",
     "FixedRouteTaskExecutorConfig",

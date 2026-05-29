@@ -1,7 +1,7 @@
 # Fixed-Route Task Execution Bridge 技术设计
 
 > Status: in_progress
-> Last Updated: 2026-05-28
+> Last Updated: 2026-05-29
 > Feature Plan: [Fixed-Route Task Execution Bridge](fixed-route-task-execution-bridge.md)
 > Gap: [Fixed-route task execution bridge](../../gaps/README.md)
 > Decisions: [ADR-0010](../../decisions/ADR-0010-line-first-authoring-experience-for-1-0.md), [ADR-0011](../../decisions/ADR-0011-routing-agent-assignment-and-cooperative-interruption.md), [ADR-0012](../../decisions/ADR-0012-taskbus-centered-agent-assignment-convergence.md)
@@ -14,13 +14,17 @@
 
 - `FixedRouteTaskExecutor`；
 - `ResidentDefaultAgent` protocol；
+- `AgentLoopRunner` protocol 与 `AgentLoopResidentDefaultAgent` adapter；
 - 基于现有 TaskBus `claim_next -> complete / fail` 的单次 tick；
 - 使用 fake resident Default Agent 的 focused unit tests。
 - `MainPageSidecarApp.run_fixed_route_tick(...)` runtime assembly seam；
 - 覆盖 publish -> tick -> projected `done` 的 sidecar smoke tests。
+- `LoopResult.finished=True` 映射为稳定的
+  `agent_loop:{session_id}:{task_id}:{stop_reason}` result ref；
+- `LoopResult.finished=False` 映射为 `agent_loop_failed:{stop_reason}` failure ref。
 
-后台循环 / HTTP control route、真实 AgentLoop adapter、更完整的 Main Page
-projection closure 和 release record 尚未完成。
+后台循环 / HTTP control route、生产 AgentLoop 构造与注入、durable result
+summary storage、更完整的 Main Page projection closure 和 release record 尚未完成。
 
 ADR-0010 明确 1.0 默认是 line-first：
 
@@ -142,6 +146,31 @@ class TaskRunResult:
 - `ok=False` 时调用 `TaskBus.fail`；
 - Default Agent 执行 Task 时抛异常，捕获并转成 `TaskBus.fail`；
 - Default Agent 未启动不是单个 Task 的 routing failure，而是 app/runtime health failure，应在启动或诊断层暴露。
+
+当前 Slice 2 已补充 `AgentLoopResidentDefaultAgent`：
+
+```python
+class AgentLoopRunner(Protocol):
+    def run(self, task: str) -> LoopResult: ...
+
+
+@dataclass(frozen=True)
+class AgentLoopResidentDefaultAgent:
+    loop: AgentLoopRunner
+    result_ref_prefix: str = "agent_loop"
+
+    def run(self, task: TaskDomain) -> TaskRunResult: ...
+```
+
+映射规则：
+
+- `TaskDomain.intent` 是传入 `AgentLoopRunner.run(...)` 的输入；
+- `LoopResult.finished=True` 映射为 `TaskRunResult(result_ref=...)`；
+- `LoopResult.finished=False` 映射为
+  `TaskRunResult(error_ref="agent_loop_failed: {stop_reason}")`；
+- 该 adapter 只证明 AgentLoop 可以作为 resident Default Agent 的执行内核；
+- 生产环境的 AgentLoop 生命周期、依赖注入、工具上下文、result payload
+  持久化仍由后续 slice 处理。
 
 ---
 
