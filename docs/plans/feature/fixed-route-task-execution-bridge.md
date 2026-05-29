@@ -31,7 +31,7 @@ Implementation has started with the Slice 1-3 service boundary:
   AgentLoop with LocalRuntime, file/shell tools, and SqliteEventStream
 
 Background loop / HTTP control route, durable result summary storage, broader
-Main Page projection closure, CodeAction/Docker-backed tool inclusion, and
+Main Page projection polish, CodeAction/Docker-backed tool inclusion, and
 release record remain follow-up work.
 
 Product 1.0 needs a complete execution loop, not a flexible routing system.
@@ -212,12 +212,32 @@ Current status:
 Output:
 
 - confirm existing projection shows `pending`, `running`, `done`, `failed`;
-- ensure failure reason and result ref are visible enough for the 1.0 loop.
+- expose canonical execution status separately from legacy display `status`, so
+  backend `pending` remains available as `execution=pending` even if display
+  status is `queued`;
+- preserve execution `result_ref` / `error_ref` from TaskBus through task
+  projection and Main Page UI contract snapshot as `resultRef` / `errorRef`;
+- keep these refs as diagnostic/backend references, not production display copy.
 
 Acceptance:
 
 - Main Page can observe Task status progressing through backend facts;
+- Main Page snapshot exposes canonical `execution` values for
+  `pending/running/done/failed`;
+- completed Task snapshots expose `resultRef`;
+- failed Task snapshots expose `errorRef`;
 - no assignment-specific UI is added.
+
+Current status:
+
+- Transport `TaskNodeCardView` carries canonical `execution` separately from
+  legacy display `status`.
+- `TaskCardView` and transport `TaskNodeCardView` carry optional result/error
+  refs.
+- UI contract mapping preserves `resultRef` for `done` tasks and `errorRef` for
+  `failed` tasks.
+- Sidecar smoke tests cover publish -> tick -> snapshot for both done/result
+  and failed/error paths.
 
 ### Slice 5 — Tests and docs
 

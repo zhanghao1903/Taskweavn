@@ -13,6 +13,7 @@ from taskweavn.server.ui_contract.view_models import (
     ConfirmationOptionView as ContractConfirmationOptionView,
 )
 from taskweavn.server.ui_contract.view_models import (
+    ExecutionStatus,
     FileChangeItemView,
     FileChangeSummaryView,
     MessageKind,
@@ -69,8 +70,11 @@ def map_task_node_card(view: task_views.TaskCardView) -> TaskNodeCardView:
         title=view.title,
         summary=view.intent_preview,
         status=map_task_node_status(view.status, confirmation=view.confirmation),
+        execution=map_task_execution_status(view.status),
         depth=view.depth,
         order_index=view.order_index,
+        result_ref=view.result_ref,
+        error_ref=view.error_ref,
         badges=map_task_badges(view.badges),
         permissions=map_task_permissions(view.permissions),
         version=1,
@@ -248,6 +252,14 @@ def map_task_node_status(
     if status == "pending":
         return "queued"
     if status in {"draft", "running", "done", "failed", "cancelled"}:
+        return status
+    raise ValueError(f"unsupported task view status: {status!r}")
+
+
+def map_task_execution_status(status: task_views.TaskViewStatus) -> ExecutionStatus:
+    if status == "draft":
+        return "not_started"
+    if status in {"pending", "running", "done", "failed", "cancelled"}:
         return status
     raise ValueError(f"unsupported task view status: {status!r}")
 

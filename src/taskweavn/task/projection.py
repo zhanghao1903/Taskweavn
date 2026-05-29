@@ -309,6 +309,8 @@ class DefaultTaskProjectionService:
             status=task.status,
             depth=depth,
             order_index=task.order_index,
+            result_ref=task.result_ref,
+            error_ref=task.error_ref,
             badges=TaskCardBadges(
                 pending_confirmation_count=len(self._confirmations_for_ref(task.session_id, ref)),
                 direct_file_change_count=len(direct_file_changes),

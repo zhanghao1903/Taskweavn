@@ -469,7 +469,11 @@ def test_main_page_sidecar_app_runs_fixed_route_tick_after_publish(
     assert done_tasks[0].status == "done"
     assert done_tasks[0].claimed_by == "default_agent"
     assert done_tasks[0].result_ref == "result:plan"
-    assert snapshot.json["data"]["taskTree"]["nodes"][0]["status"] == "done"
+    snapshot_node = snapshot.json["data"]["taskTree"]["nodes"][0]
+    assert snapshot_node["status"] == "done"
+    assert snapshot_node["execution"] == "done"
+    assert snapshot_node["resultRef"] == "result:plan"
+    assert snapshot_node["errorRef"] is None
 
 
 def test_main_page_sidecar_app_fixed_route_tick_failure_path(tmp_path: Any) -> None:
@@ -486,6 +490,7 @@ def test_main_page_sidecar_app_fixed_route_tick_failure_path(tmp_path: Any) -> N
 
         tick = app.run_fixed_route_tick(session_id)
         task = app.task_bus.get(session_id, "failing-task")
+        snapshot = _request(app, "GET", f"/api/v1/sessions/{session_id}/snapshot")
     finally:
         app.close()
 
@@ -495,6 +500,11 @@ def test_main_page_sidecar_app_fixed_route_tick_failure_path(tmp_path: Any) -> N
     assert task is not None
     assert task.status == "failed"
     assert task.error_ref == "agent:error"
+    snapshot_node = snapshot.json["data"]["taskTree"]["nodes"][0]
+    assert snapshot_node["status"] == "failed"
+    assert snapshot_node["execution"] == "failed"
+    assert snapshot_node["resultRef"] is None
+    assert snapshot_node["errorRef"] == "agent:error"
 
 
 def test_main_page_sidecar_app_fixed_route_tick_runs_agent_loop_default_agent(

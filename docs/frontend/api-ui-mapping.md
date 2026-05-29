@@ -98,6 +98,10 @@ If a task has pending confirmation, Main Page may derive a display state like `w
 | `status = done` | `readiness = published`, `execution = done` | Completed. |
 | `status = failed` | `readiness = published`, `execution = failed` | Retry may be available. |
 | `status = cancelled` | `readiness = cancelled`, `execution = cancelled` | Read-only. |
+| `status` | `status` | Legacy display status remains `queued` for backend `pending`; use `execution` for canonical execution status. |
+| `status` | `execution` | Main Page snapshot must preserve canonical execution states: `pending`, `running`, `done`, `failed`, `cancelled`. |
+| `result_ref` | `resultRef` | Present for completed published tasks when the execution bridge records a result reference. |
+| `error_ref` | `errorRef` | Present for failed published tasks; UI must treat it as a diagnostic/reference string, not production copy. |
 | `badges.pending_confirmation_count` | `badges.pendingConfirmationCount` | Also derives confirmation display. |
 | `permissions.*` | `permissions.*` | Do not re-infer in component. |
 | `permissions.readonly_reason` | `readonlyReason` | Show when disabled control needs explanation. |

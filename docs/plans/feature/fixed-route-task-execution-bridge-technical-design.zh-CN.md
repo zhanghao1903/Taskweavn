@@ -28,7 +28,7 @@
   session-scoped AgentLoop，使用 LocalRuntime、文件/命令工具和 SqliteEventStream。
 
 后台循环 / HTTP control route、durable result summary storage、更完整的
-Main Page projection closure、CodeAction/Docker-backed tool 纳入和 release
+Main Page projection polish、CodeAction/Docker-backed tool 纳入和 release
 record 尚未完成。
 
 ADR-0010 明确 1.0 默认是 line-first：
@@ -312,16 +312,30 @@ def tick(self) -> TaskExecutionTickResult:
 
 本工作包不新增 assignment UI。
 
-Main Page 只需要现有状态投影：
+Main Page 只需要现有状态投影和执行引用：
 
 | Task fact | UI meaning |
 |---|---|
-| `pending` | Waiting |
+| `pending` | `execution=pending`; legacy display `status=queued` |
 | `running` | Running |
 | `done` | Done / result available |
 | `failed` | Failed / retry available where supported |
+| `result_ref` | Transport snapshot `resultRef`; present for completed published Tasks when the execution bridge records a result reference. |
+| `error_ref` | Transport snapshot `errorRef`; present for failed published Tasks as a diagnostic/reference string. |
 
-若现有 projection 已覆盖上述状态，则无需改前端。若失败原因不可见，可在后端 projection 中补最小 `failure_reason`。
+Projection closure rule:
+
+- `TaskDomain.result_ref/error_ref` 是 TaskBus lifecycle fact；
+- `TaskCardView.result_ref/error_ref` 是 task projection owner field；
+- `TaskNodeCardView.execution` 是 canonical execution status，必须稳定表达
+  `pending/running/done/failed`；
+- `TaskNodeCardView.status` 保持 legacy display status，允许把 backend
+  `pending` 显示为 `queued`；
+- `TaskNodeCardView.resultRef/errorRef` 是 Main Page transport owner field；
+- UI 可以用这些字段决定是否存在可追踪结果/错误引用，但不应把 ref 本身当作
+  面向用户的最终文案；
+- 失败详情展示和 durable result summary payload 存储属于后续 slice，不在本次
+  fixed-route bridge closure 内完成。
 
 ---
 

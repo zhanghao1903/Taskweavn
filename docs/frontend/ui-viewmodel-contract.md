@@ -240,6 +240,8 @@ type TaskNodeCardView = {
   execution: ExecutionStatus;
   confirmation: ConfirmationStatus | null;
   auditVerdict: AuditVerdict;
+  resultRef?: string | null;
+  errorRef?: string | null;
   badges: TaskNodeBadges;
   permissions: TaskNodePermissions;
   readonlyReason?: string | null;
