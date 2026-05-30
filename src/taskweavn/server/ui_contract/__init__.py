@@ -4,6 +4,7 @@ from taskweavn.server.ui_contract.base import UiContractModel, to_camel, utcnow
 from taskweavn.server.ui_contract.commands import (
     AppendSessionInputPayload,
     AppendTaskInputPayload,
+    DispatchExecutionPayload,
     GenerateTaskTreePayload,
     PublishTaskTreePayload,
     ResolveConfirmationPayload,
@@ -218,6 +219,7 @@ __all__ = [
     "FileChangeItemView",
     "FileChangeSummaryView",
     "file_changes_updated",
+    "DispatchExecutionPayload",
     "GenerateTaskTreePayload",
     "MainPageSnapshot",
     "MainPageReturnTarget",

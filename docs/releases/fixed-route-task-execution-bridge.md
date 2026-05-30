@@ -26,9 +26,9 @@ The work intentionally avoids Product 1.1 routing concepts. It does not add a
 Router, Agent Manager, assignment fields, assigned-only claim, or Main Page
 reassignment UI.
 
-This is not a completed release for the full execution gap. Background dispatch,
-HTTP control routes, durable result payload storage, and broader product smoke
-remain follow-up work.
+This is not a completed release for the full execution gap. Slice 6 adds
+background dispatch and an HTTP control route; durable result payload storage
+and broader product smoke remain follow-up work.
 
 ---
 
@@ -81,6 +81,20 @@ TaskDomain
 - `resultRef` and `errorRef` are diagnostic/backend references, not final
   production user copy.
 
+### 2.5 Runtime Trigger And Background Dispatch
+
+- Added a sidecar-owned in-process fixed-route execution dispatcher.
+- `publish.startImmediately=true` requests background execution after a
+  successful publish; `startImmediately=false` leaves execution untriggered.
+- Added explicit `POST /api/v1/sessions/{sessionId}/execution/dispatch` for
+  manual/recovery dispatch.
+- Duplicate dispatch triggers for one Session are coalesced while dispatch is
+  pending or running.
+- Sidecar shutdown stops queued dispatch and closes the worker before stores
+  close.
+- Agent lifecycle remains Task-run scoped; no long-lived AgentLoop or
+  SessionContextStore is introduced.
+
 ---
 
 ## 3. Validation
@@ -97,6 +111,12 @@ Checkpoint validation included:
   - passed
 - `git diff --check`
   - passed
+- `uv run pytest tests/test_fixed_route_task_executor.py tests/test_ui_http_transport.py tests/test_main_page_sidecar_app.py`
+  - 49 passed, 1 warning
+- `uv run mypy src/taskweavn/task/execution.py src/taskweavn/task/__init__.py src/taskweavn/server/ui_contract/commands.py src/taskweavn/server/ui_contract/__init__.py src/taskweavn/server/ui_http.py src/taskweavn/server/main_page.py tests/test_fixed_route_task_executor.py tests/test_ui_http_transport.py tests/test_main_page_sidecar_app.py`
+  - passed
+- `uv run ruff check src/taskweavn/task/execution.py src/taskweavn/task/__init__.py src/taskweavn/server/ui_contract/commands.py src/taskweavn/server/ui_contract/__init__.py src/taskweavn/server/ui_http.py src/taskweavn/server/main_page.py tests/test_fixed_route_task_executor.py tests/test_ui_http_transport.py tests/test_main_page_sidecar_app.py`
+  - passed
 
 Covered behavior:
 
@@ -106,15 +126,16 @@ Covered behavior:
 - missing Default Agent is runtime health error and does not claim a Task;
 - AgentLoop-backed Default Agent can run through the sidecar tick seam;
 - Main Page snapshot exposes done/result and failed/error projection facts.
+- publish `startImmediately=true` schedules background execution and snapshot
+  eventually shows done/result;
+- publish `startImmediately=false` does not schedule execution;
+- explicit execution dispatch route returns structured accepted/rejected command
+  responses.
 
 ---
 
 ## 4. Follow-ups Before Gap Closure
 
-- Add a background dispatcher or explicit HTTP control route for triggering
-  fixed-route execution outside test-only/direct tick calls.
-- Decide whether publish `startImmediately` should trigger execution in-process
-  or only enqueue work for a dispatcher.
 - Add durable result summary payload storage; current checkpoint stores stable
   refs only.
 - Decide whether CodeAction/Docker-backed tools are safe to include in the

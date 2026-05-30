@@ -216,14 +216,15 @@ Recommended implementation order:
 1. [Main Page real backend integration](../plans/feature/main-page-real-backend-integration.md): continue from the [Main Page Frontend Runtime Integration](../plans/feature/main-page-frontend-runtime-integration.md) checkpoint. Runtime convergence wiring exists, but the gap remains open: real browser/Electron smoke, session creation/selection, pending/error UX, confirmation/message hardening, TaskNode edit controls, file-change projection, audit/trust surfaces, and durable event behavior still need follow-up work.
 2. [Fixed-route task execution bridge](../plans/feature/fixed-route-task-execution-bridge.md):
    continue from the [checkpoint](../releases/fixed-route-task-execution-bridge.md).
-   The one-tick TaskBus -> resident Default Agent -> Main Page snapshot path
-   works, but production runtime trigger/background dispatch, durable result
-   payload behavior, and user-facing smoke remain before gap closure.
+   The TaskBus -> resident Default Agent -> Main Page snapshot path now has a
+   sidecar-owned background dispatcher, publish `startImmediately` trigger, and
+   explicit execution dispatch route. Durable result payload behavior and
+   user-facing smoke remain before gap closure.
 3. Publish audit query/debug API and concrete HTTP framework binding, if needed by UI/API integration.
 4. Product 1.1 planning: completion-time `task_after`, Result Packaging Agent, routing/assignment foundation, Agent protocol/governance, skills integration, MCP integration, and file/multimodal support.
 5. Centralized runtime configuration system.
 
-LLM Provider reliability, configurable logging, the Task-first data model, Collaborator authoring, TaskPublisher, TaskBus execution lifecycle, publish persistence, API publish transport, RawTask/DraftTaskTree authoring persistence, frontend baseline, UI/backend contract baseline, and local sidecar API shell now have server-core or UI baseline release candidates. RawTask/DraftTaskTree authoring persistence and publish identity recovery are closed for Product 1.0 authoring recovery. Main Page sidecar assembly, frontend runtime wiring, and fixed-route execution are checkpointed, but not closed. The remaining Product 1.0 order moves through Main Page runtime hardening, fixed-route production trigger/result payload closure, confirmations, file changes, and trust surfaces. Completion-time `task_after`, Result Packaging cards, routing/assignment foundation, Agent protocol/governance, skills integration, MCP integration, and file/multimodal support are Product 1.1 research capabilities.
+LLM Provider reliability, configurable logging, the Task-first data model, Collaborator authoring, TaskPublisher, TaskBus execution lifecycle, publish persistence, API publish transport, RawTask/DraftTaskTree authoring persistence, frontend baseline, UI/backend contract baseline, and local sidecar API shell now have server-core or UI baseline release candidates. RawTask/DraftTaskTree authoring persistence and publish identity recovery are closed for Product 1.0 authoring recovery. Main Page sidecar assembly, frontend runtime wiring, and fixed-route execution are checkpointed, with fixed-route production trigger/background dispatch now implemented but not yet user-smoked. The remaining Product 1.0 order moves through Main Page runtime hardening, fixed-route result payload closure, confirmations, file changes, and trust surfaces. Completion-time `task_after`, Result Packaging cards, routing/assignment foundation, Agent protocol/governance, skills integration, MCP integration, and file/multimodal support are Product 1.1 research capabilities.
 
 The source of truth for gap status is [Gap Registry](../gaps/).
 

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import threading
+from collections import deque
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Literal, Protocol, runtime_checkable
@@ -18,6 +20,21 @@ TaskExecutionTickStatus = Literal[
     "failed",
     "claim_not_available",
     "health_error",
+]
+
+ExecutionDispatchRequestStatus = Literal[
+    "queued",
+    "already_pending",
+    "already_running",
+    "disabled",
+    "health_error",
+    "closed",
+]
+
+ExecutionDispatchTriggerReason = Literal[
+    "publish_start_immediately",
+    "manual_control_route",
+    "startup_recovery",
 ]
 
 
@@ -70,6 +87,35 @@ class TaskExecutionTickResult:
     skipped_reason: str | None = None
     result_ref: str | None = None
     error_ref: str | None = None
+
+
+@dataclass(frozen=True)
+class ExecutionDispatchRequestResult:
+    """Outcome of requesting background fixed-route execution for a Session."""
+
+    status: ExecutionDispatchRequestStatus
+    session_id: str
+    reason: ExecutionDispatchTriggerReason
+    request_id: str | None = None
+    message: str = ""
+    error_ref: str | None = None
+
+    @property
+    def accepted(self) -> bool:
+        return self.status in {"queued", "already_pending", "already_running"}
+
+
+@runtime_checkable
+class ExecutionTriggerGateway(Protocol):
+    """Small boundary used by transports to enqueue fixed-route execution."""
+
+    def request_dispatch(
+        self,
+        session_id: str,
+        *,
+        reason: ExecutionDispatchTriggerReason,
+        request_id: str | None = None,
+    ) -> ExecutionDispatchRequestResult: ...
 
 
 class FixedRouteTaskExecutor:
@@ -170,6 +216,150 @@ class FixedRouteTaskExecutor:
         )
 
 
+class FixedRouteExecutionDispatcher:
+    """Sidecar-owned background dispatcher for fixed-route execution.
+
+    The dispatcher coalesces duplicate triggers per Session and delegates all Task
+    lifecycle mutation to ``FixedRouteTaskExecutor`` / ``TaskBus``. It does not
+    keep AgentLoop instances alive between Task runs.
+    """
+
+    def __init__(
+        self,
+        *,
+        task_bus: TaskBus,
+        default_agent: ResidentDefaultAgent | None,
+        default_agent_id: str = DEFAULT_FIXED_ROUTE_AGENT_ID,
+        max_ticks_per_trigger: int = 10,
+        enabled: bool = True,
+    ) -> None:
+        self._task_bus = task_bus
+        self._default_agent = default_agent
+        self._default_agent_id = default_agent_id
+        self._max_ticks_per_trigger = max(1, max_ticks_per_trigger)
+        self._enabled = enabled
+        self._condition = threading.Condition()
+        self._pending_session_ids: set[str] = set()
+        self._pending_sessions: deque[str] = deque()
+        self._running_session_ids: set[str] = set()
+        self._closed = False
+        self._worker: threading.Thread | None = None
+
+    def request_dispatch(
+        self,
+        session_id: str,
+        *,
+        reason: ExecutionDispatchTriggerReason,
+        request_id: str | None = None,
+    ) -> ExecutionDispatchRequestResult:
+        with self._condition:
+            if self._closed:
+                return _dispatch_result(
+                    status="closed",
+                    session_id=session_id,
+                    reason=reason,
+                    request_id=request_id,
+                    error_ref="execution_dispatcher_closed",
+                )
+            if not self._enabled:
+                return _dispatch_result(
+                    status="disabled",
+                    session_id=session_id,
+                    reason=reason,
+                    request_id=request_id,
+                    error_ref="execution_dispatcher_disabled",
+                )
+            if self._default_agent is None:
+                return _dispatch_result(
+                    status="health_error",
+                    session_id=session_id,
+                    reason=reason,
+                    request_id=request_id,
+                    error_ref="default_agent_unavailable",
+                )
+            if session_id in self._pending_session_ids:
+                return _dispatch_result(
+                    status="already_pending",
+                    session_id=session_id,
+                    reason=reason,
+                    request_id=request_id,
+                )
+            if session_id in self._running_session_ids:
+                return _dispatch_result(
+                    status="already_running",
+                    session_id=session_id,
+                    reason=reason,
+                    request_id=request_id,
+                )
+
+            self._pending_session_ids.add(session_id)
+            self._pending_sessions.append(session_id)
+            self._ensure_worker_locked()
+            self._condition.notify()
+            return _dispatch_result(
+                status="queued",
+                session_id=session_id,
+                reason=reason,
+                request_id=request_id,
+            )
+
+    def stop(self, *, timeout: float | None = 5.0) -> None:
+        with self._condition:
+            self._closed = True
+            self._pending_session_ids.clear()
+            self._pending_sessions.clear()
+            self._condition.notify_all()
+            worker = self._worker
+
+        if worker is not None and worker is not threading.current_thread():
+            worker.join(timeout=timeout)
+
+    def close(self) -> None:
+        self.stop()
+
+    def _ensure_worker_locked(self) -> None:
+        if self._worker is not None and self._worker.is_alive():
+            return
+        self._worker = threading.Thread(
+            target=self._run,
+            name="taskweavn-fixed-route-dispatcher",
+            daemon=True,
+        )
+        self._worker.start()
+
+    def _run(self) -> None:
+        while True:
+            with self._condition:
+                while not self._closed and not self._pending_sessions:
+                    self._condition.wait()
+                if self._closed or not self._pending_sessions:
+                    return
+                session_id = self._pending_sessions.popleft()
+                self._pending_session_ids.discard(session_id)
+                self._running_session_ids.add(session_id)
+
+            try:
+                self._drain_session(session_id)
+            finally:
+                with self._condition:
+                    self._running_session_ids.discard(session_id)
+                    self._condition.notify_all()
+
+    def _drain_session(self, session_id: str) -> None:
+        for _ in range(self._max_ticks_per_trigger):
+            executor = FixedRouteTaskExecutor(
+                task_bus=self._task_bus,
+                default_agent=self._default_agent,
+                config=FixedRouteTaskExecutorConfig(
+                    session_id=session_id,
+                    default_agent_id=self._default_agent_id,
+                ),
+            )
+            result = executor.tick()
+            if result.status != "completed":
+                return
+
+
 @dataclass(frozen=True)
 class AgentLoopResidentDefaultAgent:
     """Resident Default Agent adapter backed by an AgentLoop-compatible runner."""
@@ -212,11 +402,42 @@ def _select_next_eligible_pending_task(
     return None
 
 
+def _dispatch_result(
+    *,
+    status: ExecutionDispatchRequestStatus,
+    session_id: str,
+    reason: ExecutionDispatchTriggerReason,
+    request_id: str | None,
+    error_ref: str | None = None,
+) -> ExecutionDispatchRequestResult:
+    messages = {
+        "queued": "execution dispatch queued",
+        "already_pending": "execution dispatch already pending",
+        "already_running": "execution dispatch already running",
+        "disabled": "execution dispatcher is disabled",
+        "health_error": "execution dispatcher is unavailable",
+        "closed": "execution dispatcher is closed",
+    }
+    return ExecutionDispatchRequestResult(
+        status=status,
+        session_id=session_id,
+        reason=reason,
+        request_id=request_id,
+        message=messages[status],
+        error_ref=error_ref,
+    )
+
+
 __all__ = [
     "AgentLoopResidentDefaultAgent",
     "AgentLoopRunner",
     "AgentLoopRunnerFactory",
     "DEFAULT_FIXED_ROUTE_AGENT_ID",
+    "ExecutionDispatchRequestResult",
+    "ExecutionDispatchRequestStatus",
+    "ExecutionDispatchTriggerReason",
+    "ExecutionTriggerGateway",
+    "FixedRouteExecutionDispatcher",
     "FixedRouteTaskExecutor",
     "FixedRouteTaskExecutorConfig",
     "ResidentDefaultAgent",

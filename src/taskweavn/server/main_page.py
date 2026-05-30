@@ -48,6 +48,7 @@ from taskweavn.task import (
     DefaultTaskProjectionService,
     DefaultTaskPublisher,
     DraftTaskStore,
+    FixedRouteExecutionDispatcher,
     FixedRouteTaskExecutor,
     FixedRouteTaskExecutorConfig,
     InMemoryCollaboratorTemplateRegistry,
@@ -88,6 +89,8 @@ class MainPageSidecarConfig:
     auth_token: str | None = None
     enable_default_agent: bool = True
     default_agent_max_steps: int = 20
+    enable_execution_dispatcher: bool = True
+    execution_dispatcher_max_ticks_per_trigger: int = 10
 
 
 @dataclass(frozen=True)
@@ -121,6 +124,7 @@ class MainPageSidecarApp:
     authoring_idempotency_store: AuthoringCommandIdempotencyStore | None
     ui_command_idempotency_store: UiCommandResponseIdempotencyStore | None
     default_agent: ResidentDefaultAgent | None
+    execution_dispatcher: FixedRouteExecutionDispatcher | None
     query_gateway: DefaultUiQueryGateway
     command_gateway: DefaultUiCommandGateway
     transport: PlatoUiHttpTransport
@@ -155,6 +159,9 @@ class MainPageSidecarApp:
         return executor.tick()
 
     def close(self) -> None:
+        if self.execution_dispatcher is not None:
+            with contextlib.suppress(Exception):
+                self.execution_dispatcher.stop()
         if self._server_thread is not None:
             with contextlib.suppress(Exception):
                 self.server.shutdown()
@@ -230,6 +237,12 @@ def build_main_page_sidecar_app(
                 llm=dependencies.llm,
                 max_steps=config.default_agent_max_steps,
             )
+        execution_dispatcher = FixedRouteExecutionDispatcher(
+            task_bus=task_bus,
+            default_agent=default_agent,
+            max_ticks_per_trigger=config.execution_dispatcher_max_ticks_per_trigger,
+            enabled=config.enable_execution_dispatcher,
+        )
         context_builder = DefaultAuthoringContextBuilder(
             raw_task_store=raw_task_store,
             draft_store=draft_store,
@@ -288,6 +301,7 @@ def build_main_page_sidecar_app(
                 session_manager=session_manager,
             ),
             command_idempotency_store=ui_command_idempotency_store,
+            execution_trigger_gateway=execution_dispatcher,
         )
         server = LocalSidecarServer(
             transport,
@@ -310,6 +324,7 @@ def build_main_page_sidecar_app(
         authoring_idempotency_store=authoring_idempotency_store,
         ui_command_idempotency_store=ui_command_idempotency_store,
         default_agent=default_agent,
+        execution_dispatcher=execution_dispatcher,
         query_gateway=query_gateway,
         command_gateway=command_gateway,
         transport=transport,

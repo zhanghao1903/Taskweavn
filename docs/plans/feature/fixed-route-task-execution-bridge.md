@@ -300,10 +300,14 @@ Acceptance:
 
 Current status:
 
-- Design selected; implementation pending.
-- First implementation should remain in-process and sidecar-owned. Durable job
-  queues, cross-process dispatch, and running-task crash recovery are follow-up
-  decisions, not prerequisites for the Product 1.0 closed-loop trigger.
+- Implemented as an in-process, sidecar-owned background dispatcher.
+- `publish.startImmediately=true` now requests dispatch after successful
+  publish; `startImmediately=false` remains publish-only.
+- `/api/v1/sessions/{sessionId}/execution/dispatch` is available as an explicit
+  manual/recovery control route.
+- Durable job queues, cross-process dispatch, and running-task crash recovery
+  remain follow-up decisions, not prerequisites for the Product 1.0 closed-loop
+  trigger.
 - Agent lifecycle is Task-run scoped. Context continuity remains session-scoped
   through existing durable facts; dedicated context governance is deferred to
   Product 1.1.
@@ -325,8 +329,8 @@ Regression tests:
 
 - existing TaskBus lifecycle tests;
 - Task projection tests touched by result/failure display.
-- sidecar publish `startImmediately` dispatch tests once Slice 6 lands;
-- HTTP dispatch route tests once the explicit control route lands.
+- sidecar publish `startImmediately` dispatch tests;
+- HTTP dispatch route tests for accepted and rejected dispatch requests.
 
 Checkpoint validation:
 
@@ -339,6 +343,15 @@ Checkpoint validation:
 - `npm run build --prefix frontend`
   - passed
 - `git diff --check`
+  - passed
+
+Slice 6 validation:
+
+- `uv run pytest tests/test_fixed_route_task_executor.py tests/test_ui_http_transport.py tests/test_main_page_sidecar_app.py`
+  - 49 passed, 1 warning
+- `uv run mypy src/taskweavn/task/execution.py src/taskweavn/task/__init__.py src/taskweavn/server/ui_contract/commands.py src/taskweavn/server/ui_contract/__init__.py src/taskweavn/server/ui_http.py src/taskweavn/server/main_page.py tests/test_fixed_route_task_executor.py tests/test_ui_http_transport.py tests/test_main_page_sidecar_app.py`
+  - passed
+- `uv run ruff check src/taskweavn/task/execution.py src/taskweavn/task/__init__.py src/taskweavn/server/ui_contract/commands.py src/taskweavn/server/ui_contract/__init__.py src/taskweavn/server/ui_http.py src/taskweavn/server/main_page.py tests/test_fixed_route_task_executor.py tests/test_ui_http_transport.py tests/test_main_page_sidecar_app.py`
   - passed
 
 ---

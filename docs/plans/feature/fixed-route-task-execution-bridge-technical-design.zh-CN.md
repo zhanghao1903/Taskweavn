@@ -651,8 +651,10 @@ Sidecar integration tests:
 
 Docs/tests closure:
 
-- update fixed-route checkpoint only after implementation;
-- keep gap `in_progress` until production trigger and user-facing smoke pass。
+- fixed-route checkpoint is updated after Slice 6 implementation;
+- production trigger/background dispatch is implemented;
+- keep gap `in_progress` until durable result payload behavior and user-facing
+  smoke pass。
 
 ---
 

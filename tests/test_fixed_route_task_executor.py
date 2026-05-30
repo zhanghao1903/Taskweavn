@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+import threading
+import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 
 from taskweavn.core.loop import LoopResult
 from taskweavn.task import (
     AgentLoopResidentDefaultAgent,
+    FixedRouteExecutionDispatcher,
     FixedRouteTaskExecutor,
     FixedRouteTaskExecutorConfig,
     InMemoryTaskBus,
@@ -225,6 +229,117 @@ def test_fixed_route_executor_can_use_agent_loop_resident_default_agent() -> Non
     assert task.result_ref == "agent_loop:s1:task-1:no_tool_calls"
 
 
+def test_fixed_route_dispatcher_queues_and_completes_pending_task() -> None:
+    bus = InMemoryTaskBus([_task("task-1")])
+    dispatcher = FixedRouteExecutionDispatcher(
+        task_bus=bus,
+        default_agent=_FakeAgent(TaskRunResult(result_ref="result:task-1")),
+    )
+    try:
+        request = dispatcher.request_dispatch(
+            "s1",
+            reason="manual_control_route",
+            request_id="dispatch-1",
+        )
+
+        assert request.status == "queued"
+        assert request.accepted is True
+        assert _wait_for(lambda: _task_has_status(bus, "task-1", "done"))
+        task = bus.get("s1", "task-1")
+        assert task is not None
+        assert task.result_ref == "result:task-1"
+    finally:
+        dispatcher.stop()
+
+
+def test_fixed_route_dispatcher_drains_multiple_completed_tasks() -> None:
+    bus = InMemoryTaskBus([_task("task-1"), _task("task-2")])
+    dispatcher = FixedRouteExecutionDispatcher(
+        task_bus=bus,
+        default_agent=_SequencedAgent(),
+        max_ticks_per_trigger=2,
+    )
+    try:
+        request = dispatcher.request_dispatch("s1", reason="manual_control_route")
+
+        assert request.status == "queued"
+        assert _wait_for(
+            lambda: [task.status for task in bus.list_for_session("s1")]
+            == ["done", "done"]
+        )
+    finally:
+        dispatcher.stop()
+
+
+def test_fixed_route_dispatcher_coalesces_duplicate_running_trigger() -> None:
+    bus = InMemoryTaskBus([_task("task-1")])
+    agent = _BlockingAgent()
+    dispatcher = FixedRouteExecutionDispatcher(task_bus=bus, default_agent=agent)
+    try:
+        first = dispatcher.request_dispatch("s1", reason="manual_control_route")
+        assert first.status == "queued"
+        assert agent.started.wait(timeout=2.0)
+
+        duplicate = dispatcher.request_dispatch("s1", reason="manual_control_route")
+
+        assert duplicate.status == "already_running"
+        agent.release.set()
+        assert _wait_for(lambda: _task_has_status(bus, "task-1", "done"))
+    finally:
+        agent.release.set()
+        dispatcher.stop()
+
+
+def test_fixed_route_dispatcher_disabled_does_not_claim() -> None:
+    bus = InMemoryTaskBus([_task("task-1")])
+    dispatcher = FixedRouteExecutionDispatcher(
+        task_bus=bus,
+        default_agent=_FakeAgent(TaskRunResult(result_ref="result:task-1")),
+        enabled=False,
+    )
+    try:
+        request = dispatcher.request_dispatch("s1", reason="manual_control_route")
+        task = bus.get("s1", "task-1")
+    finally:
+        dispatcher.stop()
+
+    assert request.status == "disabled"
+    assert request.accepted is False
+    assert task is not None
+    assert task.status == "pending"
+    assert task.claimed_by is None
+
+
+def test_fixed_route_dispatcher_reports_missing_default_agent() -> None:
+    bus = InMemoryTaskBus([_task("task-1")])
+    dispatcher = FixedRouteExecutionDispatcher(task_bus=bus, default_agent=None)
+    try:
+        request = dispatcher.request_dispatch("s1", reason="manual_control_route")
+        task = bus.get("s1", "task-1")
+    finally:
+        dispatcher.stop()
+
+    assert request.status == "health_error"
+    assert request.error_ref == "default_agent_unavailable"
+    assert task is not None
+    assert task.status == "pending"
+    assert task.claimed_by is None
+
+
+def test_fixed_route_dispatcher_stop_rejects_later_triggers() -> None:
+    bus = InMemoryTaskBus([_task("task-1")])
+    dispatcher = FixedRouteExecutionDispatcher(
+        task_bus=bus,
+        default_agent=_FakeAgent(TaskRunResult(result_ref="result:task-1")),
+    )
+
+    dispatcher.stop()
+    request = dispatcher.request_dispatch("s1", reason="manual_control_route")
+
+    assert request.status == "closed"
+    assert request.accepted is False
+
+
 @dataclass
 class _FakeAgent:
     result: TaskRunResult | None = None
@@ -236,6 +351,26 @@ class _FakeAgent:
         if self.raises is not None:
             raise self.raises
         return self.result or TaskRunResult()
+
+
+@dataclass
+class _SequencedAgent:
+    seen: list[str] = field(default_factory=list)
+
+    def run(self, task: TaskDomain) -> TaskRunResult:
+        self.seen.append(task.task_id)
+        return TaskRunResult(result_ref=f"result:{task.task_id}")
+
+
+@dataclass
+class _BlockingAgent:
+    started: threading.Event = field(default_factory=threading.Event)
+    release: threading.Event = field(default_factory=threading.Event)
+
+    def run(self, task: TaskDomain) -> TaskRunResult:
+        self.started.set()
+        self.release.wait(timeout=2.0)
+        return TaskRunResult(result_ref=f"result:{task.task_id}")
 
 
 @dataclass
@@ -266,3 +401,21 @@ def _task(
         status=status,
         created_by="tester",
     )
+
+
+def _wait_for(predicate: Callable[[], bool], *, timeout: float = 2.0) -> bool:
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if predicate():
+            return True
+        time.sleep(0.01)
+    return predicate()
+
+
+def _task_has_status(
+    bus: InMemoryTaskBus,
+    task_id: str,
+    status: TaskStatus,
+) -> bool:
+    task = bus.get("s1", task_id)
+    return task is not None and task.status == status

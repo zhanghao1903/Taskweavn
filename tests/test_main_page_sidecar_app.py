@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import http.client
 import json
+import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, cast
 
@@ -476,6 +478,77 @@ def test_main_page_sidecar_app_runs_fixed_route_tick_after_publish(
     assert snapshot_node["errorRef"] is None
 
 
+def test_main_page_sidecar_app_publish_start_immediately_dispatches_background_execution(
+    tmp_path: Any,
+) -> None:
+    app = build_main_page_sidecar_app(
+        MainPageSidecarConfig(workspace_root=tmp_path, port=0),
+        MainPageSidecarDependencies(
+            llm=_StubLLM(
+                [
+                    """
+                    {
+                      "intent_summary": "Build a quiet website",
+                      "feasibility": {
+                        "status": "ready",
+                        "confidence": 0.95,
+                        "suggested_next_action": "generate_task_tree"
+                      }
+                    }
+                    """,
+                    """
+                    {
+                      "assistant_message": "Drafted the first TaskTree.",
+                      "roots": [
+                        {
+                          "title": "Plan structure",
+                          "intent": "Plan the website structure.",
+                          "required_capability": "general"
+                        }
+                      ]
+                    }
+                    """,
+                ]
+            ),
+            default_agent=_FakeDefaultAgent(TaskRunResult(result_ref="result:plan")),
+        ),
+    )
+    try:
+        session_id = _create_session(app)
+        generate = _request(
+            app,
+            "POST",
+            f"/api/v1/sessions/{session_id}/task-tree/generate",
+            body={
+                "commandId": "generate-auto-executable",
+                "sessionId": session_id,
+                "payload": {"prompt": "Build a quiet personal website."},
+            },
+        )
+        publish = _request(
+            app,
+            "POST",
+            f"/api/v1/sessions/{session_id}/task-tree/publish",
+            body={
+                "commandId": "publish-auto-executable",
+                "sessionId": session_id,
+                "payload": {},
+            },
+        )
+        assert _wait_for(lambda: _first_task_status(app, session_id) == "done")
+        snapshot = _request(app, "GET", f"/api/v1/sessions/{session_id}/snapshot")
+    finally:
+        app.close()
+
+    assert generate.status == 200
+    assert publish.status == 200
+    assert publish.json["ok"] is True
+    assert publish.json["result"]["debugRefs"]["dispatchStatus"] == "queued"
+    snapshot_node = snapshot.json["data"]["taskTree"]["nodes"][0]
+    assert snapshot_node["execution"] == "done"
+    assert snapshot_node["resultRef"] == "result:plan"
+
+
 def test_main_page_sidecar_app_fixed_route_tick_failure_path(tmp_path: Any) -> None:
     app = build_main_page_sidecar_app(
         MainPageSidecarConfig(workspace_root=tmp_path, port=0),
@@ -742,3 +815,17 @@ def _published_task(task_id: str, *, session_id: str) -> TaskDomain:
         required_capability="general",
         created_by="test",
     )
+
+
+def _wait_for(predicate: Callable[[], bool], *, timeout: float = 2.0) -> bool:
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if predicate():
+            return True
+        time.sleep(0.01)
+    return bool(predicate())
+
+
+def _first_task_status(app: Any, session_id: str) -> str | None:
+    tasks = app.task_bus.list_for_session(session_id)
+    return None if not tasks else tasks[0].status

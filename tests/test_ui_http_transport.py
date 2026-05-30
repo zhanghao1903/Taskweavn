@@ -24,6 +24,7 @@ from taskweavn.server.ui_contract import (
     UiEvent,
     WorkflowSummary,
 )
+from taskweavn.task import ExecutionDispatchRequestResult
 
 NOW = datetime(2026, 5, 21, 9, 0, tzinfo=UTC)
 
@@ -159,6 +160,100 @@ def test_command_routes_validate_and_dispatch_to_gateway_methods() -> None:
         assert _dict_body(response.body)["result"]["status"] == "accepted"
 
     assert commands.calls == [case[3] for case in cases]
+
+
+def test_publish_start_immediately_requests_execution_dispatch() -> None:
+    execution = _ExecutionTriggerGateway()
+    transport = _transport(execution_trigger_gateway=execution)
+
+    response = transport.handle(
+        HttpApiRequest(
+            method="POST",
+            path="/api/v1/sessions/session%201/task-tree/publish",
+            body=_command_body(
+                "session 1",
+                {"taskTreeId": "tree-1", "startImmediately": True},
+                command_id="publish-1",
+            ),
+        )
+    )
+    body = _dict_body(response.body)
+
+    assert response.status_code == 200
+    assert body["ok"] is True
+    assert body["result"]["debugRefs"]["dispatchStatus"] == "queued"
+    assert body["result"]["debugRefs"]["dispatchReason"] == (
+        "publish_start_immediately"
+    )
+    assert body["refresh"]["waitForEvents"] is True
+    assert execution.calls == [
+        ("session 1", "publish_start_immediately", "publish-1")
+    ]
+
+
+def test_publish_start_immediately_false_does_not_dispatch() -> None:
+    execution = _ExecutionTriggerGateway()
+    transport = _transport(execution_trigger_gateway=execution)
+
+    response = transport.handle(
+        HttpApiRequest(
+            method="POST",
+            path="/api/v1/sessions/session%201/task-tree/publish",
+            body=_command_body(
+                "session 1",
+                {"taskTreeId": "tree-1", "startImmediately": False},
+            ),
+        )
+    )
+    body = _dict_body(response.body)
+
+    assert response.status_code == 200
+    assert body["ok"] is True
+    assert "dispatchStatus" not in body["result"]["debugRefs"]
+    assert execution.calls == []
+
+
+def test_execution_dispatch_route_returns_accepted_command_response() -> None:
+    execution = _ExecutionTriggerGateway()
+    transport = _transport(execution_trigger_gateway=execution)
+
+    response = transport.handle(
+        HttpApiRequest(
+            method="POST",
+            path="/api/v1/sessions/session%201/execution/dispatch",
+            body=_command_body("session 1", {}),
+        )
+    )
+    body = _dict_body(response.body)
+
+    assert response.status_code == 200
+    assert body["ok"] is True
+    assert body["result"]["status"] == "accepted"
+    assert body["result"]["debugRefs"]["dispatchStatus"] == "queued"
+    assert body["refresh"]["waitForEvents"] is True
+    assert body["refresh"]["suggestedQueries"] == ["session.snapshot", "task.tree"]
+    assert execution.calls == [("session 1", "manual_control_route", "command-1")]
+
+
+def test_execution_dispatch_route_rejects_disabled_dispatcher() -> None:
+    execution = _ExecutionTriggerGateway(status="disabled")
+    transport = _transport(execution_trigger_gateway=execution)
+
+    response = transport.handle(
+        HttpApiRequest(
+            method="POST",
+            path="/api/v1/sessions/session%201/execution/dispatch",
+            body=_command_body("session 1", {}, command_id="dispatch-1"),
+        )
+    )
+    body = _dict_body(response.body)
+
+    assert response.status_code == 200
+    assert body["ok"] is False
+    assert body["result"]["status"] == "rejected"
+    assert body["error"]["code"] == "command_rejected"
+    assert body["error"]["details"]["dispatch_status"] == "disabled"
+    assert body["refresh"]["waitForEvents"] is False
 
 
 def test_command_route_rejects_path_body_session_mismatch() -> None:
@@ -507,6 +602,29 @@ class _SessionLifecycleGateway:
         return {"deletedSessionId": session_id, "nextSessionId": "next-session"}
 
 
+@dataclass
+class _ExecutionTriggerGateway:
+    status: str = "queued"
+    calls: list[tuple[str, str, str | None]] = field(default_factory=list)
+
+    def request_dispatch(
+        self,
+        session_id: str,
+        *,
+        reason: str,
+        request_id: str | None = None,
+    ) -> ExecutionDispatchRequestResult:
+        self.calls.append((session_id, reason, request_id))
+        return ExecutionDispatchRequestResult(
+            status=self.status,  # type: ignore[arg-type]
+            session_id=session_id,
+            reason=reason,  # type: ignore[arg-type]
+            request_id=request_id,
+            message=f"dispatch {self.status}",
+            error_ref=None if self.status == "queued" else self.status,
+        )
+
+
 def _transport(
     *,
     query: _QueryGateway | None = None,
@@ -516,6 +634,7 @@ def _transport(
     client_error_log_sink: _ClientErrorSink | None = None,
     session_lifecycle_gateway: _SessionLifecycleGateway | None = None,
     command_idempotency_store: InMemoryUiCommandResponseIdempotencyStore | None = None,
+    execution_trigger_gateway: _ExecutionTriggerGateway | None = None,
 ) -> PlatoUiHttpTransport:
     return PlatoUiHttpTransport(
         query_gateway=query or _QueryGateway(),
@@ -525,6 +644,7 @@ def _transport(
         client_error_log_sink=client_error_log_sink,
         session_lifecycle_gateway=session_lifecycle_gateway,
         command_idempotency_store=command_idempotency_store,
+        execution_trigger_gateway=execution_trigger_gateway,
     )
 
 
