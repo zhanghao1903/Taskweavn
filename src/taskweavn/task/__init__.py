@@ -101,6 +101,7 @@ from taskweavn.task.commands import (
     TaskCommandService,
     TaskGuidanceMode,
 )
+from taskweavn.task.event_file_changes import EventStreamFileChangeStore
 from taskweavn.task.execution import (
     DEFAULT_FIXED_ROUTE_AGENT_ID,
     AgentLoopResidentDefaultAgent,
@@ -184,6 +185,21 @@ from taskweavn.task.publisher_service import (
     TaskPublishAuditSink,
     TaskPublishService,
 )
+from taskweavn.task.result_summary import (
+    InMemoryTaskExecutionSummaryStore,
+    TaskExecutionSummary,
+    TaskExecutionSummaryKind,
+    TaskExecutionSummarySource,
+    TaskExecutionSummaryStore,
+    TaskExecutionSummaryViewStore,
+    build_agent_loop_error_summary,
+    build_agent_loop_result_summary,
+    build_execution_completed_summary,
+    build_execution_exception_summary,
+    build_external_error_ref_summary,
+    build_external_result_ref_summary,
+    task_execution_summary_to_task_summary_view,
+)
 from taskweavn.task.scheduler import (
     IdempotencyPolicy,
     IdempotencyPolicyMode,
@@ -213,6 +229,7 @@ from taskweavn.task.sqlite_publish import (
     SqliteTaskPublishAuditSink,
     build_sqlite_publish_service,
 )
+from taskweavn.task.sqlite_result_summary import SqliteTaskExecutionSummaryStore
 from taskweavn.task.stores import (
     ActiveAuthoringState,
     AuthoringActiveState,
@@ -339,6 +356,7 @@ __all__ = [
     "ExecutionDispatchRequestStatus",
     "ExecutionDispatchTriggerReason",
     "ExecutionTriggerGateway",
+    "EventStreamFileChangeStore",
     "FixedRouteExecutionDispatcher",
     "FixedRouteTaskExecutor",
     "FixedRouteTaskExecutorConfig",
@@ -348,6 +366,7 @@ __all__ = [
     "InMemoryPublishIdempotencyStore",
     "InMemoryRawTaskStore",
     "InMemoryScheduledPublishStore",
+    "InMemoryTaskExecutionSummaryStore",
     "InMemoryTaskPublishAuditSink",
     "InMemoryTaskBus",
     "NormalizedTaskNode",
@@ -406,6 +425,7 @@ __all__ = [
     "SqliteDraftTaskStore",
     "SqliteRawTaskStore",
     "SqliteScheduledPublishStore",
+    "SqliteTaskExecutionSummaryStore",
     "SqliteTaskPublishAuditSink",
     "SqliteTaskBus",
     "TaskCardAction",
@@ -420,6 +440,11 @@ __all__ = [
     "TaskDomain",
     "TaskExecutionTickResult",
     "TaskExecutionTickStatus",
+    "TaskExecutionSummary",
+    "TaskExecutionSummaryKind",
+    "TaskExecutionSummarySource",
+    "TaskExecutionSummaryStore",
+    "TaskExecutionSummaryViewStore",
     "TaskFileChangeSummary",
     "TaskGuidanceMode",
     "TaskInteractionEntry",
@@ -457,7 +482,14 @@ __all__ = [
     "TaskTreeValidationIssue",
     "TaskTreeValidationSeverity",
     "VersionConflictError",
+    "build_agent_loop_error_summary",
+    "build_agent_loop_result_summary",
+    "build_execution_completed_summary",
+    "build_execution_exception_summary",
+    "build_external_error_ref_summary",
+    "build_external_result_ref_summary",
     "build_sqlite_publish_service",
+    "task_execution_summary_to_task_summary_view",
     "normalize_task_tree_input",
     "parse_task_tree_input",
 ]

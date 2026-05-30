@@ -1,7 +1,7 @@
 # Fixed-Route Task Execution Bridge 技术设计
 
 > Status: in_progress
-> Last Updated: 2026-05-29
+> Last Updated: 2026-05-30
 > Feature Plan: [Fixed-Route Task Execution Bridge](fixed-route-task-execution-bridge.md)
 > Gap: [Fixed-route task execution bridge](../../gaps/README.md)
 > Decisions: [ADR-0010](../../decisions/ADR-0010-line-first-authoring-experience-for-1-0.md), [ADR-0011](../../decisions/ADR-0011-routing-agent-assignment-and-cooperative-interruption.md), [ADR-0012](../../decisions/ADR-0012-taskbus-centered-agent-assignment-convergence.md)
@@ -10,7 +10,7 @@
 
 ## 1. 背景
 
-当前实现已进入 Slice 1-3 的服务边界：
+当前实现已进入 Slice 6 + P8.E1-E4 的服务边界：
 
 - `FixedRouteTaskExecutor`；
 - `ResidentDefaultAgent` protocol；
@@ -23,13 +23,28 @@
 - 覆盖 publish -> tick -> projected `done` 的 sidecar smoke tests。
 - `LoopResult.finished=True` 映射为稳定的
   `agent_loop:{session_id}:{task_id}:{stop_reason}` result ref；
-- `LoopResult.finished=False` 映射为 `agent_loop_failed:{stop_reason}` failure ref。
+- `LoopResult.finished=False` 映射为
+  `agent_loop_failed:{session_id}:{task_id}:{stop_reason}` error ref。
 - `build_agent_loop_resident_default_agent(...)` 在 sidecar 装配层构造
   session-scoped AgentLoop，使用 LocalRuntime、文件/命令工具和 SqliteEventStream。
+- `TaskExecutionSummary` / `SqliteTaskExecutionSummaryStore` 已提供 durable
+  result/error summary payload，存储在 workspace-level `results.sqlite`。
+- AgentLoop-backed Default Agent 会把 `LoopResult.final_answer` 写入 result
+  summary；AgentLoop unfinished 和 execution exception 会写入 error summary。
+- Fixed-route execution 完成/失败会写入 user-facing `MessageStream`，并带上
+  `result_ref` / `error_ref`、`execution_status`、summary metadata 和 UI title。
+- `MainPageSnapshot.result` 已从 durable result/error summary 投影为
+  `ResultCardView`；失败会进入同一个 result surface，并包含 `Failure reason`
+  section。
+- fixed-route bridge 会把 published `task_id` 传入 AgentLoop，使
+  session-scoped `SqliteEventStream` 中的 observed facts 可以按 Task 读取。
+- `EventStreamFileChangeStore` 已从 `FileWriteObservation` /
+  `CodeExecutionObservation` 投影确定性的 `TaskFileChangeSummary`。
+- `MainPageSnapshot.file_change_summary` 已从 observed file facts 投影；
+  Agent prose / `LoopResult.final_answer` 不作为文件证据来源。
 
-production runtime trigger / background dispatch、durable result summary
-storage、更完整的 Main Page projection polish、CodeAction/Docker-backed tool
-纳入和最终 gap closure 尚未完成；当前已有 checkpoint release record。
+CodeAction/Docker-backed tool 纳入、Audit evidence projection 和最终
+user-facing smoke 尚未完成；当前已有 checkpoint release record。
 
 ADR-0010 明确 1.0 默认是 line-first：
 
@@ -121,6 +136,8 @@ class FixedRouteTaskExecutor:
         task_bus: TaskBus,
         default_agent: ResidentDefaultAgent | None,
         config: FixedRouteTaskExecutorConfig,
+        result_summary_store: TaskExecutionSummaryStore | None = None,
+        message_bus: MessageBus | None = None,
     ) -> None: ...
 
     def tick(self) -> TaskExecutionTickResult: ...
@@ -169,7 +186,9 @@ class AgentLoopRunner(Protocol):
 class AgentLoopResidentDefaultAgent:
     loop: AgentLoopRunner | None = None
     result_ref_prefix: str = "agent_loop"
+    error_ref_prefix: str = "agent_loop_failed"
     loop_factory: AgentLoopRunnerFactory | None = None
+    result_summary_store: TaskExecutionSummaryStore | None = None
 
     def run(self, task: TaskDomain) -> TaskRunResult: ...
 ```
@@ -181,14 +200,29 @@ class AgentLoopResidentDefaultAgent:
 - `TaskDomain.intent` 是传入 `AgentLoopRunner.run(...)` 的输入；
 - `LoopResult.finished=True` 映射为 `TaskRunResult(result_ref=...)`；
 - `LoopResult.finished=False` 映射为
-  `TaskRunResult(error_ref="agent_loop_failed: {stop_reason}")`；
+  `TaskRunResult(error_ref="agent_loop_failed:{session_id}:{task_id}:{stop_reason}")`；
 - `loop` 适合 focused tests 和固定 fake loop；
 - `loop_factory` 适合 sidecar runtime，按 `TaskDomain.session_id` 创建
   session-scoped AgentLoop；
-- 当前 `result_ref` 只保存可追踪引用：
-  `agent_loop:{session_id}:{task_id}:{stop_reason}`，不保存 `final_answer`
-  payload；durable result summary store 是后续 slice；
-- 生产环境的 durable result payload 持久化仍由后续 slice 处理。
+- 当前 `result_ref` / `error_ref` 是可读取 summary id：
+  - success: `agent_loop:{session_id}:{task_id}:{stop_reason}`；
+  - unfinished: `agent_loop_failed:{session_id}:{task_id}:{stop_reason}`；
+- 如果注入 `result_summary_store`，success 会保存
+  `TaskExecutionSummary(kind="result", final_answer=LoopResult.final_answer)`；
+- unfinished 会保存 `TaskExecutionSummary(kind="error",
+  error_type="agent_loop_failed")`；
+- `FixedRouteTaskExecutor` 捕获 Default Agent exception 时，如果有 store，会保存
+  `TaskExecutionSummary(kind="error", source="execution_bridge")`，并让
+  `error_ref` 指向该对象；
+- 如果外部 fake/custom Default Agent 成功但没有返回 `result_ref`，executor 会生成
+  `task_result:{session_id}:{task_id}:completed`，保存
+  `TaskExecutionSummary(kind="result", source="execution_bridge")`，并让
+  `result_ref` 指向该对象；
+- 如果外部 fake/custom Default Agent 返回已有 `result_ref` / `error_ref`，executor
+  会在 store 中补一个 `external_agent` summary，确保 ref 可读。
+- executor 完成或失败 Task 后会向 `MessageStream` 发布一条 informational
+  execution message。失败消息带 `ui_kind="error"`，用于 UI contract 映射
+  error tone；MessageStream 写入失败不回滚已经提交的 TaskBus lifecycle fact。
 
 ### 3.3 Sidecar AgentLoop assembly
 
@@ -200,6 +234,7 @@ def build_agent_loop_resident_default_agent(
     layout: WorkspaceLayout,
     llm: Any,
     max_steps: int = 20,
+    result_summary_store: TaskExecutionSummaryStore | None = None,
 ) -> AgentLoopResidentDefaultAgent: ...
 ```
 
@@ -219,6 +254,10 @@ def build_agent_loop_resident_default_agent(
   的 Task 创建一个新的 AgentLoop runner；
 - runner 使用 `layout.session_project_dir(session_id)` 作为模型可见 workspace；
 - runner 使用 `layout.session_events_db(session_id)` 作为 EventStream；
+- `MainPageSidecarApp` 默认创建 `SqliteTaskExecutionSummaryStore`，路径为
+  `layout.workspace_results_db` / `.taskweavn/results.sqlite`；
+- 显式 `run_fixed_route_tick(...)` 和 background dispatcher 均注入同一个
+  result summary store；
 - runner 使用 `LocalRuntime` 并在 run 前注册工具；
 - 第一版工具集仅包含 `ReadFileTool`、`WriteFileTool`、`ListDirTool`、
   `RunCommandTool`。
@@ -266,21 +305,24 @@ def tick(self) -> TaskExecutionTickResult:
     try:
         result = default_agent.run(claimed)
     except Exception as exc:
+        error_ref = store_execution_exception_summary_if_available(claimed, exc)
         failed = task_bus.fail(
             claimed.session_id,
             claimed.task_id,
-            error_ref=f"agent_execution_failed: {type(exc).__name__}",
+            error_ref=error_ref,
         )
         return TaskExecutionTickResult(claimed_task_id=claimed.task_id, failed_task_id=failed.task_id)
 
     if result.ok:
-        completed = task_bus.complete(claimed.session_id, claimed.task_id, result_ref=result.result_ref)
+        result_ref = ensure_result_ref_readable_if_available(claimed, result.result_ref)
+        completed = task_bus.complete(claimed.session_id, claimed.task_id, result_ref=result_ref)
         return TaskExecutionTickResult(claimed_task_id=claimed.task_id, completed_task_id=completed.task_id)
 
+    error_ref = ensure_error_ref_readable_if_available(claimed, result.error_ref)
     failed = task_bus.fail(
         claimed.session_id,
         claimed.task_id,
-        error_ref=result.error_ref or "agent_execution_failed",
+        error_ref=error_ref,
     )
     return TaskExecutionTickResult(claimed_task_id=claimed.task_id, failed_task_id=failed.task_id)
 ```
@@ -296,9 +338,10 @@ def tick(self) -> TaskExecutionTickResult:
 | no eligible Task | `TaskExecutionTickResult(status="idle")`; no-op |
 | claim not available | `TaskExecutionTickResult(status="claim_not_available")`; no-op |
 | Default Agent unavailable | `TaskExecutionTickResult(status="health_error")`; no Task claim |
-| Default Agent execution exception | `failed`, `error_ref=agent_execution_failed: ...` |
-| Default Agent returns error | `failed`, agent-provided `error_ref` |
-| AgentLoop returns `finished=False` | `failed`, `error_ref=agent_loop_failed: {stop_reason}` |
+| Default Agent execution exception | `failed`, `error_ref=agent_execution_failed:{session_id}:{task_id}:{ExceptionName}` when summary store exists; legacy fallback is `agent_execution_failed: ...` |
+| Default Agent completes without `result_ref` | `done`, `result_ref=task_result:{session_id}:{task_id}:completed` when summary store exists |
+| Default Agent returns error | `failed`, agent-provided `error_ref`; executor creates readable `external_agent` summary when a store exists |
+| AgentLoop returns `finished=False` | `failed`, `error_ref=agent_loop_failed:{session_id}:{task_id}:{stop_reason}` |
 
 不实现：
 
@@ -322,8 +365,8 @@ Main Page 只需要现有状态投影和执行引用：
 | `running` | Running |
 | `done` | Done / result available |
 | `failed` | Failed / retry available where supported |
-| `result_ref` | Transport snapshot `resultRef`; present for completed published Tasks when the execution bridge records a result reference. |
-| `error_ref` | Transport snapshot `errorRef`; present for failed published Tasks as a diagnostic/reference string. |
+| `result_ref` | Transport snapshot `resultRef`; present for completed published Tasks and points to `TaskExecutionSummary(kind="result")` when store-backed. |
+| `error_ref` | Transport snapshot `errorRef`; present for failed published Tasks and points to `TaskExecutionSummary(kind="error")` when store-backed. |
 
 Projection closure rule:
 
@@ -336,8 +379,24 @@ Projection closure rule:
 - `TaskNodeCardView.resultRef/errorRef` 是 Main Page transport owner field；
 - UI 可以用这些字段决定是否存在可追踪结果/错误引用，但不应把 ref 本身当作
   面向用户的最终文案；
-- 失败详情展示和 durable result summary payload 存储属于后续 slice，不在本次
-  fixed-route bridge closure 内完成。
+- durable result/error summary store 已有基础实现；
+- `MainPageSnapshot.result` 已从 terminal published Task 的 readable summary
+  投影为 `ResultCardView`；
+- `TaskNodeCardView.resultRef/errorRef` 仍保留为可追踪 backend refs，不作为最终
+  用户文案；
+- MessageStream completion/failure bridge 已写入 session-correlated messages；
+- snapshot merge 会优先保留 raw session `MessageStream` 中的 rich context
+  projection，避免 task-tree latest-message projection 丢失 execution title /
+  error kind。
+- `AgentLoop.run(..., task_id=published_task_id)` 将同一次执行产生的 events
+  标记到已发布 Task，而不是临时 synthetic run id；
+- `EventStreamFileChangeStore` 只读取 deterministic observed facts：
+  `FileWriteObservation`、`CodeExecutionObservation.declared_changes` 和
+  `CodeExecutionObservation.undeclared_changes`；
+- recursive file summary roll-up 由 `DefaultTaskProjectionService` 负责，
+  因为只有 projection service 持有 Task tree / descendants 上下文；
+- `MainPageSnapshot.file_change_summary` 是 Main Page 的摘要入口，不携带 raw
+  EventStream payload，也不解析 Agent 自然语言。
 
 ---
 
@@ -352,8 +411,18 @@ Projection closure rule:
 - `claimed_by` 使用固定 Default Agent id。
 - `AgentLoopResidentDefaultAgent(loop_factory=...)` 会按 Task 创建 runner；
 - sidecar 默认 AgentLoop-backed Default Agent 可以通过显式 tick 推进
-  `pending -> done`，并写入 session events sqlite；
+  `pending -> done`，并写入 session events sqlite 和 workspace results sqlite；
 - `enable_default_agent=False` 保留 missing Default Agent health path。
+- `SqliteTaskExecutionSummaryStore` restart 后可以读取 result/error summary；
+- `AgentLoopResidentDefaultAgent` success/unfinished paths 会写 result/error
+  summary；
+- execution exception path 会写 durable error summary。
+- fixed-route complete/fail 会写 MessageStream execution message；
+- `MainPageSnapshot.result` 会投影成功 summary 和失败 summary；
+- snapshot message merge 会保留 execution message title / error kind。
+- AgentLoop supplied published task id 会写入 SQLite events `task_id`；
+- observed file write / code execution facts 会投影为 `TaskFileChangeSummary`；
+- Main Page snapshot 会在存在文件证据时投影 `file_change_summary`。
 
 ---
 
@@ -653,8 +722,9 @@ Docs/tests closure:
 
 - fixed-route checkpoint is updated after Slice 6 implementation;
 - production trigger/background dispatch is implemented;
-- keep gap `in_progress` until durable result payload behavior and user-facing
-  smoke pass。
+- Main Page result projection and MessageStream bridge are implemented;
+- Main Page deterministic file summary projection is implemented;
+- keep gap `in_progress` until Audit evidence closure and user-facing smoke pass。
 
 ---
 

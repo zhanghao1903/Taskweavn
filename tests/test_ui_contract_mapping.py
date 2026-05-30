@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from taskweavn.interaction import AgentMessage
 from taskweavn.server.ui_contract import (
     derive_task_tree_status,
+    map_agent_message_view,
     map_confirmation_action_view,
     map_file_change_summary_view,
     map_result_card_view,
@@ -232,6 +234,27 @@ def test_map_result_card_adds_failure_followup_and_artifact_sections() -> None:
         "Follow-up suggestions",
         "Artifacts",
     ]
+
+
+def test_map_agent_message_uses_execution_context_title_and_error_kind() -> None:
+    message = AgentMessage(
+        session_id="session-1",
+        task_id="task-1",
+        message_type="informational",
+        content="Task execution failed.",
+        context={
+            "task_ref_kind": "published",
+            "title": "Task failed",
+            "ui_kind": "error",
+        },
+    )
+
+    mapped = map_agent_message_view(message)
+
+    assert mapped.kind == "error"
+    assert mapped.title == "Task failed"
+    assert mapped.task_node_id == "task-1"
+    assert mapped.body == "Task execution failed."
 
 
 def test_derive_task_tree_status_priority() -> None:

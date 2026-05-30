@@ -48,6 +48,7 @@ from taskweavn.task import (
     DefaultTaskProjectionService,
     DefaultTaskPublisher,
     DraftTaskStore,
+    EventStreamFileChangeStore,
     FixedRouteExecutionDispatcher,
     FixedRouteTaskExecutor,
     FixedRouteTaskExecutorConfig,
@@ -61,7 +62,10 @@ from taskweavn.task import (
     SqliteDraftTaskStore,
     SqliteRawTaskStore,
     SqliteTaskBus,
+    SqliteTaskExecutionSummaryStore,
     StaticCapabilityCatalog,
+    TaskExecutionSummaryStore,
+    TaskExecutionSummaryViewStore,
     TaskExecutionTickResult,
     TaskRef,
 )
@@ -105,6 +109,7 @@ class MainPageSidecarDependencies:
     authoring_state_store: AuthoringStateStore | None = None
     authoring_idempotency_store: AuthoringCommandIdempotencyStore | None = None
     ui_command_idempotency_store: UiCommandResponseIdempotencyStore | None = None
+    result_summary_store: TaskExecutionSummaryStore | None = None
     default_agent: ResidentDefaultAgent | None = None
 
 
@@ -123,6 +128,7 @@ class MainPageSidecarApp:
     authoring_state_store: AuthoringStateStore | None
     authoring_idempotency_store: AuthoringCommandIdempotencyStore | None
     ui_command_idempotency_store: UiCommandResponseIdempotencyStore | None
+    result_summary_store: TaskExecutionSummaryStore
     default_agent: ResidentDefaultAgent | None
     execution_dispatcher: FixedRouteExecutionDispatcher | None
     query_gateway: DefaultUiQueryGateway
@@ -155,6 +161,8 @@ class MainPageSidecarApp:
                 session_id=session_id,
                 default_agent_id=default_agent_id,
             ),
+            result_summary_store=self.result_summary_store,
+            message_bus=self.message_bus,
         )
         return executor.tick()
 
@@ -177,6 +185,7 @@ class MainPageSidecarApp:
             self.authoring_state_store,
             self.authoring_idempotency_store,
             self.ui_command_idempotency_store,
+            self.result_summary_store,
             self.draft_store,
             self.raw_task_store,
         ):
@@ -230,18 +239,24 @@ def build_main_page_sidecar_app(
             idempotency_store=authoring_idempotency_store,
         )
         capability_catalog = dependencies.capability_catalog or _default_capability_catalog()
+        result_summary_store = dependencies.result_summary_store or SqliteTaskExecutionSummaryStore(
+            layout.workspace_results_db
+        )
         default_agent = dependencies.default_agent
         if default_agent is None and config.enable_default_agent:
             default_agent = build_agent_loop_resident_default_agent(
                 layout=layout,
                 llm=dependencies.llm,
                 max_steps=config.default_agent_max_steps,
+                result_summary_store=result_summary_store,
             )
         execution_dispatcher = FixedRouteExecutionDispatcher(
             task_bus=task_bus,
             default_agent=default_agent,
             max_ticks_per_trigger=config.execution_dispatcher_max_ticks_per_trigger,
             enabled=config.enable_execution_dispatcher,
+            result_summary_store=result_summary_store,
+            message_bus=message_bus,
         )
         context_builder = DefaultAuthoringContextBuilder(
             raw_task_store=raw_task_store,
@@ -270,6 +285,8 @@ def build_main_page_sidecar_app(
             task_store=task_bus,
             draft_store=draft_store,
             message_stream=message_stream,
+            file_change_store=EventStreamFileChangeStore(layout),
+            summary_store=TaskExecutionSummaryViewStore(result_summary_store),
             authoring_state_store=authoring_state_store,
         )
         query_gateway = DefaultUiQueryGateway(
@@ -323,6 +340,7 @@ def build_main_page_sidecar_app(
         authoring_state_store=authoring_state_store,
         authoring_idempotency_store=authoring_idempotency_store,
         ui_command_idempotency_store=ui_command_idempotency_store,
+        result_summary_store=result_summary_store,
         default_agent=default_agent,
         execution_dispatcher=execution_dispatcher,
         query_gateway=query_gateway,
@@ -364,6 +382,7 @@ def build_agent_loop_resident_default_agent(
     layout: WorkspaceLayout,
     llm: Any,
     max_steps: int = 20,
+    result_summary_store: TaskExecutionSummaryStore | None = None,
 ) -> AgentLoopResidentDefaultAgent:
     """Build the resident Default Agent used by the fixed-route sidecar bridge."""
 
@@ -373,7 +392,8 @@ def build_agent_loop_resident_default_agent(
             llm=llm,
             session_id=task.session_id,
             max_steps=max_steps,
-        )
+        ),
+        result_summary_store=result_summary_store,
     )
 
 
@@ -386,7 +406,7 @@ class _SessionAgentLoopRunner:
     session_id: str
     max_steps: int
 
-    def run(self, task: str) -> LoopResult:
+    def run(self, task: str, *, task_id: str | None = None) -> LoopResult:
         self.layout.bootstrap_session(self.session_id)
         workspace = Workspace(self.layout.session_project_dir(self.session_id))
         runtime = LocalRuntime()
@@ -410,7 +430,7 @@ class _SessionAgentLoopRunner:
                 session_id=self.session_id,
                 workspace_root=workspace.root,
             )
-            return loop.run(task)
+            return loop.run(task, task_id=task_id)
         finally:
             event_stream.close()
 
@@ -438,9 +458,7 @@ class MainPageSessionLifecycleGateway:
     session_manager: SessionManager
 
     def list_sessions(self) -> dict[str, object]:
-        return {
-            "sessions": [_session_payload(session) for session in self.session_manager.list()]
-        }
+        return {"sessions": [_session_payload(session) for session in self.session_manager.list()]}
 
     def create_session(self, name: str) -> dict[str, object]:
         session = self.session_manager.create(name)

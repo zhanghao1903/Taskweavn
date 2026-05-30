@@ -1,6 +1,6 @@
 # Feature Plan: Result And Evidence Exposure Surface
 
-> Status: planned
+> Status: in_progress
 > Type: Product 1.0 UI projection / result evidence boundary
 > Last Updated: 2026-05-30
 > Related Plans: [Fixed-Route Task Execution Bridge](fixed-route-task-execution-bridge.md), [Main Page Real Backend Integration](main-page-real-backend-integration.md), [Audit Page Contract](../../engineering/audit-page-contract.md)
@@ -14,12 +14,10 @@ The fixed-route execution bridge can now move published Tasks through pending,
 running, done, and failed. The Main Page can expose task status, but the user
 still lacks enough product-facing evidence to understand what happened.
 
-Current exposure gaps:
+Current remaining exposure gaps:
 
-- task result is mostly a status plus `result_ref` / `error_ref`;
-- file changes are not summarized into the Main Page snapshot;
-- Agent execution is not yet consistently written into the user-facing
-  `MessageStream`;
+- file changes now have a minimal Main Page projection, but Audit-ready
+  evidence records and hidden/partial evidence policy remain separate work;
 - raw `Observation` / EventStream facts exist, but they do not have a default
   product surface;
 - Audit Page contracts exist, but evidence projection is not wired yet.
@@ -213,13 +211,28 @@ The following remain useful but should not block the 1.0 closed loop:
 
 ### P8.E1 Result Summary Store
 
+Status: implemented as the backend storage foundation.
+
 Deliver:
 
 - minimal durable result/error summary object;
 - stable result/error ids usable by `TaskBus.result_ref` / `error_ref`;
 - tests for restart-read stability.
 
+Implementation note:
+
+- `TaskExecutionSummary` and `SqliteTaskExecutionSummaryStore` store readable
+  result/error payloads in `.taskweavn/results.sqlite`.
+- AgentLoop success refs point to stored `kind="result"` summaries.
+- Successful non-AgentLoop executors that omit `result_ref` receive a generated
+  `task_result:{session_id}:{task_id}:completed` summary ref.
+- AgentLoop unfinished and execution exception refs point to stored
+  `kind="error"` summaries.
+- Main Page projection of these summaries remains P8.E3.
+
 ### P8.E2 AgentLoop To MessageStream Bridge
+
+Status: implemented for fixed-route execution completion/failure messages.
 
 Deliver:
 
@@ -227,7 +240,20 @@ Deliver:
 - failure message for bridge/AgentLoop failures;
 - task/session correlation in message context.
 
+Implementation note:
+
+- `FixedRouteTaskExecutor` publishes an informational session message after
+  `TaskBus.complete(...)` / `TaskBus.fail(...)`.
+- Message context carries `task_ref_kind`, `execution_status`, `title`,
+  `result_ref` or `error_ref`, and summary metadata when available.
+- Failed task messages set `ui_kind="error"` so UI contract mapping can expose
+  error tone without parsing prose.
+- MessageStream write failure does not overturn the already-committed TaskBus
+  lifecycle fact.
+
 ### P8.E3 Main Snapshot Projection
+
+Status: implemented for current session-level `MainPageSnapshot.result`.
 
 Deliver:
 
@@ -235,13 +261,48 @@ Deliver:
 - failed Task error projection;
 - no raw observation payload in snapshot.
 
+Implementation note:
+
+- `TaskExecutionSummaryViewStore` projects durable execution summaries into
+  task projection `TaskSummaryView`.
+- `DefaultUiQueryGateway` selects the latest terminal published Task with a
+  readable summary and maps it into `ResultCardView`.
+- Failed Task summaries are projected into the same result surface with a
+  `Failure reason` section.
+- Snapshot message merging prefers the raw session `MessageStream` projection
+  over task-tree latest-message projection when both point at the same
+  message id, preserving execution titles and error kind.
+
 ### P8.E4 File Change Summary Projection
+
+Status: implemented for deterministic Main Page summary projection from
+observed file facts.
 
 Deliver:
 
 - minimal deterministic file summary projection;
-- partial/hidden evidence flags where applicable;
-- link from Task/result to Audit-ready evidence refs.
+- observed file facts from session-scoped `SqliteEventStream`;
+- `MainPageSnapshot.file_change_summary` when file evidence exists;
+- keep file evidence separate from Agent prose/result summaries.
+
+Implementation note:
+
+- `AgentLoop.run(..., task_id=...)` can now use the published Task id supplied
+  by the fixed-route bridge, so EventStream rows correlate with TaskBus Tasks.
+- `EventStreamFileChangeStore` projects `FileWriteObservation` and
+  `CodeExecutionObservation` file facts into `TaskFileChangeSummary`.
+- `DefaultTaskProjectionService` owns recursive child-task roll-up because it
+  has Task tree context.
+- `DefaultUiQueryGateway` maps the latest published Task with file-change
+  evidence into `MainPageSnapshot.file_change_summary`.
+- Agent final answers remain result summaries; file change copy is generated
+  only from observed facts.
+
+Deferred to P8.E5 / Audit:
+
+- hidden/partial evidence states;
+- evidence record ids and Audit detail links;
+- raw observation inspection.
 
 ### P8.E5 Audit Entry Closure
 
@@ -265,10 +326,7 @@ Deliver:
 
 ## 9. Open Questions
 
-1. Should Product 1.0 store result summaries in a dedicated table, or reuse a
-   typed MessageStream/EventStream ref with a stable result id?
-2. Should file summary projection be driven by observed tool outputs first, or
+1. Should file summary projection be driven by observed tool outputs first, or
    by workspace diff snapshots?
-3. Should failed Task summaries be stored as first-class result objects, or as
-   error objects with `error_ref` only?
-
+2. How much of the execution completion/failure message should be authored by
+   AgentLoop vs a deterministic bridge template for non-AgentLoop executions?

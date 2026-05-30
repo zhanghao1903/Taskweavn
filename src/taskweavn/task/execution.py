@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import threading
 from collections import deque
 from collections.abc import Callable
@@ -9,8 +10,19 @@ from dataclasses import dataclass
 from typing import Literal, Protocol, runtime_checkable
 
 from taskweavn.core.loop import LoopResult
+from taskweavn.interaction import AgentMessage, MessageBus, MessageStreamError
 from taskweavn.task.bus import TaskBus
 from taskweavn.task.models import TaskDomain
+from taskweavn.task.result_summary import (
+    TaskExecutionSummary,
+    TaskExecutionSummaryStore,
+    build_agent_loop_error_summary,
+    build_agent_loop_result_summary,
+    build_execution_completed_summary,
+    build_execution_exception_summary,
+    build_external_error_ref_summary,
+    build_external_result_ref_summary,
+)
 
 DEFAULT_FIXED_ROUTE_AGENT_ID = "default_agent"
 
@@ -69,7 +81,7 @@ class ResidentDefaultAgent(Protocol):
 class AgentLoopRunner(Protocol):
     """Small subset of AgentLoop used by the resident Default Agent adapter."""
 
-    def run(self, task: str) -> LoopResult: ...
+    def run(self, task: str, *, task_id: str | None = None) -> LoopResult: ...
 
 
 AgentLoopRunnerFactory = Callable[[TaskDomain], AgentLoopRunner]
@@ -133,10 +145,14 @@ class FixedRouteTaskExecutor:
         task_bus: TaskBus,
         default_agent: ResidentDefaultAgent | None,
         config: FixedRouteTaskExecutorConfig,
+        result_summary_store: TaskExecutionSummaryStore | None = None,
+        message_bus: MessageBus | None = None,
     ) -> None:
         self._task_bus = task_bus
         self._default_agent = default_agent
         self._config = config
+        self._result_summary_store = result_summary_store
+        self._message_bus = message_bus
 
     def tick(self) -> TaskExecutionTickResult:
         if self._default_agent is None:
@@ -173,11 +189,20 @@ class FixedRouteTaskExecutor:
         try:
             run_result = self._default_agent.run(claimed)
         except Exception as exc:  # noqa: BLE001 - runtime bridge must fail the Task.
-            error_ref = f"agent_execution_failed: {type(exc).__name__}"
+            error_ref = _store_execution_exception_summary(
+                self._result_summary_store,
+                claimed,
+                exc,
+            )
             failed = self._task_bus.fail(
                 claimed.session_id,
                 claimed.task_id,
                 error_ref=error_ref,
+            )
+            _publish_execution_message(
+                self._message_bus,
+                failed,
+                summary=_summary_for_ref(self._result_summary_store, failed.error_ref),
             )
             return TaskExecutionTickResult(
                 status="failed",
@@ -188,10 +213,20 @@ class FixedRouteTaskExecutor:
             )
 
         if run_result.ok:
+            result_ref = _ensure_result_ref_readable(
+                self._result_summary_store,
+                claimed,
+                run_result.result_ref,
+            )
             completed = self._task_bus.complete(
                 claimed.session_id,
                 claimed.task_id,
-                result_ref=run_result.result_ref,
+                result_ref=result_ref,
+            )
+            _publish_execution_message(
+                self._message_bus,
+                completed,
+                summary=_summary_for_ref(self._result_summary_store, completed.result_ref),
             )
             return TaskExecutionTickResult(
                 status="completed",
@@ -202,10 +237,20 @@ class FixedRouteTaskExecutor:
             )
 
         error_ref = (run_result.error_ref or "").strip() or "agent_execution_failed"
+        error_ref = _ensure_error_ref_readable(
+            self._result_summary_store,
+            claimed,
+            error_ref,
+        )
         failed = self._task_bus.fail(
             claimed.session_id,
             claimed.task_id,
             error_ref=error_ref,
+        )
+        _publish_execution_message(
+            self._message_bus,
+            failed,
+            summary=_summary_for_ref(self._result_summary_store, failed.error_ref),
         )
         return TaskExecutionTickResult(
             status="failed",
@@ -232,12 +277,16 @@ class FixedRouteExecutionDispatcher:
         default_agent_id: str = DEFAULT_FIXED_ROUTE_AGENT_ID,
         max_ticks_per_trigger: int = 10,
         enabled: bool = True,
+        result_summary_store: TaskExecutionSummaryStore | None = None,
+        message_bus: MessageBus | None = None,
     ) -> None:
         self._task_bus = task_bus
         self._default_agent = default_agent
         self._default_agent_id = default_agent_id
         self._max_ticks_per_trigger = max(1, max_ticks_per_trigger)
         self._enabled = enabled
+        self._result_summary_store = result_summary_store
+        self._message_bus = message_bus
         self._condition = threading.Condition()
         self._pending_session_ids: set[str] = set()
         self._pending_sessions: deque[str] = deque()
@@ -354,6 +403,8 @@ class FixedRouteExecutionDispatcher:
                     session_id=session_id,
                     default_agent_id=self._default_agent_id,
                 ),
+                result_summary_store=self._result_summary_store,
+                message_bus=self._message_bus,
             )
             result = executor.tick()
             if result.status != "completed":
@@ -366,7 +417,9 @@ class AgentLoopResidentDefaultAgent:
 
     loop: AgentLoopRunner | None = None
     result_ref_prefix: str = "agent_loop"
+    error_ref_prefix: str = "agent_loop_failed"
     loop_factory: AgentLoopRunnerFactory | None = None
+    result_summary_store: TaskExecutionSummaryStore | None = None
 
     def __post_init__(self) -> None:
         if (self.loop is None) == (self.loop_factory is None):
@@ -376,15 +429,32 @@ class AgentLoopResidentDefaultAgent:
         runner = self.loop_factory(task) if self.loop_factory is not None else self.loop
         if runner is None:  # guarded by __post_init__, kept for type narrowing.
             return TaskRunResult(error_ref="agent_loop_unavailable")
-        result = runner.run(task.intent)
+        result = runner.run(task.intent, task_id=task.task_id)
         if result.finished:
-            return TaskRunResult(
-                result_ref=(
-                    f"{self.result_ref_prefix}:"
-                    f"{task.session_id}:{task.task_id}:{result.stop_reason}"
+            result_ref = (
+                f"{self.result_ref_prefix}:{task.session_id}:{task.task_id}:{result.stop_reason}"
+            )
+            if self.result_summary_store is not None:
+                self.result_summary_store.put(
+                    build_agent_loop_result_summary(
+                        summary_id=result_ref,
+                        task=task,
+                        final_answer=result.final_answer,
+                        stop_reason=result.stop_reason,
+                    )
+                )
+            return TaskRunResult(result_ref=result_ref)
+        error_ref = f"{self.error_ref_prefix}:{task.session_id}:{task.task_id}:{result.stop_reason}"
+        if self.result_summary_store is not None:
+            self.result_summary_store.put(
+                build_agent_loop_error_summary(
+                    summary_id=error_ref,
+                    task=task,
+                    stop_reason=result.stop_reason,
+                    final_answer=result.final_answer,
                 )
             )
-        return TaskRunResult(error_ref=f"agent_loop_failed: {result.stop_reason}")
+        return TaskRunResult(error_ref=error_ref)
 
 
 def _select_next_eligible_pending_task(
@@ -426,6 +496,102 @@ def _dispatch_result(
         message=messages[status],
         error_ref=error_ref,
     )
+
+
+def _store_execution_exception_summary(
+    store: TaskExecutionSummaryStore | None,
+    task: TaskDomain,
+    exc: Exception,
+) -> str:
+    fallback = f"agent_execution_failed: {type(exc).__name__}"
+    if store is None:
+        return fallback
+    error_ref = f"agent_execution_failed:{task.session_id}:{task.task_id}:{type(exc).__name__}"
+    store.put(
+        build_execution_exception_summary(
+            summary_id=error_ref,
+            task=task,
+            exc=exc,
+        )
+    )
+    return error_ref
+
+
+def _ensure_result_ref_readable(
+    store: TaskExecutionSummaryStore | None,
+    task: TaskDomain,
+    result_ref: str | None,
+) -> str | None:
+    if store is None:
+        return result_ref
+    if result_ref is None:
+        result_ref = f"task_result:{task.session_id}:{task.task_id}:completed"
+        store.put(build_execution_completed_summary(summary_id=result_ref, task=task))
+        return result_ref
+    if store.get(result_ref) is None:
+        store.put(build_external_result_ref_summary(result_ref=result_ref, task=task))
+    return result_ref
+
+
+def _ensure_error_ref_readable(
+    store: TaskExecutionSummaryStore | None,
+    task: TaskDomain,
+    error_ref: str,
+) -> str:
+    if store is None:
+        return error_ref
+    if store.get(error_ref) is None:
+        store.put(build_external_error_ref_summary(error_ref=error_ref, task=task))
+    return error_ref
+
+
+def _summary_for_ref(
+    store: TaskExecutionSummaryStore | None,
+    summary_id: str | None,
+) -> TaskExecutionSummary | None:
+    if store is None or summary_id is None:
+        return None
+    return store.get(summary_id)
+
+
+def _publish_execution_message(
+    message_bus: MessageBus | None,
+    task: TaskDomain,
+    *,
+    summary: TaskExecutionSummary | None,
+) -> None:
+    if message_bus is None:
+        return
+    is_error = task.status == "failed"
+    title = "Task failed" if is_error else "Task completed"
+    body = summary.summary if summary is not None else title + "."
+    context: dict[str, object] = {
+        "task_ref_kind": "published",
+        "title": title,
+        "execution_status": task.status,
+    }
+    if task.result_ref is not None:
+        context["result_ref"] = task.result_ref
+    if task.error_ref is not None:
+        context["error_ref"] = task.error_ref
+        context["ui_kind"] = "error"
+    if summary is not None:
+        context["summary_id"] = summary.summary_id
+        context["summary_kind"] = summary.kind
+        context["summary_source"] = summary.source
+
+    message = AgentMessage(
+        session_id=task.session_id,
+        task_id=task.task_id,
+        agent_id="agent",
+        message_type="informational",
+        content=body,
+        context=context,
+    )
+    # MessageStream is a projection surface. A write failure must not overturn
+    # the already-committed TaskBus lifecycle fact.
+    with contextlib.suppress(MessageStreamError):
+        message_bus.publish(message)
 
 
 __all__ = [

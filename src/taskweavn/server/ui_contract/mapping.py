@@ -308,6 +308,8 @@ def _task_ref_from_agent_message(message: AgentMessage) -> TaskRef | None:
 
 
 def _agent_message_kind(message: AgentMessage) -> MessageKind:
+    if message.context.get("ui_kind") == "error":
+        return "error"
     if message.message_type == "actionable":
         return "actionable"
     if message.message_type == "response":
@@ -316,10 +318,15 @@ def _agent_message_kind(message: AgentMessage) -> MessageKind:
 
 
 def _agent_message_title(message: AgentMessage, kind: MessageKind) -> str:
+    title = message.context.get("title")
+    if isinstance(title, str) and title.strip():
+        return title.strip()
     if kind == "actionable":
         return "Confirmation required"
     if kind == "response":
         return "User response"
+    if kind == "error":
+        return "Error"
     if message.agent_id == "user":
         return "User message"
     if message.agent_id == "system":

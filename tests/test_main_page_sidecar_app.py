@@ -12,7 +12,7 @@ from typing import Any, cast
 import pytest
 
 from taskweavn.core import SessionManager, SessionManagerError, WorkspaceLayout
-from taskweavn.llm.contracts import ChatResponse
+from taskweavn.llm.contracts import ChatResponse, ToolCall
 from taskweavn.server import (
     DEFAULT_PLATO_SIDECAR_PORT,
     MainPageSidecarConfig,
@@ -24,6 +24,7 @@ from taskweavn.task import (
     DraftTaskNode,
     InMemoryDraftTaskStore,
     SqliteTaskBus,
+    SqliteTaskExecutionSummaryStore,
     TaskDomain,
     TaskRef,
     TaskRunResult,
@@ -164,9 +165,7 @@ def test_main_page_sidecar_app_routes_session_input_to_real_services(tmp_path: A
     assert command.json["result"]["status"] == "accepted"
     assert raw_tasks[0].intent_summary == "Build a quiet website"
     assert snapshot.json["data"]["session"]["status"] == "understanding"
-    assert snapshot.json["data"]["messages"][0]["body"] == (
-        "Build a quiet personal website."
-    )
+    assert snapshot.json["data"]["messages"][0]["body"] == ("Build a quiet personal website.")
 
 
 def test_main_page_sidecar_app_generates_task_tree_from_prompt(tmp_path: Any) -> None:
@@ -379,9 +378,7 @@ def test_main_page_sidecar_app_recovers_draft_tree_after_restart_and_publishes(
     assert duplicate_generate.json["ok"] is True
     assert duplicate_generate.json == generate.json
     assert replay_llm.calls == 0
-    assert recovered_snapshot.json["data"]["taskTree"]["nodes"][0]["title"] == (
-        "Plan structure"
-    )
+    assert recovered_snapshot.json["data"]["taskTree"]["nodes"][0]["title"] == ("Plan structure")
     assert publish.status == 200
     assert publish.json["ok"] is True
     assert {"kind": "draft_tree", "id": active_before_restart.active_draft_tree_id} in (
@@ -392,8 +389,9 @@ def test_main_page_sidecar_app_recovers_draft_tree_after_restart_and_publishes(
     assert len(published_tasks) == 1
     assert duplicate_publish.status == 200
     assert duplicate_publish.json["ok"] is True
-    assert duplicate_publish.json["result"]["publishedTaskIds"] == (
-        publish.json["result"]["publishedTaskIds"]
+    assert (
+        duplicate_publish.json["result"]["publishedTaskIds"]
+        == (publish.json["result"]["publishedTaskIds"])
     )
     assert len(replayed_tasks) == 1
 
@@ -476,6 +474,14 @@ def test_main_page_sidecar_app_runs_fixed_route_tick_after_publish(
     assert snapshot_node["execution"] == "done"
     assert snapshot_node["resultRef"] == "result:plan"
     assert snapshot_node["errorRef"] is None
+    assert snapshot.json["data"]["result"]["summary"] == (
+        "Task completed. Result reference: result:plan."
+    )
+    assert any(
+        message["title"] == "Task completed"
+        and message["body"] == "Task completed. Result reference: result:plan."
+        for message in snapshot.json["data"]["messages"]
+    )
 
 
 def test_main_page_sidecar_app_publish_start_immediately_dispatches_background_execution(
@@ -547,6 +553,9 @@ def test_main_page_sidecar_app_publish_start_immediately_dispatches_background_e
     snapshot_node = snapshot.json["data"]["taskTree"]["nodes"][0]
     assert snapshot_node["execution"] == "done"
     assert snapshot_node["resultRef"] == "result:plan"
+    assert snapshot.json["data"]["result"]["summary"] == (
+        "Task completed. Result reference: result:plan."
+    )
 
 
 def test_main_page_sidecar_app_fixed_route_tick_failure_path(tmp_path: Any) -> None:
@@ -578,6 +587,14 @@ def test_main_page_sidecar_app_fixed_route_tick_failure_path(tmp_path: Any) -> N
     assert snapshot_node["execution"] == "failed"
     assert snapshot_node["resultRef"] is None
     assert snapshot_node["errorRef"] == "agent:error"
+    assert snapshot.json["data"]["result"]["summary"] == (
+        "Task execution failed. Error reference: agent:error."
+    )
+    assert snapshot.json["data"]["result"]["sections"][0]["title"] == "Failure reason"
+    assert any(
+        message["kind"] == "error" and message["title"] == "Task failed"
+        for message in snapshot.json["data"]["messages"]
+    )
 
 
 def test_main_page_sidecar_app_fixed_route_tick_runs_agent_loop_default_agent(
@@ -595,6 +612,8 @@ def test_main_page_sidecar_app_fixed_route_tick_runs_agent_loop_default_agent(
         tick = app.run_fixed_route_tick(session_id)
         task = app.task_bus.get(session_id, "loop-task")
         events_db = WorkspaceLayout(tmp_path).session_events_db(session_id)
+        result_ref = tick.result_ref
+        snapshot = _request(app, "GET", f"/api/v1/sessions/{session_id}/snapshot")
     finally:
         app.close()
 
@@ -605,6 +624,68 @@ def test_main_page_sidecar_app_fixed_route_tick_runs_agent_loop_default_agent(
     assert task.result_ref == f"agent_loop:{session_id}:loop-task:no_tool_calls"
     assert llm.calls[0]["messages"][1]["content"] == "Run loop-task"
     assert events_db.exists()
+    assert result_ref is not None
+    with SqliteTaskExecutionSummaryStore(WorkspaceLayout(tmp_path).workspace_results_db) as store:
+        summary = store.get(result_ref)
+    assert summary is not None
+    assert summary.kind == "result"
+    assert summary.summary == "Loop completed."
+    assert snapshot.json["data"]["result"]["summary"] == "Loop completed."
+    assert any(
+        message["title"] == "Task completed" and message["body"] == "Loop completed."
+        for message in snapshot.json["data"]["messages"]
+    )
+
+
+def test_main_page_sidecar_app_projects_file_change_summary_from_agent_loop_events(
+    tmp_path: Any,
+) -> None:
+    llm = _AgentLoopSequencedLLM(
+        [
+            _agent_loop_tool_call_response(
+                "write_file",
+                {"path": "notes/result.md", "content": "done"},
+                call_id="write-1",
+            ),
+            ChatResponse(
+                content="Loop completed.",
+                tool_calls=[],
+                raw_assistant_message={
+                    "role": "assistant",
+                    "content": "Loop completed.",
+                },
+            ),
+        ]
+    )
+    app = build_main_page_sidecar_app(
+        MainPageSidecarConfig(workspace_root=tmp_path, port=0),
+        MainPageSidecarDependencies(llm=llm),
+    )
+    try:
+        session_id = _create_session(app)
+        app.task_bus.publish(_published_task("loop-file-task", session_id=session_id))
+
+        tick = app.run_fixed_route_tick(session_id)
+        snapshot = _request(app, "GET", f"/api/v1/sessions/{session_id}/snapshot")
+    finally:
+        app.close()
+
+    assert tick.status == "completed"
+    assert tick.completed_task_id == "loop-file-task"
+    assert snapshot.json["data"]["fileChangeSummary"] is not None
+    file_summary = snapshot.json["data"]["fileChangeSummary"]
+    assert file_summary["taskNodeId"] == "loop-file-task"
+    assert file_summary["summary"] == "1 file changed."
+    assert file_summary["changedFiles"] == [
+        {
+            "path": "notes/result.md",
+            "changeType": "created",
+            "summary": "Created notes/result.md (4 bytes written).",
+            "ownerTaskNodeId": "loop-file-task",
+        }
+    ]
+    assert snapshot.json["data"]["result"]["summary"] == "Loop completed."
+    assert llm.calls[0]["messages"][1]["content"] == "Run loop-file-task"
 
 
 def test_main_page_sidecar_app_fixed_route_tick_reports_missing_default_agent(
@@ -654,10 +735,7 @@ def test_main_page_sidecar_app_writes_frontend_error_log_file(tmp_path: Any) -> 
                 }
             },
         )
-        log_path = (
-            WorkspaceLayout(tmp_path).session_logs_dir(session_id)
-            / "frontend-errors.jsonl"
-        )
+        log_path = WorkspaceLayout(tmp_path).session_logs_dir(session_id) / "frontend-errors.jsonl"
         rows = [json.loads(line) for line in log_path.read_text().splitlines()]
     finally:
         app.close()
@@ -761,6 +839,57 @@ class _AgentLoopLLM:
                 "content": self.final_answer,
             },
         )
+
+
+class _AgentLoopSequencedLLM:
+    def __init__(self, responses: list[ChatResponse]) -> None:
+        self._responses = list(responses)
+        self.calls: list[dict[str, Any]] = []
+
+    def chat(
+        self,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]] | None = None,
+        *,
+        metadata: dict[str, Any] | None = None,
+    ) -> ChatResponse:
+        self.calls.append(
+            {
+                "messages": list(messages),
+                "tools": tools,
+                "metadata": metadata,
+            }
+        )
+        if not self._responses:
+            raise AssertionError("_AgentLoopSequencedLLM ran out of responses")
+        return self._responses.pop(0)
+
+
+def _agent_loop_tool_call_response(
+    tool_name: str,
+    arguments: dict[str, Any],
+    *,
+    call_id: str,
+) -> ChatResponse:
+    raw_arguments = json.dumps(arguments)
+    return ChatResponse(
+        content="",
+        tool_calls=[ToolCall(id=call_id, name=tool_name, arguments=raw_arguments)],
+        raw_assistant_message={
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+                {
+                    "id": call_id,
+                    "type": "function",
+                    "function": {
+                        "name": tool_name,
+                        "arguments": raw_arguments,
+                    },
+                }
+            ],
+        },
+    )
 
 
 @dataclass

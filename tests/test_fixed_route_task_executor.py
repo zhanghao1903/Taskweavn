@@ -4,16 +4,18 @@ from __future__ import annotations
 
 import threading
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 
 from taskweavn.core.loop import LoopResult
+from taskweavn.interaction import AgentMessage, MessageStream, Subscription
 from taskweavn.task import (
     AgentLoopResidentDefaultAgent,
     FixedRouteExecutionDispatcher,
     FixedRouteTaskExecutor,
     FixedRouteTaskExecutorConfig,
     InMemoryTaskBus,
+    InMemoryTaskExecutionSummaryStore,
     TaskDomain,
     TaskRunResult,
     TaskStatus,
@@ -121,10 +123,12 @@ def test_fixed_route_executor_does_not_claim_when_default_agent_unavailable() ->
 
 
 def test_fixed_route_executor_respects_parent_dependency() -> None:
-    bus = InMemoryTaskBus([
-        _task("root", status="running"),
-        _task("child", parent_id="root", root_id="root"),
-    ])
+    bus = InMemoryTaskBus(
+        [
+            _task("root", status="running"),
+            _task("child", parent_id="root", root_id="root"),
+        ]
+    )
     executor = FixedRouteTaskExecutor(
         task_bus=bus,
         default_agent=_FakeAgent(TaskRunResult(result_ref="result:child")),
@@ -158,6 +162,7 @@ def test_agent_loop_resident_default_agent_maps_finished_loop_to_result_ref() ->
     assert result.ok is True
     assert result.result_ref == "agent_loop:s1:task-1:agent_finish"
     assert loop.seen == ["Do task-1"]
+    assert loop.seen_task_ids == ["task-1"]
 
 
 def test_agent_loop_resident_default_agent_maps_unfinished_loop_to_error() -> None:
@@ -174,7 +179,53 @@ def test_agent_loop_resident_default_agent_maps_unfinished_loop_to_error() -> No
     result = agent.run(_task("task-1"))
 
     assert result.ok is False
-    assert result.error_ref == "agent_loop_failed: max_steps"
+    assert result.error_ref == "agent_loop_failed:s1:task-1:max_steps"
+
+
+def test_agent_loop_resident_default_agent_stores_finished_result_summary() -> None:
+    store = InMemoryTaskExecutionSummaryStore()
+    loop = _FakeLoop(
+        LoopResult(
+            final_answer="Built the requested artifact.",
+            steps=1,
+            finished=True,
+            stop_reason="agent_finish",
+        )
+    )
+    agent = AgentLoopResidentDefaultAgent(loop=loop, result_summary_store=store)
+
+    result = agent.run(_task("task-1"))
+
+    assert result.result_ref == "agent_loop:s1:task-1:agent_finish"
+    assert result.result_ref is not None
+    summary = store.get(result.result_ref)
+    assert summary is not None
+    assert summary.kind == "result"
+    assert summary.summary == "Built the requested artifact."
+    assert summary.final_answer == "Built the requested artifact."
+
+
+def test_agent_loop_resident_default_agent_stores_unfinished_error_summary() -> None:
+    store = InMemoryTaskExecutionSummaryStore()
+    loop = _FakeLoop(
+        LoopResult(
+            final_answer="Partial answer",
+            steps=20,
+            finished=False,
+            stop_reason="max_steps",
+        )
+    )
+    agent = AgentLoopResidentDefaultAgent(loop=loop, result_summary_store=store)
+
+    result = agent.run(_task("task-1"))
+
+    assert result.error_ref == "agent_loop_failed:s1:task-1:max_steps"
+    assert result.error_ref is not None
+    summary = store.get(result.error_ref)
+    assert summary is not None
+    assert summary.kind == "error"
+    assert summary.error_type == "agent_loop_failed"
+    assert summary.stop_reason == "max_steps"
 
 
 def test_agent_loop_resident_default_agent_uses_task_scoped_runner_factory() -> None:
@@ -202,16 +253,15 @@ def test_agent_loop_resident_default_agent_uses_task_scoped_runner_factory() -> 
 
 def test_fixed_route_executor_can_use_agent_loop_resident_default_agent() -> None:
     bus = InMemoryTaskBus([_task("task-1")])
-    agent = AgentLoopResidentDefaultAgent(
-        loop=_FakeLoop(
-            LoopResult(
-                final_answer="Done",
-                steps=1,
-                finished=True,
-                stop_reason="no_tool_calls",
-            )
+    loop = _FakeLoop(
+        LoopResult(
+            final_answer="Done",
+            steps=1,
+            finished=True,
+            stop_reason="no_tool_calls",
         )
     )
+    agent = AgentLoopResidentDefaultAgent(loop=loop)
     executor = FixedRouteTaskExecutor(
         task_bus=bus,
         default_agent=agent,
@@ -222,11 +272,102 @@ def test_fixed_route_executor_can_use_agent_loop_resident_default_agent() -> Non
 
     assert result.status == "completed"
     assert result.result_ref == "agent_loop:s1:task-1:no_tool_calls"
+    assert loop.seen_task_ids == ["task-1"]
 
     task = bus.get("s1", "task-1")
     assert task is not None
     assert task.status == "done"
     assert task.result_ref == "agent_loop:s1:task-1:no_tool_calls"
+
+
+def test_fixed_route_executor_stores_exception_error_summary_when_store_is_available() -> None:
+    store = InMemoryTaskExecutionSummaryStore()
+    bus = InMemoryTaskBus([_task("task-1")])
+    executor = FixedRouteTaskExecutor(
+        task_bus=bus,
+        default_agent=_FakeAgent(raises=RuntimeError("boom")),
+        config=FixedRouteTaskExecutorConfig(session_id="s1"),
+        result_summary_store=store,
+    )
+
+    result = executor.tick()
+
+    assert result.status == "failed"
+    assert result.error_ref == "agent_execution_failed:s1:task-1:RuntimeError"
+    assert result.error_ref is not None
+    summary = store.get(result.error_ref)
+    assert summary is not None
+    assert summary.kind == "error"
+    assert summary.error_type == "RuntimeError"
+
+
+def test_fixed_route_executor_stores_completed_summary_when_agent_omits_ref() -> None:
+    store = InMemoryTaskExecutionSummaryStore()
+    bus = InMemoryTaskBus([_task("task-1")])
+    executor = FixedRouteTaskExecutor(
+        task_bus=bus,
+        default_agent=_FakeAgent(TaskRunResult()),
+        config=FixedRouteTaskExecutorConfig(session_id="s1"),
+        result_summary_store=store,
+    )
+
+    result = executor.tick()
+
+    assert result.status == "completed"
+    assert result.result_ref == "task_result:s1:task-1:completed"
+    summary = store.get("task_result:s1:task-1:completed")
+    assert summary is not None
+    assert summary.kind == "result"
+    assert summary.source == "execution_bridge"
+    assert summary.summary == "Task completed."
+
+
+def test_fixed_route_executor_publishes_completion_message() -> None:
+    store = InMemoryTaskExecutionSummaryStore()
+    messages = _MessageBus()
+    bus = InMemoryTaskBus([_task("task-1")])
+    executor = FixedRouteTaskExecutor(
+        task_bus=bus,
+        default_agent=_FakeAgent(TaskRunResult(result_ref="result:task-1")),
+        config=FixedRouteTaskExecutorConfig(session_id="s1"),
+        result_summary_store=store,
+        message_bus=messages,
+    )
+
+    result = executor.tick()
+
+    assert result.status == "completed"
+    assert len(messages.published) == 1
+    message = messages.published[0]
+    assert message.task_id == "task-1"
+    assert message.message_type == "informational"
+    assert message.content == "Task completed. Result reference: result:task-1."
+    assert message.context["title"] == "Task completed"
+    assert message.context["result_ref"] == "result:task-1"
+
+
+def test_fixed_route_executor_publishes_failure_message() -> None:
+    store = InMemoryTaskExecutionSummaryStore()
+    messages = _MessageBus()
+    bus = InMemoryTaskBus([_task("task-1")])
+    executor = FixedRouteTaskExecutor(
+        task_bus=bus,
+        default_agent=_FakeAgent(TaskRunResult(error_ref="agent:error")),
+        config=FixedRouteTaskExecutorConfig(session_id="s1"),
+        result_summary_store=store,
+        message_bus=messages,
+    )
+
+    result = executor.tick()
+
+    assert result.status == "failed"
+    assert len(messages.published) == 1
+    message = messages.published[0]
+    assert message.task_id == "task-1"
+    assert message.content == "Task execution failed. Error reference: agent:error."
+    assert message.context["title"] == "Task failed"
+    assert message.context["ui_kind"] == "error"
+    assert message.context["error_ref"] == "agent:error"
 
 
 def test_fixed_route_dispatcher_queues_and_completes_pending_task() -> None:
@@ -264,8 +405,7 @@ def test_fixed_route_dispatcher_drains_multiple_completed_tasks() -> None:
 
         assert request.status == "queued"
         assert _wait_for(
-            lambda: [task.status for task in bus.list_for_session("s1")]
-            == ["done", "done"]
+            lambda: [task.status for task in bus.list_for_session("s1")] == ["done", "done"]
         )
     finally:
         dispatcher.stop()
@@ -374,12 +514,41 @@ class _BlockingAgent:
 
 
 @dataclass
+class _MessageBus:
+    published: list[AgentMessage] = field(default_factory=list)
+
+    def publish(self, message: AgentMessage) -> None:
+        self.published.append(message)
+
+    def subscribe(
+        self,
+        session_id: str,
+        *,
+        types: Iterable[str] | None = None,
+    ) -> Subscription:
+        raise NotImplementedError
+
+    def wait_for_response(
+        self,
+        message_id: str,
+        timeout: float | None,
+    ) -> AgentMessage | None:
+        raise NotImplementedError
+
+    @property
+    def stream(self) -> MessageStream:
+        raise NotImplementedError
+
+
+@dataclass
 class _FakeLoop:
     result: LoopResult
     seen: list[str] = field(default_factory=list)
+    seen_task_ids: list[str | None] = field(default_factory=list)
 
-    def run(self, task: str) -> LoopResult:
+    def run(self, task: str, *, task_id: str | None = None) -> LoopResult:
         self.seen.append(task)
+        self.seen_task_ids.append(task_id)
         return self.result
 
 

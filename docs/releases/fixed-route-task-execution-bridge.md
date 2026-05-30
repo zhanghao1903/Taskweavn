@@ -1,7 +1,7 @@
 # Checkpoint: Fixed-Route Task Execution Bridge
 
 > Status: checkpoint / gap still open
-> Date: 2026-05-29
+> Date: 2026-05-30
 > Work Stream: Product 1.0 fixed-route execution / P8 backend integration
 > Related Plan: [Fixed-Route Task Execution Bridge](../plans/feature/fixed-route-task-execution-bridge.md)
 > Technical Design: [Fixed-Route Task Execution Bridge 技术设计](../plans/feature/fixed-route-task-execution-bridge-technical-design.zh-CN.md)
@@ -27,8 +27,11 @@ Router, Agent Manager, assignment fields, assigned-only claim, or Main Page
 reassignment UI.
 
 This is not a completed release for the full execution gap. Slice 6 adds
-background dispatch and an HTTP control route; durable result payload storage
-and broader product smoke remain follow-up work.
+background dispatch and an HTTP control route. P8.E1 adds durable result/error
+summary storage. P8.E2 and P8.E3 add user-facing execution messages and Main
+Page result/error projection. P8.E4 adds deterministic Main Page file summary
+projection from observed file facts. Audit evidence closure and broader product
+smoke remain follow-up work.
 
 ---
 
@@ -95,6 +98,55 @@ TaskDomain
 - Agent lifecycle remains Task-run scoped; no long-lived AgentLoop or
   SessionContextStore is introduced.
 
+### 2.6 Durable Result/Error Summary Store
+
+- Added `TaskExecutionSummary` as the readable result/error payload addressed
+  by TaskBus `result_ref` / `error_ref`.
+- Added `SqliteTaskExecutionSummaryStore` backed by workspace
+  `.taskweavn/results.sqlite`.
+- AgentLoop success stores `LoopResult.final_answer` as a result summary.
+- Successful executor paths without an agent-provided `result_ref` now create a
+  default readable completion summary ref.
+- AgentLoop unfinished and execution exception paths store error summaries.
+- Sidecar `run_fixed_route_tick(...)` and background dispatcher share the same
+  result summary store.
+
+### 2.7 AgentLoop To MessageStream Bridge
+
+- Fixed-route successful completion writes a task/session-correlated
+  informational message into `MessageStream`.
+- Fixed-route failure writes a task/session-correlated error-toned message into
+  `MessageStream`.
+- Message context carries execution status, result/error refs, execution title,
+  and summary metadata when available.
+- MessageStream write failure does not roll back the TaskBus lifecycle fact.
+
+### 2.8 Main Page Result/Error Projection
+
+- `TaskExecutionSummaryViewStore` adapts durable execution summaries into
+  task projection `TaskSummaryView`.
+- `DefaultUiQueryGateway` projects the latest terminal published Task with a
+  readable summary into `MainPageSnapshot.result`.
+- Failed Task summaries use the same result surface and include a
+  `Failure reason` section.
+- Snapshot message merging now preserves the richer raw session MessageStream
+  projection when it duplicates a task-tree latest message, so execution
+  messages retain their title and error kind.
+
+### 2.9 Main Page File Change Summary Projection
+
+- Fixed-route AgentLoop execution now supplies the published Task id to
+  `AgentLoop.run(...)`, so session-scoped EventStream facts can be read by Task.
+- `EventStreamFileChangeStore` projects deterministic file facts from
+  `FileWriteObservation` and `CodeExecutionObservation` into
+  `TaskFileChangeSummary`.
+- Recursive child-task roll-up remains in `DefaultTaskProjectionService`, not
+  the EventStream reader.
+- `DefaultUiQueryGateway` maps file-change facts into
+  `MainPageSnapshot.file_change_summary` when evidence exists.
+- Agent final answers remain result summaries; file evidence is generated from
+  observed facts only.
+
 ---
 
 ## 3. Validation
@@ -113,9 +165,22 @@ Checkpoint validation included:
   - passed
 - `uv run pytest tests/test_fixed_route_task_executor.py tests/test_ui_http_transport.py tests/test_main_page_sidecar_app.py`
   - 49 passed, 1 warning
+- `uv run pytest tests/test_task_event_file_changes.py tests/test_loop.py tests/test_fixed_route_task_executor.py tests/test_main_page_sidecar_app.py tests/test_ui_query_gateway.py tests/test_ui_contract_mapping.py tests/test_task_projection.py tests/test_ui_contract_models.py tests/test_ui_http_transport.py tests/test_task_result_summary_store.py`
+  - 115 passed, 1 warning
+- Sidecar HTTP user-path smoke:
+  - create session;
+  - generate draft TaskTree;
+  - publish with `startImmediately=true`;
+  - background fixed-route AgentLoop writes `notes/smoke-result.md`;
+  - snapshot shows `execution=done`, readable `result.summary`, and
+    deterministic `fileChangeSummary`.
 - `uv run mypy src/taskweavn/task/execution.py src/taskweavn/task/__init__.py src/taskweavn/server/ui_contract/commands.py src/taskweavn/server/ui_contract/__init__.py src/taskweavn/server/ui_http.py src/taskweavn/server/main_page.py tests/test_fixed_route_task_executor.py tests/test_ui_http_transport.py tests/test_main_page_sidecar_app.py`
   - passed
+- `uv run mypy src/taskweavn/core/loop.py src/taskweavn/server/main_page.py src/taskweavn/server/ui_contract/gateways.py src/taskweavn/task/__init__.py src/taskweavn/task/event_file_changes.py src/taskweavn/task/execution.py src/taskweavn/task/projection.py tests/test_task_event_file_changes.py tests/test_loop.py tests/test_fixed_route_task_executor.py tests/test_ui_query_gateway.py tests/test_main_page_sidecar_app.py`
+  - passed
 - `uv run ruff check src/taskweavn/task/execution.py src/taskweavn/task/__init__.py src/taskweavn/server/ui_contract/commands.py src/taskweavn/server/ui_contract/__init__.py src/taskweavn/server/ui_http.py src/taskweavn/server/main_page.py tests/test_fixed_route_task_executor.py tests/test_ui_http_transport.py tests/test_main_page_sidecar_app.py`
+  - passed
+- `uv run ruff check src/taskweavn/core/loop.py src/taskweavn/server/main_page.py src/taskweavn/server/ui_contract/gateways.py src/taskweavn/task/__init__.py src/taskweavn/task/event_file_changes.py src/taskweavn/task/execution.py src/taskweavn/task/projection.py tests/test_task_event_file_changes.py tests/test_loop.py tests/test_fixed_route_task_executor.py tests/test_ui_query_gateway.py tests/test_main_page_sidecar_app.py`
   - passed
 
 Covered behavior:
@@ -131,16 +196,32 @@ Covered behavior:
 - publish `startImmediately=false` does not schedule execution;
 - explicit execution dispatch route returns structured accepted/rejected command
   responses.
+- result/error summaries survive store reopen;
+- AgentLoop result refs can be resolved through the SQLite summary store.
+- fixed-route completion/failure messages are persisted and projected through
+  the Main Page snapshot message stream.
+- successful and failed terminal Tasks produce readable
+  `MainPageSnapshot.result` payloads.
+- AgentLoop events are tagged with the published Task id when fixed-route
+  execution runs a Task.
+- observed file write / code execution facts project into Task file summaries.
+- Main Page snapshots expose deterministic `fileChangeSummary` without parsing
+  Agent prose.
+- sidecar HTTP user-path smoke validates generate -> publish -> background
+  execution -> result/file summary snapshot.
 
 ---
 
 ## 4. Follow-ups Before Gap Closure
 
-- Add durable result summary payload storage; current checkpoint stores stable
-  refs only.
+- Decide whether task detail surfaces need a separate result/error panel or can
+  reuse the session-level result projection for Product 1.0.
+- Add Audit evidence records/links for file summary detail and hidden/partial
+  evidence states.
 - Decide whether CodeAction/Docker-backed tools are safe to include in the
   resident Default Agent startup path.
 - Run a normal browser/Electron smoke for publish -> execute -> snapshot
-  visibility once the frontend control path is ready.
+  visibility once the frontend control path is ready. Sidecar HTTP smoke has
+  passed; browser UI smoke is still separate.
 - Keep routing, assignment, Agent Manager, and custom Agent protocol work in
   Product 1.1+ unless product scope changes.

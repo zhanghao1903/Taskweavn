@@ -32,6 +32,8 @@ from taskweavn.server.ui_contract.errors import (
 from taskweavn.server.ui_contract.mapping import (
     map_agent_message_view,
     map_confirmation_action_view,
+    map_file_change_summary_view,
+    map_result_card_view,
     map_session_message_view,
     map_task_tree_view,
 )
@@ -40,7 +42,9 @@ from taskweavn.server.ui_contract.snapshots import MainPageSnapshot
 from taskweavn.server.ui_contract.view_models import (
     AuditLinkView,
     ConfirmationActionView,
+    FileChangeSummaryView,
     ProjectSummary,
+    ResultCardView,
     SessionMessageView,
     SessionStatus,
     SessionSummary,
@@ -227,6 +231,16 @@ class DefaultUiQueryGateway:
                 self._session_messages(session.id),
             )
             confirmations = _confirmations_from_tree(source_tree, session_id=session.id)
+            result = _result_from_tree(
+                source_tree,
+                session_id=session.id,
+                task_projection=self._task_projection,
+            )
+            file_change_summary = _file_change_summary_from_tree(
+                source_tree,
+                session_id=session.id,
+                task_projection=self._task_projection,
+            )
             project = self._project_provider.get_project()
             workflow = self._workflow_provider.get_workflow(session)
             workflows = self._workflow_provider.list_workflows()
@@ -258,6 +272,8 @@ class DefaultUiQueryGateway:
                 task_tree=task_tree,
                 messages=messages,
                 pending_confirmations=confirmations,
+                result=result,
+                file_change_summary=file_change_summary,
                 audit_links=self._audit_links(session.id),
                 cursor=_snapshot_cursor(session),
             )
@@ -642,7 +658,10 @@ def _merge_messages(
     by_id: dict[str, SessionMessageView] = {}
     for group in groups:
         for message in group:
-            by_id.setdefault(message.id, message)
+            # Later groups are intentionally richer. In the default snapshot path,
+            # task-tree latest messages come first and raw session MessageStream
+            # messages come second, preserving execution context titles/kinds.
+            by_id[message.id] = message
     return tuple(
         sorted(
             by_id.values(),
@@ -667,6 +686,57 @@ def _confirmations_from_tree(
         map_confirmation_action_view(confirmation, session_id=session_id)
         for confirmation in confirmations
     )
+
+
+def _result_from_tree(
+    source: CoreTaskTreeView,
+    *,
+    session_id: str,
+    task_projection: TaskProjectionService,
+) -> ResultCardView | None:
+    for node in reversed(source.nodes):
+        if node.task_ref.kind != "published":
+            continue
+        if (
+            node.status not in {"done", "failed"}
+            and node.result_ref is None
+            and node.error_ref is None
+        ):
+            continue
+        try:
+            detail = task_projection.get_task_detail(session_id, node.task_ref)
+        except LookupError:
+            continue
+        if detail.result_summary is not None:
+            return map_result_card_view(detail.result_summary, session_id=session_id)
+    return None
+
+
+def _file_change_summary_from_tree(
+    source: CoreTaskTreeView,
+    *,
+    session_id: str,
+    task_projection: TaskProjectionService,
+) -> FileChangeSummaryView | None:
+    candidates = [
+        node
+        for node in source.nodes
+        if node.task_ref.kind == "published" and node.badges.subtree_file_change_count > 0
+    ]
+    root_candidates = [node for node in candidates if node.parent_ref is None]
+    for node in reversed(root_candidates or candidates):
+        try:
+            detail = task_projection.get_task_detail(session_id, node.task_ref)
+        except LookupError:
+            continue
+        if detail.file_changes:
+            return map_file_change_summary_view(
+                detail.file_changes,
+                session_id=session_id,
+                task_ref=node.task_ref,
+                recursive=True,
+            )
+    return None
 
 
 def _derive_session_status(
@@ -835,8 +905,7 @@ def _object_refs_for_result(
     refs = [ObjectRef(kind="command", id=result.command_id), *extra]
     refs.extend(_object_ref_for_task_ref(ref) for ref in result.affected_task_refs)
     refs.extend(
-        ObjectRef(kind="published_task", id=task_id)
-        for task_id in result.published_task_ids
+        ObjectRef(kind="published_task", id=task_id) for task_id in result.published_task_ids
     )
     return _dedupe_object_refs(refs)
 

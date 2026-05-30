@@ -54,6 +54,7 @@ from taskweavn.server.ui_contract.gateways import (
 )
 from taskweavn.server.ui_contract.mapping import (
     derive_task_tree_status,
+    map_agent_message_view,
     map_confirmation_action_view,
     map_confirmation_option_view,
     map_file_change_item,
@@ -264,6 +265,7 @@ __all__ = [
     "UpdateTaskNodePayload",
     "WorkflowProvider",
     "WorkflowSummary",
+    "map_agent_message_view",
     "map_confirmation_action_view",
     "map_confirmation_option_view",
     "map_file_change_item",
