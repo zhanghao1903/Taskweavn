@@ -21,7 +21,7 @@ Implementation has started with the Slice 1-3 service boundary:
 - task-scoped AgentLoop runner factory support for session-specific workspace
   and event context
 - one-tick execution over existing TaskBus `claim_next -> complete / fail`
-- focused unit tests using a fake resident Default Agent
+- focused unit tests using a fake Default Agent adapter
 - `MainPageSidecarApp.run_fixed_route_tick(...)` runtime assembly seam
 - sidecar smoke tests covering publish -> tick -> projected `done`
 - `LoopResult.finished` maps to a stable `agent_loop:{session_id}:{task_id}:{stop_reason}`
@@ -30,9 +30,9 @@ Implementation has started with the Slice 1-3 service boundary:
 - `build_agent_loop_resident_default_agent(...)` assembles a session-scoped
   AgentLoop with LocalRuntime, file/shell tools, and SqliteEventStream
 
-Background loop / HTTP control route, durable result summary storage, broader
-Main Page projection polish, CodeAction/Docker-backed tool inclusion, and
-user-facing runtime smoke remain follow-up work.
+Production runtime trigger / background dispatch, durable result summary
+storage, broader Main Page projection polish, CodeAction/Docker-backed tool
+inclusion, and user-facing runtime smoke remain follow-up work.
 
 Product 1.0 needs a complete execution loop, not a flexible routing system.
 ADR-0010 sets the default as single-task, single-agent, fixed-route flow.
@@ -65,8 +65,8 @@ Deliver the smallest execution bridge required for the 1.0 closed loop:
 
 1. Pick the next eligible pending Task from TaskBus using the existing
    lifecycle API.
-2. Claim it with the resident Default Agent identity.
-3. Execute it through the resident Default Agent.
+2. Claim it with the stable Default Agent identity.
+3. Execute it through a Task-run Default Agent adapter.
 4. Report success through `TaskBus.complete`.
 5. Report startup or execution failure through `TaskBus.fail`.
 6. Preserve the existing Task status model and Main Page projection path.
@@ -99,16 +99,26 @@ For Product 1.0, the execution route is fixed:
 ```text
 TaskBus pending Task
   -> FixedRouteTaskExecutor
-  -> resident Default Agent
+  -> Default Agent task-run
   -> TaskBus complete / fail
 ```
 
-The Default Agent is a resident universal Agent started with the app/runtime.
-Its identity can be a stable system value such as `default_agent` or
-`universal_agent`. It is used as `claimed_by`; it is not a public Agent
-template, a routed assignment, or an Agent Manager-created instance.
+The Default Agent has a stable system identity such as `default_agent` or
+`universal_agent`. The identity is used as `claimed_by`; it is not a public
+Agent template, a routed assignment, or an Agent Manager-created instance.
 
-If the resident Default Agent is not available, that is an application/runtime
+The Agent lifecycle and context lifecycle are separate:
+
+- Agent execution is Task-run scoped: claim one eligible Task, create/run the
+  AgentLoop, then end the run when the Task reaches done/failed.
+- Session context is the durable continuity boundary. Product 1.0 relies on
+  existing session-scoped facts such as TaskBus rows, messages, event streams,
+  raw tasks, draft/published tree facts, and result/error refs.
+- Product 1.0 does not need a long-lived AgentLoop to preserve continuity.
+  Broader session-context governance and summarization remain Product 1.1
+  research.
+
+If the Default Agent runtime boundary is not available, that is an application/runtime
 health problem. It should be surfaced during startup or runtime diagnostics, not
 modeled as routing failure.
 
@@ -149,25 +159,25 @@ Acceptance:
 - bridge leaves TaskBus unchanged when no eligible Task exists;
 - bridge does not add routing or assignment fields.
 
-### Slice 2 — Resident Default Agent adapter
+### Slice 2 — Default Agent adapter
 
 Output:
 
-- minimal protocol for submitting a claimed Task to the resident Default Agent;
-- fake resident Default Agent for tests;
+- minimal protocol for submitting a claimed Task to the Default Agent adapter;
+- fake Default Agent adapter for tests;
 - adapter around the current AgentLoop-compatible execution implementation.
 
 Acceptance:
 
-- resident Default Agent success maps to `TaskBus.complete`;
-- resident Default Agent task failure or exception maps to `TaskBus.fail`;
+- Default Agent success maps to `TaskBus.complete`;
+- Default Agent task failure or exception maps to `TaskBus.fail`;
 - missing Default Agent is treated as app/runtime health failure, not Agent
   Manager startup failure.
 
 Current status:
 
 - `AgentLoopRunner` captures the small `run(task: str) -> LoopResult` contract
-  needed by the resident Default Agent.
+  needed by the Default Agent adapter.
 - `AgentLoopResidentDefaultAgent` maps a `TaskDomain.intent` into
   `AgentLoopRunner.run(...)`.
 - `LoopResult.finished=True` becomes a stable TaskBus `result_ref`.
@@ -179,8 +189,7 @@ Current status:
 
 Output:
 
-- production sidecar can construct a resident Default Agent backed by
-  AgentLoop;
+- production sidecar can construct a Default Agent adapter backed by AgentLoop;
 - AgentLoop construction is task-scoped so each run gets the correct session
   workspace and event stream;
 - tests can still inject a fake Default Agent or disable the default agent to
@@ -260,6 +269,45 @@ Current status:
 - The gap remains open until execution can be triggered through a production
   runtime path and result payload behavior is decided.
 
+### Slice 6 — Production runtime trigger and background dispatch
+
+Output:
+
+- sidecar-owned fixed-route execution dispatcher;
+- non-blocking trigger path for eligible pending work, with
+  `publish.startImmediately=true` as one trigger source;
+- explicit HTTP control route for manual/recovery dispatch;
+- bounded background drain over existing `FixedRouteTaskExecutor.tick(...)`;
+- shutdown handling so background execution does not outlive sidecar stores.
+
+Acceptance:
+
+- publish command response is not blocked by Task execution;
+- `startImmediately=true` schedules execution for the Session after a successful
+  publish;
+- `startImmediately=false` does not schedule execution;
+- execution dispatch is allowed conceptually whenever a Session has eligible
+  pending work; publish is not the only valid runtime trigger;
+- duplicate triggers for the same Session are coalesced while dispatch is
+  already pending/running;
+- dispatcher uses existing TaskBus lifecycle and does not mutate Tasks directly;
+- each Task execution remains an isolated Agent run; dispatcher must not keep a
+  long-lived AgentLoop alive across Tasks;
+- Slice 6 does not introduce a new SessionContextStore or context summarizer;
+- no Router, Agent Manager, assignment fields, or reassignment UI are added;
+- tests cover dispatch success, failure, duplicate trigger coalescing,
+  disabled dispatcher, and sidecar shutdown.
+
+Current status:
+
+- Design selected; implementation pending.
+- First implementation should remain in-process and sidecar-owned. Durable job
+  queues, cross-process dispatch, and running-task crash recovery are follow-up
+  decisions, not prerequisites for the Product 1.0 closed-loop trigger.
+- Agent lifecycle is Task-run scoped. Context continuity remains session-scoped
+  through existing durable facts; dedicated context governance is deferred to
+  Product 1.1.
+
 ---
 
 ## 6. Testing Strategy
@@ -267,9 +315,9 @@ Current status:
 Focused tests:
 
 - bridge claims and completes a pending Task;
-- bridge claims and fails on resident Default Agent task error;
+- bridge claims and fails on Default Agent task error;
 - bridge does nothing when no Task is eligible;
-- bridge reports runtime health failure if the resident Default Agent is
+- bridge reports runtime health failure if the Default Agent runtime boundary is
   unavailable;
 - parent dependency behavior remains owned by TaskBus `claim_next`.
 
@@ -277,6 +325,8 @@ Regression tests:
 
 - existing TaskBus lifecycle tests;
 - Task projection tests touched by result/failure display.
+- sidecar publish `startImmediately` dispatch tests once Slice 6 lands;
+- HTTP dispatch route tests once the explicit control route lands.
 
 Checkpoint validation:
 
@@ -305,3 +355,12 @@ Deferred to Product 1.1+:
 - public Agent protocol and special Agent protocols;
 - stale pending sweep as routing degradation;
 - manual reassignment.
+- dedicated SessionContextStore / context summarization / context budget
+  governance.
+
+Still Product 1.0 follow-ups:
+
+- durable result summary payload storage;
+- running-task crash/restart recovery policy;
+- normal browser/Electron publish -> execute -> snapshot smoke;
+- optional SSE event source beyond conservative refetch/resync behavior.
