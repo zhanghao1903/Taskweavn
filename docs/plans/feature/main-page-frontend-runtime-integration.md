@@ -1,14 +1,14 @@
 # Feature Plan: Main Page Frontend Runtime Integration
 
-> Status: in_progress / checkpoint submitted
+> Status: done / accepted
 > Type: frontend runtime / UI-backend integration
-> Last Updated: 2026-05-27
+> Last Updated: 2026-05-30
 > Parent Plan: [Main Page Real Backend Integration](main-page-real-backend-integration.md)
 > Gap: [Main Page real backend integration](../../gaps/README.md)
 > Architecture: [UI And Backend Communication](../../architecture/ui-backend-communication.md), [Task Domain/UI Model Separation](../../architecture/task-domain-ui-model-separation.md), [Authoring Domain](../../architecture/authoring-domain.md)
 > Product: [Plato Main Page UX Flow](../../product/plato-main-page-ux-flow.md), [Plato UI API Contract](../../product/plato-ui-api-contract.md), [Plato Frontend Technical Design](../../product/plato-frontend-technical-design.md)
 > Technical Design: [中文详细技术方案](main-page-frontend-runtime-integration-technical-design.zh-CN.md)
-> Checkpoint Record: [Main Page Frontend Runtime Integration](../../releases/main-page-frontend-runtime-integration.md)
+> Release Record: [Main Page Frontend Runtime Integration](../../releases/main-page-frontend-runtime-integration.md)
 
 ---
 
@@ -21,18 +21,19 @@
 | 2026-05-21 | Slice 3 — Command response lifecycle | done | Added central command response handling; accepted commands now clear local pending/error state and refetch backend facts instead of creating durable synthetic messages. |
 | 2026-05-21 | Slice 4 — Main Page command coverage | done | Added adapter coverage for generate/update/publish commands; empty-session input now generates TaskTree; draft TaskTree can be published from Main Page. |
 | 2026-05-21 | Slice 5 — Event router and invalidation | done | Added conservative event router; all canonical events refetch by default, `message.appended` no longer creates local message cards, and resync events use a loop guard. |
-| 2026-05-21 | Slice 6 — Integration smoke and docs closure | checkpoint | Frontend tests/build/lint pass; sidecar health/snapshot pass through loopback API; runtime logging exposed real browser issues and the stage PR fixed the default `fetch` receiver bug. This still does not close the Main Page real-backend gap. |
+| 2026-05-21 | Slice 6 — Integration smoke and docs closure | checkpoint | Frontend tests/build/lint pass; sidecar health/snapshot pass through loopback API; runtime logging exposed real browser issues and the stage PR fixed the default `fetch` receiver bug. At the time, this was a checkpoint; the integration was later accepted on 2026-05-30. |
 | 2026-05-27 | P7.1A — Main Page route/runtime compatibility wrapper | done | Added `MainPageRoute` so `App` composes runtime env into the current `MainPage` without changing visible behavior. API mock happy path is deferred. |
 | 2026-05-27 | P7.1B — Wrapper boundary and next-step decision | done | Documented `MainPageRoute` ownership boundaries and decided to centralize status presentation mapping before P7.2 component extraction. |
 | 2026-05-27 | P7.1C — Status presentation mapping | done | Moved session, task, message, event, file-change, confirmation option, and audit verdict label/tone derivation into `mainPageSelectors.ts` without changing visible UI. |
 | 2026-05-27 | P7.2 — Light presentation component extraction | in_progress | Started low-risk extraction with `TaskNodeCard` and `SessionMessageCard`; panels still own data flow, selection state, and layout. |
+| 2026-05-30 | Integration acceptance — Main Page frontend/backend closure | done | User accepted the Main Page frontend/backend integration as complete for Product 1.0. Remaining visual/component extraction work, browser/Electron QA, Audit detail, and durable event replay are follow-up gaps. |
 
 ---
 
 ## 1. Problem / Gap
 
-The backend side of Main Page real-backend integration is now ahead of the
-frontend runtime:
+At plan start, the backend side of Main Page real-backend integration was ahead
+of the frontend runtime:
 
 - `taskweavn plato-sidecar` and `taskweavn plato-dev` can start a local sidecar
   target.
@@ -42,7 +43,7 @@ frontend runtime:
   subscribe to default plus named SSE events.
 - backend-generated UI contract JSON fixtures are consumed by frontend tests.
 
-But the Main Page itself still behaves like a fixture-compatible prototype:
+At the start of this plan, the Main Page itself still behaved like a fixture-compatible prototype:
 
 - `MainPage` query identity is `["main-page-snapshot", stateId]`, not session id.
 - `StatePicker` is always visible, including HTTP mode.
@@ -53,9 +54,9 @@ But the Main Page itself still behaves like a fixture-compatible prototype:
 - `message.appended` page handling expects `title/body/kind` in payload, while
   backend events intentionally carry only lightweight invalidation data.
 
-This plan finishes the frontend runtime convergence: Main Page HTTP mode should
-be driven by session snapshots, command responses, and `UiEvent` invalidation,
-while keeping fixture scenarios available for design/dev review.
+This plan finished the accepted frontend runtime convergence: Main Page HTTP mode
+is driven by session snapshots, command responses, and `UiEvent` invalidation,
+while fixture scenarios remain available for design/dev review.
 
 ---
 
@@ -461,3 +462,11 @@ This plan is done when:
   message cards;
 - fixture mode remains useful for product and visual review;
 - documentation and release records reflect the new factual state.
+
+Accepted closure on 2026-05-30:
+
+- frontend runtime convergence has been accepted for Product 1.0;
+- sidecar HTTP user-path smoke is covered through backend/runtime validation;
+- the release record is published;
+- manual/automated browser smoke remains QA follow-up, not a blocker for this
+  integration plan.

@@ -1,7 +1,7 @@
 # TaskWeavn Roadmap
 
 > Status: active
-> Last Updated: 2026-05-22
+> Last Updated: 2026-05-29
 > Maintained By: planning session
 > Related: [Project Plan](project/roadmap.md), [Gap Registry](gaps/), [Planning Workflow](planning_workflow.md), [Architecture](architecture/), [Architecture Decisions](decisions/), [Release Records](releases/), [User Traceability](user_model/traceability.md)
 
@@ -211,7 +211,7 @@ Exit criteria:
 
 ### Phase 3E — Task-first UI System
 
-Status: active implementation; Main Page frontend runtime integration is a stage checkpoint, not a completed gap.
+Status: active implementation; Main Page frontend/backend integration is accepted for Product 1.0, while Task-first UI polish, Audit/trust detail, and QA remain active follow-ups.
 
 Why now: CLI has reached its usefulness ceiling. The product value is in Task topology, Task cards, confirmations, and real-time message streams.
 
@@ -228,7 +228,7 @@ Work packages:
 | Result Packaging Agent and card-based result presentation | [Result packaging plan](plans/feature/result-packaging-agent-cards.md), [Product 1.1 plan](product/plato-1-1-product-plan.md) | Product 1.1 / P1 |
 | Clean frontend scaffold and Figma-state stories | [Plato Frontend Technical Design](product/plato-frontend-technical-design.md) | P0 |
 | UI/backend contract baseline | [Contract baseline plan](plans/feature/ui-backend-contract-baseline.md), [Plato UI API Contract](product/plato-ui-api-contract.md) | Done |
-| Main Page frontend runtime integration | [Frontend runtime plan](plans/feature/main-page-frontend-runtime-integration.md), [checkpoint](releases/main-page-frontend-runtime-integration.md) | In progress: stage checkpoint only; runtime convergence has landed, but user-facing validation and several UX/backend gaps remain |
+| Main Page frontend runtime integration | [Frontend runtime plan](plans/feature/main-page-frontend-runtime-integration.md), [release](releases/main-page-frontend-runtime-integration.md) | Done / accepted for Product 1.0 Main Page frontend/backend integration; browser/Electron smoke, UX polish, Audit detail, and durable event replay remain follow-ups |
 | API-backed prototype | Follow-up after real browser/Electron smoke | P0 |
 
 Exit criteria:
@@ -286,14 +286,14 @@ These remain valuable, but they should not be the next immediate build target be
 
 Recommended order for upcoming implementation sessions:
 
-1. **[Main Page real backend integration](plans/feature/main-page-real-backend-integration.md)** — continue from the [Main Page Frontend Runtime Integration](plans/feature/main-page-frontend-runtime-integration.md) checkpoint. The current branch is a useful stage submission, not completion: real browser/Electron smoke, session creation/selection, pending/error UX, confirmation/message hardening, TaskNode edit controls, file-change projection, audit/trust surfaces, and durable event behavior still need follow-up work.
-2. **Fixed-route task execution bridge** — close Product 1.0 execution with a resident universal Default Agent and a single route from TaskBus pending Tasks to complete/fail.
-3. **Message and confirmation UI integration hardening** — make HITL confirmations real through UI commands/events, including richer pending states and recovery paths.
-4. **File Change Summary and Audit / Trust implementation** — turn trust facts into user-readable surfaces.
+1. **[Result and evidence exposure surface](plans/feature/result-exposure-surface.md)** — continue from accepted Main Page result/file projection and close Audit entry/evidence detail, permission-limited evidence, and recoverable error UX.
+2. **Message and confirmation UI integration hardening** — make HITL confirmations real through UI commands/events, including richer pending states and recovery paths.
+3. **Linear authoring and retry recovery** — keep Product 1.0 line-first execution predictable, add minimal retry/recovery, and avoid Product 1.1 context-governance scope creep.
+4. **Normal browser/Electron smoke and Product 1.0 QA** — validate the accepted Main Page and fixed-route bridge through the intended local runtime shell.
 5. **Product 1.1 research and planning** — completion-time `task_after`, Result Packaging cards, routing/assignment foundation, Agent protocol/governance, skills integration, MCP integration, and file/multimodal support.
 6. **Centralized runtime configuration** — shared control plane for logging/autonomy/audit/LLM/Task/UI behavior once the Task-facing server model is concrete enough to avoid overfitting.
 
-LLM Provider reliability, configurable logging, Task domain/UI separation, Collaborator authoring, TaskPublisher, TaskBus execution lifecycle, publish persistence, API publish transport, RawTask/DraftTaskTree authoring persistence, frontend baseline, UI/backend contract baseline, local sidecar API shell, and Main Page sidecar assembly now have server-core or UI baseline release candidates. RawTask/DraftTaskTree authoring persistence and publish identity recovery are closed for Product 1.0 authoring recovery. Main Page frontend runtime integration remains open: the latest work is a checkpoint that proves core wiring and diagnostics, but it should stay in the active gap queue until broader UI/runtime behavior is user-testable.
+LLM Provider reliability, configurable logging, Task domain/UI separation, Collaborator authoring, TaskPublisher, TaskBus execution lifecycle, publish persistence, API publish transport, RawTask/DraftTaskTree authoring persistence, frontend baseline, UI/backend contract baseline, local sidecar API shell, Main Page frontend/backend integration, and fixed-route task execution bridge now have accepted Product 1.0 closure records. Remaining Product 1.0 work should focus on Audit/evidence exposure, confirmation UX hardening, minimal retry/recovery, and release QA. Completion-time `task_after`, Result Packaging cards, routing/assignment foundation, Agent protocol/governance, skills integration, MCP integration, and file/multimodal support are Product 1.1 research capabilities.
 
 For status and routing of each gap, see [Gap Registry](gaps/).
 

@@ -13,6 +13,7 @@ from taskweavn.server.ui_contract.view_models import (
     ConfirmationOptionView as ContractConfirmationOptionView,
 )
 from taskweavn.server.ui_contract.view_models import (
+    ExecutionStatus,
     FileChangeItemView,
     FileChangeSummaryView,
     MessageKind,
@@ -69,8 +70,11 @@ def map_task_node_card(view: task_views.TaskCardView) -> TaskNodeCardView:
         title=view.title,
         summary=view.intent_preview,
         status=map_task_node_status(view.status, confirmation=view.confirmation),
+        execution=map_task_execution_status(view.status),
         depth=view.depth,
         order_index=view.order_index,
+        result_ref=view.result_ref,
+        error_ref=view.error_ref,
         badges=map_task_badges(view.badges),
         permissions=map_task_permissions(view.permissions),
         version=1,
@@ -252,6 +256,14 @@ def map_task_node_status(
     raise ValueError(f"unsupported task view status: {status!r}")
 
 
+def map_task_execution_status(status: task_views.TaskViewStatus) -> ExecutionStatus:
+    if status == "draft":
+        return "not_started"
+    if status in {"pending", "running", "done", "failed", "cancelled"}:
+        return status
+    raise ValueError(f"unsupported task view status: {status!r}")
+
+
 def derive_task_tree_status(nodes: Sequence[TaskNodeCardView]) -> TaskTreeStatus:
     if not nodes:
         return "draft"
@@ -296,6 +308,8 @@ def _task_ref_from_agent_message(message: AgentMessage) -> TaskRef | None:
 
 
 def _agent_message_kind(message: AgentMessage) -> MessageKind:
+    if message.context.get("ui_kind") == "error":
+        return "error"
     if message.message_type == "actionable":
         return "actionable"
     if message.message_type == "response":
@@ -304,10 +318,15 @@ def _agent_message_kind(message: AgentMessage) -> MessageKind:
 
 
 def _agent_message_title(message: AgentMessage, kind: MessageKind) -> str:
+    title = message.context.get("title")
+    if isinstance(title, str) and title.strip():
+        return title.strip()
     if kind == "actionable":
         return "Confirmation required"
     if kind == "response":
         return "User response"
+    if kind == "error":
+        return "Error"
     if message.agent_id == "user":
         return "User message"
     if message.agent_id == "system":

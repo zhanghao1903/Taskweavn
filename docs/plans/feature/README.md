@@ -14,8 +14,9 @@ Feature plans are scoped implementation packets for independent feature sessions
 | [main-page-real-backend-integration-technical-design.zh-CN.md](main-page-real-backend-integration-technical-design.zh-CN.md) | 中文详细技术方案：Main Page backend composition、sidecar app lifecycle、named SSE compatibility 和 dev entrypoint。 |
 | [main-page-frontend-runtime-integration.md](main-page-frontend-runtime-integration.md) | Planned: converge Main Page from fixture-compatible prototype runtime to session snapshot / command response / UiEvent-driven backend facts. |
 | [main-page-frontend-runtime-integration-technical-design.zh-CN.md](main-page-frontend-runtime-integration-technical-design.zh-CN.md) | 中文详细技术方案：Main Page adapter boundary、session-centric query、CommandResponse lifecycle、event router 和 resync loop guard。 |
-| [fixed-route-task-execution-bridge.md](fixed-route-task-execution-bridge.md) | Planned: Product 1.0 fixed-route bridge from TaskBus pending Tasks to resident universal Default Agent execution and complete/fail. |
-| [fixed-route-task-execution-bridge-technical-design.zh-CN.md](fixed-route-task-execution-bridge-technical-design.zh-CN.md) | 中文详细技术方案：常驻万能 Default Agent、TaskBus claim_next、complete/fail 和测试设计。 |
+| [fixed-route-task-execution-bridge.md](fixed-route-task-execution-bridge.md) | In progress: Product 1.0 fixed-route bridge from TaskBus pending Tasks to Task-run Default Agent execution and complete/fail. |
+| [fixed-route-task-execution-bridge-technical-design.zh-CN.md](fixed-route-task-execution-bridge-technical-design.zh-CN.md) | In progress 中文详细技术方案：Task-run Default Agent、TaskBus claim_next、complete/fail 和测试设计。 |
+| [linear-authoring-retry-recovery.md](linear-authoring-retry-recovery.md) | Planned: Product 1.0 default linear authoring shape, dependency-safe sequential execution, minimal manual retry, and retry evidence capture. |
 | [minimal-agent-assignment-semantics.md](minimal-agent-assignment-semantics.md) | Deferred: Product 1.1+ TaskBus-centered assignment facts, Router tick, Agent Manager tick, and stale pending sweep. |
 | [minimal-agent-assignment-semantics-technical-design.zh-CN.md](minimal-agent-assignment-semantics-technical-design.zh-CN.md) | Deferred 中文详细技术方案：assignment 字段、TaskBus API、SQLite、Router、Agent Manager、projection 和测试设计。 |
 | [frontend-api-mock-happy-path.md](frontend-api-mock-happy-path.md) | Deferred: in-memory `PlatoApi` happy path mock for Main/Audit frontend integration. |
@@ -25,6 +26,7 @@ Feature plans are scoped implementation packets for independent feature sessions
 | [publish-persistence-foundation-technical-design.zh-CN.md](publish-persistence-foundation-technical-design.zh-CN.md) | 中文详细技术方案：发布持久化 SQLite schema、store、事务、错误处理和测试设计。 |
 | [raw-task-draft-tree-persistence.md](raw-task-draft-tree-persistence.md) | Done: SQLite RawTask/DraftTaskTree persistence, active authoring state, publish identity alignment, and API command response idempotency for Product 1.0 authoring recovery. |
 | [raw-task-draft-tree-persistence-technical-design.zh-CN.md](raw-task-draft-tree-persistence-technical-design.zh-CN.md) | Implemented 中文详细技术方案：RawTask/DraftTaskTree SQLite schema、store、active state、publish identity、authoring command idempotency 和 API command response idempotency。 |
+| [result-exposure-surface.md](result-exposure-surface.md) | Planned: Product 1.0 result, evidence, audit, and diagnostics exposure boundary for Main Page and Audit Page closure. |
 | [result-packaging-agent-cards.md](result-packaging-agent-cards.md) | Result Packaging Agent and card-based result presentation. |
 | [task-domain-ui-model-separation.md](task-domain-ui-model-separation.md) | Task domain model and UI ViewModel separation. |
 | [task-publishers-schedule-api.md](task-publishers-schedule-api.md) | Done: TaskPublisher abstraction, scheduled publish, API publish, custom task trees, and publish-time pipeline expansion. |

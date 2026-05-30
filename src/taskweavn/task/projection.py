@@ -227,17 +227,17 @@ class DefaultTaskProjectionService:
     # Published projection
     # ------------------------------------------------------------------
 
-    def _published_cards(
-        self, session_id: str, *, root_ref: TaskRef | None
-    ) -> list[TaskCardView]:
+    def _published_cards(self, session_id: str, *, root_ref: TaskRef | None) -> list[TaskCardView]:
         if root_ref is not None and root_ref.kind != "published":
             return []
         tasks = self._task_store.list_for_session(session_id)
         task_by_id = {task.task_id: task for task in tasks}
         children = _children_by_parent(tasks)
-        root_ids = [root_ref.id] if root_ref is not None else [
-            task.task_id for task in _ordered(children[None])
-        ]
+        root_ids = (
+            [root_ref.id]
+            if root_ref is not None
+            else [task.task_id for task in _ordered(children[None])]
+        )
 
         cards: list[TaskCardView] = []
         for root_id in root_ids:
@@ -309,6 +309,8 @@ class DefaultTaskProjectionService:
             status=task.status,
             depth=depth,
             order_index=task.order_index,
+            result_ref=task.result_ref,
+            error_ref=task.error_ref,
             badges=TaskCardBadges(
                 pending_confirmation_count=len(self._confirmations_for_ref(task.session_id, ref)),
                 direct_file_change_count=len(direct_file_changes),
@@ -377,10 +379,28 @@ class DefaultTaskProjectionService:
     ) -> list[TaskFileChangeSummary]:
         if task_ref.kind != "published" or self._file_change_store is None:
             return []
+        if recursive:
+            tasks = self._task_store.list_for_session(session_id)
+            task_ids = [task_ref.id]
+            task_ids.extend(task.task_id for task in _descendants(task_ref.id, tasks))
+            changes: list[TaskFileChangeSummary] = []
+            for task_id in task_ids:
+                direct = self._file_change_store.list_for_task(
+                    session_id,
+                    task_id,
+                    recursive=False,
+                )
+                changes.extend(
+                    change.model_copy(
+                        update={"from_subtree": change.owner_task_ref.id != task_ref.id}
+                    )
+                    for change in direct
+                )
+            return sorted(changes, key=lambda change: (change.recorded_at, change.change_id))
         return self._file_change_store.list_for_task(
             session_id,
             task_ref.id,
-            recursive=recursive,
+            recursive=False,
         )
 
     def _summary_for_ref(self, session_id: str, task_ref: TaskRef) -> TaskSummaryView | None:
@@ -509,9 +529,7 @@ def _message_to_view(message: AgentMessage, task_ref: TaskRef) -> SessionMessage
     )
 
 
-def _actionable_to_confirmation(
-    message: AgentMessage, task_ref: TaskRef
-) -> ConfirmationActionView:
+def _actionable_to_confirmation(message: AgentMessage, task_ref: TaskRef) -> ConfirmationActionView:
     options = tuple(
         ConfirmationOptionView(option_id=option, label=option, value=option)
         for option in message.action_options

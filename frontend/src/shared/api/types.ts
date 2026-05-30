@@ -265,6 +265,8 @@ export type TaskNodeCardView = {
   execution?: ExecutionStatus;
   confirmation?: ConfirmationStatus | null;
   auditVerdict?: AuditVerdict;
+  resultRef?: string | null;
+  errorRef?: string | null;
   depth: number;
   orderIndex: number;
   badges: TaskNodeBadges;

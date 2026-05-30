@@ -1,30 +1,42 @@
 # Feature Plan: Main Page Real Backend Integration
 
-> Status: in_progress
-> Last Updated: 2026-05-21
+> Status: done / accepted
+> Last Updated: 2026-05-30
 > Gap: [Main Page real backend integration](../../gaps/README.md)
 > Architecture: [UI And Backend Communication](../../architecture/ui-backend-communication.md), [Task Domain/UI Model Separation](../../architecture/task-domain-ui-model-separation.md), [Authoring Domain](../../architecture/authoring-domain.md), [Bus V2](../../architecture/bus-v2.md)
 > Product: [Plato Main Page UX Flow](../../product/plato-main-page-ux-flow.md), [Plato UI API Contract](../../product/plato-ui-api-contract.md), [Plato Frontend Technical Design](../../product/plato-frontend-technical-design.md)
 > Technical Design: [中文详细技术方案](main-page-real-backend-integration-technical-design.zh-CN.md)
 > Frontend Runtime Subplan: [Main Page Frontend Runtime Integration](main-page-frontend-runtime-integration.md)
-> Release Record: TBD
+> Release Record: [Main Page Frontend Runtime Integration](../../releases/main-page-frontend-runtime-integration.md)
 
 ---
 
 ## 1. Problem / Gap
 
-Plato now has four important foundations:
+Plato now has the Main Page frontend/backend integration path accepted for
+Product 1.0. The original foundations were:
 
 - a task-first Main Page frontend with mock scenarios and an HTTP adapter;
 - a backend UI contract package with query, command, event, and error envelopes;
 - a local sidecar API shell that can serve HTTP/SSE routes over `UiQueryGateway`, `UiCommandGateway`, and `UiEventSource`;
 - a composed Main Page sidecar application that wires session registry, message stream, TaskBus, authoring services, gateways, HTTP transport, and CLI startup together.
 
-The remaining gap is no longer just backend composition. The current gap is the
-**frontend runtime convergence** from fixture-driven prototype behavior to real
-backend facts.
+Acceptance update on 2026-05-30:
 
-Today the frontend can switch to HTTP mode and a local sidecar target exists. But Main Page still has several prototype-era seams:
+- frontend runtime convergence from fixture-driven behavior to session snapshot /
+  command / event semantics is accepted;
+- durable RawTask/DraftTaskTree persistence and publish identity alignment are
+  in place;
+- fixed-route execution trigger, result/error summaries, execution
+  MessageStream projection, Main Page result/error projection, and deterministic
+  file summary projection are in place;
+- sidecar HTTP user-path smoke has passed.
+
+The remaining items are follow-up gaps: browser/Electron smoke, richer UX
+polish, Audit evidence/detail, durable event replay, and Product 1.1 runtime
+extensions.
+
+Earlier versions of this plan identified these prototype-era seams:
 
 - the page query key and UI state still center on the 9-state fixture `stateId`;
 - `StatePicker` is still visible in the product page shell;
@@ -32,7 +44,9 @@ Today the frontend can switch to HTTP mode and a local sidecar target exists. Bu
 - Main Page handles only `message.appended` and `session.resync_required`, while the low-level client can already receive all canonical named `UiEventType` events;
 - current `message.appended` page handling expects `title/body/kind` in event payload, but the backend event contract is intentionally lighter and points to message ids / affected facts.
 
-Without this final convergence, Main Page can connect to the sidecar but still behaves like an HTTP-capable mock prototype rather than a fully backend-driven product page.
+These seams have since been addressed enough for Product 1.0 integration
+acceptance. Remaining improvements should be tracked as follow-up UX/runtime
+hardening, not as blockers for this plan.
 
 ---
 
@@ -51,11 +65,13 @@ In scope:
 7. Frontend runtime convergence from fixture-centric state to session snapshot / command / event semantics.
 8. Documentation updates for the gap, roadmap, and release when complete.
 
-Out of scope:
+Originally out of scope for this plan:
 
-- durable RawTask/DraftTaskTree stores;
+- durable RawTask/DraftTaskTree stores, later closed by the authoring
+  persistence workstream;
 - durable SSE replay;
-- TaskBus claim/execute/complete/fail lifecycle;
+- TaskBus claim/execute/complete/fail lifecycle, later closed for the fixed-route
+  Product 1.0 path;
 - packaging and Electron process ownership;
 - multi-session UI creation flows;
 - production auth and token lifecycle;
@@ -419,8 +435,11 @@ Full validation:
   - `uv run mypy src tests` — passed
   - `uv run pytest` — 765 passed
 
-Remaining before this plan can be marked done:
+Accepted closure on 2026-05-30:
 
-- complete or explicitly split out frontend runtime convergence from fixture-centric behavior to session snapshot / event invalidation behavior;
-- decide whether a manual Vite-to-sidecar smoke is enough for acceptance, or add an automated browser smoke around the sidecar;
-- add release record when accepted.
+- frontend runtime convergence from fixture-centric behavior to session snapshot /
+  event invalidation behavior is accepted;
+- sidecar HTTP user-path smoke is accepted as sufficient integration evidence
+  for this plan;
+- the release record is published;
+- browser/Electron smoke remains Product 1.0 QA follow-up.

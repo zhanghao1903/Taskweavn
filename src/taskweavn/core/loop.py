@@ -237,19 +237,20 @@ class AgentLoop:
         # for an operator to inspect.
         self._pending_decisions: list[_PendingDecision] = []
 
-    def run(self, task: str) -> LoopResult:
+    def run(self, task: str, *, task_id: str | None = None) -> LoopResult:
         """Execute the loop on a single user task. Synchronous, single-threaded.
 
         Stateful tools allocate per-task resources via :meth:`Tool.startup`;
         teardown happens in ``finally`` so a partially-started tool still gets
         a chance to clean up.
 
-        A fresh ``task_id`` (uuid4) is minted for every call. It propagates to
-        the EventStream (when the impl accepts the kwarg) and to every
-        AgentMessage the loop publishes, so an ops UI can reconstruct exactly
-        the events/messages produced by *this* invocation.
+        A fresh ``task_id`` (uuid4) is minted for every call unless the caller
+        supplies a domain task id. It propagates to the EventStream (when the
+        impl accepts the kwarg) and to every AgentMessage the loop publishes,
+        so an ops UI can reconstruct exactly the events/messages produced by
+        *this* invocation.
         """
-        self._current_task_id = uuid4().hex
+        self._current_task_id = task_id or uuid4().hex
         # A fresh queue per ``run()`` — leftovers from a previous task have
         # no business resolving against this one.
         self._pending_decisions = []
@@ -259,9 +260,7 @@ class AgentLoop:
                     session_id=self.session_id,
                     task_id=self._current_task_id,
                     workspace_root=(
-                        str(self.workspace_root)
-                        if self.workspace_root is not None
-                        else None
+                        str(self.workspace_root) if self.workspace_root is not None else None
                     ),
                 )
             ):
@@ -274,9 +273,7 @@ class AgentLoop:
                     session_id=self.session_id,
                     task_id=self._current_task_id,
                     workspace_root=(
-                        str(self.workspace_root)
-                        if self.workspace_root is not None
-                        else None
+                        str(self.workspace_root) if self.workspace_root is not None else None
                     ),
                 )
             ):
@@ -371,9 +368,7 @@ class AgentLoop:
                     assert dispatch.skip_observation is not None
                     self._append_event(action)
                     self._append_event(dispatch.skip_observation)
-                    messages.append(
-                        self._tool_message(tool_call.id, dispatch.skip_observation)
-                    )
+                    messages.append(self._tool_message(tool_call.id, dispatch.skip_observation))
                     continue
                 if dispatch.kind == "defer":
                     assert dispatch.deferred_actionable_id is not None
@@ -544,9 +539,7 @@ class AgentLoop:
         resolved = 0
         still_pending: list[_PendingDecision] = []
         for pending in self._pending_decisions:
-            response = self.bus.wait_for_response(
-                pending.actionable_message_id, timeout=0
-            )
+            response = self.bus.wait_for_response(pending.actionable_message_id, timeout=0)
             if response is None:
                 still_pending.append(pending)
                 continue
@@ -673,9 +666,7 @@ class AgentLoop:
             kwargs = parse_tool_arguments(tool_call.arguments)
             action = AgentFinishAction(**kwargs)
         except (ValueError, ValidationError) as exc:
-            action = AgentFinishAction(
-                final_answer=f"(failed to parse finish arguments: {exc})"
-            )
+            action = AgentFinishAction(final_answer=f"(failed to parse finish arguments: {exc})")
         observation = AgentFinishObservation(
             action_id=action.event_id,
             final_answer=action.final_answer,
@@ -776,9 +767,7 @@ class AgentLoop:
             return
         audit = self.auditor.audit(action, observation)
         self._append_event(audit)
-        messages.append(
-            {"role": "system", "content": render_audit_system_message(audit)}
-        )
+        messages.append({"role": "system", "content": render_audit_system_message(audit)})
 
 
 # ---------------------------------------------------------------------------

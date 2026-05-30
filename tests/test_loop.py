@@ -9,6 +9,7 @@ from typing import Any
 
 import pytest
 
+from taskweavn.core import SqliteEventStream
 from taskweavn.core.loop import FINISH_TOOL_NAME, AgentLoop, LoopError
 from taskweavn.llm.client import ChatResponse, ToolCall
 from taskweavn.runtime import LocalRuntime
@@ -224,6 +225,50 @@ def test_loop_executes_tool_then_finishes(workspace: Workspace) -> None:
     assert "bytes_written" in tool_msgs[0]["content"]
 
 
+def test_loop_tags_sqlite_events_with_supplied_task_id(
+    workspace: Workspace,
+    tmp_path: Path,
+) -> None:
+    from taskweavn.tools.base import Tool
+
+    llm = StubLLM(
+        [
+            _tool_call_response(
+                "write_file",
+                {"path": "hello.txt", "content": "hi"},
+                call_id="c1",
+            ),
+            _finish_response("wrote hello.txt", call_id="c2"),
+        ]
+    )
+    runtime = LocalRuntime()
+    tools: list[Tool[Any, Any]] = [
+        ReadFileTool(workspace),
+        WriteFileTool(workspace),
+    ]
+    for tool in tools:
+        tool.register(runtime)
+
+    with SqliteEventStream(tmp_path / "events.sqlite") as event_stream:
+        loop = AgentLoop(
+            llm=llm,  # type: ignore[arg-type]
+            runtime=runtime,
+            tools=tools,
+            event_stream=event_stream,
+        )
+
+        loop.run("write hello.txt", task_id="published-task-1")
+
+        task_events = list(event_stream.iter_for_task("published-task-1"))
+
+    assert [type(event).__name__ for event in task_events] == [
+        "WriteFileAction",
+        "FileWriteObservation",
+        "AgentFinishAction",
+        "AgentFinishObservation",
+    ]
+
+
 def test_loop_unknown_tool_yields_error_observation(workspace: Workspace) -> None:
     llm = StubLLM(
         [
@@ -261,9 +306,7 @@ def test_loop_invalid_arguments_yield_error_observation(
 
 def test_loop_respects_max_steps(workspace: Workspace) -> None:
     # Three identical write calls but max_steps=2 — should stop without finishing.
-    response = _tool_call_response(
-        "write_file", {"path": "a.txt", "content": "a"}, call_id="c"
-    )
+    response = _tool_call_response("write_file", {"path": "a.txt", "content": "a"}, call_id="c")
     llm = StubLLM([response, response, response])
     loop = _build_loop(workspace, llm, max_steps=2)
     result = loop.run("loop forever")
@@ -523,9 +566,7 @@ def test_loop_passes_tool_schemas_to_llm(workspace: Workspace) -> None:
     assert "write_file" in names
     assert FINISH_TOOL_NAME in names
     # event_id / timestamp / source must be hidden from the model.
-    write_schema = next(
-        t for t in tools_arg if t["function"]["name"] == "write_file"
-    )
+    write_schema = next(t for t in tools_arg if t["function"]["name"] == "write_file")
     properties = write_schema["function"]["parameters"]["properties"]
     assert "event_id" not in properties
     assert "timestamp" not in properties

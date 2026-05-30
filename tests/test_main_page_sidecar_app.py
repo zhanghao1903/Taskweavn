@@ -4,12 +4,15 @@ from __future__ import annotations
 
 import http.client
 import json
+import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, cast
 
 import pytest
 
 from taskweavn.core import SessionManager, SessionManagerError, WorkspaceLayout
+from taskweavn.llm.contracts import ChatResponse, ToolCall
 from taskweavn.server import (
     DEFAULT_PLATO_SIDECAR_PORT,
     MainPageSidecarConfig,
@@ -17,7 +20,15 @@ from taskweavn.server import (
     MainPageTaskRefResolver,
     build_main_page_sidecar_app,
 )
-from taskweavn.task import DraftTaskNode, InMemoryDraftTaskStore, SqliteTaskBus, TaskRef
+from taskweavn.task import (
+    DraftTaskNode,
+    InMemoryDraftTaskStore,
+    SqliteTaskBus,
+    SqliteTaskExecutionSummaryStore,
+    TaskDomain,
+    TaskRef,
+    TaskRunResult,
+)
 
 
 def test_main_page_sidecar_config_uses_stable_dev_port_by_default(
@@ -154,9 +165,7 @@ def test_main_page_sidecar_app_routes_session_input_to_real_services(tmp_path: A
     assert command.json["result"]["status"] == "accepted"
     assert raw_tasks[0].intent_summary == "Build a quiet website"
     assert snapshot.json["data"]["session"]["status"] == "understanding"
-    assert snapshot.json["data"]["messages"][0]["body"] == (
-        "Build a quiet personal website."
-    )
+    assert snapshot.json["data"]["messages"][0]["body"] == ("Build a quiet personal website.")
 
 
 def test_main_page_sidecar_app_generates_task_tree_from_prompt(tmp_path: Any) -> None:
@@ -369,9 +378,7 @@ def test_main_page_sidecar_app_recovers_draft_tree_after_restart_and_publishes(
     assert duplicate_generate.json["ok"] is True
     assert duplicate_generate.json == generate.json
     assert replay_llm.calls == 0
-    assert recovered_snapshot.json["data"]["taskTree"]["nodes"][0]["title"] == (
-        "Plan structure"
-    )
+    assert recovered_snapshot.json["data"]["taskTree"]["nodes"][0]["title"] == ("Plan structure")
     assert publish.status == 200
     assert publish.json["ok"] is True
     assert {"kind": "draft_tree", "id": active_before_restart.active_draft_tree_id} in (
@@ -382,10 +389,330 @@ def test_main_page_sidecar_app_recovers_draft_tree_after_restart_and_publishes(
     assert len(published_tasks) == 1
     assert duplicate_publish.status == 200
     assert duplicate_publish.json["ok"] is True
-    assert duplicate_publish.json["result"]["publishedTaskIds"] == (
-        publish.json["result"]["publishedTaskIds"]
+    assert (
+        duplicate_publish.json["result"]["publishedTaskIds"]
+        == (publish.json["result"]["publishedTaskIds"])
     )
     assert len(replayed_tasks) == 1
+
+
+def test_main_page_sidecar_app_runs_fixed_route_tick_after_publish(
+    tmp_path: Any,
+) -> None:
+    app = build_main_page_sidecar_app(
+        MainPageSidecarConfig(workspace_root=tmp_path, port=0),
+        MainPageSidecarDependencies(
+            llm=_StubLLM(
+                [
+                    """
+                    {
+                      "intent_summary": "Build a quiet website",
+                      "feasibility": {
+                        "status": "ready",
+                        "confidence": 0.95,
+                        "suggested_next_action": "generate_task_tree"
+                      }
+                    }
+                    """,
+                    """
+                    {
+                      "assistant_message": "Drafted the first TaskTree.",
+                      "roots": [
+                        {
+                          "title": "Plan structure",
+                          "intent": "Plan the website structure.",
+                          "required_capability": "general"
+                        }
+                      ]
+                    }
+                    """,
+                ]
+            ),
+            default_agent=_FakeDefaultAgent(TaskRunResult(result_ref="result:plan")),
+        ),
+    )
+    try:
+        session_id = _create_session(app)
+        generate = _request(
+            app,
+            "POST",
+            f"/api/v1/sessions/{session_id}/task-tree/generate",
+            body={
+                "commandId": "generate-executable",
+                "sessionId": session_id,
+                "payload": {"prompt": "Build a quiet personal website."},
+            },
+        )
+        publish = _request(
+            app,
+            "POST",
+            f"/api/v1/sessions/{session_id}/task-tree/publish",
+            body={
+                "commandId": "publish-executable",
+                "sessionId": session_id,
+                "payload": {"startImmediately": False},
+            },
+        )
+        pending_tasks = app.task_bus.list_for_session(session_id)
+        tick = app.run_fixed_route_tick(session_id)
+        done_tasks = app.task_bus.list_for_session(session_id)
+        snapshot = _request(app, "GET", f"/api/v1/sessions/{session_id}/snapshot")
+    finally:
+        app.close()
+
+    assert generate.status == 200
+    assert publish.status == 200
+    assert [task.status for task in pending_tasks] == ["pending"]
+    assert tick.status == "completed"
+    assert tick.completed_task_id == pending_tasks[0].task_id
+    assert tick.result_ref == "result:plan"
+    assert done_tasks[0].status == "done"
+    assert done_tasks[0].claimed_by == "default_agent"
+    assert done_tasks[0].result_ref == "result:plan"
+    snapshot_node = snapshot.json["data"]["taskTree"]["nodes"][0]
+    assert snapshot_node["status"] == "done"
+    assert snapshot_node["execution"] == "done"
+    assert snapshot_node["resultRef"] == "result:plan"
+    assert snapshot_node["errorRef"] is None
+    assert snapshot.json["data"]["result"]["summary"] == (
+        "Task completed. Result reference: result:plan."
+    )
+    assert any(
+        message["title"] == "Task completed"
+        and message["body"] == "Task completed. Result reference: result:plan."
+        for message in snapshot.json["data"]["messages"]
+    )
+
+
+def test_main_page_sidecar_app_publish_start_immediately_dispatches_background_execution(
+    tmp_path: Any,
+) -> None:
+    app = build_main_page_sidecar_app(
+        MainPageSidecarConfig(workspace_root=tmp_path, port=0),
+        MainPageSidecarDependencies(
+            llm=_StubLLM(
+                [
+                    """
+                    {
+                      "intent_summary": "Build a quiet website",
+                      "feasibility": {
+                        "status": "ready",
+                        "confidence": 0.95,
+                        "suggested_next_action": "generate_task_tree"
+                      }
+                    }
+                    """,
+                    """
+                    {
+                      "assistant_message": "Drafted the first TaskTree.",
+                      "roots": [
+                        {
+                          "title": "Plan structure",
+                          "intent": "Plan the website structure.",
+                          "required_capability": "general"
+                        }
+                      ]
+                    }
+                    """,
+                ]
+            ),
+            default_agent=_FakeDefaultAgent(TaskRunResult(result_ref="result:plan")),
+        ),
+    )
+    try:
+        session_id = _create_session(app)
+        generate = _request(
+            app,
+            "POST",
+            f"/api/v1/sessions/{session_id}/task-tree/generate",
+            body={
+                "commandId": "generate-auto-executable",
+                "sessionId": session_id,
+                "payload": {"prompt": "Build a quiet personal website."},
+            },
+        )
+        publish = _request(
+            app,
+            "POST",
+            f"/api/v1/sessions/{session_id}/task-tree/publish",
+            body={
+                "commandId": "publish-auto-executable",
+                "sessionId": session_id,
+                "payload": {},
+            },
+        )
+        assert _wait_for(lambda: _first_task_status(app, session_id) == "done")
+        snapshot = _request(app, "GET", f"/api/v1/sessions/{session_id}/snapshot")
+    finally:
+        app.close()
+
+    assert generate.status == 200
+    assert publish.status == 200
+    assert publish.json["ok"] is True
+    assert publish.json["result"]["debugRefs"]["dispatchStatus"] == "queued"
+    snapshot_node = snapshot.json["data"]["taskTree"]["nodes"][0]
+    assert snapshot_node["execution"] == "done"
+    assert snapshot_node["resultRef"] == "result:plan"
+    assert snapshot.json["data"]["result"]["summary"] == (
+        "Task completed. Result reference: result:plan."
+    )
+
+
+def test_main_page_sidecar_app_fixed_route_tick_failure_path(tmp_path: Any) -> None:
+    app = build_main_page_sidecar_app(
+        MainPageSidecarConfig(workspace_root=tmp_path, port=0),
+        MainPageSidecarDependencies(
+            llm=_StubLLM(),
+            default_agent=_FakeDefaultAgent(TaskRunResult(error_ref="agent:error")),
+        ),
+    )
+    try:
+        session_id = _create_session(app)
+        app.task_bus.publish(_published_task("failing-task", session_id=session_id))
+
+        tick = app.run_fixed_route_tick(session_id)
+        task = app.task_bus.get(session_id, "failing-task")
+        snapshot = _request(app, "GET", f"/api/v1/sessions/{session_id}/snapshot")
+    finally:
+        app.close()
+
+    assert tick.status == "failed"
+    assert tick.failed_task_id == "failing-task"
+    assert tick.error_ref == "agent:error"
+    assert task is not None
+    assert task.status == "failed"
+    assert task.error_ref == "agent:error"
+    snapshot_node = snapshot.json["data"]["taskTree"]["nodes"][0]
+    assert snapshot_node["status"] == "failed"
+    assert snapshot_node["execution"] == "failed"
+    assert snapshot_node["resultRef"] is None
+    assert snapshot_node["errorRef"] == "agent:error"
+    assert snapshot.json["data"]["result"]["summary"] == (
+        "Task execution failed. Error reference: agent:error."
+    )
+    assert snapshot.json["data"]["result"]["sections"][0]["title"] == "Failure reason"
+    assert any(
+        message["kind"] == "error" and message["title"] == "Task failed"
+        for message in snapshot.json["data"]["messages"]
+    )
+
+
+def test_main_page_sidecar_app_fixed_route_tick_runs_agent_loop_default_agent(
+    tmp_path: Any,
+) -> None:
+    llm = _AgentLoopLLM("Loop completed.")
+    app = build_main_page_sidecar_app(
+        MainPageSidecarConfig(workspace_root=tmp_path, port=0),
+        MainPageSidecarDependencies(llm=llm),
+    )
+    try:
+        session_id = _create_session(app)
+        app.task_bus.publish(_published_task("loop-task", session_id=session_id))
+
+        tick = app.run_fixed_route_tick(session_id)
+        task = app.task_bus.get(session_id, "loop-task")
+        events_db = WorkspaceLayout(tmp_path).session_events_db(session_id)
+        result_ref = tick.result_ref
+        snapshot = _request(app, "GET", f"/api/v1/sessions/{session_id}/snapshot")
+    finally:
+        app.close()
+
+    assert tick.status == "completed"
+    assert tick.result_ref == f"agent_loop:{session_id}:loop-task:no_tool_calls"
+    assert task is not None
+    assert task.status == "done"
+    assert task.result_ref == f"agent_loop:{session_id}:loop-task:no_tool_calls"
+    assert llm.calls[0]["messages"][1]["content"] == "Run loop-task"
+    assert events_db.exists()
+    assert result_ref is not None
+    with SqliteTaskExecutionSummaryStore(WorkspaceLayout(tmp_path).workspace_results_db) as store:
+        summary = store.get(result_ref)
+    assert summary is not None
+    assert summary.kind == "result"
+    assert summary.summary == "Loop completed."
+    assert snapshot.json["data"]["result"]["summary"] == "Loop completed."
+    assert any(
+        message["title"] == "Task completed" and message["body"] == "Loop completed."
+        for message in snapshot.json["data"]["messages"]
+    )
+
+
+def test_main_page_sidecar_app_projects_file_change_summary_from_agent_loop_events(
+    tmp_path: Any,
+) -> None:
+    llm = _AgentLoopSequencedLLM(
+        [
+            _agent_loop_tool_call_response(
+                "write_file",
+                {"path": "notes/result.md", "content": "done"},
+                call_id="write-1",
+            ),
+            ChatResponse(
+                content="Loop completed.",
+                tool_calls=[],
+                raw_assistant_message={
+                    "role": "assistant",
+                    "content": "Loop completed.",
+                },
+            ),
+        ]
+    )
+    app = build_main_page_sidecar_app(
+        MainPageSidecarConfig(workspace_root=tmp_path, port=0),
+        MainPageSidecarDependencies(llm=llm),
+    )
+    try:
+        session_id = _create_session(app)
+        app.task_bus.publish(_published_task("loop-file-task", session_id=session_id))
+
+        tick = app.run_fixed_route_tick(session_id)
+        snapshot = _request(app, "GET", f"/api/v1/sessions/{session_id}/snapshot")
+    finally:
+        app.close()
+
+    assert tick.status == "completed"
+    assert tick.completed_task_id == "loop-file-task"
+    assert snapshot.json["data"]["fileChangeSummary"] is not None
+    file_summary = snapshot.json["data"]["fileChangeSummary"]
+    assert file_summary["taskNodeId"] == "loop-file-task"
+    assert file_summary["summary"] == "1 file changed."
+    assert file_summary["changedFiles"] == [
+        {
+            "path": "notes/result.md",
+            "changeType": "created",
+            "summary": "Created notes/result.md (4 bytes written).",
+            "ownerTaskNodeId": "loop-file-task",
+        }
+    ]
+    assert snapshot.json["data"]["result"]["summary"] == "Loop completed."
+    assert llm.calls[0]["messages"][1]["content"] == "Run loop-file-task"
+
+
+def test_main_page_sidecar_app_fixed_route_tick_reports_missing_default_agent(
+    tmp_path: Any,
+) -> None:
+    app = build_main_page_sidecar_app(
+        MainPageSidecarConfig(
+            workspace_root=tmp_path,
+            port=0,
+            enable_default_agent=False,
+        ),
+        MainPageSidecarDependencies(llm=_StubLLM()),
+    )
+    try:
+        session_id = _create_session(app)
+        app.task_bus.publish(_published_task("waiting-task", session_id=session_id))
+
+        tick = app.run_fixed_route_tick(session_id)
+        task = app.task_bus.get(session_id, "waiting-task")
+    finally:
+        app.close()
+
+    assert tick.status == "health_error"
+    assert tick.error_ref == "default_agent_unavailable"
+    assert task is not None
+    assert task.status == "pending"
+    assert task.claimed_by is None
 
 
 def test_main_page_sidecar_app_writes_frontend_error_log_file(tmp_path: Any) -> None:
@@ -408,10 +735,7 @@ def test_main_page_sidecar_app_writes_frontend_error_log_file(tmp_path: Any) -> 
                 }
             },
         )
-        log_path = (
-            WorkspaceLayout(tmp_path).session_logs_dir(session_id)
-            / "frontend-errors.jsonl"
-        )
+        log_path = WorkspaceLayout(tmp_path).session_logs_dir(session_id) / "frontend-errors.jsonl"
         rows = [json.loads(line) for line in log_path.read_text().splitlines()]
     finally:
         app.close()
@@ -488,6 +812,98 @@ class _StubLLM:
         )
 
 
+class _AgentLoopLLM:
+    def __init__(self, final_answer: str) -> None:
+        self.final_answer = final_answer
+        self.calls: list[dict[str, Any]] = []
+
+    def chat(
+        self,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]] | None = None,
+        *,
+        metadata: dict[str, Any] | None = None,
+    ) -> ChatResponse:
+        self.calls.append(
+            {
+                "messages": list(messages),
+                "tools": tools,
+                "metadata": metadata,
+            }
+        )
+        return ChatResponse(
+            content=self.final_answer,
+            tool_calls=[],
+            raw_assistant_message={
+                "role": "assistant",
+                "content": self.final_answer,
+            },
+        )
+
+
+class _AgentLoopSequencedLLM:
+    def __init__(self, responses: list[ChatResponse]) -> None:
+        self._responses = list(responses)
+        self.calls: list[dict[str, Any]] = []
+
+    def chat(
+        self,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]] | None = None,
+        *,
+        metadata: dict[str, Any] | None = None,
+    ) -> ChatResponse:
+        self.calls.append(
+            {
+                "messages": list(messages),
+                "tools": tools,
+                "metadata": metadata,
+            }
+        )
+        if not self._responses:
+            raise AssertionError("_AgentLoopSequencedLLM ran out of responses")
+        return self._responses.pop(0)
+
+
+def _agent_loop_tool_call_response(
+    tool_name: str,
+    arguments: dict[str, Any],
+    *,
+    call_id: str,
+) -> ChatResponse:
+    raw_arguments = json.dumps(arguments)
+    return ChatResponse(
+        content="",
+        tool_calls=[ToolCall(id=call_id, name=tool_name, arguments=raw_arguments)],
+        raw_assistant_message={
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+                {
+                    "id": call_id,
+                    "type": "function",
+                    "function": {
+                        "name": tool_name,
+                        "arguments": raw_arguments,
+                    },
+                }
+            ],
+        },
+    )
+
+
+@dataclass
+class _FakeDefaultAgent:
+    result: TaskRunResult
+    seen: list[str] | None = None
+
+    def run(self, task: TaskDomain) -> TaskRunResult:
+        if self.seen is None:
+            self.seen = []
+        self.seen.append(task.task_id)
+        return self.result
+
+
 @dataclass(frozen=True)
 class _LLMResponse:
     content: str
@@ -517,3 +933,28 @@ def _request(
 def _create_session(app: Any, name: str = "Demo session") -> str:
     response = _request(app, "POST", "/api/v1/sessions", body={"name": name})
     return cast(str, response.json["data"]["sessionId"])
+
+
+def _published_task(task_id: str, *, session_id: str) -> TaskDomain:
+    return TaskDomain(
+        task_id=task_id,
+        session_id=session_id,
+        root_id=task_id,
+        intent=f"Run {task_id}",
+        required_capability="general",
+        created_by="test",
+    )
+
+
+def _wait_for(predicate: Callable[[], bool], *, timeout: float = 2.0) -> bool:
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if predicate():
+            return True
+        time.sleep(0.01)
+    return bool(predicate())
+
+
+def _first_task_status(app: Any, session_id: str) -> str | None:
+    tasks = app.task_bus.list_for_session(session_id)
+    return None if not tasks else tasks[0].status

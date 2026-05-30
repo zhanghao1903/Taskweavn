@@ -30,6 +30,15 @@ TaskNodeStatus = Literal[
     "failed",
     "cancelled",
 ]
+ExecutionStatus = Literal[
+    "not_started",
+    "pending",
+    "running",
+    "done",
+    "failed",
+    "cancelled",
+    "unknown",
+]
 MessageKind = Literal["informational", "actionable", "response", "error"]
 
 
@@ -91,8 +100,11 @@ class TaskNodeCardView(UiContractModel):
     title: str = Field(min_length=1)
     summary: str = Field(min_length=1)
     status: TaskNodeStatus
+    execution: ExecutionStatus = "unknown"
     depth: int = Field(default=0, ge=0)
     order_index: int = Field(default=0, ge=0)
+    result_ref: str | None = Field(default=None, min_length=1)
+    error_ref: str | None = Field(default=None, min_length=1)
     badges: TaskNodeBadges = Field(default_factory=TaskNodeBadges)
     permissions: TaskNodePermissions = Field(default_factory=TaskNodePermissions)
     version: int = Field(default=1, ge=1)

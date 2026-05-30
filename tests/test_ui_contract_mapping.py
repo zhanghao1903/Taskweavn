@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from taskweavn.interaction import AgentMessage
 from taskweavn.server.ui_contract import (
     derive_task_tree_status,
+    map_agent_message_view,
     map_confirmation_action_view,
     map_file_change_summary_view,
     map_result_card_view,
@@ -31,6 +33,8 @@ def _published_card(
     depth: int = 0,
     status: str = "pending",
     confirmation: ConfirmationActionView | None = None,
+    result_ref: str | None = None,
+    error_ref: str | None = None,
 ) -> TaskCardView:
     ref = TaskRef.published(task_id)
     return TaskCardView(
@@ -42,6 +46,8 @@ def _published_card(
         status=status,  # type: ignore[arg-type]
         depth=depth,
         order_index=depth,
+        result_ref=result_ref,
+        error_ref=error_ref,
         badges=TaskCardBadges(
             pending_confirmation_count=1 if confirmation is not None else 0,
             unread_message_count=2,
@@ -69,9 +75,52 @@ def test_map_task_tree_uses_synthetic_projection_id_and_flat_nodes() -> None:
     assert mapped.status == "published"
     assert payload["nodes"][0]["id"] == "root"
     assert payload["nodes"][0]["status"] == "queued"
+    assert payload["nodes"][0]["execution"] == "pending"
     assert payload["nodes"][1]["parentId"] == "root"
     assert payload["nodes"][0]["badges"]["subtreeFileChangeCount"] == 3
     assert payload["nodes"][0]["permissions"]["canCancel"] is True
+
+
+def test_map_task_node_preserves_canonical_execution_status() -> None:
+    source = TaskTreeView(
+        session_id="session-1",
+        nodes=(
+            _published_card("pending-task", status="pending"),
+            _published_card("running-task", status="running"),
+            _published_card("done-task", status="done"),
+            _published_card("failed-task", status="failed"),
+        ),
+    )
+
+    payload = map_task_tree_view(source).model_dump(mode="json")
+
+    assert [node["status"] for node in payload["nodes"]] == [
+        "queued",
+        "running",
+        "done",
+        "failed",
+    ]
+    assert [node["execution"] for node in payload["nodes"]] == [
+        "pending",
+        "running",
+        "done",
+        "failed",
+    ]
+
+
+def test_map_task_node_preserves_execution_result_and_error_refs() -> None:
+    done = _published_card("done-task", status="done", result_ref="result:done-task")
+    failed = _published_card("failed-task", status="failed", error_ref="error:failed-task")
+    source = TaskTreeView(session_id="session-1", nodes=(done, failed))
+
+    payload = map_task_tree_view(source).model_dump(mode="json")
+
+    assert payload["nodes"][0]["status"] == "done"
+    assert payload["nodes"][0]["resultRef"] == "result:done-task"
+    assert payload["nodes"][0]["errorRef"] is None
+    assert payload["nodes"][1]["status"] == "failed"
+    assert payload["nodes"][1]["resultRef"] is None
+    assert payload["nodes"][1]["errorRef"] == "error:failed-task"
 
 
 def test_map_task_node_with_pending_confirmation_becomes_waiting_user() -> None:
@@ -185,6 +234,27 @@ def test_map_result_card_adds_failure_followup_and_artifact_sections() -> None:
         "Follow-up suggestions",
         "Artifacts",
     ]
+
+
+def test_map_agent_message_uses_execution_context_title_and_error_kind() -> None:
+    message = AgentMessage(
+        session_id="session-1",
+        task_id="task-1",
+        message_type="informational",
+        content="Task execution failed.",
+        context={
+            "task_ref_kind": "published",
+            "title": "Task failed",
+            "ui_kind": "error",
+        },
+    )
+
+    mapped = map_agent_message_view(message)
+
+    assert mapped.kind == "error"
+    assert mapped.title == "Task failed"
+    assert mapped.task_node_id == "task-1"
+    assert mapped.body == "Task execution failed."
 
 
 def test_derive_task_tree_status_priority() -> None:

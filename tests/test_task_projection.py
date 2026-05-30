@@ -289,6 +289,8 @@ def _task(
     parent_id: str | None = None,
     order: int = 0,
     status: str = "pending",
+    result_ref: str | None = None,
+    error_ref: str | None = None,
 ) -> TaskDomain:
     root_id = task_id if parent_id is None else "root"
     return TaskDomain(
@@ -301,6 +303,8 @@ def _task(
         required_capability="general",
         created_by="user",
         status=status,  # type: ignore[arg-type]
+        result_ref=result_ref,
+        error_ref=error_ref,
     )
 
 
@@ -432,6 +436,24 @@ def test_published_permissions_follow_status() -> None:
     assert running.permissions.can_append_guidance is True
     assert done.permissions.readonly_reason == "task is done"
     assert failed.permissions.can_retry is True
+
+
+def test_published_projection_preserves_result_and_error_refs() -> None:
+    tasks = [
+        _task("done", status="done", result_ref="result:done"),
+        _task("failed", status="failed", error_ref="error:failed"),
+    ]
+    service = DefaultTaskProjectionService(task_store=_TaskStore(tasks))
+
+    done = service.get_task_card("s1", TaskRef.published("done"))
+    failed = service.get_task_card("s1", TaskRef.published("failed"))
+
+    assert done.status == "done"
+    assert done.result_ref == "result:done"
+    assert done.error_ref is None
+    assert failed.status == "failed"
+    assert failed.result_ref is None
+    assert failed.error_ref == "error:failed"
 
 
 def test_projection_aggregates_messages_confirmations_files_and_summary() -> None:

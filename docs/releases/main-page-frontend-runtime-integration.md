@@ -1,7 +1,7 @@
-# Checkpoint: Main Page Frontend Runtime Integration
+# Release: Main Page Frontend Runtime Integration
 
-> Status: checkpoint / gap still open
-> Date: 2026-05-21
+> Status: done / accepted for Main Page frontend/backend integration
+> Date: 2026-05-30
 > Work Stream: Phase 3E — Task-first UI
 > Related Plan: [Main Page Frontend Runtime Integration](../plans/feature/main-page-frontend-runtime-integration.md)
 > Technical Design: [Main Page Frontend Runtime Integration Technical Design](../plans/feature/main-page-frontend-runtime-integration-technical-design.zh-CN.md)
@@ -12,15 +12,24 @@
 
 ## 1. Summary
 
-This checkpoint moves Plato Main Page from a fixture-compatible prototype toward a real session-centric runtime.
+This release accepts the Main Page frontend/backend integration path for Product
+1.0. Plato Main Page has moved from a fixture-compatible prototype toward a real
+session-centric runtime backed by sidecar snapshots, commands, and execution
+projection.
 
 The frontend still preserves the 9-state fixture loop for product and visual review, but HTTP mode is no longer driven by fixture state identity or local synthetic truth. Runtime behavior now converges through backend snapshots, command responses, and conservative event invalidation.
 
-This is not a completed release for the Main Page real-backend gap. It is a stage submission that proves core wiring and diagnostics while leaving substantial Product 1.0 work open.
+This acceptance includes the later backend integration closure: durable
+authoring stores, publish identity alignment, fixed-route execution trigger,
+durable result/error summaries, execution MessageStream bridge, Main Page
+result/error projection, deterministic file summary projection, and sidecar HTTP
+user-path smoke. Browser/Electron smoke, visual/UX polish, Audit detail, and
+durable event replay are follow-up gaps rather than blockers for this integration
+closure.
 
 ---
 
-## 2. Checkpoint Scope
+## 2. Release Scope
 
 ### 2.1 Runtime Adapter Boundary
 
@@ -108,7 +117,7 @@ These docs now define page-level allowed interactions and centralize UI-triggere
 
 ## 3. Validation
 
-Final validation:
+Validation included:
 
 - `npm test` from `frontend/` — 12 test files passed, 63 tests passed.
 - `npm run build` from `frontend/` — passed.
@@ -127,17 +136,18 @@ Browser smoke caveat:
 - The Codex in-app browser page context reported no `fetch`, `Response`, `Headers`, or `XMLHttpRequest`.
 - Because of that browser-runtime limitation, the page could not complete the sidecar snapshot request inside Codex's in-app browser.
 
-This should be re-smoked in a normal browser or Electron shell before calling the user-facing local runtime fully verified.
+This remains useful release QA in a normal browser or Electron shell, but it is
+not a blocker for the accepted Main Page frontend/backend integration closure.
 
 ---
 
-## 4. Follow-ups Before Gap Closure
+## 4. Follow-ups After Acceptance
 
 - Run a real Chrome/Safari/Electron smoke against `taskweavn plato-dev`.
 - Add a user-facing session creation/selection flow instead of relying on env-provided `VITE_PLATO_SESSION_ID`.
 - Implement structured TaskNode edit controls on top of the now-exposed `updateTaskNode` command.
 - Add richer pending command UI if backend events take noticeable time.
 - Harden message and confirmation UX beyond conservative refetch behavior.
-- Implement file-change summary and audit/trust projections in the Main Page flow.
+- Continue Audit/trust detail work from the accepted Main Page file summary and audit-entry surface.
 - Decide durable SSE/replay behavior or a clear replacement for broader user testing.
 - Keep `docs/interaction-model/` updated whenever Main Page controls change.
