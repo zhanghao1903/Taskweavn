@@ -1,7 +1,7 @@
 # Main Page Real Backend Integration 技术设计
 
-> Status: in_progress
-> Last Updated: 2026-05-21
+> Status: done / accepted
+> Last Updated: 2026-05-30
 > Feature Plan: [Main Page Real Backend Integration](main-page-real-backend-integration.md)
 > Frontend Runtime Subplan: [Main Page Frontend Runtime Integration](main-page-frontend-runtime-integration.md)
 > Gap: [Main Page real backend integration](../../gaps/README.md)
@@ -34,7 +34,9 @@ frontend Main Page
 
 本设计最初补的是 **真实后端组合层**：不是新增业务协议，也不是绕过 gateway，而是把已有 server-core 对象组合成一个可启动的 Main Page backend target。
 
-当前事实已经变化：后端组合层和本地 sidecar target 已经基本存在。剩余风险集中在前端运行时：
+当前事实已经变化：Main Page 前后端集成已于 2026-05-30 验收通过。后端组合层、本地 sidecar target、前端 runtime convergence、authoring persistence、fixed-route execution projection、result/error summary、MessageStream bridge 和 deterministic file summary projection 已经形成 Product 1.0 可接受闭环。
+
+本设计曾经识别过以下前端运行时风险：
 
 - Main Page 仍以 fixture `stateId` 作为页面查询和状态切换主轴；
 - HTTP mode 仍通过 env 固定单个 session，没有产品化 session 创建/选择；
@@ -42,7 +44,7 @@ frontend Main Page
 - 页面只消费 `message.appended` 和 `session.resync_required`，还没有完整处理 canonical `UiEventType`；
 - backend `message.appended` 事件 payload 是轻量提示，不是完整 `SessionMessageView`。
 
-因此本技术设计后续应被视为两段：已完成的 backend sidecar assembly，以及待完成的 frontend runtime convergence。
+这些风险已经通过 frontend runtime integration 与后续 backend integration slices 收敛到可接受状态。剩余 browser/Electron smoke、Audit evidence/detail、durable event replay 和更细 UX hardening 是后续独立 gap，不再阻塞本计划。
 
 ---
 
@@ -90,12 +92,12 @@ Electron packaged lifecycle 仍属于 packaging plan。
 | Session registry | `SessionManager` / SQLite | durable |
 | MessageStream | `SqliteMessageStream` | durable |
 | Published TaskBus | `SqliteTaskBus` | durable |
-| RawTask | `InMemoryRawTaskStore` | volatile |
-| DraftTaskTree | `InMemoryDraftTaskStore` | volatile |
+| RawTask | `SqliteRawTaskStore` | durable |
+| DraftTaskTree | `SqliteDraftTaskTreeStore` | durable |
 | Collaborator template registry | `InMemoryCollaboratorTemplateRegistry` | volatile |
 | UiEventSource | resync/static shell | volatile |
 
-这是有意切片，不是最终产品状态。`Persistent authoring stores` 和 `durable SSE replay` 继续作为后续 gap。
+RawTask/DraftTaskTree 持久化已由 authoring persistence workstream 关闭。`durable SSE replay` 仍是后续 gap。
 
 ---
 
@@ -273,7 +275,7 @@ data: <UiEvent JSON>
 
 第一片先修这个兼容问题。否则 real sidecar 看起来连上了，但 UI 不会 resync。
 
-当前状态：低层 `createHttpPlatoApi.subscribeSessionEvents` 已经监听 default `message` 和所有 canonical named event。剩余问题不是“收不到事件”，而是“页面如何解释事件”。
+当前状态：低层 `createHttpPlatoApi.subscribeSessionEvents` 已经监听 default `message` 和所有 canonical named event。Main Page 已采用保守 invalidation/refetch 策略，避免把轻量事件误当完整 ViewModel。
 
 事件处理原则：
 
@@ -376,14 +378,13 @@ git diff --check
 
 ## 9. Open Follow-ups
 
-不在本计划第一版完成：
+验收后的独立 follow-up：
 
-1. Durable RawTask/DraftTaskTree stores.
-2. Durable `UiEventStore` / SSE replay.
-3. Frontend create-session workflow.
-4. Electron main-process sidecar ownership.
-5. Real Task execution lifecycle.
-6. Audit page evidence integration.
+1. Durable `UiEventStore` / SSE replay.
+2. Frontend create-session workflow polish.
+3. Electron main-process sidecar ownership.
+4. Browser/Electron local runtime smoke.
+5. Audit page evidence integration.
 
 这些 follow-up 应继续留在 gap registry 或独立 plan，不混进本计划。
 
@@ -391,10 +392,12 @@ git diff --check
 
 ## 10. Acceptance
 
-完成时应满足：
+验收时已满足：
 
 - developer can start a local sidecar target for Main Page;
 - frontend HTTP runtime can load a real snapshot from that sidecar;
 - frontend receives named SSE events from the sidecar;
 - command routes mutate backend services through `UiCommandGateway`;
-- known persistence/replay limitations are visible in docs.
+- authoring persistence, fixed-route execution, result/error summary, and file
+  summary projection are integrated;
+- known replay and Audit evidence limitations are visible in docs.

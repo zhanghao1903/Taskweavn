@@ -1,6 +1,6 @@
-# Checkpoint: Fixed-Route Task Execution Bridge
+# Release: Fixed-Route Task Execution Bridge
 
-> Status: checkpoint / gap still open
+> Status: done / accepted for Product 1.0 fixed-route execution
 > Date: 2026-05-30
 > Work Stream: Product 1.0 fixed-route execution / P8 backend integration
 > Related Plan: [Fixed-Route Task Execution Bridge](../plans/feature/fixed-route-task-execution-bridge.md)
@@ -11,8 +11,8 @@
 
 ## 1. Summary
 
-This checkpoint proves the Product 1.0 fixed-route execution path through the
-backend runtime boundary:
+This release closes the Product 1.0 fixed-route execution bridge. The accepted
+runtime path runs through the backend boundary:
 
 ```text
 Published TaskBus Task
@@ -26,16 +26,16 @@ The work intentionally avoids Product 1.1 routing concepts. It does not add a
 Router, Agent Manager, assignment fields, assigned-only claim, or Main Page
 reassignment UI.
 
-This is not a completed release for the full execution gap. Slice 6 adds
-background dispatch and an HTTP control route. P8.E1 adds durable result/error
-summary storage. P8.E2 and P8.E3 add user-facing execution messages and Main
-Page result/error projection. P8.E4 adds deterministic Main Page file summary
-projection from observed file facts. Audit evidence closure and broader product
-smoke remain follow-up work.
+Slice 6 adds background dispatch and an HTTP control route. P8.E1 adds durable
+result/error summary storage. P8.E2 and P8.E3 add user-facing execution messages
+and Main Page result/error projection. P8.E4 adds deterministic Main Page file
+summary projection from observed file facts. Sidecar HTTP user-path smoke has
+passed. Audit evidence closure, normal browser/Electron smoke, and richer runtime
+recovery remain separate follow-up gaps rather than blockers for this bridge.
 
 ---
 
-## 2. Checkpoint Scope
+## 2. Release Scope
 
 ### 2.1 Execution Bridge
 
@@ -151,7 +151,7 @@ TaskDomain
 
 ## 3. Validation
 
-Checkpoint validation included:
+Release validation included:
 
 - `uv run pytest tests/test_task_projection.py tests/test_ui_contract_mapping.py tests/test_main_page_sidecar_app.py tests/test_ui_contract_models.py`
   - 41 passed, 1 warning
@@ -212,16 +212,16 @@ Covered behavior:
 
 ---
 
-## 4. Follow-ups Before Gap Closure
+## 4. Follow-ups After Acceptance
 
-- Decide whether task detail surfaces need a separate result/error panel or can
-  reuse the session-level result projection for Product 1.0.
 - Add Audit evidence records/links for file summary detail and hidden/partial
   evidence states.
 - Decide whether CodeAction/Docker-backed tools are safe to include in the
   resident Default Agent startup path.
 - Run a normal browser/Electron smoke for publish -> execute -> snapshot
-  visibility once the frontend control path is ready. Sidecar HTTP smoke has
-  passed; browser UI smoke is still separate.
+  visibility as release QA. Sidecar HTTP smoke has passed; browser UI smoke is
+  still tracked separately.
+- Define richer interrupted-running recovery after the minimum fixed-route
+  bridge.
 - Keep routing, assignment, Agent Manager, and custom Agent protocol work in
   Product 1.1+ unless product scope changes.

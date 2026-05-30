@@ -1,19 +1,20 @@
 # Feature Plan: Fixed-Route Task Execution Bridge
 
-> Status: in_progress
-> Last Updated: 2026-05-29
+> Status: done / accepted
+> Last Updated: 2026-05-30
 > Gap: [Fixed-route task execution bridge](../../gaps/README.md)
 > Architecture: [Task](../../architecture/task.md), [TaskBus](../../architecture/bus.md), [Agent](../../architecture/agent.md)
 > Decisions: [ADR-0010](../../decisions/ADR-0010-line-first-authoring-experience-for-1-0.md), [ADR-0011](../../decisions/ADR-0011-routing-agent-assignment-and-cooperative-interruption.md), [ADR-0012](../../decisions/ADR-0012-taskbus-centered-agent-assignment-convergence.md)
 > Product: [Plato MVP PRD](../../product/plato-mvp-prd.md), [Line-first Authoring Policy](../../product/plato-1-0-line-first-authoring-policy.md), [Main Page UX Flow](../../product/plato-main-page-ux-flow.md)
 > Technical Design: [中文详细技术方案](fixed-route-task-execution-bridge-technical-design.zh-CN.md)
-> Release Record: [Checkpoint: Fixed-Route Task Execution Bridge](../../releases/fixed-route-task-execution-bridge.md)
+> Release Record: [Fixed-Route Task Execution Bridge](../../releases/fixed-route-task-execution-bridge.md)
 
 ---
 
 ## 1. Problem / Gap
 
-Implementation has started with the Slice 1-3 service boundary:
+Implementation has been accepted for Product 1.0 fixed-route execution. The
+closed bridge now includes:
 
 - `FixedRouteTaskExecutor`
 - `ResidentDefaultAgent` protocol
@@ -30,9 +31,11 @@ Implementation has started with the Slice 1-3 service boundary:
 - `build_agent_loop_resident_default_agent(...)` assembles a session-scoped
   AgentLoop with LocalRuntime, file/shell tools, and SqliteEventStream
 
-Production runtime trigger / background dispatch, durable result summary
-storage, broader Main Page projection polish, CodeAction/Docker-backed tool
-inclusion, and user-facing runtime smoke remain follow-up work.
+Sidecar-owned background dispatch, durable result/error summaries, execution
+MessageStream projection, Main Page result/error projection, deterministic file
+summary projection, and sidecar HTTP user-path smoke are complete. CodeAction /
+Docker-backed tool inclusion, browser/Electron smoke, Audit evidence detail, and
+richer recovery remain follow-up work outside this accepted bridge.
 
 Product 1.0 needs a complete execution loop, not a flexible routing system.
 ADR-0010 sets the default as single-task, single-agent, fixed-route flow.
@@ -43,9 +46,10 @@ TaskBus already supports:
 pending -> running -> done / failed
 ```
 
-The missing 1.0 gap is a thin runtime bridge that takes a published pending
+The original 1.0 gap was a thin runtime bridge that takes a published pending
 Task, runs it through the default execution path, and reports status back to
-TaskBus so Main Page can project progress, result, and failure.
+TaskBus so Main Page can project progress, result, and failure. That gap is now
+closed for Product 1.0's fixed-route scope.
 
 The bridge should not introduce Product 1.1 routing concepts as 1.0 blockers:
 
@@ -263,11 +267,12 @@ Acceptance:
 
 Current status:
 
-- Checkpoint release record created.
-- Focused bridge/projection/UI contract validation is recorded in the release
-  checkpoint.
-- The gap remains open until execution can be triggered through a production
-  runtime path and result payload behavior is decided.
+- Release record accepted.
+- Focused bridge/projection/UI contract validation is recorded in the release.
+- Execution can be triggered through sidecar background dispatch and the explicit
+  dispatch route.
+- Durable result/error payload behavior is implemented through
+  `TaskExecutionSummary`.
 
 ### Slice 6 — Production runtime trigger and background dispatch
 
@@ -332,7 +337,7 @@ Regression tests:
 - sidecar publish `startImmediately` dispatch tests;
 - HTTP dispatch route tests for accepted and rejected dispatch requests.
 
-Checkpoint validation:
+Release validation:
 
 - `uv run pytest tests/test_task_projection.py tests/test_ui_contract_mapping.py tests/test_main_page_sidecar_app.py tests/test_ui_contract_models.py`
   - 41 passed, 1 warning
@@ -373,7 +378,7 @@ Deferred to Product 1.1+:
 
 Still Product 1.0 follow-ups:
 
-- durable result summary payload storage;
 - running-task crash/restart recovery policy;
 - normal browser/Electron publish -> execute -> snapshot smoke;
+- Audit evidence/detail projection from file summary facts;
 - optional SSE event source beyond conservative refetch/resync behavior.

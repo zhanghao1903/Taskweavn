@@ -1,6 +1,6 @@
 # Fixed-Route Task Execution Bridge 技术设计
 
-> Status: in_progress
+> Status: done / accepted
 > Last Updated: 2026-05-30
 > Feature Plan: [Fixed-Route Task Execution Bridge](fixed-route-task-execution-bridge.md)
 > Gap: [Fixed-route task execution bridge](../../gaps/README.md)
@@ -43,8 +43,9 @@
 - `MainPageSnapshot.file_change_summary` 已从 observed file facts 投影；
   Agent prose / `LoopResult.final_answer` 不作为文件证据来源。
 
-CodeAction/Docker-backed tool 纳入、Audit evidence projection 和最终
-user-facing smoke 尚未完成；当前已有 checkpoint release record。
+Fixed-route bridge 已于 2026-05-30 验收通过。CodeAction/Docker-backed tool
+纳入、Audit evidence projection、浏览器/Electron smoke 和更完整的恢复策略是
+后续独立工作，不再阻塞本 bridge closure。
 
 ADR-0010 明确 1.0 默认是 line-first：
 
@@ -720,11 +721,12 @@ Sidecar integration tests:
 
 Docs/tests closure:
 
-- fixed-route checkpoint is updated after Slice 6 implementation;
+- fixed-route release record is updated and accepted;
 - production trigger/background dispatch is implemented;
 - Main Page result projection and MessageStream bridge are implemented;
 - Main Page deterministic file summary projection is implemented;
-- keep gap `in_progress` until Audit evidence closure and user-facing smoke pass。
+- mark the fixed-route gap `done`; Audit evidence closure and browser/Electron
+  smoke stay as separate follow-up gaps。
 
 ---
 

@@ -151,14 +151,14 @@ Acceptance:
 
 ### P3E — Task-first UI
 
-Status: active implementation; Main Page frontend runtime integration is a stage checkpoint, not a completed gap. Priority: P0.
+Status: active implementation; Main Page frontend/backend integration is accepted for Product 1.0, while Task-first UI polish, Audit/trust detail, and QA remain active follow-ups. Priority: P0.
 
 | Package | Source Plan | Implementation Goal |
 |---|---|---|
 | Plato MVP product/UX baseline | [Plato MVP PRD](../product/plato-mvp-prd.md), [Main Page UX Flow](../product/plato-main-page-ux-flow.md) | Product scope, user path, screen states, and Main Page behavior. |
 | Figma UI baseline 1.0 | [Figma UI Baseline](../product/plato-figma-ui-baseline.md) | Current visual/layout source for implementation. |
 | Frontend technical design | [Plato Frontend Technical Design](../product/plato-frontend-technical-design.md) | Technology choice, architecture, state/API boundaries, implementation slices. |
-| Main Page frontend runtime integration | [Frontend runtime plan](../plans/feature/main-page-frontend-runtime-integration.md), [checkpoint](../releases/main-page-frontend-runtime-integration.md) | In progress: session-centric runtime adapter, HTTP-hidden fixture StatePicker, command lifecycle convergence, command coverage, frontend logging, and event invalidation are in place. This is a checkpoint only; real user-facing runtime behavior still needs smoke, UX hardening, session flow, confirmations/messages, file changes, and trust surfaces. |
+| Main Page frontend runtime integration | [Frontend runtime plan](../plans/feature/main-page-frontend-runtime-integration.md), [release](../releases/main-page-frontend-runtime-integration.md) | Done / accepted for Product 1.0 Main Page frontend/backend integration; browser/Electron smoke, UX polish, Audit detail, and durable event replay remain follow-ups. |
 | Early UI interaction model | [Task-first UI overview](../plans/task-first-ui-interaction.md) | Superseded as implementation plan; retained as concept seed. |
 | Early UI sub-designs | [UI plan directory](../plans/ui/) | Historical planning archive unless explicitly pulled into new frontend work. |
 | Result packaging cards | [Result packaging plan](../plans/feature/result-packaging-agent-cards.md), [Product 1.1 plan](../product/plato-1-1-product-plan.md) | Product 1.1 capability for richer information-style presentation; not a Product 1.0 blocker. |
@@ -213,18 +213,14 @@ Focus:
 
 Recommended implementation order:
 
-1. [Main Page real backend integration](../plans/feature/main-page-real-backend-integration.md): continue from the [Main Page Frontend Runtime Integration](../plans/feature/main-page-frontend-runtime-integration.md) checkpoint. Runtime convergence wiring exists, but the gap remains open: real browser/Electron smoke, session creation/selection, pending/error UX, confirmation/message hardening, TaskNode edit controls, file-change projection, audit/trust surfaces, and durable event behavior still need follow-up work.
-2. [Fixed-route task execution bridge](../plans/feature/fixed-route-task-execution-bridge.md):
-   continue from the [checkpoint](../releases/fixed-route-task-execution-bridge.md).
-   The TaskBus -> resident Default Agent -> Main Page snapshot path now has a
-   sidecar-owned background dispatcher, publish `startImmediately` trigger, and
-   explicit execution dispatch route. Durable result payload behavior and
-   user-facing smoke remain before gap closure.
-3. Publish audit query/debug API and concrete HTTP framework binding, if needed by UI/API integration.
-4. Product 1.1 planning: completion-time `task_after`, Result Packaging Agent, routing/assignment foundation, Agent protocol/governance, skills integration, MCP integration, and file/multimodal support.
-5. Centralized runtime configuration system.
+1. [Result and evidence exposure surface](../plans/feature/result-exposure-surface.md): continue from accepted Main Page result/file projection and close Audit entry/evidence detail, permission-limited evidence, and recoverable error UX.
+2. Message and confirmation UI integration hardening: make HITL confirmations real through UI commands/events, including richer pending states and recovery paths.
+3. Linear authoring and retry recovery: keep Product 1.0 line-first execution predictable, add minimal retry/recovery, and avoid Product 1.1 context-governance scope creep.
+4. Normal browser/Electron smoke and Product 1.0 QA: validate the accepted Main Page and fixed-route bridge through the intended local runtime shell.
+5. Product 1.1 planning: completion-time `task_after`, Result Packaging Agent, routing/assignment foundation, Agent protocol/governance, skills integration, MCP integration, and file/multimodal support.
+6. Centralized runtime configuration system.
 
-LLM Provider reliability, configurable logging, the Task-first data model, Collaborator authoring, TaskPublisher, TaskBus execution lifecycle, publish persistence, API publish transport, RawTask/DraftTaskTree authoring persistence, frontend baseline, UI/backend contract baseline, and local sidecar API shell now have server-core or UI baseline release candidates. RawTask/DraftTaskTree authoring persistence and publish identity recovery are closed for Product 1.0 authoring recovery. Main Page sidecar assembly, frontend runtime wiring, and fixed-route execution are checkpointed, with fixed-route production trigger/background dispatch now implemented but not yet user-smoked. The remaining Product 1.0 order moves through Main Page runtime hardening, fixed-route result payload closure, confirmations, file changes, and trust surfaces. Completion-time `task_after`, Result Packaging cards, routing/assignment foundation, Agent protocol/governance, skills integration, MCP integration, and file/multimodal support are Product 1.1 research capabilities.
+LLM Provider reliability, configurable logging, the Task-first data model, Collaborator authoring, TaskPublisher, TaskBus execution lifecycle, publish persistence, API publish transport, RawTask/DraftTaskTree authoring persistence, frontend baseline, UI/backend contract baseline, local sidecar API shell, Main Page frontend/backend integration, and fixed-route task execution bridge now have accepted Product 1.0 closure records. Remaining Product 1.0 work should focus on Audit/evidence exposure, confirmation UX hardening, minimal retry/recovery, and release QA. Completion-time `task_after`, Result Packaging cards, routing/assignment foundation, Agent protocol/governance, skills integration, MCP integration, and file/multimodal support are Product 1.1 research capabilities.
 
 The source of truth for gap status is [Gap Registry](../gaps/).
 
