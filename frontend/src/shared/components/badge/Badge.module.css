@@ -4,25 +4,25 @@
   align-items: center;
   justify-content: center;
   border-radius: var(--plato-radius-md);
-  font-weight: 700;
-  line-height: 1;
+  font-weight: var(--plato-type-badge-weight);
+  line-height: var(--plato-type-badge-line-height);
   white-space: nowrap;
 }
 
 .sm {
   min-height: 24px;
   padding: 0 var(--plato-space-2);
-  font-size: 12px;
+  font-size: var(--plato-type-badge-size);
 }
 
 .md {
   min-height: 32px;
   padding: 0 var(--plato-space-3);
-  font-size: 12px;
+  font-size: var(--plato-type-badge-size);
 }
 
 .neutral {
-  background: #edf1f5;
+  background: var(--plato-color-placeholder-neutral-bg);
   color: var(--plato-color-muted);
 }
 

@@ -1,8 +1,9 @@
 import type { ReactNode } from "react";
 
 import type { BadgeTone } from "../../shared/components";
-import { Badge } from "../../shared/components";
+import { Badge, Button } from "../../shared/components";
 import styles from "./MainPage.module.css";
+import { PlatoProductMark } from "./PlatoProductMark";
 
 export type MainPageTopBarStatus = {
   label: string;
@@ -22,20 +23,59 @@ export function MainPageTopBar({
   statuses,
   trailing = null,
 }: MainPageTopBarProps) {
+  const [projectName = "Project", workflowName = "Workflow", sessionName] =
+    contextItems;
+
   return (
-    <header className={styles.topBar}>
-      <div className={styles.brand}>{brandLabel}</div>
-      <div className={styles.contextStack}>
-        {contextItems.map((item, index) => (
-          <span key={`${item}-${index}`}>{item}</span>
+    <header aria-label={brandLabel} className={styles.topBar}>
+      <div className={styles.brandBlock}>
+        <PlatoProductMark className={styles.brandMark} />
+        <div className={styles.brandCopy}>
+          <div className={styles.brandName}>Plato</div>
+          <div className={styles.brandSubtitle}>
+            Task-first Intelligent
+            <br />
+            Workbench
+          </div>
+        </div>
+      </div>
+
+      <div className={styles.topBarContextBlock}>
+        <span className={styles.topBarLabel}>Project</span>
+        <span className={styles.topBarValue}>{projectName}</span>
+      </div>
+
+      <div className={styles.workflowPill}>{workflowName}</div>
+
+      <div className={styles.sessionContextBlock}>
+        <span className={styles.sessionValue}>
+          {sessionName ? `Session: ${sessionName}` : "No session selected"}
+        </span>
+      </div>
+
+      <div className={styles.statusCluster}>
+        {statuses.map((status, index) => (
+          <Badge
+            className={styles.topBarStatusBadge}
+            key={`${status.label}-${index}`}
+            tone={status.tone}
+          >
+            {status.label}
+          </Badge>
         ))}
       </div>
-      {statuses.map((status, index) => (
-        <Badge key={`${status.label}-${index}`} tone={status.tone}>
-          {status.label}
-        </Badge>
-      ))}
-      {trailing}
+
+      <div className={styles.topBarActions}>
+        <Button className={styles.topBarAction} size="sm" variant="secondary">
+          查看审计
+        </Button>
+        <Button className={styles.topBarAction} size="sm" variant="secondary">
+          设置
+        </Button>
+        {trailing ? (
+          <div className={styles.topBarTrailing}>{trailing}</div>
+        ) : null}
+      </div>
     </header>
   );
 }
