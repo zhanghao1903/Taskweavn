@@ -69,6 +69,13 @@ Rationale:
   across common environments.
 - `system-ui` keeps the interface usable when preferred fonts are unavailable.
 
+Top bar context and compact control text can intentionally use the CJK-first UI
+family when Chinese/English mixed labels need steadier metrics:
+
+```text
+"Noto Sans SC", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif
+```
+
 ### 3.2 Brand Serif
 
 Brand-only font:
@@ -134,6 +141,9 @@ Supplemental workbench roles:
 | Role | CSS token prefix | Size | Weight | Line height | Use |
 |---|---|---:|---:|---:|---|
 | Breadcrumb | `--plato-type-breadcrumb-*` | 14px | 500 | 1.35 | Top bar path labels. |
+| Top bar context | `--plato-type-topbar-context-*` | 14px | 500 | 20px | Top bar project and session context. |
+| Top bar action | `--plato-type-topbar-action-*` | 12px | 500 | 17px | Top bar action buttons. |
+| Top bar badge | `--plato-type-topbar-badge-*` | 11px | 500 | 16px | Top bar workflow/status badges. |
 | Navigation | `--plato-type-nav-*` | 15px | 400 | 1.35 | Sidebar session/workflow items. |
 | Navigation active | `--plato-type-nav-active-*` | 15px | 500 | 1.35 | Active sidebar item. |
 
@@ -176,8 +186,9 @@ Status text must not rely on color alone. Pair it with label copy or icon shape.
 ### 6.1 Top Bar
 
 - Brand: brand serif, brand title role.
-- Breadcrumb and project/workflow/session labels: body small or caption.
-- Status pills: badge role with status color tokens.
+- Project and session context: top bar context role, CJK-first UI family.
+- Workflow and status pills: top bar badge role, CJK-first UI family.
+- Top bar action buttons: top bar action role, CJK-first UI family.
 - Long breadcrumb items: single-line ellipsis.
 
 ### 6.2 Side Navigation

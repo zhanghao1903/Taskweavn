@@ -3,8 +3,8 @@
   --plato-page-min-height: 820px;
   --plato-page-padding: clamp(var(--plato-space-4), 1.4vw, var(--plato-space-6));
   --plato-layout-gap: clamp(var(--plato-space-4), 1.4vw, var(--plato-space-6));
-  --plato-topbar-min-height: 64px;
-  --plato-topbar-max-height: 84px;
+  --plato-topbar-min-height: 76px;
+  --plato-topbar-max-height: 88px;
   --plato-topbar-height: clamp(
     var(--plato-topbar-min-height),
     7dvh,
@@ -64,49 +64,164 @@
 
 .topBar {
   grid-area: top;
-  display: flex;
+  display: grid;
+  grid-template-columns:
+    minmax(168px, 210px)
+    minmax(144px, 170px)
+    minmax(180px, 240px)
+    minmax(180px, 1fr)
+    minmax(120px, auto)
+    minmax(152px, auto);
   min-width: 0;
   min-height: var(--plato-topbar-min-height);
   max-height: var(--plato-topbar-max-height);
   align-items: center;
-  gap: var(--plato-space-6);
+  gap: clamp(var(--plato-space-3), 1.4vw, var(--plato-space-6));
   overflow: hidden;
   padding: 0 var(--plato-space-6);
 }
 
-.brand {
-  flex: 0 0 auto;
-  color: var(--plato-color-reason-blue);
-  font-family: var(--plato-font-serif);
-  font-size: var(--plato-type-brand-title-size);
-  font-weight: var(--plato-type-brand-title-weight);
-  line-height: var(--plato-type-brand-title-line-height);
-  white-space: nowrap;
-}
-
-.contextStack {
+.brandBlock {
   display: flex;
-  flex: 1;
   min-width: 0;
   align-items: center;
   gap: var(--plato-space-3);
-  color: var(--plato-color-muted);
-  font-size: var(--plato-type-breadcrumb-size);
-  font-weight: var(--plato-type-breadcrumb-weight);
-  line-height: var(--plato-type-breadcrumb-line-height);
 }
 
-.contextStack span {
+.brandMark {
+  flex: 0 0 auto;
+  width: 36px;
+  height: 36px;
+}
+
+.brandCopy {
+  display: grid;
   min-width: 0;
+  gap: 2px;
+}
+
+.brandName {
   overflow: hidden;
+  color: var(--plato-color-ink);
+  font-size: var(--plato-type-brand-title-size);
+  font-weight: var(--plato-type-brand-title-weight);
+  line-height: var(--plato-type-brand-title-line-height);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.contextStack span:not(:last-child)::after {
-  margin-left: var(--plato-space-3);
-  color: var(--plato-color-line);
-  content: "/";
+.brandSubtitle {
+  overflow: hidden;
+  color: var(--plato-color-muted);
+  font-size: var(--plato-type-caption-size);
+  font-weight: var(--plato-type-body-weight);
+  line-height: 1.1;
+  text-overflow: ellipsis;
+}
+
+.topBarContextBlock {
+  display: grid;
+  min-width: 0;
+  gap: var(--plato-space-1);
+}
+
+.topBarLabel {
+  overflow: hidden;
+  color: var(--plato-color-dim);
+  font-size: var(--plato-type-caption-size);
+  font-weight: var(--plato-type-caption-weight);
+  line-height: var(--plato-type-caption-line-height);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.topBarValue,
+.sessionValue {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--plato-color-ink);
+  font-family: var(--plato-typography-family-cjk-ui);
+  font-size: var(--plato-type-topbar-context-size);
+  font-weight: var(--plato-type-topbar-context-weight);
+  line-height: var(--plato-type-topbar-context-line-height);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workflowPill {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: var(--plato-radius-md);
+  padding: var(--plato-space-2) var(--plato-space-4);
+  background: var(--plato-color-clear-blue);
+  color: var(--plato-color-reason-blue);
+  font-family: var(--plato-typography-family-cjk-ui);
+  font-size: var(--plato-type-topbar-badge-size);
+  font-weight: var(--plato-type-topbar-badge-weight);
+  line-height: var(--plato-type-topbar-badge-line-height);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sessionContextBlock {
+  display: flex;
+  min-width: 0;
+}
+
+.statusCluster {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--plato-space-3);
+}
+
+.topBarActions {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--plato-space-2);
+  overflow: hidden;
+}
+
+.topBarAction {
+  min-width: 72px;
+  color: var(--plato-color-ink);
+  font-family: var(--plato-typography-family-cjk-ui);
+  font-size: var(--plato-type-topbar-action-size);
+  font-weight: var(--plato-type-topbar-action-weight);
+  line-height: var(--plato-type-topbar-action-line-height);
+}
+
+.topBarStatusBadge {
+  font-family: var(--plato-typography-family-cjk-ui);
+  font-size: var(--plato-type-topbar-badge-size);
+  font-weight: var(--plato-type-topbar-badge-weight);
+  line-height: var(--plato-type-topbar-badge-line-height);
+}
+
+.topBarTrailing {
+  display: flex;
+  min-width: 0;
+  max-width: 112px;
+  overflow: hidden;
+}
+
+.statusCluster > *,
+.topBarActions > * {
+  flex: 0 0 auto;
+}
+
+.topBarTrailing .statePicker > span {
+  display: none;
+}
+
+.topBarTrailing .statePicker select {
+  max-width: 112px;
 }
 
 .statePicker {

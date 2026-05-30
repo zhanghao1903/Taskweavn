@@ -298,6 +298,8 @@
   /* Plato Typography / family. */
   --plato-typography-family-ui: Inter, "Noto Sans SC", "PingFang SC",
     "Microsoft YaHei", system-ui, sans-serif;
+  --plato-typography-family-cjk-ui: "Noto Sans SC", "PingFang SC",
+    "Microsoft YaHei", system-ui, sans-serif;
   --plato-typography-family-brand: "Source Serif 4", "Noto Serif SC",
     "Source Han Serif SC", Georgia, serif;
   --plato-typography-family-mono: "JetBrains Mono", "SFMono-Regular", Menlo,
@@ -344,12 +346,21 @@
   --plato-type-caption-size: 12px;
   --plato-type-caption-line-height: 1.35;
   --plato-type-caption-weight: 500;
-  --plato-type-badge-size: 12px;
+  --plato-type-badge-size: 11px;
   --plato-type-badge-line-height: 1.2;
   --plato-type-badge-weight: 500;
   --plato-type-breadcrumb-size: 14px;
   --plato-type-breadcrumb-line-height: 1.35;
   --plato-type-breadcrumb-weight: 500;
+  --plato-type-topbar-context-size: 14px;
+  --plato-type-topbar-context-line-height: 20px;
+  --plato-type-topbar-context-weight: 500;
+  --plato-type-topbar-action-size: 12px;
+  --plato-type-topbar-action-line-height: 17px;
+  --plato-type-topbar-action-weight: 500;
+  --plato-type-topbar-badge-size: 11px;
+  --plato-type-topbar-badge-line-height: 16px;
+  --plato-type-topbar-badge-weight: 500;
   --plato-type-nav-size: 15px;
   --plato-type-nav-line-height: 1.35;
   --plato-type-nav-weight: 400;

@@ -94,6 +94,7 @@ Font family baseline:
 | Token | Value |
 |---|---|
 | `typography/family/ui` | `Inter`, `Noto Sans SC`, `PingFang SC`, `Microsoft YaHei`, system sans |
+| `typography/family/cjk-ui` | `Noto Sans SC`, `PingFang SC`, `Microsoft YaHei`, system sans |
 | `typography/family/brand` | `Source Serif 4`, `Noto Serif SC`, `Source Han Serif SC`, Georgia |
 | `typography/family/mono` | `JetBrains Mono`, `SFMono-Regular`, Menlo, Monaco, Consolas, monospace |
 
@@ -113,6 +114,9 @@ Core text roles:
 | `type/control` | 14px | 500 | Buttons, menus, and select controls. |
 | `type/caption` | 12px | 500 | Metadata, counters, compact context. |
 | `type/badge` | 12px | 500 | Badge and pill text. |
+| `type/topbar-context` | 14px | 500 | Top bar project/session context. |
+| `type/topbar-action` | 12px | 500 | Top bar action buttons. |
+| `type/topbar-badge` | 11px | 500 | Top bar workflow/status badges. |
 | `type/code` | 13px | 500 | File paths, commands, and logs. |
 
 Current compatibility aliases:
