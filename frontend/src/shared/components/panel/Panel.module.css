@@ -34,8 +34,9 @@
   min-width: 0;
   margin: 0;
   overflow: hidden;
-  font-size: 18px;
-  line-height: 1.2;
+  font-size: var(--plato-type-panel-title-size);
+  font-weight: var(--plato-type-panel-title-weight);
+  line-height: var(--plato-type-panel-title-line-height);
   text-overflow: ellipsis;
   white-space: nowrap;
 }

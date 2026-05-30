@@ -8,7 +8,7 @@
 }
 
 .eyebrow {
-  color: var(--plato-color-muted);
+  color: var(--plato-color-semantic-text-tertiary);
   font-size: var(--plato-type-eyebrow-size);
   font-weight: var(--plato-type-eyebrow-weight);
   letter-spacing: var(--plato-type-letter-spacing);
@@ -17,35 +17,35 @@
 }
 
 .heading {
-  color: var(--plato-color-ink);
+  color: var(--plato-color-semantic-text-primary);
   font-size: var(--plato-type-heading-size);
   font-weight: var(--plato-type-heading-weight);
   line-height: var(--plato-type-heading-line-height);
 }
 
 .subheading {
-  color: var(--plato-color-ink);
+  color: var(--plato-color-semantic-text-primary);
   font-size: var(--plato-type-subheading-size);
   font-weight: var(--plato-type-subheading-weight);
   line-height: var(--plato-type-subheading-line-height);
 }
 
 .body {
-  color: var(--plato-color-ink);
+  color: var(--plato-color-semantic-text-primary);
   font-size: var(--plato-type-body-size);
   font-weight: var(--plato-type-body-weight);
   line-height: var(--plato-type-body-line-height);
 }
 
 .muted {
-  color: var(--plato-color-muted);
+  color: var(--plato-color-semantic-text-secondary);
   font-size: var(--plato-type-muted-size);
   font-weight: var(--plato-type-muted-weight);
   line-height: var(--plato-type-muted-line-height);
 }
 
 .label {
-  color: var(--plato-color-ink);
+  color: var(--plato-color-semantic-text-primary);
   font-size: var(--plato-type-label-size);
   font-weight: var(--plato-type-label-weight);
   line-height: var(--plato-type-label-line-height);

@@ -29,7 +29,7 @@ export function SessionMessagePanel({
       icon={<MessagesSquare size={18} aria-hidden="true" />}
       title="Session messages"
       titleId="message-title"
-      tone="muted"
+      tone="surface"
     >
       <div className={styles.messageScope}>
         <Text as="span" variant="eyebrow">

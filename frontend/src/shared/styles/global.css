@@ -15,6 +15,8 @@ body {
   background: var(--plato-color-project-bg);
   color: var(--plato-color-ink);
   font-family: var(--plato-font-sans);
+  font-size: var(--plato-type-body-size);
+  line-height: var(--plato-type-body-line-height);
   letter-spacing: 0;
 }
 
@@ -23,6 +25,11 @@ input,
 textarea,
 select {
   font: inherit;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--plato-color-semantic-text-placeholder);
 }
 
 button {

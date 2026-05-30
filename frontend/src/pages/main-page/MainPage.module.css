@@ -78,8 +78,9 @@
   flex: 0 0 auto;
   color: var(--plato-color-reason-blue);
   font-family: var(--plato-font-serif);
-  font-size: 24px;
-  font-weight: 700;
+  font-size: var(--plato-type-brand-title-size);
+  font-weight: var(--plato-type-brand-title-weight);
+  line-height: var(--plato-type-brand-title-line-height);
   white-space: nowrap;
 }
 
@@ -90,7 +91,9 @@
   align-items: center;
   gap: var(--plato-space-3);
   color: var(--plato-color-muted);
-  font-size: 14px;
+  font-size: var(--plato-type-breadcrumb-size);
+  font-weight: var(--plato-type-breadcrumb-weight);
+  line-height: var(--plato-type-breadcrumb-line-height);
 }
 
 .contextStack span {
@@ -113,8 +116,9 @@
   align-items: center;
   gap: var(--plato-space-2);
   color: var(--plato-color-muted);
-  font-size: 12px;
-  font-weight: 700;
+  font-size: var(--plato-type-caption-size);
+  font-weight: var(--plato-type-badge-weight);
+  line-height: var(--plato-type-caption-line-height);
 }
 
 .statePicker select {
@@ -124,7 +128,9 @@
   padding: var(--plato-space-2) var(--plato-space-3);
   background: var(--plato-color-panel);
   color: var(--plato-color-ink);
-  font-weight: 700;
+  font-size: var(--plato-type-control-size);
+  font-weight: var(--plato-type-control-weight);
+  line-height: var(--plato-type-control-line-height);
 }
 
 .sidebar {
@@ -149,7 +155,13 @@
 
 .sidebarHeader {
   margin-bottom: var(--plato-space-6);
-  font-weight: 700;
+  font-weight: var(--plato-type-label-weight);
+}
+
+.sidebarHeader .sidebarTitle {
+  font-size: var(--plato-type-card-title-size);
+  font-weight: var(--plato-type-page-title-weight);
+  line-height: var(--plato-type-card-title-line-height);
 }
 
 .sidebarHeader button,
@@ -159,7 +171,9 @@
   border-radius: var(--plato-radius-md);
   background: var(--plato-color-panel);
   color: var(--plato-color-reason-blue);
-  font-weight: 700;
+  font-size: var(--plato-type-control-size);
+  font-weight: var(--plato-type-control-weight);
+  line-height: var(--plato-type-control-line-height);
 }
 
 .sidebarHeader button,
@@ -170,8 +184,9 @@
 .sidebarGroupTitle,
 .eyebrow {
   color: var(--plato-color-muted);
-  font-size: 12px;
-  font-weight: 700;
+  font-size: var(--plato-type-caption-size);
+  font-weight: var(--plato-type-badge-weight);
+  line-height: var(--plato-type-caption-line-height);
   text-transform: uppercase;
 }
 
@@ -185,6 +200,9 @@
   padding: var(--plato-space-3);
   background: var(--plato-color-transparent);
   color: var(--plato-color-muted);
+  font-size: var(--plato-type-nav-size);
+  font-weight: var(--plato-type-nav-weight);
+  line-height: var(--plato-type-nav-line-height);
   overflow: hidden;
   text-align: left;
   text-overflow: ellipsis;
@@ -195,7 +213,9 @@
   border-color: var(--plato-color-cave-blue);
   background: var(--plato-color-clear-blue);
   color: var(--plato-color-reason-blue);
-  font-weight: 700;
+  font-size: var(--plato-type-nav-active-size);
+  font-weight: var(--plato-type-nav-active-weight);
+  line-height: var(--plato-type-nav-active-line-height);
 }
 
 .sessionContextMenu {
@@ -220,7 +240,9 @@
   padding: 10px var(--plato-space-3);
   background: var(--plato-color-transparent);
   color: var(--plato-color-ink);
-  font-weight: 700;
+  font-size: var(--plato-type-control-size);
+  font-weight: var(--plato-type-control-weight);
+  line-height: var(--plato-type-control-line-height);
   text-align: left;
 }
 
@@ -277,15 +299,18 @@
 
 .sessionLifecyclePanel h3 {
   margin: 0;
-  font-size: 28px;
+  font-size: var(--plato-type-display-size);
+  font-weight: var(--plato-type-display-weight);
+  line-height: var(--plato-type-display-line-height);
 }
 
 .sessionLifecycleField {
   display: grid;
   gap: var(--plato-space-2);
   color: var(--plato-color-muted);
-  font-size: 12px;
-  font-weight: 700;
+  font-size: var(--plato-type-caption-size);
+  font-weight: var(--plato-type-label-weight);
+  line-height: var(--plato-type-caption-line-height);
 }
 
 .sessionLifecycleField input {
@@ -295,7 +320,9 @@
   padding: var(--plato-space-3) var(--plato-space-4);
   background: var(--plato-color-panel);
   color: var(--plato-color-ink);
-  font-size: 20px;
+  font-size: var(--plato-type-title-size);
+  font-weight: var(--plato-type-title-weight);
+  line-height: var(--plato-type-title-line-height);
 }
 
 .sessionLifecycleField input:focus-visible {
@@ -331,7 +358,9 @@
 .sectionHeader h1,
 .detailPanel h2 {
   margin: var(--plato-space-1) 0 0;
-  font-size: 24px;
+  font-size: var(--plato-type-page-title-size);
+  font-weight: var(--plato-type-page-title-weight);
+  line-height: var(--plato-type-page-title-line-height);
 }
 
 .workGrid {
@@ -349,7 +378,7 @@
   border: 1px solid var(--plato-color-line);
   border-radius: var(--plato-radius-lg);
   padding: var(--plato-space-5);
-  background: var(--plato-color-marble);
+  background: var(--plato-color-panel);
 }
 
 .workPanel {
@@ -365,7 +394,9 @@
   min-width: 0;
   margin: 0;
   overflow: hidden;
-  font-size: 18px;
+  font-size: var(--plato-type-panel-title-size);
+  font-weight: var(--plato-type-panel-title-weight);
+  line-height: var(--plato-type-panel-title-line-height);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -421,6 +452,18 @@
   white-space: nowrap;
 }
 
+.taskText strong {
+  font-size: var(--plato-type-card-title-size);
+  font-weight: var(--plato-type-card-title-weight);
+  line-height: var(--plato-type-card-title-line-height);
+}
+
+.taskText small {
+  font-size: var(--plato-type-body-sm-size);
+  font-weight: var(--plato-type-body-sm-weight);
+  line-height: var(--plato-type-body-sm-line-height);
+}
+
 .taskText small,
 .messageCard p,
 .detailPanel p,
@@ -462,18 +505,28 @@
 .messageMeta span:last-child {
   min-width: 0;
   color: var(--plato-color-muted);
-  font-size: 12px;
+  font-size: var(--plato-type-caption-size);
+  line-height: var(--plato-type-caption-line-height);
   overflow-wrap: anywhere;
 }
 
 .messageCard strong {
   display: block;
   margin-bottom: var(--plato-space-1);
+  font-size: var(--plato-type-card-title-size);
+  font-weight: var(--plato-type-card-title-weight);
+  line-height: var(--plato-type-card-title-line-height);
 }
 
 .messageCard strong,
 .messageCard p {
   overflow-wrap: anywhere;
+}
+
+.messageCard p {
+  font-size: var(--plato-type-body-size);
+  font-weight: var(--plato-type-body-weight);
+  line-height: var(--plato-type-body-line-height);
 }
 
 .detailPanel {
@@ -506,6 +559,9 @@
 
 .detailTitleRow strong {
   min-width: 0;
+  font-size: var(--plato-type-card-title-size);
+  font-weight: var(--plato-type-card-title-weight);
+  line-height: var(--plato-type-card-title-line-height);
   overflow-wrap: anywhere;
 }
 
@@ -530,8 +586,8 @@
 .fileChangeItem p {
   margin: 0;
   color: var(--plato-color-muted);
-  font-size: 14px;
-  line-height: 1.55;
+  font-size: var(--plato-type-body-sm-size);
+  line-height: var(--plato-type-body-sm-line-height);
   overflow-wrap: anywhere;
 }
 
@@ -544,14 +600,22 @@
 
 .filePath {
   color: var(--plato-color-ink);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
-    "Liberation Mono", "Courier New", monospace;
-  font-size: 13px;
+  font-family: var(--plato-font-mono);
+  font-size: var(--plato-type-code-size);
+  font-weight: var(--plato-type-code-weight);
+  line-height: var(--plato-type-code-line-height);
+}
+
+.detailTitleRow .filePath {
+  font-size: var(--plato-type-code-size);
+  font-weight: var(--plato-type-code-weight);
+  line-height: var(--plato-type-code-line-height);
 }
 
 .fileOwner {
   color: var(--plato-color-muted);
-  font-size: 12px;
+  font-size: var(--plato-type-caption-size);
+  line-height: var(--plato-type-caption-line-height);
   overflow-wrap: anywhere;
 }
 
@@ -578,10 +642,22 @@
   gap: var(--plato-space-1);
 }
 
+.contextInput > div strong {
+  font-size: var(--plato-type-body-size);
+  font-weight: var(--plato-type-body-strong-weight);
+  line-height: var(--plato-type-body-line-height);
+}
+
+.contextInput > div p {
+  font-size: var(--plato-type-body-sm-size);
+  line-height: var(--plato-type-body-sm-line-height);
+}
+
 .contextInputField span {
   color: var(--plato-color-muted);
-  font-size: 12px;
-  font-weight: 700;
+  font-size: var(--plato-type-caption-size);
+  font-weight: var(--plato-type-label-weight);
+  line-height: var(--plato-type-caption-line-height);
 }
 
 .contextInputField input {

@@ -85,29 +85,51 @@ share colors, but the token name must preserve the state dimension.
 
 ## 4. Typography Tokens
 
+Detailed typography rules live in
+[Typography System](typography-system.md). This section records the minimum
+token contract and current frontend compatibility mapping.
+
 Font family baseline:
 
 | Token | Value |
 |---|---|
-| `typography/family/sans` | `Inter`, `PingFang SC`, `Microsoft YaHei`, system sans |
-| `typography/family/serif` | `Source Serif 4`, `Noto Serif SC`, Georgia |
+| `typography/family/ui` | `Inter`, `Noto Sans SC`, `PingFang SC`, `Microsoft YaHei`, system sans |
+| `typography/family/brand` | `Source Serif 4`, `Noto Serif SC`, `Source Han Serif SC`, Georgia |
+| `typography/family/mono` | `JetBrains Mono`, `SFMono-Regular`, Menlo, Monaco, Consolas, monospace |
 
-Text roles must map to the existing frontend `Text` component variants.
+Core text roles:
 
-| Role | Code variant | Intended use |
-|---|---|---|
-| `type/eyebrow` | `Text variant="eyebrow"` | Small context labels. |
-| `type/heading` | `Text variant="heading"` | Page or major panel titles. |
-| `type/subheading` | `Text variant="subheading"` | Section headings. |
-| `type/body` | `Text variant="body"` | Normal readable text. |
-| `type/muted` | `Text variant="muted"` | Secondary explanations and metadata. |
-| `type/label` | `Text variant="label"` | Control labels and compact labels. |
+| Role | Size | Weight | Intended use |
+|---|---:|---:|---|
+| `type/brand-title` | 24px | 700 | Top bar brand text only. |
+| `type/display` | 28px | 700 | Dialog title or rare page-level emphasis. |
+| `type/page-title` | 22px | 600 | Main workspace or audit page title. |
+| `type/title` | 20px | 600 | Major object title or dialog input title. |
+| `type/panel-title` | 18px | 500 | Panel and section headings. |
+| `type/card-title` | 15px | 500 | TaskNode, message, and result card titles. |
+| `type/body` | 14px | 400 | Normal readable text. |
+| `type/body-small` | 13px | 400 | Secondary descriptions and help text. |
+| `type/label` | 13px | 500 | Field labels and compact labels. |
+| `type/control` | 14px | 500 | Buttons, menus, and select controls. |
+| `type/caption` | 12px | 500 | Metadata, counters, compact context. |
+| `type/badge` | 12px | 500 | Badge and pill text. |
+| `type/code` | 13px | 500 | File paths, commands, and logs. |
+
+Current compatibility aliases:
+
+| Existing role | Maps to |
+|---|---|
+| `type/heading` | `type/page-title` |
+| `type/subheading` | `type/panel-title` |
+| `type/muted` | `type/body-small` + secondary text color |
+| `type/eyebrow` | `type/caption` + uppercase transform |
 
 Rules:
 
 - Do not scale type with viewport width.
 - Letter spacing stays `0` unless a specific text style requires otherwise.
 - Panel/card headings must not use hero-scale type.
+- Do not add page-local type scales in CSS. Extend token roles first.
 
 ## 5. Spacing, Radius, Shadow, Motion, Breakpoint, Z-Index
 

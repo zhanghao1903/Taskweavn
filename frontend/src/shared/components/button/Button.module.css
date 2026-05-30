@@ -6,8 +6,8 @@
   gap: var(--plato-space-2);
   border: 1px solid var(--plato-color-transparent);
   border-radius: var(--plato-radius-md);
-  font-weight: 700;
-  line-height: 1;
+  font-weight: var(--plato-type-control-weight);
+  line-height: var(--plato-type-control-line-height);
   text-decoration: none;
   transition:
     border-color var(--plato-motion-duration-fast)
@@ -33,13 +33,13 @@
 .sm {
   min-height: 36px;
   padding: 0 var(--plato-space-3);
-  font-size: 14px;
+  font-size: var(--plato-type-control-size);
 }
 
 .md {
   min-height: 40px;
   padding: 0 var(--plato-space-4);
-  font-size: 14px;
+  font-size: var(--plato-type-control-size);
 }
 
 .icon {

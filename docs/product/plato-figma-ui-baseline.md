@@ -102,6 +102,10 @@ Recommended tokens:
 
 ## 5. Typography
 
+Detailed type roles and text color semantics are defined in
+[Typography System](../design/typography-system.md). This section is the
+visual baseline summary for Figma composition.
+
 Use a modern readable sans-serif.
 
 Preferred:

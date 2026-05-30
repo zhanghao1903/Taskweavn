@@ -25,7 +25,7 @@ export function TaskTreePanel({
       icon={<GitBranch size={18} aria-hidden="true" />}
       title="TaskTree"
       titleId="tasktree-title"
-      tone="muted"
+      tone="surface"
     >
       {taskTree ? (
         <div className={styles.taskList}>

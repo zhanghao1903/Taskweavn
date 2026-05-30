@@ -113,7 +113,7 @@ export function MainPageSessionSidebar({
       aria-label="Workflow sessions"
     >
       <div className={styles.sidebarHeader}>
-        <Text as="span" variant="label">
+        <Text as="span" className={styles.sidebarTitle} variant="label">
           Workflow
         </Text>
         <Button

@@ -14,6 +14,7 @@ This directory governs Plato Figma work and design-system handoff.
 | [layout-components-visual-upgrade-brief.md](layout-components-visual-upgrade-brief.md) | Governed upgrade targets for `04 - Layout Components` before Figma visual alignment work. |
 | [domain-components-visual-upgrade-brief.md](domain-components-visual-upgrade-brief.md) | Governed upgrade targets for `05 - Domain Components` before Main/Audit screen-state recomposition. |
 | [design-system.md](design-system.md) | Minimal production-grade token and component-layer contract. |
+| [typography-system.md](typography-system.md) | Font family, type scale, text color semantics, and typography usage rules. |
 | [component-spec.md](component-spec.md) | Component inventory, Figma-to-code mapping, and readiness contract. |
 | [component-state-matrix.md](component-state-matrix.md) | Required variants and states for base, layout, and domain components. |
 | [dev-handoff.md](dev-handoff.md) | Governed Figma-to-frontend mapping for tokens, components, states, flows, ViewModels, API gaps, and P5 architecture input. |

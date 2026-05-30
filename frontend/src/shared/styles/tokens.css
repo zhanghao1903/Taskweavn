@@ -32,6 +32,30 @@
   );
   --plato-color-semantic-text-primary: var(--plato-color-primitive-ink);
   --plato-color-semantic-text-secondary: var(--plato-color-primitive-muted);
+  --plato-color-semantic-text-tertiary: var(
+    --plato-color-placeholder-text-tertiary
+  );
+  --plato-color-semantic-text-disabled: var(
+    --plato-color-placeholder-text-disabled
+  );
+  --plato-color-semantic-text-placeholder: var(
+    --plato-color-placeholder-text-placeholder
+  );
+  --plato-color-semantic-text-link: var(
+    --plato-color-primitive-reason-blue
+  );
+  --plato-color-semantic-text-info: var(
+    --plato-color-primitive-reason-blue
+  );
+  --plato-color-semantic-text-success: var(
+    --plato-color-primitive-success-text
+  );
+  --plato-color-semantic-text-warning: var(
+    --plato-color-primitive-warning-text
+  );
+  --plato-color-semantic-text-danger: var(
+    --plato-color-primitive-danger-text
+  );
   --plato-color-semantic-on-action-primary: var(
     --plato-color-primitive-panel
   );
@@ -235,6 +259,9 @@
   --plato-color-project-bg: #f7f9fc;
 
   /* Placeholder colors awaiting explicit Figma variables. */
+  --plato-color-placeholder-text-tertiary: #8792a4;
+  --plato-color-placeholder-text-disabled: #aab3c2;
+  --plato-color-placeholder-text-placeholder: #8f99aa;
   --plato-color-placeholder-page-tint: rgb(255 255 255 / 72%);
   --plato-color-placeholder-neutral-bg: #edf1f5;
   --plato-color-placeholder-danger-hover-bg: #ffe5df;
@@ -257,6 +284,8 @@
   --plato-color-marble: var(--plato-color-primitive-marble);
   --plato-color-ink: var(--plato-color-semantic-text-primary);
   --plato-color-muted: var(--plato-color-semantic-text-secondary);
+  --plato-color-dim: var(--plato-color-semantic-text-tertiary);
+  --plato-color-disabled: var(--plato-color-semantic-text-disabled);
   --plato-color-line: var(--plato-color-semantic-border);
   --plato-color-panel: var(--plato-color-semantic-surface);
   --plato-color-success-bg: var(--plato-color-primitive-success-bg);
@@ -266,33 +295,91 @@
   --plato-color-danger-bg: var(--plato-color-primitive-danger-bg);
   --plato-color-danger-text: var(--plato-color-primitive-danger-text);
 
-  /* Plato Typography variables and text style tokens. */
-  --plato-typography-family-sans: Inter, "PingFang SC", "Microsoft YaHei",
-    system-ui, sans-serif;
-  --plato-typography-family-serif: "Source Serif 4", "Noto Serif SC", Georgia,
-    serif;
-  --plato-type-eyebrow-size: 12px;
-  --plato-type-eyebrow-line-height: normal;
-  --plato-type-eyebrow-weight: 700;
-  --plato-type-heading-size: 24px;
-  --plato-type-heading-line-height: 1.2;
-  --plato-type-heading-weight: 800;
-  --plato-type-subheading-size: 18px;
-  --plato-type-subheading-line-height: 1.2;
-  --plato-type-subheading-weight: 800;
-  --plato-type-body-size: 15px;
-  --plato-type-body-line-height: 1.45;
+  /* Plato Typography / family. */
+  --plato-typography-family-ui: Inter, "Noto Sans SC", "PingFang SC",
+    "Microsoft YaHei", system-ui, sans-serif;
+  --plato-typography-family-brand: "Source Serif 4", "Noto Serif SC",
+    "Source Han Serif SC", Georgia, serif;
+  --plato-typography-family-mono: "JetBrains Mono", "SFMono-Regular", Menlo,
+    Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+
+  /* Backward-compatible family aliases. */
+  --plato-typography-family-sans: var(--plato-typography-family-ui);
+  --plato-typography-family-serif: var(--plato-typography-family-brand);
+
+  /* Plato Typography / role tokens. */
+  --plato-type-brand-title-size: 24px;
+  --plato-type-brand-title-line-height: 1.1;
+  --plato-type-brand-title-weight: 700;
+  --plato-type-display-size: 28px;
+  --plato-type-display-line-height: 1.15;
+  --plato-type-display-weight: 700;
+  --plato-type-page-title-size: 22px;
+  --plato-type-page-title-line-height: 1.25;
+  --plato-type-page-title-weight: 600;
+  --plato-type-title-size: 20px;
+  --plato-type-title-line-height: 1.3;
+  --plato-type-title-weight: 600;
+  --plato-type-panel-title-size: 18px;
+  --plato-type-panel-title-line-height: 1.3;
+  --plato-type-panel-title-weight: 500;
+  --plato-type-card-title-size: 15px;
+  --plato-type-card-title-line-height: 1.35;
+  --plato-type-card-title-weight: 500;
+  --plato-type-body-size: 14px;
+  --plato-type-body-line-height: 1.5;
   --plato-type-body-weight: 400;
-  --plato-type-muted-size: 14px;
-  --plato-type-muted-line-height: 1.45;
-  --plato-type-muted-weight: 400;
-  --plato-type-label-size: 14px;
-  --plato-type-label-line-height: 1.3;
-  --plato-type-label-weight: 700;
+  --plato-type-body-strong-size: var(--plato-type-body-size);
+  --plato-type-body-strong-line-height: var(--plato-type-body-line-height);
+  --plato-type-body-strong-weight: 500;
+  --plato-type-body-sm-size: 13px;
+  --plato-type-body-sm-line-height: 1.45;
+  --plato-type-body-sm-weight: 400;
+  --plato-type-label-size: 13px;
+  --plato-type-label-line-height: 1.35;
+  --plato-type-label-weight: 500;
+  --plato-type-control-size: 14px;
+  --plato-type-control-line-height: 1.2;
+  --plato-type-control-weight: 500;
+  --plato-type-caption-size: 12px;
+  --plato-type-caption-line-height: 1.35;
+  --plato-type-caption-weight: 500;
+  --plato-type-badge-size: 12px;
+  --plato-type-badge-line-height: 1.2;
+  --plato-type-badge-weight: 500;
+  --plato-type-breadcrumb-size: 14px;
+  --plato-type-breadcrumb-line-height: 1.35;
+  --plato-type-breadcrumb-weight: 500;
+  --plato-type-nav-size: 15px;
+  --plato-type-nav-line-height: 1.35;
+  --plato-type-nav-weight: 400;
+  --plato-type-nav-active-size: var(--plato-type-nav-size);
+  --plato-type-nav-active-line-height: var(--plato-type-nav-line-height);
+  --plato-type-nav-active-weight: 500;
+  --plato-type-code-size: 13px;
+  --plato-type-code-line-height: 1.45;
+  --plato-type-code-weight: 500;
   --plato-type-letter-spacing: 0;
+
+  /* Backward-compatible Text component aliases. */
+  --plato-type-eyebrow-size: var(--plato-type-caption-size);
+  --plato-type-eyebrow-line-height: var(--plato-type-caption-line-height);
+  --plato-type-eyebrow-weight: var(--plato-type-caption-weight);
+  --plato-type-heading-size: var(--plato-type-page-title-size);
+  --plato-type-heading-line-height: var(--plato-type-page-title-line-height);
+  --plato-type-heading-weight: var(--plato-type-page-title-weight);
+  --plato-type-subheading-size: var(--plato-type-panel-title-size);
+  --plato-type-subheading-line-height: var(
+    --plato-type-panel-title-line-height
+  );
+  --plato-type-subheading-weight: var(--plato-type-panel-title-weight);
+  --plato-type-muted-size: var(--plato-type-body-sm-size);
+  --plato-type-muted-line-height: var(--plato-type-body-sm-line-height);
+  --plato-type-muted-weight: var(--plato-type-body-sm-weight);
 
   --plato-font-sans: var(--plato-typography-family-sans);
   --plato-font-serif: var(--plato-typography-family-serif);
+  --plato-font-mono: var(--plato-typography-family-mono);
 
   /* Plato Spacing */
   --plato-space-1: 4px;
