@@ -83,6 +83,12 @@ export function MainPageWorkbench({
 
         <div className={styles.workGrid}>
           <TaskTreePanel
+            onRetryTask={(taskNodeId) =>
+              actions.retryTask({
+                sessionId: viewModel.sessionId,
+                taskNodeId,
+              })
+            }
             onSelectTask={actions.selectTask}
             selectedTaskNodeId={viewModel.taskWorkspace.selectedTaskNodeId}
             taskTree={viewModel.taskWorkspace.taskTree}
