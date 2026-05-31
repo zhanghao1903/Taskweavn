@@ -19,6 +19,7 @@ from taskweavn.server.ui_contract import (
     AuditRecord,
     AuditRecordDetail,
     AuditRecordFlags,
+    AuditRecordsResult,
     AuditTaskScope,
     EffectiveConfigSummary,
     EvidenceDetail,
@@ -254,6 +255,20 @@ def test_audit_contract_keeps_raw_payloads_permission_gated() -> None:
                 raw_payload_shown=True,
             ),
         )
+
+
+def test_audit_records_result_serializes_pagination_shape() -> None:
+    result = AuditRecordsResult(
+        records=(_audit_record(),),
+        next_cursor="offset:50",
+        total_count=51,
+    )
+
+    payload = result.model_dump(mode="json")
+
+    assert payload["records"][0]["id"] == "record-file-1"
+    assert payload["nextCursor"] == "offset:50"
+    assert payload["totalCount"] == 51
 
 
 def test_audit_event_builders_emit_expected_payloads() -> None:

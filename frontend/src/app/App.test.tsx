@@ -610,21 +610,24 @@ describe("App", () => {
     expect(await screen.findByText("Session deleted.")).toBeInTheDocument();
   });
 
-  it("renders Audit as a reserved route entry until the Audit Page UI exists", async () => {
+  it("renders Audit as a route-ready entry once the Audit Page UI exists", async () => {
     renderWithQueryClient(
       <MainPage adapter={testAdapter({ loadSnapshot: loadImmediateSnapshot })} />,
     );
 
-    const auditButton = await screen.findByRole("button", {
+    const auditLink = await screen.findByRole("link", {
       name: "View audit",
     });
 
-    expect(auditButton).toBeDisabled();
+    expect(auditLink).toHaveAttribute(
+      "href",
+      expect.stringContaining("/sessions/session-website-plan/audit"),
+    );
     expect(
-      screen.getByText(
+      screen.queryByText(
         "Audit entry is reserved until the Audit Page UI is implemented.",
       ),
-    ).toBeInTheDocument();
+    ).not.toBeInTheDocument();
   });
 
   it("switches sessions from the sidebar", async () => {

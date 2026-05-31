@@ -6,4 +6,4 @@ designs and not release records.
 
 | File | Purpose | Status |
 |---|---|---|
-| [audit-page-contract.md](audit-page-contract.md) | Audit Page backend-to-frontend contract: snapshot, record, evidence, scopes, events, endpoint candidates, mock scenarios, and implementation status. | Backend additive contract models complete; routes/gateway/frontend work pending. |
+| [audit-page-contract.md](audit-page-contract.md) | Audit Page backend-to-frontend contract: snapshot, record, evidence, scopes, events, endpoint candidates, mock scenarios, and implementation status. | Frontend mock baseline and backend projection/EventStream/log/config query path are in place; AP-012B sanitized payload disclosure is designed; runtime audit events and disclosure implementation remain pending. |

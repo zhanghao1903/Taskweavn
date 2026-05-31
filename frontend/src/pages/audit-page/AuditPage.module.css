@@ -1,0 +1,787 @@
+.page {
+  min-width: 1280px;
+  min-height: 100vh;
+  background: var(--plato-color-semantic-page-bg);
+  color: var(--plato-color-semantic-text-primary);
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.topBar {
+  display: grid;
+  grid-template-columns:
+    minmax(180px, 220px)
+    minmax(150px, 180px)
+    minmax(220px, 280px)
+    minmax(220px, 1fr)
+    auto;
+  align-items: center;
+  gap: 20px;
+  min-height: 72px;
+  padding: 0 32px;
+  overflow: hidden;
+  background: var(--plato-color-semantic-surface);
+  border-bottom: 1px solid var(--plato-color-semantic-border);
+}
+
+.brandBlock {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 180px;
+}
+
+.brandMark {
+  width: 36px;
+  height: 36px;
+  flex: 0 0 auto;
+}
+
+.brandCopy {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.brandName {
+  color: var(--plato-color-ink);
+  font-size: var(--plato-type-brand-title-size);
+  font-weight: var(--plato-type-brand-title-weight);
+  line-height: var(--plato-type-brand-title-line-height);
+}
+
+.brandSubtitle {
+  overflow: hidden;
+  color: var(--plato-color-muted);
+  font-size: var(--plato-type-caption-size);
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.topBarContextBlock {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.topBarLabel {
+  overflow: hidden;
+  color: var(--plato-color-semantic-text-tertiary);
+  font-size: var(--plato-type-caption-size);
+  font-weight: var(--plato-type-caption-weight);
+  line-height: var(--plato-type-caption-line-height);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.topBarValue,
+.sessionValue {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--plato-color-semantic-text-primary);
+  font-family: var(--plato-typography-family-cjk-ui);
+  font-size: var(--plato-type-topbar-context-size);
+  font-weight: var(--plato-type-topbar-context-weight);
+  line-height: var(--plato-type-topbar-context-line-height);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workflowPill {
+  min-width: 0;
+  overflow: hidden;
+  border-radius: 6px;
+  padding: 8px 16px;
+  background: var(--plato-color-clear-blue);
+  color: var(--plato-color-reason-blue);
+  font-family: var(--plato-typography-family-cjk-ui);
+  font-size: var(--plato-type-topbar-badge-size);
+  font-weight: var(--plato-type-topbar-badge-weight);
+  line-height: var(--plato-type-topbar-badge-line-height);
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sessionContextBlock {
+  display: flex;
+  min-width: 0;
+}
+
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--plato-color-semantic-text-secondary);
+}
+
+.breadcrumbStrong {
+  color: var(--plato-color-semantic-text-primary);
+  font-weight: 500;
+}
+
+.topBarActions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.topBarActions :is(a, button):focus-visible {
+  outline: 2px solid var(--plato-color-primitive-cave-blue);
+  outline-offset: 3px;
+}
+
+.shell {
+  padding: 22px 32px 32px;
+}
+
+.header {
+  display: grid;
+  grid-template-columns: minmax(360px, 1fr) auto minmax(340px, 520px);
+  align-items: start;
+  gap: 18px;
+  margin-bottom: 16px;
+}
+
+.titleRow {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.title {
+  margin: 0;
+  font-size: 42px;
+  line-height: 52px;
+  font-weight: 650;
+}
+
+.subject {
+  margin: 4px 0 0;
+  font-size: 24px;
+  line-height: 32px;
+  font-weight: 600;
+}
+
+.status {
+  margin: 2px 0 0;
+  color: var(--plato-color-semantic-text-secondary);
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.note {
+  align-self: center;
+  max-width: 520px;
+  color: var(--plato-color-semantic-text-secondary);
+  font-size: 14px;
+  line-height: 20px;
+  text-align: right;
+}
+
+.headerStatus {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.panel {
+  background: var(--plato-color-semantic-surface);
+  border: 1px solid var(--plato-color-semantic-border);
+  border-radius: 8px;
+  box-shadow: 0 10px 30px rgb(24 32 51 / 6%);
+}
+
+.overview {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) repeat(4, minmax(100px, 130px));
+  gap: 16px;
+  align-items: center;
+  padding: 18px 20px;
+  margin-bottom: 24px;
+}
+
+.verdictNotice {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  margin: -8px 0 24px;
+  padding: 14px 16px;
+}
+
+.verdictNotice strong {
+  display: block;
+  color: var(--plato-color-semantic-text-primary);
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 600;
+}
+
+.verdictNotice p {
+  margin: 4px 0 0;
+  color: var(--plato-color-semantic-text-secondary);
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.overviewTitle {
+  margin: 0 0 10px;
+  font-size: 18px;
+  line-height: 26px;
+  font-weight: 600;
+}
+
+.overviewCopy {
+  margin: 0;
+  color: var(--plato-color-semantic-text-secondary);
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.overviewIssue {
+  margin: 10px 0 0;
+  color: var(--plato-color-semantic-text-primary);
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.metric {
+  min-height: 72px;
+  padding: 12px 14px;
+  border: 1px solid var(--plato-color-semantic-border);
+  border-radius: 8px;
+  background: var(--plato-color-semantic-surface);
+}
+
+.metricLabel {
+  display: block;
+  color: var(--plato-color-semantic-text-secondary);
+  font-size: 12px;
+  line-height: 17px;
+  font-weight: 500;
+}
+
+.metricValue {
+  display: block;
+  margin-top: 2px;
+  font-size: 28px;
+  line-height: 34px;
+  font-weight: 600;
+}
+
+.metricNote {
+  display: block;
+  color: var(--plato-color-semantic-text-tertiary);
+  font-size: 12px;
+  line-height: 17px;
+}
+
+.content {
+  display: grid;
+  grid-template-columns: 216px minmax(0, 1fr);
+  gap: 24px;
+  align-items: stretch;
+}
+
+.contentWithDetail {
+  grid-template-columns: 216px minmax(520px, 1fr) 480px;
+}
+
+.filterRail {
+  min-height: 650px;
+  max-height: calc(100vh - 352px);
+  overflow: auto;
+  scrollbar-gutter: stable;
+  padding: 16px 14px;
+}
+
+.sectionTitle {
+  margin: 0;
+  font-size: 18px;
+  line-height: 26px;
+  font-weight: 600;
+}
+
+.sectionHint {
+  margin: 2px 0 18px;
+  color: var(--plato-color-semantic-text-secondary);
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.filterList {
+  display: grid;
+  gap: 6px;
+}
+
+.filterButton {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  min-height: 42px;
+  padding: 0 12px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--plato-color-semantic-text-secondary);
+  font: inherit;
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+}
+
+.filterButton:hover {
+  background: var(--plato-color-primitive-clear-blue);
+}
+
+.filterButton:focus-visible {
+  outline: 2px solid var(--plato-color-primitive-cave-blue);
+  outline-offset: 2px;
+  background: var(--plato-color-primitive-clear-blue);
+}
+
+.filterButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.52;
+}
+
+.filterButton[aria-current="true"] {
+  background: var(--plato-color-primitive-clear-blue);
+  border-color: var(--plato-color-primitive-cave-blue);
+  color: var(--plato-color-semantic-text-link);
+}
+
+.filterCount {
+  color: var(--plato-color-semantic-text-tertiary);
+  font-size: 12px;
+}
+
+.timeline {
+  min-height: 650px;
+  max-height: calc(100vh - 352px);
+  overflow: auto;
+  scrollbar-gutter: stable;
+  padding: 18px 20px;
+}
+
+.timelineHeader {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.timelineMeta {
+  color: var(--plato-color-semantic-text-secondary);
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.recordList {
+  display: grid;
+  gap: 12px;
+}
+
+.emptyList {
+  min-height: 260px;
+  display: grid;
+  place-items: center;
+  border: 1px dashed var(--plato-color-semantic-border);
+  border-radius: 8px;
+  color: var(--plato-color-semantic-text-secondary);
+  text-align: center;
+}
+
+.recordCard {
+  width: 100%;
+  padding: 14px;
+  border: 1px solid var(--plato-color-semantic-border);
+  border-radius: 8px;
+  background: var(--plato-color-semantic-surface);
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.recordCard:hover,
+.recordCard[aria-current="true"] {
+  border-color: var(--plato-color-primitive-cave-blue);
+  background: var(--plato-color-primitive-clear-blue);
+  box-shadow: 0 0 0 3px var(--plato-color-semantic-focus-ring);
+}
+
+.recordCard:focus-visible {
+  outline: 2px solid var(--plato-color-primitive-cave-blue);
+  outline-offset: 2px;
+  border-color: var(--plato-color-primitive-cave-blue);
+  background: var(--plato-color-primitive-clear-blue);
+}
+
+.recordTopLine {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.recordBadgeCluster {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+.recordTime {
+  color: var(--plato-color-semantic-text-tertiary);
+  font-size: 12px;
+  line-height: 17px;
+}
+
+.recordTitle {
+  margin: 0;
+  font-size: 15px;
+  line-height: 21px;
+  font-weight: 600;
+}
+
+.recordSummary {
+  margin: 4px 0 0;
+  color: var(--plato-color-semantic-text-secondary);
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.recordRefs {
+  margin: 8px 0 0;
+  color: var(--plato-color-semantic-text-tertiary);
+  font-size: 12px;
+  line-height: 17px;
+}
+
+.recordFooter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+  color: var(--plato-color-semantic-text-tertiary);
+  font-size: 12px;
+  line-height: 17px;
+}
+
+.recordFooter span {
+  min-height: 24px;
+  display: inline-flex;
+  align-items: center;
+  border-radius: 6px;
+  padding: 0 8px;
+  background: var(--plato-color-semantic-surface-muted);
+}
+
+.recordFlags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.detail {
+  min-height: 650px;
+  max-height: calc(100vh - 352px);
+  overflow: auto;
+  scrollbar-gutter: stable;
+  padding: 18px 22px;
+}
+
+.detail:focus-visible {
+  outline: 2px solid var(--plato-color-primitive-cave-blue);
+  outline-offset: 3px;
+}
+
+.detailTopLine {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.detailTitle {
+  margin: 10px 0 0;
+  font-size: 24px;
+  line-height: 32px;
+  font-weight: 650;
+}
+
+.detailBody {
+  margin: 12px 0 0;
+  color: var(--plato-color-semantic-text-secondary);
+  font-size: 14px;
+  line-height: 21px;
+}
+
+.detailState {
+  margin: 12px 0 0;
+  border: 1px solid var(--plato-color-semantic-border);
+  border-radius: 6px;
+  padding: 10px 12px;
+  background: var(--plato-color-semantic-surface-muted);
+  color: var(--plato-color-semantic-text-secondary);
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.detailStateError {
+  border-color: var(--plato-color-status-audit-verdict-failed-bg);
+  background: var(--plato-color-status-audit-verdict-failed-bg);
+  color: var(--plato-color-status-audit-verdict-failed-text);
+}
+
+.detailSection {
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid var(--plato-color-semantic-border);
+}
+
+.detailSectionTitle {
+  margin: 0 0 8px;
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 600;
+}
+
+.evidenceList {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--plato-color-semantic-text-secondary);
+  font-size: 14px;
+  line-height: 21px;
+}
+
+.disclosureList {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+}
+
+.disclosureList > div {
+  display: grid;
+  grid-template-columns: 128px minmax(0, 1fr);
+  gap: 12px;
+  color: var(--plato-color-semantic-text-secondary);
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.disclosureList dt {
+  color: var(--plato-color-semantic-text-primary);
+  font-weight: 500;
+}
+
+.disclosureList dd {
+  margin: 0;
+}
+
+.reservedGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.reservedCard {
+  min-height: 84px;
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  border: 1px dashed var(--plato-color-semantic-border);
+  border-radius: 6px;
+  padding: 12px;
+}
+
+.reservedCard strong {
+  color: var(--plato-color-semantic-text-primary);
+  font-size: 12px;
+  line-height: 17px;
+  font-weight: 600;
+}
+
+.reservedCard span,
+.reservedList {
+  color: var(--plato-color-semantic-text-secondary);
+  font-size: 12px;
+  line-height: 17px;
+}
+
+.reservedList {
+  margin: 0;
+  padding-left: 16px;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 28px;
+  padding: 0 12px;
+  border-radius: 6px;
+  background: var(--plato-color-status-audit-verdict-not-available-bg);
+  color: var(--plato-color-status-audit-verdict-not-available-text);
+  font-size: 12px;
+  line-height: 17px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.badgePassed {
+  background: var(--plato-color-status-audit-verdict-passed-bg);
+  color: var(--plato-color-status-audit-verdict-passed-text);
+}
+
+.badgeWarning {
+  background: var(--plato-color-status-audit-verdict-warning-bg);
+  color: var(--plato-color-status-audit-verdict-warning-text);
+}
+
+.badgeFailed {
+  background: var(--plato-color-status-audit-verdict-failed-bg);
+  color: var(--plato-color-status-audit-verdict-failed-text);
+}
+
+.badgeInconclusive {
+  background: var(--plato-color-status-audit-verdict-inconclusive-bg);
+  color: var(--plato-color-status-audit-verdict-inconclusive-text);
+}
+
+.actionButton {
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--plato-color-semantic-border);
+  border-radius: 6px;
+  background: var(--plato-color-semantic-surface);
+  color: var(--plato-color-semantic-text-primary);
+  font: inherit;
+  font-size: 12px;
+  line-height: 17px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.actionButton:hover {
+  border-color: var(--plato-color-primitive-cave-blue);
+}
+
+.boundary {
+  min-height: 420px;
+  display: grid;
+  place-items: center;
+  padding: 40px;
+  text-align: center;
+}
+
+.boundaryBanner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+  padding: 14px 16px;
+}
+
+.boundaryBanner p {
+  margin: 4px 0 0;
+  color: var(--plato-color-semantic-text-secondary);
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.boundaryBanner small {
+  display: block;
+  margin-top: 4px;
+  color: var(--plato-color-semantic-text-tertiary);
+  font-size: 12px;
+  line-height: 17px;
+}
+
+.boundaryActions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.boundaryTitle {
+  margin: 0;
+  font-size: 22px;
+  line-height: 30px;
+  font-weight: 600;
+}
+
+.boundaryMessage {
+  max-width: 520px;
+  margin: 8px auto 0;
+  color: var(--plato-color-semantic-text-secondary);
+  font-size: 14px;
+  line-height: 21px;
+}
+
+@media (max-width: 1279px) {
+  .page {
+    min-width: 960px;
+  }
+
+  .topBar {
+    grid-template-columns: minmax(180px, 220px) minmax(0, 1fr) auto;
+  }
+
+  .topBarContextBlock,
+  .workflowPill {
+    display: none;
+  }
+
+  .header,
+  .content,
+  .contentWithDetail {
+    grid-template-columns: 1fr;
+  }
+
+  .note {
+    text-align: left;
+  }
+
+  .headerStatus {
+    justify-content: flex-start;
+  }
+
+  .overview {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .filterRail,
+  .timeline,
+  .detail {
+    min-height: auto;
+    max-height: none;
+  }
+}

@@ -207,6 +207,70 @@ class PlatoUiHttpTransport:
                 return _contract_response(
                     self._query_gateway.get_session_snapshot(route.session_id)
                 )
+            if route_name == "audit_snapshot":
+                query = _request_query(request)
+                return _contract_response(
+                    self._query_gateway.get_audit_snapshot(
+                        route.session_id,
+                        task_node_id=route.task_node_id or None,
+                        entry=query.get("entry"),
+                        filter_kind=query.get("filter", "all"),
+                        record_id=query.get("recordId"),
+                        include_detail=_optional_bool_query(query, "includeDetail"),
+                        limit=_int_query(query, "limit", default=50),
+                        cursor=query.get("cursor"),
+                    )
+                )
+            if route_name == "audit_records":
+                query = _request_query(request)
+                return _contract_response(
+                    self._query_gateway.list_audit_records(
+                        route.session_id,
+                        task_node_id=route.task_node_id or None,
+                        filter_kind=query.get("filter", "all"),
+                        kind=query.get("kind"),
+                        from_time=query.get("from"),
+                        to_time=query.get("to"),
+                        limit=_int_query(query, "limit", default=50),
+                        cursor=query.get("cursor"),
+                        include_hidden_reasons=_bool_query(
+                            query,
+                            "includeHiddenReasons",
+                            default=False,
+                        ),
+                    )
+                )
+            if route_name == "audit_record_detail":
+                query = _request_query(request)
+                return _contract_response(
+                    self._query_gateway.get_audit_record_detail(
+                        route.session_id,
+                        route.record_id,
+                        include_evidence=_bool_query(
+                            query,
+                            "includeEvidence",
+                            default=False,
+                        ),
+                        include_sanitized_payload=_bool_query(
+                            query,
+                            "includeSanitizedPayload",
+                            default=False,
+                        ),
+                    )
+                )
+            if route_name == "audit_evidence_detail":
+                query = _request_query(request)
+                return _contract_response(
+                    self._query_gateway.get_evidence_detail(
+                        route.session_id,
+                        route.evidence_id,
+                        include_sanitized_payload=_bool_query(
+                            query,
+                            "includeSanitizedPayload",
+                            default=False,
+                        ),
+                    )
+                )
             if route_name == "rename_session":
                 lifecycle = self._require_session_lifecycle(request)
                 if isinstance(lifecycle, HttpApiResponse):
@@ -365,6 +429,16 @@ class PlatoUiHttpTransport:
                     headers=dict(_SSE_HEADERS),
                     body=sse_stream(events),
                 )
+        except ValueError as exc:
+            return _error_response(
+                400,
+                ApiError(
+                    code="bad_request",
+                    message=str(exc),
+                    details={"route": route_name},
+                ),
+                request_id=_request_id_hint(request),
+            )
         except Exception as exc:
             return _error_response(
                 500,
@@ -562,6 +636,8 @@ class _Route:
     session_id: str = ""
     task_node_id: str = ""
     confirmation_id: str = ""
+    record_id: str = ""
+    evidence_id: str = ""
 
 
 def _match_route(path: str) -> _Route | None:
@@ -578,6 +654,24 @@ def _match_route(path: str) -> _Route | None:
     suffix = parts[4:]
     if suffix == ("snapshot",):
         return _Route(name="snapshot", method="GET", session_id=session_id)
+    if suffix == ("audit",):
+        return _Route(name="audit_snapshot", method="GET", session_id=session_id)
+    if suffix == ("audit", "records"):
+        return _Route(name="audit_records", method="GET", session_id=session_id)
+    if len(suffix) == 3 and suffix[:2] == ("audit", "records"):
+        return _Route(
+            name="audit_record_detail",
+            method="GET",
+            session_id=session_id,
+            record_id=suffix[2],
+        )
+    if len(suffix) == 3 and suffix[:2] == ("audit", "evidence"):
+        return _Route(
+            name="audit_evidence_detail",
+            method="GET",
+            session_id=session_id,
+            evidence_id=suffix[2],
+        )
     if suffix == ():
         return _Route(name="rename_session", method="PATCH", session_id=session_id)
     if suffix == ("delete",):
@@ -608,6 +702,24 @@ def _match_route(path: str) -> _Route | None:
             session_id=session_id,
             task_node_id=suffix[1],
         )
+    if len(suffix) == 3 and suffix[0] == "tasks" and suffix[2] == "audit":
+        return _Route(
+            name="audit_snapshot",
+            method="GET",
+            session_id=session_id,
+            task_node_id=suffix[1],
+        )
+    if (
+        len(suffix) == 4
+        and suffix[0] == "tasks"
+        and suffix[2:] == ("audit", "records")
+    ):
+        return _Route(
+            name="audit_records",
+            method="GET",
+            session_id=session_id,
+            task_node_id=suffix[1],
+        )
     if len(suffix) == 3 and suffix[0] == "confirmations" and suffix[2] == "respond":
         return _Route(
             name="resolve_confirmation",
@@ -629,6 +741,34 @@ def _request_query(request: HttpApiRequest) -> dict[str, str]:
     query = dict(parse_qsl(split.query, keep_blank_values=True))
     query.update(request.query)
     return query
+
+
+def _optional_bool_query(query: dict[str, str], key: str) -> bool | None:
+    if key not in query:
+        return None
+    return _bool_query(query, key, default=False)
+
+
+def _bool_query(query: dict[str, str], key: str, *, default: bool) -> bool:
+    raw = query.get(key)
+    if raw is None or raw == "":
+        return default
+    lowered = raw.lower()
+    if lowered in {"1", "true", "yes", "on"}:
+        return True
+    if lowered in {"0", "false", "no", "off"}:
+        return False
+    raise ValueError(f"query parameter {key!r} must be a boolean")
+
+
+def _int_query(query: dict[str, str], key: str, *, default: int) -> int:
+    raw = query.get(key)
+    if raw is None or raw == "":
+        return default
+    try:
+        return int(raw)
+    except ValueError as exc:
+        raise ValueError(f"query parameter {key!r} must be an integer") from exc
 
 
 def _parse_command_request[PayloadT](

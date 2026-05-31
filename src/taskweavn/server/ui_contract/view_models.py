@@ -621,6 +621,12 @@ class AuditRecordDetail(AuditRecord):
         return self
 
 
+class AuditRecordsResult(UiContractModel):
+    records: tuple[AuditRecord, ...] = ()
+    next_cursor: str | None = None
+    total_count: int | None = Field(default=None, ge=0)
+
+
 class EffectiveConfigSummary(UiContractModel):
     summary: str = Field(min_length=1)
     profile_label: str = Field(min_length=1)

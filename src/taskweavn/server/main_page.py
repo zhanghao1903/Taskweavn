@@ -30,6 +30,9 @@ from taskweavn.server.ui_command_idempotency import (
 from taskweavn.server.ui_contract import (
     DefaultUiCommandGateway,
     DefaultUiQueryGateway,
+    WorkspaceAuditConfigProvider,
+    WorkspaceAuditEventProvider,
+    WorkspaceAuditLogProvider,
 )
 from taskweavn.server.ui_events import ResyncOnlyEventSource, UiEventSource
 from taskweavn.server.ui_http import PlatoUiHttpTransport, SidecarAuth
@@ -292,6 +295,9 @@ def build_main_page_sidecar_app(
         query_gateway = DefaultUiQueryGateway(
             session_reader=session_manager,
             task_projection=task_projection,
+            audit_event_provider=WorkspaceAuditEventProvider(layout),
+            audit_config_provider=WorkspaceAuditConfigProvider(),
+            audit_log_provider=WorkspaceAuditLogProvider(),
             session_message_provider=message_stream,
             authoring_state_store=authoring_state_store,
         )

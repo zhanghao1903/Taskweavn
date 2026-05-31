@@ -1,7 +1,7 @@
 # TaskWeavn Roadmap
 
 > Status: active
-> Last Updated: 2026-05-29
+> Last Updated: 2026-05-31
 > Maintained By: planning session
 > Related: [Project Plan](project/roadmap.md), [Gap Registry](gaps/), [Planning Workflow](planning_workflow.md), [Architecture](architecture/), [Architecture Decisions](decisions/), [Release Records](releases/), [User Traceability](user_model/traceability.md)
 
@@ -211,7 +211,7 @@ Exit criteria:
 
 ### Phase 3E — Task-first UI System
 
-Status: active implementation; Main Page frontend/backend integration is accepted for Product 1.0, while Task-first UI polish, Audit/trust detail, and QA remain active follow-ups.
+Status: active implementation; Main Page frontend/backend integration is accepted for Product 1.0, while Task-first UI polish, richer Audit/trust evidence, and QA remain active follow-ups. Audit Page now has a projection-backed backend query path plus first EventStream/log/config source references, and AP-012B defines the sanitized payload disclosure design; timeline orchestration, runtime audit events, disclosure implementation, and final validation remain incomplete.
 
 Why now: CLI has reached its usefulness ceiling. The product value is in Task topology, Task cards, confirmations, and real-time message streams.
 
@@ -286,7 +286,7 @@ These remain valuable, but they should not be the next immediate build target be
 
 Recommended order for upcoming implementation sessions:
 
-1. **[Result and evidence exposure surface](plans/feature/result-exposure-surface.md)** — continue from accepted Main Page result/file projection and close Audit entry/evidence detail, permission-limited evidence, and recoverable error UX.
+1. **[Result and evidence exposure surface](plans/feature/result-exposure-surface.md)** — continue from accepted Main Page result/file projection, projection-backed Audit Page routes, first EventStream/log/config source references, and AP-012B sanitized payload disclosure design; close richer timeline evidence, permission-limited evidence, disclosure implementation, runtime refetch behavior, and recoverable error UX.
 2. **Message and confirmation UI integration hardening** — make HITL confirmations real through UI commands/events, including richer pending states and recovery paths.
 3. **Linear authoring and retry recovery** — keep Product 1.0 line-first execution predictable, add minimal retry/recovery, and avoid Product 1.1 context-governance scope creep.
 4. **Normal browser/Electron smoke and Product 1.0 QA** — validate the accepted Main Page and fixed-route bridge through the intended local runtime shell.

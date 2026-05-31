@@ -96,8 +96,22 @@ describe("buildMainPageViewModel", () => {
     expect(viewModel.taskWorkspace.fileChangeSummary?.recursive).toBe(true);
   });
 
-  it("builds a reserved audit entry while the Audit Page UI is absent", () => {
+  it("builds an enabled audit entry by default once the Audit Page route exists", () => {
     const viewModel = buildViewModel("s9-file-changes");
+
+    expect(viewModel.workspace.auditEntry).toMatchObject({
+      disabledReason: null,
+      href: "/sessions/session-website-plan/tasks/task-implementation/audit?entry=from_file_change&filter=files&returnFocus=file_change&returnSessionId=session-website-plan&returnTaskNodeId=task-implementation",
+      isEnabled: true,
+      returnFocus: "file_change",
+      scope: "task",
+    });
+  });
+
+  it("keeps the audit entry disabled when the Audit Page route is unavailable", () => {
+    const viewModel = buildViewModel("s9-file-changes", {
+      auditRouteAvailable: false,
+    });
 
     expect(viewModel.workspace.auditEntry).toMatchObject({
       disabledReason:

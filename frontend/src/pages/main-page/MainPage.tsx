@@ -24,7 +24,7 @@ export type MainPageProps = {
 
 export function MainPage({
   adapter = mainPageMockAdapter,
-  auditRouteAvailable = false,
+  auditRouteAvailable = true,
   initialStateId = defaultMainPageStateId,
 }: MainPageProps = {}) {
   const {

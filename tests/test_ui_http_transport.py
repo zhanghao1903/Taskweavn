@@ -14,9 +14,20 @@ from taskweavn.server import (
     StaticUiEventSource,
 )
 from taskweavn.server.ui_contract import (
+    AuditEntryContext,
+    AuditOverview,
+    AuditPageRequestView,
+    AuditPageSnapshot,
+    AuditRecord,
+    AuditRecordDetail,
+    AuditRecordsResult,
+    AuditSessionScope,
     CommandRequest,
     CommandResponse,
     CommandResult,
+    EvidenceDetail,
+    EvidenceRef,
+    MainPageReturnTarget,
     MainPageSnapshot,
     ProjectSummary,
     QueryResponse,
@@ -70,6 +81,80 @@ def test_snapshot_route_decodes_session_and_returns_contract_json() -> None:
     assert body["ok"] is True
     assert body["data"]["session"]["id"] == "session 1"
     assert body["data"]["generatedAt"] == "2026-05-21T09:00:00Z"
+
+
+def test_audit_routes_decode_params_and_return_contract_json() -> None:
+    query = _QueryGateway()
+    transport = _transport(query=query)
+
+    snapshot = transport.handle(
+        HttpApiRequest(
+            method="GET",
+            path=(
+                "/api/v1/sessions/session%201/tasks/task%201/audit"
+                "?entry=from_task&filter=files&includeDetail=true"
+                "&limit=25&recordId=record%201"
+            ),
+        )
+    )
+    records = transport.handle(
+        HttpApiRequest(
+            method="GET",
+            path=(
+                "/api/v1/sessions/session%201/tasks/task%201/audit/records"
+                "?filter=files&kind=file_change&includeHiddenReasons=true"
+            ),
+        )
+    )
+    detail = transport.handle(
+        HttpApiRequest(
+            method="GET",
+            path=(
+                "/api/v1/sessions/session%201/audit/records/record%201"
+                "?includeEvidence=true"
+            ),
+        )
+    )
+    evidence = transport.handle(
+        HttpApiRequest(
+            method="GET",
+            path=(
+                "/api/v1/sessions/session%201/audit/evidence/evidence%201"
+                "?includeSanitizedPayload=false"
+            ),
+        )
+    )
+
+    assert snapshot.status_code == 200
+    assert _dict_body(snapshot.body)["data"]["schemaVersion"] == "plato.audit.v1"
+    assert records.status_code == 200
+    assert _dict_body(records.body)["data"]["records"][0]["id"] == "record 1"
+    assert detail.status_code == 200
+    assert _dict_body(detail.body)["data"]["id"] == "record 1"
+    assert evidence.status_code == 200
+    assert _dict_body(evidence.body)["data"]["id"] == "evidence 1"
+    assert query.audit_calls == [
+        (
+            "snapshot",
+            "session 1",
+            "task 1",
+            "from_task",
+            "files",
+            "record 1",
+            True,
+            25,
+        ),
+        (
+            "records",
+            "session 1",
+            "task 1",
+            "files",
+            "file_change",
+            True,
+        ),
+        ("detail", "session 1", "record 1", True, False),
+        ("evidence", "session 1", "evidence 1", False),
+    ]
 
 
 def test_session_lifecycle_routes_dispatch_to_gateway() -> None:
@@ -487,6 +572,7 @@ def test_client_error_log_route_rejects_empty_body() -> None:
 @dataclass
 class _QueryGateway:
     snapshot_calls: list[str] = field(default_factory=list)
+    audit_calls: list[tuple[Any, ...]] = field(default_factory=list)
 
     def get_session_snapshot(
         self,
@@ -520,6 +606,158 @@ class _QueryGateway:
             ok=True,
             data=snapshot,
             cursor=snapshot.cursor,
+        )
+
+    def get_audit_snapshot(
+        self,
+        session_id: str,
+        *,
+        task_node_id: str | None = None,
+        entry: str | None = None,
+        filter_kind: str = "all",
+        record_id: str | None = None,
+        include_detail: bool | None = None,
+        limit: int = 50,
+        cursor: str | None = None,
+        request_id: str | None = None,
+    ) -> QueryResponse[AuditPageSnapshot]:
+        del cursor
+        self.audit_calls.append(
+            (
+                "snapshot",
+                session_id,
+                task_node_id,
+                entry,
+                filter_kind,
+                record_id,
+                include_detail,
+                limit,
+            )
+        )
+        snapshot = AuditPageSnapshot(
+            request=AuditPageRequestView(
+                filter="files",
+                record_id="record 1",
+                include_detail=True,
+                limit=25,
+            ),
+            scope=AuditSessionScope(session_id=session_id),
+            entry_context=AuditEntryContext(
+                kind="from_task",
+                session_id=session_id,
+                task_node_id=task_node_id,
+                source_route=f"/sessions/{session_id}",
+                preferred_filter="files",
+                preferred_record_id="record 1",
+            ),
+            return_target=MainPageReturnTarget(
+                route_name="main.sessionFallback",
+                session_id=session_id,
+                task_node_id=task_node_id,
+                focus="task",
+                record_id="record 1",
+            ),
+            session=_session_summary(session_id),
+            overview=AuditOverview(
+                verdict="warning",
+                completeness="partial",
+                summary="Audit projection is partial.",
+                record_counts={"all": 1, "files": 1},
+                important_record_ids=("record 1",),
+                generated_by="projection",
+                updated_at=NOW,
+            ),
+            records=(_audit_record(session_id),),
+            selected_record=_audit_record_detail(session_id),
+            generated_at=NOW,
+        )
+        return QueryResponse[AuditPageSnapshot](
+            request_id=request_id or "request-audit-snapshot",
+            ok=True,
+            data=snapshot,
+            cursor=snapshot.cursor,
+        )
+
+    def list_audit_records(
+        self,
+        session_id: str,
+        *,
+        task_node_id: str | None = None,
+        filter_kind: str = "all",
+        kind: str | None = None,
+        from_time: str | None = None,
+        to_time: str | None = None,
+        limit: int = 50,
+        cursor: str | None = None,
+        include_hidden_reasons: bool = False,
+        request_id: str | None = None,
+    ) -> QueryResponse[AuditRecordsResult]:
+        del from_time, to_time, limit, cursor
+        self.audit_calls.append(
+            (
+                "records",
+                session_id,
+                task_node_id,
+                filter_kind,
+                kind,
+                include_hidden_reasons,
+            )
+        )
+        return QueryResponse[AuditRecordsResult](
+            request_id=request_id or "request-audit-records",
+            ok=True,
+            data=AuditRecordsResult(
+                records=(_audit_record(session_id),),
+                total_count=1,
+            ),
+        )
+
+    def get_audit_record_detail(
+        self,
+        session_id: str,
+        record_id: str,
+        *,
+        include_evidence: bool = False,
+        include_sanitized_payload: bool = False,
+        request_id: str | None = None,
+    ) -> QueryResponse[AuditRecordDetail]:
+        self.audit_calls.append(
+            (
+                "detail",
+                session_id,
+                record_id,
+                include_evidence,
+                include_sanitized_payload,
+            )
+        )
+        return QueryResponse[AuditRecordDetail](
+            request_id=request_id or "request-audit-detail",
+            ok=True,
+            data=_audit_record_detail(session_id),
+        )
+
+    def get_evidence_detail(
+        self,
+        session_id: str,
+        evidence_id: str,
+        *,
+        include_sanitized_payload: bool = False,
+        request_id: str | None = None,
+    ) -> QueryResponse[EvidenceDetail]:
+        self.audit_calls.append(
+            ("evidence", session_id, evidence_id, include_sanitized_payload)
+        )
+        return QueryResponse[EvidenceDetail](
+            request_id=request_id or "request-evidence-detail",
+            ok=True,
+            data=EvidenceDetail(
+                id=evidence_id,
+                kind="file_change",
+                label="File change",
+                summary="Changed src/App.tsx.",
+                source="task_projection",
+                body="Changed src/App.tsx.",
+            ),
         )
 
 
@@ -600,6 +838,51 @@ class _SessionLifecycleGateway:
     def delete_session(self, session_id: str) -> dict[str, Any]:
         self.calls.append(("delete", session_id))
         return {"deletedSessionId": session_id, "nextSessionId": "next-session"}
+
+
+def _session_summary(session_id: str) -> SessionSummary:
+    return SessionSummary(
+        id=session_id,
+        project_id="local",
+        workflow_id="authoring",
+        name="Session",
+        status="running",
+        created_at=NOW,
+        updated_at=NOW,
+    )
+
+
+def _audit_record(session_id: str) -> AuditRecord:
+    return AuditRecord(
+        id="record 1",
+        scope=AuditSessionScope(session_id=session_id),
+        kind="file_change",
+        filter_kind="files",
+        title="File changed",
+        summary="Changed src/App.tsx.",
+        actor="tool",
+        source_label="Task projection",
+        occurred_at=NOW,
+        severity="warning",
+        confidence="medium",
+        verdict="warning",
+        evidence_refs=(
+            EvidenceRef(
+                id="evidence 1",
+                kind="file_change",
+                label="File change",
+                summary="Changed src/App.tsx.",
+            ),
+        ),
+    )
+
+
+def _audit_record_detail(session_id: str) -> AuditRecordDetail:
+    return AuditRecordDetail(
+        **_audit_record(session_id).model_dump(),
+        body="Changed src/App.tsx.",
+        why_it_matters="File changes must be attributable.",
+    )
 
 
 @dataclass

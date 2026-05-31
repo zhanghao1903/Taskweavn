@@ -148,7 +148,7 @@ export type BuildMainPageViewModelInput = {
 };
 
 export function buildMainPageViewModel({
-  auditRouteAvailable = false,
+  auditRouteAvailable = true,
   confirmationError,
   detailOverride,
   eventConnectionStatus,
