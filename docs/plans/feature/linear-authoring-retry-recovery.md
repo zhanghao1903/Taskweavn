@@ -1,8 +1,8 @@
 # Feature Plan: Linear Authoring And Minimal Retry Recovery
 
-> Status: planned
+> Status: in_progress
 > Type: Product 1.0 authoring policy / execution recovery
-> Last Updated: 2026-05-30
+> Last Updated: 2026-05-31
 > Product Policy: [Plato 1.0 Line-First Authoring Policy](../../product/plato-1-0-line-first-authoring-policy.md)
 > Related Plans: [RawTask And DraftTaskTree Persistence](raw-task-draft-tree-persistence.md), [Fixed-Route Task Execution Bridge](fixed-route-task-execution-bridge.md)
 > Related Decisions: [ADR-0009](../../decisions/ADR-0009-single-active-session-worktree.md), [ADR-0010](../../decisions/ADR-0010-line-first-authoring-experience-for-1-0.md)
@@ -102,12 +102,29 @@ Product 1.0 should support minimal whole-Task retry:
 
 - retry starts a new Task-run attempt for the same logical Task;
 - the previous failed/interrupted attempt remains auditable;
-- retry should not mutate the original failed run in-place except for explicit
-  retry metadata if needed;
+- retry does not mutate or delete the original failed run;
+- the Main Page control plane should project the retry attempt in place of the
+  original failed Task once the retry is created;
 - retry should preserve dependency semantics: downstream Tasks remain blocked
   until the retried Task reaches `done`;
 - retry is manual first. Automatic retry is deferred unless the failure is a
   clearly safe infrastructure error.
+
+Implementation decision for the initial manual retry slice:
+
+- keep retry as an explicit user command;
+- create a new pending retry attempt through `TaskPublisher.retry_task(...)`;
+- carry `retry_of=<failed_task_id>` in published Task metadata;
+- keep the original failed Task available to TaskBus, EventStream, result/error
+  summaries, Audit, and diagnostics;
+- hide the original failed Task from the Main Page control plane when a newer
+  retry attempt exists, and show the retry attempt at the original Task's
+  control-plane position;
+- treat the original Task's dependency as satisfied only when the latest retry
+  attempt reaches `done`, so downstream Tasks remain blocked while retry is
+  pending, running, or failed;
+- do not add automatic retry policy or a full TaskAttempt history UI in this
+  slice.
 
 ### 4.4 Context Governance Boundary
 
@@ -166,18 +183,17 @@ Acceptance:
 Deliver:
 
 - define retry command semantics for failed/interrupted Task;
-- add a retry path that creates a new pending attempt or resets the Task only
-  if the chosen model allows it;
+- add a retry path that creates a new pending attempt;
 - preserve previous failure evidence;
-- expose retry eligibility through backend contract.
+- expose retry eligibility and command handling through the Main Page backend
+  contract.
 
 Recommended initial model:
 
-- create a new attempt record while preserving the logical Task identity, if a
-  lightweight attempt model can be added safely;
-- otherwise, for Product 1.0 only, allow `failed -> pending` reset with
-  `retry_count` / `last_error_ref` only if tests prove audit visibility is not
-  lost.
+- publish a new Task with retry metadata instead of resetting the failed Task;
+- project the retry Task as a replacement for the failed Task in the Main Page
+  control plane;
+- keep deeper attempt history and automatic policies out of Product 1.0.
 
 Acceptance:
 

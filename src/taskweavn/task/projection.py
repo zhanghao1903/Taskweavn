@@ -13,6 +13,7 @@ from typing import Protocol, runtime_checkable
 
 from taskweavn.interaction import AgentMessage, MessageStream
 from taskweavn.task.models import DraftTaskNode, DraftTaskTree, TaskDomain, TaskRef
+from taskweavn.task.retry import retry_source_task_id
 from taskweavn.task.stores import AuthoringStateStore, DraftTaskStore, TaskStore
 from taskweavn.task.views import (
     ConfirmationActionView,
@@ -232,11 +233,21 @@ class DefaultTaskProjectionService:
             return []
         tasks = self._task_store.list_for_session(session_id)
         task_by_id = {task.task_id: task for task in tasks}
+        replacement_by_source = _retry_replacements(tasks)
+        retry_task_ids = {
+            task.task_id
+            for task in tasks
+            if (retry_of := retry_source_task_id(task)) is not None and retry_of in task_by_id
+        }
         children = _children_by_parent(tasks)
         root_ids = (
             [root_ref.id]
             if root_ref is not None
-            else [task.task_id for task in _ordered(children[None])]
+            else [
+                task.task_id
+                for task in _ordered(children[None])
+                if task.task_id not in retry_task_ids
+            ]
         )
 
         cards: list[TaskCardView] = []
@@ -249,6 +260,7 @@ class DefaultTaskProjectionService:
                 root,
                 tasks=tasks,
                 children=children,
+                replacement_by_source=replacement_by_source,
                 depth=0,
                 parent_ref=None,
                 root_ref=TaskRef.published(root.root_id),
@@ -262,28 +274,35 @@ class DefaultTaskProjectionService:
         *,
         tasks: list[TaskDomain],
         children: dict[str | None, list[TaskDomain]],
+        replacement_by_source: dict[str, TaskDomain],
         depth: int,
         parent_ref: TaskRef | None,
         root_ref: TaskRef,
     ) -> None:
+        display_task = replacement_by_source.get(task.task_id, task)
+        display_ref = TaskRef.published(display_task.task_id)
+        display_root_ref = display_ref if parent_ref is None else root_ref
+        child_tasks = _ordered(children[task.task_id])
         cards.append(
             self._project_task(
-                task,
+                display_task,
                 tasks=tasks,
+                child_tasks=child_tasks,
                 depth=depth,
                 parent_ref=parent_ref,
-                root_ref=root_ref,
+                root_ref=display_root_ref,
             )
         )
-        for child in _ordered(children[task.task_id]):
+        for child in child_tasks:
             self._append_task_subtree(
                 cards,
                 child,
                 tasks=tasks,
                 children=children,
+                replacement_by_source=replacement_by_source,
                 depth=depth + 1,
-                parent_ref=TaskRef.published(task.task_id),
-                root_ref=root_ref,
+                parent_ref=display_ref,
+                root_ref=display_root_ref,
             )
 
     def _project_task(
@@ -291,12 +310,17 @@ class DefaultTaskProjectionService:
         task: TaskDomain,
         *,
         tasks: list[TaskDomain],
+        child_tasks: list[TaskDomain] | None = None,
         depth: int,
         parent_ref: TaskRef | None,
         root_ref: TaskRef,
     ) -> TaskCardView:
         ref = TaskRef.published(task.task_id)
-        child_tasks = [candidate for candidate in tasks if candidate.parent_id == task.task_id]
+        child_tasks = (
+            child_tasks
+            if child_tasks is not None
+            else [candidate for candidate in tasks if candidate.parent_id == task.task_id]
+        )
         permissions = _permissions_for_status(task.status)
         direct_file_changes = self._file_changes_for_ref(task.session_id, ref, recursive=False)
         subtree_file_changes = self._file_changes_for_ref(task.session_id, ref, recursive=True)
@@ -450,6 +474,22 @@ def _children_by_parent(tasks: list[TaskDomain]) -> dict[str | None, list[TaskDo
     for task in tasks:
         children[task.parent_id].append(task)
     return children
+
+
+def _retry_replacements(tasks: list[TaskDomain]) -> dict[str, TaskDomain]:
+    replacements: dict[str, TaskDomain] = {}
+    task_ids = {task.task_id for task in tasks}
+    for task in tasks:
+        retry_of = retry_source_task_id(task)
+        if retry_of is None or retry_of not in task_ids:
+            continue
+        current = replacements.get(retry_of)
+        if current is None or (task.created_at, task.task_id) > (
+            current.created_at,
+            current.task_id,
+        ):
+            replacements[retry_of] = task
+    return replacements
 
 
 def _descendants(task_id: str, tasks: list[TaskDomain]) -> list[TaskDomain]:

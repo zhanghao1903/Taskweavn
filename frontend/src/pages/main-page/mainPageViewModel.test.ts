@@ -158,6 +158,7 @@ function buildViewModel(
     eventError: null,
     inputDisabled: overrides.inputDisabled ?? false,
     isPublishingTaskTree: false,
+    isRetryingTask: false,
     isResolvingConfirmation: false,
     metadata,
     selectedTaskNodeId: overrides.selectedTaskNodeId ?? null,

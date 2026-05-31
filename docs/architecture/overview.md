@@ -63,7 +63,7 @@ default multi-Agent orchestration surface.
 | `PublishedTask` | Execution-domain unit of work. It is the only Task object that enters TaskBus. | [Task](task.md) |
 | `TaskBus` | PublishedTask lifecycle authority. Product 1.0 uses fixed-route claim/complete/fail; Product 1.1+ may add assignment convergence. | [TaskBus](bus.md) |
 | `Execution Agent` | Task executor. Product 1.0 uses a fixed Default Agent route; later versions may use routed Agent templates and instances. | [Agent](agent.md) |
-| `Context Manager` | Assembles execution context for stateless LLM calls from task, event, workspace, tool, skill, and permission facts. | [Context Manager](context-manager.md) |
+| `Context Manager` | Assembles execution context for stateless LLM calls from task, event, workspace, tool, and permission facts. Skill, MCP, multimodal, and retrieval sources are later extension points. | [Context Manager](context-manager.md) |
 | `MessageStream` | User-visible conversation, confirmation, and execution messages. | [Interaction Layer](interaction-layer.md), [UI/backend communication](ui-backend-communication.md) |
 | `EventStream` | Append-only runtime fact ledger for replay, audit, and projections. | [Reference](reference.md), [TaskBus](bus.md) |
 
@@ -248,7 +248,7 @@ LLM calls are stateless, but Taskweavn execution is stateful. Context Manager is
 the execution-time bridge:
 
 ```text
-TaskBus / EventLog / Workspace / Tool Results / Skills / Permissions
+TaskBus / EventLog / Workspace / Tool Results / Permissions
         |
         v
 Context Manager
@@ -268,7 +268,12 @@ Product 1.0 context governance is deterministic fact assembly:
 - recent bounded tool summaries;
 - workspace references;
 - permission, approval, and interrupt facts;
-- active project rules or skill summaries when already configured.
+- active project rules or explicit guidance when already configured.
+
+The Product 1.0 implementation is wired into the sidecar-built fixed-route
+Default Agent path. `SessionContextManager` builds execution context, persists
+snapshots/traces, and provides rendered messages before each Default Agent
+`llm.chat(...)` call.
 
 It does not yet implement semantic retrieval, long-term memory, complex
 compression, multimodal packing, MCP expansion, or custom context policies.

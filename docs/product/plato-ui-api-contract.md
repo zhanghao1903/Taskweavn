@@ -681,7 +681,7 @@ GET /api/v1/sessions/{sessionId}/messages?taskNodeId=...
 | `POST` | `/api/v1/sessions/{sessionId}/task-tree/publish` | `PublishTaskTreePayload` | 发布 TaskTree 到 TaskBus。 |
 | `POST` | `/api/v1/sessions/{sessionId}/confirmations/{confirmationId}/respond` | `ResolveConfirmationPayload` | 处理确认动作。 |
 | `POST` | `/api/v1/sessions/{sessionId}/tasks/{taskNodeId}/cancel` | `CancelTaskPayload` | 取消 draft 或未开始 Task。 |
-| `POST` | `/api/v1/sessions/{sessionId}/tasks/{taskNodeId}/retry` | `RetryTaskPayload` | failed Task 创建 retry/follow-up。 |
+| `POST` | `/api/v1/sessions/{sessionId}/tasks/{taskNodeId}/retry` | `RetryTaskPayload` | failed Task 创建手动 retry attempt，并在控制面替代原 Task。 |
 
 ### 9.2 CreateSessionPayload
 
@@ -787,7 +787,29 @@ DraftTaskTree 标记为 accepted，再调用底层 authoring publish boundary。
 - TaskNode status 进入 `queued` / `running`；
 - Session Message Stream 追加发布消息。
 
-### 9.8 ResolveConfirmationPayload
+### 9.8 RetryTaskPayload
+
+```ts
+type RetryTaskPayload = {
+  instruction?: string;
+  startImmediately: boolean;
+};
+```
+
+规则：
+
+- 只允许 retry `failed` published Task；
+- retry 是显式用户命令，不自动触发；
+- 后端创建新的 pending retry attempt，并保留原 failed Task 作为审计事实；
+- retry attempt 必须携带 `retry_of=<failed_task_id>` 元数据；
+- Main Page snapshot / TaskTree 控制面应显示 retry attempt 取代原 failed
+  Task；
+- 下游 Task 的执行依赖以最新 retry attempt 为准：最新 retry attempt 到达
+  `done` 后，原 failed Task 的子任务才可继续推进；
+- `startImmediately=true` 时，命令接受后请求 fixed-route execution dispatch；
+- 不支持的 retry 返回结构化 `command_rejected`。
+
+### 9.9 ResolveConfirmationPayload
 
 ```ts
 type ResolveConfirmationPayload = {

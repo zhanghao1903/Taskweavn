@@ -58,3 +58,4 @@ frontend/vite.config.d.ts
 /workspace/
 /docs/user_cases/workspace/
 /garbage_collect/user_tests/workspace/
+/plato-workspace/

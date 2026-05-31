@@ -109,6 +109,9 @@ class WorkspaceLayout:
     def session_thoughts_db(self, session_id: str) -> Path:
         return self.session_meta_dir(session_id) / "thoughts.sqlite"
 
+    def session_context_db(self, session_id: str) -> Path:
+        return self.session_meta_dir(session_id) / "context.sqlite"
+
     def session_plan_path(self, session_id: str) -> Path:
         return self.session_meta_dir(session_id) / "plan.md"
 

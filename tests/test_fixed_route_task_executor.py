@@ -7,6 +7,8 @@ import time
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 
+from taskweavn.context import InMemoryContextStore, SessionContextManager, TaskContextSource
+from taskweavn.context.models import ContextBuildRequest, ContextBuildResult
 from taskweavn.core.loop import LoopResult
 from taskweavn.interaction import AgentMessage, MessageStream, Subscription
 from taskweavn.task import (
@@ -16,6 +18,7 @@ from taskweavn.task import (
     FixedRouteTaskExecutorConfig,
     InMemoryTaskBus,
     InMemoryTaskExecutionSummaryStore,
+    TaskDispatchConstraints,
     TaskDomain,
     TaskRunResult,
     TaskStatus,
@@ -146,6 +149,29 @@ def test_fixed_route_executor_respects_parent_dependency() -> None:
     assert child.claimed_by is None
 
 
+def test_fixed_route_executor_treats_done_retry_as_parent_completion() -> None:
+    bus = InMemoryTaskBus(
+        [
+            _task("root", status="failed"),
+            _task("child", parent_id="root", root_id="root"),
+            _task("retry", status="done", metadata={"retry_of": "root"}),
+        ]
+    )
+    executor = FixedRouteTaskExecutor(
+        task_bus=bus,
+        default_agent=_FakeAgent(TaskRunResult(result_ref="result:child")),
+        config=FixedRouteTaskExecutorConfig(session_id="s1"),
+    )
+
+    result = executor.tick()
+
+    assert result.status == "completed"
+    child = bus.get("s1", "child")
+    assert child is not None
+    assert child.status == "done"
+    assert child.result_ref == "result:child"
+
+
 def test_agent_loop_resident_default_agent_maps_finished_loop_to_result_ref() -> None:
     loop = _FakeLoop(
         LoopResult(
@@ -249,6 +275,69 @@ def test_agent_loop_resident_default_agent_uses_task_scoped_runner_factory() -> 
     assert result.ok is True
     assert result.result_ref == "agent_loop:s1:task-1:agent_finish"
     assert seen_tasks == ["task-1"]
+
+
+def test_agent_loop_resident_default_agent_uses_context_builder_for_run_input() -> None:
+    bus = InMemoryTaskBus([_task("task-1")])
+    store = InMemoryContextStore()
+    manager = SessionContextManager(
+        task_source=TaskContextSource(bus),
+        store=store,
+    )
+    loop = _FakeLoop(
+        LoopResult(
+            final_answer="Done",
+            steps=1,
+            finished=True,
+            stop_reason="agent_finish",
+        )
+    )
+    agent = AgentLoopResidentDefaultAgent(
+        loop=loop,
+        context_builder_factory=lambda task: manager,
+    )
+
+    result = agent.run(_task("task-1"))
+
+    assert result.ok is True
+    assert loop.seen_task_ids == ["task-1"]
+    assert len(loop.seen) == 1
+    assert loop.seen[0] != "Do task-1"
+    assert "# Task Execution Context" in loop.seen[0]
+    assert "Do task-1" in loop.seen[0]
+    snapshots = store.list_snapshots_for_task("s1", "task-1")
+    assert len(snapshots) == 1
+
+
+def test_agent_loop_resident_default_agent_reports_context_build_failure() -> None:
+    class FailingContextBuilder:
+        def build(self, request: ContextBuildRequest) -> ContextBuildResult:
+            del request
+            raise RuntimeError("context unavailable")
+
+    store = InMemoryTaskExecutionSummaryStore()
+    loop = _FakeLoop(
+        LoopResult(
+            final_answer="Done",
+            steps=1,
+            finished=True,
+            stop_reason="agent_finish",
+        )
+    )
+    agent = AgentLoopResidentDefaultAgent(
+        loop=loop,
+        context_builder_factory=lambda task: FailingContextBuilder(),
+        result_summary_store=store,
+    )
+
+    result = agent.run(_task("task-1"))
+
+    assert result.error_ref == "context_build_failed:s1:task-1:RuntimeError"
+    assert loop.seen == []
+    summary = store.get(result.error_ref)
+    assert summary is not None
+    assert summary.kind == "error"
+    assert summary.error_type == "RuntimeError"
 
 
 def test_fixed_route_executor_can_use_agent_loop_resident_default_agent() -> None:
@@ -559,6 +648,7 @@ def _task(
     parent_id: str | None = None,
     root_id: str | None = None,
     required_capability: str = "general",
+    metadata: dict[str, object] | None = None,
 ) -> TaskDomain:
     return TaskDomain(
         task_id=task_id,
@@ -569,6 +659,9 @@ def _task(
         required_capability=required_capability,
         status=status,
         created_by="tester",
+        dispatch_constraints=(
+            TaskDispatchConstraints(metadata=metadata) if metadata is not None else None
+        ),
     )
 
 

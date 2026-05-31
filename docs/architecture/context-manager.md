@@ -1,6 +1,6 @@
 # Context Manager Architecture
 
-> Status: architecture proposal for Product 1.0 execution context baseline
+> Status: accepted architecture baseline for Product 1.0 execution context governance
 > Last Updated: 2026-05-31
 
 Context Manager is the execution-time context governance layer for Taskweavn.
@@ -12,6 +12,10 @@ Context Manager collects known facts from existing runtime sources, builds a
 structured execution context, renders the LLM input, and records enough trace
 data for recovery and debugging. It does not implement complex retrieval,
 memory, ranking, multimodal packing, or agent-specific policy optimization.
+
+The accepted Product 1.0 implementation lives under `src/taskweavn/context/`
+and is wired into the sidecar-built fixed-route Default Agent path, including
+the AgentLoop per-call `llm.chat(...)` seam.
 
 ---
 
@@ -72,12 +76,12 @@ Facts remain owned by their domains:
 
 | Source | Owns |
 |---|---|
-| TaskBus / TaskDomain | PublishedTask state, assignment, result, failure facts |
+| TaskBus / TaskDomain | PublishedTask state, claim, result, and failure facts |
 | EventStream / EventLog | Ordered runtime facts and audit events |
 | Session Workspace | Files, code, documents, generated artifacts |
 | Tool runtime / ToolResultStore | Tool calls, observations, command output, raw results |
 | Permission / Autonomy runtime | Allowed tools, pending approval, interrupt intent |
-| Skill registry | Available and activated skill descriptions |
+| Skill registry | Future available and activated skill descriptions |
 
 Context Manager reads these sources and produces a derived execution view. It
 does not become the source of truth for those facts.
@@ -87,7 +91,7 @@ does not become the source of truth for those facts.
 ## 3. Architecture Pipeline
 
 ```text
-TaskBus / EventLog / Workspace / Tool Results / Skills / Permissions
+TaskBus / EventLog / Workspace / Tool Results / Permissions
         |
         v
 Context Sources
@@ -212,11 +216,12 @@ Product 1.0 only needs the writer execution path.
 ## 5. TaskExecutionContext v0
 
 `TaskExecutionContext v0` is the minimal structured contract between Context
-Manager and the Execution Agent.
+Manager and the Execution Agent. The Product 1.0 implementation uses immutable
+Pydantic models in `src/taskweavn/context/models.py`; the snippets below show
+the contract shape.
 
 ```python
-@dataclass(frozen=True)
-class TaskExecutionContextV0:
+class TaskExecutionContextV0(ContextModel):
     task: TaskContextIdentity
     execution: ExecutionContextState
     facts: ExecutionFacts
@@ -228,10 +233,11 @@ class TaskExecutionContextV0:
 ### 5.1 Task Identity
 
 ```python
-@dataclass(frozen=True)
-class TaskContextIdentity:
+class TaskContextIdentity(ContextModel):
     task_id: str
+    session_id: str
     parent_task_id: str | None
+    root_task_id: str
     original_target: str
     interpreted_goal: str | None
     success_criteria: tuple[str, ...]
@@ -250,25 +256,23 @@ Rules:
 ### 5.2 Execution State
 
 ```python
-@dataclass(frozen=True)
-class ExecutionContextState:
+class ExecutionContextState(ContextModel):
     status: str
+    claimed_by: str | None
     current_step: CurrentStepContext | None
     latest_user_instruction: str | None
     interruption: InterruptionContext | None
 ```
 
 ```python
-@dataclass(frozen=True)
-class CurrentStepContext:
+class CurrentStepContext(ContextModel):
     step_id: str | None
     objective: str
     expected_output: str | None
 ```
 
 ```python
-@dataclass(frozen=True)
-class InterruptionContext:
+class InterruptionContext(ContextModel):
     requested: bool
     reason: str | None
     requested_at: str | None
@@ -285,11 +289,11 @@ Rules:
 ### 5.3 Execution Facts
 
 ```python
-@dataclass(frozen=True)
-class ExecutionFacts:
+class ExecutionFacts(ContextModel):
     recent_events: tuple[EventSummary, ...]
     recent_tool_results: tuple[ToolResultSummary, ...]
     workspace_refs: tuple[WorkspaceRef, ...]
+    selected_file_snippets: tuple[FileSnippet, ...]
     changed_artifacts: tuple[str, ...]
 ```
 
@@ -298,13 +302,44 @@ Product 1.0 facts are bounded and deterministic:
 - keep only the latest configured number of events;
 - keep only summarized tool results in the default LLM input;
 - include raw tool result references when available;
-- include workspace references, not whole workspace snapshots.
+- include workspace references, not whole workspace snapshots;
+- include selected file snippets only when they are explicit task evidence.
+
+`selected_file_snippets` is not a workspace file map. It is the bounded set of
+file excerpts selected into one context build.
+
+```python
+class FileSnippet(ContextModel):
+    snippet_id: str
+    workspace_id: str | None
+    path: str
+    source: str
+    content: str
+    start_line: int | None
+    end_line: int | None
+    file_hash: str | None
+    content_hash: str
+    raw_ref: str | None
+    reason: str
+    token_estimate: int
+    observed_at: str | None
+    stale: bool
+    can_act_as_instruction: bool = False
+```
+
+Rules:
+
+- Workspace remains the source of truth for file contents.
+- `FileContentObservation` and explicit workspace refs are evidence sources.
+- Context Manager may select snippets from read-file observations or explicit
+  refs, but it does not crawl the whole workspace in Product 1.0.
+- File snippets are rendered as workspace evidence, not instructions.
+- Large file reads should be represented by bounded snippets plus `raw_ref`.
 
 ### 5.4 Controls
 
 ```python
-@dataclass(frozen=True)
-class ExecutionControls:
+class ExecutionControls(ContextModel):
     allowed_tools: tuple[str, ...]
     denied_tools: tuple[str, ...]
     requires_approval: tuple[str, ...]
@@ -323,8 +358,7 @@ Rules:
 ### 5.5 Guidance
 
 ```python
-@dataclass(frozen=True)
-class ExecutionGuidance:
+class ExecutionGuidance(ContextModel):
     project_rules: tuple[str, ...]
     active_skills: tuple[SkillSummary, ...]
     output_requirements: tuple[str, ...]
@@ -346,9 +380,8 @@ Even Product 1.0 should preserve the candidate-selection shape so richer
 policies can be added later.
 
 ```python
-@dataclass(frozen=True)
-class ContextCandidate:
-    id: str
+class ContextCandidate(ContextModel):
+    candidate_id: str
     source_type: str
     source_ref: str
     summary: str
@@ -404,21 +437,27 @@ Product 1.0 should record context construction artifacts even if the context
 policy is simple.
 
 ```python
-@dataclass(frozen=True)
-class ContextSnapshot:
-    id: str
+class ContextSnapshot(ContextModel):
+    snapshot_id: str
+    session_id: str
     task_id: str
-    agent_instance_id: str | None
+    agent_id: str
+    agent_run_id: str
+    purpose: ContextBuildPurpose
+    turn_index: int
     context_version: str
+    renderer_version: str
     task_execution_context: TaskExecutionContextV0
     rendered_input_hash: str
     created_at: str
 ```
 
 ```python
-@dataclass(frozen=True)
-class ContextTrace:
+class ContextTrace(ContextModel):
+    trace_id: str
     snapshot_id: str
+    session_id: str
+    task_id: str
     candidates_seen: tuple[str, ...]
     candidates_selected: tuple[str, ...]
     candidates_excluded: tuple[ContextExclusion, ...]
@@ -569,7 +608,8 @@ budget limits.
 
 Product 1.0 Context Manager is acceptable when:
 
-1. Every Execution Agent LLM call is assembled through Context Manager.
+1. Every fixed-route Default Agent LLM call is assembled through Context
+   Manager.
 2. `original_target` is always present in `TaskExecutionContext`.
 3. Permission, approval, and interrupt facts are always represented.
 4. Recent event and tool result inclusion is deterministic and bounded.
@@ -586,11 +626,13 @@ Product 1.0 Context Manager is acceptable when:
 
 ---
 
-## 12. Open Questions
+## 12. Product 1.1+ Follow-ups
 
-- Which runtime component owns the initial `ContextStore` persistence path?
-- Should rendered LLM input be stored fully, hashed only, or stored with secret
-  redaction?
-- What is the Product 1.0 default budget for recent events and tool summaries?
 - Which event types should become mandatory context candidates?
 - How should Context Manager expose context trace to Audit Page in Product 1.1?
+- Should diagnostic bundles include full context snapshots, hashes only, or
+  redacted rendered inputs?
+- Should trace records include richer candidate-level exclusion details beyond
+  the current policy/renderer/snapshot linkage?
+- What are the explicit contracts for future Skill, MCP, multimodal, retrieval,
+  and compression context sources?

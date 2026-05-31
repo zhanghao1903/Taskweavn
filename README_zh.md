@@ -4,84 +4,136 @@
 > English: [README.md](README.md)
 > 文档入口：[docs/README.md](docs/README.md)
 
-TaskWeavn 是 Plato 背后的本地任务智能体系统。它把用户的自然语言意图转换为以任务为中心的计划，让用户能够查看、修正和确认这些任务，再用可观察的消息、确认动作、文件变更、审计证据和诊断信息完成执行。
+TaskWeavn 是 Plato 背后的本地任务智能体运行时。它把用户意图转成以
+Task 为中心的工作：先生成可检查的任务树，让用户审阅和修正，再发布到
+TaskBus 执行，并把消息、确认动作、文件变更、结果和审计证据投影回 Main
+Page。
 
-Plato 不应是一个套壳 CLI 聊天产品。它的产品方向是 Task-first：
+当前产品方向是 Task-first，而不是 chat-first：
 
 ```text
 用户意图
   -> RawTask 与可行性判断
-  -> Collaborator 生成 Task Tree List
+  -> Collaborator 草拟 Task Tree List
   -> 用户编辑 / 确认 TaskNode
   -> TaskPublisher 发布任务
-  -> TaskBus 分发执行
-  -> UI 展示拓扑、消息、确认、文件、审计和结果
+  -> TaskBus 管理执行生命周期
+  -> FixedRouteTaskExecutor 调用常驻 Default Agent
+  -> Main Page 投影状态、消息、结果和文件变更
 ```
 
 ## 当前状态
 
-TaskWeavn 已经不再是早期的单轮 ReAct agent。当前重点是把 server-core 基础能力打磨成本地桌面产品。
+TaskWeavn 已经不再是早期单 ReAct loop 原型。当前 Product 1.0 主路径是：
+本地 Plato Main Page 前端、本地 Python sidecar、持久化 authoring/execution
+stores、固定路由执行，以及在每次 LLM 调用前做确定性上下文组装的 Context
+Manager。
 
 | 区域 | 状态 | 说明 |
 |---|---:|---|
-| 核心 agent 基础 | 完成 | 强类型 Action/Observation、EventStream、Runtime、ReAct loop、CLI。 |
-| 沙箱 / 审计 / 记忆 | 完成 | CodeAction、Docker sandbox、AuditAgent、SQLite ThoughtStore。 |
-| Interaction Layer | 完成到 Phase 3.8 | Session、workspace、risk/autonomy、message、bus、wait coordination、loop integration、LLM risk、派生 session status。 |
-| LLM reliability | 完成 | Provider 抽象、自动重试、DeepSeek thinking、OpenRouter routing。 |
-| Logging and observability | 完成 / 后续增强 | 结构化 JSONL 日志、session archives、profiles、运行时控制；集中化配置仍待完成。 |
-| Task authoring | server-core 完成 | RawTask、可行性判断、DraftTaskTree、Collaborator authoring commands、publish boundary。 |
-| Task publishing | server-core 部分完成 | TaskPublisher、SQLite TaskBus publish surface、SQLite publish control plane、API publish transport；执行生命周期仍待完成。 |
-| Plato frontend baseline | 完成 / 待真实集成 | `frontend/src` 已有 Main Page scaffold、state catalog、typed mock/API adapter、shared API types、UI primitives。 |
-| Plato productization | 进行中 | UI/backend contract、sidecar API、真实后端集成、settings、audit、diagnostics、packaging。 |
+| Agent core | 完成 | 强类型 Action/Observation、EventStream、Runtime、ReAct loop、CLI。 |
+| Interaction substrate | 完成 | Session/workspace 持久化、MessageStream、MessageBus、risk/autonomy、wait coordination、派生 session status。 |
+| Reliability / observability | 完成 / 后续增强 | LLM provider 抽象、重试、DeepSeek thinking、OpenRouter routing、结构化 JSONL session 日志。 |
+| Authoring Domain | 完成 | RawTask、可行性判断、DraftTaskTree、Authoring Commands、Collaborator authoring、publish boundary。 |
+| Publishing / TaskBus | baseline 完成 | TaskPublisher、SQLite TaskBus、publish idempotency、claim/running/complete/fail/skip 生命周期。 |
+| Main Page integration | baseline 完成 | 前端 runtime adapter、本地 sidecar HTTP/SSE shell、command/query/event contract、result/error/file projection。 |
+| Fixed-route execution | baseline 完成 | Product 1.0 使用一个常驻 Default Agent 路由，不引入 Router / Agent Manager。 |
+| Context Manager 1.0 | baseline 完成 | execution-start 前确定性组装 LLM input。 |
+| Manual retry | 进行中 | failed published Task 可创建新的 retry attempt，并在控制面替代原 Task。 |
+| Product 1.1+ | 规划中 | Router、Agent Manager、skills、MCP、多模态上下文、更完整结果包装和高级 pipeline。 |
 
-活跃规划从这些文档开始：
+当前规划从这些文档开始：
 
-- [docs/README.md](docs/README.md)
 - [docs/roadmap.md](docs/roadmap.md)
 - [docs/project/roadmap.md](docs/project/roadmap.md)
 - [docs/gaps/README.md](docs/gaps/README.md)
-- [docs/architecture/README.md](docs/architecture/README.md)
 
-## 项目亮点
+## 环境要求
 
-### Task-First UX
+- Python 3.12+
+- [`uv`](https://github.com/astral-sh/uv)
+- Node.js 和 npm，用于 Plato 前端
+- 一个 LLM provider key，用于 authoring / execution
 
-Task 是第一用户交互对象。Chat 是输入、澄清和解释，不是主要状态模型。用户应该可以选中 TaskNode，查看状态，追加指导，回答确认，查看相关消息，并检查文件变更。
-
-### 强类型 Agent Core
-
-Action 和 Observation 是带 `kind` 鉴别器的 frozen Pydantic model。Tool 向 LLM 暴露 Action schema。Runtime 执行后返回 Observation，executor 失败会变成 `ErrorObservation`，而不是让 loop 崩溃。
-
-### Interaction Layer
-
-TaskWeavn 使用一条 session message stream，并通过 task scope 做投影。交互层包括：
-
-- `AgentMessage` 与 `SqliteMessageStream`；
-- `InProcessMessageBus`；
-- 量化风险与 autonomy presets；
-- `AutonomyGate` 与 `WaitCoordinator`；
-- 同步等待与异步延迟响应路径。
-
-### Authoring And Publishing Separation
-
-Authoring Domain 与 Execution TaskBus 分离：
-
-- RawTask 和 DraftTaskTree 支持执行前的探索式规划。
-- Collaborator authoring tools 根据用户输入持续修正 task tree。
-- TaskPublisher 将用户确认后的 task tree 发布到 TaskBus。
-- API、scheduler、pipeline、custom tree publisher 都走同一个 publish 边界。
-
-## 快速开始：CLI Agent
-
-需要 Python 3.12+ 和 [`uv`](https://github.com/astral-sh/uv)。
+常用 LLM 环境变量：
 
 ```bash
-uv sync
-
 export LLM_PROVIDER=deepseek
 export DEEPSEEK_API_KEY=sk-...
 export LLM_MODEL=deepseek-chat
+```
 
+其他 provider 配置见 [docs/configuration.md](docs/configuration.md)。
+
+## 安装
+
+在仓库根目录运行：
+
+```bash
+uv sync
+npm install --prefix frontend
+```
+
+`uv sync` 安装 Python package 和开发依赖。前端是独立的 Vite/React package，
+位于 `frontend/`，因此需要单独安装 npm 依赖。
+
+## 启动 Plato 本地产品
+
+默认启动命令会同时启动 Python sidecar 和 Vite 前端：
+
+```bash
+uv run taskweavn plato-dev --workspace ./plato-workspace
+```
+
+默认地址：
+
+```text
+Frontend: http://127.0.0.1:5173
+Sidecar:  http://127.0.0.1:52789
+Health:   http://127.0.0.1:52789/api/v1/health
+```
+
+常用参数：
+
+```bash
+uv run taskweavn plato-dev \
+  --workspace ./plato-workspace \
+  --sidecar-port 52789 \
+  --frontend-port 5173
+```
+
+可以用 `--model <model-id>` 临时覆盖 Collaborator authoring 使用的模型。
+不传 `--model` 时，TaskWeavn 从环境变量读取 provider / model。
+
+### 只启动 sidecar
+
+```bash
+uv run taskweavn plato-sidecar --workspace ./plato-workspace
+```
+
+然后以 HTTP 模式启动前端：
+
+```bash
+VITE_PLATO_API_MODE=http \
+VITE_PLATO_API_BASE_URL=http://127.0.0.1:52789 \
+npm run dev --prefix frontend -- --host 127.0.0.1 --port 5173
+```
+
+### 只启动 mock 前端
+
+不需要真实后端时：
+
+```bash
+npm run dev --prefix frontend
+```
+
+未设置 `VITE_PLATO_API_MODE=http` 时，前端会使用 typed mock scenarios。
+
+## 运行底层 CLI Agent
+
+底层 CLI loop 仍可直接执行 workspace task：
+
+```bash
 uv run taskweavn run \
   --task "write a hello.py that prints hi, then run it" \
   --workspace ./workspace \
@@ -111,77 +163,34 @@ full_auto, risk_gated, careful, collaborative, manual
 baseline, llm, composite
 ```
 
-完整配置见 [docs/configuration.md](docs/configuration.md)。
+## 日志
 
-## 快速开始：Frontend Baseline
+CLI 和 sidecar 相关路径会写结构化 session artifacts。CLI 默认日志目录是
+`./logs`。
 
-Plato 前端 baseline 位于 `frontend/`。
-
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-常用前端检查：
+常用命令：
 
 ```bash
-npm test
-npm run lint
-npm run build
+uv run taskweavn logging profiles
+uv run taskweavn logging manifest --log-dir ./logs --session-id <session-id>
+uv run taskweavn logging render ./logs/sessions/<session-id>/llm.jsonl --limit 50
 ```
 
-当前前端是 Main Page baseline，包含 typed mock scenarios 和 HTTP adapter contract。真实后端 sidecar 集成仍是 gap，从 [docs/gaps/README.md](docs/gaps/README.md)、[docs/product/plato-ui-api-contract.md](docs/product/plato-ui-api-contract.md) 和 [docs/architecture/ui-backend-communication.md](docs/architecture/ui-backend-communication.md) 跟踪。
-
-## 文档模型
-
-当前文档模型保持轻量：
+session archive 结构：
 
 ```text
-Product intent + Architecture facts
-  -> Roadmap priority
-  -> Gap registry
-  -> Plan package
-  -> Implementation
-  -> Release record
-```
-
-关键入口：
-
-| 需求 | 入口 |
-|---|---|
-| 当前方向 | [docs/roadmap.md](docs/roadmap.md) |
-| 执行队列 | [docs/project/roadmap.md](docs/project/roadmap.md) |
-| gap 路由 | [docs/gaps/README.md](docs/gaps/README.md) |
-| 架构事实 | [docs/architecture/README.md](docs/architecture/README.md) |
-| 产品意图 | [docs/product/README.md](docs/product/README.md) |
-| plans | [docs/plans/README.md](docs/plans/README.md) |
-| decisions | [docs/decisions/README.md](docs/decisions/README.md) |
-| releases | [docs/releases/README.md](docs/releases/README.md) |
-
-## 项目结构
-
-```text
-src/taskweavn/
-  audit/          AuditAgent 与 audit observations
-  cli/            Typer CLI 入口
-  core/           AgentLoop、EventStream、session、workspace layout
-  interaction/    Risk、autonomy、message、bus、gate、wait coordination
-  llm/            LLM client 与 provider implementations
-  memory/         ThoughtStore 旁路存储
-  observability/  结构化日志与 session archives
-  orchestration/  多 agent 占位与协议边界
-  runtime/        Runtime protocol 与 LocalRuntime
-  server/         framework-neutral server / transport adapters
-  task/           Task domain、authoring、publishing、pipeline、stores
-  tools/          Workspace、Tool base、fs/shell/code-action tools
-  types/          BaseEvent、BaseAction、BaseObservation、registries
-
-frontend/
-  src/            Plato Main Page baseline、API types、UI primitives
-
-docs/
-  README.md       文档入口
+<log-dir>/
+  global/config.jsonl
+  sessions/<session-id>/
+    manifest.json
+    action.jsonl
+    observation.jsonl
+    tool.jsonl
+    llm.jsonl
+    bus.jsonl
+    gate.jsonl
+    wait.jsonl
+    audit.jsonl
 ```
 
 ## 开发检查
@@ -197,13 +206,55 @@ uv run mypy src tests
 前端：
 
 ```bash
-cd frontend
-npm test
-npm run lint
-npm run build
+npm test --prefix frontend
+npm run build --prefix frontend
 ```
 
-目标质量门禁：能力发生变化时，测试、lint、type checks 和相关产品文档一起更新。
+常用 targeted checks：
+
+```bash
+uv run pytest tests/test_main_page_sidecar_app.py tests/test_ui_http_transport.py
+npm test --prefix frontend -- useMainPageController platoApi httpMainPageAdapter
+```
+
+## 项目结构
+
+```text
+src/taskweavn/
+  audit/          AuditAgent 与 audit observations
+  cli/            Typer CLI 入口：taskweavn
+  context/        Context Manager models、stores、source adapters、renderer
+  core/           AgentLoop、EventStream、session、workspace layout
+  interaction/    Risk、autonomy、message、bus、gate、wait coordination
+  llm/            LLM client 与 provider implementations
+  memory/         ThoughtStore 旁路存储
+  observability/  结构化日志与 session archives
+  runtime/        Runtime protocol 与 LocalRuntime
+  server/         Plato sidecar、UI HTTP transport、contract gateways
+  task/           Task domain、authoring、publishing、TaskBus、projection
+  tools/          Workspace、Tool base、fs/shell/code-action tools
+  types/          BaseEvent、BaseAction、BaseObservation、registries
+
+frontend/
+  src/            Plato Main Page、runtime adapters、API types、UI primitives
+
+docs/
+  README.md       文档入口
+```
+
+## 文档入口
+
+| 需求 | 入口 |
+|---|---|
+| 当前方向 | [docs/roadmap.md](docs/roadmap.md) |
+| 当前执行队列 | [docs/project/roadmap.md](docs/project/roadmap.md) |
+| 已知 gaps | [docs/gaps/README.md](docs/gaps/README.md) |
+| 架构事实 | [docs/architecture/README.md](docs/architecture/README.md) |
+| 产品意图 | [docs/product/README.md](docs/product/README.md) |
+| UI/API contract | [docs/product/plato-ui-api-contract.md](docs/product/plato-ui-api-contract.md) |
+| 实施计划 | [docs/plans/README.md](docs/plans/README.md) |
+| 架构决策 | [docs/decisions/README.md](docs/decisions/README.md) |
+| 完成记录 | [docs/releases/README.md](docs/releases/README.md) |
 
 ## License
 

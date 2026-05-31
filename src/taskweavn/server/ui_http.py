@@ -30,6 +30,7 @@ from taskweavn.server.ui_contract import (
     QueryResponse,
     RefreshHint,
     ResolveConfirmationPayload,
+    RetryTaskPayload,
     UiCommandGateway,
     UiQueryGateway,
     UpdateTaskNodePayload,
@@ -307,6 +308,22 @@ class PlatoUiHttpTransport:
                         publish_request
                     ),
                 )
+            if route_name == "retry_task":
+                retry_request = _parse_command_request(
+                    request,
+                    route.session_id,
+                    CommandRequest[RetryTaskPayload],
+                )
+                if isinstance(retry_request, HttpApiResponse):
+                    return retry_request
+                return self._command_response(
+                    route,
+                    retry_request,
+                    lambda: self._retry_task_with_optional_dispatch(
+                        route.task_node_id,
+                        retry_request,
+                    ),
+                )
             if route_name == "dispatch_execution":
                 dispatch_request = _parse_command_request(
                     request,
@@ -428,6 +445,36 @@ class PlatoUiHttpTransport:
                 reason="publish_start_immediately",
                 request_id=request.command_id,
                 message="execution dispatch failed after publish",
+                error_ref=type(exc).__name__,
+            )
+        return _with_dispatch_debug_refs(response, dispatch_result)
+
+    def _retry_task_with_optional_dispatch(
+        self,
+        task_node_id: str,
+        request: CommandRequest[RetryTaskPayload],
+    ) -> CommandResponse:
+        response = self._command_gateway.retry_task(task_node_id, request)
+        if (
+            not response.ok
+            or response.result is None
+            or not request.payload.start_immediately
+            or self._execution_trigger_gateway is None
+        ):
+            return response
+        try:
+            dispatch_result = self._execution_trigger_gateway.request_dispatch(
+                request.session_id,
+                reason="retry_start_immediately",
+                request_id=request.command_id,
+            )
+        except Exception as exc:  # noqa: BLE001 - retry publish must remain successful.
+            dispatch_result = ExecutionDispatchRequestResult(
+                status="health_error",
+                session_id=request.session_id,
+                reason="retry_start_immediately",
+                request_id=request.command_id,
+                message="execution dispatch failed after retry",
                 error_ref=type(exc).__name__,
             )
         return _with_dispatch_debug_refs(response, dispatch_result)
@@ -604,6 +651,13 @@ def _match_route(path: str) -> _Route | None:
     if len(suffix) == 3 and suffix[0] == "tasks" and suffix[2] == "input":
         return _Route(
             name="append_task_input",
+            method="POST",
+            session_id=session_id,
+            task_node_id=suffix[1],
+        )
+    if len(suffix) == 3 and suffix[0] == "tasks" and suffix[2] == "retry":
+        return _Route(
+            name="retry_task",
             method="POST",
             session_id=session_id,
             task_node_id=suffix[1],

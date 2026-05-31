@@ -185,10 +185,19 @@ describe("createHttpPlatoApi", () => {
         taskTreeId: "task-tree-1",
       },
     });
+    await api.retryTask("session-1", "task-1", {
+      commandId: "command-retry",
+      sessionId: "session-1",
+      payload: {
+        instruction: "Try the safer path",
+        startImmediately: true,
+      },
+    });
 
     expect(calls).toEqual([
       "PATCH https://plato.test/api/v1/sessions/session-1/tasks/task-1",
       "POST https://plato.test/api/v1/sessions/session-1/task-tree/publish",
+      "POST https://plato.test/api/v1/sessions/session-1/tasks/task-1/retry",
     ]);
   });
 

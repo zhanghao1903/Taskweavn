@@ -110,6 +110,12 @@ export function MainPageWorkbench({
             sessionId: viewModel.sessionId,
           })
         }
+        onRetryTask={(taskNodeId) =>
+          actions.retryTask({
+            sessionId: viewModel.sessionId,
+            taskNodeId,
+          })
+        }
         onShowFileChanges={actions.showFileChanges}
         onShowResult={actions.showResult}
       />

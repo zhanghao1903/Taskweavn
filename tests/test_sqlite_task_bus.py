@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import sqlite3
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -187,6 +189,54 @@ def test_claim_next_waits_for_parent_done(tmp_path: Path) -> None:
         bus.close()
 
 
+def test_claim_next_treats_done_retry_as_parent_completion(tmp_path: Path) -> None:
+    bus = SqliteTaskBus(tmp_path / "tasks.sqlite")
+    try:
+        bus.publish(_root("root"))
+        assert bus.claim_next("s1", capability="general", agent_id="agent-1") is not None
+        bus.fail("s1", "root", error_ref="error:root")
+        bus.publish(_child("child", parent_id="root", root_id="root"))
+        bus.publish(_root("retry", metadata={"retry_of": "root"}))
+
+        retry = bus.claim_next("s1", capability="general", agent_id="agent-1")
+        assert retry is not None
+        assert retry.task_id == "retry"
+        bus.complete("s1", "retry", result_ref="result:retry")
+
+        child = bus.claim_next("s1", capability="general", agent_id="agent-1")
+
+        assert child is not None
+        assert child.task_id == "child"
+    finally:
+        bus.close()
+
+
+def test_claim_next_uses_latest_retry_attempt_for_parent_dependency(
+    tmp_path: Path,
+) -> None:
+    bus = SqliteTaskBus(tmp_path / "tasks.sqlite")
+    try:
+        bus.publish(_root("root", created_at=_time(0)))
+        assert bus.claim_next("s1", capability="general", agent_id="agent-1") is not None
+        bus.fail("s1", "root", error_ref="error:root")
+        bus.publish(_child("child", parent_id="root", root_id="root"))
+        bus.publish(_root("retry-a", metadata={"retry_of": "root"}, created_at=_time(2)))
+
+        retry_a = bus.claim_next("s1", capability="general", agent_id="agent-1")
+        assert retry_a is not None
+        assert retry_a.task_id == "retry-a"
+        bus.complete("s1", "retry-a", result_ref="result:retry-a")
+
+        bus.publish(_root("retry-b", metadata={"retry_of": "root"}, created_at=_time(3)))
+
+        claimed = bus.claim_next("s1", capability="general", agent_id="agent-1")
+
+        assert claimed is not None
+        assert claimed.task_id == "retry-b"
+    finally:
+        bus.close()
+
+
 def test_complete_running_task_records_result(tmp_path: Path) -> None:
     bus = SqliteTaskBus(tmp_path / "tasks.sqlite")
     try:
@@ -276,7 +326,9 @@ def _root(
     status: TaskStatus = "pending",
     capability: str = "general",
     metadata: dict[str, object] | None = None,
+    created_at: datetime | None = None,
 ) -> TaskDomain:
+    kwargs: dict[str, Any] = {"created_at": created_at} if created_at is not None else {}
     return TaskDomain(
         task_id=task_id,
         session_id=session_id,
@@ -290,6 +342,7 @@ def _root(
             required_capabilities=(capability,),
             metadata=dict(metadata or {"title": task_id.title()}),
         ),
+        **kwargs,
     )
 
 
@@ -310,3 +363,7 @@ def _child(
         required_capability="general",
         created_by="tester",
     )
+
+
+def _time(seconds: int) -> datetime:
+    return datetime(2026, 1, 1, tzinfo=UTC) + timedelta(seconds=seconds)

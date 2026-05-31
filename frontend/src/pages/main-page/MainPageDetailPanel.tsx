@@ -1,4 +1,6 @@
-import type { ConfirmationActionView } from "../../shared/api/types";
+import { RotateCcw } from "lucide-react";
+
+import type { ConfirmationActionView, TaskNodeId } from "../../shared/api/types";
 import { Badge, Button, Panel, Text } from "../../shared/components";
 import type { ConfirmationDecision } from "./mainPageUiTypes";
 import { confirmationResolutionText } from "./mainPageCopy";
@@ -12,6 +14,7 @@ import styles from "./MainPage.module.css";
 export type MainPageDetailPanelProps = {
   detail: MainPageDetailView;
   onConfirmationDecision: (decision: Exclude<ConfirmationDecision, null>) => void;
+  onRetryTask: (taskNodeId: TaskNodeId) => void;
   onShowFileChanges: () => void;
   onShowResult: () => void;
 };
@@ -29,6 +32,7 @@ type StateNoteDetail = Extract<MainPageDetailView, { kind: "note" }>;
 export function MainPageDetailPanel({
   detail,
   onConfirmationDecision,
+  onRetryTask,
   onShowFileChanges,
   onShowResult,
 }: MainPageDetailPanelProps) {
@@ -48,6 +52,7 @@ export function MainPageDetailPanel({
       <DetailContent
         detail={detail}
         onConfirmationDecision={onConfirmationDecision}
+        onRetryTask={onRetryTask}
         onShowFileChanges={onShowFileChanges}
         onShowResult={onShowResult}
       />
@@ -58,6 +63,7 @@ export function MainPageDetailPanel({
 type DetailContentProps = {
   detail: MainPageDetailView;
   onConfirmationDecision: (decision: Exclude<ConfirmationDecision, null>) => void;
+  onRetryTask: (taskNodeId: TaskNodeId) => void;
   onShowFileChanges: () => void;
   onShowResult: () => void;
 };
@@ -65,6 +71,7 @@ type DetailContentProps = {
 function DetailContent({
   detail,
   onConfirmationDecision,
+  onRetryTask,
   onShowFileChanges,
   onShowResult,
 }: DetailContentProps) {
@@ -93,7 +100,7 @@ function DetailContent({
         />
       );
     case "task":
-      return <TaskDetailPanel detail={detail} />;
+      return <TaskDetailPanel detail={detail} onRetryTask={onRetryTask} />;
     case "note":
       return <StateNotePanel detail={detail} />;
   }
@@ -262,7 +269,13 @@ function FileChangeSummaryPanel({
   );
 }
 
-function TaskDetailPanel({ detail }: { detail: TaskDetail }) {
+function TaskDetailPanel({
+  detail,
+  onRetryTask,
+}: {
+  detail: TaskDetail;
+  onRetryTask: (taskNodeId: TaskNodeId) => void;
+}) {
   return (
     <Panel
       className={styles.detailBox}
@@ -276,6 +289,18 @@ function TaskDetailPanel({ detail }: { detail: TaskDetail }) {
         Input now applies to this TaskNode. Completed TaskNodes are read-only;
         running TaskNodes accept appended guidance.
       </Text>
+      {detail.selectedTask.permissions.canRetry && (
+        <div className={styles.actionRow}>
+          <Button
+            disabled={detail.isRetryingTask}
+            onClick={() => onRetryTask(detail.selectedTask.id)}
+            variant="primary"
+          >
+            <RotateCcw size={14} aria-hidden="true" />
+            {detail.isRetryingTask ? "Retrying" : "Retry"}
+          </Button>
+        </div>
+      )}
     </Panel>
   );
 }

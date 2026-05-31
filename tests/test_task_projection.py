@@ -12,6 +12,7 @@ from taskweavn.task import (
     DraftTaskNode,
     DraftTaskTree,
     DraftToPublishedMapping,
+    TaskDispatchConstraints,
     TaskDomain,
     TaskFileChangeSummary,
     TaskNodePatch,
@@ -291,6 +292,7 @@ def _task(
     status: str = "pending",
     result_ref: str | None = None,
     error_ref: str | None = None,
+    metadata: dict[str, object] | None = None,
 ) -> TaskDomain:
     root_id = task_id if parent_id is None else "root"
     return TaskDomain(
@@ -301,6 +303,9 @@ def _task(
         order_index=order,
         intent=f"{task_id} intent",
         required_capability="general",
+        dispatch_constraints=(
+            TaskDispatchConstraints(metadata=metadata) if metadata is not None else None
+        ),
         created_by="user",
         status=status,  # type: ignore[arg-type]
         result_ref=result_ref,
@@ -324,6 +329,37 @@ def test_published_tree_projection_is_preorder() -> None:
     assert [node.task_ref.id for node in tree.nodes] == ["root", "child-a", "child-b"]
     assert [node.depth for node in tree.nodes] == [0, 1, 1]
     assert tree.nodes[1].parent_ref == TaskRef.published("root")
+
+
+def test_retry_attempt_replaces_failed_task_in_control_plane_projection() -> None:
+    failed = _task("failed", status="failed", error_ref="error:failed")
+    child = _task("child", parent_id="failed", order=0)
+    retry = _task("retry", metadata={"retry_of": "failed"})
+    service = DefaultTaskProjectionService(task_store=_TaskStore([failed, child, retry]))
+
+    tree = service.list_task_tree("s1", include_drafts=False)
+
+    assert [node.task_ref.id for node in tree.nodes] == ["retry", "child"]
+    assert tree.nodes[0].parent_ref is None
+    assert tree.nodes[0].root_ref == TaskRef.published("retry")
+    assert tree.nodes[0].status == "pending"
+    assert tree.nodes[0].badges.child_count == 1
+    assert tree.nodes[1].parent_ref == TaskRef.published("retry")
+    assert tree.nodes[1].root_ref == TaskRef.published("retry")
+    assert tree.nodes[1].depth == 1
+
+
+def test_latest_retry_attempt_replaces_failed_task_projection() -> None:
+    failed = _task("failed", status="failed", error_ref="error:failed")
+    retry_a = _task("retry-a", metadata={"retry_of": "failed"})
+    retry_b = _task("retry-b", metadata={"retry_of": "failed"})
+    service = DefaultTaskProjectionService(
+        task_store=_TaskStore([failed, retry_b, retry_a])
+    )
+
+    tree = service.list_task_tree("s1", include_drafts=False)
+
+    assert [node.task_ref.id for node in tree.nodes] == ["retry-b"]
 
 
 def test_draft_tree_projection_uses_editable_draft_cards() -> None:

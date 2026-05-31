@@ -76,6 +76,11 @@ export type PublishTaskTreePayload = {
   startImmediately: boolean;
 };
 
+export type RetryTaskPayload = {
+  instruction?: string;
+  startImmediately: boolean;
+};
+
 export type ResolveConfirmationPayload = {
   value: string;
   note?: string;
@@ -168,6 +173,11 @@ export type PlatoApi = {
   ): Promise<CommandResponse>;
   publishTaskTree(
     request: CommandRequest<PublishTaskTreePayload>,
+  ): Promise<CommandResponse>;
+  retryTask(
+    sessionId: SessionId,
+    taskNodeId: TaskNodeId,
+    request: CommandRequest<RetryTaskPayload>,
   ): Promise<CommandResponse>;
   resolveConfirmation(
     sessionId: SessionId,
@@ -329,6 +339,12 @@ export function createHttpPlatoApi(options: HttpPlatoApiOptions): PlatoApi {
     publishTaskTree(request) {
       return client.postJson<CommandResponse>(
         `/api/v1/sessions/${segment(request.sessionId)}/task-tree/publish`,
+        request,
+      );
+    },
+    retryTask(sessionId, taskNodeId, request) {
+      return client.postJson<CommandResponse>(
+        `/api/v1/sessions/${segment(sessionId)}/tasks/${segment(taskNodeId)}/retry`,
         request,
       );
     },

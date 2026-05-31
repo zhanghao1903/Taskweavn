@@ -56,6 +56,7 @@ export type MainPageDetailView =
   | {
       kind: "task";
       header: MainPageDetailHeader;
+      isRetryingTask: boolean;
       selectedTask: TaskNodeCardView;
     }
   | {
@@ -139,6 +140,7 @@ export type BuildMainPageViewModelInput = {
   eventError: string | null;
   inputDisabled: boolean;
   isPublishingTaskTree: boolean;
+  isRetryingTask: boolean;
   isResolvingConfirmation: boolean;
   metadata: MainPageStateMetadata;
   selectedTaskNodeId: TaskNodeId | null;
@@ -155,6 +157,7 @@ export function buildMainPageViewModel({
   eventError,
   inputDisabled,
   isPublishingTaskTree,
+  isRetryingTask,
   isResolvingConfirmation,
   metadata,
   selectedTaskNodeId,
@@ -229,6 +232,7 @@ export function buildMainPageViewModel({
       fileChangeSummary,
       hasConfirmationFocus,
       header,
+      isRetryingTask,
       isResolvingConfirmation,
       result,
       selectedTask,
@@ -432,6 +436,7 @@ function detailViewFor({
   fileChangeSummary,
   hasConfirmationFocus,
   header,
+  isRetryingTask,
   isResolvingConfirmation,
   result,
   selectedTask,
@@ -443,6 +448,7 @@ function detailViewFor({
   fileChangeSummary: FileChangeSummaryView | null;
   hasConfirmationFocus: boolean;
   header: MainPageDetailHeader;
+  isRetryingTask: boolean;
   isResolvingConfirmation: boolean;
   result: ResultCardView | null;
   selectedTask: TaskNodeCardView | undefined;
@@ -482,6 +488,7 @@ function detailViewFor({
     return {
       kind: "task",
       header,
+      isRetryingTask,
       selectedTask,
     };
   }

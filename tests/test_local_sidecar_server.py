@@ -275,6 +275,14 @@ class _CommandGateway:
         self.calls.append("publish_task_tree")
         return _accepted(request.command_id)
 
+    def retry_task(
+        self,
+        task_node_id: str,
+        request: CommandRequest[Any],
+    ) -> CommandResponse:
+        self.calls.append(f"retry_task:{task_node_id}")
+        return _accepted(request.command_id)
+
     def resolve_confirmation(
         self,
         confirmation_id: str,

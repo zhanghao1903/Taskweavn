@@ -8,6 +8,7 @@ from threading import RLock
 from typing import Protocol, runtime_checkable
 
 from taskweavn.task.models import TaskDomain
+from taskweavn.task.retry import task_effectively_done
 from taskweavn.task.stores import TaskStore, TaskStoreError
 
 
@@ -208,7 +209,9 @@ class InMemoryTaskBus:
         if task.parent_id is None:
             return True
         parent = self._tasks.get((task.session_id, task.parent_id))
-        return parent is not None and parent.status == "done"
+        if parent is None:
+            return False
+        return task_effectively_done(parent, self._tasks.values())
 
     def _transition_running(
         self,

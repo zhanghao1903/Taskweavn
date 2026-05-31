@@ -74,6 +74,7 @@ from taskweavn.types.common import (
 )
 
 if TYPE_CHECKING:  # pragma: no cover
+    from taskweavn.context.agent_loop_provider import AgentLoopContextProvider
     from taskweavn.interaction import (
         AgentMessage,
         AutonomyGate,
@@ -176,6 +177,7 @@ class AgentLoop:
     bus: MessageBus | None = None
     gate: AutonomyGate | None = None
     wait_coordinator: WaitCoordinator | None = None
+    context_provider: AgentLoopContextProvider | None = None
 
     def __post_init__(self) -> None:
         names = [t.name for t in self.tools]
@@ -236,6 +238,7 @@ class AgentLoop:
         # discards them — the actionables are still on the message stream
         # for an operator to inspect.
         self._pending_decisions: list[_PendingDecision] = []
+        self._current_agent_run_id: str | None = None
 
     def run(self, task: str, *, task_id: str | None = None) -> LoopResult:
         """Execute the loop on a single user task. Synchronous, single-threaded.
@@ -251,6 +254,7 @@ class AgentLoop:
         *this* invocation.
         """
         self._current_task_id = task_id or uuid4().hex
+        self._current_agent_run_id = f"agent_loop:{self._current_task_id}:{uuid4().hex}"
         # A fresh queue per ``run()`` — leftovers from a previous task have
         # no business resolving against this one.
         self._pending_decisions = []
@@ -288,6 +292,7 @@ class AgentLoop:
                     with contextlib.suppress(Exception):
                         tool.shutdown()
             self._current_task_id = None
+            self._current_agent_run_id = None
 
     def _run_inner(self, task: str) -> LoopResult:
         messages: list[dict[str, Any]] = [
@@ -303,11 +308,31 @@ class AgentLoop:
             self.drain_pending_responses(messages)
 
             try:
-                response = self.llm.chat(messages=messages, tools=self._tool_schemas)
+                messages_for_call, metadata = self._prepare_llm_call(messages, step)
+            except Exception as exc:  # noqa: BLE001 — loop contract: return LoopResult.
+                obs = self._handle_context_error(exc, step)
+                self._append_event(obs)
+                self._publish_loop_error(obs)
+                return LoopResult(
+                    final_answer="",
+                    steps=step,
+                    finished=False,
+                    stop_reason="context_error",
+                )
+
+            try:
+                if metadata:
+                    response = self.llm.chat(
+                        messages=messages_for_call,
+                        tools=self._tool_schemas,
+                        metadata=metadata,
+                    )
+                else:
+                    response = self.llm.chat(messages=messages_for_call, tools=self._tool_schemas)
             except Exception as exc:  # noqa: BLE001 — loop contract: return LoopResult.
                 obs = self._handle_llm_error(exc, step)
                 self._append_event(obs)
-                self._publish_llm_error(obs)
+                self._publish_loop_error(obs)
                 return LoopResult(
                     final_answer="",
                     steps=step,
@@ -655,6 +680,37 @@ class AgentLoop:
         except TypeError:
             self.event_stream.append(event)
 
+    def _prepare_llm_call(
+        self,
+        messages: list[dict[str, Any]],
+        step: int,
+    ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+        if self.context_provider is None:
+            return messages, {}
+        if self._current_task_id is None or self._current_agent_run_id is None:
+            raise LoopError("context provider requires an active AgentLoop.run")
+
+        from taskweavn.context.agent_loop_provider import AgentLoopContextRequest
+
+        rendered = self.context_provider.build_for_llm_call(
+            AgentLoopContextRequest(
+                session_id=self.session_id,
+                task_id=self._current_task_id,
+                agent_id="default_agent",
+                agent_run_id=self._current_agent_run_id,
+                turn_index=step,
+                loop_messages=tuple(dict(message) for message in messages),
+                tool_names=tuple(tool.name for tool in self.tools) + (FINISH_TOOL_NAME,),
+                pending_decision_count=len(self._pending_decisions),
+            )
+        )
+        metadata = {
+            "context_snapshot_id": rendered.snapshot_id,
+            "context_trace_id": rendered.trace_id,
+            "context_renderer_version": rendered.renderer_version,
+        }
+        return [dict(message) for message in rendered.messages], metadata
+
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
@@ -709,18 +765,29 @@ class AgentLoop:
             task_id=self._current_task_id,
         )
 
-    def _publish_llm_error(self, observation: AgentErrorObservation) -> None:
-        """Optionally mirror an LLM failure to MessageStream for the operator UI."""
+    def _handle_context_error(self, exc: Exception, step: int) -> AgentErrorObservation:
+        return AgentErrorObservation(
+            error_type="context_build_error",
+            message=f"{type(exc).__name__}: {exc}",
+            phase="context_build",
+            step=step,
+            model_name=None,
+            task_id=self._current_task_id,
+        )
+
+    def _publish_loop_error(self, observation: AgentErrorObservation) -> None:
+        """Optionally mirror a loop-level failure to MessageStream."""
         if self.bus is None:
             return
         from taskweavn.interaction import AgentMessage as _AgentMessage
 
+        noun = "LLM request" if observation.error_type == "llm_error" else "Context build"
         message = _AgentMessage(
             session_id=self.session_id,
             task_id=self._current_task_id,
             agent_id="system",
             message_type="informational",
-            content=f"LLM request failed during {observation.phase}: {observation.message}",
+            content=f"{noun} failed during {observation.phase}: {observation.message}",
             context={
                 "error_type": observation.error_type,
                 "phase": observation.phase,
