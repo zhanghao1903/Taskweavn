@@ -40,7 +40,8 @@ The package covers custom Task Tree input, idempotent publish service semantics,
 - `NormalizedTaskNode`, `NormalizedTaskTree`.
 - `PublishRequest`, `PublishPreview`, `PublishResult`.
 - Draft publish compatibility through `publish_draft_tree(...)`.
-- Retry compatibility through `retry_task(...)`.
+- Retry compatibility through `retry_task(...)`, now backed by TaskBus in-place
+  retry rather than publishing a new retry root Task.
 
 ### 2.2 Custom Task Tree Input
 
@@ -168,4 +169,3 @@ Focused coverage added:
 - Completion-time orchestration for `task_after`.
 - Full Pipeline loading plan continuation, especially Agent assignment semantics.
 - UI preview/confirm surfaces for custom Task Trees, scheduler configs, API dry-run results, and pipeline badges.
-

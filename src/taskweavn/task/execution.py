@@ -24,7 +24,6 @@ from taskweavn.task.result_summary import (
     build_external_error_ref_summary,
     build_external_result_ref_summary,
 )
-from taskweavn.task.retry import task_effectively_done
 
 DEFAULT_FIXED_ROUTE_AGENT_ID = "default_agent"
 
@@ -504,7 +503,7 @@ def _select_next_eligible_pending_task(
         if task.parent_id is None:
             return task
         parent = task_by_id.get(task.parent_id)
-        if parent is not None and task_effectively_done(parent, tasks):
+        if parent is not None and parent.status == "done":
             return task
     return None
 

@@ -40,7 +40,7 @@ deterministic Context Manager for LLM input assembly.
 | Main Page integration | Done baseline | Frontend runtime adapter, local sidecar HTTP/SSE shell, command/query/event contracts, result/error/file projections. |
 | Fixed-route execution | Done baseline | Product 1.0 uses one resident Default Agent route instead of Router / Agent Manager. |
 | Context Manager 1.0 | Done baseline | Deterministic execution-start context assembly before `llm.chat(...)`. |
-| Manual retry | In progress | Failed published Tasks can be retried as new attempts and projected in place of the original control-plane Task. |
+| Manual retry | In progress | Failed published Tasks can return to pending in place while failure messages/result summaries remain auditable. |
 | Product 1.1+ | Planned | Router, Agent Manager, skills, MCP, multimodal context, richer result packaging, and advanced pipelines. |
 
 Start with [docs/roadmap.md](docs/roadmap.md),

@@ -590,9 +590,8 @@ def test_retry_task_wraps_published_failed_task_command() -> None:
         CoreCommandResult(
             command_id="backend-retry",
             status="accepted",
-            message="retry task published",
-            affected_task_refs=(TaskRef.published("retry-root"),),
-            published_task_ids=("retry-root",),
+            message="task retry queued",
+            affected_task_refs=(TaskRef.published("task-1"),),
         )
     )
     gateway = _gateway(task_commands=commands)
@@ -621,8 +620,17 @@ def test_retry_task_wraps_published_failed_task_command() -> None:
     assert response.result is not None
     body = response.result.model_dump(mode="json")
     assert {"kind": "published_task", "id": "task-1"} in body["objectRefs"]
-    assert {"kind": "published_task", "id": "retry-root"} in body["objectRefs"]
-    assert response.result.published_task_ids == ("retry-root",)
+    assert {"kind": "published_task", "id": "retry-root"} not in body["objectRefs"]
+    assert response.result.published_task_ids == ()
+    assert {
+        "ref": {"kind": "published_task", "id": "task-1"},
+        "impact": "changed",
+        "reason": "Manual retry moved this failed Task back to pending.",
+    } in body["affectedObjects"]
+    assert not any(
+        affected["ref"] == {"kind": "published_task", "id": "retry-root"}
+        for affected in body["affectedObjects"]
+    )
     assert response.refresh.suggested_queries == (
         "session.snapshot",
         "task.tree",

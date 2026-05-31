@@ -38,50 +38,46 @@ def test_in_memory_task_bus_claim_complete_fail_and_skip() -> None:
     assert skipped.error_ref == "skipped: optional"
 
 
-def test_in_memory_task_bus_claims_child_after_parent_retry_done() -> None:
+def test_in_memory_task_bus_retry_failed_task_in_place_before_child_runs() -> None:
     bus = InMemoryTaskBus(
         [
             _task("root", status="failed", created_at=_time(0)),
             _task("child", parent_id="root", root_id="root", created_at=_time(1)),
-            _task(
-                "retry",
-                status="done",
-                metadata={"retry_of": "root"},
-                created_at=_time(2),
-            ),
         ]
     )
 
+    assert bus.claim_next("s1", capability="general", agent_id="agent-1") is None
+
+    retried = bus.retry("s1", "root", instruction="Use safer steps")
     claimed = bus.claim_next("s1", capability="general", agent_id="agent-1")
 
+    assert retried.task_id == "root"
+    assert retried.status == "pending"
+    assert retried.error_ref is None
+    assert "Retry instruction" in retried.intent
     assert claimed is not None
-    assert claimed.task_id == "child"
-    assert claimed.status == "running"
+    assert claimed.task_id == "root"
+    bus.complete("s1", "root", result_ref="result:root")
+
+    child = bus.claim_next("s1", capability="general", agent_id="agent-1")
+
+    assert child is not None
+    assert child.task_id == "child"
 
 
-def test_in_memory_task_bus_latest_retry_attempt_controls_parent_dependency() -> None:
+def test_in_memory_task_bus_retry_preserves_original_queue_position() -> None:
     bus = InMemoryTaskBus(
         [
             _task("root", status="failed", created_at=_time(0)),
-            _task("child", parent_id="root", root_id="root", created_at=_time(1)),
-            _task(
-                "retry-a",
-                status="done",
-                metadata={"retry_of": "root"},
-                created_at=_time(2),
-            ),
-            _task(
-                "retry-b",
-                metadata={"retry_of": "root"},
-                created_at=_time(3),
-            ),
+            _task("later", created_at=_time(1)),
         ]
     )
 
+    bus.retry("s1", "root")
     claimed = bus.claim_next("s1", capability="general", agent_id="agent-1")
 
     assert claimed is not None
-    assert claimed.task_id == "retry-b"
+    assert claimed.task_id == "root"
 
 
 def _task(

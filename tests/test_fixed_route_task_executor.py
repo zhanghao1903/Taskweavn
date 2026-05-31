@@ -149,24 +149,38 @@ def test_fixed_route_executor_respects_parent_dependency() -> None:
     assert child.claimed_by is None
 
 
-def test_fixed_route_executor_treats_done_retry_as_parent_completion() -> None:
+def test_fixed_route_executor_waits_for_in_place_parent_retry() -> None:
     bus = InMemoryTaskBus(
         [
             _task("root", status="failed"),
             _task("child", parent_id="root", root_id="root"),
-            _task("retry", status="done", metadata={"retry_of": "root"}),
         ]
     )
+    agent = _SequencedAgent()
     executor = FixedRouteTaskExecutor(
         task_bus=bus,
-        default_agent=_FakeAgent(TaskRunResult(result_ref="result:child")),
+        default_agent=agent,
         config=FixedRouteTaskExecutorConfig(session_id="s1"),
     )
 
     result = executor.tick()
 
-    assert result.status == "completed"
+    assert result.status == "idle"
+    assert agent.seen == []
+
+    bus.retry("s1", "root")
+    retry_result = executor.tick()
+    child_result = executor.tick()
+
+    assert retry_result.status == "completed"
+    assert retry_result.completed_task_id == "root"
+    assert child_result.status == "completed"
+    assert child_result.completed_task_id == "child"
+    assert agent.seen == ["root", "child"]
+    root = bus.get("s1", "root")
     child = bus.get("s1", "child")
+    assert root is not None
+    assert root.status == "done"
     assert child is not None
     assert child.status == "done"
     assert child.result_ref == "result:child"

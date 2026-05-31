@@ -293,6 +293,7 @@ def build_main_page_sidecar_app(
             task_store=task_bus,
             draft_store=draft_store,
             message_bus=message_bus,
+            published_task_retrier=task_bus,
             task_publisher=task_publisher,
         )
         task_projection = DefaultTaskProjectionService(

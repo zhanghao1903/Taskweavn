@@ -542,16 +542,8 @@ class DefaultUiCommandGateway:
                 affected_objects=(
                     AffectedObjectRef(
                         ref=ObjectRef(kind="published_task", id=task_ref.id),
-                        impact="superseded",
-                        reason="Manual retry was requested for this failed Task.",
-                    ),
-                    *(
-                        AffectedObjectRef(
-                            ref=ObjectRef(kind="published_task", id=task_id),
-                            impact="created",
-                            reason="Retry attempt was published.",
-                        )
-                        for task_id in result.published_task_ids
+                        impact="changed",
+                        reason="Manual retry moved this failed Task back to pending.",
                     ),
                 ),
                 suggested_queries=("session.snapshot", "task.tree", "task.detail"),

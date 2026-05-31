@@ -100,11 +100,14 @@ authoring default must encode sequence explicitly.
 
 Product 1.0 should support minimal whole-Task retry:
 
-- retry starts a new Task-run attempt for the same logical Task;
-- the previous failed/interrupted attempt remains auditable;
-- retry does not mutate or delete the original failed run;
-- the Main Page control plane should project the retry attempt in place of the
-  original failed Task once the retry is created;
+- retry continues on the same published Task identity;
+- the previous failed/interrupted execution evidence remains auditable through
+  append-only MessageStream, result/error summaries, Audit, and logs;
+- retry mutates only the current lifecycle fields on the TaskDomain fact:
+  `failed` returns to `pending`, while historical failure records stay outside
+  the current status fields;
+- the Main Page control plane should keep the same Task card and show it moving
+  from `failed` back to `queued` / `running`;
 - retry should preserve dependency semantics: downstream Tasks remain blocked
   until the retried Task reaches `done`;
 - retry is manual first. Automatic retry is deferred unless the failure is a
@@ -113,16 +116,15 @@ Product 1.0 should support minimal whole-Task retry:
 Implementation decision for the initial manual retry slice:
 
 - keep retry as an explicit user command;
-- create a new pending retry attempt through `TaskPublisher.retry_task(...)`;
-- carry `retry_of=<failed_task_id>` in published Task metadata;
-- keep the original failed Task available to TaskBus, EventStream, result/error
-  summaries, Audit, and diagnostics;
-- hide the original failed Task from the Main Page control plane when a newer
-  retry attempt exists, and show the retry attempt at the original Task's
-  control-plane position;
-- treat the original Task's dependency as satisfied only when the latest retry
-  attempt reaches `done`, so downstream Tasks remain blocked while retry is
-  pending, running, or failed;
+- move the same failed Task back to `pending` through TaskBus lifecycle retry;
+- clear current `result_ref`, `error_ref`, `claimed_by`, `started_at`, and
+  `completed_at` fields so they describe only the active attempt;
+- keep failure evidence in MessageStream, result/error summaries, Audit, and
+  diagnostics rather than storing attempt history in TaskDomain;
+- keep the same Task card in the Main Page control plane;
+- treat the Task dependency as satisfied only when that same Task reaches
+  `done`, so downstream Tasks remain blocked while retry is pending, running,
+  or failed;
 - do not add automatic retry policy or a full TaskAttempt history UI in this
   slice.
 
@@ -183,16 +185,15 @@ Acceptance:
 Deliver:
 
 - define retry command semantics for failed/interrupted Task;
-- add a retry path that creates a new pending attempt;
+- add a retry path that moves the same Task back to pending;
 - preserve previous failure evidence;
 - expose retry eligibility and command handling through the Main Page backend
   contract.
 
 Recommended initial model:
 
-- publish a new Task with retry metadata instead of resetting the failed Task;
-- project the retry Task as a replacement for the failed Task in the Main Page
-  control plane;
+- reset the failed Task in place through TaskBus retry;
+- keep the Task card identity stable in the Main Page control plane;
 - keep deeper attempt history and automatic policies out of Product 1.0.
 
 Acceptance:

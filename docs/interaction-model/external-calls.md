@@ -62,7 +62,7 @@ React UI
 | `EXT-C-006` | `POST /api/v1/sessions/{sessionId}/task-tree/publish` | `PublishTaskTreePayload` | TaskTree publish action | 发布 Draft TaskTree 到任务总线。 |
 | `EXT-C-007` | `POST /api/v1/sessions/{sessionId}/confirmations/{confirmationId}/respond` | `ResolveConfirmationPayload` | Confirmation card | 用户确认、修改、跳过等动作。 |
 | `EXT-C-008` | `POST /api/v1/sessions/{sessionId}/tasks/{taskNodeId}/cancel` | `CancelTaskPayload` | TaskNode controls | 取消未完成或运行中 TaskNode。MVP 可禁用。 |
-| `EXT-C-009` | `POST /api/v1/sessions/{sessionId}/tasks/{taskNodeId}/retry` | `RetryTaskPayload` | TaskNode controls | 手动重试 failed TaskNode；创建 retry attempt，并在 Main Page 控制面替代原 failed Task。 |
+| `EXT-C-009` | `POST /api/v1/sessions/{sessionId}/tasks/{taskNodeId}/retry` | `RetryTaskPayload` | TaskNode controls | 手动重试 failed TaskNode；原 Task 回到 pending，保留失败消息/结果摘要作为审计事实。 |
 
 ## 5. Event Calls
 

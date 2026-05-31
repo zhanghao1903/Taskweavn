@@ -8,8 +8,8 @@ from pathlib import Path
 from threading import RLock
 from typing import Any
 
+from taskweavn.task.bus import _retry_updates
 from taskweavn.task.models import TaskDomain
-from taskweavn.task.retry import task_effectively_done
 from taskweavn.task.stores import TaskStoreError
 
 _SCHEMA_DDL = """
@@ -203,6 +203,23 @@ class SqliteTaskBus:
             self._save_task(updated)
             return updated
 
+    def retry(
+        self,
+        session_id: str,
+        task_id: str,
+        *,
+        instruction: str | None = None,
+    ) -> TaskDomain:
+        with self._lock:
+            task = self._require_task(session_id, task_id)
+            if task.status != "failed":
+                raise TaskStoreError(f"only failed tasks can be retried; got {task.status}")
+            updated = task.model_copy(
+                update=_retry_updates(task, instruction=instruction)
+            )
+            self._save_task(updated)
+            return updated
+
     def get(self, session_id: str, task_id: str) -> TaskDomain | None:
         with self._lock:
             row = self._conn.execute(
@@ -323,7 +340,7 @@ def _parent_is_done(
     parent = task_by_id.get(task.parent_id)
     if parent is None:
         return False
-    return task_effectively_done(parent, session_tasks)
+    return parent.status == "done"
 
 
 def _utcnow() -> datetime:

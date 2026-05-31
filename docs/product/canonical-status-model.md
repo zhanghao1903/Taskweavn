@@ -171,6 +171,10 @@ type ExecutionStatus =
 | `cancelled` | Execution was intentionally cancelled or skipped. | Cancellation command/result, or projected cancellation fact. | `execution`. | Cancelled/read-only or retry if permitted. | Terminal for current run. | Backend currently lacks canonical `TaskDomain.status = cancelled`; projection must own the mapping until domain supports it. |
 | `unknown` | UI cannot determine execution state. | Missing published task, unsupported status, inconsistent mapping. | `execution`. | Unknown/refresh. | Error/recoverable. | Disable retry/cancel/confirmation actions until resync if risk is visible. |
 
+Manual retry is the explicit recovery transition from `failed` back to
+`pending` on the same published Task identity. Prior failure evidence must stay
+in append-only detail/audit records rather than in the current status value.
+
 Execution rollup should be represented separately:
 
 ```ts

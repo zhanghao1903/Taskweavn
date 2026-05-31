@@ -98,6 +98,7 @@ from taskweavn.task.commands import (
     CommandStatus,
     DefaultTaskCommandService,
     PublishedTaskEditor,
+    PublishedTaskRetrier,
     TaskCommandService,
     TaskGuidanceMode,
 )
@@ -383,6 +384,7 @@ __all__ = [
     "PipelineTaskLoader",
     "PipelineTaskSpec",
     "PublishedTaskEditor",
+    "PublishedTaskRetrier",
     "MutateDraftTaskTreeCommand",
     "MutateRawTaskCommand",
     "PublishDraftTaskTreeCommand",

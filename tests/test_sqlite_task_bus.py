@@ -189,19 +189,26 @@ def test_claim_next_waits_for_parent_done(tmp_path: Path) -> None:
         bus.close()
 
 
-def test_claim_next_treats_done_retry_as_parent_completion(tmp_path: Path) -> None:
+def test_retry_failed_task_in_place_before_child_runs(tmp_path: Path) -> None:
     bus = SqliteTaskBus(tmp_path / "tasks.sqlite")
     try:
         bus.publish(_root("root"))
         assert bus.claim_next("s1", capability="general", agent_id="agent-1") is not None
         bus.fail("s1", "root", error_ref="error:root")
         bus.publish(_child("child", parent_id="root", root_id="root"))
-        bus.publish(_root("retry", metadata={"retry_of": "root"}))
 
-        retry = bus.claim_next("s1", capability="general", agent_id="agent-1")
-        assert retry is not None
-        assert retry.task_id == "retry"
-        bus.complete("s1", "retry", result_ref="result:retry")
+        assert bus.claim_next("s1", capability="general", agent_id="agent-1") is None
+
+        retried = bus.retry("s1", "root", instruction="Try safer steps")
+        retry_claim = bus.claim_next("s1", capability="general", agent_id="agent-1")
+
+        assert retried.task_id == "root"
+        assert retried.status == "pending"
+        assert retried.error_ref is None
+        assert "Retry instruction" in retried.intent
+        assert retry_claim is not None
+        assert retry_claim.task_id == "root"
+        bus.complete("s1", "root", result_ref="result:root")
 
         child = bus.claim_next("s1", capability="general", agent_id="agent-1")
 
@@ -211,7 +218,7 @@ def test_claim_next_treats_done_retry_as_parent_completion(tmp_path: Path) -> No
         bus.close()
 
 
-def test_claim_next_uses_latest_retry_attempt_for_parent_dependency(
+def test_retry_preserves_original_queue_position(
     tmp_path: Path,
 ) -> None:
     bus = SqliteTaskBus(tmp_path / "tasks.sqlite")
@@ -219,20 +226,13 @@ def test_claim_next_uses_latest_retry_attempt_for_parent_dependency(
         bus.publish(_root("root", created_at=_time(0)))
         assert bus.claim_next("s1", capability="general", agent_id="agent-1") is not None
         bus.fail("s1", "root", error_ref="error:root")
-        bus.publish(_child("child", parent_id="root", root_id="root"))
-        bus.publish(_root("retry-a", metadata={"retry_of": "root"}, created_at=_time(2)))
-
-        retry_a = bus.claim_next("s1", capability="general", agent_id="agent-1")
-        assert retry_a is not None
-        assert retry_a.task_id == "retry-a"
-        bus.complete("s1", "retry-a", result_ref="result:retry-a")
-
-        bus.publish(_root("retry-b", metadata={"retry_of": "root"}, created_at=_time(3)))
+        bus.publish(_root("later", created_at=_time(1)))
+        bus.retry("s1", "root")
 
         claimed = bus.claim_next("s1", capability="general", agent_id="agent-1")
 
         assert claimed is not None
-        assert claimed.task_id == "retry-b"
+        assert claimed.task_id == "root"
     finally:
         bus.close()
 
