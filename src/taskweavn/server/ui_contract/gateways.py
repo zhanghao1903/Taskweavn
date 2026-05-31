@@ -14,6 +14,7 @@ from taskweavn.server.ui_contract.commands import (
     GenerateTaskTreePayload,
     PublishTaskTreePayload,
     ResolveConfirmationPayload,
+    RetryTaskPayload,
     UpdateTaskNodePayload,
 )
 from taskweavn.server.ui_contract.envelopes import (
@@ -148,6 +149,12 @@ class UiCommandGateway(Protocol):
     def publish_task_tree(
         self,
         request: CommandRequest[PublishTaskTreePayload],
+    ) -> CommandResponse: ...
+
+    def retry_task(
+        self,
+        task_node_id: str,
+        request: CommandRequest[RetryTaskPayload],
     ) -> CommandResponse: ...
 
     def resolve_confirmation(
@@ -507,6 +514,46 @@ class DefaultUiCommandGateway:
             )
         except _TaskTreeIdentityError as exc:
             return _command_bad_request_response(request, str(exc), **exc.details)
+        except Exception as exc:
+            return _command_exception_response(request, exc)
+
+    def retry_task(
+        self,
+        task_node_id: str,
+        request: CommandRequest[RetryTaskPayload],
+    ) -> CommandResponse:
+        try:
+            task_ref = self._resolve_task_ref(request.session_id, task_node_id)
+            if task_ref.kind != "published":
+                result = CoreCommandResult(
+                    status="rejected",
+                    message="only published failed tasks can be retried",
+                )
+                return _command_response(request, result)
+            result = self._task_commands.retry_task(
+                request.session_id,
+                task_ref.id,
+                request.payload.instruction,
+            )
+            return _command_response(
+                request,
+                result,
+                object_refs=(ObjectRef(kind="published_task", id=task_ref.id),),
+                affected_objects=(
+                    AffectedObjectRef(
+                        ref=ObjectRef(kind="published_task", id=task_ref.id),
+                        impact="changed",
+                        reason="Manual retry moved this failed Task back to pending.",
+                    ),
+                ),
+                suggested_queries=("session.snapshot", "task.tree", "task.detail"),
+                affected_scopes=(
+                    AffectedScope(kind="task_tree"),
+                    AffectedScope(kind="task_detail", task_ref=task_ref),
+                ),
+            )
+        except LookupError as exc:
+            return _command_not_found_response(request, str(exc))
         except Exception as exc:
             return _command_exception_response(request, exc)
 

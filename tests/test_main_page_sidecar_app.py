@@ -11,6 +11,7 @@ from typing import Any, cast
 
 import pytest
 
+from taskweavn.context import SqliteContextStore
 from taskweavn.core import SessionManager, SessionManagerError, WorkspaceLayout
 from taskweavn.llm.contracts import ChatResponse, ToolCall
 from taskweavn.server import (
@@ -611,7 +612,9 @@ def test_main_page_sidecar_app_fixed_route_tick_runs_agent_loop_default_agent(
 
         tick = app.run_fixed_route_tick(session_id)
         task = app.task_bus.get(session_id, "loop-task")
-        events_db = WorkspaceLayout(tmp_path).session_events_db(session_id)
+        layout = WorkspaceLayout(tmp_path)
+        events_db = layout.session_events_db(session_id)
+        context_db = layout.session_context_db(session_id)
         result_ref = tick.result_ref
         snapshot = _request(app, "GET", f"/api/v1/sessions/{session_id}/snapshot")
     finally:
@@ -622,8 +625,19 @@ def test_main_page_sidecar_app_fixed_route_tick_runs_agent_loop_default_agent(
     assert task is not None
     assert task.status == "done"
     assert task.result_ref == f"agent_loop:{session_id}:loop-task:no_tool_calls"
-    assert llm.calls[0]["messages"][1]["content"] == "Run loop-task"
+    first_prompt = llm.calls[0]["messages"][1]["content"]
+    assert "# Task Execution Context" in first_prompt
+    assert "Run loop-task" in first_prompt
+    assert llm.calls[0]["metadata"]["context_snapshot_id"] is not None
     assert events_db.exists()
+    assert context_db.exists()
+    with SqliteContextStore(context_db) as context_store:
+        context_snapshots = context_store.list_snapshots_for_task(session_id, "loop-task")
+    assert len(context_snapshots) == 2
+    assert [snapshot.purpose for snapshot in context_snapshots] == [
+        "execution_start",
+        "execution_step",
+    ]
     assert result_ref is not None
     with SqliteTaskExecutionSummaryStore(WorkspaceLayout(tmp_path).workspace_results_db) as store:
         summary = store.get(result_ref)
@@ -685,7 +699,23 @@ def test_main_page_sidecar_app_projects_file_change_summary_from_agent_loop_even
         }
     ]
     assert snapshot.json["data"]["result"]["summary"] == "Loop completed."
-    assert llm.calls[0]["messages"][1]["content"] == "Run loop-file-task"
+    first_prompt = llm.calls[0]["messages"][1]["content"]
+    assert "# Task Execution Context" in first_prompt
+    assert "Run loop-file-task" in first_prompt
+    assert llm.calls[0]["metadata"]["context_snapshot_id"] is not None
+    assert llm.calls[1]["metadata"]["context_snapshot_id"] is not None
+    assert any(message["role"] == "tool" for message in llm.calls[1]["messages"])
+    context_db = WorkspaceLayout(tmp_path).session_context_db(session_id)
+    with SqliteContextStore(context_db) as context_store:
+        context_snapshots = context_store.list_snapshots_for_task(
+            session_id,
+            "loop-file-task",
+        )
+    assert [snapshot.purpose for snapshot in context_snapshots] == [
+        "execution_start",
+        "execution_step",
+        "execution_step",
+    ]
 
 
 def test_main_page_sidecar_app_fixed_route_tick_reports_missing_default_agent(

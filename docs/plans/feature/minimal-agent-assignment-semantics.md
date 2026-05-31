@@ -82,8 +82,8 @@ Deliver the minimal semantics needed when Product 1.1+ introduces real routing:
 - Do not implement Main Page manual reassignment.
 - Do not implement running execution timeout, hard cancellation, or cooperative
   interruption behavior.
-- Do not replace existing TaskPublisher retry behavior unless a future implementation
-  explicitly chooses to add in-place retry later.
+- Do not add richer TaskAttempt history or automatic retry policy. Product 1.0
+  retry already uses TaskBus in-place retry on the same Task identity.
 
 ---
 
@@ -289,7 +289,7 @@ Focused tests:
 Regression tests:
 
 - existing TaskBus lifecycle tests;
-- TaskPublisher retry tests;
+- TaskBus in-place retry tests;
 - Main Page projection / UI contract mapping tests touched by assignment fields.
 
 No browser validation is required unless frontend UI rendering changes in this

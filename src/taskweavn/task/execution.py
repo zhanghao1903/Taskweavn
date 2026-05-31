@@ -9,6 +9,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Literal, Protocol, runtime_checkable
 
+from taskweavn.context.models import ContextBuildRequest, ContextBuildResult
 from taskweavn.core.loop import LoopResult
 from taskweavn.interaction import AgentMessage, MessageBus, MessageStreamError
 from taskweavn.task.bus import TaskBus
@@ -45,6 +46,7 @@ ExecutionDispatchRequestStatus = Literal[
 
 ExecutionDispatchTriggerReason = Literal[
     "publish_start_immediately",
+    "retry_start_immediately",
     "manual_control_route",
     "startup_recovery",
 ]
@@ -85,6 +87,16 @@ class AgentLoopRunner(Protocol):
 
 
 AgentLoopRunnerFactory = Callable[[TaskDomain], AgentLoopRunner]
+
+
+@runtime_checkable
+class ExecutionContextBuilder(Protocol):
+    """Minimal context builder contract used by the resident Default Agent."""
+
+    def build(self, request: ContextBuildRequest) -> ContextBuildResult: ...
+
+
+ExecutionContextBuilderFactory = Callable[[TaskDomain], ExecutionContextBuilder]
 
 
 @dataclass(frozen=True)
@@ -419,6 +431,7 @@ class AgentLoopResidentDefaultAgent:
     result_ref_prefix: str = "agent_loop"
     error_ref_prefix: str = "agent_loop_failed"
     loop_factory: AgentLoopRunnerFactory | None = None
+    context_builder_factory: ExecutionContextBuilderFactory | None = None
     result_summary_store: TaskExecutionSummaryStore | None = None
 
     def __post_init__(self) -> None:
@@ -429,7 +442,28 @@ class AgentLoopResidentDefaultAgent:
         runner = self.loop_factory(task) if self.loop_factory is not None else self.loop
         if runner is None:  # guarded by __post_init__, kept for type narrowing.
             return TaskRunResult(error_ref="agent_loop_unavailable")
-        result = runner.run(task.intent, task_id=task.task_id)
+        run_input = task.intent
+        if self.context_builder_factory is not None:
+            try:
+                context_result = self.context_builder_factory(task).build(
+                    ContextBuildRequest(
+                        session_id=task.session_id,
+                        task_id=task.task_id,
+                        agent_id=task.claimed_by or DEFAULT_FIXED_ROUTE_AGENT_ID,
+                        purpose="execution_start",
+                        writer=True,
+                    )
+                )
+            except Exception as exc:  # noqa: BLE001 - agent contract returns TaskRunResult.
+                error_ref = _store_context_build_exception_summary(
+                    self.result_summary_store,
+                    task,
+                    exc,
+                )
+                return TaskRunResult(error_ref=error_ref)
+            run_input = context_result.rendered.user_content
+
+        result = runner.run(run_input, task_id=task.task_id)
         if result.finished:
             result_ref = (
                 f"{self.result_ref_prefix}:{task.session_id}:{task.task_id}:{result.stop_reason}"
@@ -461,12 +495,14 @@ def _select_next_eligible_pending_task(
     task_bus: TaskBus,
     session_id: str,
 ) -> TaskDomain | None:
-    for task in task_bus.list_for_session(session_id):
+    tasks = task_bus.list_for_session(session_id)
+    task_by_id = {task.task_id: task for task in tasks}
+    for task in tasks:
         if task.status != "pending":
             continue
         if task.parent_id is None:
             return task
-        parent = task_bus.get(session_id, task.parent_id)
+        parent = task_by_id.get(task.parent_id)
         if parent is not None and parent.status == "done":
             return task
     return None
@@ -514,6 +550,23 @@ def _store_execution_exception_summary(
             exc=exc,
         )
     )
+    return error_ref
+
+
+def _store_context_build_exception_summary(
+    store: TaskExecutionSummaryStore | None,
+    task: TaskDomain,
+    exc: Exception,
+) -> str:
+    error_ref = f"context_build_failed:{task.session_id}:{task.task_id}:{type(exc).__name__}"
+    if store is not None:
+        store.put(
+            build_execution_exception_summary(
+                summary_id=error_ref,
+                task=task,
+                exc=exc,
+            )
+        )
     return error_ref
 
 
@@ -599,6 +652,8 @@ __all__ = [
     "AgentLoopRunner",
     "AgentLoopRunnerFactory",
     "DEFAULT_FIXED_ROUTE_AGENT_ID",
+    "ExecutionContextBuilder",
+    "ExecutionContextBuilderFactory",
     "ExecutionDispatchRequestResult",
     "ExecutionDispatchRequestStatus",
     "ExecutionDispatchTriggerReason",

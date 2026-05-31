@@ -761,6 +761,7 @@ User intent
     - `TaskCommandService`
     - `PublishedTaskEditor`
     - `TaskPublisher`
+    - `PublishedTaskRetrier`
   - Added command result models:
     - `CommandResult`
     - `TaskPublishResult`
@@ -770,7 +771,7 @@ User intent
     - task-scoped user guidance messages through `MessageBus`;
     - confirmation resolution by publishing a response message;
     - draft tree publication through an injected `TaskPublisher`;
-    - failed Task retry through the same publisher boundary.
+    - failed Task retry through a published Task lifecycle retrier.
   - Added tests for status-based rejection, draft/published edit boundaries, message publishing, confirmation response publishing, draft Task confirmation refs, publish/retry boundaries, and Protocol conformance.
 - Completed in fifth implementation pass:
   - Slice 5 Interaction Timeline.

@@ -16,7 +16,7 @@ from taskweavn.task.models import (
     TaskDispatchConstraints,
     TaskDomain,
 )
-from taskweavn.task.stores import DraftTaskStore
+from taskweavn.task.stores import DraftTaskStore, TaskStoreError
 
 PublisherKind = Literal[
     "user",
@@ -203,7 +203,7 @@ class TaskPublishResult(_FrozenPublisherModel):
 
 @runtime_checkable
 class TaskPublisher(Protocol):
-    """Unified publisher boundary plus draft/retry compatibility hooks."""
+    """Unified publisher boundary plus draft compatibility and legacy retry hooks."""
 
     kind: PublisherKind
 
@@ -429,34 +429,11 @@ class DefaultTaskPublisher:
         task_id: str,
         instruction: str | None = None,
     ) -> TaskPublishResult:
-        source = self._task_bus.get(session_id, task_id)
-        if source is None or source.status != "failed":
+        try:
+            updated = self._task_bus.retry(session_id, task_id, instruction=instruction)
+        except TaskStoreError:
             return TaskPublishResult(rejected_task_ids=(task_id,))
-        publisher = PublisherRef(kind="user", actor_id="retry")
-        node = NormalizedTaskNode(
-            node_id=f"retry:{task_id}",
-            title=f"Retry {task_id}",
-            intent=instruction or f"Retry failed task: {source.intent}",
-            required_capability=source.required_capability,
-            metadata={"retry_of": task_id},
-        )
-        tree = NormalizedTaskTree(
-            root_nodes=(node,),
-            source=publisher,
-            source_ref=task_id,
-            metadata={"retry_of": task_id},
-        )
-        result = self.publish(
-            PublishRequest(
-                session_id=session_id,
-                publisher=publisher,
-                source=PublishSource(source_type="retry", source_id=task_id),
-                task_tree=tree,
-            )
-        )
-        if result.skipped:
-            return TaskPublishResult(rejected_task_ids=(task_id,))
-        return TaskPublishResult(root_task_ids=result.root_task_ids)
+        return TaskPublishResult(root_task_ids=(updated.task_id,))
 
 
 def _collect_nodes(node: NormalizedTaskNode, nodes: list[NormalizedTaskNode]) -> None:

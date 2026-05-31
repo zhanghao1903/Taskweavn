@@ -8,6 +8,7 @@ from pathlib import Path
 from threading import RLock
 from typing import Any
 
+from taskweavn.task.bus import _retry_updates
 from taskweavn.task.models import TaskDomain
 from taskweavn.task.stores import TaskStoreError
 
@@ -105,6 +106,8 @@ class SqliteTaskBus:
         if not agent_id.strip():
             raise TaskStoreError("claim agent_id must not be empty")
         with self._lock:
+            session_tasks = self.list_for_session(session_id)
+            task_by_id = {task.task_id: task for task in session_tasks}
             rows = self._conn.execute(
                 """
                 SELECT child.payload
@@ -116,7 +119,7 @@ class SqliteTaskBus:
                   AND child.status = 'pending'
                   AND (
                     child.parent_id IS NULL
-                    OR parent.status = 'done'
+                    OR parent.task_id IS NOT NULL
                   )
                 ORDER BY child.created_at ASC, child.order_index ASC, child.task_id ASC
                 """,
@@ -125,6 +128,12 @@ class SqliteTaskBus:
             for row in rows:
                 task = _task_from_row(row)
                 if task.required_capability != capability:
+                    continue
+                if not _parent_is_done(
+                    task,
+                    task_by_id=task_by_id,
+                    session_tasks=session_tasks,
+                ):
                     continue
                 updated = task.model_copy(
                     update={
@@ -190,6 +199,23 @@ class SqliteTaskBus:
                     "error_ref": f"skipped: {reason}",
                     "completed_at": _utcnow(),
                 }
+            )
+            self._save_task(updated)
+            return updated
+
+    def retry(
+        self,
+        session_id: str,
+        task_id: str,
+        *,
+        instruction: str | None = None,
+    ) -> TaskDomain:
+        with self._lock:
+            task = self._require_task(session_id, task_id)
+            if task.status != "failed":
+                raise TaskStoreError(f"only failed tasks can be retried; got {task.status}")
+            updated = task.model_copy(
+                update=_retry_updates(task, instruction=instruction)
             )
             self._save_task(updated)
             return updated
@@ -301,6 +327,20 @@ class SqliteTaskBus:
 
 def _task_from_row(row: sqlite3.Row) -> TaskDomain:
     return TaskDomain.model_validate_json(str(row["payload"]))
+
+
+def _parent_is_done(
+    task: TaskDomain,
+    *,
+    task_by_id: dict[str, TaskDomain],
+    session_tasks: list[TaskDomain],
+) -> bool:
+    if task.parent_id is None:
+        return True
+    parent = task_by_id.get(task.parent_id)
+    if parent is None:
+        return False
+    return parent.status == "done"
 
 
 def _utcnow() -> datetime:

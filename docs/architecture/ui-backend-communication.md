@@ -368,7 +368,7 @@ class RefreshHint(BaseModel):
 | `assignTask` | Routing Agent 分配 pending Task 给 Execution Agent | Routing Agent + TaskBus assignment command |
 | `requestTaskInterrupt` | 用户或系统请求停止 Task | TaskCommandService + TaskBus interrupt intent |
 | `cancelTask` | 取消 draft/pending Task | draft: AuthoringCommandService; pending: TaskBus terminal update |
-| `retryTask` | failed Task 创建 retry Task | TaskCommandService + TaskPublisher |
+| `retryTask` | failed Task 原地回到 pending | TaskCommandService + TaskBus lifecycle retry |
 | `startTaskExecution` | 领取已分配 Task 并进入 running | TaskBus claim_assigned + Execution Agent runtime |
 
 ### 5.3 Command Rules

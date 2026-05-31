@@ -2,7 +2,8 @@
 
 The command layer translates UI intent into backend boundaries. It does not
 own Task truth: draft edits go to DraftTaskStore, user-visible messages go to
-MessageBus, and publishing/retry go through a TaskPublisher boundary.
+MessageBus, publishing goes through TaskPublisher, and retry goes through the
+published Task lifecycle boundary.
 """
 
 from __future__ import annotations
@@ -15,7 +16,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from taskweavn.interaction import AgentMessage, MessageBus
 from taskweavn.task.models import TaskDomain, TaskNodePatch, TaskRef
 from taskweavn.task.publisher import TaskPublisher
-from taskweavn.task.stores import DraftTaskStore, TaskStore
+from taskweavn.task.stores import DraftTaskStore, TaskStore, TaskStoreError
 
 TaskGuidanceMode = Literal["guidance", "constraint", "clarification", "correction"]
 CommandStatus = Literal["accepted", "rejected"]
@@ -57,6 +58,19 @@ class PublishedTaskEditor(Protocol):
         session_id: str,
         task_id: str,
         patch: TaskNodePatch,
+    ) -> TaskDomain: ...
+
+
+@runtime_checkable
+class PublishedTaskRetrier(Protocol):
+    """Boundary for moving a failed published Task back into the execution queue."""
+
+    def retry(
+        self,
+        session_id: str,
+        task_id: str,
+        *,
+        instruction: str | None = None,
     ) -> TaskDomain: ...
 
 
@@ -109,12 +123,14 @@ class DefaultTaskCommandService:
         draft_store: DraftTaskStore | None = None,
         message_bus: MessageBus | None = None,
         published_task_editor: PublishedTaskEditor | None = None,
+        published_task_retrier: PublishedTaskRetrier | None = None,
         task_publisher: TaskPublisher | None = None,
     ) -> None:
         self._task_store = task_store
         self._draft_store = draft_store
         self._message_bus = message_bus
         self._published_task_editor = published_task_editor
+        self._published_task_retrier = published_task_retrier
         self._task_publisher = task_publisher
 
     def update_task_node(
@@ -217,15 +233,21 @@ class DefaultTaskCommandService:
             return _rejected(f"task {task_id!r} not found")
         if task.status != "failed":
             return _rejected("only failed tasks can be retried")
-        if self._task_publisher is None:
-            return _rejected("task publisher is not configured")
-        result = self._task_publisher.retry_task(session_id, task_id, instruction)
+        if self._published_task_retrier is None:
+            return _rejected("published task retrier is not configured")
+        try:
+            updated = self._published_task_retrier.retry(
+                session_id,
+                task_id,
+                instruction=instruction,
+            )
+        except TaskStoreError as exc:
+            return _rejected(str(exc))
+        message_id = self._publish_retry_message(updated, instruction)
         return _accepted(
-            "retry task published",
-            affected_task_refs=tuple(
-                TaskRef.published(task_id) for task_id in result.root_task_ids
-            ),
-            published_task_ids=result.root_task_ids,
+            "task retry queued",
+            affected_task_refs=(TaskRef.published(updated.task_id),),
+            emitted_message_ids=(message_id,) if message_id is not None else (),
         )
 
     def _update_draft_task(
@@ -271,6 +293,25 @@ class DefaultTaskCommandService:
             "published task updated",
             affected_task_refs=(TaskRef.published(updated.task_id),),
         )
+
+    def _publish_retry_message(
+        self,
+        task: TaskDomain,
+        instruction: str | None,
+    ) -> str | None:
+        if self._message_bus is None:
+            return None
+        content = instruction.strip() if instruction is not None else ""
+        message = AgentMessage(
+            session_id=task.session_id,
+            task_id=task.task_id,
+            agent_id="user",
+            message_type="informational",
+            content=content or "Retry requested.",
+            context={"mode": "retry", "task_ref_kind": "published"},
+        )
+        self._message_bus.publish(message)
+        return message.message_id
 
 
 def _accepted(

@@ -1,8 +1,8 @@
 # Feature Plan: Linear Authoring And Minimal Retry Recovery
 
-> Status: planned
+> Status: in_progress
 > Type: Product 1.0 authoring policy / execution recovery
-> Last Updated: 2026-05-30
+> Last Updated: 2026-05-31
 > Product Policy: [Plato 1.0 Line-First Authoring Policy](../../product/plato-1-0-line-first-authoring-policy.md)
 > Related Plans: [RawTask And DraftTaskTree Persistence](raw-task-draft-tree-persistence.md), [Fixed-Route Task Execution Bridge](fixed-route-task-execution-bridge.md)
 > Related Decisions: [ADR-0009](../../decisions/ADR-0009-single-active-session-worktree.md), [ADR-0010](../../decisions/ADR-0010-line-first-authoring-experience-for-1-0.md)
@@ -100,14 +100,33 @@ authoring default must encode sequence explicitly.
 
 Product 1.0 should support minimal whole-Task retry:
 
-- retry starts a new Task-run attempt for the same logical Task;
-- the previous failed/interrupted attempt remains auditable;
-- retry should not mutate the original failed run in-place except for explicit
-  retry metadata if needed;
+- retry continues on the same published Task identity;
+- the previous failed/interrupted execution evidence remains auditable through
+  append-only MessageStream, result/error summaries, Audit, and logs;
+- retry mutates only the current lifecycle fields on the TaskDomain fact:
+  `failed` returns to `pending`, while historical failure records stay outside
+  the current status fields;
+- the Main Page control plane should keep the same Task card and show it moving
+  from `failed` back to `queued` / `running`;
 - retry should preserve dependency semantics: downstream Tasks remain blocked
   until the retried Task reaches `done`;
 - retry is manual first. Automatic retry is deferred unless the failure is a
   clearly safe infrastructure error.
+
+Implementation decision for the initial manual retry slice:
+
+- keep retry as an explicit user command;
+- move the same failed Task back to `pending` through TaskBus lifecycle retry;
+- clear current `result_ref`, `error_ref`, `claimed_by`, `started_at`, and
+  `completed_at` fields so they describe only the active attempt;
+- keep failure evidence in MessageStream, result/error summaries, Audit, and
+  diagnostics rather than storing attempt history in TaskDomain;
+- keep the same Task card in the Main Page control plane;
+- treat the Task dependency as satisfied only when that same Task reaches
+  `done`, so downstream Tasks remain blocked while retry is pending, running,
+  or failed;
+- do not add automatic retry policy or a full TaskAttempt history UI in this
+  slice.
 
 ### 4.4 Context Governance Boundary
 
@@ -166,18 +185,16 @@ Acceptance:
 Deliver:
 
 - define retry command semantics for failed/interrupted Task;
-- add a retry path that creates a new pending attempt or resets the Task only
-  if the chosen model allows it;
+- add a retry path that moves the same Task back to pending;
 - preserve previous failure evidence;
-- expose retry eligibility through backend contract.
+- expose retry eligibility and command handling through the Main Page backend
+  contract.
 
 Recommended initial model:
 
-- create a new attempt record while preserving the logical Task identity, if a
-  lightweight attempt model can be added safely;
-- otherwise, for Product 1.0 only, allow `failed -> pending` reset with
-  `retry_count` / `last_error_ref` only if tests prove audit visibility is not
-  lost.
+- reset the failed Task in place through TaskBus retry;
+- keep the Task card identity stable in the Main Page control plane;
+- keep deeper attempt history and automatic policies out of Product 1.0.
 
 Acceptance:
 

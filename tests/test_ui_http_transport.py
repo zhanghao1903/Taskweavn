@@ -142,6 +142,15 @@ def test_command_routes_validate_and_dispatch_to_gateway_methods() -> None:
         ),
         (
             "POST",
+            "/api/v1/sessions/session%201/tasks/task%201/retry",
+            _command_body(
+                "session 1",
+                {"instruction": "Try safer path", "startImmediately": False},
+            ),
+            "retry_task:task 1",
+        ),
+        (
+            "POST",
             "/api/v1/sessions/session%201/task-tree/publish",
             _command_body("session 1", {"taskTreeId": "tree-1", "startImmediately": True}),
             "publish_task_tree",
@@ -202,6 +211,53 @@ def test_publish_start_immediately_false_does_not_dispatch() -> None:
             body=_command_body(
                 "session 1",
                 {"taskTreeId": "tree-1", "startImmediately": False},
+            ),
+        )
+    )
+    body = _dict_body(response.body)
+
+    assert response.status_code == 200
+    assert body["ok"] is True
+    assert "dispatchStatus" not in body["result"]["debugRefs"]
+    assert execution.calls == []
+
+
+def test_retry_start_immediately_requests_execution_dispatch() -> None:
+    execution = _ExecutionTriggerGateway()
+    transport = _transport(execution_trigger_gateway=execution)
+
+    response = transport.handle(
+        HttpApiRequest(
+            method="POST",
+            path="/api/v1/sessions/session%201/tasks/task%201/retry",
+            body=_command_body(
+                "session 1",
+                {"instruction": "Try safer path", "startImmediately": True},
+                command_id="retry-1",
+            ),
+        )
+    )
+    body = _dict_body(response.body)
+
+    assert response.status_code == 200
+    assert body["ok"] is True
+    assert body["result"]["debugRefs"]["dispatchStatus"] == "queued"
+    assert body["result"]["debugRefs"]["dispatchReason"] == "retry_start_immediately"
+    assert execution.calls == [("session 1", "retry_start_immediately", "retry-1")]
+
+
+def test_retry_start_immediately_false_does_not_dispatch() -> None:
+    execution = _ExecutionTriggerGateway()
+    transport = _transport(execution_trigger_gateway=execution)
+
+    response = transport.handle(
+        HttpApiRequest(
+            method="POST",
+            path="/api/v1/sessions/session%201/tasks/task%201/retry",
+            body=_command_body(
+                "session 1",
+                {"instruction": "Try safer path", "startImmediately": False},
+                command_id="retry-1",
             ),
         )
     )
@@ -562,6 +618,14 @@ class _CommandGateway:
         request: CommandRequest[Any],
     ) -> CommandResponse:
         self.calls.append("publish_task_tree")
+        return _accepted(request.command_id)
+
+    def retry_task(
+        self,
+        task_node_id: str,
+        request: CommandRequest[Any],
+    ) -> CommandResponse:
+        self.calls.append(f"retry_task:{task_node_id}")
         return _accepted(request.command_id)
 
     def resolve_confirmation(

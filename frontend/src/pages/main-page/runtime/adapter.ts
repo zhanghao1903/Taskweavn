@@ -6,6 +6,7 @@ import type {
   PublishTaskTreePayload,
   RenameSessionPayload,
   ResolveConfirmationPayload,
+  RetryTaskPayload,
   SessionLifecycleResult,
   UpdateTaskNodePayload,
 } from "../../../shared/api/platoApi";
@@ -98,6 +99,12 @@ export type PublishTaskTreeCommand = (
   request: CommandRequest<PublishTaskTreePayload>,
 ) => Promise<CommandResponse>;
 
+export type RetryTaskCommand = (
+  sessionId: SessionId,
+  taskNodeId: TaskNodeId,
+  request: CommandRequest<RetryTaskPayload>,
+) => Promise<CommandResponse>;
+
 export type SubscribeSessionEvents = (
   sessionId: SessionId,
   cursor: string | null,
@@ -115,6 +122,7 @@ export type MainPageAdapter = {
   renameSession: SessionLifecycleCommand<
     RenameSessionPayload & { sessionId: SessionId }
   >;
+  retryTask: RetryTaskCommand;
   resolveConfirmation: ResolveConfirmationCommand;
   runtimeKind: MainPageRuntimeKind;
   sessionId: SessionId | null;

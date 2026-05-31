@@ -538,9 +538,9 @@
 .selectedTaskCard {
   display: grid;
   width: 100%;
-  grid-template-columns: 16px minmax(0, 1fr) 94px;
+  grid-template-columns: minmax(0, 1fr) minmax(78px, auto);
   align-items: center;
-  gap: var(--plato-space-3);
+  gap: var(--plato-space-2);
   border: 1px solid var(--plato-color-line);
   border-radius: var(--plato-radius-lg);
   padding: var(--plato-space-3);
@@ -552,6 +552,25 @@
 .selectedTaskCard {
   border-color: var(--plato-color-reason-blue);
   background: var(--plato-color-clear-blue);
+}
+
+.taskSelectButton {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: 16px minmax(0, 1fr) 94px;
+  align-items: center;
+  gap: var(--plato-space-3);
+  border: 0;
+  padding: 0;
+  background: var(--plato-color-transparent);
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.taskSelectButton:focus-visible {
+  outline: none;
+  box-shadow: var(--plato-shadow-focus);
 }
 
 .taskText {
@@ -590,6 +609,17 @@
 .taskStatus {
   min-height: 32px;
   padding: 0 var(--plato-space-2);
+}
+
+.taskInlineActions {
+  display: flex;
+  min-width: 78px;
+  justify-content: flex-end;
+}
+
+.taskRetryButton {
+  min-width: 76px;
+  white-space: nowrap;
 }
 
 .messageCard {

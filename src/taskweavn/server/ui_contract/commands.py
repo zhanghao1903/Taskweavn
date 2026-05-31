@@ -58,6 +58,11 @@ class PublishTaskTreePayload(UiContractModel):
     start_immediately: bool = True
 
 
+class RetryTaskPayload(UiContractModel):
+    instruction: str | None = Field(default=None, min_length=1)
+    start_immediately: bool = True
+
+
 class DispatchExecutionPayload(UiContractModel):
     reason: Literal["manual_control_route"] = "manual_control_route"
 

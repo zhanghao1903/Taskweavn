@@ -4,6 +4,7 @@ import type {
   GenerateTaskTreePayload,
   PublishTaskTreePayload,
   ResolveConfirmationPayload,
+  RetryTaskPayload,
   UpdateTaskNodePayload,
 } from "../../shared/api/platoApi";
 import type {
@@ -265,6 +266,21 @@ export async function publishTaskTreeMockCommand(
   });
 }
 
+export async function retryTaskMockCommand(
+  sessionId: SessionId,
+  taskNodeId: string,
+  request: CommandRequest<RetryTaskPayload>,
+): Promise<CommandResponse> {
+  await delay(60);
+
+  return acceptedCommandResponse({
+    commandId: request.commandId,
+    message: `Task retry accepted for ${taskNodeId}.`,
+    sessionId,
+    taskNodeId,
+  });
+}
+
 export const subscribeSessionEventsMock: SubscribeSessionEvents = () => () => {
   // The default mock stream is intentionally quiet. Tests inject events.
 };
@@ -302,6 +318,7 @@ export const mainPageMockAdapter: MainPageAdapter = {
       },
     };
   },
+  retryTask: retryTaskMockCommand,
   resolveConfirmation: resolveConfirmationMockCommand,
   runtimeKind: "mock",
   sessionId: null,

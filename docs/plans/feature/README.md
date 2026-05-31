@@ -7,6 +7,8 @@ Feature plans are scoped implementation packets for independent feature sessions
 | [centralized-runtime-configuration.md](centralized-runtime-configuration.md) | Centralized hierarchical runtime configuration with hot updates. |
 | [collaborator-agent-task-authoring.md](collaborator-agent-task-authoring.md) | System Collaborator Agent and Task authoring tools. |
 | [configurable-logging-system.md](configurable-logging-system.md) | Configurable layered logging system. |
+| [context-manager-1-0.md](context-manager-1-0.md) | Done: Product 1.0 deterministic execution context governance for the fixed-route Default Agent path. |
+| [context-manager-1-0-technical-design.zh-CN.md](context-manager-1-0-technical-design.zh-CN.md) | Implemented 中文详细技术方案：Context Manager 1.0 schema、source adapters、policy、renderer、store、Default Agent 集成和 AgentLoop per-call seam。 |
 | [llm-provider-retry-thinking.md](llm-provider-retry-thinking.md) | Done: LLM provider abstraction, retry, and DeepSeek thinking mode. |
 | [local-sidecar-api-shell.md](local-sidecar-api-shell.md) | Done: local HTTP/SSE sidecar shell for Plato UI over the backend UI contract gateways. |
 | [local-sidecar-api-shell-technical-design.zh-CN.md](local-sidecar-api-shell-technical-design.zh-CN.md) | 中文详细技术方案：Plato local sidecar transport、route mapping、SSE shell、local security 和 lifecycle。 |
@@ -16,7 +18,7 @@ Feature plans are scoped implementation packets for independent feature sessions
 | [main-page-frontend-runtime-integration-technical-design.zh-CN.md](main-page-frontend-runtime-integration-technical-design.zh-CN.md) | 中文详细技术方案：Main Page adapter boundary、session-centric query、CommandResponse lifecycle、event router 和 resync loop guard。 |
 | [fixed-route-task-execution-bridge.md](fixed-route-task-execution-bridge.md) | In progress: Product 1.0 fixed-route bridge from TaskBus pending Tasks to Task-run Default Agent execution and complete/fail. |
 | [fixed-route-task-execution-bridge-technical-design.zh-CN.md](fixed-route-task-execution-bridge-technical-design.zh-CN.md) | In progress 中文详细技术方案：Task-run Default Agent、TaskBus claim_next、complete/fail 和测试设计。 |
-| [linear-authoring-retry-recovery.md](linear-authoring-retry-recovery.md) | Planned: Product 1.0 default linear authoring shape, dependency-safe sequential execution, minimal manual retry, and retry evidence capture. |
+| [linear-authoring-retry-recovery.md](linear-authoring-retry-recovery.md) | In progress: Product 1.0 default linear authoring shape, dependency-safe sequential execution, minimal manual retry, and retry evidence capture. |
 | [minimal-agent-assignment-semantics.md](minimal-agent-assignment-semantics.md) | Deferred: Product 1.1+ TaskBus-centered assignment facts, Router tick, Agent Manager tick, and stale pending sweep. |
 | [minimal-agent-assignment-semantics-technical-design.zh-CN.md](minimal-agent-assignment-semantics-technical-design.zh-CN.md) | Deferred 中文详细技术方案：assignment 字段、TaskBus API、SQLite、Router、Agent Manager、projection 和测试设计。 |
 | [frontend-api-mock-happy-path.md](frontend-api-mock-happy-path.md) | Deferred: in-memory `PlatoApi` happy path mock for Main/Audit frontend integration. |
