@@ -2,7 +2,7 @@
 
 > Status: done / accepted for Product 1.0 fixed-route execution context governance
 > Type: Product 1.0 execution context governance
-> Last Updated: 2026-05-31
+> Last Updated: 2026-06-01
 > Architecture: [Context Manager](../../architecture/context-manager.md), [Architecture Overview](../../architecture/overview.md)
 > Related Plans: [Fixed-route Task Execution Bridge](fixed-route-task-execution-bridge.md), [Linear Authoring And Minimal Retry Recovery](linear-authoring-retry-recovery.md), [Result And Evidence Exposure Surface](result-exposure-surface.md)
 > Release: [Context Manager 1.0](../../releases/context-manager-1-0.md)

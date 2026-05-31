@@ -1,7 +1,7 @@
 # Release: Context Manager 1.0
 
 > Status: done / accepted for Product 1.0 fixed-route execution context governance
-> Date: 2026-05-31
+> Date: 2026-06-01
 > Work Stream: Product 1.0 execution context governance / P8-P9 closure
 > Related Plan: [Context Manager 1.0](../plans/feature/context-manager-1-0.md)
 > Technical Design: [Context Manager 1.0 详细技术方案](../plans/feature/context-manager-1-0-technical-design.zh-CN.md)
@@ -14,6 +14,8 @@
 
 This release closes the Product 1.0 Context Manager baseline for the fixed-route
 Default Agent execution path.
+
+Acceptance was confirmed on 2026-06-01.
 
 The accepted runtime path is:
 

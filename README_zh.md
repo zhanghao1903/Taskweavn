@@ -38,7 +38,7 @@ Manager。
 | Publishing / TaskBus | baseline 完成 | TaskPublisher、SQLite TaskBus、publish idempotency、claim/running/complete/fail/skip 生命周期。 |
 | Main Page integration | baseline 完成 | 前端 runtime adapter、本地 sidecar HTTP/SSE shell、command/query/event contract、result/error/file projection。 |
 | Fixed-route execution | baseline 完成 | Product 1.0 使用一个常驻 Default Agent 路由，不引入 Router / Agent Manager。 |
-| Context Manager 1.0 | baseline 完成 | execution-start 前确定性组装 LLM input。 |
+| Context Manager 1.0 | 验收通过 | execution-start 前确定性组装 LLM input。 |
 | Manual retry | 进行中 | failed published Task 可原地回到 pending，并保留失败消息/结果摘要作为审计事实。 |
 | Product 1.1+ | 规划中 | Router、Agent Manager、skills、MCP、多模态上下文、更完整结果包装和高级 pipeline。 |
 

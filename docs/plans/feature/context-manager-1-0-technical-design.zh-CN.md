@@ -2,7 +2,7 @@
 
 > 状态: done / accepted for Product 1.0 fixed-route execution context governance
 > 类型: Product 1.0 execution context governance technical design
-> Last Updated: 2026-05-31
+> Last Updated: 2026-06-01
 > Feature Plan: [Context Manager 1.0](context-manager-1-0.md)
 > Architecture: [Context Manager](../../architecture/context-manager.md)
 > Release: [Context Manager 1.0](../../releases/context-manager-1-0.md)
