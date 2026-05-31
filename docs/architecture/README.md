@@ -1,7 +1,7 @@
 # Architecture Docs
 
 > Status: active architecture fact baseline
-> Last Updated: 2026-05-22
+> Last Updated: 2026-05-31
 
 Architecture docs describe active system facts: object boundaries, lifecycles,
 protocols, storage ownership, agent/task responsibilities, and long-term
@@ -16,14 +16,16 @@ for technical design and implementation planning.
 
 For any non-trivial feature plan or code implementation, read:
 
-1. [reference.md](reference.md) — current implementation-oriented architecture reference.
+1. [reference.md](reference.md) — core substrate implementation reference; use overview and release docs for later Product 1.0 facts.
 2. [overview.md](overview.md) — Task-first multi-agent architecture overview.
 3. [task.md](task.md) — Task domain model and lifecycle.
 4. [authoring-domain.md](authoring-domain.md) — RawTask, feasibility, DraftTaskTree, and publish boundary.
-5. [task-domain-ui-model-separation.md](task-domain-ui-model-separation.md) — backend facts, UI ViewModels, local UI state, replayable interactions.
-6. [ui-backend-communication.md](ui-backend-communication.md) — Query / Command / Event boundary and HTTP/SSE direction.
-7. [tool-capability-layer.md](tool-capability-layer.md) — tool pool, capability catalog, and capability-first planning boundary.
-8. [workspace-communication-protocol.md](workspace-communication-protocol.md) — system/workspace communication protocol and tool adapter direction.
+5. [authoring-command-protocol.md](authoring-command-protocol.md) — command-first mutation boundary for RawTask and DraftTaskTree authoring.
+6. [task-domain-ui-model-separation.md](task-domain-ui-model-separation.md) — backend facts, UI ViewModels, local UI state, replayable interactions.
+7. [ui-backend-communication.md](ui-backend-communication.md) — Query / Command / Event boundary and HTTP/SSE direction.
+8. [tool-capability-layer.md](tool-capability-layer.md) — tool pool, capability catalog, and capability-first planning boundary.
+9. [workspace-communication-protocol.md](workspace-communication-protocol.md) — system/workspace communication protocol and tool adapter direction.
+10. [context-manager.md](context-manager.md) — execution context governance and Product 1.0 TaskExecutionContext v0.
 
 Feature-specific work should then read the relevant area documents below.
 

@@ -1,33 +1,78 @@
-# 多 Agent 协作架构总述
+# TaskWeavn Architecture Overview
 
-> 版本 v1.1 · 2026-05-14 · TaskWeavn Task-first baseline
+> Status: active architecture overview
+> Last Updated: 2026-05-31
+> Version: v1.2
+> Related Decisions: [ADR-0008](../decisions/ADR-0008-authoring-domain-execution-boundary.md), [ADR-0010](../decisions/ADR-0010-line-first-authoring-experience-for-1-0.md), [ADR-0011](../decisions/ADR-0011-routing-agent-assignment-and-cooperative-interruption.md), [ADR-0012](../decisions/ADR-0012-taskbus-centered-agent-assignment-convergence.md)
+
+This document is the current high-level architecture map. It summarizes the
+active system boundaries and points to the detailed architecture documents that
+own each contract.
+
+TaskWeavn keeps the runtime deliberately small for Product 1.0 while preserving
+clear extension points for later routing, skills, MCP, multimodal context, and
+custom Agent governance.
 
 ---
 
-## 1. 概述
+## 1. Current Architecture Shape
 
-本架构提出一种**任务优先**的多 Agent 协作模型。系统现在明确分为两个域：
+TaskWeavn is a task-first local assistant system with two major domains:
 
 ```text
-Authoring Domain  ─ 用户意图如何变成可发布 Task
-Execution Domain  ─ 已发布 Task 如何被执行
+Authoring Domain
+  turns fuzzy user intent into publishable work
+
+Execution Domain
+  executes confirmed PublishedTasks and projects results back to the UI
 ```
 
-核心一等公民概念组成：
+The current Product 1.0 path is:
 
+```text
+User message
+  -> RawTask
+  -> FeasibilityReport / RawTaskAsk
+  -> DraftTaskTree
+  -> user review / edit / confirmation
+  -> TaskPublisher
+  -> PublishedTask
+  -> TaskBus
+  -> FixedRouteTaskExecutor
+  -> Resident Default Agent task-run
+  -> TaskBus complete / fail
+  -> Main Page / Audit projections
 ```
-Session           ─ 用户的一次会话，承载唯一 Session Workspace
-Authoring Domain  ─ RawTask、feasibility、DraftTaskTree
-Task              ─ 已发布的执行任务，工作的最小执行单位
-Agent             ─ 无状态函数对象，能力 + 工具集
-TaskBus           ─ 已发布任务的串行总线，FIFO 调度 + 能力匹配
-```
 
-术语边界：产品 UI 中的 `Project` 是长期用户容器；架构中的 `Session Workspace` 是一次 Session 的执行工作区和文件写入边界。当前设计不让多个 Session 默认并发写同一个 Project 级工作区。
+The runtime is tree-capable, but the Product 1.0 user experience is line-first:
+one active flow, one default execution route, explicit user checkpoints, and no
+default multi-Agent orchestration surface.
 
-整个架构在一页纸上能画完，承载点是**简洁的引擎 + 灵活的用户体验**——架构层强约束，用户层渐进开放。
+---
 
-当前最高优先级边界：
+## 2. Core Objects
+
+| Object | Responsibility | Canonical Docs |
+|---|---|---|
+| `Project` | Long-lived product container for user work. It is a UI/product organization layer, not the default file write boundary. | [UI/backend communication](ui-backend-communication.md) |
+| `Workflow` | Product-level grouping under a Project. It can organize related Sessions and future reusable flows. | [Workflow Session Task UX Model](../product/workflow-session-task-ux-model.md) |
+| `Session` | Runtime boundary for one interaction context and its Session Workspace. | [Session](session.md) |
+| `Session Workspace` | File and process boundary for execution. Product 1.0 keeps one active Session workspace and avoids implicit cross-session writes. | [Session](session.md), [Workspace Communication Protocol](workspace-communication-protocol.md) |
+| `RawTask` | Durable authoring object created from task-like user intent before execution is valid. | [Authoring Domain](authoring-domain.md) |
+| `DraftTaskTree` | Editable authoring plan. It is not executable until published. | [Authoring Domain](authoring-domain.md), [Task/UI separation](task-domain-ui-model-separation.md) |
+| `PublishedTask` | Execution-domain unit of work. It is the only Task object that enters TaskBus. | [Task](task.md) |
+| `TaskBus` | PublishedTask lifecycle authority. Product 1.0 uses fixed-route claim/complete/fail; Product 1.1+ may add assignment convergence. | [TaskBus](bus.md) |
+| `Execution Agent` | Task executor. Product 1.0 uses a fixed Default Agent route; later versions may use routed Agent templates and instances. | [Agent](agent.md) |
+| `Context Manager` | Assembles execution context for stateless LLM calls from task, event, workspace, tool, skill, and permission facts. | [Context Manager](context-manager.md) |
+| `MessageStream` | User-visible conversation, confirmation, and execution messages. | [Interaction Layer](interaction-layer.md), [UI/backend communication](ui-backend-communication.md) |
+| `EventStream` | Append-only runtime fact ledger for replay, audit, and projections. | [Reference](reference.md), [TaskBus](bus.md) |
+
+---
+
+## 3. Authoring Domain
+
+Authoring Domain exists so TaskBus does not absorb non-executable states such as
+clarification, feasibility assessment, draft editing, or publish readiness.
 
 ```text
 UserMessage
@@ -36,282 +81,249 @@ UserMessage
   -> DraftTaskTree
   -> TaskPublisher
   -> PublishedTask
-  -> Execution TaskBus
 ```
 
-`RawTask`、澄清问题、DraftTaskTree 属于 Authoring Domain。只有用户确认并经过 `TaskPublisher` 转换后的 PublishedTask 才进入 Execution TaskBus。
+The stable rule is:
+
+```text
+Authoring objects do not enter Execution TaskBus.
+Only PublishedTasks enter TaskBus.
+```
+
+Authoring state changes use [Authoring Command Protocol](authoring-command-protocol.md):
+
+```text
+LLM produces proposals.
+AuthoringCommandService validates and persists commands.
+Stores and messages are mutated only by command handlers.
+```
+
+This keeps exploratory authoring recoverable without making ordinary LLM tools
+the source of truth for RawTask, DraftTaskTree, publish mapping, or authoring
+messages.
 
 ---
 
-## 2. 核心抽象
+## 4. Execution Domain
 
-### 2.1 任务驱动协作
+Execution Domain starts after a DraftTaskTree is published.
 
-传统多 Agent 框架以 Agent 为中心：先有 Agent，再分配任务给 Agent。本架构反过来——**以 Task 为中心**。
-
-```
-Agent 不预先存在，按 Task 需要动态实例化
-Agent 间不直接通信，所有协作通过 Task 流转
-任务发布权 = 协作能力，工具化（CreateTaskTool）
-```
-
-任何挂载了 `CreateTaskTool` 的 Agent 都可以发布执行任务，触发其他 Agent 的协作。**用户和 Agent 在发布边界前对等**——都可以通过 `TaskPublisher` 产生已发布任务。
-
-用户自然语言输入不是直接进入 TaskBus 的 Task。它先进入 Authoring Domain，形成 `RawTask` 和可编辑 DraftTaskTree。这个边界保护 TaskBus 不被澄清、草案、可行性判断等非执行状态污染。
-
-### 2.2 树形任务关系
-
-任务通过 `parent_id` 形成树。父任务创建子任务，等待结果，进行综合：
-
-```
-        Root Task (用户请求)
-          ├── Subtask 1 (并行)
-          ├── Subtask 2 (并行)
-          └── Subtask 3 (依赖 1、2 的结果)
+```text
+TaskPublisher
+  -> PublishedTask
+  -> TaskBus
+  -> executor / Agent runtime
+  -> TaskResult or TaskFailure
 ```
 
-Fan-out / fan-in 由父任务作为同步点，原生支持并行 + 综合，无需 DAG 调度器。
+TaskBus owns PublishedTask lifecycle facts:
 
-### 2.3 无状态 Agent
-
-Agent ≈ 一次性函数对象：
-
-```
-任务到达 → 实例化 Agent(capability=X) → 执行 → 销毁
-同一种能力的 N 个并发任务 = N 个独立 Agent 实例
+```text
+pending -> running -> done / failed
 ```
 
-跨任务的"经验"由 `ThoughtStore` 显式存储和检索，不绑定在 Agent 实例上。
+Product 1.0 uses the accepted fixed-route bridge:
 
-### 2.4 串行任务总线
-
-任务总线是 FIFO 队列 + 能力匹配的简单调度器，**串行执行**：
-
-```
-publish(task)         发布任务到总线
-claim_next(capability) Agent 申请下一个匹配任务
-complete(id, result)  完成任务，触发等待方
+```text
+Published TaskBus Task
+  -> FixedRouteTaskExecutor
+  -> Resident Default Agent
+  -> TaskBus complete / fail
 ```
 
-没有 work stealing，没有亲和性调度，没有优先级队列——**简单到几十行代码**。
+This Product 1.0 path intentionally does not include:
+
+- Router runtime;
+- Routing Agent policy;
+- Agent Manager;
+- assignment fields;
+- assigned-only claim;
+- Main Page reassignment controls.
+
+Routing Agent assignment and TaskBus-centered convergence remain accepted
+architecture direction for Product 1.1+ when multiple execution Agents, custom
+routing, or assignment visibility become real product needs.
 
 ---
 
-## 3. 五条强约束
+## 5. Communication Boundaries
 
-| # | 约束 | 砍掉的复杂度 |
-|---|------|------------|
-| 1 | 一个 Session 一个工作区 | git fork/merge/conflict 解决机制 |
-| 2 | 任务串行执行 | 锁、CAS、心跳、孤儿任务超时 |
-| 3 | Agent 在任务间无状态 | Agent 生命周期管理、缓存亲和性调度 |
-| 4 | 执行任务状态只有 pending/running/done/failed | waiting/blocked/assigned 等中间态 |
-| 5 | 任务依赖只用单值 parent_id | DAG 拓扑排序、环检测、就绪事件订阅 |
+TaskWeavn distinguishes three mutation worlds.
 
-Authoring Domain 有自己的生命周期，例如 `created / assessing / awaiting_user / ready_to_plan / converted`。这些状态不能塞进 Execution TaskBus。
+| Mutation Target | Boundary | Notes |
+|---|---|---|
+| TaskWeavn authoring state | Authoring Commands | RawTask, DraftTaskTree, clarification asks, authoring messages, publish requests. |
+| PublishedTask lifecycle | TaskBus commands | publish, claim, complete, fail, retry/skip semantics, interrupt intent. |
+| User workspace state | Workspace Communication Protocol | files, commands, artifacts, project processes, future external providers. |
+
+This boundary is central:
+
+```text
+Commands change TaskWeavn state.
+Workspace Requests change user workspace state.
+Tools are adapters, not the long-term top-level boundary.
+```
+
+The [Workspace Communication Protocol](workspace-communication-protocol.md) is
+currently an architecture target, not a complete Product 1.0 implementation. It
+defines the direction for turning current Tool classes into protocol adapters
+behind a `WorkspaceGateway`.
 
 ---
 
-## 4. 为什么要做强约束
+## 6. UI And Projection Boundary
 
-### 4.1 引擎简洁，用户体验灵活
+The UI consumes projections, not raw domain objects.
 
-约束加在架构本身，不加在用户感知层。用户通过 UI 编排、对话式生成、自主度配置享受灵活性，引擎内部保持极简。
-
-```
-用户层    ──────  渐进开放（UI 编排、对话生成、自主度）
-─────────────────────────────────────
-架构层    ──────  强约束（树、串行、无状态、单工作区）
-```
-
-两套哲学不冲突：用户层的灵活性建立在引擎的可预测性之上。
-
-### 4.2 简洁引擎是松绑的前提
-
-强约束不是永久限制。每条约束都对应一个可松绑路径：
-
-```
-约束          松绑触发条件                    松绑后形态
-────────────────────────────────────────────────────────────
-单工作区       并行需求被实证                   sub-session 隔离
-串行执行       LLM 不再是瓶颈                  并发任务执行
-无状态        cache 命中率成为成本痛点         agent 池预热
-单值 parent   出现真正的 DAG use case        artifact_refs / 真 DAG
+```text
+Backend facts
+  TaskDomain / DraftTaskNode / Message / Event / FileChange / ResultSummary
+        |
+        v
+Projection services
+        |
+        v
+UI ViewModels
+        |
+        v
+Main Page / Audit Page
 ```
 
-**简洁引擎能松绑，复杂引擎只能重构。**
+The communication pattern is Query / Command / Event:
 
-### 4.3 强约束等于可解释性
+| Type | Direction | Meaning |
+|---|---|---|
+| Query | UI -> backend | Read current ViewModel. |
+| Command | UI -> backend | Submit user intent. Accepted does not mean final state. |
+| Event | backend -> UI | Notify that backend facts changed. |
 
-四种状态 vs 八种状态，单值依赖 vs DAG 依赖——前者可以被新人快速理解，后者需要文档和经验。Agent 系统的调试已经够难了，不应该让架构本身再增加认知负担。
+Main Page is the Product 1.0 control plane. It projects task state, execution
+result/error summaries, file changes, messages, and confirmations. Audit Page is
+the trust plane and owns deeper evidence, diagnostics, and review trails.
 
 ---
 
-## 5. 已知缺点
+## 7. Agent Model
 
-| 缺点 | 影响 | 缓解 |
-|-----|------|------|
-| 串行执行降低吞吐量 | 多任务总耗时增加 | LLM 调用本身是瓶颈，影响有限 |
-| 无状态 Agent 缓存命中差 | LLM token 成本增加 | 通过 prompt 分层缓存 + system prefix 稳定性弥补 |
-| 树形依赖表达力受限 | 跨族系横向依赖需要重构 | artifact_refs 作为非破坏性扩展 |
-| 单工作区不支持并行写 | 任务必须串行 | 与约束 2 一致，本就串行 |
+Agent architecture distinguishes:
 
-**所有缺点都是延迟决策，不是永久放弃。** 每一项松绑都需要数据支持。
+```text
+Agent Template
+  stable capability, tools, LLM config, prompt, policy
+
+Agent Instance
+  runtime execution of one Task
+```
+
+The long-term model treats Execution Agents as stateless task executors. State
+continues through TaskBus, EventStream, MessageStream, Workspace, result stores,
+and Context Manager, not through hidden Agent object memory.
+
+Product 1.0 uses a fixed Default Agent route:
+
+```text
+FixedRouteTaskExecutor
+  -> ResidentDefaultAgent protocol
+  -> task-scoped AgentLoop runner
+```
+
+The word "resident" means a stable runtime boundary and system identity. It
+does not mean Product 1.0 introduces a long-lived AgentLoop instance, public
+Agent Manager, or custom Agent protocol.
+
+The default architecture has one active writer execution lane per Session. More
+than one Agent may appear as serialized delegation, tool-like specialization, or
+future isolated sub-session work, but multiple Agents do not concurrently write
+the same Session Workspace or advance the same task context.
+
+Product 1.1+ will define Agent Protocol and special Agent protocols before
+custom Agents, Routing Agents, skills-driven Agents, or MCP-backed Agents become
+user-extensible product features.
 
 ---
 
-## 6. 与计算机线程模型的对比
+## 8. Context Governance
 
-本架构在概念上与操作系统的进程/线程模型高度同构。理解这层映射有助于设计决策。
+LLM calls are stateless, but Taskweavn execution is stateful. Context Manager is
+the execution-time bridge:
 
-### 6.1 概念映射
-
-```
-计算机线程模型              本架构
-──────────────────────────────────────────────────
-进程 (Process)              Session
-线程 (Thread)               Agent 实例
-任务/工作单元 (Job)         Task
-任务队列 (Task Queue)       TaskBus
-共享内存 (Shared Memory)    Workspace
-寄存器/线程局部存储 (TLS)    Agent 的 working memory
-持久化文件                  ThoughtStore (long-term memory)
-线程池                      Agent Pool (按能力分类)
-fork/join                  父子任务的等待综合
+```text
+TaskBus / EventLog / Workspace / Tool Results / Skills / Permissions
+        |
+        v
+Context Manager
+        |
+        v
+TaskExecutionContext
+        |
+        v
+LLM API input
 ```
 
-### 6.2 相似点
+Product 1.0 context governance is deterministic fact assembly:
 
-**1. 调度单元独立性**
-线程是 CPU 调度的最小单位；本架构里 Agent 实例是 Task 执行的最小单位。两者都是**短生命周期、可创建/销毁的执行载体**。
+- original task target;
+- current execution state;
+- recent bounded events;
+- recent bounded tool summaries;
+- workspace references;
+- permission, approval, and interrupt facts;
+- active project rules or skill summaries when already configured.
 
-**2. 共享资源访问**
-线程共享进程内存；Agent 共享 Session 工作区。两者都需要解决**并发访问的一致性问题**——只是本架构通过"串行 + 无状态"约束绕开了。
-
-**3. fork/join 模式**
-父任务创建子任务等待综合 = `pthread_create + pthread_join`。这种模式在两个体系里都是表达并行计算的核心范式。
-
-**4. 总线调度**
-TaskBus 类似 OS 的就绪队列，按能力（约等于"线程优先级"）匹配等待中的执行单元。
-
-### 6.3 关键差异
-
-**1. 执行载体的生命周期**
-
-```
-线程：长生命周期，跨多个任务复用
-Agent 实例：一次性，单任务后销毁
-
-原因：线程的栈/上下文切换成本低（微秒级），重用收益大；
-     Agent 的 LLM context 重建成本高（百毫秒~秒级），
-     但本架构主动放弃 cache 收益换调度简洁。
-```
-
-**2. 状态共享方式**
-
-```
-线程：默认共享所有进程内存，需要锁来同步
-Agent：默认完全隔离，通过 Task 结果传递信息
-       共享只发生在 Workspace 上，且串行访问
-
-哲学差异：线程模型是 "默认共享，按需隔离"
-         本架构是  "默认隔离，按需共享"
-```
-
-**3. 通信机制**
-
-```
-线程间通信：共享变量、条件变量、信号量、消息队列（多种并存）
-Agent 间通信：唯一通过 Task（创建子任务、读 Task 结果）
-
-简化代价：失去了表达"持续生产者-消费者管道"的能力
-        换来：通信路径单一，可观测性极佳
-```
-
-**4. 调度策略**
-
-```
-OS 调度器：抢占式、优先级、亲和性、实时性、负载均衡（极复杂）
-TaskBus：FIFO + 能力匹配（极简单）
-
-简化原因：LLM 任务的执行时间是百毫秒到分钟级，
-        相比 OS 调度的微秒粒度，调度策略的复杂度收益极低。
-```
-
-**5. 失败处理**
-
-```
-线程崩溃：通常导致整个进程崩溃，需要 supervisor 重启
-Task 失败：天然隔离，失败不传播，父任务可决定重试或放弃
-
-这是任务总线模型相比线程的纯粹优势——失败域天然清晰。
-```
-
-### 6.4 心智模型借鉴
-
-设计决策上可以借用线程模型的成熟经验：
-
-- **避免共享可变状态** → 工作区按 task 时间分片，同一时刻只一个 task 写
-- **优先用消息传递** → 强制通过 Task 通信，禁止 Agent 间直接调用
-- **fork/join 优于全局协调** → 树形任务关系而非 DAG
-- **无锁数据结构** → ThoughtStore 是 append-only，避免读写竞争
-
-但**不要照搬**线程模型的某些决策：
-
-- 不需要线程池预分配（Agent 创建成本不是瓶颈，正确性更重要）
-- 不需要复杂调度器（FIFO 足够，复杂度换不来明显收益）
-- 不需要抢占式（任务粒度本来就足够小，自然合作式调度）
+It does not yet implement semantic retrieval, long-term memory, complex
+compression, multimodal packing, MCP expansion, or custom context policies.
 
 ---
 
-## 7. 未来发展路径
+## 9. Product 1.0 Constraints
 
-### 7.1 短期（v1.x，单 session 内优化）
+Product 1.0 is intentionally constrained:
 
-- **prompt 分层缓存** —— 让 LLM token 成本可控，不依赖跨任务 cache
-- **artifact_refs 引入** —— 任务可只读引用其他任务结果，不影响调度
-- **Agent 池预热** —— 常用 capability 的 Agent 模板预初始化（仅 LLM context warmup，仍无状态）
+| Constraint | Current Meaning |
+|---|---|
+| Line-first UX | The product emphasizes current step, acceptance, and next decision over full tree orchestration. |
+| One active Session workspace | File writes happen within a Session Workspace; cross-session merge/export is explicit future work. |
+| One active writer execution lane | A Session has one context owner for workspace-writing execution; parallel Agents must be read-only, independently sharded, or workspace-isolated. |
+| Fixed execution route | PublishedTasks execute through the default Agent bridge, not dynamic routing. |
+| Simple Task status | `pending`, `running`, `done`, `failed`; cancellation and skip are represented through failure reason semantics when needed. |
+| Deterministic context assembly | Context Manager starts as a simple fact assembler, not a semantic retrieval platform. |
+| Projection over raw objects | UI reads ViewModels and snapshots, not TaskBus rows or store internals. |
 
-### 7.2 中期（v2.x，多 session 协作）
-
-- **Sub-session 隔离** —— Session 内可创建子 session，拥有独立工作区
-- **跨 Session 任务引用** —— 用户多次会话间的产物可被新任务引用
-- **Agent 能力组合** —— 通过 ConstraintProfile 让用户定义新的 capability
-
-### 7.3 长期（v3.x，DAG 化与持续运行）
-
-- **真 DAG 调度** —— 当 artifact_refs 模式无法表达需求时引入
-- **常驻 Agent 模式** —— 流水线式生产者-消费者场景（仅在数据驱动下引入）
-- **跨用户协作** —— 多用户会话共享工作区的协作模式
-
-每一步松绑都需要前一步的数据支持，**不做投机式扩展**。
+These are release constraints, not permanent architecture limits.
 
 ---
 
-## 8. 设计哲学小结
+## 10. Deferred Extension Paths
 
-```
-┌──────────────────────────────────────────────────────┐
-│                                                      │
-│  以 Task 为中心，不以 Agent 为中心                     │
-│                                                      │
-│  约束在引擎层，灵活在用户层                            │
-│                                                      │
-│  无状态优于有状态，串行优于并发                         │
-│                                                      │
-│  树先于图，单值先于多值                                │
-│                                                      │
-│  延迟决策优于过度设计，数据驱动优于直觉松绑              │
-│                                                      │
-└──────────────────────────────────────────────────────┘
-```
-
-整个架构的核心信念：**简洁是可演进的前提，复杂只能被重构。**
+| Area | Deferred Until | Direction |
+|---|---|---|
+| Routing Agent assignment | Product 1.1+ | Router runtime with optional Routing Agent policy submits assignment commands; TaskBus validates. |
+| Agent Manager | Product 1.1+ | Creates runtime Agent instances after assignment when dynamic Agents exist. |
+| Parallel multi-Agent execution | Later, data-driven | Requires context ownership, read/write isolation, merge semantics, and replayable conflict handling. |
+| Skills | Product 1.1+ research | Reusable capabilities and workflow context integrated through CapabilityCatalog, Authoring, Context Manager, and Agent Protocol. |
+| MCP | Product 1.1+ research | External tools/data sources behind confirmation, capability, audit, and workspace boundaries. |
+| File and multimodal context | Product 1.1+ research | Files and multimodal inputs become first-class Task context and evidence. |
+| Result packaging cards | Product 1.1 | Rich card packaging on top of durable result summaries. |
+| Completion-time task_after pipeline | Product 1.1 | Post-completion automation after the primary 1.0 loop is stable. |
+| TaskBus v2 concurrency | Later, data-driven | Requires workspace isolation and conflict model before relaxing serial execution. |
 
 ---
 
-## 附录：四个组件的详细设计文档
+## 11. Current Read Order
 
-- [Task 架构设计](task.md)
-- [Session 架构设计](session.md)
-- [Agent 架构设计](agent.md)
-- [TaskBus 架构设计](bus.md)
+For new architecture or implementation work, read:
+
+1. [README](README.md)
+2. [Reference](reference.md)
+3. [Task](task.md)
+4. [Authoring Domain](authoring-domain.md)
+5. [Authoring Command Protocol](authoring-command-protocol.md)
+6. [Task Domain And UI ViewModel Separation](task-domain-ui-model-separation.md)
+7. [UI And Backend Communication](ui-backend-communication.md)
+8. [TaskBus](bus.md)
+9. [Agent](agent.md)
+10. [Tool Capability Layer](tool-capability-layer.md)
+11. [Workspace Communication Protocol](workspace-communication-protocol.md)
+12. [Context Manager](context-manager.md)
+
+Feature-specific plans and ADRs should then be read for implementation scope.

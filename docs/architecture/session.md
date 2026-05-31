@@ -1,8 +1,10 @@
 # Session 架构设计
 
-> 多 Agent 协作架构的核心抽象 · v1.0 · 2026-05-08
+> 多 Agent 协作架构的核心抽象 · v1.1 · 2026-05-31
 >
 > 2026-05-17 review note: 本文中的 `Workspace` 指 **Session Workspace / 执行工作区**，不是产品 UI 中用户长期管理的 `Project`。当前产品层级是 `Project -> Workflow -> Session -> Session Workspace`；Session Workspace 仍然是文件读写和权限隔离边界。
+>
+> 2026-05-31 scope note: Product 1.0 line-first execution 使用一个 active Session workspace 和 fixed-route Default Agent bridge。基于完整 AgentPool / Agent Manager 的 dynamic assignment 仍是 Product 1.1+ 方向。
 
 ---
 
@@ -13,7 +15,7 @@
 一个 Session 对应一个用户从开启到关闭会话的整个时间段，包含：
 - 唯一的工作区（Workspace）
 - 任务总线（TaskBus）的实例
-- Agent 池（Agent Pool）的运行环境
+- 默认执行 Agent 运行边界；Product 1.1+ 可扩展为 AgentPool / Agent Manager
 - 长期记忆（ThoughtStore）的访问入口
 - 整棵任务树的根节点
 
@@ -178,7 +180,7 @@ Session 创建时初始化所有资源：
 1. 分配 SessionId
 2. 创建 Workspace（默认是临时目录或用户指定的项目根）
 3. 实例化 TaskBus（空队列）
-4. 初始化 AgentPool（注册可用的 Agent 模板）
+4. 初始化默认执行 Agent 运行边界；Product 1.1+ 可初始化 AgentPool（注册可用的 Agent 模板）
 5. 连接 ThoughtStore（按 user_id 加载长期记忆）
 6. 创建 EventStream（按 session_id 创建独立流）
 7. 加载 SessionConfig（默认或用户指定）
@@ -266,7 +268,8 @@ Session 在 `active` 状态接受用户请求和 Agent 派生的任务：
                        │ contains ↓
                        │       Workspace
                        │       TaskBus
-                       │       AgentPool
+                       │       Default Agent boundary
+                       │       AgentPool / Agent Manager (Product 1.1+)
                        │       ThoughtStore
                        │       EventStream
                        │
@@ -277,7 +280,7 @@ Session 在 `active` 状态接受用户请求和 Agent 派生的任务：
 
 - **与 User：** 一个用户可同时拥有多个 Session（多个会话窗口），但每个 Session 只属于一个用户
 - **与 Task：** Session 是 Task 的命名空间和资源容器
-- **与 Agent：** Agent 实例的创建和销毁都在 Session 内
+- **与 Agent：** Product 1.0 使用 Session 内 Default Agent execution boundary；Product 1.1+ dynamic assignment 中，Agent 实例的创建和销毁都在 Session 内
 - **与 Bus：** 每个 Session 有独立的 TaskBus 实例，不跨 Session 共享
 - **与 ThoughtStore：** ThoughtStore 按 user_id 持久化，Session 是访问入口；跨 Session 的长期记忆通过 user_id 共享
 

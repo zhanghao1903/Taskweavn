@@ -1,7 +1,7 @@
 # Context Manager Architecture
 
 > Status: architecture proposal for Product 1.0 execution context baseline
-> Last Updated: 2026-05-30
+> Last Updated: 2026-05-31
 
 Context Manager is the execution-time context governance layer for Taskweavn.
 It bridges the stateful workspace and task runtime to the stateless LLM API
@@ -131,6 +131,7 @@ Product 1.0 context governance is deliberately small.
 - Include permission, approval, and interrupt facts in every execution context.
 - Store enough context trace to debug why an LLM call saw a specific input.
 - Keep the architecture replaceable when richer context policies are added.
+- Keep one active writer execution lane per Session by default.
 
 ### 4.2 Product 1.0 Non-Goals
 
@@ -143,12 +144,68 @@ Product 1.0 does not implement:
 - multimodal packing;
 - user-custom context policies;
 - per-Agent advanced context strategies;
+- parallel multi-Agent context ownership;
 - automatic skill discovery beyond activated or configured skill facts;
 - MCP-specific context expansion;
 - prompt-cache optimization;
 - cross-session context reuse.
 
 These capabilities belong to Product 1.1+ or later architecture extensions.
+
+### 4.3 Execution Lane Constraint
+
+Product 1.0 and Product 1.1 default to a single active execution lane per
+Session. Multiple Agents may exist as concepts, templates, or serialized
+delegation steps, but they do not concurrently advance the same Session
+Workspace or task context.
+
+The constraint is:
+
+```text
+one Session
+  -> one SessionContextManager
+  -> one active writer execution lane
+  -> one authoritative TaskExecutionContext build per LLM call
+```
+
+The goal is to keep task state, workspace writes, context ownership, and audit
+replay convergent. Parallel multi-Agent execution is not a default architecture
+mode because it creates competing local context views, write conflicts, merge
+requirements, and difficult-to-replay failure paths.
+
+Parallel Agent work is allowed only when one of these isolation conditions is
+true:
+
+| Parallel Shape | Requirement |
+|---|---|
+| Read-only reviewer | Agent may inspect facts but cannot mutate Task state or Session Workspace. |
+| Independent shard | Inputs and outputs are independent and can be reduced explicitly. |
+| Isolated workspace | Agent runs in a sub-session or separate workspace with explicit merge/export. |
+| Tool-like specialist | Specialist returns a bounded structured result to the active lane and does not own ongoing context. |
+
+Context Manager should represent this through build purpose and writer intent:
+
+```python
+ContextBuildRequest(
+    task_id=task_id,
+    agent_run_id=agent_run_id,
+    purpose="execution_step",
+    writer=True,
+)
+```
+
+Read-only or isolated future builds can use:
+
+```python
+ContextBuildRequest(
+    task_id=task_id,
+    agent_run_id=agent_run_id,
+    purpose="read_only_review",
+    writer=False,
+)
+```
+
+Product 1.0 only needs the writer execution path.
 
 ---
 
@@ -379,6 +436,48 @@ This trace answers:
 Recovery should rebuild context from canonical facts when possible. Snapshots
 are debugging and replay artifacts, not the primary source of truth.
 
+## 8.1 Lifecycle
+
+Context Manager is Session-scoped, not Agent-scoped.
+
+```text
+Session starts
+  -> create SessionContextManager
+
+Execution Agent turn
+  -> SessionContextManager.build(...)
+  -> ContextBuildResult / rendered LLM input
+
+Task ends
+  -> Agent run ends
+  -> SessionContextManager remains available
+
+Session closes
+  -> flush context snapshots, traces, and indexes
+```
+
+Execution Agent runs are consumers of context, not owners of context. This lets
+later tasks, recovery flows, audit views, and serialized specialist steps reuse
+the same Session-level context governance without giving each Agent its own
+competing memory of the task world.
+
+EventStream and tool stores may push events to lightweight indexes, but final
+LLM input is always produced by a pull-time `build(...)` call:
+
+```text
+EventStream.append(event)
+  -> optional ContextIndexer.observe(event)
+
+SessionContextManager.build(...)
+  -> pull canonical facts and indexes
+  -> select context
+  -> render LLM input
+  -> save snapshot / trace
+```
+
+Do not let EventStream callbacks directly mutate final TaskExecutionContext or
+rendered prompt state.
+
 ---
 
 ## 9. Extension Points
@@ -482,6 +581,8 @@ Product 1.0 Context Manager is acceptable when:
    memory, complex compression, MCP expansion, or multimodal packing.
 9. Future context sources and policies can be added without changing TaskBus
    ownership or Execution Agent lifecycle ownership.
+10. The default Session context policy permits only one active writer execution
+    lane; parallel Agent context builds must be read-only or isolated.
 
 ---
 
