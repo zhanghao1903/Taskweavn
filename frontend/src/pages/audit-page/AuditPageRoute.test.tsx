@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -15,6 +15,7 @@ import type {
   AuditRecordDetail,
   EvidenceDetail,
   QueryResponse,
+  UiEvent,
 } from "../../shared/api/types";
 
 describe("AuditPageRoute", () => {
@@ -381,6 +382,235 @@ describe("AuditPageRoute", () => {
     });
   });
 
+  it("subscribes to Audit Page runtime events and refetches snapshot changes", async () => {
+    const { api, emit } = createSubscribedAuditApi("a3-records-ready");
+
+    renderWithQueryClient(
+      <AuditPageRoute
+        api={api}
+        location={{
+          pathname: "/sessions/session-website-plan/tasks/task-implementation/audit",
+          search: "",
+        }}
+      />,
+    );
+
+    expect(await screen.findByRole("heading", { name: "Audit" })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(api.subscribeSessionEvents).toHaveBeenCalledWith(
+        "session-website-plan",
+        "cursor-a3-records-ready",
+        expect.any(Function),
+      );
+    });
+    expect(api.getAuditSnapshot).toHaveBeenCalledTimes(1);
+
+    emit(
+      uiEvent({
+        cursor: "cursor-runtime-1",
+        eventType: "audit.records_changed",
+        payload: {
+          record_ids: ["record-action-1"],
+          scope: {
+            kind: "task",
+            sessionId: "session-website-plan",
+            taskNodeId: "task-implementation",
+          },
+        },
+      }),
+    );
+
+    await waitFor(() => {
+      expect(api.getAuditSnapshot).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  it("ignores Audit Page runtime events outside the current task scope", async () => {
+    const { api, emit } = createSubscribedAuditApi("a3-records-ready");
+
+    renderWithQueryClient(
+      <AuditPageRoute
+        api={api}
+        location={{
+          pathname: "/sessions/session-website-plan/tasks/task-implementation/audit",
+          search: "",
+        }}
+      />,
+    );
+
+    expect(await screen.findByRole("heading", { name: "Audit" })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(api.subscribeSessionEvents).toHaveBeenCalled();
+    });
+
+    emit(
+      uiEvent({
+        cursor: "cursor-runtime-outside-scope",
+        eventType: "audit.records_changed",
+        payload: {
+          record_ids: ["record-other-task"],
+          scope: {
+            kind: "task",
+            session_id: "session-website-plan",
+            task_node_id: "task-other",
+          },
+        },
+        taskNodeIds: ["task-other"],
+      }),
+    );
+
+    await waitForStableMicrotask();
+    expect(api.getAuditSnapshot).toHaveBeenCalledTimes(1);
+  });
+
+  it("refetches selected record detail when its runtime record event arrives", async () => {
+    const { api, emit } = createSubscribedAuditApi("a3-records-ready");
+
+    renderWithQueryClient(
+      <AuditPageRoute
+        api={api}
+        location={{
+          pathname: "/sessions/session-website-plan/tasks/task-implementation/audit",
+          search: "?recordId=record-action-1",
+        }}
+      />,
+    );
+
+    expect(await screen.findByText("Action completed detail body.")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(api.getAuditRecordDetail).toHaveBeenCalledTimes(1);
+    });
+
+    emit(
+      uiEvent({
+        cursor: "cursor-runtime-record-selected",
+        eventType: "audit.record_updated",
+        payload: {
+          record_id: "record-action-1",
+          scope: {
+            kind: "task",
+            sessionId: "session-website-plan",
+            taskNodeId: "task-implementation",
+          },
+        },
+      }),
+    );
+
+    await waitFor(() => {
+      expect(api.getAuditSnapshot).toHaveBeenCalledTimes(2);
+      expect(api.getAuditRecordDetail).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  it("refetches selected evidence when hidden evidence runtime event arrives", async () => {
+    const { api, emit } = createSubscribedAuditApi("a3-records-ready");
+
+    renderWithQueryClient(
+      <AuditPageRoute
+        api={api}
+        location={{
+          pathname: "/sessions/session-website-plan/tasks/task-implementation/audit",
+          search: "?recordId=record-action-1",
+        }}
+      />,
+    );
+
+    expect(await screen.findByText("Action completed detail body.")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(api.getEvidenceDetail).toHaveBeenCalledTimes(1);
+    });
+
+    emit(
+      uiEvent({
+        cursor: "cursor-runtime-evidence-selected",
+        eventType: "audit.evidence_hidden",
+        payload: {
+          evidence_ids: ["evidence-record-action-1"],
+          record_id: "record-action-1",
+          reason_code: "policy_changed",
+          scope: {
+            kind: "task",
+            sessionId: "session-website-plan",
+            taskNodeId: "task-implementation",
+          },
+        },
+      }),
+    );
+
+    await waitFor(() => {
+      expect(api.getAuditSnapshot).toHaveBeenCalledTimes(2);
+      expect(api.getAuditRecordDetail).toHaveBeenCalledTimes(2);
+      expect(api.getEvidenceDetail).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  it("does not refetch duplicate runtime event cursors twice", async () => {
+    const { api, emit } = createSubscribedAuditApi("a3-records-ready");
+
+    renderWithQueryClient(
+      <AuditPageRoute
+        api={api}
+        location={{
+          pathname: "/sessions/session-website-plan/tasks/task-implementation/audit",
+          search: "",
+        }}
+      />,
+    );
+
+    expect(await screen.findByRole("heading", { name: "Audit" })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(api.subscribeSessionEvents).toHaveBeenCalled();
+    });
+
+    emit(
+      uiEvent({
+        cursor: "cursor-runtime-duplicate",
+        eventId: "event-duplicate-1",
+        eventType: "audit.summary_updated",
+      }),
+    );
+
+    await waitFor(() => {
+      expect(api.getAuditSnapshot).toHaveBeenCalledTimes(2);
+    });
+
+    emit(
+      uiEvent({
+        cursor: "cursor-runtime-duplicate",
+        eventId: "event-duplicate-2",
+        eventType: "audit.summary_updated",
+      }),
+    );
+
+    await waitForStableMicrotask();
+    expect(api.getAuditSnapshot).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps the Audit Page readable when runtime event subscription fails", async () => {
+    const baseApi = createAuditMockApi("a3-records-ready");
+    const api: AuditApi = {
+      ...baseApi,
+      getAuditSnapshot: vi.fn(baseApi.getAuditSnapshot),
+      subscribeSessionEvents: vi.fn(() => {
+        throw new Error("EventSource unavailable");
+      }),
+    };
+
+    renderWithQueryClient(
+      <AuditPageRoute
+        api={api}
+        location={{
+          pathname: "/sessions/session-website-plan/tasks/task-implementation/audit",
+          search: "",
+        }}
+      />,
+    );
+
+    expect(await screen.findByRole("heading", { name: "Audit" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Audit records")).toBeInTheDocument();
+    expect(api.subscribeSessionEvents).toHaveBeenCalled();
+  });
+
   it("uses snapshot selected detail without calling the fallback detail query", async () => {
     const baseApi = createAuditMockApi("a4-record-selected");
     const api: AuditApi = {
@@ -624,4 +854,55 @@ function renderWithQueryClient(children: ReactNode) {
   return render(
     <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>,
   );
+}
+
+function createSubscribedAuditApi(scenarioId: AuditMockScenarioId) {
+  const baseApi = createAuditMockApi(scenarioId);
+  let eventHandler: ((event: UiEvent) => void) | null = null;
+  const unsubscribe = vi.fn();
+  const api: AuditApi = {
+    ...baseApi,
+    getAuditRecordDetail: vi.fn(baseApi.getAuditRecordDetail),
+    getAuditSnapshot: vi.fn(baseApi.getAuditSnapshot),
+    getEvidenceDetail: vi.fn(baseApi.getEvidenceDetail),
+    subscribeSessionEvents: vi.fn((_sessionId, _cursor, onEvent) => {
+      eventHandler = onEvent;
+      return unsubscribe;
+    }),
+  };
+
+  return {
+    api,
+    emit(event: UiEvent) {
+      if (eventHandler === null) {
+        throw new Error("Audit runtime event subscription was not started.");
+      }
+
+      act(() => {
+        eventHandler?.(event);
+      });
+    },
+    unsubscribe,
+  };
+}
+
+function uiEvent(overrides: Partial<UiEvent> = {}): UiEvent {
+  return {
+    commandId: null,
+    createdAt: "2026-05-24T10:03:00Z",
+    cursor: "cursor-runtime-default",
+    eventId: "event-runtime-default",
+    eventType: "audit.records_changed",
+    messageIds: [],
+    payload: {},
+    sessionId: "session-website-plan",
+    taskNodeIds: ["task-implementation"],
+    ...overrides,
+  };
+}
+
+async function waitForStableMicrotask(): Promise<void> {
+  await new Promise((resolve) => {
+    setTimeout(resolve, 10);
+  });
 }

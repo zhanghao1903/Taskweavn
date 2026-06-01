@@ -378,7 +378,7 @@ Checks:
 | Slice | Scope | Acceptance |
 |---|---|---|
 | AP-013A | This design document and contract/plan status sync. | Docs describe event/refetch contract and implementation path. |
-| AP-013B | Add frontend Audit Page event router/hook with mocked `subscribeSessionEvents`. | Unit tests prove event-to-refetch behavior without backend emission. |
+| AP-013B | Add frontend Audit Page event router/hook with mocked `subscribeSessionEvents`. | Done: unit tests prove event-to-refetch behavior without backend emission. |
 | AP-013C | Add UI live refresh/stale/disconnected feedback. | Audit Page remains readable; stale state is explicit. |
 | AP-013D | Add workspace-backed UI event store/source or equivalent first live source. | SSE can replay audit events after cursor; unknown cursor emits resync. |
 | AP-013E | Emit audit events from the first runtime/source change points. | EventStream/log/config/confirmation changes trigger appropriate invalidations. |
@@ -406,4 +406,3 @@ Recommended first-pass answers:
 3. Do not add filter hints yet; snapshot/list refetch is safer.
 4. Use local route state for live transport issues and backend `pageState` for
    query/projection issues.
-

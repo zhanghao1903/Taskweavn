@@ -20,6 +20,7 @@ import {
   projectAuditSnapshot,
   selectedRecordSurvivesFilter,
 } from "./auditPageViewModel";
+import { useAuditPageRuntimeEvents } from "./auditRuntimeEvents";
 
 export type AuditApi = Pick<
   PlatoApi,
@@ -27,6 +28,7 @@ export type AuditApi = Pick<
   | "listAuditRecords"
   | "getAuditRecordDetail"
   | "getEvidenceDetail"
+  | "subscribeSessionEvents"
 >;
 
 export type AuditPageRouteLocation = {
@@ -142,6 +144,18 @@ export function AuditPageRoute({
       selectedRecordId,
       selectedEvidenceRef?.id,
     ],
+  });
+  useAuditPageRuntimeEvents({
+    api: auditApi,
+    cursor: rawSnapshot?.cursor ?? null,
+    enabled: rawSnapshot !== null,
+    refetchDetail: detailQuery.refetch,
+    refetchEvidence: evidenceQuery.refetch,
+    refetchSnapshot: snapshotQuery.refetch,
+    selectedEvidenceId: selectedEvidenceRef?.id ?? null,
+    selectedRecordId,
+    sessionId: activeRequest?.sessionId ?? "",
+    taskNodeId: activeRequest?.taskNodeId ?? null,
   });
   const snapshot = useMemo(
     () =>

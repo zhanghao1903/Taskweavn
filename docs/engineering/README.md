@@ -6,4 +6,4 @@ designs and not release records.
 
 | File | Purpose | Status |
 |---|---|---|
-| [audit-page-contract.md](audit-page-contract.md) | Audit Page backend-to-frontend contract: snapshot, record, evidence, scopes, events, endpoint candidates, mock scenarios, and implementation status. | Frontend mock baseline, backend projection/EventStream/log/config query path, AP-012 sanitized payload disclosure first pass, and AP-013A runtime event/refetch design are in place; runtime event subscription/emission remains pending. |
+| [audit-page-contract.md](audit-page-contract.md) | Audit Page backend-to-frontend contract: snapshot, record, evidence, scopes, events, endpoint candidates, mock scenarios, and implementation status. | Frontend mock baseline, backend projection/EventStream/log/config query path, AP-012 sanitized payload disclosure first pass, AP-013A runtime event/refetch design, and AP-013B frontend event router/hook are in place; live stale UI and backend runtime event source/emission remain pending. |
