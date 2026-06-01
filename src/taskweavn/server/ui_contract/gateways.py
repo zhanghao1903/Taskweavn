@@ -8,11 +8,9 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Literal, Protocol, runtime_checkable
+from typing import Any, Literal
 
-from taskweavn.core import SqliteEventStream, WorkspaceLayout
 from taskweavn.core.session import Session
-from taskweavn.interaction import AgentMessage
 from taskweavn.observability.models import LogArchiveManifest
 from taskweavn.server.ui_contract.commands import (
     AppendSessionInputPayload,
@@ -35,6 +33,26 @@ from taskweavn.server.ui_contract.errors import (
     command_rejected,
     internal_error,
     not_found,
+)
+from taskweavn.server.ui_contract.gateway_protocols import (
+    AuditConfigProvider,
+    AuditEventProvider,
+    AuditLinkProvider,
+    AuditLogProvider,
+    AuditPayloadDisclosureService,
+    PayloadDisclosureResult,
+    ProjectProvider,
+    SessionMessageProvider,
+    SessionReader,
+    TaskRefResolver,
+    UiCommandGateway,
+    UiQueryGateway,
+    WorkflowProvider,
+)
+from taskweavn.server.ui_contract.gateway_providers import (
+    StaticProjectProvider,
+    StaticWorkflowProvider,
+    WorkspaceAuditEventProvider,
 )
 from taskweavn.server.ui_contract.mapping import (
     map_agent_message_view,
@@ -112,275 +130,29 @@ from taskweavn.task.views import (
 )
 from taskweavn.types.base import BaseAction, BaseEvent, BaseObservation
 
-
-@runtime_checkable
-class SessionReader(Protocol):
-    """Read subset of SessionManager needed by UI query gateways."""
-
-    def get(self, session_id: str) -> Session | None: ...
-
-    def list(self) -> list[Session]: ...
-
-
-@runtime_checkable
-class ProjectProvider(Protocol):
-    def get_project(self) -> ProjectSummary: ...
-
-
-@runtime_checkable
-class WorkflowProvider(Protocol):
-    def list_workflows(self) -> tuple[WorkflowSummary, ...]: ...
-
-    def get_workflow(self, session: Session) -> WorkflowSummary: ...
-
-
-@runtime_checkable
-class AuditLinkProvider(Protocol):
-    def list_for_session(self, session_id: str) -> tuple[AuditLinkView, ...]: ...
-
-
-@runtime_checkable
-class AuditEventProvider(Protocol):
-    """Read durable execution events for Audit Page projection."""
-
-    def list_for_session(
-        self,
-        session: Session,
-        *,
-        task_node_id: str | None = None,
-    ) -> Iterable[BaseEvent]: ...
-
-
-@runtime_checkable
-class AuditConfigProvider(Protocol):
-    """Read effective config evidence for Audit Page projection."""
-
-    def list_for_session(
-        self,
-        session: Session,
-        *,
-        task_node_id: str | None = None,
-    ) -> Iterable[AuditRecord]: ...
-
-    def get_effective_config(
-        self,
-        session: Session,
-        *,
-        records: Sequence[AuditRecord],
-    ) -> EffectiveConfigSummary | None: ...
-
-
-@runtime_checkable
-class AuditLogProvider(Protocol):
-    """Read log-archive evidence and links for Audit Page projection."""
-
-    def list_for_session(
-        self,
-        session: Session,
-        *,
-        task_node_id: str | None = None,
-    ) -> Iterable[AuditRecord]: ...
-
-    def related_logs(
-        self,
-        session: Session,
-        *,
-        task_node_id: str | None,
-        record_id: str | None,
-    ) -> tuple[RelatedLogsLink, ...]: ...
-
-
-@dataclass(frozen=True)
-class PayloadDisclosureResult:
-    """Runtime-only sanitized payload plus disclosure metadata."""
-
-    disclosure: AuditDisclosure
-    payload: SanitizedRawPayload | None = None
-
-
-@runtime_checkable
-class AuditPayloadDisclosureService(Protocol):
-    """Build sanitized Audit Page payloads without persisting them."""
-
-    def build_record_payload(
-        self,
-        record: AuditRecord,
-        *,
-        session: Session,
-        include_sanitized_payload: bool,
-    ) -> PayloadDisclosureResult: ...
-
-    def build_evidence_payload(
-        self,
-        record: AuditRecord,
-        evidence_ref: EvidenceRef,
-        *,
-        session: Session,
-        include_sanitized_payload: bool,
-    ) -> PayloadDisclosureResult: ...
-
-
-@runtime_checkable
-class SessionMessageProvider(Protocol):
-    def list_for_session(
-        self,
-        session_id: str,
-        *,
-        limit: int | None = None,
-    ) -> Iterable[AgentMessage]: ...
-
-
-@runtime_checkable
-class TaskRefResolver(Protocol):
-    """Resolve frontend taskNodeId into a backend TaskRef."""
-
-    def resolve(self, session_id: str, task_node_id: str) -> TaskRef: ...
-
-
-@runtime_checkable
-class UiQueryGateway(Protocol):
-    def get_session_snapshot(
-        self,
-        session_id: str,
-        *,
-        request_id: str | None = None,
-    ) -> QueryResponse[MainPageSnapshot]: ...
-
-    def get_audit_snapshot(
-        self,
-        session_id: str,
-        *,
-        task_node_id: str | None = None,
-        entry: str | None = None,
-        filter_kind: str = "all",
-        record_id: str | None = None,
-        include_detail: bool | None = None,
-        limit: int = 50,
-        cursor: str | None = None,
-        request_id: str | None = None,
-    ) -> QueryResponse[AuditPageSnapshot]: ...
-
-    def list_audit_records(
-        self,
-        session_id: str,
-        *,
-        task_node_id: str | None = None,
-        filter_kind: str = "all",
-        kind: str | None = None,
-        from_time: str | None = None,
-        to_time: str | None = None,
-        limit: int = 50,
-        cursor: str | None = None,
-        include_hidden_reasons: bool = False,
-        request_id: str | None = None,
-    ) -> QueryResponse[AuditRecordsResult]: ...
-
-    def get_audit_record_detail(
-        self,
-        session_id: str,
-        record_id: str,
-        *,
-        include_evidence: bool = False,
-        include_sanitized_payload: bool = False,
-        request_id: str | None = None,
-    ) -> QueryResponse[AuditRecordDetail]: ...
-
-    def get_evidence_detail(
-        self,
-        session_id: str,
-        evidence_id: str,
-        *,
-        include_sanitized_payload: bool = False,
-        request_id: str | None = None,
-    ) -> QueryResponse[EvidenceDetail]: ...
-
-
-@runtime_checkable
-class UiCommandGateway(Protocol):
-    def append_session_input(
-        self,
-        request: CommandRequest[AppendSessionInputPayload],
-    ) -> CommandResponse: ...
-
-    def generate_task_tree(
-        self,
-        request: CommandRequest[GenerateTaskTreePayload],
-    ) -> CommandResponse: ...
-
-    def update_task_node(
-        self,
-        task_node_id: str,
-        request: CommandRequest[UpdateTaskNodePayload],
-    ) -> CommandResponse: ...
-
-    def append_task_input(
-        self,
-        task_node_id: str,
-        request: CommandRequest[AppendTaskInputPayload],
-    ) -> CommandResponse: ...
-
-    def publish_task_tree(
-        self,
-        request: CommandRequest[PublishTaskTreePayload],
-    ) -> CommandResponse: ...
-
-    def retry_task(
-        self,
-        task_node_id: str,
-        request: CommandRequest[RetryTaskPayload],
-    ) -> CommandResponse: ...
-
-    def resolve_confirmation(
-        self,
-        confirmation_id: str,
-        request: CommandRequest[ResolveConfirmationPayload],
-    ) -> CommandResponse: ...
-
-
-@dataclass(frozen=True)
-class StaticProjectProvider:
-    project: ProjectSummary = ProjectSummary(id="local", name="Local Project")
-
-    def get_project(self) -> ProjectSummary:
-        return self.project
-
-
-@dataclass(frozen=True)
-class StaticWorkflowProvider:
-    workflow: WorkflowSummary = WorkflowSummary(
-        id="task_authoring",
-        name="Task authoring",
-        description="Turn user intent into a Task Tree.",
-        input_hint="Describe what you want Plato to do.",
-        delivery_kind="task_tree",
-    )
-
-    def list_workflows(self) -> tuple[WorkflowSummary, ...]:
-        return (self.workflow,)
-
-    def get_workflow(self, session: Session) -> WorkflowSummary:
-        return self.workflow
-
-
-@dataclass(frozen=True)
-class WorkspaceAuditEventProvider:
-    """Read Audit Page execution evidence from a session ``events.sqlite``."""
-
-    layout: WorkspaceLayout
-
-    def list_for_session(
-        self,
-        session: Session,
-        *,
-        task_node_id: str | None = None,
-    ) -> tuple[BaseEvent, ...]:
-        db_path = self.layout.session_events_db(session.id)
-        if not db_path.exists():
-            return ()
-        with SqliteEventStream(db_path) as stream:
-            if task_node_id is not None:
-                return tuple(stream.iter_for_task(task_node_id))
-            return tuple(stream.replay())
+__all__ = [
+    "AuditConfigProvider",
+    "AuditEventProvider",
+    "AuditLinkProvider",
+    "AuditLogProvider",
+    "AuditPayloadDisclosureService",
+    "DefaultAuditPayloadDisclosureService",
+    "DefaultUiCommandGateway",
+    "DefaultUiQueryGateway",
+    "PayloadDisclosureResult",
+    "ProjectProvider",
+    "SessionMessageProvider",
+    "SessionReader",
+    "StaticProjectProvider",
+    "StaticWorkflowProvider",
+    "TaskRefResolver",
+    "UiCommandGateway",
+    "UiQueryGateway",
+    "WorkflowProvider",
+    "WorkspaceAuditConfigProvider",
+    "WorkspaceAuditEventProvider",
+    "WorkspaceAuditLogProvider",
+]
 
 
 class WorkspaceAuditConfigProvider:

@@ -1,6 +1,6 @@
 # UI / Backend Large File Split Plan
 
-> Status: planned
+> Status: in_progress
 > Last Updated: 2026-06-01
 > Gap: [Audit / Trust page implementation](../../gaps/README.md#4-product-10-gap-table), [Result and evidence exposure surface](../../gaps/README.md#4-product-10-gap-table), delivery maintainability risk
 > Architecture: [UI Backend Communication](../../architecture/ui-backend-communication.md), [Task Domain / UI Model Separation](../../architecture/task-domain-ui-model-separation.md), [Configurable Logging System](../../architecture/configurable-logging-system.md)
@@ -225,6 +225,8 @@ Validation:
 
 ### M-001: Extract UI Contract Protocols And Providers
 
+Status: done on 2026-06-01.
+
 Goal: reduce `gateways.py` by moving protocol definitions and static/workspace
 providers.
 
@@ -240,6 +242,16 @@ Acceptance:
 - public imports from `taskweavn.server.ui_contract` still work;
 - no contract JSON changes;
 - provider tests still pass.
+
+Implementation note:
+
+- `gateway_protocols.py` now owns the gateway/provider Protocol definitions
+  and `PayloadDisclosureResult`.
+- `gateway_providers.py` now owns `StaticProjectProvider`,
+  `StaticWorkflowProvider`, and `WorkspaceAuditEventProvider`.
+- `WorkspaceAuditConfigProvider` and `WorkspaceAuditLogProvider` intentionally
+  remain in `gateways.py` until M-002 because their current implementation
+  depends on audit projection helpers and should move with that boundary.
 
 Suggested validation:
 

@@ -148,3 +148,6 @@ Keep each lesson short, actionable, and tied to a trigger.
   architecture cleanup outrun the verifiable product path.
 - For high-risk refactors, preserve old imports with re-export wrappers first;
   remove wrappers only in a later cleanup slice.
+- A class named like a provider is not always safe to move in a provider slice;
+  if it calls projection or disclosure helpers, move it with that boundary to
+  avoid circular imports and accidental behavior changes.
