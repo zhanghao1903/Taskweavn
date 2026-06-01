@@ -12,6 +12,7 @@ from taskweavn.server.ui_contract import (
     GenerateTaskTreePayload,
     PublishTaskTreePayload,
     ResolveConfirmationPayload,
+    RetryTaskPayload,
     TaskRefResolver,
     UiCommandGateway,
     UpdateTaskNodePayload,
@@ -216,7 +217,17 @@ class _TaskCommands:
         task_id: str,
         instruction: str | None = None,
     ) -> CoreCommandResult:
-        raise NotImplementedError
+        self.calls.append(
+            (
+                "retry_task",
+                {
+                    "session_id": session_id,
+                    "task_id": task_id,
+                    "instruction": instruction,
+                },
+            )
+        )
+        return self.result
 
 
 @dataclass(frozen=True)
@@ -572,6 +583,79 @@ def test_publish_task_tree_rejects_missing_active_draft_tree() -> None:
     assert response.error.code == "bad_request"
     assert response.error.details["reason"] == "no_active_draft_tree"
     assert collaborator.calls == []
+
+
+def test_retry_task_wraps_published_failed_task_command() -> None:
+    commands = _TaskCommands(
+        CoreCommandResult(
+            command_id="backend-retry",
+            status="accepted",
+            message="task retry queued",
+            affected_task_refs=(TaskRef.published("task-1"),),
+        )
+    )
+    gateway = _gateway(task_commands=commands)
+    request = CommandRequest[RetryTaskPayload](
+        command_id="retry-1",
+        session_id="session-1",
+        payload=RetryTaskPayload(
+            instruction="Try a safer route",
+            start_immediately=False,
+        ),
+    )
+
+    response = gateway.retry_task("task-1", request)
+
+    assert response.ok is True
+    assert commands.calls == [
+        (
+            "retry_task",
+            {
+                "session_id": "session-1",
+                "task_id": "task-1",
+                "instruction": "Try a safer route",
+            },
+        )
+    ]
+    assert response.result is not None
+    body = response.result.model_dump(mode="json")
+    assert {"kind": "published_task", "id": "task-1"} in body["objectRefs"]
+    assert {"kind": "published_task", "id": "retry-root"} not in body["objectRefs"]
+    assert response.result.published_task_ids == ()
+    assert {
+        "ref": {"kind": "published_task", "id": "task-1"},
+        "impact": "changed",
+        "reason": "Manual retry moved this failed Task back to pending.",
+    } in body["affectedObjects"]
+    assert not any(
+        affected["ref"] == {"kind": "published_task", "id": "retry-root"}
+        for affected in body["affectedObjects"]
+    )
+    assert response.refresh.suggested_queries == (
+        "session.snapshot",
+        "task.tree",
+        "task.detail",
+    )
+
+
+def test_retry_task_rejects_draft_task_ref() -> None:
+    commands = _TaskCommands()
+    gateway = _gateway(
+        task_commands=commands,
+        resolver=_Resolver({"draft-1": TaskRef.draft("draft-1")}),
+    )
+    request = CommandRequest[RetryTaskPayload](
+        command_id="retry-draft",
+        session_id="session-1",
+        payload=RetryTaskPayload(start_immediately=False),
+    )
+
+    response = gateway.retry_task("draft-1", request)
+
+    assert response.ok is False
+    assert response.error is not None
+    assert response.error.code == "command_rejected"
+    assert commands.calls == []
 
 
 def test_resolve_confirmation_rejection_maps_to_command_rejected_error() -> None:

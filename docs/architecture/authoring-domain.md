@@ -257,7 +257,10 @@ Rules:
 
 - Draft trees can be edited until publication.
 - Publication is irreversible for the produced PublishedTasks.
-- After publication, follow-up changes create new authoring facts or new Tasks, not mutation of already-published execution Tasks.
+- After publication, semantic follow-up changes create new authoring facts or new
+  Tasks. The narrow exception is lifecycle retry: a failed PublishedTask can
+  return to `pending` on the same Task identity while prior failure evidence
+  remains in append-only audit/message/result records.
 
 ### 4.3 Execution Task Lifecycle
 

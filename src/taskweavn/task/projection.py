@@ -266,23 +266,26 @@ class DefaultTaskProjectionService:
         parent_ref: TaskRef | None,
         root_ref: TaskRef,
     ) -> None:
+        task_ref = TaskRef.published(task.task_id)
+        child_tasks = _ordered(children[task.task_id])
         cards.append(
             self._project_task(
                 task,
                 tasks=tasks,
+                child_tasks=child_tasks,
                 depth=depth,
                 parent_ref=parent_ref,
                 root_ref=root_ref,
             )
         )
-        for child in _ordered(children[task.task_id]):
+        for child in child_tasks:
             self._append_task_subtree(
                 cards,
                 child,
                 tasks=tasks,
                 children=children,
                 depth=depth + 1,
-                parent_ref=TaskRef.published(task.task_id),
+                parent_ref=task_ref,
                 root_ref=root_ref,
             )
 
@@ -291,12 +294,17 @@ class DefaultTaskProjectionService:
         task: TaskDomain,
         *,
         tasks: list[TaskDomain],
+        child_tasks: list[TaskDomain] | None = None,
         depth: int,
         parent_ref: TaskRef | None,
         root_ref: TaskRef,
     ) -> TaskCardView:
         ref = TaskRef.published(task.task_id)
-        child_tasks = [candidate for candidate in tasks if candidate.parent_id == task.task_id]
+        child_tasks = (
+            child_tasks
+            if child_tasks is not None
+            else [candidate for candidate in tasks if candidate.parent_id == task.task_id]
+        )
         permissions = _permissions_for_status(task.status)
         direct_file_changes = self._file_changes_for_ref(task.session_id, ref, recursive=False)
         subtree_file_changes = self._file_changes_for_ref(task.session_id, ref, recursive=True)

@@ -258,7 +258,7 @@ class CommandResult(BaseModel):
 | `publishTaskTree(session_id, draft_tree_id)` | `CommandResult` | 发布 draft tree，后续接 TaskPublisher / TaskBus |
 | `startTaskExecution(session_id, task_ref)` | `CommandResult` | 从某个 Task 或 root Task 开始执行；后续接 TaskPublisher/TaskBus |
 | `cancelTask(session_id, task_ref, reason)` | `CommandResult` | 取消 draft 或未开始 Task；运行中取消后续细化 |
-| `retryTask(session_id, task_ref, instruction?)` | `CommandResult` | 基于 failed Task 创建 retry/fix Task |
+| `retryTask(session_id, task_ref, instruction?)` | `CommandResult` | 将 failed published Task 原地重置为 pending |
 
 ### 6.1 Command Protocol 对应关系
 
@@ -273,7 +273,7 @@ class CommandResult(BaseModel):
 | `answerRawTaskAsk` | `CollaboratorApiAdapter.answer_raw_task_ask` |
 | `resolveConfirmation` | `TaskCommandService.resolve_confirmation` |
 | `publishTaskTree` | `CollaboratorApiAdapter.publish_task_tree` + `AuthoringCommandService` + `TaskPublisher` |
-| `retryTask` | `TaskCommandService.retry_task` + `TaskPublisher` |
+| `retryTask` | `TaskCommandService.retry_task` + TaskBus lifecycle retry |
 
 后续需要补充：
 

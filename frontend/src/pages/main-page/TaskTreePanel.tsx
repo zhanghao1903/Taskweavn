@@ -9,12 +9,14 @@ import { TaskNodeCard } from "./TaskNodeCard";
 import styles from "./MainPage.module.css";
 
 export type TaskTreePanelProps = {
+  onRetryTask: (nodeId: TaskNodeId) => void;
   onSelectTask: (nodeId: TaskNodeId) => void;
   selectedTaskNodeId: TaskNodeId | null;
   taskTree: TaskTreeView | null;
 };
 
 export function TaskTreePanel({
+  onRetryTask,
   onSelectTask,
   selectedTaskNodeId,
   taskTree,
@@ -34,6 +36,7 @@ export function TaskTreePanel({
               isSelected={node.id === selectedTaskNodeId}
               key={node.id}
               node={node}
+              onRetryTask={onRetryTask}
               onSelectTask={onSelectTask}
             />
           ))}

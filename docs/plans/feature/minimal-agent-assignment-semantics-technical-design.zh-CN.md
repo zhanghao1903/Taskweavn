@@ -92,11 +92,10 @@ skip(session_id, task_id, *, reason) -> TaskDomain
 
 ### 2.3 Retry
 
-当前 retry 由 `TaskPublisher.retry_task(...)` 生成新的 retry root Task，而不是把原 Task 原地回到 pending。这个计划不强制改 retry 模式。
+当前 Product 1.0 retry 已收敛为 in-place retry：同一个 failed published Task
+回到 `pending`，不发布新的 retry root Task。
 
-如果本实现保留“retry 发布新 Task”，则需要保证 retry 发布的新 Task 不继承旧 assignment。
-
-如果后续增加 in-place retry，则必须清理：
+后续增加 assignment 字段时，retry 必须清理：
 
 - assignment；
 - `claimed_by`；

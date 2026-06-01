@@ -40,8 +40,9 @@ visible to existing Task projection and Main Page snapshot paths.
   - `pending` status;
   - required capability match;
   - parent completion before child claim.
-- Retry remains correctly modeled as a new Task through the existing
-  `TaskPublisher.retry_task` boundary.
+- Manual retry now returns the same failed Task to `pending` through TaskBus
+  lifecycle retry. Prior failure evidence remains in append-only message,
+  summary, Audit, and log records.
 - Skip is represented as a terminal `failed` Task with an `error_ref` prefixed
   by `skipped:`. This preserves the current four-state architecture while
   giving the command path an explicit skip operation.

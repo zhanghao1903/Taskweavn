@@ -14,16 +14,46 @@ describe("TaskNodeCard", () => {
       <TaskNodeCard
         isSelected={false}
         node={taskNode}
+        onRetryTask={vi.fn()}
         onSelectTask={onSelectTask}
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: /Visual direction/i }));
+    await user.click(
+      screen.getByRole("button", { name: /Visual direction/i }),
+    );
 
     expect(screen.getByText("Visual direction")).toBeInTheDocument();
     expect(screen.getByText("Fonts, color, and spacing")).toBeInTheDocument();
     expect(screen.getByText("waiting user")).toBeInTheDocument();
     expect(onSelectTask).toHaveBeenCalledWith("task-visual-direction");
+  });
+
+  it("renders retry as a separate task card action when allowed", async () => {
+    const user = userEvent.setup();
+    const onRetryTask = vi.fn();
+    const onSelectTask = vi.fn();
+
+    render(
+      <TaskNodeCard
+        isSelected
+        node={{
+          ...taskNode,
+          permissions: {
+            ...taskNode.permissions,
+            canRetry: true,
+          },
+          status: "failed",
+        }}
+        onRetryTask={onRetryTask}
+        onSelectTask={onSelectTask}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /^Retry$/i }));
+
+    expect(onRetryTask).toHaveBeenCalledWith("task-visual-direction");
+    expect(onSelectTask).not.toHaveBeenCalled();
   });
 });
 

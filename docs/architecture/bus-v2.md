@@ -1,6 +1,8 @@
 # TaskBus v2 架构设计
 
 > 多 Agent 协作架构 · TaskBus 增强版本 · v2.0 · 2026-05-09
+>
+> 2026-05-31 scope note: 本文是后续并发和智能调度的探索文档，不是 Product 1.0 / 1.1 默认路线。当前架构默认单 Session 一个 active writer execution lane。并发多 Agent 只有在上下文独立、read-only、或 workspace/sub-session 隔离并具备显式 merge/replay 机制时才允许进入实施规划。
 
 ---
 
@@ -16,6 +18,8 @@
 
 > 本文不修改 v1 的五个核心文档。v1 是简洁的基础引擎，v2 是激活更高维能力的扩展层。
 > 实际系统可以选择仅落地 v1，或在 v1 跑通后渐进引入 v2 的某些能力。
+> 在当前产品边界下，v2 并发能力必须先证明上下文 ownership、workspace
+> isolation、冲突处理和审计回放都能收敛，不能作为默认执行模型提前引入。
 
 ---
 

@@ -18,6 +18,7 @@ from taskweavn.task import (
     DraftTaskTree,
     DraftToPublishedMapping,
     PublishedTaskEditor,
+    PublishedTaskRetrier,
     TaskCommandService,
     TaskDomain,
     TaskNodePatch,
@@ -268,6 +269,21 @@ class _PublishedEditor:
         )
 
 
+class _PublishedRetrier:
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, str, str | None]] = []
+
+    def retry(
+        self,
+        session_id: str,
+        task_id: str,
+        *,
+        instruction: str | None = None,
+    ) -> TaskDomain:
+        self.calls.append((session_id, task_id, instruction))
+        return _task(task_id, status="pending")
+
+
 class _Publisher:
     kind: Any = "collaborator"
 
@@ -491,18 +507,25 @@ def test_publish_task_tree_uses_publisher_boundary() -> None:
     assert result.published_task_ids == ("published-root",)
 
 
-def test_retry_failed_task_uses_publisher_boundary() -> None:
-    publisher = _Publisher()
+def test_retry_failed_task_requeues_same_published_task() -> None:
+    retrier = _PublishedRetrier()
+    assert isinstance(retrier, PublishedTaskRetrier)
+    message_bus = _Bus(_MessageStream([]))
     service = DefaultTaskCommandService(
         task_store=_TaskStore([_task("failed", status="failed")]),
-        task_publisher=publisher,
+        message_bus=message_bus,
+        published_task_retrier=retrier,
     )
 
     result = service.retry_task("s1", "failed", "Try safer path")
 
     assert result.accepted is True
-    assert publisher.retry_calls == [("s1", "failed", "Try safer path")]
-    assert result.published_task_ids == ("retry-root",)
+    assert retrier.calls == [("s1", "failed", "Try safer path")]
+    assert result.affected_task_refs == (TaskRef.published("failed"),)
+    assert result.published_task_ids == ()
+    assert len(result.emitted_message_ids) == 1
+    assert message_bus.published[0].task_id == "failed"
+    assert message_bus.published[0].content == "Try safer path"
 
 
 def test_retry_non_failed_task_rejected() -> None:

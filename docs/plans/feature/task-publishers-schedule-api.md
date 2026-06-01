@@ -95,7 +95,9 @@ class TaskPublisher(Protocol):
 - `preview` 不写 TaskBus。
 - `publish` 必须走统一校验和 TaskBus。
 - 不同 publisher 可以有自己的 request adapter，但进入核心发布层前必须归一化为 `NormalizedTaskTree`。
-- 当前实现为了兼容已存在的 draft publish command，也保留 `publish_draft_tree(...)` / `retry_task(...)` compatibility hooks；后续可以在 TaskBus 完整生命周期稳定后再决定是否拆成更小协议。
+- 当前实现为了兼容已存在的 draft publish command，保留
+  `publish_draft_tree(...)` compatibility hook。`retry_task(...)` 仍作为旧调用面
+  保留，但语义已收敛为 TaskBus in-place retry，不再发布新的 retry root Task。
 
 ### 5.3 PublishRequest
 
@@ -685,7 +687,7 @@ api_publish:
   - `DefaultTaskPublisher.preview(...)` validates normalized trees without writing TaskBus.
   - `DefaultTaskPublisher.publish(...)` converts normalized tree nodes into pending `TaskDomain` records and writes through `TaskBus.publish(...)`.
   - `DefaultTaskPublisher.publish_draft_tree(...)` bridges accepted DraftTaskTree publication to TaskBus-backed PublishedTasks and returns draft-to-published mappings for AuthoringCommandService.
-  - `DefaultTaskPublisher.retry_task(...)` creates a retry root task for failed published tasks.
+  - `DefaultTaskPublisher.retry_task(...)` requeues the same failed published Task through TaskBus in-place retry.
   - Slice 2 Task Tree Parser and Validator.
   - Added `taskweavn.task.publisher_input`:
     - `TaskTreeInputFormat`

@@ -3,10 +3,11 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type { UiEvent } from "../../shared/api/types";
+import type { CommandResponse, UiEvent } from "../../shared/api/types";
 import type {
   LoadMainPageSnapshot,
   MainPageAdapter,
+  RetryTaskCommand,
   SubscribeSessionEvents,
 } from "./runtime/adapter";
 import type { MainPageStateId } from "./mockPlatoApi";
@@ -77,6 +78,54 @@ describe("useMainPageController", () => {
     expect(result.current.detailOverride).toBe("auto");
     expect(result.current.inputDraft).toBe("");
     expect(result.current.inputError).toBe(null);
+    expect(result.current.taskTreeCommandError).toBe(null);
+  });
+
+  it("submits a manual retry command for the selected failed task", async () => {
+    const retryTask = vi.fn<RetryTaskCommand>(async (sessionId, taskNodeId, request) =>
+      acceptedCommandResponse({
+        commandId: request.commandId,
+        sessionId,
+        taskNodeId,
+      }),
+    );
+    const loadSnapshot = vi.fn<LoadMainPageSnapshot>(loadImmediateSnapshot);
+
+    const { result } = renderMainPageController({
+      adapter: testAdapter({
+        loadSnapshot,
+        retryTask,
+      }),
+      initialStateId: "s13-command-failed",
+    });
+
+    await waitFor(() => {
+      expect(result.current.snapshotData?.metadata.id).toBe(
+        "s13-command-failed",
+      );
+    });
+
+    act(() => {
+      result.current.actions.retryTask({
+        sessionId: "session-website-plan",
+        taskNodeId: "task-implementation",
+      });
+    });
+
+    await waitFor(() => {
+      expect(retryTask).toHaveBeenCalledWith(
+        "session-website-plan",
+        "task-implementation",
+        expect.objectContaining({
+          sessionId: "session-website-plan",
+          payload: { startImmediately: true },
+        }),
+      );
+    });
+    await waitFor(() => {
+      expect(loadSnapshot).toHaveBeenCalledTimes(2);
+    });
+
     expect(result.current.taskTreeCommandError).toBe(null);
   });
 
@@ -491,5 +540,37 @@ function messageAppendedEvent(sessionId: string): UiEvent {
       kind: "informational",
     },
     createdAt: "2026-05-17T10:21:00+08:00",
+  };
+}
+
+function acceptedCommandResponse({
+  commandId,
+  taskNodeId,
+}: {
+  commandId: string;
+  sessionId: string;
+  taskNodeId: string;
+}): CommandResponse {
+  return {
+    requestId: `request-${commandId}`,
+    ok: true,
+    result: {
+      commandId,
+      status: "accepted",
+      message: "accepted",
+      affectedTaskRefs: [{ kind: "published", id: taskNodeId }],
+      objectRefs: [],
+      affectedObjects: [],
+      emittedMessageIds: [],
+      publishedTaskIds: [`retry-${taskNodeId}`],
+      debugRefs: {},
+    },
+    error: null,
+    refresh: {
+      waitForEvents: false,
+      suggestedQueries: ["session.snapshot"],
+      affectedTaskRefs: [{ kind: "published", id: taskNodeId }],
+      affectedScopes: [],
+    },
   };
 }

@@ -596,7 +596,7 @@ class TaskCommandService(Protocol):
 | Add guidance to running Task | `append_task_message` | Append task-scoped message; running Agent may consume it next. |
 | Confirm option | `resolve_confirmation` | Append response message; confirmation becomes resolved. |
 | Publish draft tree | `publish_task_tree` | Validate draft, create published Tasks, publish through TaskPublisher/TaskBus. |
-| Retry failed Task | `retry_task` | Create a new follow-up/retry Task, preserving original as immutable history. |
+| Retry failed Task | `retry_task` | Move the same published Task from `failed` back to `pending`; preserve prior failure evidence in append-only messages, summaries, Audit, and logs. |
 
 ### 10.3 Status Permissions
 

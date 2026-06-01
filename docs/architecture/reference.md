@@ -1,6 +1,7 @@
 # TaskWeavn — 核心架构参考
 
 > 版本 v1.0 · 2026-05-08
+> Status: implemented core substrate reference / partial current implementation map
 >
 > 关联文档：
 > - [项目计划](../project/roadmap.md)
@@ -9,8 +10,9 @@
 >
 > 本文档面向**贡献者**：当你在某一层工作时，需要快速搞清楚"周围有哪些抽象、它们之间如何契约、对象的生命周期是怎样的"。
 >
-> 不重复设计动机（见上方关联文档）；只列**当前代码里有什么**、**Protocol 长什么样**、**对象什么时候被创建/释放**。
-> 范围：截至 Phase 3.6a。
+> 不重复设计动机（见上方关联文档）；只列 core substrate 中的实现对象、Protocol、对象生命周期。
+> 范围说明：本文最初截至 Phase 3.6a，仍适合理解 Action/Observation、Tool/Runtime、LLM provider、EventStream、MessageStream、AgentLoop 等底层 substrate。
+> Product 1.0 后续已经补齐 Authoring Domain、UI/backend contract、fixed-route execution bridge、result/error summary、Main Page projection、file summary projection 等事实。完整当前架构总览以 [overview.md](overview.md) 为准；Product 1.0 fixed-route execution 事实以 [Fixed-Route Task Execution Bridge release](../releases/fixed-route-task-execution-bridge.md) 为准。
 
 ---
 

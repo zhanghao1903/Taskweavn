@@ -110,6 +110,9 @@ export function createHttpMainPageAdapter({
     publishTaskTree(request) {
       return api.publishTaskTree(request);
     },
+    retryTask(nextSessionId, taskNodeId, request) {
+      return api.retryTask(nextSessionId, taskNodeId, request);
+    },
     runtimeKind: "http",
     sessionId: sessionId ?? null,
     showStatePicker,

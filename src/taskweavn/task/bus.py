@@ -16,9 +16,9 @@ class TaskBus(Protocol):
     """Published Task state authority.
 
     The bus owns published Task lifecycle transitions. It deliberately keeps
-    the state machine small: pending -> running -> done/failed. Higher-level
-    retry creates a new Task through TaskPublisher; skip is represented as a
-    failed terminal Task with a user-visible reason.
+    the state machine small: pending -> running -> done/failed, with manual
+    retry moving a failed Task back to pending on the same Task identity. Skip
+    is represented as a failed terminal Task with a user-visible reason.
     """
 
     def publish(self, task: TaskDomain) -> TaskDomain: ...
@@ -53,6 +53,14 @@ class TaskBus(Protocol):
         task_id: str,
         *,
         reason: str,
+    ) -> TaskDomain: ...
+
+    def retry(
+        self,
+        session_id: str,
+        task_id: str,
+        *,
+        instruction: str | None = None,
     ) -> TaskDomain: ...
 
     def get(self, session_id: str, task_id: str) -> TaskDomain | None: ...
@@ -170,6 +178,23 @@ class InMemoryTaskBus:
             self._tasks[(session_id, task_id)] = updated
             return updated
 
+    def retry(
+        self,
+        session_id: str,
+        task_id: str,
+        *,
+        instruction: str | None = None,
+    ) -> TaskDomain:
+        with self._lock:
+            task = self._require_task(session_id, task_id)
+            if task.status != "failed":
+                raise TaskStoreError(f"only failed tasks can be retried; got {task.status}")
+            updated = task.model_copy(
+                update=_retry_updates(task, instruction=instruction)
+            )
+            self._tasks[(session_id, task_id)] = updated
+            return updated
+
     def _load(self, task: TaskDomain) -> TaskDomain:
         key = (task.session_id, task.task_id)
         with self._lock:
@@ -208,7 +233,9 @@ class InMemoryTaskBus:
         if task.parent_id is None:
             return True
         parent = self._tasks.get((task.session_id, task.parent_id))
-        return parent is not None and parent.status == "done"
+        if parent is None:
+            return False
+        return parent.status == "done"
 
     def _transition_running(
         self,
@@ -245,6 +272,21 @@ class InMemoryTaskBus:
 
 def _utcnow() -> datetime:
     return datetime.now(UTC)
+
+
+def _retry_updates(task: TaskDomain, *, instruction: str | None) -> dict[str, object]:
+    updates: dict[str, object] = {
+        "status": "pending",
+        "result_ref": None,
+        "error_ref": None,
+        "claimed_by": None,
+        "started_at": None,
+        "completed_at": None,
+    }
+    retry_instruction = instruction.strip() if instruction is not None else ""
+    if retry_instruction:
+        updates["intent"] = f"{task.intent.rstrip()}\n\nRetry instruction:\n{retry_instruction}"
+    return updates
 
 
 __all__ = ["InMemoryTaskBus", "TaskBus", "TaskStore"]

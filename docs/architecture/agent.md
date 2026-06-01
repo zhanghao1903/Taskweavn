@@ -1,6 +1,8 @@
 # Agent 架构设计
 
-> 多 Agent 协作架构的核心抽象 · v1.1 · 2026-05-22
+> 多 Agent 协作架构的核心抽象 · v1.2 · 2026-05-31
+>
+> 2026-05-31 scope note: Product 1.0 通过固定 Default Agent route 执行 PublishedTask。Default Agent 有稳定 runtime boundary 和 system identity，但 Product 1.0 不引入 public Agent Manager、dynamic Agent assignment、custom Agent protocol 或 long-lived AgentLoop instance。Routing Agent 和 public Agent protocol 仍是 Product 1.1+ 方向。
 
 ---
 
@@ -17,7 +19,7 @@ Agent ≡ 一次性函数(Task, Session Workspace) → Result
 
 不存在"长生命周期 Agent"的概念。同种能力的 N 个并发任务对应 N 个独立的 Agent 实例。
 
-Routing Agent 是一个特殊 Agent role：它观察 pending Tasks 和可用 Agent 描述，提交 assignment command。它可以是硬规则、LLM 策略或高级用户自定义策略，但不能直接修改 Task 状态。
+Routing Agent 是一个特殊 Agent role：它观察 pending Tasks 和可用 Agent 描述，提交 assignment command。它可以是硬规则、LLM 策略或高级用户自定义策略，但不能直接修改 Task 状态。该能力是 Product 1.1+ routing foundation，不是 Product 1.0 固定路线执行闭环的依赖。
 
 ---
 
@@ -105,7 +107,7 @@ audit agent:
 
 ### 2.5 Routing Agent 是可插拔策略对象
 
-Task 路由策略不写死在 TaskBus。Routing Agent 负责决定 pending Task 应该交给哪个 Execution Agent：
+Task 路由策略不写死在 TaskBus。Product 1.1+ Routing Agent 负责决定 pending Task 应该交给哪个 Execution Agent：
 
 ```text
 pending Tasks + Agent descriptors
@@ -129,6 +131,8 @@ Routing Agent 的边界：
 - 不能绕过 TaskBus assignment / claim / completion validation。
 
 这让路由成为可插拔能力，同时保持 TaskBus 的状态权威。
+
+Product 1.0 note: fixed-route execution 使用 `FixedRouteTaskExecutor` 和 Resident Default Agent protocol。它不使用 Router / Routing Agent policy 或 Agent Manager 来选择 executor。
 
 ### 2.6 Agent Control Capabilities
 
@@ -371,6 +375,10 @@ def destroy(self):
 
 ## 6. 与其他组件的关系
 
+下图描述 Product 1.1+ routed Agent model。Product 1.0 fixed-route path 由
+`FixedRouteTaskExecutor -> ResidentDefaultAgent` 执行，不通过 AgentPool 选择
+executor。
+
 ```
         AgentPool (Session 内)
             │
@@ -404,7 +412,7 @@ def destroy(self):
 
 ## 7. 未来发展点
 
-### 7.1 v1.x：Agent Pool 预热
+### 7.1 Product 1.1+：Agent Pool 预热
 
 **减少冷启动成本**
 
@@ -418,7 +426,7 @@ class AgentPool:
 
 仅预热**资源**（LLM client、HTTP 连接），不预热**状态**——Template 保持无状态约束。
 
-### 7.2 v1.x：Capability 命名空间
+### 7.2 Product 1.1+：Capability 命名空间
 
 ```
 "audit"           ─ 通用审计

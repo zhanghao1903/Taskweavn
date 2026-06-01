@@ -224,7 +224,7 @@ def test_publish_draft_tree_converts_accepted_draft_to_published_tasks() -> None
     }
 
 
-def test_retry_failed_task_publishes_retry_root() -> None:
+def test_retry_failed_task_requeues_same_task_identity() -> None:
     failed = TaskDomain(
         task_id="failed",
         session_id="s1",
@@ -238,12 +238,16 @@ def test_retry_failed_task_publishes_retry_root() -> None:
     publisher = DefaultTaskPublisher(task_bus=bus)
 
     result = publisher.retry_task("s1", "failed", "Retry with safer steps")
-    retry = [task for task in bus.list_for_session("s1") if task.task_id != "failed"][0]
+    retried = bus.get("s1", "failed")
 
-    assert result.root_task_ids == (retry.task_id,)
-    assert retry.intent == "Retry with safer steps"
-    assert retry.dispatch_constraints is not None
-    assert retry.dispatch_constraints.metadata["retry_of"] == "failed"
+    assert result.root_task_ids == ("failed",)
+    assert result.rejected_task_ids == ()
+    assert [task.task_id for task in bus.list_for_session("s1")] == ["failed"]
+    assert retried is not None
+    assert retried.status == "pending"
+    assert retried.error_ref is None
+    assert retried.claimed_by is None
+    assert retried.intent.endswith("Retry with safer steps")
 
 
 def _request(

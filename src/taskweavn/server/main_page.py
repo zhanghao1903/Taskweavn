@@ -12,6 +12,16 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
+from taskweavn.context import (
+    ContextBuildRequest,
+    ContextBuildResult,
+    ControlContextSource,
+    EventStreamContextSource,
+    SessionAgentLoopContextProvider,
+    SessionContextManager,
+    SqliteContextStore,
+    TaskContextSource,
+)
 from taskweavn.core import (
     AgentLoop,
     LoopResult,
@@ -53,6 +63,7 @@ from taskweavn.server.ui_contract import (
     GenerateTaskTreePayload,
     PublishTaskTreePayload,
     ResolveConfirmationPayload,
+    RetryTaskPayload,
     UiCommandGateway,
     UpdateTaskNodePayload,
     WorkspaceAuditConfigProvider,
@@ -98,6 +109,8 @@ from taskweavn.task import (
     SqliteTaskBus,
     SqliteTaskExecutionSummaryStore,
     StaticCapabilityCatalog,
+    TaskBus,
+    TaskDomain,
     TaskExecutionSummaryStore,
     TaskExecutionSummaryViewStore,
     TaskExecutionTickResult,
@@ -298,6 +311,7 @@ def build_main_page_sidecar_app(
             default_agent = build_agent_loop_resident_default_agent(
                 layout=layout,
                 llm=dependencies.llm,
+                task_bus=task_bus,
                 max_steps=config.default_agent_max_steps,
                 result_summary_store=result_summary_store,
                 ui_event_store=ui_event_store,
@@ -331,6 +345,7 @@ def build_main_page_sidecar_app(
             task_store=task_bus,
             draft_store=draft_store,
             message_bus=message_bus,
+            published_task_retrier=task_bus,
             task_publisher=task_publisher,
         )
         task_projection = DefaultTaskProjectionService(
@@ -449,11 +464,23 @@ def build_agent_loop_resident_default_agent(
     *,
     layout: WorkspaceLayout,
     llm: Any,
+    task_bus: TaskBus | None = None,
     max_steps: int = 20,
     result_summary_store: TaskExecutionSummaryStore | None = None,
     ui_event_store: UiEventStore | None = None,
 ) -> AgentLoopResidentDefaultAgent:
     """Build the resident Default Agent used by the fixed-route sidecar bridge."""
+
+    context_builder_factory: Callable[[TaskDomain], _SessionContextBuilder] | None = None
+    if task_bus is not None:
+        def build_context_builder(task: TaskDomain) -> _SessionContextBuilder:
+            return _SessionContextBuilder(
+                layout=layout,
+                task_bus=task_bus,
+                session_id=task.session_id,
+            )
+
+        context_builder_factory = build_context_builder
 
     return AgentLoopResidentDefaultAgent(
         loop_factory=lambda task: _SessionAgentLoopRunner(
@@ -462,9 +489,41 @@ def build_agent_loop_resident_default_agent(
             session_id=task.session_id,
             max_steps=max_steps,
             ui_event_store=ui_event_store,
+            context_builder=(
+                None if context_builder_factory is None else context_builder_factory(task)
+            ),
         ),
+        context_builder_factory=context_builder_factory,
         result_summary_store=result_summary_store,
     )
+
+
+@dataclass(frozen=True)
+class _SessionContextBuilder:
+    """Build execution context from session-scoped durable sources."""
+
+    layout: WorkspaceLayout
+    task_bus: TaskBus
+    session_id: str
+
+    def build(self, request: ContextBuildRequest) -> ContextBuildResult:
+        self.layout.bootstrap_session(self.session_id)
+        with (
+            SqliteEventStream(self.layout.session_events_db(self.session_id)) as event_stream,
+            SqliteContextStore(self.layout.session_context_db(self.session_id)) as context_store,
+        ):
+            manager = SessionContextManager(
+                task_source=TaskContextSource(self.task_bus),
+                event_source=EventStreamContextSource(
+                    event_stream,
+                    workspace_id=f"session:{self.session_id}",
+                ),
+                control_source=ControlContextSource(
+                    allowed_tools=("read_file", "write_file", "list_dir", "run_command"),
+                ),
+                store=context_store,
+            )
+            return manager.build(request)
 
 
 @dataclass(frozen=True)
@@ -476,6 +535,7 @@ class _SessionAgentLoopRunner:
     session_id: str
     max_steps: int
     ui_event_store: UiEventStore | None = None
+    context_builder: _SessionContextBuilder | None = None
 
     def run(self, task: str, *, task_id: str | None = None) -> LoopResult:
         self.layout.bootstrap_session(self.session_id)
@@ -500,6 +560,11 @@ class _SessionAgentLoopRunner:
                 max_steps=self.max_steps,
                 session_id=self.session_id,
                 workspace_root=workspace.root,
+                context_provider=(
+                    None
+                    if self.context_builder is None
+                    else SessionAgentLoopContextProvider(self.context_builder)
+                ),
             )
             result = loop.run(task, task_id=task_id)
             if task_id is not None:
@@ -694,6 +759,13 @@ class _AuditEventCommandGateway:
         request: CommandRequest[PublishTaskTreePayload],
     ) -> CommandResponse:
         return self.inner.publish_task_tree(request)
+
+    def retry_task(
+        self,
+        task_node_id: str,
+        request: CommandRequest[RetryTaskPayload],
+    ) -> CommandResponse:
+        return self.inner.retry_task(task_node_id, request)
 
     def resolve_confirmation(
         self,

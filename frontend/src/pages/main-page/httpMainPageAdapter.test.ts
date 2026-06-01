@@ -243,6 +243,7 @@ function stubPlatoApi(snapshot: MainPageSnapshot) {
     updateTaskNode: vi.fn(async () => response),
     appendTaskInput: vi.fn(async () => response),
     publishTaskTree: vi.fn(async () => response),
+    retryTask: vi.fn(async () => response),
     resolveConfirmation: vi.fn(async () => response),
     subscribeSessionEvents: vi.fn(() => () => undefined),
     getAuditSnapshot: vi.fn(auditApi.getAuditSnapshot),
