@@ -263,6 +263,8 @@ uv run mypy src/taskweavn/server/ui_contract
 
 ### M-002: Extract Audit Projection And Disclosure
 
+Status: in progress. M-002A disclosure extraction completed on 2026-06-01.
+
 Goal: isolate Audit Page projection and sanitized disclosure policy from query
 gateway orchestration.
 
@@ -278,6 +280,17 @@ Acceptance:
 - Audit Page snapshot/detail/evidence tests remain unchanged;
 - hidden/partial/redacted/requested payload behavior remains unchanged;
 - A1-A14 mock parity is not weakened.
+
+Implementation notes:
+
+- M-002A created `audit_disclosure.py` for
+  `DefaultAuditPayloadDisclosureService`, request-time sanitized payload
+  generation, source reads, redaction, truncation, and path normalization.
+- `gateways.py` now imports the disclosure service and the two fallback helpers
+  needed by detail/evidence projection.
+- Sanitized payloads remain request-time only and are still not persisted.
+- M-002B should create `audit_projection.py` and move audit records, overview,
+  filters, detail, evidence, and config/log provider projection helpers.
 
 Suggested validation:
 
