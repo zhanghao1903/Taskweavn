@@ -666,6 +666,7 @@ def test_main_page_sidecar_app_fixed_route_tick_runs_agent_loop_default_agent(
         events_db = WorkspaceLayout(tmp_path).session_events_db(session_id)
         result_ref = tick.result_ref
         snapshot = _request(app, "GET", f"/api/v1/sessions/{session_id}/snapshot")
+        events = _request(app, "GET", f"/api/v1/sessions/{session_id}/events")
     finally:
         app.close()
 
@@ -687,6 +688,10 @@ def test_main_page_sidecar_app_fixed_route_tick_runs_agent_loop_default_agent(
         message["title"] == "Task completed" and message["body"] == "Loop completed."
         for message in snapshot.json["data"]["messages"]
     )
+    assert events.status == 200
+    assert "event: audit.records_changed" in events.text
+    assert '"reason":"agent_loop_event_stream_updated"' in events.text
+    assert '"taskNodeId":"loop-task"' in events.text
 
 
 def test_main_page_sidecar_app_projects_file_change_summary_from_agent_loop_events(

@@ -24,8 +24,9 @@ Current remaining exposure gaps:
 - Audit Page contracts, projection-backed routes, request-time sanitized
   payload disclosure, AP-013A runtime event/refetch design, AP-013B
   frontend event router/hook, AP-013C live refresh/stale/disconnected UI, and
-  AP-013D workspace-backed UI event replay source exist; runtime audit event
-  emission and final user-path validation remain open.
+  AP-013D workspace-backed UI event replay source exist; AP-013E now emits the
+  first AgentLoop/EventStream task-scoped audit event; broader source emission
+  and final user-path validation remain open.
 
 Without a clear exposure boundary, the product risks mixing three different
 concepts:
@@ -307,7 +308,8 @@ Deferred to P8.E5 / Audit:
 
 - broader hidden/partial evidence states beyond the AP-012 first pass;
 - evidence record ids and Audit detail links;
-- runtime audit event emission/source coverage beyond the AP-013D replay source.
+- runtime audit event emission/source coverage beyond the AP-013E
+  AgentLoop/EventStream source.
 
 ### P8.E5 Audit Entry Closure
 

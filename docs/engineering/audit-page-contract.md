@@ -72,10 +72,9 @@ Still not implemented:
   cursor, and frontend invalidation strategy; AP-013B wires the frontend event
   router/hook with mock subscription tests; AP-013C adds visible live
   refresh/stale/disconnected feedback; and AP-013D adds the workspace-backed
-  `SqliteUiEventSource` replay store. Runtime source changes still do not
-  append audit-specific events.
-- Broader runtime emission points for EventStream/log/config/confirmation
-  changes.
+  `SqliteUiEventSource` replay store. AP-013E emits the first task-scoped
+  `audit.records_changed` event after AgentLoop writes EventStream facts.
+- Broader runtime emission points for log/config/confirmation changes.
 - Product-grade mobile layout below the current supported minimum width.
 
 ## 1. Purpose
@@ -95,7 +94,7 @@ details, `ui_http.py` exposes the corresponding frontend endpoints, and the
 gateway can now fold in EventStream, log archive, logging manifest source
 records, and request-time sanitized payload disclosure when those sources
 exist. The remaining implementation gap is richer timeline aggregation plus
-runtime audit event emission/source coverage.
+broader runtime audit event emission/source coverage.
 
 This document defines the backend-to-frontend contract to unblock mock data,
 API implementation, Figma/dev handoff, and later frontend implementation.
@@ -121,16 +120,16 @@ API implementation, Figma/dev handoff, and later frontend implementation.
 
 | Area | Current state | Gap |
 |---|---|---|
-| Backend snapshot | `src/taskweavn/server/ui_contract/snapshots.py` defines `MainPageSnapshot` and additive `AuditPageSnapshot`; `DefaultUiQueryGateway` can populate it from Task projection, EventStream, log archive, and config manifest facts where available. | Full timeline/runtime audit emission behavior is still pending. |
+| Backend snapshot | `src/taskweavn/server/ui_contract/snapshots.py` defines `MainPageSnapshot` and additive `AuditPageSnapshot`; `DefaultUiQueryGateway` can populate it from Task projection, EventStream, log archive, and config manifest facts where available. | Full timeline/broader runtime audit emission behavior is still pending. |
 | Backend ViewModels | Audit Page scope, overview, record, record list result, detail, evidence, config/log link, permission, and page-state models exist. | Mapping remains productized; deeper timeline aggregation remains follow-up. |
-| HTTP routes | `src/taskweavn/server/ui_http.py` exposes session/task audit snapshot, records, record detail, evidence detail, and session event stream routes. | Runtime audit event emission is still pending. |
-| Events | `src/taskweavn/server/ui_contract/events.py` includes `audit.summary_updated` plus record/evidence/stale audit event builders. AP-013A defines runtime refetch semantics, and AP-013D adds workspace-backed `SqliteUiEventSource` cursor replay. | No runtime source appends audit-specific events yet. |
+| HTTP routes | `src/taskweavn/server/ui_http.py` exposes session/task audit snapshot, records, record detail, evidence detail, and session event stream routes. | Broader runtime audit event emission is still pending. |
+| Events | `src/taskweavn/server/ui_contract/events.py` includes `audit.summary_updated` plus record/evidence/stale audit event builders. AP-013A defines runtime refetch semantics, AP-013D adds workspace-backed `SqliteUiEventSource` cursor replay, and AP-013E appends task-scoped `audit.records_changed` after AgentLoop EventStream updates. | Log/config/confirmation-specific audit emissions remain follow-up. |
 | Frontend API types | `frontend/src/shared/api/types.ts` defines the Audit Page snapshot, request, overview, record, detail, evidence, permissions, and page-state types. | Keep aligned with backend contract as it evolves. |
 | Frontend API client/routes | `frontend/src/shared/api/platoApi.ts` defines audit query methods; `frontend/src/app/routes.ts` defines session/task audit routes; `App.tsx` now mounts session/task Audit Page routes. | Keep HTTP mode aligned as backend source coverage grows. |
 | Frontend audit entity | `frontend/src/entities/audit/model.ts` re-exports Audit Page API models and link helpers. | Add page-specific selectors/helpers when the real UI consumes the contract. |
 | Frontend audit mocks | `frontend/src/pages/audit-page/mockAuditScenarios.ts` and `mockAuditApi.ts` provide A1-A14 mock coverage. | Keep as acceptance fixtures for backend parity and future UI regression. |
 | Frontend UI boundary mapping | `frontend/src/shared/api/apiUiMapping.ts` includes Audit Page state-to-boundary mapping. | Exercised by the page shell; extend only when backend introduces new states. |
-| Frontend Audit Page UI | Audit Page route/shell/components exist, Main Page `View audit` routes to Audit Page, HTTP mode is wired, detail/evidence can request sanitized disclosure, AP-013B wires mock-backed runtime event-to-refetch behavior, and AP-013C shows live refresh/stale/disconnected feedback. | Add runtime audit event emission and richer runtime source coverage. |
+| Frontend Audit Page UI | Audit Page route/shell/components exist, Main Page `View audit` routes to Audit Page, HTTP mode is wired, detail/evidence can request sanitized disclosure, AP-013B wires mock-backed runtime event-to-refetch behavior, and AP-013C shows live refresh/stale/disconnected feedback. | Add richer runtime source coverage beyond the AP-013E AgentLoop/EventStream emission. |
 | Backend audit agent | `AuditAgent` emits `pass`, `fail`, `inconclusive`; EventStream-backed `AuditObservation` records are mapped to public verdicts when present. | Audit-specific event emission and broader audit-agent source coverage are still pending. |
 
 ## 4. Audit Verdict Model
@@ -788,7 +787,7 @@ remains.
 ## 16. Frontend Implementation Status And Remaining Touchpoints
 
 The frontend mock-backed Audit Page baseline exists. The remaining frontend
-work is backend parity, runtime audit event emission/source coverage,
+work is backend parity, broader runtime audit event emission/source coverage,
 mobile-specific polish, and later diagnostics/log handoff.
 
 | File | Current status | Later change |

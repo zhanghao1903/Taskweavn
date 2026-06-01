@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 from taskweavn.core import (
     AgentLoop,
@@ -38,13 +39,20 @@ from taskweavn.server.ui_command_idempotency import (
     UiCommandResponseIdempotencyStore,
 )
 from taskweavn.server.ui_contract import (
+    AuditTaskScope,
     DefaultUiCommandGateway,
     DefaultUiQueryGateway,
     WorkspaceAuditConfigProvider,
     WorkspaceAuditEventProvider,
     WorkspaceAuditLogProvider,
+    audit_records_changed,
 )
-from taskweavn.server.ui_events import SqliteUiEventSource, UiEventSource
+from taskweavn.server.ui_events import (
+    SqliteUiEventSource,
+    UiEventSource,
+    UiEventSourceError,
+    UiEventStore,
+)
 from taskweavn.server.ui_http import PlatoUiHttpTransport, SidecarAuth
 from taskweavn.task import (
     DEFAULT_FIXED_ROUTE_AGENT_ID,
@@ -266,6 +274,10 @@ def build_main_page_sidecar_app(
         result_summary_store = dependencies.result_summary_store or SqliteTaskExecutionSummaryStore(
             layout.workspace_results_db
         )
+        event_source = dependencies.event_source or SqliteUiEventSource(
+            layout.workspace_ui_events_db
+        )
+        ui_event_store = _ui_event_store(event_source)
         default_agent = dependencies.default_agent
         if default_agent is None and config.enable_default_agent:
             default_agent = build_agent_loop_resident_default_agent(
@@ -273,6 +285,7 @@ def build_main_page_sidecar_app(
                 llm=dependencies.llm,
                 max_steps=config.default_agent_max_steps,
                 result_summary_store=result_summary_store,
+                ui_event_store=ui_event_store,
             )
         execution_dispatcher = FixedRouteExecutionDispatcher(
             task_bus=task_bus,
@@ -334,9 +347,6 @@ def build_main_page_sidecar_app(
         ui_command_idempotency_store = (
             dependencies.ui_command_idempotency_store
             or SqliteUiCommandResponseIdempotencyStore(layout.workspace_ui_commands_db)
-        )
-        event_source = dependencies.event_source or SqliteUiEventSource(
-            layout.workspace_ui_events_db
         )
         transport = PlatoUiHttpTransport(
             query_gateway=query_gateway,
@@ -415,6 +425,7 @@ def build_agent_loop_resident_default_agent(
     llm: Any,
     max_steps: int = 20,
     result_summary_store: TaskExecutionSummaryStore | None = None,
+    ui_event_store: UiEventStore | None = None,
 ) -> AgentLoopResidentDefaultAgent:
     """Build the resident Default Agent used by the fixed-route sidecar bridge."""
 
@@ -424,6 +435,7 @@ def build_agent_loop_resident_default_agent(
             llm=llm,
             session_id=task.session_id,
             max_steps=max_steps,
+            ui_event_store=ui_event_store,
         ),
         result_summary_store=result_summary_store,
     )
@@ -437,6 +449,7 @@ class _SessionAgentLoopRunner:
     llm: Any
     session_id: str
     max_steps: int
+    ui_event_store: UiEventStore | None = None
 
     def run(self, task: str, *, task_id: str | None = None) -> LoopResult:
         self.layout.bootstrap_session(self.session_id)
@@ -462,7 +475,14 @@ class _SessionAgentLoopRunner:
                 session_id=self.session_id,
                 workspace_root=workspace.root,
             )
-            return loop.run(task, task_id=task_id)
+            result = loop.run(task, task_id=task_id)
+            if task_id is not None:
+                _emit_agent_loop_audit_records_changed(
+                    self.ui_event_store,
+                    session_id=self.session_id,
+                    task_id=task_id,
+                )
+            return result
         finally:
             event_stream.close()
 
@@ -602,6 +622,36 @@ def _write_sidecar_session_log_manifest(session: Session) -> LogArchiveManifest:
         encoding="utf-8",
     )
     return manifest
+
+
+def _ui_event_store(event_source: UiEventSource) -> UiEventStore | None:
+    if isinstance(event_source, UiEventStore):
+        return event_source
+    return None
+
+
+def _emit_agent_loop_audit_records_changed(
+    event_store: UiEventStore | None,
+    *,
+    session_id: str,
+    task_id: str,
+) -> None:
+    """Emit the first runtime Audit Page invalidation after AgentLoop writes events."""
+    if event_store is None:
+        return
+
+    event = audit_records_changed(
+        session_id,
+        cursor=f"audit:agent_loop:{session_id}:{task_id}:{uuid4().hex}",
+        scope=AuditTaskScope(
+            session_id=session_id,
+            task_node_id=task_id,
+            task_ref=TaskRef.published(task_id),
+        ),
+        reason="agent_loop_event_stream_updated",
+    )
+    with contextlib.suppress(UiEventSourceError):
+        event_store.append(event)
 
 
 def _default_capability_catalog() -> StaticCapabilityCatalog:
