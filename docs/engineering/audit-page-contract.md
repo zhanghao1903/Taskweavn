@@ -73,8 +73,10 @@ Still not implemented:
   router/hook with mock subscription tests; AP-013C adds visible live
   refresh/stale/disconnected feedback; and AP-013D adds the workspace-backed
   `SqliteUiEventSource` replay store. AP-013E emits the first task-scoped
-  `audit.records_changed` event after AgentLoop writes EventStream facts.
-- Broader runtime emission points for log/config/confirmation changes.
+  `audit.records_changed` event after AgentLoop writes EventStream facts, and
+  AP-013F adds config manifest, log archive, and confirmation resolution
+  `audit.records_changed` emissions.
+- Broader runtime emission points beyond AgentLoop/config/log/confirmation.
 - Product-grade mobile layout below the current supported minimum width.
 
 ## 1. Purpose
@@ -93,8 +95,10 @@ session/task audit snapshots, record lists, record details, and evidence
 details, `ui_http.py` exposes the corresponding frontend endpoints, and the
 gateway can now fold in EventStream, log archive, logging manifest source
 records, and request-time sanitized payload disclosure when those sources
-exist. The remaining implementation gap is richer timeline aggregation plus
-broader runtime audit event emission/source coverage.
+exist. Runtime refetch coverage now includes AgentLoop/EventStream updates,
+session logging manifest writes, frontend error log archive writes, and
+confirmation resolution. The remaining implementation gap is richer timeline
+aggregation plus broader runtime audit event emission/source coverage.
 
 This document defines the backend-to-frontend contract to unblock mock data,
 API implementation, Figma/dev handoff, and later frontend implementation.
@@ -120,16 +124,16 @@ API implementation, Figma/dev handoff, and later frontend implementation.
 
 | Area | Current state | Gap |
 |---|---|---|
-| Backend snapshot | `src/taskweavn/server/ui_contract/snapshots.py` defines `MainPageSnapshot` and additive `AuditPageSnapshot`; `DefaultUiQueryGateway` can populate it from Task projection, EventStream, log archive, and config manifest facts where available. | Full timeline/broader runtime audit emission behavior is still pending. |
+| Backend snapshot | `src/taskweavn/server/ui_contract/snapshots.py` defines `MainPageSnapshot` and additive `AuditPageSnapshot`; `DefaultUiQueryGateway` can populate it from Task projection, EventStream, log archive, and config manifest facts where available. | Full timeline/source orchestration remains pending. |
 | Backend ViewModels | Audit Page scope, overview, record, record list result, detail, evidence, config/log link, permission, and page-state models exist. | Mapping remains productized; deeper timeline aggregation remains follow-up. |
-| HTTP routes | `src/taskweavn/server/ui_http.py` exposes session/task audit snapshot, records, record detail, evidence detail, and session event stream routes. | Broader runtime audit event emission is still pending. |
-| Events | `src/taskweavn/server/ui_contract/events.py` includes `audit.summary_updated` plus record/evidence/stale audit event builders. AP-013A defines runtime refetch semantics, AP-013D adds workspace-backed `SqliteUiEventSource` cursor replay, and AP-013E appends task-scoped `audit.records_changed` after AgentLoop EventStream updates. | Log/config/confirmation-specific audit emissions remain follow-up. |
+| HTTP routes | `src/taskweavn/server/ui_http.py` exposes session/task audit snapshot, records, record detail, evidence detail, and session event stream routes. | More domain-specific source events can still be added as runtime surfaces grow. |
+| Events | `src/taskweavn/server/ui_contract/events.py` includes `audit.summary_updated` plus record/evidence/stale audit event builders. AP-013A defines runtime refetch semantics, AP-013D adds workspace-backed `SqliteUiEventSource` cursor replay, AP-013E appends task-scoped `audit.records_changed` after AgentLoop EventStream updates, and AP-013F appends config/log/confirmation source updates. | AuditAgent verdict-specific emissions and richer timeline ordering remain follow-up. |
 | Frontend API types | `frontend/src/shared/api/types.ts` defines the Audit Page snapshot, request, overview, record, detail, evidence, permissions, and page-state types. | Keep aligned with backend contract as it evolves. |
 | Frontend API client/routes | `frontend/src/shared/api/platoApi.ts` defines audit query methods; `frontend/src/app/routes.ts` defines session/task audit routes; `App.tsx` now mounts session/task Audit Page routes. | Keep HTTP mode aligned as backend source coverage grows. |
 | Frontend audit entity | `frontend/src/entities/audit/model.ts` re-exports Audit Page API models and link helpers. | Add page-specific selectors/helpers when the real UI consumes the contract. |
 | Frontend audit mocks | `frontend/src/pages/audit-page/mockAuditScenarios.ts` and `mockAuditApi.ts` provide A1-A14 mock coverage. | Keep as acceptance fixtures for backend parity and future UI regression. |
 | Frontend UI boundary mapping | `frontend/src/shared/api/apiUiMapping.ts` includes Audit Page state-to-boundary mapping. | Exercised by the page shell; extend only when backend introduces new states. |
-| Frontend Audit Page UI | Audit Page route/shell/components exist, Main Page `View audit` routes to Audit Page, HTTP mode is wired, detail/evidence can request sanitized disclosure, AP-013B wires mock-backed runtime event-to-refetch behavior, and AP-013C shows live refresh/stale/disconnected feedback. | Add richer runtime source coverage beyond the AP-013E AgentLoop/EventStream emission. |
+| Frontend Audit Page UI | Audit Page route/shell/components exist, Main Page `View audit` routes to Audit Page, HTTP mode is wired, detail/evidence can request sanitized disclosure, AP-013B wires mock-backed runtime event-to-refetch behavior, and AP-013C shows live refresh/stale/disconnected feedback. | Validate the broader source coverage through an end-to-end user path before release closure. |
 | Backend audit agent | `AuditAgent` emits `pass`, `fail`, `inconclusive`; EventStream-backed `AuditObservation` records are mapped to public verdicts when present. | Audit-specific event emission and broader audit-agent source coverage are still pending. |
 
 ## 4. Audit Verdict Model
@@ -775,7 +779,7 @@ remains.
 |---|---|---|
 | `src/taskweavn/server/ui_contract/view_models.py` | Done | Keep additive models stable; `AuditRecordsResult` now backs list-records responses. |
 | `src/taskweavn/server/ui_contract/snapshots.py` | Done | `AuditPageSnapshot` exists and is populated by the first projection-backed gateway. |
-| `src/taskweavn/server/ui_contract/events.py` | Done | Builders exist; next work should decide runtime emission points. |
+| `src/taskweavn/server/ui_contract/events.py` | Done | Builders exist; AgentLoop, config manifest, log archive, and confirmation source emissions now use `audit.records_changed`. |
 | `src/taskweavn/server/ui_contract/gateways.py` | Done first pass | `UiQueryGateway` and `DefaultUiQueryGateway` expose snapshot, records, detail, and evidence queries from Task projection facts. |
 | `src/taskweavn/server/ui_http.py` | Done first pass | Session/task audit snapshot, records, record detail, and evidence detail routes are mounted. |
 | `src/taskweavn/server/ui_contract/mapping.py` | Pending | Add shared mappers from timeline/audit agent/config/log facts to audit records if the gateway logic grows. |
@@ -787,8 +791,8 @@ remains.
 ## 16. Frontend Implementation Status And Remaining Touchpoints
 
 The frontend mock-backed Audit Page baseline exists. The remaining frontend
-work is backend parity, broader runtime audit event emission/source coverage,
-mobile-specific polish, and later diagnostics/log handoff.
+work is end-to-end runtime validation, mobile-specific polish, and later
+diagnostics/log handoff.
 
 | File | Current status | Later change |
 |---|---|---|
@@ -816,10 +820,10 @@ mobile-specific polish, and later diagnostics/log handoff.
    stricter product rule?
 3. Who can view hidden evidence reasons: all users, technical users, or only
    debug/diagnostics users?
-4. Should runtime Audit Page refetch listen to coarse non-audit events
-   (`message.appended`, `file_changes.updated`, `confirmation.resolved`) until
-   backend audit-specific emission is complete? AP-013A recommends yes as a
-   temporary conservative fallback.
+4. Should runtime Audit Page refetch continue to listen to coarse non-audit
+   events (`message.appended`, `file_changes.updated`,
+   `confirmation.resolved`) after AP-013F added audit-specific emissions for
+   the covered source set?
 5. How long are audit records retained for local sidecar sessions?
 6. Should file paths be shown as workspace-relative by default, and when should
    absolute paths be redacted?
@@ -864,8 +868,10 @@ Plan the next Audit Page hardening slice after AP-010/AP-011.
 Context:
 docs/engineering/audit-page-contract.md defines the Audit Page contract. The
 mock-backed frontend route, Main Page audit entry, A1-A14 scenarios, read-only
-UI shell, projection-backed backend audit routes, and query gateway are now in
-place. The next gap is richer source coverage and runtime behavior.
+UI shell, projection-backed backend audit routes, query gateway, workspace UI
+event replay, and first AgentLoop/config/log/confirmation runtime emissions
+are now in place. The next gap is richer timeline/source orchestration and
+release-readiness validation.
 
 Do not rewrite the Audit Page frontend contract unless the gap is documented
 first.
@@ -877,8 +883,8 @@ SQLite, or log rows directly to the frontend.
 Required work:
 1. Read docs/engineering/audit-page-contract.md and
    docs/product/plato-audit-page-ux-flow.md.
-2. Choose the next source coverage target: timeline ordering, AuditAgent
-   verdicts, effective config, or log references.
+2. Choose the next hardening target: timeline ordering, AuditAgent verdicts,
+   end-to-end runtime validation, or richer config/log detail.
 3. Extend the existing projection-backed gateway without changing the frontend
    contract unless a gap is documented first.
 4. Preserve explicit partial/not_available/hidden/error/stale states when a

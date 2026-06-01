@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import contextlib
+import re
 import threading
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -39,9 +40,21 @@ from taskweavn.server.ui_command_idempotency import (
     UiCommandResponseIdempotencyStore,
 )
 from taskweavn.server.ui_contract import (
+    AppendSessionInputPayload,
+    AppendTaskInputPayload,
+    AuditConfigScope,
+    AuditConfirmationScope,
+    AuditLogEvidenceScope,
     AuditTaskScope,
+    CommandRequest,
+    CommandResponse,
     DefaultUiCommandGateway,
     DefaultUiQueryGateway,
+    GenerateTaskTreePayload,
+    PublishTaskTreePayload,
+    ResolveConfirmationPayload,
+    UiCommandGateway,
+    UpdateTaskNodePayload,
     WorkspaceAuditConfigProvider,
     WorkspaceAuditEventProvider,
     WorkspaceAuditLogProvider,
@@ -100,6 +113,8 @@ from taskweavn.tools import (
 )
 
 DEFAULT_PLATO_SIDECAR_PORT = 52789
+_ID_SAFE_RE = re.compile(r"[^A-Za-z0-9_.:-]+")
+_FRONTEND_ERROR_LOG_FILENAME = "frontend-errors.jsonl"
 
 
 @dataclass(frozen=True)
@@ -157,7 +172,7 @@ class MainPageSidecarApp:
     default_agent: ResidentDefaultAgent | None
     execution_dispatcher: FixedRouteExecutionDispatcher | None
     query_gateway: DefaultUiQueryGateway
-    command_gateway: DefaultUiCommandGateway
+    command_gateway: UiCommandGateway
     transport: PlatoUiHttpTransport
     server: LocalSidecarServer
     _server_thread: threading.Thread | None = field(default=None, init=False)
@@ -335,7 +350,7 @@ def build_main_page_sidecar_app(
             session_message_provider=message_stream,
             authoring_state_store=authoring_state_store,
         )
-        command_gateway = DefaultUiCommandGateway(
+        core_command_gateway = DefaultUiCommandGateway(
             collaborator=collaborator,
             task_commands=task_commands,
             task_ref_resolver=MainPageTaskRefResolver(
@@ -343,6 +358,10 @@ def build_main_page_sidecar_app(
                 task_bus=task_bus,
             ),
             authoring_state_store=authoring_state_store,
+        )
+        command_gateway: UiCommandGateway = _AuditEventCommandGateway(
+            inner=core_command_gateway,
+            event_store=ui_event_store,
         )
         ui_command_idempotency_store = (
             dependencies.ui_command_idempotency_store
@@ -353,10 +372,17 @@ def build_main_page_sidecar_app(
             command_gateway=command_gateway,
             event_source=event_source,
             auth=None if config.auth_token is None else SidecarAuth(config.auth_token),
-            client_error_log_sink=FileClientErrorLogSink(layout),
+            client_error_log_sink=_AuditEventClientErrorLogSink(
+                inner=FileClientErrorLogSink(
+                    layout,
+                    filename=_FRONTEND_ERROR_LOG_FILENAME,
+                ),
+                event_store=ui_event_store,
+            ),
             session_lifecycle_gateway=MainPageSessionLifecycleGateway(
                 session_manager=session_manager,
                 configure_session_logging=logging_initializer,
+                ui_event_store=ui_event_store,
             ),
             command_idempotency_store=ui_command_idempotency_store,
             execution_trigger_gateway=execution_dispatcher,
@@ -509,6 +535,7 @@ class MainPageSessionLifecycleGateway:
 
     session_manager: SessionManager
     configure_session_logging: Callable[[Session], None] | None = None
+    ui_event_store: UiEventStore | None = None
 
     def list_sessions(self) -> dict[str, object]:
         return {"sessions": [_session_payload(session) for session in self.session_manager.list()]}
@@ -517,6 +544,11 @@ class MainPageSessionLifecycleGateway:
         session = self.session_manager.create(name)
         if self.configure_session_logging is not None:
             self.configure_session_logging(session)
+        if (session.logs_dir / "manifest.json").is_file():
+            _emit_config_manifest_audit_records_changed(
+                self.ui_event_store,
+                session_id=session.id,
+            )
         return {"sessionId": session.id, "session": _session_payload(session)}
 
     def rename_session(self, session_id: str, name: str) -> dict[str, object]:
@@ -624,10 +656,106 @@ def _write_sidecar_session_log_manifest(session: Session) -> LogArchiveManifest:
     return manifest
 
 
+@dataclass(frozen=True)
+class _AuditEventCommandGateway:
+    """Decorate UI commands that change Audit Page-backed source facts."""
+
+    inner: UiCommandGateway
+    event_store: UiEventStore | None = None
+
+    def append_session_input(
+        self,
+        request: CommandRequest[AppendSessionInputPayload],
+    ) -> CommandResponse:
+        return self.inner.append_session_input(request)
+
+    def generate_task_tree(
+        self,
+        request: CommandRequest[GenerateTaskTreePayload],
+    ) -> CommandResponse:
+        return self.inner.generate_task_tree(request)
+
+    def update_task_node(
+        self,
+        task_node_id: str,
+        request: CommandRequest[UpdateTaskNodePayload],
+    ) -> CommandResponse:
+        return self.inner.update_task_node(task_node_id, request)
+
+    def append_task_input(
+        self,
+        task_node_id: str,
+        request: CommandRequest[AppendTaskInputPayload],
+    ) -> CommandResponse:
+        return self.inner.append_task_input(task_node_id, request)
+
+    def publish_task_tree(
+        self,
+        request: CommandRequest[PublishTaskTreePayload],
+    ) -> CommandResponse:
+        return self.inner.publish_task_tree(request)
+
+    def resolve_confirmation(
+        self,
+        confirmation_id: str,
+        request: CommandRequest[ResolveConfirmationPayload],
+    ) -> CommandResponse:
+        response = self.inner.resolve_confirmation(confirmation_id, request)
+        if response.ok and response.result is not None:
+            _emit_confirmation_audit_records_changed(
+                self.event_store,
+                session_id=request.session_id,
+                confirmation_id=confirmation_id,
+                task_ref=response.result.affected_task_refs[0]
+                if response.result.affected_task_refs
+                else None,
+            )
+        return response
+
+
+@dataclass(frozen=True)
+class _AuditEventClientErrorLogSink:
+    """Append frontend error logs and emit an audit invalidation."""
+
+    inner: FileClientErrorLogSink
+    event_store: UiEventStore | None = None
+
+    def write_error(self, session_id: str, payload: dict[str, Any]) -> None:
+        self.inner.write_error(session_id, payload)
+        _emit_log_archive_audit_records_changed(
+            self.event_store,
+            session_id=session_id,
+            filename=self.inner.filename,
+        )
+
+
 def _ui_event_store(event_source: UiEventSource) -> UiEventStore | None:
     if isinstance(event_source, UiEventStore):
         return event_source
     return None
+
+
+def _emit_audit_records_changed(
+    event_store: UiEventStore | None,
+    *,
+    session_id: str,
+    cursor_source: str,
+    scope: object,
+    reason: str,
+    record_ids: tuple[str, ...] = (),
+) -> None:
+    if event_store is None:
+        return
+
+    event = audit_records_changed(
+        session_id,
+        cursor=f"audit:{cursor_source}:{session_id}:{uuid4().hex}",
+        scope=scope,
+        record_ids=record_ids,
+        reason=reason,
+    )
+    with contextlib.suppress(UiEventSourceError):
+        event_store.append(event)
 
 
 def _emit_agent_loop_audit_records_changed(
@@ -637,12 +765,10 @@ def _emit_agent_loop_audit_records_changed(
     task_id: str,
 ) -> None:
     """Emit the first runtime Audit Page invalidation after AgentLoop writes events."""
-    if event_store is None:
-        return
-
-    event = audit_records_changed(
-        session_id,
-        cursor=f"audit:agent_loop:{session_id}:{task_id}:{uuid4().hex}",
+    _emit_audit_records_changed(
+        event_store,
+        session_id=session_id,
+        cursor_source=f"agent_loop:{task_id}",
         scope=AuditTaskScope(
             session_id=session_id,
             task_node_id=task_id,
@@ -650,8 +776,66 @@ def _emit_agent_loop_audit_records_changed(
         ),
         reason="agent_loop_event_stream_updated",
     )
-    with contextlib.suppress(UiEventSourceError):
-        event_store.append(event)
+
+
+def _emit_confirmation_audit_records_changed(
+    event_store: UiEventStore | None,
+    *,
+    session_id: str,
+    confirmation_id: str,
+    task_ref: TaskRef | None = None,
+) -> None:
+    _emit_audit_records_changed(
+        event_store,
+        session_id=session_id,
+        cursor_source=f"confirmation:{confirmation_id}",
+        scope=AuditConfirmationScope(
+            session_id=session_id,
+            confirmation_id=confirmation_id,
+            task_node_id=None if task_ref is None else task_ref.id,
+        ),
+        record_ids=(f"record-confirmation-{confirmation_id}",),
+        reason="confirmation_resolved",
+    )
+
+
+def _emit_config_manifest_audit_records_changed(
+    event_store: UiEventStore | None,
+    *,
+    session_id: str,
+) -> None:
+    _emit_audit_records_changed(
+        event_store,
+        session_id=session_id,
+        cursor_source="config_manifest",
+        scope=AuditConfigScope(session_id=session_id, config_key="logging"),
+        record_ids=("record-config-logging-manifest",),
+        reason="config_manifest_updated",
+    )
+
+
+def _emit_log_archive_audit_records_changed(
+    event_store: UiEventStore | None,
+    *,
+    session_id: str,
+    filename: str,
+) -> None:
+    record_id = f"record-log-{_safe_token(filename)}"
+    _emit_audit_records_changed(
+        event_store,
+        session_id=session_id,
+        cursor_source=f"log_archive:{filename}",
+        scope=AuditLogEvidenceScope(
+            session_id=session_id,
+            evidence_id=f"evidence-{record_id}",
+        ),
+        record_ids=(record_id,),
+        reason="log_archive_updated",
+    )
+
+
+def _safe_token(value: str) -> str:
+    return _ID_SAFE_RE.sub("-", value).strip("-") or "item"
 
 
 def _default_capability_catalog() -> StaticCapabilityCatalog:

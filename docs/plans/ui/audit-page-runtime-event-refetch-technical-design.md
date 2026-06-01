@@ -381,8 +381,9 @@ Checks:
 | AP-013B | Add frontend Audit Page event router/hook with mocked `subscribeSessionEvents`. | Done: unit tests prove event-to-refetch behavior without backend emission. |
 | AP-013C | Add UI live refresh/stale/disconnected feedback. | Done: Audit Page remains readable while event refetch is pending; stale and disconnected states are visible. |
 | AP-013D | Add workspace-backed UI event store/source or equivalent first live source. | Done: `SqliteUiEventSource` persists workspace UI events, SSE can replay events after cursor, and unknown cursor emits resync. |
-| AP-013E | Emit audit events from the first runtime/source change points. | Done first pass: AgentLoop-backed Task execution appends task-scoped `audit.records_changed` after EventStream updates; log/config/confirmation emissions remain follow-up. |
-| AP-013F | End-to-end smoke and docs/readiness closure. | A1-A14 fixtures still pass; one HTTP mode audit page updates after a runtime event. |
+| AP-013E | Emit audit events from the first runtime/source change points. | Done first pass: AgentLoop-backed Task execution appends task-scoped `audit.records_changed` after EventStream updates; log/config/confirmation emissions were split into AP-013F. |
+| AP-013F | Broaden runtime/source change point coverage. | Done: session logging manifest writes, frontend error log archive writes, and confirmation resolution append `audit.records_changed` through the workspace UI event source. |
+| AP-013G | End-to-end smoke and docs/readiness closure. | A1-A14 fixtures still pass; one HTTP mode audit page updates after runtime events across the covered source types. |
 
 ---
 

@@ -379,7 +379,7 @@ frontend/src/pages/audit-page/mockAuditApi.ts
 状态：基础 contract 已完成，真实后端 route/gateway/aggregation 已完成第一版；
 前端 runtime event-to-refetch baseline 已完成；后端 workspace-backed event
 replay source 已完成；AgentLoop/EventStream 第一条 runtime emission 已完成；
-更广泛的 log/config/confirmation emission 仍待做。
+log/config/confirmation source emission 已完成第一版。
 
 目标：把 mock API 收敛为真实后端可实现的 Audit Page 合约。
 
@@ -458,8 +458,9 @@ timeline 和 runtime audit events 仍是后续增强；sanitized payload disclos
     event router/hook 与 mock subscription 测试已完成，AP-013C live
     refresh/stale/disconnected 状态承载已完成，AP-013D workspace-backed
     event replay source 已完成，AP-013E AgentLoop/EventStream 第一条
-    task-scoped `audit.records_changed` emission 已完成；更广泛 source
-    coverage 仍待做。
+    task-scoped `audit.records_changed` emission 已完成，AP-013F config
+    manifest、frontend error log archive、confirmation resolution source
+    emission 已完成；更广泛 AuditAgent/timeline source coverage 是后续工作。
 
 验收标准：
 
@@ -539,7 +540,7 @@ docs/user_cases/terminal_outputs/UC-007-audit-page-trust-flow.txt
 | AP-010 | 实现后端 audit projection adapter | server API boundary | Done first pass; richer timeline/audit-agent sources remain follow-up |
 | AP-011 | 接入真实审计后端通信 | UI real mode | Done first pass; runtime audit events/refetch remain follow-up |
 | AP-012 | Sanitized payload disclosure | contract tests + backend sanitizer + frontend detail rendering | Done first pass; broader source policy remains follow-up |
-| AP-013 | Runtime audit event/refetch | event/refetch design + frontend subscription + live source/emission | AP-013A-E done; AP-013F pending |
+| AP-013 | Runtime audit event/refetch | event/refetch design + frontend subscription + live source/emission | AP-013A-F done; AP-013G readiness validation pending |
 | AP-014 | 第一轮用户测试 | UC-007 + findings | Ready after AP-013 or can run earlier with manual refresh caveat |
 
 ---
@@ -571,7 +572,7 @@ AP-005H readiness cleanup / status synchronization
   -> AP-010 后端 audit query gateway / projection adapter（第一版已完成）
   -> AP-011 前端 HTTP mode 真实审计路径联调（第一版已完成）
   -> AP-012 sanitized payload disclosure（第一版已完成）
-  -> AP-013 runtime audit event/refetch（AP-013A-E 已完成，AP-013F 待实现）
+  -> AP-013 runtime audit event/refetch（AP-013A-F 已完成，AP-013G 待验收）
   -> Phase 9 用户测试 / 或补强 timeline + AuditAgent audit evidence
 ```
 
