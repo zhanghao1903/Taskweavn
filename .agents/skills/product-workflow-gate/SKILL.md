@@ -46,6 +46,7 @@ Workflow Gate Report:
 - Do not invent API shapes in UI code.
 - Do not ignore loading, empty, error, success, disabled, permission, and responsive states.
 - For Figma tasks, require exact frame/component/variant links and map Figma elements to existing components before coding.
+- For maintenance, refactor, architecture hygiene, large-file review, or work on files already over 800 lines, run `.agents/skills/maintainability-gate/SKILL.md` after this workflow gate and before editing code.
 
 ## Final response format
 

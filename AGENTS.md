@@ -70,6 +70,33 @@ Canonical Figma rules:
   `docs/design/figma-migration-plan.md`, and
   `docs/design/figma-readiness-checklist.md`.
 
+## Maintainability gate
+
+For maintenance, refactor, architecture hygiene, large-file review, module
+boundary cleanup, test restructuring, or any task that adds behavior to files
+already over 800 lines, use the repo-scoped skill:
+
+```text
+.agents/skills/maintainability-gate/SKILL.md
+```
+
+This skill is required after the product workflow gate and before code edits
+for maintenance-sensitive tasks. It must produce a Maintainability Gate Report
+that says whether the task should proceed narrowly, refactor first, or block
+until a refactor plan exists.
+
+Default maintainability rules:
+
+- Files over 800 lines require explicit review before adding production
+  behavior.
+- Files over 1200 lines require a refactor assessment before new feature work.
+- Files over 2000 lines should not receive more broad behavior without a
+  dedicated refactor plan or explicit exemption.
+- If a file mixes three or more major responsibilities, prefer a
+  zero-behavior split before adding more behavior.
+- Keep future reusable maintenance lessons in
+  `.agents/skills/maintainability-gate/SKILL.md`.
+
 ## Missing dependency policy
 
 If an upstream artifact is missing:
