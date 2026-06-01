@@ -241,6 +241,52 @@
   line-height: 18px;
 }
 
+.liveStatus {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin: -4px 0 16px;
+  padding: 12px 14px;
+  border-left: 4px solid var(--plato-color-primitive-cave-blue);
+}
+
+.liveStatus strong {
+  display: block;
+  color: var(--plato-color-semantic-text-primary);
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 600;
+}
+
+.liveStatus p {
+  margin: 2px 0 0;
+  color: var(--plato-color-semantic-text-secondary);
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.liveStatusMeta {
+  flex: 0 0 auto;
+  color: var(--plato-color-semantic-text-tertiary);
+  font-size: 12px;
+  line-height: 17px;
+}
+
+.liveStatusRefreshing {
+  background: var(--plato-color-primitive-clear-blue);
+}
+
+.liveStatusStale {
+  border-left-color: var(--plato-color-warning-text);
+  background: var(--plato-color-warning-bg);
+}
+
+.liveStatusDisconnected {
+  border-left-color: var(--plato-color-danger-text);
+  background: var(--plato-color-danger-bg);
+}
+
 .overviewTitle {
   margin: 0 0 10px;
   font-size: 18px;

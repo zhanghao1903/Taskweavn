@@ -32,10 +32,23 @@ export type AuditPageRuntimeEventAction =
 
 export type AuditPageRuntimeEventApi = Pick<PlatoApi, "subscribeSessionEvents">;
 
+export type AuditPageRuntimeStatus =
+  | "connected"
+  | "disconnected"
+  | "refreshing"
+  | "stale";
+
+export type AuditPageRuntimeState = {
+  eventCursor: EventCursor | null;
+  message: string | null;
+  status: AuditPageRuntimeStatus;
+};
+
 export type AuditPageRuntimeEventOptions = AuditPageRuntimeEventContext & {
   api: AuditPageRuntimeEventApi;
   cursor: EventCursor | null;
   enabled: boolean;
+  onRuntimeStateChange?: (state: AuditPageRuntimeState) => void;
   refetchDetail: () => Promise<unknown> | unknown;
   refetchEvidence: () => Promise<unknown> | unknown;
   refetchSnapshot: () => Promise<unknown> | unknown;
@@ -61,19 +74,28 @@ export function useAuditPageRuntimeEvents({
   refetchDetail,
   refetchEvidence,
   refetchSnapshot,
+  onRuntimeStateChange,
   selectedEvidenceId,
   selectedRecordId,
   sessionId,
   taskNodeId,
 }: AuditPageRuntimeEventOptions): void {
   const lastEventCursorRef = useRef<EventCursor | null>(null);
+  const refreshGenerationRef = useRef(0);
 
   useEffect(() => {
     if (!enabled) {
       return undefined;
     }
 
+    let active = true;
     let unsubscribe: (() => void) | null = null;
+    const setRuntimeState = (state: AuditPageRuntimeState) => {
+      if (active) {
+        onRuntimeStateChange?.(state);
+      }
+    };
+
     try {
       unsubscribe = api.subscribeSessionEvents(sessionId, cursor, (event) => {
         if (event.cursor === lastEventCursorRef.current) {
@@ -92,24 +114,46 @@ export function useAuditPageRuntimeEvents({
         }
 
         lastEventCursorRef.current = event.cursor;
+        const generation = refreshGenerationRef.current + 1;
+        refreshGenerationRef.current = generation;
+        setRuntimeState(runtimeStateForEvent(event, action));
 
+        const refetches: Array<Promise<unknown>> = [];
         if (action.refetchSnapshot) {
-          void refetchSnapshot();
+          refetches.push(Promise.resolve(refetchSnapshot()));
         }
         if (action.refetchDetail) {
-          void refetchDetail();
+          refetches.push(Promise.resolve(refetchDetail()));
         }
         if (action.refetchEvidence) {
-          void refetchEvidence();
+          refetches.push(Promise.resolve(refetchEvidence()));
         }
+        void Promise.allSettled(refetches).then(() => {
+          if (refreshGenerationRef.current === generation) {
+            setRuntimeState({
+              eventCursor: event.cursor,
+              message: null,
+              status: "connected",
+            });
+          }
+        });
       });
-    } catch {
-      // AP-013B intentionally keeps live-refresh failures non-blocking. AP-013C
-      // will add visible live-state feedback for disconnected/stale states.
+      setRuntimeState({
+        eventCursor: cursor,
+        message: null,
+        status: "connected",
+      });
+    } catch (error) {
+      setRuntimeState({
+        eventCursor: cursor,
+        message: runtimeErrorMessage(error),
+        status: "disconnected",
+      });
       return undefined;
     }
 
     return () => {
+      active = false;
       unsubscribe?.();
     };
   }, [
@@ -119,6 +163,7 @@ export function useAuditPageRuntimeEvents({
     refetchDetail,
     refetchEvidence,
     refetchSnapshot,
+    onRuntimeStateChange,
     selectedEvidenceId,
     selectedRecordId,
     sessionId,
@@ -204,6 +249,33 @@ function refetchAction({
     refetchSnapshot: snapshot,
     resync,
   };
+}
+
+function runtimeStateForEvent(
+  event: UiEvent,
+  action: Extract<AuditPageRuntimeEventAction, { kind: "refetch" }>,
+): AuditPageRuntimeState {
+  if (action.resync) {
+    return {
+      eventCursor: event.cursor,
+      message: "Refreshing from source; current evidence remains readable.",
+      status: "stale",
+    };
+  }
+
+  return {
+    eventCursor: event.cursor,
+    message: "Live audit stream is applying new records.",
+    status: "refreshing",
+  };
+}
+
+function runtimeErrorMessage(error: unknown): string {
+  if (error instanceof Error && error.message.trim() !== "") {
+    return error.message;
+  }
+
+  return "Runtime event subscription is unavailable.";
 }
 
 function eventAffectsCurrentScope(

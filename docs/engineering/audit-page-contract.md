@@ -70,7 +70,8 @@ Still not implemented:
 - Dedicated audit storage/query projection beyond productized records.
 - Runtime audit event/refetch backend implementation. AP-013A defines the
   event, scope, cursor, and frontend invalidation strategy; AP-013B wires the
-  frontend event router/hook with mock subscription tests.
+  frontend event router/hook with mock subscription tests, and AP-013C adds
+  visible live refresh/stale/disconnected feedback.
 - Broader runtime emission points for EventStream/log/config/confirmation
   changes.
 - Product-grade mobile layout below the current supported minimum width.
@@ -127,7 +128,7 @@ API implementation, Figma/dev handoff, and later frontend implementation.
 | Frontend audit entity | `frontend/src/entities/audit/model.ts` re-exports Audit Page API models and link helpers. | Add page-specific selectors/helpers when the real UI consumes the contract. |
 | Frontend audit mocks | `frontend/src/pages/audit-page/mockAuditScenarios.ts` and `mockAuditApi.ts` provide A1-A14 mock coverage. | Keep as acceptance fixtures for backend parity and future UI regression. |
 | Frontend UI boundary mapping | `frontend/src/shared/api/apiUiMapping.ts` includes Audit Page state-to-boundary mapping. | Exercised by the page shell; extend only when backend introduces new states. |
-| Frontend Audit Page UI | Audit Page route/shell/components exist, Main Page `View audit` routes to Audit Page, HTTP mode is wired, detail/evidence can request sanitized disclosure, and AP-013B wires mock-backed runtime event-to-refetch behavior. | Add live stale/disconnected feedback and backend runtime event source/emission. |
+| Frontend Audit Page UI | Audit Page route/shell/components exist, Main Page `View audit` routes to Audit Page, HTTP mode is wired, detail/evidence can request sanitized disclosure, AP-013B wires mock-backed runtime event-to-refetch behavior, and AP-013C shows live refresh/stale/disconnected feedback. | Add backend runtime event source/emission and richer runtime source coverage. |
 | Backend audit agent | `AuditAgent` emits `pass`, `fail`, `inconclusive`; EventStream-backed `AuditObservation` records are mapped to public verdicts when present. | Runtime refetch/events and broader audit-agent source coverage are still pending. |
 
 ## 4. Audit Verdict Model
@@ -803,7 +804,7 @@ and later diagnostics/log handoff.
 | `frontend/src/app/App.tsx` | Done | Keep Audit Page route matching aligned with route helpers. |
 | `frontend/src/app/App.test.tsx` | Done | Reserved-entry assertion replaced after navigation was enabled. |
 | `frontend/src/pages/main-page/*` | Done | Main Page `View audit` routes to session/task audit when the route is available; explicit fallback can still disable it. |
-| `frontend/src/pages/audit-page/*` runtime hook/router | Done first pass | AP-013B implements Audit Page event-to-refetch behavior with mocked `subscribeSessionEvents`; live state UI remains AP-013C. |
+| `frontend/src/pages/audit-page/*` runtime hook/router | Done first pass | AP-013B implements Audit Page event-to-refetch behavior with mocked `subscribeSessionEvents`; AP-013C adds non-blocking live refresh/stale/disconnected status UI. |
 | `frontend/src/pages/main-page/runtime/eventRouter.ts` | Reference only | Main Page event routing exists; Audit Page should use a scoped audit-specific router rather than making Main Page own trust-plane refresh. |
 
 ## 17. Open Product Questions

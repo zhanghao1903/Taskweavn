@@ -4,7 +4,7 @@
 > Last Updated: 2026-06-01
 > Scope: AP-005 mock-backed Audit Page frontend baseline, AP-010/AP-011
 > projection-backed backend query path, AP-012 sanitized payload disclosure
-> first pass, AP-013A-B runtime event/refetch frontend baseline, and remaining
+> first pass, AP-013A-C runtime event/refetch frontend baseline, and remaining
 > backend handoff.
 > Related:
 > [Audit Page Implementation Plan](audit-page-project-implementation-plan.md),
@@ -37,8 +37,8 @@ real HTTP query path plus first source hardening for EventStream, session log
 archive, and logging manifest records. Timeline orchestration, runtime audit
 events, and broader disclosure source coverage are still future work.
 Sanitized payload disclosure now has a first request-time implementation path,
-and AP-013A-B define and implement the frontend event-to-refetch baseline with
-mocked runtime subscriptions.
+and AP-013A-C define and implement the frontend event-to-refetch baseline with
+mocked runtime subscriptions plus live refresh/stale/disconnected feedback.
 
 ---
 
@@ -94,7 +94,7 @@ next phase.
 | Backend audit query gateway | First projection-backed path implemented | `DefaultUiQueryGateway` can now produce Audit Page snapshot, records, record detail, and evidence detail from Task projection facts. |
 | HTTP audit routes | First path implemented | `ui_http.py` now exposes the frontend API methods for snapshot, records, record detail, and evidence detail. |
 | Real data aggregation | Partial | Current source is Task projection plus message/confirmation/file/result facts, EventStream action/observation/AuditObservation records, and session log/config references when present. Timeline orchestration and runtime audit events remain pending. |
-| Runtime audit events/refetch | Frontend baseline implemented | Existing event builders are additive, [AP-013A runtime event/refetch design](audit-page-runtime-event-refetch-technical-design.md) defines event scope, cursor, stale/resync, and frontend invalidation rules, and AP-013B wires the Audit Page frontend event router/hook with mock subscription tests. No backend runtime source emits audit-specific events yet. |
+| Runtime audit events/refetch | Frontend baseline implemented | Existing event builders are additive, [AP-013A runtime event/refetch design](audit-page-runtime-event-refetch-technical-design.md) defines event scope, cursor, stale/resync, and frontend invalidation rules, AP-013B wires the Audit Page frontend event router/hook with mock subscription tests, and AP-013C adds non-blocking live refresh/stale/disconnected UI feedback. No backend runtime source emits audit-specific events yet. |
 | Sanitized payload disclosure | First pass implemented | Contract keeps default hidden/sanitized behavior. AP-012C-E cover contract tests, request-time backend generation/injection, and frontend detail/evidence rendering; sanitized payload is not stored. |
 | Mobile-specific layout below 960px | Deferred | Page remains reachable with scrolling; product-grade mobile UX is later polish. |
 | User testing | Ready to prepare | At least one real backend path exists; user testing still needs a chosen scenario and runbook. |
@@ -113,6 +113,7 @@ AP-012C-E: sanitized payload contract tests, backend request-time generation,
 and frontend detail/evidence rendering
 AP-013A: runtime audit event/refetch technical design
 AP-013B: frontend Audit Page event router/hook with mocked event-to-refetch tests
+AP-013C: frontend live refresh/stale/disconnected status feedback
 ```
 
 Implemented first pass:
@@ -132,7 +133,7 @@ Implemented first pass:
 Remaining backend work:
 
 1. Add `TaskInteractionTimelineService` as a richer ordering/evidence source.
-2. Add live runtime feedback UI and backend audit runtime event source/emission.
+2. Add backend audit runtime event source/emission.
 3. Extend sanitized payload source coverage as EventStream/log/config evidence
    detail sources become richer.
 4. Decide whether user testing or deeper backend aggregation should happen next.

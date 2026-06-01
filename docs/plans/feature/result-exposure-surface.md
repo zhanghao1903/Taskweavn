@@ -22,9 +22,10 @@ Current remaining exposure gaps:
 - raw `Observation` / EventStream facts exist and can be summarized into Audit
   records in the first backend path, but they are not default Main Page content;
 - Audit Page contracts, projection-backed routes, request-time sanitized
-  payload disclosure, AP-013A runtime event/refetch design, and AP-013B
-  frontend event router/hook exist; live stale/disconnected UI, backend runtime
-  event source/emission, and final user-path validation remain open.
+  payload disclosure, AP-013A runtime event/refetch design, AP-013B
+  frontend event router/hook, and AP-013C live refresh/stale/disconnected UI
+  exist; backend runtime event source/emission and final user-path validation
+  remain open.
 
 Without a clear exposure boundary, the product risks mixing three different
 concepts:

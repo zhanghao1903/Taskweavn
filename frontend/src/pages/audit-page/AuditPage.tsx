@@ -21,12 +21,14 @@ import type {
 } from "../../shared/api/types";
 import { cx } from "../../shared/utils/cx";
 import { PlatoProductMark } from "../main-page/PlatoProductMark";
+import type { AuditPageRuntimeState } from "./auditRuntimeEvents";
 import styles from "./AuditPage.module.css";
 
 export type AuditPageProps = {
   detailState?: AuditRecordDetailState;
   errorMessage?: string | null;
   isLoading?: boolean;
+  liveState?: AuditPageRuntimeState;
   onCloseDetail?: () => void;
   onRetry?: () => void;
   onSelectFilter?: (filter: AuditFilterKind) => void;
@@ -66,6 +68,7 @@ export function AuditPage({
   detailState = { errorMessage: null, isLoading: false },
   errorMessage = null,
   isLoading = false,
+  liveState,
   onCloseDetail,
   onRetry,
   onSelectFilter,
@@ -109,6 +112,8 @@ export function AuditPage({
   return (
     <AuditPageFrame snapshot={snapshot}>
       <AuditHeader boundary={boundary} snapshot={snapshot} />
+
+      <LiveStatusNotice liveState={liveState} />
 
       {boundary.kind !== "ready" && (
         <BoundaryBanner boundary={boundary} onRetry={onRetry} />
@@ -295,6 +300,74 @@ function VerdictNotice({ snapshot }: { snapshot: AuditPageSnapshot }) {
       </div>
     </section>
   );
+}
+
+function LiveStatusNotice({
+  liveState,
+}: {
+  liveState?: AuditPageRuntimeState;
+}) {
+  if (liveState === undefined || liveState.status === "connected") {
+    return null;
+  }
+
+  const copy = liveStatusCopy(liveState);
+
+  return (
+    <section
+      aria-live="polite"
+      className={cx(
+        styles.panel,
+        styles.liveStatus,
+        liveState.status === "refreshing" && styles.liveStatusRefreshing,
+        liveState.status === "stale" && styles.liveStatusStale,
+        liveState.status === "disconnected" && styles.liveStatusDisconnected,
+      )}
+      role="status"
+    >
+      <div>
+        <strong>{copy.title}</strong>
+        <p>{copy.message}</p>
+      </div>
+      {liveState.eventCursor !== null && (
+        <span className={styles.liveStatusMeta}>
+          Cursor: {liveState.eventCursor}
+        </span>
+      )}
+    </section>
+  );
+}
+
+function liveStatusCopy(
+  liveState: AuditPageRuntimeState,
+): { message: string; title: string } {
+  switch (liveState.status) {
+    case "refreshing":
+      return {
+        message:
+          liveState.message ?? "Live audit stream is applying new records.",
+        title: "Updating audit evidence",
+      };
+    case "stale":
+      return {
+        message:
+          liveState.message ??
+          "Refreshing from source; current evidence remains readable.",
+        title: "Audit snapshot may be stale",
+      };
+    case "disconnected":
+      return {
+        message:
+          liveState.message ??
+          "Manual refresh still works; this page may not update automatically.",
+        title: "Live audit updates unavailable",
+      };
+    case "connected":
+      return {
+        message: "",
+        title: "",
+      };
+  }
 }
 
 function FilterRail({

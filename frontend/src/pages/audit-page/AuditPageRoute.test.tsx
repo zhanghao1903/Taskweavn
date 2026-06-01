@@ -425,6 +425,84 @@ describe("AuditPageRoute", () => {
     });
   });
 
+  it("shows live refreshing state while runtime snapshot refetch is pending", async () => {
+    const { api, emit, holdNextSnapshotRefetch, resolveSnapshotRefetch } =
+      createSubscribedAuditApiWithPendingSnapshot("a3-records-ready");
+
+    renderWithQueryClient(
+      <AuditPageRoute
+        api={api}
+        location={{
+          pathname: "/sessions/session-website-plan/tasks/task-implementation/audit",
+          search: "",
+        }}
+      />,
+    );
+
+    expect(await screen.findByRole("heading", { name: "Audit" })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(api.subscribeSessionEvents).toHaveBeenCalled();
+    });
+
+    holdNextSnapshotRefetch();
+    emit(
+      uiEvent({
+        cursor: "cursor-runtime-refreshing",
+        eventType: "audit.records_changed",
+      }),
+    );
+
+    expect(await screen.findByText("Updating audit evidence")).toBeInTheDocument();
+    expect(
+      screen.getByText("Live audit stream is applying new records."),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Cursor: cursor-runtime-refreshing")).toBeInTheDocument();
+
+    await resolveSnapshotRefetch();
+    await waitFor(() => {
+      expect(screen.queryByText("Updating audit evidence")).not.toBeInTheDocument();
+    });
+  });
+
+  it("shows stale live state while runtime resync refetch is pending", async () => {
+    const { api, emit, holdNextSnapshotRefetch, resolveSnapshotRefetch } =
+      createSubscribedAuditApiWithPendingSnapshot("a3-records-ready");
+
+    renderWithQueryClient(
+      <AuditPageRoute
+        api={api}
+        location={{
+          pathname: "/sessions/session-website-plan/tasks/task-implementation/audit",
+          search: "",
+        }}
+      />,
+    );
+
+    expect(await screen.findByRole("heading", { name: "Audit" })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(api.subscribeSessionEvents).toHaveBeenCalled();
+    });
+
+    holdNextSnapshotRefetch();
+    emit(
+      uiEvent({
+        cursor: "cursor-runtime-stale",
+        eventType: "audit.snapshot_stale",
+      }),
+    );
+
+    expect(await screen.findByText("Audit snapshot may be stale")).toBeInTheDocument();
+    expect(
+      screen.getByText("Refreshing from source; current evidence remains readable."),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Cursor: cursor-runtime-stale")).toBeInTheDocument();
+
+    await resolveSnapshotRefetch();
+    await waitFor(() => {
+      expect(screen.queryByText("Audit snapshot may be stale")).not.toBeInTheDocument();
+    });
+  });
+
   it("ignores Audit Page runtime events outside the current task scope", async () => {
     const { api, emit } = createSubscribedAuditApi("a3-records-ready");
 
@@ -608,6 +686,8 @@ describe("AuditPageRoute", () => {
 
     expect(await screen.findByRole("heading", { name: "Audit" })).toBeInTheDocument();
     expect(screen.getByLabelText("Audit records")).toBeInTheDocument();
+    expect(screen.getByText("Live audit updates unavailable")).toBeInTheDocument();
+    expect(screen.getByText("EventSource unavailable")).toBeInTheDocument();
     expect(api.subscribeSessionEvents).toHaveBeenCalled();
   });
 
@@ -884,6 +964,75 @@ function createSubscribedAuditApi(scenarioId: AuditMockScenarioId) {
     },
     unsubscribe,
   };
+}
+
+function createSubscribedAuditApiWithPendingSnapshot(
+  scenarioId: AuditMockScenarioId,
+) {
+  const baseApi = createAuditMockApi(scenarioId);
+  const pendingSnapshot =
+    createDeferred<Awaited<ReturnType<AuditApi["getAuditSnapshot"]>>>();
+  let eventHandler: ((event: UiEvent) => void) | null = null;
+  let holdSnapshotRefetch = false;
+  let pendingRequest: Parameters<AuditApi["getAuditSnapshot"]>[0] | null = null;
+  const unsubscribe = vi.fn();
+  const api: AuditApi = {
+    ...baseApi,
+    getAuditRecordDetail: vi.fn(baseApi.getAuditRecordDetail),
+    getAuditSnapshot: vi.fn((request) => {
+      if (holdSnapshotRefetch) {
+        holdSnapshotRefetch = false;
+        pendingRequest = request;
+        return pendingSnapshot.promise;
+      }
+
+      return baseApi.getAuditSnapshot(request);
+    }),
+    getEvidenceDetail: vi.fn(baseApi.getEvidenceDetail),
+    subscribeSessionEvents: vi.fn((_sessionId, _cursor, onEvent) => {
+      eventHandler = onEvent;
+      return unsubscribe;
+    }),
+  };
+
+  return {
+    api,
+    emit(event: UiEvent) {
+      if (eventHandler === null) {
+        throw new Error("Audit runtime event subscription was not started.");
+      }
+
+      act(() => {
+        eventHandler?.(event);
+      });
+    },
+    holdNextSnapshotRefetch() {
+      holdSnapshotRefetch = true;
+    },
+    async resolveSnapshotRefetch() {
+      if (pendingRequest === null) {
+        throw new Error("Snapshot refetch was not started.");
+      }
+
+      const response = await baseApi.getAuditSnapshot(pendingRequest);
+      await act(async () => {
+        pendingSnapshot.resolve(response);
+        await pendingSnapshot.promise;
+      });
+    },
+    unsubscribe,
+  };
+}
+
+function createDeferred<T>() {
+  let reject!: (reason?: unknown) => void;
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  const promise = new Promise<T>((promiseResolve, promiseReject) => {
+    resolve = promiseResolve;
+    reject = promiseReject;
+  });
+
+  return { promise, reject, resolve };
 }
 
 function uiEvent(overrides: Partial<UiEvent> = {}): UiEvent {

@@ -20,7 +20,10 @@ import {
   projectAuditSnapshot,
   selectedRecordSurvivesFilter,
 } from "./auditPageViewModel";
-import { useAuditPageRuntimeEvents } from "./auditRuntimeEvents";
+import {
+  useAuditPageRuntimeEvents,
+  type AuditPageRuntimeState,
+} from "./auditRuntimeEvents";
 
 export type AuditApi = Pick<
   PlatoApi,
@@ -58,6 +61,11 @@ export function AuditPageRoute({
   const [selectedRecordId, setSelectedRecordId] = useState<AuditRecordId | null>(
     () => parsedRoute?.request.recordId ?? null,
   );
+  const [liveState, setLiveState] = useState<AuditPageRuntimeState>({
+    eventCursor: null,
+    message: null,
+    status: "connected",
+  });
   const auditApi = useMemo<AuditApi>(
     () => api ?? createAuditApiFromRuntimeEnv(runtimeEnv),
     [api, runtimeEnv],
@@ -91,6 +99,19 @@ export function AuditPageRoute({
   }, [parsedRoute]);
 
   const rawSnapshot = snapshotQuery.data?.ok === true ? snapshotQuery.data.data : null;
+  const rawSnapshotCursor = rawSnapshot?.cursor ?? null;
+  useEffect(() => {
+    if (rawSnapshotCursor === null) {
+      return;
+    }
+
+    setLiveState({
+      eventCursor: rawSnapshotCursor,
+      message: null,
+      status: "connected",
+    });
+  }, [rawSnapshotCursor]);
+
   const snapshotSelectedRecord =
     rawSnapshot?.selectedRecord?.id === selectedRecordId
       ? rawSnapshot.selectedRecord
@@ -149,6 +170,7 @@ export function AuditPageRoute({
     api: auditApi,
     cursor: rawSnapshot?.cursor ?? null,
     enabled: rawSnapshot !== null,
+    onRuntimeStateChange: setLiveState,
     refetchDetail: detailQuery.refetch,
     refetchEvidence: evidenceQuery.refetch,
     refetchSnapshot: snapshotQuery.refetch,
@@ -253,6 +275,7 @@ export function AuditPageRoute({
       onSelectRecord={handleSelectRecord}
       onRetry={() => void snapshotQuery.refetch()}
       selectedRecordId={selectedRecordId}
+      liveState={liveState}
       snapshot={snapshot}
     />
   );
