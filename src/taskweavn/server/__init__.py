@@ -29,8 +29,11 @@ from taskweavn.server.ui_command_idempotency import (
 )
 from taskweavn.server.ui_events import (
     ResyncOnlyEventSource,
+    SqliteUiEventSource,
     StaticUiEventSource,
     UiEventSource,
+    UiEventSourceError,
+    UiEventStore,
     sse_frame,
     sse_stream,
 )
@@ -55,9 +58,12 @@ __all__ = [
     "PlatoUiHttpTransport",
     "ResyncOnlyEventSource",
     "SidecarAuth",
+    "SqliteUiEventSource",
     "SqliteUiCommandResponseIdempotencyStore",
     "StaticUiEventSource",
     "UiEventSource",
+    "UiEventSourceError",
+    "UiEventStore",
     "UiCommandResponseIdempotencyRecord",
     "UiCommandResponseIdempotencyStore",
     "UiCommandResponseIdempotencyStoreError",

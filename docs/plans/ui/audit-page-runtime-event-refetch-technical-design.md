@@ -380,7 +380,7 @@ Checks:
 | AP-013A | This design document and contract/plan status sync. | Docs describe event/refetch contract and implementation path. |
 | AP-013B | Add frontend Audit Page event router/hook with mocked `subscribeSessionEvents`. | Done: unit tests prove event-to-refetch behavior without backend emission. |
 | AP-013C | Add UI live refresh/stale/disconnected feedback. | Done: Audit Page remains readable while event refetch is pending; stale and disconnected states are visible. |
-| AP-013D | Add workspace-backed UI event store/source or equivalent first live source. | SSE can replay audit events after cursor; unknown cursor emits resync. |
+| AP-013D | Add workspace-backed UI event store/source or equivalent first live source. | Done: `SqliteUiEventSource` persists workspace UI events, SSE can replay events after cursor, and unknown cursor emits resync. |
 | AP-013E | Emit audit events from the first runtime/source change points. | EventStream/log/config/confirmation changes trigger appropriate invalidations. |
 | AP-013F | End-to-end smoke and docs/readiness closure. | A1-A14 fixtures still pass; one HTTP mode audit page updates after a runtime event. |
 

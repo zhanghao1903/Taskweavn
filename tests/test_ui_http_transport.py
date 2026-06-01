@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 from taskweavn.server import (
@@ -11,7 +12,9 @@ from taskweavn.server import (
     InMemoryUiCommandResponseIdempotencyStore,
     PlatoUiHttpTransport,
     SidecarAuth,
+    SqliteUiEventSource,
     StaticUiEventSource,
+    UiEventSource,
 )
 from taskweavn.server.ui_contract import (
     AuditEntryContext,
@@ -518,6 +521,44 @@ def test_event_route_uses_resync_fallback_by_default() -> None:
     assert '"cursor":"old"' in body
 
 
+def test_event_route_replays_from_workspace_event_source(tmp_path: Path) -> None:
+    source = SqliteUiEventSource(tmp_path / "ui_events.sqlite")
+    try:
+        source.append(
+            UiEvent(
+                event_id="event-1",
+                session_id="session-1",
+                event_type="message.appended",
+                cursor="cursor-1",
+            )
+        )
+        source.append(
+            UiEvent(
+                event_id="event-2",
+                session_id="session-1",
+                event_type="audit.records_changed",
+                cursor="cursor-2",
+            )
+        )
+        transport = _transport(event_source=source)
+
+        response = transport.handle(
+            HttpApiRequest(
+                method="GET",
+                path="/api/v1/sessions/session-1/events?cursor=cursor-1",
+            )
+        )
+        body = _str_body(response.body)
+    finally:
+        source.close()
+
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "text/event-stream"
+    assert "event: audit.records_changed" in body
+    assert "event: message.appended" not in body
+    assert '"cursor":"cursor-2"' in body
+
+
 def test_client_error_log_route_dispatches_to_sink() -> None:
     sink = _ClientErrorSink()
     transport = _transport(client_error_log_sink=sink)
@@ -912,7 +953,7 @@ def _transport(
     *,
     query: _QueryGateway | None = None,
     commands: _CommandGateway | None = None,
-    event_source: StaticUiEventSource | None = None,
+    event_source: UiEventSource | None = None,
     auth: SidecarAuth | None = None,
     client_error_log_sink: _ClientErrorSink | None = None,
     session_lifecycle_gateway: _SessionLifecycleGateway | None = None,

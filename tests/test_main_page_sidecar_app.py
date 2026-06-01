@@ -417,6 +417,7 @@ def test_main_page_sidecar_app_recovers_draft_tree_after_restart_and_publishes(
     assert active_before_restart.active_state == "draft_tree"
     assert active_before_restart.active_draft_tree_id is not None
     assert WorkspaceLayout(tmp_path).workspace_authoring_db.is_file()
+    assert WorkspaceLayout(tmp_path).workspace_ui_events_db.is_file()
     assert first_snapshot.json["data"]["taskTree"]["id"] == (
         active_before_restart.active_draft_tree_id
     )

@@ -44,7 +44,7 @@ from taskweavn.server.ui_contract import (
     WorkspaceAuditEventProvider,
     WorkspaceAuditLogProvider,
 )
-from taskweavn.server.ui_events import ResyncOnlyEventSource, UiEventSource
+from taskweavn.server.ui_events import SqliteUiEventSource, UiEventSource
 from taskweavn.server.ui_http import PlatoUiHttpTransport, SidecarAuth
 from taskweavn.task import (
     DEFAULT_FIXED_ROUTE_AGENT_ID,
@@ -144,6 +144,7 @@ class MainPageSidecarApp:
     authoring_state_store: AuthoringStateStore | None
     authoring_idempotency_store: AuthoringCommandIdempotencyStore | None
     ui_command_idempotency_store: UiCommandResponseIdempotencyStore | None
+    event_source: UiEventSource
     result_summary_store: TaskExecutionSummaryStore
     default_agent: ResidentDefaultAgent | None
     execution_dispatcher: FixedRouteExecutionDispatcher | None
@@ -193,6 +194,10 @@ class MainPageSidecarApp:
             self.server.server_close()
         with contextlib.suppress(Exception):
             self.message_bus.close()
+        close_event_source = getattr(self.event_source, "close", None)
+        if close_event_source is not None:
+            with contextlib.suppress(Exception):
+                close_event_source()
         with contextlib.suppress(Exception):
             self.message_stream.close()
         with contextlib.suppress(Exception):
@@ -330,10 +335,13 @@ def build_main_page_sidecar_app(
             dependencies.ui_command_idempotency_store
             or SqliteUiCommandResponseIdempotencyStore(layout.workspace_ui_commands_db)
         )
+        event_source = dependencies.event_source or SqliteUiEventSource(
+            layout.workspace_ui_events_db
+        )
         transport = PlatoUiHttpTransport(
             query_gateway=query_gateway,
             command_gateway=command_gateway,
-            event_source=dependencies.event_source or ResyncOnlyEventSource(),
+            event_source=event_source,
             auth=None if config.auth_token is None else SidecarAuth(config.auth_token),
             client_error_log_sink=FileClientErrorLogSink(layout),
             session_lifecycle_gateway=MainPageSessionLifecycleGateway(
@@ -363,6 +371,7 @@ def build_main_page_sidecar_app(
         authoring_state_store=authoring_state_store,
         authoring_idempotency_store=authoring_idempotency_store,
         ui_command_idempotency_store=ui_command_idempotency_store,
+        event_source=event_source,
         result_summary_store=result_summary_store,
         default_agent=default_agent,
         execution_dispatcher=execution_dispatcher,

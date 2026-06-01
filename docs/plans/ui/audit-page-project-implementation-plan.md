@@ -122,8 +122,8 @@ Audit Page 第一版应是用户可理解的审计产品页面，而不是把 Ev
 - 已有 [runtime audit event/refetch 技术设计](audit-page-runtime-event-refetch-technical-design.md)，
   Audit Page route 已接入前端 runtime event router/hook 并用 mock
   subscription 覆盖 event-to-refetch 行为；前端已补充 live refresh/stale/
-  disconnected 状态承载；后端 runtime source 尚未发出 audit-specific
-  events。
+  disconnected 状态承载；后端已补充 workspace-backed `SqliteUiEventSource`
+  replay store，但 runtime source 尚未追加 audit-specific events。
 - Audit Page 设计稿/原型状态本次未重新验证；下一轮设计对齐或高保真改版前应重新确认当前 canonical Figma/UX 是否足够。
 - 小于当前支持最小宽度的移动端布局仍是后续 polish，不阻塞 mock walkthrough。
 
@@ -376,8 +376,8 @@ frontend/src/pages/audit-page/mockAuditApi.ts
 ### Phase 7: 后端 API 合约
 
 状态：基础 contract 已完成，真实后端 route/gateway/aggregation 已完成第一版；
-前端 runtime event-to-refetch baseline 已完成；后端 live event source/emission
-仍待做。
+前端 runtime event-to-refetch baseline 已完成；后端 workspace-backed event
+replay source 已完成；runtime event emission/source coverage 仍待做。
 
 目标：把 mock API 收敛为真实后端可实现的 Audit Page 合约。
 
@@ -454,8 +454,8 @@ timeline 和 runtime audit events 仍是后续增强；sanitized payload disclos
     follow-up。
 14. Runtime audit event/refetch。AP-013A 技术设计已完成，AP-013B 前端
     event router/hook 与 mock subscription 测试已完成，AP-013C live
-    refresh/stale/disconnected 状态承载已完成；live source 和 runtime
-    emission 仍待做。
+    refresh/stale/disconnected 状态承载已完成，AP-013D workspace-backed
+    event replay source 已完成；runtime emission 仍待做。
 
 验收标准：
 
@@ -535,7 +535,7 @@ docs/user_cases/terminal_outputs/UC-007-audit-page-trust-flow.txt
 | AP-010 | 实现后端 audit projection adapter | server API boundary | Done first pass; richer timeline/audit-agent sources remain follow-up |
 | AP-011 | 接入真实审计后端通信 | UI real mode | Done first pass; runtime audit events/refetch remain follow-up |
 | AP-012 | Sanitized payload disclosure | contract tests + backend sanitizer + frontend detail rendering | Done first pass; broader source policy remains follow-up |
-| AP-013 | Runtime audit event/refetch | event/refetch design + frontend subscription + live source/emission | AP-013A-C done; AP-013D-F pending |
+| AP-013 | Runtime audit event/refetch | event/refetch design + frontend subscription + live source/emission | AP-013A-D done; AP-013E-F pending |
 | AP-014 | 第一轮用户测试 | UC-007 + findings | Ready after AP-013 or can run earlier with manual refresh caveat |
 
 ---
@@ -567,7 +567,7 @@ AP-005H readiness cleanup / status synchronization
   -> AP-010 后端 audit query gateway / projection adapter（第一版已完成）
   -> AP-011 前端 HTTP mode 真实审计路径联调（第一版已完成）
   -> AP-012 sanitized payload disclosure（第一版已完成）
-  -> AP-013 runtime audit event/refetch（AP-013A-C 已完成，AP-013D-F 待实现）
+  -> AP-013 runtime audit event/refetch（AP-013A-D 已完成，AP-013E-F 待实现）
   -> Phase 9 用户测试 / 或补强 timeline + AuditAgent audit evidence
 ```
 

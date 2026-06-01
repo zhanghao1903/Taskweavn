@@ -77,6 +77,11 @@ class WorkspaceLayout:
         return self.meta_dir / "ui_commands.sqlite"
 
     @property
+    def workspace_ui_events_db(self) -> Path:
+        """Workspace-scoped UI event replay store for sidecar SSE transport."""
+        return self.meta_dir / "ui_events.sqlite"
+
+    @property
     def workspace_results_db(self) -> Path:
         """Workspace-scoped task execution result/error summary store."""
         return self.meta_dir / "results.sqlite"
