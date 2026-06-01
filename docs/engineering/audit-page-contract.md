@@ -2,16 +2,19 @@
 
 > Status: implementation contract with mock-backed frontend baseline and
 > projection-backed real HTTP query path plus first EventStream/log/config
-> source references
-> Last Updated: 2026-05-31
+> source references, sanitized payload disclosure, and runtime event/refetch
+> design baseline
+> Last Updated: 2026-06-01
 > Scope: Audit Page API, backend ViewModel, frontend ViewModel, events, mock scenarios.
 > Non-goals: no raw payload exposure, no MainPage rewrite, no full audit storage rewrite.
 > Disclosure Design:
 > [Audit Page Sanitized Payload Disclosure Technical Design](../plans/ui/audit-page-sanitized-payload-disclosure-technical-design.md)
+> Runtime Event Design:
+> [Audit Page Runtime Event And Refetch Technical Design](../plans/ui/audit-page-runtime-event-refetch-technical-design.md)
 
 ## 0. Implementation Checkpoint
 
-As of 2026-05-31, this contract is no longer only a proposed backend model.
+As of 2026-06-01, this contract is no longer only a proposed backend model.
 The backend additive contract models, frontend transport/mock baseline,
 mock-backed Audit Page route, page shell, A1-A14 scenario coverage, and Main
 Page audit entry navigation are in place. The real backend audit query path is
@@ -26,8 +29,8 @@ Backend contract baseline:
   and page states.
 - `src/taskweavn/server/ui_contract/snapshots.py` defines `AuditPageSnapshot`.
 - `src/taskweavn/server/ui_contract/events.py` defines additive event literals
-  and builders for `audit.records_changed`, `audit.record_updated`,
-  `audit.evidence_hidden`, and `audit.snapshot_stale`.
+  and builders for `audit.summary_updated`, `audit.records_changed`,
+  `audit.record_updated`, `audit.evidence_hidden`, and `audit.snapshot_stale`.
 - `tests/test_audit_page_contract_models.py` covers focused validation for the
   new contract shape, public verdict values, record detail consistency, config
   scope anchoring, sanitized payload disclosure, and audit event payloads.
@@ -65,10 +68,10 @@ Still not implemented:
 
 - Full `TaskInteractionTimelineService` aggregation.
 - Dedicated audit storage/query projection beyond productized records.
-- Runtime audit event/refetch behavior.
-- Raw payload/sanitized payload disclosure implementation for EventStream,
-  log, and config details. The AP-012B technical design now defines the first
-  implementation path.
+- Runtime audit event/refetch implementation. AP-013A now defines the event,
+  scope, cursor, and frontend invalidation strategy.
+- Broader runtime emission points for EventStream/log/config/confirmation
+  changes.
 - Product-grade mobile layout below the current supported minimum width.
 
 ## 1. Purpose
@@ -85,10 +88,10 @@ navigation, and contract tests. AP-010/AP-011 adds the first real backend
 query path: `DefaultUiQueryGateway` can now produce projection-backed
 session/task audit snapshots, record lists, record details, and evidence
 details, `ui_http.py` exposes the corresponding frontend endpoints, and the
-gateway can now fold in EventStream, log archive, and logging manifest source
-records when those sources exist. The remaining implementation gap is richer
-timeline/runtime audit event behavior plus implementation of sanitized
-event/log/config payload disclosure.
+gateway can now fold in EventStream, log archive, logging manifest source
+records, and request-time sanitized payload disclosure when those sources
+exist. The remaining implementation gap is richer timeline aggregation plus
+runtime audit event/refetch implementation.
 
 This document defines the backend-to-frontend contract to unblock mock data,
 API implementation, Figma/dev handoff, and later frontend implementation.
@@ -115,15 +118,15 @@ API implementation, Figma/dev handoff, and later frontend implementation.
 | Area | Current state | Gap |
 |---|---|---|
 | Backend snapshot | `src/taskweavn/server/ui_contract/snapshots.py` defines `MainPageSnapshot` and additive `AuditPageSnapshot`; `DefaultUiQueryGateway` can populate it from Task projection, EventStream, log archive, and config manifest facts where available. | Full timeline/runtime audit event behavior is still pending. |
-| Backend ViewModels | Audit Page scope, overview, record, record list result, detail, evidence, config/log link, permission, and page-state models exist. | Mapping remains productized; AP-012B defines raw/sanitized payload disclosure behavior, but implementation is still minimal. |
-| HTTP routes | `src/taskweavn/server/ui_http.py` exposes session/task audit snapshot, records, record detail, and evidence detail routes. | Runtime audit event/refetch behavior is still pending. |
-| Events | `src/taskweavn/server/ui_contract/events.py` includes `audit.summary_updated` plus record/evidence/stale audit event builders. | No runtime source emits those events yet. |
+| Backend ViewModels | Audit Page scope, overview, record, record list result, detail, evidence, config/log link, permission, and page-state models exist. | Mapping remains productized; deeper timeline aggregation remains follow-up. |
+| HTTP routes | `src/taskweavn/server/ui_http.py` exposes session/task audit snapshot, records, record detail, and evidence detail routes. | Runtime audit event/refetch implementation is still pending. |
+| Events | `src/taskweavn/server/ui_contract/events.py` includes `audit.summary_updated` plus record/evidence/stale audit event builders. AP-013A defines runtime refetch semantics. | No runtime source emits those events yet. |
 | Frontend API types | `frontend/src/shared/api/types.ts` defines the Audit Page snapshot, request, overview, record, detail, evidence, permissions, and page-state types. | Keep aligned with backend contract as it evolves. |
 | Frontend API client/routes | `frontend/src/shared/api/platoApi.ts` defines audit query methods; `frontend/src/app/routes.ts` defines session/task audit routes; `App.tsx` now mounts session/task Audit Page routes. | Keep HTTP mode aligned as backend source coverage grows. |
 | Frontend audit entity | `frontend/src/entities/audit/model.ts` re-exports Audit Page API models and link helpers. | Add page-specific selectors/helpers when the real UI consumes the contract. |
 | Frontend audit mocks | `frontend/src/pages/audit-page/mockAuditScenarios.ts` and `mockAuditApi.ts` provide A1-A14 mock coverage. | Keep as acceptance fixtures for backend parity and future UI regression. |
 | Frontend UI boundary mapping | `frontend/src/shared/api/apiUiMapping.ts` includes Audit Page state-to-boundary mapping. | Exercised by the page shell; extend only when backend introduces new states. |
-| Frontend Audit Page UI | Audit Page route/shell/components exist for the AP-005 mock-backed route, Main Page `View audit` is enabled when the route is available, and AP-005G accessibility/visual polish is complete. | Connect real backend audit data and harden runtime refetch behavior. |
+| Frontend Audit Page UI | Audit Page route/shell/components exist, Main Page `View audit` routes to Audit Page, HTTP mode is wired, and detail/evidence can request sanitized disclosure. | Add runtime event subscription/refetch behavior. |
 | Backend audit agent | `AuditAgent` emits `pass`, `fail`, `inconclusive`; EventStream-backed `AuditObservation` records are mapped to public verdicts when present. | Runtime refetch/events and broader audit-agent source coverage are still pending. |
 
 ## 4. Audit Verdict Model
@@ -685,12 +688,27 @@ prioritizes it.
 | Error | Query/projection failure. | `QueryResponse.error` or snapshot `pageState.kind = error` for mock. | Retry and return to Main Page; never mutate task state. |
 | Stale | Event cursor/snapshot stale. | `audit.snapshot_stale` event or `pageState.kind = stale`. | Refetch snapshot and disable evidence actions while stale. |
 
-## 13. Audit Event Candidates
+## 13. Runtime Audit Event And Refetch Contract
 
-Additive event candidates for `src/taskweavn/server/ui_contract/events.py`:
+Detailed design lives in
+[Audit Page Runtime Event And Refetch Technical Design](../plans/ui/audit-page-runtime-event-refetch-technical-design.md).
+This section is the implementation contract summary.
+
+Audit Page consumes the session SSE stream:
+
+```text
+GET /api/v1/sessions/{sessionId}/events?cursor={cursor}
+```
+
+Events are invalidation hints. They must not carry full Audit ViewModels, raw
+payloads, or sanitized payload content. Frontend must refetch the canonical
+Audit Page query APIs.
+
+Canonical audit event types:
 
 ```ts
 type AuditUiEventType =
+  | "audit.summary_updated"
   | "audit.records_changed"
   | "audit.record_updated"
   | "audit.evidence_hidden"
@@ -699,14 +717,27 @@ type AuditUiEventType =
 
 | Event | Meaning | Required payload | Frontend behavior |
 |---|---|---|---|
-| `audit.records_changed` | Records were added/removed for a scope. | `scope`, `recordIds`, `reason`. | Refetch current AuditPageSnapshot or records for current filter. |
-| `audit.record_updated` | A record detail, verdict, disclosure, or severity changed. | `recordId`, `scope`, optional `kind`, `verdict`. | If selected, refetch detail; otherwise patch/refetch list. |
-| `audit.evidence_hidden` | Evidence was hidden/redacted after policy evaluation. | `recordId`, `evidenceIds`, `reasonCode`. | Refetch detail; show hidden evidence indicator. |
-| `audit.snapshot_stale` | Current audit snapshot cannot be trusted without refetch. | `scope`, `reason`, optional `lastGoodCursor`. | Enter stale/resync and reload snapshot. |
+| `audit.summary_updated` | Overview, verdict, count, or severity summary changed. | optional `severity`, optional `scope`, optional `reason`. | Refetch current AuditPageSnapshot. |
+| `audit.records_changed` | Records were added/removed for a scope. | `scope`, `record_ids`, `reason`. | Refetch current AuditPageSnapshot or records for current filter. |
+| `audit.record_updated` | A record detail, verdict, disclosure, or severity changed. | `record_id`, `scope`, optional `kind`, `verdict`. | If selected, refetch detail; otherwise patch/refetch list. |
+| `audit.evidence_hidden` | Evidence was hidden/redacted after policy evaluation. | `record_id`, `evidence_ids`, `reason_code`. | Refetch detail; show hidden evidence indicator. |
+| `audit.snapshot_stale` | Current audit snapshot cannot be trusted without refetch. | `scope`, `reason`, optional `last_good_cursor`. | Enter stale/resync and reload snapshot. |
+
+Current Python builders use snake_case inside the free-form `payload` dictionary
+(`record_ids`, `evidence_ids`, `last_good_cursor`). Frontend should support
+these keys directly or normalize them at the Audit Page event-router boundary.
 
 Event payloads should include enough scope to know whether the current Audit
-Page is affected. If payload is incomplete, frontend must refetch rather than
-reconstruct evidence from raw events.
+Page is affected. If payload is incomplete but the session matches, frontend
+must refetch rather than reconstruct evidence from raw events.
+
+First implementation should add:
+
+1. Audit Page route/controller event subscription.
+2. Scope-aware event routing.
+3. Snapshot/detail/evidence refetch behavior.
+4. Non-blocking stale/disconnected UI feedback.
+5. Backend workspace event source/emission points as a separate slice.
 
 ## 14. Mock Scenarios A1-A14
 
@@ -771,7 +802,8 @@ and later diagnostics/log handoff.
 | `frontend/src/app/App.tsx` | Done | Keep Audit Page route matching aligned with route helpers. |
 | `frontend/src/app/App.test.tsx` | Done | Reserved-entry assertion replaced after navigation was enabled. |
 | `frontend/src/pages/main-page/*` | Done | Main Page `View audit` routes to session/task audit when the route is available; explicit fallback can still disable it. |
-| `frontend/src/pages/main-page/runtime/eventRouter.ts` | Pending | Add audit event routing/refetch behavior if Audit Page listens to runtime events. |
+| `frontend/src/pages/audit-page/*` runtime hook/router | Pending | Implement AP-013 event-to-refetch behavior for Audit Page. |
+| `frontend/src/pages/main-page/runtime/eventRouter.ts` | Reference only | Main Page event routing exists; Audit Page should use a scoped audit-specific router rather than making Main Page own trust-plane refresh. |
 
 ## 17. Open Product Questions
 
@@ -781,10 +813,10 @@ and later diagnostics/log handoff.
    stricter product rule?
 3. Who can view hidden evidence reasons: all users, technical users, or only
    debug/diagnostics users?
-4. Should sanitized raw payload ever be visible in Audit Page, or only in
-   Diagnostics/Logs? AP-012B recommends a conservative first pass: no raw
-   payload exposure; sanitized payload only in explicit record/evidence detail
-   queries.
+4. Should runtime Audit Page refetch listen to coarse non-audit events
+   (`message.appended`, `file_changes.updated`, `confirmation.resolved`) until
+   backend audit-specific emission is complete? AP-013A recommends yes as a
+   temporary conservative fallback.
 5. How long are audit records retained for local sidecar sessions?
 6. Should file paths be shown as workspace-relative by default, and when should
    absolute paths be redacted?

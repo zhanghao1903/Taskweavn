@@ -25,7 +25,8 @@ This directory contains the Task-first UI planning documents.
 | [page-project-implementation-template.md](page-project-implementation-template.md) | Reusable end-to-end workflow template for creating a new UI page from PRD through user testing. |
 | [main-page-project-implementation-plan.md](main-page-project-implementation-plan.md) | End-to-end Main Page project plan from PRD through UX, Figma, mock UI, API contract, backend integration, and user testing. |
 | [audit-page-project-implementation-plan.md](audit-page-project-implementation-plan.md) | End-to-end Audit Page project plan from PRD through UX, Figma, mock UI, API contract, backend integration, and user testing. |
-| [audit-page-sanitized-payload-disclosure-technical-design.md](audit-page-sanitized-payload-disclosure-technical-design.md) | AP-012B technical design for safe Audit Page record/evidence payload disclosure, redaction, API behavior, UI states, and implementation slices. |
+| [audit-page-sanitized-payload-disclosure-technical-design.md](audit-page-sanitized-payload-disclosure-technical-design.md) | AP-012B technical design for safe Audit Page record/evidence payload disclosure; AP-012 first pass now uses it for request-time sanitized detail/evidence rendering. |
+| [audit-page-runtime-event-refetch-technical-design.md](audit-page-runtime-event-refetch-technical-design.md) | AP-013A technical design for Audit Page runtime event subscription, scope-aware refetch, stale/resync handling, and backend event emission slices. |
 | [visual-reference.md](visual-reference.md) | Historical visual sketches and prototype screenshots. Current canonical Figma work is governed by `docs/design/figma-governance.md`. |
 | [ui-api-interfaces.md](ui-api-interfaces.md) | Shared UI API and view model interface archive. |
 | [information-architecture.md](information-architecture.md) | Main layout regions and information hierarchy. |

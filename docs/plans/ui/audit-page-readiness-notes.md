@@ -1,13 +1,16 @@
 # Audit Page AP-005 Readiness Notes
 
 > Status: ready for review
-> Last Updated: 2026-05-31
+> Last Updated: 2026-06-01
 > Scope: AP-005 mock-backed Audit Page frontend baseline, AP-010/AP-011
-> projection-backed backend query path, and remaining backend handoff.
+> projection-backed backend query path, AP-012 sanitized payload disclosure
+> first pass, AP-013A runtime event/refetch design, and remaining backend
+> handoff.
 > Related:
 > [Audit Page Implementation Plan](audit-page-project-implementation-plan.md),
 > [Audit Page Frontend Technical Design](audit-page-frontend-technical-design.md),
 > [Audit Page Sanitized Payload Disclosure Technical Design](audit-page-sanitized-payload-disclosure-technical-design.md),
+> [Audit Page Runtime Event And Refetch Technical Design](audit-page-runtime-event-refetch-technical-design.md),
 > [Audit Page Contract](../../engineering/audit-page-contract.md)
 
 ---
@@ -32,9 +35,10 @@ Completed slices:
 The first baseline was mock-backed. AP-010/AP-011 now adds a projection-backed
 real HTTP query path plus first source hardening for EventStream, session log
 archive, and logging manifest records. Timeline orchestration, runtime audit
-events, and deeper raw/sanitized payload disclosure implementation are still
-future work. The sanitized payload disclosure technical design now defines the
-first implementation path and policy baseline.
+events, and broader disclosure source coverage are still future work.
+Sanitized payload disclosure now has a first request-time implementation path,
+and AP-013A defines how runtime audit events should trigger scope-aware
+refetches.
 
 ---
 
@@ -90,8 +94,8 @@ next phase.
 | Backend audit query gateway | First projection-backed path implemented | `DefaultUiQueryGateway` can now produce Audit Page snapshot, records, record detail, and evidence detail from Task projection facts. |
 | HTTP audit routes | First path implemented | `ui_http.py` now exposes the frontend API methods for snapshot, records, record detail, and evidence detail. |
 | Real data aggregation | Partial | Current source is Task projection plus message/confirmation/file/result facts, EventStream action/observation/AuditObservation records, and session log/config references when present. Timeline orchestration and runtime audit events remain pending. |
-| Runtime audit events/refetch | Not implemented | Existing event builders are additive, but no runtime source emits/refetches them yet. |
-| Raw payload disclosure policy | Designed, not implemented | Contract says default hidden/sanitized; [AP-012B disclosure design](audit-page-sanitized-payload-disclosure-technical-design.md) defines the first implementation path. |
+| Runtime audit events/refetch | Designed, not implemented | Existing event builders are additive, and [AP-013A runtime event/refetch design](audit-page-runtime-event-refetch-technical-design.md) defines event scope, cursor, stale/resync, and frontend invalidation rules; no runtime source emits/refetches them yet. |
+| Sanitized payload disclosure | First pass implemented | Contract keeps default hidden/sanitized behavior. AP-012C-E cover contract tests, request-time backend generation/injection, and frontend detail/evidence rendering; sanitized payload is not stored. |
 | Mobile-specific layout below 960px | Deferred | Page remains reachable with scrolling; product-grade mobile UX is later polish. |
 | User testing | Ready to prepare | At least one real backend path exists; user testing still needs a chosen scenario and runbook. |
 
@@ -105,6 +109,9 @@ Completed backend integration slice:
 AP-010/AP-011: backend audit query gateway + real HTTP mode integration
 AP-012A: backend source hardening for EventStream/log/config references
 AP-012B: sanitized payload disclosure technical design
+AP-012C-E: sanitized payload contract tests, backend request-time generation,
+and frontend detail/evidence rendering
+AP-013A: runtime audit event/refetch technical design
 ```
 
 Implemented first pass:
@@ -125,8 +132,8 @@ Remaining backend work:
 
 1. Add `TaskInteractionTimelineService` as a richer ordering/evidence source.
 2. Emit and consume audit runtime events/refetch behavior.
-3. Implement sanitized raw payload disclosure for EventStream/log/config
-   evidence details according to AP-012B.
+3. Extend sanitized payload source coverage as EventStream/log/config evidence
+   detail sources become richer.
 4. Decide whether user testing or deeper backend aggregation should happen next.
 
 The backend should return `AuditPageSnapshot` and related contract objects. It

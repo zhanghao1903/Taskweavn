@@ -1,11 +1,12 @@
 # Plato Audit Page 项目实施计划
 
-> Status: active implementation / mock frontend ready for review
-> Last Updated: 2026-05-31
+> Status: active implementation / real HTTP path and disclosure first pass ready
+> Last Updated: 2026-06-01
 > Scope: 重新推进 Plato / TaskWeavn Audit Page，从产品 PRD 到用户测试的完整交付链路。
 > Reference: [Plato MVP 实施计划](../../product/plato-mvp-implementation-plan.md)
 > Technical Design: [Audit Page Frontend Technical Design](audit-page-frontend-technical-design.md)
 > Disclosure Design: [Audit Page Sanitized Payload Disclosure Technical Design](audit-page-sanitized-payload-disclosure-technical-design.md)
+> Runtime Event Design: [Audit Page Runtime Event And Refetch Technical Design](audit-page-runtime-event-refetch-technical-design.md)
 > Readiness Notes: [Audit Page AP-005 Readiness Notes](audit-page-readiness-notes.md)
 
 ---
@@ -83,6 +84,7 @@ Audit Page 第一版应是用户可理解的审计产品页面，而不是把 Ev
 - [Audit Page Backend-To-Frontend Contract](../../engineering/audit-page-contract.md)：定义 Audit Page backend/frontend transport contract、mock scenarios 和实现状态。
 - [Audit Page Frontend Technical Design](audit-page-frontend-technical-design.md)：定义基于 Figma v0.1 静态稿的路由、ViewModel、组件、状态、API、测试和实施切片。
 - [Audit Page Sanitized Payload Disclosure Technical Design](audit-page-sanitized-payload-disclosure-technical-design.md)：定义 record/evidence detail 的安全 evidence disclosure、脱敏策略、API 行为和实施切片。
+- [Audit Page Runtime Event And Refetch Technical Design](audit-page-runtime-event-refetch-technical-design.md)：定义 Audit Page runtime events、scope matching、cursor、refetch 策略和 AP-013 实施切片。
 
 ### 3.2 已有后端基础
 
@@ -115,8 +117,11 @@ Audit Page 第一版应是用户可理解的审计产品页面，而不是把 Ev
   真实聚合第一版，并已开始接入 EventStream/log/config source references。
 - `TaskInteractionTimeline` 的 event 展示仍偏底层，缺少用户可理解的审计摘要和分组。
 - `AuditAgent` 当前是局部能力，不覆盖完整审计页需要的 Session / Task / confirmation / file / risk / result 关系。
-- 已有 [sanitized payload disclosure 技术设计](audit-page-sanitized-payload-disclosure-technical-design.md)，
-  但后端 sanitizer、source extractor 和 UI 展示尚未实现。
+- Sanitized payload disclosure 已完成第一版 contract tests、后端 request-time
+  生成/注入和前端 detail panel 展示；仍需随更多 source 继续扩展策略。
+- 已有 [runtime audit event/refetch 技术设计](audit-page-runtime-event-refetch-technical-design.md)，
+  但 Audit Page route 尚未订阅 runtime events，后端 runtime source 尚未发出
+  audit-specific events。
 - Audit Page 设计稿/原型状态本次未重新验证；下一轮设计对齐或高保真改版前应重新确认当前 canonical Figma/UX 是否足够。
 - 小于当前支持最小宽度的移动端布局仍是后续 polish，不阻塞 mock walkthrough。
 
@@ -368,7 +373,8 @@ frontend/src/pages/audit-page/mockAuditApi.ts
 
 ### Phase 7: 后端 API 合约
 
-状态：基础 contract 已完成，真实后端 route/gateway/aggregation 尚未完成。
+状态：基础 contract 已完成，真实后端 route/gateway/aggregation 已完成第一版；
+runtime event/refetch implementation 仍待做。
 
 目标：把 mock API 收敛为真实后端可实现的 Audit Page 合约。
 
@@ -420,8 +426,8 @@ client 方法已经存在；后端已补上 projection-backed audit routes/gatew
 可返回 session/task audit snapshot、records、record detail、evidence detail。
 当前 gateway 还能在 source 存在时折叠 EventStream action/observation、
 AuditObservation、session log archive、logging manifest config 记录。完整
-timeline、runtime audit events、raw/sanitized payload disclosure implementation
-仍是后续增强；sanitized payload disclosure 的技术设计已完成第一版。
+timeline 和 runtime audit events 仍是后续增强；sanitized payload disclosure
+已完成第一版 request-time implementation。
 
 目标：把前端从 mock audit API 切到真实审计事实源。
 
@@ -440,9 +446,11 @@ timeline、runtime audit events、raw/sanitized payload disclosure implementatio
 11. Evidence refs 查询。已完成第一版。
 12. Config/log references。已完成第一版：session log manifest 与 log archive
     file references。
-13. Sanitized payload disclosure。已完成技术设计，待做 contract hardening 与
-    backend/frontend implementation。
-14. Audit events subscription。待做。
+13. Sanitized payload disclosure。已完成第一版 contract hardening、后端
+    request-time 生成/注入和前端 detail/evidence 展示；更多 source 策略仍是
+    follow-up。
+14. Runtime audit event/refetch。AP-013A 技术设计已完成；Audit Page event
+    subscription、live source 和 runtime emission 仍待做。
 
 验收标准：
 
@@ -521,7 +529,9 @@ docs/user_cases/terminal_outputs/UC-007-audit-page-trust-flow.txt
 | AP-009 | 收敛 Audit Page API 合约 | `docs/engineering/audit-page-contract.md` | Done as baseline; update as needed |
 | AP-010 | 实现后端 audit projection adapter | server API boundary | Done first pass; richer timeline/audit-agent sources remain follow-up |
 | AP-011 | 接入真实审计后端通信 | UI real mode | Done first pass; runtime audit events/refetch remain follow-up |
-| AP-012 | 第一轮用户测试 | UC-007 + findings | Ready to prepare after choosing scenario |
+| AP-012 | Sanitized payload disclosure | contract tests + backend sanitizer + frontend detail rendering | Done first pass; broader source policy remains follow-up |
+| AP-013 | Runtime audit event/refetch | event/refetch design + frontend subscription + live source/emission | AP-013A design done; implementation pending |
+| AP-014 | 第一轮用户测试 | UC-007 + findings | Ready after AP-013 or can run earlier with manual refresh caveat |
 
 ---
 
@@ -551,6 +561,8 @@ types/API/routes/mock scenarios 已经具备第一版基线。
 AP-005H readiness cleanup / status synchronization
   -> AP-010 后端 audit query gateway / projection adapter（第一版已完成）
   -> AP-011 前端 HTTP mode 真实审计路径联调（第一版已完成）
+  -> AP-012 sanitized payload disclosure（第一版已完成）
+  -> AP-013 runtime audit event/refetch（AP-013A 设计已完成，待实现）
   -> Phase 9 用户测试 / 或补强 timeline + AuditAgent audit evidence
 ```
 
