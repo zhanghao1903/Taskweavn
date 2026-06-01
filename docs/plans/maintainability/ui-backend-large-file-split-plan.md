@@ -305,6 +305,8 @@ uv run mypy src/taskweavn/server/ui_contract
 
 ### M-003: Extract Command Gateway Mapping
 
+Status: done on 2026-06-01.
+
 Goal: separate command orchestration from task-tree mapping and response helper
 functions.
 
@@ -319,6 +321,16 @@ Acceptance:
 - command gateway tests pass;
 - idempotency/debug refs unchanged;
 - Main Page command HTTP tests pass.
+
+Implementation notes:
+
+- `command_gateway.py` now owns `DefaultUiCommandGateway` orchestration and
+  keeps the existing public re-export from `gateways.py`.
+- `command_mapping.py` now owns command response shaping, affected object/ref
+  derivation, idempotency child-key helpers, task node patch mapping, publish
+  tree identity validation helpers, and guidance-mode mapping.
+- `gateways.py` now focuses on query gateway orchestration and query snapshot
+  helpers.
 
 Suggested validation:
 
