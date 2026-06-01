@@ -11,6 +11,11 @@ import {
   type AuditApi,
 } from "./AuditPageRoute";
 import { parseAuditLocation } from "./auditRouteModel";
+import type {
+  AuditRecordDetail,
+  EvidenceDetail,
+  QueryResponse,
+} from "../../shared/api/types";
 
 describe("AuditPageRoute", () => {
   afterEach(() => {
@@ -281,8 +286,97 @@ describe("AuditPageRoute", () => {
     expect(await screen.findByText("Action completed detail body.")).toBeInTheDocument();
     expect(api.getAuditRecordDetail).toHaveBeenCalledWith({
       includeEvidence: true,
-      includeSanitizedPayload: false,
+      includeSanitizedPayload: true,
       recordId: "record-action-1",
+      sessionId: "session-website-plan",
+    });
+  });
+
+  it("requests and renders sanitized record and evidence payload disclosure", async () => {
+    const user = userEvent.setup();
+    const baseApi = createAuditMockApi("a3-records-ready");
+    const api: AuditApi = {
+      ...baseApi,
+      getAuditRecordDetail: vi.fn(async (request) => {
+        const response = await baseApi.getAuditRecordDetail(request);
+        if (response.ok !== true || response.data === null) {
+          return response;
+        }
+        return {
+          ...response,
+          data: {
+            ...response.data,
+            disclosure: {
+              rawPayloadAvailable: true,
+              rawPayloadShown: true,
+              redactionReason: "Secrets were redacted.",
+            },
+            rawPayload: {
+              content: "{\"action\":\"run\",\"token\":\"[redacted:secret]\"}",
+              format: "json",
+              redactions: ["secret:token"],
+            },
+          },
+        } satisfies QueryResponse<AuditRecordDetail>;
+      }),
+      getEvidenceDetail: vi.fn(async (request) => ({
+        cursor: null,
+        data: {
+          available: true,
+          body: "Sanitized evidence detail.",
+          disclosure: {
+            partialReason: "Payload was truncated for safe display.",
+            rawPayloadAvailable: true,
+            rawPayloadShown: true,
+            redactionReason: "Paths were normalized.",
+          },
+          hidden: false,
+          id: request.evidenceId,
+          kind: "observation",
+          label: "Execution observation",
+          occurredAt: "2026-05-24T10:01:00Z",
+          redacted: true,
+          sanitizedPayload: {
+            content: "stdout=[redacted:secret]\nworkspace://src/App.tsx",
+            format: "text",
+            redactions: ["secret:stdout", "path:workspace"],
+          },
+          source: "event_stream",
+          summary: "Observation payload.",
+        },
+        error: null,
+        generatedAt: "2026-05-24T10:02:00Z",
+        ok: true,
+        requestId: "request-evidence-sanitized",
+      }) satisfies QueryResponse<EvidenceDetail>),
+    };
+
+    globalThis.history.pushState(
+      null,
+      "",
+      "/sessions/session-website-plan/tasks/task-implementation/audit",
+    );
+    renderWithQueryClient(<AuditPageRoute api={api} />);
+
+    await user.click(
+      await screen.findByRole("button", { name: "Audit record Action completed" }),
+    );
+
+    expect(await screen.findByText("Sanitized record payload")).toBeInTheDocument();
+    expect(screen.getByText("Sanitized evidence payload")).toBeInTheDocument();
+    expect(screen.getAllByText("Secrets were redacted.").length).toBeGreaterThan(0);
+    expect(screen.getByText("Payload was truncated for safe display.")).toBeInTheDocument();
+    expect(screen.getAllByText("secret:token").length).toBeGreaterThan(0);
+    expect(screen.getByText("path:workspace")).toBeInTheDocument();
+    expect(api.getAuditRecordDetail).toHaveBeenCalledWith({
+      includeEvidence: true,
+      includeSanitizedPayload: true,
+      recordId: "record-action-1",
+      sessionId: "session-website-plan",
+    });
+    expect(api.getEvidenceDetail).toHaveBeenCalledWith({
+      evidenceId: "evidence-record-action-1",
+      includeSanitizedPayload: true,
       sessionId: "session-website-plan",
     });
   });
@@ -357,8 +451,8 @@ describe("AuditPageRoute", () => {
     );
 
     expect(await screen.findByLabelText("Audit record detail")).toBeInTheDocument();
-    expect(screen.getByText("Hidden reason")).toBeInTheDocument();
-    expect(screen.getByText("Evidence is permission-limited.")).toBeInTheDocument();
+    expect(screen.getAllByText("Hidden reason").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Evidence is permission-limited.").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Hidden").length).toBeGreaterThan(0);
   });
 
@@ -499,7 +593,7 @@ describe("AuditPageRoute", () => {
     ).toBeInTheDocument();
     expect(api.getEvidenceDetail).toHaveBeenCalledWith({
       evidenceId: "evidence-record-evidence-error-1",
-      includeSanitizedPayload: false,
+      includeSanitizedPayload: true,
       sessionId: "session-website-plan",
     });
   });

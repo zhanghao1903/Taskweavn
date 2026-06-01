@@ -12,8 +12,11 @@ import type {
   AuditRecord,
   AuditRecordDetail,
   AuditRecordId,
+  AuditDisclosure,
   EffectiveConfigSummary,
+  EvidenceDetail,
   RelatedLogsLink,
+  SanitizedRawPayload,
   AuditVerdict,
 } from "../../shared/api/types";
 import { cx } from "../../shared/utils/cx";
@@ -34,6 +37,7 @@ export type AuditPageProps = {
 
 export type AuditRecordDetailState = {
   errorMessage?: string | null;
+  evidenceDetail?: EvidenceDetail | null;
   evidenceErrorMessage?: string | null;
   evidenceIsLoading?: boolean;
   isLoading: boolean;
@@ -410,6 +414,7 @@ function DetailPanel({
   const detailRegionLabelId = useId();
   const detailTitleId = useId();
   const disclosureNotes = detailDisclosureNotes(record);
+  const evidenceDetail = detailState.evidenceDetail ?? null;
   const logLinks = record.relatedLogs.length > 0 ? record.relatedLogs : relatedLogs;
 
   useEffect(() => {
@@ -505,6 +510,10 @@ function DetailPanel({
           ))}
         </dl>
       </section>
+      <SanitizedEvidenceSection
+        evidenceDetail={evidenceDetail}
+        record={record}
+      />
       <section className={styles.detailSection}>
         <h3 className={styles.detailSectionTitle}>Reserved links</h3>
         <div className={styles.reservedGrid}>
@@ -539,30 +548,171 @@ function DetailPanel({
   );
 }
 
+function SanitizedEvidenceSection({
+  evidenceDetail,
+  record,
+}: {
+  evidenceDetail: EvidenceDetail | null;
+  record: AuditRecordDetail;
+}) {
+  const hasRecordPayload = record.rawPayload !== null;
+  const hasEvidencePayload =
+    evidenceDetail?.sanitizedPayload !== null &&
+    evidenceDetail?.sanitizedPayload !== undefined;
+  const hasRecordHiddenReason =
+    record.disclosure.hiddenReason !== null &&
+    record.disclosure.hiddenReason !== undefined;
+  const hasEvidenceHiddenReason =
+    evidenceDetail?.disclosure.hiddenReason !== null &&
+    evidenceDetail?.disclosure.hiddenReason !== undefined;
+  const hasDisclosure =
+    hasRecordPayload ||
+    hasEvidencePayload ||
+    record.disclosure.rawPayloadAvailable ||
+    evidenceDetail?.disclosure.rawPayloadAvailable === true ||
+    hasRecordHiddenReason ||
+    hasEvidenceHiddenReason;
+
+  return (
+    <section className={styles.detailSection}>
+      <h3 className={styles.detailSectionTitle}>Sanitized evidence</h3>
+      {!hasDisclosure ? (
+        <p className={styles.detailBody}>
+          No sanitized payload is available for this record.
+        </p>
+      ) : (
+        <div className={styles.sanitizedEvidenceStack}>
+          <DisclosureCard
+            disclosure={record.disclosure}
+            payload={record.rawPayload}
+            title="Record payload"
+          />
+          {record.rawPayload !== null && (
+            <SanitizedPayloadBlock
+              payload={record.rawPayload}
+              title="Sanitized record payload"
+            />
+          )}
+          {evidenceDetail !== null && (
+            <DisclosureCard
+              disclosure={evidenceDetail.disclosure}
+              payload={evidenceDetail.sanitizedPayload}
+              title={`Evidence payload · ${evidenceDetail.label}`}
+            />
+          )}
+          {evidenceDetail?.sanitizedPayload !== null &&
+            evidenceDetail?.sanitizedPayload !== undefined && (
+              <SanitizedPayloadBlock
+                payload={evidenceDetail.sanitizedPayload}
+                title="Sanitized evidence payload"
+              />
+            )}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function DisclosureCard({
+  disclosure,
+  payload,
+  title,
+}: {
+  disclosure: AuditDisclosure;
+  payload: SanitizedRawPayload | null;
+  title: string;
+}) {
+  const notes = disclosureNotes(disclosure);
+
+  return (
+    <div className={styles.disclosureCard}>
+      <div>
+        <strong>{title}</strong>
+        <span>{disclosureStatusLabel(disclosure, payload)}</span>
+      </div>
+      {notes.length > 0 && (
+        <dl className={styles.disclosureMiniList}>
+          {notes.map((note) => (
+            <div key={note.label}>
+              <dt>{note.label}</dt>
+              <dd>{note.value}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
+    </div>
+  );
+}
+
+function SanitizedPayloadBlock({
+  payload,
+  title,
+}: {
+  payload: SanitizedRawPayload;
+  title: string;
+}) {
+  return (
+    <div className={styles.payloadBlock}>
+      <div className={styles.payloadHeader}>
+        <strong>{title}</strong>
+        <span>{payload.format}</span>
+      </div>
+      <pre className={styles.payloadPre}>{payload.content}</pre>
+      {payload.redactions.length > 0 && (
+        <div className={styles.redactionList} aria-label={`${title} redactions`}>
+          {payload.redactions.map((redaction) => (
+            <span className={styles.badge} key={redaction}>
+              {redaction}
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function disclosureNotes(
+  disclosure: AuditDisclosure,
+): Array<{ label: string; value: string }> {
+  const notes: Array<{ label: string; value: string }> = [];
+  if (disclosure.hiddenReason !== null && disclosure.hiddenReason !== undefined) {
+    notes.push({ label: "Hidden reason", value: disclosure.hiddenReason });
+  }
+  if (disclosure.partialReason !== null && disclosure.partialReason !== undefined) {
+    notes.push({ label: "Partial reason", value: disclosure.partialReason });
+  }
+  if (disclosure.redactionReason !== null && disclosure.redactionReason !== undefined) {
+    notes.push({ label: "Redaction reason", value: disclosure.redactionReason });
+  }
+  if (disclosure.permissionReason !== null && disclosure.permissionReason !== undefined) {
+    notes.push({ label: "Permission reason", value: disclosure.permissionReason });
+  }
+  return notes;
+}
+
+function disclosureStatusLabel(
+  disclosure: AuditDisclosure,
+  payload: SanitizedRawPayload | null,
+): string {
+  if (payload !== null && disclosure.rawPayloadShown) {
+    return "Sanitized payload shown";
+  }
+  if (disclosure.hiddenReason !== null && disclosure.hiddenReason !== undefined) {
+    return "Hidden by policy";
+  }
+  if (disclosure.permissionReason !== null && disclosure.permissionReason !== undefined) {
+    return "Hidden by permission";
+  }
+  if (disclosure.rawPayloadAvailable) {
+    return "Payload available, not shown";
+  }
+  return "No payload available";
+}
+
 function detailDisclosureNotes(
   record: AuditRecordDetail,
 ): Array<{ label: string; value: string }> {
-  const notes: Array<{ label: string; value: string }> = [];
-  if (record.disclosure.hiddenReason !== null && record.disclosure.hiddenReason !== undefined) {
-    notes.push({ label: "Hidden reason", value: record.disclosure.hiddenReason });
-  }
-  if (record.disclosure.partialReason !== null && record.disclosure.partialReason !== undefined) {
-    notes.push({ label: "Partial reason", value: record.disclosure.partialReason });
-  }
-  if (
-    record.disclosure.redactionReason !== null &&
-    record.disclosure.redactionReason !== undefined
-  ) {
-    notes.push({ label: "Redaction reason", value: record.disclosure.redactionReason });
-  }
-  if (
-    record.disclosure.permissionReason !== null &&
-    record.disclosure.permissionReason !== undefined
-  ) {
-    notes.push({ label: "Permission reason", value: record.disclosure.permissionReason });
-  }
-
-  return notes;
+  return disclosureNotes(record.disclosure);
 }
 
 function BoundaryBanner({

@@ -20,9 +20,13 @@ from taskweavn.server import (
 from taskweavn.server.sidecar import _SidecarRequestHandler
 from taskweavn.server.transport import HttpApiResponse
 from taskweavn.server.ui_contract import (
+    AuditPageSnapshot,
+    AuditRecordDetail,
+    AuditRecordsResult,
     CommandRequest,
     CommandResponse,
     CommandResult,
+    EvidenceDetail,
     MainPageSnapshot,
     ProjectSummary,
     QueryResponse,
@@ -232,6 +236,58 @@ class _QueryGateway:
             data=snapshot,
             cursor=snapshot.cursor,
         )
+
+    def get_audit_snapshot(
+        self,
+        session_id: str,
+        *,
+        task_node_id: str | None = None,
+        entry: str | None = None,
+        filter_kind: str = "all",
+        record_id: str | None = None,
+        include_detail: bool | None = None,
+        limit: int = 50,
+        cursor: str | None = None,
+        request_id: str | None = None,
+    ) -> QueryResponse[AuditPageSnapshot]:
+        raise NotImplementedError
+
+    def list_audit_records(
+        self,
+        session_id: str,
+        *,
+        task_node_id: str | None = None,
+        filter_kind: str = "all",
+        kind: str | None = None,
+        from_time: str | None = None,
+        to_time: str | None = None,
+        limit: int = 50,
+        cursor: str | None = None,
+        include_hidden_reasons: bool = False,
+        request_id: str | None = None,
+    ) -> QueryResponse[AuditRecordsResult]:
+        raise NotImplementedError
+
+    def get_audit_record_detail(
+        self,
+        session_id: str,
+        record_id: str,
+        *,
+        include_evidence: bool = False,
+        include_sanitized_payload: bool = False,
+        request_id: str | None = None,
+    ) -> QueryResponse[AuditRecordDetail]:
+        raise NotImplementedError
+
+    def get_evidence_detail(
+        self,
+        session_id: str,
+        evidence_id: str,
+        *,
+        include_sanitized_payload: bool = False,
+        request_id: str | None = None,
+    ) -> QueryResponse[EvidenceDetail]:
+        raise NotImplementedError
 
 
 @dataclass

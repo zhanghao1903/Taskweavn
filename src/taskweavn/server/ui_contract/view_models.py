@@ -389,6 +389,7 @@ class AuditPageRequestView(UiContractModel):
     filter: AuditFilterKind = "all"
     record_id: str | None = None
     include_detail: bool = False
+    include_sanitized_payload: bool = False
     limit: int = Field(default=50, ge=1, le=200)
     cursor: str | None = None
 

@@ -103,7 +103,7 @@ export function AuditPageRoute({
     queryFn: () =>
       auditApi.getAuditRecordDetail({
         includeEvidence: true,
-        includeSanitizedPayload: false,
+        includeSanitizedPayload: true,
         recordId: selectedRecordId!,
         sessionId: rawSnapshot!.session.id,
       }),
@@ -125,7 +125,6 @@ export function AuditPageRoute({
   const shouldLoadEvidenceDetail =
     rawSnapshot !== null &&
     selectedRecordDetail !== null &&
-    selectedRecordDetail.flags.partial &&
     selectedEvidenceRef !== null &&
     selectedEvidenceRef.available;
 
@@ -134,7 +133,7 @@ export function AuditPageRoute({
     queryFn: () =>
       auditApi.getEvidenceDetail({
         evidenceId: selectedEvidenceRef!.id,
-        includeSanitizedPayload: false,
+        includeSanitizedPayload: true,
         sessionId: rawSnapshot!.session.id,
       }),
     queryKey: [
@@ -227,6 +226,8 @@ export function AuditPageRoute({
     <AuditPage
       detailState={{
         errorMessage: detailQueryError ?? detailResponseError,
+        evidenceDetail:
+          evidenceQuery.data?.ok === true ? evidenceQuery.data.data : null,
         evidenceErrorMessage: evidenceQueryError ?? evidenceResponseError,
         evidenceIsLoading: shouldLoadEvidenceDetail && evidenceQuery.isPending,
         isLoading: shouldLoadRecordDetail && detailQuery.isPending,

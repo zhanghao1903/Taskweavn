@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import contextlib
 import threading
+from collections.abc import Callable
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -20,6 +22,14 @@ from taskweavn.interaction import (
     InProcessMessageBus,
     SqliteMessageStream,
 )
+from taskweavn.observability import (
+    LogArchiveManifest,
+    LogRule,
+    build_disabled_logging_config,
+    build_session_logging_config,
+    get_logging_manager,
+)
+from taskweavn.observability.models import LOG_CATEGORIES
 from taskweavn.runtime import LocalRuntime
 from taskweavn.server.client_logs import FileClientErrorLogSink
 from taskweavn.server.sidecar import LocalSidecarConfig, LocalSidecarServer
@@ -98,6 +108,9 @@ class MainPageSidecarConfig:
     default_agent_max_steps: int = 20
     enable_execution_dispatcher: bool = True
     execution_dispatcher_max_ticks_per_trigger: int = 10
+    enable_session_logging: bool = True
+    logging_level: str = "INFO"
+    logging_profile: str | None = None
 
 
 @dataclass(frozen=True)
@@ -217,6 +230,9 @@ def build_main_page_sidecar_app(
     session_manager = SessionManager(layout)
     try:
         session = _resolve_session(session_manager, config)
+        logging_initializer = _configure_sidecar_logging(config)
+        if session is not None:
+            logging_initializer(session)
         message_stream = SqliteMessageStream(layout.workspace_messages_db)
         message_bus = InProcessMessageBus(message_stream)
         task_bus = SqliteTaskBus(layout.workspace_tasks_db)
@@ -322,6 +338,7 @@ def build_main_page_sidecar_app(
             client_error_log_sink=FileClientErrorLogSink(layout),
             session_lifecycle_gateway=MainPageSessionLifecycleGateway(
                 session_manager=session_manager,
+                configure_session_logging=logging_initializer,
             ),
             command_idempotency_store=ui_command_idempotency_store,
             execution_trigger_gateway=execution_dispatcher,
@@ -462,12 +479,15 @@ class MainPageSessionLifecycleGateway:
     """Session lifecycle commands for the local Main Page sidecar."""
 
     session_manager: SessionManager
+    configure_session_logging: Callable[[Session], None] | None = None
 
     def list_sessions(self) -> dict[str, object]:
         return {"sessions": [_session_payload(session) for session in self.session_manager.list()]}
 
     def create_session(self, name: str) -> dict[str, object]:
         session = self.session_manager.create(name)
+        if self.configure_session_logging is not None:
+            self.configure_session_logging(session)
         return {"sessionId": session.id, "session": _session_payload(session)}
 
     def rename_session(self, session_id: str, name: str) -> dict[str, object]:
@@ -489,6 +509,90 @@ def _resolve_session(
     if config.session_id is not None:
         return session_manager.require(config.session_id)
     return None
+
+
+def _configure_sidecar_logging(
+    config: MainPageSidecarConfig,
+) -> Callable[[Session], None]:
+    """Enable debug-phase session archives under each workspace session dir."""
+    manager = get_logging_manager()
+    if not config.enable_session_logging:
+        manager.apply_config(build_disabled_logging_config(config.workspace_root / ".logs"))
+        return lambda session: None
+
+    base = build_session_logging_config(config.workspace_root, level=config.logging_level)
+    sinks = dict(base.sinks)
+    session_sink = sinks["session_file"]
+    sinks["session_file"] = session_sink.model_copy(
+        update={
+            "path_template": (
+                "{archive_root}/sessions/{session_id}/.session/logs/"
+                "{category}.jsonl"
+            )
+        }
+    )
+    global_config_sink = sinks["global_config_file"]
+    sinks["global_config_file"] = global_config_sink.model_copy(
+        update={
+            "path_template": (
+                "{archive_root}/.code-agent/logs/global/{category}.jsonl"
+            )
+        }
+    )
+    rules = dict(base.rules)
+    rules["config"] = LogRule(
+        category="config",
+        level="INFO",
+        sinks=("global_config_file",),
+        payload_mode="summary",
+    )
+    manager.apply_config(
+        base.model_copy(update={"sinks": sinks, "rules": rules})
+    )
+
+    def initialize(session: Session) -> None:
+        if config.logging_profile is not None:
+            manager.apply_profile(session.id, config.logging_profile)
+        _write_sidecar_session_log_manifest(session)
+
+    return initialize
+
+
+def _write_sidecar_session_log_manifest(session: Session) -> LogArchiveManifest:
+    """Write the manifest where Audit Page already looks for session logs."""
+    manager = get_logging_manager()
+    log_dir = session.logs_dir
+    log_dir.mkdir(parents=True, exist_ok=True)
+    manifest_path = log_dir / "manifest.json"
+    existing = None
+    if manifest_path.exists():
+        with contextlib.suppress(Exception):
+            existing = LogArchiveManifest.model_validate_json(
+                manifest_path.read_text(encoding="utf-8")
+            )
+    manifest = LogArchiveManifest(
+        session_id=session.id,
+        created_at=(
+            existing.created_at
+            if existing is not None
+            else datetime.now(tz=UTC)
+        ),
+        closed_at=None if existing is None else existing.closed_at,
+        config_hash=manager.config_hash(),
+        archive_root=str(log_dir),
+        files={category: f"{category}.jsonl" for category in LOG_CATEGORIES},
+        templates={},
+        rotation={
+            "enabled": True,
+            "max_bytes": 10 * 1024 * 1024,
+            "backup_count": 5,
+        },
+    )
+    manifest_path.write_text(
+        manifest.model_dump_json(indent=2, exclude_none=True),
+        encoding="utf-8",
+    )
+    return manifest
 
 
 def _default_capability_catalog() -> StaticCapabilityCatalog:

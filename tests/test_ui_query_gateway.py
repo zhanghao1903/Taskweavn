@@ -32,7 +32,7 @@ from taskweavn.task import (
     TaskSummaryView,
     TaskTreeView,
 )
-from taskweavn.tools.fs import FileContentObservation, ReadFileAction
+from taskweavn.tools.fs import FileContentObservation, ReadFileAction, WriteFileAction
 
 NOW = datetime(2026, 5, 20, 12, 0, tzinfo=UTC)
 
@@ -671,6 +671,84 @@ def test_audit_snapshot_includes_event_stream_action_and_observation_records(
     assert evidence.data.source == "event_stream"
 
 
+def test_audit_record_payload_is_generated_only_when_requested(tmp_path: Path) -> None:
+    layout = WorkspaceLayout(tmp_path)
+    layout.bootstrap_session("session-1")
+    action = WriteFileAction(
+        event_id="action-write",
+        timestamp=NOW,
+        path=str(layout.session_project_dir("session-1") / "src/App.tsx"),
+        content="OPENAI_API_KEY=sk-test\nhello",
+    )
+    with SqliteEventStream(layout.session_events_db("session-1")) as stream:
+        stream.append(action, task_id="root")
+    card = _card(status="done")
+    gateway = DefaultUiQueryGateway(
+        session_reader=_SessionReader([_session(workspace_root=tmp_path)]),
+        task_projection=_Projection(TaskTreeView(session_id="session-1", nodes=(card,))),
+        audit_event_provider=WorkspaceAuditEventProvider(layout),
+    )
+
+    default_detail = gateway.get_audit_record_detail(
+        "session-1",
+        "record-event-action-action-write",
+    )
+    requested_detail = gateway.get_audit_record_detail(
+        "session-1",
+        "record-event-action-action-write",
+        include_sanitized_payload=True,
+    )
+
+    assert default_detail.ok is True
+    assert default_detail.data is not None
+    assert default_detail.data.raw_payload is None
+    assert default_detail.data.disclosure.raw_payload_available is True
+    assert default_detail.data.disclosure.raw_payload_shown is False
+    assert requested_detail.ok is True
+    assert requested_detail.data is not None
+    assert requested_detail.data.raw_payload is not None
+    assert requested_detail.data.disclosure.raw_payload_shown is True
+    assert "sk-test" not in requested_detail.data.raw_payload.content
+    assert "[redacted:content" in requested_detail.data.raw_payload.content
+    assert "workspace://" in requested_detail.data.raw_payload.content
+    assert requested_detail.data.raw_payload.redactions
+
+
+def test_audit_evidence_payload_summarizes_observation_content(tmp_path: Path) -> None:
+    layout = WorkspaceLayout(tmp_path)
+    layout.bootstrap_session("session-1")
+    observation = FileContentObservation(
+        event_id="observation-read",
+        timestamp=NOW,
+        action_id="action-read",
+        path="README.md",
+        content="secret=abc123\n" * 50,
+        bytes_read=700,
+    )
+    with SqliteEventStream(layout.session_events_db("session-1")) as stream:
+        stream.append(observation, task_id="root")
+    card = _card(status="done")
+    gateway = DefaultUiQueryGateway(
+        session_reader=_SessionReader([_session(workspace_root=tmp_path)]),
+        task_projection=_Projection(TaskTreeView(session_id="session-1", nodes=(card,))),
+        audit_event_provider=WorkspaceAuditEventProvider(layout),
+    )
+
+    evidence = gateway.get_evidence_detail(
+        "session-1",
+        "evidence-event-observation-observation-read",
+        include_sanitized_payload=True,
+    )
+
+    assert evidence.ok is True
+    assert evidence.data is not None
+    assert evidence.data.sanitized_payload is not None
+    assert evidence.data.disclosure.raw_payload_shown is True
+    assert evidence.data.disclosure.partial_reason is not None
+    assert "abc123" not in evidence.data.sanitized_payload.content
+    assert "[redacted:content" in evidence.data.sanitized_payload.content
+
+
 def test_audit_snapshot_includes_workspace_log_and_config_records(
     tmp_path: Path,
 ) -> None:
@@ -680,7 +758,12 @@ def test_audit_snapshot_includes_workspace_log_and_config_records(
     log_dir = layout.session_logs_dir("session-1")
     log_dir.mkdir(parents=True, exist_ok=True)
     (log_dir / "frontend-errors.jsonl").write_text(
-        '{"message":"render.failed"}\n',
+        "\n".join(
+            [
+                '{"message":"render.failed","token":"abc123"}',
+                *[f'{{"message":"line-{index}"}}' for index in range(25)],
+            ]
+        ),
         encoding="utf-8",
     )
     manifest = LogArchiveManifest(
@@ -709,10 +792,12 @@ def test_audit_snapshot_includes_workspace_log_and_config_records(
     config_evidence = gateway.get_evidence_detail(
         "session-1",
         "evidence-record-config-logging-manifest",
+        include_sanitized_payload=True,
     )
     log_evidence = gateway.get_evidence_detail(
         "session-1",
         "evidence-record-log-frontend-errors.jsonl",
+        include_sanitized_payload=True,
     )
 
     assert config_response.ok is True
@@ -729,9 +814,17 @@ def test_audit_snapshot_includes_workspace_log_and_config_records(
     assert config_evidence.ok is True
     assert config_evidence.data is not None
     assert config_evidence.data.source == "config_store"
+    assert config_evidence.data.sanitized_payload is not None
+    assert "abc123" in config_evidence.data.sanitized_payload.content
+    assert str(log_dir) not in config_evidence.data.sanitized_payload.content
+    assert "session-logs://" in config_evidence.data.sanitized_payload.content
     assert log_evidence.ok is True
     assert log_evidence.data is not None
     assert log_evidence.data.source == "log_archive"
+    assert log_evidence.data.sanitized_payload is not None
+    assert "abc123" not in log_evidence.data.sanitized_payload.content
+    assert "[redacted:secret]" in log_evidence.data.sanitized_payload.content
+    assert log_evidence.data.disclosure.partial_reason is not None
 
 
 def test_audit_snapshot_returns_not_found_for_unknown_task() -> None:

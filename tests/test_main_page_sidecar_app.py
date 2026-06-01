@@ -13,6 +13,7 @@ import pytest
 
 from taskweavn.core import SessionManager, SessionManagerError, WorkspaceLayout
 from taskweavn.llm.contracts import ChatResponse, ToolCall
+from taskweavn.observability import LogArchiveManifest, LogContext, get_logging_manager
 from taskweavn.server import (
     DEFAULT_PLATO_SIDECAR_PORT,
     MainPageSidecarConfig,
@@ -86,6 +87,56 @@ def test_build_main_page_sidecar_app_reuses_existing_session(tmp_path: Any) -> N
         assert app.session.name == "Existing"
     finally:
         app.close()
+
+
+def test_build_main_page_sidecar_app_initializes_existing_session_logs(
+    tmp_path: Any,
+) -> None:
+    layout = WorkspaceLayout(tmp_path)
+    manager = SessionManager(layout)
+    try:
+        session = manager.create("Existing")
+    finally:
+        manager.close()
+
+    app = build_main_page_sidecar_app(
+        MainPageSidecarConfig(workspace_root=tmp_path, session_id=session.id, port=0),
+        MainPageSidecarDependencies(llm=_StubLLM()),
+    )
+    try:
+        get_logging_manager().emit(
+            "session",
+            "INFO",
+            "debug_check",
+            context=LogContext(session_id=session.id),
+            data={"ok": True},
+        )
+    finally:
+        app.close()
+
+    manifest_path = session.logs_dir / "manifest.json"
+    manifest = LogArchiveManifest.model_validate_json(
+        manifest_path.read_text(encoding="utf-8")
+    )
+    rows = _read_jsonl(session.logs_dir / "session.jsonl")
+    assert manifest.archive_root == str(session.logs_dir)
+    assert manifest.files["session"] == "session.jsonl"
+    assert rows[-1]["event"] == "debug_check"
+    assert rows[-1]["context"] == {"session_id": session.id}
+
+
+def test_session_lifecycle_create_initializes_session_logs(tmp_path: Any) -> None:
+    app = build_main_page_sidecar_app(
+        MainPageSidecarConfig(workspace_root=tmp_path, port=0),
+        MainPageSidecarDependencies(llm=_StubLLM()),
+    )
+    try:
+        session_id = _create_session(app)
+        session = app.session_manager.require(session_id)
+    finally:
+        app.close()
+
+    assert (session.logs_dir / "manifest.json").exists()
 
 
 def test_main_page_sidecar_app_session_lifecycle_routes(tmp_path: Any) -> None:
@@ -933,6 +984,10 @@ def _request(
 def _create_session(app: Any, name: str = "Demo session") -> str:
     response = _request(app, "POST", "/api/v1/sessions", body={"name": name})
     return cast(str, response.json["data"]["sessionId"])
+
+
+def _read_jsonl(path: Any) -> list[dict[str, Any]]:
+    return [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
 
 
 def _published_task(task_id: str, *, session_id: str) -> TaskDomain:
