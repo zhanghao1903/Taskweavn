@@ -14,26 +14,28 @@ import { cx } from "../../shared/utils/cx";
 import { PlatoProductMark } from "../main-page/PlatoProductMark";
 import type { AuditPageRuntimeState } from "./auditRuntimeEvents";
 import { formatAuditTime } from "./auditPageFormat";
+import {
+  auditBoundaryLabel,
+  auditCompletenessLabel,
+  auditFilterLabel,
+  auditLiveStatusCopy,
+  auditOverviewMetricFilters,
+  auditScopeLabel,
+  auditScopeStatusText,
+  auditSubjectLabel,
+  auditVerdictClassKey,
+  auditVerdictLabel,
+  auditVerdictNoticeTitle,
+  type AuditVerdictClassKey,
+} from "./auditPageLabels";
 import styles from "./AuditPage.module.css";
 
-const filterLabels: Record<AuditFilterKind, string> = {
-  actions: "Actions",
-  all: "All records",
-  config: "Config",
-  confirmations: "Confirmations",
-  files: "Files",
-  logs: "Logs",
-  results: "Results",
-  risks: "Risks",
-  system: "System",
+const verdictBadgeClassNames: Record<AuditVerdictClassKey, string> = {
+  failed: styles.badgeFailed,
+  inconclusive: styles.badgeInconclusive,
+  passed: styles.badgePassed,
+  warning: styles.badgeWarning,
 };
-
-const metricFilters: Array<{ filter: AuditFilterKind; label: string }> = [
-  { filter: "confirmations", label: "Confirmations" },
-  { filter: "risks", label: "Risks" },
-  { filter: "files", label: "Files" },
-  { filter: "results", label: "Results" },
-];
 
 export function AuditPageFrame({
   children,
@@ -105,15 +107,15 @@ export function AuditHeader({
       <div>
         <div className={styles.titleRow}>
           <h1 className={styles.title}>Audit</h1>
-          <span className={styles.badge}>{scopeLabel(snapshot)}</span>
+          <span className={styles.badge}>{auditScopeLabel(snapshot)}</span>
         </div>
-        <p className={styles.subject}>{subjectLabel(snapshot)}</p>
+        <p className={styles.subject}>{auditSubjectLabel(snapshot)}</p>
         <p className={styles.status}>
-          {scopeStatusText(snapshot)} · Filter: {filterLabels[snapshot.request.filter]}
+          {auditScopeStatusText(snapshot)} · Filter: {auditFilterLabel(snapshot.request.filter)}
         </p>
       </div>
       <div className={styles.headerStatus}>
-        <span className={styles.badge}>{boundaryLabel(boundary)}</span>
+        <span className={styles.badge}>{auditBoundaryLabel(boundary)}</span>
         <span className={styles.badge}>No mutations</span>
       </div>
       <p className={styles.note}>
@@ -140,7 +142,7 @@ export function Overview({ snapshot }: { snapshot: AuditPageSnapshot }) {
           </p>
         )}
       </div>
-      {metricFilters.map((item) => (
+      {auditOverviewMetricFilters.map((item) => (
         <div className={styles.metric} key={item.filter}>
           <span className={styles.metricLabel}>{item.label}</span>
           <strong className={styles.metricValue}>
@@ -169,7 +171,7 @@ export function VerdictNotice({ snapshot }: { snapshot: AuditPageSnapshot }) {
     >
       <StatusBadge value={snapshot.overview.verdict} />
       <div>
-        <strong>{verdictNoticeTitle(snapshot.overview.verdict)}</strong>
+        <strong>{auditVerdictNoticeTitle(snapshot.overview.verdict)}</strong>
         <p>{snapshot.overview.keyIssue ?? snapshot.overview.summary}</p>
       </div>
     </section>
@@ -185,7 +187,7 @@ export function LiveStatusNotice({
     return null;
   }
 
-  const copy = liveStatusCopy(liveState);
+  const copy = auditLiveStatusCopy(liveState);
 
   return (
     <section
@@ -212,38 +214,6 @@ export function LiveStatusNotice({
   );
 }
 
-function liveStatusCopy(
-  liveState: AuditPageRuntimeState,
-): { message: string; title: string } {
-  switch (liveState.status) {
-    case "refreshing":
-      return {
-        message:
-          liveState.message ?? "Live audit stream is applying new records.",
-        title: "Updating audit evidence",
-      };
-    case "stale":
-      return {
-        message:
-          liveState.message ??
-          "Refreshing from source; current evidence remains readable.",
-        title: "Audit snapshot may be stale",
-      };
-    case "disconnected":
-      return {
-        message:
-          liveState.message ??
-          "Manual refresh still works; this page may not update automatically.",
-        title: "Live audit updates unavailable",
-      };
-    case "connected":
-      return {
-        message: "",
-        title: "",
-      };
-  }
-}
-
 export function FilterRail({
   activeFilter,
   filters,
@@ -268,7 +238,7 @@ export function FilterRail({
             onClick={() => onSelectFilter?.(filter.kind)}
             type="button"
           >
-            <span>{filterLabels[filter.kind] ?? filter.label}</span>
+            <span>{auditFilterLabel(filter.kind, filter.label)}</span>
             <span className={styles.filterCount}>{filter.count}</span>
           </button>
         ))}
@@ -327,7 +297,7 @@ export function Timeline({
               <h3 className={styles.recordTitle}>{record.title}</h3>
               <p className={styles.recordSummary}>{record.summary}</p>
               <p className={styles.recordRefs}>
-                {record.sourceLabel} · {filterLabels[record.filterKind]} ·{" "}
+                {record.sourceLabel} · {auditFilterLabel(record.filterKind)} ·{" "}
                 {record.actor}
               </p>
               <div className={styles.recordFooter}>
@@ -358,7 +328,7 @@ export function BoundaryBanner({
       role="status"
     >
       <div>
-        <strong>{boundaryLabel(boundary)}</strong>
+        <strong>{auditBoundaryLabel(boundary)}</strong>
         <p>{boundary.message}</p>
         {boundary.code !== undefined && <small>Code: {boundary.code}</small>}
       </div>
@@ -430,123 +400,19 @@ export function Boundary({
 }
 
 export function StatusBadge({ value }: { value: AuditVerdict }) {
-  return <span className={cx(styles.badge, verdictClass(value))}>{verdictLabel(value)}</span>;
+  const classKey = auditVerdictClassKey(value);
+  return (
+    <span
+      className={cx(
+        styles.badge,
+        classKey === null ? null : verdictBadgeClassNames[classKey],
+      )}
+    >
+      {auditVerdictLabel(value)}
+    </span>
+  );
 }
 
 function CompletenessBadge({ value }: { value: AuditCompleteness }) {
-  return <span className={styles.badge}>{completenessLabel(value)}</span>;
-}
-
-function scopeLabel(snapshot: AuditPageSnapshot): string {
-  if (snapshot.scope.kind === "task") {
-    return "Scope: Task";
-  }
-
-  if (snapshot.scope.kind === "session") {
-    return "Scope: Session";
-  }
-
-  return `Scope: ${snapshot.scope.kind}`;
-}
-
-function subjectLabel(snapshot: AuditPageSnapshot): string {
-  return snapshot.selectedTask?.title ?? snapshot.session.name;
-}
-
-function scopeStatusText(snapshot: AuditPageSnapshot): string {
-  if (snapshot.scope.kind === "task") {
-    return `Task audit · ${snapshot.session.status}`;
-  }
-
-  if (snapshot.scope.kind === "session") {
-    return `Session audit · ${snapshot.session.status}`;
-  }
-
-  return `${snapshot.scope.kind} audit · ${snapshot.session.status}`;
-}
-
-function boundaryLabel(boundary: ApiUiBoundaryState): string {
-  switch (boundary.kind) {
-    case "backend_busy":
-      return "Backend busy";
-    case "empty":
-      return "Empty";
-    case "fatal_error":
-      return "Fatal error";
-    case "hidden_evidence":
-      return "Hidden evidence";
-    case "loading":
-      return "Loading";
-    case "partial":
-      return "Partial evidence";
-    case "permission_denied":
-      return "Permission denied";
-    case "ready":
-      return "Ready";
-    case "recoverable_error":
-      return "Recoverable error";
-    case "stale_resync":
-      return "Stale snapshot";
-  }
-}
-
-function verdictNoticeTitle(value: AuditVerdict): string {
-  switch (value) {
-    case "failed":
-      return "Audit found a blocking issue.";
-    case "inconclusive":
-      return "Audit cannot establish confidence yet.";
-    case "warning":
-      return "Audit found a non-blocking concern.";
-    case "not_available":
-    case "passed":
-      return "";
-  }
-}
-
-function verdictClass(value: AuditVerdict): string | null {
-  switch (value) {
-    case "failed":
-      return styles.badgeFailed;
-    case "inconclusive":
-      return styles.badgeInconclusive;
-    case "passed":
-      return styles.badgePassed;
-    case "warning":
-      return styles.badgeWarning;
-    case "not_available":
-      return null;
-  }
-}
-
-function verdictLabel(value: AuditVerdict): string {
-  switch (value) {
-    case "failed":
-      return "Verdict: Failed";
-    case "inconclusive":
-      return "Verdict: Inconclusive";
-    case "not_available":
-      return "Verdict: Not available";
-    case "passed":
-      return "Verdict: Passed";
-    case "warning":
-      return "Verdict: Warning";
-  }
-}
-
-function completenessLabel(value: AuditCompleteness): string {
-  switch (value) {
-    case "complete":
-      return "Complete";
-    case "failed":
-      return "Failed";
-    case "hidden":
-      return "Hidden";
-    case "not_started":
-      return "Not started";
-    case "partial":
-      return "Partial";
-    case "running":
-      return "Running";
-  }
+  return <span className={styles.badge}>{auditCompletenessLabel(value)}</span>;
 }

@@ -454,6 +454,8 @@ cd frontend && npm run build
 
 ### M-007: Extract Audit Page Labels And Selection Helpers
 
+Status: done on 2026-06-02.
+
 Goal: remove non-render helper logic from the page file and make it directly
 unit-testable.
 
@@ -467,6 +469,16 @@ Acceptance:
 
 - label text/class mapping unchanged;
 - selected record fallback behavior unchanged.
+
+Implementation notes:
+
+- `auditPageLabels.ts` now owns filter labels, scope/status text, live status
+  copy, boundary labels, verdict labels, verdict class keys, and completeness
+  labels.
+- `auditPageSelection.ts` now owns active filter/record selection and fallback
+  selected-record detail construction.
+- `auditPageLabels.test.ts` and `auditPageSelection.test.ts` directly pin the
+  moved label/class-key and fallback selection behavior.
 
 Suggested validation:
 
