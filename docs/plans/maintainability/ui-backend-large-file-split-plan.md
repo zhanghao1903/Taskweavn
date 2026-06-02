@@ -126,7 +126,8 @@ Recommended module shape:
 | `gateway_providers.py` | Static/workspace providers for project, workflow, audit events, config, logs. |
 | `query_gateway.py` | `DefaultUiQueryGateway` orchestration only. |
 | `command_gateway.py` | `DefaultUiCommandGateway` orchestration only. |
-| `audit_projection.py` | Audit overview, filters, page state, and high-level record aggregation. |
+| `audit_projection.py` | High-level Audit record aggregation and compatibility import surface. |
+| `audit_page_state.py` | Audit scope, entry context, return target, overview, filters, page state, pagination, query validation, and effective config summary. |
 | `audit_detail_projection.py` | Selected record detail, evidence detail, references, related logs, and detail disclosure wiring. |
 | `audit_event_records.py` | EventStream Action/Observation/AuditObservation record projection and source-unavailable fallback records. |
 | `audit_source_providers.py` | Workspace-backed Audit config/log providers and config/log record projection. |
@@ -613,6 +614,45 @@ uv run ruff check src/taskweavn/server/ui_contract tests/test_audit_page_contrac
 uv run mypy src/taskweavn/server/ui_contract
 ```
 
+### M-011: Split Audit Page State Projection
+
+Status: done on 2026-06-02.
+
+Goal: reduce `audit_projection.py` by moving Audit Page scope, navigation,
+filtering, pagination, overview, page state, and effective config summary
+projection into a narrower module.
+
+Allowed changes:
+
+- create `audit_page_state.py`;
+- keep existing page-state helper imports compatible through `audit_projection.py`;
+- do not change Audit Page response shape, URL/query handling, selected task
+  behavior, record ordering, or effective config fallback behavior.
+
+Acceptance:
+
+- Audit snapshot filter/page-state behavior unchanged;
+- Audit records pagination and timestamp filtering unchanged;
+- `gateways.py` can continue importing helpers from `audit_projection.py`;
+- `audit_projection.py` becomes a compact high-level record aggregation facade.
+
+Implementation notes:
+
+- `audit_page_state.py` now owns Audit scope construction, entry context,
+  return target, selected task lookup, overview summaries, filter counts,
+  ready/empty/partial page state, effective config summary fallback, record
+  filtering, pagination, cursor parsing, and query enum validation.
+- `audit_projection.py` remains the high-level Audit record aggregation facade
+  and dropped from 666 lines to 379 lines.
+
+Suggested validation:
+
+```bash
+uv run pytest tests/test_audit_page_contract_models.py tests/test_ui_query_gateway.py tests/test_ui_http_transport.py
+uv run ruff check src/taskweavn/server/ui_contract tests/test_audit_page_contract_models.py tests/test_ui_query_gateway.py
+uv run mypy src/taskweavn/server/ui_contract
+```
+
 ---
 
 ## 7. Dependency And Ordering Rules
@@ -630,6 +670,7 @@ M-001 protocols/providers
   -> M-008 Main Page sidecar slimming
   -> M-009 Audit projection source/event split
   -> M-010 Audit detail projection split
+  -> M-011 Audit page state split
 ```
 
 Rationale:
