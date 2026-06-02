@@ -1,7 +1,7 @@
 # UI / Backend Large File Split Plan
 
 > Status: in_progress
-> Last Updated: 2026-06-01
+> Last Updated: 2026-06-02
 > Gap: [Audit / Trust page implementation](../../gaps/README.md#4-product-10-gap-table), [Result and evidence exposure surface](../../gaps/README.md#4-product-10-gap-table), delivery maintainability risk
 > Architecture: [UI Backend Communication](../../architecture/ui-backend-communication.md), [Task Domain / UI Model Separation](../../architecture/task-domain-ui-model-separation.md), [Configurable Logging System](../../architecture/configurable-logging-system.md)
 > Product: no direct user-facing behavior change
@@ -126,7 +126,8 @@ Recommended module shape:
 | `gateway_providers.py` | Static/workspace providers for project, workflow, audit events, config, logs. |
 | `query_gateway.py` | `DefaultUiQueryGateway` orchestration only. |
 | `command_gateway.py` | `DefaultUiCommandGateway` orchestration only. |
-| `audit_projection.py` | Audit overview, filters, page state, detail, evidence, and high-level record aggregation. |
+| `audit_projection.py` | Audit overview, filters, page state, and high-level record aggregation. |
+| `audit_detail_projection.py` | Selected record detail, evidence detail, references, related logs, and detail disclosure wiring. |
 | `audit_event_records.py` | EventStream Action/Observation/AuditObservation record projection and source-unavailable fallback records. |
 | `audit_source_providers.py` | Workspace-backed Audit config/log providers and config/log record projection. |
 | `audit_disclosure.py` | `DefaultAuditPayloadDisclosureService`, payload visibility decisions, redaction, sanitization. |
@@ -574,6 +575,44 @@ uv run ruff check src/taskweavn/server/ui_contract tests/test_audit_page_contrac
 uv run mypy src/taskweavn/server/ui_contract
 ```
 
+### M-010: Split Audit Detail Projection
+
+Status: done on 2026-06-02.
+
+Goal: reduce `audit_projection.py` by moving selected-record detail and
+evidence detail projection into a narrower module.
+
+Allowed changes:
+
+- create `audit_detail_projection.py`;
+- keep existing detail helper imports compatible through `audit_projection.py`;
+- do not change Audit Page response shape, record ordering, related logs, or
+  sanitized payload behavior.
+
+Acceptance:
+
+- record detail and evidence detail contract behavior unchanged;
+- related logs fallback/provider behavior unchanged;
+- old helper imports used by `gateways.py` continue to work;
+- `audit_projection.py` no longer owns selected-record body/reference/evidence
+  detail assembly.
+
+Implementation notes:
+
+- `audit_detail_projection.py` now owns selected record lookup, evidence lookup,
+  record detail assembly, evidence detail assembly, reference mapping,
+  why-it-matters/outcome text, and related logs links.
+- `audit_projection.py` remains the high-level Audit Page projection facade and
+  dropped from 891 lines to 666 lines.
+
+Suggested validation:
+
+```bash
+uv run pytest tests/test_audit_page_contract_models.py tests/test_ui_query_gateway.py tests/test_ui_http_transport.py
+uv run ruff check src/taskweavn/server/ui_contract tests/test_audit_page_contract_models.py tests/test_ui_query_gateway.py
+uv run mypy src/taskweavn/server/ui_contract
+```
+
 ---
 
 ## 7. Dependency And Ordering Rules
@@ -590,6 +629,7 @@ M-001 protocols/providers
   -> M-007 Audit Page helper extraction
   -> M-008 Main Page sidecar slimming
   -> M-009 Audit projection source/event split
+  -> M-010 Audit detail projection split
 ```
 
 Rationale:
