@@ -9,10 +9,20 @@ from typing import Any
 
 import pytest
 
+from taskweavn.context import (
+    AgentLoopContextCallResult,
+    AgentLoopContextRequest,
+    InMemoryContextStore,
+    RenderedLlmInput,
+    SessionAgentLoopContextProvider,
+    SessionContextManager,
+    TaskContextSource,
+)
 from taskweavn.core import SqliteEventStream
 from taskweavn.core.loop import FINISH_TOOL_NAME, AgentLoop, LoopError
 from taskweavn.llm.client import ChatResponse, ToolCall
 from taskweavn.runtime import LocalRuntime
+from taskweavn.task import InMemoryTaskBus, TaskDomain
 from taskweavn.tools import (
     ReadFileTool,
     Workspace,
@@ -44,8 +54,10 @@ class StubLLM:
         self,
         messages: list[dict[str, Any]],
         tools: list[dict[str, Any]] | None = None,
+        *,
+        metadata: dict[str, Any] | None = None,
     ) -> ChatResponse:
-        self.calls.append({"messages": list(messages), "tools": tools})
+        self.calls.append({"messages": list(messages), "tools": tools, "metadata": metadata})
         try:
             return next(self._iter)
         except StopIteration as exc:  # pragma: no cover — test misconfig signal
@@ -63,8 +75,10 @@ class FailingLLM:
         self,
         messages: list[dict[str, Any]],
         tools: list[dict[str, Any]] | None = None,
+        *,
+        metadata: dict[str, Any] | None = None,
     ) -> ChatResponse:
-        self.calls.append({"messages": list(messages), "tools": tools})
+        self.calls.append({"messages": list(messages), "tools": tools, "metadata": metadata})
         raise self.exc
 
 
@@ -131,6 +145,62 @@ def _build_loop(
         tools=tools,
         max_steps=max_steps,
     )
+
+
+class PersistingContextProvider:
+    def __init__(self) -> None:
+        self.requests: list[AgentLoopContextRequest] = []
+
+    def prepare_llm_call(
+        self,
+        request: AgentLoopContextRequest,
+    ) -> AgentLoopContextCallResult:
+        self.requests.append(request)
+        if len(self.requests) == 1:
+            messages = (
+                {"role": "system", "content": "managed system"},
+                {"role": "user", "content": "# Task Start Context\nmanaged task"},
+            )
+            rendered = RenderedLlmInput(
+                renderer_version="test.renderer",
+                system_content="managed system",
+                user_content="# Task Start Context\nmanaged task",
+                messages=messages,
+                rendered_input_hash="sha256:first",
+                snapshot_id="ctx-1",
+                trace_id="trace-1",
+                render_mode="start_context",
+                stable_prefix_hash="sha256:stable",
+            )
+            return AgentLoopContextCallResult(
+                llm_messages=messages,
+                persisted_messages=messages,
+                rendered=rendered,
+                render_mode="start_context",
+                stable_prefix_hash="sha256:stable",
+            )
+
+        rendered = RenderedLlmInput(
+            renderer_version="test.renderer",
+            system_content="reuse",
+            user_content="reuse",
+            messages=request.loop_messages,
+            rendered_input_hash="sha256:second",
+            snapshot_id="ctx-2",
+            trace_id="trace-2",
+            render_mode="delta_context",
+            stable_prefix_hash="sha256:stable",
+        )
+        return AgentLoopContextCallResult(
+            llm_messages=request.loop_messages,
+            persisted_messages=request.loop_messages,
+            rendered=rendered,
+            render_mode="delta_context",
+            stable_prefix_hash="sha256:stable",
+        )
+
+    def build_for_llm_call(self, request: AgentLoopContextRequest) -> RenderedLlmInput:
+        raise AssertionError("AgentLoop should prefer prepare_llm_call")
 
 
 def test_loop_terminates_on_agent_finish(workspace: Workspace) -> None:
@@ -223,6 +293,116 @@ def test_loop_executes_tool_then_finishes(workspace: Workspace) -> None:
     assert len(tool_msgs) == 1
     assert tool_msgs[0]["tool_call_id"] == "c1"
     assert "bytes_written" in tool_msgs[0]["content"]
+
+
+def test_loop_persists_context_provider_messages_before_next_llm_call(
+    workspace: Workspace,
+) -> None:
+    llm = StubLLM(
+        [
+            _tool_call_response(
+                "write_file",
+                {"path": "hello.txt", "content": "hi"},
+                call_id="c1",
+            ),
+            _finish_response("wrote hello.txt", call_id="c2"),
+        ]
+    )
+    provider = PersistingContextProvider()
+    loop = _build_loop(workspace, llm)
+    loop.context_provider = provider
+
+    result = loop.run("write hello.txt", task_id="task-1")
+
+    assert result.finished is True
+    assert provider.requests[0].loop_messages[0]["content"] == loop.system_prompt
+    assert provider.requests[1].loop_messages[0]["content"] == "managed system"
+    assert provider.requests[1].loop_messages[1]["content"].startswith("# Task Start Context")
+    assert any(message.get("role") == "tool" for message in provider.requests[1].loop_messages)
+    assert llm.calls[0]["messages"][0]["content"] == "managed system"
+    assert llm.calls[1]["messages"][0]["content"] == "managed system"
+    assert llm.calls[0]["metadata"]["context_render_mode"] == "start_context"
+    assert llm.calls[1]["metadata"]["context_render_mode"] == "delta_context"
+    assert llm.calls[1]["metadata"]["context_stable_prefix_hash"] == "sha256:stable"
+
+
+def test_loop_observes_checkpoint_interval_and_stable_prefix(
+    workspace: Workspace,
+) -> None:
+    llm = StubLLM(
+        [
+            _tool_call_response(
+                "write_file",
+                {"path": "one.txt", "content": "one"},
+                call_id="c1",
+            ),
+            _tool_call_response(
+                "write_file",
+                {"path": "two.txt", "content": "two"},
+                call_id="c2",
+            ),
+            _finish_response("done", call_id="c3"),
+        ]
+    )
+    task_bus = InMemoryTaskBus()
+    task_bus.publish(
+        TaskDomain(
+            task_id="task-cache-observation",
+            session_id="default",
+            root_id="task-cache-observation",
+            intent="Observe cache-aware checkpoint behavior",
+            required_capability="general",
+            created_by="tester",
+        )
+    )
+    store = InMemoryContextStore()
+    manager = SessionContextManager(
+        task_source=TaskContextSource(task_bus),
+        store=store,
+    )
+    provider = SessionAgentLoopContextProvider(manager, checkpoint_interval_steps=2)
+    loop = _build_loop(workspace, llm, max_steps=3)
+    loop.context_provider = provider
+
+    result = loop.run("observe cache-aware behavior", task_id="task-cache-observation")
+
+    assert result.finished is True
+    assert result.steps == 3
+    assert [call["metadata"]["context_render_mode"] for call in llm.calls] == [
+        "start_context",
+        "checkpoint_context",
+        "delta_context",
+    ]
+    assert [call["metadata"]["context_appended_message_count"] for call in llm.calls] == [
+        0,
+        1,
+        0,
+    ]
+    assert llm.calls[1]["metadata"]["context_checkpoint_reason"] == "interval:2"
+    assert (
+        llm.calls[0]["metadata"]["context_stable_prefix_hash"]
+        == llm.calls[1]["metadata"]["context_stable_prefix_hash"]
+        == llm.calls[2]["metadata"]["context_stable_prefix_hash"]
+    )
+
+    first_messages = llm.calls[0]["messages"]
+    second_messages = llm.calls[1]["messages"]
+    third_messages = llm.calls[2]["messages"]
+    assert second_messages[: len(first_messages)] == first_messages
+    assert third_messages[: len(second_messages)] == second_messages
+    assert second_messages[-1]["role"] == "system"
+    assert "# Context Checkpoint" in second_messages[-1]["content"]
+    assert "Reason: interval:2" in second_messages[-1]["content"]
+
+    snapshots = store.list_snapshots_for_task(
+        "default",
+        "task-cache-observation",
+    )
+    assert [snapshot.render_mode for snapshot in snapshots] == [
+        "start_context",
+        "checkpoint_context",
+        "delta_context",
+    ]
 
 
 def test_loop_tags_sqlite_events_with_supplied_task_id(

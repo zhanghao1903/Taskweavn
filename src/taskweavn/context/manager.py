@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Any
 
 from taskweavn.context.models import (
     ContextBuildRequest,
@@ -11,6 +12,7 @@ from taskweavn.context.models import (
     ContextTrace,
     ContextTraceRef,
     ExecutionFacts,
+    RenderedLlmInput,
     TaskContextIdentity,
     TaskExecutionContextV0,
     new_context_id,
@@ -80,11 +82,11 @@ class SessionContextManager:
             guidance=self.guidance_source.collect(request),
             trace=trace_ref,
         )
-        rendered = self.renderer.render(
+        rendered = self._render_context(
             context,
+            request=request,
             snapshot_id=snapshot_id,
             trace_id=trace_id,
-            prior_messages=request.prior_messages,
         )
         trace = ContextTrace(
             trace_id=trace_id,
@@ -96,6 +98,19 @@ class SessionContextManager:
             candidates_excluded=(),
             policy_version=self.policy.version,
             renderer_version=self.renderer.version,
+            render_mode=rendered.render_mode,
+            stable_prefix_hash=rendered.stable_prefix_hash,
+            context_segment_hashes=tuple(segment.content_hash for segment in rendered.segments),
+            appended_context_message_count=_appended_context_message_count(
+                request.prior_messages,
+                rendered.messages,
+            ),
+            delta_reason=(
+                request.render_reason if rendered.render_mode == "delta_context" else None
+            ),
+            checkpoint_reason=(
+                request.render_reason if rendered.render_mode == "checkpoint_context" else None
+            ),
         )
         snapshot = ContextSnapshot(
             snapshot_id=snapshot_id,
@@ -107,6 +122,9 @@ class SessionContextManager:
             turn_index=request.turn_index,
             renderer_version=self.renderer.version,
             rendered_input_hash=rendered.rendered_input_hash,
+            render_mode=rendered.render_mode,
+            stable_prefix_hash=rendered.stable_prefix_hash,
+            context_segment_hashes=tuple(segment.content_hash for segment in rendered.segments),
             task_execution_context=context,
         )
         self.store.save_snapshot(snapshot)
@@ -118,3 +136,59 @@ class SessionContextManager:
             snapshot=snapshot,
             trace=trace,
         )
+
+    def _render_context(
+        self,
+        context: TaskExecutionContextV0,
+        *,
+        request: ContextBuildRequest,
+        snapshot_id: str,
+        trace_id: str,
+    ) -> RenderedLlmInput:
+        if request.render_mode == "start_context":
+            return self.renderer.render_start_context(
+                context,
+                snapshot_id=snapshot_id,
+                trace_id=trace_id,
+                prior_messages=request.prior_messages,
+            )
+        if request.render_mode == "delta_context":
+            if request.render_reason:
+                return self.renderer.render_delta_context(
+                    context,
+                    snapshot_id=snapshot_id,
+                    trace_id=trace_id,
+                    reason=request.render_reason,
+                    prior_messages=request.prior_messages,
+                )
+            return self.renderer.render_reused_transcript(
+                context,
+                snapshot_id=snapshot_id,
+                trace_id=trace_id,
+                prior_messages=request.prior_messages,
+            )
+        if request.render_mode == "checkpoint_context":
+            return self.renderer.render_checkpoint_context(
+                context,
+                snapshot_id=snapshot_id,
+                trace_id=trace_id,
+                reason=request.render_reason or "checkpoint",
+                prior_messages=request.prior_messages,
+            )
+        return self.renderer.render(
+            context,
+            snapshot_id=snapshot_id,
+            trace_id=trace_id,
+            prior_messages=request.prior_messages,
+        )
+
+
+def _appended_context_message_count(
+    prior_messages: tuple[dict[str, Any], ...],
+    rendered_messages: tuple[dict[str, Any], ...],
+) -> int:
+    if len(rendered_messages) <= len(prior_messages):
+        return 0
+    if rendered_messages[: len(prior_messages)] != prior_messages:
+        return 0
+    return len(rendered_messages) - len(prior_messages)

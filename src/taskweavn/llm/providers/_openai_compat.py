@@ -73,16 +73,47 @@ def _parse_usage(raw: Any) -> LLMUsage | None:
     if raw is None:
         return None
 
+    input_tokens = _maybe_int(raw, "prompt_tokens", "input_tokens")
+    cache_hit_tokens = _maybe_int(raw, "prompt_cache_hit_tokens")
+    cache_miss_tokens = _maybe_int(raw, "prompt_cache_miss_tokens")
+    cached_tokens = _nested_int(raw, "prompt_tokens_details", "cached_tokens")
+    if cached_tokens is None:
+        cached_tokens = cache_hit_tokens
+    if cache_hit_tokens is None:
+        cache_hit_tokens = cached_tokens
     usage = LLMUsage(
-        input_tokens=_maybe_int(raw, "prompt_tokens", "input_tokens"),
+        input_tokens=input_tokens,
         output_tokens=_maybe_int(raw, "completion_tokens", "output_tokens"),
         total_tokens=_maybe_int(raw, "total_tokens"),
         reasoning_tokens=_nested_int(raw, "completion_tokens_details", "reasoning_tokens"),
-        cached_tokens=_nested_int(raw, "prompt_tokens_details", "cached_tokens"),
+        cached_tokens=cached_tokens,
+        cache_hit_tokens=cache_hit_tokens,
+        cache_miss_tokens=cache_miss_tokens,
+        cache_hit_ratio=_cache_hit_ratio(
+            input_tokens=input_tokens,
+            cache_hit_tokens=cache_hit_tokens,
+            cache_miss_tokens=cache_miss_tokens,
+        ),
     )
     if all(value is None for value in usage.model_dump().values()):
         return None
     return usage
+
+
+def _cache_hit_ratio(
+    *,
+    input_tokens: int | None,
+    cache_hit_tokens: int | None,
+    cache_miss_tokens: int | None,
+) -> float | None:
+    if cache_hit_tokens is None:
+        return None
+    denominator = input_tokens
+    if denominator is None and cache_miss_tokens is not None:
+        denominator = cache_hit_tokens + cache_miss_tokens
+    if denominator is None or denominator <= 0:
+        return None
+    return cache_hit_tokens / denominator
 
 
 def _parse_metadata(response: Any) -> dict[str, Any]:
