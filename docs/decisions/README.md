@@ -39,3 +39,4 @@ Each ADR should include:
 | [ADR-0010](ADR-0010-line-first-authoring-experience-for-1-0.md) | accepted | Keep tree-capable architecture but adopt line-first authoring experience defaults for 1.0. |
 | [ADR-0011](ADR-0011-routing-agent-assignment-and-cooperative-interruption.md) | accepted | Use Routing Agent assignment commands and cooperative interruption instead of TaskBus-owned routing strategy or hard cancellation. |
 | [ADR-0012](ADR-0012-taskbus-centered-agent-assignment-convergence.md) | accepted | Use TaskBus-centered convergence loops for minimal Agent assignment and stale pending degradation. |
+| [ADR-0013](ADR-0013-cache-aware-append-only-context-rendering.md) | accepted | Preserve append-only execution transcripts with context deltas and checkpoints for cache-aware Context Manager rendering. |
