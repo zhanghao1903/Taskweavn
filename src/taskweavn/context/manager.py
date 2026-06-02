@@ -96,6 +96,9 @@ class SessionContextManager:
             candidates_excluded=(),
             policy_version=self.policy.version,
             renderer_version=self.renderer.version,
+            render_mode=rendered.render_mode,
+            stable_prefix_hash=rendered.stable_prefix_hash,
+            context_segment_hashes=tuple(segment.content_hash for segment in rendered.segments),
         )
         snapshot = ContextSnapshot(
             snapshot_id=snapshot_id,
@@ -107,6 +110,9 @@ class SessionContextManager:
             turn_index=request.turn_index,
             renderer_version=self.renderer.version,
             rendered_input_hash=rendered.rendered_input_hash,
+            render_mode=rendered.render_mode,
+            stable_prefix_hash=rendered.stable_prefix_hash,
+            context_segment_hashes=tuple(segment.content_hash for segment in rendered.segments),
             task_execution_context=context,
         )
         self.store.save_snapshot(snapshot)

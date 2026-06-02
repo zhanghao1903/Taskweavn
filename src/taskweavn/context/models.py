@@ -15,6 +15,19 @@ ContextBuildPurpose = Literal[
     "read_only_review",
 ]
 TaskContextVersion = Literal["task_execution_context.v0"]
+ContextRenderMode = Literal[
+    "full_context",
+    "start_context",
+    "delta_context",
+    "checkpoint_context",
+]
+ContextSegmentKind = Literal[
+    "full_context",
+    "stable_prefix",
+    "execution_transcript",
+    "delta",
+    "checkpoint",
+]
 
 
 def utcnow() -> datetime:
@@ -206,6 +219,14 @@ class ContextExclusion(ContextModel):
     reason: str = Field(min_length=1)
 
 
+class ContextMessageSegment(ContextModel):
+    kind: ContextSegmentKind
+    message_start_index: int = Field(ge=0)
+    message_end_index: int = Field(ge=0)
+    content_hash: str = Field(min_length=1)
+    stable: bool = False
+
+
 class ContextTrace(ContextModel):
     trace_id: str = Field(default_factory=lambda: new_context_id("trace"), min_length=1)
     snapshot_id: str = Field(min_length=1)
@@ -216,6 +237,13 @@ class ContextTrace(ContextModel):
     candidates_excluded: tuple[ContextExclusion, ...] = ()
     policy_version: str = Field(min_length=1)
     renderer_version: str = Field(min_length=1)
+    render_mode: ContextRenderMode = "full_context"
+    stable_prefix_hash: str | None = None
+    context_segment_hashes: tuple[str, ...] = ()
+    appended_context_message_count: int = Field(default=0, ge=0)
+    delta_reason: str | None = None
+    checkpoint_reason: str | None = None
+    cache_policy_version: str | None = None
     created_at: datetime = Field(default_factory=utcnow)
 
 
@@ -230,6 +258,9 @@ class ContextSnapshot(ContextModel):
     context_version: TaskContextVersion = "task_execution_context.v0"
     renderer_version: str = Field(min_length=1)
     rendered_input_hash: str = Field(min_length=1)
+    render_mode: ContextRenderMode = "full_context"
+    stable_prefix_hash: str | None = None
+    context_segment_hashes: tuple[str, ...] = ()
     task_execution_context: TaskExecutionContextV0
     created_at: datetime = Field(default_factory=utcnow)
 
@@ -242,6 +273,9 @@ class RenderedLlmInput(ContextModel):
     rendered_input_hash: str = Field(min_length=1)
     snapshot_id: str = Field(min_length=1)
     trace_id: str = Field(min_length=1)
+    render_mode: ContextRenderMode = "full_context"
+    segments: tuple[ContextMessageSegment, ...] = ()
+    stable_prefix_hash: str | None = None
 
 
 class ContextBuildResult(ContextModel):
