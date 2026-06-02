@@ -489,6 +489,8 @@ cd frontend && npm run lint
 
 ### M-008: Slim Main Page Sidecar Assembly
 
+Status: done on 2026-06-02.
+
 Goal: keep `main_page.py` as public assembly API and move supporting concerns
 out of the root file.
 
@@ -512,6 +514,21 @@ uv run pytest tests/test_main_page_sidecar_app.py tests/test_local_sidecar_serve
 uv run ruff check src/taskweavn/server/main_page.py src/taskweavn/server/main_page_*.py tests/test_main_page_sidecar_app.py
 uv run mypy src/taskweavn/server/main_page.py src/taskweavn/server/main_page_*.py
 ```
+
+Implementation notes:
+
+- `main_page.py` remains the public sidecar assembly API and now delegates
+  supporting concerns to narrower `main_page_*` modules.
+- `main_page_agent.py` owns the resident default-agent `AgentLoop` runner and
+  session context builder.
+- `main_page_audit_events.py` owns Audit Page runtime invalidation emitters and
+  audit-aware command/client-log decorators.
+- `main_page_logging.py` owns sidecar logging configuration and session log
+  manifest writing.
+- `main_page_sessions.py` owns session lifecycle commands and UI task-reference
+  resolution.
+- `main_page.py` dropped from 944 lines to 446 lines while preserving
+  `build_main_page_sidecar_app` and server package exports.
 
 ---
 

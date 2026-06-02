@@ -3,84 +3,53 @@
 from __future__ import annotations
 
 import contextlib
-import re
 import threading
-from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
-from uuid import uuid4
 
-from taskweavn.context import (
-    ContextBuildRequest,
-    ContextBuildResult,
-    ControlContextSource,
-    EventStreamContextSource,
-    SessionAgentLoopContextProvider,
-    SessionContextManager,
-    SqliteContextStore,
-    TaskContextSource,
-)
 from taskweavn.core import (
-    AgentLoop,
-    LoopResult,
     Session,
     SessionManager,
-    SqliteEventStream,
     WorkspaceLayout,
 )
 from taskweavn.interaction import (
     InProcessMessageBus,
     SqliteMessageStream,
 )
-from taskweavn.observability import (
-    LogArchiveManifest,
-    LogRule,
-    build_disabled_logging_config,
-    build_session_logging_config,
-    get_logging_manager,
-)
-from taskweavn.observability.models import LOG_CATEGORIES
-from taskweavn.runtime import LocalRuntime
 from taskweavn.server.client_logs import FileClientErrorLogSink
+from taskweavn.server.main_page_agent import build_agent_loop_resident_default_agent
+from taskweavn.server.main_page_audit_events import (
+    FRONTEND_ERROR_LOG_FILENAME,
+    AuditEventClientErrorLogSink,
+    AuditEventCommandGateway,
+    ui_event_store,
+)
+from taskweavn.server.main_page_logging import configure_sidecar_logging
+from taskweavn.server.main_page_sessions import (
+    MainPageSessionLifecycleGateway,
+    MainPageTaskRefResolver,
+    resolve_configured_session,
+)
 from taskweavn.server.sidecar import LocalSidecarConfig, LocalSidecarServer
 from taskweavn.server.ui_command_idempotency import (
     SqliteUiCommandResponseIdempotencyStore,
     UiCommandResponseIdempotencyStore,
 )
 from taskweavn.server.ui_contract import (
-    AppendSessionInputPayload,
-    AppendTaskInputPayload,
-    AuditConfigScope,
-    AuditConfirmationScope,
-    AuditLogEvidenceScope,
-    AuditTaskScope,
-    CommandRequest,
-    CommandResponse,
     DefaultUiCommandGateway,
     DefaultUiQueryGateway,
-    GenerateTaskTreePayload,
-    PublishTaskTreePayload,
-    ResolveConfirmationPayload,
-    RetryTaskPayload,
     UiCommandGateway,
-    UpdateTaskNodePayload,
     WorkspaceAuditConfigProvider,
     WorkspaceAuditEventProvider,
     WorkspaceAuditLogProvider,
-    audit_records_changed,
 )
 from taskweavn.server.ui_events import (
     SqliteUiEventSource,
     UiEventSource,
-    UiEventSourceError,
-    UiEventStore,
 )
 from taskweavn.server.ui_http import PlatoUiHttpTransport, SidecarAuth
 from taskweavn.task import (
     DEFAULT_FIXED_ROUTE_AGENT_ID,
-    AgentLoopResidentDefaultAgent,
     AuthoringCommandIdempotencyStore,
     AuthoringStateStore,
     CapabilityCatalog,
@@ -109,25 +78,12 @@ from taskweavn.task import (
     SqliteTaskBus,
     SqliteTaskExecutionSummaryStore,
     StaticCapabilityCatalog,
-    TaskBus,
-    TaskDomain,
     TaskExecutionSummaryStore,
     TaskExecutionSummaryViewStore,
     TaskExecutionTickResult,
-    TaskRef,
-)
-from taskweavn.tools import (
-    ListDirTool,
-    ReadFileTool,
-    RunCommandTool,
-    Tool,
-    Workspace,
-    WriteFileTool,
 )
 
 DEFAULT_PLATO_SIDECAR_PORT = 52789
-_ID_SAFE_RE = re.compile(r"[^A-Za-z0-9_.:-]+")
-_FRONTEND_ERROR_LOG_FILENAME = "frontend-errors.jsonl"
 
 
 @dataclass(frozen=True)
@@ -270,8 +226,13 @@ def build_main_page_sidecar_app(
     layout = WorkspaceLayout(config.workspace_root)
     session_manager = SessionManager(layout)
     try:
-        session = _resolve_session(session_manager, config)
-        logging_initializer = _configure_sidecar_logging(config)
+        session = resolve_configured_session(session_manager, config.session_id)
+        logging_initializer = configure_sidecar_logging(
+            workspace_root=config.workspace_root,
+            enable_session_logging=config.enable_session_logging,
+            logging_level=config.logging_level,
+            logging_profile=config.logging_profile,
+        )
         if session is not None:
             logging_initializer(session)
         message_stream = SqliteMessageStream(layout.workspace_messages_db)
@@ -305,7 +266,7 @@ def build_main_page_sidecar_app(
         event_source = dependencies.event_source or SqliteUiEventSource(
             layout.workspace_ui_events_db
         )
-        ui_event_store = _ui_event_store(event_source)
+        event_store = ui_event_store(event_source)
         default_agent = dependencies.default_agent
         if default_agent is None and config.enable_default_agent:
             default_agent = build_agent_loop_resident_default_agent(
@@ -314,7 +275,7 @@ def build_main_page_sidecar_app(
                 task_bus=task_bus,
                 max_steps=config.default_agent_max_steps,
                 result_summary_store=result_summary_store,
-                ui_event_store=ui_event_store,
+                ui_event_store=event_store,
             )
         execution_dispatcher = FixedRouteExecutionDispatcher(
             task_bus=task_bus,
@@ -374,9 +335,9 @@ def build_main_page_sidecar_app(
             ),
             authoring_state_store=authoring_state_store,
         )
-        command_gateway: UiCommandGateway = _AuditEventCommandGateway(
+        command_gateway: UiCommandGateway = AuditEventCommandGateway(
             inner=core_command_gateway,
-            event_store=ui_event_store,
+            event_store=event_store,
         )
         ui_command_idempotency_store = (
             dependencies.ui_command_idempotency_store
@@ -387,17 +348,17 @@ def build_main_page_sidecar_app(
             command_gateway=command_gateway,
             event_source=event_source,
             auth=None if config.auth_token is None else SidecarAuth(config.auth_token),
-            client_error_log_sink=_AuditEventClientErrorLogSink(
+            client_error_log_sink=AuditEventClientErrorLogSink(
                 inner=FileClientErrorLogSink(
                     layout,
-                    filename=_FRONTEND_ERROR_LOG_FILENAME,
+                    filename=FRONTEND_ERROR_LOG_FILENAME,
                 ),
-                event_store=ui_event_store,
+                event_store=event_store,
             ),
             session_lifecycle_gateway=MainPageSessionLifecycleGateway(
                 session_manager=session_manager,
                 configure_session_logging=logging_initializer,
-                ui_event_store=ui_event_store,
+                ui_event_store=event_store,
             ),
             command_idempotency_store=ui_command_idempotency_store,
             execution_trigger_gateway=execution_dispatcher,
@@ -460,456 +421,6 @@ def _authoring_stores(
     )
 
 
-def build_agent_loop_resident_default_agent(
-    *,
-    layout: WorkspaceLayout,
-    llm: Any,
-    task_bus: TaskBus | None = None,
-    max_steps: int = 20,
-    result_summary_store: TaskExecutionSummaryStore | None = None,
-    ui_event_store: UiEventStore | None = None,
-) -> AgentLoopResidentDefaultAgent:
-    """Build the resident Default Agent used by the fixed-route sidecar bridge."""
-
-    context_builder_factory: Callable[[TaskDomain], _SessionContextBuilder] | None = None
-    if task_bus is not None:
-        def build_context_builder(task: TaskDomain) -> _SessionContextBuilder:
-            return _SessionContextBuilder(
-                layout=layout,
-                task_bus=task_bus,
-                session_id=task.session_id,
-            )
-
-        context_builder_factory = build_context_builder
-
-    return AgentLoopResidentDefaultAgent(
-        loop_factory=lambda task: _SessionAgentLoopRunner(
-            layout=layout,
-            llm=llm,
-            session_id=task.session_id,
-            max_steps=max_steps,
-            ui_event_store=ui_event_store,
-            context_builder=(
-                None if context_builder_factory is None else context_builder_factory(task)
-            ),
-        ),
-        context_builder_factory=context_builder_factory,
-        result_summary_store=result_summary_store,
-    )
-
-
-@dataclass(frozen=True)
-class _SessionContextBuilder:
-    """Build execution context from session-scoped durable sources."""
-
-    layout: WorkspaceLayout
-    task_bus: TaskBus
-    session_id: str
-
-    def build(self, request: ContextBuildRequest) -> ContextBuildResult:
-        self.layout.bootstrap_session(self.session_id)
-        with (
-            SqliteEventStream(self.layout.session_events_db(self.session_id)) as event_stream,
-            SqliteContextStore(self.layout.session_context_db(self.session_id)) as context_store,
-        ):
-            manager = SessionContextManager(
-                task_source=TaskContextSource(self.task_bus),
-                event_source=EventStreamContextSource(
-                    event_stream,
-                    workspace_id=f"session:{self.session_id}",
-                ),
-                control_source=ControlContextSource(
-                    allowed_tools=("read_file", "write_file", "list_dir", "run_command"),
-                ),
-                store=context_store,
-            )
-            return manager.build(request)
-
-
-@dataclass(frozen=True)
-class _SessionAgentLoopRunner:
-    """Create one AgentLoop run with session-scoped workspace and events."""
-
-    layout: WorkspaceLayout
-    llm: Any
-    session_id: str
-    max_steps: int
-    ui_event_store: UiEventStore | None = None
-    context_builder: _SessionContextBuilder | None = None
-
-    def run(self, task: str, *, task_id: str | None = None) -> LoopResult:
-        self.layout.bootstrap_session(self.session_id)
-        workspace = Workspace(self.layout.session_project_dir(self.session_id))
-        runtime = LocalRuntime()
-        tools: list[Tool[Any, Any]] = [
-            ReadFileTool(workspace),
-            WriteFileTool(workspace),
-            ListDirTool(workspace),
-            RunCommandTool(workspace),
-        ]
-        for tool in tools:
-            tool.register(runtime)
-
-        event_stream = SqliteEventStream(self.layout.session_events_db(self.session_id))
-        try:
-            loop = AgentLoop(
-                llm=self.llm,
-                runtime=runtime,
-                tools=tools,
-                event_stream=event_stream,
-                max_steps=self.max_steps,
-                session_id=self.session_id,
-                workspace_root=workspace.root,
-                context_provider=(
-                    None
-                    if self.context_builder is None
-                    else SessionAgentLoopContextProvider(self.context_builder)
-                ),
-            )
-            result = loop.run(task, task_id=task_id)
-            if task_id is not None:
-                _emit_agent_loop_audit_records_changed(
-                    self.ui_event_store,
-                    session_id=self.session_id,
-                    task_id=task_id,
-                )
-            return result
-        finally:
-            event_stream.close()
-
-
-@dataclass(frozen=True)
-class MainPageTaskRefResolver:
-    """Resolve UI task node ids into backend TaskRef values."""
-
-    draft_store: DraftTaskStore
-    task_bus: SqliteTaskBus
-
-    def resolve(self, session_id: str, task_node_id: str) -> TaskRef:
-        draft_node = self.draft_store.get_node(session_id, task_node_id)
-        if draft_node is not None:
-            return TaskRef.draft(task_node_id)
-        if self.task_bus.get(session_id, task_node_id) is not None:
-            return TaskRef.published(task_node_id)
-        raise LookupError(f"task node {task_node_id!r} not found")
-
-
-@dataclass(frozen=True)
-class MainPageSessionLifecycleGateway:
-    """Session lifecycle commands for the local Main Page sidecar."""
-
-    session_manager: SessionManager
-    configure_session_logging: Callable[[Session], None] | None = None
-    ui_event_store: UiEventStore | None = None
-
-    def list_sessions(self) -> dict[str, object]:
-        return {"sessions": [_session_payload(session) for session in self.session_manager.list()]}
-
-    def create_session(self, name: str) -> dict[str, object]:
-        session = self.session_manager.create(name)
-        if self.configure_session_logging is not None:
-            self.configure_session_logging(session)
-        if (session.logs_dir / "manifest.json").is_file():
-            _emit_config_manifest_audit_records_changed(
-                self.ui_event_store,
-                session_id=session.id,
-            )
-        return {"sessionId": session.id, "session": _session_payload(session)}
-
-    def rename_session(self, session_id: str, name: str) -> dict[str, object]:
-        session = self.session_manager.rename(session_id, name)
-        return {"sessionId": session.id, "session": _session_payload(session)}
-
-    def delete_session(self, session_id: str) -> dict[str, object]:
-        next_session = self.session_manager.delete(session_id)
-        return {
-            "deletedSessionId": session_id,
-            "nextSessionId": None if next_session is None else next_session.id,
-        }
-
-
-def _resolve_session(
-    session_manager: SessionManager,
-    config: MainPageSidecarConfig,
-) -> Session | None:
-    if config.session_id is not None:
-        return session_manager.require(config.session_id)
-    return None
-
-
-def _configure_sidecar_logging(
-    config: MainPageSidecarConfig,
-) -> Callable[[Session], None]:
-    """Enable debug-phase session archives under each workspace session dir."""
-    manager = get_logging_manager()
-    if not config.enable_session_logging:
-        manager.apply_config(build_disabled_logging_config(config.workspace_root / ".logs"))
-        return lambda session: None
-
-    base = build_session_logging_config(config.workspace_root, level=config.logging_level)
-    sinks = dict(base.sinks)
-    session_sink = sinks["session_file"]
-    sinks["session_file"] = session_sink.model_copy(
-        update={
-            "path_template": (
-                "{archive_root}/sessions/{session_id}/.session/logs/"
-                "{category}.jsonl"
-            )
-        }
-    )
-    global_config_sink = sinks["global_config_file"]
-    sinks["global_config_file"] = global_config_sink.model_copy(
-        update={
-            "path_template": (
-                "{archive_root}/.code-agent/logs/global/{category}.jsonl"
-            )
-        }
-    )
-    rules = dict(base.rules)
-    rules["config"] = LogRule(
-        category="config",
-        level="INFO",
-        sinks=("global_config_file",),
-        payload_mode="summary",
-    )
-    manager.apply_config(
-        base.model_copy(update={"sinks": sinks, "rules": rules})
-    )
-
-    def initialize(session: Session) -> None:
-        if config.logging_profile is not None:
-            manager.apply_profile(session.id, config.logging_profile)
-        _write_sidecar_session_log_manifest(session)
-
-    return initialize
-
-
-def _write_sidecar_session_log_manifest(session: Session) -> LogArchiveManifest:
-    """Write the manifest where Audit Page already looks for session logs."""
-    manager = get_logging_manager()
-    log_dir = session.logs_dir
-    log_dir.mkdir(parents=True, exist_ok=True)
-    manifest_path = log_dir / "manifest.json"
-    existing = None
-    if manifest_path.exists():
-        with contextlib.suppress(Exception):
-            existing = LogArchiveManifest.model_validate_json(
-                manifest_path.read_text(encoding="utf-8")
-            )
-    manifest = LogArchiveManifest(
-        session_id=session.id,
-        created_at=(
-            existing.created_at
-            if existing is not None
-            else datetime.now(tz=UTC)
-        ),
-        closed_at=None if existing is None else existing.closed_at,
-        config_hash=manager.config_hash(),
-        archive_root=str(log_dir),
-        files={category: f"{category}.jsonl" for category in LOG_CATEGORIES},
-        templates={},
-        rotation={
-            "enabled": True,
-            "max_bytes": 10 * 1024 * 1024,
-            "backup_count": 5,
-        },
-    )
-    manifest_path.write_text(
-        manifest.model_dump_json(indent=2, exclude_none=True),
-        encoding="utf-8",
-    )
-    return manifest
-
-
-@dataclass(frozen=True)
-class _AuditEventCommandGateway:
-    """Decorate UI commands that change Audit Page-backed source facts."""
-
-    inner: UiCommandGateway
-    event_store: UiEventStore | None = None
-
-    def append_session_input(
-        self,
-        request: CommandRequest[AppendSessionInputPayload],
-    ) -> CommandResponse:
-        return self.inner.append_session_input(request)
-
-    def generate_task_tree(
-        self,
-        request: CommandRequest[GenerateTaskTreePayload],
-    ) -> CommandResponse:
-        return self.inner.generate_task_tree(request)
-
-    def update_task_node(
-        self,
-        task_node_id: str,
-        request: CommandRequest[UpdateTaskNodePayload],
-    ) -> CommandResponse:
-        return self.inner.update_task_node(task_node_id, request)
-
-    def append_task_input(
-        self,
-        task_node_id: str,
-        request: CommandRequest[AppendTaskInputPayload],
-    ) -> CommandResponse:
-        return self.inner.append_task_input(task_node_id, request)
-
-    def publish_task_tree(
-        self,
-        request: CommandRequest[PublishTaskTreePayload],
-    ) -> CommandResponse:
-        return self.inner.publish_task_tree(request)
-
-    def retry_task(
-        self,
-        task_node_id: str,
-        request: CommandRequest[RetryTaskPayload],
-    ) -> CommandResponse:
-        return self.inner.retry_task(task_node_id, request)
-
-    def resolve_confirmation(
-        self,
-        confirmation_id: str,
-        request: CommandRequest[ResolveConfirmationPayload],
-    ) -> CommandResponse:
-        response = self.inner.resolve_confirmation(confirmation_id, request)
-        if response.ok and response.result is not None:
-            _emit_confirmation_audit_records_changed(
-                self.event_store,
-                session_id=request.session_id,
-                confirmation_id=confirmation_id,
-                task_ref=response.result.affected_task_refs[0]
-                if response.result.affected_task_refs
-                else None,
-            )
-        return response
-
-
-@dataclass(frozen=True)
-class _AuditEventClientErrorLogSink:
-    """Append frontend error logs and emit an audit invalidation."""
-
-    inner: FileClientErrorLogSink
-    event_store: UiEventStore | None = None
-
-    def write_error(self, session_id: str, payload: dict[str, Any]) -> None:
-        self.inner.write_error(session_id, payload)
-        _emit_log_archive_audit_records_changed(
-            self.event_store,
-            session_id=session_id,
-            filename=self.inner.filename,
-        )
-
-
-def _ui_event_store(event_source: UiEventSource) -> UiEventStore | None:
-    if isinstance(event_source, UiEventStore):
-        return event_source
-    return None
-
-
-def _emit_audit_records_changed(
-    event_store: UiEventStore | None,
-    *,
-    session_id: str,
-    cursor_source: str,
-    scope: object,
-    reason: str,
-    record_ids: tuple[str, ...] = (),
-) -> None:
-    if event_store is None:
-        return
-
-    event = audit_records_changed(
-        session_id,
-        cursor=f"audit:{cursor_source}:{session_id}:{uuid4().hex}",
-        scope=scope,
-        record_ids=record_ids,
-        reason=reason,
-    )
-    with contextlib.suppress(UiEventSourceError):
-        event_store.append(event)
-
-
-def _emit_agent_loop_audit_records_changed(
-    event_store: UiEventStore | None,
-    *,
-    session_id: str,
-    task_id: str,
-) -> None:
-    """Emit the first runtime Audit Page invalidation after AgentLoop writes events."""
-    _emit_audit_records_changed(
-        event_store,
-        session_id=session_id,
-        cursor_source=f"agent_loop:{task_id}",
-        scope=AuditTaskScope(
-            session_id=session_id,
-            task_node_id=task_id,
-            task_ref=TaskRef.published(task_id),
-        ),
-        reason="agent_loop_event_stream_updated",
-    )
-
-
-def _emit_confirmation_audit_records_changed(
-    event_store: UiEventStore | None,
-    *,
-    session_id: str,
-    confirmation_id: str,
-    task_ref: TaskRef | None = None,
-) -> None:
-    _emit_audit_records_changed(
-        event_store,
-        session_id=session_id,
-        cursor_source=f"confirmation:{confirmation_id}",
-        scope=AuditConfirmationScope(
-            session_id=session_id,
-            confirmation_id=confirmation_id,
-            task_node_id=None if task_ref is None else task_ref.id,
-        ),
-        record_ids=(f"record-confirmation-{confirmation_id}",),
-        reason="confirmation_resolved",
-    )
-
-
-def _emit_config_manifest_audit_records_changed(
-    event_store: UiEventStore | None,
-    *,
-    session_id: str,
-) -> None:
-    _emit_audit_records_changed(
-        event_store,
-        session_id=session_id,
-        cursor_source="config_manifest",
-        scope=AuditConfigScope(session_id=session_id, config_key="logging"),
-        record_ids=("record-config-logging-manifest",),
-        reason="config_manifest_updated",
-    )
-
-
-def _emit_log_archive_audit_records_changed(
-    event_store: UiEventStore | None,
-    *,
-    session_id: str,
-    filename: str,
-) -> None:
-    record_id = f"record-log-{_safe_token(filename)}"
-    _emit_audit_records_changed(
-        event_store,
-        session_id=session_id,
-        cursor_source=f"log_archive:{filename}",
-        scope=AuditLogEvidenceScope(
-            session_id=session_id,
-            evidence_id=f"evidence-{record_id}",
-        ),
-        record_ids=(record_id,),
-        reason="log_archive_updated",
-    )
-
-
-def _safe_token(value: str) -> str:
-    return _ID_SAFE_RE.sub("-", value).strip("-") or "item"
-
-
 def _default_capability_catalog() -> StaticCapabilityCatalog:
     return StaticCapabilityCatalog(
         (
@@ -920,16 +431,6 @@ def _default_capability_catalog() -> StaticCapabilityCatalog:
             "research",
         )
     )
-
-
-def _session_payload(session: Session) -> dict[str, object]:
-    return {
-        "id": session.id,
-        "name": session.name,
-        "createdAt": session.created_at.isoformat(),
-        "updatedAt": session.last_active_at.isoformat(),
-        "status": session.status,
-    }
 
 
 __all__ = [
