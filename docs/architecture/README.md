@@ -41,7 +41,7 @@ Feature-specific work should then read the relevant area documents below.
 | UI/backend boundary | [ui-backend-communication.md](ui-backend-communication.md), [task-domain-ui-model-separation.md](task-domain-ui-model-separation.md) | ViewModel projection, Query/Command/Event, frontend/backend contract direction. |
 | Tool and workspace capability | [tool-capability-layer.md](tool-capability-layer.md), [workspace-communication-protocol.md](workspace-communication-protocol.md) | CapabilityCatalog, tool pools, system-state mutation, workspace operations. |
 | Agent model | [agent.md](agent.md), [multi-agent-collaboration.md](multi-agent-collaboration.md), [multi-agent-collaboration_en.md](multi-agent-collaboration_en.md) | Agent templates, Routing Agent role, Execution Agent instances, future multi-agent collaboration direction. |
-| Execution context governance | [context-manager.md](context-manager.md) | Context Manager boundary, Product 1.0 TaskExecutionContext v0, deterministic context assembly, trace/recovery extension points. |
+| Execution context governance | [context-manager.md](context-manager.md) | Context Manager boundary, Product 1.0 TaskExecutionContext v0, deterministic and cache-aware append-only context assembly, trace/recovery extension points. |
 | Sessions | [session.md](session.md) | Session boundary, status, persistence, workspace relationship. |
 | LLM providers | [llm-provider-reliability.md](llm-provider-reliability.md) | Provider abstraction, retry, DeepSeek thinking, OpenRouter routing. |
 | Logging and observability | [configurable-logging-system.md](configurable-logging-system.md) | Structured logging, session archives, hot update, diagnostics substrate. |

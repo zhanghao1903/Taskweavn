@@ -692,24 +692,48 @@ class AgentLoop:
 
         from taskweavn.context.agent_loop_provider import AgentLoopContextRequest
 
-        rendered = self.context_provider.build_for_llm_call(
-            AgentLoopContextRequest(
-                session_id=self.session_id,
-                task_id=self._current_task_id,
-                agent_id="default_agent",
-                agent_run_id=self._current_agent_run_id,
-                turn_index=step,
-                loop_messages=tuple(dict(message) for message in messages),
-                tool_names=tuple(tool.name for tool in self.tools) + (FINISH_TOOL_NAME,),
-                pending_decision_count=len(self._pending_decisions),
-            )
+        request = AgentLoopContextRequest(
+            session_id=self.session_id,
+            task_id=self._current_task_id,
+            agent_id="default_agent",
+            agent_run_id=self._current_agent_run_id,
+            turn_index=step,
+            loop_messages=tuple(dict(message) for message in messages),
+            tool_names=tuple(tool.name for tool in self.tools) + (FINISH_TOOL_NAME,),
+            pending_decision_count=len(self._pending_decisions),
         )
+        prepare_llm_call = getattr(self.context_provider, "prepare_llm_call", None)
+        if callable(prepare_llm_call):
+            call = prepare_llm_call(request)
+            messages[:] = [dict(message) for message in call.persisted_messages]
+            metadata = self._context_metadata(call.rendered)
+            metadata["context_render_mode"] = call.render_mode
+            metadata["context_appended_message_count"] = len(call.appended_context_messages)
+            if call.stable_prefix_hash is not None:
+                metadata["context_stable_prefix_hash"] = call.stable_prefix_hash
+            if call.delta_reason is not None:
+                metadata["context_delta_reason"] = call.delta_reason
+            if call.checkpoint_reason is not None:
+                metadata["context_checkpoint_reason"] = call.checkpoint_reason
+            return [dict(message) for message in call.llm_messages], metadata
+
+        rendered = self.context_provider.build_for_llm_call(request)
+        return [dict(message) for message in rendered.messages], self._context_metadata(rendered)
+
+    def _context_metadata(self, rendered: Any) -> dict[str, Any]:
         metadata = {
             "context_snapshot_id": rendered.snapshot_id,
             "context_trace_id": rendered.trace_id,
             "context_renderer_version": rendered.renderer_version,
+            "context_rendered_input_hash": rendered.rendered_input_hash,
         }
-        return [dict(message) for message in rendered.messages], metadata
+        render_mode = getattr(rendered, "render_mode", None)
+        if render_mode is not None:
+            metadata["context_render_mode"] = render_mode
+        stable_prefix_hash = getattr(rendered, "stable_prefix_hash", None)
+        if stable_prefix_hash is not None:
+            metadata["context_stable_prefix_hash"] = stable_prefix_hash
+        return metadata
 
     # ------------------------------------------------------------------
     # Helpers

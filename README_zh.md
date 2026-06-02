@@ -26,8 +26,8 @@ Page。
 
 TaskWeavn 已经不再是早期单 ReAct loop 原型。当前 Product 1.0 主路径是：
 本地 Plato Main Page 前端、本地 Python sidecar、持久化 authoring/execution
-stores、固定路由执行，以及在每次 LLM 调用前做确定性上下文组装的 Context
-Manager。
+stores、固定路由执行，以及在每次 LLM 调用前做确定性、cache-aware
+上下文组装的 Context Manager。
 
 | 区域 | 状态 | 说明 |
 |---|---:|---|
@@ -38,7 +38,7 @@ Manager。
 | Publishing / TaskBus | baseline 完成 | TaskPublisher、SQLite TaskBus、publish idempotency、claim/running/complete/fail/skip 生命周期。 |
 | Main Page integration | baseline 完成 | 前端 runtime adapter、本地 sidecar HTTP/SSE shell、command/query/event contract、result/error/file projection。 |
 | Fixed-route execution | baseline 完成 | Product 1.0 使用一个常驻 Default Agent 路由，不引入 Router / Agent Manager。 |
-| Context Manager 1.0 | 验收通过 | execution-start 前确定性组装 LLM input。 |
+| Context Manager 1.0 | 验收通过 / cache-aware hardening 完成 | `llm.chat(...)` 前确定性组装、append-only 复用和低频 checkpoint。 |
 | Manual retry | 进行中 | failed published Task 可原地回到 pending，并保留失败消息/结果摘要作为审计事实。 |
 | Product 1.1+ | 规划中 | Router、Agent Manager、skills、MCP、多模态上下文、更完整结果包装和高级 pipeline。 |
 

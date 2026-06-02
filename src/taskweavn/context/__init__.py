@@ -1,9 +1,14 @@
 """Execution context governance primitives."""
 
 from taskweavn.context.agent_loop_provider import (
+    AgentLoopContextCallResult,
     AgentLoopContextProvider,
     AgentLoopContextRequest,
+    CacheAwareAgentLoopContextProvider,
+    CacheAwareRunState,
     ContextBuilder,
+    ContextRenderTrigger,
+    ContextTriggerEvaluator,
     SessionAgentLoopContextProvider,
 )
 from taskweavn.context.manager import SessionContextManager
@@ -14,6 +19,9 @@ from taskweavn.context.models import (
     ContextBuildResult,
     ContextCandidate,
     ContextExclusion,
+    ContextMessageSegment,
+    ContextRenderMode,
+    ContextSegmentKind,
     ContextSnapshot,
     ContextTrace,
     ContextTraceRef,
@@ -48,13 +56,21 @@ from taskweavn.context.store import ContextStore, InMemoryContextStore
 __all__ = [
     "ApprovalSummary",
     "AgentLoopContextProvider",
+    "AgentLoopContextCallResult",
     "AgentLoopContextRequest",
+    "CacheAwareAgentLoopContextProvider",
+    "CacheAwareRunState",
     "ContextBuilder",
+    "ContextRenderTrigger",
+    "ContextTriggerEvaluator",
     "ContextBudget",
     "ContextBuildRequest",
     "ContextBuildResult",
     "ContextCandidate",
     "ContextExclusion",
+    "ContextMessageSegment",
+    "ContextRenderMode",
+    "ContextSegmentKind",
     "ContextSnapshot",
     "ContextSourceError",
     "ContextStore",

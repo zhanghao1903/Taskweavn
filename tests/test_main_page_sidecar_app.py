@@ -685,7 +685,7 @@ def test_main_page_sidecar_app_fixed_route_tick_runs_agent_loop_default_agent(
     assert task.status == "done"
     assert task.result_ref == f"agent_loop:{session_id}:loop-task:no_tool_calls"
     first_prompt = llm.calls[0]["messages"][1]["content"]
-    assert "# Task Execution Context" in first_prompt
+    assert "# Task Start Context" in first_prompt
     assert "Run loop-task" in first_prompt
     assert llm.calls[0]["metadata"]["context_snapshot_id"] is not None
     assert events_db.exists()
@@ -763,7 +763,7 @@ def test_main_page_sidecar_app_projects_file_change_summary_from_agent_loop_even
     ]
     assert snapshot.json["data"]["result"]["summary"] == "Loop completed."
     first_prompt = llm.calls[0]["messages"][1]["content"]
-    assert "# Task Execution Context" in first_prompt
+    assert "# Task Start Context" in first_prompt
     assert "Run loop-file-task" in first_prompt
     assert llm.calls[0]["metadata"]["context_snapshot_id"] is not None
     assert llm.calls[1]["metadata"]["context_snapshot_id"] is not None
