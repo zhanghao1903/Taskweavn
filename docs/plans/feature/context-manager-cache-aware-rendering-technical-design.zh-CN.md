@@ -1,6 +1,6 @@
 # Context Manager Cache-Aware Rendering 详细技术方案
 
-> 状态: in progress
+> 状态: implemented / accepted for Product 1.0 cache-aware Context Manager hardening
 > 类型: Product 1.0 Context Manager cache-aware rendering technical design
 > Last Updated: 2026-06-02
 > ADR: [ADR-0013 Cache-Aware Append-Only Context Rendering](../../decisions/ADR-0013-cache-aware-append-only-context-rendering.md)

@@ -1,12 +1,13 @@
 # Feature Plan: Context Manager Cache-Aware Rendering
 
-> Status: in progress
+> Status: done / accepted for Product 1.0 cache-aware Context Manager hardening
 > Type: Product 1.0 Context Manager performance and latency hardening
 > Last Updated: 2026-06-02
 > ADR: [ADR-0013 Cache-Aware Append-Only Context Rendering](../../decisions/ADR-0013-cache-aware-append-only-context-rendering.md)
 > Architecture: [Context Manager](../../architecture/context-manager.md)
 > Related Plan: [Context Manager 1.0](context-manager-1-0.md)
 > Technical Design: [Context Manager cache-aware rendering technical design](context-manager-cache-aware-rendering-technical-design.zh-CN.md)
+> Release: [Context Manager Cache-Aware Rendering](../../releases/context-manager-cache-aware-rendering.md)
 
 ---
 
@@ -133,7 +134,7 @@ Acceptance:
 
 ### C2. Context Model And Renderer Segments
 
-Current status: implemented in the feature branch.
+Current status: done.
 
 Deliver:
 
@@ -156,7 +157,7 @@ Acceptance:
 
 ### C3. Provider State And Append-Only Transcript
 
-Current status: implemented in the feature branch.
+Current status: done.
 
 Deliver:
 
@@ -177,7 +178,7 @@ Acceptance:
 
 ### C4. Checkpoint And Delta Policy
 
-Current status: implemented in the feature branch.
+Current status: done.
 
 Deliver:
 
@@ -202,7 +203,7 @@ Acceptance:
 
 ### C5. Tests, Metrics Hooks, And Docs Closure
 
-Current status: in progress.
+Current status: done.
 
 Deliver:
 
