@@ -481,6 +481,40 @@ describe("useMainPageController", () => {
       expect(result.current.eventConnectionStatus).toBe("connected");
     });
   });
+
+  it("ignores duplicate runtime event cursors from finite SSE reconnects", async () => {
+    let emitEvent: ((event: UiEvent) => void) | null = null;
+    const loadSnapshot = vi.fn<LoadMainPageSnapshot>(loadImmediateSnapshot);
+    const subscribeSessionEvents = vi.fn<SubscribeSessionEvents>(
+      (_sessionId, _cursor, onEvent) => {
+        emitEvent = onEvent;
+        return () => undefined;
+      },
+    );
+
+    const { result } = renderMainPageController({
+      adapter: testAdapter({
+        loadSnapshot,
+        subscribeSessionEvents,
+      }),
+      initialStateId: "s3-draft-ready",
+    });
+
+    await waitFor(() => {
+      expect(result.current.snapshotData?.metadata.id).toBe("s3-draft-ready");
+    });
+    expect(emitEvent).not.toBeNull();
+
+    const event = messageAppendedEvent("session-website-plan");
+    act(() => {
+      emitEvent?.(event);
+      emitEvent?.(event);
+    });
+
+    await waitFor(() => {
+      expect(loadSnapshot).toHaveBeenCalledTimes(2);
+    });
+  });
 });
 
 function renderMainPageController({

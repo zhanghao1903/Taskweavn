@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 
 import { Button } from "../../shared/components";
 import type { ApiUiBoundaryState } from "../../shared/api/apiUiMapping";
+import { navigateApp } from "../../app/navigation";
 import type {
   AuditCompleteness,
   AuditFilterKind,
@@ -83,7 +84,7 @@ function AuditPageChrome({ snapshot }: { snapshot: AuditPageSnapshot | null }) {
           disabled={snapshot === null}
           onClick={() => {
             if (snapshot !== null) {
-              globalThis.history.pushState(null, "", snapshot.entryContext.sourceRoute);
+              navigateApp(snapshot.entryContext.sourceRoute);
             }
           }}
           variant="secondary"

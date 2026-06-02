@@ -129,6 +129,48 @@ def test_sqlite_ui_event_source_resyncs_unknown_cursor(tmp_path: Path) -> None:
     )
 
 
+def test_sqlite_ui_event_source_replays_session_events_after_unknown_cursor(
+    tmp_path: Path,
+) -> None:
+    source = SqliteUiEventSource(tmp_path / "ui_events.sqlite")
+    try:
+        first = source.append(
+            UiEvent(
+                event_id="event-1",
+                session_id="session-1",
+                event_type="message.appended",
+                cursor="cursor-1",
+            )
+        )
+        second = source.append(
+            UiEvent(
+                event_id="event-2",
+                session_id="session-1",
+                event_type="audit.records_changed",
+                cursor="cursor-2",
+            )
+        )
+        source.append(
+            UiEvent(
+                event_id="event-3",
+                session_id="session-2",
+                event_type="audit.records_changed",
+                cursor="cursor-3",
+            )
+        )
+        events = tuple(source.subscribe("session-1", cursor="snapshot:session-1"))
+    finally:
+        source.close()
+
+    assert [event.event_type for event in events] == [
+        "session.resync_required",
+        "message.appended",
+        "audit.records_changed",
+    ]
+    assert events[0].cursor == "snapshot:session-1"
+    assert events[1:] == (first, second)
+
+
 def test_sqlite_ui_event_source_rejects_duplicate_session_cursor(
     tmp_path: Path,
 ) -> None:
