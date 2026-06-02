@@ -2,7 +2,7 @@
 
 > Status: active fact registry
 >
-> Last Updated: 2026-05-21
+> Last Updated: 2026-06-02
 >
 > Scope: UI 交互产生的所有外部调用集中登记。页面文档只能引用这里登记过的调用。
 
@@ -34,6 +34,7 @@ React UI
 | [Plato UI API Contract](../product/plato-ui-api-contract.md) | Query / Command / Event 的语义来源。 |
 | [Main Page Frontend Runtime Integration Plan](../plans/feature/main-page-frontend-runtime-integration.md) | 当前前端集成阶段的实现约束。 |
 | [UI And Backend Communication](../architecture/ui-backend-communication.md) | UI 与后端通信架构边界。 |
+| [ASK Lifecycle Contract](../engineering/ask-lifecycle-contract.md) | ASK request / answer / pause-resume API 候选语义来源。 |
 
 ## 3. HTTP Query Calls
 
@@ -49,6 +50,8 @@ React UI
 | `EXT-Q-008` | `GET /api/v1/sessions/{sessionId}/confirmations/pending` | `ConfirmationActionView[]` | Detail Panel / confirmation cards | 查询待确认动作。通常由 snapshot 包含。 |
 | `EXT-Q-009` | `GET /api/v1/sessions/{sessionId}/tasks/{taskNodeId}/file-changes?recursive=true` | `FileChangeSummaryView` | File Change Summary | 父节点必须包含所有子节点文件变更汇总。 |
 | `EXT-Q-010` | `GET /api/v1/sessions/{sessionId}/result` | `ResultCardView` | Result panel | 查询会话结果卡。 |
+| `EXT-Q-011` | `GET /api/v1/sessions/{sessionId}/asks` | `AskRequestView[]` | ASK Dock / resync | Draft ASK query candidate. Snapshot should usually include pending/active ASK, but explicit query is useful for targeted refetch. |
+| `EXT-Q-012` | `GET /api/v1/sessions/{sessionId}/asks/{askId}` | `AskRequestView` | ASK Dock / stale ASK recovery | Draft ASK query candidate. Used when an ASK event is incomplete or local state is stale. |
 
 ## 4. HTTP Command Calls
 
@@ -63,6 +66,9 @@ React UI
 | `EXT-C-007` | `POST /api/v1/sessions/{sessionId}/confirmations/{confirmationId}/respond` | `ResolveConfirmationPayload` | Confirmation card | 用户确认、修改、跳过等动作。 |
 | `EXT-C-008` | `POST /api/v1/sessions/{sessionId}/tasks/{taskNodeId}/cancel` | `CancelTaskPayload` | TaskNode controls | 取消未完成或运行中 TaskNode。MVP 可禁用。 |
 | `EXT-C-009` | `POST /api/v1/sessions/{sessionId}/tasks/{taskNodeId}/retry` | `RetryTaskPayload` | TaskNode controls | 手动重试 failed TaskNode；原 Task 回到 pending，保留失败消息/结果摘要作为审计事实。 |
+| `EXT-C-010` | `POST /api/v1/sessions/{sessionId}/asks/{askId}/answer` | `AnswerAskPayload` | ASK Dock submit | Draft ASK command candidate. User submits selected options, free text, or both. Command accepted is not final truth. |
+| `EXT-C-011` | `POST /api/v1/sessions/{sessionId}/asks/{askId}/defer` | `DeferAskPayload` | ASK Dock Later action | Draft ASK command candidate. Defer is distinct from an empty answer. |
+| `EXT-C-012` | `POST /api/v1/sessions/{sessionId}/asks/{askId}/cancel` | `CancelAskPayload` | ASK Dock cancel/discard flow | Draft ASK command candidate. Cancel must not silently answer the ASK. |
 
 ## 5. Event Calls
 
@@ -81,6 +87,11 @@ React UI
 | `message.appended` | 不假设 payload 是完整消息卡；重新查询 snapshot 或 messages。 |
 | `confirmation.created` | 重新查询 snapshot 或 pending confirmations。 |
 | `confirmation.resolved` | 清理 pending command，重新查询 snapshot。 |
+| `ask.created` | 重新查询 snapshot 或 asks；显示 ASK Dock。 |
+| `ask.answered` | 清理 ASK answer pending，重新查询 snapshot 或 asks/messages。 |
+| `ask.deferred` | 重新查询 snapshot 或 asks；保持 task/session policy-visible。 |
+| `ask.cancelled` | 重新查询 snapshot 或 asks/task state。 |
+| `ask.expired` | 重新查询 snapshot 或 asks/task state。 |
 | `result.updated` | 重新查询 result 或 snapshot。 |
 | `file_changes.updated` | 重新查询 file changes 或 snapshot。 |
 | `audit.summary_updated` | Main Page 可刷新 audit summary；完整内容属于 Audit Page。 |
