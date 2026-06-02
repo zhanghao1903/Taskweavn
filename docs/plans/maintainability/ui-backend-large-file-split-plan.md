@@ -417,6 +417,8 @@ uv run mypy src/taskweavn/server/ui_http.py src/taskweavn/server/ui_http_*.py
 
 ### M-006: Split Audit Page Presentational Components
 
+Status: done on 2026-06-02.
+
 Goal: make `AuditPage.tsx` a small composition file while preserving UI output.
 
 Allowed changes:
@@ -430,6 +432,17 @@ Acceptance:
 - `AuditPageRoute.test.tsx` passes without fixture changes;
 - A1-A14 scenarios still render expected states;
 - keyboard/focus behavior unchanged.
+
+Implementation notes:
+
+- `AuditPage.tsx` now keeps route-level page composition, boundary decisions,
+  and selected-record fallback only.
+- `AuditPageSections.tsx` owns chrome/header/overview/filter/timeline/boundary
+  presentational sections.
+- `AuditRecordDetailPanel.tsx` owns selected-record detail, disclosure, and
+  sanitized payload rendering.
+- `auditPageFormat.ts` owns shared timestamp formatting so component modules can
+  keep Fast Refresh-friendly exports.
 
 Suggested validation:
 
