@@ -1,7 +1,7 @@
 # Context Manager Architecture
 
 > Status: accepted architecture baseline for Product 1.0 execution context governance
-> Last Updated: 2026-05-31
+> Last Updated: 2026-06-02
 
 Context Manager is the execution-time context governance layer for Taskweavn.
 It bridges the stateful workspace and task runtime to the stateless LLM API
@@ -16,6 +16,14 @@ memory, ranking, multimodal packing, or agent-specific policy optimization.
 The accepted Product 1.0 implementation lives under `src/taskweavn/context/`
 and is wired into the sidecar-built fixed-route Default Agent path, including
 the AgentLoop per-call `llm.chat(...)` seam.
+
+The Product 1.0 hardening path now uses cache-aware append-only rendering:
+the first call establishes a stable start context, later calls preserve the
+existing AgentLoop transcript, and Context Manager appends bounded delta or
+checkpoint messages when policy requires new context facts. See
+[ADR-0013](../decisions/ADR-0013-cache-aware-append-only-context-rendering.md)
+and the
+[cache-aware rendering plan](../plans/feature/context-manager-cache-aware-rendering.md).
 
 ---
 
@@ -151,7 +159,7 @@ Product 1.0 does not implement:
 - parallel multi-Agent context ownership;
 - automatic skill discovery beyond activated or configured skill facts;
 - MCP-specific context expansion;
-- prompt-cache optimization;
+- provider-specific prompt-cache directives or advanced cache policy engines;
 - cross-session context reuse.
 
 These capabilities belong to Product 1.1+ or later architecture extensions.

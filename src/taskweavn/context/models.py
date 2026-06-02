@@ -62,6 +62,8 @@ class ContextBuildRequest(ContextModel):
     agent_id: str = Field(default="default_agent", min_length=1)
     agent_run_id: str = Field(default_factory=lambda: new_context_id("run"), min_length=1)
     purpose: ContextBuildPurpose = "execution_step"
+    render_mode: ContextRenderMode = "full_context"
+    render_reason: str | None = None
     writer: bool = True
     turn_index: int = Field(default=0, ge=0)
     budget: ContextBudget = Field(default_factory=ContextBudget)

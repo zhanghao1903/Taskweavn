@@ -1,6 +1,6 @@
 # Context Manager Cache-Aware Rendering 详细技术方案
 
-> 状态: planned
+> 状态: in progress
 > 类型: Product 1.0 Context Manager cache-aware rendering technical design
 > Last Updated: 2026-06-02
 > ADR: [ADR-0013 Cache-Aware Append-Only Context Rendering](../../decisions/ADR-0013-cache-aware-append-only-context-rendering.md)
@@ -487,11 +487,15 @@ def _should_checkpoint(
 
 ### Product 1.0 初始策略
 
-建议第一版只实现：
+第一版只实现：
 
 1. start context；
 2. interval checkpoint；
-3. optional delta for pending decision count change。
+3. additional trigger evaluator 接口。
+
+`pending decision count change` 这类 delta 可以通过 trigger evaluator 测试证明
+接口可用，但不作为 Product 1.0 的内置策略。retry、interruption、tool error、
+file threshold、budget pressure 等触发条件由后续独立 feature 接入。
 
 这样能把缓存命中主问题解决，同时不会把 1.0 变成复杂上下文平台。
 
@@ -516,6 +520,8 @@ Context Manager 本阶段先提供：
 - `context_stable_prefix_hash`；
 - `context_rendered_input_hash`；
 - `context_appended_message_count`。
+- `context_checkpoint_reason`；
+- `context_delta_reason`。
 
 这些 metadata 能让后续日志系统把缓存表现和 context rendering 策略关联起来。
 
@@ -533,16 +539,27 @@ Context Manager 本阶段先提供：
 ### 11.2 Provider Tests
 
 - `test_provider_initializes_start_context_once`
-- `test_provider_reuses_loop_messages_without_replacing_prefix`
-- `test_provider_appends_checkpoint_to_persisted_messages`
-- `test_provider_tracks_stable_prefix_hash_by_agent_run_id`
+- `test_session_agent_loop_provider_initializes_start_context_once`
+- `test_session_agent_loop_provider_appends_interval_checkpoint`
+- `test_session_agent_loop_provider_accepts_future_delta_trigger`
 
 ### 11.3 AgentLoop Tests
 
-- `test_agent_loop_persists_context_provider_messages_before_llm_chat`
-- `test_agent_loop_preserves_tool_call_protocol_with_context_provider`
-- `test_agent_loop_no_provider_behavior_is_unchanged`
-- `test_context_provider_metadata_is_passed_to_llm_chat`
+- `test_loop_persists_context_provider_messages_before_next_llm_call`
+- `test_loop_observes_checkpoint_interval_and_stable_prefix`
+- existing no-provider AgentLoop tests remain unchanged
+
+`test_loop_observes_checkpoint_interval_and_stable_prefix` 是 C5 的本地端到端
+观测测试：它使用真实 `SessionAgentLoopContextProvider`、`SessionContextManager`
+和 `AgentLoop`，通过 stub LLM 跑三步任务，验证：
+
+- 第一次 call 是 `start_context`；
+- 第二次 call 按 interval 追加 `checkpoint_context`；
+- 第三次 call 是普通 `delta_context` 复用，不追加新 context message；
+- 第二次 call 保留第一次 call 的完整前缀；
+- 第三次 call 保留第二次 call 的完整前缀；
+- metadata 输出 render mode、stable prefix hash、appended message count 和
+  checkpoint reason。
 
 ### 11.4 Regression Tests
 
@@ -561,10 +578,10 @@ uv run pytest tests/test_context_manager.py tests/test_loop.py
 1. C1: 落 ADR、feature plan、technical design。
 2. C2: 扩展 context models 和 renderer segment/hash。
 3. C3: 增加 provider call result 和 `prepare_llm_call(...)`。
-4. C4: 修改 AgentLoop，让 provider 可以回写 persisted messages。
-5. C5: 实现 interval checkpoint policy。
-6. C6: 补 renderer/provider/loop 测试。
-7. C7: 补 provider metadata，并更新 release/docs closure。
+4. C4: 修改 AgentLoop，让 provider 可以回写 persisted messages，并实现
+   interval checkpoint / trigger 接口。
+5. C5: 补 loop 级观测测试、metadata 验证和计划文档验收项。
+6. C6: 运行回归测试并更新 release/docs closure。
 
 推荐每个 PR 控制在一个可验证边界内。如果实现 PR 过大，可以拆成：
 
@@ -586,6 +603,8 @@ uv run pytest tests/test_context_manager.py tests/test_loop.py
 6. Snapshot/trace 仍能解释每次 call 的上下文来源和裁剪原因。
 7. 测试能证明稳定前缀、volatile 字段排除、checkpoint 追加和 metadata 输出。
 8. 后续可以通过 provider metadata 计算真实 cached-token ratio。
+9. 本地 AgentLoop 观测测试能证明 start -> checkpoint -> reuse 三次 call
+   的前缀保持 append-only。
 
 ---
 
@@ -604,4 +623,3 @@ uv run pytest tests/test_context_manager.py tests/test_loop.py
 - provider-specific cache directive。
 
 这些能力应该在 append-only rendering 合同稳定后再进入 Product 1.1+。
-

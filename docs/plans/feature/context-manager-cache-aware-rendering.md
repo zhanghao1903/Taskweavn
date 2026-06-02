@@ -1,6 +1,6 @@
 # Feature Plan: Context Manager Cache-Aware Rendering
 
-> Status: planned
+> Status: in progress
 > Type: Product 1.0 Context Manager performance and latency hardening
 > Last Updated: 2026-06-02
 > ADR: [ADR-0013 Cache-Aware Append-Only Context Rendering](../../decisions/ADR-0013-cache-aware-append-only-context-rendering.md)
@@ -114,7 +114,7 @@ custom policies, MCP expansion, and multimodal packing. Those remain Product
 
 ### C1. Contract And Docs
 
-Current status: in progress.
+Current status: done.
 
 Deliver:
 
@@ -132,6 +132,8 @@ Acceptance:
   AgentLoop transcript.
 
 ### C2. Context Model And Renderer Segments
+
+Current status: implemented in the feature branch.
 
 Deliver:
 
@@ -154,6 +156,8 @@ Acceptance:
 
 ### C3. Provider State And Append-Only Transcript
 
+Current status: implemented in the feature branch.
+
 Deliver:
 
 - per `agent_run_id` provider state;
@@ -173,16 +177,17 @@ Acceptance:
 
 ### C4. Checkpoint And Delta Policy
 
+Current status: implemented in the feature branch.
+
 Deliver:
 
 - Product 1.0 default checkpoint interval, initially five execution steps;
-- a minimal policy that can trigger deltas/checkpoints for:
-  - retry begin;
-  - interruption requested or resolved;
-  - pending confirmation resolved;
-  - repeated tool errors;
-  - file-change threshold;
-  - budget-pressure fallback;
+- a minimal built-in policy that triggers interval checkpoints;
+- a trigger interface that can append future delta/checkpoint messages without
+  changing the AgentLoop integration contract;
+- explicit deferral of concrete Product 1.1+ or follow-up triggers such as
+  retry begin, interruption requested/resolved, pending confirmation resolved,
+  repeated tool errors, file-change thresholds, and budget-pressure fallback;
 - a compact checkpoint renderer that summarizes objective, completed facts,
   pending decisions, file changes, and recommended next step.
 
@@ -190,16 +195,22 @@ Acceptance:
 
 - interval checkpoints append near the end of the transcript;
 - checkpoint content is bounded and does not include full event/tool history;
+- custom trigger evaluators can append compact delta messages through the same
+  provider contract;
 - sparse normal steps can reuse the previous request prefix without adding a
   regenerated context block.
 
 ### C5. Tests, Metrics Hooks, And Docs Closure
+
+Current status: in progress.
 
 Deliver:
 
 - unit tests for stable-prefix and volatile-field behavior;
 - loop integration tests proving persisted delta/checkpoint messages;
 - tool-call protocol ordering tests;
+- repeatable AgentLoop observation proving checkpoint frequency and prefix
+  stability without requiring live provider cache metrics;
 - metadata hooks for cached-token ratio and prefill-latency measurement when
   provider metadata is available;
 - docs closure updates after implementation.
@@ -209,6 +220,10 @@ Acceptance:
 - `uv run pytest tests/test_context_manager.py tests/test_loop.py` passes;
 - existing fixed-route Default Agent tests pass;
 - `git diff --check` passes;
+- loop-level observation proves that the next request preserves the previous
+  request as a prefix across start, checkpoint, and ordinary reuse turns;
+- checkpoint metadata records render mode, appended message count, stable prefix
+  hash, and checkpoint reason;
 - Product 1.0 docs state cache-aware rendering as the Context Manager runtime
   shape after implementation.
 
@@ -230,6 +245,9 @@ The feature is accepted when:
 7. Render metadata includes enough hashes/modes to measure cache behavior.
 8. Tests prove structural cache-friendliness even before provider-level cache
    metrics are available.
+9. At least one AgentLoop observation test runs the real
+   `SessionAgentLoopContextProvider` and verifies interval checkpoint behavior
+   against the actual LLM call messages.
 
 ---
 
@@ -256,4 +274,3 @@ Product 1.1+ may add:
 - multimodal context packing;
 - compression and compaction policies;
 - user-configurable context strategies.
-

@@ -115,7 +115,10 @@ execution path.
 - No multimodal input packing.
 - No semantic retrieval or vector index.
 - No LLM-based candidate ranking.
-- No prompt-cache optimization.
+- No provider-specific prompt-cache directive or advanced cache policy engine
+  in the baseline implementation. Product 1.0 cache-aware append-only rendering
+  hardening is tracked separately in
+  [Context Manager Cache-Aware Rendering](context-manager-cache-aware-rendering.md).
 - No cross-session memory.
 - No custom context policy UI.
 - No public Agent Manager.

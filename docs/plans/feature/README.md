@@ -11,8 +11,8 @@ Feature plans are scoped implementation packets for independent feature sessions
 | [cooperative-task-interruption-technical-design.zh-CN.md](cooperative-task-interruption-technical-design.zh-CN.md) | Planned 中文详细技术方案：TaskBus interrupt intent、AgentLoop safe points、Context Manager interruption facts、UI stopping projection 和 TaskBus terminal outcome。 |
 | [context-manager-1-0.md](context-manager-1-0.md) | Done: Product 1.0 deterministic execution context governance for the fixed-route Default Agent path. |
 | [context-manager-1-0-technical-design.zh-CN.md](context-manager-1-0-technical-design.zh-CN.md) | Implemented 中文详细技术方案：Context Manager 1.0 schema、source adapters、policy、renderer、store、Default Agent 集成和 AgentLoop per-call seam。 |
-| [context-manager-cache-aware-rendering.md](context-manager-cache-aware-rendering.md) | Planned: Product 1.0 cache-aware append-only rendering hardening for Context Manager LLM calls. |
-| [context-manager-cache-aware-rendering-technical-design.zh-CN.md](context-manager-cache-aware-rendering-technical-design.zh-CN.md) | Planned 中文详细技术方案：stable start context、append-only transcript、context delta、checkpoint policy 和 AgentLoop persisted message seam。 |
+| [context-manager-cache-aware-rendering.md](context-manager-cache-aware-rendering.md) | In progress: Product 1.0 cache-aware append-only rendering hardening for Context Manager LLM calls. |
+| [context-manager-cache-aware-rendering-technical-design.zh-CN.md](context-manager-cache-aware-rendering-technical-design.zh-CN.md) | In progress 中文详细技术方案：stable start context、append-only transcript、context delta、checkpoint policy 和 AgentLoop persisted message seam。 |
 | [llm-provider-retry-thinking.md](llm-provider-retry-thinking.md) | Done: LLM provider abstraction, retry, and DeepSeek thinking mode. |
 | [local-sidecar-api-shell.md](local-sidecar-api-shell.md) | Done: local HTTP/SSE sidecar shell for Plato UI over the backend UI contract gateways. |
 | [local-sidecar-api-shell-technical-design.zh-CN.md](local-sidecar-api-shell-technical-design.zh-CN.md) | 中文详细技术方案：Plato local sidecar transport、route mapping、SSE shell、local security 和 lifecycle。 |

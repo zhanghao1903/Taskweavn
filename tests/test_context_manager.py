@@ -6,9 +6,12 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from taskweavn.context import (
+    AgentLoopContextRequest,
+    CacheAwareRunState,
     ContextBudget,
     ContextBuildRequest,
     ContextCandidate,
+    ContextRenderTrigger,
     ContextSnapshot,
     ContextTrace,
     ControlContextSource,
@@ -24,6 +27,7 @@ from taskweavn.context import (
     FileSnippet,
     InMemoryContextStore,
     InterruptionContext,
+    SessionAgentLoopContextProvider,
     SessionContextManager,
     SqliteContextStore,
     TaskContextIdentity,
@@ -282,6 +286,178 @@ def test_session_context_manager_builds_and_stores_context(tmp_path: Path) -> No
     assert result.context.facts.selected_file_snippets[0].content == "hello"
     assert store.get_snapshot(result.snapshot.snapshot_id) == result.snapshot
     assert store.get_trace(result.trace.trace_id) == result.trace
+
+
+def test_session_agent_loop_provider_initializes_start_context_once() -> None:
+    bus = InMemoryTaskBus()
+    bus.publish(_task())
+    store = InMemoryContextStore()
+    manager = SessionContextManager(
+        task_source=TaskContextSource(bus),
+        store=store,
+    )
+    provider = SessionAgentLoopContextProvider(manager)
+
+    first = provider.prepare_llm_call(
+        AgentLoopContextRequest(
+            session_id="session-1",
+            task_id="task-1",
+            agent_run_id="run-1",
+            turn_index=1,
+            loop_messages=(
+                {"role": "system", "content": "loop system"},
+                {"role": "user", "content": "loop task"},
+            ),
+        )
+    )
+    second_loop_messages = (
+        *first.persisted_messages,
+        {"role": "assistant", "content": "thinking"},
+        {"role": "tool", "tool_call_id": "call-1", "content": "{}"},
+    )
+    second = provider.prepare_llm_call(
+        AgentLoopContextRequest(
+            session_id="session-1",
+            task_id="task-1",
+            agent_run_id="run-1",
+            turn_index=2,
+            loop_messages=second_loop_messages,
+        )
+    )
+
+    assert first.render_mode == "start_context"
+    assert first.persisted_messages == first.llm_messages
+    assert "# Task Start Context" in first.persisted_messages[1]["content"]
+    assert first.stable_prefix_hash is not None
+    assert second.render_mode == "delta_context"
+    assert second.persisted_messages == second_loop_messages
+    assert second.llm_messages == second_loop_messages
+    assert second.appended_context_messages == ()
+    assert second.stable_prefix_hash == first.stable_prefix_hash
+    snapshots = store.list_snapshots_for_task("session-1", "task-1", agent_run_id="run-1")
+    assert [snapshot.render_mode for snapshot in snapshots] == [
+        "start_context",
+        "delta_context",
+    ]
+
+
+def test_session_agent_loop_provider_appends_interval_checkpoint() -> None:
+    bus = InMemoryTaskBus()
+    bus.publish(_task())
+    store = InMemoryContextStore()
+    manager = SessionContextManager(
+        task_source=TaskContextSource(bus),
+        store=store,
+    )
+    provider = SessionAgentLoopContextProvider(manager, checkpoint_interval_steps=2)
+
+    first = provider.prepare_llm_call(
+        AgentLoopContextRequest(
+            session_id="session-1",
+            task_id="task-1",
+            agent_run_id="run-1",
+            turn_index=1,
+            loop_messages=(
+                {"role": "system", "content": "loop system"},
+                {"role": "user", "content": "loop task"},
+            ),
+        )
+    )
+    loop_messages = (
+        *first.persisted_messages,
+        {"role": "assistant", "content": "thinking"},
+    )
+
+    checkpoint = provider.prepare_llm_call(
+        AgentLoopContextRequest(
+            session_id="session-1",
+            task_id="task-1",
+            agent_run_id="run-1",
+            turn_index=2,
+            loop_messages=loop_messages,
+        )
+    )
+    next_reuse = provider.prepare_llm_call(
+        AgentLoopContextRequest(
+            session_id="session-1",
+            task_id="task-1",
+            agent_run_id="run-1",
+            turn_index=3,
+            loop_messages=checkpoint.persisted_messages,
+        )
+    )
+
+    assert checkpoint.render_mode == "checkpoint_context"
+    assert checkpoint.checkpoint_reason == "interval:2"
+    assert len(checkpoint.appended_context_messages) == 1
+    assert checkpoint.persisted_messages[:-1] == loop_messages
+    assert "# Context Checkpoint" in checkpoint.persisted_messages[-1]["content"]
+    assert "Reason: interval:2" in checkpoint.persisted_messages[-1]["content"]
+    assert next_reuse.render_mode == "delta_context"
+    assert next_reuse.appended_context_messages == ()
+    assert next_reuse.persisted_messages == checkpoint.persisted_messages
+    snapshots = store.list_snapshots_for_task("session-1", "task-1", agent_run_id="run-1")
+    assert [snapshot.render_mode for snapshot in snapshots] == [
+        "start_context",
+        "checkpoint_context",
+        "delta_context",
+    ]
+    checkpoint_trace_ref = snapshots[1].task_execution_context.trace
+    assert checkpoint_trace_ref is not None
+    checkpoint_trace = store.get_trace(checkpoint_trace_ref.trace_id)
+    assert checkpoint_trace is not None
+    assert checkpoint_trace.appended_context_message_count == 1
+
+
+def test_session_agent_loop_provider_accepts_future_delta_trigger() -> None:
+    bus = InMemoryTaskBus()
+    bus.publish(_task())
+    manager = SessionContextManager(task_source=TaskContextSource(bus))
+
+    def trigger(
+        request: AgentLoopContextRequest,
+        _state: CacheAwareRunState,
+    ) -> ContextRenderTrigger | None:
+        if request.pending_decision_count > 0:
+            return ContextRenderTrigger(
+                render_mode="delta_context",
+                reason="pending_decision_count_changed",
+            )
+        return None
+
+    provider = SessionAgentLoopContextProvider(
+        manager,
+        checkpoint_interval_steps=0,
+        additional_trigger_evaluators=(trigger,),
+    )
+    first = provider.prepare_llm_call(
+        AgentLoopContextRequest(
+            session_id="session-1",
+            task_id="task-1",
+            agent_run_id="run-1",
+            turn_index=1,
+            loop_messages=(
+                {"role": "system", "content": "loop system"},
+                {"role": "user", "content": "loop task"},
+            ),
+        )
+    )
+    delta = provider.prepare_llm_call(
+        AgentLoopContextRequest(
+            session_id="session-1",
+            task_id="task-1",
+            agent_run_id="run-1",
+            turn_index=2,
+            loop_messages=first.persisted_messages,
+            pending_decision_count=1,
+        )
+    )
+
+    assert delta.render_mode == "delta_context"
+    assert delta.delta_reason == "pending_decision_count_changed"
+    assert len(delta.appended_context_messages) == 1
+    assert "# Context Delta" in delta.appended_context_messages[0]["content"]
+    assert "Reason: pending_decision_count_changed" in delta.appended_context_messages[0]["content"]
 
 
 def test_workspace_layout_has_session_context_db(tmp_path: Path) -> None:

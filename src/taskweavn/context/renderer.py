@@ -61,6 +61,16 @@ class ContextRenderer:
     ) -> RenderedLlmInput:
         raise NotImplementedError
 
+    def render_reused_transcript(
+        self,
+        context: TaskExecutionContextV0,
+        *,
+        snapshot_id: str,
+        trace_id: str,
+        prior_messages: tuple[dict[str, Any], ...],
+    ) -> RenderedLlmInput:
+        raise NotImplementedError
+
 
 class DeterministicContextRenderer(ContextRenderer):
     """Renderer for Product 1.0 deterministic context assembly."""
@@ -190,6 +200,48 @@ class DeterministicContextRenderer(ContextRenderer):
             prior_messages=prior_messages,
             render_mode="checkpoint_context",
             segment_kind="checkpoint",
+        )
+
+    def render_reused_transcript(
+        self,
+        context: TaskExecutionContextV0,
+        *,
+        snapshot_id: str,
+        trace_id: str,
+        prior_messages: tuple[dict[str, Any], ...],
+    ) -> RenderedLlmInput:
+        _ = context
+        system_content = self._render_system()
+        user_content = "\n".join(
+            (
+                "# Context Delta",
+                "",
+                "Reason: reuse_transcript",
+                "",
+                "No new context message appended for this call.",
+            )
+        )
+        segments: list[ContextMessageSegment] = []
+        if prior_messages:
+            segments.append(
+                _segment(
+                    "execution_transcript",
+                    prior_messages,
+                    start=0,
+                    end=len(prior_messages),
+                    stable=False,
+                )
+            )
+        return _rendered_input(
+            renderer_version=self.version,
+            system_content=system_content,
+            user_content=user_content,
+            messages=prior_messages,
+            snapshot_id=snapshot_id,
+            trace_id=trace_id,
+            render_mode="delta_context",
+            segments=tuple(segments),
+            stable_prefix_hash=_stable_prefix_hash_from_messages(prior_messages),
         )
 
     def _render_appended_context(
