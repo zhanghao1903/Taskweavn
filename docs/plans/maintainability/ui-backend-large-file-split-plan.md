@@ -380,6 +380,8 @@ uv run mypy src/taskweavn/server/ui_http.py src/taskweavn/server/ui_http_*.py
 
 ### M-005: Extract HTTP Command Dispatch And SSE Helpers
 
+Status: done on 2026-06-02.
+
 Goal: reduce coupling between command handling and streaming/event code.
 
 Allowed changes:
@@ -393,6 +395,16 @@ Acceptance:
 - command idempotency hash unchanged;
 - dispatch debug refs unchanged;
 - existing EventSource clients still receive compatible frames.
+
+Implementation notes:
+
+- `ui_http_commands.py` now owns command response idempotency wrapping, command
+  request hashing, execution dispatch response shaping, dispatch debug refs, and
+  publish/retry `start_immediately` dispatch enrichment.
+- `ui_http_sse.py` now owns SSE response construction, EventSource subscription,
+  and stream-compatible headers.
+- `ui_http.py` now delegates command and SSE details while keeping the public
+  transport facade and route orchestration.
 
 Suggested validation:
 
