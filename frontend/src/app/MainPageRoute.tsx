@@ -17,7 +17,7 @@ export type MainPageRouteProps = {
 
 export function MainPageRoute({
   adapter,
-  auditRouteAvailable = false,
+  auditRouteAvailable = true,
   initialStateId,
   runtimeEnv,
 }: MainPageRouteProps = {}) {

@@ -20,6 +20,7 @@ export type AuditMockApi = Pick<
   | "listAuditRecords"
   | "getAuditRecordDetail"
   | "getEvidenceDetail"
+  | "subscribeSessionEvents"
 >;
 
 export function createAuditMockApi(
@@ -59,6 +60,9 @@ export function createAuditMockApi(
     },
     async getEvidenceDetail(request) {
       return getAuditMockEvidenceDetailResponse(scenarioId, request.evidenceId);
+    },
+    subscribeSessionEvents() {
+      return () => {};
     },
   };
 }

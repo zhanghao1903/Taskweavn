@@ -13,7 +13,9 @@ import pytest
 
 from taskweavn.context import SqliteContextStore
 from taskweavn.core import SessionManager, SessionManagerError, WorkspaceLayout
+from taskweavn.interaction import AgentMessage
 from taskweavn.llm.contracts import ChatResponse, ToolCall
+from taskweavn.observability import LogArchiveManifest, LogContext, get_logging_manager
 from taskweavn.server import (
     DEFAULT_PLATO_SIDECAR_PORT,
     MainPageSidecarConfig,
@@ -87,6 +89,61 @@ def test_build_main_page_sidecar_app_reuses_existing_session(tmp_path: Any) -> N
         assert app.session.name == "Existing"
     finally:
         app.close()
+
+
+def test_build_main_page_sidecar_app_initializes_existing_session_logs(
+    tmp_path: Any,
+) -> None:
+    layout = WorkspaceLayout(tmp_path)
+    manager = SessionManager(layout)
+    try:
+        session = manager.create("Existing")
+    finally:
+        manager.close()
+
+    app = build_main_page_sidecar_app(
+        MainPageSidecarConfig(workspace_root=tmp_path, session_id=session.id, port=0),
+        MainPageSidecarDependencies(llm=_StubLLM()),
+    )
+    try:
+        get_logging_manager().emit(
+            "session",
+            "INFO",
+            "debug_check",
+            context=LogContext(session_id=session.id),
+            data={"ok": True},
+        )
+    finally:
+        app.close()
+
+    manifest_path = session.logs_dir / "manifest.json"
+    manifest = LogArchiveManifest.model_validate_json(
+        manifest_path.read_text(encoding="utf-8")
+    )
+    rows = _read_jsonl(session.logs_dir / "session.jsonl")
+    assert manifest.archive_root == str(session.logs_dir)
+    assert manifest.files["session"] == "session.jsonl"
+    assert rows[-1]["event"] == "debug_check"
+    assert rows[-1]["context"] == {"session_id": session.id}
+
+
+def test_session_lifecycle_create_initializes_session_logs(tmp_path: Any) -> None:
+    app = build_main_page_sidecar_app(
+        MainPageSidecarConfig(workspace_root=tmp_path, port=0),
+        MainPageSidecarDependencies(llm=_StubLLM()),
+    )
+    try:
+        session_id = _create_session(app)
+        session = app.session_manager.require(session_id)
+        events = _request(app, "GET", f"/api/v1/sessions/{session_id}/events")
+    finally:
+        app.close()
+
+    assert (session.logs_dir / "manifest.json").exists()
+    assert events.status == 200
+    assert "event: audit.records_changed" in events.text
+    assert '"reason":"config_manifest_updated"' in events.text
+    assert '"configKey":"logging"' in events.text
 
 
 def test_main_page_sidecar_app_session_lifecycle_routes(tmp_path: Any) -> None:
@@ -367,6 +424,7 @@ def test_main_page_sidecar_app_recovers_draft_tree_after_restart_and_publishes(
     assert active_before_restart.active_state == "draft_tree"
     assert active_before_restart.active_draft_tree_id is not None
     assert WorkspaceLayout(tmp_path).workspace_authoring_db.is_file()
+    assert WorkspaceLayout(tmp_path).workspace_ui_events_db.is_file()
     assert first_snapshot.json["data"]["taskTree"]["id"] == (
         active_before_restart.active_draft_tree_id
     )
@@ -617,6 +675,7 @@ def test_main_page_sidecar_app_fixed_route_tick_runs_agent_loop_default_agent(
         context_db = layout.session_context_db(session_id)
         result_ref = tick.result_ref
         snapshot = _request(app, "GET", f"/api/v1/sessions/{session_id}/snapshot")
+        events = _request(app, "GET", f"/api/v1/sessions/{session_id}/events")
     finally:
         app.close()
 
@@ -649,6 +708,10 @@ def test_main_page_sidecar_app_fixed_route_tick_runs_agent_loop_default_agent(
         message["title"] == "Task completed" and message["body"] == "Loop completed."
         for message in snapshot.json["data"]["messages"]
     )
+    assert events.status == 200
+    assert "event: audit.records_changed" in events.text
+    assert '"reason":"agent_loop_event_stream_updated"' in events.text
+    assert '"taskNodeId":"loop-task"' in events.text
 
 
 def test_main_page_sidecar_app_projects_file_change_summary_from_agent_loop_events(
@@ -767,6 +830,7 @@ def test_main_page_sidecar_app_writes_frontend_error_log_file(tmp_path: Any) -> 
         )
         log_path = WorkspaceLayout(tmp_path).session_logs_dir(session_id) / "frontend-errors.jsonl"
         rows = [json.loads(line) for line in log_path.read_text().splitlines()]
+        events = _request(app, "GET", f"/api/v1/sessions/{session_id}/events")
     finally:
         app.close()
 
@@ -774,6 +838,54 @@ def test_main_page_sidecar_app_writes_frontend_error_log_file(tmp_path: Any) -> 
     assert response.json["ok"] is True
     assert rows[0]["sessionId"] == session_id
     assert rows[0]["payload"]["entry"]["message"] == "render.failed"
+    assert events.status == 200
+    assert "event: audit.records_changed" in events.text
+    assert '"reason":"log_archive_updated"' in events.text
+    assert '"record-log-frontend-errors.jsonl"' in events.text
+
+
+def test_main_page_sidecar_app_resolve_confirmation_emits_audit_event(
+    tmp_path: Any,
+) -> None:
+    app = build_main_page_sidecar_app(
+        MainPageSidecarConfig(workspace_root=tmp_path, port=0),
+        MainPageSidecarDependencies(llm=_StubLLM()),
+    )
+    try:
+        session_id = _create_session(app)
+        confirmation = AgentMessage(
+            message_id="confirmation-1",
+            session_id=session_id,
+            task_id="confirm-task",
+            agent_id="default-agent",
+            message_type="actionable",
+            content="Proceed?",
+            action_options=["yes", "no"],
+            requires_response=True,
+            context={"task_ref_kind": "published"},
+        )
+        app.message_bus.publish(confirmation)
+
+        response = _request(
+            app,
+            "POST",
+            f"/api/v1/sessions/{session_id}/confirmations/confirmation-1/respond",
+            body={
+                "commandId": "resolve-confirmation-1",
+                "sessionId": session_id,
+                "payload": {"value": "yes", "note": "Looks good."},
+            },
+        )
+        events = _request(app, "GET", f"/api/v1/sessions/{session_id}/events")
+    finally:
+        app.close()
+
+    assert response.status == 200
+    assert response.json["ok"] is True
+    assert "event: audit.records_changed" in events.text
+    assert '"reason":"confirmation_resolved"' in events.text
+    assert '"confirmationId":"confirmation-1"' in events.text
+    assert '"taskNodeId":"confirm-task"' in events.text
 
 
 def test_main_page_task_ref_resolver_prefers_draft_then_published(tmp_path: Any) -> None:
@@ -963,6 +1075,10 @@ def _request(
 def _create_session(app: Any, name: str = "Demo session") -> str:
     response = _request(app, "POST", "/api/v1/sessions", body={"name": name})
     return cast(str, response.json["data"]["sessionId"])
+
+
+def _read_jsonl(path: Any) -> list[dict[str, Any]]:
+    return [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
 
 
 def _published_task(task_id: str, *, session_id: str) -> TaskDomain:

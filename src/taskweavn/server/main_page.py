@@ -4,35 +4,32 @@ from __future__ import annotations
 
 import contextlib
 import threading
-from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
 
-from taskweavn.context import (
-    ContextBuildRequest,
-    ContextBuildResult,
-    ControlContextSource,
-    EventStreamContextSource,
-    SessionAgentLoopContextProvider,
-    SessionContextManager,
-    SqliteContextStore,
-    TaskContextSource,
-)
 from taskweavn.core import (
-    AgentLoop,
-    LoopResult,
     Session,
     SessionManager,
-    SqliteEventStream,
     WorkspaceLayout,
 )
 from taskweavn.interaction import (
     InProcessMessageBus,
     SqliteMessageStream,
 )
-from taskweavn.runtime import LocalRuntime
 from taskweavn.server.client_logs import FileClientErrorLogSink
+from taskweavn.server.main_page_agent import build_agent_loop_resident_default_agent
+from taskweavn.server.main_page_audit_events import (
+    FRONTEND_ERROR_LOG_FILENAME,
+    AuditEventClientErrorLogSink,
+    AuditEventCommandGateway,
+    ui_event_store,
+)
+from taskweavn.server.main_page_logging import configure_sidecar_logging
+from taskweavn.server.main_page_sessions import (
+    MainPageSessionLifecycleGateway,
+    MainPageTaskRefResolver,
+    resolve_configured_session,
+)
 from taskweavn.server.sidecar import LocalSidecarConfig, LocalSidecarServer
 from taskweavn.server.ui_command_idempotency import (
     SqliteUiCommandResponseIdempotencyStore,
@@ -41,12 +38,18 @@ from taskweavn.server.ui_command_idempotency import (
 from taskweavn.server.ui_contract import (
     DefaultUiCommandGateway,
     DefaultUiQueryGateway,
+    UiCommandGateway,
+    WorkspaceAuditConfigProvider,
+    WorkspaceAuditEventProvider,
+    WorkspaceAuditLogProvider,
 )
-from taskweavn.server.ui_events import ResyncOnlyEventSource, UiEventSource
+from taskweavn.server.ui_events import (
+    SqliteUiEventSource,
+    UiEventSource,
+)
 from taskweavn.server.ui_http import PlatoUiHttpTransport, SidecarAuth
 from taskweavn.task import (
     DEFAULT_FIXED_ROUTE_AGENT_ID,
-    AgentLoopResidentDefaultAgent,
     AuthoringCommandIdempotencyStore,
     AuthoringStateStore,
     CapabilityCatalog,
@@ -75,20 +78,9 @@ from taskweavn.task import (
     SqliteTaskBus,
     SqliteTaskExecutionSummaryStore,
     StaticCapabilityCatalog,
-    TaskBus,
-    TaskDomain,
     TaskExecutionSummaryStore,
     TaskExecutionSummaryViewStore,
     TaskExecutionTickResult,
-    TaskRef,
-)
-from taskweavn.tools import (
-    ListDirTool,
-    ReadFileTool,
-    RunCommandTool,
-    Tool,
-    Workspace,
-    WriteFileTool,
 )
 
 DEFAULT_PLATO_SIDECAR_PORT = 52789
@@ -108,6 +100,9 @@ class MainPageSidecarConfig:
     default_agent_max_steps: int = 20
     enable_execution_dispatcher: bool = True
     execution_dispatcher_max_ticks_per_trigger: int = 10
+    enable_session_logging: bool = True
+    logging_level: str = "INFO"
+    logging_profile: str | None = None
 
 
 @dataclass(frozen=True)
@@ -141,11 +136,12 @@ class MainPageSidecarApp:
     authoring_state_store: AuthoringStateStore | None
     authoring_idempotency_store: AuthoringCommandIdempotencyStore | None
     ui_command_idempotency_store: UiCommandResponseIdempotencyStore | None
+    event_source: UiEventSource
     result_summary_store: TaskExecutionSummaryStore
     default_agent: ResidentDefaultAgent | None
     execution_dispatcher: FixedRouteExecutionDispatcher | None
     query_gateway: DefaultUiQueryGateway
-    command_gateway: DefaultUiCommandGateway
+    command_gateway: UiCommandGateway
     transport: PlatoUiHttpTransport
     server: LocalSidecarServer
     _server_thread: threading.Thread | None = field(default=None, init=False)
@@ -190,6 +186,10 @@ class MainPageSidecarApp:
             self.server.server_close()
         with contextlib.suppress(Exception):
             self.message_bus.close()
+        close_event_source = getattr(self.event_source, "close", None)
+        if close_event_source is not None:
+            with contextlib.suppress(Exception):
+                close_event_source()
         with contextlib.suppress(Exception):
             self.message_stream.close()
         with contextlib.suppress(Exception):
@@ -226,7 +226,15 @@ def build_main_page_sidecar_app(
     layout = WorkspaceLayout(config.workspace_root)
     session_manager = SessionManager(layout)
     try:
-        session = _resolve_session(session_manager, config)
+        session = resolve_configured_session(session_manager, config.session_id)
+        logging_initializer = configure_sidecar_logging(
+            workspace_root=config.workspace_root,
+            enable_session_logging=config.enable_session_logging,
+            logging_level=config.logging_level,
+            logging_profile=config.logging_profile,
+        )
+        if session is not None:
+            logging_initializer(session)
         message_stream = SqliteMessageStream(layout.workspace_messages_db)
         message_bus = InProcessMessageBus(message_stream)
         task_bus = SqliteTaskBus(layout.workspace_tasks_db)
@@ -255,6 +263,10 @@ def build_main_page_sidecar_app(
         result_summary_store = dependencies.result_summary_store or SqliteTaskExecutionSummaryStore(
             layout.workspace_results_db
         )
+        event_source = dependencies.event_source or SqliteUiEventSource(
+            layout.workspace_ui_events_db
+        )
+        event_store = ui_event_store(event_source)
         default_agent = dependencies.default_agent
         if default_agent is None and config.enable_default_agent:
             default_agent = build_agent_loop_resident_default_agent(
@@ -263,6 +275,7 @@ def build_main_page_sidecar_app(
                 task_bus=task_bus,
                 max_steps=config.default_agent_max_steps,
                 result_summary_store=result_summary_store,
+                ui_event_store=event_store,
             )
         execution_dispatcher = FixedRouteExecutionDispatcher(
             task_bus=task_bus,
@@ -307,10 +320,13 @@ def build_main_page_sidecar_app(
         query_gateway = DefaultUiQueryGateway(
             session_reader=session_manager,
             task_projection=task_projection,
+            audit_event_provider=WorkspaceAuditEventProvider(layout),
+            audit_config_provider=WorkspaceAuditConfigProvider(),
+            audit_log_provider=WorkspaceAuditLogProvider(),
             session_message_provider=message_stream,
             authoring_state_store=authoring_state_store,
         )
-        command_gateway = DefaultUiCommandGateway(
+        core_command_gateway = DefaultUiCommandGateway(
             collaborator=collaborator,
             task_commands=task_commands,
             task_ref_resolver=MainPageTaskRefResolver(
@@ -319,6 +335,10 @@ def build_main_page_sidecar_app(
             ),
             authoring_state_store=authoring_state_store,
         )
+        command_gateway: UiCommandGateway = AuditEventCommandGateway(
+            inner=core_command_gateway,
+            event_store=event_store,
+        )
         ui_command_idempotency_store = (
             dependencies.ui_command_idempotency_store
             or SqliteUiCommandResponseIdempotencyStore(layout.workspace_ui_commands_db)
@@ -326,11 +346,19 @@ def build_main_page_sidecar_app(
         transport = PlatoUiHttpTransport(
             query_gateway=query_gateway,
             command_gateway=command_gateway,
-            event_source=dependencies.event_source or ResyncOnlyEventSource(),
+            event_source=event_source,
             auth=None if config.auth_token is None else SidecarAuth(config.auth_token),
-            client_error_log_sink=FileClientErrorLogSink(layout),
+            client_error_log_sink=AuditEventClientErrorLogSink(
+                inner=FileClientErrorLogSink(
+                    layout,
+                    filename=FRONTEND_ERROR_LOG_FILENAME,
+                ),
+                event_store=event_store,
+            ),
             session_lifecycle_gateway=MainPageSessionLifecycleGateway(
                 session_manager=session_manager,
+                configure_session_logging=logging_initializer,
+                ui_event_store=event_store,
             ),
             command_idempotency_store=ui_command_idempotency_store,
             execution_trigger_gateway=execution_dispatcher,
@@ -355,6 +383,7 @@ def build_main_page_sidecar_app(
         authoring_state_store=authoring_state_store,
         authoring_idempotency_store=authoring_idempotency_store,
         ui_command_idempotency_store=ui_command_idempotency_store,
+        event_source=event_source,
         result_summary_store=result_summary_store,
         default_agent=default_agent,
         execution_dispatcher=execution_dispatcher,
@@ -392,164 +421,6 @@ def _authoring_stores(
     )
 
 
-def build_agent_loop_resident_default_agent(
-    *,
-    layout: WorkspaceLayout,
-    llm: Any,
-    task_bus: TaskBus | None = None,
-    max_steps: int = 20,
-    result_summary_store: TaskExecutionSummaryStore | None = None,
-) -> AgentLoopResidentDefaultAgent:
-    """Build the resident Default Agent used by the fixed-route sidecar bridge."""
-
-    context_builder_factory: Callable[[TaskDomain], _SessionContextBuilder] | None = None
-    if task_bus is not None:
-        def build_context_builder(task: TaskDomain) -> _SessionContextBuilder:
-            return _SessionContextBuilder(
-                layout=layout,
-                task_bus=task_bus,
-                session_id=task.session_id,
-            )
-
-        context_builder_factory = build_context_builder
-
-    return AgentLoopResidentDefaultAgent(
-        loop_factory=lambda task: _SessionAgentLoopRunner(
-            layout=layout,
-            llm=llm,
-            session_id=task.session_id,
-            max_steps=max_steps,
-            context_builder=(
-                None if context_builder_factory is None else context_builder_factory(task)
-            ),
-        ),
-        context_builder_factory=context_builder_factory,
-        result_summary_store=result_summary_store,
-    )
-
-
-@dataclass(frozen=True)
-class _SessionContextBuilder:
-    """Build execution context from session-scoped durable sources."""
-
-    layout: WorkspaceLayout
-    task_bus: TaskBus
-    session_id: str
-
-    def build(self, request: ContextBuildRequest) -> ContextBuildResult:
-        self.layout.bootstrap_session(self.session_id)
-        with (
-            SqliteEventStream(self.layout.session_events_db(self.session_id)) as event_stream,
-            SqliteContextStore(self.layout.session_context_db(self.session_id)) as context_store,
-        ):
-            manager = SessionContextManager(
-                task_source=TaskContextSource(self.task_bus),
-                event_source=EventStreamContextSource(
-                    event_stream,
-                    workspace_id=f"session:{self.session_id}",
-                ),
-                control_source=ControlContextSource(
-                    allowed_tools=("read_file", "write_file", "list_dir", "run_command"),
-                ),
-                store=context_store,
-            )
-            return manager.build(request)
-
-
-@dataclass(frozen=True)
-class _SessionAgentLoopRunner:
-    """Create one AgentLoop run with session-scoped workspace and events."""
-
-    layout: WorkspaceLayout
-    llm: Any
-    session_id: str
-    max_steps: int
-    context_builder: _SessionContextBuilder | None = None
-
-    def run(self, task: str, *, task_id: str | None = None) -> LoopResult:
-        self.layout.bootstrap_session(self.session_id)
-        workspace = Workspace(self.layout.session_project_dir(self.session_id))
-        runtime = LocalRuntime()
-        tools: list[Tool[Any, Any]] = [
-            ReadFileTool(workspace),
-            WriteFileTool(workspace),
-            ListDirTool(workspace),
-            RunCommandTool(workspace),
-        ]
-        for tool in tools:
-            tool.register(runtime)
-
-        event_stream = SqliteEventStream(self.layout.session_events_db(self.session_id))
-        try:
-            loop = AgentLoop(
-                llm=self.llm,
-                runtime=runtime,
-                tools=tools,
-                event_stream=event_stream,
-                max_steps=self.max_steps,
-                session_id=self.session_id,
-                workspace_root=workspace.root,
-                context_provider=(
-                    None
-                    if self.context_builder is None
-                    else SessionAgentLoopContextProvider(self.context_builder)
-                ),
-            )
-            return loop.run(task, task_id=task_id)
-        finally:
-            event_stream.close()
-
-
-@dataclass(frozen=True)
-class MainPageTaskRefResolver:
-    """Resolve UI task node ids into backend TaskRef values."""
-
-    draft_store: DraftTaskStore
-    task_bus: SqliteTaskBus
-
-    def resolve(self, session_id: str, task_node_id: str) -> TaskRef:
-        draft_node = self.draft_store.get_node(session_id, task_node_id)
-        if draft_node is not None:
-            return TaskRef.draft(task_node_id)
-        if self.task_bus.get(session_id, task_node_id) is not None:
-            return TaskRef.published(task_node_id)
-        raise LookupError(f"task node {task_node_id!r} not found")
-
-
-@dataclass(frozen=True)
-class MainPageSessionLifecycleGateway:
-    """Session lifecycle commands for the local Main Page sidecar."""
-
-    session_manager: SessionManager
-
-    def list_sessions(self) -> dict[str, object]:
-        return {"sessions": [_session_payload(session) for session in self.session_manager.list()]}
-
-    def create_session(self, name: str) -> dict[str, object]:
-        session = self.session_manager.create(name)
-        return {"sessionId": session.id, "session": _session_payload(session)}
-
-    def rename_session(self, session_id: str, name: str) -> dict[str, object]:
-        session = self.session_manager.rename(session_id, name)
-        return {"sessionId": session.id, "session": _session_payload(session)}
-
-    def delete_session(self, session_id: str) -> dict[str, object]:
-        next_session = self.session_manager.delete(session_id)
-        return {
-            "deletedSessionId": session_id,
-            "nextSessionId": None if next_session is None else next_session.id,
-        }
-
-
-def _resolve_session(
-    session_manager: SessionManager,
-    config: MainPageSidecarConfig,
-) -> Session | None:
-    if config.session_id is not None:
-        return session_manager.require(config.session_id)
-    return None
-
-
 def _default_capability_catalog() -> StaticCapabilityCatalog:
     return StaticCapabilityCatalog(
         (
@@ -560,16 +431,6 @@ def _default_capability_catalog() -> StaticCapabilityCatalog:
             "research",
         )
     )
-
-
-def _session_payload(session: Session) -> dict[str, object]:
-    return {
-        "id": session.id,
-        "name": session.name,
-        "createdAt": session.created_at.isoformat(),
-        "updatedAt": session.last_active_at.isoformat(),
-        "status": session.status,
-    }
 
 
 __all__ = [

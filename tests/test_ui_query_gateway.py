@@ -5,12 +5,19 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from pathlib import Path
 
-from taskweavn.core import Session
+from taskweavn.core import Session, SqliteEventStream, WorkspaceLayout
 from taskweavn.interaction import AgentMessage
+from taskweavn.observability.models import LogArchiveManifest
 from taskweavn.server.ui_contract import (
+    AuditConfigProvider,
+    AuditEventProvider,
+    AuditLogProvider,
     DefaultUiQueryGateway,
     SessionMessageProvider,
     UiQueryGateway,
+    WorkspaceAuditConfigProvider,
+    WorkspaceAuditEventProvider,
+    WorkspaceAuditLogProvider,
 )
 from taskweavn.task import (
     ActiveAuthoringState,
@@ -25,6 +32,7 @@ from taskweavn.task import (
     TaskSummaryView,
     TaskTreeView,
 )
+from taskweavn.tools.fs import FileContentObservation, ReadFileAction, WriteFileAction
 
 NOW = datetime(2026, 5, 20, 12, 0, tzinfo=UTC)
 
@@ -118,11 +126,16 @@ class _AuthoringStateStore:
         raise NotImplementedError
 
 
-def _session(session_id: str = "session-1", *, status: str = "active") -> Session:
+def _session(
+    session_id: str = "session-1",
+    *,
+    status: str = "active",
+    workspace_root: Path | None = None,
+) -> Session:
     return Session(
         id=session_id,
         name="Website session",
-        workspace_root=Path("/workspace"),
+        workspace_root=workspace_root or Path("/workspace"),
         created_at=NOW,
         last_active_at=NOW,
         status=status,  # type: ignore[arg-type]
@@ -178,6 +191,12 @@ def test_query_gateway_protocol_conformance() -> None:
 
     assert isinstance(gateway, UiQueryGateway)
     assert isinstance(_SessionMessageProvider([]), SessionMessageProvider)
+    assert isinstance(
+        WorkspaceAuditEventProvider(WorkspaceLayout(Path("/workspace"))),
+        AuditEventProvider,
+    )
+    assert isinstance(WorkspaceAuditConfigProvider(), AuditConfigProvider)
+    assert isinstance(WorkspaceAuditLogProvider(), AuditLogProvider)
 
 
 def test_get_session_snapshot_returns_not_found_envelope() -> None:
@@ -463,6 +482,362 @@ def test_get_session_snapshot_prefers_root_file_change_summary_for_child_changes
     assert response.data.file_change_summary is not None
     assert response.data.file_change_summary.task_node_id == "root"
     assert response.data.file_change_summary.changed_files[0].owner_task_node_id == ("child")
+
+
+def test_get_audit_snapshot_projects_task_scope_records_and_detail() -> None:
+    message = SessionMessageView(
+        message_id="message-1",
+        session_id="session-1",
+        task_ref=TaskRef.published("root"),
+        message_type="agent",
+        content_summary="Implementation completed.",
+        created_at=NOW,
+    )
+    option = ConfirmationOptionView(
+        option_id="yes-option",
+        label="Yes",
+        value="yes",
+        is_default=True,
+    )
+    confirmation = ConfirmationActionView(
+        confirmation_id="confirmation-1",
+        task_ref=TaskRef.published("root"),
+        prompt="Create project files?",
+        options=(option,),
+        default_option_id="yes-option",
+    )
+    card = _card(
+        status="done",
+        message=message,
+        confirmation=confirmation,
+        result_ref="result:root",
+        badges=TaskCardBadges(direct_file_change_count=1, subtree_file_change_count=1),
+    )
+    change = TaskFileChangeSummary(
+        change_id="change-1",
+        owner_task_ref=TaskRef.published("root"),
+        path="src/App.tsx",
+        change_type="modified",
+        summary="Modified src/App.tsx.",
+        recorded_at=NOW,
+    )
+    summary = TaskSummaryView(
+        task_ref=TaskRef.published("root"),
+        summary="Built the requested page.",
+        updated_at=NOW,
+    )
+    gateway = DefaultUiQueryGateway(
+        session_reader=_SessionReader([_session()]),
+        task_projection=_Projection(
+            TaskTreeView(session_id="session-1", nodes=(card,)),
+            details={
+                "root": TaskDetailView(
+                    card=card,
+                    full_intent=card.intent_preview,
+                    file_changes=(change,),
+                    result_summary=summary,
+                )
+            },
+        ),
+    )
+
+    response = gateway.get_audit_snapshot(
+        "session-1",
+        task_node_id="root",
+        filter_kind="files",
+        record_id="record-file-change-1",
+        include_detail=True,
+    )
+
+    assert response.ok is True
+    assert response.data is not None
+    assert response.data.schema_version == "plato.audit.v1"
+    assert response.data.scope.kind == "task"
+    assert response.data.selected_task is not None
+    assert response.data.selected_task.id == "root"
+    assert [record.id for record in response.data.records] == ["record-file-change-1"]
+    assert response.data.selected_record is not None
+    assert response.data.selected_record.id == "record-file-change-1"
+    assert response.data.selected_record.evidence[0].id == "evidence-record-file-change-1"
+    assert response.data.overview.record_counts["confirmations"] == 1
+    assert response.data.overview.record_counts["files"] == 1
+    assert response.data.page_state.kind == "partial"
+
+
+def test_audit_records_query_filters_kind_and_paginates_in_api_order() -> None:
+    message = SessionMessageView(
+        message_id="message-1",
+        session_id="session-1",
+        task_ref=TaskRef.published("root"),
+        message_type="agent",
+        content_summary="Implementation completed.",
+        created_at=NOW,
+    )
+    card = _card(status="done", message=message)
+    gateway = DefaultUiQueryGateway(
+        session_reader=_SessionReader([_session()]),
+        task_projection=_Projection(TaskTreeView(session_id="session-1", nodes=(card,))),
+    )
+
+    response = gateway.list_audit_records(
+        "session-1",
+        filter_kind="actions",
+        kind="action",
+        limit=1,
+    )
+
+    assert response.ok is True
+    assert response.data is not None
+    assert response.data.total_count == 1
+    assert response.data.next_cursor is None
+    assert [record.id for record in response.data.records] == ["record-task-published-root"]
+
+
+def test_audit_record_detail_and_evidence_detail_are_addressable() -> None:
+    card = _card(status="done")
+    gateway = DefaultUiQueryGateway(
+        session_reader=_SessionReader([_session()]),
+        task_projection=_Projection(TaskTreeView(session_id="session-1", nodes=(card,))),
+    )
+
+    detail = gateway.get_audit_record_detail(
+        "session-1",
+        "record-task-published-root",
+        include_evidence=True,
+    )
+    evidence = gateway.get_evidence_detail(
+        "session-1",
+        "evidence-record-task-published-root",
+    )
+
+    assert detail.ok is True
+    assert detail.data is not None
+    assert detail.data.id == "record-task-published-root"
+    assert detail.data.evidence[0].source == "task_projection"
+    assert evidence.ok is True
+    assert evidence.data is not None
+    assert evidence.data.id == "evidence-record-task-published-root"
+    assert evidence.data.disclosure.partial_reason is not None
+
+
+def test_audit_snapshot_includes_event_stream_action_and_observation_records(
+    tmp_path: Path,
+) -> None:
+    layout = WorkspaceLayout(tmp_path)
+    layout.bootstrap_session("session-1")
+    action = ReadFileAction(
+        event_id="action-read",
+        timestamp=NOW,
+        path="README.md",
+    )
+    observation = FileContentObservation(
+        event_id="observation-read",
+        timestamp=datetime(2026, 5, 20, 12, 1, tzinfo=UTC),
+        action_id="action-read",
+        path="README.md",
+        content="hello",
+        bytes_read=5,
+    )
+    with SqliteEventStream(layout.session_events_db("session-1")) as stream:
+        stream.append(action, task_id="root")
+        stream.append(observation, task_id="root")
+    card = _card(status="done")
+    gateway = DefaultUiQueryGateway(
+        session_reader=_SessionReader([_session(workspace_root=tmp_path)]),
+        task_projection=_Projection(TaskTreeView(session_id="session-1", nodes=(card,))),
+        audit_event_provider=WorkspaceAuditEventProvider(layout),
+    )
+
+    response = gateway.list_audit_records(
+        "session-1",
+        task_node_id="root",
+        filter_kind="actions",
+    )
+    evidence = gateway.get_evidence_detail(
+        "session-1",
+        "evidence-event-action-action-read",
+    )
+
+    assert response.ok is True
+    assert response.data is not None
+    assert "record-event-action-action-read" in {
+        record.id for record in response.data.records
+    }
+    assert "record-event-observation-observation-read" in {
+        record.id for record in response.data.records
+    }
+    assert evidence.ok is True
+    assert evidence.data is not None
+    assert evidence.data.source == "event_stream"
+
+
+def test_audit_record_payload_is_generated_only_when_requested(tmp_path: Path) -> None:
+    layout = WorkspaceLayout(tmp_path)
+    layout.bootstrap_session("session-1")
+    action = WriteFileAction(
+        event_id="action-write",
+        timestamp=NOW,
+        path=str(layout.session_project_dir("session-1") / "src/App.tsx"),
+        content="OPENAI_API_KEY=sk-test\nhello",
+    )
+    with SqliteEventStream(layout.session_events_db("session-1")) as stream:
+        stream.append(action, task_id="root")
+    card = _card(status="done")
+    gateway = DefaultUiQueryGateway(
+        session_reader=_SessionReader([_session(workspace_root=tmp_path)]),
+        task_projection=_Projection(TaskTreeView(session_id="session-1", nodes=(card,))),
+        audit_event_provider=WorkspaceAuditEventProvider(layout),
+    )
+
+    default_detail = gateway.get_audit_record_detail(
+        "session-1",
+        "record-event-action-action-write",
+    )
+    requested_detail = gateway.get_audit_record_detail(
+        "session-1",
+        "record-event-action-action-write",
+        include_sanitized_payload=True,
+    )
+
+    assert default_detail.ok is True
+    assert default_detail.data is not None
+    assert default_detail.data.raw_payload is None
+    assert default_detail.data.disclosure.raw_payload_available is True
+    assert default_detail.data.disclosure.raw_payload_shown is False
+    assert requested_detail.ok is True
+    assert requested_detail.data is not None
+    assert requested_detail.data.raw_payload is not None
+    assert requested_detail.data.disclosure.raw_payload_shown is True
+    assert "sk-test" not in requested_detail.data.raw_payload.content
+    assert "[redacted:content" in requested_detail.data.raw_payload.content
+    assert "workspace://" in requested_detail.data.raw_payload.content
+    assert requested_detail.data.raw_payload.redactions
+
+
+def test_audit_evidence_payload_summarizes_observation_content(tmp_path: Path) -> None:
+    layout = WorkspaceLayout(tmp_path)
+    layout.bootstrap_session("session-1")
+    observation = FileContentObservation(
+        event_id="observation-read",
+        timestamp=NOW,
+        action_id="action-read",
+        path="README.md",
+        content="secret=abc123\n" * 50,
+        bytes_read=700,
+    )
+    with SqliteEventStream(layout.session_events_db("session-1")) as stream:
+        stream.append(observation, task_id="root")
+    card = _card(status="done")
+    gateway = DefaultUiQueryGateway(
+        session_reader=_SessionReader([_session(workspace_root=tmp_path)]),
+        task_projection=_Projection(TaskTreeView(session_id="session-1", nodes=(card,))),
+        audit_event_provider=WorkspaceAuditEventProvider(layout),
+    )
+
+    evidence = gateway.get_evidence_detail(
+        "session-1",
+        "evidence-event-observation-observation-read",
+        include_sanitized_payload=True,
+    )
+
+    assert evidence.ok is True
+    assert evidence.data is not None
+    assert evidence.data.sanitized_payload is not None
+    assert evidence.data.disclosure.raw_payload_shown is True
+    assert evidence.data.disclosure.partial_reason is not None
+    assert "abc123" not in evidence.data.sanitized_payload.content
+    assert "[redacted:content" in evidence.data.sanitized_payload.content
+
+
+def test_audit_snapshot_includes_workspace_log_and_config_records(
+    tmp_path: Path,
+) -> None:
+    layout = WorkspaceLayout(tmp_path)
+    layout.bootstrap_session("session-1")
+    session = _session(workspace_root=tmp_path)
+    log_dir = layout.session_logs_dir("session-1")
+    log_dir.mkdir(parents=True, exist_ok=True)
+    (log_dir / "frontend-errors.jsonl").write_text(
+        "\n".join(
+            [
+                '{"message":"render.failed","token":"abc123"}',
+                *[f'{{"message":"line-{index}"}}' for index in range(25)],
+            ]
+        ),
+        encoding="utf-8",
+    )
+    manifest = LogArchiveManifest(
+        session_id="session-1",
+        created_at=NOW,
+        config_hash="abc123",
+        active_config_path="logging.json",
+        archive_root=str(log_dir),
+        files={"frontend": "frontend-errors.jsonl"},
+    )
+    (log_dir / "manifest.json").write_text(
+        manifest.model_dump_json(),
+        encoding="utf-8",
+    )
+    card = _card(status="done")
+    gateway = DefaultUiQueryGateway(
+        session_reader=_SessionReader([session]),
+        task_projection=_Projection(TaskTreeView(session_id="session-1", nodes=(card,))),
+        audit_config_provider=WorkspaceAuditConfigProvider(),
+        audit_log_provider=WorkspaceAuditLogProvider(),
+    )
+
+    config_response = gateway.list_audit_records("session-1", filter_kind="config")
+    logs_response = gateway.list_audit_records("session-1", filter_kind="logs")
+    snapshot = gateway.get_audit_snapshot("session-1")
+    config_evidence = gateway.get_evidence_detail(
+        "session-1",
+        "evidence-record-config-logging-manifest",
+        include_sanitized_payload=True,
+    )
+    log_evidence = gateway.get_evidence_detail(
+        "session-1",
+        "evidence-record-log-frontend-errors.jsonl",
+        include_sanitized_payload=True,
+    )
+
+    assert config_response.ok is True
+    assert config_response.data is not None
+    assert [record.kind for record in config_response.data.records] == ["config_change"]
+    assert logs_response.ok is True
+    assert logs_response.data is not None
+    assert [record.kind for record in logs_response.data.records] == ["log_evidence"]
+    assert snapshot.ok is True
+    assert snapshot.data is not None
+    assert snapshot.data.effective_config is not None
+    assert snapshot.data.effective_config.profile_label == "Session log manifest"
+    assert snapshot.data.related_logs[0].enabled is True
+    assert config_evidence.ok is True
+    assert config_evidence.data is not None
+    assert config_evidence.data.source == "config_store"
+    assert config_evidence.data.sanitized_payload is not None
+    assert "abc123" in config_evidence.data.sanitized_payload.content
+    assert str(log_dir) not in config_evidence.data.sanitized_payload.content
+    assert "session-logs://" in config_evidence.data.sanitized_payload.content
+    assert log_evidence.ok is True
+    assert log_evidence.data is not None
+    assert log_evidence.data.source == "log_archive"
+    assert log_evidence.data.sanitized_payload is not None
+    assert "abc123" not in log_evidence.data.sanitized_payload.content
+    assert "[redacted:secret]" in log_evidence.data.sanitized_payload.content
+    assert log_evidence.data.disclosure.partial_reason is not None
+
+
+def test_audit_snapshot_returns_not_found_for_unknown_task() -> None:
+    gateway = DefaultUiQueryGateway(
+        session_reader=_SessionReader([_session()]),
+        task_projection=_Projection(TaskTreeView(session_id="session-1", nodes=(_card(),))),
+    )
+
+    response = gateway.get_audit_snapshot("session-1", task_node_id="missing")
+
+    assert response.ok is False
+    assert response.error is not None
+    assert response.error.code == "not_found"
 
 
 def test_query_gateway_converts_unexpected_errors_to_internal_error() -> None:

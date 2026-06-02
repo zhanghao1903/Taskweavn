@@ -1,13 +1,27 @@
 # Audit Page Backend-To-Frontend Contract
 
-> Status: proposed contract
-> Last Updated: 2026-05-24
+> Status: implementation contract with mock-backed frontend baseline and
+> projection-backed real HTTP query path plus first EventStream/log/config
+> source references, sanitized payload disclosure, and runtime event/refetch
+> design baseline
+> Last Updated: 2026-06-01
 > Scope: Audit Page API, backend ViewModel, frontend ViewModel, events, mock scenarios.
-> Non-goals: no Audit Page UI implementation, no high-fidelity CSS, no MainPage rewrite, no runtime migration in this task.
+> Non-goals: no raw payload exposure, no MainPage rewrite, no full audit storage rewrite.
+> Disclosure Design:
+> [Audit Page Sanitized Payload Disclosure Technical Design](../plans/ui/audit-page-sanitized-payload-disclosure-technical-design.md)
+> Runtime Event Design:
+> [Audit Page Runtime Event And Refetch Technical Design](../plans/ui/audit-page-runtime-event-refetch-technical-design.md)
 
 ## 0. Implementation Checkpoint
 
-As of 2026-05-24, the additive backend contract model layer is in place:
+As of 2026-06-01, this contract is no longer only a proposed backend model.
+The backend additive contract models, frontend transport/mock baseline,
+mock-backed Audit Page route, page shell, A1-A14 scenario coverage, and Main
+Page audit entry navigation are in place. The real backend audit query path is
+now implemented as a projection-backed first pass and has been hardened with
+source-provider seams for EventStream, log archive, and config manifest facts.
+
+Backend contract baseline:
 
 - `src/taskweavn/server/ui_contract/view_models.py` defines Audit Page
   ViewModels for scope, entry context, return target, overview, filters,
@@ -15,19 +29,55 @@ As of 2026-05-24, the additive backend contract model layer is in place:
   and page states.
 - `src/taskweavn/server/ui_contract/snapshots.py` defines `AuditPageSnapshot`.
 - `src/taskweavn/server/ui_contract/events.py` defines additive event literals
-  and builders for `audit.records_changed`, `audit.record_updated`,
-  `audit.evidence_hidden`, and `audit.snapshot_stale`.
+  and builders for `audit.summary_updated`, `audit.records_changed`,
+  `audit.record_updated`, `audit.evidence_hidden`, and `audit.snapshot_stale`.
 - `tests/test_audit_page_contract_models.py` covers focused validation for the
   new contract shape, public verdict values, record detail consistency, config
   scope anchoring, sanitized payload disclosure, and audit event payloads.
+- `DefaultUiQueryGateway` exposes Audit Page snapshot, records, record detail,
+  and evidence detail using the same frontend contract in HTTP mode.
+- `WorkspaceAuditEventProvider` can project durable `events.sqlite` Action /
+  Observation / AuditObservation facts into productized audit records.
+- `WorkspaceAuditLogProvider` can expose session log archive files as
+  `log_evidence` records and related-log links.
+- `WorkspaceAuditConfigProvider` can expose a session logging manifest as a
+  `config_change` record and effective config summary.
+
+Frontend transport/mock baseline:
+
+- `frontend/src/shared/api/types.ts` defines Audit Page transport types for
+  snapshot, request, overview, filters, records, record detail, evidence,
+  permissions, and page states.
+- `frontend/src/shared/api/platoApi.ts` defines audit query methods for
+  snapshot, records, record detail, and evidence detail.
+- `frontend/src/app/routes.ts` defines session and task audit routes plus route
+  builders.
+- `frontend/src/entities/audit/model.ts` re-exports Audit Page model helpers on
+  top of the API contract.
+- `frontend/src/pages/audit-page/mockAuditScenarios.ts` and
+  `frontend/src/pages/audit-page/mockAuditApi.ts` provide mock scenarios and a
+  mock API for Audit Page development.
+- `frontend/src/shared/api/apiUiMapping.ts` maps Audit Page API states to UI
+  boundary states.
+- `frontend/src/app/platoRuntime.ts` can create the audit API in mock or HTTP
+  mode.
+- Focused frontend tests cover audit types, API methods, routes, mock
+  scenarios/API, runtime construction, and API-to-UI boundary mapping.
 
 Still not implemented:
 
-- HTTP audit routes.
-- Audit query gateway.
-- Real aggregation from timeline, audit agent, config, logs, or task
-  projection.
-- Frontend API types, routes, mock fixtures, or Audit Page UI.
+- Full `TaskInteractionTimelineService` aggregation.
+- Dedicated audit storage/query projection beyond productized records.
+- Runtime audit event emission points. AP-013A defines the event, scope,
+  cursor, and frontend invalidation strategy; AP-013B wires the frontend event
+  router/hook with mock subscription tests; AP-013C adds visible live
+  refresh/stale/disconnected feedback; and AP-013D adds the workspace-backed
+  `SqliteUiEventSource` replay store. AP-013E emits the first task-scoped
+  `audit.records_changed` event after AgentLoop writes EventStream facts, and
+  AP-013F adds config manifest, log archive, and confirmation resolution
+  `audit.records_changed` emissions.
+- Broader runtime emission points beyond AgentLoop/config/log/confirmation.
+- Product-grade mobile layout below the current supported minimum width.
 
 ## 1. Purpose
 
@@ -35,10 +85,20 @@ Audit Page is Plato's Trust Plane. It must let users inspect what happened,
 why it matters, what evidence exists, what is incomplete, and how to return to
 the Main Page context that started the audit.
 
-The backend now has additive Audit Page transport models and audit event
-builders, but the route/gateway/data-aggregation layer is still absent. The
-frontend still needs matching TypeScript types, mock fixtures, route constants,
-API client methods, and UI implementation.
+The backend has additive Audit Page transport models, audit event builders, and
+a first real route/gateway/data-aggregation path. The frontend has
+matching TypeScript types, route builders, API client methods, mock scenarios,
+mock API, runtime wiring, page route/shell/components, Main Page entry
+navigation, and contract tests. AP-010/AP-011 adds the first real backend
+query path: `DefaultUiQueryGateway` can now produce projection-backed
+session/task audit snapshots, record lists, record details, and evidence
+details, `ui_http.py` exposes the corresponding frontend endpoints, and the
+gateway can now fold in EventStream, log archive, logging manifest source
+records, and request-time sanitized payload disclosure when those sources
+exist. Runtime refetch coverage now includes AgentLoop/EventStream updates,
+session logging manifest writes, frontend error log archive writes, and
+confirmation resolution. The remaining implementation gap is richer timeline
+aggregation plus broader runtime audit event emission/source coverage.
 
 This document defines the backend-to-frontend contract to unblock mock data,
 API implementation, Figma/dev handoff, and later frontend implementation.
@@ -64,13 +124,17 @@ API implementation, Figma/dev handoff, and later frontend implementation.
 
 | Area | Current state | Gap |
 |---|---|---|
-| Backend snapshot | `src/taskweavn/server/ui_contract/snapshots.py` defines `MainPageSnapshot` and additive `AuditPageSnapshot`. | Snapshot model exists; no query gateway or HTTP handler populates it yet. |
-| Backend ViewModels | Audit Page scope, overview, record, detail, evidence, config/log link, permission, and page-state models exist. | No real data aggregation/mapping into those models yet. |
-| HTTP routes | `src/taskweavn/server/ui_http.py` exposes session snapshot, commands, events, and client logs. | No audit query endpoints. |
-| Events | `src/taskweavn/server/ui_contract/events.py` includes `audit.summary_updated` plus record/evidence/stale audit event builders. | No runtime source emits those events yet. |
-| Frontend API types | `frontend/src/shared/api/types.ts` has `AuditLinkView`. | No Audit Page types. |
-| Frontend audit entity | `frontend/src/entities/audit/model.ts` has `AuditEntryLink`. | Link-only; no records or verdict. |
-| Backend audit agent | `AuditAgent` emits `pass`, `fail`, `inconclusive`. | Product verdict needs `passed`, `warning`, `failed`, `inconclusive`, `not_available`. |
+| Backend snapshot | `src/taskweavn/server/ui_contract/snapshots.py` defines `MainPageSnapshot` and additive `AuditPageSnapshot`; `DefaultUiQueryGateway` can populate it from Task projection, EventStream, log archive, and config manifest facts where available. | Full timeline/source orchestration remains pending. |
+| Backend ViewModels | Audit Page scope, overview, record, record list result, detail, evidence, config/log link, permission, and page-state models exist. | Mapping remains productized; deeper timeline aggregation remains follow-up. |
+| HTTP routes | `src/taskweavn/server/ui_http.py` exposes session/task audit snapshot, records, record detail, evidence detail, and session event stream routes. | More domain-specific source events can still be added as runtime surfaces grow. |
+| Events | `src/taskweavn/server/ui_contract/events.py` includes `audit.summary_updated` plus record/evidence/stale audit event builders. AP-013A defines runtime refetch semantics, AP-013D adds workspace-backed `SqliteUiEventSource` cursor replay, AP-013E appends task-scoped `audit.records_changed` after AgentLoop EventStream updates, and AP-013F appends config/log/confirmation source updates. | AuditAgent verdict-specific emissions and richer timeline ordering remain follow-up. |
+| Frontend API types | `frontend/src/shared/api/types.ts` defines the Audit Page snapshot, request, overview, record, detail, evidence, permissions, and page-state types. | Keep aligned with backend contract as it evolves. |
+| Frontend API client/routes | `frontend/src/shared/api/platoApi.ts` defines audit query methods; `frontend/src/app/routes.ts` defines session/task audit routes; `App.tsx` now mounts session/task Audit Page routes. | Keep HTTP mode aligned as backend source coverage grows. |
+| Frontend audit entity | `frontend/src/entities/audit/model.ts` re-exports Audit Page API models and link helpers. | Add page-specific selectors/helpers when the real UI consumes the contract. |
+| Frontend audit mocks | `frontend/src/pages/audit-page/mockAuditScenarios.ts` and `mockAuditApi.ts` provide A1-A14 mock coverage. | Keep as acceptance fixtures for backend parity and future UI regression. |
+| Frontend UI boundary mapping | `frontend/src/shared/api/apiUiMapping.ts` includes Audit Page state-to-boundary mapping. | Exercised by the page shell; extend only when backend introduces new states. |
+| Frontend Audit Page UI | Audit Page route/shell/components exist, Main Page `View audit` routes to Audit Page, HTTP mode is wired, detail/evidence can request sanitized disclosure, AP-013B wires mock-backed runtime event-to-refetch behavior, and AP-013C shows live refresh/stale/disconnected feedback. | Validate the broader source coverage through an end-to-end user path before release closure. |
+| Backend audit agent | `AuditAgent` emits `pass`, `fail`, `inconclusive`; EventStream-backed `AuditObservation` records are mapped to public verdicts when present. | Audit-specific event emission and broader audit-agent source coverage are still pending. |
 
 ## 4. Audit Verdict Model
 
@@ -631,12 +695,27 @@ prioritizes it.
 | Error | Query/projection failure. | `QueryResponse.error` or snapshot `pageState.kind = error` for mock. | Retry and return to Main Page; never mutate task state. |
 | Stale | Event cursor/snapshot stale. | `audit.snapshot_stale` event or `pageState.kind = stale`. | Refetch snapshot and disable evidence actions while stale. |
 
-## 13. Audit Event Candidates
+## 13. Runtime Audit Event And Refetch Contract
 
-Additive event candidates for `src/taskweavn/server/ui_contract/events.py`:
+Detailed design lives in
+[Audit Page Runtime Event And Refetch Technical Design](../plans/ui/audit-page-runtime-event-refetch-technical-design.md).
+This section is the implementation contract summary.
+
+Audit Page consumes the session SSE stream:
+
+```text
+GET /api/v1/sessions/{sessionId}/events?cursor={cursor}
+```
+
+Events are invalidation hints. They must not carry full Audit ViewModels, raw
+payloads, or sanitized payload content. Frontend must refetch the canonical
+Audit Page query APIs.
+
+Canonical audit event types:
 
 ```ts
 type AuditUiEventType =
+  | "audit.summary_updated"
   | "audit.records_changed"
   | "audit.record_updated"
   | "audit.evidence_hidden"
@@ -645,32 +724,51 @@ type AuditUiEventType =
 
 | Event | Meaning | Required payload | Frontend behavior |
 |---|---|---|---|
-| `audit.records_changed` | Records were added/removed for a scope. | `scope`, `recordIds`, `reason`. | Refetch current AuditPageSnapshot or records for current filter. |
-| `audit.record_updated` | A record detail, verdict, disclosure, or severity changed. | `recordId`, `scope`, optional `kind`, `verdict`. | If selected, refetch detail; otherwise patch/refetch list. |
-| `audit.evidence_hidden` | Evidence was hidden/redacted after policy evaluation. | `recordId`, `evidenceIds`, `reasonCode`. | Refetch detail; show hidden evidence indicator. |
-| `audit.snapshot_stale` | Current audit snapshot cannot be trusted without refetch. | `scope`, `reason`, optional `lastGoodCursor`. | Enter stale/resync and reload snapshot. |
+| `audit.summary_updated` | Overview, verdict, count, or severity summary changed. | optional `severity`, optional `scope`, optional `reason`. | Refetch current AuditPageSnapshot. |
+| `audit.records_changed` | Records were added/removed for a scope. | `scope`, `record_ids`, `reason`. | Refetch current AuditPageSnapshot or records for current filter. |
+| `audit.record_updated` | A record detail, verdict, disclosure, or severity changed. | `record_id`, `scope`, optional `kind`, `verdict`. | If selected, refetch detail; otherwise patch/refetch list. |
+| `audit.evidence_hidden` | Evidence was hidden/redacted after policy evaluation. | `record_id`, `evidence_ids`, `reason_code`. | Refetch detail; show hidden evidence indicator. |
+| `audit.snapshot_stale` | Current audit snapshot cannot be trusted without refetch. | `scope`, `reason`, optional `last_good_cursor`. | Enter stale/resync and reload snapshot. |
+
+Current Python builders use snake_case inside the free-form `payload` dictionary
+(`record_ids`, `evidence_ids`, `last_good_cursor`). Frontend should support
+these keys directly or normalize them at the Audit Page event-router boundary.
 
 Event payloads should include enough scope to know whether the current Audit
-Page is affected. If payload is incomplete, frontend must refetch rather than
-reconstruct evidence from raw events.
+Page is affected. If payload is incomplete but the session matches, frontend
+must refetch rather than reconstruct evidence from raw events.
 
-## 14. Mock Scenarios A1-A10
+First implementation should add:
 
-Mocks should be created before UI implementation. They should produce complete
-`AuditPageSnapshot` fixtures with stable ids and expected route/query.
+1. Audit Page route/controller event subscription.
+2. Scope-aware event routing.
+3. Snapshot/detail/evidence refetch behavior.
+4. Non-blocking stale/disconnected UI feedback.
+5. Backend workspace event source/emission points as a separate slice.
 
-| Scenario | Route/scope | Required data | Expected state |
+## 14. Mock Scenarios A1-A14
+
+Mocks were created before UI implementation. They produce complete
+`AuditPageSnapshot` fixtures with stable ids and expected route/query through
+`frontend/src/pages/audit-page/mockAuditScenarios.ts` and
+`frontend/src/pages/audit-page/mockAuditApi.ts`.
+
+| Scenario | Current fixture id | Route/scope | Expected state |
 |---|---|---|---|
-| A1 Task Audit Default | `/sessions/s1/tasks/t1/audit` | Task scope, overview, mixed confirmation/action/file/result records, no selected record. | `pageState.ready`, verdict `warning` or `passed`, completeness `complete`. |
-| A2 Record Selected | same plus `recordId=r-file-1` | Selected file/action/risk detail with evidence refs and return target. | Detail visible; timeline context preserved. |
-| A3 Session Audit Overview | `/sessions/s1/audit` | Session scope, important records across multiple tasks, counts by filter. | Default selected important issue if any. |
-| A4 Filtered Records | `/sessions/s1/audit?filter=confirmations` | Confirmation-only list, counts for all filters remain visible. | Filtered list; selected record cleared unless still valid. |
-| A5 Empty Audit | `/sessions/s1/tasks/t-draft/audit` | No records, draft/not-executed explanation. | `verdict = not_available`, `pageState.empty`. |
-| A6 Running Partial | `/sessions/s1/tasks/t-running/audit` | Running audit, partial records, hidden count maybe zero. | `completeness = running` or `partial`; no final pass. |
-| A7 Failed To Load | any audit route | Query error fixture or snapshot mock error state. | Retry available; return target preserved. |
-| A8 Inconclusive Verdict | task route | Audit verdict record with missing/insufficient evidence reason. | `verdict = inconclusive`; detail explains what is missing. |
-| A9 Hidden Evidence / Permission Denied | task or record detail route | Hidden/redacted evidence refs and permission reason. | Hidden indicator; raw payload absent; no secret leakage. |
-| A10 Config And Related Logs | session or task route | Config record, effective config summary, related logs link. | Config/logs are read-only links, not embedded diagnostics. |
+| A1 Empty audit | `a1-audit-empty` | Task audit route | `pageState.empty`, verdict `not_available`, no records. |
+| A2 Loading | `a2-audit-loading` | Task audit route | `pageState.loading`, running completeness, disabled evidence actions. |
+| A3 Records ready | `a3-records-ready` | Task audit route | `pageState.ready`, records visible, verdict `passed`. |
+| A4 Record selected | `a4-record-selected` | Task audit route plus selected record | Detail visible with evidence summary. |
+| A5 Partial evidence | `a5-partial-evidence` | Task audit route | `pageState.partial`, verdict `inconclusive`, missing evidence called out. |
+| A6 Hidden evidence | `a6-hidden-evidence` | Task audit route | Hidden evidence indicator and sanitized disclosure only. |
+| A7 Warning verdict | `a7-warning-verdict` | Task audit route | Verdict `warning`, non-blocking concern visible. |
+| A8 Failed verdict | `a8-failed-verdict` | Task audit route | Verdict `failed`, failure evidence visible. |
+| A9 Inconclusive verdict | `a9-inconclusive-verdict` | Task audit route | Verdict `inconclusive`, unavailable confidence explained. |
+| A10 Not available | `a10-not-available` | Task audit route | `pageState.empty`/not available; no pass implied. |
+| A11 Permission denied | `a11-permission-denied` | Task audit route | Permission-denied state, return path preserved. |
+| A12 Stale snapshot | `a12-stale-snapshot` | Task audit route | Stale state and refresh recovery behavior. |
+| A13 Query error | `a13-query-error` | Task audit route | Query error and retry/recovery behavior. |
+| A14 Evidence load error | `a14-evidence-load-error` | Task audit route plus evidence detail | Evidence detail query failure is handled separately from snapshot load. |
 
 ## 15. Backend Implementation Status
 
@@ -678,34 +776,41 @@ Additive contract models are complete. Gateway, route, and aggregation work
 remains.
 
 | File | Status | Later change |
-|---|---|
-| `src/taskweavn/server/ui_contract/view_models.py` | Done | Keep additive models stable; only extend with compatibility care. |
-| `src/taskweavn/server/ui_contract/snapshots.py` | Done | `AuditPageSnapshot` exists; next work should populate it through a gateway. |
-| `src/taskweavn/server/ui_contract/events.py` | Done | Builders exist; next work should decide runtime emission points. |
-| `src/taskweavn/server/ui_contract/gateways.py` | Pending | Add `UiAuditQueryGateway` or audit methods on query gateway. |
-| `src/taskweavn/server/ui_http.py` | Pending | Add audit route matching and handlers. |
-| `src/taskweavn/server/ui_contract/mapping.py` | Pending | Add mappers from timeline/projection/audit agent/config/log facts to audit records. |
+|---|---|---|
+| `src/taskweavn/server/ui_contract/view_models.py` | Done | Keep additive models stable; `AuditRecordsResult` now backs list-records responses. |
+| `src/taskweavn/server/ui_contract/snapshots.py` | Done | `AuditPageSnapshot` exists and is populated by the first projection-backed gateway. |
+| `src/taskweavn/server/ui_contract/events.py` | Done | Builders exist; AgentLoop, config manifest, log archive, and confirmation source emissions now use `audit.records_changed`. |
+| `src/taskweavn/server/ui_contract/gateways.py` | Done first pass | `UiQueryGateway` and `DefaultUiQueryGateway` expose snapshot, records, detail, and evidence queries from Task projection facts. |
+| `src/taskweavn/server/ui_http.py` | Done first pass | Session/task audit snapshot, records, record detail, and evidence detail routes are mounted. |
+| `src/taskweavn/server/ui_contract/mapping.py` | Pending | Add shared mappers from timeline/audit agent/config/log facts to audit records if the gateway logic grows. |
 | `src/taskweavn/task/timeline.py` | Pending | Use or extend timeline entries as source facts for audit records. |
 | `src/taskweavn/audit/agent.py` | Pending | Map `pass/fail/inconclusive` to product verdict and expose concerns safely. |
 | `src/taskweavn/observability/*` | Pending | Later source for related logs and sanitized log evidence. |
 | `src/taskweavn/configuration` or future config store | Pending | Later source for effective config and config change records. |
 
-## 16. Later Frontend Files To Update
+## 16. Frontend Implementation Status And Remaining Touchpoints
 
-Do not update these in this task. Proposed frontend implementation touchpoints:
+The frontend mock-backed Audit Page baseline exists. The remaining frontend
+work is end-to-end runtime validation, mobile-specific polish, and later
+diagnostics/log handoff.
 
-| File | Later change |
-|---|---|
-| `frontend/src/shared/api/types.ts` | Add Audit Page contract types. |
-| `frontend/src/shared/api/platoApi.ts` | Add audit snapshot, records, detail, and evidence query functions. |
-| `frontend/src/app/routes.ts` | Add audit route constants. |
-| `frontend/src/entities/audit/model.ts` | Replace link-only model with audit scope/record helpers. |
-| `frontend/src/pages/audit-page/*` | Future Audit Page implementation. |
-| `frontend/src/pages/main-page/MainPage.tsx` | Later route Audit CTA to real audit route when contract/API exists. |
-| `frontend/src/pages/main-page/httpMainPageAdapter.ts` | Later include audit summary/link behavior after backend fields exist. |
-| `frontend/src/pages/main-page/fixtures.ts` | Add A1-A10 audit mock snapshots or a dedicated audit fixture file. |
-| `frontend/src/pages/main-page/runtime/eventRouter.ts` | Add audit event routing/refetch behavior if Audit Page shares runtime reducer. |
-| `frontend/src/shared/api/platoApi.test.ts` | Add audit API parsing tests. |
+| File | Current status | Later change |
+|---|---|---|
+| `frontend/src/shared/api/types.ts` | Done | Keep Audit Page contract types aligned with backend model changes. |
+| `frontend/src/shared/api/platoApi.ts` | Done | Keep HTTP audit routes aligned once backend routes exist. |
+| `frontend/src/shared/api/platoApi.test.ts` | Done | Extend once new query params or error cases are added. |
+| `frontend/src/app/routes.ts` | Done | Route builders are used by Main Page and Audit Page routing. |
+| `frontend/src/app/platoRuntime.ts` | Done | Already creates mock or HTTP audit APIs; reuse for page wiring. |
+| `frontend/src/entities/audit/model.ts` | Done | Add page-level selectors only when the UI needs them. |
+| `frontend/src/shared/api/apiUiMapping.ts` | Done | Boundary mapping is exercised by the Audit Page shell. |
+| `frontend/src/pages/audit-page/mockAuditScenarios.ts` | Done | Keep A1-A14 scenarios as the UI acceptance fixture set. |
+| `frontend/src/pages/audit-page/mockAuditApi.ts` | Done | Use as the first Audit Page implementation adapter. |
+| `frontend/src/pages/audit-page/*` UI components | Done | Mock-backed AP-005A-G route/shell/overview/filter/timeline/detail/boundary/polish is reviewable. Keep mock parity while adding backend integration. |
+| `frontend/src/app/App.tsx` | Done | Keep Audit Page route matching aligned with route helpers. |
+| `frontend/src/app/App.test.tsx` | Done | Reserved-entry assertion replaced after navigation was enabled. |
+| `frontend/src/pages/main-page/*` | Done | Main Page `View audit` routes to session/task audit when the route is available; explicit fallback can still disable it. |
+| `frontend/src/pages/audit-page/*` runtime hook/router | Done first pass | AP-013B implements Audit Page event-to-refetch behavior with mocked `subscribeSessionEvents`; AP-013C adds non-blocking live refresh/stale/disconnected status UI. |
+| `frontend/src/pages/main-page/runtime/eventRouter.ts` | Reference only | Main Page event routing exists; Audit Page should use a scoped audit-specific router rather than making Main Page own trust-plane refresh. |
 
 ## 17. Open Product Questions
 
@@ -715,8 +820,10 @@ Do not update these in this task. Proposed frontend implementation touchpoints:
    stricter product rule?
 3. Who can view hidden evidence reasons: all users, technical users, or only
    debug/diagnostics users?
-4. Should sanitized raw payload ever be visible in Audit Page, or only in
-   Diagnostics/Logs?
+4. Should runtime Audit Page refetch continue to listen to coarse non-audit
+   events (`message.appended`, `file_changes.updated`,
+   `confirmation.resolved`) after AP-013F added audit-specific emissions for
+   the covered source set?
 5. How long are audit records retained for local sidecar sessions?
 6. Should file paths be shown as workspace-relative by default, and when should
    absolute paths be redacted?
@@ -741,12 +848,14 @@ Do not update these in this task. Proposed frontend implementation touchpoints:
   result, config, and log/evidence.
 - Route entry contexts cover session, task, confirmation, result, and file
   change entries.
-- Endpoint candidates cover snapshot, list records, record detail, and evidence.
+- Endpoint candidates cover snapshot, list records, record detail, and evidence;
+  the first projection-backed backend routes are implemented.
 - Loading, empty, partial, hidden evidence, permission denied, error, and stale
   states are defined.
 - Audit event candidates are defined without requiring frontend reconstruction
   of raw evidence.
-- A1-A10 mock scenarios are defined before UI implementation.
+- A1-A14 mock scenarios are defined and remain parity fixtures for backend
+  integration and future UI regression.
 
 ## 19. Recommended Next Task Prompt
 
@@ -754,36 +863,39 @@ Do not update these in this task. Proposed frontend implementation touchpoints:
 Use the product-workflow-gate skill first.
 
 Task:
-Add a mock-backed Audit Page query gateway and HTTP route shell.
+Plan the next Audit Page hardening slice after AP-010/AP-011.
 
 Context:
-docs/engineering/audit-page-contract.md defines the Audit Page contract.
-Additive backend models and audit event builders already exist. We now need a
-mock-backed gateway/route shell so frontend mocks and API client work can begin
-without real audit aggregation.
+docs/engineering/audit-page-contract.md defines the Audit Page contract. The
+mock-backed frontend route, Main Page audit entry, A1-A14 scenarios, read-only
+UI shell, projection-backed backend audit routes, query gateway, workspace UI
+event replay, and first AgentLoop/config/log/confirmation runtime emissions
+are now in place. The next gap is richer timeline/source orchestration and
+release-readiness validation.
 
-Do not implement Audit Page UI.
-Do not add high-fidelity CSS.
+Do not rewrite the Audit Page frontend contract unless the gap is documented
+first.
 Do not rewrite MainPage.
 Do not expose raw payloads.
-Do not implement real audit data aggregation yet.
+Do not bypass `AuditPageSnapshot` by returning raw EventStream, MessageStream,
+SQLite, or log rows directly to the frontend.
 
 Required work:
 1. Read docs/engineering/audit-page-contract.md and
-   docs/product/canonical-status-model.md.
-2. Add a minimal `UiAuditQueryGateway` protocol or equivalent query methods.
-3. Add mock-backed AuditPageSnapshot responses for task and session scopes.
-4. Add HTTP route matching/handlers for:
-   - `GET /api/v1/sessions/{sessionId}/audit`
-   - `GET /api/v1/sessions/{sessionId}/tasks/{taskNodeId}/audit`
-5. Preserve standard `QueryResponse<AuditPageSnapshot>` envelopes.
-6. Add focused route/gateway tests.
-7. Do not aggregate real timeline/log/audit-agent facts yet.
+   docs/product/plato-audit-page-ux-flow.md.
+2. Choose the next hardening target: timeline ordering, AuditAgent verdicts,
+   end-to-end runtime validation, or richer config/log detail.
+3. Extend the existing projection-backed gateway without changing the frontend
+   contract unless a gap is documented first.
+4. Preserve explicit partial/not_available/hidden/error/stale states when a
+   source fact is missing or permission-limited.
+5. Keep A1-A14 mock scenarios as frontend parity fixtures.
+6. Add backend and frontend HTTP-mode regression tests for the chosen source.
 
 Output:
 - files changed
-- routes/gateway methods added
-- mock snapshot behavior
+- gateway/routes/mappers added
+- real data sources used
 - tests run
-- remaining route/gateway/frontend tasks
+- remaining audit event/refetch/mobile/diagnostics gaps
 ```

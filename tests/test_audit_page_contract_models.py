@@ -19,6 +19,7 @@ from taskweavn.server.ui_contract import (
     AuditRecord,
     AuditRecordDetail,
     AuditRecordFlags,
+    AuditRecordsResult,
     AuditTaskScope,
     EffectiveConfigSummary,
     EvidenceDetail,
@@ -108,6 +109,14 @@ def _audit_record_detail() -> AuditRecordDetail:
         body="The implementation task updated the homepage source file.",
         why_it_matters="The audit links the file change back to the task that caused it.",
         outcome="The file change is visible and attributed.",
+    )
+
+
+def _sanitized_payload() -> SanitizedRawPayload:
+    return SanitizedRawPayload(
+        format="json",
+        content='{"path":"workspace://src/App.tsx","token":"[redacted:secret]"}',
+        redactions=("secret:token", "path:workspace-relative"),
     )
 
 
@@ -256,6 +265,20 @@ def test_audit_contract_keeps_raw_payloads_permission_gated() -> None:
         )
 
 
+def test_audit_records_result_serializes_pagination_shape() -> None:
+    result = AuditRecordsResult(
+        records=(_audit_record(),),
+        next_cursor="offset:50",
+        total_count=51,
+    )
+
+    payload = result.model_dump(mode="json")
+
+    assert payload["records"][0]["id"] == "record-file-1"
+    assert payload["nextCursor"] == "offset:50"
+    assert payload["totalCount"] == 51
+
+
 def test_audit_event_builders_emit_expected_payloads() -> None:
     scope = _task_scope()
 
@@ -300,3 +323,129 @@ def test_audit_event_builders_emit_expected_payloads() -> None:
     assert record_updated.payload["verdict"] == "warning"
     assert evidence_hidden.payload["reason_code"] == "policy_redaction"
     assert snapshot_stale.payload["last_good_cursor"] == "cursor-1"
+
+
+def test_audit_record_detail_defaults_to_summary_only_disclosure() -> None:
+    detail = _audit_record_detail()
+
+    payload = detail.model_dump(mode="json")
+
+    assert detail.raw_payload is None
+    assert detail.disclosure.raw_payload_available is False
+    assert detail.disclosure.raw_payload_shown is False
+    assert payload["rawPayload"] is None
+    assert payload["disclosure"] == {
+        "rawPayloadAvailable": False,
+        "rawPayloadShown": False,
+        "redactionReason": None,
+        "hiddenReason": None,
+        "partialReason": None,
+        "permissionReason": None,
+    }
+
+
+def test_hidden_payload_disclosure_does_not_require_payload() -> None:
+    record_data = _audit_record().model_dump()
+    record_data["flags"] = AuditRecordFlags(hidden=True)
+
+    detail = AuditRecordDetail(
+        **record_data,
+        body="The raw provider payload exists but is hidden by policy.",
+        why_it_matters="Users should know why the payload is unavailable.",
+        disclosure=AuditDisclosure(
+            raw_payload_available=True,
+            raw_payload_shown=False,
+            hidden_reason="LLM/provider payload is hidden by policy.",
+        ),
+    )
+
+    payload = detail.model_dump(mode="json")
+
+    assert payload["rawPayload"] is None
+    assert payload["flags"]["hidden"] is True
+    assert payload["disclosure"]["rawPayloadAvailable"] is True
+    assert payload["disclosure"]["rawPayloadShown"] is False
+    assert (
+        payload["disclosure"]["hiddenReason"]
+        == "LLM/provider payload is hidden by policy."
+    )
+
+
+def test_partial_sanitized_evidence_requires_explicit_shown_disclosure() -> None:
+    detail = EvidenceDetail(
+        id="evidence-event-1",
+        kind="event",
+        label="Sanitized event",
+        summary="A truncated sanitized event payload is available.",
+        source="event_stream",
+        body="Only the useful portion of the event payload is returned.",
+        sanitized_payload=_sanitized_payload(),
+        disclosure=AuditDisclosure(
+            raw_payload_available=True,
+            raw_payload_shown=True,
+            partial_reason="Payload was truncated to the first matching block.",
+        ),
+    )
+
+    payload = detail.model_dump(mode="json")
+
+    assert payload["disclosure"]["rawPayloadShown"] is True
+    assert (
+        payload["disclosure"]["partialReason"]
+        == "Payload was truncated to the first matching block."
+    )
+    assert payload["sanitizedPayload"]["format"] == "json"
+    assert payload["sanitizedPayload"]["redactions"] == [
+        "secret:token",
+        "path:workspace-relative",
+    ]
+
+
+def test_redacted_record_payload_serializes_redaction_contract() -> None:
+    record_data = _audit_record().model_dump()
+    record_data["flags"] = AuditRecordFlags(redacted=True)
+
+    detail = AuditRecordDetail(
+        **record_data,
+        body="A sanitized payload was explicitly requested and returned.",
+        why_it_matters="The user can inspect evidence without seeing secrets.",
+        raw_payload=_sanitized_payload(),
+        disclosure=AuditDisclosure(
+            raw_payload_available=True,
+            raw_payload_shown=True,
+            redaction_reason="Secrets and absolute paths were redacted.",
+        ),
+    )
+
+    payload = detail.model_dump(mode="json")
+
+    assert payload["flags"]["redacted"] is True
+    assert payload["disclosure"]["rawPayloadShown"] is True
+    assert (
+        payload["disclosure"]["redactionReason"]
+        == "Secrets and absolute paths were redacted."
+    )
+    assert "[redacted:secret]" in payload["rawPayload"]["content"]
+    assert payload["rawPayload"]["redactions"] == [
+        "secret:token",
+        "path:workspace-relative",
+    ]
+
+
+def test_requested_sanitized_payload_param_serializes_contract() -> None:
+    request = AuditPageRequestView(
+        filter="files",
+        record_id="record-file-1",
+        include_detail=True,
+        include_sanitized_payload=True,
+    )
+
+    payload = request.model_dump(mode="json")
+
+    assert payload["includeDetail"] is True
+    assert payload["includeSanitizedPayload"] is True
+
+
+def test_payload_disclosure_cannot_claim_shown_without_available() -> None:
+    with pytest.raises(ValidationError, match="shown raw payload"):
+        AuditDisclosure(raw_payload_available=False, raw_payload_shown=True)

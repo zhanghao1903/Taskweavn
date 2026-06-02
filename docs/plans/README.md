@@ -1,7 +1,7 @@
 # Plans
 
 > Status: active planning entry
-> Last Updated: 2026-05-19
+> Last Updated: 2026-06-01
 
 Plans are executable work packages for selected gaps. They should contain
 enough context, scope, APIs, slices, and acceptance criteria for another session
@@ -18,6 +18,7 @@ architecture, product docs, and the gap registry.
 |---|---|
 | [feature/](feature/) | Feature and system capability plans. |
 | [ui/](ui/) | UI page, interaction, and frontend implementation plans. Some early files are concept seeds; check status headers. |
+| [maintainability/](maintainability/) | Maintenance, refactor, large-file split, and architecture hygiene plans. |
 | [configuration.md](configuration.md) | Configuration system plan. |
 | [observability.md](observability.md) | Trace / metrics / debug observability plan. |
 | [cost-quota.md](cost-quota.md) | Cost and quota plan. |

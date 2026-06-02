@@ -1,7 +1,7 @@
 # TaskWeavn Project Plan
 
 > Status: active
-> Last Updated: 2026-05-31
+> Last Updated: 2026-06-01
 > Maintained By: planning session
 > Phase Baseline: implementation completed through Phase 3.8 plus Phase 3C Task Domain and Collaborator Authoring server-core packages
 > Related: [Global Roadmap](../roadmap.md), [Gap Registry](../gaps/), [Planning Workflow](../planning_workflow.md), [Architecture](../architecture/), [Phase 3 Release Record](../releases/phase-3-interaction-layer-through-3-8.md), [Collaborator Authoring Release](../releases/collaborator-agent-task-authoring.md), [User Traceability](../user_model/traceability.md)
@@ -151,7 +151,7 @@ Acceptance:
 
 ### P3E — Task-first UI
 
-Status: active implementation; Main Page frontend/backend integration is accepted for Product 1.0, while Task-first UI polish, Audit/trust detail, and QA remain active follow-ups. Priority: P0.
+Status: active implementation; Main Page frontend/backend integration is accepted for Product 1.0, while Task-first UI polish, richer Audit/trust evidence, and QA remain active follow-ups. Audit Page now has a projection-backed backend query path plus first EventStream/log/config source references, AP-012 sanitized payload disclosure first pass, AP-013A runtime event/refetch design, AP-013B frontend event router/hook, AP-013C live refresh/stale/disconnected UI, AP-013D workspace-backed UI event replay source, AP-013E first AgentLoop/EventStream audit event emission, and AP-013F config/log/confirmation source emissions; richer timeline orchestration, broader evidence coverage, and final validation remain incomplete. Priority: P0.
 
 | Package | Source Plan | Implementation Goal |
 |---|---|---|
@@ -213,7 +213,7 @@ Focus:
 
 Recommended implementation order:
 
-1. [Result and evidence exposure surface](../plans/feature/result-exposure-surface.md): continue from accepted Main Page result/file projection and close Audit entry/evidence detail, permission-limited evidence, and recoverable error UX.
+1. [Result and evidence exposure surface](../plans/feature/result-exposure-surface.md): continue from accepted Main Page result/file projection, projection-backed Audit Page routes, first EventStream/log/config source references, AP-012 sanitized payload disclosure first pass, AP-013A runtime event/refetch design, AP-013B frontend event router/hook, AP-013C live refresh/stale/disconnected UI, AP-013D workspace-backed UI event replay source, AP-013E first AgentLoop/EventStream audit event emission, and AP-013F config/log/confirmation source emissions; close richer timeline evidence, broader permission-limited evidence coverage, and recoverable error UX.
 2. Message and confirmation UI integration hardening: make HITL confirmations real through UI commands/events, including richer pending states and recovery paths.
 3. Linear authoring and retry recovery: keep Product 1.0 line-first execution predictable and add minimal retry/recovery on top of durable task/run evidence.
 4. Normal browser/Electron smoke and Product 1.0 QA: validate the accepted Main Page, fixed-route bridge, and Context Manager path through the intended local runtime shell.

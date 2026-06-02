@@ -1,9 +1,13 @@
 # Plato Audit Page 项目实施计划
 
-> Status: planned
-> Last Updated: 2026-05-17
+> Status: active implementation / real HTTP path and disclosure first pass ready
+> Last Updated: 2026-06-01
 > Scope: 重新推进 Plato / TaskWeavn Audit Page，从产品 PRD 到用户测试的完整交付链路。
 > Reference: [Plato MVP 实施计划](../../product/plato-mvp-implementation-plan.md)
+> Technical Design: [Audit Page Frontend Technical Design](audit-page-frontend-technical-design.md)
+> Disclosure Design: [Audit Page Sanitized Payload Disclosure Technical Design](audit-page-sanitized-payload-disclosure-technical-design.md)
+> Runtime Event Design: [Audit Page Runtime Event And Refetch Technical Design](audit-page-runtime-event-refetch-technical-design.md)
+> Readiness Notes: [Audit Page AP-005 Readiness Notes](audit-page-readiness-notes.md)
 
 ---
 
@@ -71,9 +75,16 @@ Audit Page 第一版应是用户可理解的审计产品页面，而不是把 Ev
 - [Core Product Principles](../../product/core-product-principles.md)：定义 Main Page 是 Control Plane，Audit Page 是 Trust Plane。
 - [Workflow, Session, And Task UX Model](../../product/workflow-session-task-ux-model.md)：定义 Audit Record 是 trust、replay、debugging surface。
 - [Plato MVP 实施计划](../../product/plato-mvp-implementation-plan.md)：定义 PRD 到用户测试的推荐顺序；MVP 只要求 Audit 入口可见，完整审计页后续推进。
+- [Plato Audit Page PRD](../../product/plato-audit-page-prd.md)：定义 Audit Page 第一版的用户目标、边界和信任问题。
+- [Plato Audit Page UX Flow](../../product/plato-audit-page-ux-flow.md)：定义 Session / Task audit 的主要用户路径、状态和交互规则。
+- [Settings, Logs, And Audit Boundary](../../product/plato-settings-logs-audit-boundary.md)：定义 Audit Page 与 Settings / Logs / Diagnostics 的边界。
 - [UI Information Architecture](information-architecture.md)：定义主页面区域关系；Audit Page 应从 Task / Session 入口进入，而不是挤入主工作区。
 - [UI API 接口归档](ui-api-interfaces.md)：已有 `getTaskTimeline`、`getTaskSnapshot` 等可回放时间线语义。
 - [Observability Plan](../observability.md)：提供 trace、timeline、task tree、replay 等长期能力方向。
+- [Audit Page Backend-To-Frontend Contract](../../engineering/audit-page-contract.md)：定义 Audit Page backend/frontend transport contract、mock scenarios 和实现状态。
+- [Audit Page Frontend Technical Design](audit-page-frontend-technical-design.md)：定义基于 Figma v0.1 静态稿的路由、ViewModel、组件、状态、API、测试和实施切片。
+- [Audit Page Sanitized Payload Disclosure Technical Design](audit-page-sanitized-payload-disclosure-technical-design.md)：定义 record/evidence detail 的安全 evidence disclosure、脱敏策略、API 行为和实施切片。
+- [Audit Page Runtime Event And Refetch Technical Design](audit-page-runtime-event-refetch-technical-design.md)：定义 Audit Page runtime events、scope matching、cursor、refetch 策略和 AP-013 实施切片。
 
 ### 3.2 已有后端基础
 
@@ -83,17 +94,39 @@ Audit Page 第一版应是用户可理解的审计产品页面，而不是把 Ev
 - `TaskProjectionService`：已能投影 Task card/detail、message、confirmation、file change、summary 等 UI-facing ViewModel。
 - `AuditAgent`：已存在执行后审计能力，当前主要针对 `CodeAction`，产出 `AuditObservation` 和 verdict。
 - `FileChangeStore` / `TaskSummaryStore`：为文件变更和结果摘要提供事实源。
+- `src/taskweavn/server/ui_contract/view_models.py`、`snapshots.py`、`events.py` 已有 Audit Page additive backend contract models 和 audit event builders。
 
-### 3.3 关键缺口
+### 3.3 已有前端 contract / mock 基线
 
-- 缺少独立的 Audit Page PRD。
-- 缺少可直接驱动 Figma 的 Audit Page UX 交互规格。
-- 缺少 Audit Page 信息架构：概览、时间线、筛选、详情、证据链接、返回主页面。
-- 缺少 Audit Page 专用 ViewModel 和 transport-ready API 合约。
+- `frontend/src/shared/api/types.ts` 已有 Audit Page snapshot、request、overview、filter、record、detail、evidence、permission、page-state 等类型。
+- `frontend/src/shared/api/platoApi.ts` 已有 `getAuditSnapshot`、`listAuditRecords`、`getAuditRecordDetail`、`getEvidenceDetail`。
+- `frontend/src/app/routes.ts` 已有 session/task audit route constants 和 builders。
+- `frontend/src/entities/audit/model.ts` 已有 Audit Page contract helpers。
+- `frontend/src/pages/audit-page/mockAuditScenarios.ts` 和 `mockAuditApi.ts` 已有 A1-A14 mock scenarios 与 mock API。
+- `frontend/src/shared/api/apiUiMapping.ts` 已有 Audit Page API state 到 UI boundary 的映射。
+- `frontend/src/app/platoRuntime.ts` 已能创建 mock/http audit API。
+- 相关测试已覆盖 audit API types、routes、API client methods、mock scenarios/API、runtime creation、API-to-UI boundary mapping。
+
+### 3.4 关键缺口
+
+- Audit Page React route、page shell、overview/filter/timeline/detail、boundary states 已完成第一轮 mock-backed 实现。
+- `frontend/src/app/App.tsx` 已挂载 Audit Page session/task routes。
+- Main Page `View audit` 已在 Audit Page route 可用时启用，并导航到 mock-backed Audit Page；显式 fallback 仍可禁用入口。
+- AP-005A-G 已完成第一轮实现和验证：路由、layout shell、overview/filter/timeline、record detail、A1-A14 boundary coverage、Main Page entry routing、visual/accessibility polish。
+- 后端已实现 Audit Page HTTP routes、query gateway 和 projection-backed
+  真实聚合第一版，并已开始接入 EventStream/log/config source references。
 - `TaskInteractionTimeline` 的 event 展示仍偏底层，缺少用户可理解的审计摘要和分组。
 - `AuditAgent` 当前是局部能力，不覆盖完整审计页需要的 Session / Task / confirmation / file / risk / result 关系。
-- 缺少原始 payload 的披露、脱敏、折叠和引用策略。
-- 缺少从 Main Page `AuditEntryPoint` 到 Audit Page 的导航和上下文传递规则。
+- Sanitized payload disclosure 已完成第一版 contract tests、后端 request-time
+  生成/注入和前端 detail panel 展示；仍需随更多 source 继续扩展策略。
+- 已有 [runtime audit event/refetch 技术设计](audit-page-runtime-event-refetch-technical-design.md)，
+  Audit Page route 已接入前端 runtime event router/hook 并用 mock
+  subscription 覆盖 event-to-refetch 行为；前端已补充 live refresh/stale/
+  disconnected 状态承载；后端已补充 workspace-backed `SqliteUiEventSource`
+  replay store；AgentLoop/EventStream source 已追加第一条 task-scoped
+  `audit.records_changed`。
+- Audit Page 设计稿/原型状态本次未重新验证；下一轮设计对齐或高保真改版前应重新确认当前 canonical Figma/UX 是否足够。
+- 小于当前支持最小宽度的移动端布局仍是后续 polish，不阻塞 mock walkthrough。
 
 ---
 
@@ -116,6 +149,8 @@ Audit Page 第一版应是用户可理解的审计产品页面，而不是把 Ev
 
 ### Phase 0: 项目重基线
 
+状态：已完成，并在 2026-05-30 按当前代码事实刷新。
+
 目标：确认 Audit Page 当前产品、架构和代码事实，避免把审计页误做成日志页。
 
 产出：
@@ -127,18 +162,18 @@ Audit Page 第一版应是用户可理解的审计产品页面，而不是把 Ev
 
 验收标准：
 
-- 团队确认本会话只推进 Audit Page。
+- 团队确认本阶段只推进 Audit Page。
 - Main Page 和 Audit Page 边界清楚。
 - 审计页第一版的用户目标清楚。
 - 后续每个阶段有明确文档或代码产物。
 
-建议状态：当前阶段。
-
 ### Phase 1: 产品 PRD
+
+状态：已有草案，可随 UI 实现继续迭代。
 
 目标：定义 Audit Page 第一版到底解决什么信任问题。
 
-建议产出：
+产出：
 
 ```text
 docs/product/plato-audit-page-prd.md
@@ -164,9 +199,11 @@ docs/product/plato-audit-page-prd.md
 
 ### Phase 2: UX 交互规格
 
+状态：已有草案，可作为第一版 UI 实现输入；若 Figma 结果与实现偏差较大，应回写修订。
+
 目标：把 PRD 转成可用于 Figma 生成和设计评审的交互规格。
 
-建议产出：
+产出：
 
 ```text
 docs/product/plato-audit-page-ux-flow.md
@@ -193,6 +230,8 @@ docs/product/plato-audit-page-ux-flow.md
 - Figma 设计可以直接按规格展开。
 
 ### Phase 3: Figma 设计稿 / 原型
+
+状态：待确认。本次事实刷新未重新验证 canonical Figma 文件中的 Audit Page 设计状态。
 
 目标：产出可评审的 Audit Page 第一版设计稿和关键状态原型。
 
@@ -224,6 +263,8 @@ docs/product/plato-audit-page-ux-flow.md
 
 ### Phase 4: 设计评审与微调
 
+状态：待执行。AP-005 mock baseline 已可评审；后续应基于浏览器实现而不是只基于静态稿做轻量评审。
+
 目标：在写代码前解决审计心智模型、信息层级和披露边界问题。
 
 建议产出：
@@ -251,7 +292,15 @@ docs/plans/ui/audit-page-design-review-notes.md
 
 ### Phase 5: UI 组件代码
 
+状态：已完成第一轮 mock-backed baseline，可继续通过评审反馈微调。
+
 目标：把设计稿落成可运行的 Audit Page 前端 shell。
+
+技术方案：
+
+```text
+docs/plans/ui/audit-page-frontend-technical-design.md
+```
 
 建议产出：
 
@@ -282,33 +331,40 @@ frontend/
 验收标准：
 
 - 页面可本地启动。
-- 能在 Session scope 和 Task scope 之间切换。
+- Session scope 和 Task scope routes 已可渲染。
 - 能过滤 confirmation、risk、file、result、system 等记录。
 - 能打开审计记录详情。
-- 组件只依赖 typed API/hooks，不直接依赖 fixture。
+- 组件通过 `AuditApi` / `PlatoApi` 边界加载 snapshot/detail/evidence，不直接在页面内拼 fixture。
 
 ### Phase 6: Mock 数据联调
 
+状态：已完成第一轮联调；A1-A14 作为 AP-005E/AP-005G 验收 fixture。
+
 目标：用 mock scenarios 走通第一版审计体验。
 
-建议产出：
+已具备：
 
 ```text
-frontend/src/api/mock/audit/
-frontend/src/test/fixtures/audit/
+frontend/src/pages/audit-page/mockAuditScenarios.ts
+frontend/src/pages/audit-page/mockAuditApi.ts
 ```
 
-最低 mock scenarios：
+当前 mock scenarios 覆盖：
 
-1. Session with no audit records。
-2. Session with summary-only audit。
-3. Task with confirmations and resolved history。
-4. Task with CodeAction / CodeExecutionObservation / AuditObservation。
-5. Task with file changes and result summary。
-6. Task with risk detected and user-confirmed action。
-7. Audit verdict inconclusive。
-8. Partial audit data while execution is still running。
-9. Failed Task with audit trail and retry suggestion link。
+1. Empty / no audit records。
+2. Loading。
+3. Records ready。
+4. Record selected。
+5. Partial evidence。
+6. Hidden evidence。
+7. Warning verdict。
+8. Failed verdict。
+9. Inconclusive verdict。
+10. Not available。
+11. Permission denied。
+12. Stale snapshot。
+13. Query error。
+14. Evidence load error。
 
 验收标准：
 
@@ -316,15 +372,21 @@ frontend/src/test/fixtures/audit/
 - mock scenario 能驱动设计评审和用户测试彩排。
 - 组件状态来自 API client，不来自页面内硬编码。
 - mock 数据覆盖成功、风险、缺失、失败、inconclusive 五类情况。
+- AP-005G 已完成桌面/平板浏览器 smoke 和 accessibility/focus polish。
 
 ### Phase 7: 后端 API 合约
 
+状态：基础 contract 已完成，真实后端 route/gateway/aggregation 已完成第一版；
+前端 runtime event-to-refetch baseline 已完成；后端 workspace-backed event
+replay source 已完成；AgentLoop/EventStream 第一条 runtime emission 已完成；
+log/config/confirmation source emission 已完成第一版。
+
 目标：把 mock API 收敛为真实后端可实现的 Audit Page 合约。
 
-建议产出：
+已具备主 contract：
 
 ```text
-docs/plans/ui/audit-page-api-contract.md
+docs/engineering/audit-page-contract.md
 ```
 
 必须收敛：
@@ -364,22 +426,41 @@ docs/plans/ui/audit-page-api-contract.md
 
 ### Phase 8: 真后端通信
 
+状态：真实路径第一阶段已完成，并已开始后端 source hardening。前端 HTTP
+client 方法已经存在；后端已补上 projection-backed audit routes/gateway，
+可返回 session/task audit snapshot、records、record detail、evidence detail。
+当前 gateway 还能在 source 存在时折叠 EventStream action/observation、
+AuditObservation、session log archive、logging manifest config 记录。完整
+timeline 和 runtime audit events 仍是后续增强；sanitized payload disclosure
+已完成第一版 request-time implementation。
+
 目标：把前端从 mock audit API 切到真实审计事实源。
 
-建议顺序：
+建议顺序与当前状态：
 
-1. Audit entry point 查询。
-2. Session audit overview 查询。
-3. Task audit overview 查询。
-4. Audit timeline 查询。
-5. Confirmation records 查询。
-6. File change records 查询。
-7. Result / summary evidence 查询。
-8. `AuditObservation` / verdict 查询。
-9. EventStream action / observation 摘要查询。
-10. Audit record detail 查询。
-11. Evidence refs 查询。
-12. Audit events subscription。
+1. Audit entry point 查询。已完成第一版。
+2. Session audit overview 查询。已完成 projection-backed 第一版。
+3. Task audit overview 查询。已完成 projection-backed 第一版。
+4. Audit timeline 查询。待做，需要接入 `TaskInteractionTimelineService`。
+5. Confirmation records 查询。已完成 projection-backed 第一版。
+6. File change records 查询。已完成 projection-backed 第一版。
+7. Result / summary evidence 查询。已完成 projection-backed 第一版。
+8. `AuditObservation` / verdict 查询。已完成 EventStream-backed 第一版。
+9. EventStream action / observation 摘要查询。已完成第一版。
+10. Audit record detail 查询。已完成第一版。
+11. Evidence refs 查询。已完成第一版。
+12. Config/log references。已完成第一版：session log manifest 与 log archive
+    file references。
+13. Sanitized payload disclosure。已完成第一版 contract hardening、后端
+    request-time 生成/注入和前端 detail/evidence 展示；更多 source 策略仍是
+    follow-up。
+14. Runtime audit event/refetch。AP-013A 技术设计已完成，AP-013B 前端
+    event router/hook 与 mock subscription 测试已完成，AP-013C live
+    refresh/stale/disconnected 状态承载已完成，AP-013D workspace-backed
+    event replay source 已完成，AP-013E AgentLoop/EventStream 第一条
+    task-scoped `audit.records_changed` emission 已完成，AP-013F config
+    manifest、frontend error log archive、confirmation resolution source
+    emission 已完成；更广泛 AuditAgent/timeline source coverage 是后续工作。
 
 验收标准：
 
@@ -390,6 +471,8 @@ docs/plans/ui/audit-page-api-contract.md
 - mock mode 仍可保留用于设计、测试和演示。
 
 ### Phase 9: 用户测试
+
+状态：待执行。应在 mock UI walkthrough 和至少一条真实后端路径之后进行。
 
 目标：验证 Audit Page 是否真的增加信任，而不是增加认知负担。
 
@@ -432,12 +515,12 @@ docs/user_cases/terminal_outputs/UC-007-audit-page-trust-flow.txt
 
 | Milestone | 阶段范围 | 主要产物 | 可继续条件 |
 |---|---|---|---|
-| M0 | Phase 0 | 实施计划 | 范围确认 |
-| M1 | Phase 1-2 | PRD + UX Flow | 可以做 Figma |
-| M2 | Phase 3-4 | Figma v0.2 + review notes | 可以写 UI |
-| M3 | Phase 5-6 | Mock UI 可运行 | 可以收敛 API |
-| M4 | Phase 7-8 | API 合约 + 真实后端通信 | 可以用户测试 |
-| M5 | Phase 9 | 用户测试记录 + 修订清单 | 可以进入迭代 |
+| M0 | Phase 0 | 实施计划 | 已完成，2026-05-30 已刷新事实状态 |
+| M1 | Phase 1-2 | PRD + UX Flow | 已有草案，可继续迭代 |
+| M2 | Phase 3-4 | Figma v0.2 + review notes | 待确认；可基于 AP-005 mock baseline 做后续设计评审 |
+| M3 | Phase 5-6 | Mock UI 可运行 | 已完成第一轮，进入评审/后端联调准备 |
+| M4 | Phase 7-8 | API 合约 + 真实后端通信 | API contract 和 mock frontend 基线已具备；真实后端通信为下一步推荐 |
+| M5 | Phase 9 | 用户测试记录 + 修订清单 | 待做 |
 
 ---
 
@@ -445,18 +528,20 @@ docs/user_cases/terminal_outputs/UC-007-audit-page-trust-flow.txt
 
 | ID | 任务 | 产出 | 依赖 |
 |---|---|---|---|
-| AP-001 | 写 Audit Page PRD | `docs/product/plato-audit-page-prd.md` | 本计划 |
-| AP-002 | 写 Audit Page UX Flow | `docs/product/plato-audit-page-ux-flow.md` | AP-001 |
-| AP-003 | 生成 Figma v0.1 | Figma 文件 | AP-002 |
-| AP-004 | 设计评审与 v0.2 微调 | review notes + Figma v0.2 | AP-003 |
-| AP-005 | 搭建 Audit Page shell | `frontend/` audit route | AP-004 |
-| AP-006 | 实现审计核心组件 | Audit Page mock UI | AP-005 |
-| AP-007 | 建立 typed mock audit API | mock scenarios | AP-005 |
-| AP-008 | Mock 联调审计主路径 | 可演示 audit flow | AP-006, AP-007 |
-| AP-009 | 收敛 Audit Page API 合约 | API contract doc | AP-008 |
-| AP-010 | 实现后端 audit projection adapter | server API boundary | AP-009 |
-| AP-011 | 接入真实审计后端通信 | UI real mode | AP-010 |
-| AP-012 | 第一轮用户测试 | UC-007 + findings | AP-011 |
+| AP-001 | 写 Audit Page PRD | `docs/product/plato-audit-page-prd.md` | Done |
+| AP-002 | 写 Audit Page UX Flow | `docs/product/plato-audit-page-ux-flow.md` | Done |
+| AP-003 | 生成/确认 Figma v0.1 | Figma 文件 | Pending verification |
+| AP-004 | 设计评审与 v0.2 微调 | review notes + Figma v0.2 | Pending |
+| AP-005 | 搭建 Audit Page shell | `frontend/` audit route | Done through AP-005G; follow `audit-page-frontend-technical-design.md` |
+| AP-006 | 实现审计核心组件 | Audit Page mock UI | Done as part of AP-005B-G baseline |
+| AP-007 | 建立 typed mock audit API | mock scenarios | Done |
+| AP-008 | Mock 联调审计主路径 | 可演示 audit flow | Done for A1-A14 smoke baseline; keep for regression |
+| AP-009 | 收敛 Audit Page API 合约 | `docs/engineering/audit-page-contract.md` | Done as baseline; update as needed |
+| AP-010 | 实现后端 audit projection adapter | server API boundary | Done first pass; richer timeline/audit-agent sources remain follow-up |
+| AP-011 | 接入真实审计后端通信 | UI real mode | Done first pass; runtime audit events/refetch remain follow-up |
+| AP-012 | Sanitized payload disclosure | contract tests + backend sanitizer + frontend detail rendering | Done first pass; broader source policy remains follow-up |
+| AP-013 | Runtime audit event/refetch | event/refetch design + frontend subscription + live source/emission | AP-013A-F done; AP-013G readiness validation pending |
+| AP-014 | 第一轮用户测试 | UC-007 + findings | Ready after AP-013 or can run earlier with manual refresh caveat |
 
 ---
 
@@ -477,15 +562,18 @@ docs/user_cases/terminal_outputs/UC-007-audit-page-trust-flow.txt
 
 ## 9. 第一轮执行建议
 
-下一步从 AP-001 开始，不直接进入 Figma 或代码。
+下一步不再从 AP-001 开始。PRD、UX Flow、engineering contract、frontend
+types/API/routes/mock scenarios 已经具备第一版基线。
 
-建议第一轮工作顺序：
+当前推荐顺序：
 
 ```text
-AP-001 Audit Page PRD
-  -> AP-002 Audit Page UX Flow
-  -> AP-003 Figma v0.1
-  -> AP-004 设计评审
+AP-005H readiness cleanup / status synchronization
+  -> AP-010 后端 audit query gateway / projection adapter（第一版已完成）
+  -> AP-011 前端 HTTP mode 真实审计路径联调（第一版已完成）
+  -> AP-012 sanitized payload disclosure（第一版已完成）
+  -> AP-013 runtime audit event/refetch（AP-013A-F 已完成，AP-013G 待验收）
+  -> Phase 9 用户测试 / 或补强 timeline + AuditAgent audit evidence
 ```
 
 Audit Page 的关键不是把所有系统细节都展示出来，而是把用户真正需要信任的证据组织好。第一版可以克制，但证据链不能乱。

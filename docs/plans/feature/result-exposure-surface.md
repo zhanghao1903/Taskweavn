@@ -2,8 +2,8 @@
 
 > Status: in_progress
 > Type: Product 1.0 UI projection / result evidence boundary
-> Last Updated: 2026-05-30
-> Related Plans: [Fixed-Route Task Execution Bridge](fixed-route-task-execution-bridge.md), [Main Page Real Backend Integration](main-page-real-backend-integration.md), [Audit Page Contract](../../engineering/audit-page-contract.md)
+> Last Updated: 2026-06-01
+> Related Plans: [Fixed-Route Task Execution Bridge](fixed-route-task-execution-bridge.md), [Main Page Real Backend Integration](main-page-real-backend-integration.md), [Audit Page Contract](../../engineering/audit-page-contract.md), [Audit Page Runtime Event/Refetch Design](../ui/audit-page-runtime-event-refetch-technical-design.md)
 > Related Contracts: [UI ViewModel Contract](../../frontend/ui-viewmodel-contract.md), [API UI Mapping](../../frontend/api-ui-mapping.md), [UI API Contract](../../product/plato-ui-api-contract.md)
 
 ---
@@ -16,11 +16,18 @@ still lacks enough product-facing evidence to understand what happened.
 
 Current remaining exposure gaps:
 
-- file changes now have a minimal Main Page projection, but Audit-ready
-  evidence records and hidden/partial evidence policy remain separate work;
-- raw `Observation` / EventStream facts exist, but they do not have a default
-  product surface;
-- Audit Page contracts exist, but evidence projection is not wired yet.
+- file changes now have a minimal Main Page projection and Audit Page can
+  project first-pass file evidence records, but richer timeline ordering and
+  broader source coverage remain follow-up work;
+- raw `Observation` / EventStream facts exist and can be summarized into Audit
+  records in the first backend path, but they are not default Main Page content;
+- Audit Page contracts, projection-backed routes, request-time sanitized
+  payload disclosure, AP-013A runtime event/refetch design, AP-013B
+  frontend event router/hook, AP-013C live refresh/stale/disconnected UI, and
+  AP-013D workspace-backed UI event replay source exist; AP-013E emits the
+  first AgentLoop/EventStream task-scoped audit event, and AP-013F emits
+  config/log/confirmation source changes; final user-path validation remains
+  open.
 
 Without a clear exposure boundary, the product risks mixing three different
 concepts:
@@ -300,9 +307,10 @@ Implementation note:
 
 Deferred to P8.E5 / Audit:
 
-- hidden/partial evidence states;
+- broader hidden/partial evidence states beyond the AP-012 first pass;
 - evidence record ids and Audit detail links;
-- raw observation inspection.
+- runtime audit event emission/source coverage beyond the AP-013F
+  AgentLoop/config/log/confirmation source set.
 
 ### P8.E5 Audit Entry Closure
 
@@ -311,6 +319,8 @@ Deliver:
 - route-ready audit entry from session/task/result/file context;
 - return context preservation;
 - structured not_available state when Audit records are not populated yet.
+- AP-013 live runtime audit event source/emission so Audit Page does not
+  require manual refresh while execution facts continue to change.
 
 ---
 

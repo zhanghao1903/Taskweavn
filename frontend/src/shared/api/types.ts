@@ -537,6 +537,7 @@ export type AuditPageRequestView = {
   filter: AuditFilterKind;
   recordId?: AuditRecordId | null;
   includeDetail: boolean;
+  includeSanitizedPayload?: boolean;
   limit: number;
   cursor?: string | null;
 };

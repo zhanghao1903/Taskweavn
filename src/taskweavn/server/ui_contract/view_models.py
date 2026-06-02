@@ -389,6 +389,7 @@ class AuditPageRequestView(UiContractModel):
     filter: AuditFilterKind = "all"
     record_id: str | None = None
     include_detail: bool = False
+    include_sanitized_payload: bool = False
     limit: int = Field(default=50, ge=1, le=200)
     cursor: str | None = None
 
@@ -619,6 +620,12 @@ class AuditRecordDetail(AuditRecord):
         if self.disclosure.raw_payload_shown and self.raw_payload is None:
             raise ValueError("raw_payload_shown disclosure requires raw payload")
         return self
+
+
+class AuditRecordsResult(UiContractModel):
+    records: tuple[AuditRecord, ...] = ()
+    next_cursor: str | None = None
+    total_count: int | None = Field(default=None, ge=0)
 
 
 class EffectiveConfigSummary(UiContractModel):

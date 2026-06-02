@@ -545,7 +545,6 @@ function messageAppendedEvent(sessionId: string): UiEvent {
 
 function acceptedCommandResponse({
   commandId,
-  sessionId,
   taskNodeId,
 }: {
   commandId: string;
