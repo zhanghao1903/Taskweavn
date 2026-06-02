@@ -342,6 +342,8 @@ uv run mypy src/taskweavn/server/ui_contract src/taskweavn/server/ui_http.py
 
 ### M-004: Extract HTTP Route, Parsing, And Response Helpers
 
+Status: done on 2026-06-02.
+
 Goal: make `ui_http.py` focus on transport orchestration.
 
 Allowed changes:
@@ -357,6 +359,16 @@ Acceptance:
 - route matching behavior unchanged;
 - error response shape unchanged;
 - SSE route URL unchanged.
+
+Implementation notes:
+
+- `ui_http_routes.py` now owns `_Route`, route matching, and path decoding.
+- `ui_http_query_params.py` now owns query parsing, bool/int coercion, command
+  request parsing, and simple string body extraction.
+- `ui_http_responses.py` now owns JSON success/error response helpers,
+  request-id extraction, and header normalization.
+- `ui_http.py` now keeps transport orchestration, command idempotency, dispatch
+  response enrichment, and SSE wiring.
 
 Suggested validation:
 

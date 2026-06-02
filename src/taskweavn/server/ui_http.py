@@ -7,9 +7,6 @@ import json
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, Protocol
-from urllib.parse import parse_qsl, unquote, urlsplit
-
-from pydantic import ValidationError
 
 from taskweavn.server.client_logs import ClientErrorLogSink
 from taskweavn.server.transport import HttpApiRequest, HttpApiResponse
@@ -27,7 +24,6 @@ from taskweavn.server.ui_contract import (
     DispatchExecutionPayload,
     GenerateTaskTreePayload,
     PublishTaskTreePayload,
-    QueryResponse,
     RefreshHint,
     ResolveConfirmationPayload,
     RetryTaskPayload,
@@ -36,12 +32,27 @@ from taskweavn.server.ui_contract import (
     UpdateTaskNodePayload,
 )
 from taskweavn.server.ui_events import ResyncOnlyEventSource, UiEventSource, sse_stream
+from taskweavn.server.ui_http_query_params import (
+    _bool_query,
+    _int_query,
+    _optional_bool_query,
+    _parse_command_request,
+    _request_query,
+    _string_body_value,
+)
+from taskweavn.server.ui_http_responses import (
+    _contract_response,
+    _error_response,
+    _json_response,
+    _normalize_headers,
+    _request_id_hint,
+)
+from taskweavn.server.ui_http_routes import _match_route, _Route
 from taskweavn.task import (
     ExecutionDispatchRequestResult,
     ExecutionTriggerGateway,
 )
 
-_JSON_HEADERS = {"content-type": "application/json"}
 _SSE_HEADERS = {
     "cache-control": "no-cache",
     "connection": "keep-alive",
@@ -676,194 +687,6 @@ class PlatoUiHttpTransport:
         return response
 
 
-@dataclass(frozen=True)
-class _Route:
-    name: str
-    method: str
-    session_id: str = ""
-    task_node_id: str = ""
-    confirmation_id: str = ""
-    record_id: str = ""
-    evidence_id: str = ""
-
-
-def _match_route(path: str) -> _Route | None:
-    parts = _path_parts(path)
-    if parts == ():
-        return _Route(name="root", method="GET")
-    if parts == ("api", "v1", "health"):
-        return _Route(name="health", method="GET")
-    if parts == ("api", "v1", "sessions"):
-        return _Route(name="sessions", method="*")
-    if len(parts) < 4 or parts[:3] != ("api", "v1", "sessions"):
-        return None
-    session_id = parts[3]
-    suffix = parts[4:]
-    if suffix == ("snapshot",):
-        return _Route(name="snapshot", method="GET", session_id=session_id)
-    if suffix == ("audit",):
-        return _Route(name="audit_snapshot", method="GET", session_id=session_id)
-    if suffix == ("audit", "records"):
-        return _Route(name="audit_records", method="GET", session_id=session_id)
-    if len(suffix) == 3 and suffix[:2] == ("audit", "records"):
-        return _Route(
-            name="audit_record_detail",
-            method="GET",
-            session_id=session_id,
-            record_id=suffix[2],
-        )
-    if len(suffix) == 3 and suffix[:2] == ("audit", "evidence"):
-        return _Route(
-            name="audit_evidence_detail",
-            method="GET",
-            session_id=session_id,
-            evidence_id=suffix[2],
-        )
-    if suffix == ():
-        return _Route(name="rename_session", method="PATCH", session_id=session_id)
-    if suffix == ("delete",):
-        return _Route(name="delete_session", method="POST", session_id=session_id)
-    if suffix == ("input",):
-        return _Route(name="append_session_input", method="POST", session_id=session_id)
-    if suffix == ("task-tree", "generate"):
-        return _Route(name="generate_task_tree", method="POST", session_id=session_id)
-    if suffix == ("task-tree", "publish"):
-        return _Route(name="publish_task_tree", method="POST", session_id=session_id)
-    if suffix == ("execution", "dispatch"):
-        return _Route(name="dispatch_execution", method="POST", session_id=session_id)
-    if suffix == ("events",):
-        return _Route(name="events", method="GET", session_id=session_id)
-    if suffix == ("client-logs", "errors"):
-        return _Route(name="client_error_log", method="POST", session_id=session_id)
-    if len(suffix) == 2 and suffix[0] == "tasks":
-        return _Route(
-            name="update_task_node",
-            method="PATCH",
-            session_id=session_id,
-            task_node_id=suffix[1],
-        )
-    if len(suffix) == 3 and suffix[0] == "tasks" and suffix[2] == "input":
-        return _Route(
-            name="append_task_input",
-            method="POST",
-            session_id=session_id,
-            task_node_id=suffix[1],
-        )
-    if len(suffix) == 3 and suffix[0] == "tasks" and suffix[2] == "audit":
-        return _Route(
-            name="audit_snapshot",
-            method="GET",
-            session_id=session_id,
-            task_node_id=suffix[1],
-        )
-    if (
-        len(suffix) == 4
-        and suffix[0] == "tasks"
-        and suffix[2:] == ("audit", "records")
-    ):
-        return _Route(
-            name="audit_records",
-            method="GET",
-            session_id=session_id,
-            task_node_id=suffix[1],
-        )
-    if len(suffix) == 3 and suffix[0] == "tasks" and suffix[2] == "retry":
-        return _Route(
-            name="retry_task",
-            method="POST",
-            session_id=session_id,
-            task_node_id=suffix[1],
-        )
-    if len(suffix) == 3 and suffix[0] == "confirmations" and suffix[2] == "respond":
-        return _Route(
-            name="resolve_confirmation",
-            method="POST",
-            session_id=session_id,
-            confirmation_id=suffix[1],
-        )
-    return None
-
-
-def _path_parts(path: str) -> tuple[str, ...]:
-    split = urlsplit(path)
-    raw_path = split.path or path
-    return tuple(unquote(part) for part in raw_path.strip("/").split("/") if part)
-
-
-def _request_query(request: HttpApiRequest) -> dict[str, str]:
-    split = urlsplit(request.path)
-    query = dict(parse_qsl(split.query, keep_blank_values=True))
-    query.update(request.query)
-    return query
-
-
-def _optional_bool_query(query: dict[str, str], key: str) -> bool | None:
-    if key not in query:
-        return None
-    return _bool_query(query, key, default=False)
-
-
-def _bool_query(query: dict[str, str], key: str, *, default: bool) -> bool:
-    raw = query.get(key)
-    if raw is None or raw == "":
-        return default
-    lowered = raw.lower()
-    if lowered in {"1", "true", "yes", "on"}:
-        return True
-    if lowered in {"0", "false", "no", "off"}:
-        return False
-    raise ValueError(f"query parameter {key!r} must be a boolean")
-
-
-def _int_query(query: dict[str, str], key: str, *, default: int) -> int:
-    raw = query.get(key)
-    if raw is None or raw == "":
-        return default
-    try:
-        return int(raw)
-    except ValueError as exc:
-        raise ValueError(f"query parameter {key!r} must be an integer") from exc
-
-
-def _parse_command_request[PayloadT](
-    request: HttpApiRequest,
-    path_session_id: str,
-    request_type: type[CommandRequest[PayloadT]],
-) -> CommandRequest[PayloadT] | HttpApiResponse:
-    if request.body is None:
-        return _error_response(
-            400,
-            ApiError(code="bad_request", message="request body must be a JSON object"),
-            request_id=_request_id_hint(request),
-        )
-    try:
-        parsed = request_type.model_validate(request.body)
-    except ValidationError as exc:
-        return _error_response(
-            400,
-            ApiError(
-                code="bad_request",
-                message="request body does not match command contract",
-                details={"errors": exc.errors()},
-            ),
-            request_id=_request_id_hint(request),
-        )
-    if parsed.session_id != path_session_id:
-        return _error_response(
-            400,
-            ApiError(
-                code="bad_request",
-                message="body sessionId must match path sessionId",
-                details={
-                    "body_session_id": parsed.session_id,
-                    "path_session_id": path_session_id,
-                },
-            ),
-            request_id=parsed.command_id,
-        )
-    return parsed
-
-
 def _command_result_from_dispatch(
     request: CommandRequest[Any],
     dispatch_result: ExecutionDispatchRequestResult,
@@ -945,73 +768,6 @@ def _command_request_hash(route: _Route, request: CommandRequest[Any]) -> str:
         sort_keys=True,
     )
     return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
-
-
-def _string_body_value(
-    request: HttpApiRequest,
-    key: str,
-    *,
-    default: str | None = None,
-) -> str | HttpApiResponse:
-    raw = None if request.body is None else request.body.get(key)
-    if raw is None:
-        raw = default
-    if not isinstance(raw, str) or not raw.strip():
-        return _error_response(
-            400,
-            ApiError(
-                code="bad_request",
-                message=f"request body field {key!r} must be a non-empty string",
-            ),
-            request_id=_request_id_hint(request),
-        )
-    return raw.strip()
-
-
-def _contract_response(response: QueryResponse[Any] | Any) -> HttpApiResponse:
-    return _json_response(response.model_dump(mode="json"))
-
-
-def _json_response(body: dict[str, Any]) -> HttpApiResponse:
-    return HttpApiResponse(status_code=200, headers=dict(_JSON_HEADERS), body=body)
-
-
-def _error_response(
-    status_code: int,
-    error: ApiError,
-    *,
-    request_id: str | None = None,
-    headers: dict[str, str] | None = None,
-) -> HttpApiResponse:
-    response_headers = dict(_JSON_HEADERS)
-    response_headers.update(headers or {})
-    return HttpApiResponse(
-        status_code=status_code,
-        headers=response_headers,
-        body={
-            "requestId": request_id,
-            "ok": False,
-            "data": None,
-            "error": error.model_dump(mode="json"),
-        },
-    )
-
-
-def _request_id_hint(request: HttpApiRequest) -> str | None:
-    headers = _normalize_headers(request.headers)
-    if "x-request-id" in headers:
-        return headers["x-request-id"]
-    if request.body is None:
-        return None
-    for key in ("requestId", "request_id", "commandId", "command_id"):
-        raw = request.body.get(key)
-        if isinstance(raw, str):
-            return raw
-    return None
-
-
-def _normalize_headers(headers: dict[str, str]) -> dict[str, str]:
-    return {key.lower(): value for key, value in headers.items()}
 
 
 __all__ = [
