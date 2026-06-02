@@ -28,8 +28,9 @@ periodic context checkpoint messages
 
 The goal is structural prompt-cache friendliness: later `llm.chat(...)` calls
 preserve the previous request as the prefix whenever ordinary execution only
-appends assistant/tool/context messages. Real provider cached-token ratio
-measurement remains a follow-up because it depends on provider metadata.
+appends assistant/tool/context messages. DeepSeek official provider usage now
+parses cache hit/miss tokens when the API returns them; cross-provider cache
+aggregation and prefill-latency reporting remain follow-ups.
 
 ---
 
@@ -78,6 +79,21 @@ Each context-governed LLM call can now carry:
 These hooks allow later provider metadata to be correlated with Context Manager
 rendering strategy.
 
+### 2.5 DeepSeek Cache Usage Parsing
+
+The OpenAI-compatible response parser now reads DeepSeek's official usage
+fields when present:
+
+- `prompt_cache_hit_tokens`;
+- `prompt_cache_miss_tokens`.
+
+It maps them into provider-neutral usage fields:
+
+- `cache_hit_tokens`;
+- `cache_miss_tokens`;
+- `cache_hit_ratio`;
+- `cached_tokens` as the existing compatibility alias for hit tokens.
+
 ---
 
 ## 3. Validation
@@ -94,6 +110,8 @@ Release validation included:
   - passed
 - `uv run pytest tests/test_context_manager.py tests/test_loop.py tests/test_fixed_route_task_executor.py tests/test_main_page_sidecar_app.py`
   - 72 passed, 1 dependency warning
+- `uv run pytest tests/test_llm_providers.py`
+  - passed
 
 Covered behavior:
 
@@ -105,12 +123,15 @@ Covered behavior:
 - AgentLoop persists provider-returned context messages before `llm.chat(...)`;
 - a loop-level observation test proves start -> checkpoint -> ordinary reuse
   preserves the previous request as the next request prefix.
+- DeepSeek official `prompt_cache_hit_tokens` / `prompt_cache_miss_tokens`
+  usage fields are parsed into provider-neutral cache hit/miss metrics.
 
 ---
 
 ## 4. Follow-ups After Acceptance
 
-- Add provider-level cached-token and prefill-latency logging when available.
+- Add cross-provider cache metric aggregation and prefill-latency logging when
+  available.
 - Connect interruption, retry, confirmation, repeated tool error, file-change,
   and budget-pressure triggers through the trigger evaluator interface.
 - Validate the cache-aware path through a normal sidecar/browser smoke once the

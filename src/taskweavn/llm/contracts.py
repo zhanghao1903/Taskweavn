@@ -136,6 +136,9 @@ class LLMUsage(BaseModel):
     total_tokens: int | None = None
     reasoning_tokens: int | None = None
     cached_tokens: int | None = None
+    cache_hit_tokens: int | None = None
+    cache_miss_tokens: int | None = None
+    cache_hit_ratio: float | None = None
 
 
 class RetryRecord(BaseModel):
