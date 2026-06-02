@@ -126,7 +126,9 @@ Recommended module shape:
 | `gateway_providers.py` | Static/workspace providers for project, workflow, audit events, config, logs. |
 | `query_gateway.py` | `DefaultUiQueryGateway` orchestration only. |
 | `command_gateway.py` | `DefaultUiCommandGateway` orchestration only. |
-| `audit_projection.py` | Audit records, overview, filters, detail, evidence projection from task/message/event/log/config sources. |
+| `audit_projection.py` | Audit overview, filters, page state, detail, evidence, and high-level record aggregation. |
+| `audit_event_records.py` | EventStream Action/Observation/AuditObservation record projection and source-unavailable fallback records. |
+| `audit_source_providers.py` | Workspace-backed Audit config/log providers and config/log record projection. |
 | `audit_disclosure.py` | `DefaultAuditPayloadDisclosureService`, payload visibility decisions, redaction, sanitization. |
 | `command_mapping.py` | Task tree mapping, command response helpers, object refs, task node patch helpers. |
 
@@ -530,6 +532,48 @@ Implementation notes:
 - `main_page.py` dropped from 944 lines to 446 lines while preserving
   `build_main_page_sidecar_app` and server package exports.
 
+### M-009: Split Audit Projection Source Providers And Event Records
+
+Status: done on 2026-06-02.
+
+Goal: reduce `audit_projection.py` by moving source-provider and EventStream
+record projection concerns into narrower modules.
+
+Allowed changes:
+
+- create `audit_source_providers.py` for workspace-backed config/log providers;
+- create `audit_event_records.py` for EventStream-backed Audit records;
+- keep existing public imports for `WorkspaceAuditConfigProvider` and
+  `WorkspaceAuditLogProvider` compatible through `audit_projection.py`,
+  `gateways.py`, and `ui_contract`.
+
+Acceptance:
+
+- Audit Page snapshot/detail/evidence behavior unchanged;
+- source-unavailable fallback records unchanged;
+- config/log provider public import paths unchanged;
+- `audit_projection.py` no longer owns EventStream record builders or
+  workspace-backed config/log provider implementations.
+
+Implementation notes:
+
+- `audit_event_records.py` now owns Action, Observation, AuditObservation,
+  generic EventStream record projection, and source-unavailable fallback
+  records.
+- `audit_source_providers.py` now owns `WorkspaceAuditConfigProvider`,
+  `WorkspaceAuditLogProvider`, config manifest records, and log archive
+  records.
+- `audit_projection.py` remains the high-level Audit Page projection facade and
+  dropped from 1414 lines to 891 lines.
+
+Suggested validation:
+
+```bash
+uv run pytest tests/test_audit_page_contract_models.py tests/test_ui_query_gateway.py tests/test_ui_http_transport.py
+uv run ruff check src/taskweavn/server/ui_contract tests/test_audit_page_contract_models.py tests/test_ui_query_gateway.py
+uv run mypy src/taskweavn/server/ui_contract
+```
+
 ---
 
 ## 7. Dependency And Ordering Rules
@@ -545,6 +589,7 @@ M-001 protocols/providers
   -> M-006 Audit Page components
   -> M-007 Audit Page helper extraction
   -> M-008 Main Page sidecar slimming
+  -> M-009 Audit projection source/event split
 ```
 
 Rationale:

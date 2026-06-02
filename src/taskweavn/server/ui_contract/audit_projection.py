@@ -2,16 +2,24 @@
 
 from __future__ import annotations
 
-import re
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from pathlib import Path
 from typing import Literal
 
 from taskweavn.core.session import Session
-from taskweavn.observability.models import LogArchiveManifest
 from taskweavn.server.ui_contract.audit_disclosure import _no_payload, _record_partial_reason
+from taskweavn.server.ui_contract.audit_event_records import event_audit_records
+from taskweavn.server.ui_contract.audit_source_providers import (
+    WorkspaceAuditConfigProvider as WorkspaceAuditConfigProvider,
+)
+from taskweavn.server.ui_contract.audit_source_providers import (
+    WorkspaceAuditLogProvider as WorkspaceAuditLogProvider,
+)
+from taskweavn.server.ui_contract.audit_source_providers import (
+    config_audit_records,
+    log_audit_records,
+)
 from taskweavn.server.ui_contract.gateway_protocols import (
     AuditConfigProvider,
     AuditEventProvider,
@@ -20,8 +28,6 @@ from taskweavn.server.ui_contract.gateway_protocols import (
 )
 from taskweavn.server.ui_contract.refs import ObjectRef
 from taskweavn.server.ui_contract.view_models import (
-    AuditActionScope,
-    AuditConfigScope,
     AuditConfirmationScope,
     AuditEmptyPageState,
     AuditEntryContext,
@@ -29,7 +35,6 @@ from taskweavn.server.ui_contract.view_models import (
     AuditFileScope,
     AuditFilterKind,
     AuditFilterView,
-    AuditLogEvidenceScope,
     AuditOverview,
     AuditPartialPageState,
     AuditReadyPageState,
@@ -40,9 +45,7 @@ from taskweavn.server.ui_contract.view_models import (
     AuditReference,
     AuditResultScope,
     AuditSessionScope,
-    AuditSeverity,
     AuditTaskScope,
-    AuditVerdict,
     EffectiveConfigSummary,
     EvidenceDetail,
     EvidenceRef,
@@ -61,96 +64,6 @@ from taskweavn.task.projection import TaskProjectionService
 from taskweavn.task.views import ConfirmationActionView as CoreConfirmationActionView
 from taskweavn.task.views import TaskCardView as CoreTaskCardView
 from taskweavn.task.views import TaskTreeView as CoreTaskTreeView
-from taskweavn.types.base import BaseAction, BaseEvent, BaseObservation
-
-
-class WorkspaceAuditConfigProvider:
-    """Read config evidence from the session log manifest when present."""
-
-    def list_for_session(
-        self,
-        session: Session,
-        *,
-        task_node_id: str | None = None,
-    ) -> tuple[AuditRecord, ...]:
-        manifest = _read_session_log_manifest(session)
-        if manifest is None:
-            return ()
-        return (_config_record_from_manifest(session, manifest, task_node_id),)
-
-    def get_effective_config(
-        self,
-        session: Session,
-        *,
-        records: Sequence[AuditRecord],
-    ) -> EffectiveConfigSummary | None:
-        manifest = _read_session_log_manifest(session)
-        if manifest is None:
-            return None
-        config_records = tuple(record.id for record in records if record.filter_kind == "config")
-        active = (
-            f" from {manifest.active_config_path}"
-            if manifest.active_config_path is not None
-            else ""
-        )
-        return EffectiveConfigSummary(
-            summary=f"Logging config hash {manifest.config_hash} is active{active}.",
-            profile_label="Session log manifest",
-            effective_at=manifest.created_at,
-            relevant_record_ids=config_records,
-            settings_href=(
-                None
-                if manifest.active_config_path is None
-                else manifest.active_config_path
-            ),
-        )
-
-
-class WorkspaceAuditLogProvider:
-    """Read log evidence references from the session log directory."""
-
-    def list_for_session(
-        self,
-        session: Session,
-        *,
-        task_node_id: str | None = None,
-    ) -> tuple[AuditRecord, ...]:
-        log_dir = session.logs_dir
-        if not log_dir.exists():
-            return ()
-        records: list[AuditRecord] = []
-        for path in sorted(log_dir.iterdir(), key=lambda item: item.name):
-            if not path.is_file() or path.name == "manifest.json":
-                continue
-            if path.suffix.lower() not in {".jsonl", ".log"}:
-                continue
-            records.append(_log_record_from_path(session, path, task_node_id))
-        return tuple(records)
-
-    def related_logs(
-        self,
-        session: Session,
-        *,
-        task_node_id: str | None,
-        record_id: str | None,
-    ) -> tuple[RelatedLogsLink, ...]:
-        log_dir = session.logs_dir
-        enabled = log_dir.exists()
-        return (
-            RelatedLogsLink(
-                label="Session log archive",
-                href=str(log_dir),
-                filters={
-                    "sessionId": session.id,
-                    "taskNodeId": task_node_id,
-                    "recordId": record_id,
-                    "category": "audit",
-                },
-                enabled=enabled,
-                disabled_reason=None if enabled else "Session log archive is not present.",
-            ),
-        )
-
 
 _AUDIT_FILTER_LABELS: dict[AuditFilterKind, str] = {
     "all": "All records",
@@ -192,7 +105,6 @@ _AUDIT_PROJECTION_PARTIAL_REASON = (
     "Audit records are projected from Task state. Dedicated audit-agent, log, "
     "and raw event evidence aggregation is not connected yet."
 )
-_ID_SAFE_RE = re.compile(r"[^A-Za-z0-9_.:-]+")
 
 
 @dataclass(frozen=True)
@@ -205,11 +117,6 @@ class _AuditProjectionBundle:
     task_tree: TaskTreeView | None
     selected_task: TaskNodeCardView | None
     records: tuple[AuditRecord, ...]
-
-
-def _safe_token(value: str) -> str:
-    return _ID_SAFE_RE.sub("-", value).strip("-") or "item"
-
 
 
 def _audit_records_from_projection(
@@ -242,9 +149,9 @@ def _audit_records_from_projection(
         for message in messages
         if task_node_id is None or message.task_node_id == task_node_id
     )
-    records.extend(_event_audit_records(session, event_provider, task_node_id=task_node_id))
-    records.extend(_config_audit_records(session, config_provider, task_node_id=task_node_id))
-    records.extend(_log_audit_records(session, log_provider, task_node_id=task_node_id))
+    records.extend(event_audit_records(session, event_provider, task_node_id=task_node_id))
+    records.extend(config_audit_records(session, config_provider, task_node_id=task_node_id))
+    records.extend(log_audit_records(session, log_provider, task_node_id=task_node_id))
     return _sort_audit_records(records)
 
 
@@ -253,426 +160,6 @@ def _sort_audit_records(records: Iterable[AuditRecord]) -> tuple[AuditRecord, ..
     for record in records:
         by_id[record.id] = record
     return tuple(sorted(by_id.values(), key=lambda record: (record.occurred_at, record.id)))
-
-
-def _event_audit_records(
-    session: Session,
-    provider: AuditEventProvider | None,
-    *,
-    task_node_id: str | None,
-) -> tuple[AuditRecord, ...]:
-    if provider is None:
-        return ()
-    try:
-        return tuple(
-            _event_audit_record(session.id, event, task_node_id=task_node_id)
-            for event in provider.list_for_session(session, task_node_id=task_node_id)
-        )
-    except Exception as exc:  # noqa: BLE001 - Audit Page must degrade, not fail.
-        return (
-            _source_unavailable_record(
-                session.id,
-                source_name="EventStream",
-                reason=f"{type(exc).__name__}: {exc}",
-                task_node_id=task_node_id,
-            ),
-        )
-
-
-def _config_audit_records(
-    session: Session,
-    provider: AuditConfigProvider | None,
-    *,
-    task_node_id: str | None,
-) -> tuple[AuditRecord, ...]:
-    if provider is None:
-        return ()
-    try:
-        return tuple(provider.list_for_session(session, task_node_id=task_node_id))
-    except Exception as exc:  # noqa: BLE001 - source failure should be visible.
-        return (
-            _source_unavailable_record(
-                session.id,
-                source_name="Config store",
-                reason=f"{type(exc).__name__}: {exc}",
-                task_node_id=task_node_id,
-            ),
-        )
-
-
-def _log_audit_records(
-    session: Session,
-    provider: AuditLogProvider | None,
-    *,
-    task_node_id: str | None,
-) -> tuple[AuditRecord, ...]:
-    if provider is None:
-        return ()
-    try:
-        return tuple(provider.list_for_session(session, task_node_id=task_node_id))
-    except Exception as exc:  # noqa: BLE001 - source failure should be visible.
-        return (
-            _source_unavailable_record(
-                session.id,
-                source_name="Log archive",
-                reason=f"{type(exc).__name__}: {exc}",
-                task_node_id=task_node_id,
-            ),
-        )
-
-
-def _event_audit_record(
-    session_id: str,
-    event: BaseEvent,
-    *,
-    task_node_id: str | None,
-) -> AuditRecord:
-    if _is_audit_observation(event):
-        return _audit_observation_record(session_id, event, task_node_id=task_node_id)
-    if isinstance(event, BaseAction):
-        return _action_event_record(session_id, event, task_node_id=task_node_id)
-    if isinstance(event, BaseObservation):
-        return _observation_event_record(session_id, event, task_node_id=task_node_id)
-    return _generic_event_record(session_id, event, task_node_id=task_node_id)
-
-
-def _action_event_record(
-    session_id: str,
-    event: BaseAction,
-    *,
-    task_node_id: str | None,
-) -> AuditRecord:
-    risk = float(getattr(type(event), "baseline_risk", 0.0))
-    severity: AuditSeverity = "warning" if risk >= 0.3 else "info"
-    return AuditRecord(
-        id=f"record-event-action-{event.event_id}",
-        scope=AuditActionScope(
-            session_id=session_id,
-            action_id=event.event_id,
-            task_node_id=task_node_id,
-        ),
-        kind="action",
-        filter_kind="actions",
-        title=f"{event.kind} action",
-        summary=_event_summary(event),
-        actor=_action_actor(event),
-        source_label="EventStream",
-        occurred_at=event.timestamp,
-        severity=severity,
-        confidence="high",
-        completeness="complete",
-        task_node_id=task_node_id,
-        action_id=event.event_id,
-        evidence_refs=(
-            EvidenceRef(
-                id=f"evidence-event-action-{event.event_id}",
-                kind="action",
-                label=f"{event.kind} payload",
-                summary=f"Durable Action event {event.event_id}.",
-            ),
-        ),
-    )
-
-
-def _observation_event_record(
-    session_id: str,
-    event: BaseObservation,
-    *,
-    task_node_id: str | None,
-) -> AuditRecord:
-    failed = event.success is False
-    action_id = event.action_id or event.event_id
-    return AuditRecord(
-        id=f"record-event-observation-{event.event_id}",
-        scope=AuditActionScope(
-            session_id=session_id,
-            action_id=action_id,
-            task_node_id=task_node_id,
-        ),
-        kind="observation",
-        filter_kind="actions",
-        title=f"{event.kind} observation",
-        summary=_event_summary(event),
-        actor="tool",
-        source_label="EventStream",
-        occurred_at=event.timestamp,
-        severity="danger" if failed else "success",
-        confidence="high",
-        verdict="failed" if failed else "passed",
-        completeness="complete",
-        task_node_id=task_node_id,
-        action_id=action_id,
-        evidence_refs=(
-            EvidenceRef(
-                id=f"evidence-event-observation-{event.event_id}",
-                kind="observation",
-                label=f"{event.kind} payload",
-                summary=f"Durable Observation event {event.event_id}.",
-            ),
-        ),
-    )
-
-
-def _audit_observation_record(
-    session_id: str,
-    event: BaseEvent,
-    *,
-    task_node_id: str | None,
-) -> AuditRecord:
-    raw_verdict = getattr(event, "verdict", "inconclusive")
-    verdict = _audit_verdict(raw_verdict)
-    action_id = getattr(event, "action_id", None)
-    audited_observation_id = getattr(event, "audited_observation_id", None)
-    concerns = getattr(event, "concerns", ())
-    concern_count = len(concerns) if isinstance(concerns, list | tuple) else 0
-    summary = getattr(event, "rationale", None)
-    if not isinstance(summary, str) or not summary.strip():
-        summary = f"AuditAgent returned {raw_verdict}."
-    if concern_count:
-        summary = f"{summary} ({concern_count} concern(s).)"
-    return AuditRecord(
-        id=f"record-audit-verdict-{event.event_id}",
-        scope=AuditActionScope(
-            session_id=session_id,
-            action_id=action_id or event.event_id,
-            task_node_id=task_node_id,
-        ),
-        kind="audit_verdict",
-        filter_kind="risks",
-        title="AuditAgent verdict",
-        summary=summary,
-        actor="audit_agent",
-        source_label="AuditAgent",
-        occurred_at=event.timestamp,
-        severity=_audit_verdict_severity(verdict),
-        confidence="high" if verdict in {"passed", "failed"} else "medium",
-        verdict=verdict,
-        completeness="complete" if verdict in {"passed", "failed"} else "partial",
-        task_node_id=task_node_id,
-        action_id=action_id,
-        evidence_refs=(
-            EvidenceRef(
-                id=f"evidence-audit-verdict-{event.event_id}",
-                kind="audit_observation",
-                label="AuditAgent observation",
-                summary=summary,
-            ),
-        ),
-        related_record_ids=tuple(
-            record_id
-            for record_id in (
-                f"record-event-action-{action_id}" if isinstance(action_id, str) else None,
-                (
-                    f"record-event-observation-{audited_observation_id}"
-                    if isinstance(audited_observation_id, str)
-                    else None
-                ),
-            )
-            if record_id is not None
-        ),
-        flags=AuditRecordFlags(partial=verdict == "inconclusive"),
-    )
-
-
-def _generic_event_record(
-    session_id: str,
-    event: BaseEvent,
-    *,
-    task_node_id: str | None,
-) -> AuditRecord:
-    return AuditRecord(
-        id=f"record-event-{event.event_id}",
-        scope=AuditSessionScope(session_id=session_id),
-        kind="system",
-        filter_kind="system",
-        title=f"{event.kind} event",
-        summary=_event_summary(event),
-        actor="system",
-        source_label="EventStream",
-        occurred_at=event.timestamp,
-        severity="info",
-        confidence="high",
-        completeness="complete",
-        task_node_id=task_node_id,
-        evidence_refs=(
-            EvidenceRef(
-                id=f"evidence-event-{event.event_id}",
-                kind="event",
-                label=f"{event.kind} payload",
-                summary=f"Durable EventStream event {event.event_id}.",
-            ),
-        ),
-    )
-
-
-def _source_unavailable_record(
-    session_id: str,
-    *,
-    source_name: str,
-    reason: str,
-    task_node_id: str | None,
-) -> AuditRecord:
-    token = _safe_token(source_name.lower())
-    return AuditRecord(
-        id=f"record-system-source-unavailable-{token}",
-        scope=AuditSessionScope(session_id=session_id),
-        kind="system",
-        filter_kind="system",
-        title=f"{source_name} unavailable",
-        summary=f"{source_name} could not be read: {reason}",
-        actor="system",
-        source_label=source_name,
-        occurred_at=datetime.now(UTC),
-        severity="warning",
-        confidence="high",
-        verdict="warning",
-        completeness="partial",
-        task_node_id=task_node_id,
-        evidence_refs=(
-            EvidenceRef(
-                id=f"evidence-system-source-unavailable-{token}",
-                kind="event",
-                label=f"{source_name} read failure",
-                summary=reason[:500],
-            ),
-        ),
-        flags=AuditRecordFlags(partial=True),
-    )
-
-
-def _config_record_from_manifest(
-    session: Session,
-    manifest: LogArchiveManifest,
-    task_node_id: str | None,
-) -> AuditRecord:
-    record_id = "record-config-logging-manifest"
-    active_config = (
-        f" Active config path: {manifest.active_config_path}."
-        if manifest.active_config_path is not None
-        else ""
-    )
-    return AuditRecord(
-        id=record_id,
-        scope=AuditConfigScope(session_id=session.id, config_key="logging"),
-        kind="config_change",
-        filter_kind="config",
-        title="Logging config snapshot",
-        summary=f"Session logging config hash is {manifest.config_hash}.{active_config}",
-        actor="system",
-        source_label="Log archive manifest",
-        occurred_at=manifest.created_at,
-        severity="info",
-        confidence="high",
-        completeness="complete",
-        task_node_id=task_node_id,
-        config_key="logging",
-        evidence_refs=(
-            EvidenceRef(
-                id=f"evidence-{record_id}",
-                kind="config_snapshot",
-                label="Session log manifest",
-                summary=f"Manifest records {len(manifest.files)} log file(s).",
-            ),
-        ),
-    )
-
-
-def _log_record_from_path(
-    session: Session,
-    path: Path,
-    task_node_id: str | None,
-) -> AuditRecord:
-    file_token = _safe_token(path.name)
-    record_id = f"record-log-{file_token}"
-    try:
-        stat = path.stat()
-        occurred_at = datetime.fromtimestamp(stat.st_mtime, tz=UTC)
-        size = stat.st_size
-    except OSError:
-        occurred_at = datetime.now(UTC)
-        size = 0
-    evidence_id = f"evidence-{record_id}"
-    return AuditRecord(
-        id=record_id,
-        scope=AuditLogEvidenceScope(
-            session_id=session.id,
-            evidence_id=evidence_id,
-            task_node_id=task_node_id,
-        ),
-        kind="log_evidence",
-        filter_kind="logs",
-        title="Log evidence available",
-        summary=f"{path.name} is available in the session log archive ({size} bytes).",
-        actor="system",
-        source_label="Log archive",
-        occurred_at=occurred_at,
-        severity="info",
-        confidence="high",
-        completeness="partial",
-        task_node_id=task_node_id,
-        evidence_refs=(
-            EvidenceRef(
-                id=evidence_id,
-                kind="log_excerpt",
-                label=path.name,
-                summary=f"Session log file: {path}",
-            ),
-        ),
-        flags=AuditRecordFlags(partial=True),
-    )
-
-
-def _read_session_log_manifest(session: Session) -> LogArchiveManifest | None:
-    path = session.logs_dir / "manifest.json"
-    if not path.exists():
-        return None
-    try:
-        return LogArchiveManifest.model_validate_json(path.read_text(encoding="utf-8"))
-    except Exception:  # noqa: BLE001 - invalid manifests should not break Audit Page.
-        return None
-
-
-def _event_summary(event: BaseEvent) -> str:
-    payload = event.to_dict()
-    if isinstance(event, BaseAction):
-        source = payload.get("source")
-        suffix = f" from {source}" if isinstance(source, str) and source else ""
-        return f"{event.kind} action{suffix} was recorded in EventStream."
-    if isinstance(event, BaseObservation):
-        outcome = "succeeded" if event.success else "failed"
-        return f"{event.kind} observation {outcome}."
-    return f"{event.kind} event was recorded in EventStream."
-
-
-def _is_audit_observation(event: BaseEvent) -> bool:
-    return event.kind == "AuditObservation"
-
-
-def _action_actor(event: BaseAction) -> Literal["user", "agent", "system"]:
-    source = event.source.lower().strip()
-    if source == "user":
-        return "user"
-    if source == "system":
-        return "system"
-    return "agent"
-
-
-def _audit_verdict(value: object) -> AuditVerdict:
-    if value == "pass":
-        return "passed"
-    if value == "fail":
-        return "failed"
-    if value == "inconclusive":
-        return "inconclusive"
-    return "inconclusive"
-
-
-def _audit_verdict_severity(verdict: AuditVerdict) -> AuditSeverity:
-    if verdict == "passed":
-        return "success"
-    if verdict == "failed":
-        return "danger"
-    return "warning"
 
 
 def _scoped_nodes(
@@ -1410,5 +897,3 @@ def _audit_entry_kind(value: str | None, *, task_node_id: str | None) -> str:
     if value not in _AUDIT_ENTRY_KINDS:
         raise ValueError(f"unsupported audit entry: {value!r}")
     return value
-
-
