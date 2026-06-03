@@ -8,6 +8,7 @@ import type {
   LoadMainPageSnapshot,
   MainPageAdapter,
   RetryTaskCommand,
+  StopTaskCommand,
   SubscribeSessionEvents,
 } from "./runtime/adapter";
 import type { MainPageStateId } from "./mockPlatoApi";
@@ -127,6 +128,53 @@ describe("useMainPageController", () => {
     });
 
     expect(result.current.taskTreeCommandError).toBe(null);
+  });
+
+  it("submits a stop command for an active task", async () => {
+    const stopTask = vi.fn<StopTaskCommand>(async (sessionId, taskNodeId, request) =>
+      acceptedCommandResponse({
+        commandId: request.commandId,
+        sessionId,
+        taskNodeId,
+      }),
+    );
+    const loadSnapshot = vi.fn<LoadMainPageSnapshot>(loadImmediateSnapshot);
+
+    const { result } = renderMainPageController({
+      adapter: testAdapter({
+        loadSnapshot,
+        stopTask,
+      }),
+      initialStateId: "s6-running",
+    });
+
+    await waitFor(() => {
+      expect(result.current.snapshotData?.metadata.id).toBe("s6-running");
+    });
+
+    act(() => {
+      result.current.actions.stopTask({
+        sessionId: "session-website-plan",
+        taskNodeId: "task-implementation",
+      });
+    });
+
+    await waitFor(() => {
+      expect(stopTask).toHaveBeenCalledWith(
+        "session-website-plan",
+        "task-implementation",
+        expect.objectContaining({
+          sessionId: "session-website-plan",
+          payload: { reason: "user requested stop" },
+        }),
+      );
+    });
+    await waitFor(() => {
+      expect(loadSnapshot).toHaveBeenCalledTimes(2);
+    });
+
+    expect(result.current.taskTreeCommandError).toBe(null);
+    expect(result.current.uiNotice).toBe("Stop requested.");
   });
 
   it("switches the active session after creating a session", async () => {

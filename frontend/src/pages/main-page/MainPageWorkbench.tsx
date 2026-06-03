@@ -90,6 +90,12 @@ export function MainPageWorkbench({
               })
             }
             onSelectTask={actions.selectTask}
+            onStopTask={(taskNodeId) =>
+              actions.stopTask({
+                sessionId: viewModel.sessionId,
+                taskNodeId,
+              })
+            }
             selectedTaskNodeId={viewModel.taskWorkspace.selectedTaskNodeId}
             taskTree={viewModel.taskWorkspace.taskTree}
           />
@@ -118,6 +124,12 @@ export function MainPageWorkbench({
         }
         onRetryTask={(taskNodeId) =>
           actions.retryTask({
+            sessionId: viewModel.sessionId,
+            taskNodeId,
+          })
+        }
+        onStopTask={(taskNodeId) =>
+          actions.stopTask({
             sessionId: viewModel.sessionId,
             taskNodeId,
           })

@@ -23,6 +23,7 @@ from taskweavn.server.ui_contract.commands import (
     PublishTaskTreePayload,
     ResolveConfirmationPayload,
     RetryTaskPayload,
+    StopTaskPayload,
     UpdateTaskNodePayload,
 )
 from taskweavn.server.ui_contract.envelopes import CommandRequest, CommandResponse
@@ -275,6 +276,48 @@ class DefaultUiCommandGateway:
         except Exception as exc:
             return _command_exception_response(request, exc)
 
+    def stop_task(
+        self,
+        task_node_id: str,
+        request: CommandRequest[StopTaskPayload],
+    ) -> CommandResponse:
+        try:
+            task_ref = self._resolve_task_ref(request.session_id, task_node_id)
+            if task_ref.kind != "published":
+                result = CoreCommandResult(
+                    status="rejected",
+                    message="only published pending or running tasks can be stopped",
+                )
+                return _command_response(request, result)
+            result = self._task_commands.stop_task(
+                request.session_id,
+                task_ref.id,
+                reason=request.payload.reason,
+                request_id=request.command_id,
+            )
+            return _command_response(
+                request,
+                result,
+                object_refs=(ObjectRef(kind="published_task", id=task_ref.id),),
+                affected_objects=(
+                    AffectedObjectRef(
+                        ref=ObjectRef(kind="published_task", id=task_ref.id),
+                        impact="changed",
+                        reason="Stop intent was recorded for this Task.",
+                    ),
+                ),
+                suggested_queries=("session.snapshot", "task.tree", "task.detail"),
+                affected_scopes=(
+                    AffectedScope(kind="task_tree"),
+                    AffectedScope(kind="task_detail", task_ref=task_ref),
+                    AffectedScope(kind="messages"),
+                ),
+            )
+        except LookupError as exc:
+            return _command_not_found_response(request, str(exc))
+        except Exception as exc:
+            return _command_exception_response(request, exc)
+
     def resolve_confirmation(
         self,
         confirmation_id: str,
@@ -368,5 +411,4 @@ class DefaultUiCommandGateway:
             provided_task_tree_id=provided,
             active_draft_tree_id=active_id,
         )
-
 

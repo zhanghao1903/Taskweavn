@@ -297,6 +297,88 @@ def test_skip_marks_pending_task_failed_with_reason(tmp_path: Path) -> None:
         bus.close()
 
 
+def test_interrupt_pending_task_persists_cancelled_failure(tmp_path: Path) -> None:
+    bus = SqliteTaskBus(tmp_path / "tasks.sqlite")
+    try:
+        bus.publish(_root("root"))
+
+        stopped = bus.request_interrupt(
+            "s1",
+            "root",
+            reason="user requested stop",
+            request_id="stop-1",
+        )
+        loaded = bus.get("s1", "root")
+
+        assert stopped.status == "failed"
+        assert stopped.error_ref == "cancelled: user requested stop"
+        assert stopped.interrupt_requested is True
+        assert stopped.interrupt_request_id == "stop-1"
+        assert stopped.interrupt_requested_by == "user"
+        assert stopped.interrupt_requested_at is not None
+        assert stopped.completed_at is not None
+        assert loaded == stopped
+        assert bus.claim_next("s1", capability="general", agent_id="agent-1") is None
+    finally:
+        bus.close()
+
+
+def test_interrupt_running_task_persists_active_intent(tmp_path: Path) -> None:
+    bus = SqliteTaskBus(tmp_path / "tasks.sqlite")
+    try:
+        bus.publish(_root("root"))
+        assert bus.claim_next("s1", capability="general", agent_id="agent-1") is not None
+
+        stopped = bus.request_interrupt(
+            "s1",
+            "root",
+            reason="stop after safe point",
+            request_id="stop-running",
+        )
+        loaded = bus.get("s1", "root")
+
+        assert stopped.status == "running"
+        assert stopped.error_ref is None
+        assert stopped.interrupt_requested is True
+        assert stopped.interrupt_request_id == "stop-running"
+        assert stopped.interrupt_reason == "stop after safe point"
+        assert loaded == stopped
+    finally:
+        bus.close()
+
+
+def test_interrupt_terminal_task_is_rejected(tmp_path: Path) -> None:
+    bus = SqliteTaskBus(tmp_path / "tasks.sqlite")
+    try:
+        bus.publish(_root("root"))
+        bus.claim_next("s1", capability="general", agent_id="agent-1")
+        bus.complete("s1", "root", result_ref="result:root")
+
+        with pytest.raises(TaskStoreError, match="pending or running"):
+            bus.request_interrupt("s1", "root", reason="user requested stop")
+    finally:
+        bus.close()
+
+
+def test_retry_clears_interrupt_intent(tmp_path: Path) -> None:
+    bus = SqliteTaskBus(tmp_path / "tasks.sqlite")
+    try:
+        bus.publish(_root("root"))
+        bus.request_interrupt("s1", "root", reason="user requested stop")
+
+        retried = bus.retry("s1", "root")
+
+        assert retried.status == "pending"
+        assert retried.error_ref is None
+        assert retried.interrupt_requested is False
+        assert retried.interrupt_request_id is None
+        assert retried.interrupt_reason is None
+        assert retried.interrupt_requested_by is None
+        assert retried.interrupt_requested_at is None
+    finally:
+        bus.close()
+
+
 def test_lifecycle_persists_across_reopen(tmp_path: Path) -> None:
     db = tmp_path / "tasks.sqlite"
     first = SqliteTaskBus(db)

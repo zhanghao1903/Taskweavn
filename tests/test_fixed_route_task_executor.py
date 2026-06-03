@@ -222,6 +222,25 @@ def test_agent_loop_resident_default_agent_maps_unfinished_loop_to_error() -> No
     assert result.error_ref == "agent_loop_failed:s1:task-1:max_steps"
 
 
+def test_agent_loop_resident_default_agent_maps_interrupted_loop_to_cancelled_error() -> None:
+    loop = _FakeLoop(
+        LoopResult(
+            final_answer="cancelled: user requested stop; safe_point=before_llm_chat",
+            steps=1,
+            finished=False,
+            stop_reason="interrupted",
+        )
+    )
+    agent = AgentLoopResidentDefaultAgent(loop=loop)
+
+    result = agent.run(_task("task-1"))
+
+    assert result.ok is False
+    assert result.error_ref == (
+        "cancelled: user requested stop; safe_point=before_llm_chat"
+    )
+
+
 def test_agent_loop_resident_default_agent_stores_finished_result_summary() -> None:
     store = InMemoryTaskExecutionSummaryStore()
     loop = _FakeLoop(

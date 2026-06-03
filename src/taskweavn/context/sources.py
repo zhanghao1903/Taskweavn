@@ -17,6 +17,7 @@ from taskweavn.context.models import (
     ExecutionFacts,
     ExecutionGuidance,
     FileSnippet,
+    InterruptionContext,
     ToolResultSummary,
     WorkspaceRef,
 )
@@ -57,6 +58,15 @@ class TaskContextSource:
         task: TaskDomain,
         request: ContextBuildRequest,
     ) -> ExecutionContextState:
+        interruption = None
+        if task.interrupt_requested:
+            interruption = InterruptionContext(
+                requested=True,
+                request_id=task.interrupt_request_id,
+                reason=task.interrupt_reason,
+                requested_by=task.interrupt_requested_by,
+                requested_at=task.interrupt_requested_at,
+            )
         return ExecutionContextState(
             status=task.status,
             claimed_by=task.claimed_by,
@@ -65,7 +75,7 @@ class TaskContextSource:
                 objective=task.intent,
             ),
             latest_user_instruction=request.latest_user_instruction,
-            interruption=None,
+            interruption=interruption,
         )
 
 

@@ -105,6 +105,7 @@ class TaskNodeCardView(UiContractModel):
     order_index: int = Field(default=0, ge=0)
     result_ref: str | None = Field(default=None, min_length=1)
     error_ref: str | None = Field(default=None, min_length=1)
+    interruption_requested: bool = False
     badges: TaskNodeBadges = Field(default_factory=TaskNodeBadges)
     permissions: TaskNodePermissions = Field(default_factory=TaskNodePermissions)
     version: int = Field(default=1, ge=1)

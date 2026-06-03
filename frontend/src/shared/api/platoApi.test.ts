@@ -193,11 +193,19 @@ describe("createHttpPlatoApi", () => {
         startImmediately: true,
       },
     });
+    await api.stopTask("session-1", "task-1", {
+      commandId: "command-stop",
+      sessionId: "session-1",
+      payload: {
+        reason: "user requested stop",
+      },
+    });
 
     expect(calls).toEqual([
       "PATCH https://plato.test/api/v1/sessions/session-1/tasks/task-1",
       "POST https://plato.test/api/v1/sessions/session-1/task-tree/publish",
       "POST https://plato.test/api/v1/sessions/session-1/tasks/task-1/retry",
+      "POST https://plato.test/api/v1/sessions/session-1/tasks/task-1/stop",
     ]);
   });
 

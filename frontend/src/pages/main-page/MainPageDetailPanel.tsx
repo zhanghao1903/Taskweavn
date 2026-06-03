@@ -1,4 +1,4 @@
-import { RotateCcw } from "lucide-react";
+import { CircleStop, RotateCcw } from "lucide-react";
 
 import type { ConfirmationActionView, TaskNodeId } from "../../shared/api/types";
 import { Badge, Button, Panel, Text } from "../../shared/components";
@@ -15,6 +15,7 @@ export type MainPageDetailPanelProps = {
   detail: MainPageDetailView;
   onConfirmationDecision: (decision: Exclude<ConfirmationDecision, null>) => void;
   onRetryTask: (taskNodeId: TaskNodeId) => void;
+  onStopTask: (taskNodeId: TaskNodeId) => void;
   onShowFileChanges: () => void;
   onShowResult: () => void;
 };
@@ -33,6 +34,7 @@ export function MainPageDetailPanel({
   detail,
   onConfirmationDecision,
   onRetryTask,
+  onStopTask,
   onShowFileChanges,
   onShowResult,
 }: MainPageDetailPanelProps) {
@@ -53,6 +55,7 @@ export function MainPageDetailPanel({
         detail={detail}
         onConfirmationDecision={onConfirmationDecision}
         onRetryTask={onRetryTask}
+        onStopTask={onStopTask}
         onShowFileChanges={onShowFileChanges}
         onShowResult={onShowResult}
       />
@@ -64,6 +67,7 @@ type DetailContentProps = {
   detail: MainPageDetailView;
   onConfirmationDecision: (decision: Exclude<ConfirmationDecision, null>) => void;
   onRetryTask: (taskNodeId: TaskNodeId) => void;
+  onStopTask: (taskNodeId: TaskNodeId) => void;
   onShowFileChanges: () => void;
   onShowResult: () => void;
 };
@@ -72,6 +76,7 @@ function DetailContent({
   detail,
   onConfirmationDecision,
   onRetryTask,
+  onStopTask,
   onShowFileChanges,
   onShowResult,
 }: DetailContentProps) {
@@ -100,7 +105,13 @@ function DetailContent({
         />
       );
     case "task":
-      return <TaskDetailPanel detail={detail} onRetryTask={onRetryTask} />;
+      return (
+        <TaskDetailPanel
+          detail={detail}
+          onRetryTask={onRetryTask}
+          onStopTask={onStopTask}
+        />
+      );
     case "note":
       return <StateNotePanel detail={detail} />;
   }
@@ -272,10 +283,21 @@ function FileChangeSummaryPanel({
 function TaskDetailPanel({
   detail,
   onRetryTask,
+  onStopTask,
 }: {
   detail: TaskDetail;
   onRetryTask: (taskNodeId: TaskNodeId) => void;
+  onStopTask: (taskNodeId: TaskNodeId) => void;
 }) {
+  const isStopping = Boolean(
+    detail.selectedTask.interruptionRequested &&
+      (detail.selectedTask.execution === "running" ||
+        detail.selectedTask.status === "running"),
+  );
+  const showStopAction = detail.selectedTask.permissions.canCancel || isStopping;
+  const showPublishedStopAction =
+    detail.selectedTask.taskRef?.kind === "published" && showStopAction;
+
   return (
     <Panel
       className={styles.detailBox}
@@ -289,6 +311,18 @@ function TaskDetailPanel({
         Input now applies to this TaskNode. Completed TaskNodes are read-only;
         running TaskNodes accept appended guidance.
       </Text>
+      {showPublishedStopAction && (
+        <div className={styles.actionRow}>
+          <Button
+            disabled={detail.isStoppingTask || isStopping}
+            onClick={() => onStopTask(detail.selectedTask.id)}
+            variant="danger"
+          >
+            <CircleStop size={14} aria-hidden="true" />
+            {detail.isStoppingTask || isStopping ? "Stopping" : "Stop"}
+          </Button>
+        </div>
+      )}
       {detail.selectedTask.permissions.canRetry && (
         <div className={styles.actionRow}>
           <Button

@@ -10,6 +10,7 @@ from taskweavn.context.models import (
     ContextBuildResult,
     ContextModel,
     ContextRenderMode,
+    InterruptionContext,
     RenderedLlmInput,
 )
 
@@ -44,6 +45,7 @@ class CacheAwareRunState(ContextModel):
     appended_context_message_count: int = 0
     last_delta_hash: str | None = None
     last_pending_decision_count: int = 0
+    last_interruption_signature: str | None = None
 
 
 class ContextRenderTrigger(ContextModel):
@@ -146,6 +148,9 @@ class SessionAgentLoopContextProvider:
             stable_prefix_hash=rendered.stable_prefix_hash,
             last_checkpoint_step=0,
             last_pending_decision_count=request.pending_decision_count,
+            last_interruption_signature=_interruption_signature(
+                result.context.execution.interruption
+            ),
         )
         self._run_states[request.agent_run_id] = state
         return AgentLoopContextCallResult(
@@ -175,8 +180,26 @@ class SessionAgentLoopContextProvider:
             )
         )
         rendered = result.rendered
+        interruption_signature = _interruption_signature(
+            result.context.execution.interruption
+        )
+        if (
+            interruption_signature is not None
+            and interruption_signature != state.last_interruption_signature
+        ):
+            return self._prepare_triggered_context(
+                request,
+                state,
+                ContextRenderTrigger(
+                    render_mode="delta_context",
+                    reason="interrupt_requested",
+                ),
+            )
         self._run_states[request.agent_run_id] = state.model_copy(
-            update={"last_pending_decision_count": request.pending_decision_count}
+            update={
+                "last_pending_decision_count": request.pending_decision_count,
+                "last_interruption_signature": interruption_signature,
+            }
         )
         return AgentLoopContextCallResult(
             llm_messages=rendered.messages,
@@ -207,6 +230,9 @@ class SessionAgentLoopContextProvider:
             )
         )
         rendered = result.rendered
+        interruption_signature = _interruption_signature(
+            result.context.execution.interruption
+        )
         appended_context_messages = _appended_context_messages(
             before=request.loop_messages,
             after=rendered.messages,
@@ -227,6 +253,7 @@ class SessionAgentLoopContextProvider:
                     else state.last_delta_hash
                 ),
                 "last_pending_decision_count": request.pending_decision_count,
+                "last_interruption_signature": interruption_signature,
             }
         )
         self._run_states[request.agent_run_id] = updated_state
@@ -295,3 +322,22 @@ def _appended_context_messages(
     if after[: len(before)] != before:
         return ()
     return after[len(before) :]
+
+
+def _interruption_signature(interruption: InterruptionContext | None) -> str | None:
+    if interruption is None or not interruption.requested:
+        return None
+    if interruption.request_id is not None:
+        return f"request_id:{interruption.request_id}"
+    requested_at = (
+        interruption.requested_at.isoformat()
+        if interruption.requested_at is not None
+        else "unknown_time"
+    )
+    return "|".join(
+        (
+            f"requested_by:{interruption.requested_by or 'unknown'}",
+            f"reason:{interruption.reason or 'none'}",
+            f"requested_at:{requested_at}",
+        )
+    )

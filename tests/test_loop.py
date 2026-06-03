@@ -19,7 +19,12 @@ from taskweavn.context import (
     TaskContextSource,
 )
 from taskweavn.core import SqliteEventStream
-from taskweavn.core.loop import FINISH_TOOL_NAME, AgentLoop, LoopError
+from taskweavn.core.loop import (
+    FINISH_TOOL_NAME,
+    AgentLoop,
+    LoopError,
+    LoopInterruptIntent,
+)
 from taskweavn.llm.client import ChatResponse, ToolCall
 from taskweavn.runtime import LocalRuntime
 from taskweavn.task import InMemoryTaskBus, TaskDomain
@@ -80,6 +85,23 @@ class FailingLLM:
     ) -> ChatResponse:
         self.calls.append({"messages": list(messages), "tools": tools, "metadata": metadata})
         raise self.exc
+
+
+class SequenceInterruptChecker:
+    def __init__(self, *, interrupt_on_call: int) -> None:
+        self.interrupt_on_call = interrupt_on_call
+        self.calls: list[str] = []
+
+    def interrupt_for_task(self, task_id: str) -> LoopInterruptIntent | None:
+        self.calls.append(task_id)
+        if len(self.calls) != self.interrupt_on_call:
+            return None
+        return LoopInterruptIntent(
+            task_id=task_id,
+            request_id="stop-1",
+            reason="user requested stop",
+            requested_by="user",
+        )
 
 
 def _finish_response(answer: str, call_id: str = "c1") -> ChatResponse:
@@ -259,6 +281,51 @@ def test_loop_records_llm_chat_failure_as_event(workspace: Workspace) -> None:
     assert events[0].step == 1
     assert events[0].model_name == "test/failing-model"
     assert "provider 500" in events[0].message
+
+
+def test_loop_stops_before_llm_call_when_interrupt_requested(workspace: Workspace) -> None:
+    llm = StubLLM([_finish_response("should not run")])
+    loop = _build_loop(workspace, llm)
+    loop.interrupt_checker = SequenceInterruptChecker(interrupt_on_call=1)
+
+    result = loop.run("write hello.txt", task_id="task-1")
+
+    assert result.finished is False
+    assert result.stop_reason == "interrupted"
+    assert result.final_answer.startswith("cancelled: user requested stop")
+    assert llm.calls == []
+    events = list(loop.event_stream)
+    assert len(events) == 1
+    assert isinstance(events[0], AgentErrorObservation)
+    assert events[0].error_type == "interrupted"
+    assert events[0].phase == "step_start"
+
+
+def test_loop_stops_before_tool_dispatch_when_interrupt_requested(
+    workspace: Workspace,
+) -> None:
+    llm = StubLLM(
+        [
+            _tool_call_response(
+                "write_file",
+                {"path": "hello.txt", "content": "hi"},
+                call_id="c1",
+            )
+        ]
+    )
+    loop = _build_loop(workspace, llm)
+    loop.interrupt_checker = SequenceInterruptChecker(interrupt_on_call=4)
+
+    result = loop.run("write hello.txt", task_id="task-1")
+
+    assert result.finished is False
+    assert result.stop_reason == "interrupted"
+    assert not (workspace.root / "hello.txt").exists()
+    events = list(loop.event_stream)
+    assert len(events) == 1
+    assert isinstance(events[0], AgentErrorObservation)
+    assert events[0].error_type == "interrupted"
+    assert events[0].phase == "after_llm_response"
 
 
 def test_loop_executes_tool_then_finishes(workspace: Workspace) -> None:

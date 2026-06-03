@@ -9,6 +9,7 @@ from taskweavn.server.ui_contract.commands import (
     PublishTaskTreePayload,
     ResolveConfirmationPayload,
     RetryTaskPayload,
+    StopTaskPayload,
     UpdateTaskNodePayload,
 )
 from taskweavn.server.ui_contract.envelopes import (
@@ -254,6 +255,7 @@ __all__ = [
     "RelatedLogsLink",
     "resync_required",
     "RetryTaskPayload",
+    "StopTaskPayload",
     "ResolveConfirmationPayload",
     "ResultCardView",
     "ResultSectionView",

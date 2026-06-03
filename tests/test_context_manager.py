@@ -288,6 +288,36 @@ def test_session_context_manager_builds_and_stores_context(tmp_path: Path) -> No
     assert store.get_trace(result.trace.trace_id) == result.trace
 
 
+def test_task_context_source_populates_interruption_context() -> None:
+    bus = InMemoryTaskBus()
+    bus.publish(_task())
+    claimed = bus.claim_next("session-1", capability="general", agent_id="default_agent")
+    assert claimed is not None
+    stopped = bus.request_interrupt(
+        "session-1",
+        "task-1",
+        reason="user requested stop",
+        request_id="stop-1",
+    )
+    source = TaskContextSource(bus)
+
+    execution = source.execution_state(
+        stopped,
+        ContextBuildRequest(
+            session_id="session-1",
+            task_id="task-1",
+            agent_run_id="run-1",
+        ),
+    )
+
+    assert execution.interruption is not None
+    assert execution.interruption.requested is True
+    assert execution.interruption.request_id == "stop-1"
+    assert execution.interruption.reason == "user requested stop"
+    assert execution.interruption.requested_by == "user"
+    assert execution.interruption.requested_at is not None
+
+
 def test_session_agent_loop_provider_initializes_start_context_once() -> None:
     bus = InMemoryTaskBus()
     bus.publish(_task())
@@ -458,6 +488,58 @@ def test_session_agent_loop_provider_accepts_future_delta_trigger() -> None:
     assert len(delta.appended_context_messages) == 1
     assert "# Context Delta" in delta.appended_context_messages[0]["content"]
     assert "Reason: pending_decision_count_changed" in delta.appended_context_messages[0]["content"]
+
+
+def test_session_agent_loop_provider_appends_interrupt_delta() -> None:
+    bus = InMemoryTaskBus()
+    bus.publish(_task())
+    store = InMemoryContextStore()
+    manager = SessionContextManager(
+        task_source=TaskContextSource(bus),
+        store=store,
+    )
+    provider = SessionAgentLoopContextProvider(
+        manager,
+        checkpoint_interval_steps=0,
+    )
+    first = provider.prepare_llm_call(
+        AgentLoopContextRequest(
+            session_id="session-1",
+            task_id="task-1",
+            agent_run_id="run-1",
+            turn_index=1,
+            loop_messages=(
+                {"role": "system", "content": "loop system"},
+                {"role": "user", "content": "loop task"},
+            ),
+        )
+    )
+    claimed = bus.claim_next("session-1", capability="general", agent_id="default_agent")
+    assert claimed is not None
+    bus.request_interrupt(
+        "session-1",
+        "task-1",
+        reason="user requested stop",
+        request_id="stop-1",
+    )
+
+    delta = provider.prepare_llm_call(
+        AgentLoopContextRequest(
+            session_id="session-1",
+            task_id="task-1",
+            agent_run_id="run-1",
+            turn_index=2,
+            loop_messages=first.persisted_messages,
+        )
+    )
+
+    assert delta.render_mode == "delta_context"
+    assert delta.delta_reason == "interrupt_requested"
+    assert delta.stable_prefix_hash == first.stable_prefix_hash
+    assert len(delta.appended_context_messages) == 1
+    assert "# Context Delta" in delta.appended_context_messages[0]["content"]
+    assert "Reason: interrupt_requested" in delta.appended_context_messages[0]["content"]
+    assert "interruption_requested" in delta.appended_context_messages[0]["content"]
 
 
 def test_workspace_layout_has_session_context_db(tmp_path: Path) -> None:

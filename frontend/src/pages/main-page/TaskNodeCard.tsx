@@ -1,4 +1,4 @@
-import { Circle, RotateCcw } from "lucide-react";
+import { Circle, CircleStop, RotateCcw } from "lucide-react";
 
 import type { TaskNodeCardView, TaskNodeId } from "../../shared/api/types";
 import { Badge, Button } from "../../shared/components";
@@ -10,6 +10,7 @@ export type TaskNodeCardProps = {
   node: TaskNodeCardView;
   onRetryTask: (nodeId: TaskNodeId) => void;
   onSelectTask: (nodeId: TaskNodeId) => void;
+  onStopTask: (nodeId: TaskNodeId) => void;
 };
 
 export function TaskNodeCard({
@@ -17,8 +18,15 @@ export function TaskNodeCard({
   node,
   onRetryTask,
   onSelectTask,
+  onStopTask,
 }: TaskNodeCardProps) {
   const statusPresentation = selectTaskNodeDimensionPresentation(node);
+  const isStopping = Boolean(
+    node.interruptionRequested &&
+      (node.execution === "running" || node.status === "running"),
+  );
+  const showStopAction =
+    node.taskRef?.kind === "published" && (node.permissions.canCancel || isStopping);
 
   return (
     <div
@@ -39,6 +47,18 @@ export function TaskNodeCard({
         </Badge>
       </button>
       <div className={styles.taskInlineActions}>
+        {showStopAction ? (
+          <Button
+            className={styles.taskRetryButton}
+            disabled={isStopping}
+            onClick={() => onStopTask(node.id)}
+            size="sm"
+            variant="danger"
+          >
+            <CircleStop size={14} aria-hidden="true" />
+            {isStopping ? "Stopping" : "Stop"}
+          </Button>
+        ) : null}
         {node.permissions.canRetry ? (
           <Button
             className={styles.taskRetryButton}

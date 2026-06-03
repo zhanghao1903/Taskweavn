@@ -17,6 +17,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 TaskStatus = Literal["pending", "running", "done", "failed"]
 DraftTaskStatus = Literal["draft", "accepted", "published", "cancelled"]
 TaskRefKind = Literal["draft", "published"]
+TaskInterruptRequestedBy = Literal["user", "system"]
 
 
 def _utcnow() -> datetime:
@@ -84,6 +85,11 @@ class TaskDomain(_FrozenModel):
     result_ref: str | None = Field(default=None, min_length=1)
     error_ref: str | None = Field(default=None, min_length=1)
     claimed_by: str | None = Field(default=None, min_length=1)
+    interrupt_requested: bool = False
+    interrupt_request_id: str | None = Field(default=None, min_length=1)
+    interrupt_reason: str | None = Field(default=None, min_length=1)
+    interrupt_requested_by: TaskInterruptRequestedBy | None = None
+    interrupt_requested_at: datetime | None = None
 
     created_by: str = Field(min_length=1)
     created_at: datetime = Field(default_factory=_utcnow)

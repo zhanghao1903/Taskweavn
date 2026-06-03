@@ -18,6 +18,7 @@ from taskweavn.context import (
 )
 from taskweavn.core import (
     AgentLoop,
+    LoopInterruptIntent,
     LoopResult,
     SqliteEventStream,
     WorkspaceLayout,
@@ -73,6 +74,7 @@ def build_agent_loop_resident_default_agent(
             session_id=task.session_id,
             max_steps=max_steps,
             ui_event_store=ui_event_store,
+            task_bus=task_bus,
             context_builder=(
                 None if context_builder_factory is None else context_builder_factory(task)
             ),
@@ -119,6 +121,7 @@ class _SessionAgentLoopRunner:
     session_id: str
     max_steps: int
     ui_event_store: UiEventStore | None = None
+    task_bus: TaskBus | None = None
     context_builder: _SessionContextBuilder | None = None
 
     def run(self, task: str, *, task_id: str | None = None) -> LoopResult:
@@ -149,6 +152,14 @@ class _SessionAgentLoopRunner:
                     if self.context_builder is None
                     else SessionAgentLoopContextProvider(self.context_builder)
                 ),
+                interrupt_checker=(
+                    None
+                    if self.task_bus is None
+                    else _TaskBusInterruptChecker(
+                        task_bus=self.task_bus,
+                        session_id=self.session_id,
+                    )
+                ),
             )
             result = loop.run(task, task_id=task_id)
             if task_id is not None:
@@ -160,6 +171,25 @@ class _SessionAgentLoopRunner:
             return result
         finally:
             event_stream.close()
+
+
+@dataclass(frozen=True)
+class _TaskBusInterruptChecker:
+    """Read the latest TaskBus interrupt intent for one running task."""
+
+    task_bus: TaskBus
+    session_id: str
+
+    def interrupt_for_task(self, task_id: str) -> LoopInterruptIntent | None:
+        task = self.task_bus.get(self.session_id, task_id)
+        if task is None or task.status != "running" or not task.interrupt_requested:
+            return None
+        return LoopInterruptIntent(
+            task_id=task.task_id,
+            request_id=task.interrupt_request_id,
+            reason=task.interrupt_reason,
+            requested_by=task.interrupt_requested_by,
+        )
 
 
 __all__ = ["build_agent_loop_resident_default_agent"]

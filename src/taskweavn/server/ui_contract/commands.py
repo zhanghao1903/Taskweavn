@@ -63,6 +63,10 @@ class RetryTaskPayload(UiContractModel):
     start_immediately: bool = True
 
 
+class StopTaskPayload(UiContractModel):
+    reason: str | None = Field(default=None, min_length=1)
+
+
 class DispatchExecutionPayload(UiContractModel):
     reason: Literal["manual_control_route"] = "manual_control_route"
 

@@ -81,6 +81,10 @@ export type RetryTaskPayload = {
   startImmediately: boolean;
 };
 
+export type StopTaskPayload = {
+  reason?: string;
+};
+
 export type ResolveConfirmationPayload = {
   value: string;
   note?: string;
@@ -178,6 +182,11 @@ export type PlatoApi = {
     sessionId: SessionId,
     taskNodeId: TaskNodeId,
     request: CommandRequest<RetryTaskPayload>,
+  ): Promise<CommandResponse>;
+  stopTask(
+    sessionId: SessionId,
+    taskNodeId: TaskNodeId,
+    request: CommandRequest<StopTaskPayload>,
   ): Promise<CommandResponse>;
   resolveConfirmation(
     sessionId: SessionId,
@@ -345,6 +354,12 @@ export function createHttpPlatoApi(options: HttpPlatoApiOptions): PlatoApi {
     retryTask(sessionId, taskNodeId, request) {
       return client.postJson<CommandResponse>(
         `/api/v1/sessions/${segment(sessionId)}/tasks/${segment(taskNodeId)}/retry`,
+        request,
+      );
+    },
+    stopTask(sessionId, taskNodeId, request) {
+      return client.postJson<CommandResponse>(
+        `/api/v1/sessions/${segment(sessionId)}/tasks/${segment(taskNodeId)}/stop`,
         request,
       );
     },

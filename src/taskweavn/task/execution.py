@@ -478,6 +478,18 @@ class AgentLoopResidentDefaultAgent:
                     )
                 )
             return TaskRunResult(result_ref=result_ref)
+        if result.stop_reason == "interrupted":
+            error_ref = _cancelled_error_ref(result.final_answer)
+            if self.result_summary_store is not None:
+                self.result_summary_store.put(
+                    build_agent_loop_error_summary(
+                        summary_id=error_ref,
+                        task=task,
+                        stop_reason=result.stop_reason,
+                        final_answer=result.final_answer,
+                    )
+                )
+            return TaskRunResult(error_ref=error_ref)
         error_ref = f"{self.error_ref_prefix}:{task.session_id}:{task.task_id}:{result.stop_reason}"
         if self.result_summary_store is not None:
             self.result_summary_store.put(
@@ -489,6 +501,15 @@ class AgentLoopResidentDefaultAgent:
                 )
             )
         return TaskRunResult(error_ref=error_ref)
+
+
+def _cancelled_error_ref(final_answer: str) -> str:
+    normalized = " ".join(final_answer.strip().split())
+    if normalized.lower().startswith("cancelled:"):
+        return normalized
+    if normalized:
+        return f"cancelled: {normalized}"
+    return "cancelled: interrupted at safe point"
 
 
 def _select_next_eligible_pending_task(
