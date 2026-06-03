@@ -714,6 +714,83 @@ def test_main_page_sidecar_app_fixed_route_tick_runs_agent_loop_default_agent(
     assert '"taskNodeId":"loop-task"' in events.text
 
 
+def test_main_page_sidecar_app_agent_loop_creates_ask_and_resumes_with_answer_fact(
+    tmp_path: Any,
+) -> None:
+    llm = _AgentLoopSequencedLLM(
+        [
+            _agent_loop_tool_call_response(
+                "ask_user",
+                {
+                    "question": "Which deployment target should be used?",
+                    "reason": "Deployment target is a user-owned decision.",
+                    "suggested_options": ["Vercel", "Netlify"],
+                },
+                call_id="ask-1",
+            ),
+            ChatResponse(
+                content="Deployment target recorded.",
+                tool_calls=[],
+                raw_assistant_message={
+                    "role": "assistant",
+                    "content": "Deployment target recorded.",
+                },
+            ),
+        ]
+    )
+    app = build_main_page_sidecar_app(
+        MainPageSidecarConfig(
+            workspace_root=tmp_path,
+            port=0,
+            enable_execution_dispatcher=False,
+        ),
+        MainPageSidecarDependencies(llm=llm),
+    )
+    try:
+        session_id = _create_session(app)
+        app.task_bus.publish(_published_task("ask-runtime-task", session_id=session_id))
+
+        first_tick = app.run_fixed_route_tick(session_id)
+        pending_asks = app.ask_store.list_for_session(
+            session_id,
+            statuses=("pending",),
+            task_id="ask-runtime-task",
+        )
+        snapshot = _request(app, "GET", f"/api/v1/sessions/{session_id}/snapshot")
+        answer = _request(
+            app,
+            "POST",
+            f"/api/v1/sessions/{session_id}/asks/{pending_asks[0].ask_id}/answer",
+            body={
+                "commandId": "answer-runtime-ask",
+                "sessionId": session_id,
+                "payload": {"text": "Use Vercel."},
+            },
+        )
+        resumed = app.task_bus.get(session_id, "ask-runtime-task")
+        second_tick = app.run_fixed_route_tick(session_id)
+        completed = app.task_bus.get(session_id, "ask-runtime-task")
+    finally:
+        app.close()
+
+    assert first_tick.status == "waiting_for_user"
+    assert pending_asks[0].question == "Which deployment target should be used?"
+    assert snapshot.json["data"]["activeAsk"]["id"] == pending_asks[0].ask_id
+    assert snapshot.json["data"]["session"]["status"] == "waiting_user"
+    assert answer.status == 200
+    assert answer.json["ok"] is True
+    assert resumed is not None
+    assert resumed.status == "pending"
+    assert second_tick.status == "completed"
+    assert completed is not None
+    assert completed.status == "done"
+    first_tool_names = {tool["function"]["name"] for tool in llm.calls[0]["tools"]}
+    assert "ask_user" in first_tool_names
+    second_prompt = llm.calls[1]["messages"][1]["content"]
+    assert "ask_id=" + pending_asks[0].ask_id + " status=answered" in second_prompt
+    assert "answer: Use Vercel." in second_prompt
+
+
 def test_main_page_sidecar_app_projects_file_change_summary_from_agent_loop_events(
     tmp_path: Any,
 ) -> None:

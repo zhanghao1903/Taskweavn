@@ -42,7 +42,7 @@ from __future__ import annotations
 import contextlib
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Any, Literal, Protocol, TypeGuard, runtime_checkable
 from uuid import uuid4
 
 from pydantic import ValidationError
@@ -64,6 +64,7 @@ from taskweavn.observability import LogContext, use_log_context
 from taskweavn.prompts import AGENT_LOOP_SYSTEM_PROMPT
 from taskweavn.runtime.base import Runtime
 from taskweavn.tools.base import Tool
+from taskweavn.types.ask import AskUserObservation
 from taskweavn.types.base import BaseAction, BaseEvent, BaseObservation
 from taskweavn.types.code_action import CodeAction, CodeExecutionObservation
 from taskweavn.types.common import (
@@ -467,6 +468,13 @@ class AgentLoop:
                 self._append_event(observation)
                 messages.append(self._tool_message(tool_call.id, observation))
                 self._maybe_audit(action, observation, messages)
+                if _is_blocking_ask_observation(observation):
+                    return LoopResult(
+                        final_answer=observation.message,
+                        steps=step,
+                        finished=False,
+                        stop_reason="waiting_for_user",
+                    )
                 interrupted = self._check_interrupt(
                     f"after_tool:{tool_call.name}",
                     step,
@@ -973,3 +981,13 @@ def _is_rejection(value: str | None) -> bool:
     if not stripped:
         return False
     return stripped in _REJECTION_TOKENS
+
+
+def _is_blocking_ask_observation(
+    observation: BaseObservation,
+) -> TypeGuard[AskUserObservation]:
+    return (
+        isinstance(observation, AskUserObservation)
+        and observation.success
+        and observation.status == "waiting_for_user"
+    )

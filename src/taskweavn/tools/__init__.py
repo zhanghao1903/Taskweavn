@@ -1,5 +1,6 @@
 """Tool layer: file + shell tools the agent can invoke."""
 
+from taskweavn.tools.ask import AskUserTool
 from taskweavn.tools.base import Tool
 from taskweavn.tools.code_action_tool import CodeActionTool
 from taskweavn.tools.fs import (
@@ -22,6 +23,7 @@ from taskweavn.tools.shell import (
 from taskweavn.tools.workspace import PathOutsideWorkspaceError, Workspace
 
 __all__ = [
+    "AskUserTool",
     "CodeActionTool",
     "CommandResultObservation",
     "DirEntry",

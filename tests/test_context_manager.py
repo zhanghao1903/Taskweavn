@@ -7,6 +7,7 @@ from pathlib import Path
 
 from taskweavn.context import (
     AgentLoopContextRequest,
+    AskContextSource,
     CacheAwareRunState,
     ContextBudget,
     ContextBuildRequest,
@@ -37,6 +38,7 @@ from taskweavn.context import (
     WorkspaceRef,
 )
 from taskweavn.core import SqliteEventStream, WorkspaceLayout
+from taskweavn.interaction import AskAnswer, AskRequest, InMemoryAskStore
 from taskweavn.task import InMemoryTaskBus, TaskDomain
 from taskweavn.tools.fs import FileContentObservation, ReadFileAction
 
@@ -286,6 +288,50 @@ def test_session_context_manager_builds_and_stores_context(tmp_path: Path) -> No
     assert result.context.facts.selected_file_snippets[0].content == "hello"
     assert store.get_snapshot(result.snapshot.snapshot_id) == result.snapshot
     assert store.get_trace(result.trace.trace_id) == result.trace
+
+
+def test_session_context_manager_renders_answered_ask_fact() -> None:
+    bus = InMemoryTaskBus()
+    bus.publish(_task())
+    ask_store = InMemoryAskStore()
+    ask = ask_store.create(
+        AskRequest(
+            ask_id="ask-1",
+            session_id="session-1",
+            task_id="task-1",
+            question="Which deployment target should be used?",
+            reason="The agent needs a user-owned deployment decision.",
+        )
+    )
+    answer_result = ask_store.answer(
+        "session-1",
+        ask.ask_id,
+        AskAnswer(
+            ask_id=ask.ask_id,
+            session_id="session-1",
+            task_id="task-1",
+            text="Use Vercel.",
+        ),
+    )
+    assert answer_result.accepted is True
+    manager = SessionContextManager(
+        task_source=TaskContextSource(bus),
+        ask_source=AskContextSource(ask_store),
+    )
+
+    result = manager.build(
+        ContextBuildRequest(
+            session_id="session-1",
+            task_id="task-1",
+            agent_run_id="run-ask",
+            render_mode="start_context",
+        )
+    )
+
+    assert result.context.facts.ask_facts[0].status == "answered"
+    assert result.context.facts.ask_facts[0].answer_text == "Use Vercel."
+    assert "ask_id=ask-1 status=answered" in result.rendered.user_content
+    assert "answer: Use Vercel." in result.rendered.user_content
 
 
 def test_task_context_source_populates_interruption_context() -> None:

@@ -31,6 +31,7 @@ TaskExecutionTickStatus = Literal[
     "idle",
     "completed",
     "failed",
+    "waiting_for_user",
     "claim_not_available",
     "health_error",
 ]
@@ -67,10 +68,11 @@ class TaskRunResult:
 
     result_ref: str | None = None
     error_ref: str | None = None
+    waiting_for_user: bool = False
 
     @property
     def ok(self) -> bool:
-        return self.error_ref is None
+        return self.error_ref is None and not self.waiting_for_user
 
 
 @runtime_checkable
@@ -223,6 +225,49 @@ class FixedRouteTaskExecutor:
                 claimed_task_id=claimed.task_id,
                 failed_task_id=failed.task_id,
                 error_ref=failed.error_ref,
+            )
+
+        if run_result.waiting_for_user:
+            waiting_task = self._task_bus.get(claimed.session_id, claimed.task_id)
+            if waiting_task is not None and waiting_task.status == "waiting_for_user":
+                return TaskExecutionTickResult(
+                    status="waiting_for_user",
+                    session_id=self._config.session_id,
+                    claimed_task_id=claimed.task_id,
+                    skipped_reason=waiting_task.waiting_for_ask_id,
+                )
+            error_ref = _ensure_error_ref_readable(
+                self._result_summary_store,
+                claimed,
+                "agent_loop_waiting_without_task_state",
+            )
+            if waiting_task is not None and waiting_task.status in {
+                "running",
+                "waiting_for_user",
+            }:
+                failed = self._task_bus.fail(
+                    claimed.session_id,
+                    claimed.task_id,
+                    error_ref=error_ref,
+                )
+                _publish_execution_message(
+                    self._message_bus,
+                    failed,
+                    summary=_summary_for_ref(self._result_summary_store, failed.error_ref),
+                )
+                return TaskExecutionTickResult(
+                    status="failed",
+                    session_id=self._config.session_id,
+                    claimed_task_id=claimed.task_id,
+                    failed_task_id=failed.task_id,
+                    error_ref=failed.error_ref,
+                )
+            return TaskExecutionTickResult(
+                status="failed",
+                session_id=self._config.session_id,
+                claimed_task_id=claimed.task_id,
+                skipped_reason="waiting_without_task_state",
+                error_ref=error_ref,
             )
 
         if run_result.ok:
@@ -479,6 +524,8 @@ class AgentLoopResidentDefaultAgent:
                     )
                 )
             return TaskRunResult(result_ref=result_ref)
+        if result.stop_reason == "waiting_for_user":
+            return TaskRunResult(waiting_for_user=True)
         if result.stop_reason == "interrupted":
             error_ref = _cancelled_error_ref(result.final_answer)
             if self.result_summary_store is not None:

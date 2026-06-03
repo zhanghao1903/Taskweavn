@@ -20,6 +20,7 @@ from taskweavn.context.models import (
 from taskweavn.context.policy import DeterministicContextPolicy
 from taskweavn.context.renderer import DeterministicContextRenderer
 from taskweavn.context.sources import (
+    AskContextSource,
     ControlContextSource,
     EventStreamContextSource,
     GuidanceContextSource,
@@ -36,6 +37,7 @@ class SessionContextManager:
 
     task_source: TaskContextSource
     event_source: EventStreamContextSource | None = None
+    ask_source: AskContextSource | None = None
     workspace_source: WorkspaceEvidenceContextSource = field(
         default_factory=WorkspaceEvidenceContextSource
     )
@@ -62,7 +64,12 @@ class SessionContextManager:
                 ),
             )
         workspace_facts = self.workspace_source.collect(request)
-        facts = merge_facts(event_facts, workspace_facts)
+        ask_facts = (
+            ExecutionFacts()
+            if self.ask_source is None
+            else self.ask_source.collect(request)
+        )
+        facts = merge_facts(event_facts, workspace_facts, ask_facts)
         snapshot_id = new_context_id("ctx")
         trace_id = new_context_id("trace")
         trace_ref = ContextTraceRef(snapshot_id=snapshot_id, trace_id=trace_id)

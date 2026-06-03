@@ -14,6 +14,8 @@ from taskweavn.context.agent_loop_provider import (
 from taskweavn.context.manager import SessionContextManager
 from taskweavn.context.models import (
     ApprovalSummary,
+    AskFact,
+    AskFactStatus,
     ContextBudget,
     ContextBuildRequest,
     ContextBuildResult,
@@ -43,6 +45,7 @@ from taskweavn.context.models import (
 from taskweavn.context.policy import DeterministicContextPolicy
 from taskweavn.context.renderer import DeterministicContextRenderer
 from taskweavn.context.sources import (
+    AskContextSource,
     ContextSourceError,
     ControlContextSource,
     EventStreamContextSource,
@@ -58,6 +61,9 @@ __all__ = [
     "AgentLoopContextProvider",
     "AgentLoopContextCallResult",
     "AgentLoopContextRequest",
+    "AskContextSource",
+    "AskFact",
+    "AskFactStatus",
     "CacheAwareAgentLoopContextProvider",
     "CacheAwareRunState",
     "ContextBuilder",

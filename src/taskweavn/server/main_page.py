@@ -281,6 +281,7 @@ def build_main_page_sidecar_app(
                 layout=layout,
                 llm=dependencies.llm,
                 task_bus=task_bus,
+                ask_store=ask_store,
                 max_steps=config.default_agent_max_steps,
                 result_summary_store=result_summary_store,
                 ui_event_store=event_store,

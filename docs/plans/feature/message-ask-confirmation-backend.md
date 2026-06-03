@@ -346,7 +346,7 @@ Implementation note:
 
 ### C6. Runtime And Resume Integration
 
-Current status: planned.
+Current status: implemented.
 
 Deliver:
 
@@ -361,6 +361,14 @@ Acceptance:
 - task stops executing after blocking ASK creation;
 - answer survives restart before resume;
 - resumed LLM input contains the answer fact.
+
+Implementation notes:
+
+- AgentLoop exposes an `ask_user` execution tool for blocking ASK creation.
+- FixedRouteTaskExecutor treats `waiting_for_user` as a neutral drain stop, not
+  completion or failure.
+- Context Manager renders pending/answered ASK facts into full, start, delta,
+  and checkpoint context inputs.
 
 ### C7. Tests And Docs Closure
 

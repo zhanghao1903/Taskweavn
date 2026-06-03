@@ -72,6 +72,27 @@ def test_fixed_route_executor_fails_when_agent_returns_error() -> None:
     assert task.error_ref == "agent:error"
 
 
+def test_fixed_route_executor_returns_waiting_when_agent_blocks_for_user() -> None:
+    bus = InMemoryTaskBus([_task("task-1")])
+    executor = FixedRouteTaskExecutor(
+        task_bus=bus,
+        default_agent=_WaitingAgent(bus=bus, ask_id="ask-1"),
+        config=FixedRouteTaskExecutorConfig(session_id="s1"),
+    )
+
+    result = executor.tick()
+
+    assert result.status == "waiting_for_user"
+    assert result.claimed_task_id == "task-1"
+    assert result.skipped_reason == "ask-1"
+
+    task = bus.get("s1", "task-1")
+    assert task is not None
+    assert task.status == "waiting_for_user"
+    assert task.waiting_for_ask_id == "ask-1"
+    assert task.claimed_by == "default_agent"
+
+
 def test_fixed_route_executor_fails_when_agent_raises() -> None:
     bus = InMemoryTaskBus([_task("task-1")])
     executor = FixedRouteTaskExecutor(
@@ -220,6 +241,24 @@ def test_agent_loop_resident_default_agent_maps_unfinished_loop_to_error() -> No
 
     assert result.ok is False
     assert result.error_ref == "agent_loop_failed:s1:task-1:max_steps"
+
+
+def test_agent_loop_resident_default_agent_maps_waiting_loop_to_waiting_result() -> None:
+    loop = _FakeLoop(
+        LoopResult(
+            final_answer="waiting_for_user: ask_id=ask-1",
+            steps=1,
+            finished=False,
+            stop_reason="waiting_for_user",
+        )
+    )
+    agent = AgentLoopResidentDefaultAgent(loop=loop)
+
+    result = agent.run(_task("task-1"))
+
+    assert result.waiting_for_user is True
+    assert result.ok is False
+    assert result.error_ref is None
 
 
 def test_agent_loop_resident_default_agent_maps_interrupted_loop_to_cancelled_error() -> None:
@@ -613,6 +652,16 @@ class _FakeAgent:
         if self.raises is not None:
             raise self.raises
         return self.result or TaskRunResult()
+
+
+@dataclass
+class _WaitingAgent:
+    bus: InMemoryTaskBus
+    ask_id: str
+
+    def run(self, task: TaskDomain) -> TaskRunResult:
+        self.bus.wait_for_user(task.session_id, task.task_id, ask_id=self.ask_id)
+        return TaskRunResult(waiting_for_user=True)
 
 
 @dataclass

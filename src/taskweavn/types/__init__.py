@@ -9,6 +9,7 @@ produce them (tools, runtime, loop). Importing those modules registers their
 kinds with the registries.
 """
 
+from taskweavn.types.ask import AskUserAction, AskUserObservation
 from taskweavn.types.base import BaseAction, BaseEvent, BaseObservation
 from taskweavn.types.code_action import (
     CodeAction,
@@ -29,6 +30,8 @@ __all__ = [
     "AgentErrorObservation",
     "AgentFinishAction",
     "AgentFinishObservation",
+    "AskUserAction",
+    "AskUserObservation",
     "BaseAction",
     "BaseEvent",
     "BaseObservation",

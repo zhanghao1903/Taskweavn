@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Literal, Protocol, TypeGuard
 
 from taskweavn.context.models import (
+    AskFact,
     ContextBuildRequest,
     CurrentStepContext,
     EventSummary,
@@ -27,6 +28,7 @@ from taskweavn.tools.fs import FileContentObservation
 from taskweavn.types.base import BaseAction, BaseEvent, BaseObservation
 
 if TYPE_CHECKING:
+    from taskweavn.interaction import AskStore
     from taskweavn.task.bus import TaskBus
     from taskweavn.task.models import TaskDomain
 
@@ -131,6 +133,21 @@ class WorkspaceEvidenceContextSource:
 
 
 @dataclass(frozen=True)
+class AskContextSource:
+    ask_store: AskStore
+
+    def collect(self, request: ContextBuildRequest) -> ExecutionFacts:
+        asks = self.ask_store.list_for_session(
+            request.session_id,
+            statuses=("pending", "answered"),
+            task_id=request.task_id,
+        )
+        return ExecutionFacts(
+            ask_facts=tuple(_ask_fact(self.ask_store, request.session_id, ask) for ask in asks)
+        )
+
+
+@dataclass(frozen=True)
 class ControlContextSource:
     allowed_tools: tuple[str, ...] = ()
     denied_tools: tuple[str, ...] = ()
@@ -165,6 +182,7 @@ def merge_facts(*facts: ExecutionFacts) -> ExecutionFacts:
         selected_file_snippets=tuple(
             _chain(fact.selected_file_snippets for fact in facts)
         ),
+        ask_facts=tuple(_chain(fact.ask_facts for fact in facts)),
         changed_artifacts=tuple(_chain(fact.changed_artifacts for fact in facts)),
     )
 
@@ -236,6 +254,31 @@ def _file_snippet(
         observed_at=observation.timestamp,
         stale=False,
         can_act_as_instruction=False,
+    )
+
+
+def _ask_fact(
+    ask_store: AskStore,
+    session_id: str,
+    ask: object,
+) -> AskFact:
+    from taskweavn.interaction import AskRequest
+
+    if not isinstance(ask, AskRequest):
+        ask = AskRequest.model_validate(ask)
+    answer = ask_store.get_answer(session_id, ask.ask_id)
+    return AskFact(
+        ask_id=ask.ask_id,
+        task_id=ask.task_id,
+        status=ask.status,
+        question=ask.question,
+        reason=ask.reason,
+        selected_option_ids=() if answer is None else answer.selected_option_ids,
+        answer_text=None if answer is None else answer.text,
+        answer_id=ask.answer_id,
+        blocking=ask.blocking,
+        created_at=ask.created_at,
+        answered_at=ask.answered_at,
     )
 
 
