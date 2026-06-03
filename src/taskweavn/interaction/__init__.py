@@ -14,6 +14,19 @@ and the human / multi-agent collaboration story documented in
 ``docs/interaction_layer_design.md``.
 """
 
+from taskweavn.interaction.ask import (
+    AskAnswer,
+    AskAnswerType,
+    AskCommandKind,
+    AskCommandResultStatus,
+    AskOption,
+    AskRequest,
+    AskStatus,
+    AskStore,
+    AskStoreCommandResult,
+    AskStoreError,
+    InMemoryAskStore,
+)
 from taskweavn.interaction.autonomy import (
     AUTONOMY_PRESETS,
     AutonomyBehavior,
@@ -47,12 +60,23 @@ from taskweavn.interaction.risk import (
     RiskAssessor,
     RiskScore,
 )
+from taskweavn.interaction.sqlite_ask_store import SqliteAskStore
 from taskweavn.interaction.sqlite_message_stream import SqliteMessageStream
 from taskweavn.interaction.wait import WaitCoordinator, WaitOutcome, WaitResult
 
 __all__ = [
     "AUTONOMY_PRESETS",
     "AgentMessage",
+    "AskAnswer",
+    "AskAnswerType",
+    "AskCommandKind",
+    "AskCommandResultStatus",
+    "AskOption",
+    "AskRequest",
+    "AskStatus",
+    "AskStore",
+    "AskStoreCommandResult",
+    "AskStoreError",
     "AssessmentContext",
     "AutonomyBehavior",
     "AutonomyGate",
@@ -62,6 +86,7 @@ __all__ = [
     "ConfidenceProvider",
     "GateDecision",
     "GateVerdict",
+    "InMemoryAskStore",
     "InProcessMessageBus",
     "LLMRiskAssessor",
     "MessageBus",
@@ -72,6 +97,7 @@ __all__ = [
     "RiskAssessment",
     "RiskAssessor",
     "RiskScore",
+    "SqliteAskStore",
     "SqliteMessageStream",
     "Subscription",
     "WaitCoordinator",

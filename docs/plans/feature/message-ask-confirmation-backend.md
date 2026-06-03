@@ -241,7 +241,7 @@ Implementation note:
 
 ### C3. ASK Domain And Durable Store
 
-Current status: planned.
+Current status: done.
 
 Deliver:
 
@@ -257,6 +257,13 @@ Acceptance:
 - answered ASK returns its answer history;
 - duplicate answer is rejected unless it is idempotent replay;
 - session/task-scoped list queries are deterministic.
+
+Implementation note:
+
+- `taskweavn.interaction.ask` defines the Product 1.0 ASK domain models,
+  `AskStore` protocol, and in-memory store. `SqliteAskStore` provides durable
+  request/answer/idempotency persistence without wiring ASK into TaskBus,
+  HTTP, UI projection, or AgentLoop yet.
 
 ### C4. TaskBus Waiting State
 
