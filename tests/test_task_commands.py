@@ -457,7 +457,7 @@ def test_append_task_message_publishes_user_message() -> None:
 
 def test_resolve_confirmation_publishes_response() -> None:
     parent = AgentMessage(
-        message_id="ask1",
+        message_id="confirmation-1",
         session_id="s1",
         task_id="t1",
         message_type="actionable",
@@ -467,20 +467,51 @@ def test_resolve_confirmation_publishes_response() -> None:
     bus = _Bus(_MessageStream([parent]))
     service = DefaultTaskCommandService(task_store=_TaskStore([]), message_bus=bus)
 
-    result = service.resolve_confirmation("s1", "ask1", "yes", note="Looks good")
+    result = service.resolve_confirmation(
+        "s1", "confirmation-1", "yes", note="Looks good"
+    )
 
     assert result.accepted is True
     assert result.affected_task_refs == (TaskRef.published("t1"),)
     response = bus.published[0]
     assert response.message_type == "response"
-    assert response.parent_message_id == "ask1"
+    assert response.parent_message_id == "confirmation-1"
     assert response.response_value == "yes"
     assert response.content == "Looks good"
 
 
+def test_resolve_confirmation_rejects_already_resolved_confirmation() -> None:
+    parent = AgentMessage(
+        message_id="confirmation-1",
+        session_id="s1",
+        task_id="t1",
+        message_type="actionable",
+        content="Proceed?",
+        requires_response=True,
+    )
+    existing_response = AgentMessage(
+        session_id="s1",
+        task_id="t1",
+        agent_id="user",
+        parent_message_id=parent.message_id,
+        message_type="response",
+        content="yes",
+        response_source="user",
+        response_value="yes",
+    )
+    bus = _Bus(_MessageStream([parent, existing_response]))
+    service = DefaultTaskCommandService(task_store=_TaskStore([]), message_bus=bus)
+
+    result = service.resolve_confirmation("s1", "confirmation-1", "no")
+
+    assert result.accepted is False
+    assert "already resolved" in result.message
+    assert bus.published == []
+
+
 def test_resolve_confirmation_preserves_draft_task_ref_context() -> None:
     parent = AgentMessage(
-        message_id="ask-draft",
+        message_id="confirmation-draft",
         session_id="s1",
         task_id="d1",
         message_type="actionable",
@@ -493,7 +524,7 @@ def test_resolve_confirmation_preserves_draft_task_ref_context() -> None:
         message_bus=_Bus(_MessageStream([parent])),
     )
 
-    result = service.resolve_confirmation("s1", "ask-draft", "yes")
+    result = service.resolve_confirmation("s1", "confirmation-draft", "yes")
 
     assert result.accepted is True
     assert result.affected_task_refs == (TaskRef.draft("d1"),)

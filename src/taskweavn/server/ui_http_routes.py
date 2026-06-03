@@ -13,6 +13,7 @@ class _Route:
     session_id: str = ""
     task_node_id: str = ""
     confirmation_id: str = ""
+    ask_id: str = ""
     record_id: str = ""
     evidence_id: str = ""
 
@@ -118,6 +119,36 @@ def _match_route(path: str) -> _Route | None:
             session_id=session_id,
             confirmation_id=suffix[1],
         )
+    if suffix == ("asks",):
+        return _Route(name="asks", method="GET", session_id=session_id)
+    if len(suffix) == 2 and suffix[0] == "asks":
+        return _Route(
+            name="ask_detail",
+            method="GET",
+            session_id=session_id,
+            ask_id=suffix[1],
+        )
+    if len(suffix) == 3 and suffix[0] == "asks" and suffix[2] == "answer":
+        return _Route(
+            name="answer_ask",
+            method="POST",
+            session_id=session_id,
+            ask_id=suffix[1],
+        )
+    if len(suffix) == 3 and suffix[0] == "asks" and suffix[2] == "defer":
+        return _Route(
+            name="defer_ask",
+            method="POST",
+            session_id=session_id,
+            ask_id=suffix[1],
+        )
+    if len(suffix) == 3 and suffix[0] == "asks" and suffix[2] == "cancel":
+        return _Route(
+            name="cancel_ask",
+            method="POST",
+            session_id=session_id,
+            ask_id=suffix[1],
+        )
     return None
 
 
@@ -125,4 +156,3 @@ def _path_parts(path: str) -> tuple[str, ...]:
     split = urlsplit(path)
     raw_path = split.path or path
     return tuple(unquote(part) for part in raw_path.strip("/").split("/") if part)
-

@@ -9,6 +9,7 @@ from pathlib import Path
 from threading import RLock
 from typing import Any, Protocol, runtime_checkable
 
+from taskweavn.observability.main_page_trace import main_page_trace
 from taskweavn.server.ui_contract import UiEvent, resync_required
 
 _SCHEMA_DDL = """
@@ -49,11 +50,24 @@ class UiEventStore(UiEventSource, Protocol):
     def append(self, event: UiEvent) -> UiEvent: ...
 
 
+@runtime_checkable
+class UiEventCursorProvider(Protocol):
+    """Read the current event-stream cursor for snapshot boundaries."""
+
+    def latest_cursor(self, session_id: str) -> str | None: ...
+
+
 @dataclass(frozen=True)
 class StaticUiEventSource:
     """Small deterministic event source for tests and local smoke checks."""
 
     events: tuple[UiEvent, ...] = ()
+
+    def latest_cursor(self, session_id: str) -> str | None:
+        session_events = tuple(event for event in self.events if event.session_id == session_id)
+        if not session_events:
+            return None
+        return session_events[-1].cursor
 
     def subscribe(
         self,
@@ -83,6 +97,10 @@ class ResyncOnlyEventSource:
     """Event source used before durable or live event replay is wired."""
 
     reason: str = "sidecar event replay is not available"
+
+    def latest_cursor(self, session_id: str) -> str | None:
+        del session_id
+        return None
 
     def subscribe(
         self,
@@ -157,6 +175,13 @@ class SqliteUiEventSource:
                 ) from exc
             except sqlite3.Error as exc:
                 raise UiEventSourceError("failed to append UI event") from exc
+        main_page_trace(
+            "ui_event.append",
+            event_id=event.event_id,
+            event_type=event.event_type,
+            payload=_event_payload_summary(event),
+            session_id=event.session_id,
+        )
         return event
 
     def subscribe(
@@ -219,7 +244,21 @@ class SqliteUiEventSource:
                         (session_id, int(cursor_row["id"])),
                     )
                 )
-        return (_event_from_row(row) for row in rows)
+        events = tuple(_event_from_row(row) for row in rows)
+        return iter(events)
+
+    def latest_cursor(self, session_id: str) -> str | None:
+        with self._lock:
+            row = self._conn.execute(
+                """
+                SELECT cursor FROM ui_events
+                WHERE session_id = ?
+                ORDER BY id DESC
+                LIMIT 1
+                """,
+                (session_id,),
+            ).fetchone()
+        return None if row is None else str(row["cursor"])
 
     def close(self) -> None:
         with self._lock:
@@ -252,6 +291,22 @@ def sse_stream(events: Iterable[UiEvent]) -> str:
     return "".join(sse_frame(event) for event in events)
 
 
+def _event_payload_summary(event: UiEvent) -> dict[str, Any]:
+    payload = event.payload
+    return {
+        key: payload.get(key)
+        for key in (
+            "reason",
+            "taskNodeId",
+            "taskNodeIds",
+            "taskRef",
+            "taskRefs",
+            "message",
+        )
+        if key in payload
+    }
+
+
 def _fallback_cursor(session_id: str, cursor: str | None) -> str:
     if cursor is not None and cursor.strip():
         return cursor
@@ -269,6 +324,7 @@ __all__ = [
     "ResyncOnlyEventSource",
     "SqliteUiEventSource",
     "StaticUiEventSource",
+    "UiEventCursorProvider",
     "UiEventSourceError",
     "UiEventSource",
     "UiEventStore",

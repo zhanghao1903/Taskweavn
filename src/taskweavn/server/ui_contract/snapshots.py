@@ -9,6 +9,7 @@ from pydantic import Field, model_validator
 
 from taskweavn.server.ui_contract.base import UiContractModel, utcnow
 from taskweavn.server.ui_contract.view_models import (
+    AskRequestView,
     AuditEntryContext,
     AuditFilterView,
     AuditLinkView,
@@ -44,6 +45,8 @@ class MainPageSnapshot(UiContractModel):
     task_tree: TaskTreeView | None = None
     messages: tuple[SessionMessageView, ...] = ()
     pending_confirmations: tuple[ConfirmationActionView, ...] = ()
+    pending_asks: tuple[AskRequestView, ...] = ()
+    active_ask: AskRequestView | None = None
     result: ResultCardView | None = None
     file_change_summary: FileChangeSummaryView | None = None
     audit_links: tuple[AuditLinkView, ...] = ()

@@ -250,6 +250,8 @@ def map_task_node_status(
 ) -> TaskNodeStatus:
     if confirmation is not None and confirmation.status == "pending":
         return "waiting_user"
+    if status == "waiting_for_user":
+        return "waiting_user"
     if status == "pending":
         return "queued"
     if status in {"draft", "running", "done", "failed", "cancelled"}:
@@ -260,7 +262,14 @@ def map_task_node_status(
 def map_task_execution_status(status: task_views.TaskViewStatus) -> ExecutionStatus:
     if status == "draft":
         return "not_started"
-    if status in {"pending", "running", "done", "failed", "cancelled"}:
+    if status in {
+        "pending",
+        "running",
+        "waiting_for_user",
+        "done",
+        "failed",
+        "cancelled",
+    }:
         return status
     raise ValueError(f"unsupported task view status: {status!r}")
 

@@ -347,7 +347,9 @@ class DefaultTaskProjectionService:
                     done_child_count=sum(1 for child in child_tasks if child.status == "done"),
                     failed_child_count=sum(1 for child in child_tasks if child.status == "failed"),
                     running_child_count=sum(
-                        1 for child in child_tasks if child.status == "running"
+                        1
+                        for child in child_tasks
+                        if child.status in {"running", "waiting_for_user"}
                     ),
                 )
                 if child_tasks
@@ -505,6 +507,8 @@ def _permissions_for_status(status: str) -> TaskCardPermissions:
             can_resolve_confirmation=True,
             can_cancel=True,
         )
+    if status == "waiting_for_user":
+        return TaskCardPermissions(readonly_reason="task is waiting for user input")
     if status == "failed":
         return TaskCardPermissions(can_retry=True, readonly_reason="task failed")
     if status == "done":

@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from taskweavn.core import Session, SqliteEventStream, WorkspaceLayout
-from taskweavn.interaction import AgentMessage
+from taskweavn.interaction import AgentMessage, AskRequest, InMemoryAskStore
 from taskweavn.observability.models import LogArchiveManifest
 from taskweavn.server.ui_contract import (
     AuditConfigProvider,
@@ -19,6 +19,7 @@ from taskweavn.server.ui_contract import (
     WorkspaceAuditEventProvider,
     WorkspaceAuditLogProvider,
 )
+from taskweavn.server.ui_contract.ask_projection import DefaultAskProjectionService
 from taskweavn.task import (
     ActiveAuthoringState,
     ConfirmationActionView,
@@ -46,6 +47,15 @@ class _SessionReader:
 
     def list(self) -> list[Session]:
         return list(self._sessions.values())
+
+
+class _SnapshotCursorProvider:
+    def __init__(self, cursor: str | None) -> None:
+        self._cursor = cursor
+
+    def latest_cursor(self, session_id: str) -> str | None:
+        del session_id
+        return self._cursor
 
 
 class _Projection:
@@ -256,6 +266,120 @@ def test_get_session_snapshot_maps_project_workflow_tree_messages_and_confirmati
     assert response.data.task_tree.nodes[0].status == "waiting_user"
     assert response.data.messages[0].id == "message-1"
     assert response.data.pending_confirmations[0].default_option_value == "yes"
+
+
+def test_get_session_snapshot_uses_latest_ui_event_cursor_when_available() -> None:
+    tree = TaskTreeView(session_id="session-1", nodes=(_card(),))
+    gateway = DefaultUiQueryGateway(
+        session_reader=_SessionReader([_session()]),
+        task_projection=_Projection(tree),
+        snapshot_cursor_provider=_SnapshotCursorProvider("event:session-1:42"),
+    )
+
+    response = gateway.get_session_snapshot("session-1")
+
+    assert response.ok is True
+    assert response.cursor == "event:session-1:42"
+    assert response.data is not None
+    assert response.data.cursor == "event:session-1:42"
+
+
+def test_get_session_snapshot_marks_ask_waiting_execution_as_waiting_user() -> None:
+    tree = TaskTreeView(
+        session_id="session-1",
+        nodes=(_card(status="waiting_for_user"),),
+    )
+    gateway = DefaultUiQueryGateway(
+        session_reader=_SessionReader([_session()]),
+        task_projection=_Projection(tree),
+    )
+
+    response = gateway.get_session_snapshot("session-1")
+
+    assert response.ok is True
+    assert response.data is not None
+    assert response.data.session.status == "waiting_user"
+    assert response.data.task_tree is not None
+    assert response.data.task_tree.nodes[0].status == "waiting_user"
+    assert response.data.task_tree.nodes[0].execution == "waiting_for_user"
+    assert response.data.pending_confirmations == ()
+
+
+def test_get_session_snapshot_includes_pending_asks_and_active_ask() -> None:
+    tree = TaskTreeView(
+        session_id="session-1",
+        nodes=(_card(status="waiting_for_user"),),
+    )
+    ask_store = InMemoryAskStore(
+        [
+            AskRequest(
+                ask_id="ask-1",
+                session_id="session-1",
+                task_id="root",
+                question="Which deployment target should be used?",
+                reason="The agent needs a user-owned deployment decision.",
+            )
+        ]
+    )
+    gateway = DefaultUiQueryGateway(
+        session_reader=_SessionReader([_session()]),
+        task_projection=_Projection(tree),
+        ask_projection=DefaultAskProjectionService(ask_store),
+    )
+
+    response = gateway.get_session_snapshot("session-1")
+
+    assert response.ok is True
+    assert response.data is not None
+    assert response.data.session.status == "waiting_user"
+    assert response.data.pending_asks[0].id == "ask-1"
+    assert response.data.active_ask is not None
+    assert response.data.active_ask.id == "ask-1"
+
+
+def test_list_and_get_asks_use_ask_projection() -> None:
+    ask_store = InMemoryAskStore(
+        [
+            AskRequest(
+                ask_id="ask-1",
+                session_id="session-1",
+                task_id="root",
+                question="Which deployment target should be used?",
+                reason="The agent needs a user-owned deployment decision.",
+            )
+        ]
+    )
+    gateway = DefaultUiQueryGateway(
+        session_reader=_SessionReader([_session()]),
+        task_projection=_Projection(TaskTreeView(session_id="session-1")),
+        ask_projection=DefaultAskProjectionService(ask_store),
+    )
+
+    listed = gateway.list_asks("session-1", status="pending", task_node_id="root")
+    detail = gateway.get_ask("session-1", "ask-1")
+
+    assert listed.ok is True
+    assert listed.data is not None
+    assert listed.data.asks[0].id == "ask-1"
+    assert listed.data.active_ask is not None
+    assert listed.data.active_ask.id == "ask-1"
+    assert detail.ok is True
+    assert detail.data is not None
+    assert detail.data.id == "ask-1"
+
+
+def test_list_asks_rejects_unsupported_status_filter() -> None:
+    gateway = DefaultUiQueryGateway(
+        session_reader=_SessionReader([_session()]),
+        task_projection=_Projection(TaskTreeView(session_id="session-1")),
+        ask_projection=DefaultAskProjectionService(InMemoryAskStore()),
+    )
+
+    response = gateway.list_asks("session-1", status="paused")
+
+    assert response.ok is False
+    assert response.error is not None
+    assert response.error.code == "bad_request"
 
 
 def test_empty_tree_snapshot_has_no_task_tree_and_new_session_status() -> None:

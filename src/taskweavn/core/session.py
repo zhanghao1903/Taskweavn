@@ -24,9 +24,10 @@ from uuid import uuid4
 from taskweavn.core.workspace_layout import WorkspaceLayout
 
 #: Lifecycle states. ``active`` is the steady state; ``awaiting_user`` means
-#: the loop suspended on an ``ask_user`` call and will resume on next input;
-#: ``finished`` means an ``agent_finish`` was reached; ``archived`` is a
-#: soft-delete marker the user sets manually.
+#: the session has an open user-facing interaction such as a confirmation;
+#: execution ASK will become a separate durable source when Product 1.0 adds
+#: its ASK backend. ``finished`` means an ``agent_finish`` was reached;
+#: ``archived`` is a soft-delete marker the user sets manually.
 #:
 #: Phase 3.8 made the live truth derived — see
 #: :func:`taskweavn.core.session_status.derive_session_status`. The

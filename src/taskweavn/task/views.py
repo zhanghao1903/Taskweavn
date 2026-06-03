@@ -17,7 +17,15 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from taskweavn.task.models import TaskRef
 
-TaskViewStatus = Literal["draft", "pending", "running", "done", "failed", "cancelled"]
+TaskViewStatus = Literal[
+    "draft",
+    "pending",
+    "running",
+    "waiting_for_user",
+    "done",
+    "failed",
+    "cancelled",
+]
 TaskCardActionKind = Literal[
     "confirm",
     "edit",

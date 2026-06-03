@@ -59,6 +59,8 @@ class OpenRouterProvider(BaseLLMProvider):
         }
         if extra_body:
             kwargs["extra_body"] = extra_body
+        if request.timeout_seconds is not None:
+            kwargs["timeout"] = request.timeout_seconds
 
         response = litellm.completion(**kwargs)
         parsed = parse_openai_compatible_response(response, provider_name=self.name)

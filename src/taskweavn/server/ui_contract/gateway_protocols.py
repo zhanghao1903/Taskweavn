@@ -9,8 +9,11 @@ from typing import Protocol, runtime_checkable
 from taskweavn.core.session import Session
 from taskweavn.interaction import AgentMessage
 from taskweavn.server.ui_contract.commands import (
+    AnswerAskPayload,
     AppendSessionInputPayload,
     AppendTaskInputPayload,
+    CancelAskPayload,
+    DeferAskPayload,
     GenerateTaskTreePayload,
     PublishTaskTreePayload,
     ResolveConfirmationPayload,
@@ -25,6 +28,8 @@ from taskweavn.server.ui_contract.envelopes import (
 )
 from taskweavn.server.ui_contract.snapshots import AuditPageSnapshot, MainPageSnapshot
 from taskweavn.server.ui_contract.view_models import (
+    AskListResult,
+    AskRequestView,
     AuditDisclosure,
     AuditLinkView,
     AuditRecord,
@@ -66,6 +71,13 @@ class WorkflowProvider(Protocol):
 @runtime_checkable
 class AuditLinkProvider(Protocol):
     def list_for_session(self, session_id: str) -> tuple[AuditLinkView, ...]: ...
+
+
+@runtime_checkable
+class SnapshotCursorProvider(Protocol):
+    """Read the latest UI event cursor used as a snapshot subscription boundary."""
+
+    def latest_cursor(self, session_id: str) -> str | None: ...
 
 
 @runtime_checkable
@@ -175,6 +187,23 @@ class UiQueryGateway(Protocol):
         request_id: str | None = None,
     ) -> QueryResponse[MainPageSnapshot]: ...
 
+    def list_asks(
+        self,
+        session_id: str,
+        *,
+        status: str | None = None,
+        task_node_id: str | None = None,
+        request_id: str | None = None,
+    ) -> QueryResponse[AskListResult]: ...
+
+    def get_ask(
+        self,
+        session_id: str,
+        ask_id: str,
+        *,
+        request_id: str | None = None,
+    ) -> QueryResponse[AskRequestView]: ...
+
     def get_audit_snapshot(
         self,
         session_id: str,
@@ -269,4 +298,22 @@ class UiCommandGateway(Protocol):
         self,
         confirmation_id: str,
         request: CommandRequest[ResolveConfirmationPayload],
+    ) -> CommandResponse: ...
+
+    def answer_ask(
+        self,
+        ask_id: str,
+        request: CommandRequest[AnswerAskPayload],
+    ) -> CommandResponse: ...
+
+    def defer_ask(
+        self,
+        ask_id: str,
+        request: CommandRequest[DeferAskPayload],
+    ) -> CommandResponse: ...
+
+    def cancel_ask(
+        self,
+        ask_id: str,
+        request: CommandRequest[CancelAskPayload],
     ) -> CommandResponse: ...

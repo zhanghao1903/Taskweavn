@@ -14,6 +14,7 @@ from taskweavn.llm import (
 )
 from taskweavn.llm.errors import LLMCapabilityError
 from taskweavn.llm.providers.deepseek import DeepSeekProvider
+from taskweavn.llm.providers.litellm import LiteLLMProvider
 from taskweavn.llm.providers.openrouter import OpenRouterProvider
 
 
@@ -119,6 +120,22 @@ def test_deepseek_usage_parses_prompt_cache_fields() -> None:
     assert result.usage.cache_hit_ratio == 0.75
 
 
+def test_deepseek_sends_request_timeout() -> None:
+    client = _FakeDeepSeekClient(_fake_response(content="ok"))
+    provider = DeepSeekProvider(api_key="sk", client=client)
+
+    provider.chat(
+        ChatRequest(
+            model="deepseek-chat",
+            messages=[],
+            timeout_seconds=12.0,
+        )
+    )
+
+    assert client.kwargs is not None
+    assert client.kwargs["timeout"] == 12.0
+
+
 def test_deepseek_reasoner_rejects_tools_before_network_call() -> None:
     client = _FakeDeepSeekClient(_fake_response(content="never"))
     provider = DeepSeekProvider(api_key="sk", client=client)
@@ -175,4 +192,36 @@ def test_openrouter_provider_routing_is_sent(mock_litellm: MagicMock) -> None:
                 "only": ["deepinfra/turbo"],
             }
         },
+    )
+
+
+@patch("taskweavn.llm.providers.litellm.litellm")
+def test_litellm_sends_request_timeout(mock_litellm: MagicMock) -> None:
+    mock_litellm.completion.return_value = _fake_response(content="ok")
+    provider = LiteLLMProvider(api_key="sk")
+
+    provider.chat(ChatRequest(model="m", messages=[], timeout_seconds=8.0))
+
+    mock_litellm.completion.assert_called_once_with(
+        model="m",
+        api_key="sk",
+        messages=[],
+        tools=None,
+        timeout=8.0,
+    )
+
+
+@patch("taskweavn.llm.providers.openrouter.litellm")
+def test_openrouter_sends_request_timeout(mock_litellm: MagicMock) -> None:
+    mock_litellm.completion.return_value = _fake_response(content="ok")
+    provider = OpenRouterProvider(api_key="sk")
+
+    provider.chat(ChatRequest(model="openrouter/model", messages=[], timeout_seconds=9.0))
+
+    mock_litellm.completion.assert_called_once_with(
+        model="openrouter/model",
+        api_key="sk",
+        messages=[],
+        tools=None,
+        timeout=9.0,
     )

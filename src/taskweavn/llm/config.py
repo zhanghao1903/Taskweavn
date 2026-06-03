@@ -25,6 +25,10 @@ class LLMClientConfig:
     provider: LLMProvider
     thinking: ThinkingConfig | None = None
     provider_routing: ProviderRoutingConfig | None = None
+    request_timeout_seconds: float | None = None
+
+
+DEFAULT_LLM_REQUEST_TIMEOUT_SECONDS = 180.0
 
 
 def load_client_config_from_env(default_model: str) -> LLMClientConfig:
@@ -33,6 +37,7 @@ def load_client_config_from_env(default_model: str) -> LLMClientConfig:
     model = os.environ.get("LLM_MODEL", default_model)
     thinking = _thinking_from_env()
     routing = _openrouter_routing_from_env() if provider_name == "openrouter" else None
+    request_timeout_seconds = _request_timeout_from_env()
     provider: LLMProvider
 
     if provider_name == "deepseek":
@@ -71,6 +76,7 @@ def load_client_config_from_env(default_model: str) -> LLMClientConfig:
         provider=provider,
         thinking=thinking,
         provider_routing=routing,
+        request_timeout_seconds=request_timeout_seconds,
     )
 
 
@@ -106,6 +112,23 @@ def _thinking_from_env() -> ThinkingConfig | None:
         enabled=_parse_bool(raw),
         effort=os.environ.get("LLM_THINKING_EFFORT", "high"),
     )
+
+
+def _request_timeout_from_env() -> float | None:
+    raw = os.environ.get("LLM_REQUEST_TIMEOUT_SECONDS")
+    if raw is None:
+        return DEFAULT_LLM_REQUEST_TIMEOUT_SECONDS
+
+    normalized = raw.strip().lower()
+    if normalized in {"none", "off", "disabled"}:
+        return None
+    try:
+        timeout = float(normalized)
+    except ValueError as exc:
+        raise ValueError(f"invalid LLM_REQUEST_TIMEOUT_SECONDS: {raw!r}") from exc
+    if timeout <= 0:
+        raise ValueError("LLM_REQUEST_TIMEOUT_SECONDS must be positive or 'none'")
+    return timeout
 
 
 def _openrouter_routing_from_env() -> ProviderRoutingConfig | None:
@@ -157,6 +180,7 @@ def _parse_bool(raw: str) -> bool:
 
 
 __all__ = [
+    "DEFAULT_LLM_REQUEST_TIMEOUT_SECONDS",
     "LLMClientConfig",
     "build_provider",
     "load_client_config_from_env",

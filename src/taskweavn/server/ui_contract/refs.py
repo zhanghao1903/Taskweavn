@@ -16,6 +16,7 @@ ObjectRefKind = Literal[
     "draft_tree",
     "draft_subtree",
     "published_task",
+    "ask",
     "message",
     "command",
 ]
@@ -36,6 +37,7 @@ AffectedScopeKind = Literal[
     "task_detail",
     "messages",
     "confirmations",
+    "asks",
 ]
 
 

@@ -9,7 +9,8 @@ already in two places we trust:
   the moment a task wraps up, and any new Action after that flips the
   "finished" signal off automatically;
 * the workspace :class:`MessageStream` — its ``pending_actionable`` query
-  is exactly the "an open question is parked, waiting for the user" signal.
+  is exactly the "an open confirmation/actionable interaction is parked,
+  waiting for the user" signal.
 
 So we *derive* the live status from those two inputs. The stored column
 survives only to record ``archived`` — a deliberate user act with no
@@ -72,10 +73,10 @@ def derive_session_status(
     if session.status == "archived":
         return "archived"
 
-    # Rule 2 — an open actionable means the loop suspended on ask_user and
-    # is waiting for a reply. This wins over "finished" because a finished
-    # task that asked one final question is, from the user's POV, still
-    # waiting on them.
+    # Rule 2 — an open actionable means a user-facing confirmation/actionable
+    # interaction is waiting for a reply. This wins over "finished" because a
+    # finished task that asked one final question is, from the user's POV,
+    # still waiting on them.
     if message_stream.pending_actionable(session.id):
         return "awaiting_user"
 

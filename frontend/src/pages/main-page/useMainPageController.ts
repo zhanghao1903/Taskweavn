@@ -7,6 +7,11 @@ import type {
   TaskNodeId,
 } from "../../shared/api/types";
 import {
+  summarizeCommandResponse,
+  summarizeMainPageSnapshot,
+  summarizeUiEvent,
+} from "../../shared/api/traceSummary";
+import {
   createFrontendLogger,
   summarizeLoggableError,
   toLoggableError,
@@ -198,6 +203,19 @@ export function useMainPageController({
     );
   }, [adapter.runtimeKind, snapshotQuery.error, snapshotQuery.isError, stateId]);
 
+  useEffect(() => {
+    if (!snapshotData) {
+      return;
+    }
+
+    mainPageLogger.info("snapshot.query.data", {
+      ...summarizeMainPageSnapshot(snapshotData.snapshot),
+      activeSessionId,
+      runtimeKind: adapter.runtimeKind,
+      stateId,
+    });
+  }, [activeSessionId, adapter.runtimeKind, snapshotData, stateId]);
+
   const resolveConfirmationMutation = useMutation({
     mutationFn: async ({
       confirmation,
@@ -385,15 +403,25 @@ export function useMainPageController({
     }: {
       sessionId: string;
       taskNodeId: TaskNodeId;
-    }) =>
-      adapter.stopTask(sessionId, taskNodeId, {
-        commandId: `stop-task-${taskNodeId}-${Date.now()}`,
+    }) => {
+      const commandId = `stop-task-${taskNodeId}-${Date.now()}`;
+      mainPageLogger.info("command.stop.submit", {
+        commandId,
+        sessionId,
+        taskNodeId,
+      });
+      return adapter.stopTask(sessionId, taskNodeId, {
+        commandId,
         sessionId,
         payload: {
           reason: "user requested stop",
         },
-      }),
-    onError: () => {
+      });
+    },
+    onError: (error) => {
+      mainPageLogger.error("command.stop.failed", {
+        error: toLoggableError(error),
+      });
       setTaskTreeCommandError("Stop command failed. Please retry.");
     },
     onSuccess: (response) => {
@@ -401,6 +429,10 @@ export function useMainPageController({
         response,
         "Stop command was rejected.",
       );
+      mainPageLogger.info("command.stop.result", {
+        ...summarizeCommandResponse(response),
+        shouldRefetch: result.shouldRefetch,
+      });
 
       if (result.errorMessage) {
         setTaskTreeCommandError(result.errorMessage);
@@ -410,7 +442,27 @@ export function useMainPageController({
       setTaskTreeCommandError(null);
       setUiNotice("Stop requested.");
       if (result.shouldRefetch) {
-        void refetchSnapshot();
+        mainPageLogger.info("snapshot.refetch.request", {
+          reason: "stop_command_refresh",
+        });
+        void refetchSnapshot()
+          .then((queryResult) => {
+            mainPageLogger.info("snapshot.refetch.result", {
+              hasData: queryResult.data !== undefined,
+              reason: "stop_command_refresh",
+              snapshot:
+                queryResult.data === undefined
+                  ? null
+                  : summarizeMainPageSnapshot(queryResult.data.snapshot),
+              status: queryResult.status,
+            });
+          })
+          .catch((error) => {
+            mainPageLogger.error("snapshot.refetch.failed", {
+              error: toLoggableError(error),
+              reason: "stop_command_refresh",
+            });
+          });
       }
     },
   });
@@ -497,7 +549,6 @@ export function useMainPageController({
     }
 
     mainPageLogger.info("events.subscribe.start", {
-      cursor: snapshotData.snapshot.cursor,
       runtimeKind: adapter.runtimeKind,
       sessionId: snapshotData.snapshot.session.id,
     });
@@ -512,12 +563,13 @@ export function useMainPageController({
         snapshotData.snapshot.cursor,
         (event) => {
           mainPageLogger.debug("events.received", {
-            eventId: event.eventId,
-            eventType: event.eventType,
-            sessionId: event.sessionId,
+            ...summarizeUiEvent(event),
           });
 
           if (event.cursor === lastEventCursorRef.current) {
+            mainPageLogger.info("events.cursor.duplicate_ignored", {
+              event: summarizeUiEvent(event),
+            });
             return;
           }
           lastEventCursorRef.current = event.cursor;
@@ -525,12 +577,19 @@ export function useMainPageController({
           const nextResyncEventKey = resyncEventKey(event);
           if (nextResyncEventKey !== null) {
             if (nextResyncEventKey === lastResyncEventKeyRef.current) {
+              mainPageLogger.info("events.resync.duplicate_ignored", {
+                event: summarizeUiEvent(event),
+              });
               return;
             }
             lastResyncEventKeyRef.current = nextResyncEventKey;
           }
 
           const action = routeMainPageEvent(event);
+          mainPageLogger.info("events.route", {
+            action,
+            event: summarizeUiEvent(event),
+          });
           if (action.kind === "ignore") {
             return;
           }
@@ -539,11 +598,35 @@ export function useMainPageController({
             setEventError(action.errorMessage);
           }
           setEventConnectionStatus(action.status);
-          void refetchSnapshot().finally(() => {
-            if (active) {
-              setEventConnectionStatus("connected");
-            }
+          mainPageLogger.info("snapshot.refetch.request", {
+            event: summarizeUiEvent(event),
+            reason: "event",
           });
+          void refetchSnapshot()
+            .then((queryResult) => {
+              mainPageLogger.info("snapshot.refetch.result", {
+                event: summarizeUiEvent(event),
+                hasData: queryResult.data !== undefined,
+                reason: "event",
+                snapshot:
+                  queryResult.data === undefined
+                    ? null
+                    : summarizeMainPageSnapshot(queryResult.data.snapshot),
+                status: queryResult.status,
+              });
+            })
+            .catch((error) => {
+              mainPageLogger.error("snapshot.refetch.failed", {
+                error: toLoggableError(error),
+                event: summarizeUiEvent(event),
+                reason: "event",
+              });
+            })
+            .finally(() => {
+              if (active) {
+                setEventConnectionStatus("connected");
+              }
+            });
         },
       );
     } catch (error) {

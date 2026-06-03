@@ -9,8 +9,8 @@ exercises:
     fresh session, empty streams                       → active
     last event is AgentFinishObservation               → finished
     AgentFinishObservation followed by another action  → active
-    open actionable on the bus                         → awaiting_user
-    open actionable + last event is finish             → awaiting_user
+    open confirmation/actionable on the bus            → awaiting_user
+    open confirmation/actionable + finish event        → awaiting_user
     stored status == archived                          → archived (sticky)
     archived overrides every other signal              → archived
 """
@@ -202,8 +202,8 @@ def test_awaiting_user_wins_over_finish(
     stream_and_bus: tuple[SqliteMessageStream, InProcessMessageBus],
 ) -> None:
     """If a session ended on a finish observation but also left an open
-    question on the bus, the user-facing truth is 'we're waiting on you'.
-    Rule 2 deliberately runs before rule 3."""
+    confirmation/actionable on the bus, the user-facing truth is 'we're
+    waiting on you'. Rule 2 deliberately runs before rule 3."""
     stream, bus = stream_and_bus
     session = manager.create("ambiguous")
     events = InMemoryEventStream()
@@ -230,8 +230,8 @@ def test_actionable_for_other_session_does_not_leak(
     manager: SessionManager,
     stream_and_bus: tuple[SqliteMessageStream, InProcessMessageBus],
 ) -> None:
-    """Pending-actionable lookup is session-scoped; an open question for a
-    sibling session must not flip *this* session into awaiting_user."""
+    """Pending-actionable lookup is session-scoped; an open confirmation for
+    a sibling session must not flip *this* session into awaiting_user."""
     stream, bus = stream_and_bus
     sess_a = manager.create("a")
     sess_b = manager.create("b")

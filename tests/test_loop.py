@@ -25,10 +25,12 @@ from taskweavn.core.loop import (
     LoopError,
     LoopInterruptIntent,
 )
+from taskweavn.interaction import InMemoryAskStore
 from taskweavn.llm.client import ChatResponse, ToolCall
 from taskweavn.runtime import LocalRuntime
 from taskweavn.task import InMemoryTaskBus, TaskDomain
 from taskweavn.tools import (
+    AskUserTool,
     ReadFileTool,
     Workspace,
     WriteFileTool,
@@ -169,6 +171,64 @@ def _build_loop(
     )
 
 
+def test_loop_stops_when_ask_user_blocks_current_task() -> None:
+    task = TaskDomain(
+        task_id="task-1",
+        session_id="session-1",
+        root_id="task-1",
+        intent="Choose a deployment target.",
+        required_capability="general",
+        created_by="tester",
+    )
+    task_bus = InMemoryTaskBus([task])
+    claimed = task_bus.claim_next(
+        "session-1",
+        capability="general",
+        agent_id="default_agent",
+    )
+    assert claimed is not None
+    ask_store = InMemoryAskStore()
+    runtime = LocalRuntime()
+    tool = AskUserTool(
+        ask_store=ask_store,
+        task_bus=task_bus,
+        session_id="session-1",
+        task_id="task-1",
+    )
+    tool.register(runtime)
+    llm = StubLLM(
+        [
+            _tool_call_response(
+                "ask_user",
+                {
+                    "question": "Which deployment target should be used?",
+                    "reason": "Deployment target is a user-owned decision.",
+                    "suggested_options": ["Vercel", "Netlify"],
+                },
+                call_id="ask-call-1",
+            )
+        ]
+    )
+    loop = AgentLoop(
+        llm=llm,  # type: ignore[arg-type]
+        runtime=runtime,
+        tools=[tool],
+        session_id="session-1",
+    )
+
+    result = loop.run("Choose deployment target.", task_id="task-1")
+
+    waiting_task = task_bus.get("session-1", "task-1")
+    asks = ask_store.list_for_session("session-1", statuses=("pending",), task_id="task-1")
+    assert result.finished is False
+    assert result.stop_reason == "waiting_for_user"
+    assert waiting_task is not None
+    assert waiting_task.status == "waiting_for_user"
+    assert len(asks) == 1
+    assert waiting_task.waiting_for_ask_id == asks[0].ask_id
+    assert asks[0].suggested_options[0].label == "Vercel"
+
+
 class PersistingContextProvider:
     def __init__(self) -> None:
         self.requests: list[AgentLoopContextRequest] = []
@@ -281,6 +341,46 @@ def test_loop_records_llm_chat_failure_as_event(workspace: Workspace) -> None:
     assert events[0].step == 1
     assert events[0].model_name == "test/failing-model"
     assert "provider 500" in events[0].message
+
+
+def test_loop_records_llm_timeout_as_distinct_stop_reason(workspace: Workspace) -> None:
+    llm = FailingLLM(TimeoutError("provider timed out"))
+    loop = _build_loop(workspace, llm)  # type: ignore[arg-type]
+
+    result = loop.run("trigger provider timeout")
+
+    assert result.finished is False
+    assert result.stop_reason == "llm_timeout"
+    assert result.steps == 1
+    assert "provider timed out" in result.final_answer
+
+    events = list(loop.event_stream)
+    assert len(events) == 1
+    assert isinstance(events[0], AgentErrorObservation)
+    assert events[0].error_type == "llm_timeout"
+    assert events[0].phase == "llm_chat"
+    assert events[0].step == 1
+
+
+def test_loop_maps_llm_timeout_to_interrupted_when_stop_requested(
+    workspace: Workspace,
+) -> None:
+    llm = FailingLLM(TimeoutError("provider timed out"))
+    loop = _build_loop(workspace, llm)  # type: ignore[arg-type]
+    loop.interrupt_checker = SequenceInterruptChecker(interrupt_on_call=4)
+
+    result = loop.run("trigger provider timeout", task_id="task-1")
+
+    assert result.finished is False
+    assert result.stop_reason == "interrupted"
+    assert result.final_answer == (
+        "cancelled: user requested stop; safe_point=llm_timeout"
+    )
+    events = list(loop.event_stream)
+    assert len(events) == 1
+    assert isinstance(events[0], AgentErrorObservation)
+    assert events[0].error_type == "interrupted"
+    assert events[0].phase == "llm_timeout"
 
 
 def test_loop_stops_before_llm_call_when_interrupt_requested(workspace: Workspace) -> None:

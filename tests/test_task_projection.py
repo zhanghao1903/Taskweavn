@@ -221,12 +221,18 @@ class _MessageStream:
     def pending_actionable(
         self, session_id: str, *, task_id: str | None = None
     ) -> list[AgentMessage]:
+        answered_ids = {
+            message.parent_message_id
+            for message in self._messages
+            if message.message_type == "response" and message.parent_message_id is not None
+        }
         return [
             message
             for message in self._messages
             if message.session_id == session_id
             and message.task_id == task_id
             and message.message_type == "actionable"
+            and message.message_id not in answered_ids
         ]
 
     def response_for(self, message_id: str) -> AgentMessage | None:
@@ -295,6 +301,9 @@ def _task(
     metadata: dict[str, object] | None = None,
 ) -> TaskDomain:
     root_id = task_id if parent_id is None else "root"
+    waiting_for_ask_id = (
+        f"ask:{task_id}" if status == "waiting_for_user" else None
+    )
     return TaskDomain(
         task_id=task_id,
         session_id="s1",
@@ -310,6 +319,7 @@ def _task(
         status=status,  # type: ignore[arg-type]
         result_ref=result_ref,
         error_ref=error_ref,
+        waiting_for_ask_id=waiting_for_ask_id,
     )
 
 
@@ -457,6 +467,7 @@ def test_published_permissions_follow_status() -> None:
     tasks = [
         _task("pending", status="pending"),
         _task("running", status="running"),
+        _task("waiting", status="waiting_for_user"),
         _task("done", status="done"),
         _task("failed", status="failed"),
     ]
@@ -464,12 +475,16 @@ def test_published_permissions_follow_status() -> None:
 
     pending = service.get_task_card("s1", TaskRef.published("pending"))
     running = service.get_task_card("s1", TaskRef.published("running"))
+    waiting = service.get_task_card("s1", TaskRef.published("waiting"))
     done = service.get_task_card("s1", TaskRef.published("done"))
     failed = service.get_task_card("s1", TaskRef.published("failed"))
 
     assert pending.permissions.can_edit is True
     assert pending.permissions.can_cancel is True
     assert running.permissions.can_append_guidance is True
+    assert waiting.status == "waiting_for_user"
+    assert waiting.permissions.can_resolve_confirmation is False
+    assert waiting.permissions.readonly_reason == "task is waiting for user input"
     assert done.permissions.readonly_reason == "task is done"
     assert failed.permissions.can_retry is True
 
@@ -534,6 +549,40 @@ def test_projection_aggregates_messages_confirmations_files_and_summary() -> Non
     assert detail.messages[-1].message_type == "confirmation"
     assert detail.file_changes[0].from_subtree is True
     assert detail.result_summary is summary
+
+
+def test_projection_drops_resolved_confirmation_from_pending_views() -> None:
+    root = _task("root")
+    confirmation = AgentMessage(
+        message_id="confirmation-1",
+        session_id="s1",
+        task_id="root",
+        message_type="actionable",
+        content="Proceed?",
+        action_options=["yes", "no"],
+        requires_response=True,
+    )
+    response = AgentMessage(
+        session_id="s1",
+        task_id="root",
+        agent_id="user",
+        parent_message_id=confirmation.message_id,
+        message_type="response",
+        content="yes",
+        response_source="user",
+        response_value="yes",
+    )
+    service = DefaultTaskProjectionService(
+        task_store=_TaskStore([root]),
+        message_stream=_MessageStream([confirmation, response]),
+    )
+
+    card = service.get_task_card("s1", TaskRef.published("root"))
+    detail = service.get_task_detail("s1", TaskRef.published("root"))
+
+    assert card.badges.pending_confirmation_count == 0
+    assert card.confirmation is None
+    assert detail.confirmations == ()
 
 
 def test_get_task_card_missing_task_raises() -> None:

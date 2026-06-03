@@ -122,6 +122,16 @@ class BaseLLMProvider:
             except BaseException as exc:
                 last_error = exc
                 last_classification = self.classify_error(exc)
+                if (
+                    request.timeout_seconds is not None
+                    and _is_timeout_error(exc)
+                ):
+                    self._raise_final(
+                        request=request,
+                        exc=exc,
+                        classification=last_classification,
+                        retry_records=tuple(records),
+                    )
                 if last_classification in _RETRYABLE and attempt < policy.max_attempts:
                     delay = self._delay_seconds(attempt)
                     record = self._record(
@@ -266,6 +276,12 @@ class BaseLLMProvider:
             original_error=exc,
             retry_records=retry_records,
         ) from exc
+
+
+def _is_timeout_error(exc: BaseException) -> bool:
+    name = type(exc).__name__.lower()
+    message = str(exc).lower()
+    return "timeout" in name or "timeout" in message or "timed out" in message
 
 
 __all__ = ["BaseLLMProvider"]

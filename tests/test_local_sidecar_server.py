@@ -20,6 +20,8 @@ from taskweavn.server import (
 from taskweavn.server.sidecar import _SidecarRequestHandler
 from taskweavn.server.transport import HttpApiResponse
 from taskweavn.server.ui_contract import (
+    AskListResult,
+    AskRequestView,
     AuditPageSnapshot,
     AuditRecordDetail,
     AuditRecordsResult,
@@ -237,6 +239,25 @@ class _QueryGateway:
             cursor=snapshot.cursor,
         )
 
+    def list_asks(
+        self,
+        session_id: str,
+        *,
+        status: str | None = None,
+        task_node_id: str | None = None,
+        request_id: str | None = None,
+    ) -> QueryResponse[AskListResult]:
+        raise NotImplementedError
+
+    def get_ask(
+        self,
+        session_id: str,
+        ask_id: str,
+        *,
+        request_id: str | None = None,
+    ) -> QueryResponse[AskRequestView]:
+        raise NotImplementedError
+
     def get_audit_snapshot(
         self,
         session_id: str,
@@ -353,6 +374,30 @@ class _CommandGateway:
         request: CommandRequest[Any],
     ) -> CommandResponse:
         self.calls.append(f"resolve_confirmation:{confirmation_id}")
+        return _accepted(request.command_id)
+
+    def answer_ask(
+        self,
+        ask_id: str,
+        request: CommandRequest[Any],
+    ) -> CommandResponse:
+        self.calls.append(f"answer_ask:{ask_id}")
+        return _accepted(request.command_id)
+
+    def defer_ask(
+        self,
+        ask_id: str,
+        request: CommandRequest[Any],
+    ) -> CommandResponse:
+        self.calls.append(f"defer_ask:{ask_id}")
+        return _accepted(request.command_id)
+
+    def cancel_ask(
+        self,
+        ask_id: str,
+        request: CommandRequest[Any],
+    ) -> CommandResponse:
+        self.calls.append(f"cancel_ask:{ask_id}")
         return _accepted(request.command_id)
 
 

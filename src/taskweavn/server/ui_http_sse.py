@@ -19,12 +19,14 @@ def _sse_response(
     request: HttpApiRequest,
     route: _Route,
 ) -> HttpApiResponse:
-    events = event_source.subscribe(
+    cursor = _request_query(request).get("cursor")
+    events = tuple(event_source.subscribe(
         route.session_id,
-        cursor=_request_query(request).get("cursor"),
-    )
+        cursor=cursor,
+    ))
+    body = sse_stream(events)
     return HttpApiResponse(
         status_code=200,
         headers=dict(_SSE_HEADERS),
-        body=sse_stream(events),
+        body=body,
     )

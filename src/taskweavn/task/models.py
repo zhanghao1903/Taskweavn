@@ -14,7 +14,7 @@ from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-TaskStatus = Literal["pending", "running", "done", "failed"]
+TaskStatus = Literal["pending", "running", "waiting_for_user", "done", "failed"]
 DraftTaskStatus = Literal["draft", "accepted", "published", "cancelled"]
 TaskRefKind = Literal["draft", "published"]
 TaskInterruptRequestedBy = Literal["user", "system"]
@@ -85,6 +85,8 @@ class TaskDomain(_FrozenModel):
     result_ref: str | None = Field(default=None, min_length=1)
     error_ref: str | None = Field(default=None, min_length=1)
     claimed_by: str | None = Field(default=None, min_length=1)
+    waiting_for_ask_id: str | None = Field(default=None, min_length=1)
+    waiting_for_user_since: datetime | None = None
     interrupt_requested: bool = False
     interrupt_request_id: str | None = Field(default=None, min_length=1)
     interrupt_reason: str | None = Field(default=None, min_length=1)
@@ -100,6 +102,16 @@ class TaskDomain(_FrozenModel):
     def _validate_root(self) -> TaskDomain:
         if self.parent_id is None and self.root_id != self.task_id:
             raise ValueError("root task must have root_id == task_id")
+        return self
+
+    @model_validator(mode="after")
+    def _validate_waiting_for_user_linkage(self) -> TaskDomain:
+        if self.status == "waiting_for_user":
+            if self.waiting_for_ask_id is None:
+                raise ValueError("waiting_for_user task requires waiting_for_ask_id")
+            return self
+        if self.waiting_for_ask_id is not None or self.waiting_for_user_since is not None:
+            raise ValueError("non-waiting task must not carry active ASK linkage")
         return self
 
 

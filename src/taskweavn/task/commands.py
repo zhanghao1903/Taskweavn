@@ -14,6 +14,7 @@ from uuid import uuid4
 from pydantic import BaseModel, ConfigDict, Field
 
 from taskweavn.interaction import AgentMessage, MessageBus
+from taskweavn.observability.main_page_trace import main_page_trace
 from taskweavn.task.models import TaskDomain, TaskNodePatch, TaskRef
 from taskweavn.task.publisher import TaskPublisher
 from taskweavn.task.stores import DraftTaskStore, TaskStore, TaskStoreError
@@ -214,6 +215,8 @@ class DefaultTaskCommandService:
             return _rejected("confirmation belongs to a different session")
         if parent.message_type != "actionable":
             return _rejected("confirmation must reference an actionable message")
+        if self._message_bus.stream.response_for(parent.message_id) is not None:
+            return _rejected("confirmation is already resolved")
         if not value.strip():
             return _rejected("confirmation value must not be empty")
 
@@ -285,10 +288,42 @@ class DefaultTaskCommandService:
     ) -> CommandResult:
         task = self._task_store.get(session_id, task_id)
         if task is None:
+            main_page_trace(
+                "task_command.stop.rejected",
+                reason="task_not_found",
+                request_id=request_id,
+                session_id=session_id,
+                task_id=task_id,
+            )
             return _rejected(f"task {task_id!r} not found")
+        main_page_trace(
+            "task_command.stop.request",
+            current_error_ref=task.error_ref,
+            current_interrupt_requested=task.interrupt_requested,
+            current_status=task.status,
+            reason=reason,
+            request_id=request_id,
+            session_id=session_id,
+            task_id=task_id,
+        )
         if task.status not in {"pending", "running"}:
+            main_page_trace(
+                "task_command.stop.rejected",
+                current_status=task.status,
+                reason="invalid_status",
+                request_id=request_id,
+                session_id=session_id,
+                task_id=task_id,
+            )
             return _rejected("only pending or running tasks can be stopped")
         if self._published_task_interrupter is None:
+            main_page_trace(
+                "task_command.stop.rejected",
+                reason="interrupter_not_configured",
+                request_id=request_id,
+                session_id=session_id,
+                task_id=task_id,
+            )
             return _rejected("published task interrupter is not configured")
         stop_reason = reason.strip() if reason is not None else ""
         if not stop_reason:
@@ -301,8 +336,28 @@ class DefaultTaskCommandService:
                 request_id=request_id,
             )
         except TaskStoreError as exc:
+            main_page_trace(
+                "task_command.stop.rejected",
+                error=type(exc).__name__,
+                message=str(exc),
+                reason="interrupter_error",
+                request_id=request_id,
+                session_id=session_id,
+                task_id=task_id,
+            )
             return _rejected(str(exc))
         message_id = self._publish_stop_message(updated, stop_reason)
+        main_page_trace(
+            "task_command.stop.accepted",
+            emitted_message_id=message_id,
+            interrupt_request_id=updated.interrupt_request_id,
+            interrupt_requested=updated.interrupt_requested,
+            new_error_ref=updated.error_ref,
+            new_status=updated.status,
+            request_id=request_id,
+            session_id=session_id,
+            task_id=task_id,
+        )
         return _accepted(
             "task stop requested",
             affected_task_refs=(TaskRef.published(updated.task_id),),

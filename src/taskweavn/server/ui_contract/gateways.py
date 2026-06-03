@@ -5,6 +5,8 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 from taskweavn.core.session import Session
+from taskweavn.interaction import AskStatus
+from taskweavn.server.ui_contract.ask_projection import AskProjectionService
 from taskweavn.server.ui_contract.audit_disclosure import (
     DefaultAuditPayloadDisclosureService,
 )
@@ -51,6 +53,7 @@ from taskweavn.server.ui_contract.gateway_protocols import (
     ProjectProvider,
     SessionMessageProvider,
     SessionReader,
+    SnapshotCursorProvider,
     TaskRefResolver,
     UiCommandGateway,
     UiQueryGateway,
@@ -71,6 +74,8 @@ from taskweavn.server.ui_contract.mapping import (
 )
 from taskweavn.server.ui_contract.snapshots import AuditPageSnapshot, MainPageSnapshot
 from taskweavn.server.ui_contract.view_models import (
+    AskListResult,
+    AskRequestView,
     AuditLinkView,
     AuditPageRequestView,
     AuditRecordDetail,
@@ -111,6 +116,7 @@ __all__ = [
     "ProjectProvider",
     "SessionMessageProvider",
     "SessionReader",
+    "SnapshotCursorProvider",
     "StaticProjectProvider",
     "StaticWorkflowProvider",
     "TaskRefResolver",
@@ -140,6 +146,8 @@ class DefaultUiQueryGateway:
         audit_payload_disclosure_service: AuditPayloadDisclosureService | None = None,
         session_message_provider: SessionMessageProvider | None = None,
         authoring_state_store: AuthoringStateStore | None = None,
+        ask_projection: AskProjectionService | None = None,
+        snapshot_cursor_provider: SnapshotCursorProvider | None = None,
     ) -> None:
         self._session_reader = session_reader
         self._task_projection = task_projection
@@ -157,6 +165,8 @@ class DefaultUiQueryGateway:
         )
         self._session_message_provider = session_message_provider
         self._authoring_state_store = authoring_state_store
+        self._ask_projection = ask_projection
+        self._snapshot_cursor_provider = snapshot_cursor_provider
 
     def get_session_snapshot(
         self,
@@ -185,6 +195,8 @@ class DefaultUiQueryGateway:
                 self._session_messages(session.id),
             )
             confirmations = _confirmations_from_tree(source_tree, session_id=session.id)
+            pending_asks = self._pending_asks(session.id)
+            active_ask = self._active_ask(session.id, task_tree=task_tree)
             result = _result_from_tree(
                 source_tree,
                 session_id=session.id,
@@ -207,6 +219,7 @@ class DefaultUiQueryGateway:
                     task_tree=task_tree,
                     confirmations=confirmations,
                     messages=messages,
+                    active_ask=active_ask,
                 ),
             )
             snapshot = MainPageSnapshot(
@@ -226,10 +239,15 @@ class DefaultUiQueryGateway:
                 task_tree=task_tree,
                 messages=messages,
                 pending_confirmations=confirmations,
+                pending_asks=pending_asks,
+                active_ask=active_ask,
                 result=result,
                 file_change_summary=file_change_summary,
                 audit_links=self._audit_links(session.id),
-                cursor=_snapshot_cursor(session),
+                cursor=_snapshot_cursor(
+                    session,
+                    cursor_provider=self._snapshot_cursor_provider,
+                ),
             )
             return QueryResponse[MainPageSnapshot](
                 request_id=request_id or _request_id("snapshot", session.id),
@@ -248,6 +266,100 @@ class DefaultUiQueryGateway:
                     error_type=type(exc).__name__,
                 ),
                 cursor=None,
+            )
+
+    def list_asks(
+        self,
+        session_id: str,
+        *,
+        status: str | None = None,
+        task_node_id: str | None = None,
+        request_id: str | None = None,
+    ) -> QueryResponse[AskListResult]:
+        try:
+            if self._ask_projection is None:
+                return QueryResponse[AskListResult](
+                    request_id=request_id or _request_id("asks", session_id),
+                    ok=True,
+                    data=AskListResult(session_id=session_id),
+                    error=None,
+                )
+            session = self._session_reader.get(session_id)
+            if session is None:
+                return QueryResponse[AskListResult](
+                    request_id=request_id or _request_id("asks", session_id),
+                    ok=False,
+                    data=None,
+                    error=not_found("session not found", session_id=session_id),
+                )
+            task_tree = _map_optional_task_tree(
+                self._task_projection.list_task_tree(session.id),
+                authoring_state_store=self._authoring_state_store,
+            )
+            result = self._ask_projection.list_asks(
+                session.id,
+                statuses=_ask_statuses(status),
+                task_id=task_node_id,
+                task_tree=task_tree,
+            )
+            return QueryResponse[AskListResult](
+                request_id=request_id or _request_id("asks", session.id),
+                ok=True,
+                data=result,
+                error=None,
+            )
+        except ValueError as exc:
+            return QueryResponse[AskListResult](
+                request_id=request_id or _request_id("asks", session_id),
+                ok=False,
+                data=None,
+                error=bad_request(str(exc), session_id=session_id),
+            )
+        except Exception as exc:
+            return QueryResponse[AskListResult](
+                request_id=request_id or _request_id("asks", session_id),
+                ok=False,
+                data=None,
+                error=internal_error(
+                    "Unable to load ASK list",
+                    error_type=type(exc).__name__,
+                ),
+            )
+
+    def get_ask(
+        self,
+        session_id: str,
+        ask_id: str,
+        *,
+        request_id: str | None = None,
+    ) -> QueryResponse[AskRequestView]:
+        try:
+            ask = None if self._ask_projection is None else self._ask_projection.get_ask(
+                session_id,
+                ask_id,
+            )
+            if ask is None:
+                return QueryResponse[AskRequestView](
+                    request_id=request_id or _request_id("ask", ask_id),
+                    ok=False,
+                    data=None,
+                    error=not_found("ASK not found", session_id=session_id, ask_id=ask_id),
+                )
+            return QueryResponse[AskRequestView](
+                request_id=request_id or _request_id("ask", ask_id),
+                ok=True,
+                data=ask,
+                error=None,
+            )
+        except Exception as exc:
+            return QueryResponse[AskRequestView](
+                request_id=request_id or _request_id("ask", ask_id),
+                ok=False,
+                data=None,
+                error=internal_error(
+                    "Unable to load ASK",
+                    error_type=type(exc).__name__,
+                ),
             )
 
     def get_audit_snapshot(
@@ -600,6 +712,21 @@ class DefaultUiQueryGateway:
             return ()
         return self._audit_link_provider.list_for_session(session_id)
 
+    def _pending_asks(self, session_id: str) -> tuple[AskRequestView, ...]:
+        if self._ask_projection is None:
+            return ()
+        return self._ask_projection.pending_asks(session_id)
+
+    def _active_ask(
+        self,
+        session_id: str,
+        *,
+        task_tree: TaskTreeView | None,
+    ) -> AskRequestView | None:
+        if self._ask_projection is None:
+            return None
+        return self._ask_projection.active_ask(session_id, task_tree=task_tree)
+
     def _session_messages(self, session_id: str) -> tuple[SessionMessageView, ...]:
         if self._session_message_provider is None:
             return ()
@@ -733,10 +860,15 @@ def _derive_session_status(
     task_tree: TaskTreeView | None,
     confirmations: Sequence[ConfirmationActionView],
     messages: Sequence[SessionMessageView],
+    active_ask: AskRequestView | None = None,
 ) -> SessionStatus:
+    if active_ask is not None:
+        return "waiting_user"
     if confirmations:
         return "waiting_user"
     if task_tree is not None:
+        if any(node.execution == "waiting_for_user" for node in task_tree.nodes):
+            return "waiting_user"
         if task_tree.status == "draft":
             return "draft_ready"
         if task_tree.status == "published":
@@ -754,6 +886,19 @@ def _derive_session_status(
     if messages:
         return "understanding"
     return "new"
+
+
+def _ask_statuses(status: str | None) -> tuple[AskStatus, ...] | None:
+    if status is None or not status.strip():
+        return None
+    allowed: set[AskStatus] = {"pending", "answered", "deferred", "cancelled", "expired"}
+    statuses: list[AskStatus] = []
+    for raw in status.split(","):
+        value = raw.strip()
+        if value not in allowed:
+            raise ValueError(f"unsupported ASK status filter: {value!r}")
+        statuses.append(value)
+    return tuple(statuses)
 
 
 def _session_summary(
@@ -775,7 +920,13 @@ def _session_summary(
     )
 
 
-def _snapshot_cursor(session: Session) -> str:
+def _snapshot_cursor(
+    session: Session,
+    *,
+    cursor_provider: SnapshotCursorProvider | None = None,
+) -> str | None:
+    if cursor_provider is not None:
+        return cursor_provider.latest_cursor(session.id)
     return f"snapshot:{session.id}:{session.last_active_at.isoformat()}"
 
 

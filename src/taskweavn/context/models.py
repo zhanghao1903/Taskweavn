@@ -15,6 +15,7 @@ ContextBuildPurpose = Literal[
     "read_only_review",
 ]
 TaskContextVersion = Literal["task_execution_context.v0"]
+AskFactStatus = Literal["pending", "answered", "deferred", "cancelled", "expired"]
 ContextRenderMode = Literal[
     "full_context",
     "start_context",
@@ -98,7 +99,7 @@ class InterruptionContext(ContextModel):
 
 
 class ExecutionContextState(ContextModel):
-    status: Literal["pending", "running", "done", "failed"]
+    status: Literal["pending", "running", "waiting_for_user", "done", "failed"]
     claimed_by: str | None = None
     current_step: CurrentStepContext | None = None
     latest_user_instruction: str | None = None
@@ -157,11 +158,26 @@ class FileSnippet(ContextModel):
     can_act_as_instruction: bool = False
 
 
+class AskFact(ContextModel):
+    ask_id: str = Field(min_length=1)
+    task_id: str | None = Field(default=None, min_length=1)
+    status: AskFactStatus
+    question: str = Field(min_length=1)
+    reason: str = Field(min_length=1)
+    selected_option_ids: tuple[str, ...] = ()
+    answer_text: str | None = Field(default=None, min_length=1)
+    answer_id: str | None = Field(default=None, min_length=1)
+    blocking: bool = True
+    created_at: datetime
+    answered_at: datetime | None = None
+
+
 class ExecutionFacts(ContextModel):
     recent_events: tuple[EventSummary, ...] = ()
     recent_tool_results: tuple[ToolResultSummary, ...] = ()
     workspace_refs: tuple[WorkspaceRef, ...] = ()
     selected_file_snippets: tuple[FileSnippet, ...] = ()
+    ask_facts: tuple[AskFact, ...] = ()
     changed_artifacts: tuple[str, ...] = ()
 
 

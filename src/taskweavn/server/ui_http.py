@@ -5,14 +5,18 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Protocol
 
+from taskweavn.observability.main_page_trace import main_page_trace
 from taskweavn.server.client_logs import ClientErrorLogSink
 from taskweavn.server.transport import HttpApiRequest, HttpApiResponse
 from taskweavn.server.ui_command_idempotency import UiCommandResponseIdempotencyStore
 from taskweavn.server.ui_contract import (
+    AnswerAskPayload,
     ApiError,
     AppendSessionInputPayload,
     AppendTaskInputPayload,
+    CancelAskPayload,
     CommandRequest,
+    DeferAskPayload,
     DispatchExecutionPayload,
     GenerateTaskTreePayload,
     PublishTaskTreePayload,
@@ -25,6 +29,7 @@ from taskweavn.server.ui_contract import (
 )
 from taskweavn.server.ui_events import ResyncOnlyEventSource, UiEventSource
 from taskweavn.server.ui_http_commands import (
+    _answer_ask_with_resume_dispatch,
     _command_response,
     _dispatch_execution,
     _publish_task_tree_with_optional_dispatch,
@@ -138,6 +143,17 @@ class PlatoUiHttpTransport:
                 headers={"allow": route.method},
             )
 
+        if route_name != "events":
+            main_page_trace(
+                "http.route.request",
+                method=request.method.upper(),
+                path=_path_without_query(request.path),
+                query=_safe_query(request.query),
+                route=route_name,
+                session_id=route.session_id or None,
+                task_node_id=route.task_node_id or None,
+            )
+
         try:
             if route_name == "root":
                 return _json_response(
@@ -206,9 +222,15 @@ class PlatoUiHttpTransport:
                     }
                 )
             if route_name == "snapshot":
-                return _contract_response(
-                    self._query_gateway.get_session_snapshot(route.session_id)
+                snapshot_response = self._query_gateway.get_session_snapshot(
+                    route.session_id
                 )
+                main_page_trace(
+                    "http.snapshot.response",
+                    session_id=route.session_id,
+                    **_snapshot_response_summary(snapshot_response),
+                )
+                return _contract_response(snapshot_response)
             if route_name == "audit_snapshot":
                 query = _request_query(request)
                 return _contract_response(
@@ -222,6 +244,19 @@ class PlatoUiHttpTransport:
                         limit=_int_query(query, "limit", default=50),
                         cursor=query.get("cursor"),
                     )
+                )
+            if route_name == "asks":
+                query = _request_query(request)
+                return _contract_response(
+                    self._query_gateway.list_asks(
+                        route.session_id,
+                        status=query.get("status"),
+                        task_node_id=query.get("taskNodeId"),
+                    )
+                )
+            if route_name == "ask_detail":
+                return _contract_response(
+                    self._query_gateway.get_ask(route.session_id, route.ask_id)
                 )
             if route_name == "audit_records":
                 query = _request_query(request)
@@ -450,6 +485,53 @@ class PlatoUiHttpTransport:
                     ),
                     self._command_idempotency_store,
                 )
+            if route_name == "answer_ask":
+                answer_request = _parse_command_request(
+                    request,
+                    route.session_id,
+                    CommandRequest[AnswerAskPayload],
+                )
+                if isinstance(answer_request, HttpApiResponse):
+                    return answer_request
+                return _command_response(
+                    route,
+                    answer_request,
+                    lambda: _answer_ask_with_resume_dispatch(
+                        self._command_gateway,
+                        self._execution_trigger_gateway,
+                        route.ask_id,
+                        answer_request,
+                    ),
+                    self._command_idempotency_store,
+                )
+            if route_name == "defer_ask":
+                defer_request = _parse_command_request(
+                    request,
+                    route.session_id,
+                    CommandRequest[DeferAskPayload],
+                )
+                if isinstance(defer_request, HttpApiResponse):
+                    return defer_request
+                return _command_response(
+                    route,
+                    defer_request,
+                    lambda: self._command_gateway.defer_ask(route.ask_id, defer_request),
+                    self._command_idempotency_store,
+                )
+            if route_name == "cancel_ask":
+                cancel_request = _parse_command_request(
+                    request,
+                    route.session_id,
+                    CommandRequest[CancelAskPayload],
+                )
+                if isinstance(cancel_request, HttpApiResponse):
+                    return cancel_request
+                return _command_response(
+                    route,
+                    cancel_request,
+                    lambda: self._command_gateway.cancel_ask(route.ask_id, cancel_request),
+                    self._command_idempotency_store,
+                )
             if route_name == "client_error_log":
                 if request.body is None:
                     return _error_response(
@@ -519,6 +601,60 @@ class PlatoUiHttpTransport:
             request_id=_request_id_hint(request),
         )
 
+
+def _safe_query(query: dict[str, str]) -> dict[str, str]:
+    return {
+        key: "<redacted>" if "token" in key.lower() or key == "cursor" else value
+        for key, value in query.items()
+    }
+
+
+def _path_without_query(path: str) -> str:
+    return path.split("?", 1)[0]
+
+
+def _snapshot_response_summary(response: Any) -> dict[str, Any]:
+    data = getattr(response, "data", None)
+    error = getattr(response, "error", None)
+    summary: dict[str, Any] = {
+        "ok": getattr(response, "ok", None),
+        "request_id": getattr(response, "request_id", None),
+    }
+    if error is not None:
+        summary["error_code"] = getattr(error, "code", None)
+        summary["error_message"] = getattr(error, "message", None)
+        return summary
+    if data is None:
+        return summary
+
+    session = getattr(data, "session", None)
+    task_tree = getattr(data, "task_tree", None)
+    nodes = tuple(getattr(task_tree, "nodes", ()) or ())
+    summary.update(
+        {
+            "session_status": getattr(session, "status", None),
+            "task_node_count": len(nodes),
+            "task_nodes": tuple(_task_node_summary(node) for node in nodes),
+            "task_tree_status": getattr(task_tree, "status", None),
+        }
+    )
+    return summary
+
+
+def _task_node_summary(node: Any) -> dict[str, Any]:
+    return {
+        "error_ref": getattr(node, "error_ref", None),
+        "execution": getattr(node, "execution", None),
+        "id": getattr(node, "id", None),
+        "interruption_requested": getattr(node, "interruption_requested", None),
+        "status": getattr(node, "status", None),
+        "title": _short_text(getattr(node, "title", "")),
+    }
+
+
+def _short_text(value: Any, *, limit: int = 80) -> str:
+    text = str(value)
+    return text if len(text) <= limit else f"{text[:limit]}..."
 
 
 __all__ = [

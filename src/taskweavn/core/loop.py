@@ -42,7 +42,7 @@ from __future__ import annotations
 import contextlib
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Any, Literal, Protocol, TypeGuard, runtime_checkable
 from uuid import uuid4
 
 from pydantic import ValidationError
@@ -55,6 +55,7 @@ from taskweavn.llm.client import (
     parse_tool_arguments,
     tool_schema_from_action,
 )
+from taskweavn.llm.errors import LLMProviderError
 from taskweavn.memory.thought_store import (
     NullThoughtStore,
     ThoughtRecord,
@@ -64,6 +65,7 @@ from taskweavn.observability import LogContext, use_log_context
 from taskweavn.prompts import AGENT_LOOP_SYSTEM_PROMPT
 from taskweavn.runtime.base import Runtime
 from taskweavn.tools.base import Tool
+from taskweavn.types.ask import AskUserObservation
 from taskweavn.types.base import BaseAction, BaseEvent, BaseObservation
 from taskweavn.types.code_action import CodeAction, CodeExecutionObservation
 from taskweavn.types.common import (
@@ -362,14 +364,26 @@ class AgentLoop:
                 else:
                     response = self.llm.chat(messages=messages_for_call, tools=self._tool_schemas)
             except Exception as exc:  # noqa: BLE001 — loop contract: return LoopResult.
-                obs = self._handle_llm_error(exc, step)
+                if _is_llm_timeout_error(exc):
+                    interrupted = self._check_interrupt("llm_timeout", step)
+                    if interrupted is not None:
+                        return interrupted
+                    obs = self._handle_llm_error(
+                        exc,
+                        step,
+                        error_type="llm_timeout",
+                    )
+                    stop_reason = "llm_timeout"
+                else:
+                    obs = self._handle_llm_error(exc, step)
+                    stop_reason = "llm_error"
                 self._append_event(obs)
                 self._publish_loop_error(obs)
                 return LoopResult(
-                    final_answer="",
+                    final_answer=obs.message,
                     steps=step,
                     finished=False,
-                    stop_reason="llm_error",
+                    stop_reason=stop_reason,
                 )
 
             if response.content:
@@ -467,6 +481,13 @@ class AgentLoop:
                 self._append_event(observation)
                 messages.append(self._tool_message(tool_call.id, observation))
                 self._maybe_audit(action, observation, messages)
+                if _is_blocking_ask_observation(observation):
+                    return LoopResult(
+                        final_answer=observation.message,
+                        steps=step,
+                        finished=False,
+                        stop_reason="waiting_for_user",
+                    )
                 interrupted = self._check_interrupt(
                     f"after_tool:{tool_call.name}",
                     step,
@@ -818,7 +839,13 @@ class AgentLoop:
             )
         return action
 
-    def _handle_llm_error(self, exc: Exception, step: int) -> AgentErrorObservation:
+    def _handle_llm_error(
+        self,
+        exc: Exception,
+        step: int,
+        *,
+        error_type: str = "llm_error",
+    ) -> AgentErrorObservation:
         """Convert a pre-Action LLM failure into an EventStream observation.
 
         The Runtime can only produce :class:`ErrorObservation` after an Action
@@ -829,7 +856,7 @@ class AgentLoop:
         if model_name is not None and not isinstance(model_name, str):
             model_name = repr(model_name)
         return AgentErrorObservation(
-            error_type="llm_error",
+            error_type=error_type,
             message=f"{type(exc).__name__}: {exc}",
             phase="llm_chat",
             step=step,
@@ -853,7 +880,11 @@ class AgentLoop:
             return
         from taskweavn.interaction import AgentMessage as _AgentMessage
 
-        noun = "LLM request" if observation.error_type == "llm_error" else "Context build"
+        noun = (
+            "LLM request"
+            if observation.error_type in {"llm_error", "llm_timeout"}
+            else "Context build"
+        )
         message = _AgentMessage(
             session_id=self.session_id,
             task_id=self._current_task_id,
@@ -973,3 +1004,31 @@ def _is_rejection(value: str | None) -> bool:
     if not stripped:
         return False
     return stripped in _REJECTION_TOKENS
+
+
+def _is_blocking_ask_observation(
+    observation: BaseObservation,
+) -> TypeGuard[AskUserObservation]:
+    return (
+        isinstance(observation, AskUserObservation)
+        and observation.success
+        and observation.status == "waiting_for_user"
+    )
+
+
+def _is_llm_timeout_error(exc: BaseException) -> bool:
+    seen: set[int] = set()
+    current: BaseException | None = exc
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        if isinstance(current, TimeoutError):
+            return True
+        error_name = type(current).__name__.lower()
+        message = str(current).lower()
+        if "timeout" in error_name or "timeout" in message or "timed out" in message:
+            return True
+        if isinstance(current, LLMProviderError):
+            current = current.original_error
+            continue
+        current = current.__cause__ if isinstance(current.__cause__, BaseException) else None
+    return False

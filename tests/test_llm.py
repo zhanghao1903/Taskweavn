@@ -26,6 +26,7 @@ def _clear_provider_env(monkeypatch: pytest.MonkeyPatch) -> None:
         "LLM_PROVIDER",
         "LLM_API_KEY",
         "LLM_MODEL",
+        "LLM_REQUEST_TIMEOUT_SECONDS",
         "DEEPSEEK_API_KEY",
         "OPENROUTER_API_KEY",
     ):
@@ -82,10 +83,23 @@ def test_from_env_uses_model_override(
     _clear_provider_env(monkeypatch)
     monkeypatch.setenv("LLM_API_KEY", "sk-env")
     monkeypatch.setenv("LLM_MODEL", "anthropic/claude-haiku-4-5")
-    LLMClient.from_env()
+    client = LLMClient.from_env()
     mock_llm_cls.assert_called_once_with(
         model="anthropic/claude-haiku-4-5", api_key="sk-env"
     )
+    assert client.request_timeout_seconds == 180.0
+
+
+@patch("taskweavn.llm.client.LLM")
+def test_from_env_uses_request_timeout_override(
+    mock_llm_cls: MagicMock,  # noqa: ARG001
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _clear_provider_env(monkeypatch)
+    monkeypatch.setenv("LLM_API_KEY", "sk-env")
+    monkeypatch.setenv("LLM_REQUEST_TIMEOUT_SECONDS", "42.5")
+    client = LLMClient.from_env()
+    assert client.request_timeout_seconds == 42.5
 
 
 @patch("taskweavn.llm.client.LLM")
@@ -209,4 +223,24 @@ def test_chat_parses_tool_calls(
         api_key="sk",
         messages=[],
         tools=[{"type": "function"}],
+        timeout=180.0,
+    )
+
+
+@patch("taskweavn.llm.client.LLM")
+@patch("taskweavn.llm.providers.litellm.litellm")
+def test_chat_timeout_can_be_overridden_per_call(
+    mock_litellm: MagicMock,
+    mock_llm_cls: MagicMock,  # noqa: ARG001
+) -> None:
+    mock_litellm.completion.return_value = _fake_litellm_response("hello")
+    client = LLMClient(model="anthropic/claude", api_key="sk")
+    client.chat(messages=[], timeout_seconds=30.0)
+
+    mock_litellm.completion.assert_called_once_with(
+        model="anthropic/claude",
+        api_key="sk",
+        messages=[],
+        tools=None,
+        timeout=30.0,
     )

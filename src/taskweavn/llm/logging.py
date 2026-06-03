@@ -36,6 +36,7 @@ def log_llm_request(
         "request_purpose": request.metadata.get("request_purpose"),
         "message_count": len(request.messages),
         "tool_count": len(request.tools) if request.tools else 0,
+        "timeout_seconds": request.timeout_seconds,
         "thinking_enabled": bool(request.thinking and request.thinking.enabled),
     }
     if request.thinking is not None:

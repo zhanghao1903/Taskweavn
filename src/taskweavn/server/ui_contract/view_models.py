@@ -34,12 +34,15 @@ ExecutionStatus = Literal[
     "not_started",
     "pending",
     "running",
+    "waiting_for_user",
     "done",
     "failed",
     "cancelled",
     "unknown",
 ]
 MessageKind = Literal["informational", "actionable", "response", "error"]
+AskAnswerType = Literal["free_text", "single_choice", "multi_choice", "boolean"]
+AskRequestStatus = Literal["pending", "answered", "deferred", "cancelled", "expired"]
 
 
 class ProjectSummary(UiContractModel):
@@ -173,6 +176,41 @@ class ConfirmationActionView(UiContractModel):
         if self.status == "resolved" and self.resolved_at is None:
             raise ValueError("resolved confirmation requires resolved_at")
         return self
+
+
+class AskOptionView(UiContractModel):
+    id: str = Field(min_length=1)
+    label: str = Field(min_length=1)
+    description: str | None = None
+
+
+class AskRequestView(UiContractModel):
+    id: str = Field(min_length=1)
+    session_id: str = Field(min_length=1)
+    task_node_id: str | None = Field(default=None, min_length=1)
+    task_ref: TaskRef | None = None
+    question: str = Field(min_length=1)
+    reason: str = Field(min_length=1)
+    suggested_options: tuple[AskOptionView, ...] = ()
+    answer_type: AskAnswerType
+    allow_free_text: bool
+    allow_no_option_with_text: bool
+    blocking: bool
+    attachments_supported: Literal[False] = False
+    status: AskRequestStatus
+    answer_id: str | None = Field(default=None, min_length=1)
+    resume_hint: str | None = Field(default=None, min_length=1)
+    created_at: datetime
+    answered_at: datetime | None = None
+    deferred_at: datetime | None = None
+    cancelled_at: datetime | None = None
+    expired_at: datetime | None = None
+
+
+class AskListResult(UiContractModel):
+    session_id: str = Field(min_length=1)
+    asks: tuple[AskRequestView, ...] = ()
+    active_ask: AskRequestView | None = None
 
 
 class ResultSectionView(UiContractModel):

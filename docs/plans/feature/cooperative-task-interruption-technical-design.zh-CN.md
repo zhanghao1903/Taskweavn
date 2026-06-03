@@ -72,7 +72,34 @@ reason 语义，不是 PublishedTask 状态。
 
 Product 1.0 只保证系统能记录意图，并在下一个安全点停止继续推进。
 
-### 2.3 TaskBus 仍是生命周期权威
+### 2.3 LLM inflight timeout 是最小硬边界
+
+虽然 Product 1.0 不做 hard cancel，但不能允许一次 LLM request 无限阻塞
+执行线程。LLM provider 的长尾延迟会直接影响：
+
+- stop intent 何时到达下一个 safe point；
+- TaskBus 生命周期推进；
+- Main Page 的 stopping projection 体验；
+- 队列中后续 Task 的执行。
+
+因此 1.0 增加最小 LLM request timeout 策略：
+
+- `LLMClient` 默认给每次 chat request 设置 `180s` timeout；
+- 可通过 `LLM_REQUEST_TIMEOUT_SECONDS=<seconds>` 覆盖；
+- 可通过 `LLM_REQUEST_TIMEOUT_SECONDS=none` 在高级调试场景关闭；
+- provider 负责把 timeout 透传到具体 HTTP/SDK 调用；
+- 由该 timeout 触发的 provider timeout 不再进入自动重试，避免
+  `timeout * retry_count` 把用户等待重新拉长到数分钟；
+- AgentLoop 将最终 timeout failure 记为 `llm_timeout`；
+- 如果 timeout 返回时 TaskBus 已记录 interrupt intent，AgentLoop 优先返回
+  `interrupted`，final answer 为
+  `cancelled: <reason>; safe_point=llm_timeout`。
+
+这个策略不是 hard cancel。它不承诺 stop 立即打断正在运行的 provider
+调用；它只定义 provider request 的最长等待边界，以及 timeout 之后的
+TaskBus terminal outcome 语义。
+
+### 2.4 TaskBus 仍是生命周期权威
 
 TaskBus 负责：
 
@@ -90,7 +117,7 @@ TaskBus 不负责：
 - 重写 running Task 为 terminal；
 - 决定 partial result 是否可恢复。
 
-### 2.4 与 ASK / confirmation 的边界
+### 2.5 与 ASK / confirmation 的边界
 
 [ADR-0014](../../decisions/ADR-0014-interaction-control-taxonomy-for-product-1-0.md)
 将 Product 1.0 的交互控制拆成三类语义：

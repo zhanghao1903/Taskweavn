@@ -57,6 +57,17 @@ def test_retryable_error_then_success_records_retry() -> None:
     assert provider.calls == 2
 
 
+def test_request_timeout_does_not_retry_when_timeout_boundary_is_configured() -> None:
+    provider = _RetryProvider([TimeoutError("provider timed out"), _response()])
+
+    with pytest.raises(LLMRetryExhaustedError) as exc_info:
+        provider.chat(ChatRequest(model="m", messages=[], timeout_seconds=1.0))
+
+    assert exc_info.value.classification == ErrorClassification.RETRYABLE
+    assert len(exc_info.value.retry_records) == 0
+    assert provider.calls == 1
+
+
 def test_retry_exhaustion_raises_structured_error() -> None:
     provider = _RetryProvider(
         [_Boom(500, "server"), _Boom(500, "server"), _Boom(500, "server")]

@@ -8,12 +8,13 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, cast
+from urllib.parse import quote
 
 import pytest
 
 from taskweavn.context import SqliteContextStore
 from taskweavn.core import SessionManager, SessionManagerError, WorkspaceLayout
-from taskweavn.interaction import AgentMessage
+from taskweavn.interaction import AgentMessage, AskRequest
 from taskweavn.llm.contracts import ChatResponse, ToolCall
 from taskweavn.observability import LogArchiveManifest, LogContext, get_logging_manager
 from taskweavn.server import (
@@ -632,6 +633,7 @@ def test_main_page_sidecar_app_fixed_route_tick_failure_path(tmp_path: Any) -> N
         tick = app.run_fixed_route_tick(session_id)
         task = app.task_bus.get(session_id, "failing-task")
         snapshot = _request(app, "GET", f"/api/v1/sessions/{session_id}/snapshot")
+        events = _request(app, "GET", f"/api/v1/sessions/{session_id}/events")
     finally:
         app.close()
 
@@ -654,6 +656,113 @@ def test_main_page_sidecar_app_fixed_route_tick_failure_path(tmp_path: Any) -> N
         message["kind"] == "error" and message["title"] == "Task failed"
         for message in snapshot.json["data"]["messages"]
     )
+    assert events.status == 200
+    assert "event: task.node.changed" in events.text
+    assert '"reason":"task_lifecycle_committed"' in events.text
+    assert '"taskNodeIds":["failing-task"]' in events.text
+
+
+def test_main_page_sidecar_app_loads_snapshot_for_failed_interrupted_task(
+    tmp_path: Any,
+) -> None:
+    app = build_main_page_sidecar_app(
+        MainPageSidecarConfig(workspace_root=tmp_path, port=0),
+        MainPageSidecarDependencies(llm=_StubLLM()),
+    )
+    try:
+        session_id = _create_session(app)
+        app.task_bus.publish(_published_task("interrupted-task", session_id=session_id))
+        claimed = app.task_bus.claim_next(
+            session_id,
+            capability="general",
+            agent_id="default_agent",
+        )
+        assert claimed is not None
+        app.task_bus.request_interrupt(
+            session_id,
+            "interrupted-task",
+            reason="user requested stop",
+            request_id="stop-interrupted-task",
+        )
+        app.task_bus.fail(
+            session_id,
+            "interrupted-task",
+            error_ref="cancelled: user requested stop; safe_point=after_llm_response",
+        )
+
+        snapshot = _request(app, "GET", f"/api/v1/sessions/{session_id}/snapshot")
+    finally:
+        app.close()
+
+    assert snapshot.status == 200
+    assert snapshot.json["ok"] is True
+    snapshot_node = snapshot.json["data"]["taskTree"]["nodes"][0]
+    assert snapshot_node["status"] == "failed"
+    assert snapshot_node["execution"] == "failed"
+    assert snapshot_node["interruptionRequested"] is True
+    assert snapshot_node["errorRef"] == (
+        "cancelled: user requested stop; safe_point=after_llm_response"
+    )
+
+
+def test_main_page_sidecar_app_recovers_stale_interrupted_running_task_on_startup(
+    tmp_path: Any,
+) -> None:
+    layout = WorkspaceLayout(tmp_path)
+    manager = SessionManager(layout)
+    try:
+        session = manager.create("Stale stop")
+    finally:
+        manager.close()
+
+    task_bus = SqliteTaskBus(layout.workspace_tasks_db)
+    try:
+        task_bus.publish(_published_task("stale-task", session_id=session.id))
+        assert (
+            task_bus.claim_next(
+                session.id,
+                capability="general",
+                agent_id="default_agent",
+            )
+            is not None
+        )
+        task_bus.request_interrupt(
+            session.id,
+            "stale-task",
+            reason="user requested stop",
+            request_id="stop-stale-task",
+        )
+    finally:
+        task_bus.close()
+
+    app = build_main_page_sidecar_app(
+        MainPageSidecarConfig(workspace_root=tmp_path, port=0),
+        MainPageSidecarDependencies(llm=_StubLLM()),
+    )
+    try:
+        snapshot = _request(app, "GET", f"/api/v1/sessions/{session.id}/snapshot")
+        events = _request(app, "GET", f"/api/v1/sessions/{session.id}/events")
+        recovered = app.task_bus.get(session.id, "stale-task")
+    finally:
+        app.close()
+
+    assert recovered is not None
+    assert recovered.status == "failed"
+    assert recovered.error_ref == (
+        "cancelled: user requested stop; safe_point=sidecar_recovery"
+    )
+    assert snapshot.status == 200
+    assert snapshot.json["ok"] is True
+    snapshot_node = snapshot.json["data"]["taskTree"]["nodes"][0]
+    assert snapshot_node["status"] == "failed"
+    assert snapshot_node["execution"] == "failed"
+    assert snapshot_node["interruptionRequested"] is True
+    assert snapshot_node["errorRef"] == (
+        "cancelled: user requested stop; safe_point=sidecar_recovery"
+    )
+    assert events.status == 200
+    assert "event: task.node.changed" in events.text
+    assert '"taskNodeIds":["stale-task"]' in events.text
 
 
 def test_main_page_sidecar_app_fixed_route_tick_runs_agent_loop_default_agent(
@@ -676,6 +785,12 @@ def test_main_page_sidecar_app_fixed_route_tick_runs_agent_loop_default_agent(
         result_ref = tick.result_ref
         snapshot = _request(app, "GET", f"/api/v1/sessions/{session_id}/snapshot")
         events = _request(app, "GET", f"/api/v1/sessions/{session_id}/events")
+        snapshot_cursor = snapshot.json["data"]["cursor"]
+        events_after_snapshot = _request(
+            app,
+            "GET",
+            f"/api/v1/sessions/{session_id}/events?cursor={quote(snapshot_cursor)}",
+        )
     finally:
         app.close()
 
@@ -712,6 +827,89 @@ def test_main_page_sidecar_app_fixed_route_tick_runs_agent_loop_default_agent(
     assert "event: audit.records_changed" in events.text
     assert '"reason":"agent_loop_event_stream_updated"' in events.text
     assert '"taskNodeId":"loop-task"' in events.text
+    assert "event: task.node.changed" in events.text
+    assert '"reason":"task_lifecycle_committed"' in events.text
+    assert '"taskNodeIds":["loop-task"]' in events.text
+    assert snapshot_cursor.startswith("task_lifecycle:loop-task:")
+    assert events_after_snapshot.status == 200
+    assert "event: session.resync_required" not in events_after_snapshot.text
+
+
+def test_main_page_sidecar_app_agent_loop_creates_ask_and_resumes_with_answer_fact(
+    tmp_path: Any,
+) -> None:
+    llm = _AgentLoopSequencedLLM(
+        [
+            _agent_loop_tool_call_response(
+                "ask_user",
+                {
+                    "question": "Which deployment target should be used?",
+                    "reason": "Deployment target is a user-owned decision.",
+                    "suggested_options": ["Vercel", "Netlify"],
+                },
+                call_id="ask-1",
+            ),
+            ChatResponse(
+                content="Deployment target recorded.",
+                tool_calls=[],
+                raw_assistant_message={
+                    "role": "assistant",
+                    "content": "Deployment target recorded.",
+                },
+            ),
+        ]
+    )
+    app = build_main_page_sidecar_app(
+        MainPageSidecarConfig(
+            workspace_root=tmp_path,
+            port=0,
+            enable_execution_dispatcher=False,
+        ),
+        MainPageSidecarDependencies(llm=llm),
+    )
+    try:
+        session_id = _create_session(app)
+        app.task_bus.publish(_published_task("ask-runtime-task", session_id=session_id))
+
+        first_tick = app.run_fixed_route_tick(session_id)
+        pending_asks = app.ask_store.list_for_session(
+            session_id,
+            statuses=("pending",),
+            task_id="ask-runtime-task",
+        )
+        snapshot = _request(app, "GET", f"/api/v1/sessions/{session_id}/snapshot")
+        answer = _request(
+            app,
+            "POST",
+            f"/api/v1/sessions/{session_id}/asks/{pending_asks[0].ask_id}/answer",
+            body={
+                "commandId": "answer-runtime-ask",
+                "sessionId": session_id,
+                "payload": {"text": "Use Vercel."},
+            },
+        )
+        resumed = app.task_bus.get(session_id, "ask-runtime-task")
+        second_tick = app.run_fixed_route_tick(session_id)
+        completed = app.task_bus.get(session_id, "ask-runtime-task")
+    finally:
+        app.close()
+
+    assert first_tick.status == "waiting_for_user"
+    assert pending_asks[0].question == "Which deployment target should be used?"
+    assert snapshot.json["data"]["activeAsk"]["id"] == pending_asks[0].ask_id
+    assert snapshot.json["data"]["session"]["status"] == "waiting_user"
+    assert answer.status == 200
+    assert answer.json["ok"] is True
+    assert resumed is not None
+    assert resumed.status == "pending"
+    assert second_tick.status == "completed"
+    assert completed is not None
+    assert completed.status == "done"
+    first_tool_names = {tool["function"]["name"] for tool in llm.calls[0]["tools"]}
+    assert "ask_user" in first_tool_names
+    second_prompt = llm.calls[1]["messages"][1]["content"]
+    assert "ask_id=" + pending_asks[0].ask_id + " status=answered" in second_prompt
+    assert "answer: Use Vercel." in second_prompt
 
 
 def test_main_page_sidecar_app_projects_file_change_summary_from_agent_loop_events(
@@ -806,6 +1004,69 @@ def test_main_page_sidecar_app_fixed_route_tick_reports_missing_default_agent(
     assert task is not None
     assert task.status == "pending"
     assert task.claimed_by is None
+
+
+def test_main_page_sidecar_app_answers_ask_and_resumes_waiting_task(
+    tmp_path: Any,
+) -> None:
+    app = build_main_page_sidecar_app(
+        MainPageSidecarConfig(
+            workspace_root=tmp_path,
+            port=0,
+            enable_execution_dispatcher=False,
+        ),
+        MainPageSidecarDependencies(llm=_StubLLM()),
+    )
+    try:
+        session_id = _create_session(app)
+        app.task_bus.publish(_published_task("ask-task", session_id=session_id))
+        assert (
+            app.task_bus.claim_next(
+                session_id,
+                capability="general",
+                agent_id="agent-1",
+            )
+            is not None
+        )
+        app.task_bus.wait_for_user(session_id, "ask-task", ask_id="ask-1")
+        app.ask_store.create(
+            AskRequest(
+                ask_id="ask-1",
+                session_id=session_id,
+                task_id="ask-task",
+                question="Which deployment target should be used?",
+                reason="The agent needs a user-owned deployment decision.",
+            )
+        )
+
+        snapshot = _request(app, "GET", f"/api/v1/sessions/{session_id}/snapshot")
+        answer = _request(
+            app,
+            "POST",
+            f"/api/v1/sessions/{session_id}/asks/ask-1/answer",
+            body={
+                "commandId": "answer-ask-1",
+                "sessionId": session_id,
+                "payload": {"text": "Use Vercel."},
+            },
+        )
+        ask_detail = _request(app, "GET", f"/api/v1/sessions/{session_id}/asks/ask-1")
+        task = app.task_bus.get(session_id, "ask-task")
+    finally:
+        app.close()
+
+    assert WorkspaceLayout(tmp_path).workspace_asks_db.is_file()
+    assert snapshot.status == 200
+    assert snapshot.json["data"]["pendingAsks"][0]["id"] == "ask-1"
+    assert snapshot.json["data"]["activeAsk"]["id"] == "ask-1"
+    assert snapshot.json["data"]["session"]["status"] == "waiting_user"
+    assert answer.status == 200
+    assert answer.json["ok"] is True
+    assert answer.json["result"]["debugRefs"]["dispatchReason"] == "ask_answer_resume"
+    assert ask_detail.json["data"]["status"] == "answered"
+    assert task is not None
+    assert task.status == "pending"
+    assert task.waiting_for_ask_id is None
 
 
 def test_main_page_sidecar_app_writes_frontend_error_log_file(tmp_path: Any) -> None:
