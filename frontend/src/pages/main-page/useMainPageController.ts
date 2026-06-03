@@ -159,6 +159,7 @@ export function useMainPageController({
   });
   const snapshotData = snapshotQuery.data;
   const snapshotDataRef = useRef(snapshotData);
+  const lastEventCursorRef = useRef<string | null>(null);
   const lastResyncEventKeyRef = useRef<string | null>(null);
   snapshotDataRef.current = snapshotData;
   const snapshotIdentity = snapshotData
@@ -442,6 +443,8 @@ export function useMainPageController({
     setUiNotice(null);
     setSessionDialog({ mode: "idle" });
     setEventError(null);
+    lastEventCursorRef.current = null;
+    lastResyncEventKeyRef.current = null;
   }, [snapshotIdentity]);
 
   useEffect(() => {
@@ -470,14 +473,18 @@ export function useMainPageController({
             sessionId: event.sessionId,
           });
 
-          const nextResyncEventKey = resyncEventKey(event);
-          if (
-            nextResyncEventKey !== null &&
-            nextResyncEventKey === lastResyncEventKeyRef.current
-          ) {
+          if (event.cursor === lastEventCursorRef.current) {
             return;
           }
-          lastResyncEventKeyRef.current = nextResyncEventKey;
+          lastEventCursorRef.current = event.cursor;
+
+          const nextResyncEventKey = resyncEventKey(event);
+          if (nextResyncEventKey !== null) {
+            if (nextResyncEventKey === lastResyncEventKeyRef.current) {
+              return;
+            }
+            lastResyncEventKeyRef.current = nextResyncEventKey;
+          }
 
           const action = routeMainPageEvent(event);
           if (action.kind === "ignore") {

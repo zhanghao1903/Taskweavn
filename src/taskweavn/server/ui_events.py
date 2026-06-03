@@ -177,6 +177,7 @@ class SqliteUiEventSource:
                         (session_id,),
                     )
                 )
+                return (_event_from_row(row) for row in rows)
             else:
                 cursor_row = self._conn.execute(
                     """
@@ -186,6 +187,16 @@ class SqliteUiEventSource:
                     (session_id, cursor),
                 ).fetchone()
                 if cursor_row is None:
+                    rows = tuple(
+                        self._conn.execute(
+                            """
+                            SELECT payload_json FROM ui_events
+                            WHERE session_id = ?
+                            ORDER BY id ASC
+                            """,
+                            (session_id,),
+                        )
+                    )
                     return iter(
                         (
                             resync_required(
@@ -195,6 +206,7 @@ class SqliteUiEventSource:
                                     "cursor is not available in workspace UI event source"
                                 ),
                             ),
+                            *(_event_from_row(row) for row in rows),
                         )
                     )
                 rows = tuple(

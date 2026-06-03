@@ -27,6 +27,8 @@ also do not replace architecture facts or project scheduling.
 | [plato-mvp-implementation-plan.md](plato-mvp-implementation-plan.md) | MVP implementation workflow from PRD to UX flow, Figma UI baseline, frontend technical design, API contract, backend integration, and user testing. |
 | [plato-mvp-prd.md](plato-mvp-prd.md) | MVP product requirements: user, scope, main flows, requirements, non-goals, success criteria, and PRD-to-UX handoff. |
 | [plato-1-0-line-first-authoring-policy.md](plato-1-0-line-first-authoring-policy.md) | Plato 1.0 policy baseline: line-first authoring UX, single-task/single-agent defaults, and complexity-hiding rules. |
+| [plato-1-0-frontend-qa-runbook.md](plato-1-0-frontend-qa-runbook.md) | Product 1.0 frontend QA runbook for Main Page, Audit Page, local sidecar HTTP mode, cross-page trust flow, recovery states, and first user-test readiness. |
+| [plato-1-0-frontend-qa-notes-2026-06-03.md](plato-1-0-frontend-qa-notes-2026-06-03.md) | Product 1.0 local sidecar HTTP frontend QA notes: Main Page, Audit Page, P0/P1 issue list, and first user-test readiness decision. |
 | [plato-1-1-product-plan.md](plato-1-1-product-plan.md) | Product 1.1 planning baseline: items moved out of 1.0, plus skills, MCP, file, and multimodal research themes. |
 | [plato-main-page-ux-flow.md](plato-main-page-ux-flow.md) | Main Page UX flow spec: key screen states, task interactions, confirmation flow, result/file/audit visibility, and Figma input. |
 | [plato-figma-ui-baseline.md](plato-figma-ui-baseline.md) | Historical/reference Figma UI baseline 1.0 record: target file, screen list, visual direction, sample data, and implementation handoff notes. |

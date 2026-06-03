@@ -326,6 +326,16 @@ docs/product/plato-ui-api-contract.md
 
 验证普通用户是否能凭直觉使用第一版。
 
+Product 1.0 第一轮前端用户路径验收应先使用：
+
+```text
+docs/product/plato-1-0-frontend-qa-runbook.md
+```
+
+该 runbook 将 Main Page、Audit Page、local sidecar HTTP mode、恢复状态、
+sanitized disclosure 和 live refresh 串成一条验收路径。它用于判断当前前端
+是否可以进入第一轮真实用户测试，而不是扩大 Product 1.0 功能范围。
+
 ### 9.2 测试任务
 
 第一轮只测三类场景：
