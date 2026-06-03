@@ -810,3 +810,19 @@ ASK 只能退化成 message prompt，无法保证 Product 1.0 闭环。
 6. Context Manager resume input 包含用户回答事实。
 7. confirmation 仍保持独立授权语义。
 8. 相关注释、fixture、文档不再把 ASK 和 confirmation 混用。
+
+---
+
+## 16. 实现状态
+
+当前后端 slice 已完成 Product 1.0 backend closure：
+
+- C2 confirmation backend hardening and terminology cleanup：done。
+- C3 ASK domain/store：done。
+- C4 TaskBus `waiting_for_user`：done。
+- C5 ASK commands/queries/snapshot：done。
+- C6 runtime `ask_user` and resume integration：done。
+- C7 tests/docs closure：done。
+
+剩余工作转入单独的前端/交互 slice：Main Page ASK Dock、answer UI、
+confirmation UI integration、event/refetch polish，以及最终 Product 1.0 QA。

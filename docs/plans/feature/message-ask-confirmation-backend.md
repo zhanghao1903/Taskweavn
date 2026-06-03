@@ -372,7 +372,7 @@ Implementation notes:
 
 ### C7. Tests And Docs Closure
 
-Current status: planned.
+Current status: implemented.
 
 Deliver:
 
@@ -387,6 +387,19 @@ Acceptance:
 - Product 1.0 backend ASK loop passes without frontend-specific assumptions;
 - confirmation regression tests pass;
 - docs accurately state implemented scope and remaining frontend work.
+
+Validation:
+
+- `uv run pytest tests/test_loop.py tests/test_fixed_route_task_executor.py tests/test_context_manager.py tests/test_task_ask_service.py tests/test_ask_store.py tests/test_ask_projection.py tests/test_main_page_sidecar_app.py`
+  - 98 passed, 1 dependency warning
+- `uv run ruff check src/taskweavn tests/test_loop.py tests/test_fixed_route_task_executor.py tests/test_context_manager.py tests/test_main_page_sidecar_app.py`
+  - passed
+- `uv run mypy src/taskweavn`
+  - passed
+
+Release record:
+
+- [Message, ASK, And Confirmation Backend](../../releases/message-ask-confirmation-backend.md)
 
 ---
 
