@@ -337,6 +337,7 @@ def _command_request_hash(route: _Route, request: CommandRequest[Any]) -> str:
     payload = {
         "route": route.name,
         "session_id": request.session_id,
+        "raw_task_id": route.raw_task_id or None,
         "task_node_id": route.task_node_id or None,
         "confirmation_id": route.confirmation_id or None,
         "ask_id": route.ask_id or None,

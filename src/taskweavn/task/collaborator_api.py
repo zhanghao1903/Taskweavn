@@ -7,6 +7,7 @@ surface. It does not expose raw LLM proposal shapes to callers.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any, Protocol, runtime_checkable
 from uuid import uuid4
 
@@ -40,6 +41,14 @@ def _new_id() -> str:
     return uuid4().hex
 
 
+@dataclass(frozen=True)
+class RawTaskAskAnswerSubmission:
+    """One user-submitted answer for a RawTask clarification ask."""
+
+    ask_id: str
+    value: str
+
+
 @runtime_checkable
 class CollaboratorApiAdapter(Protocol):
     """Stable UI/server entrypoint for Collaborator authoring operations."""
@@ -62,6 +71,16 @@ class CollaboratorApiAdapter(Protocol):
         raw_task_id: str,
         ask_id: str,
         value: str,
+        source_message_id: str | None = None,
+        idempotency_key: str | None = None,
+    ) -> CommandResult: ...
+
+    def answer_raw_task_asks(
+        self,
+        *,
+        session_id: str,
+        raw_task_id: str,
+        answers: tuple[RawTaskAskAnswerSubmission, ...],
         source_message_id: str | None = None,
         idempotency_key: str | None = None,
     ) -> CommandResult: ...
@@ -187,8 +206,11 @@ class DefaultCollaboratorApiAdapter:
         source_message_id: str | None = None,
         idempotency_key: str | None = None,
     ) -> CommandResult:
-        if not value.strip():
-            return _rejected("RawTask answer value must not be empty")
+        normalized = _validated_answer_submissions(
+            (RawTaskAskAnswerSubmission(ask_id=ask_id, value=value),)
+        )
+        if isinstance(normalized, CommandResult):
+            return normalized
         emitted: tuple[str, ...] = ()
         if source_message_id is None:
             message_id = self._publish_user_message(
@@ -204,6 +226,67 @@ class DefaultCollaboratorApiAdapter:
             emitted = (message_id,)
         else:
             message_id = source_message_id
+        return self._submit_raw_task_answers(
+            session_id=session_id,
+            raw_task_id=raw_task_id,
+            answers=normalized,
+            message_id=message_id,
+            idempotency_key=idempotency_key,
+            emitted_message_ids=emitted,
+            accepted_message="RawTask answer recorded",
+            rejected_message="RawTask answer rejected",
+        )
+
+    def answer_raw_task_asks(
+        self,
+        *,
+        session_id: str,
+        raw_task_id: str,
+        answers: tuple[RawTaskAskAnswerSubmission, ...],
+        source_message_id: str | None = None,
+        idempotency_key: str | None = None,
+    ) -> CommandResult:
+        normalized = _validated_answer_submissions(answers)
+        if isinstance(normalized, CommandResult):
+            return normalized
+        emitted: tuple[str, ...] = ()
+        if source_message_id is None:
+            message_id = self._publish_user_message(
+                session_id=session_id,
+                content=_batch_answer_content(normalized),
+                context={
+                    "surface": "raw_task_ask",
+                    "operation": "answerRawTaskAskBatch",
+                    "raw_task_id": raw_task_id,
+                    "ask_ids": tuple(answer.ask_id for answer in normalized),
+                },
+            )
+            emitted = (message_id,)
+        else:
+            message_id = source_message_id
+        return self._submit_raw_task_answers(
+            session_id=session_id,
+            raw_task_id=raw_task_id,
+            answers=normalized,
+            message_id=message_id,
+            idempotency_key=idempotency_key,
+            emitted_message_ids=emitted,
+            accepted_message="RawTask answers recorded",
+            rejected_message="RawTask answers rejected",
+        )
+
+    def _submit_raw_task_answers(
+        self,
+        *,
+        session_id: str,
+        raw_task_id: str,
+        answers: tuple[RawTaskAskAnswerSubmission, ...],
+        message_id: str,
+        idempotency_key: str | None,
+        emitted_message_ids: tuple[str, ...],
+        accepted_message: str,
+        rejected_message: str,
+    ) -> CommandResult:
         command = MutateRawTaskCommand(
             session_id=session_id,
             raw_task_id=raw_task_id,
@@ -211,13 +294,16 @@ class DefaultCollaboratorApiAdapter:
             causation_message_id=message_id,
             idempotency_key=idempotency_key,
             operations=(
-                RawTaskOperation(
-                    op="apply_answer",
-                    payload={
-                        "ask_id": ask_id,
-                        "value": value,
-                        "source_message_id": message_id,
-                    },
+                *(
+                    RawTaskOperation(
+                        op="apply_answer",
+                        payload={
+                            "ask_id": answer.ask_id,
+                            "value": answer.value,
+                            "source_message_id": message_id,
+                        },
+                    )
+                    for answer in answers
                 ),
             ),
         )
@@ -232,9 +318,9 @@ class DefaultCollaboratorApiAdapter:
         )
         return _command_result(
             result,
-            accepted_message="RawTask answer recorded",
-            rejected_message="RawTask answer rejected",
-            emitted_message_ids=emitted,
+            accepted_message=accepted_message,
+            rejected_message=rejected_message,
+            emitted_message_ids=emitted_message_ids,
         )
 
     def generate_task_tree(
@@ -395,6 +481,33 @@ def _rejected(message: str) -> CommandResult:
     return CommandResult(status="rejected", message=message)
 
 
+def _validated_answer_submissions(
+    answers: tuple[RawTaskAskAnswerSubmission, ...],
+) -> tuple[RawTaskAskAnswerSubmission, ...] | CommandResult:
+    if not answers:
+        return _rejected("RawTask answer batch must include at least one answer")
+    normalized: list[RawTaskAskAnswerSubmission] = []
+    seen: set[str] = set()
+    for answer in answers:
+        ask_id = answer.ask_id.strip()
+        value = answer.value.strip()
+        if not ask_id:
+            return _rejected("RawTask answer ask_id must not be empty")
+        if not value:
+            return _rejected("RawTask answer value must not be empty")
+        if ask_id in seen:
+            return _rejected(f"RawTask answer batch contains duplicate ask_id {ask_id!r}")
+        seen.add(ask_id)
+        normalized.append(RawTaskAskAnswerSubmission(ask_id=ask_id, value=value))
+    return tuple(normalized)
+
+
+def _batch_answer_content(answers: tuple[RawTaskAskAnswerSubmission, ...]) -> str:
+    if len(answers) == 1:
+        return answers[0].value
+    return "\n".join(f"{index}. {answer.value}" for index, answer in enumerate(answers, 1))
+
+
 def _error_summary(errors: tuple[AuthoringCommandError, ...]) -> str:
     if not errors:
         return "unknown error"
@@ -408,5 +521,6 @@ def _dedupe_ids(ids: tuple[str, ...]) -> tuple[str, ...]:
 __all__ = [
     "CollaboratorApiAdapter",
     "DefaultCollaboratorApiAdapter",
+    "RawTaskAskAnswerSubmission",
     "COLLABORATOR_TEMPLATE_ID",
 ]

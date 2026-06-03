@@ -96,6 +96,7 @@ from taskweavn.task.collaborator import (
 from taskweavn.task.collaborator_api import (
     CollaboratorApiAdapter,
     DefaultCollaboratorApiAdapter,
+    RawTaskAskAnswerSubmission,
 )
 from taskweavn.task.commands import (
     CommandResult,

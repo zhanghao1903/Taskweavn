@@ -11,6 +11,7 @@ from taskweavn.server.transport import HttpApiRequest, HttpApiResponse
 from taskweavn.server.ui_command_idempotency import UiCommandResponseIdempotencyStore
 from taskweavn.server.ui_contract import (
     AnswerAskPayload,
+    AnswerAuthoringAskBatchPayload,
     ApiError,
     AppendSessionInputPayload,
     AppendTaskInputPayload,
@@ -361,6 +362,23 @@ class PlatoUiHttpTransport:
                     route,
                     generate_request,
                     lambda: self._command_gateway.generate_task_tree(generate_request),
+                    self._command_idempotency_store,
+                )
+            if route_name == "answer_authoring_ask_batch":
+                answer_authoring_request = _parse_command_request(
+                    request,
+                    route.session_id,
+                    CommandRequest[AnswerAuthoringAskBatchPayload],
+                )
+                if isinstance(answer_authoring_request, HttpApiResponse):
+                    return answer_authoring_request
+                return _command_response(
+                    route,
+                    answer_authoring_request,
+                    lambda: self._command_gateway.answer_authoring_ask_batch(
+                        route.raw_task_id,
+                        answer_authoring_request,
+                    ),
                     self._command_idempotency_store,
                 )
             if route_name == "update_task_node":

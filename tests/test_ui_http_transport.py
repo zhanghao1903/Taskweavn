@@ -251,6 +251,20 @@ def test_command_routes_validate_and_dispatch_to_gateway_methods() -> None:
             "generate_task_tree",
         ),
         (
+            "POST",
+            "/api/v1/sessions/session%201/authoring/raw-tasks/raw%201/asks/answers",
+            _command_body(
+                "session 1",
+                {
+                    "answers": [
+                        {"askId": "ask 1", "value": "Developers"},
+                        {"askId": "ask 2", "value": "Portfolio"},
+                    ]
+                },
+            ),
+            "answer_authoring_ask_batch:raw 1",
+        ),
+        (
             "PATCH",
             "/api/v1/sessions/session%201/tasks/task%201",
             _command_body("session 1", {"summary": "Updated"}),
@@ -1107,6 +1121,14 @@ class _CommandGateway:
         self.calls.append(f"answer_ask:{ask_id}")
         if self.reject_ask_answer:
             return _rejected(request.command_id, message="ASK is not pending: answered")
+        return _accepted(request.command_id)
+
+    def answer_authoring_ask_batch(
+        self,
+        raw_task_id: str,
+        request: CommandRequest[Any],
+    ) -> CommandResponse:
+        self.calls.append(f"answer_authoring_ask_batch:{raw_task_id}")
         return _accepted(request.command_id)
 
     def defer_ask(

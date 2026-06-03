@@ -78,6 +78,22 @@ class AnswerAskPayload(UiContractModel):
         return self
 
 
+class AnswerAuthoringAskItemPayload(UiContractModel):
+    ask_id: str = Field(min_length=1)
+    value: str = Field(min_length=1)
+
+
+class AnswerAuthoringAskBatchPayload(UiContractModel):
+    answers: tuple[AnswerAuthoringAskItemPayload, ...] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def _validate_unique_ask_ids(self) -> AnswerAuthoringAskBatchPayload:
+        ask_ids = [answer.ask_id for answer in self.answers]
+        if len(ask_ids) != len(set(ask_ids)):
+            raise ValueError("authoring ASK batch answer ask_id values must be unique")
+        return self
+
+
 class DeferAskPayload(UiContractModel):
     reason: str | None = Field(default=None, min_length=1)
 

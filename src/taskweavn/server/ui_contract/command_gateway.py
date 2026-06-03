@@ -18,6 +18,7 @@ from taskweavn.server.ui_contract.command_mapping import (
 )
 from taskweavn.server.ui_contract.commands import (
     AnswerAskPayload,
+    AnswerAuthoringAskBatchPayload,
     AppendSessionInputPayload,
     AppendTaskInputPayload,
     CancelAskPayload,
@@ -38,7 +39,10 @@ from taskweavn.server.ui_contract.refs import (
     ObjectRef,
 )
 from taskweavn.task.ask_service import TaskAskCommandService
-from taskweavn.task.collaborator_api import CollaboratorApiAdapter
+from taskweavn.task.collaborator_api import (
+    CollaboratorApiAdapter,
+    RawTaskAskAnswerSubmission,
+)
 from taskweavn.task.commands import CommandResult as CoreCommandResult
 from taskweavn.task.commands import TaskCommandService
 from taskweavn.task.models import TaskRef
@@ -399,6 +403,58 @@ class DefaultUiCommandGateway:
                 ask_id=ask_id,
                 impact="changed",
                 reason="ASK was answered.",
+            )
+        except Exception as exc:
+            return _command_exception_response(request, exc)
+
+    def answer_authoring_ask_batch(
+        self,
+        raw_task_id: str,
+        request: CommandRequest[AnswerAuthoringAskBatchPayload],
+    ) -> CommandResponse:
+        try:
+            result = self._collaborator.answer_raw_task_asks(
+                session_id=request.session_id,
+                raw_task_id=raw_task_id,
+                answers=tuple(
+                    RawTaskAskAnswerSubmission(
+                        ask_id=answer.ask_id,
+                        value=answer.value,
+                    )
+                    for answer in request.payload.answers
+                ),
+                idempotency_key=request.idempotency_key,
+            )
+            raw_ref = ObjectRef(kind="raw_task", id=raw_task_id)
+            ask_refs = tuple(
+                ObjectRef(kind="raw_task_ask", id=answer.ask_id)
+                for answer in request.payload.answers
+            )
+            return _command_response(
+                request,
+                result,
+                object_refs=(raw_ref, *ask_refs),
+                affected_objects=(
+                    AffectedObjectRef(
+                        ref=raw_ref,
+                        impact="changed",
+                        reason="RawTask authoring ASK answers were submitted.",
+                    ),
+                    *(
+                        AffectedObjectRef(
+                            ref=ask_ref,
+                            impact="changed",
+                            reason="RawTask authoring ASK was answered.",
+                        )
+                        for ask_ref in ask_refs
+                    ),
+                ),
+                suggested_queries=("session.snapshot", "session.messages", "task.tree"),
+                affected_scopes=(
+                    AffectedScope(kind="session"),
+                    AffectedScope(kind="messages"),
+                    AffectedScope(kind="task_tree"),
+                ),
             )
         except Exception as exc:
             return _command_exception_response(request, exc)

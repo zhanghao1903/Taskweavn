@@ -113,13 +113,13 @@ feel fragmented.
 
 ## 7. Implementation Slices
 
-### C1 Docs Alignment
+### C1 Docs Alignment - done
 
 - Add this feature plan.
 - Add the Chinese technical design.
 - Link the plan from the feature plan index.
 
-### C2 Authoring Batch Answer Backend
+### C2 Authoring Batch Answer Backend - done
 
 - Add an authoring batch answer adapter method.
 - Add UI contract payload types for authoring batch answers.
@@ -127,7 +127,7 @@ feel fragmented.
 - Keep all-or-nothing behavior in `AuthoringCommandService`.
 - Add duplicate-answer validation at the RawTask operation boundary.
 
-### C3 HTTP/API Entry Point
+### C3 HTTP/API Entry Point - done
 
 - Add a sidecar route for authoring batch answer.
 - Return normal `CommandResponse` with `authoring` object refs and refresh
@@ -156,4 +156,3 @@ feel fragmented.
 - A new answer to an already answered RawTaskAsk is rejected.
 - Existing single authoring answer behavior remains compatible.
 - Existing execution ASK tests continue to pass.
-

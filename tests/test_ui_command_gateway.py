@@ -6,6 +6,8 @@ from dataclasses import dataclass, field
 
 from taskweavn.server.ui_contract import (
     AnswerAskPayload,
+    AnswerAuthoringAskBatchPayload,
+    AnswerAuthoringAskItemPayload,
     AppendSessionInputPayload,
     AppendTaskInputPayload,
     CancelAskPayload,
@@ -78,6 +80,29 @@ class _Collaborator:
         idempotency_key: str | None = None,
     ) -> CoreCommandResult:
         raise NotImplementedError
+
+    def answer_raw_task_asks(
+        self,
+        *,
+        session_id: str,
+        raw_task_id: str,
+        answers: tuple[object, ...],
+        source_message_id: str | None = None,
+        idempotency_key: str | None = None,
+    ) -> CoreCommandResult:
+        self.calls.append(
+            (
+                "answer_raw_task_asks",
+                {
+                    "session_id": session_id,
+                    "raw_task_id": raw_task_id,
+                    "answers": answers,
+                    "source_message_id": source_message_id,
+                    "idempotency_key": idempotency_key,
+                },
+            )
+        )
+        return self.result
 
     def generate_task_tree(
         self,
@@ -490,6 +515,46 @@ def test_generate_task_tree_with_prompt_creates_raw_then_tree() -> None:
                 "idempotency_key": None,
             },
         ),
+    ]
+
+
+def test_answer_authoring_ask_batch_routes_to_collaborator() -> None:
+    collaborator = _Collaborator()
+    gateway = _gateway(collaborator=collaborator)
+    request = CommandRequest[AnswerAuthoringAskBatchPayload](
+        command_id="answer-authoring-1",
+        session_id="session-1",
+        idempotency_key="answer-batch-1",
+        payload=AnswerAuthoringAskBatchPayload(
+            answers=(
+                AnswerAuthoringAskItemPayload(ask_id="ask-1", value="Developers"),
+                AnswerAuthoringAskItemPayload(ask_id="ask-2", value="Portfolio"),
+            )
+        ),
+    )
+
+    response = gateway.answer_authoring_ask_batch("raw-1", request)
+
+    assert response.ok is True
+    assert response.result is not None
+    dumped = response.result.model_dump(mode="json")
+    assert {"kind": "raw_task", "id": "raw-1"} in dumped["objectRefs"]
+    assert {"kind": "raw_task_ask", "id": "ask-1"} in dumped["objectRefs"]
+    assert response.refresh.suggested_queries == (
+        "session.snapshot",
+        "session.messages",
+        "task.tree",
+    )
+    assert collaborator.calls[0][0] == "answer_raw_task_asks"
+    call = collaborator.calls[0][1]
+    assert call["session_id"] == "session-1"
+    assert call["raw_task_id"] == "raw-1"
+    assert call["idempotency_key"] == "answer-batch-1"
+    answers = call["answers"]
+    assert isinstance(answers, tuple)
+    assert [(answer.ask_id, answer.value) for answer in answers] == [
+        ("ask-1", "Developers"),
+        ("ask-2", "Portfolio"),
     ]
 
 

@@ -3,6 +3,8 @@
 from taskweavn.server.ui_contract.base import UiContractModel, to_camel, utcnow
 from taskweavn.server.ui_contract.commands import (
     AnswerAskPayload,
+    AnswerAuthoringAskBatchPayload,
+    AnswerAuthoringAskItemPayload,
     AppendSessionInputPayload,
     AppendTaskInputPayload,
     CancelAskPayload,
@@ -175,6 +177,8 @@ __all__ = [
     "ApiError",
     "ApiErrorCode",
     "AnswerAskPayload",
+    "AnswerAuthoringAskBatchPayload",
+    "AnswerAuthoringAskItemPayload",
     "AppendSessionInputPayload",
     "AppendTaskInputPayload",
     "ask_answered",

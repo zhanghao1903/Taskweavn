@@ -10,6 +10,7 @@ from taskweavn.core.session import Session
 from taskweavn.interaction import AgentMessage
 from taskweavn.server.ui_contract.commands import (
     AnswerAskPayload,
+    AnswerAuthoringAskBatchPayload,
     AppendSessionInputPayload,
     AppendTaskInputPayload,
     CancelAskPayload,
@@ -304,6 +305,12 @@ class UiCommandGateway(Protocol):
         self,
         ask_id: str,
         request: CommandRequest[AnswerAskPayload],
+    ) -> CommandResponse: ...
+
+    def answer_authoring_ask_batch(
+        self,
+        raw_task_id: str,
+        request: CommandRequest[AnswerAuthoringAskBatchPayload],
     ) -> CommandResponse: ...
 
     def defer_ask(
