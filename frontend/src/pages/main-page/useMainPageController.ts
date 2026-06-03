@@ -171,6 +171,7 @@ export function useMainPageController({
   });
   const snapshotData = snapshotQuery.data;
   const snapshotDataRef = useRef(snapshotData);
+  const lastEventCursorRef = useRef<string | null>(null);
   const lastResyncEventKeyRef = useRef<string | null>(null);
   snapshotDataRef.current = snapshotData;
   const snapshotIdentity = snapshotData
@@ -538,6 +539,8 @@ export function useMainPageController({
     setUiNotice(null);
     setSessionDialog({ mode: "idle" });
     setEventError(null);
+    lastEventCursorRef.current = null;
+    lastResyncEventKeyRef.current = null;
   }, [snapshotIdentity]);
 
   useEffect(() => {
@@ -563,17 +566,24 @@ export function useMainPageController({
             ...summarizeUiEvent(event),
           });
 
-          const nextResyncEventKey = resyncEventKey(event);
-          if (
-            nextResyncEventKey !== null &&
-            nextResyncEventKey === lastResyncEventKeyRef.current
-          ) {
-            mainPageLogger.info("events.resync.duplicate_ignored", {
+          if (event.cursor === lastEventCursorRef.current) {
+            mainPageLogger.info("events.cursor.duplicate_ignored", {
               event: summarizeUiEvent(event),
             });
             return;
           }
-          lastResyncEventKeyRef.current = nextResyncEventKey;
+          lastEventCursorRef.current = event.cursor;
+
+          const nextResyncEventKey = resyncEventKey(event);
+          if (nextResyncEventKey !== null) {
+            if (nextResyncEventKey === lastResyncEventKeyRef.current) {
+              mainPageLogger.info("events.resync.duplicate_ignored", {
+                event: summarizeUiEvent(event),
+              });
+              return;
+            }
+            lastResyncEventKeyRef.current = nextResyncEventKey;
+          }
 
           const action = routeMainPageEvent(event);
           mainPageLogger.info("events.route", {
