@@ -36,6 +36,11 @@ accepted before first external user testing:
 Both P1s were fixed and rerun in a real browser execution environment against
 local sidecar HTTP mode on 2026-06-03. No P0 issue was found in either run.
 
+A follow-up targeted QA slice also covered confirmation resolution and retry
+requeue behavior in local sidecar HTTP mode on 2026-06-03. That slice used
+workspace-backed fixture facts to avoid relying on a real LLM to happen to
+generate a confirmation or failed task.
+
 ---
 
 ## 2. Environment
@@ -100,9 +105,9 @@ Use React with simple CSS and keep the homepage concise.
 | QA-MP-005 | Pass | First TaskNode became selected; Detail Panel and input scope changed to selected-task context. |
 | QA-MP-006 | Pass | Task-scoped guidance updated the selected TaskNode summary and appeared in task-scoped messages. |
 | QA-MP-007 | Pass | Publish started execution; tasks moved from draft to running/queued/done in backend state. P1 rerun verified Main Page event-driven refetch while the browser page stayed open. |
-| QA-MP-008 | Not covered | No pending confirmation appeared in this scenario. |
+| QA-MP-008 | Pass | Targeted QA fixture produced a pending confirmation on a published Task; HTTP resolve cleared it and added a response message. |
 | QA-MP-009 | Pass | Backend snapshot produced task result and file-change summary; reload showed file changes in the detail panel. |
-| QA-MP-010 | Not covered | No recoverable error path was triggered in this scenario. |
+| QA-MP-010 | Pass | Targeted QA fixture produced a failed published Task; retry command requeued it to pending/queued and cleared `errorRef`. |
 
 Main Page generated session artifacts under:
 
@@ -147,8 +152,8 @@ the Task or session.
 |---|---|---|
 | QA-X-001 | Pass | P1 rerun loaded Audit Page, set an in-page browser marker, clicked `Return`, and verified the marker survived while URL changed back to `/sessions/{sessionId}?taskNodeId=...`. |
 | QA-X-002 | Pass | P1 rerun opened Main Page before command execution, generated a TaskTree through real sidecar HTTP, and observed the already-open browser tab change from `No TaskTree yet` to `Draft ready` without manual reload. |
-| QA-X-003 | Not covered | No task failure occurred in this scenario. |
-| QA-X-004 | Not covered | No confirmation appeared in this scenario. |
+| QA-X-003 | Pass | Targeted retry QA verified failed Task -> retry command -> queued/pending Task through real sidecar HTTP snapshot. |
+| QA-X-004 | Pass | Targeted confirmation QA verified pending confirmation -> resolve command -> response message and empty pending-confirmation list. |
 | QA-X-005 | Pass | Browser reload on Main Page restored the latest backend snapshot and selected/running context. |
 
 ---
@@ -297,8 +302,7 @@ Rerun evidence:
 | Severity | Observation | Notes |
 |---|---|---|
 | P2 | Published TaskNode titles can degrade into long summaries and truncation. | The first node changed from `Create the homepage` to a truncated sentence. This reduces scan quality but did not block the flow. |
-| P2 | Confirmation path untested. | The selected scenario did not produce a confirmation request. A dedicated confirmation scenario is still needed. |
-| P2 | Recoverable error path untested. | No failure occurred in this run. Existing failed session/Retry UI was visible in another session but not exercised as part of the new QA session. |
+| P2 | Natural LLM path did not independently trigger confirmation/failure. | Targeted local sidecar HTTP fixtures now cover confirmation and retry behavior. A future exploratory run should still look for naturally generated confirmations/failures. |
 | P2 | Full viewport QA incomplete. | In-app browser viewport was narrower than desktop/laptop targets, so visual QA should be rerun in a normal browser or packaged app. |
 
 ---
@@ -332,7 +336,96 @@ Browser tooling note:
   This still exercised the real Vite frontend and sidecar HTTP/SSE runtime,
   not jsdom or mocked frontend state.
 
-## 12. Decision
+## 12. Targeted Confirmation And Retry QA
+
+Date: 2026-06-03 Asia/Shanghai.
+
+PR reviewed:
+
+```text
+https://github.com/zhanghao1903/Taskweavn/pull/41
+```
+
+PR state:
+
+| Field | Value |
+|---|---|
+| Number | `#41` |
+| Base | `main` |
+| Head | `codex/product-1-0-frontend-qa` |
+| State | `OPEN` |
+| Draft | `true` |
+| Mergeability | `MERGEABLE` |
+| Checks | No remote checks reported by GitHub at review time. |
+
+Focused automated checks:
+
+| Check | Result | Notes |
+|---|---|---|
+| Frontend confirmation/retry/runtime tests | Pass | `npm run test -- App.test.tsx useMainPageController.test.tsx runtimeReducer.test.ts eventRouterCompatibility.test.ts platoApi.test.ts`: 6 files, 65 tests passed. |
+| Backend confirmation/retry tests | Pass | `uv run pytest tests/test_task_commands.py tests/test_ui_http_transport.py tests/test_main_page_sidecar_app.py tests/test_task_publisher.py tests/test_sqlite_task_bus.py -k "confirmation or retry"`: 11 selected tests passed. |
+
+Local sidecar HTTP fixture run:
+
+| Field | Value |
+|---|---|
+| Workspace path | `/private/tmp/taskweavn-qa-confirm-retry` |
+| Frontend URL | `http://127.0.0.1:5179/` |
+| Sidecar URL | `http://127.0.0.1:52790` |
+| Session ID | `6b31b079` |
+| Session name | `QA confirmation retry` |
+
+Setup notes:
+
+- `52789` was already occupied, so this slice used `52790` / `5179`.
+- The sidecar was started in local sidecar HTTP mode.
+- The QA setup injected workspace-backed fixture facts into the same SQLite
+  stores used by the running sidecar:
+  - one failed published Task: `qa-retry-task`;
+  - one pending actionable confirmation tied to that Task:
+    `qa-confirmation-2`.
+- This is a targeted contract/runtime scenario, not proof that a natural LLM
+  task generation path will independently produce a confirmation or failure.
+
+Confirmation scenario:
+
+| Step | Result | Evidence |
+|---|---|---|
+| Inject pending actionable message | Pass | Snapshot changed session status to `waiting_user`; Task badge showed `pendingConfirmationCount: 1`. |
+| Verify pending confirmation projection | Pass | Snapshot contained `pendingConfirmations[0].id = qa-confirmation-2`. |
+| Resolve confirmation via HTTP | Pass | `POST /api/v1/sessions/6b31b079/confirmations/qa-confirmation-2/respond` returned `ok: true`, `status: accepted`, `message: confirmation resolved`. |
+| Verify resolved projection | Pass | Follow-up snapshot showed `pendingConfirmations: []` and a response message body `QA accepts confirmation`. |
+
+Retry scenario:
+
+| Step | Result | Evidence |
+|---|---|---|
+| Inject failed published Task | Pass | Snapshot showed `qa-retry-task` with `status: failed`, `execution: failed`, `errorRef: qa_retry_fixture_error`, and `canRetry: true`. |
+| Retry via HTTP | Pass | `POST /api/v1/sessions/6b31b079/tasks/qa-retry-task/retry` returned `ok: true`, `status: accepted`, `message: task retry queued`. |
+| Verify requeued projection | Pass | Follow-up snapshot showed `status: queued`, `execution: pending`, `errorRef: null`, `canRetry: false`. |
+| Verify retry instruction | Pass | Snapshot summary/message included `QA retry with safer path`. |
+
+Browser DOM check:
+
+| Check | Result | Evidence |
+|---|---|---|
+| Main Page renders targeted QA state | Pass | Browser opened `http://127.0.0.1:5179/sessions/6b31b079`. |
+| Retry result visible | Pass | DOM showed `queued`, `QA retry with safer path`, and `QA failed task for retry scenario Retry instruction: QA retry with safer path`. |
+| Confirmation response visible | Pass | DOM showed `response`, `User response`, and `QA accepts confirmation`. |
+| Historical actionable still visible | Pass | DOM showed the resolved actionable message in task-scoped stream history. |
+
+Coverage boundary:
+
+- The public UI currently has no deterministic user-facing control to create a
+  pending confirmation on demand.
+- The public UI currently has no deterministic user-facing control to create a
+  failed task on demand without involving real execution/LLM variability.
+- Therefore this slice validates the sidecar HTTP contract, persistence-backed
+  projection, command handling, and page rendering for confirmation/retry, but
+  it does not replace future exploratory QA for naturally occurring
+  confirmation/failure cases.
+
+## 13. Decision
 
 Decision: P1 rerun pass for local sidecar HTTP first external user testing.
 
@@ -346,22 +439,22 @@ Rationale:
 Recommendation:
 
 1. Treat this branch as ready for a first local Product 1.0 user test.
-2. Add a second targeted scenario that forces a confirmation.
-3. Add a third targeted scenario that verifies recoverable error / retry UX.
-4. Continue monitoring Main Page event freshness latency in longer execution
+2. Continue monitoring Main Page event freshness latency in longer execution
    runs.
+3. Add future exploratory QA for naturally occurring confirmation and failure
+   scenarios generated by normal task execution.
 
 After those pass, Product 1.0 can move from internal QA to first external user
 testing.
 
 ---
 
-## 12. Follow-Up Candidate Slices
+## 14. Follow-Up Candidate Slices
 
 | Slice | Priority | Goal |
 |---|---:|---|
 | Fix Main Page runtime freshness indicator/refetch | P1 | Ensure Main Page task/result/file state stays current or explicitly stale. |
 | Fix Audit Page Return SPA navigation | P1 | Return from Audit Page to Main Page without manual reload. |
-| Confirmation-specific QA scenario | P1 | Force HITL confirmation and validate option submit/idempotency. |
-| Recoverable error QA scenario | P1 | Trigger failure and validate retry/recovery affordance. |
+| Natural confirmation exploratory QA | P2 | Find whether normal Product 1.0 task execution produces HITL confirmations and whether users understand them. |
+| Natural recoverable error exploratory QA | P2 | Trigger or discover naturally occurring task failure and validate recovery affordance without fixture setup. |
 | Full browser/Electron visual smoke | P2 | Validate desktop/laptop viewport outside the constrained in-app browser. |

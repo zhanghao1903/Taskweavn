@@ -285,6 +285,47 @@ Do not use broad multi-agent or Product 1.1 scenarios for Product 1.0 QA.
 | QA-X-004 | Confirmation resolved -> Audit confirmations filter | Confirmation record appears or refetch state explains delay. |
 | QA-X-005 | Browser refresh on Main Page or Audit Page | Session route can reload from backend state; no required hidden in-memory state is lost. |
 
+### 8.1 Targeted Confirmation And Retry Fixtures
+
+Use this slice when the primary Product 1.0 scenario does not naturally produce
+a pending confirmation or failed Task.
+
+The preferred verification path is:
+
+1. start local sidecar HTTP mode with a clean workspace;
+2. create a session through `POST /api/v1/sessions`;
+3. inject workspace-backed fixture facts into the same stores used by the
+   running sidecar:
+   - an actionable `AgentMessage` tied to an existing Task;
+   - a failed published Task with `canRetry: true`;
+4. verify the snapshot before commands;
+5. resolve confirmation through
+   `POST /api/v1/sessions/{sessionId}/confirmations/{confirmationId}/respond`;
+6. retry the failed Task through
+   `POST /api/v1/sessions/{sessionId}/tasks/{taskNodeId}/retry`;
+7. verify the snapshot after commands;
+8. open the frontend route and confirm the visible Main Page state reflects
+   the final backend facts.
+
+Pass criteria:
+
+- pending confirmation appears in `pendingConfirmations`;
+- resolving confirmation returns `ok: true`, clears the pending confirmation,
+  and adds a response message;
+- failed Task exposes retry permission before retry;
+- retry returns `ok: true`, clears `errorRef`, changes execution back to
+  pending/queued, and records the retry instruction;
+- frontend HTTP mode renders the final queued/retry state and confirmation
+  response history.
+
+Coverage boundary:
+
+- This validates sidecar HTTP, persistence-backed projection, command handling,
+  and frontend rendering for confirmation/retry.
+- This does not prove that the normal LLM/user workflow naturally creates a
+  confirmation or recoverable failure. Record that separately as exploratory
+  QA.
+
 ---
 
 ## 9. Responsive And Visual Checks
