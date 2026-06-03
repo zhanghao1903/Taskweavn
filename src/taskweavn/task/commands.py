@@ -75,6 +75,20 @@ class PublishedTaskRetrier(Protocol):
 
 
 @runtime_checkable
+class PublishedTaskInterrupter(Protocol):
+    """Boundary for requesting cooperative interruption of an active Task."""
+
+    def request_interrupt(
+        self,
+        session_id: str,
+        task_id: str,
+        *,
+        reason: str,
+        request_id: str | None = None,
+    ) -> TaskDomain: ...
+
+
+@runtime_checkable
 class TaskCommandService(Protocol):
     def update_task_node(
         self,
@@ -112,6 +126,15 @@ class TaskCommandService(Protocol):
         instruction: str | None = None,
     ) -> CommandResult: ...
 
+    def stop_task(
+        self,
+        session_id: str,
+        task_id: str,
+        *,
+        reason: str | None = None,
+        request_id: str | None = None,
+    ) -> CommandResult: ...
+
 
 class DefaultTaskCommandService:
     """Default command mapper for Task-first UI operations."""
@@ -124,6 +147,7 @@ class DefaultTaskCommandService:
         message_bus: MessageBus | None = None,
         published_task_editor: PublishedTaskEditor | None = None,
         published_task_retrier: PublishedTaskRetrier | None = None,
+        published_task_interrupter: PublishedTaskInterrupter | None = None,
         task_publisher: TaskPublisher | None = None,
     ) -> None:
         self._task_store = task_store
@@ -131,6 +155,7 @@ class DefaultTaskCommandService:
         self._message_bus = message_bus
         self._published_task_editor = published_task_editor
         self._published_task_retrier = published_task_retrier
+        self._published_task_interrupter = published_task_interrupter
         self._task_publisher = task_publisher
 
     def update_task_node(
@@ -250,6 +275,40 @@ class DefaultTaskCommandService:
             emitted_message_ids=(message_id,) if message_id is not None else (),
         )
 
+    def stop_task(
+        self,
+        session_id: str,
+        task_id: str,
+        *,
+        reason: str | None = None,
+        request_id: str | None = None,
+    ) -> CommandResult:
+        task = self._task_store.get(session_id, task_id)
+        if task is None:
+            return _rejected(f"task {task_id!r} not found")
+        if task.status not in {"pending", "running"}:
+            return _rejected("only pending or running tasks can be stopped")
+        if self._published_task_interrupter is None:
+            return _rejected("published task interrupter is not configured")
+        stop_reason = reason.strip() if reason is not None else ""
+        if not stop_reason:
+            stop_reason = "user requested stop"
+        try:
+            updated = self._published_task_interrupter.request_interrupt(
+                session_id,
+                task_id,
+                reason=stop_reason,
+                request_id=request_id,
+            )
+        except TaskStoreError as exc:
+            return _rejected(str(exc))
+        message_id = self._publish_stop_message(updated, stop_reason)
+        return _accepted(
+            "task stop requested",
+            affected_task_refs=(TaskRef.published(updated.task_id),),
+            emitted_message_ids=(message_id,) if message_id is not None else (),
+        )
+
     def _update_draft_task(
         self,
         session_id: str,
@@ -309,6 +368,24 @@ class DefaultTaskCommandService:
             message_type="informational",
             content=content or "Retry requested.",
             context={"mode": "retry", "task_ref_kind": "published"},
+        )
+        self._message_bus.publish(message)
+        return message.message_id
+
+    def _publish_stop_message(self, task: TaskDomain, reason: str) -> str | None:
+        if self._message_bus is None:
+            return None
+        message = AgentMessage(
+            session_id=task.session_id,
+            task_id=task.task_id,
+            agent_id="user",
+            message_type="informational",
+            content=f"Stop requested: {reason}",
+            context={
+                "mode": "stop",
+                "task_ref_kind": "published",
+                "interrupt_request_id": task.interrupt_request_id,
+            },
         )
         self._message_bus.publish(message)
         return message.message_id

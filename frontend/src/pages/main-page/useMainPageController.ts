@@ -49,6 +49,11 @@ export type RetryTaskContext = {
   taskNodeId: TaskNodeId;
 };
 
+export type StopTaskContext = {
+  sessionId: string;
+  taskNodeId: TaskNodeId;
+};
+
 export type ConfirmationDecisionContext = {
   confirmation: ConfirmationActionView | undefined;
   decision: Exclude<ConfirmationDecision, null>;
@@ -90,6 +95,7 @@ export type MainPageController = {
   isPublishingTaskTree: boolean;
   isRenamingSession: boolean;
   isRetryingTask: boolean;
+  isStoppingTask: boolean;
   isResolvingConfirmation: boolean;
   sessionDialog: SessionLifecycleDialog;
   isSnapshotError: boolean;
@@ -110,6 +116,7 @@ export type MainPageController = {
     renameSession: (session: SessionSummary) => void;
     resolveConfirmation: (context: ConfirmationDecisionContext) => void;
     retryTask: (context: RetryTaskContext) => void;
+    stopTask: (context: StopTaskContext) => void;
     selectSession: (session: SessionSummary, currentSessionId: string) => void;
     selectTask: (nodeId: TaskNodeId) => void;
     showFileChanges: () => void;
@@ -365,6 +372,43 @@ export function useMainPageController({
 
       setTaskTreeCommandError(null);
       setUiNotice("Retry queued.");
+      if (result.shouldRefetch) {
+        void refetchSnapshot();
+      }
+    },
+  });
+
+  const stopTaskMutation = useMutation({
+    mutationFn: async ({
+      sessionId,
+      taskNodeId,
+    }: {
+      sessionId: string;
+      taskNodeId: TaskNodeId;
+    }) =>
+      adapter.stopTask(sessionId, taskNodeId, {
+        commandId: `stop-task-${taskNodeId}-${Date.now()}`,
+        sessionId,
+        payload: {
+          reason: "user requested stop",
+        },
+      }),
+    onError: () => {
+      setTaskTreeCommandError("Stop command failed. Please retry.");
+    },
+    onSuccess: (response) => {
+      const result = handleCommandResponse(
+        response,
+        "Stop command was rejected.",
+      );
+
+      if (result.errorMessage) {
+        setTaskTreeCommandError(result.errorMessage);
+        return;
+      }
+
+      setTaskTreeCommandError(null);
+      setUiNotice("Stop requested.");
       if (result.shouldRefetch) {
         void refetchSnapshot();
       }
@@ -730,6 +774,15 @@ export function useMainPageController({
     });
   }
 
+  function handleStopTask({ sessionId, taskNodeId }: StopTaskContext) {
+    setTaskTreeCommandError(null);
+    setUiNotice(null);
+    stopTaskMutation.mutate({
+      sessionId,
+      taskNodeId,
+    });
+  }
+
   return {
     activeSessionId,
     confirmationError,
@@ -744,6 +797,7 @@ export function useMainPageController({
     isPublishingTaskTree: publishTaskTreeMutation.isPending,
     isRenamingSession: renameSessionMutation.isPending,
     isRetryingTask: retryTaskMutation.isPending,
+    isStoppingTask: stopTaskMutation.isPending,
     isResolvingConfirmation: resolveConfirmationMutation.isPending,
     sessionDialog,
     isSnapshotError: snapshotQuery.isError,
@@ -764,6 +818,7 @@ export function useMainPageController({
       renameSession: handleRenameSession,
       resolveConfirmation: handleConfirmationDecision,
       retryTask: handleRetryTask,
+      stopTask: handleStopTask,
       selectSession: handleSessionSelect,
       selectTask,
       showFileChanges: () => setDetailOverride("fileChanges"),

@@ -42,7 +42,7 @@ from __future__ import annotations
 import contextlib
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any, Literal, Protocol, runtime_checkable
 from uuid import uuid4
 
 from pydantic import ValidationError
@@ -135,7 +135,24 @@ class LoopResult:
     final_answer: str
     steps: int
     finished: bool  # True iff terminated via AgentFinishAction or empty tool_calls
-    stop_reason: str  # "agent_finish" | "no_tool_calls" | "max_steps" | "llm_error"
+    stop_reason: str
+
+
+@dataclass(frozen=True)
+class LoopInterruptIntent:
+    """A cooperative stop request observed by the loop at a safe point."""
+
+    task_id: str
+    request_id: str | None = None
+    reason: str | None = None
+    requested_by: str | None = None
+
+
+@runtime_checkable
+class TaskInterruptChecker(Protocol):
+    """Runtime boundary for reading active cooperative interruption intents."""
+
+    def interrupt_for_task(self, task_id: str) -> LoopInterruptIntent | None: ...
 
 
 @dataclass
@@ -178,6 +195,7 @@ class AgentLoop:
     gate: AutonomyGate | None = None
     wait_coordinator: WaitCoordinator | None = None
     context_provider: AgentLoopContextProvider | None = None
+    interrupt_checker: TaskInterruptChecker | None = None
 
     def __post_init__(self) -> None:
         names = [t.name for t in self.tools]
@@ -239,6 +257,7 @@ class AgentLoop:
         # for an operator to inspect.
         self._pending_decisions: list[_PendingDecision] = []
         self._current_agent_run_id: str | None = None
+        self._cooperative_interrupted = False
 
     def run(self, task: str, *, task_id: str | None = None) -> LoopResult:
         """Execute the loop on a single user task. Synchronous, single-threaded.
@@ -255,6 +274,7 @@ class AgentLoop:
         """
         self._current_task_id = task_id or uuid4().hex
         self._current_agent_run_id = f"agent_loop:{self._current_task_id}:{uuid4().hex}"
+        self._cooperative_interrupted = False
         # A fresh queue per ``run()`` — leftovers from a previous task have
         # no business resolving against this one.
         self._pending_decisions = []
@@ -285,14 +305,16 @@ class AgentLoop:
                 # loop was finishing should still produce an observation in the
                 # event stream so the audit trail is consistent. The LLM is
                 # done — we don't append to ``messages`` here.
-                with contextlib.suppress(Exception):
-                    self.drain_pending_responses(messages=None)
+                if not self._cooperative_interrupted:
+                    with contextlib.suppress(Exception):
+                        self.drain_pending_responses(messages=None)
                 for tool in self.tools:
                     # Teardown must not mask the loop result.
                     with contextlib.suppress(Exception):
                         tool.shutdown()
             self._current_task_id = None
             self._current_agent_run_id = None
+            self._cooperative_interrupted = False
 
     def _run_inner(self, task: str) -> LoopResult:
         messages: list[dict[str, Any]] = [
@@ -301,11 +323,17 @@ class AgentLoop:
         ]
 
         for step in range(1, self.max_steps + 1):
+            interrupted = self._check_interrupt("step_start", step)
+            if interrupted is not None:
+                return interrupted
             # Resolve any prior async deferrals before asking the LLM again
             # so the resolved observation is in context when it reasons.
             # Cheap (a non-blocking SQL poll per pending entry) and a no-op
             # when the queue is empty.
             self.drain_pending_responses(messages)
+            interrupted = self._check_interrupt("after_pending_drain", step)
+            if interrupted is not None:
+                return interrupted
 
             try:
                 messages_for_call, metadata = self._prepare_llm_call(messages, step)
@@ -319,6 +347,10 @@ class AgentLoop:
                     finished=False,
                     stop_reason="context_error",
                 )
+
+            interrupted = self._check_interrupt("before_llm_chat", step)
+            if interrupted is not None:
+                return interrupted
 
             try:
                 if metadata:
@@ -350,6 +382,9 @@ class AgentLoop:
                 )
 
             messages.append(response.raw_assistant_message)
+            interrupted = self._check_interrupt("after_llm_response", step)
+            if interrupted is not None:
+                return interrupted
 
             if not response.tool_calls:
                 return LoopResult(
@@ -379,6 +414,13 @@ class AgentLoop:
                     continue
 
                 action = action_or_error
+
+                interrupted = self._check_interrupt(
+                    f"before_tool:{tool_call.name}",
+                    step,
+                )
+                if interrupted is not None:
+                    return interrupted
 
                 # Autonomy gate (Phase 3.6). When the loop has no gate wired in
                 # the dispatch is always ``proceed`` and the action runs as
@@ -425,6 +467,12 @@ class AgentLoop:
                 self._append_event(observation)
                 messages.append(self._tool_message(tool_call.id, observation))
                 self._maybe_audit(action, observation, messages)
+                interrupted = self._check_interrupt(
+                    f"after_tool:{tool_call.name}",
+                    step,
+                )
+                if interrupted is not None:
+                    return interrupted
 
         return LoopResult(
             final_answer="",
@@ -825,6 +873,50 @@ class AgentLoop:
         # re-crash the loop while handling the original LLM failure.
         with contextlib.suppress(Exception):
             self.bus.publish(message)
+
+    def _check_interrupt(self, phase: str, step: int) -> LoopResult | None:
+        if self.interrupt_checker is None or self._current_task_id is None:
+            return None
+        try:
+            intent = self.interrupt_checker.interrupt_for_task(self._current_task_id)
+        except Exception as exc:  # noqa: BLE001 - loop contract: return LoopResult.
+            obs = AgentErrorObservation(
+                error_type="interrupt_check_error",
+                message=f"{type(exc).__name__}: {exc}",
+                phase=phase,
+                step=step,
+                model_name=None,
+                task_id=self._current_task_id,
+            )
+            self._append_event(obs)
+            self._publish_loop_error(obs)
+            return LoopResult(
+                final_answer="",
+                steps=step,
+                finished=False,
+                stop_reason="interrupt_check_error",
+            )
+        if intent is None:
+            return None
+
+        self._cooperative_interrupted = True
+        reason = (intent.reason or "").strip() or "user requested stop"
+        final_answer = f"cancelled: {reason}; safe_point={phase}"
+        obs = AgentErrorObservation(
+            error_type="interrupted",
+            message=final_answer,
+            phase=phase,
+            step=step,
+            model_name=None,
+            task_id=self._current_task_id,
+        )
+        self._append_event(obs)
+        return LoopResult(
+            final_answer=final_answer,
+            steps=step,
+            finished=False,
+            stop_reason="interrupted",
+        )
 
     @staticmethod
     def _tool_message(tool_call_id: str, observation: BaseObservation) -> dict[str, Any]:

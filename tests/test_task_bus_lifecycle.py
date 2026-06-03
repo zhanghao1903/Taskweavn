@@ -5,7 +5,15 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from taskweavn.task import InMemoryTaskBus, TaskDispatchConstraints, TaskDomain, TaskStatus
+import pytest
+
+from taskweavn.task import (
+    InMemoryTaskBus,
+    TaskDispatchConstraints,
+    TaskDomain,
+    TaskStatus,
+    TaskStoreError,
+)
 
 
 def test_in_memory_task_bus_claim_complete_fail_and_skip() -> None:
@@ -78,6 +86,67 @@ def test_in_memory_task_bus_retry_preserves_original_queue_position() -> None:
 
     assert claimed is not None
     assert claimed.task_id == "root"
+
+
+def test_in_memory_task_bus_interrupts_pending_task_as_cancelled_failure() -> None:
+    bus = InMemoryTaskBus([_task("root")])
+
+    stopped = bus.request_interrupt(
+        "s1",
+        "root",
+        reason="user requested stop",
+        request_id="stop-1",
+    )
+
+    assert stopped.status == "failed"
+    assert stopped.error_ref == "cancelled: user requested stop"
+    assert stopped.interrupt_requested is True
+    assert stopped.interrupt_request_id == "stop-1"
+    assert stopped.interrupt_requested_by == "user"
+    assert stopped.interrupt_requested_at is not None
+    assert stopped.completed_at is not None
+    assert bus.claim_next("s1", capability="general", agent_id="agent-1") is None
+
+
+def test_in_memory_task_bus_interrupts_running_task_without_terminal_transition() -> None:
+    bus = InMemoryTaskBus([_task("root")])
+    claimed = bus.claim_next("s1", capability="general", agent_id="agent-1")
+    assert claimed is not None
+
+    stopped = bus.request_interrupt(
+        "s1",
+        "root",
+        reason="stop after safe point",
+        request_id="stop-running",
+    )
+
+    assert stopped.status == "running"
+    assert stopped.error_ref is None
+    assert stopped.interrupt_requested is True
+    assert stopped.interrupt_request_id == "stop-running"
+    assert stopped.interrupt_reason == "stop after safe point"
+
+
+def test_in_memory_task_bus_rejects_interrupt_for_terminal_task() -> None:
+    bus = InMemoryTaskBus([_task("root", status="done")])
+
+    with pytest.raises(TaskStoreError, match="pending or running"):
+        bus.request_interrupt("s1", "root", reason="user requested stop")
+
+
+def test_in_memory_task_bus_retry_clears_interrupt_intent() -> None:
+    bus = InMemoryTaskBus([_task("root")])
+    bus.request_interrupt("s1", "root", reason="user requested stop", request_id="stop-1")
+
+    retried = bus.retry("s1", "root")
+
+    assert retried.status == "pending"
+    assert retried.error_ref is None
+    assert retried.interrupt_requested is False
+    assert retried.interrupt_request_id is None
+    assert retried.interrupt_reason is None
+    assert retried.interrupt_requested_by is None
+    assert retried.interrupt_requested_at is None
 
 
 def _task(

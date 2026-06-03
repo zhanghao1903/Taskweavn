@@ -13,6 +13,7 @@ from taskweavn.server.ui_contract import (
     PublishTaskTreePayload,
     ResolveConfirmationPayload,
     RetryTaskPayload,
+    StopTaskPayload,
     TaskRefResolver,
     UiCommandGateway,
     UpdateTaskNodePayload,
@@ -224,6 +225,27 @@ class _TaskCommands:
                     "session_id": session_id,
                     "task_id": task_id,
                     "instruction": instruction,
+                },
+            )
+        )
+        return self.result
+
+    def stop_task(
+        self,
+        session_id: str,
+        task_id: str,
+        *,
+        reason: str | None = None,
+        request_id: str | None = None,
+    ) -> CoreCommandResult:
+        self.calls.append(
+            (
+                "stop_task",
+                {
+                    "session_id": session_id,
+                    "task_id": task_id,
+                    "reason": reason,
+                    "request_id": request_id,
                 },
             )
         )
@@ -651,6 +673,76 @@ def test_retry_task_rejects_draft_task_ref() -> None:
     )
 
     response = gateway.retry_task("draft-1", request)
+
+    assert response.ok is False
+    assert response.error is not None
+    assert response.error.code == "command_rejected"
+    assert commands.calls == []
+
+
+def test_stop_task_wraps_published_active_task_command() -> None:
+    commands = _TaskCommands(
+        CoreCommandResult(
+            command_id="backend-stop",
+            status="accepted",
+            message="task stop requested",
+            affected_task_refs=(TaskRef.published("task-1"),),
+        )
+    )
+    gateway = _gateway(task_commands=commands)
+    request = CommandRequest[StopTaskPayload](
+        command_id="stop-1",
+        session_id="session-1",
+        payload=StopTaskPayload(reason="Stop after safe point"),
+    )
+
+    response = gateway.stop_task("task-1", request)
+
+    assert response.ok is True
+    assert commands.calls == [
+        (
+            "stop_task",
+            {
+                "session_id": "session-1",
+                "task_id": "task-1",
+                "reason": "Stop after safe point",
+                "request_id": "stop-1",
+            },
+        )
+    ]
+    assert response.result is not None
+    body = response.result.model_dump(mode="json")
+    assert {"kind": "published_task", "id": "task-1"} in body["objectRefs"]
+    assert {
+        "ref": {"kind": "published_task", "id": "task-1"},
+        "impact": "changed",
+        "reason": "Stop intent was recorded for this Task.",
+    } in body["affectedObjects"]
+    assert response.refresh.suggested_queries == (
+        "session.snapshot",
+        "task.tree",
+        "task.detail",
+    )
+    assert {scope.kind for scope in response.refresh.affected_scopes} == {
+        "task_tree",
+        "task_detail",
+        "messages",
+    }
+
+
+def test_stop_task_rejects_draft_task_ref() -> None:
+    commands = _TaskCommands()
+    gateway = _gateway(
+        task_commands=commands,
+        resolver=_Resolver({"draft-1": TaskRef.draft("draft-1")}),
+    )
+    request = CommandRequest[StopTaskPayload](
+        command_id="stop-draft",
+        session_id="session-1",
+        payload=StopTaskPayload(),
+    )
+
+    response = gateway.stop_task("draft-1", request)
 
     assert response.ok is False
     assert response.error is not None

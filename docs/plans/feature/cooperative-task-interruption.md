@@ -2,8 +2,8 @@
 
 > Status: planned
 > Type: Product 1.0 minimal task control and execution safety
-> Last Updated: 2026-06-02
-> Decisions: [ADR-0011 Routing Agent Assignment And Cooperative Interruption](../../decisions/ADR-0011-routing-agent-assignment-and-cooperative-interruption.md)
+> Last Updated: 2026-06-03
+> Decisions: [ADR-0011 Routing Agent Assignment And Cooperative Interruption](../../decisions/ADR-0011-routing-agent-assignment-and-cooperative-interruption.md), [ADR-0014 Interaction Control Taxonomy For Product 1.0](../../decisions/ADR-0014-interaction-control-taxonomy-for-product-1-0.md)
 > Architecture: [Task](../../architecture/task.md), [TaskBus](../../architecture/bus.md), [Agent](../../architecture/agent.md), [Context Manager](../../architecture/context-manager.md), [UI / Backend Communication](../../architecture/ui-backend-communication.md)
 > Related Plans: [Fixed-route Task Execution Bridge](fixed-route-task-execution-bridge.md), [Linear Authoring And Retry Recovery](linear-authoring-retry-recovery.md), [Context Manager Cache-Aware Rendering](context-manager-cache-aware-rendering.md)
 > Technical Design: [Cooperative task interruption technical design](cooperative-task-interruption-technical-design.zh-CN.md)
@@ -65,6 +65,11 @@ Cancellation is represented through:
 - terminal `failed` outcome with an error reason prefixed by `cancelled:` or
   `skipped:`;
 - UI projection labels and audit events.
+
+[ADR-0014](../../decisions/ADR-0014-interaction-control-taxonomy-for-product-1-0.md)
+classifies interruption as a control intent, not ASK and not confirmation.
+Therefore this feature can proceed before the broader Message/ASK/confirmation
+UI integration work.
 
 ---
 
@@ -392,4 +397,3 @@ Product 1.1+ may add:
 - user-configurable interruption policy;
 - multi-Agent interruption propagation;
 - diagnostic views for stuck stopping Tasks.
-

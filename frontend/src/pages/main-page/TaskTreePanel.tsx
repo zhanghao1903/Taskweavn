@@ -11,6 +11,7 @@ import styles from "./MainPage.module.css";
 export type TaskTreePanelProps = {
   onRetryTask: (nodeId: TaskNodeId) => void;
   onSelectTask: (nodeId: TaskNodeId) => void;
+  onStopTask: (nodeId: TaskNodeId) => void;
   selectedTaskNodeId: TaskNodeId | null;
   taskTree: TaskTreeView | null;
 };
@@ -18,6 +19,7 @@ export type TaskTreePanelProps = {
 export function TaskTreePanel({
   onRetryTask,
   onSelectTask,
+  onStopTask,
   selectedTaskNodeId,
   taskTree,
 }: TaskTreePanelProps) {
@@ -38,6 +40,7 @@ export function TaskTreePanel({
               node={node}
               onRetryTask={onRetryTask}
               onSelectTask={onSelectTask}
+              onStopTask={onStopTask}
             />
           ))}
         </div>

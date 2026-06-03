@@ -8,8 +8,8 @@ from pathlib import Path
 from threading import RLock
 from typing import Any
 
-from taskweavn.task.bus import _retry_updates
-from taskweavn.task.models import TaskDomain
+from taskweavn.task.bus import _interrupt_updates, _retry_updates
+from taskweavn.task.models import TaskDomain, TaskInterruptRequestedBy
 from taskweavn.task.stores import TaskStoreError
 
 _SCHEMA_DDL = """
@@ -217,6 +217,40 @@ class SqliteTaskBus:
             updated = task.model_copy(
                 update=_retry_updates(task, instruction=instruction)
             )
+            self._save_task(updated)
+            return updated
+
+    def request_interrupt(
+        self,
+        session_id: str,
+        task_id: str,
+        *,
+        reason: str,
+        requested_by: TaskInterruptRequestedBy = "user",
+        request_id: str | None = None,
+    ) -> TaskDomain:
+        if not reason.strip():
+            raise TaskStoreError("interrupt request requires reason")
+        with self._lock:
+            task = self._require_task(session_id, task_id)
+            if task.status not in {"pending", "running"}:
+                raise TaskStoreError(
+                    f"only pending or running tasks can be interrupted; got {task.status}"
+                )
+            updates = _interrupt_updates(
+                reason=reason,
+                requested_by=requested_by,
+                request_id=request_id,
+            )
+            if task.status == "pending":
+                updates.update(
+                    {
+                        "status": "failed",
+                        "error_ref": f"cancelled: {reason.strip()}",
+                        "completed_at": _utcnow(),
+                    }
+                )
+            updated = task.model_copy(update=updates)
             self._save_task(updated)
             return updated
 

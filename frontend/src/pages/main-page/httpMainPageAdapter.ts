@@ -113,6 +113,9 @@ export function createHttpMainPageAdapter({
     retryTask(nextSessionId, taskNodeId, request) {
       return api.retryTask(nextSessionId, taskNodeId, request);
     },
+    stopTask(nextSessionId, taskNodeId, request) {
+      return api.stopTask(nextSessionId, taskNodeId, request);
+    },
     runtimeKind: "http",
     sessionId: sessionId ?? null,
     showStatePicker,

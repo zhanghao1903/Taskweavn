@@ -18,6 +18,7 @@ from taskweavn.task import (
     DraftTaskTree,
     DraftToPublishedMapping,
     PublishedTaskEditor,
+    PublishedTaskInterrupter,
     PublishedTaskRetrier,
     TaskCommandService,
     TaskDomain,
@@ -284,6 +285,29 @@ class _PublishedRetrier:
         return _task(task_id, status="pending")
 
 
+class _PublishedInterrupter:
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, str, str, str | None]] = []
+
+    def request_interrupt(
+        self,
+        session_id: str,
+        task_id: str,
+        *,
+        reason: str,
+        request_id: str | None = None,
+    ) -> TaskDomain:
+        self.calls.append((session_id, task_id, reason, request_id))
+        task = _task(task_id, status="running").model_copy(
+            update={
+                "interrupt_requested": True,
+                "interrupt_request_id": request_id,
+                "interrupt_reason": reason,
+            }
+        )
+        return task
+
+
 class _Publisher:
     kind: Any = "collaborator"
 
@@ -341,6 +365,7 @@ def test_command_service_protocol_conformance() -> None:
     assert isinstance(_TaskStore([]), TaskStore)
     assert isinstance(_DraftStore([_draft()]), DraftTaskStore)
     assert isinstance(_PublishedEditor(), PublishedTaskEditor)
+    assert isinstance(_PublishedInterrupter(), PublishedTaskInterrupter)
     assert isinstance(_Publisher(), TaskPublisher)
 
 
@@ -535,3 +560,39 @@ def test_retry_non_failed_task_rejected() -> None:
 
     assert result.accepted is False
     assert "failed" in result.message
+
+
+def test_stop_running_task_records_interrupt_and_publishes_message() -> None:
+    interrupter = _PublishedInterrupter()
+    message_bus = _Bus(_MessageStream([]))
+    service = DefaultTaskCommandService(
+        task_store=_TaskStore([_task("running", status="running")]),
+        message_bus=message_bus,
+        published_task_interrupter=interrupter,
+    )
+
+    result = service.stop_task(
+        "s1",
+        "running",
+        reason="Stop after safe point",
+        request_id="stop-1",
+    )
+
+    assert result.accepted is True
+    assert interrupter.calls == [("s1", "running", "Stop after safe point", "stop-1")]
+    assert result.affected_task_refs == (TaskRef.published("running"),)
+    assert len(result.emitted_message_ids) == 1
+    message = message_bus.published[0]
+    assert message.task_id == "running"
+    assert message.content == "Stop requested: Stop after safe point"
+    assert message.context["mode"] == "stop"
+    assert message.context["interrupt_request_id"] == "stop-1"
+
+
+def test_stop_terminal_task_rejected() -> None:
+    service = DefaultTaskCommandService(task_store=_TaskStore([_task("done", status="done")]))
+
+    result = service.stop_task("s1", "done")
+
+    assert result.accepted is False
+    assert "pending or running" in result.message

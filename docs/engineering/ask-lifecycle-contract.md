@@ -1,13 +1,14 @@
 # ASK Lifecycle Contract
 
 > Status: draft contract
-> Last Updated: 2026-06-02
+> Last Updated: 2026-06-03
 > Scope: `ask_user` tool semantics, durable ASK objects, answer contract,
 > task pause/resume behavior, events, API candidates, and recovery rules.
 > Related: [UI ViewModel Contract](../frontend/ui-viewmodel-contract.md),
 > [Event Reducer Contract](../frontend/event-reducer-contract.md),
 > [Main Page Interaction Model](../interaction-model/main-page.md),
 > [ASK User Interaction](../interaction-model/ask-user-interaction.md),
+> [ADR-0014 Interaction Control Taxonomy](../decisions/ADR-0014-interaction-control-taxonomy-for-product-1-0.md),
 > [Canonical Status Model](../product/canonical-status-model.md).
 
 ## 1. Purpose
@@ -18,7 +19,8 @@ When an Agent cannot safely continue because required information is missing,
 ambiguous, or user-owned, it must be able to ask the user a structured question,
 pause execution, persist that question, and resume after the user answers.
 
-ASK is not a normal chat message and not a confirmation.
+ASK is not a normal chat message, not a confirmation, and not an
+interruption/control intent.
 
 | Mechanism | Meaning | Example |
 |---|---|---|

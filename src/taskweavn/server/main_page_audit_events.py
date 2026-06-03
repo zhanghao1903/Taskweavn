@@ -22,6 +22,7 @@ from taskweavn.server.ui_contract import (
     PublishTaskTreePayload,
     ResolveConfirmationPayload,
     RetryTaskPayload,
+    StopTaskPayload,
     UiCommandGateway,
     UpdateTaskNodePayload,
     audit_records_changed,
@@ -82,6 +83,13 @@ class AuditEventCommandGateway:
         request: CommandRequest[RetryTaskPayload],
     ) -> CommandResponse:
         return self.inner.retry_task(task_node_id, request)
+
+    def stop_task(
+        self,
+        task_node_id: str,
+        request: CommandRequest[StopTaskPayload],
+    ) -> CommandResponse:
+        return self.inner.stop_task(task_node_id, request)
 
     def resolve_confirmation(
         self,

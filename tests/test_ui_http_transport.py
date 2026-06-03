@@ -239,6 +239,12 @@ def test_command_routes_validate_and_dispatch_to_gateway_methods() -> None:
         ),
         (
             "POST",
+            "/api/v1/sessions/session%201/tasks/task%201/stop",
+            _command_body("session 1", {"reason": "user requested stop"}),
+            "stop_task:task 1",
+        ),
+        (
+            "POST",
             "/api/v1/sessions/session%201/task-tree/publish",
             _command_body("session 1", {"taskTreeId": "tree-1", "startImmediately": True}),
             "publish_task_tree",
@@ -905,6 +911,14 @@ class _CommandGateway:
         request: CommandRequest[Any],
     ) -> CommandResponse:
         self.calls.append(f"retry_task:{task_node_id}")
+        return _accepted(request.command_id)
+
+    def stop_task(
+        self,
+        task_node_id: str,
+        request: CommandRequest[Any],
+    ) -> CommandResponse:
+        self.calls.append(f"stop_task:{task_node_id}")
         return _accepted(request.command_id)
 
     def resolve_confirmation(

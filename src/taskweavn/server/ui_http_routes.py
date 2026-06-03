@@ -104,6 +104,13 @@ def _match_route(path: str) -> _Route | None:
             session_id=session_id,
             task_node_id=suffix[1],
         )
+    if len(suffix) == 3 and suffix[0] == "tasks" and suffix[2] == "stop":
+        return _Route(
+            name="stop_task",
+            method="POST",
+            session_id=session_id,
+            task_node_id=suffix[1],
+        )
     if len(suffix) == 3 and suffix[0] == "confirmations" and suffix[2] == "respond":
         return _Route(
             name="resolve_confirmation",
@@ -118,5 +125,4 @@ def _path_parts(path: str) -> tuple[str, ...]:
     split = urlsplit(path)
     raw_path = split.path or path
     return tuple(unquote(part) for part in raw_path.strip("/").split("/") if part)
-
 

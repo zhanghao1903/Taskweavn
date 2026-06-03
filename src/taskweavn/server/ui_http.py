@@ -18,6 +18,7 @@ from taskweavn.server.ui_contract import (
     PublishTaskTreePayload,
     ResolveConfirmationPayload,
     RetryTaskPayload,
+    StopTaskPayload,
     UiCommandGateway,
     UiQueryGateway,
     UpdateTaskNodePayload,
@@ -395,6 +396,23 @@ class PlatoUiHttpTransport:
                         self._execution_trigger_gateway,
                         route.task_node_id,
                         retry_request,
+                    ),
+                    self._command_idempotency_store,
+                )
+            if route_name == "stop_task":
+                stop_request = _parse_command_request(
+                    request,
+                    route.session_id,
+                    CommandRequest[StopTaskPayload],
+                )
+                if isinstance(stop_request, HttpApiResponse):
+                    return stop_request
+                return _command_response(
+                    route,
+                    stop_request,
+                    lambda: self._command_gateway.stop_task(
+                        route.task_node_id,
+                        stop_request,
                     ),
                     self._command_idempotency_store,
                 )

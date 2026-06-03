@@ -121,6 +121,13 @@ export function selectConfirmationStatusPresentation(
 export function selectTaskNodeDimensionPresentation(
   node: TaskNodeCardView,
 ): BadgePresentation {
+  if (
+    node.interruptionRequested &&
+    (node.execution === "running" || node.status === "running")
+  ) {
+    return { label: "stopping", tone: "warning" };
+  }
+
   if (node.readiness === "draft") {
     return selectTaskReadinessPresentation(node.readiness);
   }
@@ -233,6 +240,16 @@ export function selectMainPagePrimaryStatusPresentation(
     : selectTopStatusPresentation(metadata);
 
   const executionRollup = snapshot.taskTree?.executionRollup;
+  const hasStoppingTask =
+    snapshot.taskTree?.nodes.some(
+      (node) =>
+        node.interruptionRequested &&
+        (node.execution === "running" || node.status === "running"),
+    ) ?? false;
+
+  if (hasStoppingTask) {
+    return { label: "Stopping", tone: "warning" };
+  }
 
   if (executionRollup && executionRollup.failed > 0) {
     return metadata.topStatus === "Recoverable error"

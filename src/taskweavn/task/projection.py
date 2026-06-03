@@ -306,6 +306,14 @@ class DefaultTaskProjectionService:
             else [candidate for candidate in tasks if candidate.parent_id == task.task_id]
         )
         permissions = _permissions_for_status(task.status)
+        if task.interrupt_requested:
+            permissions = permissions.model_copy(
+                update={
+                    "can_cancel": False,
+                    "readonly_reason": permissions.readonly_reason
+                    or "task stop already requested",
+                }
+            )
         direct_file_changes = self._file_changes_for_ref(task.session_id, ref, recursive=False)
         subtree_file_changes = self._file_changes_for_ref(task.session_id, ref, recursive=True)
         return TaskCardView(
@@ -319,6 +327,7 @@ class DefaultTaskProjectionService:
             order_index=task.order_index,
             result_ref=task.result_ref,
             error_ref=task.error_ref,
+            interrupt_requested=task.interrupt_requested,
             badges=TaskCardBadges(
                 pending_confirmation_count=len(self._confirmations_for_ref(task.session_id, ref)),
                 direct_file_change_count=len(direct_file_changes),
@@ -491,7 +500,11 @@ def _permissions_for_status(status: str) -> TaskCardPermissions:
             can_cancel=True,
         )
     if status == "running":
-        return TaskCardPermissions(can_append_guidance=True, can_resolve_confirmation=True)
+        return TaskCardPermissions(
+            can_append_guidance=True,
+            can_resolve_confirmation=True,
+            can_cancel=True,
+        )
     if status == "failed":
         return TaskCardPermissions(can_retry=True, readonly_reason="task failed")
     if status == "done":

@@ -91,7 +91,9 @@ class CurrentStepContext(ContextModel):
 
 class InterruptionContext(ContextModel):
     requested: bool = False
+    request_id: str | None = Field(default=None, min_length=1)
     reason: str | None = None
+    requested_by: Literal["user", "system"] | None = None
     requested_at: datetime | None = None
 
 

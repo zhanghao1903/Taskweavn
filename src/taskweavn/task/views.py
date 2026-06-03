@@ -167,6 +167,7 @@ class TaskCardView(_FrozenView):
     order_index: int = Field(default=0, ge=0)
     result_ref: str | None = Field(default=None, min_length=1)
     error_ref: str | None = Field(default=None, min_length=1)
+    interrupt_requested: bool = False
 
     badges: TaskCardBadges = Field(default_factory=TaskCardBadges)
     permissions: TaskCardPermissions = Field(default_factory=TaskCardPermissions)

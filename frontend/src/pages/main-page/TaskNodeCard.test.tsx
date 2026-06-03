@@ -16,6 +16,7 @@ describe("TaskNodeCard", () => {
         node={taskNode}
         onRetryTask={vi.fn()}
         onSelectTask={onSelectTask}
+        onStopTask={vi.fn()}
       />,
     );
 
@@ -47,6 +48,7 @@ describe("TaskNodeCard", () => {
         }}
         onRetryTask={onRetryTask}
         onSelectTask={onSelectTask}
+        onStopTask={vi.fn()}
       />,
     );
 
@@ -55,10 +57,45 @@ describe("TaskNodeCard", () => {
     expect(onRetryTask).toHaveBeenCalledWith("task-visual-direction");
     expect(onSelectTask).not.toHaveBeenCalled();
   });
+
+  it("renders stop as a separate task card action when allowed", async () => {
+    const user = userEvent.setup();
+    const onRetryTask = vi.fn();
+    const onSelectTask = vi.fn();
+    const onStopTask = vi.fn();
+
+    render(
+      <TaskNodeCard
+        isSelected
+        node={{
+          ...taskNode,
+          execution: "running",
+          permissions: {
+            ...taskNode.permissions,
+            canCancel: true,
+          },
+          status: "running",
+        }}
+        onRetryTask={onRetryTask}
+        onSelectTask={onSelectTask}
+        onStopTask={onStopTask}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /^Stop$/i }));
+
+    expect(onStopTask).toHaveBeenCalledWith("task-visual-direction");
+    expect(onRetryTask).not.toHaveBeenCalled();
+    expect(onSelectTask).not.toHaveBeenCalled();
+  });
 });
 
 const taskNode: TaskNodeCardView = {
   id: "task-visual-direction",
+  taskRef: {
+    kind: "published",
+    id: "task-visual-direction",
+  },
   badges: {
     directFileChangeCount: 0,
     pendingConfirmationCount: 1,

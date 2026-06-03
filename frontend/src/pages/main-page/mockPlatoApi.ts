@@ -5,6 +5,7 @@ import type {
   PublishTaskTreePayload,
   ResolveConfirmationPayload,
   RetryTaskPayload,
+  StopTaskPayload,
   UpdateTaskNodePayload,
 } from "../../shared/api/platoApi";
 import type {
@@ -43,6 +44,7 @@ import type {
   MainPageStateMetadata as RuntimeMainPageStateMetadata,
   PublishTaskTreeCommand,
   ResolveConfirmationCommand,
+  StopTaskCommand,
   SubscribeSessionEvents,
   UpdateTaskNodeCommand,
 } from "./runtime/adapter";
@@ -66,6 +68,7 @@ export type {
   MainPageStateId,
   PublishTaskTreeCommand,
   ResolveConfirmationCommand,
+  StopTaskCommand,
   SubscribeSessionEvents,
   UpdateTaskNodeCommand,
 };
@@ -281,6 +284,21 @@ export async function retryTaskMockCommand(
   });
 }
 
+export async function stopTaskMockCommand(
+  sessionId: SessionId,
+  taskNodeId: string,
+  request: CommandRequest<StopTaskPayload>,
+): Promise<CommandResponse> {
+  await delay(60);
+
+  return acceptedCommandResponse({
+    commandId: request.commandId,
+    message: `Task stop requested for ${taskNodeId}.`,
+    sessionId,
+    taskNodeId,
+  });
+}
+
 export const subscribeSessionEventsMock: SubscribeSessionEvents = () => () => {
   // The default mock stream is intentionally quiet. Tests inject events.
 };
@@ -323,6 +341,7 @@ export const mainPageMockAdapter: MainPageAdapter = {
   runtimeKind: "mock",
   sessionId: null,
   showStatePicker: true,
+  stopTask: stopTaskMockCommand,
   subscribeSessionEvents: subscribeSessionEventsMock,
   updateTaskNode: updateTaskNodeMockCommand,
 };
@@ -491,7 +510,8 @@ function toTaskTreeView(
         canAppendGuidance: nodeStatus === "running" || nodeStatus === "waiting_user",
         canResolveConfirmation: nodeStatus === "waiting_user",
         canPublish: sessionStatus === "draft_ready",
-        canCancel: nodeStatus === "draft" || nodeStatus === "queued",
+        canCancel:
+          nodeStatus === "draft" || nodeStatus === "queued" || nodeStatus === "running",
         canRetry: nodeStatus === "failed",
       },
       readonlyReason: nodeStatus === "done" ? "Completed tasks are read-only." : null,

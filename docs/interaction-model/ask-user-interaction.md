@@ -1,12 +1,13 @@
 # ASK User Interaction Model
 
 > Status: draft interaction model
-> Last Updated: 2026-06-02
+> Last Updated: 2026-06-03
 > Scope: Main Page ASK Dock, active ASK card, multiple ASK queue, answer
 > input behavior, and visible task/session signals.
 > Related: [ASK Lifecycle Contract](../engineering/ask-lifecycle-contract.md),
 > [Main Page Interaction Model](main-page.md),
-> [External Calls Registry](external-calls.md).
+> [External Calls Registry](external-calls.md),
+> [ADR-0014 Interaction Control Taxonomy](../decisions/ADR-0014-interaction-control-taxonomy-for-product-1-0.md).
 
 ## 1. Purpose
 
@@ -19,6 +20,11 @@ ASK must be visually and behaviorally distinct from ordinary messages:
 - ASK is an active required-response surface;
 - the user should see which task is blocked and how to answer;
 - the user should be able to answer with suggested options, free text, or both.
+
+ASK is also distinct from interruption and confirmation. The ASK Dock does not
+own stop/cancel controls; cooperative interruption remains the task-control
+path. Confirmation cards may share UI primitives with ASK, but they authorize a
+known action rather than collect missing information.
 
 ## 2. Source Of Truth
 

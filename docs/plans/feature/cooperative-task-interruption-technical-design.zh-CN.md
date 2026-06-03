@@ -2,8 +2,8 @@
 
 > 状态: planned
 > 类型: Product 1.0 minimal cooperative task interruption technical design
-> Last Updated: 2026-06-02
-> Decisions: [ADR-0011 Routing Agent Assignment And Cooperative Interruption](../../decisions/ADR-0011-routing-agent-assignment-and-cooperative-interruption.md)
+> Last Updated: 2026-06-03
+> Decisions: [ADR-0011 Routing Agent Assignment And Cooperative Interruption](../../decisions/ADR-0011-routing-agent-assignment-and-cooperative-interruption.md), [ADR-0014 Interaction Control Taxonomy For Product 1.0](../../decisions/ADR-0014-interaction-control-taxonomy-for-product-1-0.md)
 > Feature Plan: [Cooperative Task Interruption](cooperative-task-interruption.md)
 > Related: [Task](../../architecture/task.md), [TaskBus](../../architecture/bus.md), [Context Manager](../../architecture/context-manager.md), [Context Manager Cache-Aware Rendering](context-manager-cache-aware-rendering.md)
 
@@ -89,6 +89,18 @@ TaskBus 不负责：
 - 直接调用 runtime cancel；
 - 重写 running Task 为 terminal；
 - 决定 partial result 是否可恢复。
+
+### 2.4 与 ASK / confirmation 的边界
+
+[ADR-0014](../../decisions/ADR-0014-interaction-control-taxonomy-for-product-1-0.md)
+将 Product 1.0 的交互控制拆成三类语义：
+
+- interruption 是用户或系统的停止控制意图；
+- ASK 是 Agent 缺少用户拥有的信息，必须等待用户回答；
+- confirmation 是 Agent 已知要做的 action，但需要用户授权。
+
+本方案只实现 interruption 最小闭环，不实现 ASK/confirmation UI，不引入
+`waiting_for_user`，也不把停止请求编码成 ASK answer 或 confirmation action。
 
 ---
 
@@ -610,4 +622,3 @@ Product 1.0 minimal cooperative interruption 完成时：
 - stuck stopping diagnostic；
 - user-configurable interruption policy；
 - multi-Agent interruption propagation。
-

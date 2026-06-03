@@ -75,6 +75,7 @@ def map_task_node_card(view: task_views.TaskCardView) -> TaskNodeCardView:
         order_index=view.order_index,
         result_ref=view.result_ref,
         error_ref=view.error_ref,
+        interruption_requested=view.interrupt_requested,
         badges=map_task_badges(view.badges),
         permissions=map_task_permissions(view.permissions),
         version=1,

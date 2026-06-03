@@ -15,6 +15,7 @@ from taskweavn.server.ui_contract.commands import (
     PublishTaskTreePayload,
     ResolveConfirmationPayload,
     RetryTaskPayload,
+    StopTaskPayload,
     UpdateTaskNodePayload,
 )
 from taskweavn.server.ui_contract.envelopes import (
@@ -256,6 +257,12 @@ class UiCommandGateway(Protocol):
         self,
         task_node_id: str,
         request: CommandRequest[RetryTaskPayload],
+    ) -> CommandResponse: ...
+
+    def stop_task(
+        self,
+        task_node_id: str,
+        request: CommandRequest[StopTaskPayload],
     ) -> CommandResponse: ...
 
     def resolve_confirmation(

@@ -6,8 +6,9 @@ from collections import defaultdict
 from datetime import UTC, datetime
 from threading import RLock
 from typing import Protocol, runtime_checkable
+from uuid import uuid4
 
-from taskweavn.task.models import TaskDomain
+from taskweavn.task.models import TaskDomain, TaskInterruptRequestedBy
 from taskweavn.task.stores import TaskStore, TaskStoreError
 
 
@@ -61,6 +62,16 @@ class TaskBus(Protocol):
         task_id: str,
         *,
         instruction: str | None = None,
+    ) -> TaskDomain: ...
+
+    def request_interrupt(
+        self,
+        session_id: str,
+        task_id: str,
+        *,
+        reason: str,
+        requested_by: TaskInterruptRequestedBy = "user",
+        request_id: str | None = None,
     ) -> TaskDomain: ...
 
     def get(self, session_id: str, task_id: str) -> TaskDomain | None: ...
@@ -195,6 +206,40 @@ class InMemoryTaskBus:
             self._tasks[(session_id, task_id)] = updated
             return updated
 
+    def request_interrupt(
+        self,
+        session_id: str,
+        task_id: str,
+        *,
+        reason: str,
+        requested_by: TaskInterruptRequestedBy = "user",
+        request_id: str | None = None,
+    ) -> TaskDomain:
+        if not reason.strip():
+            raise TaskStoreError("interrupt request requires reason")
+        with self._lock:
+            task = self._require_task(session_id, task_id)
+            if task.status not in {"pending", "running"}:
+                raise TaskStoreError(
+                    f"only pending or running tasks can be interrupted; got {task.status}"
+                )
+            updates = _interrupt_updates(
+                reason=reason,
+                requested_by=requested_by,
+                request_id=request_id,
+            )
+            if task.status == "pending":
+                updates.update(
+                    {
+                        "status": "failed",
+                        "error_ref": f"cancelled: {reason.strip()}",
+                        "completed_at": _utcnow(),
+                    }
+                )
+            updated = task.model_copy(update=updates)
+            self._tasks[(session_id, task_id)] = updated
+            return updated
+
     def _load(self, task: TaskDomain) -> TaskDomain:
         key = (task.session_id, task.task_id)
         with self._lock:
@@ -282,11 +327,31 @@ def _retry_updates(task: TaskDomain, *, instruction: str | None) -> dict[str, ob
         "claimed_by": None,
         "started_at": None,
         "completed_at": None,
+        "interrupt_requested": False,
+        "interrupt_request_id": None,
+        "interrupt_reason": None,
+        "interrupt_requested_by": None,
+        "interrupt_requested_at": None,
     }
     retry_instruction = instruction.strip() if instruction is not None else ""
     if retry_instruction:
         updates["intent"] = f"{task.intent.rstrip()}\n\nRetry instruction:\n{retry_instruction}"
     return updates
+
+
+def _interrupt_updates(
+    *,
+    reason: str,
+    requested_by: TaskInterruptRequestedBy,
+    request_id: str | None,
+) -> dict[str, object]:
+    return {
+        "interrupt_requested": True,
+        "interrupt_request_id": request_id or uuid4().hex,
+        "interrupt_reason": reason.strip(),
+        "interrupt_requested_by": requested_by,
+        "interrupt_requested_at": _utcnow(),
+    }
 
 
 __all__ = ["InMemoryTaskBus", "TaskBus", "TaskStore"]

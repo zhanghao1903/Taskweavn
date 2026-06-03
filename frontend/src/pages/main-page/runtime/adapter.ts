@@ -8,6 +8,7 @@ import type {
   ResolveConfirmationPayload,
   RetryTaskPayload,
   SessionLifecycleResult,
+  StopTaskPayload,
   UpdateTaskNodePayload,
 } from "../../../shared/api/platoApi";
 import type {
@@ -105,6 +106,12 @@ export type RetryTaskCommand = (
   request: CommandRequest<RetryTaskPayload>,
 ) => Promise<CommandResponse>;
 
+export type StopTaskCommand = (
+  sessionId: SessionId,
+  taskNodeId: TaskNodeId,
+  request: CommandRequest<StopTaskPayload>,
+) => Promise<CommandResponse>;
+
 export type SubscribeSessionEvents = (
   sessionId: SessionId,
   cursor: string | null,
@@ -127,6 +134,7 @@ export type MainPageAdapter = {
   runtimeKind: MainPageRuntimeKind;
   sessionId: SessionId | null;
   showStatePicker: boolean;
+  stopTask: StopTaskCommand;
   subscribeSessionEvents: SubscribeSessionEvents;
   updateTaskNode: UpdateTaskNodeCommand;
 };
