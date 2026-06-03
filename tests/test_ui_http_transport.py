@@ -481,6 +481,44 @@ def test_command_route_replays_idempotent_response_before_gateway_dispatch() -> 
     assert commands.calls == ["generate_task_tree"]
 
 
+def test_confirmation_route_replays_idempotent_response_before_gateway_dispatch() -> None:
+    commands = _CommandGateway()
+    transport = _transport(
+        commands=commands,
+        command_idempotency_store=InMemoryUiCommandResponseIdempotencyStore(),
+    )
+
+    first = transport.handle(
+        HttpApiRequest(
+            method="POST",
+            path="/api/v1/sessions/session%201/confirmations/confirm%201/respond",
+            body=_command_body(
+                "session 1",
+                {"value": "yes", "note": "Looks good"},
+                command_id="command-1",
+                idempotency_key="resolve-confirmation-1",
+            ),
+        )
+    )
+    replay = transport.handle(
+        HttpApiRequest(
+            method="POST",
+            path="/api/v1/sessions/session%201/confirmations/confirm%201/respond",
+            body=_command_body(
+                "session 1",
+                {"value": "yes", "note": "Looks good"},
+                command_id="command-2",
+                idempotency_key="resolve-confirmation-1",
+            ),
+        )
+    )
+
+    assert first.status_code == 200
+    assert replay.status_code == 200
+    assert _dict_body(replay.body) == _dict_body(first.body)
+    assert commands.calls == ["resolve_confirmation:confirm 1"]
+
+
 def test_command_route_rejects_idempotency_key_reused_for_different_payload() -> None:
     commands = _CommandGateway()
     transport = _transport(

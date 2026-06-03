@@ -215,7 +215,7 @@ Acceptance:
 
 ### C2. Confirmation Backend Hardening
 
-Current status: planned.
+Current status: done.
 
 Deliver:
 
@@ -231,6 +231,13 @@ Acceptance:
 - replaying the same idempotent command returns the same command result;
 - pending confirmation disappears after canonical response exists;
 - MessageStream remains the storage authority for confirmation history.
+
+Implementation note:
+
+- Product 1.0 uses the existing UI command response idempotency layer for
+  idempotent HTTP command replay. The task command service rejects a second
+  non-idempotent confirmation resolve once `MessageStream.response_for(...)`
+  reports a canonical response.
 
 ### C3. ASK Domain And Durable Store
 

@@ -221,12 +221,18 @@ class _MessageStream:
     def pending_actionable(
         self, session_id: str, *, task_id: str | None = None
     ) -> list[AgentMessage]:
+        answered_ids = {
+            message.parent_message_id
+            for message in self._messages
+            if message.message_type == "response" and message.parent_message_id is not None
+        }
         return [
             message
             for message in self._messages
             if message.session_id == session_id
             and message.task_id == task_id
             and message.message_type == "actionable"
+            and message.message_id not in answered_ids
         ]
 
     def response_for(self, message_id: str) -> AgentMessage | None:
@@ -534,6 +540,40 @@ def test_projection_aggregates_messages_confirmations_files_and_summary() -> Non
     assert detail.messages[-1].message_type == "confirmation"
     assert detail.file_changes[0].from_subtree is True
     assert detail.result_summary is summary
+
+
+def test_projection_drops_resolved_confirmation_from_pending_views() -> None:
+    root = _task("root")
+    confirmation = AgentMessage(
+        message_id="confirmation-1",
+        session_id="s1",
+        task_id="root",
+        message_type="actionable",
+        content="Proceed?",
+        action_options=["yes", "no"],
+        requires_response=True,
+    )
+    response = AgentMessage(
+        session_id="s1",
+        task_id="root",
+        agent_id="user",
+        parent_message_id=confirmation.message_id,
+        message_type="response",
+        content="yes",
+        response_source="user",
+        response_value="yes",
+    )
+    service = DefaultTaskProjectionService(
+        task_store=_TaskStore([root]),
+        message_stream=_MessageStream([confirmation, response]),
+    )
+
+    card = service.get_task_card("s1", TaskRef.published("root"))
+    detail = service.get_task_detail("s1", TaskRef.published("root"))
+
+    assert card.badges.pending_confirmation_count == 0
+    assert card.confirmation is None
+    assert detail.confirmations == ()
 
 
 def test_get_task_card_missing_task_raises() -> None:

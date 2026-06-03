@@ -214,6 +214,8 @@ class DefaultTaskCommandService:
             return _rejected("confirmation belongs to a different session")
         if parent.message_type != "actionable":
             return _rejected("confirmation must reference an actionable message")
+        if self._message_bus.stream.response_for(parent.message_id) is not None:
+            return _rejected("confirmation is already resolved")
         if not value.strip():
             return _rejected("confirmation value must not be empty")
 
