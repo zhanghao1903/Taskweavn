@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from typing import Any
 from uuid import uuid4
 
+from taskweavn.observability.main_page_trace import main_page_trace
 from taskweavn.server.client_logs import FileClientErrorLogSink
 from taskweavn.server.ui_contract import (
     AnswerAskPayload,
@@ -29,6 +30,7 @@ from taskweavn.server.ui_contract import (
     UiCommandGateway,
     UpdateTaskNodePayload,
     audit_records_changed,
+    task_node_changed,
 )
 from taskweavn.server.ui_events import (
     UiEventSource,
@@ -175,6 +177,34 @@ def emit_agent_loop_audit_records_changed(
     )
 
 
+def emit_task_lifecycle_task_node_changed(
+    event_store: UiEventStore | None,
+    *,
+    session_id: str,
+    task_id: str,
+) -> None:
+    """Emit a Main Page invalidation after TaskBus lifecycle facts are committed."""
+    if event_store is None:
+        return
+
+    event = task_node_changed(
+        session_id,
+        cursor=f"task_lifecycle:{task_id}:{session_id}:{uuid4().hex}",
+        task_refs=(TaskRef.published(task_id),),
+        reason="task_lifecycle_committed",
+    )
+    main_page_trace(
+        "task_lifecycle.event.emit",
+        event_id=event.event_id,
+        event_type=event.event_type,
+        reason="task_lifecycle_committed",
+        session_id=session_id,
+        task_id=task_id,
+    )
+    with contextlib.suppress(UiEventSourceError):
+        event_store.append(event)
+
+
 def emit_confirmation_audit_records_changed(
     event_store: UiEventStore | None,
     *,
@@ -266,5 +296,6 @@ __all__ = [
     "emit_config_manifest_audit_records_changed",
     "emit_confirmation_audit_records_changed",
     "emit_log_archive_audit_records_changed",
+    "emit_task_lifecycle_task_node_changed",
     "ui_event_store",
 ]

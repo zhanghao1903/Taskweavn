@@ -103,6 +103,8 @@ class DeepSeekProvider(BaseLLMProvider):
         }
         if request.max_tokens is not None:
             kwargs["max_tokens"] = request.max_tokens
+        if request.timeout_seconds is not None:
+            kwargs["timeout"] = request.timeout_seconds
         if thinking_enabled:
             assert request.thinking is not None
             kwargs["reasoning_effort"] = request.thinking.effort

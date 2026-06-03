@@ -12,7 +12,8 @@ from typing import Literal, Protocol, runtime_checkable
 from taskweavn.context.models import ContextBuildRequest, ContextBuildResult
 from taskweavn.core.loop import LoopResult
 from taskweavn.interaction import AgentMessage, MessageBus, MessageStreamError
-from taskweavn.task.bus import TaskBus
+from taskweavn.observability.main_page_trace import main_page_trace
+from taskweavn.task.bus import TaskBus, _task_trace_summary
 from taskweavn.task.models import TaskDomain
 from taskweavn.task.result_summary import (
     TaskExecutionSummary,
@@ -90,6 +91,7 @@ class AgentLoopRunner(Protocol):
 
 
 AgentLoopRunnerFactory = Callable[[TaskDomain], AgentLoopRunner]
+TaskLifecycleCommittedCallback = Callable[[TaskDomain], None]
 
 
 @runtime_checkable
@@ -162,15 +164,29 @@ class FixedRouteTaskExecutor:
         config: FixedRouteTaskExecutorConfig,
         result_summary_store: TaskExecutionSummaryStore | None = None,
         message_bus: MessageBus | None = None,
+        on_task_lifecycle_committed: TaskLifecycleCommittedCallback | None = None,
     ) -> None:
         self._task_bus = task_bus
         self._default_agent = default_agent
         self._config = config
         self._result_summary_store = result_summary_store
         self._message_bus = message_bus
+        self._on_task_lifecycle_committed = on_task_lifecycle_committed
 
     def tick(self) -> TaskExecutionTickResult:
+        main_page_trace(
+            "execution.tick.start",
+            default_agent_configured=self._default_agent is not None,
+            default_agent_id=self._config.default_agent_id,
+            session_id=self._config.session_id,
+        )
         if self._default_agent is None:
+            main_page_trace(
+                "execution.tick.result",
+                error_ref="default_agent_unavailable",
+                session_id=self._config.session_id,
+                status="health_error",
+            )
             return TaskExecutionTickResult(
                 status="health_error",
                 session_id=self._config.session_id,
@@ -183,27 +199,53 @@ class FixedRouteTaskExecutor:
             self._config.session_id,
         )
         if candidate is None:
+            main_page_trace(
+                "execution.tick.result",
+                session_id=self._config.session_id,
+                skipped_reason="no_eligible_task",
+                status="idle",
+            )
             return TaskExecutionTickResult(
                 status="idle",
                 session_id=self._config.session_id,
                 skipped_reason="no_eligible_task",
             )
 
+        main_page_trace(
+            "execution.tick.candidate",
+            capability=candidate.required_capability,
+            task=_task_trace_summary(candidate),
+        )
         claimed = self._task_bus.claim_next(
             self._config.session_id,
             capability=candidate.required_capability,
             agent_id=self._config.default_agent_id,
         )
         if claimed is None:
+            main_page_trace(
+                "execution.tick.result",
+                session_id=self._config.session_id,
+                skipped_reason="claim_not_available",
+                status="claim_not_available",
+            )
             return TaskExecutionTickResult(
                 status="claim_not_available",
                 session_id=self._config.session_id,
                 skipped_reason="claim_not_available",
             )
 
+        main_page_trace(
+            "execution.tick.claimed",
+            task=_task_trace_summary(claimed),
+        )
         try:
             run_result = self._default_agent.run(claimed)
         except Exception as exc:  # noqa: BLE001 - runtime bridge must fail the Task.
+            main_page_trace(
+                "execution.agent.exception",
+                error=type(exc).__name__,
+                task=_task_trace_summary(claimed),
+            )
             error_ref = _store_execution_exception_summary(
                 self._result_summary_store,
                 claimed,
@@ -219,6 +261,10 @@ class FixedRouteTaskExecutor:
                 failed,
                 summary=_summary_for_ref(self._result_summary_store, failed.error_ref),
             )
+            _notify_task_lifecycle_committed(
+                self._on_task_lifecycle_committed,
+                failed,
+            )
             return TaskExecutionTickResult(
                 status="failed",
                 session_id=self._config.session_id,
@@ -227,9 +273,20 @@ class FixedRouteTaskExecutor:
                 error_ref=failed.error_ref,
             )
 
+        main_page_trace(
+            "execution.agent.result",
+            error_ref=run_result.error_ref,
+            result_ref=run_result.result_ref,
+            task=_task_trace_summary(claimed),
+            waiting_for_user=run_result.waiting_for_user,
+        )
         if run_result.waiting_for_user:
             waiting_task = self._task_bus.get(claimed.session_id, claimed.task_id)
             if waiting_task is not None and waiting_task.status == "waiting_for_user":
+                _notify_task_lifecycle_committed(
+                    self._on_task_lifecycle_committed,
+                    waiting_task,
+                )
                 return TaskExecutionTickResult(
                     status="waiting_for_user",
                     session_id=self._config.session_id,
@@ -254,6 +311,10 @@ class FixedRouteTaskExecutor:
                     self._message_bus,
                     failed,
                     summary=_summary_for_ref(self._result_summary_store, failed.error_ref),
+                )
+                _notify_task_lifecycle_committed(
+                    self._on_task_lifecycle_committed,
+                    failed,
                 )
                 return TaskExecutionTickResult(
                     status="failed",
@@ -286,6 +347,10 @@ class FixedRouteTaskExecutor:
                 completed,
                 summary=_summary_for_ref(self._result_summary_store, completed.result_ref),
             )
+            _notify_task_lifecycle_committed(
+                self._on_task_lifecycle_committed,
+                completed,
+            )
             return TaskExecutionTickResult(
                 status="completed",
                 session_id=self._config.session_id,
@@ -309,6 +374,10 @@ class FixedRouteTaskExecutor:
             self._message_bus,
             failed,
             summary=_summary_for_ref(self._result_summary_store, failed.error_ref),
+        )
+        _notify_task_lifecycle_committed(
+            self._on_task_lifecycle_committed,
+            failed,
         )
         return TaskExecutionTickResult(
             status="failed",
@@ -337,6 +406,7 @@ class FixedRouteExecutionDispatcher:
         enabled: bool = True,
         result_summary_store: TaskExecutionSummaryStore | None = None,
         message_bus: MessageBus | None = None,
+        on_task_lifecycle_committed: TaskLifecycleCommittedCallback | None = None,
     ) -> None:
         self._task_bus = task_bus
         self._default_agent = default_agent
@@ -345,6 +415,7 @@ class FixedRouteExecutionDispatcher:
         self._enabled = enabled
         self._result_summary_store = result_summary_store
         self._message_bus = message_bus
+        self._on_task_lifecycle_committed = on_task_lifecycle_committed
         self._condition = threading.Condition()
         self._pending_session_ids: set[str] = set()
         self._pending_sessions: deque[str] = deque()
@@ -463,6 +534,7 @@ class FixedRouteExecutionDispatcher:
                 ),
                 result_summary_store=self._result_summary_store,
                 message_bus=self._message_bus,
+                on_task_lifecycle_committed=self._on_task_lifecycle_committed,
             )
             result = executor.tick()
             if result.status != "completed":
@@ -593,7 +665,7 @@ def _dispatch_result(
         "health_error": "execution dispatcher is unavailable",
         "closed": "execution dispatcher is closed",
     }
-    return ExecutionDispatchRequestResult(
+    result = ExecutionDispatchRequestResult(
         status=status,
         session_id=session_id,
         reason=reason,
@@ -601,6 +673,16 @@ def _dispatch_result(
         message=messages[status],
         error_ref=error_ref,
     )
+    main_page_trace(
+        "execution.dispatch.result",
+        accepted=result.accepted,
+        error_ref=result.error_ref,
+        reason=result.reason,
+        request_id=result.request_id,
+        session_id=result.session_id,
+        status=result.status,
+    )
+    return result
 
 
 def _store_execution_exception_summary(
@@ -716,6 +798,21 @@ def _publish_execution_message(
         message_bus.publish(message)
 
 
+def _notify_task_lifecycle_committed(
+    callback: TaskLifecycleCommittedCallback | None,
+    task: TaskDomain,
+) -> None:
+    main_page_trace(
+        "execution.lifecycle_committed",
+        callback_configured=callback is not None,
+        task=_task_trace_summary(task),
+    )
+    if callback is None:
+        return
+    with contextlib.suppress(Exception):
+        callback(task)
+
+
 __all__ = [
     "AgentLoopResidentDefaultAgent",
     "AgentLoopRunner",
@@ -731,6 +828,7 @@ __all__ = [
     "FixedRouteTaskExecutor",
     "FixedRouteTaskExecutorConfig",
     "ResidentDefaultAgent",
+    "TaskLifecycleCommittedCallback",
     "TaskExecutionTickResult",
     "TaskExecutionTickStatus",
     "TaskRunResult",

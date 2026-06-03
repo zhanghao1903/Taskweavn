@@ -8,6 +8,7 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, cast
+from urllib.parse import quote
 
 import pytest
 
@@ -632,6 +633,7 @@ def test_main_page_sidecar_app_fixed_route_tick_failure_path(tmp_path: Any) -> N
         tick = app.run_fixed_route_tick(session_id)
         task = app.task_bus.get(session_id, "failing-task")
         snapshot = _request(app, "GET", f"/api/v1/sessions/{session_id}/snapshot")
+        events = _request(app, "GET", f"/api/v1/sessions/{session_id}/events")
     finally:
         app.close()
 
@@ -654,6 +656,113 @@ def test_main_page_sidecar_app_fixed_route_tick_failure_path(tmp_path: Any) -> N
         message["kind"] == "error" and message["title"] == "Task failed"
         for message in snapshot.json["data"]["messages"]
     )
+    assert events.status == 200
+    assert "event: task.node.changed" in events.text
+    assert '"reason":"task_lifecycle_committed"' in events.text
+    assert '"taskNodeIds":["failing-task"]' in events.text
+
+
+def test_main_page_sidecar_app_loads_snapshot_for_failed_interrupted_task(
+    tmp_path: Any,
+) -> None:
+    app = build_main_page_sidecar_app(
+        MainPageSidecarConfig(workspace_root=tmp_path, port=0),
+        MainPageSidecarDependencies(llm=_StubLLM()),
+    )
+    try:
+        session_id = _create_session(app)
+        app.task_bus.publish(_published_task("interrupted-task", session_id=session_id))
+        claimed = app.task_bus.claim_next(
+            session_id,
+            capability="general",
+            agent_id="default_agent",
+        )
+        assert claimed is not None
+        app.task_bus.request_interrupt(
+            session_id,
+            "interrupted-task",
+            reason="user requested stop",
+            request_id="stop-interrupted-task",
+        )
+        app.task_bus.fail(
+            session_id,
+            "interrupted-task",
+            error_ref="cancelled: user requested stop; safe_point=after_llm_response",
+        )
+
+        snapshot = _request(app, "GET", f"/api/v1/sessions/{session_id}/snapshot")
+    finally:
+        app.close()
+
+    assert snapshot.status == 200
+    assert snapshot.json["ok"] is True
+    snapshot_node = snapshot.json["data"]["taskTree"]["nodes"][0]
+    assert snapshot_node["status"] == "failed"
+    assert snapshot_node["execution"] == "failed"
+    assert snapshot_node["interruptionRequested"] is True
+    assert snapshot_node["errorRef"] == (
+        "cancelled: user requested stop; safe_point=after_llm_response"
+    )
+
+
+def test_main_page_sidecar_app_recovers_stale_interrupted_running_task_on_startup(
+    tmp_path: Any,
+) -> None:
+    layout = WorkspaceLayout(tmp_path)
+    manager = SessionManager(layout)
+    try:
+        session = manager.create("Stale stop")
+    finally:
+        manager.close()
+
+    task_bus = SqliteTaskBus(layout.workspace_tasks_db)
+    try:
+        task_bus.publish(_published_task("stale-task", session_id=session.id))
+        assert (
+            task_bus.claim_next(
+                session.id,
+                capability="general",
+                agent_id="default_agent",
+            )
+            is not None
+        )
+        task_bus.request_interrupt(
+            session.id,
+            "stale-task",
+            reason="user requested stop",
+            request_id="stop-stale-task",
+        )
+    finally:
+        task_bus.close()
+
+    app = build_main_page_sidecar_app(
+        MainPageSidecarConfig(workspace_root=tmp_path, port=0),
+        MainPageSidecarDependencies(llm=_StubLLM()),
+    )
+    try:
+        snapshot = _request(app, "GET", f"/api/v1/sessions/{session.id}/snapshot")
+        events = _request(app, "GET", f"/api/v1/sessions/{session.id}/events")
+        recovered = app.task_bus.get(session.id, "stale-task")
+    finally:
+        app.close()
+
+    assert recovered is not None
+    assert recovered.status == "failed"
+    assert recovered.error_ref == (
+        "cancelled: user requested stop; safe_point=sidecar_recovery"
+    )
+    assert snapshot.status == 200
+    assert snapshot.json["ok"] is True
+    snapshot_node = snapshot.json["data"]["taskTree"]["nodes"][0]
+    assert snapshot_node["status"] == "failed"
+    assert snapshot_node["execution"] == "failed"
+    assert snapshot_node["interruptionRequested"] is True
+    assert snapshot_node["errorRef"] == (
+        "cancelled: user requested stop; safe_point=sidecar_recovery"
+    )
+    assert events.status == 200
+    assert "event: task.node.changed" in events.text
+    assert '"taskNodeIds":["stale-task"]' in events.text
 
 
 def test_main_page_sidecar_app_fixed_route_tick_runs_agent_loop_default_agent(
@@ -676,6 +785,12 @@ def test_main_page_sidecar_app_fixed_route_tick_runs_agent_loop_default_agent(
         result_ref = tick.result_ref
         snapshot = _request(app, "GET", f"/api/v1/sessions/{session_id}/snapshot")
         events = _request(app, "GET", f"/api/v1/sessions/{session_id}/events")
+        snapshot_cursor = snapshot.json["data"]["cursor"]
+        events_after_snapshot = _request(
+            app,
+            "GET",
+            f"/api/v1/sessions/{session_id}/events?cursor={quote(snapshot_cursor)}",
+        )
     finally:
         app.close()
 
@@ -712,6 +827,12 @@ def test_main_page_sidecar_app_fixed_route_tick_runs_agent_loop_default_agent(
     assert "event: audit.records_changed" in events.text
     assert '"reason":"agent_loop_event_stream_updated"' in events.text
     assert '"taskNodeId":"loop-task"' in events.text
+    assert "event: task.node.changed" in events.text
+    assert '"reason":"task_lifecycle_committed"' in events.text
+    assert '"taskNodeIds":["loop-task"]' in events.text
+    assert snapshot_cursor.startswith("task_lifecycle:loop-task:")
+    assert events_after_snapshot.status == 200
+    assert "event: session.resync_required" not in events_after_snapshot.text
 
 
 def test_main_page_sidecar_app_agent_loop_creates_ask_and_resumes_with_answer_fact(

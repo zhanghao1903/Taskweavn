@@ -10,7 +10,12 @@ from taskweavn.llm.client import (
     parse_tool_arguments,
     tool_schema_from_action,
 )
-from taskweavn.llm.config import LLMClientConfig, build_provider, load_client_config_from_env
+from taskweavn.llm.config import (
+    DEFAULT_LLM_REQUEST_TIMEOUT_SECONDS,
+    LLMClientConfig,
+    build_provider,
+    load_client_config_from_env,
+)
 from taskweavn.llm.contracts import (
     ChatRequest,
     ErrorClassification,
@@ -38,6 +43,7 @@ from taskweavn.llm.providers import DeepSeekProvider, LiteLLMProvider, OpenRoute
 __all__ = [
     "ChatRequest",
     "ChatResponse",
+    "DEFAULT_LLM_REQUEST_TIMEOUT_SECONDS",
     "DeepSeekProvider",
     "ErrorClassification",
     "LLMAuthError",

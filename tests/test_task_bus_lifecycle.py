@@ -198,6 +198,29 @@ def test_in_memory_task_bus_interrupts_running_task_without_terminal_transition(
     assert stopped.interrupt_reason == "stop after safe point"
 
 
+def test_in_memory_task_bus_recovers_stale_interrupted_running_task() -> None:
+    bus = InMemoryTaskBus([_task("root")])
+    assert bus.claim_next("s1", capability="general", agent_id="agent-1") is not None
+    bus.request_interrupt(
+        "s1",
+        "root",
+        reason="user requested stop",
+        request_id="stop-running",
+    )
+
+    recovered = bus.recover_interrupted_running_tasks("s1")
+    loaded = bus.get("s1", "root")
+
+    assert len(recovered) == 1
+    assert recovered[0].status == "failed"
+    assert recovered[0].error_ref == (
+        "cancelled: user requested stop; safe_point=sidecar_recovery"
+    )
+    assert recovered[0].interrupt_requested is True
+    assert recovered[0].completed_at is not None
+    assert loaded == recovered[0]
+
+
 def test_in_memory_task_bus_rejects_interrupt_for_terminal_task() -> None:
     bus = InMemoryTaskBus([_task("root", status="done")])
 

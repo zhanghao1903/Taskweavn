@@ -26,6 +26,7 @@ import {
   createFrontendLogger,
   toLoggableError,
 } from "../logging/frontendLogger";
+import { summarizeCommandResponse, summarizeUiEvent } from "./traceSummary";
 
 export type CreateSessionPayload = {
   name?: string;
@@ -357,11 +358,24 @@ export function createHttpPlatoApi(options: HttpPlatoApiOptions): PlatoApi {
         request,
       );
     },
-    stopTask(sessionId, taskNodeId, request) {
-      return client.postJson<CommandResponse>(
+    async stopTask(sessionId, taskNodeId, request) {
+      platoApiLogger.info("command.stop.request", {
+        commandId: request.commandId,
+        reason: request.payload.reason ?? null,
+        sessionId,
+        taskNodeId,
+      });
+      const response = await client.postJson<CommandResponse>(
         `/api/v1/sessions/${segment(sessionId)}/tasks/${segment(taskNodeId)}/stop`,
         request,
       );
+      platoApiLogger.info("command.stop.response", {
+        ...summarizeCommandResponse(response),
+        commandId: request.commandId,
+        sessionId,
+        taskNodeId,
+      });
+      return response;
     },
     resolveConfirmation(sessionId, confirmationId, request) {
       return client.postJson<CommandResponse>(
@@ -377,9 +391,7 @@ export function createHttpPlatoApi(options: HttpPlatoApiOptions): PlatoApi {
         sessionId,
       )}/events${query}`;
       platoApiLogger.info("events.subscribe.start", {
-        cursor,
         sessionId,
-        url,
       });
 
       let source: EventSourceLike;
@@ -389,7 +401,6 @@ export function createHttpPlatoApi(options: HttpPlatoApiOptions): PlatoApi {
         platoApiLogger.error("events.subscribe.failed", {
           error: toLoggableError(error),
           sessionId,
-          url,
         });
         throw error;
       }
@@ -398,9 +409,7 @@ export function createHttpPlatoApi(options: HttpPlatoApiOptions): PlatoApi {
         try {
           const parsed = JSON.parse(event.data) as UiEvent;
           platoApiLogger.debug("events.message", {
-            eventId: parsed.eventId,
-            eventType: parsed.eventType,
-            sessionId: parsed.sessionId,
+            ...summarizeUiEvent(parsed),
           });
           onEvent(parsed);
         } catch (error) {
@@ -420,7 +429,6 @@ export function createHttpPlatoApi(options: HttpPlatoApiOptions): PlatoApi {
       return () => {
         platoApiLogger.info("events.subscribe.stop", {
           sessionId,
-          url,
         });
         source.close();
       };

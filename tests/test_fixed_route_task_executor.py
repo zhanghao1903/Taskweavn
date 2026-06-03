@@ -74,10 +74,14 @@ def test_fixed_route_executor_fails_when_agent_returns_error() -> None:
 
 def test_fixed_route_executor_returns_waiting_when_agent_blocks_for_user() -> None:
     bus = InMemoryTaskBus([_task("task-1")])
+    committed: list[tuple[str, str, str | None]] = []
     executor = FixedRouteTaskExecutor(
         task_bus=bus,
         default_agent=_WaitingAgent(bus=bus, ask_id="ask-1"),
         config=FixedRouteTaskExecutorConfig(session_id="s1"),
+        on_task_lifecycle_committed=lambda task: committed.append(
+            (task.task_id, task.status, task.waiting_for_ask_id)
+        ),
     )
 
     result = executor.tick()
@@ -91,6 +95,7 @@ def test_fixed_route_executor_returns_waiting_when_agent_blocks_for_user() -> No
     assert task.status == "waiting_for_user"
     assert task.waiting_for_ask_id == "ask-1"
     assert task.claimed_by == "default_agent"
+    assert committed == [("task-1", "waiting_for_user", "ask-1")]
 
 
 def test_fixed_route_executor_fails_when_agent_raises() -> None:
@@ -507,6 +512,26 @@ def test_fixed_route_executor_publishes_completion_message() -> None:
     assert message.context["result_ref"] == "result:task-1"
 
 
+def test_fixed_route_executor_notifies_after_completion_projection() -> None:
+    messages = _MessageBus()
+    committed: list[tuple[str, str, int, str | None]] = []
+    bus = InMemoryTaskBus([_task("task-1")])
+    executor = FixedRouteTaskExecutor(
+        task_bus=bus,
+        default_agent=_FakeAgent(TaskRunResult(result_ref="result:task-1")),
+        config=FixedRouteTaskExecutorConfig(session_id="s1"),
+        message_bus=messages,
+        on_task_lifecycle_committed=lambda task: committed.append(
+            (task.task_id, task.status, len(messages.published), task.result_ref)
+        ),
+    )
+
+    result = executor.tick()
+
+    assert result.status == "completed"
+    assert committed == [("task-1", "done", 1, "result:task-1")]
+
+
 def test_fixed_route_executor_publishes_failure_message() -> None:
     store = InMemoryTaskExecutionSummaryStore()
     messages = _MessageBus()
@@ -531,6 +556,26 @@ def test_fixed_route_executor_publishes_failure_message() -> None:
     assert message.context["error_ref"] == "agent:error"
 
 
+def test_fixed_route_executor_notifies_after_failure_projection() -> None:
+    messages = _MessageBus()
+    committed: list[tuple[str, str, int, str | None]] = []
+    bus = InMemoryTaskBus([_task("task-1")])
+    executor = FixedRouteTaskExecutor(
+        task_bus=bus,
+        default_agent=_FakeAgent(TaskRunResult(error_ref="agent:error")),
+        config=FixedRouteTaskExecutorConfig(session_id="s1"),
+        message_bus=messages,
+        on_task_lifecycle_committed=lambda task: committed.append(
+            (task.task_id, task.status, len(messages.published), task.error_ref)
+        ),
+    )
+
+    result = executor.tick()
+
+    assert result.status == "failed"
+    assert committed == [("task-1", "failed", 1, "agent:error")]
+
+
 def test_fixed_route_dispatcher_queues_and_completes_pending_task() -> None:
     bus = InMemoryTaskBus([_task("task-1")])
     dispatcher = FixedRouteExecutionDispatcher(
@@ -550,6 +595,25 @@ def test_fixed_route_dispatcher_queues_and_completes_pending_task() -> None:
         task = bus.get("s1", "task-1")
         assert task is not None
         assert task.result_ref == "result:task-1"
+    finally:
+        dispatcher.stop()
+
+
+def test_fixed_route_dispatcher_forwards_lifecycle_callback() -> None:
+    bus = InMemoryTaskBus([_task("task-1")])
+    committed: list[tuple[str, str]] = []
+    dispatcher = FixedRouteExecutionDispatcher(
+        task_bus=bus,
+        default_agent=_FakeAgent(TaskRunResult(result_ref="result:task-1")),
+        on_task_lifecycle_committed=lambda task: committed.append(
+            (task.task_id, task.status)
+        ),
+    )
+    try:
+        request = dispatcher.request_dispatch("s1", reason="manual_control_route")
+
+        assert request.status == "queued"
+        assert _wait_for(lambda: committed == [("task-1", "done")])
     finally:
         dispatcher.stop()
 

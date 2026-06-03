@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import contextlib
 import threading
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -18,12 +19,14 @@ from taskweavn.interaction import (
     SqliteAskStore,
     SqliteMessageStream,
 )
+from taskweavn.observability.main_page_trace import main_page_trace
 from taskweavn.server.client_logs import FileClientErrorLogSink
 from taskweavn.server.main_page_agent import build_agent_loop_resident_default_agent
 from taskweavn.server.main_page_audit_events import (
     FRONTEND_ERROR_LOG_FILENAME,
     AuditEventClientErrorLogSink,
     AuditEventCommandGateway,
+    emit_task_lifecycle_task_node_changed,
     ui_event_store,
 )
 from taskweavn.server.main_page_logging import configure_sidecar_logging
@@ -48,7 +51,9 @@ from taskweavn.server.ui_contract import (
 from taskweavn.server.ui_contract.ask_projection import DefaultAskProjectionService
 from taskweavn.server.ui_events import (
     SqliteUiEventSource,
+    UiEventCursorProvider,
     UiEventSource,
+    UiEventStore,
 )
 from taskweavn.server.ui_http import PlatoUiHttpTransport, SidecarAuth
 from taskweavn.task import (
@@ -82,6 +87,7 @@ from taskweavn.task import (
     SqliteTaskBus,
     SqliteTaskExecutionSummaryStore,
     StaticCapabilityCatalog,
+    TaskDomain,
     TaskExecutionSummaryStore,
     TaskExecutionSummaryViewStore,
     TaskExecutionTickResult,
@@ -178,6 +184,9 @@ class MainPageSidecarApp:
             ),
             result_summary_store=self.result_summary_store,
             message_bus=self.message_bus,
+            on_task_lifecycle_committed=_task_lifecycle_event_callback(
+                ui_event_store(self.event_source)
+            ),
         )
         return executor.tick()
 
@@ -275,6 +284,11 @@ def build_main_page_sidecar_app(
             layout.workspace_ui_events_db
         )
         event_store = ui_event_store(event_source)
+        _recover_interrupted_running_tasks(
+            task_bus=task_bus,
+            session_manager=session_manager,
+            event_store=event_store,
+        )
         default_agent = dependencies.default_agent
         if default_agent is None and config.enable_default_agent:
             default_agent = build_agent_loop_resident_default_agent(
@@ -293,6 +307,7 @@ def build_main_page_sidecar_app(
             enabled=config.enable_execution_dispatcher,
             result_summary_store=result_summary_store,
             message_bus=message_bus,
+            on_task_lifecycle_committed=_task_lifecycle_event_callback(event_store),
         )
         context_builder = DefaultAuthoringContextBuilder(
             raw_task_store=raw_task_store,
@@ -340,6 +355,7 @@ def build_main_page_sidecar_app(
             session_message_provider=message_stream,
             authoring_state_store=authoring_state_store,
             ask_projection=DefaultAskProjectionService(ask_store),
+            snapshot_cursor_provider=_snapshot_cursor_provider(event_source),
         )
         core_command_gateway = DefaultUiCommandGateway(
             collaborator=collaborator,
@@ -448,6 +464,54 @@ def _default_capability_catalog() -> StaticCapabilityCatalog:
             "research",
         )
     )
+
+
+def _task_lifecycle_event_callback(
+    event_store: UiEventStore | None,
+) -> Callable[[TaskDomain], None]:
+    def emit(task: TaskDomain) -> None:
+        emit_task_lifecycle_task_node_changed(
+            event_store,
+            session_id=task.session_id,
+            task_id=task.task_id,
+        )
+
+    return emit
+
+
+def _snapshot_cursor_provider(
+    event_source: UiEventSource,
+) -> UiEventCursorProvider | None:
+    if isinstance(event_source, UiEventCursorProvider):
+        return event_source
+    return None
+
+
+def _recover_interrupted_running_tasks(
+    *,
+    task_bus: SqliteTaskBus,
+    session_manager: SessionManager,
+    event_store: UiEventStore | None,
+) -> None:
+    sessions = session_manager.list()
+    main_page_trace(
+        "sidecar.recover_interrupted_running.scan_start",
+        session_count=len(sessions),
+    )
+    for session in sessions:
+        recovered_tasks = task_bus.recover_interrupted_running_tasks(session.id)
+        main_page_trace(
+            "sidecar.recover_interrupted_running.session_result",
+            recovered_task_ids=tuple(task.task_id for task in recovered_tasks),
+            recovered_task_count=len(recovered_tasks),
+            session_id=session.id,
+        )
+        for task in recovered_tasks:
+            emit_task_lifecycle_task_node_changed(
+                event_store,
+                session_id=task.session_id,
+                task_id=task.task_id,
+            )
 
 
 __all__ = [

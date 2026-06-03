@@ -449,6 +449,48 @@ def test_interrupt_running_task_persists_active_intent(tmp_path: Path) -> None:
         bus.close()
 
 
+def test_recover_interrupted_running_task_persists_cancelled_failure(
+    tmp_path: Path,
+) -> None:
+    db_path = tmp_path / "tasks.sqlite"
+    bus = SqliteTaskBus(db_path)
+    try:
+        bus.publish(_root("root"))
+        assert bus.claim_next("s1", capability="general", agent_id="agent-1") is not None
+        bus.request_interrupt(
+            "s1",
+            "root",
+            reason="user requested stop",
+            request_id="stop-running",
+        )
+
+        recovered = bus.recover_interrupted_running_tasks("s1")
+        loaded = bus.get("s1", "root")
+
+        assert len(recovered) == 1
+        assert recovered[0].status == "failed"
+        assert recovered[0].error_ref == (
+            "cancelled: user requested stop; safe_point=sidecar_recovery"
+        )
+        assert recovered[0].interrupt_requested is True
+        assert recovered[0].completed_at is not None
+        assert loaded == recovered[0]
+    finally:
+        bus.close()
+
+    reopened = SqliteTaskBus(db_path)
+    try:
+        persisted = reopened.get("s1", "root")
+    finally:
+        reopened.close()
+
+    assert persisted is not None
+    assert persisted.status == "failed"
+    assert persisted.error_ref == (
+        "cancelled: user requested stop; safe_point=sidecar_recovery"
+    )
+
+
 def test_interrupt_terminal_task_is_rejected(tmp_path: Path) -> None:
     bus = SqliteTaskBus(tmp_path / "tasks.sqlite")
     try:

@@ -39,6 +39,8 @@ class LiteLLMProvider(BaseLLMProvider):
             kwargs["temperature"] = request.temperature
         if request.max_tokens is not None:
             kwargs["max_tokens"] = request.max_tokens
+        if request.timeout_seconds is not None:
+            kwargs["timeout"] = request.timeout_seconds
 
         response = litellm.completion(**kwargs)
         parsed = parse_openai_compatible_response(response, provider_name=self.name)

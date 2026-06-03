@@ -53,6 +53,7 @@ from taskweavn.server.ui_contract.gateway_protocols import (
     ProjectProvider,
     SessionMessageProvider,
     SessionReader,
+    SnapshotCursorProvider,
     TaskRefResolver,
     UiCommandGateway,
     UiQueryGateway,
@@ -115,6 +116,7 @@ __all__ = [
     "ProjectProvider",
     "SessionMessageProvider",
     "SessionReader",
+    "SnapshotCursorProvider",
     "StaticProjectProvider",
     "StaticWorkflowProvider",
     "TaskRefResolver",
@@ -145,6 +147,7 @@ class DefaultUiQueryGateway:
         session_message_provider: SessionMessageProvider | None = None,
         authoring_state_store: AuthoringStateStore | None = None,
         ask_projection: AskProjectionService | None = None,
+        snapshot_cursor_provider: SnapshotCursorProvider | None = None,
     ) -> None:
         self._session_reader = session_reader
         self._task_projection = task_projection
@@ -163,6 +166,7 @@ class DefaultUiQueryGateway:
         self._session_message_provider = session_message_provider
         self._authoring_state_store = authoring_state_store
         self._ask_projection = ask_projection
+        self._snapshot_cursor_provider = snapshot_cursor_provider
 
     def get_session_snapshot(
         self,
@@ -240,7 +244,10 @@ class DefaultUiQueryGateway:
                 result=result,
                 file_change_summary=file_change_summary,
                 audit_links=self._audit_links(session.id),
-                cursor=_snapshot_cursor(session),
+                cursor=_snapshot_cursor(
+                    session,
+                    cursor_provider=self._snapshot_cursor_provider,
+                ),
             )
             return QueryResponse[MainPageSnapshot](
                 request_id=request_id or _request_id("snapshot", session.id),
@@ -913,7 +920,13 @@ def _session_summary(
     )
 
 
-def _snapshot_cursor(session: Session) -> str:
+def _snapshot_cursor(
+    session: Session,
+    *,
+    cursor_provider: SnapshotCursorProvider | None = None,
+) -> str | None:
+    if cursor_provider is not None:
+        return cursor_provider.latest_cursor(session.id)
     return f"snapshot:{session.id}:{session.last_active_at.isoformat()}"
 
 

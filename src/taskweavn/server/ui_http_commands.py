@@ -7,6 +7,7 @@ import json
 from collections.abc import Callable
 from typing import Any
 
+from taskweavn.observability.main_page_trace import main_page_trace
 from taskweavn.server.transport import HttpApiResponse
 from taskweavn.server.ui_command_idempotency import (
     UiCommandResponseIdempotencyRecord,
@@ -193,9 +194,19 @@ def _command_response(
     dispatch: Callable[[], Any],
     command_idempotency_store: UiCommandResponseIdempotencyStore | None,
 ) -> HttpApiResponse:
+    main_page_trace(
+        "http.command.request",
+        command_id=request.command_id,
+        has_idempotency_key=request.idempotency_key is not None,
+        route=route.name,
+        session_id=request.session_id,
+        task_node_id=route.task_node_id or None,
+    )
     idempotency_key = request.idempotency_key
     if idempotency_key is None or command_idempotency_store is None:
-        return _contract_response(dispatch())
+        command_response = dispatch()
+        _trace_command_response(route, request, command_response)
+        return _contract_response(command_response)
 
     request_hash = _command_request_hash(route, request)
     try:
@@ -229,9 +240,20 @@ def _command_response(
                 ),
                 request_id=request.command_id,
             )
-        return cached.to_response()
+        cached_response = cached.to_response()
+        main_page_trace(
+            "http.command.idempotency.cached",
+            command_id=request.command_id,
+            route=route.name,
+            session_id=request.session_id,
+            status_code=cached_response.status_code,
+            task_node_id=route.task_node_id or None,
+        )
+        return cached_response
 
-    response = _contract_response(dispatch())
+    command_response = dispatch()
+    _trace_command_response(route, request, command_response)
+    response = _contract_response(command_response)
     try:
         command_idempotency_store.put(
             UiCommandResponseIdempotencyRecord.from_response(
@@ -328,3 +350,41 @@ def _command_request_hash(route: _Route, request: CommandRequest[Any]) -> str:
         sort_keys=True,
     )
     return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+
+def _trace_command_response(
+    route: _Route,
+    request: CommandRequest[Any],
+    response: Any,
+) -> None:
+    result = getattr(response, "result", None)
+    refresh = getattr(response, "refresh", None)
+    main_page_trace(
+        "http.command.response",
+        affected_scopes=tuple(
+            getattr(scope, "kind", None) for scope in getattr(refresh, "affected_scopes", ())
+        )
+        if refresh is not None
+        else (),
+        affected_task_refs=tuple(
+            getattr(ref, "id", None)
+            for ref in getattr(refresh, "affected_task_refs", ())
+        )
+        if refresh is not None
+        else (),
+        command_id=request.command_id,
+        debug_refs=getattr(result, "debug_refs", {}) if result is not None else {},
+        ok=getattr(response, "ok", None),
+        request_id=getattr(response, "request_id", None),
+        result_message=getattr(result, "message", None) if result is not None else None,
+        result_status=getattr(result, "status", None) if result is not None else None,
+        route=route.name,
+        session_id=request.session_id,
+        suggested_queries=getattr(refresh, "suggested_queries", ())
+        if refresh is not None
+        else (),
+        task_node_id=route.task_node_id or None,
+        wait_for_events=getattr(refresh, "wait_for_events", None)
+        if refresh is not None
+        else None,
+    )

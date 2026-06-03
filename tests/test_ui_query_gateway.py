@@ -49,6 +49,15 @@ class _SessionReader:
         return list(self._sessions.values())
 
 
+class _SnapshotCursorProvider:
+    def __init__(self, cursor: str | None) -> None:
+        self._cursor = cursor
+
+    def latest_cursor(self, session_id: str) -> str | None:
+        del session_id
+        return self._cursor
+
+
 class _Projection:
     def __init__(
         self,
@@ -257,6 +266,22 @@ def test_get_session_snapshot_maps_project_workflow_tree_messages_and_confirmati
     assert response.data.task_tree.nodes[0].status == "waiting_user"
     assert response.data.messages[0].id == "message-1"
     assert response.data.pending_confirmations[0].default_option_value == "yes"
+
+
+def test_get_session_snapshot_uses_latest_ui_event_cursor_when_available() -> None:
+    tree = TaskTreeView(session_id="session-1", nodes=(_card(),))
+    gateway = DefaultUiQueryGateway(
+        session_reader=_SessionReader([_session()]),
+        task_projection=_Projection(tree),
+        snapshot_cursor_provider=_SnapshotCursorProvider("event:session-1:42"),
+    )
+
+    response = gateway.get_session_snapshot("session-1")
+
+    assert response.ok is True
+    assert response.cursor == "event:session-1:42"
+    assert response.data is not None
+    assert response.data.cursor == "event:session-1:42"
 
 
 def test_get_session_snapshot_marks_ask_waiting_execution_as_waiting_user() -> None:

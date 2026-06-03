@@ -74,6 +74,13 @@ class AuditLinkProvider(Protocol):
 
 
 @runtime_checkable
+class SnapshotCursorProvider(Protocol):
+    """Read the latest UI event cursor used as a snapshot subscription boundary."""
+
+    def latest_cursor(self, session_id: str) -> str | None: ...
+
+
+@runtime_checkable
 class AuditEventProvider(Protocol):
     """Read durable execution events for Audit Page projection."""
 

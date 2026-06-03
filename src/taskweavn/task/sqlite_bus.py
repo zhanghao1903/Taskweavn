@@ -8,10 +8,13 @@ from pathlib import Path
 from threading import RLock
 from typing import Any
 
+from taskweavn.observability.main_page_trace import main_page_trace
 from taskweavn.task.bus import (
     _interrupt_updates,
+    _recover_interrupted_running_updates,
     _resume_after_user_updates,
     _retry_updates,
+    _task_trace_summary,
     _wait_for_user_updates,
 )
 from taskweavn.task.models import TaskDomain, TaskInterruptRequestedBy
@@ -148,6 +151,12 @@ class SqliteTaskBus:
                     }
                 )
                 self._save_task(updated)
+                main_page_trace(
+                    "task_bus.claim",
+                    agent_id=agent_id,
+                    capability=capability,
+                    task=_task_trace_summary(updated),
+                )
                 return updated
         return None
 
@@ -193,6 +202,12 @@ class SqliteTaskBus:
                 }
             )
             self._save_task(updated)
+            main_page_trace(
+                "task_bus.fail",
+                error_ref=error_ref,
+                previous_status=task.status,
+                task=_task_trace_summary(updated),
+            )
             return updated
 
     def wait_for_user(
@@ -213,6 +228,12 @@ class SqliteTaskBus:
                 )
             updated = task.model_copy(update=_wait_for_user_updates(ask_id=ask_id))
             self._save_task(updated)
+            main_page_trace(
+                "task_bus.wait_for_user",
+                ask_id=ask_id,
+                previous_status=task.status,
+                task=_task_trace_summary(updated),
+            )
             return updated
 
     def resume_after_user(
@@ -235,6 +256,12 @@ class SqliteTaskBus:
                 raise TaskStoreError("resume ask_id does not match active ASK")
             updated = task.model_copy(update=_resume_after_user_updates())
             self._save_task(updated)
+            main_page_trace(
+                "task_bus.resume_after_user",
+                ask_id=ask_id,
+                previous_status=task.status,
+                task=_task_trace_summary(updated),
+            )
             return updated
 
     def skip(
@@ -260,6 +287,12 @@ class SqliteTaskBus:
                 }
             )
             self._save_task(updated)
+            main_page_trace(
+                "task_bus.skip",
+                previous_status=task.status,
+                reason=reason,
+                task=_task_trace_summary(updated),
+            )
             return updated
 
     def retry(
@@ -277,6 +310,12 @@ class SqliteTaskBus:
                 update=_retry_updates(task, instruction=instruction)
             )
             self._save_task(updated)
+            main_page_trace(
+                "task_bus.retry",
+                instruction_present=instruction is not None and bool(instruction.strip()),
+                previous_status=task.status,
+                task=_task_trace_summary(updated),
+            )
             return updated
 
     def request_interrupt(
@@ -311,7 +350,30 @@ class SqliteTaskBus:
                 )
             updated = task.model_copy(update=updates)
             self._save_task(updated)
+            main_page_trace(
+                "task_bus.interrupt_requested",
+                previous_status=task.status,
+                reason=reason.strip(),
+                request_id=updated.interrupt_request_id,
+                task=_task_trace_summary(updated),
+            )
             return updated
+
+    def recover_interrupted_running_tasks(self, session_id: str) -> list[TaskDomain]:
+        with self._lock:
+            recovered: list[TaskDomain] = []
+            for task in self.list_for_session(session_id):
+                if task.status != "running" or not task.interrupt_requested:
+                    continue
+                updated = task.model_copy(update=_recover_interrupted_running_updates(task))
+                self._save_task(updated)
+                recovered.append(updated)
+                main_page_trace(
+                    "task_bus.recover_interrupted_running",
+                    previous_status=task.status,
+                    task=_task_trace_summary(updated),
+                )
+            return recovered
 
     def get(self, session_id: str, task_id: str) -> TaskDomain | None:
         with self._lock:
@@ -394,6 +456,12 @@ class SqliteTaskBus:
                 }
             )
             self._save_task(updated)
+            main_page_trace(
+                "task_bus.transition_running",
+                previous_status=task.status,
+                status=status,
+                task=_task_trace_summary(updated),
+            )
             return updated
 
     def _require_task(self, session_id: str, task_id: str) -> TaskDomain:

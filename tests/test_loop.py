@@ -343,6 +343,46 @@ def test_loop_records_llm_chat_failure_as_event(workspace: Workspace) -> None:
     assert "provider 500" in events[0].message
 
 
+def test_loop_records_llm_timeout_as_distinct_stop_reason(workspace: Workspace) -> None:
+    llm = FailingLLM(TimeoutError("provider timed out"))
+    loop = _build_loop(workspace, llm)  # type: ignore[arg-type]
+
+    result = loop.run("trigger provider timeout")
+
+    assert result.finished is False
+    assert result.stop_reason == "llm_timeout"
+    assert result.steps == 1
+    assert "provider timed out" in result.final_answer
+
+    events = list(loop.event_stream)
+    assert len(events) == 1
+    assert isinstance(events[0], AgentErrorObservation)
+    assert events[0].error_type == "llm_timeout"
+    assert events[0].phase == "llm_chat"
+    assert events[0].step == 1
+
+
+def test_loop_maps_llm_timeout_to_interrupted_when_stop_requested(
+    workspace: Workspace,
+) -> None:
+    llm = FailingLLM(TimeoutError("provider timed out"))
+    loop = _build_loop(workspace, llm)  # type: ignore[arg-type]
+    loop.interrupt_checker = SequenceInterruptChecker(interrupt_on_call=4)
+
+    result = loop.run("trigger provider timeout", task_id="task-1")
+
+    assert result.finished is False
+    assert result.stop_reason == "interrupted"
+    assert result.final_answer == (
+        "cancelled: user requested stop; safe_point=llm_timeout"
+    )
+    events = list(loop.event_stream)
+    assert len(events) == 1
+    assert isinstance(events[0], AgentErrorObservation)
+    assert events[0].error_type == "interrupted"
+    assert events[0].phase == "llm_timeout"
+
+
 def test_loop_stops_before_llm_call_when_interrupt_requested(workspace: Workspace) -> None:
     llm = StubLLM([_finish_response("should not run")])
     loop = _build_loop(workspace, llm)

@@ -72,3 +72,9 @@ def test_retry_policy_validation() -> None:
 def test_chat_request_rejects_unknown_field() -> None:
     with pytest.raises(ValueError):
         ChatRequest(model="m", messages=[], extra_field=True)  # type: ignore[call-arg]
+
+
+def test_chat_request_validates_timeout_seconds() -> None:
+    assert ChatRequest(model="m", messages=[], timeout_seconds=1.5).timeout_seconds == 1.5
+    with pytest.raises(ValueError, match="timeout_seconds"):
+        ChatRequest(model="m", messages=[], timeout_seconds=0)

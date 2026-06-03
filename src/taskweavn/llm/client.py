@@ -16,7 +16,10 @@ from openhands.sdk import LLM
 from openhands.sdk.llm import LLMResponse, Message
 from openhands.sdk.tool import ToolDefinition
 
-from taskweavn.llm.config import load_client_config_from_env
+from taskweavn.llm.config import (
+    DEFAULT_LLM_REQUEST_TIMEOUT_SECONDS,
+    load_client_config_from_env,
+)
 from taskweavn.llm.contracts import (
     ChatRequest,
     ChatResponse,
@@ -41,7 +44,10 @@ class LLMClient:
         retry_policy: RetryPolicy | None = None,
         thinking: ThinkingConfig | None = None,
         provider_routing: ProviderRoutingConfig | None = None,
+        request_timeout_seconds: float | None = DEFAULT_LLM_REQUEST_TIMEOUT_SECONDS,
     ) -> None:
+        if request_timeout_seconds is not None and request_timeout_seconds <= 0:
+            raise ValueError("request_timeout_seconds must be positive or None")
         self._model = model
         self._api_key = api_key
         self._provider = provider or LiteLLMProvider(
@@ -50,6 +56,7 @@ class LLMClient:
         )
         self._thinking = thinking
         self._provider_routing = provider_routing
+        self._request_timeout_seconds = request_timeout_seconds
         self._llm = LLM(model=model, api_key=api_key)
 
     @classmethod
@@ -62,12 +69,18 @@ class LLMClient:
             provider=config.provider,
             thinking=config.thinking,
             provider_routing=config.provider_routing,
+            request_timeout_seconds=config.request_timeout_seconds,
         )
 
     @property
     def model(self) -> str:
         """The fully-qualified model identifier (provider/model)."""
         return self._model
+
+    @property
+    def request_timeout_seconds(self) -> float | None:
+        """Default per-provider request timeout for chat calls."""
+        return self._request_timeout_seconds
 
     def complete(
         self,
@@ -89,6 +102,7 @@ class LLMClient:
         metadata: dict[str, Any] | None = None,
         thinking: ThinkingConfig | None = None,
         provider_routing: ProviderRoutingConfig | None = None,
+        timeout_seconds: float | None = None,
     ) -> ChatResponse:
         """Run a chat completion with optional tool schemas, parse out tool_calls.
 
@@ -99,6 +113,11 @@ class LLMClient:
             model=self._model,
             messages=messages,
             tools=tools,
+            timeout_seconds=(
+                self._request_timeout_seconds
+                if timeout_seconds is None
+                else timeout_seconds
+            ),
             thinking=thinking or self._thinking,
             provider_routing=provider_routing or self._provider_routing,
             metadata=metadata or {},

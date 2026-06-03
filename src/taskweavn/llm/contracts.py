@@ -166,9 +166,17 @@ class ChatRequest(BaseModel):
     tools: list[dict[str, Any]] | None = None
     temperature: float | None = None
     max_tokens: int | None = None
+    timeout_seconds: float | None = None
     thinking: ThinkingConfig | None = None
     provider_routing: ProviderRoutingConfig | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
+
+    @field_validator("timeout_seconds")
+    @classmethod
+    def _validate_timeout_seconds(cls, value: float | None) -> float | None:
+        if value is not None and value <= 0:
+            raise ValueError("timeout_seconds must be positive or None")
+        return value
 
 
 class CompletionRequest(BaseModel):

@@ -11,6 +11,7 @@ import {
 } from "../../shared/logging/frontendLogger";
 import type { MainPageAdapter } from "./runtime/adapter";
 import { deriveMainPageMetadataFromSnapshot } from "./runtime/metadata";
+import { summarizeMainPageSnapshot } from "../../shared/api/traceSummary";
 
 export type HttpMainPageAdapterOptions = {
   api: PlatoApi;
@@ -66,7 +67,7 @@ export function createHttpMainPageAdapter({
         });
 
         adapterLogger.info("snapshot.load.success", {
-          ...summarizeSnapshot(snapshot),
+          ...summarizeMainPageSnapshot(snapshot),
           detailMode: metadata.detail.mode,
           sessionId: activeSessionId,
           stateId,
@@ -142,19 +143,6 @@ async function resolveActiveSessionId(
   }
 
   throw new Error(NO_SESSION_AVAILABLE_MESSAGE);
-}
-
-function summarizeSnapshot(snapshot: MainPageSnapshot) {
-  return {
-    confirmationCount: snapshot.pendingConfirmations.length,
-    cursor: snapshot.cursor,
-    messageCount: snapshot.messages.length,
-    projectId: snapshot.project.id,
-    sessionStatus: snapshot.session.status,
-    taskNodeCount: snapshot.taskTree?.nodes.length ?? 0,
-    taskTreeStatus: snapshot.taskTree?.status ?? null,
-    workflowId: snapshot.workflow.id,
-  };
 }
 
 function unwrapSnapshot(
