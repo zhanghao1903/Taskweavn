@@ -13,7 +13,9 @@ from taskweavn.core import (
     WorkspaceLayout,
 )
 from taskweavn.interaction import (
+    AskStore,
     InProcessMessageBus,
+    SqliteAskStore,
     SqliteMessageStream,
 )
 from taskweavn.server.client_logs import FileClientErrorLogSink
@@ -43,6 +45,7 @@ from taskweavn.server.ui_contract import (
     WorkspaceAuditEventProvider,
     WorkspaceAuditLogProvider,
 )
+from taskweavn.server.ui_contract.ask_projection import DefaultAskProjectionService
 from taskweavn.server.ui_events import (
     SqliteUiEventSource,
     UiEventSource,
@@ -58,6 +61,7 @@ from taskweavn.task import (
     DefaultAuthoringContextBuilder,
     DefaultCollaboratorApiAdapter,
     DefaultCollaboratorAuthoringService,
+    DefaultTaskAskCommandService,
     DefaultTaskCommandService,
     DefaultTaskProjectionService,
     DefaultTaskPublisher,
@@ -119,6 +123,7 @@ class MainPageSidecarDependencies:
     ui_command_idempotency_store: UiCommandResponseIdempotencyStore | None = None
     result_summary_store: TaskExecutionSummaryStore | None = None
     default_agent: ResidentDefaultAgent | None = None
+    ask_store: AskStore | None = None
 
 
 @dataclass
@@ -130,6 +135,7 @@ class MainPageSidecarApp:
     session_manager: SessionManager
     message_stream: SqliteMessageStream
     message_bus: InProcessMessageBus
+    ask_store: AskStore
     task_bus: SqliteTaskBus
     raw_task_store: RawTaskStore
     draft_store: DraftTaskStore
@@ -199,6 +205,7 @@ class MainPageSidecarApp:
             self.authoring_idempotency_store,
             self.ui_command_idempotency_store,
             self.result_summary_store,
+            self.ask_store,
             self.draft_store,
             self.raw_task_store,
         ):
@@ -237,6 +244,7 @@ def build_main_page_sidecar_app(
             logging_initializer(session)
         message_stream = SqliteMessageStream(layout.workspace_messages_db)
         message_bus = InProcessMessageBus(message_stream)
+        ask_store = dependencies.ask_store or SqliteAskStore(layout.workspace_asks_db)
         task_bus = SqliteTaskBus(layout.workspace_tasks_db)
         (
             raw_task_store,
@@ -310,6 +318,10 @@ def build_main_page_sidecar_app(
             published_task_retrier=task_bus,
             task_publisher=task_publisher,
         )
+        ask_commands = DefaultTaskAskCommandService(
+            ask_store=ask_store,
+            task_bus=task_bus,
+        )
         task_projection = DefaultTaskProjectionService(
             task_store=task_bus,
             draft_store=draft_store,
@@ -326,6 +338,7 @@ def build_main_page_sidecar_app(
             audit_log_provider=WorkspaceAuditLogProvider(),
             session_message_provider=message_stream,
             authoring_state_store=authoring_state_store,
+            ask_projection=DefaultAskProjectionService(ask_store),
         )
         core_command_gateway = DefaultUiCommandGateway(
             collaborator=collaborator,
@@ -335,6 +348,7 @@ def build_main_page_sidecar_app(
                 task_bus=task_bus,
             ),
             authoring_state_store=authoring_state_store,
+            ask_commands=ask_commands,
         )
         command_gateway: UiCommandGateway = AuditEventCommandGateway(
             inner=core_command_gateway,
@@ -378,6 +392,7 @@ def build_main_page_sidecar_app(
         session_manager=session_manager,
         message_stream=message_stream,
         message_bus=message_bus,
+        ask_store=ask_store,
         task_bus=task_bus,
         raw_task_store=raw_task_store,
         draft_store=draft_store,

@@ -237,6 +237,108 @@ def test_retry_preserves_original_queue_position(
         bus.close()
 
 
+def test_waiting_for_user_round_trip_resume_and_claim(tmp_path: Path) -> None:
+    bus = SqliteTaskBus(tmp_path / "tasks.sqlite")
+    try:
+        bus.publish(_root("root"))
+        claimed = bus.claim_next("s1", capability="general", agent_id="agent-1")
+        assert claimed is not None
+
+        waiting = bus.wait_for_user("s1", "root", ask_id="ask-1")
+        loaded_waiting = bus.get("s1", "root")
+
+        assert waiting.status == "waiting_for_user"
+        assert waiting.waiting_for_ask_id == "ask-1"
+        assert waiting.waiting_for_user_since is not None
+        assert loaded_waiting == waiting
+        assert bus.claim_next("s1", capability="general", agent_id="agent-1") is None
+
+        resumed = bus.resume_after_user("s1", "root", ask_id="ask-1")
+        retry_claim = bus.claim_next("s1", capability="general", agent_id="agent-2")
+
+        assert resumed.status == "pending"
+        assert resumed.waiting_for_ask_id is None
+        assert resumed.waiting_for_user_since is None
+        assert resumed.claimed_by is None
+        assert resumed.started_at is None
+        assert retry_claim is not None
+        assert retry_claim.task_id == "root"
+        assert retry_claim.claimed_by == "agent-2"
+    finally:
+        bus.close()
+
+
+def test_waiting_for_user_persists_across_reopen(tmp_path: Path) -> None:
+    db = tmp_path / "tasks.sqlite"
+    first = SqliteTaskBus(db)
+    try:
+        first.publish(_root("root"))
+        assert first.claim_next("s1", capability="general", agent_id="agent-1") is not None
+        first.wait_for_user("s1", "root", ask_id="ask-1")
+    finally:
+        first.close()
+
+    second = SqliteTaskBus(db)
+    try:
+        loaded = second.get("s1", "root")
+
+        assert loaded is not None
+        assert loaded.status == "waiting_for_user"
+        assert loaded.waiting_for_ask_id == "ask-1"
+        assert loaded.waiting_for_user_since is not None
+        assert second.claim_next("s1", capability="general", agent_id="agent-1") is None
+    finally:
+        second.close()
+
+
+def test_waiting_parent_keeps_child_blocked(tmp_path: Path) -> None:
+    bus = SqliteTaskBus(tmp_path / "tasks.sqlite")
+    try:
+        bus.publish(_root("root"))
+        bus.publish(_child("child", parent_id="root", root_id="root"))
+        assert bus.claim_next("s1", capability="general", agent_id="agent-1") is not None
+
+        bus.wait_for_user("s1", "root", ask_id="ask-1")
+
+        assert bus.claim_next("s1", capability="general", agent_id="agent-1") is None
+    finally:
+        bus.close()
+
+
+def test_waiting_task_can_fail_and_retry_clears_ask_linkage(tmp_path: Path) -> None:
+    bus = SqliteTaskBus(tmp_path / "tasks.sqlite")
+    try:
+        bus.publish(_root("root"))
+        assert bus.claim_next("s1", capability="general", agent_id="agent-1") is not None
+        bus.wait_for_user("s1", "root", ask_id="ask-1")
+
+        failed = bus.fail("s1", "root", error_ref="error:ask-timeout")
+        retried = bus.retry("s1", "root")
+
+        assert failed.status == "failed"
+        assert failed.error_ref == "error:ask-timeout"
+        assert failed.waiting_for_ask_id is None
+        assert failed.waiting_for_user_since is None
+        assert retried.status == "pending"
+        assert retried.waiting_for_ask_id is None
+        assert retried.waiting_for_user_since is None
+    finally:
+        bus.close()
+
+
+def test_resume_after_user_requires_matching_active_ask(tmp_path: Path) -> None:
+    bus = SqliteTaskBus(tmp_path / "tasks.sqlite")
+    try:
+        bus.publish(_root("root"))
+        assert bus.claim_next("s1", capability="general", agent_id="agent-1") is not None
+        bus.wait_for_user("s1", "root", ask_id="ask-1")
+
+        with pytest.raises(TaskStoreError, match="does not match"):
+            bus.resume_after_user("s1", "root", ask_id="other-ask")
+    finally:
+        bus.close()
+
+
 def test_complete_running_task_records_result(tmp_path: Path) -> None:
     bus = SqliteTaskBus(tmp_path / "tasks.sqlite")
     try:

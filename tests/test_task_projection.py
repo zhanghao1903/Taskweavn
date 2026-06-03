@@ -301,6 +301,9 @@ def _task(
     metadata: dict[str, object] | None = None,
 ) -> TaskDomain:
     root_id = task_id if parent_id is None else "root"
+    waiting_for_ask_id = (
+        f"ask:{task_id}" if status == "waiting_for_user" else None
+    )
     return TaskDomain(
         task_id=task_id,
         session_id="s1",
@@ -316,6 +319,7 @@ def _task(
         status=status,  # type: ignore[arg-type]
         result_ref=result_ref,
         error_ref=error_ref,
+        waiting_for_ask_id=waiting_for_ask_id,
     )
 
 
@@ -463,6 +467,7 @@ def test_published_permissions_follow_status() -> None:
     tasks = [
         _task("pending", status="pending"),
         _task("running", status="running"),
+        _task("waiting", status="waiting_for_user"),
         _task("done", status="done"),
         _task("failed", status="failed"),
     ]
@@ -470,12 +475,16 @@ def test_published_permissions_follow_status() -> None:
 
     pending = service.get_task_card("s1", TaskRef.published("pending"))
     running = service.get_task_card("s1", TaskRef.published("running"))
+    waiting = service.get_task_card("s1", TaskRef.published("waiting"))
     done = service.get_task_card("s1", TaskRef.published("done"))
     failed = service.get_task_card("s1", TaskRef.published("failed"))
 
     assert pending.permissions.can_edit is True
     assert pending.permissions.can_cancel is True
     assert running.permissions.can_append_guidance is True
+    assert waiting.status == "waiting_for_user"
+    assert waiting.permissions.can_resolve_confirmation is False
+    assert waiting.permissions.readonly_reason == "task is waiting for user input"
     assert done.permissions.readonly_reason == "task is done"
     assert failed.permissions.can_retry is True
 

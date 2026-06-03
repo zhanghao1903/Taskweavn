@@ -10,14 +10,17 @@ from uuid import uuid4
 
 from taskweavn.server.client_logs import FileClientErrorLogSink
 from taskweavn.server.ui_contract import (
+    AnswerAskPayload,
     AppendSessionInputPayload,
     AppendTaskInputPayload,
     AuditConfigScope,
     AuditConfirmationScope,
     AuditLogEvidenceScope,
     AuditTaskScope,
+    CancelAskPayload,
     CommandRequest,
     CommandResponse,
+    DeferAskPayload,
     GenerateTaskTreePayload,
     PublishTaskTreePayload,
     ResolveConfirmationPayload,
@@ -107,6 +110,27 @@ class AuditEventCommandGateway:
                 else None,
             )
         return response
+
+    def answer_ask(
+        self,
+        ask_id: str,
+        request: CommandRequest[AnswerAskPayload],
+    ) -> CommandResponse:
+        return self.inner.answer_ask(ask_id, request)
+
+    def defer_ask(
+        self,
+        ask_id: str,
+        request: CommandRequest[DeferAskPayload],
+    ) -> CommandResponse:
+        return self.inner.defer_ask(ask_id, request)
+
+    def cancel_ask(
+        self,
+        ask_id: str,
+        request: CommandRequest[CancelAskPayload],
+    ) -> CommandResponse:
+        return self.inner.cancel_ask(ask_id, request)
 
 
 @dataclass(frozen=True)

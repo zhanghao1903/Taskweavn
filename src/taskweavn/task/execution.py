@@ -47,6 +47,7 @@ ExecutionDispatchRequestStatus = Literal[
 ExecutionDispatchTriggerReason = Literal[
     "publish_start_immediately",
     "retry_start_immediately",
+    "ask_answer_resume",
     "manual_control_route",
     "startup_recovery",
 ]

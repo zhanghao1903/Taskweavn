@@ -17,9 +17,10 @@ class TaskBus(Protocol):
     """Published Task state authority.
 
     The bus owns published Task lifecycle transitions. It deliberately keeps
-    the state machine small: pending -> running -> done/failed, with manual
-    retry moving a failed Task back to pending on the same Task identity. Skip
-    is represented as a failed terminal Task with a user-visible reason.
+    the state machine small: pending -> running -> done/failed, with
+    waiting_for_user as a cooperative blocking point for durable ASK. Manual
+    retry moves a failed Task back to pending on the same Task identity. Skip is
+    represented as a failed terminal Task with a user-visible reason.
     """
 
     def publish(self, task: TaskDomain) -> TaskDomain: ...
@@ -46,6 +47,22 @@ class TaskBus(Protocol):
         task_id: str,
         *,
         error_ref: str,
+    ) -> TaskDomain: ...
+
+    def wait_for_user(
+        self,
+        session_id: str,
+        task_id: str,
+        *,
+        ask_id: str,
+    ) -> TaskDomain: ...
+
+    def resume_after_user(
+        self,
+        session_id: str,
+        task_id: str,
+        *,
+        ask_id: str,
     ) -> TaskDomain: ...
 
     def skip(
@@ -156,13 +173,67 @@ class InMemoryTaskBus:
     ) -> TaskDomain:
         if not error_ref.strip():
             raise TaskStoreError("failed task requires error_ref")
-        return self._transition_running(
-            session_id,
-            task_id,
-            status="failed",
-            result_ref=None,
-            error_ref=error_ref,
-        )
+        with self._lock:
+            task = self._require_task(session_id, task_id)
+            if task.status not in {"running", "waiting_for_user"}:
+                raise TaskStoreError(
+                    "only running or waiting_for_user tasks can transition "
+                    f"to failed; got {task.status}"
+                )
+            updated = task.model_copy(
+                update={
+                    "status": "failed",
+                    "result_ref": None,
+                    "error_ref": error_ref,
+                    "waiting_for_ask_id": None,
+                    "waiting_for_user_since": None,
+                    "completed_at": _utcnow(),
+                }
+            )
+            self._tasks[(session_id, task_id)] = updated
+            return updated
+
+    def wait_for_user(
+        self,
+        session_id: str,
+        task_id: str,
+        *,
+        ask_id: str,
+    ) -> TaskDomain:
+        ask_id = ask_id.strip()
+        if not ask_id:
+            raise TaskStoreError("waiting task requires ask_id")
+        with self._lock:
+            task = self._require_task(session_id, task_id)
+            if task.status != "running":
+                raise TaskStoreError(
+                    f"only running tasks can wait for user; got {task.status}"
+                )
+            updated = task.model_copy(update=_wait_for_user_updates(ask_id=ask_id))
+            self._tasks[(session_id, task_id)] = updated
+            return updated
+
+    def resume_after_user(
+        self,
+        session_id: str,
+        task_id: str,
+        *,
+        ask_id: str,
+    ) -> TaskDomain:
+        ask_id = ask_id.strip()
+        if not ask_id:
+            raise TaskStoreError("resume requires ask_id")
+        with self._lock:
+            task = self._require_task(session_id, task_id)
+            if task.status != "waiting_for_user":
+                raise TaskStoreError(
+                    f"only waiting_for_user tasks can resume; got {task.status}"
+                )
+            if task.waiting_for_ask_id != ask_id:
+                raise TaskStoreError("resume ask_id does not match active ASK")
+            updated = task.model_copy(update=_resume_after_user_updates())
+            self._tasks[(session_id, task_id)] = updated
+            return updated
 
     def skip(
         self,
@@ -325,6 +396,8 @@ def _retry_updates(task: TaskDomain, *, instruction: str | None) -> dict[str, ob
         "result_ref": None,
         "error_ref": None,
         "claimed_by": None,
+        "waiting_for_ask_id": None,
+        "waiting_for_user_since": None,
         "started_at": None,
         "completed_at": None,
         "interrupt_requested": False,
@@ -337,6 +410,30 @@ def _retry_updates(task: TaskDomain, *, instruction: str | None) -> dict[str, ob
     if retry_instruction:
         updates["intent"] = f"{task.intent.rstrip()}\n\nRetry instruction:\n{retry_instruction}"
     return updates
+
+
+def _wait_for_user_updates(*, ask_id: str) -> dict[str, object]:
+    return {
+        "status": "waiting_for_user",
+        "waiting_for_ask_id": ask_id,
+        "waiting_for_user_since": _utcnow(),
+        "result_ref": None,
+        "error_ref": None,
+        "completed_at": None,
+    }
+
+
+def _resume_after_user_updates() -> dict[str, object]:
+    return {
+        "status": "pending",
+        "result_ref": None,
+        "error_ref": None,
+        "claimed_by": None,
+        "waiting_for_ask_id": None,
+        "waiting_for_user_since": None,
+        "started_at": None,
+        "completed_at": None,
+    }
 
 
 def _interrupt_updates(

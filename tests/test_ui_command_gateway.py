@@ -5,10 +5,13 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from taskweavn.server.ui_contract import (
+    AnswerAskPayload,
     AppendSessionInputPayload,
     AppendTaskInputPayload,
+    CancelAskPayload,
     CommandRequest,
     DefaultUiCommandGateway,
+    DeferAskPayload,
     GenerateTaskTreePayload,
     PublishTaskTreePayload,
     ResolveConfirmationPayload,
@@ -252,6 +255,90 @@ class _TaskCommands:
         return self.result
 
 
+@dataclass
+class _AskCommands:
+    result: CoreCommandResult = field(
+        default_factory=lambda: CoreCommandResult(
+            command_id="ask-command",
+            status="accepted",
+            message="ask command accepted",
+            affected_task_refs=(TaskRef.published("task-1"),),
+        )
+    )
+    calls: list[tuple[str, dict[str, object]]] = field(default_factory=list)
+
+    def answer_ask(
+        self,
+        session_id: str,
+        ask_id: str,
+        *,
+        selected_option_ids: tuple[str, ...] = (),
+        text: str | None = None,
+        idempotency_key: str | None = None,
+        command_id: str | None = None,
+    ) -> CoreCommandResult:
+        self.calls.append(
+            (
+                "answer_ask",
+                {
+                    "session_id": session_id,
+                    "ask_id": ask_id,
+                    "selected_option_ids": selected_option_ids,
+                    "text": text,
+                    "idempotency_key": idempotency_key,
+                    "command_id": command_id,
+                },
+            )
+        )
+        return self.result
+
+    def defer_ask(
+        self,
+        session_id: str,
+        ask_id: str,
+        *,
+        reason: str | None = None,
+        idempotency_key: str | None = None,
+        command_id: str | None = None,
+    ) -> CoreCommandResult:
+        self.calls.append(
+            (
+                "defer_ask",
+                {
+                    "session_id": session_id,
+                    "ask_id": ask_id,
+                    "reason": reason,
+                    "idempotency_key": idempotency_key,
+                    "command_id": command_id,
+                },
+            )
+        )
+        return self.result
+
+    def cancel_ask(
+        self,
+        session_id: str,
+        ask_id: str,
+        *,
+        reason: str,
+        idempotency_key: str | None = None,
+        command_id: str | None = None,
+    ) -> CoreCommandResult:
+        self.calls.append(
+            (
+                "cancel_ask",
+                {
+                    "session_id": session_id,
+                    "ask_id": ask_id,
+                    "reason": reason,
+                    "idempotency_key": idempotency_key,
+                    "command_id": command_id,
+                },
+            )
+        )
+        return self.result
+
+
 @dataclass(frozen=True)
 class _Resolver:
     refs: dict[str, TaskRef]
@@ -290,6 +377,7 @@ def _gateway(
     *,
     collaborator: _Collaborator | None = None,
     task_commands: _TaskCommands | None = None,
+    ask_commands: _AskCommands | None = None,
     resolver: _Resolver | None = None,
     authoring_state_store: _AuthoringStateStore | None = None,
 ) -> DefaultUiCommandGateway:
@@ -299,6 +387,7 @@ def _gateway(
         task_ref_resolver=resolver
         or _Resolver({"draft-1": TaskRef.draft("draft-1"), "task-1": TaskRef.published("task-1")}),
         authoring_state_store=authoring_state_store,
+        ask_commands=ask_commands,
     )
 
 
@@ -773,6 +862,106 @@ def test_resolve_confirmation_rejection_maps_to_command_rejected_error() -> None
     assert response.error is not None
     assert response.error.code == "command_rejected"
     assert response.refresh.wait_for_events is False
+
+
+def test_answer_ask_wraps_ask_command_refs_and_refresh_scopes() -> None:
+    ask_commands = _AskCommands()
+    gateway = _gateway(ask_commands=ask_commands)
+    request = CommandRequest[AnswerAskPayload](
+        command_id="answer-1",
+        session_id="session-1",
+        idempotency_key="answer-key",
+        payload=AnswerAskPayload(text="Use Vercel."),
+    )
+
+    response = gateway.answer_ask("ask-1", request)
+
+    assert response.ok is True
+    assert ask_commands.calls == [
+        (
+            "answer_ask",
+            {
+                "session_id": "session-1",
+                "ask_id": "ask-1",
+                "selected_option_ids": (),
+                "text": "Use Vercel.",
+                "idempotency_key": "answer-key",
+                "command_id": "answer-1",
+            },
+        )
+    ]
+    assert response.result is not None
+    body = response.result.model_dump(mode="json")
+    assert {"kind": "ask", "id": "ask-1"} in body["objectRefs"]
+    assert {
+        "ref": {"kind": "ask", "id": "ask-1"},
+        "impact": "changed",
+        "reason": "ASK was answered.",
+    } in body["affectedObjects"]
+    assert response.refresh.suggested_queries == (
+        "session.snapshot",
+        "asks",
+        "task.tree",
+        "task.detail",
+    )
+    assert {scope.kind for scope in response.refresh.affected_scopes} == {
+        "asks",
+        "task_tree",
+        "task_detail",
+    }
+
+
+def test_defer_and_cancel_ask_delegate_to_ask_commands() -> None:
+    ask_commands = _AskCommands()
+    gateway = _gateway(ask_commands=ask_commands)
+
+    defer = gateway.defer_ask(
+        "ask-1",
+        CommandRequest[DeferAskPayload](
+            command_id="defer-1",
+            session_id="session-1",
+            payload=DeferAskPayload(reason="Need more context later."),
+        ),
+    )
+    cancel = gateway.cancel_ask(
+        "ask-1",
+        CommandRequest[CancelAskPayload](
+            command_id="cancel-1",
+            session_id="session-1",
+            payload=CancelAskPayload(reason="User cancelled the ASK."),
+        ),
+    )
+
+    assert defer.ok is True
+    assert cancel.ok is True
+    assert [call[0] for call in ask_commands.calls] == ["defer_ask", "cancel_ask"]
+    assert defer.result is not None
+    assert cancel.result is not None
+    assert {
+        "ref": {"kind": "ask", "id": "ask-1"},
+        "impact": "changed",
+        "reason": "ASK was deferred.",
+    } in defer.result.model_dump(mode="json")["affectedObjects"]
+    assert {
+        "ref": {"kind": "ask", "id": "ask-1"},
+        "impact": "changed",
+        "reason": "ASK was cancelled.",
+    } in cancel.result.model_dump(mode="json")["affectedObjects"]
+
+
+def test_answer_ask_rejects_when_service_is_not_configured() -> None:
+    gateway = _gateway()
+    request = CommandRequest[AnswerAskPayload](
+        command_id="answer-1",
+        session_id="session-1",
+        payload=AnswerAskPayload(text="Use Vercel."),
+    )
+
+    response = gateway.answer_ask("ask-1", request)
+
+    assert response.ok is False
+    assert response.error is not None
+    assert response.error.code == "command_rejected"
 
 
 def test_task_ref_resolver_miss_returns_not_found() -> None:

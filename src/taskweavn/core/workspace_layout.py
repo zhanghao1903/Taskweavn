@@ -72,6 +72,11 @@ class WorkspaceLayout:
         return self.meta_dir / "authoring.sqlite"
 
     @property
+    def workspace_asks_db(self) -> Path:
+        """Workspace-scoped execution ASK store."""
+        return self.meta_dir / "asks.sqlite"
+
+    @property
     def workspace_ui_commands_db(self) -> Path:
         """Workspace-scoped UI command response idempotency store."""
         return self.meta_dir / "ui_commands.sqlite"

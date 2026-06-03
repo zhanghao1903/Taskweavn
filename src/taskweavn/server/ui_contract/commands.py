@@ -67,6 +67,25 @@ class StopTaskPayload(UiContractModel):
     reason: str | None = Field(default=None, min_length=1)
 
 
+class AnswerAskPayload(UiContractModel):
+    selected_option_ids: tuple[str, ...] = ()
+    text: str | None = Field(default=None, min_length=1)
+
+    @model_validator(mode="after")
+    def _validate_answer_content(self) -> AnswerAskPayload:
+        if not self.selected_option_ids and self.text is None:
+            raise ValueError("answer ASK payload requires selected option or text")
+        return self
+
+
+class DeferAskPayload(UiContractModel):
+    reason: str | None = Field(default=None, min_length=1)
+
+
+class CancelAskPayload(UiContractModel):
+    reason: str = Field(min_length=1)
+
+
 class DispatchExecutionPayload(UiContractModel):
     reason: Literal["manual_control_route"] = "manual_control_route"
 

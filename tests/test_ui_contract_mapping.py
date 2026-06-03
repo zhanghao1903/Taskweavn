@@ -87,6 +87,7 @@ def test_map_task_node_preserves_canonical_execution_status() -> None:
         nodes=(
             _published_card("pending-task", status="pending"),
             _published_card("running-task", status="running"),
+            _published_card("waiting-task", status="waiting_for_user"),
             _published_card("done-task", status="done"),
             _published_card("failed-task", status="failed"),
         ),
@@ -97,12 +98,14 @@ def test_map_task_node_preserves_canonical_execution_status() -> None:
     assert [node["status"] for node in payload["nodes"]] == [
         "queued",
         "running",
+        "waiting_user",
         "done",
         "failed",
     ]
     assert [node["execution"] for node in payload["nodes"]] == [
         "pending",
         "running",
+        "waiting_for_user",
         "done",
         "failed",
     ]

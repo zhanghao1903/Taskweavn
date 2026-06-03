@@ -88,6 +88,77 @@ def test_in_memory_task_bus_retry_preserves_original_queue_position() -> None:
     assert claimed.task_id == "root"
 
 
+def test_in_memory_task_bus_waits_and_resumes_same_task_identity() -> None:
+    bus = InMemoryTaskBus(
+        [_task("root", created_at=_time(0)), _task("later", created_at=_time(1))]
+    )
+    claimed = bus.claim_next("s1", capability="general", agent_id="agent-1")
+    assert claimed is not None
+
+    waiting = bus.wait_for_user("s1", "root", ask_id="ask-1")
+
+    assert waiting.status == "waiting_for_user"
+    assert waiting.waiting_for_ask_id == "ask-1"
+    assert waiting.waiting_for_user_since is not None
+    assert waiting.claimed_by == "agent-1"
+
+    next_claim = bus.claim_next("s1", capability="general", agent_id="agent-1")
+    assert next_claim is not None
+    assert next_claim.task_id == "later"
+
+    resumed = bus.resume_after_user("s1", "root", ask_id="ask-1")
+    retry_claim = bus.claim_next("s1", capability="general", agent_id="agent-2")
+
+    assert resumed.status == "pending"
+    assert resumed.waiting_for_ask_id is None
+    assert resumed.waiting_for_user_since is None
+    assert resumed.claimed_by is None
+    assert resumed.started_at is None
+    assert retry_claim is not None
+    assert retry_claim.task_id == "root"
+    assert retry_claim.claimed_by == "agent-2"
+
+
+def test_in_memory_task_bus_waiting_parent_keeps_children_blocked() -> None:
+    bus = InMemoryTaskBus(
+        [
+            _task("root"),
+            _task("child", parent_id="root", root_id="root", created_at=_time(1)),
+        ]
+    )
+    assert bus.claim_next("s1", capability="general", agent_id="agent-1") is not None
+
+    bus.wait_for_user("s1", "root", ask_id="ask-1")
+
+    assert bus.claim_next("s1", capability="general", agent_id="agent-1") is None
+
+
+def test_in_memory_task_bus_waiting_task_can_fail_and_retry_clears_ask_linkage() -> None:
+    bus = InMemoryTaskBus([_task("root")])
+    assert bus.claim_next("s1", capability="general", agent_id="agent-1") is not None
+    bus.wait_for_user("s1", "root", ask_id="ask-1")
+
+    failed = bus.fail("s1", "root", error_ref="error:ask-timeout")
+    retried = bus.retry("s1", "root")
+
+    assert failed.status == "failed"
+    assert failed.error_ref == "error:ask-timeout"
+    assert failed.waiting_for_ask_id is None
+    assert failed.waiting_for_user_since is None
+    assert retried.status == "pending"
+    assert retried.waiting_for_ask_id is None
+    assert retried.waiting_for_user_since is None
+
+
+def test_in_memory_task_bus_resume_requires_matching_active_ask() -> None:
+    bus = InMemoryTaskBus([_task("root")])
+    assert bus.claim_next("s1", capability="general", agent_id="agent-1") is not None
+    bus.wait_for_user("s1", "root", ask_id="ask-1")
+
+    with pytest.raises(TaskStoreError, match="does not match"):
+        bus.resume_after_user("s1", "root", ask_id="other-ask")
+
+
 def test_in_memory_task_bus_interrupts_pending_task_as_cancelled_failure() -> None:
     bus = InMemoryTaskBus([_task("root")])
 

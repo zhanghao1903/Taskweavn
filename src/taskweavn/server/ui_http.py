@@ -9,10 +9,13 @@ from taskweavn.server.client_logs import ClientErrorLogSink
 from taskweavn.server.transport import HttpApiRequest, HttpApiResponse
 from taskweavn.server.ui_command_idempotency import UiCommandResponseIdempotencyStore
 from taskweavn.server.ui_contract import (
+    AnswerAskPayload,
     ApiError,
     AppendSessionInputPayload,
     AppendTaskInputPayload,
+    CancelAskPayload,
     CommandRequest,
+    DeferAskPayload,
     DispatchExecutionPayload,
     GenerateTaskTreePayload,
     PublishTaskTreePayload,
@@ -25,6 +28,7 @@ from taskweavn.server.ui_contract import (
 )
 from taskweavn.server.ui_events import ResyncOnlyEventSource, UiEventSource
 from taskweavn.server.ui_http_commands import (
+    _answer_ask_with_resume_dispatch,
     _command_response,
     _dispatch_execution,
     _publish_task_tree_with_optional_dispatch,
@@ -222,6 +226,19 @@ class PlatoUiHttpTransport:
                         limit=_int_query(query, "limit", default=50),
                         cursor=query.get("cursor"),
                     )
+                )
+            if route_name == "asks":
+                query = _request_query(request)
+                return _contract_response(
+                    self._query_gateway.list_asks(
+                        route.session_id,
+                        status=query.get("status"),
+                        task_node_id=query.get("taskNodeId"),
+                    )
+                )
+            if route_name == "ask_detail":
+                return _contract_response(
+                    self._query_gateway.get_ask(route.session_id, route.ask_id)
                 )
             if route_name == "audit_records":
                 query = _request_query(request)
@@ -448,6 +465,53 @@ class PlatoUiHttpTransport:
                         route.confirmation_id,
                         resolve_request,
                     ),
+                    self._command_idempotency_store,
+                )
+            if route_name == "answer_ask":
+                answer_request = _parse_command_request(
+                    request,
+                    route.session_id,
+                    CommandRequest[AnswerAskPayload],
+                )
+                if isinstance(answer_request, HttpApiResponse):
+                    return answer_request
+                return _command_response(
+                    route,
+                    answer_request,
+                    lambda: _answer_ask_with_resume_dispatch(
+                        self._command_gateway,
+                        self._execution_trigger_gateway,
+                        route.ask_id,
+                        answer_request,
+                    ),
+                    self._command_idempotency_store,
+                )
+            if route_name == "defer_ask":
+                defer_request = _parse_command_request(
+                    request,
+                    route.session_id,
+                    CommandRequest[DeferAskPayload],
+                )
+                if isinstance(defer_request, HttpApiResponse):
+                    return defer_request
+                return _command_response(
+                    route,
+                    defer_request,
+                    lambda: self._command_gateway.defer_ask(route.ask_id, defer_request),
+                    self._command_idempotency_store,
+                )
+            if route_name == "cancel_ask":
+                cancel_request = _parse_command_request(
+                    request,
+                    route.session_id,
+                    CommandRequest[CancelAskPayload],
+                )
+                if isinstance(cancel_request, HttpApiResponse):
+                    return cancel_request
+                return _command_response(
+                    route,
+                    cancel_request,
+                    lambda: self._command_gateway.cancel_ask(route.ask_id, cancel_request),
                     self._command_idempotency_store,
                 )
             if route_name == "client_error_log":

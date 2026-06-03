@@ -8,7 +8,12 @@ from pathlib import Path
 from threading import RLock
 from typing import Any
 
-from taskweavn.task.bus import _interrupt_updates, _retry_updates
+from taskweavn.task.bus import (
+    _interrupt_updates,
+    _resume_after_user_updates,
+    _retry_updates,
+    _wait_for_user_updates,
+)
 from taskweavn.task.models import TaskDomain, TaskInterruptRequestedBy
 from taskweavn.task.stores import TaskStoreError
 
@@ -170,13 +175,67 @@ class SqliteTaskBus:
     ) -> TaskDomain:
         if not error_ref.strip():
             raise TaskStoreError("failed task requires error_ref")
-        return self._transition_running(
-            session_id,
-            task_id,
-            status="failed",
-            result_ref=None,
-            error_ref=error_ref,
-        )
+        with self._lock:
+            task = self._require_task(session_id, task_id)
+            if task.status not in {"running", "waiting_for_user"}:
+                raise TaskStoreError(
+                    "only running or waiting_for_user tasks can transition "
+                    f"to failed; got {task.status}"
+                )
+            updated = task.model_copy(
+                update={
+                    "status": "failed",
+                    "result_ref": None,
+                    "error_ref": error_ref,
+                    "waiting_for_ask_id": None,
+                    "waiting_for_user_since": None,
+                    "completed_at": _utcnow(),
+                }
+            )
+            self._save_task(updated)
+            return updated
+
+    def wait_for_user(
+        self,
+        session_id: str,
+        task_id: str,
+        *,
+        ask_id: str,
+    ) -> TaskDomain:
+        ask_id = ask_id.strip()
+        if not ask_id:
+            raise TaskStoreError("waiting task requires ask_id")
+        with self._lock:
+            task = self._require_task(session_id, task_id)
+            if task.status != "running":
+                raise TaskStoreError(
+                    f"only running tasks can wait for user; got {task.status}"
+                )
+            updated = task.model_copy(update=_wait_for_user_updates(ask_id=ask_id))
+            self._save_task(updated)
+            return updated
+
+    def resume_after_user(
+        self,
+        session_id: str,
+        task_id: str,
+        *,
+        ask_id: str,
+    ) -> TaskDomain:
+        ask_id = ask_id.strip()
+        if not ask_id:
+            raise TaskStoreError("resume requires ask_id")
+        with self._lock:
+            task = self._require_task(session_id, task_id)
+            if task.status != "waiting_for_user":
+                raise TaskStoreError(
+                    f"only waiting_for_user tasks can resume; got {task.status}"
+                )
+            if task.waiting_for_ask_id != ask_id:
+                raise TaskStoreError("resume ask_id does not match active ASK")
+            updated = task.model_copy(update=_resume_after_user_updates())
+            self._save_task(updated)
+            return updated
 
     def skip(
         self,

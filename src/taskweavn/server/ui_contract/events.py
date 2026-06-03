@@ -8,7 +8,7 @@ from uuid import uuid4
 
 from pydantic import Field
 
-from taskweavn.interaction import AgentMessage
+from taskweavn.interaction import AgentMessage, AskRequest
 from taskweavn.server.ui_contract.base import UiContractModel, utcnow
 from taskweavn.task.models import TaskRef
 
@@ -20,6 +20,11 @@ UiEventType = Literal[
     "message.appended",
     "confirmation.created",
     "confirmation.resolved",
+    "ask.created",
+    "ask.answered",
+    "ask.deferred",
+    "ask.cancelled",
+    "ask.expired",
     "result.updated",
     "file_changes.updated",
     "audit.summary_updated",
@@ -166,6 +171,26 @@ def confirmation_resolved(response: AgentMessage, *, cursor: str) -> UiEvent:
         message_ids=message_ids,
         payload=payload,
     )
+
+
+def ask_created(ask: AskRequest, *, cursor: str, command_id: str | None = None) -> UiEvent:
+    return _ask_event(ask, event_type="ask.created", cursor=cursor, command_id=command_id)
+
+
+def ask_answered(ask: AskRequest, *, cursor: str, command_id: str | None = None) -> UiEvent:
+    return _ask_event(ask, event_type="ask.answered", cursor=cursor, command_id=command_id)
+
+
+def ask_deferred(ask: AskRequest, *, cursor: str, command_id: str | None = None) -> UiEvent:
+    return _ask_event(ask, event_type="ask.deferred", cursor=cursor, command_id=command_id)
+
+
+def ask_cancelled(ask: AskRequest, *, cursor: str, command_id: str | None = None) -> UiEvent:
+    return _ask_event(ask, event_type="ask.cancelled", cursor=cursor, command_id=command_id)
+
+
+def ask_expired(ask: AskRequest, *, cursor: str, command_id: str | None = None) -> UiEvent:
+    return _ask_event(ask, event_type="ask.expired", cursor=cursor, command_id=command_id)
 
 
 def result_updated(
@@ -366,6 +391,32 @@ def _task_event(
         task_refs=task_refs,
         command_id=command_id,
         payload=event_payload,
+    )
+
+
+def _ask_event(
+    ask: AskRequest,
+    *,
+    event_type: UiEventType,
+    cursor: str,
+    command_id: str | None,
+) -> UiEvent:
+    task_refs = () if ask.task_id is None else (TaskRef.published(ask.task_id),)
+    payload: dict[str, object] = {
+        "ask_id": ask.ask_id,
+        "status": ask.status,
+        "blocking": ask.blocking,
+    }
+    if ask.task_id is not None:
+        payload["task_node_id"] = ask.task_id
+    return UiEvent(
+        session_id=ask.session_id,
+        event_type=event_type,
+        cursor=cursor,
+        task_node_ids=() if ask.task_id is None else (ask.task_id,),
+        task_refs=task_refs,
+        command_id=command_id,
+        payload=payload,
     )
 
 

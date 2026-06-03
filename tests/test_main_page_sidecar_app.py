@@ -13,7 +13,7 @@ import pytest
 
 from taskweavn.context import SqliteContextStore
 from taskweavn.core import SessionManager, SessionManagerError, WorkspaceLayout
-from taskweavn.interaction import AgentMessage
+from taskweavn.interaction import AgentMessage, AskRequest
 from taskweavn.llm.contracts import ChatResponse, ToolCall
 from taskweavn.observability import LogArchiveManifest, LogContext, get_logging_manager
 from taskweavn.server import (
@@ -806,6 +806,69 @@ def test_main_page_sidecar_app_fixed_route_tick_reports_missing_default_agent(
     assert task is not None
     assert task.status == "pending"
     assert task.claimed_by is None
+
+
+def test_main_page_sidecar_app_answers_ask_and_resumes_waiting_task(
+    tmp_path: Any,
+) -> None:
+    app = build_main_page_sidecar_app(
+        MainPageSidecarConfig(
+            workspace_root=tmp_path,
+            port=0,
+            enable_execution_dispatcher=False,
+        ),
+        MainPageSidecarDependencies(llm=_StubLLM()),
+    )
+    try:
+        session_id = _create_session(app)
+        app.task_bus.publish(_published_task("ask-task", session_id=session_id))
+        assert (
+            app.task_bus.claim_next(
+                session_id,
+                capability="general",
+                agent_id="agent-1",
+            )
+            is not None
+        )
+        app.task_bus.wait_for_user(session_id, "ask-task", ask_id="ask-1")
+        app.ask_store.create(
+            AskRequest(
+                ask_id="ask-1",
+                session_id=session_id,
+                task_id="ask-task",
+                question="Which deployment target should be used?",
+                reason="The agent needs a user-owned deployment decision.",
+            )
+        )
+
+        snapshot = _request(app, "GET", f"/api/v1/sessions/{session_id}/snapshot")
+        answer = _request(
+            app,
+            "POST",
+            f"/api/v1/sessions/{session_id}/asks/ask-1/answer",
+            body={
+                "commandId": "answer-ask-1",
+                "sessionId": session_id,
+                "payload": {"text": "Use Vercel."},
+            },
+        )
+        ask_detail = _request(app, "GET", f"/api/v1/sessions/{session_id}/asks/ask-1")
+        task = app.task_bus.get(session_id, "ask-task")
+    finally:
+        app.close()
+
+    assert WorkspaceLayout(tmp_path).workspace_asks_db.is_file()
+    assert snapshot.status == 200
+    assert snapshot.json["data"]["pendingAsks"][0]["id"] == "ask-1"
+    assert snapshot.json["data"]["activeAsk"]["id"] == "ask-1"
+    assert snapshot.json["data"]["session"]["status"] == "waiting_user"
+    assert answer.status == 200
+    assert answer.json["ok"] is True
+    assert answer.json["result"]["debugRefs"]["dispatchReason"] == "ask_answer_resume"
+    assert ask_detail.json["data"]["status"] == "answered"
+    assert task is not None
+    assert task.status == "pending"
+    assert task.waiting_for_ask_id is None
 
 
 def test_main_page_sidecar_app_writes_frontend_error_log_file(tmp_path: Any) -> None:

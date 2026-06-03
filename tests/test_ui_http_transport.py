@@ -17,6 +17,9 @@ from taskweavn.server import (
     UiEventSource,
 )
 from taskweavn.server.ui_contract import (
+    ApiError,
+    AskListResult,
+    AskRequestView,
     AuditEntryContext,
     AuditOverview,
     AuditPageRequestView,
@@ -160,6 +163,37 @@ def test_audit_routes_decode_params_and_return_contract_json() -> None:
     ]
 
 
+def test_ask_routes_decode_params_and_return_contract_json() -> None:
+    query = _QueryGateway()
+    transport = _transport(query=query)
+
+    listed = transport.handle(
+        HttpApiRequest(
+            method="GET",
+            path=(
+                "/api/v1/sessions/session%201/asks"
+                "?status=pending&taskNodeId=task%201"
+            ),
+        )
+    )
+    detail = transport.handle(
+        HttpApiRequest(
+            method="GET",
+            path="/api/v1/sessions/session%201/asks/ask%201",
+        )
+    )
+
+    assert listed.status_code == 200
+    assert _dict_body(listed.body)["data"]["asks"][0]["id"] == "ask 1"
+    assert _dict_body(listed.body)["data"]["activeAsk"]["id"] == "ask 1"
+    assert detail.status_code == 200
+    assert _dict_body(detail.body)["data"]["id"] == "ask 1"
+    assert query.ask_calls == [
+        ("list", "session 1", "pending", "task 1"),
+        ("detail", "session 1", "ask 1"),
+    ]
+
+
 def test_session_lifecycle_routes_dispatch_to_gateway() -> None:
     lifecycle = _SessionLifecycleGateway()
     transport = _transport(session_lifecycle_gateway=lifecycle)
@@ -254,6 +288,24 @@ def test_command_routes_validate_and_dispatch_to_gateway_methods() -> None:
             "/api/v1/sessions/session%201/confirmations/confirm%201/respond",
             _command_body("session 1", {"value": "yes"}),
             "resolve_confirmation:confirm 1",
+        ),
+        (
+            "POST",
+            "/api/v1/sessions/session%201/asks/ask%201/answer",
+            _command_body("session 1", {"text": "Use Vercel."}),
+            "answer_ask:ask 1",
+        ),
+        (
+            "POST",
+            "/api/v1/sessions/session%201/asks/ask%201/defer",
+            _command_body("session 1", {"reason": "Need more input later."}),
+            "defer_ask:ask 1",
+        ),
+        (
+            "POST",
+            "/api/v1/sessions/session%201/asks/ask%201/cancel",
+            _command_body("session 1", {"reason": "User cancelled the ASK."}),
+            "cancel_ask:ask 1",
         ),
     )
 
@@ -360,6 +412,54 @@ def test_retry_start_immediately_false_does_not_dispatch() -> None:
     assert response.status_code == 200
     assert body["ok"] is True
     assert "dispatchStatus" not in body["result"]["debugRefs"]
+    assert execution.calls == []
+
+
+def test_answer_ask_requests_execution_dispatch_after_acceptance() -> None:
+    execution = _ExecutionTriggerGateway()
+    transport = _transport(execution_trigger_gateway=execution)
+
+    response = transport.handle(
+        HttpApiRequest(
+            method="POST",
+            path="/api/v1/sessions/session%201/asks/ask%201/answer",
+            body=_command_body(
+                "session 1",
+                {"text": "Use Vercel."},
+                command_id="answer-1",
+            ),
+        )
+    )
+    body = _dict_body(response.body)
+
+    assert response.status_code == 200
+    assert body["ok"] is True
+    assert body["result"]["debugRefs"]["dispatchStatus"] == "queued"
+    assert body["result"]["debugRefs"]["dispatchReason"] == "ask_answer_resume"
+    assert execution.calls == [("session 1", "ask_answer_resume", "answer-1")]
+
+
+def test_rejected_answer_ask_does_not_request_execution_dispatch() -> None:
+    commands = _CommandGateway(reject_ask_answer=True)
+    execution = _ExecutionTriggerGateway()
+    transport = _transport(commands=commands, execution_trigger_gateway=execution)
+
+    response = transport.handle(
+        HttpApiRequest(
+            method="POST",
+            path="/api/v1/sessions/session%201/asks/ask%201/answer",
+            body=_command_body(
+                "session 1",
+                {"text": "Use Vercel."},
+                command_id="answer-1",
+            ),
+        )
+    )
+    body = _dict_body(response.body)
+
+    assert response.status_code == 200
+    assert body["ok"] is False
+    assert body["result"]["status"] == "rejected"
     assert execution.calls == []
 
 
@@ -713,6 +813,7 @@ def test_client_error_log_route_rejects_empty_body() -> None:
 @dataclass
 class _QueryGateway:
     snapshot_calls: list[str] = field(default_factory=list)
+    ask_calls: list[tuple[Any, ...]] = field(default_factory=list)
     audit_calls: list[tuple[Any, ...]] = field(default_factory=list)
 
     def get_session_snapshot(
@@ -747,6 +848,36 @@ class _QueryGateway:
             ok=True,
             data=snapshot,
             cursor=snapshot.cursor,
+        )
+
+    def list_asks(
+        self,
+        session_id: str,
+        *,
+        status: str | None = None,
+        task_node_id: str | None = None,
+        request_id: str | None = None,
+    ) -> QueryResponse[AskListResult]:
+        self.ask_calls.append(("list", session_id, status, task_node_id))
+        ask = _ask_view(session_id, ask_id="ask 1", task_node_id=task_node_id)
+        return QueryResponse[AskListResult](
+            request_id=request_id or "request-asks",
+            ok=True,
+            data=AskListResult(session_id=session_id, asks=(ask,), active_ask=ask),
+        )
+
+    def get_ask(
+        self,
+        session_id: str,
+        ask_id: str,
+        *,
+        request_id: str | None = None,
+    ) -> QueryResponse[AskRequestView]:
+        self.ask_calls.append(("detail", session_id, ask_id))
+        return QueryResponse[AskRequestView](
+            request_id=request_id or "request-ask-detail",
+            ok=True,
+            data=_ask_view(session_id, ask_id=ask_id, task_node_id="task 1"),
         )
 
     def get_audit_snapshot(
@@ -905,6 +1036,7 @@ class _QueryGateway:
 @dataclass
 class _CommandGateway:
     calls: list[str] = field(default_factory=list)
+    reject_ask_answer: bool = False
 
     def append_session_input(
         self,
@@ -965,6 +1097,32 @@ class _CommandGateway:
         request: CommandRequest[Any],
     ) -> CommandResponse:
         self.calls.append(f"resolve_confirmation:{confirmation_id}")
+        return _accepted(request.command_id)
+
+    def answer_ask(
+        self,
+        ask_id: str,
+        request: CommandRequest[Any],
+    ) -> CommandResponse:
+        self.calls.append(f"answer_ask:{ask_id}")
+        if self.reject_ask_answer:
+            return _rejected(request.command_id, message="ASK is not pending: answered")
+        return _accepted(request.command_id)
+
+    def defer_ask(
+        self,
+        ask_id: str,
+        request: CommandRequest[Any],
+    ) -> CommandResponse:
+        self.calls.append(f"defer_ask:{ask_id}")
+        return _accepted(request.command_id)
+
+    def cancel_ask(
+        self,
+        ask_id: str,
+        request: CommandRequest[Any],
+    ) -> CommandResponse:
+        self.calls.append(f"cancel_ask:{ask_id}")
         return _accepted(request.command_id)
 
 
@@ -1042,6 +1200,27 @@ def _audit_record_detail(session_id: str) -> AuditRecordDetail:
     )
 
 
+def _ask_view(
+    session_id: str,
+    *,
+    ask_id: str,
+    task_node_id: str | None,
+) -> AskRequestView:
+    return AskRequestView(
+        id=ask_id,
+        session_id=session_id,
+        task_node_id=task_node_id,
+        question="Which deployment target should be used?",
+        reason="The agent needs a user-owned deployment decision.",
+        answer_type="free_text",
+        allow_free_text=True,
+        allow_no_option_with_text=True,
+        blocking=True,
+        status="pending",
+        created_at=NOW,
+    )
+
+
 @dataclass
 class _ExecutionTriggerGateway:
     status: str = "queued"
@@ -1097,6 +1276,19 @@ def _accepted(command_id: str) -> CommandResponse:
             status="accepted",
             message="accepted",
         ),
+    )
+
+
+def _rejected(command_id: str, *, message: str) -> CommandResponse:
+    return CommandResponse(
+        request_id=f"request-{command_id}",
+        ok=False,
+        result=CommandResult(
+            command_id=command_id,
+            status="rejected",
+            message=message,
+        ),
+        error=ApiError(code="command_rejected", message=message),
     )
 
 

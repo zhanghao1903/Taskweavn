@@ -93,6 +93,32 @@ def test_task_domain_carries_dispatch_constraints() -> None:
     assert task.dispatch_constraints is constraints
 
 
+def test_task_domain_waiting_for_user_requires_active_ask_linkage() -> None:
+    with pytest.raises(ValidationError, match="waiting_for_ask_id"):
+        TaskDomain(
+            task_id="root",
+            session_id="s1",
+            root_id="root",
+            intent="Prepare release notes",
+            required_capability="writing",
+            created_by="user",
+            status="waiting_for_user",
+        )
+
+
+def test_task_domain_rejects_stale_active_ask_linkage() -> None:
+    with pytest.raises(ValidationError, match="active ASK linkage"):
+        TaskDomain(
+            task_id="root",
+            session_id="s1",
+            root_id="root",
+            intent="Prepare release notes",
+            required_capability="writing",
+            created_by="user",
+            waiting_for_ask_id="ask-1",
+        )
+
+
 def test_task_domain_rejects_unknown_field() -> None:
     with pytest.raises(ValidationError):
         TaskDomain.model_validate(

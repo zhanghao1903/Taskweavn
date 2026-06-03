@@ -1,6 +1,6 @@
 # Feature Plan: Message, ASK, And Confirmation Backend
 
-> Status: planned
+> Status: in progress
 > Type: Product 1.0 interaction backend closure
 > Last Updated: 2026-06-03
 > Decisions: [ADR-0014 Interaction Control Taxonomy For Product 1.0](../../decisions/ADR-0014-interaction-control-taxonomy-for-product-1-0.md)
@@ -267,7 +267,7 @@ Implementation note:
 
 ### C4. TaskBus Waiting State
 
-Current status: planned.
+Current status: done.
 
 Deliver:
 
@@ -286,9 +286,24 @@ Acceptance:
 - Main Page can distinguish execution waiting on ASK from confirmation pending;
 - existing pending/running/done/failed behavior remains compatible.
 
+Implementation note:
+
+- `TaskDomain` now carries active ASK linkage with `waiting_for_ask_id` and
+  `waiting_for_user_since`.
+- `TaskBus.wait_for_user(...)` moves a running task into
+  `waiting_for_user`.
+- `TaskBus.resume_after_user(...)` requires the same ASK id and returns the
+  same task identity to unclaimed `pending` for Product 1.0 redispatch.
+- The SQLite TaskBus continues to persist full `TaskDomain` facts in the JSON
+  payload and mirrors the canonical status column for existing query paths; no
+  extra ASK index column is introduced in Product 1.0 C4.
+- UI contract mapping exposes node `status="waiting_user"` while preserving
+  `execution="waiting_for_user"`, so ASK waiting can be distinguished from
+  confirmation-pending running tasks.
+
 ### C5. ASK Commands, Queries, And Snapshot Projection
 
-Current status: planned.
+Current status: done.
 
 Deliver:
 
@@ -312,6 +327,23 @@ Acceptance:
 - Main Page snapshot exposes active ASK directly;
 - stale or incomplete ASK events can trigger targeted refetch.
 
+Implementation note:
+
+- `DefaultTaskAskCommandService` writes answer/defer/cancel through `AskStore`
+  before applying Product 1.0 TaskBus policy.
+- Accepted answer commands call `TaskBus.resume_after_user(...)` for the same
+  blocking ASK and then request fixed-route dispatch with
+  `reason="ask_answer_resume"`.
+- Defer/cancel commands resolve the pending ASK and fail the waiting task with
+  an `ask_deferred:` or `ask_cancelled:` error reference so the task does not
+  remain stuck in `waiting_for_user`.
+- Main Page sidecar now creates a workspace-scoped `asks.sqlite`, injects ASK
+  command/projection services, exposes ASK list/detail routes, and projects
+  `pending_asks` plus `active_ask` into `MainPageSnapshot`.
+- C5 tests cover command service ordering, idempotent answer replay, duplicate
+  rejection, ASK active projection, UI gateway wrapping, HTTP routes, and the
+  sidecar answer -> resume path.
+
 ### C6. Runtime And Resume Integration
 
 Current status: planned.
@@ -321,9 +353,6 @@ Deliver:
 - execution runtime `ask_user` tool or equivalent boundary;
 - blocking ASK creation persists `AskRequest` before yielding;
 - TaskBus moves task to `waiting_for_user`;
-- answer command persists `AskAnswer` before moving task back to executable
-  state;
-- dispatcher resumes or is triggered after successful answer write;
 - Context Manager includes ASK facts on resume.
 
 Acceptance:
@@ -331,7 +360,6 @@ Acceptance:
 - Agent can ask instead of guessing;
 - task stops executing after blocking ASK creation;
 - answer survives restart before resume;
-- after answer write, backend behavior is deterministic and retry-safe;
 - resumed LLM input contains the answer fact.
 
 ### C7. Tests And Docs Closure

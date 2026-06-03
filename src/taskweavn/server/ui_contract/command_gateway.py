@@ -17,8 +17,11 @@ from taskweavn.server.ui_contract.command_mapping import (
     _update_suggested_queries,
 )
 from taskweavn.server.ui_contract.commands import (
+    AnswerAskPayload,
     AppendSessionInputPayload,
     AppendTaskInputPayload,
+    CancelAskPayload,
+    DeferAskPayload,
     GenerateTaskTreePayload,
     PublishTaskTreePayload,
     ResolveConfirmationPayload,
@@ -28,7 +31,13 @@ from taskweavn.server.ui_contract.commands import (
 )
 from taskweavn.server.ui_contract.envelopes import CommandRequest, CommandResponse
 from taskweavn.server.ui_contract.gateway_protocols import TaskRefResolver
-from taskweavn.server.ui_contract.refs import AffectedObjectRef, AffectedScope, ObjectRef
+from taskweavn.server.ui_contract.refs import (
+    AffectedObjectImpact,
+    AffectedObjectRef,
+    AffectedScope,
+    ObjectRef,
+)
+from taskweavn.task.ask_service import TaskAskCommandService
 from taskweavn.task.collaborator_api import CollaboratorApiAdapter
 from taskweavn.task.commands import CommandResult as CoreCommandResult
 from taskweavn.task.commands import TaskCommandService
@@ -46,11 +55,13 @@ class DefaultUiCommandGateway:
         task_commands: TaskCommandService,
         task_ref_resolver: TaskRefResolver,
         authoring_state_store: AuthoringStateStore | None = None,
+        ask_commands: TaskAskCommandService | None = None,
     ) -> None:
         self._collaborator = collaborator
         self._task_commands = task_commands
         self._task_ref_resolver = task_ref_resolver
         self._authoring_state_store = authoring_state_store
+        self._ask_commands = ask_commands
 
     def append_session_input(
         self,
@@ -360,6 +371,100 @@ class DefaultUiCommandGateway:
         except Exception as exc:
             return _command_exception_response(request, exc)
 
+    def answer_ask(
+        self,
+        ask_id: str,
+        request: CommandRequest[AnswerAskPayload],
+    ) -> CommandResponse:
+        try:
+            if self._ask_commands is None:
+                return _command_response(
+                    request,
+                    CoreCommandResult(
+                        status="rejected",
+                        message="ASK command service is not configured",
+                    ),
+                )
+            result = self._ask_commands.answer_ask(
+                request.session_id,
+                ask_id,
+                selected_option_ids=request.payload.selected_option_ids,
+                text=request.payload.text,
+                idempotency_key=request.idempotency_key,
+                command_id=request.command_id,
+            )
+            return _ask_command_response(
+                request,
+                result,
+                ask_id=ask_id,
+                impact="changed",
+                reason="ASK was answered.",
+            )
+        except Exception as exc:
+            return _command_exception_response(request, exc)
+
+    def defer_ask(
+        self,
+        ask_id: str,
+        request: CommandRequest[DeferAskPayload],
+    ) -> CommandResponse:
+        try:
+            if self._ask_commands is None:
+                return _command_response(
+                    request,
+                    CoreCommandResult(
+                        status="rejected",
+                        message="ASK command service is not configured",
+                    ),
+                )
+            result = self._ask_commands.defer_ask(
+                request.session_id,
+                ask_id,
+                reason=request.payload.reason,
+                idempotency_key=request.idempotency_key,
+                command_id=request.command_id,
+            )
+            return _ask_command_response(
+                request,
+                result,
+                ask_id=ask_id,
+                impact="changed",
+                reason="ASK was deferred.",
+            )
+        except Exception as exc:
+            return _command_exception_response(request, exc)
+
+    def cancel_ask(
+        self,
+        ask_id: str,
+        request: CommandRequest[CancelAskPayload],
+    ) -> CommandResponse:
+        try:
+            if self._ask_commands is None:
+                return _command_response(
+                    request,
+                    CoreCommandResult(
+                        status="rejected",
+                        message="ASK command service is not configured",
+                    ),
+                )
+            result = self._ask_commands.cancel_ask(
+                request.session_id,
+                ask_id,
+                reason=request.payload.reason,
+                idempotency_key=request.idempotency_key,
+                command_id=request.command_id,
+            )
+            return _ask_command_response(
+                request,
+                result,
+                ask_id=ask_id,
+                impact="changed",
+                reason="ASK was cancelled.",
+            )
+        except Exception as exc:
+            return _command_exception_response(request, exc)
+
     def _resolve_task_ref(self, session_id: str, task_node_id: str) -> TaskRef:
         return self._task_ref_resolver.resolve(session_id, task_node_id)
 
@@ -412,3 +517,34 @@ class DefaultUiCommandGateway:
             active_draft_tree_id=active_id,
         )
 
+
+def _ask_command_response[T](
+    request: CommandRequest[T],
+    result: CoreCommandResult,
+    *,
+    ask_id: str,
+    impact: AffectedObjectImpact,
+    reason: str,
+) -> CommandResponse:
+    ask_ref = ObjectRef(kind="ask", id=ask_id)
+    return _command_response(
+        request,
+        result,
+        object_refs=(ask_ref,),
+        affected_objects=(
+            AffectedObjectRef(
+                ref=ask_ref,
+                impact=impact,
+                reason=reason,
+            ),
+        ),
+        suggested_queries=("session.snapshot", "asks", "task.tree", "task.detail"),
+        affected_scopes=(
+            AffectedScope(kind="asks"),
+            AffectedScope(kind="task_tree"),
+            *(
+                AffectedScope(kind="task_detail", task_ref=task_ref)
+                for task_ref in result.affected_task_refs
+            ),
+        ),
+    )

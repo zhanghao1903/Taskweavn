@@ -13,6 +13,7 @@ from taskweavn.server.ui_command_idempotency import (
     UiCommandResponseIdempotencyStore,
 )
 from taskweavn.server.ui_contract import (
+    AnswerAskPayload,
     ApiError,
     CommandRequest,
     CommandResponse,
@@ -86,6 +87,38 @@ def _retry_task_with_optional_dispatch(
             reason="retry_start_immediately",
             request_id=request.command_id,
             message="execution dispatch failed after retry",
+            error_ref=type(exc).__name__,
+        )
+    return _with_dispatch_debug_refs(response, dispatch_result)
+
+
+def _answer_ask_with_resume_dispatch(
+    command_gateway: UiCommandGateway,
+    execution_trigger_gateway: ExecutionTriggerGateway | None,
+    ask_id: str,
+    request: CommandRequest[AnswerAskPayload],
+) -> CommandResponse:
+    response = command_gateway.answer_ask(ask_id, request)
+    if (
+        not response.ok
+        or response.result is None
+        or response.result.status != "accepted"
+        or execution_trigger_gateway is None
+    ):
+        return response
+    try:
+        dispatch_result = execution_trigger_gateway.request_dispatch(
+            request.session_id,
+            reason="ask_answer_resume",
+            request_id=request.command_id,
+        )
+    except Exception as exc:  # noqa: BLE001 - answer must remain successful.
+        dispatch_result = ExecutionDispatchRequestResult(
+            status="health_error",
+            session_id=request.session_id,
+            reason="ask_answer_resume",
+            request_id=request.command_id,
+            message="execution dispatch failed after ASK answer",
             error_ref=type(exc).__name__,
         )
     return _with_dispatch_debug_refs(response, dispatch_result)
@@ -284,6 +317,7 @@ def _command_request_hash(route: _Route, request: CommandRequest[Any]) -> str:
         "session_id": request.session_id,
         "task_node_id": route.task_node_id or None,
         "confirmation_id": route.confirmation_id or None,
+        "ask_id": route.ask_id or None,
         "expected_version": request.expected_version,
         "payload": request.payload.model_dump(mode="json"),
     }

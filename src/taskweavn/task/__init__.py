@@ -15,6 +15,10 @@ from taskweavn.task.api_publisher import (
     ApiTaskPublisher,
     DefaultApiTaskPublisher,
 )
+from taskweavn.task.ask_service import (
+    DefaultTaskAskCommandService,
+    TaskAskCommandService,
+)
 from taskweavn.task.authoring import (
     ActorKind,
     ActorRef,
@@ -334,6 +338,7 @@ __all__ = [
     "DefaultCollaboratorAuthoringService",
     "DefaultPipelineTaskLoader",
     "DefaultTaskInteractionTimelineService",
+    "DefaultTaskAskCommandService",
     "DefaultTaskPublisher",
     "DEFAULT_FIXED_ROUTE_AGENT_ID",
     "DraftPatchScope",
@@ -443,6 +448,7 @@ __all__ = [
     "TaskCardPermissions",
     "TaskCardView",
     "TaskBus",
+    "TaskAskCommandService",
     "TaskCommandService",
     "TaskDetailView",
     "TaskDispatchConstraints",
