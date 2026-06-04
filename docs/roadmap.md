@@ -1,7 +1,7 @@
 # TaskWeavn Roadmap
 
 > Status: active
-> Last Updated: 2026-06-03
+> Last Updated: 2026-06-05
 > Maintained By: planning session
 > Related: [Project Plan](project/roadmap.md), [Gap Registry](gaps/), [Planning Workflow](planning_workflow.md), [Architecture](architecture/), [Architecture Decisions](decisions/), [Release Records](releases/), [User Traceability](user_model/traceability.md)
 
@@ -287,14 +287,12 @@ These remain valuable, but they should not be the next immediate build target be
 Recommended order for upcoming implementation sessions:
 
 1. **[Result and evidence exposure surface](plans/feature/result-exposure-surface.md)** — continue from accepted Main Page result/file projection, projection-backed Audit Page routes, first EventStream/log/config source references, AP-012 sanitized payload disclosure first pass, AP-013A runtime event/refetch design, AP-013B frontend event router/hook, AP-013C live refresh/stale/disconnected UI, AP-013D workspace-backed UI event replay source, AP-013E first AgentLoop/EventStream audit event emission, and AP-013F config/log/confirmation source emissions; close richer timeline evidence, broader permission-limited evidence coverage, and recoverable error UX.
-2. **[Cooperative task interruption](plans/feature/cooperative-task-interruption.md)** — implement stop intent, stopping projection, AgentLoop safe points, Context Manager interruption facts, and terminal failed cancellation outcome before the broader interaction platform work.
-3. **Message, ASK, and confirmation UI integration** — backend ASK/confirmation closure is accepted; continue with Main Page ASK Dock/answer UI, confirmation UI integration/copy cleanup, event/refetch polish, and frontend QA.
-4. **Linear authoring and retry recovery** — keep Product 1.0 line-first execution predictable and add minimal retry/recovery on top of durable task/run evidence.
-5. **Normal browser/Electron smoke and Product 1.0 QA** — validate the accepted Main Page, fixed-route bridge, and cache-aware Context Manager path through the intended local runtime shell.
-6. **Product 1.1 research and planning** — completion-time `task_after`, Result Packaging cards, routing/assignment foundation, Agent protocol/governance, skills integration, MCP integration, and file/multimodal support.
-7. **Centralized runtime configuration** — shared control plane for logging/autonomy/audit/LLM/Task/UI behavior once the Task-facing server model is concrete enough to avoid overfitting.
+2. **Linear authoring and retry recovery** — keep Product 1.0 line-first execution predictable and add minimal retry/recovery on top of durable task/run evidence.
+3. **Normal browser/Electron smoke and Product 1.0 QA** — validate the accepted Main Page, fixed-route bridge, cache-aware Context Manager path, cooperative interruption path, and Message/ASK/confirmation UI surfaces through the intended local runtime shell.
+4. **Product 1.1 research and planning** — completion-time `task_after`, Result Packaging cards, routing/assignment foundation, Agent protocol/governance, skills integration, MCP integration, and file/multimodal support.
+5. **Centralized runtime configuration** — shared control plane for logging/autonomy/audit/LLM/Task/UI behavior once the Task-facing server model is concrete enough to avoid overfitting.
 
-LLM Provider reliability, configurable logging, Task domain/UI separation, Collaborator authoring, TaskPublisher, TaskBus execution lifecycle, publish persistence, API publish transport, RawTask/DraftTaskTree authoring persistence, frontend baseline, UI/backend contract baseline, local sidecar API shell, Main Page frontend/backend integration, fixed-route task execution bridge, Context Manager 1.0, Context Manager cache-aware rendering, and Message/ASK/confirmation backend now have accepted Product 1.0 closure records. Remaining Product 1.0 work should focus on Audit/evidence exposure, cooperative interruption, Message/ASK/confirmation frontend integration, minimal retry/recovery, and release QA. Completion-time `task_after`, Result Packaging cards, routing/assignment foundation, Agent protocol/governance, skills integration, MCP integration, and file/multimodal support are Product 1.1 research capabilities.
+LLM Provider reliability, configurable logging, Task domain/UI separation, Collaborator authoring, TaskPublisher, TaskBus execution lifecycle, publish persistence, API publish transport, RawTask/DraftTaskTree authoring persistence, frontend baseline, UI/backend contract baseline, local sidecar API shell, Main Page frontend/backend integration, fixed-route task execution bridge, Context Manager 1.0, Context Manager cache-aware rendering, cooperative task interruption, and Message/ASK/confirmation backend now have accepted Product 1.0 closure records. ASK domain unification, authoring batch answer, and Message/ASK/confirmation frontend integration are done on branch and become accepted after their PR merges. Remaining Product 1.0 work should focus on Audit/evidence exposure, minimal retry/recovery, final browser/Electron smoke, and release QA. Completion-time `task_after`, Result Packaging cards, routing/assignment foundation, Agent protocol/governance, skills integration, MCP integration, and file/multimodal support are Product 1.1 research capabilities.
 
 For status and routing of each gap, see [Gap Registry](gaps/).
 

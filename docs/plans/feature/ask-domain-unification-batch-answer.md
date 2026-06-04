@@ -1,8 +1,8 @@
 # Feature Plan: ASK Domain Unification And Batch Answer
 
-> Status: in progress
+> Status: done on branch / accepted after PR merge
 > Type: Product 1.0 interaction UX/API alignment
-> Last Updated: 2026-06-04
+> Last Updated: 2026-06-05
 > Related: [Message, ASK, And Confirmation Backend](message-ask-confirmation-backend.md), [ASK Lifecycle Contract](../../engineering/ask-lifecycle-contract.md), [ASK User Interaction](../../interaction-model/ask-user-interaction.md), [ASK UI Spec](../../ux/ask-ui-spec.md), [ASK And Confirmation Frontend Integration](ask-confirmation-frontend-integration.md), [Authoring Domain](../../architecture/authoring-domain.md), [Interaction Layer](../../architecture/interaction-layer.md)
 > Technical Design: [ASK domain unification and batch answer technical design](ask-domain-unification-batch-answer-technical-design.zh-CN.md)
 
@@ -133,17 +133,22 @@ feel fragmented.
 - Return normal `CommandResponse` with `authoring` object refs and refresh
   hints.
 
-### C4 Projection Follow-up
+### C4 Projection Follow-up - done on branch
 
-- Define or implement planning ASK projection when the Main Page is ready to
-  show authoring questions as first-class UI facts.
+- Planning ASK projection is implemented for the Main Page branch through
+  Authoring ASK Work Area state.
+- Authoring ASK remains planning-scoped and does not become an execution
+  `AskRequest`.
 
-### C5 Frontend Follow-up
+### C5 Frontend Follow-up - done on branch
 
 - UI spec: done in `docs/ux/ask-ui-spec.md`.
-- Add local draft answer state and one submit action in the ASK panel.
-- Use the same visual component for both domains while keeping labels and
+- Local draft answer state and one submit action are implemented by
+  `AuthoringAskWorkArea`.
+- Shared choice primitives are used while keeping authoring and execution
   commands domain-specific.
+- This plan is accepted after
+  `codex/ask-domain-unification-batch-answer` is merged into `main`.
 
 ---
 

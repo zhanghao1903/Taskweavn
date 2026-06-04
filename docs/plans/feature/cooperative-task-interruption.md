@@ -1,8 +1,8 @@
 # Feature Plan: Cooperative Task Interruption
 
-> Status: planned
+> Status: done / accepted
 > Type: Product 1.0 minimal task control and execution safety
-> Last Updated: 2026-06-03
+> Last Updated: 2026-06-05
 > Decisions: [ADR-0011 Routing Agent Assignment And Cooperative Interruption](../../decisions/ADR-0011-routing-agent-assignment-and-cooperative-interruption.md), [ADR-0014 Interaction Control Taxonomy For Product 1.0](../../decisions/ADR-0014-interaction-control-taxonomy-for-product-1-0.md)
 > Architecture: [Task](../../architecture/task.md), [TaskBus](../../architecture/bus.md), [Agent](../../architecture/agent.md), [Context Manager](../../architecture/context-manager.md), [UI / Backend Communication](../../architecture/ui-backend-communication.md)
 > Related Plans: [Fixed-route Task Execution Bridge](fixed-route-task-execution-bridge.md), [Linear Authoring And Retry Recovery](linear-authoring-retry-recovery.md), [Context Manager Cache-Aware Rendering](context-manager-cache-aware-rendering.md)
@@ -262,7 +262,7 @@ stable prefix.
 
 ### C1. Docs And Contract
 
-Current status: planned / this package.
+Current status: done / accepted.
 
 Deliver:
 
@@ -356,6 +356,14 @@ Acceptance:
 - targeted frontend projection tests pass if UI is touched;
 - `git diff --check` passes;
 - gap registry status is updated after implementation acceptance.
+
+Implementation status:
+
+- C1-C6 are done and accepted for Product 1.0.
+- Runtime implementation was merged through PR #42
+  (`codex/cooperative-task-interruption`).
+- Follow-up hardening for stuck stopping state and LLM timeout behavior is
+  included on `main`.
 
 ---
 

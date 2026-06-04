@@ -1,8 +1,8 @@
 # ASK Domain Unification And Batch Answer 详细技术方案
 
-> 状态: in progress
+> 状态: done on branch / accepted after PR merge
 > 类型: Product 1.0 interaction UX/API alignment technical design
-> Last Updated: 2026-06-04
+> Last Updated: 2026-06-05
 > Feature Plan: [ASK Domain Unification And Batch Answer](ask-domain-unification-batch-answer.md)
 > Related: [Message, ASK, And Confirmation Backend](message-ask-confirmation-backend.md), [ASK Lifecycle Contract](../../engineering/ask-lifecycle-contract.md), [Authoring Domain](../../architecture/authoring-domain.md), [Interaction Layer](../../architecture/interaction-layer.md)
 
