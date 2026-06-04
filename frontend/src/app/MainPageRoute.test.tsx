@@ -20,7 +20,8 @@ describe("MainPageRoute", () => {
 
     expect(await screen.findByText("Personal Website")).toBeInTheDocument();
     expect(screen.getByLabelText("State")).toBeInTheDocument();
-    expect(screen.getByText("TaskTree")).toBeInTheDocument();
+    expect(screen.getByLabelText("Task workspace")).toBeInTheDocument();
+    expect(screen.getByText("Requirement analysis")).toBeInTheDocument();
   });
 
   it("creates an HTTP runtime adapter from route env without exposing the state picker", async () => {

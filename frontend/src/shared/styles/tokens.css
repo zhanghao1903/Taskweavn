@@ -334,8 +334,8 @@
   --plato-type-body-strong-size: var(--plato-type-body-size);
   --plato-type-body-strong-line-height: var(--plato-type-body-line-height);
   --plato-type-body-strong-weight: 500;
-  --plato-type-body-sm-size: 13px;
-  --plato-type-body-sm-line-height: 1.45;
+  --plato-type-body-sm-size: 11px;
+  --plato-type-body-sm-line-height: 1.25;
   --plato-type-body-sm-weight: 400;
   --plato-type-label-size: 13px;
   --plato-type-label-line-height: 1.35;

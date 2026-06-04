@@ -582,17 +582,21 @@
 .taskText strong,
 .taskText small {
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: var(--plato-preview-lines, 1);
+  overflow-wrap: anywhere;
 }
 
 .taskText strong {
+  --plato-preview-lines: 1;
   font-size: var(--plato-type-card-title-size);
   font-weight: var(--plato-type-card-title-weight);
   line-height: var(--plato-type-card-title-line-height);
 }
 
 .taskText small {
+  --plato-preview-lines: 2;
   font-size: var(--plato-type-body-sm-size);
   font-weight: var(--plato-type-body-sm-weight);
   line-height: var(--plato-type-body-sm-line-height);
@@ -656,22 +660,30 @@
 }
 
 .messageCard strong {
-  display: block;
   margin-bottom: var(--plato-space-1);
+  overflow: hidden;
   font-size: var(--plato-type-card-title-size);
   font-weight: var(--plato-type-card-title-weight);
   line-height: var(--plato-type-card-title-line-height);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
 }
 
 .messageCard strong,
 .messageCard p {
+  min-width: 0;
   overflow-wrap: anywhere;
 }
 
 .messageCard p {
+  overflow: hidden;
   font-size: var(--plato-type-body-size);
   font-weight: var(--plato-type-body-weight);
   line-height: var(--plato-type-body-line-height);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
 }
 
 .detailPanel {

@@ -13,6 +13,11 @@ This directory governs Plato Figma work and design-system handoff.
 | [visual-baseline-alignment.md](visual-baseline-alignment.md) | Read-only audit comparing canonical Figma pages with the historical Main Page visual baseline. |
 | [layout-components-visual-upgrade-brief.md](layout-components-visual-upgrade-brief.md) | Governed upgrade targets for `04 - Layout Components` before Figma visual alignment work. |
 | [domain-components-visual-upgrade-brief.md](domain-components-visual-upgrade-brief.md) | Governed upgrade targets for `05 - Domain Components` before Main/Audit screen-state recomposition. |
+| [main-page-visual-direction-summary.zh-CN.md](main-page-visual-direction-summary.zh-CN.md) | Chinese one-page Main Page visual direction summary for product/design decisions. |
+| [main-page-visual-direction-decision.md](main-page-visual-direction-decision.md) | Accepted Main Page visual direction, rejected alternatives, surface ownership, and visual acceptance gates. |
+| [main-screen-states-visual-simplification-brief.md](main-screen-states-visual-simplification-brief.md) | Visual direction, information reduction, and state-level simplification rules for Main Page screen-state recomposition. |
+| [main-screen-states-recomposition-checklist.md](main-screen-states-recomposition-checklist.md) | State-by-state visibility, action, copy, and QA checklist for simplifying current Main Page screen states. |
+| [main-screen-states-current-ui-review-2026-06-04.md](main-screen-states-current-ui-review-2026-06-04.md) | Read-only current-runtime review of sampled Main Page states against the simplification brief and recomposition checklist. |
 | [design-system.md](design-system.md) | Minimal production-grade token and component-layer contract. |
 | [typography-system.md](typography-system.md) | Font family, type scale, text color semantics, and typography usage rules. |
 | [component-spec.md](component-spec.md) | Component inventory, Figma-to-code mapping, and readiness contract. |
