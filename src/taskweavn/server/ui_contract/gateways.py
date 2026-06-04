@@ -81,8 +81,12 @@ from taskweavn.server.ui_contract.view_models import (
     AuditRecordDetail,
     AuditRecordsResult,
     ConfirmationActionView,
+    ConfirmationOptionView,
     EvidenceDetail,
     FileChangeSummaryView,
+    PlanningAskView,
+    PlanningState,
+    PlanningView,
     ProjectSummary,
     ResultCardView,
     SessionMessageView,
@@ -91,8 +95,9 @@ from taskweavn.server.ui_contract.view_models import (
     TaskTreeView,
     WorkflowSummary,
 )
+from taskweavn.task.authoring import RawTask
 from taskweavn.task.projection import TaskProjectionService
-from taskweavn.task.stores import AuthoringStateStore
+from taskweavn.task.stores import AuthoringStateStore, RawTaskStore
 from taskweavn.task.views import (
     ConfirmationActionView as CoreConfirmationActionView,
 )
@@ -146,6 +151,7 @@ class DefaultUiQueryGateway:
         audit_payload_disclosure_service: AuditPayloadDisclosureService | None = None,
         session_message_provider: SessionMessageProvider | None = None,
         authoring_state_store: AuthoringStateStore | None = None,
+        raw_task_store: RawTaskStore | None = None,
         ask_projection: AskProjectionService | None = None,
         snapshot_cursor_provider: SnapshotCursorProvider | None = None,
     ) -> None:
@@ -165,6 +171,7 @@ class DefaultUiQueryGateway:
         )
         self._session_message_provider = session_message_provider
         self._authoring_state_store = authoring_state_store
+        self._raw_task_store = raw_task_store
         self._ask_projection = ask_projection
         self._snapshot_cursor_provider = snapshot_cursor_provider
 
@@ -195,6 +202,7 @@ class DefaultUiQueryGateway:
                 self._session_messages(session.id),
             )
             confirmations = _confirmations_from_tree(source_tree, session_id=session.id)
+            planning = self._planning(session.id)
             pending_asks = self._pending_asks(session.id)
             active_ask = self._active_ask(session.id, task_tree=task_tree)
             result = _result_from_tree(
@@ -220,6 +228,7 @@ class DefaultUiQueryGateway:
                     confirmations=confirmations,
                     messages=messages,
                     active_ask=active_ask,
+                    planning=planning,
                 ),
             )
             snapshot = MainPageSnapshot(
@@ -236,6 +245,7 @@ class DefaultUiQueryGateway:
                     for candidate in self._session_reader.list()
                 ),
                 session=session_summary,
+                planning=planning,
                 task_tree=task_tree,
                 messages=messages,
                 pending_confirmations=confirmations,
@@ -727,6 +737,24 @@ class DefaultUiQueryGateway:
             return None
         return self._ask_projection.active_ask(session_id, task_tree=task_tree)
 
+    def _planning(self, session_id: str) -> PlanningView | None:
+        raw_task = self._active_raw_task(session_id)
+        if raw_task is None:
+            return None
+        return _planning_from_raw_task(raw_task)
+
+    def _active_raw_task(self, session_id: str) -> RawTask | None:
+        if self._raw_task_store is None:
+            return None
+        if self._authoring_state_store is not None:
+            active = self._authoring_state_store.get_active(session_id)
+            if active.active_raw_task_id is not None:
+                raw_task = self._raw_task_store.get(session_id, active.active_raw_task_id)
+                if raw_task is not None:
+                    return raw_task
+        raw_tasks = self._raw_task_store.list_for_session(session_id)
+        return raw_tasks[-1] if raw_tasks else None
+
     def _session_messages(self, session_id: str) -> tuple[SessionMessageView, ...]:
         if self._session_message_provider is None:
             return ()
@@ -753,6 +781,56 @@ def _map_optional_task_tree(
 
 def _is_draft_tree(source: CoreTaskTreeView) -> bool:
     return all(node.task_ref.kind == "draft" for node in source.nodes)
+
+
+def _planning_from_raw_task(raw_task: RawTask) -> PlanningView:
+    answered_ask_ids = {answer.ask_id for answer in raw_task.answers}
+    return PlanningView(
+        state=_planning_state(raw_task),
+        source_raw_task_id=raw_task.raw_task_id,
+        title=_planning_title(raw_task),
+        summary=raw_task.intent_summary or raw_task.user_input,
+        asks=tuple(
+            PlanningAskView(
+                id=ask.ask_id,
+                question=ask.question,
+                reason=ask.reason,
+                required=ask.required,
+                options=tuple(
+                    ConfirmationOptionView(
+                        value=option.value,
+                        label=option.label,
+                    )
+                    for option in ask.options
+                ),
+                status="answered" if ask.ask_id in answered_ask_ids else "pending",
+            )
+            for ask in raw_task.asks
+        ),
+        validation=None,
+    )
+
+
+def _planning_state(raw_task: RawTask) -> PlanningState:
+    if raw_task.status == "created":
+        return "capturing_input"
+    if raw_task.status == "awaiting_user":
+        return "awaiting_user"
+    if raw_task.status == "ready_to_plan":
+        return "ready_to_plan"
+    if raw_task.status == "assessing":
+        return "assessing"
+    if raw_task.status == "rejected":
+        return "rejected"
+    return "unknown"
+
+
+def _planning_title(raw_task: RawTask) -> str:
+    if raw_task.status == "awaiting_user":
+        return "Planning questions"
+    if raw_task.intent_summary is not None:
+        return raw_task.intent_summary
+    return "Understanding goal"
 
 
 def _messages_from_tree(source: CoreTaskTreeView) -> tuple[SessionMessageView, ...]:
@@ -861,8 +939,11 @@ def _derive_session_status(
     confirmations: Sequence[ConfirmationActionView],
     messages: Sequence[SessionMessageView],
     active_ask: AskRequestView | None = None,
+    planning: PlanningView | None = None,
 ) -> SessionStatus:
     if active_ask is not None:
+        return "waiting_user"
+    if planning is not None and any(ask.status == "pending" for ask in planning.asks):
         return "waiting_user"
     if confirmations:
         return "waiting_user"

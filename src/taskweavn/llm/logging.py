@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from typing import Any
 
 from taskweavn.llm.contracts import ChatRequest, ChatResponse, RetryRecord
@@ -97,6 +98,96 @@ def log_llm_retry(record: RetryRecord) -> None:
     )
 
 
+def log_agent_llm_input(
+    *,
+    agent_kind: str,
+    request_purpose: str,
+    messages: Sequence[Mapping[str, Any]],
+    tools: Sequence[Mapping[str, Any]] | None = None,
+    metadata: Mapping[str, Any] | None = None,
+    context: LogContext | None = None,
+) -> None:
+    """Emit the application-level LLM input sent by one agent domain."""
+    tool_payload = [dict(tool) for tool in tools] if tools is not None else None
+    _LLM_LOGGER.info(
+        "agent_input",
+        context=context,
+        data={
+            "agent_kind": agent_kind,
+            "request_purpose": request_purpose,
+            "message_count": len(messages),
+            "messages": [dict(message) for message in messages],
+            "tool_count": len(tools) if tools is not None else 0,
+            "tools": tool_payload,
+            "metadata": dict(metadata or {}),
+        },
+    )
+
+
+def log_agent_llm_output(
+    *,
+    agent_kind: str,
+    request_purpose: str,
+    response: ChatResponse,
+    metadata: Mapping[str, Any] | None = None,
+    context: LogContext | None = None,
+) -> None:
+    """Emit the application-level LLM output observed by one agent domain."""
+    provider_request_id = getattr(response, "provider_request_id", None)
+    provider_name = getattr(response, "provider_name", None)
+    reasoning_content = getattr(response, "reasoning_content", None)
+    retry_count = getattr(response, "retry_count", 0)
+    tool_calls = getattr(response, "tool_calls", ())
+    usage = getattr(response, "usage", None)
+    resolved_context = context
+    if context is not None and provider_request_id is not None:
+        resolved_context = context.model_copy(
+            update={"provider_request_id": provider_request_id}
+        )
+    _LLM_LOGGER.info(
+        "agent_output",
+        context=resolved_context,
+        data={
+            "agent_kind": agent_kind,
+            "request_purpose": request_purpose,
+            "content": response.content,
+            "content_length": len(response.content),
+            "reasoning_content": reasoning_content,
+            "raw_assistant_message": _raw_assistant_message_payload(response),
+            "tool_calls": [
+                {
+                    "id": tool_call.id,
+                    "name": tool_call.name,
+                    "arguments": tool_call.arguments,
+                }
+                for tool_call in tool_calls
+            ],
+            "provider": provider_name,
+            "provider_request_id": provider_request_id,
+            "retry_count": retry_count,
+            "usage": (
+                usage.model_dump(mode="json", exclude_none=True)
+                if usage is not None
+                else None
+            ),
+            "metadata": dict(metadata or {}),
+        },
+    )
+
+
+def _raw_assistant_message_payload(response: ChatResponse) -> dict[str, Any]:
+    raw_message = getattr(
+        response,
+        "raw_assistant_message",
+        {"role": "assistant", "content": response.content},
+    )
+    payload = dict(raw_message)
+    if payload.get("content") == response.content:
+        payload.pop("content", None)
+        payload["content_omitted"] = "duplicate_of_content"
+    return payload
+
+
 def _metadata_str(metadata: dict[str, Any], key: str) -> str | None:
     value = metadata.get(key)
     return str(value) if value is not None else None
@@ -104,6 +195,8 @@ def _metadata_str(metadata: dict[str, Any], key: str) -> str | None:
 
 __all__ = [
     "llm_context_from_request",
+    "log_agent_llm_input",
+    "log_agent_llm_output",
     "log_llm_request",
     "log_llm_response",
     "log_llm_retry",

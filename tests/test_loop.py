@@ -27,6 +27,7 @@ from taskweavn.core.loop import (
 )
 from taskweavn.interaction import InMemoryAskStore
 from taskweavn.llm.client import ChatResponse, ToolCall
+from taskweavn.observability import configure_session_logging
 from taskweavn.runtime import LocalRuntime
 from taskweavn.task import InMemoryTaskBus, TaskDomain
 from taskweavn.tools import (
@@ -104,6 +105,10 @@ class SequenceInterruptChecker:
             reason="user requested stop",
             requested_by="user",
         )
+
+
+def _read_jsonl(path: Path) -> list[dict[str, Any]]:
+    return [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
 
 
 def _finish_response(answer: str, call_id: str = "c1") -> ChatResponse:
@@ -227,6 +232,120 @@ def test_loop_stops_when_ask_user_blocks_current_task() -> None:
     assert len(asks) == 1
     assert waiting_task.waiting_for_ask_id == asks[0].ask_id
     assert asks[0].suggested_options[0].label == "Vercel"
+
+
+def test_loop_persists_batched_ask_user_questions() -> None:
+    task = TaskDomain(
+        task_id="task-1",
+        session_id="session-1",
+        root_id="task-1",
+        intent="Clarify portfolio requirements.",
+        required_capability="general",
+        created_by="tester",
+    )
+    task_bus = InMemoryTaskBus([task])
+    assert (
+        task_bus.claim_next(
+            "session-1",
+            capability="general",
+            agent_id="default_agent",
+        )
+        is not None
+    )
+    ask_store = InMemoryAskStore()
+    runtime = LocalRuntime()
+    tool = AskUserTool(
+        ask_store=ask_store,
+        task_bus=task_bus,
+        session_id="session-1",
+        task_id="task-1",
+    )
+    tool.register(runtime)
+    llm = StubLLM(
+        [
+            _tool_call_response(
+                "ask_user",
+                {
+                    "question": "Portfolio planning details",
+                    "reason": "The portfolio task needs user-owned details.",
+                    "questions": [
+                        {
+                            "question_id": "role",
+                            "question": "What is your professional role?",
+                        },
+                        {
+                            "question_id": "goal",
+                            "question": "What is the main goal?",
+                            "input_hint": "Find work, attract clients, build a brand...",
+                        },
+                    ],
+                },
+                call_id="ask-call-1",
+            )
+        ]
+    )
+    loop = AgentLoop(
+        llm=llm,  # type: ignore[arg-type]
+        runtime=runtime,
+        tools=[tool],
+        session_id="session-1",
+    )
+
+    result = loop.run("Clarify portfolio requirements.", task_id="task-1")
+
+    asks = ask_store.list_for_session("session-1", statuses=("pending",), task_id="task-1")
+    assert result.stop_reason == "waiting_for_user"
+    assert len(asks) == 1
+    assert [question.question_id for question in asks[0].questions] == [
+        "role",
+        "goal",
+    ]
+    assert asks[0].questions[1].input_hint == (
+        "Find work, attract clients, build a brand..."
+    )
+
+
+def test_agent_loop_logs_execution_agent_llm_input_and_output(tmp_path: Path) -> None:
+    configure_session_logging(tmp_path / "logs", session_id="session-1")
+    llm = StubLLM([_finish_response("done")])
+    loop = AgentLoop(
+        llm=llm,  # type: ignore[arg-type]
+        runtime=LocalRuntime(),
+        tools=[],
+        session_id="session-1",
+        max_steps=1,
+    )
+
+    result = loop.run("Finish the task.", task_id="task-1")
+
+    assert result.finished
+    rows = _read_jsonl(tmp_path / "logs" / "sessions" / "session-1" / "llm.jsonl")
+    agent_rows = [
+        row for row in rows if row["event"] in {"agent_input", "agent_output"}
+    ]
+    assert [row["event"] for row in agent_rows] == ["agent_input", "agent_output"]
+    input_row, output_row = agent_rows
+
+    assert input_row["context"] == {
+        "session_id": "session-1",
+        "task_id": "task-1",
+        "agent_id": "default_agent",
+    }
+    assert input_row["data"]["agent_kind"] == "execution_agent"
+    assert input_row["data"]["request_purpose"] == "execution.agent_loop.step"
+    assert input_row["data"]["messages"][1] == {
+        "role": "user",
+        "content": "Finish the task.",
+    }
+    assert input_row["data"]["metadata"]["session_id"] == "session-1"
+    assert input_row["data"]["metadata"]["task_id"] == "task-1"
+    assert input_row["data"]["tools"][0]["function"]["name"] == FINISH_TOOL_NAME
+
+    assert output_row["context"] == input_row["context"]
+    assert output_row["data"]["agent_kind"] == "execution_agent"
+    assert output_row["data"]["request_purpose"] == "execution.agent_loop.step"
+    assert output_row["data"]["tool_calls"][0]["name"] == FINISH_TOOL_NAME
+    assert output_row["data"]["raw_assistant_message"]["role"] == "assistant"
 
 
 class PersistingContextProvider:

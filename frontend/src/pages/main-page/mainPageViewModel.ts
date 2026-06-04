@@ -1,8 +1,10 @@
 import type {
   AuditFilterKind,
+  AskRequestView,
   ConfirmationActionView,
   FileChangeSummaryView,
   MainPageSnapshot,
+  PlanningAskView,
   ResultCardView,
   SessionMessageView,
   SessionSummary,
@@ -28,6 +30,16 @@ import type {
 import type { MainPageStateMetadata } from "./runtime/adapter";
 
 export type MainPageDetailView =
+  | {
+      kind: "executionAsk";
+      ask: AskRequestView;
+      commandError: string | null;
+      header: MainPageDetailHeader;
+      isAnsweringAsk: boolean;
+      isCancellingAsk: boolean;
+      isDeferringAsk: boolean;
+      selectedTask?: TaskNodeCardView;
+    }
   | {
       kind: "confirmation";
       commandError: string | null;
@@ -123,9 +135,28 @@ export type MainPageTaskWorkspaceViewModel = {
   visibleMessageCount: number;
 };
 
+export type MainPageAuthoringAskViewModel = {
+  asks: PlanningAskView[];
+  commandError: string | null;
+  isSubmitting: boolean;
+  rawTaskId: string;
+  summary: string | null;
+  title: string;
+};
+
+export type MainPageWorkAreaView =
+  | {
+      kind: "authoringAsk";
+      authoringAsk: MainPageAuthoringAskViewModel;
+    }
+  | {
+      kind: "taskWorkspace";
+    };
+
 export type MainPageViewModel = {
   detail: MainPageDetailView;
   input: MainPageInputViewModel;
+  mainWorkArea: MainPageWorkAreaView;
   sessionId: string;
   sidebar: MainPageSidebarViewModel;
   taskWorkspace: MainPageTaskWorkspaceViewModel;
@@ -135,10 +166,16 @@ export type MainPageViewModel = {
 
 export type BuildMainPageViewModelInput = {
   auditRouteAvailable?: boolean;
+  authoringAskError: string | null;
   confirmationError: string | null;
   detailOverride: DetailOverride;
   eventConnectionStatus: EventConnectionStatus;
   eventError: string | null;
+  isAnsweringAuthoringAsk: boolean;
+  executionAskError: string | null;
+  isAnsweringAsk: boolean;
+  isCancellingAsk: boolean;
+  isDeferringAsk: boolean;
   inputDisabled: boolean;
   isPublishingTaskTree: boolean;
   isRetryingTask: boolean;
@@ -153,10 +190,16 @@ export type BuildMainPageViewModelInput = {
 
 export function buildMainPageViewModel({
   auditRouteAvailable = true,
+  authoringAskError,
   confirmationError,
   detailOverride,
   eventConnectionStatus,
   eventError,
+  isAnsweringAuthoringAsk,
+  executionAskError,
+  isAnsweringAsk,
+  isCancellingAsk,
+  isDeferringAsk,
   inputDisabled,
   isPublishingTaskTree,
   isRetryingTask,
@@ -169,12 +212,19 @@ export function buildMainPageViewModel({
   uiNotice,
 }: BuildMainPageViewModelInput): MainPageViewModel {
   const nodes = snapshot.taskTree?.nodes ?? [];
+  const authoringAsk = authoringAskViewFor({
+    commandError: authoringAskError,
+    isSubmitting: isAnsweringAuthoringAsk,
+    planning: snapshot.planning,
+  });
   const effectiveSelectedTaskNodeId =
     selectedTaskNodeId ?? metadata.initialSelectedTaskNodeId;
   const activeConfirmation =
     snapshot.pendingConfirmations.find(
       (confirmation) => confirmation.taskNodeId === effectiveSelectedTaskNodeId,
     ) ?? snapshot.pendingConfirmations[0];
+  const activeExecutionAsk =
+    snapshot.activeAsk?.status === "pending" ? snapshot.activeAsk : null;
   const hasConfirmationFocus =
     metadata.detail.mode === "confirmation" &&
     effectiveSelectedTaskNodeId === metadata.initialSelectedTaskNodeId;
@@ -199,7 +249,13 @@ export function buildMainPageViewModel({
     totalMessageCount,
     visibleMessageCount,
   } = scopedProjection;
+  const hasExecutionAskFocus = shouldShowExecutionAskDetail({
+    activeExecutionAsk,
+    selectedTask,
+  });
   const header = detailHeaderFor({
+    activeExecutionAsk,
+    hasExecutionAskFocus,
     hasConfirmationFocus,
     hasFileChangeView: wantsFileChangeView && fileChangeSummary !== null,
     hasResultView: wantsResultView && result !== null,
@@ -207,6 +263,7 @@ export function buildMainPageViewModel({
     selectedTask,
   });
   const input = inputViewFor({
+    hasAuthoringAsk: authoringAsk !== null,
     sessionPermissions: snapshot.permissions,
     inputDisabled,
     metadata,
@@ -231,11 +288,17 @@ export function buildMainPageViewModel({
   return {
     detail: detailViewFor({
       activeConfirmation,
+      activeExecutionAsk,
       commandError: confirmationError,
+      executionAskError,
       fileChangeSummary,
+      hasExecutionAskFocus,
       hasConfirmationFocus,
       header,
+      isAnsweringAsk,
       isRetryingTask,
+      isCancellingAsk,
+      isDeferringAsk,
       isStoppingTask,
       isResolvingConfirmation,
       result,
@@ -244,6 +307,10 @@ export function buildMainPageViewModel({
       wantsResultView,
     }),
     input,
+    mainWorkArea:
+      authoringAsk === null
+        ? { kind: "taskWorkspace" }
+        : { authoringAsk, kind: "authoringAsk" },
     sessionId: snapshot.session.id,
     sidebar: {
       activeSession: snapshot.session,
@@ -276,12 +343,41 @@ export function buildMainPageViewModel({
       auditEntry,
       eventError,
       isPublishingTaskTree,
-      showPublishTaskTree: snapshot.taskTree?.status === "draft",
+      showPublishTaskTree:
+        authoringAsk === null && snapshot.taskTree?.status === "draft",
       taskTreeCommandError,
       taskTreeId: snapshot.taskTree?.id ?? null,
-      title: snapshot.taskTree?.title ?? "Start a new session",
+      title:
+        authoringAsk?.title ?? snapshot.taskTree?.title ?? "Start a new session",
       uiNotice,
     },
+  };
+}
+
+function authoringAskViewFor({
+  commandError,
+  isSubmitting,
+  planning,
+}: {
+  commandError: string | null;
+  isSubmitting: boolean;
+  planning: MainPageSnapshot["planning"];
+}): MainPageAuthoringAskViewModel | null {
+  const pendingAsks =
+    planning?.asks.filter((ask) => ask.status === "pending") ?? [];
+  const rawTaskId = planning?.sourceRawTaskId ?? null;
+
+  if (!planning || !rawTaskId || pendingAsks.length === 0) {
+    return null;
+  }
+
+  return {
+    asks: pendingAsks,
+    commandError,
+    isSubmitting,
+    rawTaskId,
+    summary: planning.summary ?? null,
+    title: planning.title ?? "Planning questions",
   };
 }
 
@@ -436,10 +532,16 @@ function taskAuditRoute({
 
 function detailViewFor({
   activeConfirmation,
+  activeExecutionAsk,
   commandError,
+  executionAskError,
   fileChangeSummary,
+  hasExecutionAskFocus,
   hasConfirmationFocus,
   header,
+  isAnsweringAsk,
+  isCancellingAsk,
+  isDeferringAsk,
   isRetryingTask,
   isStoppingTask,
   isResolvingConfirmation,
@@ -449,10 +551,16 @@ function detailViewFor({
   wantsResultView,
 }: {
   activeConfirmation: ConfirmationActionView | undefined;
+  activeExecutionAsk: AskRequestView | null;
   commandError: string | null;
+  executionAskError: string | null;
   fileChangeSummary: FileChangeSummaryView | null;
+  hasExecutionAskFocus: boolean;
   hasConfirmationFocus: boolean;
   header: MainPageDetailHeader;
+  isAnsweringAsk: boolean;
+  isCancellingAsk: boolean;
+  isDeferringAsk: boolean;
   isRetryingTask: boolean;
   isStoppingTask: boolean;
   isResolvingConfirmation: boolean;
@@ -461,6 +569,19 @@ function detailViewFor({
   wantsFileChangeView: boolean;
   wantsResultView: boolean;
 }): MainPageDetailView {
+  if (hasExecutionAskFocus && activeExecutionAsk) {
+    return {
+      kind: "executionAsk",
+      ask: activeExecutionAsk,
+      commandError: executionAskError,
+      header,
+      isAnsweringAsk,
+      isCancellingAsk,
+      isDeferringAsk,
+      selectedTask,
+    };
+  }
+
   if (hasConfirmationFocus) {
     return {
       kind: "confirmation",
@@ -508,18 +629,30 @@ function detailViewFor({
 }
 
 function detailHeaderFor({
+  activeExecutionAsk,
+  hasExecutionAskFocus,
   hasConfirmationFocus,
   hasFileChangeView,
   hasResultView,
   metadata,
   selectedTask,
 }: {
+  activeExecutionAsk: AskRequestView | null;
+  hasExecutionAskFocus: boolean;
   hasConfirmationFocus: boolean;
   hasFileChangeView: boolean;
   hasResultView: boolean;
   metadata: MainPageStateMetadata;
   selectedTask: TaskNodeCardView | undefined;
 }): MainPageDetailHeader {
+  if (hasExecutionAskFocus && activeExecutionAsk) {
+    return {
+      eyebrow: "Execution ASK",
+      title: selectedTask?.title ?? "Task needs input",
+      body: activeExecutionAsk.reason || activeExecutionAsk.question,
+    };
+  }
+
   if (hasConfirmationFocus || hasResultView || hasFileChangeView) {
     return metadata.detail;
   }
@@ -535,8 +668,30 @@ function detailHeaderFor({
   return metadata.detail;
 }
 
+function shouldShowExecutionAskDetail({
+  activeExecutionAsk,
+  selectedTask,
+}: {
+  activeExecutionAsk: AskRequestView | null;
+  selectedTask: TaskNodeCardView | undefined;
+}): boolean {
+  if (!activeExecutionAsk) {
+    return false;
+  }
+
+  if (!selectedTask) {
+    return true;
+  }
+
+  return (
+    activeExecutionAsk.taskNodeId === selectedTask.id ||
+    selectedTask.execution === "waiting_for_user"
+  );
+}
+
 function inputViewFor({
   detailOverride,
+  hasAuthoringAsk,
   hasConfirmationFocus,
   inputDisabled,
   metadata,
@@ -545,6 +700,7 @@ function inputViewFor({
   taskTree,
 }: {
   detailOverride: DetailOverride;
+  hasAuthoringAsk: boolean;
   hasConfirmationFocus: boolean;
   inputDisabled: boolean;
   metadata: MainPageStateMetadata;
@@ -560,6 +716,7 @@ function inputViewFor({
   });
 
   const availability = inputAvailabilityFor({
+    hasAuthoringAsk,
     inputDisabled,
     selectedTask,
     sessionPermissions,
@@ -588,16 +745,25 @@ function inputViewFor({
 }
 
 function inputAvailabilityFor({
+  hasAuthoringAsk,
   inputDisabled,
   selectedTask,
   sessionPermissions,
   taskTree,
 }: {
+  hasAuthoringAsk: boolean;
   inputDisabled: boolean;
   selectedTask: TaskNodeCardView | undefined;
   sessionPermissions: MainPageSnapshot["permissions"];
   taskTree: MainPageSnapshot["taskTree"];
 }): Pick<MainPageInputViewModel, "disabled" | "disabledReason"> {
+  if (hasAuthoringAsk) {
+    return {
+      disabled: true,
+      disabledReason: "Answer the planning questions in the main work area.",
+    };
+  }
+
   if (inputDisabled) {
     return {
       disabled: true,

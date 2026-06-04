@@ -1,8 +1,8 @@
 # Message, ASK, and Confirmation Backend 详细技术方案
 
-> 状态: planned
+> 状态: done / accepted
 > 类型: Product 1.0 interaction backend technical design
-> Last Updated: 2026-06-03
+> Last Updated: 2026-06-05
 > Decisions: [ADR-0014 Interaction Control Taxonomy For Product 1.0](../../decisions/ADR-0014-interaction-control-taxonomy-for-product-1-0.md)
 > Feature Plan: [Message, ASK, And Confirmation Backend](message-ask-confirmation-backend.md)
 > Related: [ASK Lifecycle Contract](../../engineering/ask-lifecycle-contract.md), [ASK User Interaction](../../interaction-model/ask-user-interaction.md), [Task](../../architecture/task.md), [TaskBus](../../architecture/bus.md), [Context Manager](../../architecture/context-manager.md)

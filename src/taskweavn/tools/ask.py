@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from taskweavn.interaction import AskOption, AskRequest, AskStore
+from taskweavn.interaction import AskOption, AskQuestion, AskRequest, AskStore
 from taskweavn.tools.base import Tool
 from taskweavn.types.ask import AskUserAction, AskUserObservation
 
@@ -39,6 +39,7 @@ class AskUserTool(Tool[AskUserAction, AskUserObservation]):
                 agent_id=self.agent_id,
                 question=action.question,
                 reason=action.reason,
+                questions=_ask_questions(action),
                 suggested_options=_ask_options(action),
                 answer_type=action.answer_type,
                 allow_free_text=action.allow_free_text,
@@ -69,6 +70,20 @@ def _ask_options(action: AskUserAction) -> tuple[AskOption, ...]:
     return tuple(
         AskOption(option_id=f"option-{index}", label=label)
         for index, label in enumerate(action.suggested_options, start=1)
+    )
+
+
+def _ask_questions(action: AskUserAction) -> tuple[AskQuestion, ...]:
+    if not action.questions:
+        return ()
+    return tuple(
+        AskQuestion(
+            question_id=question.question_id or f"question-{index}",
+            question=question.question,
+            input_hint=question.input_hint,
+            required=question.required,
+        )
+        for index, question in enumerate(action.questions, start=1)
     )
 
 

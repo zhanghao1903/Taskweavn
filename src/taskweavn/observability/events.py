@@ -7,7 +7,7 @@ from taskweavn.observability.models import LogCategory
 LOG_EVENTS_BY_CATEGORY: dict[LogCategory, tuple[str, ...]] = {
     "action": ("emit",),
     "observation": ("emit",),
-    "llm": ("request", "response", "retry"),
+    "llm": ("agent_input", "agent_output", "request", "response", "retry"),
     "task": (),
     "tool": ("invoke", "result"),
     "bus": (

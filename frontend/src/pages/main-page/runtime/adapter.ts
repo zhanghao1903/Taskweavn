@@ -1,6 +1,10 @@
 import type {
   AppendSessionInputPayload,
   AppendTaskInputPayload,
+  AnswerAskPayload,
+  AnswerAuthoringAskBatchPayload,
+  CancelAskPayload,
+  DeferAskPayload,
   CreateSessionPayload,
   GenerateTaskTreePayload,
   PublishTaskTreePayload,
@@ -14,6 +18,7 @@ import type {
 import type {
   CommandRequest,
   CommandResponse,
+  AskId,
   ConfirmationId,
   MainPageSnapshot,
   SessionId,
@@ -76,6 +81,30 @@ export type ResolveConfirmationCommand = (
   request: CommandRequest<ResolveConfirmationPayload>,
 ) => Promise<CommandResponse>;
 
+export type AnswerAskCommand = (
+  sessionId: SessionId,
+  askId: AskId,
+  request: CommandRequest<AnswerAskPayload>,
+) => Promise<CommandResponse>;
+
+export type AnswerAuthoringAskBatchCommand = (
+  sessionId: SessionId,
+  rawTaskId: string,
+  request: CommandRequest<AnswerAuthoringAskBatchPayload>,
+) => Promise<CommandResponse>;
+
+export type DeferAskCommand = (
+  sessionId: SessionId,
+  askId: AskId,
+  request: CommandRequest<DeferAskPayload>,
+) => Promise<CommandResponse>;
+
+export type CancelAskCommand = (
+  sessionId: SessionId,
+  askId: AskId,
+  request: CommandRequest<CancelAskPayload>,
+) => Promise<CommandResponse>;
+
 export type AppendSessionInputCommand = (
   request: CommandRequest<AppendSessionInputPayload>,
 ) => Promise<CommandResponse>;
@@ -119,9 +148,13 @@ export type SubscribeSessionEvents = (
 ) => () => void;
 
 export type MainPageAdapter = {
+  answerAsk: AnswerAskCommand;
+  answerAuthoringAskBatch: AnswerAuthoringAskBatchCommand;
   appendSessionInput: AppendSessionInputCommand;
   appendTaskInput: AppendTaskInputCommand;
+  cancelAsk: CancelAskCommand;
   createSession: SessionLifecycleCommand<CreateSessionPayload>;
+  deferAsk: DeferAskCommand;
   deleteSession: SessionLifecycleCommand<SessionId>;
   generateTaskTree: GenerateTaskTreeCommand;
   loadSnapshot: LoadMainPageSnapshot;

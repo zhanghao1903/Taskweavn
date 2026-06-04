@@ -43,6 +43,15 @@ class AskOption(_FrozenModel):
     description: str | None = None
 
 
+class AskQuestion(_FrozenModel):
+    """One sub-question inside a batched execution ASK."""
+
+    question_id: str = Field(default_factory=_new_id, min_length=1)
+    question: str = Field(min_length=1)
+    input_hint: str | None = Field(default=None, min_length=1)
+    required: bool = True
+
+
 class AskRequest(_FrozenModel):
     ask_id: str = Field(default_factory=_new_id, min_length=1)
     session_id: str = Field(min_length=1)
@@ -51,6 +60,7 @@ class AskRequest(_FrozenModel):
 
     question: str = Field(min_length=1)
     reason: str = Field(min_length=1)
+    questions: tuple[AskQuestion, ...] = ()
     suggested_options: tuple[AskOption, ...] = ()
     answer_type: AskAnswerType = "free_text"
     allow_free_text: bool = True
@@ -73,6 +83,15 @@ class AskRequest(_FrozenModel):
     def _validate_blocking_scope(self) -> AskRequest:
         if self.blocking and self.task_id is None:
             raise ValueError("blocking ASK requires task_id")
+        return self
+
+    @model_validator(mode="after")
+    def _validate_questions(self) -> AskRequest:
+        question_ids: set[str] = set()
+        for question in self.questions:
+            if question.question_id in question_ids:
+                raise ValueError("ASK batch question_id values must be unique")
+            question_ids.add(question.question_id)
         return self
 
     @model_validator(mode="after")
@@ -517,6 +536,7 @@ __all__ = [
     "AskCommandKind",
     "AskCommandResultStatus",
     "AskOption",
+    "AskQuestion",
     "AskRequest",
     "AskStatus",
     "AskStore",

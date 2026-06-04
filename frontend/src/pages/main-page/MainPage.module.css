@@ -833,6 +833,142 @@
   opacity: 0.55;
 }
 
+@media (max-width: 1199px) {
+  .page {
+    --plato-page-min-width: 0;
+    --plato-page-min-height: 0;
+    height: auto;
+    min-height: 100dvh;
+    grid-template:
+      "top" auto
+      "side" auto
+      "work" auto
+      "detail" auto
+      "input" auto / minmax(0, 1fr);
+    align-content: start;
+    overflow-x: hidden;
+  }
+
+  .topBar {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    max-height: none;
+    overflow: visible;
+    padding: var(--plato-space-4);
+  }
+
+  .brandBlock,
+  .topBarContextBlock,
+  .workflowPill,
+  .sessionContextBlock,
+  .statusCluster,
+  .topBarActions {
+    min-width: 0;
+  }
+
+  .workflowPill,
+  .sessionContextBlock {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
+
+  .statusCluster {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+
+  .topBarActions {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    overflow: visible;
+  }
+
+  .topBarTrailing {
+    max-width: 160px;
+  }
+
+  .topBarTrailing .statePicker select {
+    max-width: 160px;
+  }
+
+  .sidebar {
+    max-height: 240px;
+  }
+
+  .workspace,
+  .detailPanel {
+    margin-bottom: 0;
+    overflow: visible;
+  }
+
+  .workGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .contextInput {
+    grid-area: input;
+    grid-column: auto;
+    grid-row: auto;
+    position: static;
+    grid-template-columns: minmax(0, 0.8fr) minmax(220px, 1fr) 48px;
+    height: auto;
+    min-height: var(--plato-inputbar-min-height);
+    overflow: visible;
+  }
+}
+
+@media (max-width: 640px) {
+  .page {
+    padding: var(--plato-space-3);
+  }
+
+  .topBar {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .brandBlock,
+  .topBarContextBlock,
+  .workflowPill,
+  .sessionContextBlock,
+  .statusCluster,
+  .topBarActions {
+    grid-column: 1 / -1;
+  }
+
+  .topBarActions {
+    justify-content: flex-start;
+  }
+
+  .sidebar,
+  .workspace,
+  .detailPanel,
+  .contextInput {
+    padding: var(--plato-space-4);
+  }
+
+  .sectionHeader h1,
+  .detailPanel h2 {
+    font-size: var(--plato-type-section-title-size);
+    line-height: var(--plato-type-section-title-line-height);
+  }
+
+  .panel,
+  .workPanel {
+    padding: var(--plato-space-4);
+  }
+
+  .contextInput {
+    grid-template-columns: minmax(0, 1fr) 48px;
+  }
+
+  .contextInput > div {
+    grid-column: 1 / -1;
+  }
+
+  .contextInputField {
+    grid-column: 1;
+  }
+}
+
 @supports not (height: 100dvh) {
   .page {
     height: 100vh;

@@ -33,6 +33,25 @@ describe("buildMainPageViewModel", () => {
     expect(viewModel.workspace.showPublishTaskTree).toBe(true);
   });
 
+  it("replaces the main work area when authoring ASK is pending", () => {
+    const viewModel = buildViewModel("s2-understanding");
+
+    expect(viewModel.mainWorkArea.kind).toBe("authoringAsk");
+    if (viewModel.mainWorkArea.kind !== "authoringAsk") {
+      throw new Error(`Expected authoring ASK work area.`);
+    }
+    expect(viewModel.mainWorkArea.authoringAsk).toMatchObject({
+      rawTaskId: "raw-task-website-goal",
+      isSubmitting: false,
+    });
+    expect(viewModel.mainWorkArea.authoringAsk.asks).toHaveLength(2);
+    expect(viewModel.input.disabled).toBe(true);
+    expect(viewModel.input.disabledReason).toBe(
+      "Answer the planning questions in the main work area.",
+    );
+    expect(viewModel.workspace.showPublishTaskTree).toBe(false);
+  });
+
   it("routes selected TaskNode input to task guidance", () => {
     const viewModel = buildViewModel("s3-draft-ready", {
       selectedTaskNodeId: "task-visual-direction",
@@ -83,6 +102,19 @@ describe("buildMainPageViewModel", () => {
     }
     expect(viewModel.detail.confirmation?.id).toBe("confirmation-visual-baseline");
     expect(viewModel.input.mode).toBe("append_task_input");
+  });
+
+  it("shows execution ASK detail while preserving the task workspace", () => {
+    const viewModel = buildViewModel("s14-execution-ask");
+
+    expect(viewModel.mainWorkArea.kind).toBe("taskWorkspace");
+    expect(viewModel.detail.kind).toBe("executionAsk");
+    if (viewModel.detail.kind !== "executionAsk") {
+      throw new Error(`Expected executionAsk detail, got ${viewModel.detail.kind}`);
+    }
+    expect(viewModel.detail.ask.id).toBe("ask-deployment-target");
+    expect(viewModel.detail.selectedTask?.id).toBe("task-implementation");
+    expect(viewModel.taskWorkspace.taskTree?.nodes).toHaveLength(4);
   });
 
   it("keeps file-change review as an explicit detail variant", () => {
@@ -166,10 +198,16 @@ function buildViewModel(
 
   return buildMainPageViewModel({
     auditRouteAvailable: overrides.auditRouteAvailable,
+    authoringAskError: null,
     confirmationError: null,
     detailOverride: overrides.detailOverride ?? "auto",
     eventConnectionStatus: overrides.eventConnectionStatus ?? "disconnected",
     eventError: null,
+    isAnsweringAuthoringAsk: false,
+    executionAskError: null,
+    isAnsweringAsk: false,
+    isCancellingAsk: false,
+    isDeferringAsk: false,
     inputDisabled: overrides.inputDisabled ?? false,
     isPublishingTaskTree: false,
     isRetryingTask: false,

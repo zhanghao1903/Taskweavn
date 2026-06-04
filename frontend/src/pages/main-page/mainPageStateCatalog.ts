@@ -33,10 +33,12 @@ export const mainPageStateCatalog = [
     id: "s2-understanding",
     label: "S2 Understanding",
     lifecycle: "understanding",
-    userSituation: "Plato is interpreting the user's goal before a TaskTree exists.",
-    pageFocus: "Make progress legible without pretending that execution has started.",
-    primarySurfaces: ["Session messages", "Context inspector", "Context input"],
-    expectedUserAction: "Add constraints, examples, or missing context.",
+    userSituation:
+      "Plato needs planning clarification before a TaskTree can be produced.",
+    pageFocus:
+      "Collect required authoring answers in the Main Work Area before continuing planning.",
+    primarySurfaces: ["Authoring ASK", "Session context", "Context input disabled"],
+    expectedUserAction: "Answer all required planning questions in one batch.",
   },
   {
     id: "s3-draft-ready",
@@ -136,6 +138,16 @@ export const mainPageStateCatalog = [
     pageFocus: "Show the error and keep retry/revise paths available.",
     primarySurfaces: ["TaskTree", "Recoverable error detail", "Context input"],
     expectedUserAction: "Retry the command or revise the task instruction.",
+  },
+  {
+    id: "s14-execution-ask",
+    label: "S14 Execution ASK",
+    lifecycle: "execution",
+    userSituation: "A Published Task is waiting for user input through ASK.",
+    pageFocus:
+      "Keep the TaskTree visible and answer the blocking ASK in the Detail Panel.",
+    primarySurfaces: ["TaskTree", "Execution ASK detail", "Session messages"],
+    expectedUserAction: "Answer, defer, or cancel the active ASK.",
   },
 ] as const satisfies readonly MainPageStateCatalogEntry[];
 

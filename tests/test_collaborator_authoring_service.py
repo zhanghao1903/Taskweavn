@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 from taskweavn.llm import ChatResponse
+from taskweavn.observability import configure_session_logging
 from taskweavn.prompts import COLLABORATOR_AUTHORING_SYSTEM_PROMPT
 from taskweavn.task import (
     CollaboratorAuthoringService,
@@ -35,11 +38,19 @@ class _StubLLM:
         metadata: dict[str, Any] | None = None,
     ) -> ChatResponse:
         self.calls.append(messages)
+        content = self.responses.pop(0)
         return ChatResponse(
-            content=self.responses.pop(0),
+            content=content,
             tool_calls=[],
-            raw_assistant_message={},
+            raw_assistant_message={
+                "role": "assistant",
+                "content": content,
+            },
         )
+
+
+def _read_jsonl(path: Path) -> list[dict[str, Any]]:
+    return [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
 
 
 def _service(
@@ -121,6 +132,52 @@ def test_create_raw_task_from_message_maps_feasibility_to_command_service() -> N
     assert raw.status == "ready_to_plan"
     assert raw.constraints == ("concise",)
     assert "capabilities" in llm.calls[0][1]["content"]
+
+
+def test_collaborator_logs_agent_llm_input_and_output(tmp_path: Path) -> None:
+    configure_session_logging(tmp_path / "logs", session_id="s1")
+    response_content = """
+    {
+      "kind": "raw_task",
+      "intent_summary": "Write docs for developers",
+      "feasibility": {
+        "status": "ready",
+        "confidence": 0.93
+      }
+    }
+    """
+    llm = _StubLLM([response_content])
+    service, _, _ = _service(llm)
+
+    result = service.create_raw_task_from_message(
+        session_id="s1",
+        source_message_id="m1",
+        user_input="Write docs for developers",
+    )
+
+    assert result.ok
+    rows = _read_jsonl(tmp_path / "logs" / "sessions" / "s1" / "llm.jsonl")
+    agent_rows = [
+        row for row in rows if row["event"] in {"agent_input", "agent_output"}
+    ]
+    assert [row["event"] for row in agent_rows] == ["agent_input", "agent_output"]
+    input_row, output_row = agent_rows
+
+    assert input_row["context"] == {"session_id": "s1", "agent_id": "collaborator"}
+    assert input_row["data"]["agent_kind"] == "collaborator"
+    assert input_row["data"]["request_purpose"] == "collaborator.create_raw_task"
+    assert input_row["data"]["messages"][0]["content"] == COLLABORATOR_AUTHORING_SYSTEM_PROMPT
+    assert "Write docs for developers" in input_row["data"]["messages"][1]["content"]
+    assert input_row["data"]["metadata"]["session_id"] == "s1"
+
+    assert output_row["context"] == {"session_id": "s1", "agent_id": "collaborator"}
+    assert output_row["data"]["agent_kind"] == "collaborator"
+    assert output_row["data"]["request_purpose"] == "collaborator.create_raw_task"
+    assert output_row["data"]["content"] == response_content
+    assert output_row["data"]["raw_assistant_message"]["content_omitted"] == (
+        "duplicate_of_content"
+    )
+    assert "content" not in output_row["data"]["raw_assistant_message"]
 
 
 def test_collaborator_prompt_contains_exact_authoring_protocols() -> None:

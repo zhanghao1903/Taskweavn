@@ -146,6 +146,7 @@ describe("App", () => {
     );
 
     await user.click(await screen.findByRole("button", { name: "Confirm baseline" }));
+    await user.click(screen.getByRole("button", { name: "Resolve decision" }));
 
     await waitFor(() => {
       expect(loadSnapshot).toHaveBeenCalledTimes(2);
@@ -172,9 +173,10 @@ describe("App", () => {
     );
 
     await user.click(await screen.findByRole("button", { name: "Confirm baseline" }));
+    await user.click(screen.getByRole("button", { name: "Resolve decision" }));
 
-    expect(screen.getByText("Submitting decision")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Confirm baseline" })).toBeDisabled();
+    expect(screen.getByText("Resolving decision")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Resolving" })).toBeDisabled();
   });
 
   it("shows command error state when resolving a confirmation fails", async () => {
@@ -194,6 +196,7 @@ describe("App", () => {
     );
 
     await user.click(await screen.findByRole("button", { name: "Confirm baseline" }));
+    await user.click(screen.getByRole("button", { name: "Resolve decision" }));
 
     expect(
       await screen.findByText("Confirmation command failed. Please retry."),

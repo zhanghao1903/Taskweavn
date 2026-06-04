@@ -25,6 +25,7 @@ from taskweavn.server.ui_contract.view_models import (
     EffectiveConfigSummary,
     FileChangeSummaryView,
     MainPageReturnTarget,
+    PlanningView,
     ProjectSummary,
     RelatedLogsLink,
     ResultCardView,
@@ -42,6 +43,7 @@ class MainPageSnapshot(UiContractModel):
     workflow: WorkflowSummary
     sessions: tuple[SessionSummary, ...] = Field(min_length=1)
     session: SessionSummary
+    planning: PlanningView | None = None
     task_tree: TaskTreeView | None = None
     messages: tuple[SessionMessageView, ...] = ()
     pending_confirmations: tuple[ConfirmationActionView, ...] = ()

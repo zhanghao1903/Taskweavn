@@ -1,9 +1,9 @@
 # Screen State Specification
 
 > Status: draft
-> Last Updated: 2026-05-23
+> Last Updated: 2026-06-04
 > Scope: Plato Main Page and Audit Page screen states.
-> Related: `docs/product/plato-mvp-prd.md`, `docs/product/plato-main-page-ux-flow.md`, `docs/product/plato-audit-page-ux-flow.md`, `docs/product/plato-audit-page-prd.md`, `docs/frontend/ui-viewmodel-contract.md`
+> Related: `docs/product/plato-mvp-prd.md`, `docs/product/plato-main-page-ux-flow.md`, `docs/product/plato-audit-page-ux-flow.md`, `docs/product/plato-audit-page-prd.md`, `docs/frontend/ui-viewmodel-contract.md`, `docs/ux/ask-ui-spec.md`, `docs/ux/confirmation-ui-spec.md`
 
 ## 1. Purpose
 
@@ -158,6 +158,15 @@ These are derived screen states for layout and copy. They are computed from the 
 | `S11 Failed` | relevant execution `failed` | failure summary, retry if allowed | error copy, audit link if available |
 | `S12 Stale/Resync` | cursor expired, resync required, or snapshot stale | readonly overlay plus refresh | disable high-risk commands |
 | `S13 Load Error` | initial query failed | error panel | retry, diagnostics link for technical users |
+
+ASK-specific component placement and state tables live in
+`docs/ux/ask-ui-spec.md`. Product 1.0 uses Main Work Area placement for
+Authoring ASK and Detail Panel placement for Execution ASK.
+
+Confirmation-specific component placement and state tables live in
+`docs/ux/confirmation-ui-spec.md`. Product 1.0 uses Detail Panel placement for
+pending confirmation actions; TaskTree and MessageStream provide signals and
+navigation only.
 
 ## 6. Audit Page Screen States
 

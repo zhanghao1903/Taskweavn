@@ -56,6 +56,7 @@ from taskweavn.llm.client import (
     tool_schema_from_action,
 )
 from taskweavn.llm.errors import LLMProviderError
+from taskweavn.llm.logging import log_agent_llm_input, log_agent_llm_output
 from taskweavn.memory.thought_store import (
     NullThoughtStore,
     ThoughtRecord,
@@ -88,6 +89,7 @@ if TYPE_CHECKING:  # pragma: no cover
 DEFAULT_SYSTEM_PROMPT = AGENT_LOOP_SYSTEM_PROMPT
 
 FINISH_TOOL_NAME = "agent_finish"
+DEFAULT_EXECUTION_AGENT_ID = "default_agent"
 
 # Reply values that count as "user said no". Compared case-insensitively
 # after trim. Empty / None never rejects (a blank reply is "ack, proceed").
@@ -355,14 +357,28 @@ class AgentLoop:
                 return interrupted
 
             try:
-                if metadata:
-                    response = self.llm.chat(
-                        messages=messages_for_call,
-                        tools=self._tool_schemas,
-                        metadata=metadata,
-                    )
-                else:
-                    response = self.llm.chat(messages=messages_for_call, tools=self._tool_schemas)
+                llm_metadata = self._execution_llm_metadata(metadata, step)
+                log_context = self._execution_llm_log_context()
+                log_agent_llm_input(
+                    agent_kind="execution_agent",
+                    request_purpose="execution.agent_loop.step",
+                    messages=messages_for_call,
+                    tools=self._tool_schemas,
+                    metadata=llm_metadata,
+                    context=log_context,
+                )
+                response = self.llm.chat(
+                    messages=messages_for_call,
+                    tools=self._tool_schemas,
+                    metadata=llm_metadata,
+                )
+                log_agent_llm_output(
+                    agent_kind="execution_agent",
+                    request_purpose="execution.agent_loop.step",
+                    response=response,
+                    metadata=llm_metadata,
+                    context=log_context,
+                )
             except Exception as exc:  # noqa: BLE001 — loop contract: return LoopResult.
                 if _is_llm_timeout_error(exc):
                     interrupted = self._check_interrupt("llm_timeout", step)
@@ -764,7 +780,7 @@ class AgentLoop:
         request = AgentLoopContextRequest(
             session_id=self.session_id,
             task_id=self._current_task_id,
-            agent_id="default_agent",
+            agent_id=DEFAULT_EXECUTION_AGENT_ID,
             agent_run_id=self._current_agent_run_id,
             turn_index=step,
             loop_messages=tuple(dict(message) for message in messages),
@@ -788,6 +804,24 @@ class AgentLoop:
 
         rendered = self.context_provider.build_for_llm_call(request)
         return [dict(message) for message in rendered.messages], self._context_metadata(rendered)
+
+    def _execution_llm_metadata(self, metadata: dict[str, Any], step: int) -> dict[str, Any]:
+        llm_metadata = dict(metadata)
+        llm_metadata.setdefault("agent_kind", "execution_agent")
+        llm_metadata.setdefault("agent_id", DEFAULT_EXECUTION_AGENT_ID)
+        llm_metadata.setdefault("agent_run_id", self._current_agent_run_id)
+        llm_metadata.setdefault("request_purpose", "execution.agent_loop.step")
+        llm_metadata.setdefault("session_id", self.session_id)
+        llm_metadata.setdefault("task_id", self._current_task_id)
+        llm_metadata.setdefault("step", step)
+        return llm_metadata
+
+    def _execution_llm_log_context(self) -> LogContext:
+        model = getattr(self.llm, "model", None)
+        return LogContext(
+            agent_id=DEFAULT_EXECUTION_AGENT_ID,
+            model=model if isinstance(model, str) else None,
+        )
 
     def _context_metadata(self, rendered: Any) -> dict[str, Any]:
         metadata = {

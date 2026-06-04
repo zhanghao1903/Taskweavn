@@ -622,6 +622,8 @@ def _answer_from_payload(raw_task: RawTask, payload: dict[str, Any]) -> RawTaskA
     ask_id = _require_str(payload, "ask_id")
     if ask_id not in {ask.ask_id for ask in raw_task.asks}:
         raise ValueError(f"RawTaskAsk {ask_id!r} not found")
+    if ask_id in {answer.ask_id for answer in raw_task.answers}:
+        raise ValueError(f"RawTaskAsk {ask_id!r} is already answered")
     return RawTaskAnswer(
         answer_id=payload.get("answer_id") or _new_id(),
         raw_task_id=raw_task.raw_task_id,

@@ -32,6 +32,12 @@ export function createHttpMainPageAdapter({
   showStatePicker = false,
 }: HttpMainPageAdapterOptions): MainPageAdapter {
   return {
+    answerAsk(nextSessionId, askId, request) {
+      return api.answerAsk(nextSessionId, askId, request);
+    },
+    answerAuthoringAskBatch(nextSessionId, rawTaskId, request) {
+      return api.answerAuthoringAskBatch(nextSessionId, rawTaskId, request);
+    },
     appendSessionInput(request) {
       return api.appendSessionInput(request);
     },
@@ -104,6 +110,12 @@ export function createHttpMainPageAdapter({
     async deleteSession(nextSessionId) {
       const response = await api.deleteSession(nextSessionId);
       return unwrapLifecycle(response);
+    },
+    cancelAsk(nextSessionId, askId, request) {
+      return api.cancelAsk(nextSessionId, askId, request);
+    },
+    deferAsk(nextSessionId, askId, request) {
+      return api.deferAsk(nextSessionId, askId, request);
     },
     resolveConfirmation(nextSessionId, confirmationId, request) {
       return api.resolveConfirmation(nextSessionId, confirmationId, request);

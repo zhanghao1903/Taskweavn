@@ -33,6 +33,13 @@ describe("MainPage event router", () => {
     });
   });
 
+  it("treats completed commands as conservative refetch hints", () => {
+    expect(routeMainPageEvent(uiEvent("command.completed"))).toEqual({
+      kind: "refetch",
+      status: "connected",
+    });
+  });
+
   it("builds a stable resync loop-guard key", () => {
     expect(
       resyncEventKey({
@@ -58,4 +65,3 @@ function uiEvent(eventType: UiEvent["eventType"]): UiEvent {
     createdAt: "2026-05-17T10:20:00+08:00",
   };
 }
-

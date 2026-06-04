@@ -8,6 +8,7 @@ from pathlib import Path
 from taskweavn.interaction import (
     AskAnswer,
     AskOption,
+    AskQuestion,
     AskRequest,
     AskStore,
     InMemoryAskStore,
@@ -71,6 +72,46 @@ def test_sqlite_store_persists_pending_and_answered_asks(tmp_path: Path) -> None
         assert loaded.answer_id == result.answer.answer_id
         assert answer is not None
         assert answer.selected_option_ids == ("yes",)
+    finally:
+        second.close()
+
+
+def test_sqlite_store_persists_batched_questions(tmp_path: Path) -> None:
+    db = tmp_path / "asks.sqlite"
+    first = SqliteAskStore(db)
+    try:
+        first.create(
+            _text_ask("ask-batch").model_copy(
+                update={
+                    "questions": (
+                        AskQuestion(
+                            question_id="role",
+                            question="What is your professional role?",
+                            input_hint="Designer, engineer, product manager...",
+                        ),
+                        AskQuestion(
+                            question_id="goal",
+                            question="What is the main portfolio goal?",
+                        ),
+                    )
+                }
+            )
+        )
+    finally:
+        first.close()
+
+    second = SqliteAskStore(db)
+    try:
+        loaded = second.get("s1", "ask-batch")
+
+        assert loaded is not None
+        assert [question.question_id for question in loaded.questions] == [
+            "role",
+            "goal",
+        ]
+        assert loaded.questions[0].input_hint == (
+            "Designer, engineer, product manager..."
+        )
     finally:
         second.close()
 

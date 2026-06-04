@@ -1,8 +1,8 @@
 # Cooperative Task Interruption 详细技术方案
 
-> 状态: planned
+> 状态: done / accepted
 > 类型: Product 1.0 minimal cooperative task interruption technical design
-> Last Updated: 2026-06-03
+> Last Updated: 2026-06-05
 > Decisions: [ADR-0011 Routing Agent Assignment And Cooperative Interruption](../../decisions/ADR-0011-routing-agent-assignment-and-cooperative-interruption.md), [ADR-0014 Interaction Control Taxonomy For Product 1.0](../../decisions/ADR-0014-interaction-control-taxonomy-for-product-1-0.md)
 > Feature Plan: [Cooperative Task Interruption](cooperative-task-interruption.md)
 > Related: [Task](../../architecture/task.md), [TaskBus](../../architecture/bus.md), [Context Manager](../../architecture/context-manager.md), [Context Manager Cache-Aware Rendering](context-manager-cache-aware-rendering.md)

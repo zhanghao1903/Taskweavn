@@ -67,6 +67,8 @@ describe("mock Plato API adapter", () => {
     const { snapshot } = getMainPageMockSnapshot("s7-confirmation");
 
     expect(snapshot.pendingConfirmations).toHaveLength(1);
+    expect(snapshot.pendingAsks).toEqual([]);
+    expect(snapshot.activeAsk).toBeNull();
     expect(snapshot.pendingConfirmations[0]).toMatchObject({
       id: "confirmation-visual-baseline",
       status: "pending",

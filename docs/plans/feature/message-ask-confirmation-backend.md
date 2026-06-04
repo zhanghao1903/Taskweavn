@@ -1,11 +1,11 @@
 # Feature Plan: Message, ASK, And Confirmation Backend
 
-> Status: in progress
+> Status: done / accepted
 > Type: Product 1.0 interaction backend closure
-> Last Updated: 2026-06-03
+> Last Updated: 2026-06-05
 > Decisions: [ADR-0014 Interaction Control Taxonomy For Product 1.0](../../decisions/ADR-0014-interaction-control-taxonomy-for-product-1-0.md)
 > Architecture: [Interaction Layer](../../architecture/interaction-layer.md), [UI / Backend Communication](../../architecture/ui-backend-communication.md), [Task](../../architecture/task.md), [TaskBus](../../architecture/bus.md), [Context Manager](../../architecture/context-manager.md)
-> Related Contracts: [ASK Lifecycle Contract](../../engineering/ask-lifecycle-contract.md), [ASK User Interaction](../../interaction-model/ask-user-interaction.md), [UI API Interfaces](../ui/ui-api-interfaces.md), [UI ViewModel Contract](../../frontend/ui-viewmodel-contract.md)
+> Related Contracts: [ASK Lifecycle Contract](../../engineering/ask-lifecycle-contract.md), [ASK User Interaction](../../interaction-model/ask-user-interaction.md), [Confirmation UI Spec](../../ux/confirmation-ui-spec.md), [ASK And Confirmation Frontend Integration](ask-confirmation-frontend-integration.md), [UI API Interfaces](../ui/ui-api-interfaces.md), [UI ViewModel Contract](../../frontend/ui-viewmodel-contract.md)
 > Technical Design: [Message, ASK, and confirmation backend technical design](message-ask-confirmation-backend-technical-design.zh-CN.md)
 
 ---

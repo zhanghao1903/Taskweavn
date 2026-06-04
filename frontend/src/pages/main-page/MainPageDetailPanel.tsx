@@ -1,26 +1,31 @@
 import { CircleStop, RotateCcw } from "lucide-react";
 
-import type { ConfirmationActionView, TaskNodeId } from "../../shared/api/types";
+import type {
+  AnswerAskPayload,
+  CancelAskPayload,
+  DeferAskPayload,
+} from "../../shared/api/platoApi";
+import type { TaskNodeId } from "../../shared/api/types";
 import { Badge, Button, Panel, Text } from "../../shared/components";
-import type { ConfirmationDecision } from "./mainPageUiTypes";
+import { ConfirmationDetailPanel } from "./interaction/ConfirmationDetailPanel";
+import { ExecutionAskDetailPanel } from "./interaction/ExecutionAskDetailPanel";
 import { confirmationResolutionText } from "./mainPageCopy";
-import {
-  selectConfirmationOptionVariant,
-  selectFileChangeTypePresentation,
-} from "./mainPageSelectors";
+import { selectFileChangeTypePresentation } from "./mainPageSelectors";
 import type { MainPageDetailView } from "./mainPageViewModel";
 import styles from "./MainPage.module.css";
 
 export type MainPageDetailPanelProps = {
   detail: MainPageDetailView;
-  onConfirmationDecision: (decision: Exclude<ConfirmationDecision, null>) => void;
+  onAnswerAsk: (payload: AnswerAskPayload) => void;
+  onCancelAsk: (payload: CancelAskPayload) => void;
+  onConfirmationDecision: (decision: string) => void;
+  onDeferAsk: (payload: DeferAskPayload) => void;
   onRetryTask: (taskNodeId: TaskNodeId) => void;
   onStopTask: (taskNodeId: TaskNodeId) => void;
   onShowFileChanges: () => void;
   onShowResult: () => void;
 };
 
-type ConfirmationDetail = Extract<MainPageDetailView, { kind: "confirmation" }>;
 type ConfirmationResolvedDetail = Extract<
   MainPageDetailView,
   { kind: "confirmationResolved" }
@@ -32,7 +37,10 @@ type StateNoteDetail = Extract<MainPageDetailView, { kind: "note" }>;
 
 export function MainPageDetailPanel({
   detail,
+  onAnswerAsk,
+  onCancelAsk,
   onConfirmationDecision,
+  onDeferAsk,
   onRetryTask,
   onStopTask,
   onShowFileChanges,
@@ -53,7 +61,10 @@ export function MainPageDetailPanel({
       <Text variant="muted">{header.body}</Text>
       <DetailContent
         detail={detail}
+        onAnswerAsk={onAnswerAsk}
+        onCancelAsk={onCancelAsk}
         onConfirmationDecision={onConfirmationDecision}
+        onDeferAsk={onDeferAsk}
         onRetryTask={onRetryTask}
         onStopTask={onStopTask}
         onShowFileChanges={onShowFileChanges}
@@ -65,7 +76,10 @@ export function MainPageDetailPanel({
 
 type DetailContentProps = {
   detail: MainPageDetailView;
-  onConfirmationDecision: (decision: Exclude<ConfirmationDecision, null>) => void;
+  onAnswerAsk: (payload: AnswerAskPayload) => void;
+  onCancelAsk: (payload: CancelAskPayload) => void;
+  onConfirmationDecision: (decision: string) => void;
+  onDeferAsk: (payload: DeferAskPayload) => void;
   onRetryTask: (taskNodeId: TaskNodeId) => void;
   onStopTask: (taskNodeId: TaskNodeId) => void;
   onShowFileChanges: () => void;
@@ -74,18 +88,30 @@ type DetailContentProps = {
 
 function DetailContent({
   detail,
+  onAnswerAsk,
+  onCancelAsk,
   onConfirmationDecision,
+  onDeferAsk,
   onRetryTask,
   onStopTask,
   onShowFileChanges,
   onShowResult,
 }: DetailContentProps) {
   switch (detail.kind) {
+    case "executionAsk":
+      return (
+        <ExecutionAskDetailPanel
+          detail={detail}
+          onAnswer={onAnswerAsk}
+          onCancel={onCancelAsk}
+          onDefer={onDeferAsk}
+        />
+      );
     case "confirmation":
       return (
-        <ConfirmationPanel
+        <ConfirmationDetailPanel
           detail={detail}
-          onConfirmationDecision={onConfirmationDecision}
+          onResolve={onConfirmationDecision}
         />
       );
     case "confirmationResolved":
@@ -115,48 +141,6 @@ function DetailContent({
     case "note":
       return <StateNotePanel detail={detail} />;
   }
-}
-
-type ConfirmationPanelProps = {
-  detail: ConfirmationDetail;
-  onConfirmationDecision: (decision: Exclude<ConfirmationDecision, null>) => void;
-};
-
-function ConfirmationPanel({
-  detail,
-  onConfirmationDecision,
-}: ConfirmationPanelProps) {
-  return (
-    <Panel className={styles.detailBox} tone="muted">
-      <Text as="strong" variant="label">
-        {detail.isResolvingConfirmation
-          ? "Submitting decision"
-          : "Decision needed"}
-      </Text>
-      <Text variant="muted">
-        {detail.confirmation?.body ?? detail.fallbackBody}
-      </Text>
-      {detail.commandError && (
-        <Text variant="muted">{detail.commandError}</Text>
-      )}
-      <div className={styles.actionRow}>
-        {(detail.confirmation?.options ?? fallbackConfirmationOptions).map(
-          (option) => (
-            <Button
-              disabled={detail.isResolvingConfirmation}
-              key={option.value}
-              variant={selectConfirmationOptionVariant(option.tone)}
-              onClick={() =>
-                onConfirmationDecision(toConfirmationDecision(option.value))
-              }
-            >
-              {option.label}
-            </Button>
-          ),
-        )}
-      </div>
-    </Panel>
-  );
 }
 
 function ConfirmationResolvedPanel({
@@ -348,20 +332,4 @@ function StateNotePanel({ detail }: { detail: StateNoteDetail }) {
       <Text variant="muted">{detail.body}</Text>
     </Panel>
   );
-}
-
-const fallbackConfirmationOptions: NonNullable<
-  ConfirmationActionView["options"]
-> = [
-  { value: "confirmed", label: "Confirm", tone: "primary" },
-  { value: "revise", label: "Revise task", tone: "secondary" },
-  { value: "skipped", label: "Skip", tone: "danger" },
-];
-
-function toConfirmationDecision(value: string): Exclude<ConfirmationDecision, null> {
-  if (value === "revise" || value === "skipped") {
-    return value;
-  }
-
-  return "confirmed";
 }

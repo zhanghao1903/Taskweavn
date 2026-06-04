@@ -100,6 +100,7 @@ export function selectExecutionStatusPresentation(
     not_started: { label: "not started", tone: "neutral" },
     pending: { label: "queued", tone: "neutral" },
     running: { label: "running", tone: "blue" },
+    waiting_for_user: { label: "waiting user", tone: "warning" },
     unknown: { label: "unknown", tone: "neutral" },
   };
 

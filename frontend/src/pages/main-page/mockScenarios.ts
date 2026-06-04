@@ -33,13 +33,13 @@ export const mainPageMockScenarios: readonly MainPageMockScenario[] = [
   }),
   mainScenario({
     fixtureId: "s2-understanding",
-    title: "Understanding / planning",
+    title: "Authoring ASK / planning clarification",
     planning: "assessing",
     readiness: "unknown",
     execution: "not_started",
-    primary: ["Add context"],
-    disabled: ["Publish"],
-    visible: ["TopBar", "MessageStream", "DetailPanel", "ContextInputBar"],
+    primary: ["Submit all answers"],
+    disabled: ["Publish", "Context input"],
+    visible: ["TopBar", "AuthoringAskWorkArea", "DetailPanel", "ContextInputBar"],
   }),
   mainScenario({
     fixtureId: "s3-draft-ready",
@@ -90,7 +90,7 @@ export const mainPageMockScenarios: readonly MainPageMockScenario[] = [
     confirmation: "pending",
     primary: ["Confirm baseline"],
     disabled: ["Duplicate submit"],
-    visible: ["TaskTree", "ConfirmationPanel", "MessageStream"],
+    visible: ["TaskTree", "ConfirmationDetailPanel", "MessageStream"],
   }),
   mainScenario({
     fixtureId: "s8-completed",
@@ -169,6 +169,17 @@ export const mainPageMockScenarios: readonly MainPageMockScenario[] = [
     disabled: ["Duplicate submit"],
     visible: ["ErrorState", "TaskTree", "ContextInputBar"],
     recovery: "Retry the command or revise the task instruction.",
+  }),
+  mainScenario({
+    fixtureId: "s14-execution-ask",
+    title: "Execution ASK waiting for answer",
+    planning: "published",
+    readiness: "published",
+    execution: "waiting_for_user",
+    primary: ["Answer ASK"],
+    disabled: ["Duplicate submit"],
+    visible: ["TaskTree", "ExecutionAskDetailPanel", "MessageStream"],
+    recovery: "Answer, defer, or cancel the ASK and wait for backend projection.",
   }),
 ];
 

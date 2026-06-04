@@ -24,6 +24,7 @@ from taskweavn.task import (
     InMemoryDraftTaskStore,
     InMemoryRawTaskStore,
     RawTask,
+    RawTaskAskAnswerSubmission,
     StaticCapabilityCatalog,
     TaskPublisher,
     TaskPublishResult,
@@ -239,6 +240,101 @@ def test_answer_raw_task_ask_records_answer_and_user_message(tmp_path: Any) -> N
     messages = list(harness.stream.list_for_session("s1"))
     assert messages[-1].content == "Developers"
     assert messages[-1].context["operation"] == "answerRawTaskAsk"
+
+
+def test_answer_raw_task_asks_records_batch_answers_and_user_message(
+    tmp_path: Any,
+) -> None:
+    harness = _adapter(
+        tmp_path,
+        _StubLLM(
+            [
+                """
+                {
+                  "intent_summary": "Build a website",
+                  "feasibility": {
+                    "status": "needs_clarification",
+                    "confidence": 0.5,
+                    "missing_inputs": ["audience", "sections"]
+                  },
+                  "asks": [
+                    {"question": "Who is the audience?", "reason": "Need scope"},
+                    {"question": "Which sections are required?", "reason": "Need scope"}
+                  ]
+                }
+                """
+            ]
+        ),
+    )
+    harness.adapter.append_session_message(session_id="s1", content="Build a website")
+    raw = harness.raw_store.list_for_session("s1")[0]
+
+    result = harness.adapter.answer_raw_task_asks(
+        session_id="s1",
+        raw_task_id=raw.raw_task_id,
+        answers=(
+            RawTaskAskAnswerSubmission(ask_id=raw.asks[0].ask_id, value="Developers"),
+            RawTaskAskAnswerSubmission(
+                ask_id=raw.asks[1].ask_id,
+                value="Portfolio and contact",
+            ),
+        ),
+        idempotency_key="answer-batch-1",
+    )
+    updated = harness.raw_store.get("s1", raw.raw_task_id)
+
+    assert result.accepted
+    assert result.message == "RawTask answers recorded"
+    assert updated is not None
+    assert updated.status == "assessing"
+    assert [answer.value for answer in updated.answers] == [
+        "Developers",
+        "Portfolio and contact",
+    ]
+    messages = list(harness.stream.list_for_session("s1"))
+    assert messages[-1].content == "1. Developers\n2. Portfolio and contact"
+    assert messages[-1].context["operation"] == "answerRawTaskAskBatch"
+    assert messages[-1].context["ask_ids"] == [ask.ask_id for ask in raw.asks]
+
+
+def test_answer_raw_task_asks_rejects_duplicate_ask_ids(tmp_path: Any) -> None:
+    harness = _adapter(
+        tmp_path,
+        _StubLLM(
+            [
+                """
+                {
+                  "intent_summary": "Build a website",
+                  "feasibility": {
+                    "status": "needs_clarification",
+                    "confidence": 0.5,
+                    "missing_inputs": ["audience"]
+                  },
+                  "asks": [
+                    {"question": "Who is the audience?", "reason": "Need scope"}
+                  ]
+                }
+                """
+            ]
+        ),
+    )
+    harness.adapter.append_session_message(session_id="s1", content="Build a website")
+    raw = harness.raw_store.list_for_session("s1")[0]
+
+    result = harness.adapter.answer_raw_task_asks(
+        session_id="s1",
+        raw_task_id=raw.raw_task_id,
+        answers=(
+            RawTaskAskAnswerSubmission(ask_id=raw.asks[0].ask_id, value="Developers"),
+            RawTaskAskAnswerSubmission(ask_id=raw.asks[0].ask_id, value="Founders"),
+        ),
+    )
+    updated = harness.raw_store.get("s1", raw.raw_task_id)
+
+    assert not result.accepted
+    assert "duplicate ask_id" in result.message
+    assert updated is not None
+    assert updated.answers == ()
 
 
 def test_generate_task_tree_returns_command_result_refs(tmp_path: Any) -> None:

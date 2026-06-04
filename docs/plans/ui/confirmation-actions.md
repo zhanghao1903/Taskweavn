@@ -1,8 +1,13 @@
 # Confirmation Actions
 
-> Status: planned  
-> Last Updated: 2026-05-10  
+> Status: superseded planning note
+> Last Updated: 2026-06-04
 > 关联接口：`ui-api-interfaces.md`
+> Current canonical UI spec: `../../ux/confirmation-ui-spec.md`
+
+This file is an early Task-first UI planning note. Product 1.0 confirmation UI
+placement and state tables are now defined in
+`docs/ux/confirmation-ui-spec.md`.
 
 ---
 
@@ -29,7 +34,7 @@
 ## 3. 交互
 
 - 用户可以从 Task Node Detail 处理确认。
-- 用户可以从全局 Confirmation 区处理确认。
+- 全局 Confirmation 区不是 Product 1.0 默认范围；后续如果成为真实需求，需要单独设计。
 - 处理后结果写入 Session Message Stream。
 - 已处理确认保留为 resolved history，不从界面消失。
 
@@ -59,4 +64,3 @@
 - 用户能跳回确认所属 Task。
 - 用户处理确认后，Task Badge 和消息流同步更新。
 - resolved confirmation 可追溯。
-

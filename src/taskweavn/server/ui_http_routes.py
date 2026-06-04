@@ -11,6 +11,7 @@ class _Route:
     name: str
     method: str
     session_id: str = ""
+    raw_task_id: str = ""
     task_node_id: str = ""
     confirmation_id: str = ""
     ask_id: str = ""
@@ -60,6 +61,18 @@ def _match_route(path: str) -> _Route | None:
         return _Route(name="generate_task_tree", method="POST", session_id=session_id)
     if suffix == ("task-tree", "publish"):
         return _Route(name="publish_task_tree", method="POST", session_id=session_id)
+    if (
+        len(suffix) == 5
+        and suffix[0] == "authoring"
+        and suffix[1] == "raw-tasks"
+        and suffix[3:] == ("asks", "answers")
+    ):
+        return _Route(
+            name="answer_authoring_ask_batch",
+            method="POST",
+            session_id=session_id,
+            raw_task_id=suffix[2],
+        )
     if suffix == ("execution", "dispatch"):
         return _Route(name="dispatch_execution", method="POST", session_id=session_id)
     if suffix == ("events",):

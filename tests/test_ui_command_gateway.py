@@ -6,6 +6,8 @@ from dataclasses import dataclass, field
 
 from taskweavn.server.ui_contract import (
     AnswerAskPayload,
+    AnswerAuthoringAskBatchPayload,
+    AnswerAuthoringAskItemPayload,
     AppendSessionInputPayload,
     AppendTaskInputPayload,
     CancelAskPayload,
@@ -23,6 +25,12 @@ from taskweavn.server.ui_contract import (
 )
 from taskweavn.task import (
     ActiveAuthoringState,
+    FeasibilityReport,
+    InMemoryRawTaskStore,
+    RawTask,
+    RawTaskAnswer,
+    RawTaskAnswerOption,
+    RawTaskAsk,
     TaskNodePatch,
     TaskRef,
 )
@@ -78,6 +86,29 @@ class _Collaborator:
         idempotency_key: str | None = None,
     ) -> CoreCommandResult:
         raise NotImplementedError
+
+    def answer_raw_task_asks(
+        self,
+        *,
+        session_id: str,
+        raw_task_id: str,
+        answers: tuple[object, ...],
+        source_message_id: str | None = None,
+        idempotency_key: str | None = None,
+    ) -> CoreCommandResult:
+        self.calls.append(
+            (
+                "answer_raw_task_asks",
+                {
+                    "session_id": session_id,
+                    "raw_task_id": raw_task_id,
+                    "answers": answers,
+                    "source_message_id": source_message_id,
+                    "idempotency_key": idempotency_key,
+                },
+            )
+        )
+        return self.result
 
     def generate_task_tree(
         self,
@@ -380,6 +411,7 @@ def _gateway(
     ask_commands: _AskCommands | None = None,
     resolver: _Resolver | None = None,
     authoring_state_store: _AuthoringStateStore | None = None,
+    raw_task_store: InMemoryRawTaskStore | None = None,
 ) -> DefaultUiCommandGateway:
     return DefaultUiCommandGateway(
         collaborator=collaborator or _Collaborator(),
@@ -387,7 +419,53 @@ def _gateway(
         task_ref_resolver=resolver
         or _Resolver({"draft-1": TaskRef.draft("draft-1"), "task-1": TaskRef.published("task-1")}),
         authoring_state_store=authoring_state_store,
+        raw_task_store=raw_task_store,
         ask_commands=ask_commands,
+    )
+
+
+def _awaiting_raw_task() -> RawTask:
+    return RawTask(
+        raw_task_id="raw-1",
+        session_id="session-1",
+        source_message_id="message-1",
+        user_input="How do I publish a website?",
+        status="awaiting_user",
+        intent_summary="Understand how to publish a website.",
+        feasibility=FeasibilityReport(
+            status="needs_clarification",
+            confidence=0.6,
+            missing_inputs=("website type",),
+        ),
+        asks=(
+            RawTaskAsk(
+                ask_id="ask-1",
+                raw_task_id="raw-1",
+                question="What type of website do you want to publish?",
+                reason="Different website types have different publishing paths.",
+                options=(
+                    RawTaskAnswerOption(label="Static", value="static"),
+                    RawTaskAnswerOption(label="Dynamic", value="dynamic"),
+                ),
+            ),
+        ),
+    )
+
+
+def _answered_raw_task() -> RawTask:
+    raw_task = _awaiting_raw_task()
+    return raw_task.model_copy(
+        update={
+            "answers": (
+                RawTaskAnswer(
+                    raw_task_id="raw-1",
+                    ask_id="ask-1",
+                    value="static",
+                    source_message_id="answer-message-1",
+                ),
+            ),
+            "status": "assessing",
+        }
     )
 
 
@@ -491,6 +569,142 @@ def test_generate_task_tree_with_prompt_creates_raw_then_tree() -> None:
             },
         ),
     ]
+
+
+def test_generate_task_tree_with_prompt_stops_when_raw_task_needs_answers() -> None:
+    collaborator = _Collaborator(
+        result=CoreCommandResult(
+            command_id="backend-command",
+            status="accepted",
+            message="ok",
+        )
+    )
+    gateway = _gateway(
+        collaborator=collaborator,
+        raw_task_store=InMemoryRawTaskStore([_awaiting_raw_task()]),
+    )
+    request = CommandRequest[GenerateTaskTreePayload](
+        command_id="generate-1",
+        session_id="session-1",
+        payload=GenerateTaskTreePayload(prompt="How do I publish a website?"),
+    )
+
+    response = gateway.generate_task_tree(request)
+
+    assert response.ok is True
+    assert response.result is not None
+    assert response.result.status == "accepted"
+    assert collaborator.calls == [
+        (
+            "append_session_message",
+            {
+                "session_id": "session-1",
+                "content": "How do I publish a website?",
+                "source_message_id": "generate-1",
+                "idempotency_key": None,
+            },
+        )
+    ]
+
+
+def test_generate_task_tree_with_unready_raw_task_is_rejected() -> None:
+    collaborator = _Collaborator()
+    gateway = _gateway(
+        collaborator=collaborator,
+        raw_task_store=InMemoryRawTaskStore([_awaiting_raw_task()]),
+    )
+    request = CommandRequest[GenerateTaskTreePayload](
+        command_id="generate-1",
+        session_id="session-1",
+        payload=GenerateTaskTreePayload(raw_task_id="raw-1"),
+    )
+
+    response = gateway.generate_task_tree(request)
+
+    assert response.ok is False
+    assert response.result is not None
+    assert response.result.status == "rejected"
+    assert "requires authoring answers" in response.result.message
+    assert collaborator.calls == []
+
+
+def test_answer_authoring_ask_batch_routes_to_collaborator() -> None:
+    collaborator = _Collaborator()
+    gateway = _gateway(collaborator=collaborator)
+    request = CommandRequest[AnswerAuthoringAskBatchPayload](
+        command_id="answer-authoring-1",
+        session_id="session-1",
+        idempotency_key="answer-batch-1",
+        payload=AnswerAuthoringAskBatchPayload(
+            answers=(
+                AnswerAuthoringAskItemPayload(ask_id="ask-1", value="Developers"),
+                AnswerAuthoringAskItemPayload(ask_id="ask-2", value="Portfolio"),
+            )
+        ),
+    )
+
+    response = gateway.answer_authoring_ask_batch("raw-1", request)
+
+    assert response.ok is True
+    assert response.result is not None
+    dumped = response.result.model_dump(mode="json")
+    assert {"kind": "raw_task", "id": "raw-1"} in dumped["objectRefs"]
+    assert {"kind": "raw_task_ask", "id": "ask-1"} in dumped["objectRefs"]
+    assert response.refresh.suggested_queries == (
+        "session.snapshot",
+        "session.messages",
+        "task.tree",
+    )
+    assert collaborator.calls[0][0] == "answer_raw_task_asks"
+    call = collaborator.calls[0][1]
+    assert call["session_id"] == "session-1"
+    assert call["raw_task_id"] == "raw-1"
+    assert call["idempotency_key"] == "answer-batch-1"
+    answers = call["answers"]
+    assert isinstance(answers, tuple)
+    assert [(answer.ask_id, answer.value) for answer in answers] == [
+        ("ask-1", "Developers"),
+        ("ask-2", "Portfolio"),
+    ]
+
+
+def test_answer_authoring_ask_batch_generates_tree_after_all_asks_answered() -> None:
+    collaborator = _Collaborator(
+        result=CoreCommandResult(
+            command_id="backend-command",
+            status="accepted",
+            message="ok",
+            affected_task_refs=(TaskRef.draft("draft-1"),),
+        )
+    )
+    gateway = _gateway(
+        collaborator=collaborator,
+        raw_task_store=InMemoryRawTaskStore([_answered_raw_task()]),
+    )
+    request = CommandRequest[AnswerAuthoringAskBatchPayload](
+        command_id="answer-authoring-1",
+        session_id="session-1",
+        idempotency_key="answer-batch-1",
+        payload=AnswerAuthoringAskBatchPayload(
+            answers=(
+                AnswerAuthoringAskItemPayload(ask_id="ask-1", value="static"),
+            )
+        ),
+    )
+
+    response = gateway.answer_authoring_ask_batch("raw-1", request)
+
+    assert response.ok is True
+    assert response.result is not None
+    assert response.result.affected_task_refs == (TaskRef.draft("draft-1"),)
+    assert collaborator.calls[-1] == (
+        "generate_task_tree",
+        {
+            "session_id": "session-1",
+            "raw_task_id": "raw-1",
+            "idempotency_key": "answer-batch-1:tree",
+        },
+    )
 
 
 def test_update_task_node_resolves_task_ref_and_preserves_subtree_intent() -> None:

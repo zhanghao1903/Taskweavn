@@ -2,7 +2,11 @@ import { describe, expect, it, vi } from "vitest";
 
 import { createHttpPlatoApi } from "./platoApi";
 import type {
+  AnswerAskPayload,
+  AnswerAuthoringAskBatchPayload,
   AppendTaskInputPayload,
+  CancelAskPayload,
+  DeferAskPayload,
   EventSourceLike,
   ResolveConfirmationPayload,
 } from "./platoApi";
@@ -99,6 +103,119 @@ describe("createHttpPlatoApi", () => {
         body: confirmationRequest,
         method: "POST",
         url: "https://plato.test/api/v1/sessions/session%2F1/confirmations/confirmation%231/respond",
+      },
+    ]);
+  });
+
+  it("queries and posts ASK command requests to documented endpoints", async () => {
+    const calls: Array<{
+      body: unknown;
+      method: string | undefined;
+      url: string;
+    }> = [];
+    const fetcher = vi.fn<FetchFn>(async (input, init) => {
+      calls.push({
+        body: init?.body ? JSON.parse(String(init.body)) : null,
+        method: init?.method,
+        url: String(input),
+      });
+
+      if (init?.method === "GET") {
+        return jsonResponse({
+          cursor: null,
+          data: {
+            activeAsk: null,
+            asks: [],
+            sessionId: "session/1",
+          },
+          error: null,
+          generatedAt: "2026-06-04T10:00:00Z",
+          ok: true,
+          requestId: "asks-query",
+        });
+      }
+
+      return jsonResponse(acceptedCommandResponse("ask-command"));
+    });
+    const api = createHttpPlatoApi({
+      baseUrl: "https://plato.test",
+      fetcher,
+    });
+    const answerRequest: CommandRequest<AnswerAskPayload> = {
+      commandId: "answer-ask",
+      sessionId: "session/1",
+      payload: {
+        selectedOptionIds: ["vercel"],
+        text: "Prefer Vercel.",
+      },
+    };
+    const authoringBatchRequest: CommandRequest<AnswerAuthoringAskBatchPayload> =
+      {
+        commandId: "answer-authoring",
+        sessionId: "session/1",
+        payload: {
+          answers: [
+            {
+              askId: "raw ask",
+              value: "Build a portfolio.",
+            },
+          ],
+        },
+      };
+    const deferRequest: CommandRequest<DeferAskPayload> = {
+      commandId: "defer-ask",
+      sessionId: "session/1",
+      payload: {
+        reason: "Need more time.",
+      },
+    };
+    const cancelRequest: CommandRequest<CancelAskPayload> = {
+      commandId: "cancel-ask",
+      sessionId: "session/1",
+      payload: {
+        reason: "User cancelled the question.",
+      },
+    };
+
+    await api.listAsks({
+      sessionId: "session/1",
+      status: "pending",
+      taskNodeId: "task 1",
+    });
+    await api.answerAsk("session/1", "ask#1", answerRequest);
+    await api.answerAuthoringAskBatch(
+      "session/1",
+      "raw task",
+      authoringBatchRequest,
+    );
+    await api.deferAsk("session/1", "ask#1", deferRequest);
+    await api.cancelAsk("session/1", "ask#1", cancelRequest);
+
+    expect(calls).toEqual([
+      {
+        body: null,
+        method: "GET",
+        url: "https://plato.test/api/v1/sessions/session%2F1/asks?status=pending&taskNodeId=task+1",
+      },
+      {
+        body: answerRequest,
+        method: "POST",
+        url: "https://plato.test/api/v1/sessions/session%2F1/asks/ask%231/answer",
+      },
+      {
+        body: authoringBatchRequest,
+        method: "POST",
+        url: "https://plato.test/api/v1/sessions/session%2F1/authoring/raw-tasks/raw%20task/asks/answers",
+      },
+      {
+        body: deferRequest,
+        method: "POST",
+        url: "https://plato.test/api/v1/sessions/session%2F1/asks/ask%231/defer",
+      },
+      {
+        body: cancelRequest,
+        method: "POST",
+        url: "https://plato.test/api/v1/sessions/session%2F1/asks/ask%231/cancel",
       },
     ]);
   });

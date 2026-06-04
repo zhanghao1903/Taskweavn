@@ -216,6 +216,77 @@ def test_submit_mutates_raw_task_clarification_flow() -> None:
     assert raw.answers[0].value == "Developers"
 
 
+def test_submit_rejects_answering_already_answered_raw_task_ask() -> None:
+    raw_store = InMemoryRawTaskStore(
+        [
+            RawTask(
+                raw_task_id="raw1",
+                session_id="s1",
+                source_message_id="m1",
+                user_input="Build something",
+            )
+        ]
+    )
+    service = _service(raw_store=raw_store)
+    ask_command = MutateRawTaskCommand(
+        command_id="ask",
+        session_id="s1",
+        raw_task_id="raw1",
+        actor=_actor(),
+        operations=(
+            RawTaskOperation(
+                op="add_clarification_ask",
+                payload={
+                    "ask_id": "ask1",
+                    "question": "Who is the audience?",
+                    "reason": "Need scope",
+                },
+            ),
+        ),
+    )
+    answer_command = MutateRawTaskCommand(
+        command_id="answer",
+        session_id="s1",
+        raw_task_id="raw1",
+        expected_version=2,
+        actor=_actor(),
+        operations=(
+            RawTaskOperation(
+                op="apply_answer",
+                payload={
+                    "ask_id": "ask1",
+                    "value": "Developers",
+                    "source_message_id": "m2",
+                },
+            ),
+        ),
+    )
+    duplicate_answer = answer_command.model_copy(
+        update={"command_id": "duplicate-answer", "expected_version": 3}
+    )
+
+    service.submit(
+        AuthoringCommandBatch(session_id="s1", actor=_actor(), commands=(ask_command,))
+    )
+    first = service.submit(
+        AuthoringCommandBatch(session_id="s1", actor=_actor(), commands=(answer_command,))
+    )
+    second = service.submit(
+        AuthoringCommandBatch(
+            session_id="s1",
+            actor=_actor(),
+            commands=(duplicate_answer,),
+        )
+    )
+    raw = raw_store.get("s1", "raw1")
+
+    assert first.ok
+    assert not second.ok
+    assert "already answered" in second.errors[0].message
+    assert raw is not None
+    assert len(raw.answers) == 1
+
+
 def test_submit_creates_draft_tree_with_children() -> None:
     draft_store = InMemoryDraftTaskStore()
     service = _service(draft_store=draft_store)

@@ -5,6 +5,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { CommandResponse, UiEvent } from "../../shared/api/types";
 import type {
+  AnswerAuthoringAskBatchCommand,
+  AnswerAskCommand,
+  CancelAskCommand,
+  DeferAskCommand,
   LoadMainPageSnapshot,
   MainPageAdapter,
   RetryTaskCommand,
@@ -175,6 +179,223 @@ describe("useMainPageController", () => {
 
     expect(result.current.taskTreeCommandError).toBe(null);
     expect(result.current.uiNotice).toBe("Stop requested.");
+  });
+
+  it("submits authoring ASK answers as one batch and refetches projection", async () => {
+    const answerAuthoringAskBatch = vi.fn<AnswerAuthoringAskBatchCommand>(
+      async (sessionId, _rawTaskId, request) =>
+        acceptedCommandResponse({
+          commandId: request.commandId,
+          sessionId,
+        }),
+    );
+    const loadSnapshot = vi.fn<LoadMainPageSnapshot>(loadImmediateSnapshot);
+
+    const { result } = renderMainPageController({
+      adapter: testAdapter({
+        answerAuthoringAskBatch,
+        loadSnapshot,
+      }),
+      initialStateId: "s2-understanding",
+    });
+
+    await waitFor(() => {
+      expect(result.current.snapshotData?.metadata.id).toBe("s2-understanding");
+    });
+
+    act(() => {
+      result.current.actions.answerAuthoringAskBatch({
+        answers: [
+          { askId: "authoring-ask-site-type", value: "portfolio" },
+          { askId: "authoring-ask-style", value: "quiet_editorial" },
+        ],
+        rawTaskId: "raw-task-website-goal",
+        sessionId: "session-website-plan",
+      });
+    });
+
+    await waitFor(() => {
+      expect(answerAuthoringAskBatch).toHaveBeenCalledWith(
+        "session-website-plan",
+        "raw-task-website-goal",
+        expect.objectContaining({
+          sessionId: "session-website-plan",
+          payload: {
+            answers: [
+              { askId: "authoring-ask-site-type", value: "portfolio" },
+              { askId: "authoring-ask-style", value: "quiet_editorial" },
+            ],
+          },
+        }),
+      );
+    });
+    await waitFor(() => {
+      expect(loadSnapshot).toHaveBeenCalledTimes(2);
+    });
+
+    expect(result.current.authoringAskError).toBe(null);
+    expect(result.current.uiNotice).toBe("Authoring answers submitted.");
+  });
+
+  it("answers an execution ASK through its concrete ask id", async () => {
+    const answerAsk = vi.fn<AnswerAskCommand>(
+      async (sessionId, _askId, request) =>
+        acceptedCommandResponse({
+          commandId: request.commandId,
+          sessionId,
+        }),
+    );
+    const loadSnapshot = vi.fn<LoadMainPageSnapshot>(loadImmediateSnapshot);
+
+    const { result } = renderMainPageController({
+      adapter: testAdapter({
+        answerAsk,
+        loadSnapshot,
+      }),
+      initialStateId: "s14-execution-ask",
+    });
+
+    await waitFor(() => {
+      expect(result.current.snapshotData?.metadata.id).toBe("s14-execution-ask");
+    });
+
+    act(() => {
+      result.current.actions.answerAsk({
+        askId: "ask-deployment-target",
+        selectedOptionIds: ["vercel"],
+        sessionId: "session-website-plan",
+        text: null,
+      });
+    });
+
+    await waitFor(() => {
+      expect(answerAsk).toHaveBeenCalledWith(
+        "session-website-plan",
+        "ask-deployment-target",
+        expect.objectContaining({
+          sessionId: "session-website-plan",
+          payload: {
+            selectedOptionIds: ["vercel"],
+            text: null,
+          },
+        }),
+      );
+    });
+    await waitFor(() => {
+      expect(loadSnapshot).toHaveBeenCalledTimes(2);
+    });
+
+    expect(result.current.executionAskError).toBe(null);
+    expect(result.current.uiNotice).toBe("ASK answer submitted.");
+  });
+
+  it("refetches after a rejected execution ASK answer with refresh hints", async () => {
+    const answerAsk = vi.fn<AnswerAskCommand>(
+      async (_sessionId, _askId, request) =>
+        rejectedCommandResponse({
+          commandId: request.commandId,
+          message: "free_text ASK answer must not select options",
+        }),
+    );
+    const loadSnapshot = vi.fn<LoadMainPageSnapshot>(loadImmediateSnapshot);
+
+    const { result } = renderMainPageController({
+      adapter: testAdapter({
+        answerAsk,
+        loadSnapshot,
+      }),
+      initialStateId: "s14-execution-ask",
+    });
+
+    await waitFor(() => {
+      expect(result.current.snapshotData?.metadata.id).toBe("s14-execution-ask");
+    });
+
+    act(() => {
+      result.current.actions.answerAsk({
+        askId: "ask-deployment-target",
+        selectedOptionIds: ["vercel"],
+        sessionId: "session-website-plan",
+        text: null,
+      });
+    });
+
+    await waitFor(() => {
+      expect(result.current.executionAskError).toBe(
+        "free_text ASK answer must not select options",
+      );
+    });
+    await waitFor(() => {
+      expect(loadSnapshot).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  it("defer and cancel execution ASK commands target the concrete ask id", async () => {
+    const deferAsk = vi.fn<DeferAskCommand>(
+      async (sessionId, _askId, request) =>
+        acceptedCommandResponse({
+          commandId: request.commandId,
+          sessionId,
+        }),
+    );
+    const cancelAsk = vi.fn<CancelAskCommand>(
+      async (sessionId, _askId, request) =>
+        acceptedCommandResponse({
+          commandId: request.commandId,
+          sessionId,
+        }),
+    );
+    const { result } = renderMainPageController({
+      adapter: testAdapter({
+        cancelAsk,
+        deferAsk,
+      }),
+      initialStateId: "s14-execution-ask",
+    });
+
+    await waitFor(() => {
+      expect(result.current.snapshotData?.metadata.id).toBe("s14-execution-ask");
+    });
+
+    act(() => {
+      result.current.actions.deferAsk({
+        askId: "ask-deployment-target",
+        reason: "user deferred ASK",
+        sessionId: "session-website-plan",
+      });
+    });
+
+    await waitFor(() => {
+      expect(deferAsk).toHaveBeenCalledWith(
+        "session-website-plan",
+        "ask-deployment-target",
+        expect.objectContaining({
+          payload: {
+            reason: "user deferred ASK",
+          },
+        }),
+      );
+    });
+
+    act(() => {
+      result.current.actions.cancelAsk({
+        askId: "ask-deployment-target",
+        reason: "user cancelled ASK",
+        sessionId: "session-website-plan",
+      });
+    });
+
+    await waitFor(() => {
+      expect(cancelAsk).toHaveBeenCalledWith(
+        "session-website-plan",
+        "ask-deployment-target",
+        expect.objectContaining({
+          payload: {
+            reason: "user cancelled ASK",
+          },
+        }),
+      );
+    });
   });
 
   it("switches the active session after creating a session", async () => {
@@ -631,7 +852,7 @@ function acceptedCommandResponse({
 }: {
   commandId: string;
   sessionId: string;
-  taskNodeId: string;
+  taskNodeId?: string;
 }): CommandResponse {
   return {
     requestId: `request-${commandId}`,
@@ -640,18 +861,58 @@ function acceptedCommandResponse({
       commandId,
       status: "accepted",
       message: "accepted",
-      affectedTaskRefs: [{ kind: "published", id: taskNodeId }],
+      affectedTaskRefs: taskNodeId
+        ? [{ kind: "published", id: taskNodeId }]
+        : [],
       objectRefs: [],
       affectedObjects: [],
       emittedMessageIds: [],
-      publishedTaskIds: [`retry-${taskNodeId}`],
+      publishedTaskIds: taskNodeId ? [`retry-${taskNodeId}`] : [],
       debugRefs: {},
     },
     error: null,
     refresh: {
       waitForEvents: false,
       suggestedQueries: ["session.snapshot"],
-      affectedTaskRefs: [{ kind: "published", id: taskNodeId }],
+      affectedTaskRefs: taskNodeId
+        ? [{ kind: "published", id: taskNodeId }]
+        : [],
+      affectedScopes: [],
+    },
+  };
+}
+
+function rejectedCommandResponse({
+  commandId,
+  message,
+}: {
+  commandId: string;
+  message: string;
+}): CommandResponse {
+  return {
+    requestId: `request-${commandId}`,
+    ok: false,
+    result: {
+      commandId,
+      status: "rejected",
+      message,
+      affectedTaskRefs: [],
+      objectRefs: [],
+      affectedObjects: [],
+      emittedMessageIds: [],
+      publishedTaskIds: [],
+      debugRefs: {},
+    },
+    error: {
+      code: "command_rejected",
+      details: {},
+      message,
+      retryable: false,
+    },
+    refresh: {
+      waitForEvents: false,
+      suggestedQueries: ["session.snapshot", "asks", "task.tree", "task.detail"],
+      affectedTaskRefs: [],
       affectedScopes: [],
     },
   };

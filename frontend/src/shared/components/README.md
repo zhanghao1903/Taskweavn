@@ -10,6 +10,7 @@ Message semantics.
 |---|---|
 | `Button` | Commands and icon buttons. Variants: `primary`, `secondary`, `ghost`, `danger`. |
 | `Badge` | Compact status and metadata labels. Tones: `neutral`, `blue`, `success`, `warning`, `danger`. |
+| `ChoiceGroup` | Domain-neutral single, multi, and segmented option picking. |
 | `Panel` | Framed repeated items, sidebars, inspectors, and tool surfaces. |
 | `Text` | Stable typography variants over tokenized colors and sizing. |
 

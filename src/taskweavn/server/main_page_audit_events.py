@@ -12,6 +12,7 @@ from taskweavn.observability.main_page_trace import main_page_trace
 from taskweavn.server.client_logs import FileClientErrorLogSink
 from taskweavn.server.ui_contract import (
     AnswerAskPayload,
+    AnswerAuthoringAskBatchPayload,
     AppendSessionInputPayload,
     AppendTaskInputPayload,
     AuditConfigScope,
@@ -119,6 +120,13 @@ class AuditEventCommandGateway:
         request: CommandRequest[AnswerAskPayload],
     ) -> CommandResponse:
         return self.inner.answer_ask(ask_id, request)
+
+    def answer_authoring_ask_batch(
+        self,
+        raw_task_id: str,
+        request: CommandRequest[AnswerAuthoringAskBatchPayload],
+    ) -> CommandResponse:
+        return self.inner.answer_authoring_ask_batch(raw_task_id, request)
 
     def defer_ask(
         self,
