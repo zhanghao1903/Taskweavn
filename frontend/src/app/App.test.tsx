@@ -36,7 +36,8 @@ describe("App", () => {
 
     expect(screen.getByRole("banner")).toHaveTextContent("Plato");
     expect(await screen.findByText("Personal Website")).toBeInTheDocument();
-    expect(screen.getByText("TaskTree")).toBeInTheDocument();
+    expect(screen.getByLabelText("Task workspace")).toBeInTheDocument();
+    expect(screen.getByText("Requirement analysis")).toBeInTheDocument();
   });
 
   it("exposes the nine Figma baseline states", () => {

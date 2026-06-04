@@ -21,12 +21,10 @@ import {
   AuditHeader,
   AuditPageFrame,
   Boundary,
-  BoundaryBanner,
   FilterRail,
   LiveStatusNotice,
   Overview,
   Timeline,
-  VerdictNotice,
 } from "./AuditPageSections";
 
 export type { AuditRecordDetailState } from "./AuditRecordDetailPanel";
@@ -94,13 +92,11 @@ export function AuditPage({
 
       <LiveStatusNotice liveState={liveState} />
 
-      {boundary.kind !== "ready" && (
-        <BoundaryBanner boundary={boundary} onRetry={onRetry} />
-      )}
-
-      <Overview snapshot={snapshot} />
-
-      <VerdictNotice snapshot={snapshot} />
+      <Overview
+        boundary={boundary}
+        onRetry={onRetry}
+        snapshot={snapshot}
+      />
 
       {shouldHideContent ? (
         <Boundary

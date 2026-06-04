@@ -105,15 +105,17 @@ export function AuditHeader({
 }) {
   return (
     <header className={styles.header}>
-      <div>
+      <div className={styles.headerSubjectCluster}>
         <div className={styles.titleRow}>
           <h1 className={styles.title}>Audit</h1>
           <span className={styles.badge}>{auditScopeLabel(snapshot)}</span>
         </div>
-        <p className={styles.subject}>{auditSubjectLabel(snapshot)}</p>
-        <p className={styles.status}>
-          {auditScopeStatusText(snapshot)} · Filter: {auditFilterLabel(snapshot.request.filter)}
-        </p>
+        <div className={styles.headerSubjectMeta}>
+          <p className={styles.subject}>{auditSubjectLabel(snapshot)}</p>
+          <p className={styles.status}>
+            {auditScopeStatusText(snapshot)} · Filter: {auditFilterLabel(snapshot.request.filter)}
+          </p>
+        </div>
       </div>
       <div className={styles.headerStatus}>
         <span className={styles.badge}>{auditBoundaryLabel(boundary)}</span>
@@ -127,31 +129,85 @@ export function AuditHeader({
   );
 }
 
-export function Overview({ snapshot }: { snapshot: AuditPageSnapshot }) {
+export function Overview({
+  boundary,
+  onRetry,
+  snapshot,
+}: {
+  boundary: ApiUiBoundaryState;
+  onRetry?: () => void;
+  snapshot: AuditPageSnapshot;
+}) {
+  const shouldShowBoundaryNotice = boundary.kind !== "ready";
+  const shouldShowVerdictNotice =
+    snapshot.overview.verdict !== "passed" &&
+    snapshot.overview.verdict !== "not_available";
+
   return (
     <section aria-label="Audit overview" className={cx(styles.panel, styles.overview)}>
-      <div>
-        <h2 className={styles.overviewTitle}>Audit Overview</h2>
+      <div className={styles.overviewPrimary}>
+        <div className={styles.overviewHeadingRow}>
+          <h2 className={styles.overviewTitle}>Audit Overview</h2>
+          <div className={styles.overviewBadgeCluster}>
+            <StatusBadge value={snapshot.overview.verdict} />
+            <CompletenessBadge value={snapshot.overview.completeness} />
+          </div>
+        </div>
         <p className={styles.overviewCopy}>{snapshot.overview.summary}</p>
-        <p className={styles.overviewCopy}>
-          <StatusBadge value={snapshot.overview.verdict} />{" "}
-          <CompletenessBadge value={snapshot.overview.completeness} />
-        </p>
         {snapshot.overview.keyIssue !== null && (
           <p className={styles.overviewIssue}>
             Key issue: {snapshot.overview.keyIssue}
           </p>
         )}
+        {(shouldShowBoundaryNotice || shouldShowVerdictNotice) && (
+          <div className={styles.overviewNoticeStack}>
+            {shouldShowBoundaryNotice && (
+              <div className={styles.overviewNotice} role="status">
+                <div className={styles.overviewNoticeMain}>
+                  <strong>{auditBoundaryLabel(boundary)}</strong>
+                  <span>{boundary.message}</span>
+                  {boundary.code !== undefined && (
+                    <span className={styles.overviewNoticeCode}>
+                      Code: {boundary.code}
+                    </span>
+                  )}
+                </div>
+                <div className={styles.overviewNoticeActions}>
+                  {boundary.shouldResync && (
+                    <span className={styles.badge}>Resync suggested</span>
+                  )}
+                  {boundary.retryable && <span className={styles.badge}>Retryable</span>}
+                  {boundary.retryable && onRetry !== undefined && (
+                    <Button onClick={onRetry} variant="secondary">
+                      {boundary.shouldResync ? "Refresh audit" : "Retry"}
+                    </Button>
+                  )}
+                </div>
+              </div>
+            )}
+            {shouldShowVerdictNotice && (
+              <div className={styles.overviewNotice} role="note">
+                <StatusBadge value={snapshot.overview.verdict} />
+                <div className={styles.overviewNoticeMain}>
+                  <strong>{auditVerdictNoticeTitle(snapshot.overview.verdict)}</strong>
+                  <span>{snapshot.overview.keyIssue ?? snapshot.overview.summary}</span>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
-      {auditOverviewMetricFilters.map((item) => (
-        <div className={styles.metric} key={item.filter}>
-          <span className={styles.metricLabel}>{item.label}</span>
-          <strong className={styles.metricValue}>
-            {snapshot.overview.recordCounts[item.filter] ?? 0}
-          </strong>
-          <span className={styles.metricNote}>visible records</span>
-        </div>
-      ))}
+      <div className={styles.overviewMetrics}>
+        {auditOverviewMetricFilters.map((item) => (
+          <div className={styles.metric} key={item.filter}>
+            <span className={styles.metricLabel}>{item.label}</span>
+            <strong className={styles.metricValue}>
+              {snapshot.overview.recordCounts[item.filter] ?? 0}
+            </strong>
+            <span className={styles.metricNote}>visible records</span>
+          </div>
+        ))}
+      </div>
     </section>
   );
 }

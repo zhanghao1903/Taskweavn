@@ -26,7 +26,7 @@ export function MainPageWorkspaceHeader({
   return (
     <div className={styles.sectionHeader}>
       <div>
-        <Text variant="eyebrow">Session workspace</Text>
+        <Text variant="eyebrow">Session</Text>
         <Text as="h1" variant="heading">
           {title}
         </Text>

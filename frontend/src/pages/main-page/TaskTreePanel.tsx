@@ -1,5 +1,3 @@
-import { GitBranch } from "lucide-react";
-
 import type {
   TaskNodeId,
   TaskTreeView,
@@ -26,9 +24,6 @@ export function TaskTreePanel({
   return (
     <Panel
       className={styles.workPanel}
-      icon={<GitBranch size={18} aria-hidden="true" />}
-      title="TaskTree"
-      titleId="tasktree-title"
       tone="surface"
     >
       {taskTree ? (

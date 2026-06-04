@@ -13,6 +13,11 @@ This directory governs Plato Figma work and design-system handoff.
 | [visual-baseline-alignment.md](visual-baseline-alignment.md) | Read-only audit comparing canonical Figma pages with the historical Main Page visual baseline. |
 | [layout-components-visual-upgrade-brief.md](layout-components-visual-upgrade-brief.md) | Governed upgrade targets for `04 - Layout Components` before Figma visual alignment work. |
 | [domain-components-visual-upgrade-brief.md](domain-components-visual-upgrade-brief.md) | Governed upgrade targets for `05 - Domain Components` before Main/Audit screen-state recomposition. |
+| [main-page-visual-direction-summary.zh-CN.md](main-page-visual-direction-summary.zh-CN.md) | Canonical Chinese implementation entry for Main Page visual direction, including Latest Activity, Activity Overlay, and Result Reader decisions. |
+| [main-page-visual-direction-decision.md](main-page-visual-direction-decision.md) | Accepted Main Page visual direction, rejected alternatives, surface ownership, activity model, and visual acceptance gates. |
+| [main-screen-states-visual-simplification-brief.md](main-screen-states-visual-simplification-brief.md) | Detailed information reduction, layout, responsive, activity overlay, and state-level simplification rules for Main Page recomposition. |
+| [main-screen-states-recomposition-checklist.md](main-screen-states-recomposition-checklist.md) | State-by-state visibility, action, copy, activity behavior, and QA checklist for simplifying current Main Page screen states. |
+| [main-screen-states-current-ui-review-2026-06-04.md](main-screen-states-current-ui-review-2026-06-04.md) | Historical read-only runtime evidence of sampled Main Page states; use the summary document for current implementation guidance. |
 | [design-system.md](design-system.md) | Minimal production-grade token and component-layer contract. |
 | [typography-system.md](typography-system.md) | Font family, type scale, text color semantics, and typography usage rules. |
 | [component-spec.md](component-spec.md) | Component inventory, Figma-to-code mapping, and readiness contract. |

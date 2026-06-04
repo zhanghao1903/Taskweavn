@@ -1,8 +1,11 @@
 .page {
   min-width: 1280px;
   min-height: 100vh;
-  background: var(--plato-color-semantic-page-bg);
+  height: 100vh;
+  overflow: auto;
+  background: var(--plato-color-project-bg);
   color: var(--plato-color-semantic-text-primary);
+  font-family: var(--plato-typography-family-ui);
 }
 
 .srOnly {
@@ -20,7 +23,7 @@
 .topBar {
   display: grid;
   grid-template-columns:
-    minmax(180px, 220px)
+    minmax(220px, 250px)
     minmax(150px, 180px)
     minmax(220px, 280px)
     minmax(220px, 1fr)
@@ -65,8 +68,9 @@
   color: var(--plato-color-muted);
   font-size: var(--plato-type-caption-size);
   line-height: 1.1;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .topBarContextBlock {
@@ -148,57 +152,82 @@
 }
 
 .shell {
-  padding: 22px 32px 32px;
+  height: calc(100vh - 72px);
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 16px 32px 20px;
 }
 
 .header {
   display: grid;
-  grid-template-columns: minmax(360px, 1fr) auto minmax(340px, 520px);
-  align-items: start;
-  gap: 18px;
-  margin-bottom: 16px;
+  grid-template-columns: minmax(560px, 1fr) minmax(180px, auto) minmax(320px, 460px);
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 10px;
+}
+
+.headerSubjectCluster {
+  min-width: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
 }
 
 .titleRow {
   display: flex;
   align-items: center;
   gap: 14px;
+  flex: 0 0 auto;
+}
+
+.headerSubjectMeta {
+  min-width: 0;
+  padding-top: 2px;
 }
 
 .title {
   margin: 0;
-  font-size: 42px;
-  line-height: 52px;
-  font-weight: 650;
+  font-size: var(--plato-type-page-title-size);
+  line-height: var(--plato-type-page-title-line-height);
+  font-weight: var(--plato-type-page-title-weight);
 }
 
 .subject {
-  margin: 4px 0 0;
-  font-size: 24px;
-  line-height: 32px;
-  font-weight: 600;
+  margin: 0;
+  overflow: hidden;
+  font-size: var(--plato-type-title-size);
+  line-height: var(--plato-type-title-line-height);
+  font-weight: var(--plato-type-title-weight);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .status {
   margin: 2px 0 0;
   color: var(--plato-color-semantic-text-secondary);
-  font-size: 14px;
-  line-height: 20px;
+  font-size: var(--plato-type-body-sm-size);
+  line-height: var(--plato-type-body-sm-line-height);
 }
 
 .note {
   align-self: center;
-  max-width: 520px;
+  max-width: 460px;
+  overflow: hidden;
   color: var(--plato-color-semantic-text-secondary);
-  font-size: 14px;
-  line-height: 20px;
-  text-align: right;
+  font-size: var(--plato-type-body-sm-size);
+  line-height: var(--plato-type-body-sm-line-height);
+  text-align: center;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .headerStatus {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: center;
   gap: 10px;
 }
 
@@ -206,24 +235,46 @@
   background: var(--plato-color-semantic-surface);
   border: 1px solid var(--plato-color-semantic-border);
   border-radius: 8px;
-  box-shadow: 0 10px 30px rgb(24 32 51 / 6%);
+  box-shadow: 0 8px 24px rgb(24 32 51 / 5%);
 }
 
 .overview {
   display: grid;
-  grid-template-columns: minmax(260px, 1fr) repeat(4, minmax(100px, 130px));
-  gap: 16px;
+  grid-template-columns: minmax(0, 1fr) minmax(420px, 624px);
+  gap: 14px;
+  align-items: start;
+  padding: 10px 14px;
+  margin-bottom: 10px;
+}
+
+.overviewPrimary {
+  min-width: 0;
+  display: grid;
+  align-content: start;
+  gap: 6px;
+}
+
+.overviewHeadingRow {
+  display: flex;
   align-items: center;
-  padding: 18px 20px;
-  margin-bottom: 24px;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+
+.overviewBadgeCluster {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
 }
 
 .verdictNotice {
   display: flex;
   align-items: flex-start;
-  gap: 14px;
-  margin: -8px 0 24px;
-  padding: 14px 16px;
+  gap: 10px;
+  margin: -4px 0 12px;
+  padding: 10px 12px;
 }
 
 .verdictNotice strong {
@@ -245,9 +296,9 @@
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 16px;
-  margin: -4px 0 16px;
-  padding: 12px 14px;
+  gap: 12px;
+  margin: -2px 0 10px;
+  padding: 10px 12px;
   border-left: 4px solid var(--plato-color-primitive-cave-blue);
 }
 
@@ -288,29 +339,110 @@
 }
 
 .overviewTitle {
-  margin: 0 0 10px;
-  font-size: 18px;
-  line-height: 26px;
-  font-weight: 600;
+  min-width: 0;
+  margin: 0;
+  font-size: var(--plato-type-panel-title-size);
+  line-height: var(--plato-type-panel-title-line-height);
+  font-weight: var(--plato-type-panel-title-weight);
 }
 
 .overviewCopy {
   margin: 0;
+  overflow: hidden;
   color: var(--plato-color-semantic-text-secondary);
-  font-size: 14px;
-  line-height: 20px;
+  font-size: var(--plato-type-body-sm-size);
+  line-height: var(--plato-type-body-sm-line-height);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .overviewIssue {
-  margin: 10px 0 0;
+  margin: 0;
+  overflow: hidden;
   color: var(--plato-color-semantic-text-primary);
-  font-size: 13px;
-  line-height: 18px;
+  font-size: var(--plato-type-body-sm-size);
+  line-height: var(--plato-type-body-sm-line-height);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+}
+
+.overviewNoticeStack {
+  display: grid;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.overviewNotice {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-left: 3px solid var(--plato-color-warning-text);
+  border-radius: 6px;
+  padding: 6px 8px;
+  background: var(--plato-color-warning-bg);
+}
+
+.overviewNoticeMain {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: baseline;
+  column-gap: 8px;
+}
+
+.overviewNoticeMain strong {
+  color: var(--plato-color-semantic-text-primary);
+  font-size: var(--plato-type-body-sm-size);
+  line-height: var(--plato-type-body-sm-line-height);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.overviewNoticeMain span {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--plato-color-semantic-text-secondary);
+  font-size: var(--plato-type-body-sm-size);
+  line-height: var(--plato-type-body-sm-line-height);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.overviewNoticeMain .overviewNoticeCode {
+  color: var(--plato-color-semantic-text-tertiary);
+  font-size: var(--plato-type-caption-size);
+  line-height: var(--plato-type-caption-line-height);
+}
+
+.overviewNoticeActions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.overviewNoticeActions :is(a, button) {
+  min-height: 28px;
+  padding: 0 10px;
+  font-size: var(--plato-type-caption-size);
+  line-height: var(--plato-type-caption-line-height);
+  font-weight: var(--plato-type-caption-weight);
+}
+
+.overviewMetrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(88px, 1fr));
+  gap: 8px;
+  align-self: center;
+  align-items: start;
 }
 
 .metric {
-  min-height: 72px;
-  padding: 12px 14px;
+  min-height: 56px;
+  padding: 7px 10px;
   border: 1px solid var(--plato-color-semantic-border);
   border-radius: 8px;
   background: var(--plato-color-semantic-surface);
@@ -319,57 +451,59 @@
 .metricLabel {
   display: block;
   color: var(--plato-color-semantic-text-secondary);
-  font-size: 12px;
-  line-height: 17px;
-  font-weight: 500;
+  font-size: var(--plato-type-caption-size);
+  line-height: var(--plato-type-caption-line-height);
+  font-weight: var(--plato-type-caption-weight);
 }
 
 .metricValue {
   display: block;
   margin-top: 2px;
-  font-size: 28px;
-  line-height: 34px;
-  font-weight: 600;
+  font-size: 22px;
+  line-height: 28px;
+  font-weight: 500;
 }
 
 .metricNote {
   display: block;
   color: var(--plato-color-semantic-text-tertiary);
-  font-size: 12px;
-  line-height: 17px;
+  font-size: var(--plato-type-caption-size);
+  line-height: var(--plato-type-caption-line-height);
 }
 
 .content {
+  flex: 1;
+  min-height: 0;
   display: grid;
-  grid-template-columns: 216px minmax(0, 1fr);
-  gap: 24px;
+  grid-template-columns: 200px minmax(0, 1fr);
+  gap: 16px;
   align-items: stretch;
 }
 
 .contentWithDetail {
-  grid-template-columns: 216px minmax(520px, 1fr) 480px;
+  grid-template-columns: 200px minmax(450px, 1fr) minmax(360px, 420px);
 }
 
 .filterRail {
-  min-height: 650px;
-  max-height: calc(100vh - 352px);
+  min-height: 0;
+  height: 100%;
   overflow: auto;
   scrollbar-gutter: stable;
-  padding: 16px 14px;
+  padding: 12px;
 }
 
 .sectionTitle {
   margin: 0;
-  font-size: 18px;
-  line-height: 26px;
-  font-weight: 600;
+  font-size: var(--plato-type-panel-title-size);
+  line-height: var(--plato-type-panel-title-line-height);
+  font-weight: var(--plato-type-panel-title-weight);
 }
 
 .sectionHint {
-  margin: 2px 0 18px;
+  margin: 2px 0 12px;
   color: var(--plato-color-semantic-text-secondary);
-  font-size: 13px;
-  line-height: 18px;
+  font-size: var(--plato-type-body-sm-size);
+  line-height: var(--plato-type-body-sm-line-height);
 }
 
 .filterList {
@@ -383,15 +517,15 @@
   justify-content: space-between;
   gap: 8px;
   width: 100%;
-  min-height: 42px;
-  padding: 0 12px;
+  min-height: 36px;
+  padding: 0 10px;
   border: 1px solid transparent;
   border-radius: 6px;
   background: transparent;
   color: var(--plato-color-semantic-text-secondary);
   font: inherit;
-  font-size: 14px;
-  line-height: 20px;
+  font-size: var(--plato-type-body-sm-size);
+  line-height: var(--plato-type-body-sm-line-height);
   font-weight: 500;
   text-align: left;
   cursor: pointer;
@@ -420,15 +554,15 @@
 
 .filterCount {
   color: var(--plato-color-semantic-text-tertiary);
-  font-size: 12px;
+  font-size: var(--plato-type-caption-size);
 }
 
 .timeline {
-  min-height: 650px;
-  max-height: calc(100vh - 352px);
+  min-height: 0;
+  height: 100%;
   overflow: auto;
   scrollbar-gutter: stable;
-  padding: 18px 20px;
+  padding: 14px 16px;
 }
 
 .timelineHeader {
@@ -436,7 +570,7 @@
   align-items: baseline;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 12px;
+  margin-bottom: 10px;
 }
 
 .timelineMeta {
@@ -447,11 +581,11 @@
 
 .recordList {
   display: grid;
-  gap: 12px;
+  gap: 8px;
 }
 
 .emptyList {
-  min-height: 260px;
+  min-height: 200px;
   display: grid;
   place-items: center;
   border: 1px dashed var(--plato-color-semantic-border);
@@ -462,7 +596,7 @@
 
 .recordCard {
   width: 100%;
-  padding: 14px;
+  padding: 10px 12px;
   border: 1px solid var(--plato-color-semantic-border);
   border-radius: 8px;
   background: var(--plato-color-semantic-surface);
@@ -490,7 +624,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
 }
 
 .recordBadgeCluster {
@@ -508,37 +642,45 @@
 
 .recordTitle {
   margin: 0;
-  font-size: 15px;
-  line-height: 21px;
-  font-weight: 600;
+  overflow: hidden;
+  font-size: var(--plato-type-card-title-size);
+  line-height: var(--plato-type-card-title-line-height);
+  font-weight: var(--plato-type-card-title-weight);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .recordSummary {
-  margin: 4px 0 0;
+  margin: 3px 0 0;
+  overflow: hidden;
   color: var(--plato-color-semantic-text-secondary);
-  font-size: 14px;
-  line-height: 20px;
+  font-size: var(--plato-type-body-sm-size);
+  line-height: var(--plato-type-body-sm-line-height);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .recordRefs {
-  margin: 8px 0 0;
+  margin: 6px 0 0;
   color: var(--plato-color-semantic-text-tertiary);
-  font-size: 12px;
-  line-height: 17px;
+  font-size: var(--plato-type-caption-size);
+  line-height: var(--plato-type-caption-line-height);
 }
 
 .recordFooter {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 10px;
+  gap: 6px;
+  margin-top: 8px;
   color: var(--plato-color-semantic-text-tertiary);
-  font-size: 12px;
-  line-height: 17px;
+  font-size: var(--plato-type-caption-size);
+  line-height: var(--plato-type-caption-line-height);
 }
 
 .recordFooter span {
-  min-height: 24px;
+  min-height: 22px;
   display: inline-flex;
   align-items: center;
   border-radius: 6px;
@@ -550,20 +692,19 @@
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  margin-top: 10px;
+  margin-top: 8px;
 }
 
 .detail {
-  min-height: 650px;
-  max-height: calc(100vh - 352px);
+  min-height: 0;
+  height: 100%;
   overflow: auto;
   scrollbar-gutter: stable;
-  padding: 18px 22px;
+  padding: 12px 16px;
 }
 
 .detail:focus-visible {
-  outline: 2px solid var(--plato-color-primitive-cave-blue);
-  outline-offset: 3px;
+  outline: none;
 }
 
 .detailTopLine {
@@ -574,17 +715,17 @@
 }
 
 .detailTitle {
-  margin: 10px 0 0;
-  font-size: 24px;
-  line-height: 32px;
-  font-weight: 650;
+  margin: 6px 0 0;
+  font-size: var(--plato-type-title-size);
+  line-height: var(--plato-type-title-line-height);
+  font-weight: var(--plato-type-title-weight);
 }
 
 .detailBody {
-  margin: 12px 0 0;
+  margin: 6px 0 0;
   color: var(--plato-color-semantic-text-secondary);
-  font-size: 14px;
-  line-height: 21px;
+  font-size: var(--plato-type-body-sm-size);
+  line-height: var(--plato-type-body-sm-line-height);
 }
 
 .detailState {
@@ -605,39 +746,39 @@
 }
 
 .detailSection {
-  margin-top: 22px;
-  padding-top: 18px;
+  margin-top: 12px;
+  padding-top: 10px;
   border-top: 1px solid var(--plato-color-semantic-border);
 }
 
 .detailSectionTitle {
-  margin: 0 0 8px;
-  font-size: 14px;
-  line-height: 20px;
-  font-weight: 600;
+  margin: 0 0 6px;
+  font-size: var(--plato-type-body-size);
+  line-height: var(--plato-type-body-line-height);
+  font-weight: 500;
 }
 
 .evidenceList {
   margin: 0;
   padding-left: 18px;
   color: var(--plato-color-semantic-text-secondary);
-  font-size: 14px;
-  line-height: 21px;
+  font-size: var(--plato-type-body-sm-size);
+  line-height: var(--plato-type-body-sm-line-height);
 }
 
 .disclosureList {
   display: grid;
-  gap: 10px;
+  gap: 8px;
   margin: 0;
 }
 
 .disclosureList > div {
   display: grid;
   grid-template-columns: 128px minmax(0, 1fr);
-  gap: 12px;
+  gap: 10px;
   color: var(--plato-color-semantic-text-secondary);
-  font-size: 13px;
-  line-height: 18px;
+  font-size: var(--plato-type-body-sm-size);
+  line-height: var(--plato-type-body-sm-line-height);
 }
 
 .disclosureList dt {
@@ -652,20 +793,20 @@
 .reservedGrid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
+  gap: 8px;
 }
 
 .sanitizedEvidenceStack {
   display: grid;
-  gap: 12px;
+  gap: 10px;
 }
 
 .disclosureCard {
   display: grid;
-  gap: 10px;
+  gap: 8px;
   border: 1px solid var(--plato-color-semantic-border);
   border-radius: 8px;
-  padding: 12px;
+  padding: 10px;
   background: var(--plato-color-semantic-surface-muted);
 }
 
@@ -754,13 +895,13 @@
 }
 
 .reservedCard {
-  min-height: 84px;
+  min-height: 72px;
   display: grid;
   align-content: start;
-  gap: 8px;
+  gap: 6px;
   border: 1px dashed var(--plato-color-semantic-border);
   border-radius: 6px;
-  padding: 12px;
+  padding: 10px;
 }
 
 .reservedCard strong {
@@ -786,14 +927,14 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 28px;
-  padding: 0 12px;
+  min-height: 24px;
+  padding: 0 10px;
   border-radius: 6px;
   background: var(--plato-color-status-audit-verdict-not-available-bg);
   color: var(--plato-color-status-audit-verdict-not-available-text);
-  font-size: 12px;
-  line-height: 17px;
-  font-weight: 500;
+  font-size: var(--plato-type-badge-size);
+  line-height: var(--plato-type-badge-line-height);
+  font-weight: var(--plato-type-badge-weight);
   white-space: nowrap;
 }
 
@@ -818,8 +959,8 @@
 }
 
 .actionButton {
-  min-height: 36px;
-  padding: 0 14px;
+  min-height: 34px;
+  padding: 0 12px;
   border: 1px solid var(--plato-color-semantic-border);
   border-radius: 6px;
   background: var(--plato-color-semantic-surface);
@@ -848,8 +989,8 @@
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  margin-bottom: 16px;
-  padding: 14px 16px;
+  margin-bottom: 10px;
+  padding: 10px 12px;
 }
 
 .boundaryBanner p {
@@ -919,6 +1060,10 @@
   }
 
   .overview {
+    grid-template-columns: 1fr;
+  }
+
+  .overviewMetrics {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 

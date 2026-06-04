@@ -41,3 +41,4 @@ Each ADR should include:
 | [ADR-0012](ADR-0012-taskbus-centered-agent-assignment-convergence.md) | accepted | Use TaskBus-centered convergence loops for minimal Agent assignment and stale pending degradation. |
 | [ADR-0013](ADR-0013-cache-aware-append-only-context-rendering.md) | accepted | Preserve append-only execution transcripts with context deltas and checkpoints for cache-aware Context Manager rendering. |
 | [ADR-0014](ADR-0014-interaction-control-taxonomy-for-product-1-0.md) | accepted | Keep interruption, ASK, confirmation, and MessageStream as separate Product 1.0 interaction control mechanisms. |
+| [ADR-0015](ADR-0015-main-page-activity-overlay-message-history.md) | accepted | Replace the Main Page persistent message column with Latest Activity, Activity Overlay, and Result Artifact/Reader surfaces. |
