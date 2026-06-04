@@ -1,11 +1,12 @@
 # ASK User Interaction Model
 
 > Status: draft interaction model
-> Last Updated: 2026-06-03
-> Scope: Main Page ASK Dock, active ASK card, multiple ASK queue, answer
-> input behavior, and visible task/session signals.
+> Last Updated: 2026-06-04
+> Scope: Main Page ASK placement, active ASK cards, answer input behavior, and
+> visible task/session signals.
 > Related: [ASK Lifecycle Contract](../engineering/ask-lifecycle-contract.md),
 > [Main Page Interaction Model](main-page.md),
+> [ASK UI Spec](../ux/ask-ui-spec.md),
 > [External Calls Registry](external-calls.md),
 > [ADR-0014 Interaction Control Taxonomy](../decisions/ADR-0014-interaction-control-taxonomy-for-product-1-0.md).
 
@@ -39,7 +40,21 @@ ASK lifecycle enums or backend object semantics.
 
 ## 3. UX Decision
 
-Default ASK placement is an ASK Dock above the sticky Context Input Bar.
+Product 1.0 uses domain-specific ASK placement:
+
+- Authoring ASK appears in the Main Work Area while planning clarification is
+  required.
+- Execution ASK appears in the selected TaskNode Detail Panel while execution
+  is waiting for user input.
+
+The older generic ASK Dock shape is reserved for future exploration or for
+queue summaries after multiple simultaneous ASK surfaces become a real product
+need. It is not the Product 1.0 default implementation target.
+
+Detailed component structure and state tables are defined in
+`docs/ux/ask-ui-spec.md`.
+
+Reserved ASK Dock shape:
 
 ```text
 Main Page workspace
@@ -52,8 +67,8 @@ Sticky interaction layer
   ContextInputBar
 ```
 
-ASK should not default to a modal because the user often needs workspace,
-task, message, and detail context to answer correctly.
+ASK should not default to a modal because the user often needs workspace, task,
+message, and detail context to answer correctly.
 
 Modal usage is allowed only for:
 
@@ -61,7 +76,12 @@ Modal usage is allowed only for:
 - cancelling or discarding an ASK answer draft;
 - dangerous actions where unresolved ASK state would be lost or hidden.
 
-## 4. Component Model
+## 4. Reserved Dock Component Model
+
+This component model is not the Product 1.0 placement target. It remains useful
+as a generic interaction vocabulary and future queue-summary reference.
+Product 1.0 implementation must use the placement-specific component trees in
+`docs/ux/ask-ui-spec.md`.
 
 | Component | Responsibility |
 |---|---|

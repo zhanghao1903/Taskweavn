@@ -1,9 +1,9 @@
 # UI ViewModel Contract
 
 > Status: draft
-> Last Updated: 2026-05-24
+> Last Updated: 2026-06-04
 > Scope: Frontend-facing ViewModels for Plato Main Page and Audit Page.
-> Related: `docs/engineering/audit-page-contract.md`, `docs/ux/screen-state-spec.md`, `docs/frontend/event-reducer-contract.md`, `docs/frontend/api-ui-mapping.md`, `docs/architecture/task-domain-ui-model-separation.md`, `docs/product/plato-ui-api-contract.md`
+> Related: `docs/engineering/audit-page-contract.md`, `docs/ux/screen-state-spec.md`, `docs/ux/ask-ui-spec.md`, `docs/ux/confirmation-ui-spec.md`, `docs/frontend/event-reducer-contract.md`, `docs/frontend/api-ui-mapping.md`, `docs/architecture/task-domain-ui-model-separation.md`, `docs/product/plato-ui-api-contract.md`
 
 ## 1. Purpose
 

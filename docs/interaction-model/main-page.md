@@ -7,6 +7,9 @@
 > Page: Plato Main Page
 >
 > Scope: Plato 1.0 用户控制面。记录 Main Page 上允许发生的用户交互、UI 状态变化和后端调用。
+>
+> Related UI specs: `docs/ux/ask-ui-spec.md`,
+> `docs/ux/confirmation-ui-spec.md`.
 
 ## 1. Source of Truth
 
@@ -109,6 +112,12 @@ Project
 | `MP-DETAIL-007` | `disabled` | 修改已完成 TaskNode。 | completed。 | 编辑控件不可用；显示只读说明。 | 无。 | 无。 | 防止完成事实被静默改写。 |
 
 ## 10. Confirmation Actions
+
+Product 1.0 uses the selected TaskNode Detail Panel as the primary
+confirmation operation surface. TaskTree badges and MessageStream confirmation
+entries are navigation/history signals only; they should focus the owning
+TaskNode and render `ConfirmationDetailPanel`, not duplicate the full
+confirmation form.
 
 | ID | Status | User action / trigger | Availability | UI change | Backend / external call | Event / refresh | Notes |
 |---|---|---|---|---|---|---|---|
