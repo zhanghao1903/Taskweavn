@@ -1,7 +1,7 @@
 # Main Screen States Recomposition Checklist
 
 > Status: draft checklist for Main Page screen-state recomposition
-> Last Updated: 2026-06-04
+> Last Updated: 2026-06-05
 > Scope: State-by-state visibility, action, copy, and QA rules for simplifying
 > the current Plato Main Page screen states.
 > Non-goals: no frontend code, no Figma write, no API contract change, no old
@@ -40,7 +40,7 @@ TaskTree / selected TaskNode
   -> current required action
   -> context-aware input
   -> result/file review
-  -> message evidence
+  -> latest activity / activity evidence
   -> audit/log trust detail
 ```
 
@@ -51,7 +51,9 @@ Apply these rules to every screen state:
 - TopBar shows route context and at most two state chips.
 - State picker is hidden in production screen states.
 - TaskTree keeps the central visual role whenever a task tree exists.
-- MessageStream is evidence, not the primary workflow explanation.
+- Persistent MessageStream is removed from the default workbench.
+- Latest Activity may show one productized current update.
+- Activity Overlay is the review surface for full message history and filters.
 - DetailPanel is the only place for the next decision/action.
 - InputDock copy must match the actual input mode.
 - Empty, loading, stale, error, and permission copy should appear once per
@@ -59,7 +61,25 @@ Apply these rules to every screen state:
 - Raw ids, backend terms, and audit evidence details stay hidden by default.
 - Audit is visible as a trust entry, not a default detail dump.
 
-## 4. State Recomposition Matrix
+## 4. Activity Interaction Rules
+
+Use these rules in every state review:
+
+- The default screen has no `Session messages` / `MessageStream` permanent
+  column.
+- `Latest Activity` is optional, one-line, non-scrolling, and shows the latest
+  important productized update.
+- `动态` opens an independent Activity Overlay above DetailPanel.
+- The overlay covers DetailPanel; half-visible DetailPanel is not an accepted
+  stable state.
+- Closing the overlay restores the previous selected TaskNode and DetailPanel.
+- Overlay filters include at least `current task`, `all`, `results`, and
+  `errors`.
+- Long `Result Summary` content opens as a Result Artifact/Reader instead of
+  expanding inside the activity timeline.
+- Confirmations and required user decisions stay in DetailPanel.
+
+## 5. State Recomposition Matrix
 
 ### S1 Empty
 
@@ -69,7 +89,7 @@ Apply these rules to every screen state:
 | Primary surface | InputDock and empty TaskTree |
 | Secondary surface | Sidebar selected workflow/session context |
 | Quiet surface | TopBar route context, weak Audit entry if available |
-| Hidden by default | MessageStream panel details, generic DetailPanel state note, workspace isolation explanation |
+| Hidden by default | Activity details, generic DetailPanel state note, workspace isolation explanation |
 | Primary action | Enter the first goal |
 | Copy target | One sentence: describe what Plato will turn into tasks |
 
@@ -86,9 +106,9 @@ Review checks:
 |---|---|
 | User question | Is Plato turning my goal into a task structure? |
 | Primary surface | Planning progress in the TaskTree/workspace region |
-| Secondary surface | One recent session update |
+| Secondary surface | One Latest Activity update |
 | Quiet surface | InputDock for additional constraints |
-| Hidden by default | Full message history, technical progress details, audit |
+| Hidden by default | Full activity history, technical progress details, audit |
 | Primary action | Wait or add missing constraints |
 | Copy target | "Plato is organizing your goal into tasks." |
 
@@ -106,14 +126,14 @@ Review checks:
 | User question | Does this plan look right before execution? |
 | Primary surface | TaskTree |
 | Secondary surface | Publish action and selected/draft status |
-| Quiet surface | Message evidence that the draft was generated |
+| Quiet surface | Latest Activity evidence that the draft was generated |
 | Hidden by default | Duplicate draft-ready note in DetailPanel |
 | Primary action | Review a TaskNode or publish the tree |
 | Copy target | "Review the task structure before execution." |
 
 Review checks:
 
-- TaskTree is larger and visually stronger than MessageStream.
+- TaskTree is larger and visually stronger than Latest Activity.
 - Publish is discoverable but not alarmingly dominant.
 - Draft and published states are visually distinct.
 
@@ -124,7 +144,7 @@ Review checks:
 | User question | What does this selected task mean and what can I do to it? |
 | Primary surface | Selected TaskNode and DetailPanel title/body |
 | Secondary surface | InputDock task scope |
-| Quiet surface | Related updates |
+| Quiet surface | Related activity updates |
 | Hidden by default | Session-wide stream count unless it changes meaning |
 | Primary action | Inspect or add task-specific guidance |
 | Copy target | "Applies to: selected task / [task title]" |
@@ -143,7 +163,7 @@ Review checks:
 | User question | Am I editing this task or the whole plan? |
 | Primary surface | Task-scoped input/edit affordance |
 | Secondary surface | Selected TaskNode |
-| Quiet surface | Related messages |
+| Quiet surface | Related activity updates |
 | Hidden by default | Whole-session guidance copy |
 | Primary action | Submit task-specific change or cancel local edit |
 | Copy target | "This changes only [task title]." |
@@ -169,7 +189,7 @@ Review checks:
 Review checks:
 
 - Running status is visible on the task itself.
-- Message updates support the running task but do not replace the TaskTree.
+- Activity updates support the running task but do not replace the TaskTree.
 - Stop is visible only where it is actionable and scoped.
 
 ### S7 Confirmation
@@ -179,7 +199,7 @@ Review checks:
 | User question | What exactly am I approving or changing? |
 | Primary surface | DetailPanel confirmation card |
 | Secondary surface | Waiting TaskNode in TaskTree |
-| Quiet surface | Related message evidence |
+| Quiet surface | Related activity evidence |
 | Hidden by default | Non-actionable messages and audit details |
 | Primary action | Confirm the recommended action |
 | Copy target | Action + impact + choices, attached to one task |
@@ -189,7 +209,7 @@ Review checks:
 - One primary confirmation button is visually dominant.
 - Revise/skip are secondary but available.
 - The confirmation clearly belongs to the selected or waiting TaskNode.
-- MessageStream does not compete with the action buttons.
+- Activity evidence does not compete with the action buttons.
 
 ### S8 Completed
 
@@ -199,7 +219,7 @@ Review checks:
 | Primary surface | Result summary in DetailPanel |
 | Secondary surface | Done TaskNode and file-review entry |
 | Quiet surface | Audit entry |
-| Hidden by default | Raw file ownership ids, full message history |
+| Hidden by default | Raw file ownership ids, full activity history |
 | Primary action | Review result or continue with a follow-up |
 | Copy target | "Result is ready. Review summary or changed files." |
 
@@ -270,7 +290,7 @@ Review checks:
 | User question | Did my command go through? |
 | Primary surface | Pending-command state near the originating control |
 | Secondary surface | Current TaskTree/DetailPanel remains stable |
-| Quiet surface | Message evidence if available |
+| Quiet surface | Latest Activity evidence if available |
 | Hidden by default | Global blocking overlays unless interaction is truly blocked |
 | Primary action | Wait |
 | Copy target | "Command accepted. Waiting for the next update." |
@@ -299,42 +319,48 @@ Review checks:
 - Context and selection are preserved.
 - Error copy is safe and actionable.
 
-## 5. Cross-State Surface Matrix
+## 6. Cross-State Surface Matrix
 
 | Surface | Default role | Collapse first? | Never remove when |
 |---|---|---:|---|
 | TopBar | route and state context | No | user can mutate or navigate |
 | Sidebar | session navigation | Tablet/mobile only | multiple sessions are available |
 | TaskTree | primary control object | No | task tree exists |
-| MessageStream | evidence and recent updates | Yes | a running/confirmation state needs process evidence |
+| Latest Activity | one-line recent important update | Yes | the update changes user interpretation |
+| Activity Overlay | reviewable evidence, filters, result links | Closed by default | user explicitly opens activity/history |
 | DetailPanel | selected object and next action | No | selection, confirmation, result, file, stale, or error exists |
 | InputDock | scoped instruction surface | No | user can submit or needs disabled reason |
 | AuditEntry | verification path | Yes | result/file/failure/trust state exists |
 
-## 6. Review Script
+## 7. Review Script
 
 Use this script during visual review:
 
 1. Identify the state.
 2. Ask: what is the user's next likely question?
 3. Confirm the primary surface answers that question.
-4. Check whether MessageStream repeats DetailPanel or TaskTree copy.
+4. Check whether Latest Activity repeats DetailPanel or TaskTree copy.
 5. Check whether DetailPanel has a generic state note.
 6. Check whether InputDock scope matches selection and permissions.
 7. Check whether top-level status chips exceed two.
 8. Check 1280px desktop for horizontal clipping.
 9. Check that hidden raw ids/logs/audit evidence remain out of the default
    view.
-10. Decide whether the state passes, needs copy reduction, needs layout
+10. If Activity Overlay is open, verify it covers DetailPanel and restores the
+    previous selection on close.
+11. Decide whether the state passes, needs copy reduction, needs layout
     reduction, or needs interaction clarification.
 
-## 7. Acceptance Criteria
+## 8. Acceptance Criteria
 
 A future recomposition pass is acceptable only when:
 
 - every state has one primary user question and one primary answer surface;
 - TaskTree remains primary whenever it exists;
-- MessageStream is subordinate and collapsible;
+- no persistent MessageStream column appears in the default workbench;
+- Latest Activity is one-line and optional;
+- Activity Overlay is filtered, closable, and independent from DetailPanel;
+- long Result Summary opens as a Result Artifact/Reader;
 - DetailPanel does not duplicate generic state explanations;
 - InputDock scope and disabled/read-only state are unambiguous;
 - result, file change, and audit form one review path instead of three

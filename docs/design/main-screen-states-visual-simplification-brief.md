@@ -1,7 +1,7 @@
 # Main Screen States Visual Simplification Brief
 
 > Status: draft for P4 Main Page visual recomposition
-> Last Updated: 2026-06-04
+> Last Updated: 2026-06-05
 > Scope: Visual direction, information reduction, and state-level
 > simplification rules for Plato Main Page screen states.
 > Non-goals: no frontend code, no Figma write, no API contract change, no old
@@ -77,8 +77,10 @@ Each region owns one job:
 | Sidebar | workflow/session navigation | task status, audit summaries, broad onboarding copy |
 | Workspace header | session title and primary command | duplicate state prose |
 | TaskTree | plan, hierarchy, selection, execution/readiness signals | long task explanations or raw logs |
-| Message stream | process evidence and recent updates | primary decision-making or repeated state summaries |
+| Latest activity | one-line latest important update | raw messages, long content, scrollable history |
+| Activity overlay | message history, task/session filters, long-result links | default persistent column or primary decision-making |
 | Detail panel | selected object, next action, confirmation/result/file summary | generic notes that duplicate header or messages |
+| Result reader | long result summaries and structured output | routine progress updates |
 | Input dock | input mode, target scope, disabled reason | long help text or contradictory placeholder copy |
 | Audit entry | trust-plane link | routine workflow guidance |
 
@@ -101,7 +103,7 @@ Each region owns one job:
 - Generic skeleton labels such as `Default panel`, `Neutral`, `Primary`, or
   `Panel container skeleton`.
 - Raw object ids in the default view, such as `Owner TaskNode: task-...`.
-- Empty-state duplication where TaskTree, MessageStream, and DetailPanel all
+- Empty-state duplication where TaskTree, activity, and DetailPanel all
   explain the same absence.
 - Branding tagline inside the dense workbench top bar when it competes with
   route context.
@@ -110,16 +112,17 @@ Each region owns one job:
 
 - Result and file review into a single review flow:
   `Result summary -> changed files -> audit`.
-- MessageStream and DetailPanel state explanations:
-  MessageStream shows evidence; DetailPanel shows what to do.
+- Activity and DetailPanel state explanations:
+  Latest Activity shows what changed; Activity Overlay keeps evidence;
+  DetailPanel shows what to do.
 - Multiple top-level status chips into one primary session status plus one
   optional live/stale indicator.
 - Confirmation copy and task attachment copy into one concrete impact block.
 
 ### 4.4 Demote
 
-- MessageStream becomes a supporting column or collapsible region when space is
-  tight.
+- Persistent MessageStream is removed from the default Main Page.
+- Activity Overlay replaces message history and opens on demand.
 - Audit remains a link/card, not a full detail surface on Main Page.
 - Workspace isolation appears as metadata, not as a main object.
 - Agent/capability labels appear only when they help explain ownership or
@@ -132,12 +135,13 @@ Each region owns one job:
    confirmation, publish, retry, resync, or input.
 3. The third visual weight goes to result/file review after execution.
 4. Process messages should never look more important than the TaskTree.
-5. Audit and logs should be discoverable but visually quiet.
-6. A state should have one primary explanatory sentence, not one sentence per
+5. Activity history opens as an overlay; it does not take a permanent column.
+6. Audit and logs should be discoverable but visually quiet.
+7. A state should have one primary explanatory sentence, not one sentence per
    surface.
-7. Selection must be visible by structure and border treatment, not color
+8. Selection must be visible by structure and border treatment, not color
    alone.
-8. Disabled/read-only states must explain why, but only at the action surface
+9. Disabled/read-only states must explain why, but only at the action surface
    where the user tries to act.
 
 ## 6. Layout And Responsive Rules
@@ -147,8 +151,12 @@ Desktop target:
 - Use 1440 x 1024 as the primary design review frame.
 - The page must also remain readable at 1280px width without horizontal
   clipping.
-- If 1280px is tight, collapse or narrow MessageStream before clipping
-  DetailPanel.
+- The default desktop layout must not include a persistent MessageStream
+  column.
+- Activity Overlay opens above DetailPanel and should not cause workbench
+  reflow.
+- The overlay covers DetailPanel rather than leaving it half-visible as a
+  stable state.
 - TopBar should not require all route fields to have equal width.
 - DetailPanel should scroll internally; it should not force the page wider.
 - The input dock should align with the main workbench and detail region, but it
@@ -161,7 +169,7 @@ TopBar context
   -> TaskTree
   -> DetailPanel next action
   -> Input dock
-  -> MessageStream
+  -> Latest Activity / Activity Overlay
   -> secondary metadata
 ```
 
@@ -181,7 +189,8 @@ already in an inspection or audit surface.
 | Current tendency | Preferred direction |
 |---|---|
 | `Task-scoped projection` | `Related updates` or `This task` |
-| `Full session stream` | `Session updates` |
+| `Full session stream` | `Activity`, `Updates`, or `Session updates` inside the overlay |
+| `Session messages` column | remove from default layout; replace with Latest Activity + Activity Overlay |
 | `State note` | remove or replace with a concrete next step |
 | `Owner TaskNode: task-...` | hide by default; expose in audit/detail |
 | `Add guidance...` in read-only state | explain read-only or offer follow-up |
@@ -208,14 +217,14 @@ separation from the UX spec.
 
 | Frontend state | Primary focus | Simplification target |
 |---|---|---|
-| S1 Empty | Start a session | Show one clear input path. Keep TaskTree empty state. Demote MessageStream and DetailPanel empty explanations. |
-| S2 Understanding | Make planning progress legible | Show TaskTree skeleton or progress region. Keep one recent update. Avoid "AI thinking" language. |
-| S3 Draft Ready | Review task structure | Make TaskTree dominant. Publish action is primary. DetailPanel should not repeat draft-ready body copy. |
-| S4 Task Selected | Narrow focus to one task | Selection, DetailPanel title, and input scope should all agree on the same task. MessageStream becomes related updates. |
+| S1 Empty | Start a session | Show one clear input path. Keep TaskTree empty state. Hide empty activity details. |
+| S2 Understanding | Make planning progress legible | Show TaskTree skeleton or progress region. Latest Activity may show one current update. Avoid "AI thinking" language. |
+| S3 Draft Ready | Review task structure | Make TaskTree dominant. Publish action is primary. DetailPanel should not repeat draft-ready body copy. Draft-ready evidence goes to Latest Activity/Activity Overlay. |
+| S4 Task Selected | Narrow focus to one task | Selection, DetailPanel title, and input scope should all agree on the same task. Activity Overlay defaults to current-task updates when opened. |
 | S5 Editing | Show task-scoped edit intent | Input dock and DetailPanel should explain that changes affect only the selected draft task. Hide unrelated session-wide copy. |
-| S6 Running | Monitor execution | Running task is visually prominent. MessageStream shows live evidence. DetailPanel exposes stop/guidance only if allowed. |
-| S7 Confirmation | Resolve a concrete decision | DetailPanel owns the confirmation. TaskTree shows the waiting node. MessageStream should not compete with the action buttons. |
-| S8 Completed | Review result | Result summary becomes the main detail content. Input copy must not conflict with read-only completed state. |
+| S6 Running | Monitor execution | Running task is visually prominent. Latest Activity shows the current update; Activity Overlay keeps live evidence. DetailPanel exposes stop/guidance only if allowed. |
+| S7 Confirmation | Resolve a concrete decision | DetailPanel owns the confirmation. TaskTree shows the waiting node. Activity evidence must not compete with action buttons. |
+| S8 Completed | Review result | Result summary becomes a Result Artifact/Reader when long. Input copy must not conflict with read-only completed state. |
 | S9 File Changes | Review concrete changes | File summary appears after result. Hide raw task ids by default. Audit link appears as verification path. |
 | S10 Permission Denied | Preserve context, explain boundary | Keep selected task visible. Disable input with one clear reason. Do not show unavailable controls as primary. |
 | S11 Stale Snapshot | Make resync the next safe action | Keep last-known content visible but visually mark stale. Disable high-risk actions. Show one resync action. |
@@ -263,15 +272,22 @@ Rules:
   blue fill.
 - Inline stop/retry actions appear only when immediately relevant.
 
-### 9.4 MessageStream
+### 9.4 Latest Activity And Activity Overlay
 
 Rules:
 
-- use it as evidence, not as the main narrative;
-- show recent related updates when a task is selected;
-- use compact rows rather than card-heavy blocks when density is high;
-- hide count badges unless the count changes user interpretation;
-- collapse first at constrained widths.
+- remove the persistent `Session messages` / `MessageStream` column from the
+  default Main Page;
+- show at most one one-line Latest Activity strip in the workspace;
+- Latest Activity uses productized copy such as `Result summary generated`,
+  not raw message text;
+- `Activity` / `动态` opens an independent overlay above DetailPanel;
+- overlay does not reuse DetailPanel and does not keep DetailPanel half-visible
+  as a stable state;
+- overlay supports at least current task, all, result, and error filters;
+- long Result Summary opens as a Result Artifact/Reader, not as an expanded
+  timeline message;
+- use compact timeline rows rather than card-heavy blocks when density is high.
 
 ### 9.5 DetailPanel
 
@@ -303,7 +319,11 @@ Before accepting a future Figma or frontend simplification pass:
 - no repeated `State note` content;
 - no generic skeleton labels in screen states;
 - TaskTree is the most prominent central object in planning/execution states;
-- MessageStream is visually subordinate to TaskTree and DetailPanel actions;
+- no persistent MessageStream column appears in the default workbench;
+- Latest Activity is one line and non-scrolling;
+- Activity Overlay covers DetailPanel and can be closed without losing the
+  selected TaskNode;
+- long Result Summary uses a reader/artifact state;
 - completed/read-only input copy does not invite unavailable edits;
 - file summaries hide raw task ids by default;
 - confirmation state has one clear primary action;
@@ -322,5 +342,6 @@ without additional interpretation:
 - each major surface has ownership rules;
 - duplicate information sources are identified for removal, merge, or demotion;
 - responsive priority is explicit;
+- Activity Overlay and long-result reader behavior are explicit;
 - future work can verify screenshots against the QA checklist;
 - no frontend behavior, API shape, or Figma write is implied as already done.

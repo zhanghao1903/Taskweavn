@@ -7,6 +7,26 @@
 > `main-screen-states-recomposition-checklist.md`.
 > Non-goals: no frontend code, no Figma write, no API contract change.
 
+## 0. Follow-Up Decision - 2026-06-05
+
+This document records runtime evidence from 2026-06-04. It is not the latest
+implementation spec.
+
+The later accepted direction is:
+
+- remove the persistent `Session messages` / `MessageStream` column from the
+  default Main Page;
+- show one subtle Latest Activity strip in the workspace when a meaningful
+  update exists;
+- open full message history through an independent Activity Overlay;
+- Activity Overlay covers DetailPanel instead of leaving DetailPanel half
+  visible as a stable state;
+- long `Result Summary` content opens as a Result Artifact/Reader, not as an
+  expanded message.
+
+Use `docs/design/main-page-visual-direction-summary.zh-CN.md` as the
+implementation entry point.
+
 ## 1. Workflow Gate Report
 
 | Gate item | Finding |
@@ -61,14 +81,15 @@ Why this matters:
 
 - The user loses the right side of the workbench before interacting.
 - DetailPanel and TopBar controls are vulnerable to clipping.
-- The design direction says MessageStream should collapse before DetailPanel is
-  clipped; the current layout still preserves the full three-column shell.
+- The later accepted direction removes the persistent MessageStream column
+  before allowing DetailPanel or TaskTree to be clipped; the reviewed runtime
+  still preserved the full three-column shell.
 
 Design decision:
 
-- Keep the three-region workbench for wide desktop.
-- At constrained width, collapse or demote MessageStream before allowing the
-  shell to overflow.
+- Keep the workbench centered on TaskTree and DetailPanel.
+- Replace the persistent MessageStream column with Latest Activity plus
+  Activity Overlay before allowing the shell to overflow.
 - Treat 1280px no-clipping as a P0 visual acceptance check.
 
 ### P0 - Development State Picker Is Still Visible
@@ -124,9 +145,10 @@ Why this matters:
 
 Design decision:
 
-- Keep MessageStream as evidence.
-- Make it visually subordinate: compact related updates, collapsible rail, or
-  narrower secondary panel.
+- Remove the persistent MessageStream column from the default layout.
+- Replace it with one-line Latest Activity plus an on-demand Activity Overlay.
+- The overlay should cover DetailPanel when open rather than become a peer
+  column or half-cover compromise.
 
 ## 4. State Findings
 
@@ -150,7 +172,7 @@ Decision:
 
 - Keep one empty TaskTree explanation.
 - Keep InputDock as the primary action path.
-- Demote or hide empty MessageStream details.
+- Hide empty activity details; do not show an empty MessageStream panel.
 - Remove the duplicate `State note`.
 
 Priority: P1.
@@ -175,7 +197,7 @@ Decision:
 
 - Keep TaskTree as primary.
 - Remove duplicate `State note`.
-- Keep only one recent generated-draft update in MessageStream.
+- Put the generated-draft evidence in Latest Activity and Activity Overlay.
 - Hide state picker.
 
 Priority: P0 for state picker, P1 for duplicated note.
@@ -206,6 +228,8 @@ Decision:
 
 - Keep confirmation in DetailPanel.
 - Keep one primary action dominant.
+- Move confirmation-related evidence to Activity Overlay; the decision itself
+  stays in DetailPanel.
 - Demote revise/skip.
 - Reduce repeated task-attachment copy to one impact block.
 
@@ -236,7 +260,8 @@ Issues:
 Decision:
 
 - Keep result in DetailPanel as primary.
-- Demote result-ready message to compact evidence.
+- Put result-ready evidence in Latest Activity / Activity Overlay.
+- Open long Result Summary content as a Result Artifact/Reader.
 - Replace generic input label with either follow-up affordance or a readonly
   explanation, depending on actual command mode.
 
@@ -265,6 +290,8 @@ Decision:
 - Hide raw owner ids by default.
 - Keep paths and change types visible.
 - Put owner/task lineage into Audit or an expanded file detail.
+- Put file-change evidence in Latest Activity / Activity Overlay only as a
+  compact update.
 - Keep Audit as the verification path, not another default content block.
 
 Priority: P0 for raw ids in default view, P1 for density.
@@ -276,8 +303,9 @@ Priority: P0 for raw ids in default view, P1 for density.
 | P0 | Hide production-visible state picker | It makes the product surface feel like a prototype and consumes TopBar width. |
 | P0 | Remove raw TaskNode owner ids from default file summary | Raw ids are not useful for most users and break the clean review surface. |
 | P0 | Fix constrained-width overflow strategy | Current fixed 1360px shell contradicts the 1280px no-clipping acceptance target. |
+| P0 | Replace persistent MessageStream with Latest Activity + Activity Overlay | It removes the peer-column competition and avoids double-scroll behavior. |
 | P1 | Remove duplicate `State note` in S1/S3 | It repeats header/body copy and adds visual noise. |
-| P1 | Demote MessageStream in S1/S3/S7/S8/S9 | It is evidence, not the primary action surface. |
+| P1 | Specify Activity Overlay filters and long-result reader | It keeps history reviewable without turning long results into chat bubbles. |
 | P1 | Demote brand tagline in dense workbench mode | Route context and status are more important in app usage. |
 | P2 | Simplify completed-state input presentation | Completed state is read-only; input should not look like normal edit guidance. |
 | P2 | Reduce file summary density inside 320px DetailPanel | File paths and change types matter; owner metadata can move behind expansion. |
@@ -315,7 +343,7 @@ Run a docs/Figma review pass using this order:
 
 1. TopBar simplification.
 2. 1280px layout behavior.
-3. MessageStream demotion.
+3. MessageStream replacement with Latest Activity + Activity Overlay.
 4. S1/S3 duplicate-copy removal.
 5. S9 file-summary metadata reduction.
 

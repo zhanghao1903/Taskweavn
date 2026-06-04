@@ -2,6 +2,7 @@
 
 > Status: accepted direction, implementation not complete
 > Decision date: 2026-06-04
+> Activity decision update: 2026-06-05
 > Scope: Product visual direction and interaction hierarchy for Plato Main
 > Page.
 > Non-goals: no frontend code, no Figma write, no API contract change, no old
@@ -19,8 +20,12 @@ This means:
 - information-dense enough for real work, but not noisy;
 - TaskTree is the primary control object;
 - DetailPanel owns the current decision or selected object;
-- MessageStream is evidence and recent process context, not the main
-  experience;
+- the persistent MessageStream column is not part of the accepted default Main
+  Page layout;
+- process messages are represented by a one-line Latest Activity strip and an
+  on-demand Activity Overlay;
+- long result messages become Result Artifacts/Readers, not expanded chat
+  messages;
 - Audit is a trust entry from Main Page, not a default workflow surface.
 
 The design goal is:
@@ -70,8 +75,10 @@ Each surface has a single owner role.
 | Sidebar | Workflow/session navigation | task status, audit evidence, onboarding |
 | Workspace header | session title and primary command | broad explanation repeated elsewhere |
 | TaskTree | structure, selection, readiness, execution, task-level status | long explanations, raw logs, audit evidence |
-| MessageStream | evidence, recent process updates, task-related updates | primary action, repeated state summaries |
+| Latest Activity | one productized latest important update | raw message body, long content, scrollable history |
+| Activity Overlay | message history, task/session filters, result links | default persistent column, primary action, half-visible DetailPanel compromise |
 | DetailPanel | selected object, next action, confirmation, result, file summary | generic duplicated state notes |
+| Result Artifact/Reader | long result summaries and structured output | routine progress messages or audit logs |
 | InputDock | command mode, target scope, disabled/read-only reason | long help text, contradictory placeholders |
 | Audit entry | verification path | default detail dump or workflow instruction |
 
@@ -86,19 +93,50 @@ The accepted hierarchy is:
 1. Active TaskTree / selected TaskNode
 2. Required user action: confirm, publish, retry, resync, or scoped input
 3. Result and file review after execution
-4. Message evidence
+4. Latest Activity and reviewable Activity Overlay evidence
 5. Audit and log detail
 ```
 
 Consequences:
 
-- MessageStream may never visually dominate TaskTree.
+- A persistent MessageStream column may never visually dominate TaskTree
+  because it should not be present in the default layout.
 - DetailPanel may visually dominate only when a decision is required.
 - Result/File/Audit must be a review path, not three competing panels.
 - Empty, loading, stale, permission, and error states should each have one
   primary explanation.
 
-## 6. Style Contract
+## 6. Activity And Long Result Decision
+
+The accepted message model is:
+
+```text
+Latest Activity strip
+  -> Activity Overlay
+  -> Result Artifact/Reader for long results
+```
+
+Implementation rules:
+
+- Default Main Page removes the persistent `Session messages` /
+  `MessageStream` column.
+- Workspace may show one subtle, one-line Latest Activity strip.
+- The strip shows a productized update, not the raw last message.
+- `Activity` / `动态` opens an independent overlay above the workbench.
+- The overlay covers the DetailPanel region; it does not reuse DetailPanel and
+  does not leave DetailPanel half-visible as a stable state.
+- Closing the overlay returns to the previous DetailPanel state and selected
+  TaskNode.
+- The overlay supports at least `Current task`, `All`, `Results`, and `Errors`
+  filters.
+- Long `Result Summary` content opens as a Result Artifact/Reader inside the
+  overlay or a widened reader state.
+- Actionable confirmations are promoted to DetailPanel, not hidden in
+  Activity.
+- Raw tool and audit logs remain in Audit unless explicitly needed as compact
+  evidence.
+
+## 7. Style Contract
 
 Use the existing Plato token direction:
 
@@ -113,7 +151,7 @@ Use the existing Plato token direction:
 
 Style should make the interface feel precise and usable, not ornamental.
 
-## 7. Copy Contract
+## 8. Copy Contract
 
 Main Page copy must answer one of these questions:
 
@@ -132,24 +170,25 @@ Default copy changes now accepted:
 | Existing tendency | Direction |
 |---|---|
 | `Task-scoped projection` | `Related updates`, `This task`, or equivalent user-facing language |
-| `Full session stream` | `Session updates` |
+| `Full session stream` | `Activity`, `Updates`, or `Session updates` inside the overlay |
+| `Session messages` column | remove from default layout; replace with Latest Activity + Activity Overlay |
 | `State note` that repeats header/body | remove |
 | `Owner TaskNode: task-...` | hide by default; expose in audit or expanded detail |
 | completed-state edit placeholder | use read-only or follow-up language only when command mode supports it |
 
-## 8. Responsive Decision
+## 9. Responsive Decision
 
-Wide desktop keeps the full workbench.
+Wide desktop keeps the workbench, but not a persistent message column.
 
 At constrained widths, collapse in this order:
 
 ```text
-MessageStream
+Activity Overlay closed by default
   -> secondary metadata
   -> sidebar density
 ```
 
-Do not clip these before MessageStream is demoted:
+Do not clip these:
 
 - TaskTree;
 - DetailPanel next action;
@@ -159,7 +198,7 @@ Do not clip these before MessageStream is demoted:
 The 1280px desktop review target is mandatory. A page that requires 1360px to
 avoid clipping is not visually accepted.
 
-## 9. P0 Gates Before Visual Acceptance
+## 10. P0 Gates Before Visual Acceptance
 
 The current runtime review on 2026-06-04 identified these P0 gates:
 
@@ -168,29 +207,34 @@ The current runtime review on 2026-06-04 identified these P0 gates:
 | Production state picker | Hidden from production/Figma-ready screen states or moved outside product shell. |
 | Raw TaskNode owner ids | Removed from default file summary; moved to audit or expanded detail. |
 | Constrained-width layout | 1280px desktop has no primary content clipping. |
+| Persistent MessageStream column | Removed from default Main Page and replaced with Latest Activity + Activity Overlay. |
 
 These must be addressed before the Main Page can be called visually simplified.
 
-## 10. P1 Gates Before Polish
+## 11. P1 Gates Before Polish
 
 These must be addressed before spending time on fine visual polish:
 
 | Gate | Required outcome |
 |---|---|
 | Duplicate `State note` in S1/S3 | Removed or replaced with one concrete next-step sentence. |
-| MessageStream visual weight | Demoted to evidence/recent updates, not a peer to TaskTree. |
+| Activity Overlay behavior | Filtering, close behavior, and long-result reader state are specified and visually checked. |
 | Brand tagline in dense shell | Removed or demoted in normal app states. |
 | Confirmation copy repetition | Reduced to action + impact + options. |
 | File summary density | Paths and change types stay visible; lineage metadata moves behind expansion/audit. |
 
-## 11. Acceptance Checklist
+## 12. Acceptance Checklist
 
 A future Figma or frontend pass is accepted only if:
 
 - TaskTree is the primary visual object whenever it exists;
 - user-required action is immediately visible and scoped;
 - InputDock target matches selected object and permissions;
-- MessageStream is visibly subordinate;
+- no persistent MessageStream/Session messages column appears in the default
+  workbench;
+- Latest Activity is one line and non-scrolling;
+- Activity Overlay opens above DetailPanel, not as a peer column;
+- long Result Summary opens as a Result Artifact/Reader;
 - TopBar has route context and no visible dev state picker;
 - S1/S3 do not repeat empty or draft explanations across surfaces;
 - S7 has one clear primary confirmation action;
@@ -199,7 +243,7 @@ A future Figma or frontend pass is accepted only if:
 - 1280px desktop has no primary content clipping;
 - the page still feels calm, precise, and work-oriented.
 
-## 12. Source Documents
+## 13. Source Documents
 
 This decision is grounded in:
 
@@ -210,7 +254,7 @@ This decision is grounded in:
 - `docs/design/main-screen-states-recomposition-checklist.md`
 - `docs/design/main-screen-states-current-ui-review-2026-06-04.md`
 
-## 13. Current Completion Status
+## 14. Current Completion Status
 
 Direction is accepted.
 
