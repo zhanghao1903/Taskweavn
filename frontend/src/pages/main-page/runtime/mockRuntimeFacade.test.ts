@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type {
   ApiError,
+  AskId,
   CommandId,
   CommandResponse,
   ConfirmationId,
@@ -155,6 +156,53 @@ describe("Main Page mock runtime facade", () => {
     expect(flushed?.effects).toEqual([]);
   });
 
+  it("converges accepted execution ASK answers through command events and snapshots", async () => {
+    const facade = createMainPageMockRuntimeFacade({
+      loadSnapshot: immediateMockSnapshot,
+    });
+    await facade.load("s14-execution-ask");
+    const askId = requiredActiveAskId(facade.state);
+
+    const accepted = facade.applyCommandResponse(
+      acceptedCommandResponse("answer-ask"),
+      {
+        fallbackCommandId: "answer-ask",
+        target: { action: "answer", askId, kind: "ask" },
+      },
+    );
+
+    expect(accepted.state.pendingCommands["answer-ask"]).toMatchObject({
+      commandId: "answer-ask",
+      status: "accepted",
+      target: { action: "answer", askId, kind: "ask" },
+    });
+    expect(accepted.state.snapshot?.activeAsk?.id).toBe(askId);
+
+    const completed = facade.receiveEvent(
+      uiEvent("command.completed", {
+        commandId: "answer-ask",
+        cursor: "cursor-answer-ask-completed",
+      }),
+    );
+
+    expect(completed.state.pendingCommands["answer-ask"]).toBeUndefined();
+    expect(completed.effects).toEqual([
+      {
+        kind: "query_snapshot",
+        page: "main",
+        reason: "command.completed invalidated page snapshot.",
+      },
+    ]);
+
+    const flushed = await facade.flushMockEffects(completed.effects, {
+      nextStateId: "s6-running",
+    });
+
+    expect(flushed?.state.snapshot?.activeAsk).toBeNull();
+    expect(flushed?.state.snapshot?.session.status).toBe("running");
+    expect(facade.metadata?.id).toBe("s6-running");
+  });
+
   it("preserves reducer cursor behavior through injected cursor ordering", async () => {
     const facade = createMainPageMockRuntimeFacade({
       compareCursor: cursorOrder("gap"),
@@ -200,6 +248,17 @@ function requiredConfirmationId(
   }
 
   return confirmationId;
+}
+
+function requiredActiveAskId(
+  state: ReturnType<typeof createMainPageMockRuntimeFacade>["state"],
+): AskId {
+  const askId = state.snapshot?.activeAsk?.id;
+  if (!askId) {
+    throw new Error("Expected mock snapshot to include an active ASK.");
+  }
+
+  return askId;
 }
 
 function cursorOrder(order: CursorOrder) {

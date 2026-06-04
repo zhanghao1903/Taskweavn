@@ -1,6 +1,7 @@
 import { mapApiErrorToUiBoundary } from "../api/apiUiMapping";
 import type {
   ApiError,
+  AskId,
   AuditPageSnapshot,
   CommandId,
   CommandResult,
@@ -20,6 +21,7 @@ export type RuntimeSyncState =
   | { kind: "stale"; reason: string; error?: ApiError | Error };
 
 export type RuntimeCommandTarget =
+  | { action: "answer" | "defer" | "cancel"; askId: AskId; kind: "ask" }
   | { kind: "confirmation"; confirmationId: ConfirmationId }
   | { kind: "generic" };
 
@@ -354,6 +356,23 @@ function applyEvent<TSnapshot extends RuntimeSnapshot>(
       ]);
 
     case "command.completed":
+      return result(
+        {
+          ...withCursor,
+          pendingCommands:
+            event.commandId === null || event.commandId === undefined
+              ? withCursor.pendingCommands
+              : removePendingCommandById(withCursor.pendingCommands, event.commandId),
+        },
+        [
+          {
+            kind: "query_snapshot",
+            page: withCursor.page,
+            reason: `${event.eventType} invalidated page snapshot.`,
+          },
+        ],
+      );
+
     case "file_changes.updated":
     case "message.appended":
     case "result.updated":
@@ -538,6 +557,20 @@ function removeConfirmationPendingCommands(
       );
     }),
   );
+}
+
+function removePendingCommandById(
+  pendingCommands: Record<CommandId, RuntimePendingCommand>,
+  commandId: CommandId,
+): Record<CommandId, RuntimePendingCommand> {
+  if (!(commandId in pendingCommands)) {
+    return pendingCommands;
+  }
+
+  const remaining = { ...pendingCommands };
+  delete remaining[commandId];
+
+  return remaining;
 }
 
 function isMainPageSnapshot(

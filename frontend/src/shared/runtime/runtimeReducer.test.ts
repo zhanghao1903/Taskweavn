@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { getMainPageMockSnapshot } from "../../pages/main-page/mockPlatoApi";
 import type {
   ApiError,
+  AskId,
   CommandId,
   CommandResult,
   ConfirmationId,
@@ -51,6 +52,86 @@ describe("runtime reducer foundation", () => {
     expect(nextState.snapshot?.taskTree?.status).toBe(before?.taskTree?.status);
     expect(nextState.snapshot?.planning?.state).toBe(before?.planning?.state);
     expect(effects).toEqual([]);
+  });
+
+  it("tracks ASK command targets and clears only the completed command", () => {
+    const state = loadedMainState("s14-execution-ask");
+    const askId = requiredActiveAskId(state);
+
+    const withAskCommand = reduceRuntimeState(state, {
+      kind: "command.accepted",
+      result: commandResult("answer-ask"),
+      target: { action: "answer", askId, kind: "ask" },
+    }).state;
+    const withSecondCommand = reduceRuntimeState(withAskCommand, {
+      kind: "command.accepted",
+      result: commandResult("append-guidance"),
+    }).state;
+
+    const completed = reduceRuntimeState(withSecondCommand, {
+      kind: "event.received",
+      event: uiEvent("command.completed", {
+        commandId: "answer-ask",
+        cursor: "cursor-ask-completed",
+      }),
+    });
+
+    expect(completed.state.pendingCommands["answer-ask"]).toBeUndefined();
+    expect(completed.state.pendingCommands["append-guidance"]).toMatchObject({
+      commandId: "append-guidance",
+      status: "accepted",
+      target: { kind: "generic" },
+    });
+    expect(completed.state.snapshot?.activeAsk?.id).toBe(askId);
+    expect(completed.effects).toEqual([
+      {
+        kind: "query_snapshot",
+        page: "main",
+        reason: "command.completed invalidated page snapshot.",
+      },
+    ]);
+  });
+
+  it("applies command failure only to the matching ASK command", () => {
+    const state = loadedMainState("s14-execution-ask");
+    const askId = requiredActiveAskId(state);
+    const withAnswerCommand = reduceRuntimeState(state, {
+      kind: "command.accepted",
+      result: commandResult("answer-ask"),
+      target: { action: "answer", askId, kind: "ask" },
+    }).state;
+    const withDeferCommand = reduceRuntimeState(withAnswerCommand, {
+      kind: "command.accepted",
+      result: commandResult("defer-ask"),
+      target: { action: "defer", askId, kind: "ask" },
+    }).state;
+
+    const failed = reduceRuntimeState(withDeferCommand, {
+      kind: "event.received",
+      event: uiEvent("command.failed", {
+        commandId: "answer-ask",
+        cursor: "cursor-ask-failed",
+        payload: { message: "ASK answer was rejected." },
+      }),
+    });
+
+    expect(failed.state.pendingCommands["answer-ask"]).toMatchObject({
+      commandId: "answer-ask",
+      status: "failed",
+      target: { action: "answer", askId, kind: "ask" },
+    });
+    expect(failed.state.pendingCommands["defer-ask"]).toMatchObject({
+      commandId: "defer-ask",
+      status: "accepted",
+      target: { action: "defer", askId, kind: "ask" },
+    });
+    expect(failed.effects).toEqual([
+      {
+        kind: "query_snapshot",
+        page: "main",
+        reason: "command.failed invalidated page snapshot.",
+      },
+    ]);
   });
 
   it("models confirmation resolving, final resolution facts, and failed local resolution", () => {
@@ -291,6 +372,15 @@ function confirmationById(
   return state.snapshot?.pendingConfirmations.find(
     (confirmation) => confirmation.id === confirmationId,
   );
+}
+
+function requiredActiveAskId(state: RuntimeState<MainPageSnapshot>): AskId {
+  const askId = state.snapshot?.activeAsk?.id;
+  if (!askId) {
+    throw new Error("Expected mock snapshot to include an active ASK.");
+  }
+
+  return askId;
 }
 
 function cursorOrder(order: CursorOrder) {

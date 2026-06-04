@@ -36,6 +36,50 @@ describe("Main Page mock scenarios", () => {
     }
   });
 
+  it("declares interaction scenarios for ASK, confirmation, and stale snapshots", () => {
+    const scenarios = listMainPageMockScenarios();
+
+    expect(scenarios.find((item) => item.id === "s2-understanding")).toMatchObject({
+      expectedDisabledActions: expect.arrayContaining(["Context input"]),
+      expectedPrimaryActions: ["Submit all answers"],
+      expectedVisibleComponents: expect.arrayContaining(["AuthoringAskWorkArea"]),
+    });
+    expect(scenarios.find((item) => item.id === "s7-confirmation")).toMatchObject({
+      expectedDisabledActions: expect.arrayContaining(["Duplicate submit"]),
+      expectedVisibleComponents: expect.arrayContaining([
+        "ConfirmationDetailPanel",
+      ]),
+    });
+    expect(scenarios.find((item) => item.id === "s11-stale-snapshot")).toMatchObject({
+      expectedDisabledActions: expect.arrayContaining(["Confirm", "Retry"]),
+      expectedVisibleComponents: expect.arrayContaining(["Stale banner"]),
+    });
+    expect(scenarios.find((item) => item.id === "s14-execution-ask")).toMatchObject({
+      canonicalStates: expect.objectContaining({
+        execution: "waiting_for_user",
+      }),
+      expectedPrimaryActions: ["Answer ASK"],
+      expectedVisibleComponents: expect.arrayContaining([
+        "ExecutionAskDetailPanel",
+      ]),
+    });
+  });
+
+  it("projects ASK fixtures through the same MainPageSnapshot contract", () => {
+    const { snapshot: authoringSnapshot } =
+      getMainPageMockScenarioSnapshot("s2-understanding");
+    const { snapshot: executionSnapshot } =
+      getMainPageMockScenarioSnapshot("s14-execution-ask");
+
+    expect(authoringSnapshot.planning?.asks).toHaveLength(2);
+    expect(authoringSnapshot.activeAsk).toBeNull();
+    expect(executionSnapshot.pendingAsks).toHaveLength(1);
+    expect(executionSnapshot.activeAsk).toMatchObject({
+      id: "ask-deployment-target",
+      status: "pending",
+    });
+  });
+
   it("keeps explicit Audit entry routes for result and file-change scenarios", () => {
     const scenarios = listMainPageMockScenarios();
 

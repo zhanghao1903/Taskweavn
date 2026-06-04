@@ -37,6 +37,7 @@
 | 2026-06-04 | C3 Authoring ASK Work Area | done | Added `AuthoringAskWorkArea`, typed `MainPageWorkAreaView`, authoring batch submit controller seam, S2 authoring ASK mock projection, and targeted component/ViewModel/controller/scenario tests. |
 | 2026-06-04 | C4 Execution ASK Detail Panel | done | Added `ExecutionAskDetailPanel`, execution ASK detail ViewModel selection, answer/defer/cancel controller seams, S14 execution ASK mock projection, and targeted component/ViewModel/controller/scenario tests. |
 | 2026-06-04 | C5 Confirmation Detail Panel Hardening | done | Extracted `ConfirmationDetailPanel`, replaced immediate option submit with local selection plus explicit resolve, preserved failed selections, rendered terminal confirmations read-only, and added targeted component tests. |
+| 2026-06-04 | C6 Event, Refetch, And Mock Scenario Alignment | done | Kept ASK on the existing command/event contract, added ASK command targets in the runtime reducer, made `command.completed` clear only the matching pending command before snapshot refetch, and aligned interaction scenarios/tests for authoring ASK, execution ASK, confirmation, and stale snapshots. |
 
 ---
 
@@ -278,7 +279,7 @@ Acceptance:
 - Tests cover pending, selected, resolving, resolve failed, resolved, expired,
   readonly, and stale states.
 
-### C6. Event, Refetch, And Mock Scenario Alignment
+### C6. Event, Refetch, And Mock Scenario Alignment - done
 
 Deliver:
 

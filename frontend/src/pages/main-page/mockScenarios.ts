@@ -90,7 +90,7 @@ export const mainPageMockScenarios: readonly MainPageMockScenario[] = [
     confirmation: "pending",
     primary: ["Confirm baseline"],
     disabled: ["Duplicate submit"],
-    visible: ["TaskTree", "ConfirmationPanel", "MessageStream"],
+    visible: ["TaskTree", "ConfirmationDetailPanel", "MessageStream"],
   }),
   mainScenario({
     fixtureId: "s8-completed",
