@@ -34,7 +34,32 @@ describe("command response handling", () => {
     });
   });
 
-  it("returns a structured error for rejected commands", () => {
+  it("returns a structured error and refetch hint for rejected commands", () => {
+    expect(
+      handleCommandResponse(
+        {
+          ...acceptedCommandResponse({
+            emittedMessageIds: [],
+            waitForEvents: false,
+          }),
+          ok: false,
+          result: null,
+          error: {
+            code: "command_rejected",
+            details: {},
+            message: "No permission.",
+            retryable: false,
+          },
+        },
+        "fallback rejected",
+      ),
+    ).toEqual({
+      errorMessage: "No permission.",
+      shouldRefetch: true,
+    });
+  });
+
+  it("does not refetch rejected commands without refresh hints", () => {
     expect(
       handleCommandResponse(
         {

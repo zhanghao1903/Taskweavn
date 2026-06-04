@@ -59,6 +59,7 @@ type AskUserToolInput = {
   task_id?: string | null;
   question: string;
   reason: string;
+  questions?: AskQuestionInput[];
   suggested_options?: AskOptionInput[];
   answer_type:
     | "free_text"
@@ -76,6 +77,13 @@ type AskOptionInput = {
   id: string;
   label: string;
   description?: string | null;
+};
+
+type AskQuestionInput = {
+  id?: string;
+  question: string;
+  input_hint?: string | null;
+  required: boolean;
 };
 ```
 
@@ -102,12 +110,34 @@ Example:
 }
 ```
 
+Batch example:
+
+```json
+{
+  "question": "Portfolio planning details",
+  "reason": "The portfolio task needs user-owned details before planning.",
+  "questions": [
+    { "id": "role", "question": "What is your professional role?", "required": true },
+    { "id": "work_type", "question": "What work types should the site showcase?", "required": true }
+  ],
+  "answer_type": "free_text",
+  "allow_free_text": true,
+  "allow_no_option_with_text": true,
+  "blocking": true,
+  "attachments_supported": false
+}
+```
+
 System prompt / Agent policy must state:
 
 - do not guess when required user-owned information is missing;
 - call `ask_user` instead of writing a passive chat question;
 - use suggested options as suggestions, not as the full answer space;
 - set `allow_free_text=true` whenever user intent may exceed the option list;
+- when several related facts are needed, put them in `questions` instead of
+  writing a long numbered list into `question`;
+- keep `questions` short and ask only for the smallest set needed for the next
+  safe step;
 - treat `ask_user` as a yield point when `blocking=true`;
 - do not continue executing a task after a blocking ASK is created.
 
@@ -120,6 +150,7 @@ type AskRequest = {
   taskId?: string | null;
   question: string;
   reason: string;
+  questions: AskQuestion[];
   suggestedOptions: AskOption[];
   answerType:
     | "free_text"
@@ -143,6 +174,13 @@ type AskOption = {
   id: string;
   label: string;
   description?: string | null;
+};
+
+type AskQuestion = {
+  id: string;
+  question: string;
+  inputHint?: string | null;
+  required: boolean;
 };
 
 type AskStatus =

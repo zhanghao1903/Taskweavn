@@ -4,10 +4,19 @@ from __future__ import annotations
 
 from typing import ClassVar, Literal
 
-from pydantic import Field
+from pydantic import BaseModel, Field
 
 from taskweavn.interaction.ask import AskAnswerType
 from taskweavn.types.base import BaseAction, BaseObservation
+
+
+class AskUserQuestionInput(BaseModel):
+    """One sub-question in a batched ASK request."""
+
+    question_id: str | None = Field(default=None, min_length=1)
+    question: str = Field(min_length=1)
+    input_hint: str | None = Field(default=None, min_length=1)
+    required: bool = True
 
 
 class AskUserAction(BaseAction, kind="AskUserAction"):
@@ -17,6 +26,7 @@ class AskUserAction(BaseAction, kind="AskUserAction"):
 
     question: str = Field(min_length=1)
     reason: str = Field(min_length=1)
+    questions: tuple[AskUserQuestionInput, ...] = ()
     suggested_options: tuple[str, ...] = ()
     answer_type: AskAnswerType = "free_text"
     allow_free_text: bool = True
@@ -36,4 +46,4 @@ class AskUserObservation(BaseObservation, kind="AskUserObservation"):
     message: str = Field(min_length=1)
 
 
-__all__ = ["AskUserAction", "AskUserObservation"]
+__all__ = ["AskUserAction", "AskUserObservation", "AskUserQuestionInput"]

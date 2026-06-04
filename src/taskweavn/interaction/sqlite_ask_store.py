@@ -15,6 +15,7 @@ from taskweavn.interaction.ask import (
     AskAnswer,
     AskCommandKind,
     AskOption,
+    AskQuestion,
     AskRequest,
     AskStatus,
     AskStoreCommandResult,
@@ -31,6 +32,7 @@ CREATE TABLE IF NOT EXISTS asks (
     agent_id TEXT NOT NULL,
     question TEXT NOT NULL,
     reason TEXT NOT NULL,
+    questions_json TEXT NOT NULL DEFAULT '[]',
     suggested_options_json TEXT NOT NULL,
     answer_type TEXT NOT NULL,
     allow_free_text INTEGER NOT NULL,
@@ -102,6 +104,7 @@ class SqliteAskStore:
         self._conn.execute("PRAGMA synchronous = NORMAL")
         self._conn.execute("PRAGMA foreign_keys = ON")
         self._conn.executescript(_SCHEMA_DDL)
+        self._ensure_schema()
         self._lock = RLock()
 
     @property
@@ -120,6 +123,7 @@ class SqliteAskStore:
                         agent_id,
                         question,
                         reason,
+                        questions_json,
                         suggested_options_json,
                         answer_type,
                         allow_free_text,
@@ -135,7 +139,7 @@ class SqliteAskStore:
                         deferred_at,
                         cancelled_at,
                         expired_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     _request_to_row(request),
                 )
@@ -274,6 +278,16 @@ class SqliteAskStore:
         with self._lock, contextlib.suppress(sqlite3.Error):
             self._conn.close()
 
+    def _ensure_schema(self) -> None:
+        columns = {
+            str(row["name"])
+            for row in self._conn.execute("PRAGMA table_info(asks)").fetchall()
+        }
+        if "questions_json" not in columns:
+            self._conn.execute(
+                "ALTER TABLE asks ADD COLUMN questions_json TEXT NOT NULL DEFAULT '[]'"
+            )
+
     def __enter__(self) -> SqliteAskStore:
         return self
 
@@ -348,6 +362,7 @@ class SqliteAskStore:
                 agent_id = ?,
                 question = ?,
                 reason = ?,
+                questions_json = ?,
                 suggested_options_json = ?,
                 answer_type = ?,
                 allow_free_text = ?,
@@ -370,6 +385,7 @@ class SqliteAskStore:
                 request.agent_id,
                 request.question,
                 request.reason,
+                _questions_json(request.questions),
                 _options_json(request.suggested_options),
                 request.answer_type,
                 1 if request.allow_free_text else 0,
@@ -449,6 +465,7 @@ def _request_to_row(request: AskRequest) -> tuple[Any, ...]:
         request.agent_id,
         request.question,
         request.reason,
+        _questions_json(request.questions),
         _options_json(request.suggested_options),
         request.answer_type,
         1 if request.allow_free_text else 0,
@@ -475,6 +492,7 @@ def _request_from_row(row: sqlite3.Row) -> AskRequest:
         agent_id=str(row["agent_id"]),
         question=str(row["question"]),
         reason=str(row["reason"]),
+        questions=_questions_from_json(str(row["questions_json"])),
         suggested_options=_options_from_json(str(row["suggested_options_json"])),
         answer_type=str(row["answer_type"]),  # type: ignore[arg-type]
         allow_free_text=bool(row["allow_free_text"]),
@@ -529,6 +547,17 @@ def _answer_from_row(row: sqlite3.Row) -> AskAnswer:
 
 def _options_json(options: tuple[AskOption, ...]) -> str:
     return _json_dumps([option.model_dump(mode="json") for option in options])
+
+
+def _questions_json(questions: tuple[AskQuestion, ...]) -> str:
+    return _json_dumps([question.model_dump(mode="json") for question in questions])
+
+
+def _questions_from_json(raw: str) -> tuple[AskQuestion, ...]:
+    loaded = json.loads(raw)
+    if not isinstance(loaded, list):
+        raise AskStoreError("invalid ASK questions JSON row")
+    return tuple(AskQuestion.model_validate(item) for item in loaded)
 
 
 def _options_from_json(raw: str) -> tuple[AskOption, ...]:

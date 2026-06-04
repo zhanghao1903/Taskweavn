@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from taskweavn.core import Session, SqliteEventStream, WorkspaceLayout
-from taskweavn.interaction import AgentMessage, AskRequest, InMemoryAskStore
+from taskweavn.interaction import AgentMessage, AskQuestion, AskRequest, InMemoryAskStore
 from taskweavn.observability.models import LogArchiveManifest
 from taskweavn.server.ui_contract import (
     AuditConfigProvider,
@@ -24,6 +24,11 @@ from taskweavn.task import (
     ActiveAuthoringState,
     ConfirmationActionView,
     ConfirmationOptionView,
+    FeasibilityReport,
+    InMemoryRawTaskStore,
+    RawTask,
+    RawTaskAnswerOption,
+    RawTaskAsk,
     SessionMessageView,
     TaskCardBadges,
     TaskCardView,
@@ -193,6 +198,34 @@ def _draft_card(task_id: str = "draft-1") -> TaskCardView:
     )
 
 
+def _awaiting_raw_task() -> RawTask:
+    return RawTask(
+        raw_task_id="raw-1",
+        session_id="session-1",
+        source_message_id="message-1",
+        user_input="How do I publish a website?",
+        status="awaiting_user",
+        intent_summary="Understand how to publish a website.",
+        feasibility=FeasibilityReport(
+            status="needs_clarification",
+            confidence=0.6,
+            missing_inputs=("website type",),
+        ),
+        asks=(
+            RawTaskAsk(
+                ask_id="ask-1",
+                raw_task_id="raw-1",
+                question="What type of website do you want to publish?",
+                reason="Different website types have different publishing paths.",
+                options=(
+                    RawTaskAnswerOption(label="Static", value="static"),
+                    RawTaskAnswerOption(label="Dynamic", value="dynamic"),
+                ),
+            ),
+        ),
+    )
+
+
 def test_query_gateway_protocol_conformance() -> None:
     gateway = DefaultUiQueryGateway(
         session_reader=_SessionReader([_session()]),
@@ -318,6 +351,17 @@ def test_get_session_snapshot_includes_pending_asks_and_active_ask() -> None:
                 task_id="root",
                 question="Which deployment target should be used?",
                 reason="The agent needs a user-owned deployment decision.",
+                questions=(
+                    AskQuestion(
+                        question_id="role",
+                        question="What is your professional role?",
+                    ),
+                    AskQuestion(
+                        question_id="goal",
+                        question="What is the main goal?",
+                        input_hint="Find work, attract clients, build a brand...",
+                    ),
+                ),
             )
         ]
     )
@@ -333,8 +377,15 @@ def test_get_session_snapshot_includes_pending_asks_and_active_ask() -> None:
     assert response.data is not None
     assert response.data.session.status == "waiting_user"
     assert response.data.pending_asks[0].id == "ask-1"
+    assert [question.id for question in response.data.pending_asks[0].questions] == [
+        "role",
+        "goal",
+    ]
     assert response.data.active_ask is not None
     assert response.data.active_ask.id == "ask-1"
+    assert response.data.active_ask.questions[1].input_hint == (
+        "Find work, attract clients, build a brand..."
+    )
 
 
 def test_list_and_get_asks_use_ask_projection() -> None:
@@ -396,6 +447,36 @@ def test_empty_tree_snapshot_has_no_task_tree_and_new_session_status() -> None:
     assert response.data.messages == ()
     assert response.data.pending_confirmations == ()
     assert response.data.session.status == "new"
+
+
+def test_get_session_snapshot_projects_authoring_planning_ask() -> None:
+    raw_task = _awaiting_raw_task()
+    gateway = DefaultUiQueryGateway(
+        session_reader=_SessionReader([_session()]),
+        task_projection=_Projection(TaskTreeView(session_id="session-1")),
+        authoring_state_store=_AuthoringStateStore(
+            ActiveAuthoringState(
+                session_id="session-1",
+                active_raw_task_id=raw_task.raw_task_id,
+                active_state="raw_task",
+            )
+        ),
+        raw_task_store=InMemoryRawTaskStore([raw_task]),
+    )
+
+    response = gateway.get_session_snapshot("session-1")
+
+    assert response.ok is True
+    assert response.data is not None
+    assert response.data.session.status == "waiting_user"
+    assert response.data.task_tree is None
+    assert response.data.planning is not None
+    assert response.data.planning.state == "awaiting_user"
+    assert response.data.planning.source_raw_task_id == "raw-1"
+    assert response.data.planning.asks[0].id == "ask-1"
+    assert response.data.planning.asks[0].options[0].value == "static"
+    dumped = response.data.model_dump(mode="json")
+    assert dumped["planning"]["sourceRawTaskId"] == "raw-1"
 
 
 def test_get_session_snapshot_includes_session_level_messages_without_task_tree() -> None:

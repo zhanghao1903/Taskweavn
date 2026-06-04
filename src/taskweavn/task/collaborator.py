@@ -8,6 +8,8 @@ from typing import Any, ClassVar, Protocol, runtime_checkable
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
+from taskweavn.llm.logging import log_agent_llm_input, log_agent_llm_output
+from taskweavn.observability import LogContext
 from taskweavn.prompts import COLLABORATOR_AUTHORING_SYSTEM_PROMPT
 from taskweavn.task.authoring import (
     ActorRef,
@@ -226,6 +228,8 @@ class DefaultCollaboratorAuthoringService:
         context = self._context_builder.build_session_context(session_id)
         response = self._chat(
             task="Assess the user input and return a raw_task proposal.",
+            session_id=session_id,
+            request_purpose="collaborator.create_raw_task",
             payload={
                 "user_input": user_input,
                 "context": _context_payload(context),
@@ -298,6 +302,8 @@ class DefaultCollaboratorAuthoringService:
             )
         response = self._chat(
             task="Generate a draft task tree proposal for the selected RawTask.",
+            session_id=session_id,
+            request_purpose="collaborator.generate_task_tree",
             payload={"context": _context_payload(context)},
         )
         try:
@@ -337,6 +343,8 @@ class DefaultCollaboratorAuthoringService:
             return _proposal_error("draft_task_patch", ValueError("selected node missing"))
         response = self._chat(
             task="Refine only the selected draft task node using the instruction.",
+            session_id=session_id,
+            request_purpose="collaborator.refine_task_node",
             payload={
                 "instruction": instruction,
                 "context": _context_payload(context),
@@ -368,21 +376,55 @@ class DefaultCollaboratorAuthoringService:
         except Exception as exc:  # noqa: BLE001 - surfaced as authoring result
             return _proposal_error("draft_task_patch", exc)
 
-    def _chat(self, *, task: str, payload: dict[str, Any]) -> str:
-        response = self._llm.chat(
-            messages=[
-                {"role": "system", "content": _SYSTEM_PROMPT},
-                {
-                    "role": "user",
-                    "content": json.dumps(
-                        {"task": task, **payload},
-                        ensure_ascii=False,
-                        sort_keys=True,
-                    ),
-                },
-            ],
+    def _chat(
+        self,
+        *,
+        task: str,
+        session_id: str,
+        request_purpose: str,
+        payload: dict[str, Any],
+    ) -> str:
+        messages = [
+            {"role": "system", "content": _SYSTEM_PROMPT},
+            {
+                "role": "user",
+                "content": json.dumps(
+                    {"task": task, **payload},
+                    ensure_ascii=False,
+                    sort_keys=True,
+                ),
+            },
+        ]
+        metadata = {
+            "agent_kind": "collaborator",
+            "agent_id": self._actor.actor_id,
+            "component": "collaborator_authoring",
+            "request_purpose": request_purpose,
+            "session_id": session_id,
+        }
+        log_context = LogContext(
+            session_id=session_id,
+            agent_id=self._actor.actor_id,
+        )
+        log_agent_llm_input(
+            agent_kind="collaborator",
+            request_purpose=request_purpose,
+            messages=messages,
             tools=None,
-            metadata={"component": "collaborator_authoring"},
+            metadata=metadata,
+            context=log_context,
+        )
+        response = self._llm.chat(
+            messages=messages,
+            tools=None,
+            metadata=metadata,
+        )
+        log_agent_llm_output(
+            agent_kind="collaborator",
+            request_purpose=request_purpose,
+            response=response,
+            metadata=metadata,
+            context=log_context,
         )
         content = response.content
         if not isinstance(content, str):

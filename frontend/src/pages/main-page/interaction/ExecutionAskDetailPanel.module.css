@@ -28,6 +28,12 @@
   background: var(--plato-color-panel);
 }
 
+.batchQuestionList {
+  display: grid;
+  min-width: 0;
+  gap: var(--plato-space-3);
+}
+
 .textAnswer {
   display: grid;
   min-width: 0;

@@ -89,6 +89,36 @@ def test_snapshot_route_decodes_session_and_returns_contract_json() -> None:
     assert body["data"]["generatedAt"] == "2026-05-21T09:00:00Z"
 
 
+def test_snapshot_route_runs_best_effort_recovery_before_projection() -> None:
+    query = _QueryGateway()
+    recovery = _SnapshotRecoveryGateway()
+    transport = _transport(query=query, snapshot_recovery_gateway=recovery)
+
+    response = transport.handle(
+        HttpApiRequest(method="GET", path="/api/v1/sessions/session%201/snapshot")
+    )
+
+    assert response.status_code == 200
+    assert recovery.calls == ["session 1"]
+    assert query.snapshot_calls == ["session 1"]
+
+
+def test_snapshot_route_continues_when_recovery_fails() -> None:
+    query = _QueryGateway()
+    recovery = _SnapshotRecoveryGateway(raises=RuntimeError("recovery failed"))
+    transport = _transport(query=query, snapshot_recovery_gateway=recovery)
+
+    response = transport.handle(
+        HttpApiRequest(method="GET", path="/api/v1/sessions/session%201/snapshot")
+    )
+    body = _dict_body(response.body)
+
+    assert response.status_code == 200
+    assert recovery.calls == ["session 1"]
+    assert query.snapshot_calls == ["session 1"]
+    assert body["ok"] is True
+
+
 def test_audit_routes_decode_params_and_return_contract_json() -> None:
     query = _QueryGateway()
     transport = _transport(query=query)
@@ -1266,6 +1296,18 @@ class _ExecutionTriggerGateway:
         )
 
 
+@dataclass
+class _SnapshotRecoveryGateway:
+    raises: Exception | None = None
+    calls: list[str] = field(default_factory=list)
+
+    def recover_session(self, session_id: str) -> object:
+        self.calls.append(session_id)
+        if self.raises is not None:
+            raise self.raises
+        return {"recovered": True}
+
+
 def _transport(
     *,
     query: _QueryGateway | None = None,
@@ -1276,6 +1318,7 @@ def _transport(
     session_lifecycle_gateway: _SessionLifecycleGateway | None = None,
     command_idempotency_store: InMemoryUiCommandResponseIdempotencyStore | None = None,
     execution_trigger_gateway: _ExecutionTriggerGateway | None = None,
+    snapshot_recovery_gateway: _SnapshotRecoveryGateway | None = None,
 ) -> PlatoUiHttpTransport:
     return PlatoUiHttpTransport(
         query_gateway=query or _QueryGateway(),
@@ -1286,6 +1329,7 @@ def _transport(
         session_lifecycle_gateway=session_lifecycle_gateway,
         command_idempotency_store=command_idempotency_store,
         execution_trigger_gateway=execution_trigger_gateway,
+        snapshot_recovery_gateway=snapshot_recovery_gateway,
     )
 
 

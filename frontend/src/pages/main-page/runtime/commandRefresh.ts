@@ -12,17 +12,17 @@ export function handleCommandResponse(
   if (!response.ok || response.result?.status !== "accepted") {
     return {
       errorMessage: response.error?.message ?? fallbackRejectedMessage,
-      shouldRefetch: false,
+      shouldRefetch: shouldRefetchFromRefreshHint(response),
     };
   }
 
   return {
     errorMessage: null,
-    shouldRefetch: shouldRefetchAfterAcceptedCommand(response),
+    shouldRefetch: shouldRefetchFromRefreshHint(response),
   };
 }
 
-function shouldRefetchAfterAcceptedCommand(response: CommandResponse): boolean {
+function shouldRefetchFromRefreshHint(response: CommandResponse): boolean {
   if (response.refresh.waitForEvents === false) {
     return true;
   }
@@ -31,8 +31,7 @@ function shouldRefetchAfterAcceptedCommand(response: CommandResponse): boolean {
     response.refresh.suggestedQueries.length > 0 ||
     response.refresh.affectedTaskRefs.length > 0 ||
     response.refresh.affectedScopes.length > 0 ||
-    response.result?.emittedMessageIds.length !== 0 ||
-    response.result?.publishedTaskIds.length !== 0
+    (response.result?.emittedMessageIds.length ?? 0) !== 0 ||
+    (response.result?.publishedTaskIds.length ?? 0) !== 0
   );
 }
-

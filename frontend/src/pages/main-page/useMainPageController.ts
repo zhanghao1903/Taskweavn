@@ -357,6 +357,9 @@ export function useMainPageController({
 
       if (result.errorMessage) {
         setExecutionAskError(result.errorMessage);
+        if (result.shouldRefetch) {
+          void refetchSnapshot();
+        }
         return;
       }
 

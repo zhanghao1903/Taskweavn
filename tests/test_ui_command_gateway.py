@@ -25,6 +25,12 @@ from taskweavn.server.ui_contract import (
 )
 from taskweavn.task import (
     ActiveAuthoringState,
+    FeasibilityReport,
+    InMemoryRawTaskStore,
+    RawTask,
+    RawTaskAnswer,
+    RawTaskAnswerOption,
+    RawTaskAsk,
     TaskNodePatch,
     TaskRef,
 )
@@ -405,6 +411,7 @@ def _gateway(
     ask_commands: _AskCommands | None = None,
     resolver: _Resolver | None = None,
     authoring_state_store: _AuthoringStateStore | None = None,
+    raw_task_store: InMemoryRawTaskStore | None = None,
 ) -> DefaultUiCommandGateway:
     return DefaultUiCommandGateway(
         collaborator=collaborator or _Collaborator(),
@@ -412,7 +419,53 @@ def _gateway(
         task_ref_resolver=resolver
         or _Resolver({"draft-1": TaskRef.draft("draft-1"), "task-1": TaskRef.published("task-1")}),
         authoring_state_store=authoring_state_store,
+        raw_task_store=raw_task_store,
         ask_commands=ask_commands,
+    )
+
+
+def _awaiting_raw_task() -> RawTask:
+    return RawTask(
+        raw_task_id="raw-1",
+        session_id="session-1",
+        source_message_id="message-1",
+        user_input="How do I publish a website?",
+        status="awaiting_user",
+        intent_summary="Understand how to publish a website.",
+        feasibility=FeasibilityReport(
+            status="needs_clarification",
+            confidence=0.6,
+            missing_inputs=("website type",),
+        ),
+        asks=(
+            RawTaskAsk(
+                ask_id="ask-1",
+                raw_task_id="raw-1",
+                question="What type of website do you want to publish?",
+                reason="Different website types have different publishing paths.",
+                options=(
+                    RawTaskAnswerOption(label="Static", value="static"),
+                    RawTaskAnswerOption(label="Dynamic", value="dynamic"),
+                ),
+            ),
+        ),
+    )
+
+
+def _answered_raw_task() -> RawTask:
+    raw_task = _awaiting_raw_task()
+    return raw_task.model_copy(
+        update={
+            "answers": (
+                RawTaskAnswer(
+                    raw_task_id="raw-1",
+                    ask_id="ask-1",
+                    value="static",
+                    source_message_id="answer-message-1",
+                ),
+            ),
+            "status": "assessing",
+        }
     )
 
 
@@ -518,6 +571,63 @@ def test_generate_task_tree_with_prompt_creates_raw_then_tree() -> None:
     ]
 
 
+def test_generate_task_tree_with_prompt_stops_when_raw_task_needs_answers() -> None:
+    collaborator = _Collaborator(
+        result=CoreCommandResult(
+            command_id="backend-command",
+            status="accepted",
+            message="ok",
+        )
+    )
+    gateway = _gateway(
+        collaborator=collaborator,
+        raw_task_store=InMemoryRawTaskStore([_awaiting_raw_task()]),
+    )
+    request = CommandRequest[GenerateTaskTreePayload](
+        command_id="generate-1",
+        session_id="session-1",
+        payload=GenerateTaskTreePayload(prompt="How do I publish a website?"),
+    )
+
+    response = gateway.generate_task_tree(request)
+
+    assert response.ok is True
+    assert response.result is not None
+    assert response.result.status == "accepted"
+    assert collaborator.calls == [
+        (
+            "append_session_message",
+            {
+                "session_id": "session-1",
+                "content": "How do I publish a website?",
+                "source_message_id": "generate-1",
+                "idempotency_key": None,
+            },
+        )
+    ]
+
+
+def test_generate_task_tree_with_unready_raw_task_is_rejected() -> None:
+    collaborator = _Collaborator()
+    gateway = _gateway(
+        collaborator=collaborator,
+        raw_task_store=InMemoryRawTaskStore([_awaiting_raw_task()]),
+    )
+    request = CommandRequest[GenerateTaskTreePayload](
+        command_id="generate-1",
+        session_id="session-1",
+        payload=GenerateTaskTreePayload(raw_task_id="raw-1"),
+    )
+
+    response = gateway.generate_task_tree(request)
+
+    assert response.ok is False
+    assert response.result is not None
+    assert response.result.status == "rejected"
+    assert "requires authoring answers" in response.result.message
+    assert collaborator.calls == []
+
+
 def test_answer_authoring_ask_batch_routes_to_collaborator() -> None:
     collaborator = _Collaborator()
     gateway = _gateway(collaborator=collaborator)
@@ -556,6 +666,45 @@ def test_answer_authoring_ask_batch_routes_to_collaborator() -> None:
         ("ask-1", "Developers"),
         ("ask-2", "Portfolio"),
     ]
+
+
+def test_answer_authoring_ask_batch_generates_tree_after_all_asks_answered() -> None:
+    collaborator = _Collaborator(
+        result=CoreCommandResult(
+            command_id="backend-command",
+            status="accepted",
+            message="ok",
+            affected_task_refs=(TaskRef.draft("draft-1"),),
+        )
+    )
+    gateway = _gateway(
+        collaborator=collaborator,
+        raw_task_store=InMemoryRawTaskStore([_answered_raw_task()]),
+    )
+    request = CommandRequest[AnswerAuthoringAskBatchPayload](
+        command_id="answer-authoring-1",
+        session_id="session-1",
+        idempotency_key="answer-batch-1",
+        payload=AnswerAuthoringAskBatchPayload(
+            answers=(
+                AnswerAuthoringAskItemPayload(ask_id="ask-1", value="static"),
+            )
+        ),
+    )
+
+    response = gateway.answer_authoring_ask_batch("raw-1", request)
+
+    assert response.ok is True
+    assert response.result is not None
+    assert response.result.affected_task_refs == (TaskRef.draft("draft-1"),)
+    assert collaborator.calls[-1] == (
+        "generate_task_tree",
+        {
+            "session_id": "session-1",
+            "raw_task_id": "raw-1",
+            "idempotency_key": "answer-batch-1:tree",
+        },
+    )
 
 
 def test_update_task_node_resolves_task_ref_and_preserves_subtree_intent() -> None:

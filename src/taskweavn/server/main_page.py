@@ -20,6 +20,7 @@ from taskweavn.interaction import (
     SqliteMessageStream,
 )
 from taskweavn.observability.main_page_trace import main_page_trace
+from taskweavn.server.ask_recovery import DefaultAskRecoveryService
 from taskweavn.server.client_logs import FileClientErrorLogSink
 from taskweavn.server.main_page_agent import build_agent_loop_resident_default_agent
 from taskweavn.server.main_page_audit_events import (
@@ -354,6 +355,7 @@ def build_main_page_sidecar_app(
             audit_log_provider=WorkspaceAuditLogProvider(),
             session_message_provider=message_stream,
             authoring_state_store=authoring_state_store,
+            raw_task_store=raw_task_store,
             ask_projection=DefaultAskProjectionService(ask_store),
             snapshot_cursor_provider=_snapshot_cursor_provider(event_source),
         )
@@ -365,11 +367,21 @@ def build_main_page_sidecar_app(
                 task_bus=task_bus,
             ),
             authoring_state_store=authoring_state_store,
+            raw_task_store=raw_task_store,
             ask_commands=ask_commands,
         )
         command_gateway: UiCommandGateway = AuditEventCommandGateway(
             inner=core_command_gateway,
             event_store=event_store,
+        )
+        ask_recovery = DefaultAskRecoveryService(
+            raw_task_store=raw_task_store,
+            collaborator=collaborator,
+            authoring_state_store=authoring_state_store,
+            ask_store=ask_store,
+            task_bus=task_bus,
+            execution_trigger_gateway=execution_dispatcher,
+            on_task_lifecycle_committed=_task_lifecycle_event_callback(event_store),
         )
         ui_command_idempotency_store = (
             dependencies.ui_command_idempotency_store
@@ -394,6 +406,7 @@ def build_main_page_sidecar_app(
             ),
             command_idempotency_store=ui_command_idempotency_store,
             execution_trigger_gateway=execution_dispatcher,
+            snapshot_recovery_gateway=ask_recovery,
         )
         server = LocalSidecarServer(
             transport,

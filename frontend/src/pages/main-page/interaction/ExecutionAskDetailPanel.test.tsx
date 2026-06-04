@@ -66,6 +66,108 @@ describe("ExecutionAskDetailPanel", () => {
     });
   });
 
+  it("ignores suggested options for free-text ASK answers", async () => {
+    const user = userEvent.setup();
+    const onAnswer = vi.fn();
+
+    render(
+      <ExecutionAskDetailPanel
+        detail={executionAskDetail({
+          ask: {
+            ...executionAskDetail().ask,
+            answerType: "free_text",
+            allowFreeText: true,
+            allowNoOptionWithText: true,
+            suggestedOptions: [
+              {
+                id: "text",
+                label: "TEXT",
+                description: "Answer with text.",
+              },
+            ],
+          },
+        })}
+        onAnswer={onAnswer}
+        onCancel={vi.fn()}
+        onDefer={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.queryByRole("button", { name: /TEXT/ }),
+    ).not.toBeInTheDocument();
+
+    await user.type(screen.getByLabelText("Answer text"), "Use the default.");
+    await user.click(screen.getByRole("button", { name: "Answer" }));
+
+    expect(onAnswer).toHaveBeenCalledWith({
+      selectedOptionIds: [],
+      text: "Use the default.",
+    });
+  });
+
+  it("submits batched execution ASK questions as one answer", async () => {
+    const user = userEvent.setup();
+    const onAnswer = vi.fn();
+
+    render(
+      <ExecutionAskDetailPanel
+        detail={executionAskDetail({
+          ask: {
+            ...executionAskDetail().ask,
+            question: "Portfolio planning details",
+            questions: [
+              {
+                id: "role",
+                question: "What is your professional role?",
+                inputHint: "Designer, frontend engineer, product manager...",
+                required: true,
+              },
+              {
+                id: "goal",
+                question: "What is the main goal of the portfolio?",
+                inputHint: "Find a job, attract clients, build a brand...",
+                required: true,
+              },
+            ],
+            suggestedOptions: [],
+            answerType: "free_text",
+            allowFreeText: true,
+            allowNoOptionWithText: true,
+          },
+        })}
+        onAnswer={onAnswer}
+        onCancel={vi.fn()}
+        onDefer={vi.fn()}
+      />,
+    );
+
+    const answerButton = screen.getByRole("button", { name: "Answer" });
+    expect(answerButton).toBeDisabled();
+
+    await user.type(
+      screen.getByLabelText(/What is your professional role/),
+      "Frontend engineer",
+    );
+    expect(answerButton).toBeDisabled();
+
+    await user.type(
+      screen.getByLabelText(/What is the main goal/),
+      "Find product engineering roles",
+    );
+    await user.click(answerButton);
+
+    expect(onAnswer).toHaveBeenCalledWith({
+      selectedOptionIds: [],
+      text:
+        "Batch ASK answers:\n\n" +
+        "1. What is your professional role?\n" +
+        "Answer: Frontend engineer\n\n" +
+        "2. What is the main goal of the portfolio?\n" +
+        "Answer: Find product engineering roles",
+    });
+  });
+
   it("preserves local draft when a command error is shown", async () => {
     const user = userEvent.setup();
 

@@ -289,6 +289,47 @@ describe("useMainPageController", () => {
     expect(result.current.uiNotice).toBe("ASK answer submitted.");
   });
 
+  it("refetches after a rejected execution ASK answer with refresh hints", async () => {
+    const answerAsk = vi.fn<AnswerAskCommand>(
+      async (_sessionId, _askId, request) =>
+        rejectedCommandResponse({
+          commandId: request.commandId,
+          message: "free_text ASK answer must not select options",
+        }),
+    );
+    const loadSnapshot = vi.fn<LoadMainPageSnapshot>(loadImmediateSnapshot);
+
+    const { result } = renderMainPageController({
+      adapter: testAdapter({
+        answerAsk,
+        loadSnapshot,
+      }),
+      initialStateId: "s14-execution-ask",
+    });
+
+    await waitFor(() => {
+      expect(result.current.snapshotData?.metadata.id).toBe("s14-execution-ask");
+    });
+
+    act(() => {
+      result.current.actions.answerAsk({
+        askId: "ask-deployment-target",
+        selectedOptionIds: ["vercel"],
+        sessionId: "session-website-plan",
+        text: null,
+      });
+    });
+
+    await waitFor(() => {
+      expect(result.current.executionAskError).toBe(
+        "free_text ASK answer must not select options",
+      );
+    });
+    await waitFor(() => {
+      expect(loadSnapshot).toHaveBeenCalledTimes(2);
+    });
+  });
+
   it("defer and cancel execution ASK commands target the concrete ask id", async () => {
     const deferAsk = vi.fn<DeferAskCommand>(
       async (sessionId, _askId, request) =>
@@ -836,6 +877,42 @@ function acceptedCommandResponse({
       affectedTaskRefs: taskNodeId
         ? [{ kind: "published", id: taskNodeId }]
         : [],
+      affectedScopes: [],
+    },
+  };
+}
+
+function rejectedCommandResponse({
+  commandId,
+  message,
+}: {
+  commandId: string;
+  message: string;
+}): CommandResponse {
+  return {
+    requestId: `request-${commandId}`,
+    ok: false,
+    result: {
+      commandId,
+      status: "rejected",
+      message,
+      affectedTaskRefs: [],
+      objectRefs: [],
+      affectedObjects: [],
+      emittedMessageIds: [],
+      publishedTaskIds: [],
+      debugRefs: {},
+    },
+    error: {
+      code: "command_rejected",
+      details: {},
+      message,
+      retryable: false,
+    },
+    refresh: {
+      waitForEvents: false,
+      suggestedQueries: ["session.snapshot", "asks", "task.tree", "task.detail"],
+      affectedTaskRefs: [],
       affectedScopes: [],
     },
   };

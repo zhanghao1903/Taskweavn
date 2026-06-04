@@ -32,7 +32,7 @@ describe("AuthoringAskWorkArea", () => {
     });
   });
 
-  it("keeps drafts local when required answers are missing", async () => {
+  it("keeps drafts local when any answer is missing", async () => {
     const user = userEvent.setup();
     const onSubmit = vi.fn();
 
@@ -54,7 +54,7 @@ describe("AuthoringAskWorkArea", () => {
       "true",
     );
     expect(
-      screen.getByText("Complete all required questions before submitting."),
+      screen.getByText("Complete all questions before submitting."),
     ).toBeInTheDocument();
   });
 
@@ -114,7 +114,7 @@ function authoringAskView(
         id: "authoring-ask-style",
         question: "Which visual direction should guide the first draft?",
         reason: "The style direction keeps downstream work aligned.",
-        required: true,
+        required: false,
         options: [
           {
             label: "Quiet editorial",

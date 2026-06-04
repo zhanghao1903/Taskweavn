@@ -383,6 +383,13 @@ export type AskOptionView = {
   description?: string | null;
 };
 
+export type AskQuestionView = {
+  id: string;
+  question: string;
+  inputHint?: string | null;
+  required: boolean;
+};
+
 export type AskRequestView = {
   id: AskId;
   sessionId: SessionId;
@@ -390,6 +397,7 @@ export type AskRequestView = {
   taskRef?: TaskRef | null;
   question: string;
   reason: string;
+  questions?: AskQuestionView[];
   suggestedOptions: AskOptionView[];
   answerType: AskAnswerType;
   allowFreeText: boolean;

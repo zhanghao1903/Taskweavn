@@ -53,14 +53,13 @@ export function AuthoringAskWorkArea({
     });
   }, [askIdentity, view.asks, view.rawTaskId]);
 
-  const requiredAsks = view.asks.filter((ask) => ask.required);
-  const validRequiredCount = requiredAsks.filter((ask) =>
-    isAskDraftValid(ask, drafts[ask.id]),
+  const validAnswerCount = view.asks.filter((ask) =>
+    isAskDraftValid(drafts[ask.id]),
   ).length;
   const answers = buildAnswers(view.asks, drafts);
-  const hasInvalidRequired = validRequiredCount < requiredAsks.length;
+  const hasIncompleteAnswers = validAnswerCount < view.asks.length;
   const canSubmit =
-    answers.length > 0 && !hasInvalidRequired && !view.isSubmitting;
+    answers.length === view.asks.length && !hasIncompleteAnswers && !view.isSubmitting;
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -101,7 +100,7 @@ export function AuthoringAskWorkArea({
           {view.summary ? <Text variant="muted">{view.summary}</Text> : null}
         </div>
         <Badge tone="warning">
-          {validRequiredCount}/{requiredAsks.length} required
+          {validAnswerCount}/{view.asks.length} answered
         </Badge>
       </header>
 
@@ -124,8 +123,8 @@ export function AuthoringAskWorkArea({
             {answers.length} answer{answers.length === 1 ? "" : "s"} ready
           </Text>
           <Text variant="muted">
-            {hasInvalidRequired
-              ? "Complete all required questions before submitting."
+            {hasIncompleteAnswers
+              ? "Complete all questions before submitting."
               : "Submit all answers together. The backend projection remains the source of truth."}
           </Text>
           {view.commandError ? (
@@ -158,8 +157,7 @@ function AuthoringAskQuestion({
   onChange,
 }: AuthoringAskQuestionProps) {
   const value = draft?.value ?? "";
-  const showValidation =
-    ask.required && draft?.touched === true && value.trim() === "";
+  const showValidation = draft?.touched === true && value.trim() === "";
   const optionChoices = ask.options.map((option) => ({
     label: option.label,
     tone: choiceTone(option),
@@ -225,14 +223,7 @@ function buildAnswers(
     .filter((answer) => answer.value.length > 0);
 }
 
-function isAskDraftValid(
-  ask: PlanningAskView,
-  draft: AnswerDraft | undefined,
-): boolean {
-  if (!ask.required) {
-    return true;
-  }
-
+function isAskDraftValid(draft: AnswerDraft | undefined): boolean {
   return (draft?.value.trim() ?? "").length > 0;
 }
 

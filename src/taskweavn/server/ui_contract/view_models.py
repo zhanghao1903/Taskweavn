@@ -20,6 +20,18 @@ SessionStatus = Literal[
     "completed",
     "failed",
 ]
+PlanningState = Literal[
+    "empty",
+    "capturing_input",
+    "assessing",
+    "awaiting_user",
+    "ready_to_plan",
+    "draft_ready",
+    "published",
+    "rejected",
+    "cancelled",
+    "unknown",
+]
 TaskTreeStatus = Literal["draft", "published", "running", "completed", "failed"]
 TaskNodeStatus = Literal[
     "draft",
@@ -178,10 +190,41 @@ class ConfirmationActionView(UiContractModel):
         return self
 
 
+class ValidationSummaryView(UiContractModel):
+    state: Literal["not_started", "running", "passed", "warning", "failed"]
+    summary: str = Field(min_length=1)
+    issues: tuple[str, ...] = ()
+
+
+class PlanningAskView(UiContractModel):
+    id: str = Field(min_length=1)
+    question: str = Field(min_length=1)
+    reason: str = Field(min_length=1)
+    required: bool = True
+    options: tuple[ConfirmationOptionView, ...] = ()
+    status: Literal["pending", "answered", "expired"] = "pending"
+
+
+class PlanningView(UiContractModel):
+    state: PlanningState
+    source_raw_task_id: str | None = Field(default=None, min_length=1)
+    title: str | None = Field(default=None, min_length=1)
+    summary: str | None = Field(default=None, min_length=1)
+    asks: tuple[PlanningAskView, ...] = ()
+    validation: ValidationSummaryView | None = None
+
+
 class AskOptionView(UiContractModel):
     id: str = Field(min_length=1)
     label: str = Field(min_length=1)
     description: str | None = None
+
+
+class AskQuestionView(UiContractModel):
+    id: str = Field(min_length=1)
+    question: str = Field(min_length=1)
+    input_hint: str | None = Field(default=None, min_length=1)
+    required: bool = True
 
 
 class AskRequestView(UiContractModel):
@@ -191,6 +234,7 @@ class AskRequestView(UiContractModel):
     task_ref: TaskRef | None = None
     question: str = Field(min_length=1)
     reason: str = Field(min_length=1)
+    questions: tuple[AskQuestionView, ...] = ()
     suggested_options: tuple[AskOptionView, ...] = ()
     answer_type: AskAnswerType
     allow_free_text: bool

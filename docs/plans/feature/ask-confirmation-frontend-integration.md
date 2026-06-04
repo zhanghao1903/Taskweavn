@@ -38,6 +38,7 @@
 | 2026-06-04 | C4 Execution ASK Detail Panel | done | Added `ExecutionAskDetailPanel`, execution ASK detail ViewModel selection, answer/defer/cancel controller seams, S14 execution ASK mock projection, and targeted component/ViewModel/controller/scenario tests. |
 | 2026-06-04 | C5 Confirmation Detail Panel Hardening | done | Extracted `ConfirmationDetailPanel`, replaced immediate option submit with local selection plus explicit resolve, preserved failed selections, rendered terminal confirmations read-only, and added targeted component tests. |
 | 2026-06-04 | C6 Event, Refetch, And Mock Scenario Alignment | done | Kept ASK on the existing command/event contract, added ASK command targets in the runtime reducer, made `command.completed` clear only the matching pending command before snapshot refetch, and aligned interaction scenarios/tests for authoring ASK, execution ASK, confirmation, and stale snapshots. |
+| 2026-06-04 | C7 QA And Browser Verification | done | Ran targeted runtime/App tests, lint, build, fixture browser checks for authoring ASK/execution ASK/confirmation across desktop/tablet/mobile, fixed Main Page responsive overflow, and verified HTTP sidecar mode loads without fixture picker or console errors. |
 
 ---
 
@@ -303,7 +304,7 @@ Acceptance:
   state.
 - Snapshot refetch remains the source of durable state convergence.
 
-### C7. QA And Browser Verification
+### C7. QA And Browser Verification - done
 
 Deliver:
 

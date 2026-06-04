@@ -9,6 +9,7 @@ from taskweavn.interaction import AskRequest, AskStatus, AskStore
 from taskweavn.server.ui_contract.view_models import (
     AskListResult,
     AskOptionView,
+    AskQuestionView,
     AskRequestView,
     TaskTreeView,
 )
@@ -92,6 +93,15 @@ def map_ask_request_view(request: AskRequest) -> AskRequestView:
         task_ref=task_ref,
         question=request.question,
         reason=request.reason,
+        questions=tuple(
+            AskQuestionView(
+                id=question.question_id,
+                question=question.question,
+                input_hint=question.input_hint,
+                required=question.required,
+            )
+            for question in request.questions
+        ),
         suggested_options=tuple(
             AskOptionView(
                 id=option.option_id,

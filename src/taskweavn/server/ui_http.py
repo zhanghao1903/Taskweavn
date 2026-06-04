@@ -68,6 +68,12 @@ class SessionLifecycleGateway(Protocol):
     def delete_session(self, session_id: str) -> dict[str, Any]: ...
 
 
+class SnapshotRecoveryGateway(Protocol):
+    """Best-effort recovery hook that runs before snapshot projection."""
+
+    def recover_session(self, session_id: str) -> object: ...
+
+
 @dataclass(frozen=True)
 class SidecarAuth:
     """Local sidecar bearer-token guard.
@@ -101,6 +107,7 @@ class PlatoUiHttpTransport:
         session_lifecycle_gateway: SessionLifecycleGateway | None = None,
         command_idempotency_store: UiCommandResponseIdempotencyStore | None = None,
         execution_trigger_gateway: ExecutionTriggerGateway | None = None,
+        snapshot_recovery_gateway: SnapshotRecoveryGateway | None = None,
     ) -> None:
         self._query_gateway = query_gateway
         self._command_gateway = command_gateway
@@ -110,6 +117,7 @@ class PlatoUiHttpTransport:
         self._session_lifecycle_gateway = session_lifecycle_gateway
         self._command_idempotency_store = command_idempotency_store
         self._execution_trigger_gateway = execution_trigger_gateway
+        self._snapshot_recovery_gateway = snapshot_recovery_gateway
 
     def handle(self, request: HttpApiRequest) -> HttpApiResponse:
         route = _match_route(request.path)
@@ -223,6 +231,7 @@ class PlatoUiHttpTransport:
                     }
                 )
             if route_name == "snapshot":
+                self._recover_before_snapshot(route.session_id)
                 snapshot_response = self._query_gateway.get_session_snapshot(
                     route.session_id
                 )
@@ -603,6 +612,18 @@ class PlatoUiHttpTransport:
             ),
             request_id=_request_id_hint(request),
         )
+
+    def _recover_before_snapshot(self, session_id: str) -> None:
+        if self._snapshot_recovery_gateway is None:
+            return
+        try:
+            self._snapshot_recovery_gateway.recover_session(session_id)
+        except Exception as exc:  # noqa: BLE001 - recovery must not break reads.
+            main_page_trace(
+                "http.snapshot.recovery_failed",
+                error_type=type(exc).__name__,
+                session_id=session_id,
+            )
 
     def _require_session_lifecycle(
         self,

@@ -24,6 +24,7 @@ export type ExecutionAskDetailPanelProps = {
 };
 
 type ExecutionAskDraft = {
+  questionTexts: Record<string, string>;
   selectedOptionIds: string[];
   text: string;
   touched: boolean;
@@ -45,6 +46,8 @@ export function ExecutionAskDetailPanel({
   const isStale = isStaleAsk(detail);
   const validation = validateAskDraft(ask, draft);
   const canAnswer = validation.valid && !isPending && !isStale;
+  const batchQuestions = ask.questions ?? [];
+  const hasBatchQuestions = batchQuestions.length > 0;
   const optionChoices = useMemo(
     () =>
       ask.suggestedOptions.map((option) => ({
@@ -54,8 +57,11 @@ export function ExecutionAskDetailPanel({
       })),
     [ask.suggestedOptions],
   );
-  const hasOptions = optionChoices.length > 0;
-  const showTextInput = ask.allowFreeText || ask.answerType === "free_text";
+  const acceptsOptions = ask.answerType !== "free_text";
+  const hasOptions =
+    !hasBatchQuestions && acceptsOptions && optionChoices.length > 0;
+  const showTextInput =
+    !hasBatchQuestions && (ask.allowFreeText || ask.answerType === "free_text");
 
   useEffect(() => {
     setDraftsByAskId((current) => ({
@@ -83,8 +89,10 @@ export function ExecutionAskDetailPanel({
     }
 
     onAnswer({
-      selectedOptionIds: draft.selectedOptionIds,
-      text: draft.text.trim() || null,
+      selectedOptionIds: acceptsOptions ? draft.selectedOptionIds : [],
+      text: hasBatchQuestions
+        ? formatBatchAnswer(batchQuestions, draft.questionTexts)
+        : draft.text.trim() || null,
     });
   }
 
@@ -125,6 +133,38 @@ export function ExecutionAskDetailPanel({
             options={optionChoices}
             selectedValues={draft.selectedOptionIds}
           />
+        ) : null}
+
+        {hasBatchQuestions ? (
+          <div className={styles.batchQuestionList}>
+            {batchQuestions.map((question, index) => (
+              <label className={styles.textAnswer} key={question.id}>
+                <span>
+                  {index + 1}. {question.question}
+                  {question.required ? "" : " (optional)"}
+                </span>
+                <textarea
+                  aria-invalid={
+                    draft.touched &&
+                    question.required &&
+                    !draft.questionTexts[question.id]?.trim()
+                  }
+                  disabled={isPending || isStale}
+                  onChange={(event) =>
+                    updateDraft({
+                      questionTexts: {
+                        ...draft.questionTexts,
+                        [question.id]: event.currentTarget.value,
+                      },
+                    })
+                  }
+                  placeholder={question.inputHint ?? "Add your answer."}
+                  rows={3}
+                  value={draft.questionTexts[question.id] ?? ""}
+                />
+              </label>
+            ))}
+          </div>
         ) : null}
 
         {showTextInput ? (
@@ -185,6 +225,7 @@ export function ExecutionAskDetailPanel({
 
 function emptyDraft(): ExecutionAskDraft {
   return {
+    questionTexts: {},
     selectedOptionIds: [],
     text: "",
     touched: false,
@@ -227,6 +268,24 @@ function validateAskDraft(
 ): { message: string; valid: boolean } {
   const hasSelectedOption = draft.selectedOptionIds.length > 0;
   const hasText = draft.text.trim().length > 0;
+  const batchQuestions = ask.questions ?? [];
+
+  if (batchQuestions.length > 0) {
+    const hasAnyAnswer = batchQuestions.some((question) =>
+      draft.questionTexts[question.id]?.trim(),
+    );
+    const hasMissingRequired = batchQuestions.some(
+      (question) =>
+        question.required && !draft.questionTexts[question.id]?.trim(),
+    );
+    if (!hasAnyAnswer || hasMissingRequired) {
+      return {
+        message: "Answer the required questions before submitting.",
+        valid: false,
+      };
+    }
+    return { message: "", valid: true };
+  }
 
   if (ask.answerType === "free_text") {
     return hasText
@@ -248,4 +307,20 @@ function validateAskDraft(
       : "Choose an option before submitting.",
     valid: false,
   };
+}
+
+function formatBatchAnswer(
+  questions: NonNullable<AskRequestView["questions"]>,
+  questionTexts: Record<string, string>,
+): string {
+  const lines = questions
+    .map((question, index) => {
+      const answer = questionTexts[question.id]?.trim();
+      if (!answer) {
+        return null;
+      }
+      return `${index + 1}. ${question.question}\nAnswer: ${answer}`;
+    })
+    .filter((line): line is string => line !== null);
+  return `Batch ASK answers:\n\n${lines.join("\n\n")}`;
 }
