@@ -5,6 +5,7 @@ export type TaskTreeId = string;
 export type TaskNodeId = string;
 export type MessageId = string;
 export type ConfirmationId = string;
+export type AskId = string;
 export type ResultId = string;
 export type CommandId = string;
 export type AuditRecordId = string;
@@ -161,6 +162,7 @@ export type ExecutionStatus =
   | "not_started"
   | "pending"
   | "running"
+  | "waiting_for_user"
   | "done"
   | "failed"
   | "cancelled"
@@ -360,6 +362,54 @@ export type PlanningView = {
   summary?: string | null;
   asks: PlanningAskView[];
   validation: ValidationSummaryView | null;
+};
+
+export type AskAnswerType =
+  | "free_text"
+  | "single_choice"
+  | "multi_choice"
+  | "boolean";
+
+export type AskRequestStatus =
+  | "pending"
+  | "answered"
+  | "deferred"
+  | "cancelled"
+  | "expired";
+
+export type AskOptionView = {
+  id: string;
+  label: string;
+  description?: string | null;
+};
+
+export type AskRequestView = {
+  id: AskId;
+  sessionId: SessionId;
+  taskNodeId?: TaskNodeId | null;
+  taskRef?: TaskRef | null;
+  question: string;
+  reason: string;
+  suggestedOptions: AskOptionView[];
+  answerType: AskAnswerType;
+  allowFreeText: boolean;
+  allowNoOptionWithText: boolean;
+  blocking: boolean;
+  attachmentsSupported: false;
+  status: AskRequestStatus;
+  answerId?: string | null;
+  resumeHint?: string | null;
+  createdAt: string;
+  answeredAt?: string | null;
+  deferredAt?: string | null;
+  cancelledAt?: string | null;
+  expiredAt?: string | null;
+};
+
+export type AskListResult = {
+  sessionId: SessionId;
+  asks: AskRequestView[];
+  activeAsk: AskRequestView | null;
 };
 
 export type SessionPermissions = {
@@ -793,6 +843,8 @@ export type MainPageSnapshot = {
   taskTree: TaskTreeView | null;
   messages: SessionMessageView[];
   pendingConfirmations: ConfirmationActionView[];
+  pendingAsks?: AskRequestView[];
+  activeAsk?: AskRequestView | null;
   result: ResultCardView | null;
   fileChangeSummary: FileChangeSummaryView | null;
   auditSummary?: AuditSummaryView | null;

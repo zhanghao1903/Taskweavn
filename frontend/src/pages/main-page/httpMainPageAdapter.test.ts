@@ -1,8 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 
 import type {
+  AnswerAskPayload,
+  AnswerAuthoringAskBatchPayload,
   AppendSessionInputPayload,
   AppendTaskInputPayload,
+  CancelAskPayload,
+  DeferAskPayload,
   GenerateTaskTreePayload,
   PlatoApi,
   PublishTaskTreePayload,
@@ -119,6 +123,40 @@ describe("HTTP MainPage adapter bridge", () => {
         value: "confirmed",
       },
     };
+    const answerAskRequest: CommandRequest<AnswerAskPayload> = {
+      commandId: "answer-ask",
+      sessionId: snapshot.session.id,
+      payload: {
+        selectedOptionIds: ["vercel"],
+      },
+    };
+    const answerAuthoringAskBatchRequest: CommandRequest<AnswerAuthoringAskBatchPayload> =
+      {
+        commandId: "answer-authoring-ask",
+        sessionId: snapshot.session.id,
+        payload: {
+          answers: [
+            {
+              askId: "raw-ask-1",
+              value: "Use React.",
+            },
+          ],
+        },
+      };
+    const deferAskRequest: CommandRequest<DeferAskPayload> = {
+      commandId: "defer-ask",
+      sessionId: snapshot.session.id,
+      payload: {
+        reason: "Need more context.",
+      },
+    };
+    const cancelAskRequest: CommandRequest<CancelAskPayload> = {
+      commandId: "cancel-ask",
+      sessionId: snapshot.session.id,
+      payload: {
+        reason: "No longer needed.",
+      },
+    };
     const generateRequest: CommandRequest<GenerateTaskTreePayload> = {
       commandId: "generate-tree",
       sessionId: snapshot.session.id,
@@ -171,6 +209,14 @@ describe("HTTP MainPage adapter bridge", () => {
       "confirmation-1",
       confirmationRequest,
     );
+    await adapter.answerAsk(snapshot.session.id, "ask-1", answerAskRequest);
+    await adapter.answerAuthoringAskBatch(
+      snapshot.session.id,
+      "raw-task-1",
+      answerAuthoringAskBatchRequest,
+    );
+    await adapter.deferAsk(snapshot.session.id, "ask-1", deferAskRequest);
+    await adapter.cancelAsk(snapshot.session.id, "ask-1", cancelAskRequest);
     const unsubscribe = adapter.subscribeSessionEvents(
       snapshot.session.id,
       snapshot.cursor,
@@ -205,6 +251,26 @@ describe("HTTP MainPage adapter bridge", () => {
       snapshot.session.id,
       "confirmation-1",
       confirmationRequest,
+    );
+    expect(api.answerAsk).toHaveBeenCalledWith(
+      snapshot.session.id,
+      "ask-1",
+      answerAskRequest,
+    );
+    expect(api.answerAuthoringAskBatch).toHaveBeenCalledWith(
+      snapshot.session.id,
+      "raw-task-1",
+      answerAuthoringAskBatchRequest,
+    );
+    expect(api.deferAsk).toHaveBeenCalledWith(
+      snapshot.session.id,
+      "ask-1",
+      deferAskRequest,
+    );
+    expect(api.cancelAsk).toHaveBeenCalledWith(
+      snapshot.session.id,
+      "ask-1",
+      cancelAskRequest,
     );
     expect(api.subscribeSessionEvents).toHaveBeenCalledWith(
       snapshot.session.id,
@@ -260,6 +326,22 @@ function stubPlatoApi(snapshot: MainPageSnapshot) {
     retryTask: vi.fn(async () => response),
     stopTask: vi.fn(async () => response),
     resolveConfirmation: vi.fn(async () => response),
+    listAsks: vi.fn(async () => ({
+      cursor: null,
+      data: {
+        activeAsk: null,
+        asks: [],
+        sessionId: snapshot.session.id,
+      },
+      error: null,
+      generatedAt: "2026-06-04T10:00:00Z",
+      ok: true,
+      requestId: "asks",
+    })),
+    answerAsk: vi.fn(async () => response),
+    answerAuthoringAskBatch: vi.fn(async () => response),
+    deferAsk: vi.fn(async () => response),
+    cancelAsk: vi.fn(async () => response),
     subscribeSessionEvents: vi.fn(() => () => undefined),
     getAuditSnapshot: vi.fn(auditApi.getAuditSnapshot),
     listAuditRecords: vi.fn(auditApi.listAuditRecords),

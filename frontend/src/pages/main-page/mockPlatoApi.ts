@@ -1,6 +1,10 @@
 import type {
   AppendSessionInputPayload,
   AppendTaskInputPayload,
+  AnswerAskPayload,
+  AnswerAuthoringAskBatchPayload,
+  CancelAskPayload,
+  DeferAskPayload,
   GenerateTaskTreePayload,
   PublishTaskTreePayload,
   ResolveConfirmationPayload,
@@ -9,6 +13,7 @@ import type {
   UpdateTaskNodePayload,
 } from "../../shared/api/platoApi";
 import type {
+  AskId,
   CommandRequest,
   CommandResponse,
   ConfirmationId,
@@ -37,6 +42,10 @@ import type { MainPageStateId } from "./fixtures";
 import type {
   AppendSessionInputCommand,
   AppendTaskInputCommand,
+  AnswerAskCommand,
+  AnswerAuthoringAskBatchCommand,
+  CancelAskCommand,
+  DeferAskCommand,
   GenerateTaskTreeCommand,
   LoadMainPageSnapshot,
   MainPageAdapter,
@@ -61,6 +70,10 @@ export { defaultMainPageStateId };
 export type {
   AppendSessionInputCommand,
   AppendTaskInputCommand,
+  AnswerAskCommand,
+  AnswerAuthoringAskBatchCommand,
+  CancelAskCommand,
+  DeferAskCommand,
   GenerateTaskTreeCommand,
   LoadMainPageSnapshot,
   MainPageAdapter,
@@ -128,6 +141,8 @@ export function getMainPageMockSnapshot(
         : null,
       messages: fixture.messages,
       pendingConfirmations: toPendingConfirmations(fixture),
+      pendingAsks: [],
+      activeAsk: null,
       result: fixture.result ? toResultCardView(fixture.result, fixture.session.id) : null,
       fileChangeSummary: fixture.fileChangeSummary
         ? toFileChangeSummaryView(fixture.fileChangeSummary, fixture.session.id)
@@ -212,6 +227,62 @@ export async function appendSessionInputMockCommand(
     commandId: request.commandId,
     message: "Session input accepted.",
     sessionId: request.sessionId,
+  });
+}
+
+export async function answerAskMockCommand(
+  sessionId: SessionId,
+  askId: AskId,
+  request: CommandRequest<AnswerAskPayload>,
+): Promise<CommandResponse> {
+  await delay(60);
+
+  return acceptedCommandResponse({
+    commandId: request.commandId,
+    message: `ASK answer accepted for ${askId}.`,
+    sessionId,
+  });
+}
+
+export async function answerAuthoringAskBatchMockCommand(
+  sessionId: SessionId,
+  rawTaskId: string,
+  request: CommandRequest<AnswerAuthoringAskBatchPayload>,
+): Promise<CommandResponse> {
+  await delay(60);
+
+  return acceptedCommandResponse({
+    commandId: request.commandId,
+    message: `Authoring ASK answers accepted for ${rawTaskId}.`,
+    sessionId,
+  });
+}
+
+export async function deferAskMockCommand(
+  sessionId: SessionId,
+  askId: AskId,
+  request: CommandRequest<DeferAskPayload>,
+): Promise<CommandResponse> {
+  await delay(60);
+
+  return acceptedCommandResponse({
+    commandId: request.commandId,
+    message: `ASK defer accepted for ${askId}.`,
+    sessionId,
+  });
+}
+
+export async function cancelAskMockCommand(
+  sessionId: SessionId,
+  askId: AskId,
+  request: CommandRequest<CancelAskPayload>,
+): Promise<CommandResponse> {
+  await delay(60);
+
+  return acceptedCommandResponse({
+    commandId: request.commandId,
+    message: `ASK cancel accepted for ${askId}.`,
+    sessionId,
   });
 }
 
@@ -304,8 +375,11 @@ export const subscribeSessionEventsMock: SubscribeSessionEvents = () => () => {
 };
 
 export const mainPageMockAdapter: MainPageAdapter = {
+  answerAsk: answerAskMockCommand,
+  answerAuthoringAskBatch: answerAuthoringAskBatchMockCommand,
   appendSessionInput: appendSessionInputMockCommand,
   appendTaskInput: appendTaskInputMockCommand,
+  cancelAsk: cancelAskMockCommand,
   async createSession(payload) {
     await delay(20);
     return {
@@ -323,6 +397,7 @@ export const mainPageMockAdapter: MainPageAdapter = {
       nextSessionId: null,
     };
   },
+  deferAsk: deferAskMockCommand,
   generateTaskTree: generateTaskTreeMockCommand,
   loadSnapshot: loadMainPageMockSnapshot,
   publishTaskTree: publishTaskTreeMockCommand,

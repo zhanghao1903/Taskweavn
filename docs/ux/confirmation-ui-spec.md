@@ -5,6 +5,7 @@
 > Scope: Product 1.0 confirmation placement, component structure, state table,
 > and Main Page projection rules.
 > Related: `docs/plans/feature/message-ask-confirmation-backend.md`,
+> `docs/plans/feature/ask-confirmation-frontend-integration.md`,
 > `docs/ux/screen-state-spec.md`, `docs/frontend/ui-viewmodel-contract.md`,
 > `docs/frontend/api-ui-mapping.md`, `docs/interaction-model/main-page.md`,
 > `docs/ux/ask-ui-spec.md`

@@ -3,7 +3,7 @@
 > Status: in progress
 > Type: Product 1.0 interaction UX/API alignment
 > Last Updated: 2026-06-04
-> Related: [Message, ASK, And Confirmation Backend](message-ask-confirmation-backend.md), [ASK Lifecycle Contract](../../engineering/ask-lifecycle-contract.md), [ASK User Interaction](../../interaction-model/ask-user-interaction.md), [ASK UI Spec](../../ux/ask-ui-spec.md), [Authoring Domain](../../architecture/authoring-domain.md), [Interaction Layer](../../architecture/interaction-layer.md)
+> Related: [Message, ASK, And Confirmation Backend](message-ask-confirmation-backend.md), [ASK Lifecycle Contract](../../engineering/ask-lifecycle-contract.md), [ASK User Interaction](../../interaction-model/ask-user-interaction.md), [ASK UI Spec](../../ux/ask-ui-spec.md), [ASK And Confirmation Frontend Integration](ask-confirmation-frontend-integration.md), [Authoring Domain](../../architecture/authoring-domain.md), [Interaction Layer](../../architecture/interaction-layer.md)
 > Technical Design: [ASK domain unification and batch answer technical design](ask-domain-unification-batch-answer-technical-design.zh-CN.md)
 
 ---

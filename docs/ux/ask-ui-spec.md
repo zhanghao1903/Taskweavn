@@ -4,6 +4,7 @@
 > Last Updated: 2026-06-04
 > Scope: Product 1.0 Authoring ASK Work Area and Execution ASK Detail Panel.
 > Related: `docs/plans/feature/ask-domain-unification-batch-answer.md`,
+> `docs/plans/feature/ask-confirmation-frontend-integration.md`,
 > `docs/engineering/ask-lifecycle-contract.md`,
 > `docs/interaction-model/ask-user-interaction.md`,
 > `docs/frontend/ui-viewmodel-contract.md`,

@@ -1,4 +1,6 @@
 import type {
+  AskId,
+  AskListResult,
   AuditEntryKind,
   AuditFilterKind,
   AuditPageSnapshot,
@@ -89,6 +91,34 @@ export type StopTaskPayload = {
 export type ResolveConfirmationPayload = {
   value: string;
   note?: string;
+};
+
+export type AnswerAskPayload = {
+  selectedOptionIds: string[];
+  text?: string | null;
+};
+
+export type AnswerAuthoringAskItemPayload = {
+  askId: string;
+  value: string;
+};
+
+export type AnswerAuthoringAskBatchPayload = {
+  answers: AnswerAuthoringAskItemPayload[];
+};
+
+export type DeferAskPayload = {
+  reason?: string | null;
+};
+
+export type CancelAskPayload = {
+  reason: string;
+};
+
+export type ListAsksRequest = {
+  sessionId: SessionId;
+  status?: string;
+  taskNodeId?: TaskNodeId;
 };
 
 export type AuditSnapshotRequest = {
@@ -193,6 +223,27 @@ export type PlatoApi = {
     sessionId: SessionId,
     confirmationId: ConfirmationId,
     request: CommandRequest<ResolveConfirmationPayload>,
+  ): Promise<CommandResponse>;
+  listAsks(request: ListAsksRequest): Promise<QueryResponse<AskListResult>>;
+  answerAsk(
+    sessionId: SessionId,
+    askId: AskId,
+    request: CommandRequest<AnswerAskPayload>,
+  ): Promise<CommandResponse>;
+  answerAuthoringAskBatch(
+    sessionId: SessionId,
+    rawTaskId: string,
+    request: CommandRequest<AnswerAuthoringAskBatchPayload>,
+  ): Promise<CommandResponse>;
+  deferAsk(
+    sessionId: SessionId,
+    askId: AskId,
+    request: CommandRequest<DeferAskPayload>,
+  ): Promise<CommandResponse>;
+  cancelAsk(
+    sessionId: SessionId,
+    askId: AskId,
+    request: CommandRequest<CancelAskPayload>,
   ): Promise<CommandResponse>;
   subscribeSessionEvents(
     sessionId: SessionId,
@@ -382,6 +433,40 @@ export function createHttpPlatoApi(options: HttpPlatoApiOptions): PlatoApi {
         `/api/v1/sessions/${segment(sessionId)}/confirmations/${segment(
           confirmationId,
         )}/respond`,
+        request,
+      );
+    },
+    listAsks(request) {
+      return client.getJson<QueryResponse<AskListResult>>(
+        withQuery(`/api/v1/sessions/${segment(request.sessionId)}/asks`, {
+          status: request.status,
+          taskNodeId: request.taskNodeId,
+        }),
+      );
+    },
+    answerAsk(sessionId, askId, request) {
+      return client.postJson<CommandResponse>(
+        `/api/v1/sessions/${segment(sessionId)}/asks/${segment(askId)}/answer`,
+        request,
+      );
+    },
+    answerAuthoringAskBatch(sessionId, rawTaskId, request) {
+      return client.postJson<CommandResponse>(
+        `/api/v1/sessions/${segment(
+          sessionId,
+        )}/authoring/raw-tasks/${segment(rawTaskId)}/asks/answers`,
+        request,
+      );
+    },
+    deferAsk(sessionId, askId, request) {
+      return client.postJson<CommandResponse>(
+        `/api/v1/sessions/${segment(sessionId)}/asks/${segment(askId)}/defer`,
+        request,
+      );
+    },
+    cancelAsk(sessionId, askId, request) {
+      return client.postJson<CommandResponse>(
+        `/api/v1/sessions/${segment(sessionId)}/asks/${segment(askId)}/cancel`,
         request,
       );
     },
