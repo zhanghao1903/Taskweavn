@@ -12,6 +12,13 @@ describe("SessionMessageCard", () => {
     expect(screen.getByText("Session-wide")).toBeInTheDocument();
     expect(screen.getByText("Planning started")).toBeInTheDocument();
     expect(screen.getByText("Plato is producing the draft TaskTree.")).toBeInTheDocument();
+    expect(screen.getByText("Planning started")).toHaveAttribute(
+      "title",
+      "Planning started",
+    );
+    expect(
+      screen.getByText("Plato is producing the draft TaskTree."),
+    ).toHaveAttribute("title", "Plato is producing the draft TaskTree.");
   });
 
   it("renders task-scoped message presentation", () => {

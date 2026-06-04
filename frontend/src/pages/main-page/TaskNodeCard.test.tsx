@@ -26,6 +26,14 @@ describe("TaskNodeCard", () => {
 
     expect(screen.getByText("Visual direction")).toBeInTheDocument();
     expect(screen.getByText("Fonts, color, and spacing")).toBeInTheDocument();
+    expect(screen.getByText("Visual direction")).toHaveAttribute(
+      "title",
+      "Visual direction",
+    );
+    expect(screen.getByText("Fonts, color, and spacing")).toHaveAttribute(
+      "title",
+      "Fonts, color, and spacing",
+    );
     expect(screen.getByText("waiting user")).toBeInTheDocument();
     expect(onSelectTask).toHaveBeenCalledWith("task-visual-direction");
   });

@@ -39,8 +39,12 @@ export function TaskNodeCard({
       >
         <Circle size={12} aria-hidden="true" />
         <span className={styles.taskText}>
-          <strong>{node.title}</strong>
-          <small>{node.summary}</small>
+          <strong className={styles.listCardTitle} title={node.title}>
+            {node.title}
+          </strong>
+          <small className={styles.listCardBody} title={node.summary}>
+            {node.summary}
+          </small>
         </span>
         <Badge className={styles.taskStatus} tone={statusPresentation.tone}>
           {statusPresentation.label}

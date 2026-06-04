@@ -284,13 +284,18 @@ function TaskDetailPanel({
 
   return (
     <Panel
+      aria-label="Selected task details"
       className={styles.detailBox}
       data-task-node-id={detail.selectedTask.id}
       tone="muted"
     >
       <Text as="strong" variant="label">
-        Task interaction
+        Task details
       </Text>
+      <div className={styles.taskDetailContent}>
+        <strong>{detail.selectedTask.title}</strong>
+        <p>{detail.selectedTask.summary}</p>
+      </div>
       <Text variant="muted">
         Input now applies to this TaskNode. Completed TaskNodes are read-only;
         running TaskNodes accept appended guidance.

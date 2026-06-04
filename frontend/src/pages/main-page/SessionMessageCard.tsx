@@ -22,8 +22,12 @@ export function SessionMessageCard({ message }: SessionMessageCardProps) {
             : "Session-wide"}
         </span>
       </div>
-      <strong>{message.title}</strong>
-      <p>{message.body}</p>
+      <strong className={styles.listCardTitle} title={message.title}>
+        {message.title}
+      </strong>
+      <p className={styles.listCardBody} title={message.body}>
+        {message.body}
+      </p>
     </article>
   );
 }
