@@ -36,6 +36,7 @@
 | 2026-06-04 | C2 Shared Choice Primitives | done | Added a domain-neutral `ChoiceGroup` primitive with single/multi/segmented layouts, disabled/loading/error handling, keyboard-accessible button choices, tokenized CSS, exports, README entry, and component tests. |
 | 2026-06-04 | C3 Authoring ASK Work Area | done | Added `AuthoringAskWorkArea`, typed `MainPageWorkAreaView`, authoring batch submit controller seam, S2 authoring ASK mock projection, and targeted component/ViewModel/controller/scenario tests. |
 | 2026-06-04 | C4 Execution ASK Detail Panel | done | Added `ExecutionAskDetailPanel`, execution ASK detail ViewModel selection, answer/defer/cancel controller seams, S14 execution ASK mock projection, and targeted component/ViewModel/controller/scenario tests. |
+| 2026-06-04 | C5 Confirmation Detail Panel Hardening | done | Extracted `ConfirmationDetailPanel`, replaced immediate option submit with local selection plus explicit resolve, preserved failed selections, rendered terminal confirmations read-only, and added targeted component tests. |
 
 ---
 
@@ -256,7 +257,7 @@ Acceptance:
 - Tests cover valid answer, text-only answer when allowed, command rejection,
   stale ASK id, and task refocus.
 
-### C5. Confirmation Detail Panel Hardening
+### C5. Confirmation Detail Panel Hardening - done
 
 Deliver:
 

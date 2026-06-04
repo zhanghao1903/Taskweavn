@@ -1,0 +1,41 @@
+.root {
+  display: grid;
+  min-width: 0;
+  gap: var(--plato-space-4);
+  margin-top: var(--plato-space-5);
+  border-radius: var(--plato-radius-lg);
+  padding: var(--plato-space-4);
+  background: var(--plato-color-classic-cream);
+}
+
+.titleRow,
+.actionRow,
+.riskSummary {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--plato-space-2);
+}
+
+.titleRow,
+.actionRow {
+  justify-content: space-between;
+}
+
+.riskSummary {
+  border: 1px solid var(--plato-color-line);
+  border-radius: var(--plato-radius-md);
+  padding: var(--plato-space-3);
+  background: var(--plato-color-panel);
+}
+
+.footerCopy {
+  display: grid;
+  min-width: 0;
+  gap: var(--plato-space-1);
+}
+
+.error {
+  color: var(--plato-color-danger-text);
+}

@@ -19,7 +19,6 @@ import {
   toLoggableError,
 } from "../../shared/logging/frontendLogger";
 import type {
-  ConfirmationDecision,
   DetailOverride,
   EventConnectionStatus,
   InputTarget,
@@ -63,7 +62,7 @@ export type StopTaskContext = {
 
 export type ConfirmationDecisionContext = {
   confirmation: ConfirmationActionView | undefined;
-  decision: Exclude<ConfirmationDecision, null>;
+  decision: string;
   sessionId: string;
 };
 
@@ -266,7 +265,7 @@ export function useMainPageController({
       sessionId,
     }: {
       confirmation: ConfirmationActionView;
-      decision: Exclude<ConfirmationDecision, null>;
+      decision: string;
       sessionId: string;
     }) =>
       adapter.resolveConfirmation(sessionId, confirmation.id, {
