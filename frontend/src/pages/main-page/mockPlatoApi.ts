@@ -130,8 +130,10 @@ export function getMainPageMockSnapshot(
         status: sessionStatus,
       }),
       planning: {
-        asks: [],
+        asks: planningAsksForFixture(fixture.id),
         state: mapLegacySessionStatusToPlanningState(sessionStatus),
+        sourceRawTaskId:
+          fixture.id === "s2-understanding" ? "raw-task-website-goal" : null,
         summary: fixture.detail.body,
         title: fixture.detail.title,
         validation: null,
@@ -518,6 +520,43 @@ function sessionStatusForFixture(stateId: MainPageStateId): SessionStatus {
     case "s13-command-failed":
       return "failed";
   }
+}
+
+function planningAsksForFixture(
+  stateId: MainPageStateId,
+): NonNullable<MainPageRuntimeSnapshot["snapshot"]["planning"]>["asks"] {
+  if (stateId !== "s2-understanding") {
+    return [];
+  }
+
+  return [
+    {
+      id: "authoring-ask-site-type",
+      question: "What kind of website should Plato plan first?",
+      reason:
+        "The initial TaskTree depends on the site's primary purpose and audience.",
+      required: true,
+      options: [
+        { label: "Portfolio", tone: "primary", value: "portfolio" },
+        { label: "Blog", value: "blog" },
+        { label: "Product site", value: "product_site" },
+      ],
+      status: "pending",
+    },
+    {
+      id: "authoring-ask-style",
+      question: "Which visual direction should guide the first draft?",
+      reason:
+        "A style direction keeps page structure, copy, and implementation tasks aligned.",
+      required: true,
+      options: [
+        { label: "Quiet editorial", tone: "primary", value: "quiet_editorial" },
+        { label: "Technical portfolio", value: "technical_portfolio" },
+        { label: "Studio showcase", value: "studio_showcase" },
+      ],
+      status: "pending",
+    },
+  ];
 }
 
 function permissionsForFixture(

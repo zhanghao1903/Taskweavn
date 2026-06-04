@@ -8,6 +8,7 @@ import { MainPageTopBar } from "./MainPageTopBar";
 import { MainPageWorkspaceHeader } from "./MainPageWorkspaceHeader";
 import { SessionMessagePanel } from "./SessionMessagePanel";
 import { TaskTreePanel } from "./TaskTreePanel";
+import { AuthoringAskWorkArea } from "./interaction/AuthoringAskWorkArea";
 import type { MainPageViewModel } from "./mainPageViewModel";
 import type { MainPageController } from "./useMainPageController";
 import styles from "./MainPage.module.css";
@@ -81,33 +82,46 @@ export function MainPageWorkbench({
           uiNotice={viewModel.workspace.uiNotice}
         />
 
-        <div className={styles.workGrid}>
-          <TaskTreePanel
-            onRetryTask={(taskNodeId) =>
-              actions.retryTask({
+        {viewModel.mainWorkArea.kind === "authoringAsk" ? (
+          <AuthoringAskWorkArea
+            onSubmit={({ answers, rawTaskId }) =>
+              actions.answerAuthoringAskBatch({
+                answers,
+                rawTaskId,
                 sessionId: viewModel.sessionId,
-                taskNodeId,
               })
             }
-            onSelectTask={actions.selectTask}
-            onStopTask={(taskNodeId) =>
-              actions.stopTask({
-                sessionId: viewModel.sessionId,
-                taskNodeId,
-              })
-            }
-            selectedTaskNodeId={viewModel.taskWorkspace.selectedTaskNodeId}
-            taskTree={viewModel.taskWorkspace.taskTree}
+            view={viewModel.mainWorkArea.authoringAsk}
           />
+        ) : (
+          <div className={styles.workGrid}>
+            <TaskTreePanel
+              onRetryTask={(taskNodeId) =>
+                actions.retryTask({
+                  sessionId: viewModel.sessionId,
+                  taskNodeId,
+                })
+              }
+              onSelectTask={actions.selectTask}
+              onStopTask={(taskNodeId) =>
+                actions.stopTask({
+                  sessionId: viewModel.sessionId,
+                  taskNodeId,
+                })
+              }
+              selectedTaskNodeId={viewModel.taskWorkspace.selectedTaskNodeId}
+              taskTree={viewModel.taskWorkspace.taskTree}
+            />
 
-          <SessionMessagePanel
-            isMessageScoped={viewModel.taskWorkspace.isMessageScoped}
-            messages={viewModel.taskWorkspace.messages}
-            selectedTask={viewModel.taskWorkspace.selectedTask}
-            totalMessageCount={viewModel.taskWorkspace.totalMessageCount}
-            visibleMessageCount={viewModel.taskWorkspace.visibleMessageCount}
-          />
-        </div>
+            <SessionMessagePanel
+              isMessageScoped={viewModel.taskWorkspace.isMessageScoped}
+              messages={viewModel.taskWorkspace.messages}
+              selectedTask={viewModel.taskWorkspace.selectedTask}
+              totalMessageCount={viewModel.taskWorkspace.totalMessageCount}
+              visibleMessageCount={viewModel.taskWorkspace.visibleMessageCount}
+            />
+          </div>
+        )}
       </Panel>
 
       <MainPageDetailPanel

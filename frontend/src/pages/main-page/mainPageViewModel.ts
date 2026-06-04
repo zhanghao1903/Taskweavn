@@ -3,6 +3,7 @@ import type {
   ConfirmationActionView,
   FileChangeSummaryView,
   MainPageSnapshot,
+  PlanningAskView,
   ResultCardView,
   SessionMessageView,
   SessionSummary,
@@ -123,9 +124,28 @@ export type MainPageTaskWorkspaceViewModel = {
   visibleMessageCount: number;
 };
 
+export type MainPageAuthoringAskViewModel = {
+  asks: PlanningAskView[];
+  commandError: string | null;
+  isSubmitting: boolean;
+  rawTaskId: string;
+  summary: string | null;
+  title: string;
+};
+
+export type MainPageWorkAreaView =
+  | {
+      kind: "authoringAsk";
+      authoringAsk: MainPageAuthoringAskViewModel;
+    }
+  | {
+      kind: "taskWorkspace";
+    };
+
 export type MainPageViewModel = {
   detail: MainPageDetailView;
   input: MainPageInputViewModel;
+  mainWorkArea: MainPageWorkAreaView;
   sessionId: string;
   sidebar: MainPageSidebarViewModel;
   taskWorkspace: MainPageTaskWorkspaceViewModel;
@@ -135,10 +155,12 @@ export type MainPageViewModel = {
 
 export type BuildMainPageViewModelInput = {
   auditRouteAvailable?: boolean;
+  authoringAskError: string | null;
   confirmationError: string | null;
   detailOverride: DetailOverride;
   eventConnectionStatus: EventConnectionStatus;
   eventError: string | null;
+  isAnsweringAuthoringAsk: boolean;
   inputDisabled: boolean;
   isPublishingTaskTree: boolean;
   isRetryingTask: boolean;
@@ -153,10 +175,12 @@ export type BuildMainPageViewModelInput = {
 
 export function buildMainPageViewModel({
   auditRouteAvailable = true,
+  authoringAskError,
   confirmationError,
   detailOverride,
   eventConnectionStatus,
   eventError,
+  isAnsweringAuthoringAsk,
   inputDisabled,
   isPublishingTaskTree,
   isRetryingTask,
@@ -169,6 +193,11 @@ export function buildMainPageViewModel({
   uiNotice,
 }: BuildMainPageViewModelInput): MainPageViewModel {
   const nodes = snapshot.taskTree?.nodes ?? [];
+  const authoringAsk = authoringAskViewFor({
+    commandError: authoringAskError,
+    isSubmitting: isAnsweringAuthoringAsk,
+    planning: snapshot.planning,
+  });
   const effectiveSelectedTaskNodeId =
     selectedTaskNodeId ?? metadata.initialSelectedTaskNodeId;
   const activeConfirmation =
@@ -207,6 +236,7 @@ export function buildMainPageViewModel({
     selectedTask,
   });
   const input = inputViewFor({
+    hasAuthoringAsk: authoringAsk !== null,
     sessionPermissions: snapshot.permissions,
     inputDisabled,
     metadata,
@@ -244,6 +274,10 @@ export function buildMainPageViewModel({
       wantsResultView,
     }),
     input,
+    mainWorkArea:
+      authoringAsk === null
+        ? { kind: "taskWorkspace" }
+        : { authoringAsk, kind: "authoringAsk" },
     sessionId: snapshot.session.id,
     sidebar: {
       activeSession: snapshot.session,
@@ -276,12 +310,41 @@ export function buildMainPageViewModel({
       auditEntry,
       eventError,
       isPublishingTaskTree,
-      showPublishTaskTree: snapshot.taskTree?.status === "draft",
+      showPublishTaskTree:
+        authoringAsk === null && snapshot.taskTree?.status === "draft",
       taskTreeCommandError,
       taskTreeId: snapshot.taskTree?.id ?? null,
-      title: snapshot.taskTree?.title ?? "Start a new session",
+      title:
+        authoringAsk?.title ?? snapshot.taskTree?.title ?? "Start a new session",
       uiNotice,
     },
+  };
+}
+
+function authoringAskViewFor({
+  commandError,
+  isSubmitting,
+  planning,
+}: {
+  commandError: string | null;
+  isSubmitting: boolean;
+  planning: MainPageSnapshot["planning"];
+}): MainPageAuthoringAskViewModel | null {
+  const pendingAsks =
+    planning?.asks.filter((ask) => ask.status === "pending") ?? [];
+  const rawTaskId = planning?.sourceRawTaskId ?? null;
+
+  if (!planning || !rawTaskId || pendingAsks.length === 0) {
+    return null;
+  }
+
+  return {
+    asks: pendingAsks,
+    commandError,
+    isSubmitting,
+    rawTaskId,
+    summary: planning.summary ?? null,
+    title: planning.title ?? "Planning questions",
   };
 }
 
@@ -537,6 +600,7 @@ function detailHeaderFor({
 
 function inputViewFor({
   detailOverride,
+  hasAuthoringAsk,
   hasConfirmationFocus,
   inputDisabled,
   metadata,
@@ -545,6 +609,7 @@ function inputViewFor({
   taskTree,
 }: {
   detailOverride: DetailOverride;
+  hasAuthoringAsk: boolean;
   hasConfirmationFocus: boolean;
   inputDisabled: boolean;
   metadata: MainPageStateMetadata;
@@ -560,6 +625,7 @@ function inputViewFor({
   });
 
   const availability = inputAvailabilityFor({
+    hasAuthoringAsk,
     inputDisabled,
     selectedTask,
     sessionPermissions,
@@ -588,16 +654,25 @@ function inputViewFor({
 }
 
 function inputAvailabilityFor({
+  hasAuthoringAsk,
   inputDisabled,
   selectedTask,
   sessionPermissions,
   taskTree,
 }: {
+  hasAuthoringAsk: boolean;
   inputDisabled: boolean;
   selectedTask: TaskNodeCardView | undefined;
   sessionPermissions: MainPageSnapshot["permissions"];
   taskTree: MainPageSnapshot["taskTree"];
 }): Pick<MainPageInputViewModel, "disabled" | "disabledReason"> {
+  if (hasAuthoringAsk) {
+    return {
+      disabled: true,
+      disabledReason: "Answer the planning questions in the main work area.",
+    };
+  }
+
   if (inputDisabled) {
     return {
       disabled: true,

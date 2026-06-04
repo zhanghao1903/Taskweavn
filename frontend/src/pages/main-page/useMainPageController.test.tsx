@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { CommandResponse, UiEvent } from "../../shared/api/types";
 import type {
+  AnswerAuthoringAskBatchCommand,
   LoadMainPageSnapshot,
   MainPageAdapter,
   RetryTaskCommand,
@@ -175,6 +176,62 @@ describe("useMainPageController", () => {
 
     expect(result.current.taskTreeCommandError).toBe(null);
     expect(result.current.uiNotice).toBe("Stop requested.");
+  });
+
+  it("submits authoring ASK answers as one batch and refetches projection", async () => {
+    const answerAuthoringAskBatch = vi.fn<AnswerAuthoringAskBatchCommand>(
+      async (sessionId, _rawTaskId, request) =>
+        acceptedCommandResponse({
+          commandId: request.commandId,
+          sessionId,
+        }),
+    );
+    const loadSnapshot = vi.fn<LoadMainPageSnapshot>(loadImmediateSnapshot);
+
+    const { result } = renderMainPageController({
+      adapter: testAdapter({
+        answerAuthoringAskBatch,
+        loadSnapshot,
+      }),
+      initialStateId: "s2-understanding",
+    });
+
+    await waitFor(() => {
+      expect(result.current.snapshotData?.metadata.id).toBe("s2-understanding");
+    });
+
+    act(() => {
+      result.current.actions.answerAuthoringAskBatch({
+        answers: [
+          { askId: "authoring-ask-site-type", value: "portfolio" },
+          { askId: "authoring-ask-style", value: "quiet_editorial" },
+        ],
+        rawTaskId: "raw-task-website-goal",
+        sessionId: "session-website-plan",
+      });
+    });
+
+    await waitFor(() => {
+      expect(answerAuthoringAskBatch).toHaveBeenCalledWith(
+        "session-website-plan",
+        "raw-task-website-goal",
+        expect.objectContaining({
+          sessionId: "session-website-plan",
+          payload: {
+            answers: [
+              { askId: "authoring-ask-site-type", value: "portfolio" },
+              { askId: "authoring-ask-style", value: "quiet_editorial" },
+            ],
+          },
+        }),
+      );
+    });
+    await waitFor(() => {
+      expect(loadSnapshot).toHaveBeenCalledTimes(2);
+    });
+
+    expect(result.current.authoringAskError).toBe(null);
+    expect(result.current.uiNotice).toBe("Authoring answers submitted.");
   });
 
   it("switches the active session after creating a session", async () => {
@@ -631,7 +688,7 @@ function acceptedCommandResponse({
 }: {
   commandId: string;
   sessionId: string;
-  taskNodeId: string;
+  taskNodeId?: string;
 }): CommandResponse {
   return {
     requestId: `request-${commandId}`,
@@ -640,18 +697,22 @@ function acceptedCommandResponse({
       commandId,
       status: "accepted",
       message: "accepted",
-      affectedTaskRefs: [{ kind: "published", id: taskNodeId }],
+      affectedTaskRefs: taskNodeId
+        ? [{ kind: "published", id: taskNodeId }]
+        : [],
       objectRefs: [],
       affectedObjects: [],
       emittedMessageIds: [],
-      publishedTaskIds: [`retry-${taskNodeId}`],
+      publishedTaskIds: taskNodeId ? [`retry-${taskNodeId}`] : [],
       debugRefs: {},
     },
     error: null,
     refresh: {
       waitForEvents: false,
       suggestedQueries: ["session.snapshot"],
-      affectedTaskRefs: [{ kind: "published", id: taskNodeId }],
+      affectedTaskRefs: taskNodeId
+        ? [{ kind: "published", id: taskNodeId }]
+        : [],
       affectedScopes: [],
     },
   };

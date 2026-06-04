@@ -33,6 +33,25 @@ describe("buildMainPageViewModel", () => {
     expect(viewModel.workspace.showPublishTaskTree).toBe(true);
   });
 
+  it("replaces the main work area when authoring ASK is pending", () => {
+    const viewModel = buildViewModel("s2-understanding");
+
+    expect(viewModel.mainWorkArea.kind).toBe("authoringAsk");
+    if (viewModel.mainWorkArea.kind !== "authoringAsk") {
+      throw new Error(`Expected authoring ASK work area.`);
+    }
+    expect(viewModel.mainWorkArea.authoringAsk).toMatchObject({
+      rawTaskId: "raw-task-website-goal",
+      isSubmitting: false,
+    });
+    expect(viewModel.mainWorkArea.authoringAsk.asks).toHaveLength(2);
+    expect(viewModel.input.disabled).toBe(true);
+    expect(viewModel.input.disabledReason).toBe(
+      "Answer the planning questions in the main work area.",
+    );
+    expect(viewModel.workspace.showPublishTaskTree).toBe(false);
+  });
+
   it("routes selected TaskNode input to task guidance", () => {
     const viewModel = buildViewModel("s3-draft-ready", {
       selectedTaskNodeId: "task-visual-direction",
@@ -166,10 +185,12 @@ function buildViewModel(
 
   return buildMainPageViewModel({
     auditRouteAvailable: overrides.auditRouteAvailable,
+    authoringAskError: null,
     confirmationError: null,
     detailOverride: overrides.detailOverride ?? "auto",
     eventConnectionStatus: overrides.eventConnectionStatus ?? "disconnected",
     eventError: null,
+    isAnsweringAuthoringAsk: false,
     inputDisabled: overrides.inputDisabled ?? false,
     isPublishingTaskTree: false,
     isRetryingTask: false,

@@ -33,10 +33,12 @@ export const mainPageStateCatalog = [
     id: "s2-understanding",
     label: "S2 Understanding",
     lifecycle: "understanding",
-    userSituation: "Plato is interpreting the user's goal before a TaskTree exists.",
-    pageFocus: "Make progress legible without pretending that execution has started.",
-    primarySurfaces: ["Session messages", "Context inspector", "Context input"],
-    expectedUserAction: "Add constraints, examples, or missing context.",
+    userSituation:
+      "Plato needs planning clarification before a TaskTree can be produced.",
+    pageFocus:
+      "Collect required authoring answers in the Main Work Area before continuing planning.",
+    primarySurfaces: ["Authoring ASK", "Session context", "Context input disabled"],
+    expectedUserAction: "Answer all required planning questions in one batch.",
   },
   {
     id: "s3-draft-ready",

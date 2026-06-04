@@ -29,6 +29,7 @@ export function MainPage({
 }: MainPageProps = {}) {
   const {
     actions,
+    authoringAskError,
     confirmationError,
     detailOverride,
     eventConnectionStatus,
@@ -37,6 +38,7 @@ export function MainPage({
     inputError,
     isCreatingSession,
     isDeletingSession,
+    isAnsweringAuthoringAsk,
     isInputSubmitting,
     isPublishingTaskTree,
     isRenamingSession,
@@ -114,10 +116,12 @@ export function MainPage({
   const { metadata, snapshot } = snapshotData;
   const viewModel = buildMainPageViewModel({
     auditRouteAvailable,
+    authoringAskError,
     confirmationError,
     detailOverride,
     eventConnectionStatus,
     eventError,
+    isAnsweringAuthoringAsk,
     inputDisabled: isInputSubmitting,
     isPublishingTaskTree,
     isRetryingTask,

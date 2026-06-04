@@ -1,6 +1,7 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 
+import type { AnswerAuthoringAskItemPayload } from "../../shared/api/platoApi";
 import type {
   ConfirmationActionView,
   SessionSummary,
@@ -65,6 +66,12 @@ export type ConfirmationDecisionContext = {
   sessionId: string;
 };
 
+export type AnswerAuthoringAskBatchContext = {
+  answers: AnswerAuthoringAskItemPayload[];
+  rawTaskId: string;
+  sessionId: string;
+};
+
 export type SessionLifecycleDialog =
   | {
       mode: "idle";
@@ -88,6 +95,7 @@ export type SessionLifecycleDialog =
 
 export type MainPageController = {
   activeSessionId: string | null;
+  authoringAskError: string | null;
   confirmationError: string | null;
   detailOverride: DetailOverride;
   eventConnectionStatus: EventConnectionStatus;
@@ -96,6 +104,7 @@ export type MainPageController = {
   inputError: string | null;
   isCreatingSession: boolean;
   isDeletingSession: boolean;
+  isAnsweringAuthoringAsk: boolean;
   isInputSubmitting: boolean;
   isPublishingTaskTree: boolean;
   isRenamingSession: boolean;
@@ -118,6 +127,7 @@ export type MainPageController = {
     changeState: (nextStateId: MainPageStateId) => void;
     createSession: () => void;
     deleteSession: (session: SessionSummary) => void;
+    answerAuthoringAskBatch: (context: AnswerAuthoringAskBatchContext) => void;
     renameSession: (session: SessionSummary) => void;
     resolveConfirmation: (context: ConfirmationDecisionContext) => void;
     retryTask: (context: RetryTaskContext) => void;
@@ -147,6 +157,9 @@ export function useMainPageController({
   const [detailOverride, setDetailOverride] =
     useState<DetailOverride>("auto");
   const [confirmationError, setConfirmationError] = useState<string | null>(
+    null,
+  );
+  const [authoringAskError, setAuthoringAskError] = useState<string | null>(
     null,
   );
   const [inputDraft, setInputDraft] = useState("");
@@ -248,6 +261,41 @@ export function useMainPageController({
       }
 
       setConfirmationError(null);
+      if (result.shouldRefetch) {
+        void refetchSnapshot();
+      }
+    },
+  });
+
+  const answerAuthoringAskBatchMutation = useMutation({
+    mutationFn: async ({
+      answers,
+      rawTaskId,
+      sessionId,
+    }: AnswerAuthoringAskBatchContext) =>
+      adapter.answerAuthoringAskBatch(sessionId, rawTaskId, {
+        commandId: `answer-authoring-asks-${rawTaskId}-${Date.now()}`,
+        sessionId,
+        payload: {
+          answers,
+        },
+      }),
+    onError: () => {
+      setAuthoringAskError("Authoring ASK command failed. Please retry.");
+    },
+    onSuccess: (response) => {
+      const result = handleCommandResponse(
+        response,
+        "Authoring ASK command was rejected.",
+      );
+
+      if (result.errorMessage) {
+        setAuthoringAskError(result.errorMessage);
+        return;
+      }
+
+      setAuthoringAskError(null);
+      setUiNotice("Authoring answers submitted.");
       if (result.shouldRefetch) {
         void refetchSnapshot();
       }
@@ -532,6 +580,7 @@ export function useMainPageController({
 
     setSelectedTaskNodeId(currentSnapshot.metadata.initialSelectedTaskNodeId);
     setDetailOverride("auto");
+    setAuthoringAskError(null);
     setConfirmationError(null);
     setInputDraft("");
     setInputError(null);
@@ -657,6 +706,7 @@ export function useMainPageController({
     setStateId(nextStateId);
     setSelectedTaskNodeId(null);
     setDetailOverride("auto");
+    setAuthoringAskError(null);
     setConfirmationError(null);
     setInputDraft("");
     setInputError(null);
@@ -665,6 +715,7 @@ export function useMainPageController({
     setSessionDialog({ mode: "idle" });
     setEventError(null);
     resolveConfirmationMutation.reset();
+    answerAuthoringAskBatchMutation.reset();
     inputMutation.reset();
     publishTaskTreeMutation.reset();
     createSessionMutation.reset();
@@ -848,6 +899,25 @@ export function useMainPageController({
     });
   }
 
+  function handleAnswerAuthoringAskBatch({
+    answers,
+    rawTaskId,
+    sessionId,
+  }: AnswerAuthoringAskBatchContext) {
+    if (answers.length === 0) {
+      setAuthoringAskError("Answer at least one authoring question.");
+      return;
+    }
+
+    setAuthoringAskError(null);
+    setUiNotice(null);
+    answerAuthoringAskBatchMutation.mutate({
+      answers,
+      rawTaskId,
+      sessionId,
+    });
+  }
+
   function handleRetryTask({ sessionId, taskNodeId }: RetryTaskContext) {
     setTaskTreeCommandError(null);
     setUiNotice(null);
@@ -868,6 +938,7 @@ export function useMainPageController({
 
   return {
     activeSessionId,
+    authoringAskError,
     confirmationError,
     detailOverride,
     eventConnectionStatus,
@@ -876,6 +947,7 @@ export function useMainPageController({
     inputError,
     isCreatingSession: createSessionMutation.isPending,
     isDeletingSession: deleteSessionMutation.isPending,
+    isAnsweringAuthoringAsk: answerAuthoringAskBatchMutation.isPending,
     isInputSubmitting: inputMutation.isPending,
     isPublishingTaskTree: publishTaskTreeMutation.isPending,
     isRenamingSession: renameSessionMutation.isPending,
@@ -892,6 +964,7 @@ export function useMainPageController({
     taskTreeCommandError,
     uiNotice,
     actions: {
+      answerAuthoringAskBatch: handleAnswerAuthoringAskBatch,
       cancelSessionDialog: handleSessionDialogCancel,
       changeSessionDialogDraft: handleSessionDialogDraftChange,
       changeInputDraft: setInputDraft,

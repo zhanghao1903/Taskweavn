@@ -33,13 +33,13 @@ export const mainPageMockScenarios: readonly MainPageMockScenario[] = [
   }),
   mainScenario({
     fixtureId: "s2-understanding",
-    title: "Understanding / planning",
+    title: "Authoring ASK / planning clarification",
     planning: "assessing",
     readiness: "unknown",
     execution: "not_started",
-    primary: ["Add context"],
-    disabled: ["Publish"],
-    visible: ["TopBar", "MessageStream", "DetailPanel", "ContextInputBar"],
+    primary: ["Submit all answers"],
+    disabled: ["Publish", "Context input"],
+    visible: ["TopBar", "AuthoringAskWorkArea", "DetailPanel", "ContextInputBar"],
   }),
   mainScenario({
     fixtureId: "s3-draft-ready",
