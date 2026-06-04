@@ -33,6 +33,7 @@
 | Date | Slice | Status | Notes |
 |---|---|---|---|
 | 2026-06-04 | C1 Frontend Contract And Adapter Wiring | done | Added frontend ASK types, `MainPageSnapshot.pendingAsks/activeAsk`, `PlatoApi` ASK query/command methods, MainPage adapter command seams, HTTP adapter delegates, mock adapter commands, and targeted tests. |
+| 2026-06-04 | C2 Shared Choice Primitives | done | Added a domain-neutral `ChoiceGroup` primitive with single/multi/segmented layouts, disabled/loading/error handling, keyboard-accessible button choices, tokenized CSS, exports, README entry, and component tests. |
 
 ---
 
@@ -163,7 +164,7 @@ Acceptance:
 - HTTP API tests verify request paths and payloads.
 - Existing Main Page tests still pass.
 
-### C2. Shared Choice Primitives
+### C2. Shared Choice Primitives - done
 
 Deliver:
 
