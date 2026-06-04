@@ -49,7 +49,7 @@ export const mainPageMockScenarios: readonly MainPageMockScenario[] = [
     execution: "not_started",
     primary: ["Publish TaskTree"],
     disabled: [],
-    visible: ["TaskTree", "MessageStream", "DetailPanel", "ContextInputBar"],
+    visible: ["TaskTree", "LatestActivity", "DetailPanel", "ContextInputBar"],
   }),
   mainScenario({
     fixtureId: "s4-task-selected",
@@ -79,7 +79,7 @@ export const mainPageMockScenarios: readonly MainPageMockScenario[] = [
     execution: "running",
     primary: ["Append guidance"],
     disabled: ["Publish TaskTree"],
-    visible: ["TaskTree", "Running TaskNode", "MessageStream"],
+    visible: ["TaskTree", "Running TaskNode", "LatestActivity"],
   }),
   mainScenario({
     fixtureId: "s7-confirmation",
@@ -90,7 +90,7 @@ export const mainPageMockScenarios: readonly MainPageMockScenario[] = [
     confirmation: "pending",
     primary: ["Confirm baseline"],
     disabled: ["Duplicate submit"],
-    visible: ["TaskTree", "ConfirmationDetailPanel", "MessageStream"],
+    visible: ["TaskTree", "ConfirmationDetailPanel", "LatestActivity"],
   }),
   mainScenario({
     fixtureId: "s8-completed",
@@ -156,7 +156,7 @@ export const mainPageMockScenarios: readonly MainPageMockScenario[] = [
     permission: "pending_command",
     primary: ["Wait for event"],
     disabled: ["Duplicate submit"],
-    visible: ["Pending command notice", "TaskTree", "MessageStream"],
+    visible: ["Pending command notice", "TaskTree", "LatestActivity"],
     recovery: "Keep current snapshot and wait for event or retry timeout.",
   }),
   mainScenario({
@@ -178,7 +178,7 @@ export const mainPageMockScenarios: readonly MainPageMockScenario[] = [
     execution: "waiting_for_user",
     primary: ["Answer ASK"],
     disabled: ["Duplicate submit"],
-    visible: ["TaskTree", "ExecutionAskDetailPanel", "MessageStream"],
+    visible: ["TaskTree", "ExecutionAskDetailPanel", "LatestActivity"],
     recovery: "Answer, defer, or cancel the ASK and wait for backend projection.",
   }),
 ];

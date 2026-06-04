@@ -84,12 +84,12 @@ describe("App", () => {
     );
 
     expect(screen.getByRole("heading", { name: "Initial implementation" })).toBeInTheDocument();
-    expect(screen.getByText("Task interaction")).toBeInTheDocument();
+    expect(screen.getByText("Task details")).toBeInTheDocument();
     expect(screen.getByText("Scope: selected task / Initial implementation")).toBeInTheDocument();
-    expect(screen.getByText("Task-scoped projection")).toBeInTheDocument();
+    expect(screen.getByLabelText("Latest activity")).toBeInTheDocument();
   });
 
-  it("filters the session message projection by the selected TaskNode", async () => {
+  it("projects the latest activity by the selected TaskNode", async () => {
     const user = userEvent.setup();
 
     render(
@@ -106,6 +106,7 @@ describe("App", () => {
     expect(screen.queryByText("Implementation started")).not.toBeInTheDocument();
     expect(screen.getByText("1/2 shown")).toBeInTheDocument();
     expect(screen.getByText("Session-wide")).toBeInTheDocument();
+    expect(screen.queryByText("Session messages")).not.toBeInTheDocument();
   });
 
   it("scopes result and file-change detail to the selected TaskNode", async () => {
@@ -125,7 +126,7 @@ describe("App", () => {
 
     expect(screen.getByRole("heading", { name: "Visual direction" })).toBeInTheDocument();
     expect(screen.queryByText("package.json")).not.toBeInTheDocument();
-    expect(screen.getByText("Task interaction")).toBeInTheDocument();
+    expect(screen.getByText("Task details")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /Initial implementation/i }));
 

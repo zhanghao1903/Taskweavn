@@ -46,7 +46,7 @@ export const mainPageStateCatalog = [
     lifecycle: "planning",
     userSituation: "A draft TaskTree exists and needs review before publication.",
     pageFocus: "Present the generated TaskTree as the main object of interaction.",
-    primarySurfaces: ["TaskTree", "Session messages", "Context input"],
+    primarySurfaces: ["TaskTree", "Latest activity", "Context input"],
     expectedUserAction: "Review the draft, select a TaskNode, or refine the plan.",
   },
   {
@@ -55,7 +55,7 @@ export const mainPageStateCatalog = [
     lifecycle: "task_focus",
     userSituation: "The user selected a TaskNode while reviewing the TaskTree.",
     pageFocus: "Narrow the interaction scope from the session to a single TaskNode.",
-    primarySurfaces: ["TaskTree", "Task-scoped projection", "Context inspector"],
+    primarySurfaces: ["TaskTree", "Latest activity", "Context inspector"],
     expectedUserAction: "Inspect the TaskNode or add guidance that only applies to it.",
   },
   {
@@ -64,7 +64,7 @@ export const mainPageStateCatalog = [
     lifecycle: "task_focus",
     userSituation: "The user is actively refining a selected TaskNode.",
     pageFocus: "Show that task-scoped input changes the TaskNode, not the whole plan.",
-    primarySurfaces: ["TaskTree", "Session messages", "Context input"],
+    primarySurfaces: ["TaskTree", "Latest activity", "Context input"],
     expectedUserAction: "Provide task-specific instructions or corrections.",
   },
   {
@@ -82,7 +82,7 @@ export const mainPageStateCatalog = [
     lifecycle: "execution",
     userSituation: "Execution is waiting for a user decision attached to a TaskNode.",
     pageFocus: "Put the confirmation action in the detail panel without hiding context.",
-    primarySurfaces: ["Context inspector", "Confirmation options", "Session messages"],
+    primarySurfaces: ["Context inspector", "Confirmation options", "Latest activity"],
     expectedUserAction: "Confirm, revise, or skip the pending action.",
   },
   {
@@ -127,7 +127,7 @@ export const mainPageStateCatalog = [
     lifecycle: "recovery",
     userSituation: "A command was accepted but backend processing is delayed.",
     pageFocus: "Keep the current state readable while duplicate submit is disabled.",
-    primarySurfaces: ["TaskTree", "Pending command detail", "Session messages"],
+    primarySurfaces: ["TaskTree", "Pending command detail", "Latest activity"],
     expectedUserAction: "Wait for the next event or retry only after timeout.",
   },
   {
@@ -146,7 +146,7 @@ export const mainPageStateCatalog = [
     userSituation: "A Published Task is waiting for user input through ASK.",
     pageFocus:
       "Keep the TaskTree visible and answer the blocking ASK in the Detail Panel.",
-    primarySurfaces: ["TaskTree", "Execution ASK detail", "Session messages"],
+    primarySurfaces: ["TaskTree", "Execution ASK detail", "Latest activity"],
     expectedUserAction: "Answer, defer, or cancel the active ASK.",
   },
 ] as const satisfies readonly MainPageStateCatalogEntry[];

@@ -455,7 +455,7 @@
 .workspace {
   grid-area: work;
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr) auto;
   min-width: 0;
   min-height: 0;
   margin-bottom: calc(
@@ -480,7 +480,7 @@
 
 .workGrid {
   display: grid;
-  grid-template-columns: minmax(360px, 1.45fr) minmax(220px, 0.75fr);
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--plato-space-5);
   align-items: stretch;
   min-height: 0;
@@ -677,6 +677,57 @@
 
 .messageCard strong {
   margin-bottom: var(--plato-space-1);
+}
+
+.latestActivityStrip {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--plato-space-3);
+  margin-top: var(--plato-space-4);
+  border: 1px solid var(--plato-color-line);
+  border-radius: var(--plato-radius-lg);
+  padding: var(--plato-space-3) var(--plato-space-4);
+  background: var(--plato-color-panel);
+}
+
+.latestActivityLabel,
+.latestActivityMeta {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--plato-space-2);
+  white-space: nowrap;
+}
+
+.latestActivityContent {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: var(--plato-space-2);
+}
+
+.latestActivityContent strong,
+.latestActivityContent span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.latestActivityContent strong {
+  flex: 0 1 auto;
+  color: var(--plato-color-ink);
+  font-size: var(--plato-type-card-title-size);
+  font-weight: var(--plato-type-card-title-weight);
+  line-height: var(--plato-type-card-title-line-height);
+}
+
+.latestActivityContent span {
+  flex: 1 1 auto;
+  color: var(--plato-color-muted);
+  font-size: var(--plato-type-body-sm-size);
+  font-weight: var(--plato-type-body-sm-weight);
+  line-height: var(--plato-type-body-sm-line-height);
 }
 
 .detailPanel {
@@ -907,6 +958,16 @@
 
   .workGrid {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .latestActivityStrip {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .latestActivityLabel,
+  .latestActivityMeta {
+    flex-wrap: wrap;
+    white-space: normal;
   }
 
   .contextInput {

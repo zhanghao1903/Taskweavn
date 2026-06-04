@@ -28,7 +28,8 @@ The typed source of truth is `mainPageStateCatalog.ts`. The fixture data in
 ## Surface Rules
 
 - The TaskTree is the primary interaction object once it exists.
-- The Session Message Stream remains a single stream, but the UI may project it by selected TaskNode.
+- The Main Page shows only a Latest Activity strip by default; full message
+  history belongs in the Activity Overlay once that surface is implemented.
 - The Detail Panel is contextual: Workflow before planning, TaskNode during planning/execution, execution ASK and confirmation during gates, and Result/File Change during review.
 - Authoring ASK uses the main work area and submits answers in a batch; execution ASK uses the detail panel and targets one concrete ASK.
 - Local command pending state is temporary. `command.completed` and `command.failed` events invalidate the snapshot, and the refreshed MainPageSnapshot remains the durable convergence source.

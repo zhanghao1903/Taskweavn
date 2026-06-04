@@ -2,11 +2,11 @@ import type { ReactNode } from "react";
 
 import { Panel } from "../../shared/components";
 import { ContextInputPanel } from "./ContextInputPanel";
+import { LatestActivityStrip } from "./LatestActivityStrip";
 import { MainPageDetailPanel } from "./MainPageDetailPanel";
 import { MainPageSessionSidebar } from "./MainPageSessionSidebar";
 import { MainPageTopBar } from "./MainPageTopBar";
 import { MainPageWorkspaceHeader } from "./MainPageWorkspaceHeader";
-import { SessionMessagePanel } from "./SessionMessagePanel";
 import { TaskTreePanel } from "./TaskTreePanel";
 import { AuthoringAskWorkArea } from "./interaction/AuthoringAskWorkArea";
 import type { MainPageViewModel } from "./mainPageViewModel";
@@ -112,16 +112,17 @@ export function MainPageWorkbench({
               selectedTaskNodeId={viewModel.taskWorkspace.selectedTaskNodeId}
               taskTree={viewModel.taskWorkspace.taskTree}
             />
-
-            <SessionMessagePanel
-              isMessageScoped={viewModel.taskWorkspace.isMessageScoped}
-              messages={viewModel.taskWorkspace.messages}
-              selectedTask={viewModel.taskWorkspace.selectedTask}
-              totalMessageCount={viewModel.taskWorkspace.totalMessageCount}
-              visibleMessageCount={viewModel.taskWorkspace.visibleMessageCount}
-            />
           </div>
         )}
+        {viewModel.mainWorkArea.kind !== "authoringAsk" ? (
+          <LatestActivityStrip
+            isMessageScoped={viewModel.taskWorkspace.isMessageScoped}
+            messages={viewModel.taskWorkspace.messages}
+            selectedTask={viewModel.taskWorkspace.selectedTask}
+            totalMessageCount={viewModel.taskWorkspace.totalMessageCount}
+            visibleMessageCount={viewModel.taskWorkspace.visibleMessageCount}
+          />
+        ) : null}
       </Panel>
 
       <MainPageDetailPanel
