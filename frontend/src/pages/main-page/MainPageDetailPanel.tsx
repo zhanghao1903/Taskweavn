@@ -1,7 +1,13 @@
 import { CircleStop, RotateCcw } from "lucide-react";
 
+import type {
+  AnswerAskPayload,
+  CancelAskPayload,
+  DeferAskPayload,
+} from "../../shared/api/platoApi";
 import type { ConfirmationActionView, TaskNodeId } from "../../shared/api/types";
 import { Badge, Button, Panel, Text } from "../../shared/components";
+import { ExecutionAskDetailPanel } from "./interaction/ExecutionAskDetailPanel";
 import type { ConfirmationDecision } from "./mainPageUiTypes";
 import { confirmationResolutionText } from "./mainPageCopy";
 import {
@@ -13,7 +19,10 @@ import styles from "./MainPage.module.css";
 
 export type MainPageDetailPanelProps = {
   detail: MainPageDetailView;
+  onAnswerAsk: (payload: AnswerAskPayload) => void;
+  onCancelAsk: (payload: CancelAskPayload) => void;
   onConfirmationDecision: (decision: Exclude<ConfirmationDecision, null>) => void;
+  onDeferAsk: (payload: DeferAskPayload) => void;
   onRetryTask: (taskNodeId: TaskNodeId) => void;
   onStopTask: (taskNodeId: TaskNodeId) => void;
   onShowFileChanges: () => void;
@@ -32,7 +41,10 @@ type StateNoteDetail = Extract<MainPageDetailView, { kind: "note" }>;
 
 export function MainPageDetailPanel({
   detail,
+  onAnswerAsk,
+  onCancelAsk,
   onConfirmationDecision,
+  onDeferAsk,
   onRetryTask,
   onStopTask,
   onShowFileChanges,
@@ -53,7 +65,10 @@ export function MainPageDetailPanel({
       <Text variant="muted">{header.body}</Text>
       <DetailContent
         detail={detail}
+        onAnswerAsk={onAnswerAsk}
+        onCancelAsk={onCancelAsk}
         onConfirmationDecision={onConfirmationDecision}
+        onDeferAsk={onDeferAsk}
         onRetryTask={onRetryTask}
         onStopTask={onStopTask}
         onShowFileChanges={onShowFileChanges}
@@ -65,7 +80,10 @@ export function MainPageDetailPanel({
 
 type DetailContentProps = {
   detail: MainPageDetailView;
+  onAnswerAsk: (payload: AnswerAskPayload) => void;
+  onCancelAsk: (payload: CancelAskPayload) => void;
   onConfirmationDecision: (decision: Exclude<ConfirmationDecision, null>) => void;
+  onDeferAsk: (payload: DeferAskPayload) => void;
   onRetryTask: (taskNodeId: TaskNodeId) => void;
   onStopTask: (taskNodeId: TaskNodeId) => void;
   onShowFileChanges: () => void;
@@ -74,13 +92,25 @@ type DetailContentProps = {
 
 function DetailContent({
   detail,
+  onAnswerAsk,
+  onCancelAsk,
   onConfirmationDecision,
+  onDeferAsk,
   onRetryTask,
   onStopTask,
   onShowFileChanges,
   onShowResult,
 }: DetailContentProps) {
   switch (detail.kind) {
+    case "executionAsk":
+      return (
+        <ExecutionAskDetailPanel
+          detail={detail}
+          onAnswer={onAnswerAsk}
+          onCancel={onCancelAsk}
+          onDefer={onDeferAsk}
+        />
+      );
     case "confirmation":
       return (
         <ConfirmationPanel

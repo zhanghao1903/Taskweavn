@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type { AnswerAuthoringAskItemPayload } from "../../shared/api/platoApi";
 import type {
   ConfirmationActionView,
+  AskId,
   SessionSummary,
   TaskNodeId,
 } from "../../shared/api/types";
@@ -72,6 +73,25 @@ export type AnswerAuthoringAskBatchContext = {
   sessionId: string;
 };
 
+export type AnswerExecutionAskContext = {
+  askId: AskId;
+  selectedOptionIds: string[];
+  sessionId: string;
+  text?: string | null;
+};
+
+export type DeferExecutionAskContext = {
+  askId: AskId;
+  reason?: string | null;
+  sessionId: string;
+};
+
+export type CancelExecutionAskContext = {
+  askId: AskId;
+  reason: string;
+  sessionId: string;
+};
+
 export type SessionLifecycleDialog =
   | {
       mode: "idle";
@@ -105,6 +125,10 @@ export type MainPageController = {
   isCreatingSession: boolean;
   isDeletingSession: boolean;
   isAnsweringAuthoringAsk: boolean;
+  executionAskError: string | null;
+  isAnsweringAsk: boolean;
+  isCancellingAsk: boolean;
+  isDeferringAsk: boolean;
   isInputSubmitting: boolean;
   isPublishingTaskTree: boolean;
   isRenamingSession: boolean;
@@ -128,6 +152,9 @@ export type MainPageController = {
     createSession: () => void;
     deleteSession: (session: SessionSummary) => void;
     answerAuthoringAskBatch: (context: AnswerAuthoringAskBatchContext) => void;
+    answerAsk: (context: AnswerExecutionAskContext) => void;
+    cancelAsk: (context: CancelExecutionAskContext) => void;
+    deferAsk: (context: DeferExecutionAskContext) => void;
     renameSession: (session: SessionSummary) => void;
     resolveConfirmation: (context: ConfirmationDecisionContext) => void;
     retryTask: (context: RetryTaskContext) => void;
@@ -160,6 +187,9 @@ export function useMainPageController({
     null,
   );
   const [authoringAskError, setAuthoringAskError] = useState<string | null>(
+    null,
+  );
+  const [executionAskError, setExecutionAskError] = useState<string | null>(
     null,
   );
   const [inputDraft, setInputDraft] = useState("");
@@ -296,6 +326,105 @@ export function useMainPageController({
 
       setAuthoringAskError(null);
       setUiNotice("Authoring answers submitted.");
+      if (result.shouldRefetch) {
+        void refetchSnapshot();
+      }
+    },
+  });
+
+  const answerAskMutation = useMutation({
+    mutationFn: async ({
+      askId,
+      selectedOptionIds,
+      sessionId,
+      text,
+    }: AnswerExecutionAskContext) =>
+      adapter.answerAsk(sessionId, askId, {
+        commandId: `answer-ask-${askId}-${Date.now()}`,
+        sessionId,
+        payload: {
+          selectedOptionIds,
+          text: text ?? null,
+        },
+      }),
+    onError: () => {
+      setExecutionAskError("ASK answer command failed. Please retry.");
+    },
+    onSuccess: (response) => {
+      const result = handleCommandResponse(
+        response,
+        "ASK answer command was rejected.",
+      );
+
+      if (result.errorMessage) {
+        setExecutionAskError(result.errorMessage);
+        return;
+      }
+
+      setExecutionAskError(null);
+      setUiNotice("ASK answer submitted.");
+      if (result.shouldRefetch) {
+        void refetchSnapshot();
+      }
+    },
+  });
+
+  const deferAskMutation = useMutation({
+    mutationFn: async ({ askId, reason, sessionId }: DeferExecutionAskContext) =>
+      adapter.deferAsk(sessionId, askId, {
+        commandId: `defer-ask-${askId}-${Date.now()}`,
+        sessionId,
+        payload: {
+          reason: reason ?? null,
+        },
+      }),
+    onError: () => {
+      setExecutionAskError("ASK defer command failed. Please retry.");
+    },
+    onSuccess: (response) => {
+      const result = handleCommandResponse(
+        response,
+        "ASK defer command was rejected.",
+      );
+
+      if (result.errorMessage) {
+        setExecutionAskError(result.errorMessage);
+        return;
+      }
+
+      setExecutionAskError(null);
+      setUiNotice("ASK deferred.");
+      if (result.shouldRefetch) {
+        void refetchSnapshot();
+      }
+    },
+  });
+
+  const cancelAskMutation = useMutation({
+    mutationFn: async ({ askId, reason, sessionId }: CancelExecutionAskContext) =>
+      adapter.cancelAsk(sessionId, askId, {
+        commandId: `cancel-ask-${askId}-${Date.now()}`,
+        sessionId,
+        payload: {
+          reason,
+        },
+      }),
+    onError: () => {
+      setExecutionAskError("ASK cancel command failed. Please retry.");
+    },
+    onSuccess: (response) => {
+      const result = handleCommandResponse(
+        response,
+        "ASK cancel command was rejected.",
+      );
+
+      if (result.errorMessage) {
+        setExecutionAskError(result.errorMessage);
+        return;
+      }
+
+      setExecutionAskError(null);
+      setUiNotice("ASK cancelled.");
       if (result.shouldRefetch) {
         void refetchSnapshot();
       }
@@ -581,6 +710,7 @@ export function useMainPageController({
     setSelectedTaskNodeId(currentSnapshot.metadata.initialSelectedTaskNodeId);
     setDetailOverride("auto");
     setAuthoringAskError(null);
+    setExecutionAskError(null);
     setConfirmationError(null);
     setInputDraft("");
     setInputError(null);
@@ -707,6 +837,7 @@ export function useMainPageController({
     setSelectedTaskNodeId(null);
     setDetailOverride("auto");
     setAuthoringAskError(null);
+    setExecutionAskError(null);
     setConfirmationError(null);
     setInputDraft("");
     setInputError(null);
@@ -716,6 +847,9 @@ export function useMainPageController({
     setEventError(null);
     resolveConfirmationMutation.reset();
     answerAuthoringAskBatchMutation.reset();
+    answerAskMutation.reset();
+    deferAskMutation.reset();
+    cancelAskMutation.reset();
     inputMutation.reset();
     publishTaskTreeMutation.reset();
     createSessionMutation.reset();
@@ -918,6 +1052,47 @@ export function useMainPageController({
     });
   }
 
+  function handleAnswerAsk({
+    askId,
+    selectedOptionIds,
+    sessionId,
+    text,
+  }: AnswerExecutionAskContext) {
+    if (selectedOptionIds.length === 0 && !text?.trim()) {
+      setExecutionAskError("Answer the ASK before submitting.");
+      return;
+    }
+
+    setExecutionAskError(null);
+    setUiNotice(null);
+    answerAskMutation.mutate({
+      askId,
+      selectedOptionIds,
+      sessionId,
+      text,
+    });
+  }
+
+  function handleDeferAsk({ askId, reason, sessionId }: DeferExecutionAskContext) {
+    setExecutionAskError(null);
+    setUiNotice(null);
+    deferAskMutation.mutate({
+      askId,
+      reason,
+      sessionId,
+    });
+  }
+
+  function handleCancelAsk({ askId, reason, sessionId }: CancelExecutionAskContext) {
+    setExecutionAskError(null);
+    setUiNotice(null);
+    cancelAskMutation.mutate({
+      askId,
+      reason,
+      sessionId,
+    });
+  }
+
   function handleRetryTask({ sessionId, taskNodeId }: RetryTaskContext) {
     setTaskTreeCommandError(null);
     setUiNotice(null);
@@ -948,6 +1123,10 @@ export function useMainPageController({
     isCreatingSession: createSessionMutation.isPending,
     isDeletingSession: deleteSessionMutation.isPending,
     isAnsweringAuthoringAsk: answerAuthoringAskBatchMutation.isPending,
+    executionAskError,
+    isAnsweringAsk: answerAskMutation.isPending,
+    isCancellingAsk: cancelAskMutation.isPending,
+    isDeferringAsk: deferAskMutation.isPending,
     isInputSubmitting: inputMutation.isPending,
     isPublishingTaskTree: publishTaskTreeMutation.isPending,
     isRenamingSession: renameSessionMutation.isPending,
@@ -965,12 +1144,15 @@ export function useMainPageController({
     uiNotice,
     actions: {
       answerAuthoringAskBatch: handleAnswerAuthoringAskBatch,
+      answerAsk: handleAnswerAsk,
       cancelSessionDialog: handleSessionDialogCancel,
+      cancelAsk: handleCancelAsk,
       changeSessionDialogDraft: handleSessionDialogDraftChange,
       changeInputDraft: setInputDraft,
       changeState: handleStateChange,
       createSession: handleCreateSession,
       deleteSession: handleDeleteSession,
+      deferAsk: handleDeferAsk,
       renameSession: handleRenameSession,
       resolveConfirmation: handleConfirmationDecision,
       retryTask: handleRetryTask,

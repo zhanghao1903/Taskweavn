@@ -139,6 +139,16 @@ export const mainPageStateCatalog = [
     primarySurfaces: ["TaskTree", "Recoverable error detail", "Context input"],
     expectedUserAction: "Retry the command or revise the task instruction.",
   },
+  {
+    id: "s14-execution-ask",
+    label: "S14 Execution ASK",
+    lifecycle: "execution",
+    userSituation: "A Published Task is waiting for user input through ASK.",
+    pageFocus:
+      "Keep the TaskTree visible and answer the blocking ASK in the Detail Panel.",
+    primarySurfaces: ["TaskTree", "Execution ASK detail", "Session messages"],
+    expectedUserAction: "Answer, defer, or cancel the active ASK.",
+  },
 ] as const satisfies readonly MainPageStateCatalogEntry[];
 
 export function getMainPageStateCatalogEntry(

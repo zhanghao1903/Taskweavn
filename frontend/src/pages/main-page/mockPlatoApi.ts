@@ -98,6 +98,7 @@ export function getMainPageMockSnapshot(
 ): MainPageRuntimeSnapshot {
   const fixture = getMainPageState(stateId);
   const sessionStatus = sessionStatusForFixture(fixture.id);
+  const activeAsk = activeAskForFixture(fixture.id, fixture.session.id);
 
   return {
     metadata: {
@@ -139,12 +140,17 @@ export function getMainPageMockSnapshot(
         validation: null,
       },
       taskTree: fixture.taskTree
-        ? toTaskTreeView(fixture.taskTree, fixture.session.id, sessionStatus)
+        ? toTaskTreeView(
+            fixture.taskTree,
+            fixture.session.id,
+            sessionStatus,
+            fixture.id,
+          )
         : null,
       messages: fixture.messages,
       pendingConfirmations: toPendingConfirmations(fixture),
-      pendingAsks: [],
-      activeAsk: null,
+      pendingAsks: activeAsk ? [activeAsk] : [],
+      activeAsk,
       result: fixture.result ? toResultCardView(fixture.result, fixture.session.id) : null,
       fileChangeSummary: fixture.fileChangeSummary
         ? toFileChangeSummaryView(fixture.fileChangeSummary, fixture.session.id)
@@ -513,6 +519,7 @@ function sessionStatusForFixture(stateId: MainPageStateId): SessionStatus {
     case "s12-backend-busy":
       return "running";
     case "s7-confirmation":
+    case "s14-execution-ask":
       return "waiting_user";
     case "s8-completed":
     case "s9-file-changes":
@@ -559,6 +566,53 @@ function planningAsksForFixture(
   ];
 }
 
+function activeAskForFixture(
+  stateId: MainPageStateId,
+  sessionId: SessionId,
+): MainPageRuntimeSnapshot["snapshot"]["activeAsk"] {
+  if (stateId !== "s14-execution-ask") {
+    return null;
+  }
+
+  return {
+    id: "ask-deployment-target",
+    sessionId,
+    taskNodeId: "task-implementation",
+    taskRef: {
+      kind: "published",
+      id: "task-implementation",
+    },
+    question: "Where should the first deployment target point?",
+    reason:
+      "The implementation task needs a target before it can configure deployment files.",
+    suggestedOptions: [
+      {
+        id: "vercel",
+        label: "Vercel",
+        description: "Use Vercel for the first static deployment path.",
+      },
+      {
+        id: "netlify",
+        label: "Netlify",
+        description: "Use Netlify for the first static deployment path.",
+      },
+    ],
+    answerType: "single_choice",
+    allowFreeText: true,
+    allowNoOptionWithText: false,
+    blocking: true,
+    attachmentsSupported: false,
+    status: "pending",
+    answerId: null,
+    resumeHint: "Resume implementation after persisting the answer.",
+    createdAt: "2026-05-17T10:22:00+08:00",
+    answeredAt: null,
+    deferredAt: null,
+    cancelledAt: null,
+    expiredAt: null,
+  };
+}
+
 function permissionsForFixture(
   stateId: MainPageStateId,
 ): NonNullable<MainPageRuntimeSnapshot["snapshot"]["permissions"]> {
@@ -583,14 +637,19 @@ function toTaskTreeView(
   taskTree: NonNullable<(typeof mainPageStates)[number]["taskTree"]>,
   sessionId: string,
   sessionStatus: string,
+  stateId: MainPageStateId,
 ): TaskTreeView {
   const status = taskTreeStatusFor(sessionStatus);
   const nodes = taskTree.nodes.map((node, index): TaskNodeCardView => {
     const nodeStatus = node.status as TaskNodeCardView["status"];
+    const isExecutionAskNode =
+      stateId === "s14-execution-ask" && node.id === "task-implementation";
+    const pendingConfirmationCount =
+      !isExecutionAskNode && nodeStatus === "waiting_user" ? 1 : 0;
     const dimensions = deriveLegacyTaskNodeStatusDimensions({
       badges: {
         directFileChangeCount: node.id === "task-implementation" ? 3 : 0,
-        pendingConfirmationCount: nodeStatus === "waiting_user" ? 1 : 0,
+        pendingConfirmationCount,
         subtreeFileChangeCount: node.id === "task-implementation" ? 3 : 0,
         unreadMessageCount: 0,
       },
@@ -608,13 +667,13 @@ function toTaskTreeView(
       summary: node.summary,
       status: nodeStatus,
       readiness: dimensions.readiness,
-      execution: dimensions.execution,
-      confirmation: dimensions.confirmation,
+      execution: isExecutionAskNode ? "waiting_for_user" : dimensions.execution,
+      confirmation: isExecutionAskNode ? null : dimensions.confirmation,
       auditVerdict: dimensions.auditVerdict,
       depth: 0,
       orderIndex: index,
       badges: {
-        pendingConfirmationCount: nodeStatus === "waiting_user" ? 1 : 0,
+        pendingConfirmationCount,
         unreadMessageCount: 0,
         directFileChangeCount: node.id === "task-implementation" ? 3 : 0,
         subtreeFileChangeCount: node.id === "task-implementation" ? 3 : 0,
@@ -622,7 +681,8 @@ function toTaskTreeView(
       permissions: {
         canEdit: nodeStatus === "draft" || nodeStatus === "queued",
         canAppendGuidance: nodeStatus === "running" || nodeStatus === "waiting_user",
-        canResolveConfirmation: nodeStatus === "waiting_user",
+        canResolveConfirmation:
+          !isExecutionAskNode && nodeStatus === "waiting_user",
         canPublish: sessionStatus === "draft_ready",
         canCancel:
           nodeStatus === "draft" || nodeStatus === "queued" || nodeStatus === "running",

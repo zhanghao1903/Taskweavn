@@ -170,6 +170,17 @@ export const mainPageMockScenarios: readonly MainPageMockScenario[] = [
     visible: ["ErrorState", "TaskTree", "ContextInputBar"],
     recovery: "Retry the command or revise the task instruction.",
   }),
+  mainScenario({
+    fixtureId: "s14-execution-ask",
+    title: "Execution ASK waiting for answer",
+    planning: "published",
+    readiness: "published",
+    execution: "waiting_for_user",
+    primary: ["Answer ASK"],
+    disabled: ["Duplicate submit"],
+    visible: ["TaskTree", "ExecutionAskDetailPanel", "MessageStream"],
+    recovery: "Answer, defer, or cancel the ASK and wait for backend projection.",
+  }),
 ];
 
 export function listMainPageMockScenarios(): readonly MainPageMockScenario[] {

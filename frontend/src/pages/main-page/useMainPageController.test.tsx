@@ -6,6 +6,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { CommandResponse, UiEvent } from "../../shared/api/types";
 import type {
   AnswerAuthoringAskBatchCommand,
+  AnswerAskCommand,
+  CancelAskCommand,
+  DeferAskCommand,
   LoadMainPageSnapshot,
   MainPageAdapter,
   RetryTaskCommand,
@@ -232,6 +235,126 @@ describe("useMainPageController", () => {
 
     expect(result.current.authoringAskError).toBe(null);
     expect(result.current.uiNotice).toBe("Authoring answers submitted.");
+  });
+
+  it("answers an execution ASK through its concrete ask id", async () => {
+    const answerAsk = vi.fn<AnswerAskCommand>(
+      async (sessionId, _askId, request) =>
+        acceptedCommandResponse({
+          commandId: request.commandId,
+          sessionId,
+        }),
+    );
+    const loadSnapshot = vi.fn<LoadMainPageSnapshot>(loadImmediateSnapshot);
+
+    const { result } = renderMainPageController({
+      adapter: testAdapter({
+        answerAsk,
+        loadSnapshot,
+      }),
+      initialStateId: "s14-execution-ask",
+    });
+
+    await waitFor(() => {
+      expect(result.current.snapshotData?.metadata.id).toBe("s14-execution-ask");
+    });
+
+    act(() => {
+      result.current.actions.answerAsk({
+        askId: "ask-deployment-target",
+        selectedOptionIds: ["vercel"],
+        sessionId: "session-website-plan",
+        text: null,
+      });
+    });
+
+    await waitFor(() => {
+      expect(answerAsk).toHaveBeenCalledWith(
+        "session-website-plan",
+        "ask-deployment-target",
+        expect.objectContaining({
+          sessionId: "session-website-plan",
+          payload: {
+            selectedOptionIds: ["vercel"],
+            text: null,
+          },
+        }),
+      );
+    });
+    await waitFor(() => {
+      expect(loadSnapshot).toHaveBeenCalledTimes(2);
+    });
+
+    expect(result.current.executionAskError).toBe(null);
+    expect(result.current.uiNotice).toBe("ASK answer submitted.");
+  });
+
+  it("defer and cancel execution ASK commands target the concrete ask id", async () => {
+    const deferAsk = vi.fn<DeferAskCommand>(
+      async (sessionId, _askId, request) =>
+        acceptedCommandResponse({
+          commandId: request.commandId,
+          sessionId,
+        }),
+    );
+    const cancelAsk = vi.fn<CancelAskCommand>(
+      async (sessionId, _askId, request) =>
+        acceptedCommandResponse({
+          commandId: request.commandId,
+          sessionId,
+        }),
+    );
+    const { result } = renderMainPageController({
+      adapter: testAdapter({
+        cancelAsk,
+        deferAsk,
+      }),
+      initialStateId: "s14-execution-ask",
+    });
+
+    await waitFor(() => {
+      expect(result.current.snapshotData?.metadata.id).toBe("s14-execution-ask");
+    });
+
+    act(() => {
+      result.current.actions.deferAsk({
+        askId: "ask-deployment-target",
+        reason: "user deferred ASK",
+        sessionId: "session-website-plan",
+      });
+    });
+
+    await waitFor(() => {
+      expect(deferAsk).toHaveBeenCalledWith(
+        "session-website-plan",
+        "ask-deployment-target",
+        expect.objectContaining({
+          payload: {
+            reason: "user deferred ASK",
+          },
+        }),
+      );
+    });
+
+    act(() => {
+      result.current.actions.cancelAsk({
+        askId: "ask-deployment-target",
+        reason: "user cancelled ASK",
+        sessionId: "session-website-plan",
+      });
+    });
+
+    await waitFor(() => {
+      expect(cancelAsk).toHaveBeenCalledWith(
+        "session-website-plan",
+        "ask-deployment-target",
+        expect.objectContaining({
+          payload: {
+            reason: "user cancelled ASK",
+          },
+        }),
+      );
+    });
   });
 
   it("switches the active session after creating a session", async () => {

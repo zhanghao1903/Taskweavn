@@ -126,6 +126,29 @@ export function MainPageWorkbench({
 
       <MainPageDetailPanel
         detail={viewModel.detail}
+        onAnswerAsk={(payload) => {
+          if (viewModel.detail.kind !== "executionAsk") {
+            return;
+          }
+
+          actions.answerAsk({
+            askId: viewModel.detail.ask.id,
+            selectedOptionIds: payload.selectedOptionIds,
+            sessionId: viewModel.sessionId,
+            text: payload.text,
+          });
+        }}
+        onCancelAsk={(payload) => {
+          if (viewModel.detail.kind !== "executionAsk") {
+            return;
+          }
+
+          actions.cancelAsk({
+            askId: viewModel.detail.ask.id,
+            reason: payload.reason,
+            sessionId: viewModel.sessionId,
+          });
+        }}
         onConfirmationDecision={(decision) =>
           actions.resolveConfirmation({
             confirmation:
@@ -136,6 +159,17 @@ export function MainPageWorkbench({
             sessionId: viewModel.sessionId,
           })
         }
+        onDeferAsk={(payload) => {
+          if (viewModel.detail.kind !== "executionAsk") {
+            return;
+          }
+
+          actions.deferAsk({
+            askId: viewModel.detail.ask.id,
+            reason: payload.reason,
+            sessionId: viewModel.sessionId,
+          });
+        }}
         onRetryTask={(taskNodeId) =>
           actions.retryTask({
             sessionId: viewModel.sessionId,

@@ -21,6 +21,7 @@ describe("Main Page mock scenarios", () => {
       "s11-stale-snapshot",
       "s12-backend-busy",
       "s13-command-failed",
+      "s14-execution-ask",
     ]);
   });
 

@@ -31,7 +31,8 @@ export type MainPageStateId =
   | "s10-permission-denied"
   | "s11-stale-snapshot"
   | "s12-backend-busy"
-  | "s13-command-failed";
+  | "s13-command-failed"
+  | "s14-execution-ask";
 
 export type MainPageFixture = {
   id: MainPageStateId;
@@ -130,6 +131,15 @@ const failedTaskTree: TaskTree = {
   ...baseTaskTree,
   nodes: baseTaskTree.nodes.map((node) =>
     node.id === "task-implementation" ? { ...node, status: "failed" } : node,
+  ),
+};
+
+const executionAskTaskTree: TaskTree = {
+  ...baseTaskTree,
+  nodes: baseTaskTree.nodes.map((node) =>
+    node.id === "task-implementation"
+      ? { ...node, status: "waiting_user" }
+      : node,
   ),
 };
 
@@ -554,6 +564,38 @@ export const mainPageStates: MainPageFixture[] = [
     inputScope: {
       label: "Scope: failed command / Initial implementation",
       placeholder: "Revise the instruction or retry the command.",
+    },
+    result: null,
+    fileChangeSummary: null,
+  }),
+  state({
+    id: "s14-execution-ask",
+    label: "S14 Execution ASK",
+    topStatus: "Waiting for user",
+    topStatusTone: "warning",
+    taskTree: executionAskTaskTree,
+    selectedTaskNodeId: "task-implementation",
+    messages: [
+      ...baseMessages,
+      {
+        id: "message-execution-ask",
+        sessionId: sessions[0].id,
+        taskNodeId: "task-implementation",
+        kind: "actionable",
+        title: "Implementation needs input",
+        body: "Choose the deployment target before execution can continue.",
+        createdAt: "2026-05-17T10:22:00+08:00",
+      },
+    ],
+    detail: {
+      mode: "task",
+      eyebrow: "Execution ASK",
+      title: "Initial implementation needs input",
+      body: "The running TaskNode is blocked until the ASK is answered.",
+    },
+    inputScope: {
+      label: "Scope: waiting task / Initial implementation",
+      placeholder: "Answer the ASK in the detail panel.",
     },
     result: null,
     fileChangeSummary: null,

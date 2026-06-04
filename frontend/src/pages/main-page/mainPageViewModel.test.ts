@@ -104,6 +104,19 @@ describe("buildMainPageViewModel", () => {
     expect(viewModel.input.mode).toBe("append_task_input");
   });
 
+  it("shows execution ASK detail while preserving the task workspace", () => {
+    const viewModel = buildViewModel("s14-execution-ask");
+
+    expect(viewModel.mainWorkArea.kind).toBe("taskWorkspace");
+    expect(viewModel.detail.kind).toBe("executionAsk");
+    if (viewModel.detail.kind !== "executionAsk") {
+      throw new Error(`Expected executionAsk detail, got ${viewModel.detail.kind}`);
+    }
+    expect(viewModel.detail.ask.id).toBe("ask-deployment-target");
+    expect(viewModel.detail.selectedTask?.id).toBe("task-implementation");
+    expect(viewModel.taskWorkspace.taskTree?.nodes).toHaveLength(4);
+  });
+
   it("keeps file-change review as an explicit detail variant", () => {
     const viewModel = buildViewModel("s9-file-changes");
 
@@ -191,6 +204,10 @@ function buildViewModel(
     eventConnectionStatus: overrides.eventConnectionStatus ?? "disconnected",
     eventError: null,
     isAnsweringAuthoringAsk: false,
+    executionAskError: null,
+    isAnsweringAsk: false,
+    isCancellingAsk: false,
+    isDeferringAsk: false,
     inputDisabled: overrides.inputDisabled ?? false,
     isPublishingTaskTree: false,
     isRetryingTask: false,

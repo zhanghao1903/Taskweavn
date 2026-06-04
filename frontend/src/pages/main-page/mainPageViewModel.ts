@@ -1,5 +1,6 @@
 import type {
   AuditFilterKind,
+  AskRequestView,
   ConfirmationActionView,
   FileChangeSummaryView,
   MainPageSnapshot,
@@ -29,6 +30,16 @@ import type {
 import type { MainPageStateMetadata } from "./runtime/adapter";
 
 export type MainPageDetailView =
+  | {
+      kind: "executionAsk";
+      ask: AskRequestView;
+      commandError: string | null;
+      header: MainPageDetailHeader;
+      isAnsweringAsk: boolean;
+      isCancellingAsk: boolean;
+      isDeferringAsk: boolean;
+      selectedTask?: TaskNodeCardView;
+    }
   | {
       kind: "confirmation";
       commandError: string | null;
@@ -161,6 +172,10 @@ export type BuildMainPageViewModelInput = {
   eventConnectionStatus: EventConnectionStatus;
   eventError: string | null;
   isAnsweringAuthoringAsk: boolean;
+  executionAskError: string | null;
+  isAnsweringAsk: boolean;
+  isCancellingAsk: boolean;
+  isDeferringAsk: boolean;
   inputDisabled: boolean;
   isPublishingTaskTree: boolean;
   isRetryingTask: boolean;
@@ -181,6 +196,10 @@ export function buildMainPageViewModel({
   eventConnectionStatus,
   eventError,
   isAnsweringAuthoringAsk,
+  executionAskError,
+  isAnsweringAsk,
+  isCancellingAsk,
+  isDeferringAsk,
   inputDisabled,
   isPublishingTaskTree,
   isRetryingTask,
@@ -204,6 +223,8 @@ export function buildMainPageViewModel({
     snapshot.pendingConfirmations.find(
       (confirmation) => confirmation.taskNodeId === effectiveSelectedTaskNodeId,
     ) ?? snapshot.pendingConfirmations[0];
+  const activeExecutionAsk =
+    snapshot.activeAsk?.status === "pending" ? snapshot.activeAsk : null;
   const hasConfirmationFocus =
     metadata.detail.mode === "confirmation" &&
     effectiveSelectedTaskNodeId === metadata.initialSelectedTaskNodeId;
@@ -228,7 +249,13 @@ export function buildMainPageViewModel({
     totalMessageCount,
     visibleMessageCount,
   } = scopedProjection;
+  const hasExecutionAskFocus = shouldShowExecutionAskDetail({
+    activeExecutionAsk,
+    selectedTask,
+  });
   const header = detailHeaderFor({
+    activeExecutionAsk,
+    hasExecutionAskFocus,
     hasConfirmationFocus,
     hasFileChangeView: wantsFileChangeView && fileChangeSummary !== null,
     hasResultView: wantsResultView && result !== null,
@@ -261,11 +288,17 @@ export function buildMainPageViewModel({
   return {
     detail: detailViewFor({
       activeConfirmation,
+      activeExecutionAsk,
       commandError: confirmationError,
+      executionAskError,
       fileChangeSummary,
+      hasExecutionAskFocus,
       hasConfirmationFocus,
       header,
+      isAnsweringAsk,
       isRetryingTask,
+      isCancellingAsk,
+      isDeferringAsk,
       isStoppingTask,
       isResolvingConfirmation,
       result,
@@ -499,10 +532,16 @@ function taskAuditRoute({
 
 function detailViewFor({
   activeConfirmation,
+  activeExecutionAsk,
   commandError,
+  executionAskError,
   fileChangeSummary,
+  hasExecutionAskFocus,
   hasConfirmationFocus,
   header,
+  isAnsweringAsk,
+  isCancellingAsk,
+  isDeferringAsk,
   isRetryingTask,
   isStoppingTask,
   isResolvingConfirmation,
@@ -512,10 +551,16 @@ function detailViewFor({
   wantsResultView,
 }: {
   activeConfirmation: ConfirmationActionView | undefined;
+  activeExecutionAsk: AskRequestView | null;
   commandError: string | null;
+  executionAskError: string | null;
   fileChangeSummary: FileChangeSummaryView | null;
+  hasExecutionAskFocus: boolean;
   hasConfirmationFocus: boolean;
   header: MainPageDetailHeader;
+  isAnsweringAsk: boolean;
+  isCancellingAsk: boolean;
+  isDeferringAsk: boolean;
   isRetryingTask: boolean;
   isStoppingTask: boolean;
   isResolvingConfirmation: boolean;
@@ -524,6 +569,19 @@ function detailViewFor({
   wantsFileChangeView: boolean;
   wantsResultView: boolean;
 }): MainPageDetailView {
+  if (hasExecutionAskFocus && activeExecutionAsk) {
+    return {
+      kind: "executionAsk",
+      ask: activeExecutionAsk,
+      commandError: executionAskError,
+      header,
+      isAnsweringAsk,
+      isCancellingAsk,
+      isDeferringAsk,
+      selectedTask,
+    };
+  }
+
   if (hasConfirmationFocus) {
     return {
       kind: "confirmation",
@@ -571,18 +629,30 @@ function detailViewFor({
 }
 
 function detailHeaderFor({
+  activeExecutionAsk,
+  hasExecutionAskFocus,
   hasConfirmationFocus,
   hasFileChangeView,
   hasResultView,
   metadata,
   selectedTask,
 }: {
+  activeExecutionAsk: AskRequestView | null;
+  hasExecutionAskFocus: boolean;
   hasConfirmationFocus: boolean;
   hasFileChangeView: boolean;
   hasResultView: boolean;
   metadata: MainPageStateMetadata;
   selectedTask: TaskNodeCardView | undefined;
 }): MainPageDetailHeader {
+  if (hasExecutionAskFocus && activeExecutionAsk) {
+    return {
+      eyebrow: "Execution ASK",
+      title: selectedTask?.title ?? "Task needs input",
+      body: activeExecutionAsk.reason || activeExecutionAsk.question,
+    };
+  }
+
   if (hasConfirmationFocus || hasResultView || hasFileChangeView) {
     return metadata.detail;
   }
@@ -596,6 +666,27 @@ function detailHeaderFor({
   }
 
   return metadata.detail;
+}
+
+function shouldShowExecutionAskDetail({
+  activeExecutionAsk,
+  selectedTask,
+}: {
+  activeExecutionAsk: AskRequestView | null;
+  selectedTask: TaskNodeCardView | undefined;
+}): boolean {
+  if (!activeExecutionAsk) {
+    return false;
+  }
+
+  if (!selectedTask) {
+    return true;
+  }
+
+  return (
+    activeExecutionAsk.taskNodeId === selectedTask.id ||
+    selectedTask.execution === "waiting_for_user"
+  );
 }
 
 function inputViewFor({

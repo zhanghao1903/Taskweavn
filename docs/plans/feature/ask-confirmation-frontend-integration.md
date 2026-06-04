@@ -35,6 +35,7 @@
 | 2026-06-04 | C1 Frontend Contract And Adapter Wiring | done | Added frontend ASK types, `MainPageSnapshot.pendingAsks/activeAsk`, `PlatoApi` ASK query/command methods, MainPage adapter command seams, HTTP adapter delegates, mock adapter commands, and targeted tests. |
 | 2026-06-04 | C2 Shared Choice Primitives | done | Added a domain-neutral `ChoiceGroup` primitive with single/multi/segmented layouts, disabled/loading/error handling, keyboard-accessible button choices, tokenized CSS, exports, README entry, and component tests. |
 | 2026-06-04 | C3 Authoring ASK Work Area | done | Added `AuthoringAskWorkArea`, typed `MainPageWorkAreaView`, authoring batch submit controller seam, S2 authoring ASK mock projection, and targeted component/ViewModel/controller/scenario tests. |
+| 2026-06-04 | C4 Execution ASK Detail Panel | done | Added `ExecutionAskDetailPanel`, execution ASK detail ViewModel selection, answer/defer/cancel controller seams, S14 execution ASK mock projection, and targeted component/ViewModel/controller/scenario tests. |
 
 ---
 
@@ -219,7 +220,7 @@ Acceptance:
 - Tests cover loading, draft, submitting, rejected, and projection-confirmed
   states.
 
-### C4. Execution ASK Detail Panel
+### C4. Execution ASK Detail Panel - done
 
 Deliver:
 
