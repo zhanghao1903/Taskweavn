@@ -149,7 +149,7 @@ const baseMessages: SessionMessage[] = [
     sessionId: sessions[0].id,
     taskNodeId: null,
     kind: "informational",
-    title: "Draft task tree ready",
+    title: "Draft task plan ready",
     body: "Plato produced a first task breakdown for review.",
     createdAt: "2026-05-17T10:00:00+08:00",
   },
@@ -261,7 +261,7 @@ export const mainPageStates: MainPageFixture[] = [
       body: "Review the draft task plan before publishing. Select a task to inspect or refine it.",
     },
     inputScope: {
-      label: "Scope: task tree",
+      label: "Scope: task plan",
       placeholder: "Ask Plato to refine the overall plan.",
     },
     result: null,
@@ -427,7 +427,7 @@ export const mainPageStates: MainPageFixture[] = [
     ],
     detail: {
       mode: "fileChanges",
-      eyebrow: "File Change Summary",
+      eyebrow: "File changes",
       title: "Implementation changed 3 files",
       body: "Review changed files before accepting the result. Audit remains available for deeper traceability.",
     },
@@ -530,7 +530,7 @@ export const mainPageStates: MainPageFixture[] = [
     },
     inputScope: {
       label: "Scope: running task / Initial implementation",
-      placeholder: "Command is pending; duplicate submit is disabled.",
+      placeholder: "Update is pending; duplicate submit is disabled.",
     },
     result: null,
     fileChangeSummary: null,
@@ -570,7 +570,7 @@ export const mainPageStates: MainPageFixture[] = [
   }),
   state({
     id: "s14-execution-ask",
-    label: "S14 Execution ASK",
+    label: "S14 Task Question",
     topStatus: "Waiting for user",
     topStatusTone: "warning",
     taskTree: executionAskTaskTree,

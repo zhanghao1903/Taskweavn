@@ -36,7 +36,7 @@ describe("Main Page mock scenarios", () => {
     }
   });
 
-  it("keeps scenario manifest labels free of internal TaskNode language", () => {
+  it("keeps scenario manifest labels free of internal implementation language", () => {
     const scenarioCopy = listMainPageMockScenarios().flatMap((scenario) => [
       scenario.title,
       ...scenario.expectedVisibleComponents,
@@ -45,29 +45,31 @@ describe("Main Page mock scenarios", () => {
       scenario.expectedRecoveryBehavior ?? undefined,
     ]);
 
-    expect(scenarioCopy.filter(Boolean).join("\n")).not.toContain("TaskNode");
-    expect(scenarioCopy.filter(Boolean).join("\n")).not.toMatch(
-      /backend|command|projection|snapshot/i,
+    const manifestCopy = scenarioCopy.filter(Boolean).join("\n");
+
+    expect(manifestCopy).not.toMatch(
+      /TaskTree|task tree|TaskNode|AuthoringAskWorkArea|ExecutionAskDetailPanel|ConfirmationDetailPanel|ResultCard|ContextInputBar|LatestActivity|FileChangeSummary|AuditEntry|ErrorState|Context inspector|TopBar|SideNav|EmptyState|DetailPanel|backend|command|projection|snapshot/i,
     );
+    expect(manifestCopy).not.toMatch(/\bASK\b/);
   });
 
-  it("declares interaction scenarios for ASK, confirmation, and stale snapshots", () => {
+  it("declares interaction scenarios for questions, confirmations, and stale states", () => {
     const scenarios = listMainPageMockScenarios();
 
     expect(scenarios.find((item) => item.id === "s2-understanding")).toMatchObject({
       expectedDisabledActions: expect.arrayContaining(["Context input"]),
       expectedPrimaryActions: ["Submit all answers"],
-      expectedVisibleComponents: expect.arrayContaining(["AuthoringAskWorkArea"]),
+      expectedVisibleComponents: expect.arrayContaining(["Planning questions"]),
     });
     expect(scenarios.find((item) => item.id === "s7-confirmation")).toMatchObject({
       expectedDisabledActions: expect.arrayContaining(["Duplicate submit"]),
       expectedVisibleComponents: expect.arrayContaining([
-        "ConfirmationDetailPanel",
+        "Confirmation details",
       ]),
     });
     expect(scenarios.find((item) => item.id === "s11-stale-snapshot")).toMatchObject({
       expectedDisabledActions: expect.arrayContaining(["Confirm", "Retry"]),
-      expectedVisibleComponents: expect.arrayContaining(["Stale banner"]),
+      expectedVisibleComponents: expect.arrayContaining(["Sync banner"]),
     });
     expect(scenarios.find((item) => item.id === "s14-execution-ask")).toMatchObject({
       canonicalStates: expect.objectContaining({
@@ -75,12 +77,12 @@ describe("Main Page mock scenarios", () => {
       }),
       expectedPrimaryActions: ["Answer question"],
       expectedVisibleComponents: expect.arrayContaining([
-        "ExecutionAskDetailPanel",
+        "Task question",
       ]),
     });
   });
 
-  it("projects ASK fixtures through the same MainPageSnapshot contract", () => {
+  it("projects question fixtures through the same MainPageSnapshot contract", () => {
     const { snapshot: authoringSnapshot } =
       getMainPageMockScenarioSnapshot("s2-understanding");
     const { snapshot: executionSnapshot } =

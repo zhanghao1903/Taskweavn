@@ -29,17 +29,17 @@ export const mainPageMockScenarios: readonly MainPageMockScenario[] = [
     execution: "not_started",
     primary: ["Start"],
     disabled: ["Publish", "Audit"],
-    visible: ["TopBar", "SideNav", "EmptyState", "ContextInputBar"],
+    visible: ["Header", "Workflow navigation", "Empty plan", "Context input"],
   }),
   mainScenario({
     fixtureId: "s2-understanding",
-    title: "Authoring ASK / planning clarification",
+    title: "Planning questions / clarification",
     planning: "assessing",
     readiness: "unknown",
     execution: "not_started",
     primary: ["Submit all answers"],
     disabled: ["Publish", "Context input"],
-    visible: ["TopBar", "AuthoringAskWorkArea", "DetailPanel", "ContextInputBar"],
+    visible: ["Header", "Planning questions", "Details", "Context input"],
   }),
   mainScenario({
     fixtureId: "s3-draft-ready",
@@ -49,7 +49,7 @@ export const mainPageMockScenarios: readonly MainPageMockScenario[] = [
     execution: "not_started",
     primary: ["Publish task plan"],
     disabled: [],
-    visible: ["TaskTree", "LatestActivity", "DetailPanel", "ContextInputBar"],
+    visible: ["Task plan", "Latest activity", "Details", "Context input"],
   }),
   mainScenario({
     fixtureId: "s4-task-selected",
@@ -59,7 +59,7 @@ export const mainPageMockScenarios: readonly MainPageMockScenario[] = [
     execution: "not_started",
     primary: ["Edit task"],
     disabled: [],
-    visible: ["TaskTree", "Selected task", "DetailPanel"],
+    visible: ["Task plan", "Selected task", "Details"],
   }),
   mainScenario({
     fixtureId: "s5-task-editing",
@@ -69,7 +69,7 @@ export const mainPageMockScenarios: readonly MainPageMockScenario[] = [
     execution: "not_started",
     primary: ["Save guidance"],
     disabled: [],
-    visible: ["TaskTree", "Task input", "DetailPanel"],
+    visible: ["Task plan", "Task input", "Details"],
   }),
   mainScenario({
     fixtureId: "s6-running",
@@ -79,7 +79,7 @@ export const mainPageMockScenarios: readonly MainPageMockScenario[] = [
     execution: "running",
     primary: ["Append guidance"],
     disabled: ["Publish task plan"],
-    visible: ["TaskTree", "Running task", "LatestActivity"],
+    visible: ["Task plan", "Running task", "Latest activity"],
   }),
   mainScenario({
     fixtureId: "s7-confirmation",
@@ -90,7 +90,7 @@ export const mainPageMockScenarios: readonly MainPageMockScenario[] = [
     confirmation: "pending",
     primary: ["Confirm baseline"],
     disabled: ["Duplicate submit"],
-    visible: ["TaskTree", "ConfirmationDetailPanel", "LatestActivity"],
+    visible: ["Task plan", "Confirmation details", "Latest activity"],
   }),
   mainScenario({
     fixtureId: "s8-completed",
@@ -100,7 +100,7 @@ export const mainPageMockScenarios: readonly MainPageMockScenario[] = [
     execution: "done",
     primary: ["Review result"],
     disabled: ["Cancel"],
-    visible: ["ResultCard", "TaskTree", "ContextInputBar"],
+    visible: ["Result summary", "Task plan", "Context input"],
     auditEntryRoute: buildAuditSessionRoute("session-website-plan", {
       entry: "from_result",
       returnFocus: "result",
@@ -115,7 +115,7 @@ export const mainPageMockScenarios: readonly MainPageMockScenario[] = [
     auditVerdict: "warning",
     primary: ["View audit"],
     disabled: [],
-    visible: ["FileChangeSummary", "AuditEntry", "TaskTree"],
+    visible: ["File changes", "Audit entry", "Task plan"],
     auditEntryRoute: buildAuditTaskRoute("session-website-plan", "task-implementation", {
       entry: "from_file_change",
       filter: "files",
@@ -132,7 +132,7 @@ export const mainPageMockScenarios: readonly MainPageMockScenario[] = [
     permission: "disabled_permission",
     primary: ["Return"],
     disabled: ["Edit", "Publish"],
-    visible: ["ErrorState", "TaskTree", "Disabled input"],
+    visible: ["Error state", "Task plan", "Disabled input"],
     recovery: "Return to the previous valid state or wait for permission context.",
   }),
   mainScenario({
@@ -144,7 +144,7 @@ export const mainPageMockScenarios: readonly MainPageMockScenario[] = [
     permission: "disabled_stale",
     primary: ["Resync"],
     disabled: ["Publish", "Confirm", "Retry"],
-    visible: ["Stale banner", "TaskTree", "Disabled input"],
+    visible: ["Sync banner", "Task plan", "Disabled input"],
     recovery: "Refresh the session state before allowing changes.",
   }),
   mainScenario({
@@ -156,7 +156,7 @@ export const mainPageMockScenarios: readonly MainPageMockScenario[] = [
     permission: "pending_command",
     primary: ["Wait for event"],
     disabled: ["Duplicate submit"],
-    visible: ["Pending update notice", "TaskTree", "LatestActivity"],
+    visible: ["Pending update notice", "Task plan", "Latest activity"],
     recovery: "Keep the current task plan visible and wait for the next update.",
   }),
   mainScenario({
@@ -167,7 +167,7 @@ export const mainPageMockScenarios: readonly MainPageMockScenario[] = [
     execution: "failed",
     primary: ["Retry"],
     disabled: ["Duplicate submit"],
-    visible: ["ErrorState", "TaskTree", "ContextInputBar"],
+    visible: ["Error state", "Task plan", "Context input"],
     recovery: "Retry the last action or revise the task instruction.",
   }),
   mainScenario({
@@ -178,7 +178,7 @@ export const mainPageMockScenarios: readonly MainPageMockScenario[] = [
     execution: "waiting_for_user",
     primary: ["Answer question"],
     disabled: ["Duplicate submit"],
-    visible: ["TaskTree", "ExecutionAskDetailPanel", "LatestActivity"],
+    visible: ["Task plan", "Task question", "Latest activity"],
     recovery: "Answer, defer, or cancel the question and wait for Plato to update the task.",
   }),
 ];

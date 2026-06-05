@@ -240,56 +240,56 @@ export async function appendSessionInputMockCommand(
 
 export async function answerAskMockCommand(
   sessionId: SessionId,
-  askId: AskId,
+  _askId: AskId,
   request: CommandRequest<AnswerAskPayload>,
 ): Promise<CommandResponse> {
   await delay(60);
 
   return acceptedCommandResponse({
     commandId: request.commandId,
-    message: `ASK answer accepted for ${askId}.`,
+    message: "Answer received.",
     sessionId,
   });
 }
 
 export async function answerAuthoringAskBatchMockCommand(
   sessionId: SessionId,
-  rawTaskId: string,
+  _rawTaskId: string,
   request: CommandRequest<AnswerAuthoringAskBatchPayload>,
 ): Promise<CommandResponse> {
   await delay(60);
 
   return acceptedCommandResponse({
     commandId: request.commandId,
-    message: `Authoring ASK answers accepted for ${rawTaskId}.`,
+    message: "Planning answers received.",
     sessionId,
   });
 }
 
 export async function deferAskMockCommand(
   sessionId: SessionId,
-  askId: AskId,
+  _askId: AskId,
   request: CommandRequest<DeferAskPayload>,
 ): Promise<CommandResponse> {
   await delay(60);
 
   return acceptedCommandResponse({
     commandId: request.commandId,
-    message: `ASK defer accepted for ${askId}.`,
+    message: "Question deferred.",
     sessionId,
   });
 }
 
 export async function cancelAskMockCommand(
   sessionId: SessionId,
-  askId: AskId,
+  _askId: AskId,
   request: CommandRequest<CancelAskPayload>,
 ): Promise<CommandResponse> {
   await delay(60);
 
   return acceptedCommandResponse({
     commandId: request.commandId,
-    message: `ASK cancel accepted for ${askId}.`,
+    message: "Question canceled.",
     sessionId,
   });
 }
@@ -541,7 +541,7 @@ function planningAsksForFixture(
       id: "authoring-ask-site-type",
       question: "What kind of website should Plato plan first?",
       reason:
-        "The initial TaskTree depends on the site's primary purpose and audience.",
+        "The initial task plan depends on the site's primary purpose and audience.",
       required: true,
       options: [
         { label: "Portfolio", tone: "primary", value: "portfolio" },
@@ -814,7 +814,7 @@ function toResultCardView(
     sections: [
       {
         title: "Delivered structure",
-        body: "Created the first runnable shell, connected the Main Page states, and prepared the review path for the TaskTree workflow.",
+        body: "Created the first runnable shell, connected the Main Page states, and prepared the review path for the task planning workflow.",
         kind: "list",
       },
       {
