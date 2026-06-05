@@ -335,7 +335,7 @@ export const mainPageStates: MainPageFixture[] = [
         taskNodeId: "task-implementation",
         kind: "informational",
         title: "Implementation started",
-        body: "The implementation task is running in the isolated Session Workspace.",
+        body: "The implementation task is running in an isolated workspace.",
         createdAt: "2026-05-17T10:05:00+08:00",
       },
     ],
