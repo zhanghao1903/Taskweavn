@@ -46,6 +46,9 @@ describe("Main Page mock scenarios", () => {
     ]);
 
     expect(scenarioCopy.filter(Boolean).join("\n")).not.toContain("TaskNode");
+    expect(scenarioCopy.filter(Boolean).join("\n")).not.toMatch(
+      /backend|projection|snapshot/i,
+    );
   });
 
   it("declares interaction scenarios for ASK, confirmation, and stale snapshots", () => {
@@ -70,7 +73,7 @@ describe("Main Page mock scenarios", () => {
       canonicalStates: expect.objectContaining({
         execution: "waiting_for_user",
       }),
-      expectedPrimaryActions: ["Answer ASK"],
+      expectedPrimaryActions: ["Answer question"],
       expectedVisibleComponents: expect.arrayContaining([
         "ExecutionAskDetailPanel",
       ]),

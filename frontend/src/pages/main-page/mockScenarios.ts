@@ -137,7 +137,7 @@ export const mainPageMockScenarios: readonly MainPageMockScenario[] = [
   }),
   mainScenario({
     fixtureId: "s11-stale-snapshot",
-    title: "Stale snapshot / resync required",
+    title: "Sync required / refresh before continuing",
     planning: "published",
     readiness: "published",
     execution: "running",
@@ -145,11 +145,11 @@ export const mainPageMockScenarios: readonly MainPageMockScenario[] = [
     primary: ["Resync"],
     disabled: ["Publish", "Confirm", "Retry"],
     visible: ["Stale banner", "TaskTree", "Disabled input"],
-    recovery: "Reload the MainPageSnapshot before allowing mutations.",
+    recovery: "Refresh the session state before allowing changes.",
   }),
   mainScenario({
     fixtureId: "s12-backend-busy",
-    title: "Backend busy / command accepted but delayed",
+    title: "Update pending / command accepted but delayed",
     planning: "published",
     readiness: "published",
     execution: "running",
@@ -157,7 +157,7 @@ export const mainPageMockScenarios: readonly MainPageMockScenario[] = [
     primary: ["Wait for event"],
     disabled: ["Duplicate submit"],
     visible: ["Pending command notice", "TaskTree", "LatestActivity"],
-    recovery: "Keep current snapshot and wait for event or retry timeout.",
+    recovery: "Keep the current task plan visible and wait for the next update.",
   }),
   mainScenario({
     fixtureId: "s13-command-failed",
@@ -172,14 +172,14 @@ export const mainPageMockScenarios: readonly MainPageMockScenario[] = [
   }),
   mainScenario({
     fixtureId: "s14-execution-ask",
-    title: "Execution ASK waiting for answer",
+    title: "Task input waiting for answer",
     planning: "published",
     readiness: "published",
     execution: "waiting_for_user",
-    primary: ["Answer ASK"],
+    primary: ["Answer question"],
     disabled: ["Duplicate submit"],
     visible: ["TaskTree", "ExecutionAskDetailPanel", "LatestActivity"],
-    recovery: "Answer, defer, or cancel the ASK and wait for backend projection.",
+    recovery: "Answer, defer, or cancel the question and wait for Plato to update the task.",
   }),
 ];
 

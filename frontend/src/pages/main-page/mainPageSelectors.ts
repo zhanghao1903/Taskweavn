@@ -279,7 +279,7 @@ export function selectMainPagePrimaryStatusPresentation(
     return { label: "Waiting for user", tone: "warning" };
   }
 
-  if (metadata.topStatus === "Backend busy") {
+  if (metadata.topStatus === "Syncing") {
     return selectTopStatusPresentation(metadata);
   }
 
