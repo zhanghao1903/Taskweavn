@@ -209,7 +209,7 @@ function ResultSummaryPanel({
         )}
         <div className={styles.actionRow}>
           <Button onClick={() => setIsReaderOpen(false)}>
-            Back to result card
+            Back to summary
           </Button>
           {detail.fileChangeSummary && (
             <Button onClick={onShowFileChanges}>View file changes</Button>
@@ -223,10 +223,10 @@ function ResultSummaryPanel({
     <Panel className={styles.detailBox} tone="muted">
       <div className={styles.detailTitleRow}>
         <Text as="strong" variant="label">
-          Result card
+          Result summary
         </Text>
         <Badge size="sm" tone="blue">
-          structured
+          {sections.length > 0 ? "Detailed" : "Summary"}
         </Badge>
       </div>
       <Text className={styles.resultSummaryPreview} variant="muted">
@@ -236,8 +236,8 @@ function ResultSummaryPanel({
         <div className={styles.resultReaderPrompt}>
           <Text variant="muted">
             {sections.length > 0
-              ? `${sections.length} structured sections available.`
-              : "Full result available in reader."}
+              ? `${sections.length} sections available.`
+              : "Full result available."}
           </Text>
           <Button onClick={() => setIsReaderOpen(true)}>Open reader</Button>
         </div>

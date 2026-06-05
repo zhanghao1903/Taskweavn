@@ -186,9 +186,9 @@ describe("MainPageDetailPanel", () => {
       />,
     );
 
-    expect(screen.getByText("Result card")).toBeInTheDocument();
+    expect(screen.getByText("Result summary")).toBeInTheDocument();
     expect(screen.getByText(resultDetail.result.summary)).toBeInTheDocument();
-    expect(screen.getByText("2 structured sections available.")).toBeInTheDocument();
+    expect(screen.getByText("2 sections available.")).toBeInTheDocument();
     expect(screen.queryByText("Delivered structure")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Open reader" })).toBeInTheDocument();
   });
@@ -217,10 +217,10 @@ describe("MainPageDetailPanel", () => {
     expect(within(reader).getByText("Delivered structure")).toBeInTheDocument();
     expect(within(reader).getByText("Implementation checklist")).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "Back to result card" }));
+    await user.click(screen.getByRole("button", { name: "Back to summary" }));
 
     expect(screen.queryByLabelText("Result reader")).not.toBeInTheDocument();
-    expect(screen.getByText("Result card")).toBeInTheDocument();
+    expect(screen.getByText("Result summary")).toBeInTheDocument();
     expect(screen.queryByText("Delivered structure")).not.toBeInTheDocument();
   });
 });
