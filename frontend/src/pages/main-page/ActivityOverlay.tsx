@@ -95,7 +95,11 @@ export function ActivityOverlay({
       ) : messages.length === 0 ? (
         <div className={styles.emptyState}>
           <strong>No matching activity</strong>
-          <p>Try another filter or return to the selected task.</p>
+          <p>
+            {selectedTask
+              ? "Try another filter or return to the selected task."
+              : "Try another filter or close this view."}
+          </p>
         </div>
       ) : (
         <ol className={styles.timeline}>

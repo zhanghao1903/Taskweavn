@@ -77,6 +77,48 @@ describe("ActivityOverlay", () => {
     expect(screen.queryByText("Result summary generated")).not.toBeInTheDocument();
   });
 
+  it("uses session-wide empty copy when there is no selected task", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <ActivityOverlay
+        allMessages={[message({ id: "general-update", title: "General update" })]}
+        currentMessages={[]}
+        onClose={vi.fn()}
+        selectedTask={undefined}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Errors" }));
+
+    expect(screen.getByText("No matching activity")).toBeInTheDocument();
+    expect(
+      screen.getByText("Try another filter or close this view."),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Try another filter or return to the selected task."),
+    ).not.toBeInTheDocument();
+  });
+
+  it("uses selected-task empty copy when focused activity is empty", () => {
+    render(
+      <ActivityOverlay
+        allMessages={[message({ id: "session-update", title: "Session update" })]}
+        currentMessages={[]}
+        onClose={vi.fn()}
+        selectedTask={taskNode}
+      />,
+    );
+
+    expect(screen.getByText("No matching activity")).toBeInTheDocument();
+    expect(
+      screen.getByText("Try another filter or return to the selected task."),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Try another filter or close this view."),
+    ).not.toBeInTheDocument();
+  });
+
   it("opens result activity in a reader and returns to the timeline", async () => {
     const user = userEvent.setup();
 
