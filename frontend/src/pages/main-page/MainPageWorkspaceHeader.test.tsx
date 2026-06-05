@@ -5,6 +5,26 @@ import { MainPageWorkspaceHeader } from "./MainPageWorkspaceHeader";
 import type { MainPageAuditEntryViewModel } from "./mainPageViewModel";
 
 describe("MainPageWorkspaceHeader", () => {
+  it("uses the workspace title as the only visible header label", () => {
+    render(
+      <MainPageWorkspaceHeader
+        auditEntry={auditEntry({ isEnabled: true })}
+        eventError={null}
+        isPublishingTaskTree={false}
+        onPublishTaskTree={vi.fn()}
+        showPublishTaskTree={false}
+        taskTreeCommandError={null}
+        title="Personal website project plan"
+        uiNotice={null}
+      />,
+    );
+
+    expect(
+      screen.getByRole("heading", { name: "Personal website project plan" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Session")).not.toBeInTheDocument();
+  });
+
   it("keeps disabled audit reasons out of the visible workspace header copy", () => {
     render(
       <MainPageWorkspaceHeader
