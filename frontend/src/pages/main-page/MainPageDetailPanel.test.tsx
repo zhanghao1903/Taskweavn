@@ -44,6 +44,12 @@ describe("MainPageDetailPanel", () => {
     expect(within(detailPanel).getByText("Task details")).toBeInTheDocument();
     expect(within(detailPanel).getByText(title)).toBeInTheDocument();
     expect(within(detailPanel).getByText(summary)).toBeInTheDocument();
+    expect(
+      within(detailPanel).queryByText(/Input now applies/i),
+    ).not.toBeInTheDocument();
+    expect(
+      within(detailPanel).queryByText(/Completed TaskNodes are read-only/i),
+    ).not.toBeInTheDocument();
   });
 
   it("hides stop for published selected tasks that are not running", () => {

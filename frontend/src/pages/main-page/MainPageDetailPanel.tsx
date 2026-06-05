@@ -337,10 +337,6 @@ function TaskDetailPanel({
         <strong>{detail.selectedTask.title}</strong>
         <p>{detail.selectedTask.summary}</p>
       </div>
-      <Text variant="muted">
-        Input now applies to this TaskNode. Completed TaskNodes are read-only;
-        running TaskNodes accept appended guidance.
-      </Text>
       {showPublishedStopAction && (
         <div className={styles.actionRow}>
           <Button
