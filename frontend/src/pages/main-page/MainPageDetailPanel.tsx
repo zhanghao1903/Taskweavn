@@ -56,7 +56,7 @@ export function MainPageDetailPanel({
     <Panel
       as="aside"
       className={styles.detailPanel}
-      aria-label="Context inspector"
+      aria-label="Details"
     >
       <Text variant="eyebrow">{header.eyebrow}</Text>
       <Text as="h2" variant="heading">

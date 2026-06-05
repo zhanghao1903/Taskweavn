@@ -47,7 +47,7 @@ export function ActivityOverlay({
 
   return (
     <aside
-      aria-label="Activity overlay"
+      aria-label="Task updates"
       className={styles.overlay}
       role="dialog"
     >

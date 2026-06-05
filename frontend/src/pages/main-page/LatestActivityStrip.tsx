@@ -50,7 +50,7 @@ export function LatestActivityStrip({
       <div className={styles.latestActivityMeta}>
         {onOpenActivity ? (
           <Button
-            aria-label={`Open activity overlay (${activityCountLabel})`}
+            aria-label={`Open task updates (${activityCountLabel})`}
             onClick={onOpenActivity}
             size="sm"
             variant="ghost"

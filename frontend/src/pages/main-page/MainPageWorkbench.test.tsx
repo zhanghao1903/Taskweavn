@@ -21,7 +21,7 @@ describe("MainPageWorkbench layout", () => {
     expect(screen.getByRole("main")).toHaveClass(styles.pageWithoutDetail);
     expect(screen.getByLabelText("Task workspace")).toBeInTheDocument();
     expect(
-      screen.queryByRole("complementary", { name: "Context inspector" }),
+      screen.queryByRole("complementary", { name: "Details" }),
     ).not.toBeInTheDocument();
   });
 
@@ -36,7 +36,7 @@ describe("MainPageWorkbench layout", () => {
 
     expect(screen.getByRole("main")).not.toHaveClass(styles.pageWithoutDetail);
     expect(
-      screen.getByRole("complementary", { name: "Context inspector" }),
+      screen.getByRole("complementary", { name: "Details" }),
     ).toBeInTheDocument();
   });
 });

@@ -31,7 +31,7 @@ describe("ActivityOverlay", () => {
       />,
     );
 
-    const overlay = screen.getByLabelText("Activity overlay");
+    const overlay = screen.getByLabelText("Task updates");
 
     expect(within(overlay).getByText("Task update")).toBeInTheDocument();
     expect(within(overlay).queryByText("Session update")).not.toBeInTheDocument();

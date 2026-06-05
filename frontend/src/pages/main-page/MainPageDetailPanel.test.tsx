@@ -136,7 +136,7 @@ describe("MainPageDetailPanel", () => {
     );
 
     expect(
-      screen.queryByRole("complementary", { name: "Context inspector" }),
+      screen.queryByRole("complementary", { name: "Details" }),
     ).not.toBeInTheDocument();
     expect(screen.queryByText("Describe the goal.")).not.toBeInTheDocument();
     expect(screen.queryByText("State note")).not.toBeInTheDocument();

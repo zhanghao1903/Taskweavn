@@ -79,14 +79,14 @@ describe("LatestActivityStrip", () => {
 
     await user.click(
       screen.getByRole("button", {
-        name: "Open activity overlay (Activity 1)",
+        name: "Open task updates (Activity 1)",
       }),
     );
 
     expect(onOpenActivity).toHaveBeenCalledTimes(1);
     expect(
       screen.getByRole("button", {
-        name: "Open activity overlay (Activity 1)",
+        name: "Open task updates (Activity 1)",
       }),
     ).toHaveTextContent("View Activity 1");
   });
