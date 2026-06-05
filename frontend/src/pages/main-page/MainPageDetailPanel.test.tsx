@@ -120,7 +120,7 @@ describe("MainPageDetailPanel", () => {
     expect(screen.queryByText("task-implementation")).not.toBeInTheDocument();
   });
 
-  it("does not repeat generic state notes inside the detail panel", () => {
+  it("hides generic state notes instead of repeating them in the detail panel", () => {
     render(
       <MainPageDetailPanel
         detail={stateNoteDetail}
@@ -135,7 +135,10 @@ describe("MainPageDetailPanel", () => {
       />,
     );
 
-    expect(screen.getByText("Describe the goal.")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("complementary", { name: "Context inspector" }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText("Describe the goal.")).not.toBeInTheDocument();
     expect(screen.queryByText("State note")).not.toBeInTheDocument();
   });
 

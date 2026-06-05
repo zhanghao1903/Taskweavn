@@ -46,6 +46,10 @@ export function MainPageDetailPanel({
   onShowFileChanges,
   onShowResult,
 }: MainPageDetailPanelProps) {
+  if (detail.kind === "note") {
+    return null;
+  }
+
   const { header } = detail;
 
   return (
