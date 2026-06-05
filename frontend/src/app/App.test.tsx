@@ -473,12 +473,12 @@ describe("App", () => {
     expect(screen.getByText("3 files")).toBeInTheDocument();
     expect(screen.queryByText("Recursive subtree summary")).not.toBeInTheDocument();
     expect(
-      screen.getByText("Updated frontend dependencies and scripts."),
-    ).toBeInTheDocument();
+      screen.queryByText("Updated frontend dependencies and scripts."),
+    ).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "View result" }));
 
-    expect(screen.getByText("Result card")).toBeInTheDocument();
+    expect(screen.getByText("Result summary")).toBeInTheDocument();
     expect(
       screen.getByText(
         "The first implementation plan is ready, including page structure, styling direction, and build tasks.",
@@ -486,9 +486,9 @@ describe("App", () => {
     ).toBeInTheDocument();
     expect(screen.queryByText("Delivered structure")).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "Open reader" }));
+    await user.click(screen.getByRole("button", { name: "View full result" }));
 
-    expect(screen.getByLabelText("Result reader")).toBeInTheDocument();
+    expect(screen.getByLabelText("Full result")).toBeInTheDocument();
     expect(screen.getByText("Delivered structure")).toBeInTheDocument();
   });
 

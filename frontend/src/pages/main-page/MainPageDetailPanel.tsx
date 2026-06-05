@@ -239,7 +239,9 @@ function ResultSummaryPanel({
               ? `${sections.length} sections available.`
               : "Full result available."}
           </Text>
-          <Button onClick={() => setIsReaderOpen(true)}>Open reader</Button>
+          <Button onClick={() => setIsReaderOpen(true)}>
+            View full result
+          </Button>
         </div>
       )}
       {detail.fileChangeSummary && (

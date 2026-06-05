@@ -192,7 +192,9 @@ describe("MainPageDetailPanel", () => {
     expect(screen.getByText(resultDetail.result.summary)).toBeInTheDocument();
     expect(screen.getByText("2 sections available.")).toBeInTheDocument();
     expect(screen.queryByText("Delivered structure")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Open reader" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "View full result" }),
+    ).toBeInTheDocument();
   });
 
   it("opens and closes the result reader for full structured content", async () => {
@@ -212,7 +214,9 @@ describe("MainPageDetailPanel", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: "Open reader" }));
+    await user.click(
+      screen.getByRole("button", { name: "View full result" }),
+    );
 
     const reader = screen.getByLabelText("Full result");
     expect(within(reader).getByText("Full result")).toBeInTheDocument();
