@@ -626,9 +626,9 @@ function permissionsForFixture(
     canOpenSettings: true,
     canPublishTaskTree: stateId === "s3-draft-ready",
     readonlyReason: readonly
-      ? "Current permission context is read-only."
+      ? "This task is read-only right now."
       : stale
-        ? "Snapshot is stale; resync before mutating."
+        ? "Session view is stale; refresh before making changes."
         : null,
   };
 }

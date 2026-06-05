@@ -74,9 +74,7 @@ describe("buildMainPageViewModel", () => {
     const viewModel = buildViewModel("s10-permission-denied");
 
     expect(viewModel.input.disabled).toBe(true);
-    expect(viewModel.input.disabledReason).toBe(
-      "Current permission context is read-only.",
-    );
+    expect(viewModel.input.disabledReason).toBe("This task is read-only right now.");
     expect(viewModel.topBar.statuses[0]).toEqual({
       label: "Read-only",
       tone: "danger",

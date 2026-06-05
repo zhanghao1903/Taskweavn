@@ -107,10 +107,10 @@ export const mainPageStateCatalog = [
     id: "s10-permission-denied",
     label: "S10 Permission Denied",
     lifecycle: "recovery",
-    userSituation: "The user can inspect the selected task but cannot mutate it.",
+    userSituation: "The user can inspect the selected task but cannot change it.",
     pageFocus: "Keep the permission boundary explicit while preserving context.",
     primarySurfaces: ["Task plan", "Permission detail", "Disabled input"],
-    expectedUserAction: "Return, inspect, or wait for permission context to change.",
+    expectedUserAction: "Return, inspect, or wait for permissions to change.",
   },
   {
     id: "s11-stale-snapshot",

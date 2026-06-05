@@ -133,7 +133,7 @@ export const mainPageMockScenarios: readonly MainPageMockScenario[] = [
     primary: ["Return"],
     disabled: ["Edit", "Publish"],
     visible: ["Error state", "Task plan", "Disabled input"],
-    recovery: "Return to the previous valid state or wait for permission context.",
+    recovery: "Return to the previous valid state or wait for permissions to change.",
   }),
   mainScenario({
     fixtureId: "s11-stale-snapshot",

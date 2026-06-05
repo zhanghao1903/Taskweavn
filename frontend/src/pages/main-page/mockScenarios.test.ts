@@ -48,7 +48,7 @@ describe("Main Page mock scenarios", () => {
     const manifestCopy = scenarioCopy.filter(Boolean).join("\n");
 
     expect(manifestCopy).not.toMatch(
-      /TaskTree|task tree|TaskNode|AuthoringAskWorkArea|ExecutionAskDetailPanel|ConfirmationDetailPanel|ResultCard|ContextInputBar|LatestActivity|FileChangeSummary|AuditEntry|ErrorState|Context inspector|TopBar|SideNav|EmptyState|DetailPanel|backend|command|projection|snapshot|duplicate submit/i,
+      /TaskTree|task tree|TaskNode|AuthoringAskWorkArea|ExecutionAskDetailPanel|ConfirmationDetailPanel|ResultCard|ContextInputBar|LatestActivity|FileChangeSummary|AuditEntry|ErrorState|Context inspector|TopBar|SideNav|EmptyState|DetailPanel|backend|command|projection|snapshot|duplicate submit|permission context|mutation|mutate|mutating/i,
     );
     expect(manifestCopy).not.toMatch(/\bASK\b/);
   });

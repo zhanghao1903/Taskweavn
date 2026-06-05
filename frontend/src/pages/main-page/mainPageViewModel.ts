@@ -419,7 +419,7 @@ function auditEntryFor({
   const permissionReason =
     sessionPermissions && !sessionPermissions.canOpenAudit
       ? sessionPermissions.readonlyReason ??
-        "Audit is unavailable in the current permission context."
+        "Audit is unavailable until permissions change."
       : null;
 
   return {
