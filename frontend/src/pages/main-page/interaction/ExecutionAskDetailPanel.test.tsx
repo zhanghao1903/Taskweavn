@@ -24,6 +24,8 @@ describe("ExecutionAskDetailPanel", () => {
       />,
     );
 
+    expect(screen.getByText("Task: Initial implementation")).toBeInTheDocument();
+
     await user.click(screen.getByRole("button", { name: /Vercel/ }));
     await user.click(screen.getByRole("button", { name: "Answer" }));
 
@@ -238,6 +240,7 @@ describe("ExecutionAskDetailPanel", () => {
     );
 
     expect(screen.getByText(/no longer matches/)).toBeInTheDocument();
+    expect(screen.queryByText(/TaskNode/)).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Answer" })).toBeDisabled();
   });
 });

@@ -107,7 +107,7 @@ export function ExecutionAskDetailPanel({
 
       {detail.selectedTask ? (
         <Text variant="muted">
-          TaskNode: {detail.selectedTask.title}
+          Task: {detail.selectedTask.title}
         </Text>
       ) : null}
 
@@ -190,7 +190,7 @@ export function ExecutionAskDetailPanel({
 
       {isStale ? (
         <Text className={styles.error} role="alert" variant="muted">
-          This ASK no longer matches the selected TaskNode. Refresh or select the
+          This ASK no longer matches the selected task. Refresh or select the
           waiting task before answering.
         </Text>
       ) : null}
