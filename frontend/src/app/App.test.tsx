@@ -38,16 +38,13 @@ describe("App", () => {
     expect(screen.queryByText(/Task-first Intelligent/i)).not.toBeInTheDocument();
     expect(screen.queryByText("Workbench")).not.toBeInTheDocument();
     expect(await screen.findByText("Personal Website")).toBeInTheDocument();
+    expect(screen.queryByLabelText("State")).not.toBeInTheDocument();
     expect(screen.getByLabelText("Task workspace")).toBeInTheDocument();
     expect(screen.getByText("Requirement analysis")).toBeInTheDocument();
   });
 
-  it("exposes the nine Figma baseline states", () => {
-    render(
-      <AppProviders>
-        <App />
-      </AppProviders>,
-    );
+  it("keeps the fixture state picker available when explicitly enabled", () => {
+    renderFixtureMainPageWithStatePicker();
 
     const statePicker = screen.getByLabelText("State");
 
@@ -56,19 +53,12 @@ describe("App", () => {
     }
   });
 
-  it("switches between confirmation and file-change states", async () => {
-    const user = userEvent.setup();
-
-    render(
-      <AppProviders>
-        <App />
-      </AppProviders>,
-    );
-
-    await user.selectOptions(screen.getByLabelText("State"), "s7-confirmation");
+  it("renders confirmation and file-change fixture states when explicitly requested", async () => {
+    const confirmationView = renderFixtureMainPageWithStatePicker("s7-confirmation");
     expect(await screen.findByText("Confirm baseline")).toBeInTheDocument();
 
-    await user.selectOptions(screen.getByLabelText("State"), "s9-file-changes");
+    confirmationView.unmount();
+    renderFixtureMainPageWithStatePicker("s9-file-changes");
     expect(await screen.findByText("package.json")).toBeInTheDocument();
   });
 
@@ -94,13 +84,7 @@ describe("App", () => {
   it("projects the latest activity by the selected TaskNode", async () => {
     const user = userEvent.setup();
 
-    render(
-      <AppProviders>
-        <App />
-      </AppProviders>,
-    );
-
-    await user.selectOptions(screen.getByLabelText("State"), "s6-running");
+    renderFixtureMainPageWithStatePicker("s6-running");
     expect(await screen.findByText("Implementation started")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /Visual direction/i }));
@@ -114,13 +98,7 @@ describe("App", () => {
   it("scopes result and file-change detail to the selected TaskNode", async () => {
     const user = userEvent.setup();
 
-    render(
-      <AppProviders>
-        <App />
-      </AppProviders>,
-    );
-
-    await user.selectOptions(screen.getByLabelText("State"), "s9-file-changes");
+    renderFixtureMainPageWithStatePicker("s9-file-changes");
     expect(await screen.findByText("Changed files")).toBeInTheDocument();
     expect(screen.getByText("package.json")).toBeInTheDocument();
 
@@ -464,13 +442,7 @@ describe("App", () => {
   it("toggles between file changes and result detail views", async () => {
     const user = userEvent.setup();
 
-    render(
-      <AppProviders>
-        <App />
-      </AppProviders>,
-    );
-
-    await user.selectOptions(screen.getByLabelText("State"), "s9-file-changes");
+    renderFixtureMainPageWithStatePicker("s9-file-changes");
     expect(await screen.findByText("Changed files")).toBeInTheDocument();
     expect(screen.getByText("Recursive subtree summary")).toBeInTheDocument();
     expect(
@@ -737,6 +709,17 @@ function renderWithQueryClient(children: ReactNode) {
 
   return render(
     <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>,
+  );
+}
+
+function renderFixtureMainPageWithStatePicker(initialStateId?: MainPageStateId) {
+  return renderWithQueryClient(
+    <MainPage
+      adapter={testAdapter({
+        showStatePicker: true,
+      })}
+      initialStateId={initialStateId}
+    />,
   );
 }
 
