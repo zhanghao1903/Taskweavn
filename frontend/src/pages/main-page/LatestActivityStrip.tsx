@@ -55,7 +55,7 @@ export function LatestActivityStrip({
             size="sm"
             variant="ghost"
           >
-            View {activityCountLabel}
+            {activityCountLabel}
           </Button>
         ) : (
           <span className={styles.latestActivityCount}>
@@ -68,5 +68,5 @@ export function LatestActivityStrip({
 }
 
 function latestActivityLabel(scopeLabel: string, kindLabel: string) {
-  return `Latest update · ${scopeLabel} · ${kindLabel}`;
+  return `${scopeLabel} · ${kindLabel}`;
 }

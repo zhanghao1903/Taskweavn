@@ -36,7 +36,7 @@ describe("LatestActivityStrip", () => {
     expect(screen.queryByText("Planning started")).not.toBeInTheDocument();
     expect(screen.getByText("Activity 2")).toBeInTheDocument();
     expect(
-      screen.getByText("Latest update · Session-wide · Update"),
+      screen.getByText("Session-wide · Update"),
     ).toBeInTheDocument();
   });
 
@@ -57,7 +57,7 @@ describe("LatestActivityStrip", () => {
     );
 
     expect(
-      screen.getByText("Latest update · Current task · Update"),
+      screen.getByText("Current task · Update"),
     ).toBeInTheDocument();
     expect(screen.getByText("Activity 1/3")).toBeInTheDocument();
   });
@@ -88,7 +88,7 @@ describe("LatestActivityStrip", () => {
       screen.getByRole("button", {
         name: "Open task updates (Activity 1)",
       }),
-    ).toHaveTextContent("View Activity 1");
+    ).toHaveTextContent("Activity 1");
   });
 
   it("does not reserve an empty message surface", () => {
