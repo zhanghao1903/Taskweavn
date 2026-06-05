@@ -19,8 +19,9 @@
   );
   --plato-sidebar-min-width: 220px;
   --plato-sidebar-max-width: 280px;
+  --plato-workspace-min-width: 620px;
   --plato-detail-min-width: 360px;
-  --plato-detail-max-width: 480px;
+  --plato-detail-width: 30%;
 
   display: grid;
   width: 100%;
@@ -34,12 +35,8 @@
       15vw,
       var(--plato-sidebar-max-width)
     )
-    minmax(620px, 1fr)
-    clamp(
-      var(--plato-detail-min-width),
-      26vw,
-      var(--plato-detail-max-width)
-    );
+    minmax(var(--plato-workspace-min-width), 1fr)
+    minmax(var(--plato-detail-min-width), var(--plato-detail-width));
   gap: var(--plato-layout-gap);
   padding: var(--plato-page-padding);
   background:
