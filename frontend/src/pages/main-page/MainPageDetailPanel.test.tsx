@@ -112,6 +112,25 @@ describe("MainPageDetailPanel", () => {
     expect(screen.queryByText(/Owner TaskNode/i)).not.toBeInTheDocument();
     expect(screen.queryByText("task-implementation")).not.toBeInTheDocument();
   });
+
+  it("does not repeat generic state notes inside the detail panel", () => {
+    render(
+      <MainPageDetailPanel
+        detail={stateNoteDetail}
+        onAnswerAsk={vi.fn()}
+        onCancelAsk={vi.fn()}
+        onConfirmationDecision={vi.fn()}
+        onDeferAsk={vi.fn()}
+        onRetryTask={vi.fn()}
+        onShowFileChanges={vi.fn()}
+        onShowResult={vi.fn()}
+        onStopTask={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("Describe the goal.")).toBeInTheDocument();
+    expect(screen.queryByText("State note")).not.toBeInTheDocument();
+  });
 });
 
 const fileChangesDetail: MainPageDetailView = {
@@ -137,6 +156,16 @@ const fileChangesDetail: MainPageDetailView = {
     title: "Files changed",
   },
   result: null,
+};
+
+const stateNoteDetail: MainPageDetailView = {
+  kind: "note",
+  body: "Describe the goal.",
+  header: {
+    body: "Describe the goal.",
+    eyebrow: "Workflow",
+    title: "Task authoring",
+  },
 };
 
 function taskNode(

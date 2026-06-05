@@ -33,7 +33,6 @@ type ConfirmationResolvedDetail = Extract<
 type ResultDetail = Extract<MainPageDetailView, { kind: "result" }>;
 type FileChangesDetail = Extract<MainPageDetailView, { kind: "fileChanges" }>;
 type TaskDetail = Extract<MainPageDetailView, { kind: "task" }>;
-type StateNoteDetail = Extract<MainPageDetailView, { kind: "note" }>;
 
 export function MainPageDetailPanel({
   detail,
@@ -139,7 +138,7 @@ function DetailContent({
         />
       );
     case "note":
-      return <StateNotePanel detail={detail} />;
+      return null;
   }
 }
 
@@ -321,17 +320,6 @@ function TaskDetailPanel({
           </Button>
         </div>
       )}
-    </Panel>
-  );
-}
-
-function StateNotePanel({ detail }: { detail: StateNoteDetail }) {
-  return (
-    <Panel className={styles.detailBox} tone="muted">
-      <Text as="strong" variant="label">
-        State note
-      </Text>
-      <Text variant="muted">{detail.body}</Text>
     </Panel>
   );
 }
