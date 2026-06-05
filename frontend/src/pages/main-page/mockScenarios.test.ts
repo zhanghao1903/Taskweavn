@@ -47,7 +47,7 @@ describe("Main Page mock scenarios", () => {
 
     expect(scenarioCopy.filter(Boolean).join("\n")).not.toContain("TaskNode");
     expect(scenarioCopy.filter(Boolean).join("\n")).not.toMatch(
-      /backend|projection|snapshot/i,
+      /backend|command|projection|snapshot/i,
     );
   });
 
