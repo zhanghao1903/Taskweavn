@@ -38,12 +38,16 @@ export function MainPageWorkbench({
   viewModel,
 }: MainPageWorkbenchProps) {
   const [isActivityOverlayOpen, setIsActivityOverlayOpen] = useState(false);
+  const hidesDetailPanel = viewModel.detail.kind === "note";
+  const pageClassName = hidesDetailPanel
+    ? `${styles.page} ${styles.pageWithoutDetail}`
+    : styles.page;
   const hasActivity =
     viewModel.mainWorkArea.kind !== "authoringAsk" &&
     viewModel.taskWorkspace.allMessages.length > 0;
 
   return (
-    <main className={styles.page}>
+    <main className={pageClassName}>
       <MainPageTopBar
         brandLabel={viewModel.topBar.brandLabel}
         contextItems={viewModel.topBar.contextItems}

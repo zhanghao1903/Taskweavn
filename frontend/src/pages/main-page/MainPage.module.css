@@ -49,6 +49,14 @@
     var(--plato-color-project-bg);
 }
 
+.pageWithoutDetail {
+  grid-template:
+    "top top top" var(--plato-topbar-height)
+    "side work work" minmax(0, 1fr) / var(--plato-sidebar-width)
+    minmax(var(--plato-workspace-min-width), 1fr)
+    minmax(var(--plato-detail-min-width), var(--plato-detail-width));
+}
+
 .topBar,
 .sidebar,
 .workspace,
@@ -869,6 +877,14 @@
       "input" auto / minmax(0, 1fr);
     align-content: start;
     overflow-x: hidden;
+  }
+
+  .pageWithoutDetail {
+    grid-template:
+      "top" auto
+      "side" auto
+      "work" auto
+      "input" auto / minmax(0, 1fr);
   }
 
   .topBar {
