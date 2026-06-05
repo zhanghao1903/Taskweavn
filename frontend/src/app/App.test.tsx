@@ -35,6 +35,8 @@ describe("App", () => {
     );
 
     expect(screen.getByRole("banner")).toHaveTextContent("Plato");
+    expect(screen.queryByText(/Task-first Intelligent/i)).not.toBeInTheDocument();
+    expect(screen.queryByText("Workbench")).not.toBeInTheDocument();
     expect(await screen.findByText("Personal Website")).toBeInTheDocument();
     expect(screen.getByLabelText("Task workspace")).toBeInTheDocument();
     expect(screen.getByText("Requirement analysis")).toBeInTheDocument();

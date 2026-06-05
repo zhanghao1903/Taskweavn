@@ -32,11 +32,6 @@ export function MainPageTopBar({
         <PlatoProductMark className={styles.brandMark} />
         <div className={styles.brandCopy}>
           <div className={styles.brandName}>Plato</div>
-          <div className={styles.brandSubtitle}>
-            Task-first Intelligent
-            <br />
-            Workbench
-          </div>
         </div>
       </div>
 

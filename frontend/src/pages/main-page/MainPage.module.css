@@ -107,15 +107,6 @@
   white-space: nowrap;
 }
 
-.brandSubtitle {
-  overflow: hidden;
-  color: var(--plato-color-muted);
-  font-size: var(--plato-type-caption-size);
-  font-weight: var(--plato-type-body-weight);
-  line-height: 1.1;
-  text-overflow: ellipsis;
-}
-
 .topBarContextBlock {
   display: grid;
   min-width: 0;
