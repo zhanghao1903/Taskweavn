@@ -1,8 +1,7 @@
 .page {
-  --plato-audit-detail-min-width: 420px;
-  --plato-audit-detail-width: 42%;
-  --plato-audit-records-min-width: 520px;
-  --plato-audit-records-width: 58%;
+  --plato-audit-detail-min-width: 380px;
+  --plato-audit-detail-width: 34%;
+  --plato-audit-records-min-width: 600px;
   --plato-audit-record-detail-gap: 16px;
 
   min-width: 1280px;
@@ -497,18 +496,19 @@
       var(--plato-audit-record-detail-gap)
   );
   min-height: 0;
-  display: flex;
+  display: grid;
+  grid-template-columns:
+    minmax(var(--plato-audit-records-min-width), 1fr)
+    minmax(var(--plato-audit-detail-min-width), var(--plato-audit-detail-width));
   gap: var(--plato-audit-record-detail-gap);
   align-items: stretch;
 }
 
 .recordDetailGrid > .timeline {
-  flex: 1 1 var(--plato-audit-records-width);
   min-width: var(--plato-audit-records-min-width);
 }
 
 .recordDetailGrid > .detail {
-  flex: 1 1 var(--plato-audit-detail-width);
   min-width: var(--plato-audit-detail-min-width);
 }
 

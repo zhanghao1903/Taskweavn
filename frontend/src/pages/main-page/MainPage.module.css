@@ -19,10 +19,9 @@
   );
   --plato-sidebar-min-width: 220px;
   --plato-sidebar-max-width: 280px;
-  --plato-workspace-min-width: 620px;
-  --plato-workspace-width-ratio: 62fr;
+  --plato-workspace-min-width: 680px;
   --plato-detail-min-width: 360px;
-  --plato-detail-width-ratio: 38fr;
+  --plato-detail-width: 30%;
   --plato-sidebar-width: clamp(
     var(--plato-sidebar-min-width),
     15vw,
@@ -37,14 +36,8 @@
   grid-template:
     "top top top" var(--plato-topbar-height)
     "side work detail" minmax(0, 1fr) / var(--plato-sidebar-width)
-    minmax(
-      var(--plato-workspace-min-width),
-      var(--plato-workspace-width-ratio)
-    )
-    minmax(
-      var(--plato-detail-min-width),
-      var(--plato-detail-width-ratio)
-    );
+    minmax(var(--plato-workspace-min-width), 1fr)
+    minmax(var(--plato-detail-min-width), var(--plato-detail-width));
   gap: var(--plato-layout-gap);
   padding: var(--plato-page-padding);
   background:
