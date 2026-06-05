@@ -1,8 +1,8 @@
 .page {
   --plato-audit-detail-min-width: 420px;
-  --plato-audit-detail-width: 48%;
+  --plato-audit-detail-width: 42%;
   --plato-audit-records-min-width: 520px;
-  --plato-audit-records-width: 52%;
+  --plato-audit-records-width: 58%;
   --plato-audit-record-detail-gap: 16px;
 
   min-width: 1280px;
@@ -497,18 +497,19 @@
       var(--plato-audit-record-detail-gap)
   );
   min-height: 0;
-  display: grid;
-  grid-template-columns:
-    minmax(
-      var(--plato-audit-records-min-width),
-      var(--plato-audit-records-width)
-    )
-    minmax(
-      var(--plato-audit-detail-min-width),
-      var(--plato-audit-detail-width)
-    );
+  display: flex;
   gap: var(--plato-audit-record-detail-gap);
   align-items: stretch;
+}
+
+.recordDetailGrid > .timeline {
+  flex: 1 1 var(--plato-audit-records-width);
+  min-width: var(--plato-audit-records-min-width);
+}
+
+.recordDetailGrid > .detail {
+  flex: 1 1 var(--plato-audit-detail-width);
+  min-width: var(--plato-audit-detail-min-width);
 }
 
 .filterRail {
@@ -1078,6 +1079,15 @@
   .recordDetailGrid {
     min-width: 0;
     grid-template-columns: 1fr;
+  }
+
+  .recordDetailGrid {
+    display: grid;
+  }
+
+  .recordDetailGrid > .timeline,
+  .recordDetailGrid > .detail {
+    min-width: 0;
   }
 
   .note {
