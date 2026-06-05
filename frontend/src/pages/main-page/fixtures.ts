@@ -343,7 +343,7 @@ export const mainPageStates: MainPageFixture[] = [
       mode: "task",
       eyebrow: "Running task",
       title: "Initial implementation",
-      body: "Plato is executing this task. You can append guidance, but completed tasks are read-only.",
+      body: "Plato is executing this task. You can still append guidance.",
     },
     inputScope: {
       label: "Writing to Initial implementation",
