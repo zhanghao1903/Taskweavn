@@ -478,12 +478,17 @@ describe("App", () => {
     await user.click(screen.getByRole("button", { name: "View result" }));
 
     expect(screen.getByText("Result card")).toBeInTheDocument();
-    expect(screen.getByText("Delivered structure")).toBeInTheDocument();
     expect(
       screen.getByText(
         "The first implementation plan is ready, including page structure, styling direction, and build tasks.",
       ),
     ).toBeInTheDocument();
+    expect(screen.queryByText("Delivered structure")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Open reader" }));
+
+    expect(screen.getByLabelText("Result reader")).toBeInTheDocument();
+    expect(screen.getByText("Delivered structure")).toBeInTheDocument();
   });
 
   it("creates a new session from the sidebar", async () => {

@@ -751,6 +751,22 @@
   gap: var(--plato-space-3);
 }
 
+.resultSummaryPreview {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+}
+
+.resultReaderPrompt {
+  display: grid;
+  gap: var(--plato-space-3);
+  border: 1px solid var(--plato-color-line);
+  border-radius: var(--plato-radius-md);
+  padding: var(--plato-space-3);
+  background: var(--plato-color-panel);
+}
+
 .resultSection,
 .fileChangeItem {
   display: grid;

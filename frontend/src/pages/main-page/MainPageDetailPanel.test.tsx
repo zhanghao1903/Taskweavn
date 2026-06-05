@@ -1,4 +1,5 @@
 import { render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import type { TaskNodeCardView } from "../../shared/api/types";
@@ -131,6 +132,59 @@ describe("MainPageDetailPanel", () => {
     expect(screen.getByText("Describe the goal.")).toBeInTheDocument();
     expect(screen.queryByText("State note")).not.toBeInTheDocument();
   });
+
+  it("keeps result sections out of the default result card", () => {
+    render(
+      <MainPageDetailPanel
+        detail={resultDetail}
+        onAnswerAsk={vi.fn()}
+        onCancelAsk={vi.fn()}
+        onConfirmationDecision={vi.fn()}
+        onDeferAsk={vi.fn()}
+        onRetryTask={vi.fn()}
+        onShowFileChanges={vi.fn()}
+        onShowResult={vi.fn()}
+        onStopTask={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("Result card")).toBeInTheDocument();
+    expect(screen.getByText(resultDetail.result.summary)).toBeInTheDocument();
+    expect(screen.getByText("2 structured sections available.")).toBeInTheDocument();
+    expect(screen.queryByText("Delivered structure")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Open reader" })).toBeInTheDocument();
+  });
+
+  it("opens and closes the result reader for full structured content", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <MainPageDetailPanel
+        detail={resultDetail}
+        onAnswerAsk={vi.fn()}
+        onCancelAsk={vi.fn()}
+        onConfirmationDecision={vi.fn()}
+        onDeferAsk={vi.fn()}
+        onRetryTask={vi.fn()}
+        onShowFileChanges={vi.fn()}
+        onShowResult={vi.fn()}
+        onStopTask={vi.fn()}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Open reader" }));
+
+    const reader = screen.getByLabelText("Result reader");
+    expect(within(reader).getByText("Result reader")).toBeInTheDocument();
+    expect(within(reader).getByText("Delivered structure")).toBeInTheDocument();
+    expect(within(reader).getByText("Implementation checklist")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Back to result card" }));
+
+    expect(screen.queryByLabelText("Result reader")).not.toBeInTheDocument();
+    expect(screen.getByText("Result card")).toBeInTheDocument();
+    expect(screen.queryByText("Delivered structure")).not.toBeInTheDocument();
+  });
 });
 
 const fileChangesDetail: MainPageDetailView = {
@@ -165,6 +219,37 @@ const stateNoteDetail: MainPageDetailView = {
     body: "Describe the goal.",
     eyebrow: "Workflow",
     title: "Task authoring",
+  },
+};
+
+const resultDetail: Extract<MainPageDetailView, { kind: "result" }> = {
+  kind: "result",
+  fileChangeSummary: null,
+  header: {
+    body: "Review the generated result.",
+    eyebrow: "Result",
+    title: "Result ready",
+  },
+  result: {
+    id: "result-implementation",
+    sessionId: "session-website-plan",
+    taskNodeId: "task-implementation",
+    title: "Implementation plan",
+    summary:
+      "The first implementation plan is ready, including page structure, styling direction, and build tasks.",
+    sections: [
+      {
+        body: "A focused structure for the page, detail panel, and input bar.",
+        kind: "text",
+        title: "Delivered structure",
+      },
+      {
+        body: "Review layout, visual direction, build, and verification tasks.",
+        kind: "list",
+        title: "Implementation checklist",
+      },
+    ],
+    updatedAt: "2026-06-05T00:00:00.000Z",
   },
 };
 

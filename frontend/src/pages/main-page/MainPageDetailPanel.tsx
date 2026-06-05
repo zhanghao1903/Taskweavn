@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { CircleStop, RotateCcw } from "lucide-react";
 
 import type {
@@ -166,6 +167,54 @@ function ResultSummaryPanel({
   detail,
   onShowFileChanges,
 }: ResultSummaryPanelProps) {
+  const [isReaderOpen, setIsReaderOpen] = useState(false);
+  const sections = detail.result.sections ?? [];
+  const shouldShowReader =
+    detail.result.summary.length > 220 || sections.length > 0;
+
+  if (isReaderOpen) {
+    return (
+      <Panel
+        className={styles.detailBox}
+        tone="muted"
+        aria-label="Result reader"
+      >
+        <div className={styles.detailTitleRow}>
+          <Text as="strong" variant="label">
+            Result reader
+          </Text>
+          <Badge size="sm" tone="blue">
+            {sections.length} sections
+          </Badge>
+        </div>
+        <Text variant="muted">{detail.result.summary}</Text>
+        {sections.length > 0 && (
+          <div className={styles.resultSections}>
+            {sections.map((section) => (
+              <article className={styles.resultSection} key={section.title}>
+                <div className={styles.detailTitleRow}>
+                  <strong>{section.title}</strong>
+                  <Badge size="sm" tone="neutral">
+                    {section.kind ?? "text"}
+                  </Badge>
+                </div>
+                <p>{section.body}</p>
+              </article>
+            ))}
+          </div>
+        )}
+        <div className={styles.actionRow}>
+          <Button onClick={() => setIsReaderOpen(false)}>
+            Back to result card
+          </Button>
+          {detail.fileChangeSummary && (
+            <Button onClick={onShowFileChanges}>View file changes</Button>
+          )}
+        </div>
+      </Panel>
+    );
+  }
+
   return (
     <Panel className={styles.detailBox} tone="muted">
       <div className={styles.detailTitleRow}>
@@ -176,20 +225,17 @@ function ResultSummaryPanel({
           structured
         </Badge>
       </div>
-      <Text variant="muted">{detail.result.summary}</Text>
-      {detail.result.sections && detail.result.sections.length > 0 && (
-        <div className={styles.resultSections}>
-          {detail.result.sections.map((section) => (
-            <article className={styles.resultSection} key={section.title}>
-              <div className={styles.detailTitleRow}>
-                <strong>{section.title}</strong>
-                <Badge size="sm" tone="neutral">
-                  {section.kind ?? "text"}
-                </Badge>
-              </div>
-              <p>{section.body}</p>
-            </article>
-          ))}
+      <Text className={styles.resultSummaryPreview} variant="muted">
+        {detail.result.summary}
+      </Text>
+      {shouldShowReader && (
+        <div className={styles.resultReaderPrompt}>
+          <Text variant="muted">
+            {sections.length > 0
+              ? `${sections.length} structured sections available.`
+              : "Full result available in reader."}
+          </Text>
+          <Button onClick={() => setIsReaderOpen(true)}>Open reader</Button>
         </div>
       )}
       {detail.fileChangeSummary && (
