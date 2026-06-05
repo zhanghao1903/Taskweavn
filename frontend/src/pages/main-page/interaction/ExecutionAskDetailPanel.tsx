@@ -190,7 +190,7 @@ export function ExecutionAskDetailPanel({
 
       {isStale ? (
         <Text className={styles.error} role="alert" variant="muted">
-          This ASK no longer matches the selected task. Refresh or select the
+          This question no longer matches the selected task. Refresh or select the
           waiting task before answering.
         </Text>
       ) : null}
@@ -216,7 +216,7 @@ export function ExecutionAskDetailPanel({
           onClick={() => onCancel({ reason: "user cancelled ASK" })}
           variant="danger"
         >
-          {detail.isCancellingAsk ? "Cancelling" : "Cancel ASK"}
+          {detail.isCancellingAsk ? "Cancelling" : "Cancel question"}
         </Button>
       </div>
     </section>

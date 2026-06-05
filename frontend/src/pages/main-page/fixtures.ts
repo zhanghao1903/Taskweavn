@@ -589,13 +589,13 @@ export const mainPageStates: MainPageFixture[] = [
     ],
     detail: {
       mode: "task",
-      eyebrow: "Execution ASK",
+      eyebrow: "Task input",
       title: "Initial implementation needs input",
-      body: "The running task is blocked until the ASK is answered.",
+      body: "The running task is blocked until this question is answered.",
     },
     inputScope: {
       label: "Scope: waiting task / Initial implementation",
-      placeholder: "Answer the ASK in the detail panel.",
+      placeholder: "Answer the question in the detail panel.",
     },
     result: null,
     fileChangeSummary: null,

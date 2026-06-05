@@ -649,7 +649,7 @@ function detailHeaderFor({
 }): MainPageDetailHeader {
   if (hasExecutionAskFocus && activeExecutionAsk) {
     return {
-      eyebrow: "Execution ASK",
+      eyebrow: "Task input",
       title: selectedTask?.title ?? "Task needs input",
       body: activeExecutionAsk.reason || activeExecutionAsk.question,
     };
