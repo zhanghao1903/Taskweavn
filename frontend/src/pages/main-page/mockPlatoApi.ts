@@ -357,7 +357,7 @@ export async function retryTaskMockCommand(
 
   return acceptedCommandResponse({
     commandId: request.commandId,
-    message: `Task retry accepted for ${taskNodeId}.`,
+    message: "Task retry accepted.",
     sessionId,
     taskNodeId,
   });
@@ -372,7 +372,7 @@ export async function stopTaskMockCommand(
 
   return acceptedCommandResponse({
     commandId: request.commandId,
-    message: `Task stop requested for ${taskNodeId}.`,
+    message: "Task stop requested.",
     sessionId,
     taskNodeId,
   });

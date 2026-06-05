@@ -10,6 +10,8 @@ import {
   getMainPageMockSnapshot,
   listMainPageStateOptions,
   mainPageMockAdapter,
+  retryTaskMockCommand,
+  stopTaskMockCommand,
   updateTaskNodeMockCommand,
 } from "./mockPlatoApi";
 import {
@@ -156,17 +158,50 @@ describe("mock Plato API adapter", () => {
         sessionId: "session-1",
       },
     );
+    const retryResponse = await retryTaskMockCommand(
+      "session-1",
+      "task-internal-id",
+      {
+        commandId: "command-retry",
+        payload: {
+          startImmediately: true,
+        },
+        sessionId: "session-1",
+      },
+    );
+    const stopResponse = await stopTaskMockCommand(
+      "session-1",
+      "task-internal-id",
+      {
+        commandId: "command-stop",
+        payload: {
+          reason: "User requested stop.",
+        },
+        sessionId: "session-1",
+      },
+    );
 
     expect(appendResponse.result).not.toBeNull();
     expect(updateResponse.result).not.toBeNull();
-    if (appendResponse.result === null || updateResponse.result === null) {
+    expect(retryResponse.result).not.toBeNull();
+    expect(stopResponse.result).not.toBeNull();
+    if (
+      appendResponse.result === null ||
+      updateResponse.result === null ||
+      retryResponse.result === null ||
+      stopResponse.result === null
+    ) {
       throw new Error("Expected accepted command responses.");
     }
 
     expect(appendResponse.result.message).toBe("Task input accepted.");
     expect(updateResponse.result.message).toBe("Task update accepted.");
+    expect(retryResponse.result.message).toBe("Task retry accepted.");
+    expect(stopResponse.result.message).toBe("Task stop requested.");
     expect(appendResponse.result.message).not.toContain("task-internal-id");
     expect(updateResponse.result.message).not.toContain("task-internal-id");
+    expect(retryResponse.result.message).not.toContain("task-internal-id");
+    expect(stopResponse.result.message).not.toContain("task-internal-id");
   });
 
   it("projects completed results into structured result sections", () => {
