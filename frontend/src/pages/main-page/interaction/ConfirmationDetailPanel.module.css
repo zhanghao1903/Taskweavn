@@ -30,12 +30,6 @@
   background: var(--plato-color-panel);
 }
 
-.footerCopy {
-  display: grid;
-  min-width: 0;
-  gap: var(--plato-space-1);
-}
-
 .error {
   color: var(--plato-color-danger-text);
 }

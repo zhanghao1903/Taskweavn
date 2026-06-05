@@ -167,11 +167,6 @@ export function ConfirmationDetailPanel({
       ) : null}
 
       <div className={styles.actionRow}>
-        <div className={styles.footerCopy}>
-          <Text as="strong" variant="label">
-            {hasValidSelection ? "1 option selected" : "No option selected"}
-          </Text>
-        </div>
         <Button disabled={!canResolve} onClick={handleResolve} variant="primary">
           {isResolving ? "Resolving" : "Resolve decision"}
         </Button>

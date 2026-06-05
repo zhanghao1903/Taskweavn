@@ -47,6 +47,8 @@ describe("ConfirmationDetailPanel", () => {
     expect(screen.getByText("Impact")).toBeInTheDocument();
     expect(screen.getByText("Allows implementation to continue.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Confirm" })).toBeInTheDocument();
+    expect(screen.queryByText("No option selected")).not.toBeInTheDocument();
+    expect(screen.queryByText("1 option selected")).not.toBeInTheDocument();
     expect(
       screen.queryByText(
         "Approve the first visual baseline before implementation continues.",
