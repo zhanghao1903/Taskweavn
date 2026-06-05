@@ -1,5 +1,5 @@
 .page {
-  --plato-page-min-width: 1280px;
+  --plato-page-min-width: 1360px;
   --plato-page-min-height: 820px;
   --plato-page-padding: clamp(var(--plato-space-4), 1.4vw, var(--plato-space-6));
   --plato-layout-gap: clamp(var(--plato-space-4), 1.4vw, var(--plato-space-6));
@@ -21,7 +21,12 @@
   --plato-sidebar-max-width: 280px;
   --plato-workspace-min-width: 620px;
   --plato-detail-min-width: 360px;
-  --plato-detail-width: 30%;
+  --plato-detail-width: clamp(var(--plato-detail-min-width), 34%, 520px);
+  --plato-sidebar-width: clamp(
+    var(--plato-sidebar-min-width),
+    15vw,
+    var(--plato-sidebar-max-width)
+  );
 
   display: grid;
   width: 100%;
@@ -30,11 +35,7 @@
   min-height: var(--plato-page-min-height);
   grid-template:
     "top top top" var(--plato-topbar-height)
-    "side work detail" minmax(0, 1fr) / clamp(
-      var(--plato-sidebar-min-width),
-      15vw,
-      var(--plato-sidebar-max-width)
-    )
+    "side work detail" minmax(0, 1fr) / var(--plato-sidebar-width)
     minmax(var(--plato-workspace-min-width), 1fr)
     minmax(var(--plato-detail-min-width), var(--plato-detail-width));
   gap: var(--plato-layout-gap);
@@ -444,7 +445,7 @@
   grid-area: work;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
-  min-width: 0;
+  min-width: var(--plato-workspace-min-width);
   min-height: 0;
   margin-bottom: calc(
     var(--plato-inputbar-height) + var(--plato-layout-gap)
@@ -711,7 +712,7 @@
 
 .detailPanel {
   grid-area: detail;
-  min-width: 0;
+  min-width: var(--plato-detail-min-width);
   min-height: 0;
   margin-bottom: calc(
     var(--plato-inputbar-height) + var(--plato-layout-gap)
@@ -940,6 +941,7 @@
 
   .workspace,
   .detailPanel {
+    min-width: 0;
     margin-bottom: 0;
     overflow: visible;
   }
