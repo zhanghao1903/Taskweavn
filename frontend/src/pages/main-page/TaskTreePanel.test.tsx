@@ -20,9 +20,10 @@ describe("TaskTreePanel", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByText(
-        "Describe your goal. Plato will turn it into a task structure for review before execution.",
+        "Describe your goal. Plato will turn it into a task plan for review before execution.",
       ),
     ).toBeInTheDocument();
+    expect(screen.queryByText(/task structure/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/No TaskTree yet/i)).not.toBeInTheDocument();
   });
 });
