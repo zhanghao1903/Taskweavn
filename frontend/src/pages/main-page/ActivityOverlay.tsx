@@ -33,6 +33,8 @@ export function ActivityOverlay({
   const [activeFilter, setActiveFilter] = useState<ActivityFilter>(
     selectedTask ? "currentTask" : "all",
   );
+  const [readerMessage, setReaderMessage] =
+    useState<SessionMessageView | null>(null);
   const messages = useMemo(
     () =>
       selectOverlayMessages({
@@ -85,7 +87,12 @@ export function ActivityOverlay({
         )}
       </div>
 
-      {messages.length === 0 ? (
+      {readerMessage ? (
+        <ResultReader
+          message={readerMessage}
+          onBack={() => setReaderMessage(null)}
+        />
+      ) : messages.length === 0 ? (
         <div className={styles.emptyState}>
           <strong>No matching activity</strong>
           <p>Try another filter or return to the selected task.</p>
@@ -93,7 +100,11 @@ export function ActivityOverlay({
       ) : (
         <ol className={styles.timeline}>
           {messages.map((message) => (
-            <ActivityItem key={message.id} message={message} />
+            <ActivityItem
+              key={message.id}
+              message={message}
+              onOpenReader={() => setReaderMessage(message)}
+            />
           ))}
         </ol>
       )}
@@ -101,9 +112,16 @@ export function ActivityOverlay({
   );
 }
 
-function ActivityItem({ message }: { message: SessionMessageView }) {
+function ActivityItem({
+  message,
+  onOpenReader,
+}: {
+  message: SessionMessageView;
+  onOpenReader: () => void;
+}) {
   const kindPresentation = selectMessageKindPresentation(message.kind);
   const scopeLabel = message.taskNodeId ? "Task" : "Session";
+  const isResult = isResultActivity(message);
 
   return (
     <li className={styles.activityItem}>
@@ -111,7 +129,9 @@ function ActivityItem({ message }: { message: SessionMessageView }) {
         <Badge size="sm" tone={kindPresentation.tone}>
           {kindPresentation.label}
         </Badge>
-        <time dateTime={message.createdAt}>{formatActivityTime(message.createdAt)}</time>
+        <time dateTime={message.createdAt}>
+          {formatActivityTime(message.createdAt)}
+        </time>
       </div>
       <strong title={message.title}>{message.title}</strong>
       <p>{message.body}</p>
@@ -119,8 +139,43 @@ function ActivityItem({ message }: { message: SessionMessageView }) {
         <Badge size="sm" tone={message.taskNodeId ? "blue" : "neutral"}>
           {scopeLabel}
         </Badge>
+        {isResult && (
+          <Button onClick={onOpenReader} size="sm" variant="ghost">
+            View full result
+          </Button>
+        )}
       </div>
     </li>
+  );
+}
+
+function ResultReader({
+  message,
+  onBack,
+}: {
+  message: SessionMessageView;
+  onBack: () => void;
+}) {
+  return (
+    <section aria-label="Activity result reader" className={styles.reader}>
+      <div className={styles.readerHeader}>
+        <div>
+          <Text as="span" variant="eyebrow">
+            Result reader
+          </Text>
+          <h3>{message.title}</h3>
+        </div>
+        <Button onClick={onBack} size="sm" variant="secondary">
+          Back to activity
+        </Button>
+      </div>
+      <article className={styles.readerBody}>
+        <Badge size="sm" tone="blue">
+          Result
+        </Badge>
+        <p>{message.body}</p>
+      </article>
+    </section>
   );
 }
 

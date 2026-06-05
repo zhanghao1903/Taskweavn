@@ -129,6 +129,52 @@
   line-height: var(--plato-type-caption-line-height);
 }
 
+.reader {
+  display: grid;
+  min-height: 0;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: var(--plato-space-4);
+  overflow: hidden;
+}
+
+.readerHeader {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--plato-space-4);
+}
+
+.readerHeader h3 {
+  margin: var(--plato-space-1) 0 0;
+  color: var(--plato-color-ink);
+  font-size: var(--plato-type-panel-title-size);
+  font-weight: var(--plato-type-panel-title-weight);
+  line-height: var(--plato-type-panel-title-line-height);
+  overflow-wrap: anywhere;
+}
+
+.readerBody {
+  display: grid;
+  align-content: start;
+  min-height: 0;
+  gap: var(--plato-space-3);
+  overflow: auto;
+  border: 1px solid var(--plato-color-line);
+  border-radius: var(--plato-radius-lg);
+  padding: var(--plato-space-4);
+  background: var(--plato-color-placeholder-card-surface);
+  scrollbar-gutter: stable;
+}
+
+.readerBody p {
+  margin: 0;
+  color: var(--plato-color-muted);
+  font-size: var(--plato-type-body-size);
+  line-height: var(--plato-type-body-line-height);
+  overflow-wrap: anywhere;
+}
+
 .emptyState {
   display: grid;
   align-content: center;

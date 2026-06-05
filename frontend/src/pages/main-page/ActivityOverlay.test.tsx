@@ -77,6 +77,40 @@ describe("ActivityOverlay", () => {
     expect(screen.queryByText("Result summary generated")).not.toBeInTheDocument();
   });
 
+  it("opens result activity in a reader and returns to the timeline", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <ActivityOverlay
+        allMessages={[
+          message({
+            body:
+              "The completed result includes a long summary, implementation notes, and follow-up checks for review.",
+            id: "result-message",
+            title: "Result summary generated",
+          }),
+        ]}
+        currentMessages={[]}
+        onClose={vi.fn()}
+        selectedTask={undefined}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "View full result" }));
+
+    const reader = screen.getByLabelText("Activity result reader");
+    expect(within(reader).getByText("Result reader")).toBeInTheDocument();
+    expect(within(reader).getByText("Result summary generated")).toBeInTheDocument();
+    expect(
+      within(reader).getByText(/implementation notes, and follow-up checks/i),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Back to activity" }));
+
+    expect(screen.queryByLabelText("Activity result reader")).not.toBeInTheDocument();
+    expect(screen.getByText("Result summary generated")).toBeInTheDocument();
+  });
+
   it("notifies when the overlay closes", async () => {
     const user = userEvent.setup();
     const onClose = vi.fn();
