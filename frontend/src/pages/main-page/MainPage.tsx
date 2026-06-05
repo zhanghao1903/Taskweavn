@@ -69,10 +69,10 @@ export function MainPage({
         stateId={stateId}
         onStateChange={actions.changeState}
         showStatePicker={adapter.showStatePicker}
-        statusLabel="Loading snapshot"
+        statusLabel="Loading"
         statusTone="blue"
-        title="Loading session snapshot"
-        body="Plato is preparing the current Project, Workflow, Session, TaskTree, and message projection."
+        title="Opening session"
+        body="Plato is preparing this workspace."
       />
     );
   }
@@ -101,17 +101,17 @@ export function MainPage({
         stateId={stateId}
         onStateChange={actions.changeState}
         showStatePicker={adapter.showStatePicker}
-        statusLabel={noSessionAvailable ? "No sessions" : "Snapshot error"}
+        statusLabel={noSessionAvailable ? "No sessions" : "Load error"}
         statusTone={noSessionAvailable ? "neutral" : "danger"}
         title={
           noSessionAvailable
             ? "Create your first session"
-            : "Unable to load session snapshot"
+            : "Unable to open session"
         }
         body={
           noSessionAvailable
             ? "This workspace has no sessions yet. Create one when you are ready to start."
-            : `The UI could not load the session projection. ${errorSummary}`
+            : `Plato could not load this session. ${errorSummary}`
         }
       />
     );
@@ -215,11 +215,7 @@ function MainPageStatusFrame({
     <main className={styles.page}>
       <MainPageTopBar
         brandLabel="柏拉图 Plato"
-        contextItems={[
-          "Plato workspace",
-          "Snapshot boundary",
-          "Session projection",
-        ]}
+        contextItems={["Local Project", "Task authoring", "Session"]}
         statuses={[
           {
             label: statusLabel,
