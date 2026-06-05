@@ -526,6 +526,112 @@
   text-align: center;
 }
 
+.generatingTaskPlan {
+  display: grid;
+  min-height: 520px;
+  align-content: start;
+  gap: var(--plato-space-6);
+  border: 1px solid var(--plato-color-line);
+  border-radius: var(--plato-radius-lg);
+  padding: var(--plato-space-6);
+  background: var(--plato-color-panel);
+}
+
+.generatingTaskPlanHeader {
+  display: grid;
+  gap: var(--plato-space-2);
+}
+
+.generatingSkeleton {
+  display: grid;
+  width: min(100%, 560px);
+  gap: var(--plato-space-5);
+}
+
+.generatingSkeletonGroup {
+  display: grid;
+  gap: var(--plato-space-2);
+}
+
+.generatingSkeletonGroup span {
+  display: block;
+  height: 18px;
+  border-radius: var(--plato-radius-md);
+  background:
+    linear-gradient(
+      90deg,
+      var(--plato-color-placeholder-neutral-bg) 0%,
+      var(--plato-color-clear-blue) 45%,
+      var(--plato-color-placeholder-neutral-bg) 100%
+    );
+  background-size: 220% 100%;
+  animation: task-plan-skeleton calc(var(--plato-motion-duration-slow) * 7)
+    var(--plato-motion-easing-standard) infinite;
+}
+
+.generatingSkeletonGroup span:nth-child(2) {
+  height: 10px;
+  opacity: 0.86;
+}
+
+.generatingSkeletonGroup:nth-child(1) span:first-child {
+  width: 78%;
+}
+
+.generatingSkeletonGroup:nth-child(1) span:nth-child(2) {
+  width: 48%;
+}
+
+.generatingSkeletonGroup:nth-child(2) span:first-child {
+  width: 72%;
+}
+
+.generatingSkeletonGroup:nth-child(2) span:nth-child(2) {
+  width: 52%;
+}
+
+.generatingSkeletonGroup:nth-child(3) span:first-child {
+  width: 68%;
+}
+
+.generatingSkeletonGroup:nth-child(3) span:nth-child(2) {
+  width: 46%;
+}
+
+.generatingSkeletonGroup:nth-child(4) span:first-child {
+  width: 64%;
+}
+
+.generatingSkeletonGroup:nth-child(4) span:nth-child(2) {
+  width: 42%;
+}
+
+.generatingSkeletonGroup:nth-child(5) span:first-child {
+  width: 58%;
+}
+
+.generatingSkeletonGroup:nth-child(5) span:nth-child(2) {
+  width: 38%;
+}
+
+@keyframes task-plan-skeleton {
+  from {
+    background-position: 120% 0;
+    opacity: 0.68;
+  }
+
+  to {
+    background-position: -80% 0;
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .generatingSkeletonGroup span {
+    animation: none;
+  }
+}
+
 .taskCard,
 .selectedTaskCard {
   display: grid;

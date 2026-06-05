@@ -20,6 +20,31 @@ describe("buildMainPageViewModel", () => {
     expect(viewModel.workspace.title).toBe("Start a new session");
   });
 
+  it("marks the empty task workspace as generating while initial input is pending", () => {
+    const viewModel = buildViewModel("s1-empty", {
+      inputDisabled: true,
+    });
+
+    expect(viewModel.taskWorkspace.isGeneratingTaskPlan).toBe(true);
+  });
+
+  it("does not show the generation transition once a TaskTree exists", () => {
+    const viewModel = buildViewModel("s3-draft-ready", {
+      inputDisabled: true,
+    });
+
+    expect(viewModel.taskWorkspace.isGeneratingTaskPlan).toBe(false);
+  });
+
+  it("does not replace authoring ASK work areas with the generation transition", () => {
+    const viewModel = buildViewModel("s2-understanding", {
+      inputDisabled: true,
+    });
+
+    expect(viewModel.mainWorkArea.kind).toBe("authoringAsk");
+    expect(viewModel.taskWorkspace.isGeneratingTaskPlan).toBe(false);
+  });
+
   it("routes draft-ready session input to session guidance and exposes publish", () => {
     const viewModel = buildViewModel("s3-draft-ready");
 

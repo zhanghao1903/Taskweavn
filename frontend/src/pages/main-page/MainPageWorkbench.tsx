@@ -139,6 +139,9 @@ export function MainPageWorkbench({
                 })
               }
               selectedTaskNodeId={viewModel.taskWorkspace.selectedTaskNodeId}
+              isGeneratingTaskPlan={
+                viewModel.taskWorkspace.isGeneratingTaskPlan
+              }
               taskTree={viewModel.taskWorkspace.taskTree}
             />
           </div>

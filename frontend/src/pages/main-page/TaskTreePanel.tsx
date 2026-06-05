@@ -7,6 +7,7 @@ import { TaskNodeCard } from "./TaskNodeCard";
 import styles from "./MainPage.module.css";
 
 export type TaskTreePanelProps = {
+  isGeneratingTaskPlan?: boolean;
   onRetryTask: (nodeId: TaskNodeId) => void;
   onSelectTask: (nodeId: TaskNodeId) => void;
   onStopTask: (nodeId: TaskNodeId) => void;
@@ -15,6 +16,7 @@ export type TaskTreePanelProps = {
 };
 
 export function TaskTreePanel({
+  isGeneratingTaskPlan = false,
   onRetryTask,
   onSelectTask,
   onStopTask,
@@ -39,6 +41,8 @@ export function TaskTreePanel({
             />
           ))}
         </div>
+      ) : isGeneratingTaskPlan ? (
+        <TaskPlanGeneratingState />
       ) : (
         <div className={styles.emptyState}>
           <Text as="h3" variant="subheading">
@@ -52,3 +56,32 @@ export function TaskTreePanel({
     </Panel>
   );
 }
+
+function TaskPlanGeneratingState() {
+  return (
+    <div
+      aria-label="Generating task plan"
+      className={styles.generatingTaskPlan}
+      role="status"
+    >
+      <div className={styles.generatingTaskPlanHeader}>
+        <Text as="h3" variant="subheading">
+          Generating task plan
+        </Text>
+        <Text variant="muted">
+          Plato is understanding your goal and shaping the first task plan.
+        </Text>
+      </div>
+      <div aria-hidden="true" className={styles.generatingSkeleton}>
+        {Array.from({ length: SKELETON_GROUP_COUNT }, (_, index) => (
+          <div className={styles.generatingSkeletonGroup} key={`group-${index}`}>
+            <span />
+            <span />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+const SKELETON_GROUP_COUNT = 5;
