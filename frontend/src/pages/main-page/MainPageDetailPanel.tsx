@@ -246,11 +246,6 @@ function FileChangeSummaryPanel({
                 </Badge>
               </div>
               {file.summary && <p>{file.summary}</p>}
-              {file.ownerTaskNodeId && (
-                <span className={styles.fileOwner}>
-                  Owner TaskNode: {file.ownerTaskNodeId}
-                </span>
-              )}
             </article>
           );
         })}

@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { TaskNodeCardView } from "../../shared/api/types";
 import { MainPageDetailPanel } from "./MainPageDetailPanel";
+import type { MainPageDetailView } from "./mainPageViewModel";
 
 describe("MainPageDetailPanel", () => {
   it("shows the full selected task content in the detail panel", () => {
@@ -90,7 +91,53 @@ describe("MainPageDetailPanel", () => {
       screen.queryByRole("button", { name: /^Stop$/i }),
     ).not.toBeInTheDocument();
   });
+
+  it("hides raw owner TaskNode ids in file change details", () => {
+    render(
+      <MainPageDetailPanel
+        detail={fileChangesDetail}
+        onAnswerAsk={vi.fn()}
+        onCancelAsk={vi.fn()}
+        onConfirmationDecision={vi.fn()}
+        onDeferAsk={vi.fn()}
+        onRetryTask={vi.fn()}
+        onShowFileChanges={vi.fn()}
+        onShowResult={vi.fn()}
+        onStopTask={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("src/App.tsx")).toBeInTheDocument();
+    expect(screen.getByText("Updated page layout.")).toBeInTheDocument();
+    expect(screen.queryByText(/Owner TaskNode/i)).not.toBeInTheDocument();
+    expect(screen.queryByText("task-implementation")).not.toBeInTheDocument();
+  });
 });
+
+const fileChangesDetail: MainPageDetailView = {
+  kind: "fileChanges",
+  fileChangeSummary: {
+    changedFiles: [
+      {
+        changeType: "modified",
+        ownerTaskNodeId: "task-implementation",
+        path: "src/App.tsx",
+        summary: "Updated page layout.",
+      },
+    ],
+    recursive: true,
+    sessionId: "session-website-plan",
+    summary: "One file changed.",
+    taskNodeId: "task-parent",
+    updatedAt: "2026-06-05T00:00:00.000Z",
+  },
+  header: {
+    body: "Review workspace changes.",
+    eyebrow: "File Change Summary",
+    title: "Files changed",
+  },
+  result: null,
+};
 
 function taskNode(
   overrides: Partial<TaskNodeCardView> & Pick<TaskNodeCardView, "summary" | "title">,

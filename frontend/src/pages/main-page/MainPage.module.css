@@ -810,13 +810,6 @@
   line-height: var(--plato-type-code-line-height);
 }
 
-.fileOwner {
-  color: var(--plato-color-muted);
-  font-size: var(--plato-type-caption-size);
-  line-height: var(--plato-type-caption-line-height);
-  overflow-wrap: anywhere;
-}
-
 .contextInput {
   grid-column: 2 / 4;
   grid-row: 2;
