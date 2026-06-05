@@ -58,9 +58,13 @@ describe("buildMainPageViewModel", () => {
     });
 
     expect(viewModel.detail.kind).toBe("task");
+    expect(viewModel.detail.header.eyebrow).toBe("Task");
     expect(viewModel.detail.header.title).toBe("Visual direction");
     expect(viewModel.input).toMatchObject({
       mode: "append_task_input",
+      scope: {
+        placeholder: "Add guidance for this task.",
+      },
       target: "task",
       taskNodeId: "task-visual-direction",
     });

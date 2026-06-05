@@ -661,7 +661,7 @@ function detailHeaderFor({
 
   if (selectedTask) {
     return {
-      eyebrow: "TaskNode",
+      eyebrow: "Task",
       title: selectedTask.title,
       body: selectedTask.summary,
     };
@@ -804,7 +804,7 @@ function inputAvailabilityFor({
       disabled: true,
       disabledReason:
         selectedTask.readonlyReason ??
-        "The selected TaskNode does not accept guidance in the current state.",
+        "The selected task does not accept guidance in the current state.",
     };
   }
 
@@ -835,7 +835,7 @@ function inputScopeFor({
   if (selectedTask) {
     return {
       label: `Scope: selected task / ${selectedTask.title}`,
-      placeholder: "Add guidance that only applies to this TaskNode.",
+      placeholder: "Add guidance for this task.",
     };
   }
 

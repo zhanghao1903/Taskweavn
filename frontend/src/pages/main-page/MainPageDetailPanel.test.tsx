@@ -18,7 +18,7 @@ describe("MainPageDetailPanel", () => {
         detail={{
           header: {
             body: summary,
-            eyebrow: "TaskNode",
+            eyebrow: "Task",
             title,
           },
           isRetryingTask: false,
@@ -44,6 +44,7 @@ describe("MainPageDetailPanel", () => {
     expect(within(detailPanel).getByText("Task details")).toBeInTheDocument();
     expect(within(detailPanel).getByText(title)).toBeInTheDocument();
     expect(within(detailPanel).getByText(summary)).toBeInTheDocument();
+    expect(within(detailPanel).queryByText("TaskNode")).not.toBeInTheDocument();
     expect(
       within(detailPanel).queryByText(/Input now applies/i),
     ).not.toBeInTheDocument();
@@ -58,7 +59,7 @@ describe("MainPageDetailPanel", () => {
         detail={{
           header: {
             body: "The task is complete.",
-            eyebrow: "TaskNode",
+            eyebrow: "Task",
             title: "Completed implementation",
           },
           isRetryingTask: false,
