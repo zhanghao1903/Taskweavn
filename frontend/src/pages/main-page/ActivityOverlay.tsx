@@ -61,7 +61,7 @@ export function ActivityOverlay({
           <p>
             {selectedTask
               ? `Focused on ${selectedTask.title}.`
-              : "Session-wide activity."}
+              : "All session updates."}
           </p>
         </div>
         <Button onClick={onClose} size="sm" variant="secondary">

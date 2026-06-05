@@ -79,7 +79,7 @@ describe("ActivityOverlay", () => {
     expect(screen.queryByText("Result summary generated")).not.toBeInTheDocument();
   });
 
-  it("uses session-wide empty copy when there is no selected task", async () => {
+  it("uses session activity copy when there is no selected task", async () => {
     const user = userEvent.setup();
 
     render(
@@ -95,6 +95,8 @@ describe("ActivityOverlay", () => {
     expect(
       within(overlay).getByRole("heading", { name: "Session activity" }),
     ).toBeInTheDocument();
+    expect(within(overlay).getByText("All session updates.")).toBeInTheDocument();
+    expect(within(overlay).queryByText("Session-wide activity.")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Task updates")).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Errors" }));
