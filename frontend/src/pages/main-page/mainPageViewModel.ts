@@ -428,7 +428,7 @@ function auditEntryFor({
       permissionReason ??
       (auditRouteAvailable
         ? null
-        : "Audit entry is reserved until the Audit Page UI is implemented."),
+        : "Audit is not available for this view yet."),
     isEnabled: auditRouteAvailable && permissionReason === null,
     label: "View audit",
   };

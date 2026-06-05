@@ -150,8 +150,7 @@ describe("buildMainPageViewModel", () => {
     });
 
     expect(viewModel.workspace.auditEntry).toMatchObject({
-      disabledReason:
-        "Audit entry is reserved until the Audit Page UI is implemented.",
+      disabledReason: "Audit is not available for this view yet.",
       href: "/sessions/session-website-plan/tasks/task-implementation/audit?entry=from_file_change&filter=files&returnFocus=file_change&returnSessionId=session-website-plan&returnTaskNodeId=task-implementation",
       isEnabled: false,
       returnFocus: "file_change",

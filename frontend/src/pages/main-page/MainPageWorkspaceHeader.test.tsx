@@ -29,8 +29,7 @@ describe("MainPageWorkspaceHeader", () => {
     render(
       <MainPageWorkspaceHeader
         auditEntry={auditEntry({
-          disabledReason:
-            "Audit entry is reserved until the Audit Page UI is implemented.",
+          disabledReason: "Audit is not available for this view yet.",
           isEnabled: false,
         })}
         eventError={null}
@@ -48,12 +47,10 @@ describe("MainPageWorkspaceHeader", () => {
     expect(auditButton).toBeDisabled();
     expect(auditButton).toHaveAttribute(
       "title",
-      "Audit entry is reserved until the Audit Page UI is implemented.",
+      "Audit is not available for this view yet.",
     );
     expect(
-      screen.queryByText(
-        "Audit entry is reserved until the Audit Page UI is implemented.",
-      ),
+      screen.queryByText("Audit is not available for this view yet."),
     ).not.toBeInTheDocument();
   });
 
