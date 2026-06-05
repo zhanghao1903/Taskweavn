@@ -364,7 +364,7 @@ export const mainPageStates: MainPageFixture[] = [
       mode: "confirmation",
       eyebrow: "Confirmation required",
       title: "Confirm visual baseline",
-      body: "This confirmation is attached to the selected task and must be resolved before execution continues.",
+      body: "Choose how Plato should proceed before execution continues.",
       actionLabel: "Confirm baseline",
     },
     inputScope: {

@@ -68,7 +68,7 @@ describe("mock Plato API adapter", () => {
     const copy = [...fixtureCopy, ...catalogCopy].filter(Boolean).join("\n");
 
     expect(copy).not.toMatch(
-      /TaskTree|task tree|TaskNode|Context inspector|ResultCard|Session Workspace|duplicate submit/i,
+      /TaskTree|task tree|TaskNode|Context inspector|ResultCard|Session Workspace|duplicate submit|attached to the selected task/i,
     );
     expect(copy).not.toMatch(/\bASK\b/);
   });
