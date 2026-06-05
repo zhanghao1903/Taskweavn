@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import userEvent from "@testing-library/user-event";
+import { describe, expect, it, vi } from "vitest";
 
 import type { SessionMessageView, TaskNodeCardView } from "../../shared/api/types";
 import { LatestActivityStrip } from "./LatestActivityStrip";
@@ -54,6 +55,26 @@ describe("LatestActivityStrip", () => {
 
     expect(screen.getByText("Current task")).toBeInTheDocument();
     expect(screen.getByText("1/3 shown")).toBeInTheDocument();
+  });
+
+  it("opens the activity overlay from the one-line strip", async () => {
+    const user = userEvent.setup();
+    const onOpenActivity = vi.fn();
+
+    render(
+      <LatestActivityStrip
+        isMessageScoped={false}
+        messages={[message()]}
+        onOpenActivity={onOpenActivity}
+        selectedTask={undefined}
+        totalMessageCount={1}
+        visibleMessageCount={1}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Open activity overlay" }));
+
+    expect(onOpenActivity).toHaveBeenCalledTimes(1);
   });
 
   it("does not reserve an empty message surface", () => {

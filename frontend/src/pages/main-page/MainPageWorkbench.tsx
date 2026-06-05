@@ -1,6 +1,7 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 
 import { Panel } from "../../shared/components";
+import { ActivityOverlay } from "./ActivityOverlay";
 import { ContextInputPanel } from "./ContextInputPanel";
 import { LatestActivityStrip } from "./LatestActivityStrip";
 import { MainPageDetailPanel } from "./MainPageDetailPanel";
@@ -36,6 +37,11 @@ export function MainPageWorkbench({
   statePicker = null,
   viewModel,
 }: MainPageWorkbenchProps) {
+  const [isActivityOverlayOpen, setIsActivityOverlayOpen] = useState(false);
+  const hasActivity =
+    viewModel.mainWorkArea.kind !== "authoringAsk" &&
+    viewModel.taskWorkspace.allMessages.length > 0;
+
   return (
     <main className={styles.page}>
       <MainPageTopBar
@@ -118,6 +124,9 @@ export function MainPageWorkbench({
           <LatestActivityStrip
             isMessageScoped={viewModel.taskWorkspace.isMessageScoped}
             messages={viewModel.taskWorkspace.messages}
+            onOpenActivity={
+              hasActivity ? () => setIsActivityOverlayOpen(true) : undefined
+            }
             selectedTask={viewModel.taskWorkspace.selectedTask}
             totalMessageCount={viewModel.taskWorkspace.totalMessageCount}
             visibleMessageCount={viewModel.taskWorkspace.visibleMessageCount}
@@ -186,6 +195,15 @@ export function MainPageWorkbench({
         onShowFileChanges={actions.showFileChanges}
         onShowResult={actions.showResult}
       />
+
+      {isActivityOverlayOpen && hasActivity ? (
+        <ActivityOverlay
+          allMessages={viewModel.taskWorkspace.allMessages}
+          currentMessages={viewModel.taskWorkspace.messages}
+          onClose={() => setIsActivityOverlayOpen(false)}
+          selectedTask={viewModel.taskWorkspace.selectedTask}
+        />
+      ) : null}
 
       <ContextInputPanel
         draft={inputDraft}

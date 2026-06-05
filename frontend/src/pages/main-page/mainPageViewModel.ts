@@ -124,6 +124,7 @@ export type MainPageAuditEntryViewModel = {
 };
 
 export type MainPageTaskWorkspaceViewModel = {
+  allMessages: SessionMessageView[];
   fileChangeSummary: FileChangeSummaryView | null;
   isMessageScoped: boolean;
   messages: SessionMessageView[];
@@ -317,6 +318,7 @@ export function buildMainPageViewModel({
       sessions: snapshot.sessions,
     },
     taskWorkspace: {
+      allMessages: snapshot.messages,
       fileChangeSummary,
       isMessageScoped: scopedProjection.isMessageScoped,
       messages,

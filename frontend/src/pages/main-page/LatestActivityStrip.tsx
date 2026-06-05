@@ -2,13 +2,14 @@ import type {
   SessionMessageView,
   TaskNodeCardView,
 } from "../../shared/api/types";
-import { Badge, Text } from "../../shared/components";
+import { Badge, Button, Text } from "../../shared/components";
 import { selectMessageKindPresentation } from "./mainPageSelectors";
 import styles from "./MainPage.module.css";
 
 export type LatestActivityStripProps = {
   isMessageScoped: boolean;
   messages: SessionMessageView[];
+  onOpenActivity?: () => void;
   selectedTask: TaskNodeCardView | undefined;
   totalMessageCount: number;
   visibleMessageCount: number;
@@ -17,6 +18,7 @@ export type LatestActivityStripProps = {
 export function LatestActivityStrip({
   isMessageScoped,
   messages,
+  onOpenActivity,
   selectedTask,
   totalMessageCount,
   visibleMessageCount,
@@ -58,6 +60,16 @@ export function LatestActivityStrip({
         <Badge size="sm" tone="neutral">
           {activityCountLabel}
         </Badge>
+        {onOpenActivity ? (
+          <Button
+            aria-label="Open activity overlay"
+            onClick={onOpenActivity}
+            size="sm"
+            variant="ghost"
+          >
+            View
+          </Button>
+        ) : null}
       </div>
     </aside>
   );

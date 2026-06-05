@@ -53,6 +53,30 @@ describe("App", () => {
     }
   });
 
+  it("opens and closes the activity overlay from latest activity", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <AppProviders>
+        <App />
+      </AppProviders>,
+    );
+
+    expect(await screen.findByLabelText("Latest activity")).toBeInTheDocument();
+    expect(screen.queryByText("Session messages")).not.toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole("button", { name: "Open activity overlay" }),
+    );
+
+    expect(screen.getByLabelText("Activity overlay")).toBeInTheDocument();
+    expect(screen.getByText("Task updates")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Close" }));
+
+    expect(screen.queryByLabelText("Activity overlay")).not.toBeInTheDocument();
+  });
+
   it("renders confirmation and file-change fixture states when explicitly requested", async () => {
     const confirmationView = renderFixtureMainPageWithStatePicker("s7-confirmation");
     expect(await screen.findByText("Confirm baseline")).toBeInTheDocument();
