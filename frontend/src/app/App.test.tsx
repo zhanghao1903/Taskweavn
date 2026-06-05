@@ -302,7 +302,7 @@ describe("App", () => {
     });
   });
 
-  it("publishes a draft TaskTree through the adapter boundary", async () => {
+  it("publishes a draft task plan through the adapter boundary", async () => {
     const user = userEvent.setup();
     const publishTaskTree = vi.fn<PublishTaskTreeCommand>(
       async (request) => acceptedCommandResponse(request.commandId),
@@ -318,7 +318,7 @@ describe("App", () => {
       />,
     );
 
-    await user.click(await screen.findByRole("button", { name: "Publish tasks" }));
+    await user.click(await screen.findByRole("button", { name: "Publish plan" }));
 
     expect(publishTaskTree).toHaveBeenCalledWith(
       expect.objectContaining({

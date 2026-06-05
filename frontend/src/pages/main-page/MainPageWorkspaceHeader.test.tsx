@@ -73,6 +73,46 @@ describe("MainPageWorkspaceHeader", () => {
       "/sessions/session-website-plan/audit",
     );
   });
+
+  it("uses task plan language for the draft publish action", () => {
+    render(
+      <MainPageWorkspaceHeader
+        auditEntry={auditEntry({ isEnabled: true })}
+        eventError={null}
+        isPublishingTaskTree={false}
+        onPublishTaskTree={vi.fn()}
+        showPublishTaskTree
+        taskTreeCommandError={null}
+        title="Personal website project plan"
+        uiNotice={null}
+      />,
+    );
+
+    expect(
+      screen.getByRole("button", { name: "Publish plan" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Publish tasks")).not.toBeInTheDocument();
+  });
+
+  it("keeps publishing feedback aligned with task plan language", () => {
+    render(
+      <MainPageWorkspaceHeader
+        auditEntry={auditEntry({ isEnabled: true })}
+        eventError={null}
+        isPublishingTaskTree
+        onPublishTaskTree={vi.fn()}
+        showPublishTaskTree
+        taskTreeCommandError={null}
+        title="Personal website project plan"
+        uiNotice={null}
+      />,
+    );
+
+    expect(
+      screen.getByRole("button", { name: "Publishing plan" }),
+    ).toBeDisabled();
+    expect(screen.queryByText("Publishing tasks")).not.toBeInTheDocument();
+  });
 });
 
 function auditEntry(
