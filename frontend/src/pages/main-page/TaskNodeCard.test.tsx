@@ -96,6 +96,30 @@ describe("TaskNodeCard", () => {
     expect(onRetryTask).not.toHaveBeenCalled();
     expect(onSelectTask).not.toHaveBeenCalled();
   });
+
+  it("hides stop when a published task is no longer running", () => {
+    render(
+      <TaskNodeCard
+        isSelected
+        node={{
+          ...taskNode,
+          execution: "done",
+          permissions: {
+            ...taskNode.permissions,
+            canCancel: true,
+          },
+          status: "done",
+        }}
+        onRetryTask={vi.fn()}
+        onSelectTask={vi.fn()}
+        onStopTask={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.queryByRole("button", { name: /^Stop$/i }),
+    ).not.toBeInTheDocument();
+  });
 });
 
 const taskNode: TaskNodeCardView = {

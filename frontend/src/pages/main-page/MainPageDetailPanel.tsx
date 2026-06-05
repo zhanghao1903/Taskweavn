@@ -273,14 +273,16 @@ function TaskDetailPanel({
   onRetryTask: (taskNodeId: TaskNodeId) => void;
   onStopTask: (taskNodeId: TaskNodeId) => void;
 }) {
+  const isRunning =
+    detail.selectedTask.execution === "running" ||
+    detail.selectedTask.status === "running";
   const isStopping = Boolean(
-    detail.selectedTask.interruptionRequested &&
-      (detail.selectedTask.execution === "running" ||
-        detail.selectedTask.status === "running"),
+    detail.selectedTask.interruptionRequested && isRunning,
   );
-  const showStopAction = detail.selectedTask.permissions.canCancel || isStopping;
   const showPublishedStopAction =
-    detail.selectedTask.taskRef?.kind === "published" && showStopAction;
+    detail.selectedTask.taskRef?.kind === "published" &&
+    isRunning &&
+    (detail.selectedTask.permissions.canCancel || isStopping);
 
   return (
     <Panel

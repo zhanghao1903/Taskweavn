@@ -21,12 +21,14 @@ export function TaskNodeCard({
   onStopTask,
 }: TaskNodeCardProps) {
   const statusPresentation = selectTaskNodeDimensionPresentation(node);
+  const isRunning = node.execution === "running" || node.status === "running";
   const isStopping = Boolean(
-    node.interruptionRequested &&
-      (node.execution === "running" || node.status === "running"),
+    node.interruptionRequested && isRunning,
   );
   const showStopAction =
-    node.taskRef?.kind === "published" && (node.permissions.canCancel || isStopping);
+    node.taskRef?.kind === "published" &&
+    isRunning &&
+    (node.permissions.canCancel || isStopping);
 
   return (
     <div

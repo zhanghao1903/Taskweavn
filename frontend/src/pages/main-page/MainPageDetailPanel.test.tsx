@@ -43,11 +43,54 @@ describe("MainPageDetailPanel", () => {
     expect(within(detailPanel).getByText(title)).toBeInTheDocument();
     expect(within(detailPanel).getByText(summary)).toBeInTheDocument();
   });
+
+  it("hides stop for published selected tasks that are not running", () => {
+    render(
+      <MainPageDetailPanel
+        detail={{
+          header: {
+            body: "The task is complete.",
+            eyebrow: "TaskNode",
+            title: "Completed implementation",
+          },
+          isRetryingTask: false,
+          isStoppingTask: false,
+          kind: "task",
+          selectedTask: taskNode({
+            execution: "done",
+            permissions: {
+              canAppendGuidance: false,
+              canCancel: true,
+              canEdit: false,
+              canPublish: false,
+              canResolveConfirmation: false,
+              canRetry: false,
+            },
+            status: "done",
+            taskRef: {
+              id: "task-technical-stack",
+              kind: "published",
+            },
+          }),
+        }}
+        onAnswerAsk={vi.fn()}
+        onCancelAsk={vi.fn()}
+        onConfirmationDecision={vi.fn()}
+        onDeferAsk={vi.fn()}
+        onRetryTask={vi.fn()}
+        onShowFileChanges={vi.fn()}
+        onShowResult={vi.fn()}
+        onStopTask={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.queryByRole("button", { name: /^Stop$/i }),
+    ).not.toBeInTheDocument();
+  });
 });
 
-function taskNode(
-  overrides: Pick<TaskNodeCardView, "summary" | "title">,
-): TaskNodeCardView {
+function taskNode(overrides: Partial<TaskNodeCardView>): TaskNodeCardView {
   return {
     id: "task-technical-stack",
     taskRef: {
