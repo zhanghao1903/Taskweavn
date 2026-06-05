@@ -240,7 +240,11 @@ export function LiveStatusNotice({
 }: {
   liveState?: AuditPageRuntimeState;
 }) {
-  if (liveState === undefined || liveState.status === "connected") {
+  if (
+    liveState === undefined ||
+    liveState.status === "connected" ||
+    liveState.status === "refreshing"
+  ) {
     return null;
   }
 
@@ -252,7 +256,6 @@ export function LiveStatusNotice({
       className={cx(
         styles.panel,
         styles.liveStatus,
-        liveState.status === "refreshing" && styles.liveStatusRefreshing,
         liveState.status === "stale" && styles.liveStatusStale,
         liveState.status === "disconnected" && styles.liveStatusDisconnected,
       )}

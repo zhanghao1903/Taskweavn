@@ -425,7 +425,7 @@ describe("AuditPageRoute", () => {
     });
   });
 
-  it("shows live refreshing state while runtime snapshot refetch is pending", async () => {
+  it("keeps transient runtime refreshes out of the layout while refetch is pending", async () => {
     const { api, emit, holdNextSnapshotRefetch, resolveSnapshotRefetch } =
       createSubscribedAuditApiWithPendingSnapshot("a3-records-ready");
 
@@ -452,16 +452,19 @@ describe("AuditPageRoute", () => {
       }),
     );
 
-    expect(await screen.findByText("Updating audit evidence")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(api.getAuditSnapshot).toHaveBeenCalledTimes(2);
+    });
+    expect(screen.queryByText("Updating audit evidence")).not.toBeInTheDocument();
     expect(
-      screen.getByText("Live audit stream is applying new records."),
-    ).toBeInTheDocument();
-    expect(screen.getByText("Cursor: cursor-runtime-refreshing")).toBeInTheDocument();
+      screen.queryByText("Live audit stream is applying new records."),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Cursor: cursor-runtime-refreshing"),
+    ).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Audit evidence workspace")).toBeInTheDocument();
 
     await resolveSnapshotRefetch();
-    await waitFor(() => {
-      expect(screen.queryByText("Updating audit evidence")).not.toBeInTheDocument();
-    });
   });
 
   it("shows stale live state while runtime resync refetch is pending", async () => {
