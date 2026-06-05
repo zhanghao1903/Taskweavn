@@ -19,8 +19,8 @@
   );
   --plato-sidebar-min-width: 220px;
   --plato-sidebar-max-width: 280px;
-  --plato-detail-min-width: 320px;
-  --plato-detail-max-width: 400px;
+  --plato-detail-min-width: 360px;
+  --plato-detail-max-width: 480px;
 
   display: grid;
   width: 100%;
@@ -34,10 +34,10 @@
       15vw,
       var(--plato-sidebar-max-width)
     )
-    minmax(680px, 1fr)
+    minmax(620px, 1fr)
     clamp(
       var(--plato-detail-min-width),
-      22vw,
+      26vw,
       var(--plato-detail-max-width)
     );
   gap: var(--plato-layout-gap);
