@@ -34,7 +34,7 @@ describe("TaskNodeCard", () => {
       "title",
       "Fonts, color, and spacing",
     );
-    expect(screen.getByText("waiting user")).toBeInTheDocument();
+    expect(screen.getByText("Waiting")).toBeInTheDocument();
     expect(onSelectTask).toHaveBeenCalledWith("task-visual-direction");
   });
 

@@ -140,11 +140,11 @@ describe("main page selectors", () => {
       tone: "success",
     });
     expect(selectTaskNodeStatusPresentation("waiting_user")).toEqual({
-      label: "waiting user",
+      label: "Waiting",
       tone: "warning",
     });
     expect(selectTaskNodeStatusPresentation("failed")).toEqual({
-      label: "failed",
+      label: "Failed",
       tone: "danger",
     });
   });
@@ -159,7 +159,7 @@ describe("main page selectors", () => {
         status: "running",
       }),
     ).toEqual({
-      label: "waiting user",
+      label: "Waiting",
       tone: "warning",
     });
 
@@ -172,7 +172,7 @@ describe("main page selectors", () => {
         status: "waiting_user",
       }),
     ).toEqual({
-      label: "done",
+      label: "Done",
       tone: "success",
     });
 
@@ -182,7 +182,7 @@ describe("main page selectors", () => {
         status: "waiting_user",
       }),
     ).toEqual({
-      label: "waiting user",
+      label: "Waiting",
       tone: "warning",
     });
   });

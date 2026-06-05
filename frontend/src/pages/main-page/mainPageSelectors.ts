@@ -45,13 +45,13 @@ export function selectTaskNodeStatusPresentation(
   status: TaskNodeStatus,
 ): BadgePresentation {
   const presentations: Record<TaskNodeStatus, BadgePresentation> = {
-    cancelled: { label: "cancelled", tone: "danger" },
-    done: { label: "done", tone: "success" },
-    draft: { label: "draft", tone: "neutral" },
-    failed: { label: "failed", tone: "danger" },
-    queued: { label: "queued", tone: "neutral" },
-    running: { label: "running", tone: "blue" },
-    waiting_user: { label: "waiting user", tone: "warning" },
+    cancelled: { label: "Cancelled", tone: "danger" },
+    done: { label: "Done", tone: "success" },
+    draft: { label: "Draft", tone: "neutral" },
+    failed: { label: "Failed", tone: "danger" },
+    queued: { label: "Queued", tone: "neutral" },
+    running: { label: "Running", tone: "blue" },
+    waiting_user: { label: "Waiting", tone: "warning" },
   };
 
   return presentations[status];
@@ -80,11 +80,11 @@ export function selectTaskReadinessPresentation(
   readiness: TaskNodeReadiness,
 ): BadgePresentation {
   const presentations: Record<TaskNodeReadiness, BadgePresentation> = {
-    accepted: { label: "accepted", tone: "blue" },
-    cancelled: { label: "cancelled", tone: "danger" },
-    draft: { label: "draft", tone: "neutral" },
-    published: { label: "published", tone: "blue" },
-    unknown: { label: "unknown", tone: "neutral" },
+    accepted: { label: "Accepted", tone: "blue" },
+    cancelled: { label: "Cancelled", tone: "danger" },
+    draft: { label: "Draft", tone: "neutral" },
+    published: { label: "Published", tone: "blue" },
+    unknown: { label: "Unknown", tone: "neutral" },
   };
 
   return presentations[readiness];
@@ -94,14 +94,14 @@ export function selectExecutionStatusPresentation(
   status: ExecutionStatus,
 ): BadgePresentation {
   const presentations: Record<ExecutionStatus, BadgePresentation> = {
-    cancelled: { label: "cancelled", tone: "danger" },
-    done: { label: "done", tone: "success" },
-    failed: { label: "failed", tone: "danger" },
-    not_started: { label: "not started", tone: "neutral" },
-    pending: { label: "queued", tone: "neutral" },
-    running: { label: "running", tone: "blue" },
-    waiting_for_user: { label: "waiting user", tone: "warning" },
-    unknown: { label: "unknown", tone: "neutral" },
+    cancelled: { label: "Cancelled", tone: "danger" },
+    done: { label: "Done", tone: "success" },
+    failed: { label: "Failed", tone: "danger" },
+    not_started: { label: "Not started", tone: "neutral" },
+    pending: { label: "Queued", tone: "neutral" },
+    running: { label: "Running", tone: "blue" },
+    waiting_for_user: { label: "Waiting", tone: "warning" },
+    unknown: { label: "Unknown", tone: "neutral" },
   };
 
   return presentations[status];
@@ -111,9 +111,9 @@ export function selectConfirmationStatusPresentation(
   status: ConfirmationStatus,
 ): BadgePresentation {
   const presentations: Record<ConfirmationStatus, BadgePresentation> = {
-    expired: { label: "expired", tone: "danger" },
-    pending: { label: "waiting user", tone: "warning" },
-    resolved: { label: "confirmed", tone: "success" },
+    expired: { label: "Expired", tone: "danger" },
+    pending: { label: "Waiting", tone: "warning" },
+    resolved: { label: "Confirmed", tone: "success" },
   };
 
   return presentations[status];
