@@ -12,12 +12,12 @@ describe("LatestActivityStrip", () => {
         isMessageScoped={false}
         messages={[
           message({
-            body: "Plato is preparing the TaskTree.",
+            body: "Plato is preparing the task plan.",
             id: "message-1",
             title: "Planning started",
           }),
           message({
-            body: "The implementation TaskNode is running.",
+            body: "The implementation task is running.",
             id: "message-2",
             title: "Implementation started",
           }),
@@ -31,12 +31,12 @@ describe("LatestActivityStrip", () => {
     expect(screen.getByLabelText("Latest activity")).toBeInTheDocument();
     expect(screen.getByText("Implementation started")).toBeInTheDocument();
     expect(
-      screen.queryByText("The implementation TaskNode is running."),
+      screen.queryByText("The implementation task is running."),
     ).not.toBeInTheDocument();
     expect(screen.queryByText("Planning started")).not.toBeInTheDocument();
     expect(screen.getByText("Activity 2")).toBeInTheDocument();
     expect(
-      screen.getByText("Latest / Session-wide / informational"),
+      screen.getByText("Latest update · Session-wide · Update"),
     ).toBeInTheDocument();
   });
 
@@ -57,7 +57,7 @@ describe("LatestActivityStrip", () => {
     );
 
     expect(
-      screen.getByText("Latest / Current task / informational"),
+      screen.getByText("Latest update · Current task · Update"),
     ).toBeInTheDocument();
     expect(screen.getByText("Activity 1/3")).toBeInTheDocument();
   });

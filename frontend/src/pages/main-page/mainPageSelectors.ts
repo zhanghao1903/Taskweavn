@@ -155,14 +155,14 @@ export function selectTaskNodeDimensionPresentation(
 export function selectMessageKindPresentation(
   kind: MessageKind,
 ): BadgePresentation {
-  if (kind === "error") {
-    return { label: kind, tone: "danger" };
-  }
-
-  return {
-    label: kind,
-    tone: kind === "actionable" ? "warning" : "blue",
+  const presentations: Record<MessageKind, BadgePresentation> = {
+    actionable: { label: "Needs reply", tone: "warning" },
+    error: { label: "Error", tone: "danger" },
+    informational: { label: "Update", tone: "blue" },
+    response: { label: "Result", tone: "blue" },
   };
+
+  return presentations[kind];
 }
 
 export function selectEventConnectionStatusPresentation(

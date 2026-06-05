@@ -8,7 +8,7 @@ describe("SessionMessageCard", () => {
   it("renders session-wide message presentation", () => {
     render(<SessionMessageCard message={message({ taskNodeId: null })} />);
 
-    expect(screen.getByText("informational")).toBeInTheDocument();
+    expect(screen.getByText("Update")).toBeInTheDocument();
     expect(screen.getByText("Session-wide")).toBeInTheDocument();
     expect(screen.getByText("Planning started")).toBeInTheDocument();
     expect(screen.getByText("Plato is producing the draft task plan.")).toBeInTheDocument();
@@ -31,7 +31,7 @@ describe("SessionMessageCard", () => {
       />,
     );
 
-    expect(screen.getByText("actionable")).toBeInTheDocument();
+    expect(screen.getByText("Needs reply")).toBeInTheDocument();
     expect(screen.getByText("Task activity")).toBeInTheDocument();
     expect(screen.queryByText("TaskNode: task-implementation")).not.toBeInTheDocument();
   });

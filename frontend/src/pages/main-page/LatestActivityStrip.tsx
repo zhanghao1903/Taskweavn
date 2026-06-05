@@ -44,9 +44,7 @@ export function LatestActivityStrip({
     <aside className={styles.latestActivityStrip} aria-label="Latest activity">
       <span className={styles.latestActivityDot} aria-hidden="true" />
       <div className={styles.latestActivityContent}>
-        <span>
-          Latest / {scopeLabel} / {kindPresentation.label}
-        </span>
+        <span>{latestActivityLabel(scopeLabel, kindPresentation.label)}</span>
         <strong title={latestMessage.title}>{latestMessage.title}</strong>
       </div>
       <div className={styles.latestActivityMeta}>
@@ -67,4 +65,8 @@ export function LatestActivityStrip({
       </div>
     </aside>
   );
+}
+
+function latestActivityLabel(scopeLabel: string, kindLabel: string) {
+  return `Latest update · ${scopeLabel} · ${kindLabel}`;
 }

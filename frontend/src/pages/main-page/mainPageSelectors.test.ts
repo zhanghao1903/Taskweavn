@@ -213,11 +213,11 @@ describe("main page selectors", () => {
 
   it("centralizes auxiliary badge and action presentation", () => {
     expect(selectMessageKindPresentation("actionable")).toEqual({
-      label: "actionable",
+      label: "Needs reply",
       tone: "warning",
     });
     expect(selectMessageKindPresentation("error")).toEqual({
-      label: "error",
+      label: "Error",
       tone: "danger",
     });
     expect(selectEventConnectionStatusPresentation("resyncing")).toEqual({
