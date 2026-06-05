@@ -45,8 +45,7 @@ export function TaskTreePanel({
             No task plan yet
           </Text>
           <Text variant="muted">
-            Describe your goal. Plato will turn it into a task plan for review
-            before execution.
+            Describe a goal. Plato will draft a task plan for review.
           </Text>
         </div>
       )}
