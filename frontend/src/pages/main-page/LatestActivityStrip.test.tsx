@@ -35,6 +35,9 @@ describe("LatestActivityStrip", () => {
     ).not.toBeInTheDocument();
     expect(screen.queryByText("Planning started")).not.toBeInTheDocument();
     expect(screen.getByText("Activity 2")).toBeInTheDocument();
+    expect(
+      screen.getByText("Latest / Session-wide / informational"),
+    ).toBeInTheDocument();
   });
 
   it("shows scoped activity counts when a TaskNode is selected", () => {
@@ -53,7 +56,9 @@ describe("LatestActivityStrip", () => {
       />,
     );
 
-    expect(screen.getByText("Current task")).toBeInTheDocument();
+    expect(
+      screen.getByText("Latest / Current task / informational"),
+    ).toBeInTheDocument();
     expect(screen.getByText("Activity 1/3")).toBeInTheDocument();
   });
 
@@ -79,6 +84,11 @@ describe("LatestActivityStrip", () => {
     );
 
     expect(onOpenActivity).toHaveBeenCalledTimes(1);
+    expect(
+      screen.getByRole("button", {
+        name: "Open activity overlay (Activity 1)",
+      }),
+    ).toHaveTextContent("View Activity 1");
   });
 
   it("does not reserve an empty message surface", () => {

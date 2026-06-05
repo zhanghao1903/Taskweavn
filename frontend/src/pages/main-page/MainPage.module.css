@@ -662,17 +662,23 @@
 
 .latestActivityStrip {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: var(--plato-space-2) minmax(0, 1fr) auto;
   align-items: center;
   gap: var(--plato-space-3);
   margin-top: var(--plato-space-4);
   border: 1px solid var(--plato-color-line);
-  border-radius: var(--plato-radius-lg);
-  padding: var(--plato-space-3) var(--plato-space-4);
-  background: var(--plato-color-panel);
+  border-radius: var(--plato-radius-md);
+  padding: var(--plato-space-2) var(--plato-space-3);
+  background: var(--plato-color-placeholder-card-surface);
 }
 
-.latestActivityLabel,
+.latestActivityDot {
+  width: var(--plato-space-2);
+  height: var(--plato-space-2);
+  border-radius: var(--plato-radius-lg);
+  background: var(--plato-color-reason-blue);
+}
+
 .latestActivityMeta {
   display: inline-flex;
   align-items: center;
@@ -685,6 +691,14 @@
   min-width: 0;
   align-items: baseline;
   gap: var(--plato-space-2);
+}
+
+.latestActivityContent span {
+  flex: 0 0 auto;
+  color: var(--plato-color-dim);
+  font-size: var(--plato-type-caption-size);
+  font-weight: var(--plato-type-caption-weight);
+  line-height: var(--plato-type-caption-line-height);
 }
 
 .latestActivityContent strong {
@@ -700,6 +714,13 @@
   font-size: var(--plato-type-card-title-size);
   font-weight: var(--plato-type-card-title-weight);
   line-height: var(--plato-type-card-title-line-height);
+}
+
+.latestActivityCount {
+  color: var(--plato-color-muted);
+  font-size: var(--plato-type-caption-size);
+  font-weight: var(--plato-type-caption-weight);
+  line-height: var(--plato-type-caption-line-height);
 }
 
 .detailPanel {

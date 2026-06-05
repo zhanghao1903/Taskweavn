@@ -2,7 +2,7 @@ import type {
   SessionMessageView,
   TaskNodeCardView,
 } from "../../shared/api/types";
-import { Badge, Button, Text } from "../../shared/components";
+import { Button } from "../../shared/components";
 import { selectMessageKindPresentation } from "./mainPageSelectors";
 import styles from "./MainPage.module.css";
 
@@ -42,21 +42,14 @@ export function LatestActivityStrip({
 
   return (
     <aside className={styles.latestActivityStrip} aria-label="Latest activity">
-      <div className={styles.latestActivityLabel}>
-        <Text as="span" variant="eyebrow">
-          Latest activity
-        </Text>
-        <Badge size="sm" tone={kindPresentation.tone}>
-          {kindPresentation.label}
-        </Badge>
-      </div>
+      <span className={styles.latestActivityDot} aria-hidden="true" />
       <div className={styles.latestActivityContent}>
+        <span>
+          Latest / {scopeLabel} / {kindPresentation.label}
+        </span>
         <strong title={latestMessage.title}>{latestMessage.title}</strong>
       </div>
       <div className={styles.latestActivityMeta}>
-        <Badge size="sm" tone={isMessageScoped ? "blue" : "neutral"}>
-          {scopeLabel}
-        </Badge>
         {onOpenActivity ? (
           <Button
             aria-label={`Open activity overlay (${activityCountLabel})`}
@@ -64,12 +57,12 @@ export function LatestActivityStrip({
             size="sm"
             variant="ghost"
           >
-            {activityCountLabel}
+            View {activityCountLabel}
           </Button>
         ) : (
-          <Badge size="sm" tone="neutral">
+          <span className={styles.latestActivityCount}>
             {activityCountLabel}
-          </Badge>
+          </span>
         )}
       </div>
     </aside>
