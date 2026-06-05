@@ -276,12 +276,12 @@ export function useMainPageController({
         },
       }),
     onError: () => {
-      setConfirmationError("Confirmation command failed. Please retry.");
+      setConfirmationError("Confirmation failed. Please retry.");
     },
     onSuccess: (response) => {
       const result = handleCommandResponse(
         response,
-        "Confirmation command was rejected.",
+        "Confirmation was rejected.",
       );
 
       if (result.errorMessage) {
@@ -480,12 +480,12 @@ export function useMainPageController({
       });
     },
     onError: () => {
-      setInputError("Input command failed. Please retry.");
+      setInputError("Input submission failed. Please retry.");
     },
     onSuccess: (response) => {
       const result = handleCommandResponse(
         response,
-        "Input command was rejected.",
+        "Input submission was rejected.",
       );
 
       if (result.errorMessage) {
@@ -518,12 +518,12 @@ export function useMainPageController({
         },
       }),
     onError: () => {
-      setTaskTreeCommandError("Publish command failed. Please retry.");
+      setTaskTreeCommandError("Publish failed. Please retry.");
     },
     onSuccess: (response) => {
       const result = handleCommandResponse(
         response,
-        "Publish command was rejected.",
+        "Publish was rejected.",
       );
 
       if (result.errorMessage) {
@@ -554,12 +554,12 @@ export function useMainPageController({
         },
       }),
     onError: () => {
-      setTaskTreeCommandError("Retry command failed. Please retry.");
+      setTaskTreeCommandError("Retry failed. Please retry.");
     },
     onSuccess: (response) => {
       const result = handleCommandResponse(
         response,
-        "Retry command was rejected.",
+        "Retry was rejected.",
       );
 
       if (result.errorMessage) {
@@ -601,12 +601,12 @@ export function useMainPageController({
       mainPageLogger.error("command.stop.failed", {
         error: toLoggableError(error),
       });
-      setTaskTreeCommandError("Stop command failed. Please retry.");
+      setTaskTreeCommandError("Stop failed. Please retry.");
     },
     onSuccess: (response) => {
       const result = handleCommandResponse(
         response,
-        "Stop command was rejected.",
+        "Stop was rejected.",
       );
       mainPageLogger.info("command.stop.result", {
         ...summarizeCommandResponse(response),
@@ -652,12 +652,12 @@ export function useMainPageController({
         name,
       }),
     onError: () => {
-      setSessionDialogError("New session command failed. Please retry.");
+      setSessionDialogError("Create session failed. Please retry.");
     },
     onSuccess: (result) => {
       const nextSessionId = result.sessionId ?? result.session?.id ?? null;
       if (nextSessionId === null) {
-        setSessionDialogError("New session command did not return a session id.");
+        setSessionDialogError("Created session was unavailable. Please retry.");
         return;
       }
 
@@ -680,7 +680,7 @@ export function useMainPageController({
         sessionId,
       }),
     onError: () => {
-      setSessionDialogError("Rename session command failed. Please retry.");
+      setSessionDialogError("Rename session failed. Please retry.");
     },
     onSuccess: (result) => {
       setUiNotice(`Renamed session to ${result.session?.name ?? "new name"}.`);
@@ -692,7 +692,7 @@ export function useMainPageController({
   const deleteSessionMutation = useMutation({
     mutationFn: async (sessionId: string) => adapter.deleteSession(sessionId),
     onError: () => {
-      setSessionDialogError("Delete session command failed. Please retry.");
+      setSessionDialogError("Delete session failed. Please retry.");
     },
     onSuccess: (result) => {
       const nextSessionId = result.nextSessionId ?? null;

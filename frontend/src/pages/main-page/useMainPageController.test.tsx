@@ -522,7 +522,7 @@ describe("useMainPageController", () => {
 
     await waitFor(() => {
       expect(result.current.sessionDialog).toMatchObject({
-        error: "New session command failed. Please retry.",
+        error: "Create session failed. Please retry.",
         mode: "create",
       });
     });
@@ -619,7 +619,7 @@ describe("useMainPageController", () => {
 
     await waitFor(() => {
       expect(result.current.sessionDialog).toMatchObject({
-        error: "Rename session command failed. Please retry.",
+        error: "Rename session failed. Please retry.",
         mode: "rename",
       });
     });
@@ -710,7 +710,7 @@ describe("useMainPageController", () => {
 
     await waitFor(() => {
       expect(result.current.sessionDialog).toMatchObject({
-        error: "Delete session command failed. Please retry.",
+        error: "Delete session failed. Please retry.",
         mode: "delete",
       });
     });

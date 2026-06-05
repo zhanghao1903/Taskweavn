@@ -65,7 +65,7 @@ describe("ConfirmationDetailPanel", () => {
     render(
       <ConfirmationDetailPanel
         detail={confirmationDetail({
-          commandError: "Confirmation command was rejected.",
+          commandError: "Confirmation was rejected.",
         })}
         onResolve={vi.fn()}
       />,
@@ -78,7 +78,7 @@ describe("ConfirmationDetailPanel", () => {
       "true",
     );
     expect(screen.getByRole("alert")).toHaveTextContent(
-      "Confirmation command was rejected.",
+      "Confirmation was rejected.",
     );
   });
 
