@@ -319,21 +319,22 @@ function TaskDetailPanel({
     detail.selectedTask.taskRef?.kind === "published" &&
     isRunning &&
     (detail.selectedTask.permissions.canCancel || isStopping);
+  const showRetryAction = detail.selectedTask.permissions.canRetry;
+
+  if (!showPublishedStopAction && !showRetryAction) {
+    return null;
+  }
 
   return (
     <Panel
-      aria-label="Selected task details"
+      aria-label="Task actions"
       className={styles.detailBox}
       data-task-node-id={detail.selectedTask.id}
       tone="muted"
     >
       <Text as="strong" variant="label">
-        Task details
+        Task actions
       </Text>
-      <div className={styles.taskDetailContent}>
-        <strong>{detail.selectedTask.title}</strong>
-        <p>{detail.selectedTask.summary}</p>
-      </div>
       {showPublishedStopAction && (
         <div className={styles.actionRow}>
           <Button
@@ -346,7 +347,7 @@ function TaskDetailPanel({
           </Button>
         </div>
       )}
-      {detail.selectedTask.permissions.canRetry && (
+      {showRetryAction && (
         <div className={styles.actionRow}>
           <Button
             disabled={detail.isRetryingTask}

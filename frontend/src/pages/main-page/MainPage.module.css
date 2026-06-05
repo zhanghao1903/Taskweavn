@@ -648,22 +648,6 @@
   overflow-wrap: anywhere;
 }
 
-.taskDetailContent {
-  display: grid;
-  gap: var(--plato-space-1);
-}
-
-.taskDetailContent strong {
-  font-size: var(--plato-type-card-title-size);
-  font-weight: var(--plato-type-card-title-weight);
-  line-height: var(--plato-type-card-title-line-height);
-  overflow-wrap: anywhere;
-}
-
-.taskDetailContent p {
-  overflow-wrap: anywhere;
-}
-
 .messageCard strong {
   margin-bottom: var(--plato-space-1);
 }

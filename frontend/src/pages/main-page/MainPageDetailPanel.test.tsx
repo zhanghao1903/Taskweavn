@@ -37,19 +37,16 @@ describe("MainPageDetailPanel", () => {
       />,
     );
 
-    const detailPanel = screen.getByRole("region", {
-      name: "Selected task details",
-    });
-
-    expect(within(detailPanel).getByText("Task details")).toBeInTheDocument();
-    expect(within(detailPanel).getByText(title)).toBeInTheDocument();
-    expect(within(detailPanel).getByText(summary)).toBeInTheDocument();
-    expect(within(detailPanel).queryByText("TaskNode")).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: title })).toBeInTheDocument();
+    expect(screen.getByText(summary)).toBeInTheDocument();
+    expect(screen.queryByText("Task details")).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Task actions" })).not.toBeInTheDocument();
+    expect(screen.queryByText("TaskNode")).not.toBeInTheDocument();
     expect(
-      within(detailPanel).queryByText(/Input now applies/i),
+      screen.queryByText(/Input now applies/i),
     ).not.toBeInTheDocument();
     expect(
-      within(detailPanel).queryByText(/Completed TaskNodes are read-only/i),
+      screen.queryByText(/Completed TaskNodes are read-only/i),
     ).not.toBeInTheDocument();
   });
 
