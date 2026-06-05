@@ -9,7 +9,7 @@ describe("SessionMessageCard", () => {
     render(<SessionMessageCard message={message({ taskNodeId: null })} />);
 
     expect(screen.getByText("Update")).toBeInTheDocument();
-    expect(screen.getByText("Session-wide")).toBeInTheDocument();
+    expect(screen.getByText("Session activity")).toBeInTheDocument();
     expect(screen.getByText("Planning started")).toBeInTheDocument();
     expect(screen.getByText("Plato is producing the draft task plan.")).toBeInTheDocument();
     expect(screen.getByText("Planning started")).toHaveAttribute(
