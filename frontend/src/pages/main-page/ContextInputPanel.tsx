@@ -20,6 +20,12 @@ export function ContextInputPanel({
   onDraftChange,
   onSubmit,
 }: ContextInputPanelProps) {
+  const helperText = error ?? input.disabledReason ?? input.scope.placeholder;
+  const inputPlaceholder =
+    input.disabled && input.disabledReason
+      ? input.disabledReason
+      : input.scope.placeholder;
+
   function handleSubmit(event: FormEvent<HTMLElement>) {
     event.preventDefault();
     onSubmit();
@@ -31,16 +37,14 @@ export function ContextInputPanel({
         <Text as="strong" variant="label">
           {input.scope.label}
         </Text>
-        <Text variant="muted">
-          {error ?? input.disabledReason ?? input.scope.placeholder}
-        </Text>
+        <Text variant="muted">{helperText}</Text>
       </div>
       <label className={styles.contextInputField}>
         <input
           aria-label="Context message"
           disabled={input.disabled}
           onChange={(event) => onDraftChange(event.currentTarget.value)}
-          placeholder={input.scope.placeholder}
+          placeholder={inputPlaceholder}
           value={draft}
         />
       </label>
