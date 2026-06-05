@@ -66,11 +66,13 @@ describe("MainPageDetailPanel", () => {
               canResolveConfirmation: false,
               canRetry: false,
             },
+            summary: "Implementation is complete.",
             status: "done",
             taskRef: {
               id: "task-technical-stack",
               kind: "published",
             },
+            title: "Completed implementation",
           }),
         }}
         onAnswerAsk={vi.fn()}
@@ -90,7 +92,9 @@ describe("MainPageDetailPanel", () => {
   });
 });
 
-function taskNode(overrides: Partial<TaskNodeCardView>): TaskNodeCardView {
+function taskNode(
+  overrides: Partial<TaskNodeCardView> & Pick<TaskNodeCardView, "summary" | "title">,
+): TaskNodeCardView {
   return {
     id: "task-technical-stack",
     taskRef: {
