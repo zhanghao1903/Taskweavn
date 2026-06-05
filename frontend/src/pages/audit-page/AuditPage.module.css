@@ -481,7 +481,7 @@
 }
 
 .contentWithDetail {
-  grid-template-columns: 200px minmax(450px, 1fr) minmax(360px, 420px);
+  grid-template-columns: 200px minmax(360px, 0.75fr) minmax(440px, 560px);
 }
 
 .filterRail {
