@@ -287,9 +287,6 @@ function FileChangeSummaryPanel({
                   {changePresentation.label}
                 </Badge>
               </div>
-              {file.summary && (
-                <p className={styles.fileChangeSummaryPreview}>{file.summary}</p>
-              )}
             </article>
           );
         })}
