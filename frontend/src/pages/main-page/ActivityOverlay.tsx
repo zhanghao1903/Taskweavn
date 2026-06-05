@@ -157,11 +157,11 @@ function ResultReader({
   onBack: () => void;
 }) {
   return (
-    <section aria-label="Activity result reader" className={styles.reader}>
+    <section aria-label="Full result" className={styles.reader}>
       <div className={styles.readerHeader}>
         <div>
           <Text as="span" variant="eyebrow">
-            Result reader
+            Full result
           </Text>
           <h3>{message.title}</h3>
         </div>

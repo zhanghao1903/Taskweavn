@@ -212,14 +212,14 @@ describe("MainPageDetailPanel", () => {
 
     await user.click(screen.getByRole("button", { name: "Open reader" }));
 
-    const reader = screen.getByLabelText("Result reader");
-    expect(within(reader).getByText("Result reader")).toBeInTheDocument();
+    const reader = screen.getByLabelText("Full result");
+    expect(within(reader).getByText("Full result")).toBeInTheDocument();
     expect(within(reader).getByText("Delivered structure")).toBeInTheDocument();
     expect(within(reader).getByText("Implementation checklist")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Back to summary" }));
 
-    expect(screen.queryByLabelText("Result reader")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Full result")).not.toBeInTheDocument();
     expect(screen.getByText("Result summary")).toBeInTheDocument();
     expect(screen.queryByText("Delivered structure")).not.toBeInTheDocument();
   });

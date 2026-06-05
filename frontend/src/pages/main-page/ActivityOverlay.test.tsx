@@ -98,8 +98,8 @@ describe("ActivityOverlay", () => {
 
     await user.click(screen.getByRole("button", { name: "View full result" }));
 
-    const reader = screen.getByLabelText("Activity result reader");
-    expect(within(reader).getByText("Result reader")).toBeInTheDocument();
+    const reader = screen.getByLabelText("Full result");
+    expect(within(reader).getByText("Full result")).toBeInTheDocument();
     expect(within(reader).getByText("Result summary generated")).toBeInTheDocument();
     expect(
       within(reader).getByText(/implementation notes, and follow-up checks/i),
@@ -107,7 +107,7 @@ describe("ActivityOverlay", () => {
 
     await user.click(screen.getByRole("button", { name: "Back to activity" }));
 
-    expect(screen.queryByLabelText("Activity result reader")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Full result")).not.toBeInTheDocument();
     expect(screen.getByText("Result summary generated")).toBeInTheDocument();
   });
 

@@ -181,11 +181,11 @@ function ResultSummaryPanel({
       <Panel
         className={styles.detailBox}
         tone="muted"
-        aria-label="Result reader"
+        aria-label="Full result"
       >
         <div className={styles.detailTitleRow}>
           <Text as="strong" variant="label">
-            Result reader
+            Full result
           </Text>
           <Badge size="sm" tone="blue">
             {sections.length} sections
