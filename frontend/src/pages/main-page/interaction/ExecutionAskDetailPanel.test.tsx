@@ -180,7 +180,7 @@ describe("ExecutionAskDetailPanel", () => {
     render(
       <ExecutionAskDetailPanel
         detail={executionAskDetail({
-          commandError: "ASK answer command was rejected.",
+          commandError: "Answer submission was rejected.",
         })}
         onAnswer={vi.fn()}
         onCancel={vi.fn()}
@@ -195,7 +195,7 @@ describe("ExecutionAskDetailPanel", () => {
       "true",
     );
     expect(screen.getByRole("alert")).toHaveTextContent(
-      "ASK answer command was rejected.",
+      "Answer submission was rejected.",
     );
   });
 

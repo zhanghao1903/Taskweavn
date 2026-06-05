@@ -73,7 +73,7 @@ describe("AuthoringAskWorkArea", () => {
       <AuthoringAskWorkArea
         onSubmit={vi.fn()}
         view={authoringAskView({
-          commandError: "Authoring ASK command was rejected.",
+          commandError: "Answer submission was rejected.",
         })}
       />,
     );
@@ -81,7 +81,7 @@ describe("AuthoringAskWorkArea", () => {
     await user.click(screen.getByRole("button", { name: "Portfolio" }));
 
     expect(screen.getByRole("alert")).toHaveTextContent(
-      "Authoring ASK command was rejected.",
+      "Answer submission was rejected.",
     );
     expect(screen.getByRole("button", { name: "Portfolio" })).toHaveAttribute(
       "aria-pressed",

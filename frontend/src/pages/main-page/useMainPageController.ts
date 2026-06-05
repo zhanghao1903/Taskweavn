@@ -310,12 +310,12 @@ export function useMainPageController({
         },
       }),
     onError: () => {
-      setAuthoringAskError("Authoring ASK command failed. Please retry.");
+      setAuthoringAskError("Answer submission failed. Please retry.");
     },
     onSuccess: (response) => {
       const result = handleCommandResponse(
         response,
-        "Authoring ASK command was rejected.",
+        "Answer submission was rejected.",
       );
 
       if (result.errorMessage) {
@@ -347,12 +347,12 @@ export function useMainPageController({
         },
       }),
     onError: () => {
-      setExecutionAskError("ASK answer command failed. Please retry.");
+      setExecutionAskError("Answer submission failed. Please retry.");
     },
     onSuccess: (response) => {
       const result = handleCommandResponse(
         response,
-        "ASK answer command was rejected.",
+        "Answer submission was rejected.",
       );
 
       if (result.errorMessage) {
@@ -364,7 +364,7 @@ export function useMainPageController({
       }
 
       setExecutionAskError(null);
-      setUiNotice("ASK answer submitted.");
+      setUiNotice("Answer submitted.");
       if (result.shouldRefetch) {
         void refetchSnapshot();
       }
@@ -381,12 +381,12 @@ export function useMainPageController({
         },
       }),
     onError: () => {
-      setExecutionAskError("ASK defer command failed. Please retry.");
+      setExecutionAskError("Defer failed. Please retry.");
     },
     onSuccess: (response) => {
       const result = handleCommandResponse(
         response,
-        "ASK defer command was rejected.",
+        "Defer was rejected.",
       );
 
       if (result.errorMessage) {
@@ -395,7 +395,7 @@ export function useMainPageController({
       }
 
       setExecutionAskError(null);
-      setUiNotice("ASK deferred.");
+      setUiNotice("Question deferred.");
       if (result.shouldRefetch) {
         void refetchSnapshot();
       }
@@ -412,12 +412,12 @@ export function useMainPageController({
         },
       }),
     onError: () => {
-      setExecutionAskError("ASK cancel command failed. Please retry.");
+      setExecutionAskError("Cancel failed. Please retry.");
     },
     onSuccess: (response) => {
       const result = handleCommandResponse(
         response,
-        "ASK cancel command was rejected.",
+        "Cancel was rejected.",
       );
 
       if (result.errorMessage) {
@@ -426,7 +426,7 @@ export function useMainPageController({
       }
 
       setExecutionAskError(null);
-      setUiNotice("ASK cancelled.");
+      setUiNotice("Question cancelled.");
       if (result.shouldRefetch) {
         void refetchSnapshot();
       }
@@ -1061,7 +1061,7 @@ export function useMainPageController({
     text,
   }: AnswerExecutionAskContext) {
     if (selectedOptionIds.length === 0 && !text?.trim()) {
-      setExecutionAskError("Answer the ASK before submitting.");
+      setExecutionAskError("Answer the question before submitting.");
       return;
     }
 
