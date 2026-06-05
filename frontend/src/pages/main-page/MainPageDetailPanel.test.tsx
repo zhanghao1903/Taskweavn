@@ -229,6 +229,34 @@ describe("MainPageDetailPanel", () => {
     expect(screen.getByText("Result summary")).toBeInTheDocument();
     expect(screen.queryByText("Delivered structure")).not.toBeInTheDocument();
   });
+
+  it("labels long unstructured full results as a summary", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <MainPageDetailPanel
+        detail={longSummaryResultDetail}
+        onAnswerAsk={vi.fn()}
+        onCancelAsk={vi.fn()}
+        onConfirmationDecision={vi.fn()}
+        onDeferAsk={vi.fn()}
+        onRetryTask={vi.fn()}
+        onShowFileChanges={vi.fn()}
+        onShowResult={vi.fn()}
+        onStopTask={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("Full result available.")).toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole("button", { name: "View full result" }),
+    );
+
+    const reader = screen.getByLabelText("Full result");
+    expect(within(reader).getByText("Summary")).toBeInTheDocument();
+    expect(within(reader).queryByText("0 sections")).not.toBeInTheDocument();
+  });
 });
 
 const fileChangesDetail: MainPageDetailView = {
@@ -294,6 +322,16 @@ const resultDetail: Extract<MainPageDetailView, { kind: "result" }> = {
       },
     ],
     updatedAt: "2026-06-05T00:00:00.000Z",
+  },
+};
+
+const longSummaryResultDetail: Extract<MainPageDetailView, { kind: "result" }> = {
+  ...resultDetail,
+  result: {
+    ...resultDetail.result,
+    summary:
+      "Plato completed the review and produced a concise implementation outcome that explains what changed, why it matters, how the user can inspect it, and what follow-up checks should be done before accepting the work as complete.",
+    sections: [],
   },
 };
 

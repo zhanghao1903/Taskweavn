@@ -188,7 +188,7 @@ function ResultSummaryPanel({
             Full result
           </Text>
           <Badge size="sm" tone="blue">
-            {sections.length} sections
+            {sections.length > 0 ? `${sections.length} sections` : "Summary"}
           </Badge>
         </div>
         <Text variant="muted">{detail.result.summary}</Text>
