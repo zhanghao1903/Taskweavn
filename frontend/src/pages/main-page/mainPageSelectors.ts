@@ -181,18 +181,18 @@ export function selectFileChangeTypePresentation(
   changeType: FileChangeSummaryView["changedFiles"][number]["changeType"],
 ): BadgePresentation {
   if (changeType === "created") {
-    return { label: changeType, tone: "success" };
+    return { label: "Created", tone: "success" };
   }
 
   if (changeType === "deleted") {
-    return { label: changeType, tone: "danger" };
+    return { label: "Deleted", tone: "danger" };
   }
 
   if (changeType === "renamed") {
-    return { label: changeType, tone: "blue" };
+    return { label: "Renamed", tone: "blue" };
   }
 
-  return { label: changeType, tone: "warning" };
+  return { label: "Modified", tone: "warning" };
 }
 
 export function selectAuditVerdictPresentation(

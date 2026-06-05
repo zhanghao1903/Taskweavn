@@ -225,8 +225,16 @@ describe("main page selectors", () => {
       tone: "warning",
     });
     expect(selectFileChangeTypePresentation("renamed")).toEqual({
-      label: "renamed",
+      label: "Renamed",
       tone: "blue",
+    });
+    expect(selectFileChangeTypePresentation("created")).toEqual({
+      label: "Created",
+      tone: "success",
+    });
+    expect(selectFileChangeTypePresentation("modified")).toEqual({
+      label: "Modified",
+      tone: "warning",
     });
     expect(selectConfirmationOptionVariant("danger")).toBe("danger");
     expect(selectConfirmationOptionVariant("secondary")).toBe("secondary");
