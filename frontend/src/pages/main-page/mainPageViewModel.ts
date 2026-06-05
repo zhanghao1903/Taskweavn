@@ -834,7 +834,7 @@ function inputScopeFor({
 
   if (selectedTask) {
     return {
-      label: `Scope: selected task / ${selectedTask.title}`,
+      label: `Writing to ${selectedTask.title}`,
       placeholder: "Add guidance for this task.",
     };
   }

@@ -109,13 +109,13 @@ function inputScopeFromSnapshot(
 ): MainPageInputScope {
   if (selectedTaskNodeId !== null) {
     return {
-      label: "Scope: selected task",
+      label: "Writing to selected task",
       placeholder: "Add guidance, constraints, or clarification for this task.",
     };
   }
 
   return {
-    label: "Scope: session",
+    label: "Writing to session",
     placeholder: "Describe the goal or add guidance for this session.",
   };
 }

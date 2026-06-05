@@ -16,7 +16,7 @@ describe("ContextInputPanel", () => {
       />,
     );
 
-    expect(screen.getByText("Scope: selected task / Visual direction")).toBeInTheDocument();
+    expect(screen.getByText("Writing to Visual direction")).toBeInTheDocument();
     expect(screen.getByLabelText("Context message")).toHaveAttribute(
       "placeholder",
       "Add guidance for this task.",
@@ -55,7 +55,7 @@ function inputView(
     disabledReason: null,
     mode: "append_task_input",
     scope: {
-      label: "Scope: selected task / Visual direction",
+      label: "Writing to Visual direction",
       placeholder: "Add guidance for this task.",
     },
     target: "task",

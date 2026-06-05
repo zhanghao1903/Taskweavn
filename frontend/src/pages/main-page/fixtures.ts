@@ -209,7 +209,7 @@ export const mainPageStates: MainPageFixture[] = [
       body: "Start with a natural language goal. Plato will turn it into a visible task plan before execution.",
     },
     inputScope: {
-      label: "Scope: workflow",
+      label: "Writing to workflow",
       placeholder: "Describe the goal you want Plato to plan.",
     },
     result: null,
@@ -240,7 +240,7 @@ export const mainPageStates: MainPageFixture[] = [
       body: "The session is collecting intent before producing a draft task plan.",
     },
     inputScope: {
-      label: "Scope: current session",
+      label: "Writing to session",
       placeholder: "Add constraints, examples, or missing context.",
     },
     result: null,
@@ -261,7 +261,7 @@ export const mainPageStates: MainPageFixture[] = [
       body: "Review the draft task plan before publishing. Select a task to inspect or refine it.",
     },
     inputScope: {
-      label: "Scope: task plan",
+      label: "Writing to task plan",
       placeholder: "Ask Plato to refine the overall plan.",
     },
     result: null,
@@ -282,7 +282,7 @@ export const mainPageStates: MainPageFixture[] = [
       body: "This task defines the style baseline: colors, typography, and layout tone.",
     },
     inputScope: {
-      label: "Scope: selected task",
+      label: "Writing to selected task",
       placeholder: "Add guidance for the selected task.",
     },
     result: null,
@@ -314,7 +314,7 @@ export const mainPageStates: MainPageFixture[] = [
       body: "Task-scoped input updates this task without changing the entire session plan.",
     },
     inputScope: {
-      label: "Scope: selected task / Visual direction",
+      label: "Writing to Visual direction",
       placeholder: "Write instructions that only apply to this task.",
     },
     result: null,
@@ -346,7 +346,7 @@ export const mainPageStates: MainPageFixture[] = [
       body: "Plato is executing this task. You can append guidance, but completed tasks are read-only.",
     },
     inputScope: {
-      label: "Scope: running task / Initial implementation",
+      label: "Writing to Initial implementation",
       placeholder: "Append guidance for the running task.",
     },
     result: null,
@@ -368,7 +368,7 @@ export const mainPageStates: MainPageFixture[] = [
       actionLabel: "Confirm baseline",
     },
     inputScope: {
-      label: "Scope: confirmation / Visual direction",
+      label: "Answering Visual direction",
       placeholder: "Explain a change, or choose one of the confirmation options.",
     },
     result: null,
@@ -400,7 +400,7 @@ export const mainPageStates: MainPageFixture[] = [
       body: result.summary,
     },
     inputScope: {
-      label: "Scope: completed session",
+      label: "Writing a follow-up",
       placeholder: "Ask a follow-up or request result packaging.",
     },
     result,
@@ -432,7 +432,7 @@ export const mainPageStates: MainPageFixture[] = [
       body: "Review changed files before accepting the result. Audit remains available for deeper traceability.",
     },
     inputScope: {
-      label: "Scope: review",
+      label: "Writing in review",
       placeholder: "Ask Plato to explain a file change or prepare a follow-up.",
     },
     result,
@@ -464,7 +464,7 @@ export const mainPageStates: MainPageFixture[] = [
       body: "The selected task can be inspected, but mutation actions are disabled by the current permission state.",
     },
     inputScope: {
-      label: "Scope: read-only task",
+      label: "Input paused for read-only task",
       placeholder: "Input disabled until permission changes.",
     },
     result: null,
@@ -497,7 +497,7 @@ export const mainPageStates: MainPageFixture[] = [
       actionLabel: "Resync",
     },
     inputScope: {
-      label: "Scope: stale session",
+      label: "Input paused until refresh",
       placeholder: "Input disabled while waiting for resync.",
     },
     result: null,
@@ -529,7 +529,7 @@ export const mainPageStates: MainPageFixture[] = [
       body: "Plato is keeping the current task plan visible while waiting for the update to finish.",
     },
     inputScope: {
-      label: "Scope: running task / Initial implementation",
+      label: "Writing to Initial implementation",
       placeholder: "Update is pending; duplicate submit is disabled.",
     },
     result: null,
@@ -562,7 +562,7 @@ export const mainPageStates: MainPageFixture[] = [
       actionLabel: "Retry",
     },
     inputScope: {
-      label: "Scope: recoverable error / Initial implementation",
+      label: "Writing to Initial implementation",
       placeholder: "Revise the instruction or retry the last action.",
     },
     result: null,
@@ -594,7 +594,7 @@ export const mainPageStates: MainPageFixture[] = [
       body: "The running task is blocked until this question is answered.",
     },
     inputScope: {
-      label: "Scope: waiting task / Initial implementation",
+      label: "Answering Initial implementation",
       placeholder: "Answer the question in the detail panel.",
     },
     result: null,
