@@ -33,6 +33,8 @@ describe("ActivityOverlay", () => {
 
     const overlay = screen.getByLabelText("Task updates");
 
+    expect(within(overlay).getByRole("heading", { name: "Task updates" }))
+      .toBeInTheDocument();
     expect(within(overlay).getByText("Task update")).toBeInTheDocument();
     expect(within(overlay).queryByText("Session update")).not.toBeInTheDocument();
 
@@ -88,6 +90,12 @@ describe("ActivityOverlay", () => {
         selectedTask={undefined}
       />,
     );
+
+    const overlay = screen.getByLabelText("Session activity");
+    expect(
+      within(overlay).getByRole("heading", { name: "Session activity" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByLabelText("Task updates")).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Errors" }));
 

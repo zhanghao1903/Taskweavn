@@ -44,10 +44,11 @@ export function ActivityOverlay({
       }),
     [activeFilter, allMessages, currentMessages],
   );
+  const overlayTitle = selectedTask ? "Task updates" : "Session activity";
 
   return (
     <aside
-      aria-label="Task updates"
+      aria-label={overlayTitle}
       className={styles.overlay}
       role="dialog"
     >
@@ -56,7 +57,7 @@ export function ActivityOverlay({
           <Text as="span" variant="eyebrow">
             Activity
           </Text>
-          <h2>Task updates</h2>
+          <h2>{overlayTitle}</h2>
           <p>
             {selectedTask
               ? `Focused on ${selectedTask.title}.`
