@@ -518,7 +518,7 @@ export const mainPageStates: MainPageFixture[] = [
         taskNodeId: "task-implementation",
         kind: "informational",
         title: "Update accepted",
-        body: "Plato is still applying the update. Duplicate submit is disabled.",
+        body: "Plato is still applying your last update.",
         createdAt: "2026-05-17T10:20:00+08:00",
       },
     ],
@@ -530,7 +530,7 @@ export const mainPageStates: MainPageFixture[] = [
     },
     inputScope: {
       label: "Writing to Initial implementation",
-      placeholder: "Update is pending; duplicate submit is disabled.",
+      placeholder: "Wait for the current update to finish.",
     },
     result: null,
     fileChangeSummary: null,

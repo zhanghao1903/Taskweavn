@@ -48,7 +48,7 @@ describe("Main Page mock scenarios", () => {
     const manifestCopy = scenarioCopy.filter(Boolean).join("\n");
 
     expect(manifestCopy).not.toMatch(
-      /TaskTree|task tree|TaskNode|AuthoringAskWorkArea|ExecutionAskDetailPanel|ConfirmationDetailPanel|ResultCard|ContextInputBar|LatestActivity|FileChangeSummary|AuditEntry|ErrorState|Context inspector|TopBar|SideNav|EmptyState|DetailPanel|backend|command|projection|snapshot/i,
+      /TaskTree|task tree|TaskNode|AuthoringAskWorkArea|ExecutionAskDetailPanel|ConfirmationDetailPanel|ResultCard|ContextInputBar|LatestActivity|FileChangeSummary|AuditEntry|ErrorState|Context inspector|TopBar|SideNav|EmptyState|DetailPanel|backend|command|projection|snapshot|duplicate submit/i,
     );
     expect(manifestCopy).not.toMatch(/\bASK\b/);
   });
@@ -62,7 +62,7 @@ describe("Main Page mock scenarios", () => {
       expectedVisibleComponents: expect.arrayContaining(["Planning questions"]),
     });
     expect(scenarios.find((item) => item.id === "s7-confirmation")).toMatchObject({
-      expectedDisabledActions: expect.arrayContaining(["Duplicate submit"]),
+      expectedDisabledActions: expect.arrayContaining(["Repeated action"]),
       expectedVisibleComponents: expect.arrayContaining([
         "Confirmation details",
       ]),

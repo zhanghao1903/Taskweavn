@@ -126,7 +126,7 @@ export const mainPageStateCatalog = [
     label: "S12 Update Pending",
     lifecycle: "recovery",
     userSituation: "An update was accepted and Plato is still applying it.",
-    pageFocus: "Keep the current state readable while duplicate submit is disabled.",
+    pageFocus: "Keep the current state readable while preventing repeated updates.",
     primarySurfaces: ["Task plan", "Pending update detail", "Latest activity"],
     expectedUserAction: "Wait for the next event or retry only after timeout.",
   },
