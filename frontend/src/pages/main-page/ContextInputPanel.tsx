@@ -20,7 +20,7 @@ export function ContextInputPanel({
   onDraftChange,
   onSubmit,
 }: ContextInputPanelProps) {
-  const helperText = error ?? input.disabledReason ?? input.scope.placeholder;
+  const helperText = error ?? input.disabledReason;
   const inputPlaceholder =
     input.disabled && input.disabledReason
       ? input.disabledReason
@@ -37,7 +37,7 @@ export function ContextInputPanel({
         <Text as="strong" variant="label">
           {input.scope.label}
         </Text>
-        <Text variant="muted">{helperText}</Text>
+        {helperText ? <Text variant="muted">{helperText}</Text> : null}
       </div>
       <label className={styles.contextInputField}>
         <input

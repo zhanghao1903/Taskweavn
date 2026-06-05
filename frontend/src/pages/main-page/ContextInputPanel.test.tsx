@@ -5,7 +5,7 @@ import { ContextInputPanel } from "./ContextInputPanel";
 import type { MainPageInputViewModel } from "./mainPageViewModel";
 
 describe("ContextInputPanel", () => {
-  it("uses the scoped placeholder when input is enabled", () => {
+  it("uses the scoped placeholder without repeating helper copy when input is enabled", () => {
     render(
       <ContextInputPanel
         draft=""
@@ -17,11 +17,11 @@ describe("ContextInputPanel", () => {
     );
 
     expect(screen.getByText("Scope: selected task / Visual direction")).toBeInTheDocument();
-    expect(screen.getByText("Add guidance for this task.")).toBeInTheDocument();
     expect(screen.getByLabelText("Context message")).toHaveAttribute(
       "placeholder",
       "Add guidance for this task.",
     );
+    expect(screen.queryByText("Add guidance for this task.")).not.toBeInTheDocument();
   });
 
   it("uses the disabled reason as the input placeholder when input is read-only", () => {
