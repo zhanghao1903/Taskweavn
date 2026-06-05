@@ -316,7 +316,7 @@ export async function generateTaskTreeMockCommand(
 
   return acceptedCommandResponse({
     commandId: request.commandId,
-    message: "TaskTree generation accepted.",
+    message: "Task plan generation accepted.",
     sessionId: request.sessionId,
   });
 }
@@ -343,7 +343,7 @@ export async function publishTaskTreeMockCommand(
 
   return acceptedCommandResponse({
     commandId: request.commandId,
-    message: "TaskTree publish accepted.",
+    message: "Task plan publish accepted.",
     sessionId: request.sessionId,
   });
 }

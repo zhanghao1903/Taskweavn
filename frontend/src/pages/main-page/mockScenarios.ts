@@ -43,11 +43,11 @@ export const mainPageMockScenarios: readonly MainPageMockScenario[] = [
   }),
   mainScenario({
     fixtureId: "s3-draft-ready",
-    title: "Draft TaskTree ready",
+    title: "Draft task plan ready",
     planning: "draft_ready",
     readiness: "draft",
     execution: "not_started",
-    primary: ["Publish TaskTree"],
+    primary: ["Publish task plan"],
     disabled: [],
     visible: ["TaskTree", "LatestActivity", "DetailPanel", "ContextInputBar"],
   }),
@@ -78,7 +78,7 @@ export const mainPageMockScenarios: readonly MainPageMockScenario[] = [
     readiness: "published",
     execution: "running",
     primary: ["Append guidance"],
-    disabled: ["Publish TaskTree"],
+    disabled: ["Publish task plan"],
     visible: ["TaskTree", "Running task", "LatestActivity"],
   }),
   mainScenario({

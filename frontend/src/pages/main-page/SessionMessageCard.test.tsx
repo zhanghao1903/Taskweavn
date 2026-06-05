@@ -11,14 +11,14 @@ describe("SessionMessageCard", () => {
     expect(screen.getByText("informational")).toBeInTheDocument();
     expect(screen.getByText("Session-wide")).toBeInTheDocument();
     expect(screen.getByText("Planning started")).toBeInTheDocument();
-    expect(screen.getByText("Plato is producing the draft TaskTree.")).toBeInTheDocument();
+    expect(screen.getByText("Plato is producing the draft task plan.")).toBeInTheDocument();
     expect(screen.getByText("Planning started")).toHaveAttribute(
       "title",
       "Planning started",
     );
     expect(
-      screen.getByText("Plato is producing the draft TaskTree."),
-    ).toHaveAttribute("title", "Plato is producing the draft TaskTree.");
+      screen.getByText("Plato is producing the draft task plan."),
+    ).toHaveAttribute("title", "Plato is producing the draft task plan.");
   });
 
   it("renders task-scoped message presentation", () => {
@@ -42,7 +42,7 @@ function message(
 ): SessionMessageView {
   return {
     id: "message-1",
-    body: "Plato is producing the draft TaskTree.",
+    body: "Plato is producing the draft task plan.",
     createdAt: "2026-05-27T09:00:00Z",
     kind: "informational",
     sessionId: "session-website-plan",

@@ -206,7 +206,7 @@ export const mainPageStates: MainPageFixture[] = [
       mode: "workflow",
       eyebrow: "Workflow",
       title: workflow.name,
-      body: "Start with a natural language goal. Plato will turn it into a visible TaskTree before execution.",
+      body: "Start with a natural language goal. Plato will turn it into a visible task plan before execution.",
     },
     inputScope: {
       label: "Scope: workflow",
@@ -237,7 +237,7 @@ export const mainPageStates: MainPageFixture[] = [
       mode: "session",
       eyebrow: "Session",
       title: "Understanding goal",
-      body: "The session is collecting intent before producing a draft TaskTree.",
+      body: "The session is collecting intent before producing a draft task plan.",
     },
     inputScope: {
       label: "Scope: current session",
@@ -256,9 +256,9 @@ export const mainPageStates: MainPageFixture[] = [
     messages: baseMessages,
     detail: {
       mode: "session",
-      eyebrow: "Draft TaskTree",
+      eyebrow: "Draft task plan",
       title: "Review the generated structure",
-      body: "Review the draft TaskTree before publishing. Select a task to inspect or refine it.",
+      body: "Review the draft task plan before publishing. Select a task to inspect or refine it.",
     },
     inputScope: {
       label: "Scope: task tree",

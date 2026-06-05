@@ -1004,7 +1004,7 @@ export function useMainPageController({
     taskTreeId,
   }: PublishTaskTreeContext) {
     if (taskTreeId === null) {
-      setTaskTreeCommandError("No draft TaskTree is available to publish.");
+      setTaskTreeCommandError("No draft task plan is available to publish.");
       return;
     }
 

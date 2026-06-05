@@ -782,7 +782,7 @@ function inputAvailabilityFor({
       disabled: true,
       disabledReason:
         sessionPermissions.readonlyReason ??
-        "Creating a TaskTree is unavailable in the current state.",
+        "Creating a task plan is unavailable in the current state.",
     };
   }
 
