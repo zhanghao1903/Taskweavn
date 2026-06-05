@@ -72,7 +72,7 @@
   grid-area: top;
   display: grid;
   grid-template-columns:
-    minmax(168px, 210px)
+    minmax(128px, 156px)
     minmax(144px, 170px)
     minmax(180px, 240px)
     minmax(180px, 1fr)
@@ -96,8 +96,8 @@
 
 .brandMark {
   flex: 0 0 auto;
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
 }
 
 .brandCopy {
