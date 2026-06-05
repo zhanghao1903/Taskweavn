@@ -50,12 +50,9 @@ export function MainPageWorkspaceHeader({
             <a href={auditEntry.href}>{auditEntry.label}</a>
           </Button>
         ) : (
-          <>
-            <Button disabled>{auditEntry.label}</Button>
-            {auditEntry.disabledReason ? (
-              <Text variant="muted">{auditEntry.disabledReason}</Text>
-            ) : null}
-          </>
+          <Button disabled title={auditEntry.disabledReason ?? undefined}>
+            {auditEntry.label}
+          </Button>
         )}
       </div>
     </div>
