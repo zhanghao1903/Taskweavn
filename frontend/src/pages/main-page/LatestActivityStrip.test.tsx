@@ -36,7 +36,7 @@ describe("LatestActivityStrip", () => {
     expect(screen.queryByText("Planning started")).not.toBeInTheDocument();
     expect(screen.getByText("Activity 2")).toBeInTheDocument();
     expect(
-      screen.getByText("Session-wide · Update"),
+      screen.getByText("Session activity · Update"),
     ).toBeInTheDocument();
   });
 
@@ -50,6 +50,7 @@ describe("LatestActivityStrip", () => {
             taskNodeId: "task-implementation",
           }),
         ]}
+        onOpenActivity={vi.fn()}
         selectedTask={taskNode}
         totalMessageCount={3}
         visibleMessageCount={1}
@@ -59,7 +60,11 @@ describe("LatestActivityStrip", () => {
     expect(
       screen.getByText("Current task · Update"),
     ).toBeInTheDocument();
-    expect(screen.getByText("Activity 1/3")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", {
+        name: "Open task updates (Activity 1/3)",
+      }),
+    ).toHaveTextContent("Activity 1/3");
   });
 
   it("opens the activity overlay from the one-line strip", async () => {
@@ -79,14 +84,14 @@ describe("LatestActivityStrip", () => {
 
     await user.click(
       screen.getByRole("button", {
-        name: "Open task updates (Activity 1)",
+        name: "Open session activity (Activity 1)",
       }),
     );
 
     expect(onOpenActivity).toHaveBeenCalledTimes(1);
     expect(
       screen.getByRole("button", {
-        name: "Open task updates (Activity 1)",
+        name: "Open session activity (Activity 1)",
       }),
     ).toHaveTextContent("Activity 1");
   });

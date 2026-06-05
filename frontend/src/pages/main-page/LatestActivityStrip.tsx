@@ -38,7 +38,10 @@ export function LatestActivityStrip({
     ? selectedTask
       ? "Current task"
       : "Task activity"
-    : "Session-wide";
+    : "Session activity";
+  const openActivityLabel = selectedTask
+    ? "Open task updates"
+    : "Open session activity";
 
   return (
     <aside className={styles.latestActivityStrip} aria-label="Latest activity">
@@ -50,7 +53,7 @@ export function LatestActivityStrip({
       <div className={styles.latestActivityMeta}>
         {onOpenActivity ? (
           <Button
-            aria-label={`Open task updates (${activityCountLabel})`}
+            aria-label={`${openActivityLabel} (${activityCountLabel})`}
             onClick={onOpenActivity}
             size="sm"
             variant="ghost"
