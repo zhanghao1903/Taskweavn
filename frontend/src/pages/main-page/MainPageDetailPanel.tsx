@@ -268,11 +268,17 @@ function FileChangeSummaryPanel({
         <Text as="strong" variant="label">
           Changed files
         </Text>
-        <Badge size="sm" tone={fileCount > 0 ? "blue" : "neutral"}>
-          {fileCount === 1 ? "1 file" : `${fileCount} files`}
-        </Badge>
+        <div className={styles.badgeGroup}>
+          <Badge size="sm" tone={fileCount > 0 ? "blue" : "neutral"}>
+            {fileCount === 1 ? "1 file" : `${fileCount} files`}
+          </Badge>
+          {detail.fileChangeSummary.recursive ? (
+            <Badge size="sm" tone="neutral">
+              Includes child tasks
+            </Badge>
+          ) : null}
+        </div>
       </div>
-      <Text variant="muted">{detail.fileChangeSummary.summary}</Text>
       <div className={styles.fileChangeList} role="list">
         {detail.fileChangeSummary.changedFiles.map((file) => {
           const changePresentation = selectFileChangeTypePresentation(

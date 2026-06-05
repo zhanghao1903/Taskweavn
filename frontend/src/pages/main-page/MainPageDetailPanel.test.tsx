@@ -113,8 +113,10 @@ describe("MainPageDetailPanel", () => {
     );
 
     expect(screen.getByText("1 file")).toBeInTheDocument();
+    expect(screen.getByText("Includes child tasks")).toBeInTheDocument();
     expect(screen.getByText("src/App.tsx")).toBeInTheDocument();
     expect(screen.queryByText("Updated page layout.")).not.toBeInTheDocument();
+    expect(screen.queryByText("One file changed.")).not.toBeInTheDocument();
     expect(screen.queryByText("Recursive subtree summary")).not.toBeInTheDocument();
     expect(screen.queryByText(/Owner TaskNode/i)).not.toBeInTheDocument();
     expect(screen.queryByText("task-implementation")).not.toBeInTheDocument();
