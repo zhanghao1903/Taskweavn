@@ -1,5 +1,5 @@
 .page {
-  --plato-page-min-width: 1360px;
+  --plato-page-min-width: 1280px;
   --plato-page-min-height: 820px;
   --plato-page-padding: clamp(var(--plato-space-4), 1.4vw, var(--plato-space-6));
   --plato-layout-gap: clamp(var(--plato-space-4), 1.4vw, var(--plato-space-6));
