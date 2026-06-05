@@ -1,5 +1,5 @@
 .page {
-  --plato-page-min-width: 1360px;
+  --plato-page-min-width: 1280px;
   --plato-page-min-height: 820px;
   --plato-page-padding: clamp(var(--plato-space-4), 1.4vw, var(--plato-space-6));
   --plato-layout-gap: clamp(var(--plato-space-4), 1.4vw, var(--plato-space-6));
@@ -17,10 +17,10 @@
     11dvh,
     var(--plato-inputbar-max-height)
   );
-  --plato-sidebar-min-width: 220px;
-  --plato-sidebar-max-width: 280px;
-  --plato-workspace-min-width: 680px;
-  --plato-detail-min-width: 360px;
+  --plato-sidebar-min-width: 200px;
+  --plato-sidebar-max-width: 260px;
+  --plato-workspace-min-width: 600px;
+  --plato-detail-min-width: 320px;
   --plato-detail-width: 30%;
   --plato-sidebar-width: clamp(
     var(--plato-sidebar-min-width),
