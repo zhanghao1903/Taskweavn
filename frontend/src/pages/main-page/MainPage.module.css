@@ -180,18 +180,9 @@
   display: flex;
   min-width: 0;
   align-items: center;
-  justify-content: flex-start;
+  justify-content: flex-end;
   gap: var(--plato-space-2);
   overflow: hidden;
-}
-
-.topBarAction {
-  min-width: 72px;
-  color: var(--plato-color-ink);
-  font-family: var(--plato-typography-family-cjk-ui);
-  font-size: var(--plato-type-topbar-action-size);
-  font-weight: var(--plato-type-topbar-action-weight);
-  line-height: var(--plato-type-topbar-action-line-height);
 }
 
 .topBarStatusBadge {

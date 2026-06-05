@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 
 import type { BadgeTone } from "../../shared/components";
-import { Badge, Button } from "../../shared/components";
+import { Badge } from "../../shared/components";
 import styles from "./MainPage.module.css";
 import { PlatoProductMark } from "./PlatoProductMark";
 
@@ -61,12 +61,6 @@ export function MainPageTopBar({
       </div>
 
       <div className={styles.topBarActions}>
-        <Button className={styles.topBarAction} size="sm" variant="secondary">
-          查看审计
-        </Button>
-        <Button className={styles.topBarAction} size="sm" variant="secondary">
-          设置
-        </Button>
         {trailing ? (
           <div className={styles.topBarTrailing}>{trailing}</div>
         ) : null}
