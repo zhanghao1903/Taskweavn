@@ -58,9 +58,13 @@ describe("buildMainPageViewModel", () => {
     });
 
     expect(viewModel.detail.kind).toBe("task");
+    expect(viewModel.detail.header.eyebrow).toBe("Task");
     expect(viewModel.detail.header.title).toBe("Visual direction");
     expect(viewModel.input).toMatchObject({
       mode: "append_task_input",
+      scope: {
+        placeholder: "Add guidance for this task.",
+      },
       target: "task",
       taskNodeId: "task-visual-direction",
     });
@@ -70,9 +74,7 @@ describe("buildMainPageViewModel", () => {
     const viewModel = buildViewModel("s10-permission-denied");
 
     expect(viewModel.input.disabled).toBe(true);
-    expect(viewModel.input.disabledReason).toBe(
-      "Current permission context is read-only.",
-    );
+    expect(viewModel.input.disabledReason).toBe("This task is read-only right now.");
     expect(viewModel.topBar.statuses[0]).toEqual({
       label: "Read-only",
       tone: "danger",
@@ -146,8 +148,7 @@ describe("buildMainPageViewModel", () => {
     });
 
     expect(viewModel.workspace.auditEntry).toMatchObject({
-      disabledReason:
-        "Audit entry is reserved until the Audit Page UI is implemented.",
+      disabledReason: "Audit is not available for this view yet.",
       href: "/sessions/session-website-plan/tasks/task-implementation/audit?entry=from_file_change&filter=files&returnFocus=file_change&returnSessionId=session-website-plan&returnTaskNodeId=task-implementation",
       isEnabled: false,
       returnFocus: "file_change",

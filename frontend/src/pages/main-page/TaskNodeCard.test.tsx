@@ -26,7 +26,15 @@ describe("TaskNodeCard", () => {
 
     expect(screen.getByText("Visual direction")).toBeInTheDocument();
     expect(screen.getByText("Fonts, color, and spacing")).toBeInTheDocument();
-    expect(screen.getByText("waiting user")).toBeInTheDocument();
+    expect(screen.getByText("Visual direction")).toHaveAttribute(
+      "title",
+      "Visual direction",
+    );
+    expect(screen.getByText("Fonts, color, and spacing")).toHaveAttribute(
+      "title",
+      "Fonts, color, and spacing",
+    );
+    expect(screen.getByText("Waiting")).toBeInTheDocument();
     expect(onSelectTask).toHaveBeenCalledWith("task-visual-direction");
   });
 
@@ -87,6 +95,30 @@ describe("TaskNodeCard", () => {
     expect(onStopTask).toHaveBeenCalledWith("task-visual-direction");
     expect(onRetryTask).not.toHaveBeenCalled();
     expect(onSelectTask).not.toHaveBeenCalled();
+  });
+
+  it("hides stop when a published task is no longer running", () => {
+    render(
+      <TaskNodeCard
+        isSelected
+        node={{
+          ...taskNode,
+          execution: "done",
+          permissions: {
+            ...taskNode.permissions,
+            canCancel: true,
+          },
+          status: "done",
+        }}
+        onRetryTask={vi.fn()}
+        onSelectTask={vi.fn()}
+        onStopTask={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.queryByRole("button", { name: /^Stop$/i }),
+    ).not.toBeInTheDocument();
   });
 });
 

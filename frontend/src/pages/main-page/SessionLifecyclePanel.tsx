@@ -53,8 +53,8 @@ export function SessionLifecyclePanel({
             Delete session?
           </Text>
           <Text variant="muted">
-            Delete session "{dialog.session.name}"? Plato will archive the local
-            workspace state and move to the next available session.
+            Delete session "{dialog.session.name}"? Plato will archive this
+            session and switch to the next available one.
           </Text>
           {dialog.error ? <Text variant="muted">{dialog.error}</Text> : null}
           <div className={styles.sessionLifecycleActions}>

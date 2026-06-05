@@ -26,7 +26,6 @@ export function MainPageWorkspaceHeader({
   return (
     <div className={styles.sectionHeader}>
       <div>
-        <Text variant="eyebrow">Session</Text>
         <Text as="h1" variant="heading">
           {title}
         </Text>
@@ -42,7 +41,7 @@ export function MainPageWorkspaceHeader({
             disabled={isPublishingTaskTree}
             onClick={onPublishTaskTree}
           >
-            {isPublishingTaskTree ? "Publishing" : "Publish TaskTree"}
+            {isPublishingTaskTree ? "Publishing plan" : "Publish plan"}
           </Button>
         ) : null}
         {auditEntry.isEnabled ? (
@@ -50,12 +49,9 @@ export function MainPageWorkspaceHeader({
             <a href={auditEntry.href}>{auditEntry.label}</a>
           </Button>
         ) : (
-          <>
-            <Button disabled>{auditEntry.label}</Button>
-            {auditEntry.disabledReason ? (
-              <Text variant="muted">{auditEntry.disabledReason}</Text>
-            ) : null}
-          </>
+          <Button disabled title={auditEntry.disabledReason ?? undefined}>
+            {auditEntry.label}
+          </Button>
         )}
       </div>
     </div>

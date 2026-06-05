@@ -116,19 +116,27 @@ export function AuditPage({
             filters={snapshot.filters}
             onSelectFilter={onSelectFilter}
           />
-          <Timeline
-            activeRecordId={activeRecordId}
-            onSelectRecord={onSelectRecord}
-            records={snapshot.records}
-          />
-          {selectedRecord !== null && (
-            <DetailPanel
-              detailState={detailState}
-              effectiveConfig={snapshot.effectiveConfig}
-              onClose={onCloseDetail}
-              record={selectedRecord}
-              relatedLogs={snapshot.relatedLogs}
+          {selectedRecord === null ? (
+            <Timeline
+              activeRecordId={activeRecordId}
+              onSelectRecord={onSelectRecord}
+              records={snapshot.records}
             />
+          ) : (
+            <div className={styles.recordDetailGrid}>
+              <Timeline
+                activeRecordId={activeRecordId}
+                onSelectRecord={onSelectRecord}
+                records={snapshot.records}
+              />
+              <DetailPanel
+                detailState={detailState}
+                effectiveConfig={snapshot.effectiveConfig}
+                onClose={onCloseDetail}
+                record={selectedRecord}
+                relatedLogs={snapshot.relatedLogs}
+              />
+            </div>
           )}
         </main>
       )}

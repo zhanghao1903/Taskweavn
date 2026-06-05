@@ -240,56 +240,56 @@ export async function appendSessionInputMockCommand(
 
 export async function answerAskMockCommand(
   sessionId: SessionId,
-  askId: AskId,
+  _askId: AskId,
   request: CommandRequest<AnswerAskPayload>,
 ): Promise<CommandResponse> {
   await delay(60);
 
   return acceptedCommandResponse({
     commandId: request.commandId,
-    message: `ASK answer accepted for ${askId}.`,
+    message: "Answer received.",
     sessionId,
   });
 }
 
 export async function answerAuthoringAskBatchMockCommand(
   sessionId: SessionId,
-  rawTaskId: string,
+  _rawTaskId: string,
   request: CommandRequest<AnswerAuthoringAskBatchPayload>,
 ): Promise<CommandResponse> {
   await delay(60);
 
   return acceptedCommandResponse({
     commandId: request.commandId,
-    message: `Authoring ASK answers accepted for ${rawTaskId}.`,
+    message: "Planning answers received.",
     sessionId,
   });
 }
 
 export async function deferAskMockCommand(
   sessionId: SessionId,
-  askId: AskId,
+  _askId: AskId,
   request: CommandRequest<DeferAskPayload>,
 ): Promise<CommandResponse> {
   await delay(60);
 
   return acceptedCommandResponse({
     commandId: request.commandId,
-    message: `ASK defer accepted for ${askId}.`,
+    message: "Question deferred.",
     sessionId,
   });
 }
 
 export async function cancelAskMockCommand(
   sessionId: SessionId,
-  askId: AskId,
+  _askId: AskId,
   request: CommandRequest<CancelAskPayload>,
 ): Promise<CommandResponse> {
   await delay(60);
 
   return acceptedCommandResponse({
     commandId: request.commandId,
-    message: `ASK cancel accepted for ${askId}.`,
+    message: "Question canceled.",
     sessionId,
   });
 }
@@ -303,7 +303,7 @@ export async function appendTaskInputMockCommand(
 
   return acceptedCommandResponse({
     commandId: request.commandId,
-    message: `Task input accepted for ${taskNodeId}.`,
+    message: "Task input accepted.",
     sessionId,
     taskNodeId,
   });
@@ -316,7 +316,7 @@ export async function generateTaskTreeMockCommand(
 
   return acceptedCommandResponse({
     commandId: request.commandId,
-    message: "TaskTree generation accepted.",
+    message: "Task plan generation accepted.",
     sessionId: request.sessionId,
   });
 }
@@ -330,7 +330,7 @@ export async function updateTaskNodeMockCommand(
 
   return acceptedCommandResponse({
     commandId: request.commandId,
-    message: `TaskNode update accepted for ${taskNodeId}.`,
+    message: "Task update accepted.",
     sessionId,
     taskNodeId,
   });
@@ -343,7 +343,7 @@ export async function publishTaskTreeMockCommand(
 
   return acceptedCommandResponse({
     commandId: request.commandId,
-    message: "TaskTree publish accepted.",
+    message: "Task plan publish accepted.",
     sessionId: request.sessionId,
   });
 }
@@ -357,7 +357,7 @@ export async function retryTaskMockCommand(
 
   return acceptedCommandResponse({
     commandId: request.commandId,
-    message: `Task retry accepted for ${taskNodeId}.`,
+    message: "Task retry accepted.",
     sessionId,
     taskNodeId,
   });
@@ -372,7 +372,7 @@ export async function stopTaskMockCommand(
 
   return acceptedCommandResponse({
     commandId: request.commandId,
-    message: `Task stop requested for ${taskNodeId}.`,
+    message: "Task stop requested.",
     sessionId,
     taskNodeId,
   });
@@ -541,7 +541,7 @@ function planningAsksForFixture(
       id: "authoring-ask-site-type",
       question: "What kind of website should Plato plan first?",
       reason:
-        "The initial TaskTree depends on the site's primary purpose and audience.",
+        "The initial task plan depends on the site's primary purpose and audience.",
       required: true,
       options: [
         { label: "Portfolio", tone: "primary", value: "portfolio" },
@@ -626,9 +626,9 @@ function permissionsForFixture(
     canOpenSettings: true,
     canPublishTaskTree: stateId === "s3-draft-ready",
     readonlyReason: readonly
-      ? "Current permission context is read-only."
+      ? "This task is read-only right now."
       : stale
-        ? "Snapshot is stale; resync before mutating."
+        ? "Session view is stale; refresh before making changes."
         : null,
   };
 }
@@ -814,7 +814,7 @@ function toResultCardView(
     sections: [
       {
         title: "Delivered structure",
-        body: "Created the first runnable shell, connected the Main Page states, and prepared the review path for the TaskTree workflow.",
+        body: "Created the first runnable shell, connected the Main Page states, and prepared the review path for the task planning workflow.",
         kind: "list",
       },
       {
@@ -838,7 +838,7 @@ function toFileChangeSummaryView(
     changedFiles: summary.changedFiles.map((path) =>
       toFileChangeItem(path, summary.taskNodeId),
     ),
-    summary: `Recursive summary: ${summary.changedFiles.length} files changed in this TaskNode subtree.`,
+    summary: `Recursive summary: ${summary.changedFiles.length} files changed in the selected task and its children.`,
     updatedAt: "2026-05-17T10:15:00+08:00",
   };
 }
@@ -877,7 +877,7 @@ function toFileChangeItem(
   return {
     path,
     changeType: "modified",
-    summary: "Updated by the selected TaskNode.",
+    summary: "Updated by the selected task.",
     ownerTaskNodeId,
   };
 }

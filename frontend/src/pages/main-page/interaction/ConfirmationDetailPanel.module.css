@@ -10,7 +10,7 @@
 
 .titleRow,
 .actionRow,
-.riskSummary {
+.impactSummary {
   display: flex;
   min-width: 0;
   flex-wrap: wrap;
@@ -23,17 +23,11 @@
   justify-content: space-between;
 }
 
-.riskSummary {
+.impactSummary {
   border: 1px solid var(--plato-color-line);
   border-radius: var(--plato-radius-md);
   padding: var(--plato-space-3);
   background: var(--plato-color-panel);
-}
-
-.footerCopy {
-  display: grid;
-  min-width: 0;
-  gap: var(--plato-space-1);
 }
 
 .error {

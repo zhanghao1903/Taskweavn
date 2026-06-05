@@ -42,11 +42,10 @@ export function TaskTreePanel({
       ) : (
         <div className={styles.emptyState}>
           <Text as="h3" variant="subheading">
-            No TaskTree yet
+            No task plan yet
           </Text>
           <Text variant="muted">
-            Enter a goal. Plato will first understand it, then produce a draft
-            TaskTree for review.
+            Describe a goal. Plato will draft a task plan for review.
           </Text>
         </div>
       )}

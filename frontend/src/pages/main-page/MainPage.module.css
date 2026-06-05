@@ -1,5 +1,5 @@
 .page {
-  --plato-page-min-width: 1360px;
+  --plato-page-min-width: 1280px;
   --plato-page-min-height: 820px;
   --plato-page-padding: clamp(var(--plato-space-4), 1.4vw, var(--plato-space-6));
   --plato-layout-gap: clamp(var(--plato-space-4), 1.4vw, var(--plato-space-6));
@@ -17,10 +17,16 @@
     11dvh,
     var(--plato-inputbar-max-height)
   );
-  --plato-sidebar-min-width: 220px;
-  --plato-sidebar-max-width: 280px;
+  --plato-sidebar-min-width: 200px;
+  --plato-sidebar-max-width: 260px;
+  --plato-workspace-min-width: 600px;
   --plato-detail-min-width: 320px;
-  --plato-detail-max-width: 400px;
+  --plato-detail-width: 30%;
+  --plato-sidebar-width: clamp(
+    var(--plato-sidebar-min-width),
+    15vw,
+    var(--plato-sidebar-max-width)
+  );
 
   display: grid;
   width: 100%;
@@ -29,17 +35,9 @@
   min-height: var(--plato-page-min-height);
   grid-template:
     "top top top" var(--plato-topbar-height)
-    "side work detail" minmax(0, 1fr) / clamp(
-      var(--plato-sidebar-min-width),
-      15vw,
-      var(--plato-sidebar-max-width)
-    )
-    minmax(680px, 1fr)
-    clamp(
-      var(--plato-detail-min-width),
-      22vw,
-      var(--plato-detail-max-width)
-    );
+    "side work detail" minmax(0, 1fr) / var(--plato-sidebar-width)
+    minmax(var(--plato-workspace-min-width), 1fr)
+    minmax(var(--plato-detail-min-width), var(--plato-detail-width));
   gap: var(--plato-layout-gap);
   padding: var(--plato-page-padding);
   background:
@@ -49,6 +47,14 @@
       var(--plato-color-transparent) 260px
     ),
     var(--plato-color-project-bg);
+}
+
+.pageWithoutDetail {
+  grid-template:
+    "top top top" var(--plato-topbar-height)
+    "side work work" minmax(0, 1fr) / var(--plato-sidebar-width)
+    minmax(var(--plato-workspace-min-width), 1fr)
+    minmax(var(--plato-detail-min-width), var(--plato-detail-width));
 }
 
 .topBar,
@@ -66,7 +72,7 @@
   grid-area: top;
   display: grid;
   grid-template-columns:
-    minmax(168px, 210px)
+    minmax(128px, 156px)
     minmax(144px, 170px)
     minmax(180px, 240px)
     minmax(180px, 1fr)
@@ -90,8 +96,8 @@
 
 .brandMark {
   flex: 0 0 auto;
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
 }
 
 .brandCopy {
@@ -108,15 +114,6 @@
   line-height: var(--plato-type-brand-title-line-height);
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.brandSubtitle {
-  overflow: hidden;
-  color: var(--plato-color-muted);
-  font-size: var(--plato-type-caption-size);
-  font-weight: var(--plato-type-body-weight);
-  line-height: 1.1;
-  text-overflow: ellipsis;
 }
 
 .topBarContextBlock {
@@ -183,18 +180,9 @@
   display: flex;
   min-width: 0;
   align-items: center;
-  justify-content: flex-start;
+  justify-content: flex-end;
   gap: var(--plato-space-2);
   overflow: hidden;
-}
-
-.topBarAction {
-  min-width: 72px;
-  color: var(--plato-color-ink);
-  font-family: var(--plato-typography-family-cjk-ui);
-  font-size: var(--plato-type-topbar-action-size);
-  font-weight: var(--plato-type-topbar-action-weight);
-  line-height: var(--plato-type-topbar-action-line-height);
 }
 
 .topBarStatusBadge {
@@ -455,8 +443,8 @@
 .workspace {
   grid-area: work;
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
-  min-width: 0;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  min-width: var(--plato-workspace-min-width);
   min-height: 0;
   margin-bottom: calc(
     var(--plato-inputbar-height) + var(--plato-layout-gap)
@@ -470,8 +458,7 @@
   min-width: 0;
 }
 
-.sectionHeader h1,
-.detailPanel h2 {
+.sectionHeader h1 {
   margin: var(--plato-space-1) 0 0;
   font-size: var(--plato-type-page-title-size);
   font-weight: var(--plato-type-page-title-weight);
@@ -480,10 +467,15 @@
 
 .workGrid {
   display: grid;
-  grid-template-columns: minmax(360px, 1.45fr) minmax(220px, 0.75fr);
-  gap: var(--plato-space-5);
+  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--plato-space-3);
   align-items: stretch;
   min-height: 0;
+}
+
+.workGridWithoutActivity {
+  grid-template-rows: minmax(0, 1fr);
 }
 
 .panel,
@@ -579,31 +571,31 @@
   gap: var(--plato-space-1);
 }
 
-.taskText strong,
-.taskText small {
+.listCardTitle,
+.listCardBody {
+  min-width: 0;
   overflow: hidden;
   display: -webkit-box;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: var(--plato-preview-lines, 1);
+  -webkit-line-clamp: var(--plato-list-card-lines, 1);
   overflow-wrap: anywhere;
 }
 
-.taskText strong {
-  --plato-preview-lines: 1;
+.listCardTitle {
+  --plato-list-card-lines: 1;
   font-size: var(--plato-type-card-title-size);
   font-weight: var(--plato-type-card-title-weight);
   line-height: var(--plato-type-card-title-line-height);
 }
 
-.taskText small {
-  --plato-preview-lines: 2;
+.listCardBody {
+  --plato-list-card-lines: 2;
   font-size: var(--plato-type-body-sm-size);
   font-weight: var(--plato-type-body-sm-weight);
   line-height: var(--plato-type-body-sm-line-height);
 }
 
-.taskText small,
-.messageCard p,
+.listCardBody,
 .detailPanel p,
 .contextInput p {
   margin: 0;
@@ -661,40 +653,110 @@
 
 .messageCard strong {
   margin-bottom: var(--plato-space-1);
+}
+
+.latestActivityStrip {
+  display: grid;
+  grid-template-columns: var(--plato-space-2) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--plato-space-3);
+  border: 1px solid var(--plato-color-line);
+  border-radius: var(--plato-radius-md);
+  padding: var(--plato-space-2) var(--plato-space-3);
+  background: var(--plato-color-placeholder-card-surface);
+}
+
+.latestActivityDot {
+  width: var(--plato-space-2);
+  height: var(--plato-space-2);
+  border-radius: var(--plato-radius-lg);
+  background: var(--plato-color-reason-blue);
+}
+
+.latestActivityMeta {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--plato-space-2);
+  white-space: nowrap;
+}
+
+.latestActivityContent {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: var(--plato-space-2);
+}
+
+.latestActivityContent span {
+  flex: 0 0 auto;
+  color: var(--plato-color-dim);
+  font-size: var(--plato-type-caption-size);
+  font-weight: var(--plato-type-caption-weight);
+  line-height: var(--plato-type-caption-line-height);
+}
+
+.latestActivityContent strong {
+  min-width: 0;
   overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.latestActivityContent strong {
+  flex: 1 1 auto;
+  color: var(--plato-color-ink);
   font-size: var(--plato-type-card-title-size);
   font-weight: var(--plato-type-card-title-weight);
   line-height: var(--plato-type-card-title-line-height);
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 1;
 }
 
-.messageCard strong,
-.messageCard p {
-  min-width: 0;
-  overflow-wrap: anywhere;
+.latestActivityCount {
+  color: var(--plato-color-muted);
+  font-size: var(--plato-type-caption-size);
+  font-weight: var(--plato-type-caption-weight);
+  line-height: var(--plato-type-caption-line-height);
 }
 
-.messageCard p {
-  overflow: hidden;
-  font-size: var(--plato-type-body-size);
-  font-weight: var(--plato-type-body-weight);
-  line-height: var(--plato-type-body-line-height);
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
+.latestActivityButton {
+  min-width: 104px;
+  border-color: var(--plato-color-reason-blue);
+  background: var(--plato-color-clear-blue);
+  color: var(--plato-color-reason-blue);
+  box-shadow: 0 1px 2px rgb(24 32 51 / 8%);
+}
+
+.latestActivityButton:hover:not(:disabled),
+.latestActivityButton:focus-visible:not(:disabled) {
+  border-color: var(--plato-color-cave-blue);
+  background: var(--plato-color-panel);
 }
 
 .detailPanel {
   grid-area: detail;
-  min-width: 0;
+  min-width: var(--plato-detail-min-width);
   min-height: 0;
   margin-bottom: calc(
     var(--plato-inputbar-height) + var(--plato-layout-gap)
   );
   overflow: auto;
   padding: var(--plato-space-6);
+}
+
+.detailHeaderTitle {
+  margin: var(--plato-space-1) 0 0;
+  font-size: var(--plato-type-panel-title-size);
+  font-weight: var(--plato-type-panel-title-weight);
+  line-height: var(--plato-type-panel-title-line-height);
+  overflow-wrap: anywhere;
+}
+
+.detailHeaderBody {
+  max-width: 44ch;
+  margin-top: var(--plato-space-1);
+  font-size: var(--plato-type-body-size);
+  font-weight: var(--plato-type-body-weight);
+  line-height: var(--plato-type-body-line-height);
+  overflow-wrap: anywhere;
 }
 
 .detailBox {
@@ -726,6 +788,22 @@
 .fileChangeList {
   display: grid;
   gap: var(--plato-space-3);
+}
+
+.resultSummaryPreview {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+}
+
+.resultReaderPrompt {
+  display: grid;
+  gap: var(--plato-space-3);
+  border: 1px solid var(--plato-color-line);
+  border-radius: var(--plato-radius-md);
+  padding: var(--plato-space-3);
+  background: var(--plato-color-panel);
 }
 
 .resultSection,
@@ -769,13 +847,6 @@
   line-height: var(--plato-type-code-line-height);
 }
 
-.fileOwner {
-  color: var(--plato-color-muted);
-  font-size: var(--plato-type-caption-size);
-  line-height: var(--plato-type-caption-line-height);
-  overflow-wrap: anywhere;
-}
-
 .contextInput {
   grid-column: 2 / 4;
   grid-row: 2;
@@ -808,13 +879,6 @@
 .contextInput > div p {
   font-size: var(--plato-type-body-sm-size);
   line-height: var(--plato-type-body-sm-line-height);
-}
-
-.contextInputField span {
-  color: var(--plato-color-muted);
-  font-size: var(--plato-type-caption-size);
-  font-weight: var(--plato-type-label-weight);
-  line-height: var(--plato-type-caption-line-height);
 }
 
 .contextInputField input {
@@ -859,6 +923,14 @@
       "input" auto / minmax(0, 1fr);
     align-content: start;
     overflow-x: hidden;
+  }
+
+  .pageWithoutDetail {
+    grid-template:
+      "top" auto
+      "side" auto
+      "work" auto
+      "input" auto / minmax(0, 1fr);
   }
 
   .topBar {
@@ -908,12 +980,23 @@
 
   .workspace,
   .detailPanel {
+    min-width: 0;
     margin-bottom: 0;
     overflow: visible;
   }
 
   .workGrid {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .latestActivityStrip {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .latestActivityLabel,
+  .latestActivityMeta {
+    flex-wrap: wrap;
+    white-space: normal;
   }
 
   .contextInput {
@@ -957,8 +1040,7 @@
     padding: var(--plato-space-4);
   }
 
-  .sectionHeader h1,
-  .detailPanel h2 {
+  .sectionHeader h1 {
     font-size: var(--plato-type-section-title-size);
     line-height: var(--plato-type-section-title-line-height);
   }

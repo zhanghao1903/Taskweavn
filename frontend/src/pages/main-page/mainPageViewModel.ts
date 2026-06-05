@@ -124,6 +124,7 @@ export type MainPageAuditEntryViewModel = {
 };
 
 export type MainPageTaskWorkspaceViewModel = {
+  allMessages: SessionMessageView[];
   fileChangeSummary: FileChangeSummaryView | null;
   isMessageScoped: boolean;
   messages: SessionMessageView[];
@@ -317,6 +318,7 @@ export function buildMainPageViewModel({
       sessions: snapshot.sessions,
     },
     taskWorkspace: {
+      allMessages: snapshot.messages,
       fileChangeSummary,
       isMessageScoped: scopedProjection.isMessageScoped,
       messages,
@@ -417,7 +419,7 @@ function auditEntryFor({
   const permissionReason =
     sessionPermissions && !sessionPermissions.canOpenAudit
       ? sessionPermissions.readonlyReason ??
-        "Audit is unavailable in the current permission context."
+        "Audit is unavailable until permissions change."
       : null;
 
   return {
@@ -426,7 +428,7 @@ function auditEntryFor({
       permissionReason ??
       (auditRouteAvailable
         ? null
-        : "Audit entry is reserved until the Audit Page UI is implemented."),
+        : "Audit is not available for this view yet."),
     isEnabled: auditRouteAvailable && permissionReason === null,
     label: "View audit",
   };
@@ -647,7 +649,7 @@ function detailHeaderFor({
 }): MainPageDetailHeader {
   if (hasExecutionAskFocus && activeExecutionAsk) {
     return {
-      eyebrow: "Execution ASK",
+      eyebrow: "Task input",
       title: selectedTask?.title ?? "Task needs input",
       body: activeExecutionAsk.reason || activeExecutionAsk.question,
     };
@@ -659,7 +661,7 @@ function detailHeaderFor({
 
   if (selectedTask) {
     return {
-      eyebrow: "TaskNode",
+      eyebrow: "Task",
       title: selectedTask.title,
       body: selectedTask.summary,
     };
@@ -780,7 +782,7 @@ function inputAvailabilityFor({
       disabled: true,
       disabledReason:
         sessionPermissions.readonlyReason ??
-        "Creating a TaskTree is unavailable in the current state.",
+        "Creating a task plan is unavailable in the current state.",
     };
   }
 
@@ -802,7 +804,7 @@ function inputAvailabilityFor({
       disabled: true,
       disabledReason:
         selectedTask.readonlyReason ??
-        "The selected TaskNode does not accept guidance in the current state.",
+        "The selected task does not accept guidance in the current state.",
     };
   }
 
@@ -832,8 +834,8 @@ function inputScopeFor({
 
   if (selectedTask) {
     return {
-      label: `Scope: selected task / ${selectedTask.title}`,
-      placeholder: "Add guidance that only applies to this TaskNode.",
+      label: `Writing to ${selectedTask.title}`,
+      placeholder: "Add guidance for this task.",
     };
   }
 

@@ -24,6 +24,14 @@ describe("ExecutionAskDetailPanel", () => {
       />,
     );
 
+    expect(screen.getByText("Task: Initial implementation")).toBeInTheDocument();
+    expect(screen.getByText("Waiting")).toBeInTheDocument();
+    expect(screen.queryByText("pending")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Cancel question" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Cancel ASK")).not.toBeInTheDocument();
+
     await user.click(screen.getByRole("button", { name: /Vercel/ }));
     await user.click(screen.getByRole("button", { name: "Answer" }));
 
@@ -174,7 +182,7 @@ describe("ExecutionAskDetailPanel", () => {
     render(
       <ExecutionAskDetailPanel
         detail={executionAskDetail({
-          commandError: "ASK answer command was rejected.",
+          commandError: "Answer submission was rejected.",
         })}
         onAnswer={vi.fn()}
         onCancel={vi.fn()}
@@ -189,7 +197,7 @@ describe("ExecutionAskDetailPanel", () => {
       "true",
     );
     expect(screen.getByRole("alert")).toHaveTextContent(
-      "ASK answer command was rejected.",
+      "Answer submission was rejected.",
     );
   });
 
@@ -237,7 +245,9 @@ describe("ExecutionAskDetailPanel", () => {
       />,
     );
 
-    expect(screen.getByText(/no longer matches/)).toBeInTheDocument();
+    expect(screen.getByText(/question no longer matches/)).toBeInTheDocument();
+    expect(screen.queryByText(/This ASK/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/TaskNode/)).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Answer" })).toBeDisabled();
   });
 });
@@ -285,7 +295,7 @@ function executionAskDetail(
     commandError: null,
     header: {
       body: "The task needs user input.",
-      eyebrow: "Execution ASK",
+      eyebrow: "Task input",
       title: "Initial implementation",
     },
     isAnsweringAsk: false,

@@ -105,7 +105,7 @@ describe("MainPage event router reducer compatibility", () => {
     );
 
     expect(result.legacyAction).toEqual({
-      errorMessage: "Command could not be applied.",
+      errorMessage: "An update failed. Refreshing the session.",
       kind: "refetch",
       status: "connected",
     });

@@ -17,13 +17,15 @@ export function SessionMessageCard({ message }: SessionMessageCardProps) {
           {kindPresentation.label}
         </Badge>
         <span>
-          {message.taskNodeId
-            ? `TaskNode: ${message.taskNodeId}`
-            : "Session-wide"}
+          {message.taskNodeId ? "Task activity" : "Session activity"}
         </span>
       </div>
-      <strong>{message.title}</strong>
-      <p>{message.body}</p>
+      <strong className={styles.listCardTitle} title={message.title}>
+        {message.title}
+      </strong>
+      <p className={styles.listCardBody} title={message.body}>
+        {message.body}
+      </p>
     </article>
   );
 }

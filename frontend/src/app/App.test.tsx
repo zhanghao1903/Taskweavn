@@ -35,17 +35,18 @@ describe("App", () => {
     );
 
     expect(screen.getByRole("banner")).toHaveTextContent("Plato");
+    expect(screen.queryByText(/Task-first Intelligent/i)).not.toBeInTheDocument();
+    expect(screen.queryByText("Workbench")).not.toBeInTheDocument();
     expect(await screen.findByText("Personal Website")).toBeInTheDocument();
+    expect(screen.queryByLabelText("State")).not.toBeInTheDocument();
     expect(screen.getByLabelText("Task workspace")).toBeInTheDocument();
+    expect(screen.getByLabelText("Context message")).toBeInTheDocument();
+    expect(screen.queryByText("Message")).not.toBeInTheDocument();
     expect(screen.getByText("Requirement analysis")).toBeInTheDocument();
   });
 
-  it("exposes the nine Figma baseline states", () => {
-    render(
-      <AppProviders>
-        <App />
-      </AppProviders>,
-    );
+  it("keeps the fixture state picker available when explicitly enabled", () => {
+    renderFixtureMainPageWithStatePicker();
 
     const statePicker = screen.getByLabelText("State");
 
@@ -54,7 +55,7 @@ describe("App", () => {
     }
   });
 
-  it("switches between confirmation and file-change states", async () => {
+  it("opens and closes the activity overlay from latest activity", async () => {
     const user = userEvent.setup();
 
     render(
@@ -63,10 +64,27 @@ describe("App", () => {
       </AppProviders>,
     );
 
-    await user.selectOptions(screen.getByLabelText("State"), "s7-confirmation");
+    expect(await screen.findByLabelText("Latest activity")).toBeInTheDocument();
+    expect(screen.queryByText("Session messages")).not.toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole("button", { name: "Open activity overlay" }),
+    );
+
+    expect(screen.getByLabelText("Activity overlay")).toBeInTheDocument();
+    expect(screen.getByText("Task updates")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Close" }));
+
+    expect(screen.queryByLabelText("Activity overlay")).not.toBeInTheDocument();
+  });
+
+  it("renders confirmation and file-change fixture states when explicitly requested", async () => {
+    const confirmationView = renderFixtureMainPageWithStatePicker("s7-confirmation");
     expect(await screen.findByText("Confirm baseline")).toBeInTheDocument();
 
-    await user.selectOptions(screen.getByLabelText("State"), "s9-file-changes");
+    confirmationView.unmount();
+    renderFixtureMainPageWithStatePicker("s9-file-changes");
     expect(await screen.findByText("package.json")).toBeInTheDocument();
   });
 
@@ -84,21 +102,15 @@ describe("App", () => {
     );
 
     expect(screen.getByRole("heading", { name: "Initial implementation" })).toBeInTheDocument();
-    expect(screen.getByText("Task interaction")).toBeInTheDocument();
+    expect(screen.getByText("Task details")).toBeInTheDocument();
     expect(screen.getByText("Scope: selected task / Initial implementation")).toBeInTheDocument();
-    expect(screen.getByText("Task-scoped projection")).toBeInTheDocument();
+    expect(screen.getByLabelText("Latest activity")).toBeInTheDocument();
   });
 
-  it("filters the session message projection by the selected TaskNode", async () => {
+  it("projects the latest activity by the selected TaskNode", async () => {
     const user = userEvent.setup();
 
-    render(
-      <AppProviders>
-        <App />
-      </AppProviders>,
-    );
-
-    await user.selectOptions(screen.getByLabelText("State"), "s6-running");
+    renderFixtureMainPageWithStatePicker("s6-running");
     expect(await screen.findByText("Implementation started")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /Visual direction/i }));
@@ -106,18 +118,13 @@ describe("App", () => {
     expect(screen.queryByText("Implementation started")).not.toBeInTheDocument();
     expect(screen.getByText("1/2 shown")).toBeInTheDocument();
     expect(screen.getByText("Session-wide")).toBeInTheDocument();
+    expect(screen.queryByText("Session messages")).not.toBeInTheDocument();
   });
 
   it("scopes result and file-change detail to the selected TaskNode", async () => {
     const user = userEvent.setup();
 
-    render(
-      <AppProviders>
-        <App />
-      </AppProviders>,
-    );
-
-    await user.selectOptions(screen.getByLabelText("State"), "s9-file-changes");
+    renderFixtureMainPageWithStatePicker("s9-file-changes");
     expect(await screen.findByText("Changed files")).toBeInTheDocument();
     expect(screen.getByText("package.json")).toBeInTheDocument();
 
@@ -125,7 +132,7 @@ describe("App", () => {
 
     expect(screen.getByRole("heading", { name: "Visual direction" })).toBeInTheDocument();
     expect(screen.queryByText("package.json")).not.toBeInTheDocument();
-    expect(screen.getByText("Task interaction")).toBeInTheDocument();
+    expect(screen.getByText("Task details")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /Initial implementation/i }));
 
@@ -295,7 +302,7 @@ describe("App", () => {
     });
   });
 
-  it("publishes a draft TaskTree through the adapter boundary", async () => {
+  it("publishes a draft task plan through the adapter boundary", async () => {
     const user = userEvent.setup();
     const publishTaskTree = vi.fn<PublishTaskTreeCommand>(
       async (request) => acceptedCommandResponse(request.commandId),
@@ -311,7 +318,7 @@ describe("App", () => {
       />,
     );
 
-    await user.click(await screen.findByRole("button", { name: "Publish TaskTree" }));
+    await user.click(await screen.findByRole("button", { name: "Publish plan" }));
 
     expect(publishTaskTree).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -461,28 +468,28 @@ describe("App", () => {
   it("toggles between file changes and result detail views", async () => {
     const user = userEvent.setup();
 
-    render(
-      <AppProviders>
-        <App />
-      </AppProviders>,
-    );
-
-    await user.selectOptions(screen.getByLabelText("State"), "s9-file-changes");
+    renderFixtureMainPageWithStatePicker("s9-file-changes");
     expect(await screen.findByText("Changed files")).toBeInTheDocument();
-    expect(screen.getByText("Recursive subtree summary")).toBeInTheDocument();
+    expect(screen.getByText("3 files")).toBeInTheDocument();
+    expect(screen.queryByText("Recursive subtree summary")).not.toBeInTheDocument();
     expect(
-      screen.getByText("Updated frontend dependencies and scripts."),
-    ).toBeInTheDocument();
+      screen.queryByText("Updated frontend dependencies and scripts."),
+    ).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "View result" }));
 
-    expect(screen.getByText("Result card")).toBeInTheDocument();
-    expect(screen.getByText("Delivered structure")).toBeInTheDocument();
+    expect(screen.getByText("Result summary")).toBeInTheDocument();
     expect(
       screen.getByText(
         "The first implementation plan is ready, including page structure, styling direction, and build tasks.",
       ),
     ).toBeInTheDocument();
+    expect(screen.queryByText("Delivered structure")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "View full result" }));
+
+    expect(screen.getByLabelText("Full result")).toBeInTheDocument();
+    expect(screen.getByText("Delivered structure")).toBeInTheDocument();
   });
 
   it("creates a new session from the sidebar", async () => {
@@ -606,8 +613,11 @@ describe("App", () => {
     );
     await user.click(screen.getByRole("menuitem", { name: "Delete session" }));
     expect(
-      screen.getByText(/Plato will archive the local workspace state/),
+      screen.getByText(
+        /Plato will archive this session and switch to the next available one/,
+      ),
     ).toBeInTheDocument();
+    expect(screen.queryByText(/local workspace state/i)).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Delete session" }));
 
     expect(deleteSession).toHaveBeenCalledWith("session-website-plan");
@@ -734,6 +744,17 @@ function renderWithQueryClient(children: ReactNode) {
 
   return render(
     <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>,
+  );
+}
+
+function renderFixtureMainPageWithStatePicker(initialStateId?: MainPageStateId) {
+  return renderWithQueryClient(
+    <MainPage
+      adapter={testAdapter({
+        showStatePicker: true,
+      })}
+      initialStateId={initialStateId}
+    />,
   );
 }
 

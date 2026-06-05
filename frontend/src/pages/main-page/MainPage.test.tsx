@@ -1,0 +1,74 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { render, screen } from "@testing-library/react";
+import type { ReactNode } from "react";
+import { describe, expect, it, vi } from "vitest";
+
+import { MainPage } from "./MainPage";
+import { createMainPageMockAdapter } from "./mockPlatoApi";
+import type { LoadMainPageSnapshot, MainPageAdapter } from "./runtime/adapter";
+
+describe("MainPage fallback states", () => {
+  it("uses user-facing loading copy without internal projection terms", () => {
+    renderWithQueryClient(
+      <MainPage
+        adapter={testAdapter({
+          loadSnapshot: vi.fn<LoadMainPageSnapshot>(
+            () => new Promise(() => undefined),
+          ),
+        })}
+      />,
+    );
+
+    expect(
+      screen.getByRole("heading", { name: "Opening session" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Plato is preparing this workspace.")).toBeInTheDocument();
+    expect(screen.queryByText(/projection/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/snapshot/i)).not.toBeInTheDocument();
+  });
+
+  it("uses user-facing error copy without internal projection terms", async () => {
+    renderWithQueryClient(
+      <MainPage
+        adapter={testAdapter({
+          loadSnapshot: vi.fn<LoadMainPageSnapshot>(async () => {
+            throw new Error("backend failed");
+          }),
+        })}
+      />,
+    );
+
+    expect(
+      await screen.findByRole("heading", { name: "Unable to open session" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Plato could not load this session. Refresh the page or choose another session.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/backend failed/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/projection/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/snapshot/i)).not.toBeInTheDocument();
+  });
+});
+
+function renderWithQueryClient(children: ReactNode) {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: {
+        retry: false,
+      },
+    },
+  });
+
+  return render(
+    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>,
+  );
+}
+
+function testAdapter(overrides: Partial<MainPageAdapter> = {}): MainPageAdapter {
+  return createMainPageMockAdapter({
+    showStatePicker: false,
+    ...overrides,
+  });
+}

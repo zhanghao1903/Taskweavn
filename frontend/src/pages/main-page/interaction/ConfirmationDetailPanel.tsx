@@ -115,11 +115,7 @@ export function ConfirmationDetailPanel({
             {confirmation.status}
           </Badge>
         </div>
-        <Text variant="muted">{confirmation.body}</Text>
-        <Text variant="muted">
-          This confirmation is read-only because backend projection marks it as{" "}
-          {confirmation.status}.
-        </Text>
+        <Text variant="muted">This decision is read-only.</Text>
       </section>
     );
   }
@@ -142,15 +138,14 @@ export function ConfirmationDetailPanel({
         </Text>
         <Badge tone="warning">{confirmation.status}</Badge>
       </div>
-      <Text variant="muted">{confirmation.body}</Text>
-      {confirmation.riskLabel ? (
-        <div className={styles.riskSummary}>
-          <Badge size="sm" tone="warning">
-            Risk
-          </Badge>
-          <Text variant="muted">{confirmation.riskLabel}</Text>
-        </div>
-      ) : null}
+      <div className={styles.impactSummary}>
+        <Badge size="sm" tone="warning">
+          Impact
+        </Badge>
+        <Text variant="muted">
+          {confirmation.riskLabel ?? "Execution waits for this decision."}
+        </Text>
+      </div>
 
       <ChoiceGroup
         disabled={isResolving}
@@ -172,15 +167,6 @@ export function ConfirmationDetailPanel({
       ) : null}
 
       <div className={styles.actionRow}>
-        <div className={styles.footerCopy}>
-          <Text as="strong" variant="label">
-            {hasValidSelection ? "1 option selected" : "No option selected"}
-          </Text>
-          <Text variant="muted">
-            Default options are recommendations only. Resolve explicitly after
-            selecting one.
-          </Text>
-        </div>
         <Button disabled={!canResolve} onClick={handleResolve} variant="primary">
           {isResolving ? "Resolving" : "Resolve decision"}
         </Button>

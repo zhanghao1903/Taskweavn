@@ -12,9 +12,17 @@ describe("Plato runtime wiring", () => {
     vi.unstubAllGlobals();
   });
 
-  it("uses the fixture adapter by default", () => {
-    expect(createMainPageAdapterFromRuntimeEnv({})).toBeUndefined();
-    expect(createMainPageAdapterFromRuntimeEnv({ VITE_PLATO_API_MODE: "mock" })).toBeUndefined();
+  it("uses the hidden fixture adapter by default", () => {
+    expect(createMainPageAdapterFromRuntimeEnv({})).toMatchObject({
+      runtimeKind: "mock",
+      sessionId: null,
+      showStatePicker: false,
+    });
+    expect(createMainPageAdapterFromRuntimeEnv({ VITE_PLATO_API_MODE: "mock" })).toMatchObject({
+      runtimeKind: "mock",
+      sessionId: null,
+      showStatePicker: false,
+    });
   });
 
   it("creates an HTTP-backed MainPage adapter without a startup session", () => {

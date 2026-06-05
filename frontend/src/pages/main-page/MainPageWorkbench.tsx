@@ -1,12 +1,13 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 
 import { Panel } from "../../shared/components";
+import { ActivityOverlay } from "./ActivityOverlay";
 import { ContextInputPanel } from "./ContextInputPanel";
+import { LatestActivityStrip } from "./LatestActivityStrip";
 import { MainPageDetailPanel } from "./MainPageDetailPanel";
 import { MainPageSessionSidebar } from "./MainPageSessionSidebar";
 import { MainPageTopBar } from "./MainPageTopBar";
 import { MainPageWorkspaceHeader } from "./MainPageWorkspaceHeader";
-import { SessionMessagePanel } from "./SessionMessagePanel";
 import { TaskTreePanel } from "./TaskTreePanel";
 import { AuthoringAskWorkArea } from "./interaction/AuthoringAskWorkArea";
 import type { MainPageViewModel } from "./mainPageViewModel";
@@ -36,8 +37,20 @@ export function MainPageWorkbench({
   statePicker = null,
   viewModel,
 }: MainPageWorkbenchProps) {
+  const [isActivityOverlayOpen, setIsActivityOverlayOpen] = useState(false);
+  const hidesDetailPanel = viewModel.detail.kind === "note";
+  const pageClassName = hidesDetailPanel
+    ? `${styles.page} ${styles.pageWithoutDetail}`
+    : styles.page;
+  const hasActivity =
+    viewModel.mainWorkArea.kind !== "authoringAsk" &&
+    viewModel.taskWorkspace.allMessages.length > 0;
+  const hasVisibleActivity =
+    viewModel.mainWorkArea.kind !== "authoringAsk" &&
+    viewModel.taskWorkspace.messages.length > 0;
+
   return (
-    <main className={styles.page}>
+    <main className={pageClassName}>
       <MainPageTopBar
         brandLabel={viewModel.topBar.brandLabel}
         contextItems={viewModel.topBar.contextItems}
@@ -94,7 +107,23 @@ export function MainPageWorkbench({
             view={viewModel.mainWorkArea.authoringAsk}
           />
         ) : (
-          <div className={styles.workGrid}>
+          <div
+            className={
+              hasVisibleActivity
+                ? styles.workGrid
+                : `${styles.workGrid} ${styles.workGridWithoutActivity}`
+            }
+          >
+            <LatestActivityStrip
+              isMessageScoped={viewModel.taskWorkspace.isMessageScoped}
+              messages={viewModel.taskWorkspace.messages}
+              onOpenActivity={
+                hasActivity ? () => setIsActivityOverlayOpen(true) : undefined
+              }
+              selectedTask={viewModel.taskWorkspace.selectedTask}
+              totalMessageCount={viewModel.taskWorkspace.totalMessageCount}
+              visibleMessageCount={viewModel.taskWorkspace.visibleMessageCount}
+            />
             <TaskTreePanel
               onRetryTask={(taskNodeId) =>
                 actions.retryTask({
@@ -111,14 +140,6 @@ export function MainPageWorkbench({
               }
               selectedTaskNodeId={viewModel.taskWorkspace.selectedTaskNodeId}
               taskTree={viewModel.taskWorkspace.taskTree}
-            />
-
-            <SessionMessagePanel
-              isMessageScoped={viewModel.taskWorkspace.isMessageScoped}
-              messages={viewModel.taskWorkspace.messages}
-              selectedTask={viewModel.taskWorkspace.selectedTask}
-              totalMessageCount={viewModel.taskWorkspace.totalMessageCount}
-              visibleMessageCount={viewModel.taskWorkspace.visibleMessageCount}
             />
           </div>
         )}
@@ -185,6 +206,15 @@ export function MainPageWorkbench({
         onShowFileChanges={actions.showFileChanges}
         onShowResult={actions.showResult}
       />
+
+      {isActivityOverlayOpen && hasActivity ? (
+        <ActivityOverlay
+          allMessages={viewModel.taskWorkspace.allMessages}
+          currentMessages={viewModel.taskWorkspace.messages}
+          onClose={() => setIsActivityOverlayOpen(false)}
+          selectedTask={viewModel.taskWorkspace.selectedTask}
+        />
+      ) : null}
 
       <ContextInputPanel
         draft={inputDraft}

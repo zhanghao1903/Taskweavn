@@ -94,7 +94,7 @@ export function AuthoringAskWorkArea({
       <header className={styles.header}>
         <div className={styles.titleGroup}>
           <Text as="p" variant="eyebrow">
-            Authoring ASK
+            Clarification questions
           </Text>
           <h2>{view.title}</h2>
           {view.summary ? <Text variant="muted">{view.summary}</Text> : null}
@@ -125,7 +125,7 @@ export function AuthoringAskWorkArea({
           <Text variant="muted">
             {hasIncompleteAnswers
               ? "Complete all questions before submitting."
-              : "Submit all answers together. The backend projection remains the source of truth."}
+              : "Review the questions, then submit all answers together."}
           </Text>
           {view.commandError ? (
             <Text className={styles.error} role="alert" variant="muted">

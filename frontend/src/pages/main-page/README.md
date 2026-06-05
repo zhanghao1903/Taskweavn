@@ -19,16 +19,17 @@ The typed source of truth is `mainPageStateCatalog.ts`. The fixture data in
 | S7 Confirmation | execution | Execution is waiting for a user decision attached to a TaskNode. | Put the confirmation action in the detail panel without hiding context. | Confirm, revise, or skip the pending action. |
 | S8 Completed | review | The session has produced a result card. | Shift from execution progress to result review. | Review the result or request follow-up packaging. |
 | S9 File Changes | review | The user is reviewing file changes created by a TaskNode subtree. | Explain concrete workspace changes before acceptance or audit. | Inspect changed files or ask Plato to explain a change. |
-| S10 Permission Denied | recovery | The session is read-only because the permission context disallows mutation. | Preserve context while clearly disabling mutation surfaces. | Return to a valid state or wait for permission context. |
-| S11 Stale Snapshot | recovery | The local projection is stale and should not accept mutations. | Disable interaction controls and make resync the recovery path. | Refresh the snapshot before acting. |
-| S12 Backend Busy | recovery | A command was accepted but the durable event has not arrived yet. | Keep current facts visible while preventing duplicate submit. | Wait for the event or retry after timeout policy. |
+| S10 Permission Denied | recovery | The selected task is read-only right now. | Preserve context while clearly disabling change surfaces. | Return to a valid state or wait for permissions to change. |
+| S11 Stale Snapshot | recovery | The visible session state is stale and needs refresh. | Disable interaction controls and make refresh the recovery path. | Refresh the session before acting. |
+| S12 Backend Busy | recovery | A command was accepted but the durable event has not arrived yet. | Keep current facts visible while preventing repeated actions. | Wait for the event or retry after timeout policy. |
 | S13 Command Failed | recovery | A recoverable command failure occurred before canonical facts changed. | Show the error and keep the TaskTree available for retry or revision. | Retry or revise the task instruction. |
 | S14 Execution ASK | execution | A running TaskNode is waiting for user input. | Keep TaskTree context and place ASK actions in the detail panel. | Answer, defer, or cancel the ASK. |
 
 ## Surface Rules
 
 - The TaskTree is the primary interaction object once it exists.
-- The Session Message Stream remains a single stream, but the UI may project it by selected TaskNode.
+- The Main Page shows only a Latest Activity strip by default; full message
+  history belongs in the Activity Overlay once that surface is implemented.
 - The Detail Panel is contextual: Workflow before planning, TaskNode during planning/execution, execution ASK and confirmation during gates, and Result/File Change during review.
 - Authoring ASK uses the main work area and submits answers in a batch; execution ASK uses the detail panel and targets one concrete ASK.
 - Local command pending state is temporary. `command.completed` and `command.failed` events invalidate the snapshot, and the refreshed MainPageSnapshot remains the durable convergence source.

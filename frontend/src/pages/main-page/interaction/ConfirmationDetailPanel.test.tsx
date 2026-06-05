@@ -36,13 +36,36 @@ describe("ConfirmationDetailPanel", () => {
     expect(onResolve).toHaveBeenCalledWith("confirmed");
   });
 
+  it("foregrounds impact and options without repeating the confirmation body", () => {
+    render(
+      <ConfirmationDetailPanel
+        detail={confirmationDetail()}
+        onResolve={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("Impact")).toBeInTheDocument();
+    expect(screen.getByText("Allows implementation to continue.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Confirm" })).toBeInTheDocument();
+    expect(screen.queryByText("No option selected")).not.toBeInTheDocument();
+    expect(screen.queryByText("1 option selected")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(
+        "Approve the first visual baseline before implementation continues.",
+      ),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/Default options are recommendations/i),
+    ).not.toBeInTheDocument();
+  });
+
   it("preserves selection when a command error is shown", async () => {
     const user = userEvent.setup();
 
     render(
       <ConfirmationDetailPanel
         detail={confirmationDetail({
-          commandError: "Confirmation command was rejected.",
+          commandError: "Confirmation was rejected.",
         })}
         onResolve={vi.fn()}
       />,
@@ -55,7 +78,7 @@ describe("ConfirmationDetailPanel", () => {
       "true",
     );
     expect(screen.getByRole("alert")).toHaveTextContent(
-      "Confirmation command was rejected.",
+      "Confirmation was rejected.",
     );
   });
 
@@ -85,6 +108,7 @@ describe("ConfirmationDetailPanel", () => {
     );
 
     expect(screen.getByText("Confirmation resolved")).toBeInTheDocument();
+    expect(screen.getByText("This decision is read-only.")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Resolve decision" })).toBeNull();
   });
 

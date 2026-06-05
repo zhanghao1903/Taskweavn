@@ -15,11 +15,11 @@ describe("MainPageRoute", () => {
     vi.unstubAllGlobals();
   });
 
-  it("preserves the default fixture MainPage behavior", async () => {
+  it("preserves default fixture data without exposing the state picker", async () => {
     renderWithQueryClient(<MainPageRoute runtimeEnv={{}} />);
 
     expect(await screen.findByText("Personal Website")).toBeInTheDocument();
-    expect(screen.getByLabelText("State")).toBeInTheDocument();
+    expect(screen.queryByLabelText("State")).not.toBeInTheDocument();
     expect(screen.getByLabelText("Task workspace")).toBeInTheDocument();
     expect(screen.getByText("Requirement analysis")).toBeInTheDocument();
   });

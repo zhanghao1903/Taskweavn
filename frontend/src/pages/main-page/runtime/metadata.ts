@@ -90,7 +90,7 @@ function detailFromSnapshot(
       mode: "session",
       eyebrow: "Session",
       title: snapshot.taskTree.title,
-      body: "Review the generated TaskTree before execution continues.",
+      body: "Review the generated task plan before execution continues.",
     };
   }
 
@@ -100,7 +100,7 @@ function detailFromSnapshot(
     title: snapshot.workflow.name,
     body:
       snapshot.workflow.inputHint ??
-      "Describe the goal you want Plato to turn into a TaskTree.",
+      "Describe the goal you want Plato to turn into a task plan.",
   };
 }
 
@@ -109,14 +109,13 @@ function inputScopeFromSnapshot(
 ): MainPageInputScope {
   if (selectedTaskNodeId !== null) {
     return {
-      label: "Scope: selected task",
+      label: "Writing to selected task",
       placeholder: "Add guidance, constraints, or clarification for this task.",
     };
   }
 
   return {
-    label: "Scope: session",
+    label: "Writing to session",
     placeholder: "Describe the goal or add guidance for this session.",
   };
 }
-

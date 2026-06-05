@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { CircleStop, RotateCcw } from "lucide-react";
 
 import type {
@@ -33,7 +34,6 @@ type ConfirmationResolvedDetail = Extract<
 type ResultDetail = Extract<MainPageDetailView, { kind: "result" }>;
 type FileChangesDetail = Extract<MainPageDetailView, { kind: "fileChanges" }>;
 type TaskDetail = Extract<MainPageDetailView, { kind: "task" }>;
-type StateNoteDetail = Extract<MainPageDetailView, { kind: "note" }>;
 
 export function MainPageDetailPanel({
   detail,
@@ -46,19 +46,25 @@ export function MainPageDetailPanel({
   onShowFileChanges,
   onShowResult,
 }: MainPageDetailPanelProps) {
+  if (detail.kind === "note") {
+    return null;
+  }
+
   const { header } = detail;
 
   return (
     <Panel
       as="aside"
       className={styles.detailPanel}
-      aria-label="Context inspector"
+      aria-label="Details"
     >
       <Text variant="eyebrow">{header.eyebrow}</Text>
-      <Text as="h2" variant="heading">
+      <Text as="h2" className={styles.detailHeaderTitle} variant="heading">
         {header.title}
       </Text>
-      <Text variant="muted">{header.body}</Text>
+      <Text className={styles.detailHeaderBody} variant="muted">
+        {header.body}
+      </Text>
       <DetailContent
         detail={detail}
         onAnswerAsk={onAnswerAsk}
@@ -139,7 +145,7 @@ function DetailContent({
         />
       );
     case "note":
-      return <StateNotePanel detail={detail} />;
+      return null;
   }
 }
 
@@ -167,30 +173,77 @@ function ResultSummaryPanel({
   detail,
   onShowFileChanges,
 }: ResultSummaryPanelProps) {
+  const [isReaderOpen, setIsReaderOpen] = useState(false);
+  const sections = detail.result.sections ?? [];
+  const shouldShowReader =
+    detail.result.summary.length > 220 || sections.length > 0;
+
+  if (isReaderOpen) {
+    return (
+      <Panel
+        className={styles.detailBox}
+        tone="muted"
+        aria-label="Full result"
+      >
+        <div className={styles.detailTitleRow}>
+          <Text as="strong" variant="label">
+            Full result
+          </Text>
+          <Badge size="sm" tone="blue">
+            {sections.length > 0 ? `${sections.length} sections` : "Summary"}
+          </Badge>
+        </div>
+        <Text variant="muted">{detail.result.summary}</Text>
+        {sections.length > 0 && (
+          <div className={styles.resultSections}>
+            {sections.map((section) => (
+              <article className={styles.resultSection} key={section.title}>
+                <div className={styles.detailTitleRow}>
+                  <strong>{section.title}</strong>
+                  <Badge size="sm" tone="neutral">
+                    {section.kind ?? "text"}
+                  </Badge>
+                </div>
+                <p>{section.body}</p>
+              </article>
+            ))}
+          </div>
+        )}
+        <div className={styles.actionRow}>
+          <Button onClick={() => setIsReaderOpen(false)}>
+            Back to summary
+          </Button>
+          {detail.fileChangeSummary && (
+            <Button onClick={onShowFileChanges}>View file changes</Button>
+          )}
+        </div>
+      </Panel>
+    );
+  }
+
   return (
     <Panel className={styles.detailBox} tone="muted">
       <div className={styles.detailTitleRow}>
         <Text as="strong" variant="label">
-          Result card
+          Result summary
         </Text>
         <Badge size="sm" tone="blue">
-          structured
+          {sections.length > 0 ? "Detailed" : "Summary"}
         </Badge>
       </div>
-      <Text variant="muted">{detail.result.summary}</Text>
-      {detail.result.sections && detail.result.sections.length > 0 && (
-        <div className={styles.resultSections}>
-          {detail.result.sections.map((section) => (
-            <article className={styles.resultSection} key={section.title}>
-              <div className={styles.detailTitleRow}>
-                <strong>{section.title}</strong>
-                <Badge size="sm" tone="neutral">
-                  {section.kind ?? "text"}
-                </Badge>
-              </div>
-              <p>{section.body}</p>
-            </article>
-          ))}
+      <Text className={styles.resultSummaryPreview} variant="muted">
+        {detail.result.summary}
+      </Text>
+      {shouldShowReader && (
+        <div className={styles.resultReaderPrompt}>
+          <Text variant="muted">
+            {sections.length > 0
+              ? `${sections.length} sections available.`
+              : "Full result available."}
+          </Text>
+          <Button onClick={() => setIsReaderOpen(true)}>
+            View full result
+          </Button>
         </div>
       )}
       {detail.fileChangeSummary && (
@@ -211,22 +264,25 @@ function FileChangeSummaryPanel({
   detail,
   onShowResult,
 }: FileChangeSummaryPanelProps) {
+  const fileCount = detail.fileChangeSummary.changedFiles.length;
+
   return (
     <Panel className={styles.detailBox} tone="muted">
       <div className={styles.detailTitleRow}>
         <Text as="strong" variant="label">
           Changed files
         </Text>
-        <Badge
-          size="sm"
-          tone={detail.fileChangeSummary.recursive ? "blue" : "neutral"}
-        >
-          {detail.fileChangeSummary.recursive
-            ? "Recursive subtree summary"
-            : "Direct task changes"}
-        </Badge>
+        <div className={styles.badgeGroup}>
+          <Badge size="sm" tone={fileCount > 0 ? "blue" : "neutral"}>
+            {fileCount === 1 ? "1 file" : `${fileCount} files`}
+          </Badge>
+          {detail.fileChangeSummary.recursive ? (
+            <Badge size="sm" tone="neutral">
+              Includes child tasks
+            </Badge>
+          ) : null}
+        </div>
       </div>
-      <Text variant="muted">{detail.fileChangeSummary.summary}</Text>
       <div className={styles.fileChangeList} role="list">
         {detail.fileChangeSummary.changedFiles.map((file) => {
           const changePresentation = selectFileChangeTypePresentation(
@@ -245,12 +301,6 @@ function FileChangeSummaryPanel({
                   {changePresentation.label}
                 </Badge>
               </div>
-              {file.summary && <p>{file.summary}</p>}
-              {file.ownerTaskNodeId && (
-                <span className={styles.fileOwner}>
-                  Owner TaskNode: {file.ownerTaskNodeId}
-                </span>
-              )}
             </article>
           );
         })}
@@ -273,27 +323,31 @@ function TaskDetailPanel({
   onRetryTask: (taskNodeId: TaskNodeId) => void;
   onStopTask: (taskNodeId: TaskNodeId) => void;
 }) {
+  const isRunning =
+    detail.selectedTask.execution === "running" ||
+    detail.selectedTask.status === "running";
   const isStopping = Boolean(
-    detail.selectedTask.interruptionRequested &&
-      (detail.selectedTask.execution === "running" ||
-        detail.selectedTask.status === "running"),
+    detail.selectedTask.interruptionRequested && isRunning,
   );
-  const showStopAction = detail.selectedTask.permissions.canCancel || isStopping;
   const showPublishedStopAction =
-    detail.selectedTask.taskRef?.kind === "published" && showStopAction;
+    detail.selectedTask.taskRef?.kind === "published" &&
+    isRunning &&
+    (detail.selectedTask.permissions.canCancel || isStopping);
+  const showRetryAction = detail.selectedTask.permissions.canRetry;
+
+  if (!showPublishedStopAction && !showRetryAction) {
+    return null;
+  }
 
   return (
     <Panel
+      aria-label="Task actions"
       className={styles.detailBox}
       data-task-node-id={detail.selectedTask.id}
       tone="muted"
     >
       <Text as="strong" variant="label">
-        Task interaction
-      </Text>
-      <Text variant="muted">
-        Input now applies to this TaskNode. Completed TaskNodes are read-only;
-        running TaskNodes accept appended guidance.
+        Task actions
       </Text>
       {showPublishedStopAction && (
         <div className={styles.actionRow}>
@@ -307,7 +361,7 @@ function TaskDetailPanel({
           </Button>
         </div>
       )}
-      {detail.selectedTask.permissions.canRetry && (
+      {showRetryAction && (
         <div className={styles.actionRow}>
           <Button
             disabled={detail.isRetryingTask}
@@ -319,17 +373,6 @@ function TaskDetailPanel({
           </Button>
         </div>
       )}
-    </Panel>
-  );
-}
-
-function StateNotePanel({ detail }: { detail: StateNoteDetail }) {
-  return (
-    <Panel className={styles.detailBox} tone="muted">
-      <Text as="strong" variant="label">
-        State note
-      </Text>
-      <Text variant="muted">{detail.body}</Text>
     </Panel>
   );
 }

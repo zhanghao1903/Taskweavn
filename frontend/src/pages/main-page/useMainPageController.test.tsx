@@ -286,7 +286,7 @@ describe("useMainPageController", () => {
     });
 
     expect(result.current.executionAskError).toBe(null);
-    expect(result.current.uiNotice).toBe("ASK answer submitted.");
+    expect(result.current.uiNotice).toBe("Answer submitted.");
   });
 
   it("refetches after a rejected execution ASK answer with refresh hints", async () => {
@@ -294,7 +294,7 @@ describe("useMainPageController", () => {
       async (_sessionId, _askId, request) =>
         rejectedCommandResponse({
           commandId: request.commandId,
-          message: "free_text ASK answer must not select options",
+          message: "Choose an option or enter text, not both.",
         }),
     );
     const loadSnapshot = vi.fn<LoadMainPageSnapshot>(loadImmediateSnapshot);
@@ -322,7 +322,7 @@ describe("useMainPageController", () => {
 
     await waitFor(() => {
       expect(result.current.executionAskError).toBe(
-        "free_text ASK answer must not select options",
+        "Choose an option or enter text, not both.",
       );
     });
     await waitFor(() => {
@@ -522,7 +522,7 @@ describe("useMainPageController", () => {
 
     await waitFor(() => {
       expect(result.current.sessionDialog).toMatchObject({
-        error: "New session command failed. Please retry.",
+        error: "Create session failed. Please retry.",
         mode: "create",
       });
     });
@@ -619,7 +619,7 @@ describe("useMainPageController", () => {
 
     await waitFor(() => {
       expect(result.current.sessionDialog).toMatchObject({
-        error: "Rename session command failed. Please retry.",
+        error: "Rename session failed. Please retry.",
         mode: "rename",
       });
     });
@@ -710,7 +710,7 @@ describe("useMainPageController", () => {
 
     await waitFor(() => {
       expect(result.current.sessionDialog).toMatchObject({
-        error: "Delete session command failed. Please retry.",
+        error: "Delete session failed. Please retry.",
         mode: "delete",
       });
     });

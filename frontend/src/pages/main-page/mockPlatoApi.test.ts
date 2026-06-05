@@ -5,10 +5,14 @@ import {
   type MainPageStateId,
 } from "./fixtures";
 import {
+  appendTaskInputMockCommand,
   createMainPageMockAdapter,
   getMainPageMockSnapshot,
   listMainPageStateOptions,
   mainPageMockAdapter,
+  retryTaskMockCommand,
+  stopTaskMockCommand,
+  updateTaskNodeMockCommand,
 } from "./mockPlatoApi";
 import {
   getMainPageStateCatalogEntry,
@@ -17,7 +21,7 @@ import {
 
 describe("mock Plato API adapter", () => {
   it("exposes the Figma baseline states as API-backed state options", () => {
-    expect(listMainPageStateOptions()).toHaveLength(13);
+    expect(listMainPageStateOptions()).toHaveLength(mainPageStates.length);
   });
 
   it("keeps the state catalog aligned with fixture states", () => {
@@ -40,6 +44,33 @@ describe("mock Plato API adapter", () => {
       expect(state.expectedUserAction).not.toHaveLength(0);
       expect(state.primarySurfaces.length).toBeGreaterThan(0);
     }
+  });
+
+  it("keeps fixture and catalog copy free of internal implementation language", () => {
+    const fixtureCopy = mainPageStates.flatMap((state) => [
+      state.detail.eyebrow,
+      state.detail.title,
+      state.detail.body,
+      "actionLabel" in state.detail ? state.detail.actionLabel : undefined,
+      state.inputScope.label,
+      state.inputScope.placeholder,
+      ...state.messages.flatMap((message) => [message.title, message.body]),
+      state.result?.title,
+      state.result?.summary,
+    ]);
+    const catalogCopy = mainPageStateCatalog.flatMap((state) => [
+      state.userSituation,
+      state.pageFocus,
+      ...state.primarySurfaces,
+      state.expectedUserAction,
+    ]);
+
+    const copy = [...fixtureCopy, ...catalogCopy].filter(Boolean).join("\n");
+
+    expect(copy).not.toMatch(
+      /TaskTree|task tree|TaskNode|Context inspector|ResultCard|Session Workspace|duplicate submit|attached to the selected task|permission context|mutation|mutate|mutating/i,
+    );
+    expect(copy).not.toMatch(/\bASK\b/);
   });
 
   it("can retrieve a catalog entry for each baseline state", () => {
@@ -82,7 +113,7 @@ describe("mock Plato API adapter", () => {
 
     expect(snapshot.fileChangeSummary?.recursive).toBe(true);
     expect(snapshot.fileChangeSummary?.summary).toBe(
-      "Recursive summary: 3 files changed in this TaskNode subtree.",
+      "Recursive summary: 3 files changed in the selected task and its children.",
     );
     expect(snapshot.fileChangeSummary?.changedFiles).toEqual([
       expect.objectContaining({
@@ -101,6 +132,76 @@ describe("mock Plato API adapter", () => {
         summary: "Added baseline styling for the first prototype.",
       }),
     ]);
+  });
+
+  it("keeps task command feedback free of raw task ids", async () => {
+    const appendResponse = await appendTaskInputMockCommand(
+      "session-1",
+      "task-internal-id",
+      {
+        commandId: "command-append",
+        payload: {
+          content: "Add more guidance.",
+          mode: "guidance",
+        },
+        sessionId: "session-1",
+      },
+    );
+    const updateResponse = await updateTaskNodeMockCommand(
+      "session-1",
+      "task-internal-id",
+      {
+        commandId: "command-update",
+        payload: {
+          summary: "Refine the task.",
+        },
+        sessionId: "session-1",
+      },
+    );
+    const retryResponse = await retryTaskMockCommand(
+      "session-1",
+      "task-internal-id",
+      {
+        commandId: "command-retry",
+        payload: {
+          startImmediately: true,
+        },
+        sessionId: "session-1",
+      },
+    );
+    const stopResponse = await stopTaskMockCommand(
+      "session-1",
+      "task-internal-id",
+      {
+        commandId: "command-stop",
+        payload: {
+          reason: "User requested stop.",
+        },
+        sessionId: "session-1",
+      },
+    );
+
+    expect(appendResponse.result).not.toBeNull();
+    expect(updateResponse.result).not.toBeNull();
+    expect(retryResponse.result).not.toBeNull();
+    expect(stopResponse.result).not.toBeNull();
+    if (
+      appendResponse.result === null ||
+      updateResponse.result === null ||
+      retryResponse.result === null ||
+      stopResponse.result === null
+    ) {
+      throw new Error("Expected accepted command responses.");
+    }
+
+    expect(appendResponse.result.message).toBe("Task input accepted.");
+    expect(updateResponse.result.message).toBe("Task update accepted.");
+    expect(retryResponse.result.message).toBe("Task retry accepted.");
+    expect(stopResponse.result.message).toBe("Task stop requested.");
+    expect(appendResponse.result.message).not.toContain("task-internal-id");
+    expect(updateResponse.result.message).not.toContain("task-internal-id");
+    expect(retryResponse.result.message).not.toContain("task-internal-id");
+    expect(stopResponse.result.message).not.toContain("task-internal-id");
   });
 
   it("projects completed results into structured result sections", () => {

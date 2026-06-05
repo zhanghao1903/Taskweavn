@@ -4,6 +4,7 @@ import {
   type AuditMockApi,
 } from "../pages/audit-page/mockAuditApi";
 import { createHttpMainPageAdapter } from "../pages/main-page/httpMainPageAdapter";
+import { createMainPageMockAdapter } from "../pages/main-page/mockPlatoApi";
 import {
   routeMainPageEventWithReducerCompatibility,
   type MainPageEventCompatibilityResult,
@@ -40,7 +41,9 @@ export function createMainPageAdapterFromRuntimeEnv(
     runtimeLogger.info("main-page.adapter.mock", {
       mode: env.VITE_PLATO_API_MODE ?? "mock",
     });
-    return undefined;
+    return createMainPageMockAdapter({
+      showStatePicker: false,
+    });
   }
 
   const sessionId = env.VITE_PLATO_SESSION_ID;

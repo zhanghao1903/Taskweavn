@@ -19,6 +19,14 @@ describe("AuthoringAskWorkArea", () => {
 
     await user.click(screen.getByRole("button", { name: "Portfolio" }));
     await user.click(screen.getByRole("button", { name: "Quiet editorial" }));
+
+    expect(screen.getByText("Clarification questions")).toBeInTheDocument();
+    expect(screen.queryByText("Authoring ASK")).not.toBeInTheDocument();
+    expect(
+      screen.getByText("Review the questions, then submit all answers together."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/backend projection/i)).not.toBeInTheDocument();
+
     await user.click(
       screen.getByRole("button", { name: "Submit all answers" }),
     );
@@ -65,7 +73,7 @@ describe("AuthoringAskWorkArea", () => {
       <AuthoringAskWorkArea
         onSubmit={vi.fn()}
         view={authoringAskView({
-          commandError: "Authoring ASK command was rejected.",
+          commandError: "Answer submission was rejected.",
         })}
       />,
     );
@@ -73,7 +81,7 @@ describe("AuthoringAskWorkArea", () => {
     await user.click(screen.getByRole("button", { name: "Portfolio" }));
 
     expect(screen.getByRole("alert")).toHaveTextContent(
-      "Authoring ASK command was rejected.",
+      "Answer submission was rejected.",
     );
     expect(screen.getByRole("button", { name: "Portfolio" })).toHaveAttribute(
       "aria-pressed",

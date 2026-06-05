@@ -102,12 +102,14 @@ export function ExecutionAskDetailPanel({
         <Text as="strong" variant="label">
           Task input required
         </Text>
-        <Badge tone={isStale ? "danger" : "warning"}>{ask.status}</Badge>
+        <Badge tone={isStale ? "danger" : "warning"}>
+          {askStatusLabel(ask.status)}
+        </Badge>
       </div>
 
       {detail.selectedTask ? (
         <Text variant="muted">
-          TaskNode: {detail.selectedTask.title}
+          Task: {detail.selectedTask.title}
         </Text>
       ) : null}
 
@@ -190,7 +192,7 @@ export function ExecutionAskDetailPanel({
 
       {isStale ? (
         <Text className={styles.error} role="alert" variant="muted">
-          This ASK no longer matches the selected TaskNode. Refresh or select the
+          This question no longer matches the selected task. Refresh or select the
           waiting task before answering.
         </Text>
       ) : null}
@@ -216,11 +218,23 @@ export function ExecutionAskDetailPanel({
           onClick={() => onCancel({ reason: "user cancelled ASK" })}
           variant="danger"
         >
-          {detail.isCancellingAsk ? "Cancelling" : "Cancel ASK"}
+          {detail.isCancellingAsk ? "Cancelling" : "Cancel question"}
         </Button>
       </div>
     </section>
   );
+}
+
+function askStatusLabel(status: AskRequestView["status"]) {
+  const labels: Record<AskRequestView["status"], string> = {
+    answered: "Answered",
+    cancelled: "Cancelled",
+    deferred: "Deferred",
+    expired: "Expired",
+    pending: "Waiting",
+  };
+
+  return labels[status];
 }
 
 function emptyDraft(): ExecutionAskDraft {

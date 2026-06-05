@@ -112,7 +112,8 @@ describe("main page selectors", () => {
     expect(projection.fileChangeSummary).toMatchObject({
       taskNodeId: "task-parent",
       recursive: true,
-      summary: "Recursive summary: 1 files changed in this TaskNode subtree.",
+      summary:
+        "Recursive summary: 1 files changed in the selected task and its children.",
     });
     expect(projection.fileChangeSummary?.changedFiles).toEqual([
       expect.objectContaining({ path: "src/child.ts" }),
@@ -139,11 +140,11 @@ describe("main page selectors", () => {
       tone: "success",
     });
     expect(selectTaskNodeStatusPresentation("waiting_user")).toEqual({
-      label: "waiting user",
+      label: "Waiting",
       tone: "warning",
     });
     expect(selectTaskNodeStatusPresentation("failed")).toEqual({
-      label: "failed",
+      label: "Failed",
       tone: "danger",
     });
   });
@@ -158,7 +159,7 @@ describe("main page selectors", () => {
         status: "running",
       }),
     ).toEqual({
-      label: "waiting user",
+      label: "Waiting",
       tone: "warning",
     });
 
@@ -171,7 +172,7 @@ describe("main page selectors", () => {
         status: "waiting_user",
       }),
     ).toEqual({
-      label: "done",
+      label: "Done",
       tone: "success",
     });
 
@@ -181,7 +182,7 @@ describe("main page selectors", () => {
         status: "waiting_user",
       }),
     ).toEqual({
-      label: "waiting user",
+      label: "Waiting",
       tone: "warning",
     });
   });
@@ -212,11 +213,11 @@ describe("main page selectors", () => {
 
   it("centralizes auxiliary badge and action presentation", () => {
     expect(selectMessageKindPresentation("actionable")).toEqual({
-      label: "actionable",
+      label: "Needs reply",
       tone: "warning",
     });
     expect(selectMessageKindPresentation("error")).toEqual({
-      label: "error",
+      label: "Error",
       tone: "danger",
     });
     expect(selectEventConnectionStatusPresentation("resyncing")).toEqual({
@@ -224,8 +225,16 @@ describe("main page selectors", () => {
       tone: "warning",
     });
     expect(selectFileChangeTypePresentation("renamed")).toEqual({
-      label: "renamed",
+      label: "Renamed",
       tone: "blue",
+    });
+    expect(selectFileChangeTypePresentation("created")).toEqual({
+      label: "Created",
+      tone: "success",
+    });
+    expect(selectFileChangeTypePresentation("modified")).toEqual({
+      label: "Modified",
+      tone: "warning",
     });
     expect(selectConfirmationOptionVariant("danger")).toBe("danger");
     expect(selectConfirmationOptionVariant("secondary")).toBe("secondary");

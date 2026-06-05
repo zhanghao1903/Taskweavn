@@ -276,12 +276,12 @@ export function useMainPageController({
         },
       }),
     onError: () => {
-      setConfirmationError("Confirmation command failed. Please retry.");
+      setConfirmationError("Confirmation failed. Please retry.");
     },
     onSuccess: (response) => {
       const result = handleCommandResponse(
         response,
-        "Confirmation command was rejected.",
+        "Confirmation was rejected.",
       );
 
       if (result.errorMessage) {
@@ -310,12 +310,12 @@ export function useMainPageController({
         },
       }),
     onError: () => {
-      setAuthoringAskError("Authoring ASK command failed. Please retry.");
+      setAuthoringAskError("Answer submission failed. Please retry.");
     },
     onSuccess: (response) => {
       const result = handleCommandResponse(
         response,
-        "Authoring ASK command was rejected.",
+        "Answer submission was rejected.",
       );
 
       if (result.errorMessage) {
@@ -347,12 +347,12 @@ export function useMainPageController({
         },
       }),
     onError: () => {
-      setExecutionAskError("ASK answer command failed. Please retry.");
+      setExecutionAskError("Answer submission failed. Please retry.");
     },
     onSuccess: (response) => {
       const result = handleCommandResponse(
         response,
-        "ASK answer command was rejected.",
+        "Answer submission was rejected.",
       );
 
       if (result.errorMessage) {
@@ -364,7 +364,7 @@ export function useMainPageController({
       }
 
       setExecutionAskError(null);
-      setUiNotice("ASK answer submitted.");
+      setUiNotice("Answer submitted.");
       if (result.shouldRefetch) {
         void refetchSnapshot();
       }
@@ -381,12 +381,12 @@ export function useMainPageController({
         },
       }),
     onError: () => {
-      setExecutionAskError("ASK defer command failed. Please retry.");
+      setExecutionAskError("Defer failed. Please retry.");
     },
     onSuccess: (response) => {
       const result = handleCommandResponse(
         response,
-        "ASK defer command was rejected.",
+        "Defer was rejected.",
       );
 
       if (result.errorMessage) {
@@ -395,7 +395,7 @@ export function useMainPageController({
       }
 
       setExecutionAskError(null);
-      setUiNotice("ASK deferred.");
+      setUiNotice("Question deferred.");
       if (result.shouldRefetch) {
         void refetchSnapshot();
       }
@@ -412,12 +412,12 @@ export function useMainPageController({
         },
       }),
     onError: () => {
-      setExecutionAskError("ASK cancel command failed. Please retry.");
+      setExecutionAskError("Cancel failed. Please retry.");
     },
     onSuccess: (response) => {
       const result = handleCommandResponse(
         response,
-        "ASK cancel command was rejected.",
+        "Cancel was rejected.",
       );
 
       if (result.errorMessage) {
@@ -426,7 +426,7 @@ export function useMainPageController({
       }
 
       setExecutionAskError(null);
-      setUiNotice("ASK cancelled.");
+      setUiNotice("Question cancelled.");
       if (result.shouldRefetch) {
         void refetchSnapshot();
       }
@@ -480,12 +480,12 @@ export function useMainPageController({
       });
     },
     onError: () => {
-      setInputError("Input command failed. Please retry.");
+      setInputError("Input submission failed. Please retry.");
     },
     onSuccess: (response) => {
       const result = handleCommandResponse(
         response,
-        "Input command was rejected.",
+        "Input submission was rejected.",
       );
 
       if (result.errorMessage) {
@@ -518,12 +518,12 @@ export function useMainPageController({
         },
       }),
     onError: () => {
-      setTaskTreeCommandError("Publish command failed. Please retry.");
+      setTaskTreeCommandError("Publish failed. Please retry.");
     },
     onSuccess: (response) => {
       const result = handleCommandResponse(
         response,
-        "Publish command was rejected.",
+        "Publish was rejected.",
       );
 
       if (result.errorMessage) {
@@ -554,12 +554,12 @@ export function useMainPageController({
         },
       }),
     onError: () => {
-      setTaskTreeCommandError("Retry command failed. Please retry.");
+      setTaskTreeCommandError("Retry failed. Please retry.");
     },
     onSuccess: (response) => {
       const result = handleCommandResponse(
         response,
-        "Retry command was rejected.",
+        "Retry was rejected.",
       );
 
       if (result.errorMessage) {
@@ -601,12 +601,12 @@ export function useMainPageController({
       mainPageLogger.error("command.stop.failed", {
         error: toLoggableError(error),
       });
-      setTaskTreeCommandError("Stop command failed. Please retry.");
+      setTaskTreeCommandError("Stop failed. Please retry.");
     },
     onSuccess: (response) => {
       const result = handleCommandResponse(
         response,
-        "Stop command was rejected.",
+        "Stop was rejected.",
       );
       mainPageLogger.info("command.stop.result", {
         ...summarizeCommandResponse(response),
@@ -652,12 +652,12 @@ export function useMainPageController({
         name,
       }),
     onError: () => {
-      setSessionDialogError("New session command failed. Please retry.");
+      setSessionDialogError("Create session failed. Please retry.");
     },
     onSuccess: (result) => {
       const nextSessionId = result.sessionId ?? result.session?.id ?? null;
       if (nextSessionId === null) {
-        setSessionDialogError("New session command did not return a session id.");
+        setSessionDialogError("Created session was unavailable. Please retry.");
         return;
       }
 
@@ -680,7 +680,7 @@ export function useMainPageController({
         sessionId,
       }),
     onError: () => {
-      setSessionDialogError("Rename session command failed. Please retry.");
+      setSessionDialogError("Rename session failed. Please retry.");
     },
     onSuccess: (result) => {
       setUiNotice(`Renamed session to ${result.session?.name ?? "new name"}.`);
@@ -692,7 +692,7 @@ export function useMainPageController({
   const deleteSessionMutation = useMutation({
     mutationFn: async (sessionId: string) => adapter.deleteSession(sessionId),
     onError: () => {
-      setSessionDialogError("Delete session command failed. Please retry.");
+      setSessionDialogError("Delete session failed. Please retry.");
     },
     onSuccess: (result) => {
       const nextSessionId = result.nextSessionId ?? null;
@@ -1004,7 +1004,7 @@ export function useMainPageController({
     taskTreeId,
   }: PublishTaskTreeContext) {
     if (taskTreeId === null) {
-      setTaskTreeCommandError("No draft TaskTree is available to publish.");
+      setTaskTreeCommandError("No draft task plan is available to publish.");
       return;
     }
 
@@ -1061,7 +1061,7 @@ export function useMainPageController({
     text,
   }: AnswerExecutionAskContext) {
     if (selectedOptionIds.length === 0 && !text?.trim()) {
-      setExecutionAskError("Answer the ASK before submitting.");
+      setExecutionAskError("Answer the question before submitting.");
       return;
     }
 
