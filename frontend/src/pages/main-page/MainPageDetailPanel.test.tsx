@@ -142,6 +142,35 @@ describe("MainPageDetailPanel", () => {
     expect(screen.queryByText("State note")).not.toBeInTheDocument();
   });
 
+  it("uses task copy for resolved confirmation details", () => {
+    render(
+      <MainPageDetailPanel
+        detail={{
+          decision: "confirmed",
+          header: {
+            body: "The action was confirmed.",
+            eyebrow: "Confirmation",
+            title: "Action confirmed",
+          },
+          kind: "confirmationResolved",
+        }}
+        onAnswerAsk={vi.fn()}
+        onCancelAsk={vi.fn()}
+        onConfirmationDecision={vi.fn()}
+        onDeferAsk={vi.fn()}
+        onRetryTask={vi.fn()}
+        onShowFileChanges={vi.fn()}
+        onShowResult={vi.fn()}
+        onStopTask={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByText("The confirmation was accepted. Plato can continue from this task."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/TaskNode/)).not.toBeInTheDocument();
+  });
+
   it("keeps result sections out of the default result card", () => {
     render(
       <MainPageDetailPanel
