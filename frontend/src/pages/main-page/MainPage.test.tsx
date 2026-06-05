@@ -42,8 +42,11 @@ describe("MainPage fallback states", () => {
       await screen.findByRole("heading", { name: "Unable to open session" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByText("Plato could not load this session. Error: backend failed"),
+      screen.getByText(
+        "Plato could not load this session. Refresh the page or choose another session.",
+      ),
     ).toBeInTheDocument();
+    expect(screen.queryByText(/backend failed/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/projection/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/snapshot/i)).not.toBeInTheDocument();
   });

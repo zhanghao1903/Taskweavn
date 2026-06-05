@@ -78,9 +78,6 @@ export function MainPage({
   }
 
   if (isSnapshotError || !snapshotData) {
-    const errorSummary = isSnapshotError
-      ? snapshotErrorSummary(snapshotError)
-      : "Snapshot data is empty.";
     const noSessionAvailable =
       snapshotError instanceof Error &&
       snapshotError.message === NO_SESSION_AVAILABLE_MESSAGE;
@@ -111,7 +108,7 @@ export function MainPage({
         body={
           noSessionAvailable
             ? "This workspace has no sessions yet. Create one when you are ready to start."
-            : `Plato could not load this session. ${errorSummary}`
+            : "Plato could not load this session. Refresh the page or choose another session."
         }
       />
     );
@@ -252,12 +249,4 @@ function MainPageStatusFrame({
       </Panel>
     </main>
   );
-}
-
-function snapshotErrorSummary(error: unknown): string {
-  if (error instanceof Error) {
-    return `Error: ${error.message}`;
-  }
-
-  return "Check the browser console for the captured error payload.";
 }
