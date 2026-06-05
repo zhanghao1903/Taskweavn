@@ -613,8 +613,11 @@ describe("App", () => {
     );
     await user.click(screen.getByRole("menuitem", { name: "Delete session" }));
     expect(
-      screen.getByText(/Plato will archive the local workspace state/),
+      screen.getByText(
+        /Plato will archive this session and switch to the next available one/,
+      ),
     ).toBeInTheDocument();
+    expect(screen.queryByText(/local workspace state/i)).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Delete session" }));
 
     expect(deleteSession).toHaveBeenCalledWith("session-website-plan");
