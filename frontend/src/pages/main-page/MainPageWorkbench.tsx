@@ -45,6 +45,9 @@ export function MainPageWorkbench({
   const hasActivity =
     viewModel.mainWorkArea.kind !== "authoringAsk" &&
     viewModel.taskWorkspace.allMessages.length > 0;
+  const hasVisibleActivity =
+    viewModel.mainWorkArea.kind !== "authoringAsk" &&
+    viewModel.taskWorkspace.messages.length > 0;
 
   return (
     <main className={pageClassName}>
@@ -104,7 +107,23 @@ export function MainPageWorkbench({
             view={viewModel.mainWorkArea.authoringAsk}
           />
         ) : (
-          <div className={styles.workGrid}>
+          <div
+            className={
+              hasVisibleActivity
+                ? styles.workGrid
+                : `${styles.workGrid} ${styles.workGridWithoutActivity}`
+            }
+          >
+            <LatestActivityStrip
+              isMessageScoped={viewModel.taskWorkspace.isMessageScoped}
+              messages={viewModel.taskWorkspace.messages}
+              onOpenActivity={
+                hasActivity ? () => setIsActivityOverlayOpen(true) : undefined
+              }
+              selectedTask={viewModel.taskWorkspace.selectedTask}
+              totalMessageCount={viewModel.taskWorkspace.totalMessageCount}
+              visibleMessageCount={viewModel.taskWorkspace.visibleMessageCount}
+            />
             <TaskTreePanel
               onRetryTask={(taskNodeId) =>
                 actions.retryTask({
@@ -124,18 +143,6 @@ export function MainPageWorkbench({
             />
           </div>
         )}
-        {viewModel.mainWorkArea.kind !== "authoringAsk" ? (
-          <LatestActivityStrip
-            isMessageScoped={viewModel.taskWorkspace.isMessageScoped}
-            messages={viewModel.taskWorkspace.messages}
-            onOpenActivity={
-              hasActivity ? () => setIsActivityOverlayOpen(true) : undefined
-            }
-            selectedTask={viewModel.taskWorkspace.selectedTask}
-            totalMessageCount={viewModel.taskWorkspace.totalMessageCount}
-            visibleMessageCount={viewModel.taskWorkspace.visibleMessageCount}
-          />
-        ) : null}
       </Panel>
 
       <MainPageDetailPanel

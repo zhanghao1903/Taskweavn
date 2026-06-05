@@ -39,6 +39,23 @@ describe("MainPageWorkbench layout", () => {
       screen.getByRole("complementary", { name: "Details" }),
     ).toBeInTheDocument();
   });
+
+  it("places latest activity above the task list", () => {
+    const viewModel = buildViewModel("s7-confirmation", {
+      selectedTaskNodeId: "task-visual-direction",
+    });
+
+    renderWorkbench(viewModel);
+
+    const latestActivity = screen.getByLabelText("Latest activity");
+    const firstTaskCard = screen.getByText("Requirement analysis").closest("button");
+
+    expect(firstTaskCard).not.toBeNull();
+    expect(
+      latestActivity.compareDocumentPosition(firstTaskCard!) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
 });
 
 function renderWorkbench(viewModel: MainPageViewModel) {

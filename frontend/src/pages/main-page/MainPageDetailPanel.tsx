@@ -59,10 +59,12 @@ export function MainPageDetailPanel({
       aria-label="Details"
     >
       <Text variant="eyebrow">{header.eyebrow}</Text>
-      <Text as="h2" variant="heading">
+      <Text as="h2" className={styles.detailHeaderTitle} variant="heading">
         {header.title}
       </Text>
-      <Text variant="muted">{header.body}</Text>
+      <Text className={styles.detailHeaderBody} variant="muted">
+        {header.body}
+      </Text>
       <DetailContent
         detail={detail}
         onAnswerAsk={onAnswerAsk}
