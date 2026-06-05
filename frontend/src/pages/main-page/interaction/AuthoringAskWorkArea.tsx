@@ -94,7 +94,7 @@ export function AuthoringAskWorkArea({
       <header className={styles.header}>
         <div className={styles.titleGroup}>
           <Text as="p" variant="eyebrow">
-            Authoring ASK
+            Clarification questions
           </Text>
           <h2>{view.title}</h2>
           {view.summary ? <Text variant="muted">{view.summary}</Text> : null}
