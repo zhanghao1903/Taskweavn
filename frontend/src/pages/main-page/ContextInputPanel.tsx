@@ -36,7 +36,6 @@ export function ContextInputPanel({
         </Text>
       </div>
       <label className={styles.contextInputField}>
-        <span>Message</span>
         <input
           aria-label="Context message"
           disabled={input.disabled}

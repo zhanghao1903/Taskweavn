@@ -826,13 +826,6 @@
   line-height: var(--plato-type-body-sm-line-height);
 }
 
-.contextInputField span {
-  color: var(--plato-color-muted);
-  font-size: var(--plato-type-caption-size);
-  font-weight: var(--plato-type-label-weight);
-  line-height: var(--plato-type-caption-line-height);
-}
-
 .contextInputField input {
   width: 100%;
   min-width: 0;

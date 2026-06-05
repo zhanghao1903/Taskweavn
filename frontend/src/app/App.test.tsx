@@ -40,6 +40,8 @@ describe("App", () => {
     expect(await screen.findByText("Personal Website")).toBeInTheDocument();
     expect(screen.queryByLabelText("State")).not.toBeInTheDocument();
     expect(screen.getByLabelText("Task workspace")).toBeInTheDocument();
+    expect(screen.getByLabelText("Context message")).toBeInTheDocument();
+    expect(screen.queryByText("Message")).not.toBeInTheDocument();
     expect(screen.getByText("Requirement analysis")).toBeInTheDocument();
   });
 
