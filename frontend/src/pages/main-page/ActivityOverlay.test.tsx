@@ -53,10 +53,10 @@ describe("ActivityOverlay", () => {
             title: "Result summary generated",
           }),
           message({
-            body: "Tool failed.",
+            body: "The action did not complete.",
             id: "error-message",
             kind: "error",
-            title: "Command failed",
+            title: "Action needs retry",
           }),
           message({ id: "other-message", title: "General update" }),
         ]}
@@ -69,11 +69,11 @@ describe("ActivityOverlay", () => {
     await user.click(screen.getByRole("button", { name: "Results" }));
 
     expect(screen.getByText("Result summary generated")).toBeInTheDocument();
-    expect(screen.queryByText("Command failed")).not.toBeInTheDocument();
+    expect(screen.queryByText("Action needs retry")).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Errors" }));
 
-    expect(screen.getByText("Command failed")).toBeInTheDocument();
+    expect(screen.getByText("Action needs retry")).toBeInTheDocument();
     expect(screen.queryByText("Result summary generated")).not.toBeInTheDocument();
   });
 

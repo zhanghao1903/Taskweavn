@@ -15,10 +15,7 @@ export function routeMainPageEvent(event: UiEvent): MainPageEventAction {
     return {
       kind: "refetch",
       status: "connected",
-      errorMessage:
-        stringPayload(event.payload.message) ??
-        stringPayload(event.payload.error) ??
-        "A backend command failed. Refreshing session facts.",
+      errorMessage: userFacingFailedEventMessage(event),
     };
   }
 
@@ -47,3 +44,19 @@ function stringPayload(value: unknown): string | null {
   return typeof value === "string" ? value : null;
 }
 
+function userFacingFailedEventMessage(event: UiEvent): string {
+  const candidate =
+    stringPayload(event.payload.message) ?? stringPayload(event.payload.error);
+
+  if (candidate && !containsInternalTerms(candidate)) {
+    return candidate;
+  }
+
+  return "An update failed. Refreshing the session.";
+}
+
+function containsInternalTerms(value: string): boolean {
+  return /\bbackend\b|\bcommand\b|\bprojection\b|\bsnapshot\b|\bsource of truth\b|\bsession facts\b/i.test(
+    value,
+  );
+}

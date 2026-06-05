@@ -18,16 +18,31 @@ describe("MainPage event router", () => {
     });
   });
 
-  it("surfaces command failed event messages", () => {
+  it("surfaces user-facing failed event messages", () => {
     expect(
       routeMainPageEvent({
         ...uiEvent("command.failed"),
         payload: {
-          message: "Command could not be applied.",
+          message: "Update could not be applied.",
         },
       }),
     ).toEqual({
-      errorMessage: "Command could not be applied.",
+      errorMessage: "Update could not be applied.",
+      kind: "refetch",
+      status: "connected",
+    });
+  });
+
+  it("replaces internal failed event messages with user-facing copy", () => {
+    expect(
+      routeMainPageEvent({
+        ...uiEvent("command.failed"),
+        payload: {
+          message: "A backend command failed. Refreshing session facts.",
+        },
+      }),
+    ).toEqual({
+      errorMessage: "An update failed. Refreshing the session.",
       kind: "refetch",
       status: "connected",
     });
