@@ -125,7 +125,7 @@ export function AuthoringAskWorkArea({
           <Text variant="muted">
             {hasIncompleteAnswers
               ? "Complete all questions before submitting."
-              : "Submit all answers together. The backend projection remains the source of truth."}
+              : "Review the questions, then submit all answers together."}
           </Text>
           {view.commandError ? (
             <Text className={styles.error} role="alert" variant="muted">
