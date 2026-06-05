@@ -36,6 +36,18 @@ describe("Main Page mock scenarios", () => {
     }
   });
 
+  it("keeps scenario manifest labels free of internal TaskNode language", () => {
+    const scenarioCopy = listMainPageMockScenarios().flatMap((scenario) => [
+      scenario.title,
+      ...scenario.expectedVisibleComponents,
+      ...scenario.expectedPrimaryActions,
+      ...scenario.expectedDisabledActions,
+      scenario.expectedRecoveryBehavior ?? undefined,
+    ]);
+
+    expect(scenarioCopy.filter(Boolean).join("\n")).not.toContain("TaskNode");
+  });
+
   it("declares interaction scenarios for ASK, confirmation, and stale snapshots", () => {
     const scenarios = listMainPageMockScenarios();
 

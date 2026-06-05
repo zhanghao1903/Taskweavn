@@ -44,6 +44,30 @@ describe("mock Plato API adapter", () => {
     }
   });
 
+  it("keeps fixture and catalog copy free of internal TaskNode language", () => {
+    const fixtureCopy = mainPageStates.flatMap((state) => [
+      state.detail.eyebrow,
+      state.detail.title,
+      state.detail.body,
+      "actionLabel" in state.detail ? state.detail.actionLabel : undefined,
+      state.inputScope.label,
+      state.inputScope.placeholder,
+      ...state.messages.flatMap((message) => [message.title, message.body]),
+      state.result?.title,
+      state.result?.summary,
+    ]);
+    const catalogCopy = mainPageStateCatalog.flatMap((state) => [
+      state.userSituation,
+      state.pageFocus,
+      ...state.primarySurfaces,
+      state.expectedUserAction,
+    ]);
+
+    expect([...fixtureCopy, ...catalogCopy].filter(Boolean).join("\n")).not.toContain(
+      "TaskNode",
+    );
+  });
+
   it("can retrieve a catalog entry for each baseline state", () => {
     const ids = mainPageStates.map((state) => state.id as MainPageStateId);
 
