@@ -256,19 +256,16 @@ function FileChangeSummaryPanel({
   detail,
   onShowResult,
 }: FileChangeSummaryPanelProps) {
+  const fileCount = detail.fileChangeSummary.changedFiles.length;
+
   return (
     <Panel className={styles.detailBox} tone="muted">
       <div className={styles.detailTitleRow}>
         <Text as="strong" variant="label">
           Changed files
         </Text>
-        <Badge
-          size="sm"
-          tone={detail.fileChangeSummary.recursive ? "blue" : "neutral"}
-        >
-          {detail.fileChangeSummary.recursive
-            ? "Recursive subtree summary"
-            : "Direct task changes"}
+        <Badge size="sm" tone={fileCount > 0 ? "blue" : "neutral"}>
+          {fileCount === 1 ? "1 file" : `${fileCount} files`}
         </Badge>
       </div>
       <Text variant="muted">{detail.fileChangeSummary.summary}</Text>
@@ -290,7 +287,9 @@ function FileChangeSummaryPanel({
                   {changePresentation.label}
                 </Badge>
               </div>
-              {file.summary && <p>{file.summary}</p>}
+              {file.summary && (
+                <p className={styles.fileChangeSummaryPreview}>{file.summary}</p>
+              )}
             </article>
           );
         })}

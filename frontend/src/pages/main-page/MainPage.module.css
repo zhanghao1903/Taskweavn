@@ -787,6 +787,13 @@
   overflow-wrap: anywhere;
 }
 
+.fileChangeSummaryPreview {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
 .actionRow {
   display: flex;
   flex-wrap: wrap;

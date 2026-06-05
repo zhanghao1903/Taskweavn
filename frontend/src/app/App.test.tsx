@@ -470,7 +470,8 @@ describe("App", () => {
 
     renderFixtureMainPageWithStatePicker("s9-file-changes");
     expect(await screen.findByText("Changed files")).toBeInTheDocument();
-    expect(screen.getByText("Recursive subtree summary")).toBeInTheDocument();
+    expect(screen.getByText("3 files")).toBeInTheDocument();
+    expect(screen.queryByText("Recursive subtree summary")).not.toBeInTheDocument();
     expect(
       screen.getByText("Updated frontend dependencies and scripts."),
     ).toBeInTheDocument();
