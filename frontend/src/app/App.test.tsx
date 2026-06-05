@@ -318,7 +318,7 @@ describe("App", () => {
       />,
     );
 
-    await user.click(await screen.findByRole("button", { name: "Publish TaskTree" }));
+    await user.click(await screen.findByRole("button", { name: "Publish tasks" }));
 
     expect(publishTaskTree).toHaveBeenCalledWith(
       expect.objectContaining({

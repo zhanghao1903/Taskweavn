@@ -42,7 +42,7 @@ export function MainPageWorkspaceHeader({
             disabled={isPublishingTaskTree}
             onClick={onPublishTaskTree}
           >
-            {isPublishingTaskTree ? "Publishing" : "Publish TaskTree"}
+            {isPublishingTaskTree ? "Publishing tasks" : "Publish tasks"}
           </Button>
         ) : null}
         {auditEntry.isEnabled ? (
