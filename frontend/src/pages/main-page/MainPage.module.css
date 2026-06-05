@@ -694,8 +694,7 @@
   gap: var(--plato-space-2);
 }
 
-.latestActivityContent strong,
-.latestActivityContent span {
+.latestActivityContent strong {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -703,19 +702,11 @@
 }
 
 .latestActivityContent strong {
-  flex: 0 1 auto;
+  flex: 1 1 auto;
   color: var(--plato-color-ink);
   font-size: var(--plato-type-card-title-size);
   font-weight: var(--plato-type-card-title-weight);
   line-height: var(--plato-type-card-title-line-height);
-}
-
-.latestActivityContent span {
-  flex: 1 1 auto;
-  color: var(--plato-color-muted);
-  font-size: var(--plato-type-body-sm-size);
-  font-weight: var(--plato-type-body-sm-weight);
-  line-height: var(--plato-type-body-sm-line-height);
 }
 
 .detailPanel {

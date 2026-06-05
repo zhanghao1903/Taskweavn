@@ -29,7 +29,9 @@ describe("LatestActivityStrip", () => {
 
     expect(screen.getByLabelText("Latest activity")).toBeInTheDocument();
     expect(screen.getByText("Implementation started")).toBeInTheDocument();
-    expect(screen.getByText("The implementation TaskNode is running.")).toBeInTheDocument();
+    expect(
+      screen.queryByText("The implementation TaskNode is running."),
+    ).not.toBeInTheDocument();
     expect(screen.queryByText("Planning started")).not.toBeInTheDocument();
     expect(screen.getByText("2 activities")).toBeInTheDocument();
   });

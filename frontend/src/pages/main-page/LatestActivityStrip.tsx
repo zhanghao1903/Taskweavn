@@ -50,7 +50,6 @@ export function LatestActivityStrip({
       </div>
       <div className={styles.latestActivityContent}>
         <strong title={latestMessage.title}>{latestMessage.title}</strong>
-        <span title={latestMessage.body}>{latestMessage.body}</span>
       </div>
       <div className={styles.latestActivityMeta}>
         <Badge size="sm" tone={isMessageScoped ? "blue" : "neutral"}>
