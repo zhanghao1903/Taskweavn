@@ -54,9 +54,10 @@ export function LatestActivityStrip({
         {onOpenActivity ? (
           <Button
             aria-label={`${openActivityLabel} (${activityCountLabel})`}
+            className={styles.latestActivityButton}
             onClick={onOpenActivity}
             size="sm"
-            variant="ghost"
+            variant="secondary"
           >
             {activityCountLabel}
           </Button>

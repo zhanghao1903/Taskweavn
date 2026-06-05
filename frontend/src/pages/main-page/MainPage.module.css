@@ -717,6 +717,20 @@
   line-height: var(--plato-type-caption-line-height);
 }
 
+.latestActivityButton {
+  min-width: 104px;
+  border-color: var(--plato-color-reason-blue);
+  background: var(--plato-color-clear-blue);
+  color: var(--plato-color-reason-blue);
+  box-shadow: 0 1px 2px rgb(24 32 51 / 8%);
+}
+
+.latestActivityButton:hover:not(:disabled),
+.latestActivityButton:focus-visible:not(:disabled) {
+  border-color: var(--plato-color-cave-blue);
+  background: var(--plato-color-panel);
+}
+
 .detailPanel {
   grid-area: detail;
   min-width: var(--plato-detail-min-width);

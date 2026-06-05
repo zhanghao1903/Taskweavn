@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { SessionMessageView, TaskNodeCardView } from "../../shared/api/types";
 import { ActivityOverlay } from "./ActivityOverlay";
+import styles from "./ActivityOverlay.module.css";
 
 describe("ActivityOverlay", () => {
   it("opens on the current task filter and can switch to all activity", async () => {
@@ -35,12 +36,60 @@ describe("ActivityOverlay", () => {
 
     expect(within(overlay).getByRole("heading", { name: "Task updates" }))
       .toBeInTheDocument();
+    expect(
+      within(overlay).getByText("Focused on Initial implementation."),
+    ).toHaveClass(styles.headerDescription);
     expect(within(overlay).getByText("Task update")).toBeInTheDocument();
     expect(within(overlay).queryByText("Session update")).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "All" }));
 
     expect(within(overlay).getByText("Session update")).toBeInTheDocument();
+  });
+
+  it("uses fixed-height, kind-colored message cards", () => {
+    render(
+      <ActivityOverlay
+        allMessages={[
+          message({
+            id: "info-message",
+            kind: "informational",
+            title: "Task update",
+          }),
+          message({
+            id: "action-message",
+            kind: "actionable",
+            title: "Needs confirmation",
+          }),
+          message({
+            id: "result-message",
+            kind: "response",
+            title: "Task completed",
+          }),
+          message({
+            id: "error-message",
+            kind: "error",
+            title: "Action needs retry",
+          }),
+        ]}
+        currentMessages={[]}
+        onClose={vi.fn()}
+        selectedTask={undefined}
+      />,
+    );
+
+    expect(screen.getByText("Task update").closest("li")).toHaveClass(
+      styles.activityItemInformational,
+    );
+    expect(screen.getByText("Needs confirmation").closest("li")).toHaveClass(
+      styles.activityItemActionable,
+    );
+    expect(screen.getByText("Task completed").closest("li")).toHaveClass(
+      styles.activityItemResponse,
+    );
+    expect(screen.getByText("Action needs retry").closest("li")).toHaveClass(
+      styles.activityItemError,
+    );
   });
 
   it("filters result and error activity", async () => {

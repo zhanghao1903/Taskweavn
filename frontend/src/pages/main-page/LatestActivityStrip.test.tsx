@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { SessionMessageView, TaskNodeCardView } from "../../shared/api/types";
 import { LatestActivityStrip } from "./LatestActivityStrip";
+import styles from "./MainPage.module.css";
 
 describe("LatestActivityStrip", () => {
   it("renders only the latest activity from the projected messages", () => {
@@ -60,11 +61,12 @@ describe("LatestActivityStrip", () => {
     expect(
       screen.getByText("Current task · Update"),
     ).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", {
-        name: "Open task updates (Activity 1/3)",
-      }),
-    ).toHaveTextContent("Activity 1/3");
+    const activityButton = screen.getByRole("button", {
+      name: "Open task updates (Activity 1/3)",
+    });
+
+    expect(activityButton).toHaveTextContent("Activity 1/3");
+    expect(activityButton).toHaveClass(styles.latestActivityButton);
   });
 
   it("opens the activity overlay from the one-line strip", async () => {

@@ -5,6 +5,7 @@ import type {
   TaskNodeCardView,
 } from "../../shared/api/types";
 import { Badge, Button, Text } from "../../shared/components";
+import { cx } from "../../shared/utils/cx";
 import { selectMessageKindPresentation } from "./mainPageSelectors";
 import styles from "./ActivityOverlay.module.css";
 
@@ -58,7 +59,7 @@ export function ActivityOverlay({
             Activity
           </Text>
           <h2>{overlayTitle}</h2>
-          <p>
+          <p className={styles.headerDescription}>
             {selectedTask
               ? `Focused on ${selectedTask.title}.`
               : "All session updates."}
@@ -129,7 +130,7 @@ function ActivityItem({
   const isResult = isResultActivity(message);
 
   return (
-    <li className={styles.activityItem}>
+    <li className={cx(styles.activityItem, activityItemKindClass(message.kind))}>
       <div className={styles.itemHeader}>
         <Badge size="sm" tone={kindPresentation.tone}>
           {kindPresentation.label}
@@ -152,6 +153,20 @@ function ActivityItem({
       </div>
     </li>
   );
+}
+
+function activityItemKindClass(kind: SessionMessageView["kind"]) {
+  switch (kind) {
+    case "actionable":
+      return styles.activityItemActionable;
+    case "error":
+      return styles.activityItemError;
+    case "response":
+      return styles.activityItemResponse;
+    case "informational":
+    default:
+      return styles.activityItemInformational;
+  }
 }
 
 function ResultReader({

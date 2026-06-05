@@ -32,13 +32,23 @@
   line-height: var(--plato-type-page-title-line-height);
 }
 
-.header p,
+.headerDescription,
 .emptyState p,
 .activityItem p {
   margin: 0;
   color: var(--plato-color-muted);
-  font-size: var(--plato-type-body-sm-size);
-  line-height: var(--plato-type-body-sm-line-height);
+}
+
+.headerDescription {
+  font-size: var(--plato-type-body-size);
+  line-height: var(--plato-type-body-line-height);
+  overflow-wrap: anywhere;
+}
+
+.emptyState p,
+.activityItem p {
+  font-size: var(--plato-type-body-size);
+  line-height: var(--plato-type-body-line-height);
 }
 
 .filters {
@@ -74,6 +84,8 @@
 
 .timeline {
   display: grid;
+  grid-auto-rows: 168px;
+  align-content: start;
   min-height: 0;
   gap: var(--plato-space-3);
   margin: 0;
@@ -85,12 +97,36 @@
 
 .activityItem {
   display: grid;
+  min-height: 0;
   min-width: 0;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
   gap: var(--plato-space-2);
+  overflow: hidden;
   border: 1px solid var(--plato-color-line);
+  border-left: 3px solid var(--plato-color-reason-blue);
   border-radius: var(--plato-radius-lg);
-  padding: var(--plato-space-3);
+  padding: var(--plato-space-3) var(--plato-space-4);
   background: var(--plato-color-placeholder-card-surface);
+}
+
+.activityItemInformational {
+  border-left-color: var(--plato-color-reason-blue);
+  background: var(--plato-color-panel);
+}
+
+.activityItemActionable {
+  border-left-color: var(--plato-color-warning-text);
+  background: var(--plato-color-warning-bg);
+}
+
+.activityItemResponse {
+  border-left-color: var(--plato-color-success-text);
+  background: var(--plato-color-success-bg);
+}
+
+.activityItemError {
+  border-left-color: var(--plato-color-danger-text);
+  background: var(--plato-color-danger-bg);
 }
 
 .activityItem strong {
