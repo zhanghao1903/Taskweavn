@@ -25,6 +25,8 @@ describe("ExecutionAskDetailPanel", () => {
     );
 
     expect(screen.getByText("Task: Initial implementation")).toBeInTheDocument();
+    expect(screen.getByText("Waiting")).toBeInTheDocument();
+    expect(screen.queryByText("pending")).not.toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Cancel question" }),
     ).toBeInTheDocument();

@@ -102,7 +102,9 @@ export function ExecutionAskDetailPanel({
         <Text as="strong" variant="label">
           Task input required
         </Text>
-        <Badge tone={isStale ? "danger" : "warning"}>{ask.status}</Badge>
+        <Badge tone={isStale ? "danger" : "warning"}>
+          {askStatusLabel(ask.status)}
+        </Badge>
       </div>
 
       {detail.selectedTask ? (
@@ -221,6 +223,18 @@ export function ExecutionAskDetailPanel({
       </div>
     </section>
   );
+}
+
+function askStatusLabel(status: AskRequestView["status"]) {
+  const labels: Record<AskRequestView["status"], string> = {
+    answered: "Answered",
+    cancelled: "Cancelled",
+    deferred: "Deferred",
+    expired: "Expired",
+    pending: "Waiting",
+  };
+
+  return labels[status];
 }
 
 function emptyDraft(): ExecutionAskDraft {
