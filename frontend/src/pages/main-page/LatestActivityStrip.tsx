@@ -32,8 +32,8 @@ export function LatestActivityStrip({
   const kindPresentation = selectMessageKindPresentation(latestMessage.kind);
   const activityCountLabel =
     isMessageScoped && visibleMessageCount !== totalMessageCount
-      ? `${visibleMessageCount}/${totalMessageCount} shown`
-      : `${totalMessageCount} ${totalMessageCount === 1 ? "activity" : "activities"}`;
+      ? `Activity ${visibleMessageCount}/${totalMessageCount}`
+      : `Activity ${totalMessageCount}`;
   const scopeLabel = latestMessage.taskNodeId
     ? selectedTask
       ? "Current task"
@@ -57,19 +57,20 @@ export function LatestActivityStrip({
         <Badge size="sm" tone={isMessageScoped ? "blue" : "neutral"}>
           {scopeLabel}
         </Badge>
-        <Badge size="sm" tone="neutral">
-          {activityCountLabel}
-        </Badge>
         {onOpenActivity ? (
           <Button
-            aria-label="Open activity overlay"
+            aria-label={`Open activity overlay (${activityCountLabel})`}
             onClick={onOpenActivity}
             size="sm"
             variant="ghost"
           >
-            View
+            {activityCountLabel}
           </Button>
-        ) : null}
+        ) : (
+          <Badge size="sm" tone="neutral">
+            {activityCountLabel}
+          </Badge>
+        )}
       </div>
     </aside>
   );

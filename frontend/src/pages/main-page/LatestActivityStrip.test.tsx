@@ -34,7 +34,7 @@ describe("LatestActivityStrip", () => {
       screen.queryByText("The implementation TaskNode is running."),
     ).not.toBeInTheDocument();
     expect(screen.queryByText("Planning started")).not.toBeInTheDocument();
-    expect(screen.getByText("2 activities")).toBeInTheDocument();
+    expect(screen.getByText("Activity 2")).toBeInTheDocument();
   });
 
   it("shows scoped activity counts when a TaskNode is selected", () => {
@@ -54,7 +54,7 @@ describe("LatestActivityStrip", () => {
     );
 
     expect(screen.getByText("Current task")).toBeInTheDocument();
-    expect(screen.getByText("1/3 shown")).toBeInTheDocument();
+    expect(screen.getByText("Activity 1/3")).toBeInTheDocument();
   });
 
   it("opens the activity overlay from the one-line strip", async () => {
@@ -72,7 +72,11 @@ describe("LatestActivityStrip", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: "Open activity overlay" }));
+    await user.click(
+      screen.getByRole("button", {
+        name: "Open activity overlay (Activity 1)",
+      }),
+    );
 
     expect(onOpenActivity).toHaveBeenCalledTimes(1);
   });
