@@ -16,11 +16,7 @@ export function SessionMessageCard({ message }: SessionMessageCardProps) {
         <Badge size="sm" tone={kindPresentation.tone}>
           {kindPresentation.label}
         </Badge>
-        <span>
-          {message.taskNodeId
-            ? `TaskNode: ${message.taskNodeId}`
-            : "Session-wide"}
-        </span>
+        <span>{message.taskNodeId ? "Task activity" : "Session-wide"}</span>
       </div>
       <strong className={styles.listCardTitle} title={message.title}>
         {message.title}

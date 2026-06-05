@@ -32,7 +32,8 @@ describe("SessionMessageCard", () => {
     );
 
     expect(screen.getByText("actionable")).toBeInTheDocument();
-    expect(screen.getByText("TaskNode: task-implementation")).toBeInTheDocument();
+    expect(screen.getByText("Task activity")).toBeInTheDocument();
+    expect(screen.queryByText("TaskNode: task-implementation")).not.toBeInTheDocument();
   });
 });
 
