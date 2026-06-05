@@ -112,7 +112,8 @@ describe("main page selectors", () => {
     expect(projection.fileChangeSummary).toMatchObject({
       taskNodeId: "task-parent",
       recursive: true,
-      summary: "Recursive summary: 1 files changed in this TaskNode subtree.",
+      summary:
+        "Recursive summary: 1 files changed in the selected task and its children.",
     });
     expect(projection.fileChangeSummary?.changedFiles).toEqual([
       expect.objectContaining({ path: "src/child.ts" }),

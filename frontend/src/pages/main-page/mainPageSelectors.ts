@@ -433,7 +433,7 @@ export function selectFileChangeSummaryInTaskScope(
     ...summary,
     changedFiles,
     recursive: true,
-    summary: `Recursive summary: ${changedFiles.length} files changed in this TaskNode subtree.`,
+    summary: `Recursive summary: ${changedFiles.length} files changed in the selected task and its children.`,
     taskNodeId: selectedTask.id,
   };
 }

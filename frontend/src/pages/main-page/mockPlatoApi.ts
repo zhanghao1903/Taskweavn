@@ -303,7 +303,7 @@ export async function appendTaskInputMockCommand(
 
   return acceptedCommandResponse({
     commandId: request.commandId,
-    message: `Task input accepted for ${taskNodeId}.`,
+    message: "Task input accepted.",
     sessionId,
     taskNodeId,
   });
@@ -330,7 +330,7 @@ export async function updateTaskNodeMockCommand(
 
   return acceptedCommandResponse({
     commandId: request.commandId,
-    message: `TaskNode update accepted for ${taskNodeId}.`,
+    message: "Task update accepted.",
     sessionId,
     taskNodeId,
   });
@@ -838,7 +838,7 @@ function toFileChangeSummaryView(
     changedFiles: summary.changedFiles.map((path) =>
       toFileChangeItem(path, summary.taskNodeId),
     ),
-    summary: `Recursive summary: ${summary.changedFiles.length} files changed in this TaskNode subtree.`,
+    summary: `Recursive summary: ${summary.changedFiles.length} files changed in the selected task and its children.`,
     updatedAt: "2026-05-17T10:15:00+08:00",
   };
 }
@@ -877,7 +877,7 @@ function toFileChangeItem(
   return {
     path,
     changeType: "modified",
-    summary: "Updated by the selected TaskNode.",
+    summary: "Updated by the selected task.",
     ownerTaskNodeId,
   };
 }
