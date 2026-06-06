@@ -66,7 +66,8 @@ The user should not need to understand:
 | Environment | Purpose | Expected command / setup | Exit criteria |
 |---|---|---|---|
 | Mock frontend | Fast UI regression and scenario parity. | `cd frontend && npm run test`; optional Vite mock mode without `VITE_PLATO_API_MODE=http`. | Main Page and Audit Page mock scenarios still render and tests pass. |
-| Formal sidecar E2E | Product 1.0 frontend integration acceptance and CI gate. | `cd frontend && npm run test:e2e:sidecar`. CI runs the same command in `.github/workflows/product-1-0-frontend-integration.yml`. | Real sidecar fixtures validate Diagnostic Bundle export plus the current read-only Settings first-run configured and unconfigured paths. |
+| Formal sidecar E2E | Product 1.0 frontend integration acceptance and CI gate. | `cd frontend && npm run test:e2e:sidecar`. CI runs the same command in `.github/workflows/product-1-0-frontend-integration.yml`. | Real sidecar fixtures validate Diagnostic Bundle export plus Settings first-run configured and unconfigured save/recheck paths. |
+| First-run manual smoke | Product setup acceptance without manually copying sidecar env vars. | `cd frontend && npm run dev:sidecar:first-run`. Optional Vite args can be passed after `--`, such as `npm run dev:sidecar:first-run -- --port 5174`. | Browser opens `/` in HTTP mode, shows first-run setup required, saves Settings, rechecks readiness, and reaches Main Page. |
 | Local sidecar HTTP | Main Product 1.0 runtime validation. | `uv run taskweavn plato-dev --workspace ./plato-workspace`. | Browser can complete the user loop through local HTTP/SSE. |
 | Direct sidecar + frontend | Debug mode when ports/env need inspection. | `uv run taskweavn plato-sidecar --workspace ./plato-workspace`; then run Vite with printed env vars. | Frontend can load `GET /api/v1/sessions/{sessionId}/snapshot` and receive events. |
 | Packaged browser/Electron | Release-readiness smoke. | TBD packaging command. | Same user loop works outside developer-only setup. |
@@ -88,6 +89,8 @@ Before manual QA:
   is part of the release candidate.
 - `uv run taskweavn plato-dev --workspace ./plato-workspace` starts both the
   sidecar and frontend.
+- For Settings first-run acceptance, `cd frontend && npm run dev:sidecar:first-run`
+  starts an unconfigured sidecar and Vite without manual env copying.
 - The browser can reach the frontend dev URL.
 - The sidecar health endpoint is reachable.
 - The frontend console has no startup crash.
@@ -500,7 +503,7 @@ These are known gaps. QA should observe them, but not silently expand Product
 | Broader evidence coverage | Verify current EventStream/log/config/confirmation coverage; record missing evidence as partial/not_available if safe. |
 | Message and confirmation UI hardening | Treat confusing or unsafe confirmation behavior as P0/P1. |
 | Recoverable error UX | Treat missing user recovery on common failures as P1. |
-| Settings first-run completion | Current E2E covers the read-only gate. Full product acceptance still requires Settings route, save/recheck flow, secret-storage/write API decision, degraded warnings, and setup diagnostics action. |
+| Settings first-run completion | Verify the product setup path manually with `npm run dev:sidecar:first-run`; the formal E2E covers unconfigured save/recheck and configured readiness. |
 | Diagnostic bundle | Needed for early testers, but can be a separate release-readiness task. |
 | Packaging / Electron | Required before non-developer users; not required for local developer smoke. |
 | Mobile-specific Audit polish | Defer unless mobile is included in the first user test group. |
