@@ -2,13 +2,15 @@ import type {
   TaskNodeId,
   TaskTreeView,
 } from "../../shared/api/types";
-import { Panel, Text } from "../../shared/components";
+import { Badge, Panel, Text } from "../../shared/components";
 import { TaskNodeCard } from "./TaskNodeCard";
 import styles from "./MainPage.module.css";
 
 export type TaskTreePanelProps = {
+  isTaskPlanSelected?: boolean;
   isGeneratingTaskPlan?: boolean;
   onRetryTask: (nodeId: TaskNodeId) => void;
+  onSelectTaskPlan: () => void;
   onSelectTask: (nodeId: TaskNodeId) => void;
   onStopTask: (nodeId: TaskNodeId) => void;
   selectedTaskNodeId: TaskNodeId | null;
@@ -16,19 +18,39 @@ export type TaskTreePanelProps = {
 };
 
 export function TaskTreePanel({
+  isTaskPlanSelected = false,
   isGeneratingTaskPlan = false,
   onRetryTask,
+  onSelectTaskPlan,
   onSelectTask,
   onStopTask,
   selectedTaskNodeId,
   taskTree,
 }: TaskTreePanelProps) {
-  return (
-    <Panel
-      className={styles.workPanel}
-      tone="surface"
-    >
-      {taskTree ? (
+  if (taskTree) {
+    return (
+      <div className={styles.taskListPanel}>
+        <button
+          aria-pressed={isTaskPlanSelected}
+          className={
+            isTaskPlanSelected ? styles.selectedPlanCard : styles.planCard
+          }
+          onClick={onSelectTaskPlan}
+          type="button"
+        >
+          <span className={styles.planText}>
+            <span className={styles.planEyebrow}>Plan overview</span>
+            <strong className={styles.listCardTitle} title={taskTree.title}>
+              {taskTree.title}
+            </strong>
+            <small className={styles.listCardBody}>
+              {taskTree.nodes.length === 1
+                ? "1 task in this plan"
+                : `${taskTree.nodes.length} tasks in this plan`}
+            </small>
+          </span>
+          <Badge tone="blue">{taskTree.status}</Badge>
+        </button>
         <div className={styles.taskList}>
           {taskTree.nodes.map((node) => (
             <TaskNodeCard
@@ -41,7 +63,16 @@ export function TaskTreePanel({
             />
           ))}
         </div>
-      ) : isGeneratingTaskPlan ? (
+      </div>
+    );
+  }
+
+  return (
+    <Panel
+      className={styles.workPanel}
+      tone="surface"
+    >
+      {isGeneratingTaskPlan ? (
         <TaskPlanGeneratingState />
       ) : (
         <div className={styles.emptyState}>

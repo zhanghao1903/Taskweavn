@@ -2,6 +2,7 @@
 
 > Status: accepted
 > Date: 2026-05-14
+> Last Updated: 2026-06-06
 > Related: [Authoring Domain](../architecture/authoring-domain.md), [Authoring Command Protocol](../architecture/authoring-command-protocol.md), [RawTask discussion](../discussion/2026-05-14-raw-task-authoring-domain.md), [Collaborator Agent plan](../plans/feature/collaborator-agent-task-authoring.md), [TaskBus](../architecture/bus.md)
 > User Needs: [UN-105](../user_model/needs/UN-105-system-evaluability-and-capability-disclosure.md), [UN-101](../user_model/needs/UN-101-photo-curation-batch-screening.md), [UN-102](../user_model/needs/UN-102-courseware-html-generation.md), [UN-103](../user_model/needs/UN-103-car-purchase-decision-support.md)
 
@@ -99,6 +100,30 @@ Collaborator LLM
 
 This keeps RawTask exploration and DraftTaskTree editing out of ordinary execution tools. Tool adapters may exist later for compatibility, but they must be thin wrappers over command handlers rather than independent mutation paths.
 
+### 2026-06-06 Addendum: One Active Domain Per Session View
+
+The Authoring/Execution boundary also applies to the product control surface.
+Storage may preserve both authoring evidence and task evidence, but the Main
+Page must not expose both as active workflows at the same time.
+
+Additional decision:
+
+```text
+Before TaskTree exists:
+  active workflow = Authoring Domain
+
+After DraftTaskTree or PublishedTask exists:
+  active workflow = Task Domain
+  RawTask / RawTaskAsk = provenance unless explicit revision starts
+```
+
+Late answers to stale authoring asks must not create a new RawTask or silently
+replace the current TaskTree. They are rejected as stale, recorded as recovery
+evidence, or converted only through an explicit plan-revision command.
+
+This addendum keeps Product 1.0 line-first: users should always know whether
+they are clarifying initial intent, editing the plan, or guiding execution.
+
 ---
 
 ## Consequences
@@ -120,6 +145,9 @@ Trade-offs:
 - Collaborator implementation can change often, but command handlers and stores should remain stable.
 - RawTask authoring uses lighter audit than published execution Tasks, while preserving command/message/version traceability.
 - If future demand requires asynchronous authoring workers, we may need an AuthoringBus or a generic WorkBus. That is deferred until there is a concrete need.
+- Projection and command gateways must handle dirty legacy Sessions where
+  pending RawTaskAsk and TaskTree facts coexist. The user-facing active domain
+  is Task Domain, while old authoring facts remain readable history.
 
 Rejected alternatives:
 

@@ -316,6 +316,7 @@ function executionAskDetail(
       confirmation: null,
       auditVerdict: "not_available",
       depth: 0,
+      displayIndex: 1,
       orderIndex: 0,
       badges: {
         directFileChangeCount: 0,

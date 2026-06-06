@@ -74,9 +74,11 @@ def test_map_task_tree_uses_synthetic_projection_id_and_flat_nodes() -> None:
     assert mapped.id == "session:session-1:task-tree"
     assert mapped.status == "published"
     assert payload["nodes"][0]["id"] == "root"
+    assert payload["nodes"][0]["displayIndex"] == 1
     assert payload["nodes"][0]["status"] == "queued"
     assert payload["nodes"][0]["execution"] == "pending"
     assert payload["nodes"][1]["parentId"] == "root"
+    assert payload["nodes"][1]["displayIndex"] == 2
     assert payload["nodes"][0]["badges"]["subtreeFileChangeCount"] == 3
     assert payload["nodes"][0]["permissions"]["canCancel"] is True
 

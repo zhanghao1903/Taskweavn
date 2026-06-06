@@ -2,7 +2,7 @@
 
 > Status: MVP contract baseline
 >
-> Last Updated: 2026-05-21
+> Last Updated: 2026-06-06
 >
 > Scope: Plato Main Page 1.0 的前后端通信合约。本文服务 F6 Backend Integration，不替代后端领域模型、数据库 schema 或完整 transport 实现。
 >
@@ -161,6 +161,34 @@ Session messages
 - optimistic pending indicator。
 
 后端只保存可回放的用户意图和系统事实。
+
+### 3.7 Snapshot 只暴露一个 Active Domain
+
+Main Page snapshot 必须把 Session 投影成一个用户可操作的 active domain。
+
+```text
+Authoring active:
+  taskTree = null
+  planning.state in capturing_input / assessing / awaiting_user / ready_to_plan
+  planning.asks may contain pending authoring asks
+
+Task active:
+  taskTree != null
+  plan or TaskNode becomes the input/detail target
+  planning.asks must not expose stale authoring asks as actionable controls
+```
+
+如果底层事实同时存在 `RawTaskAsk(status=pending)` 和 `TaskTreeView`，Gateway
+不能把这个脏状态原样交给 UI。推荐投影规则：
+
+1. `taskTree != null` 时，Task Domain 优先成为 active domain；
+2. pending authoring asks 转为 `superseded`、隐藏为 active 控件，或作为
+   read-only history/audit evidence 暴露；
+3. 用户旧回答不能隐式生成新的 RawTask；
+4. 如需复用旧回答，必须通过显式命令进入 plan guidance 或 draft revision。
+
+前端只负责展示已归一化 ViewModel，不应在组件里自行判断 RawTask 与
+TaskTree 谁优先。
 
 ## 4. Transport 方向
 
@@ -337,6 +365,11 @@ type ApiError = {
 };
 ```
 
+`code="command_rejected"` 可使用 `details.reason` 承载更细的领域拒绝原因。
+其中 `stale_authoring_context` 表示用户正在回答的 authoring ASK 已经被当前
+TaskTree / Task Domain supersede。前端收到后应刷新 snapshot，并提示用户改用
+plan guidance 或显式修订计划。
+
 ## 7. Main Page ViewModel
 
 ### 7.1 MainPageSnapshot
@@ -364,11 +397,15 @@ type MainPageSnapshot = {
 Snapshot 不包含：
 
 - `selectedTaskNodeId`
+- `selectedTarget`
 - `detailMode`
 - `inputDraft`
 - `expandedNodeIds`
 
 这些由前端本地 store 管理。
+
+`selectedTarget = "plan"` 表示用户正在选中整个 TaskTree/plan，而不是某个
+TaskNode。它只影响 Main Page 的 detail/input 作用域，不写回后端。
 
 ### 7.2 ProjectSummary
 
@@ -455,6 +492,7 @@ type TaskNodeCardView = {
   status: TaskNodeStatus;
   depth: number;
   orderIndex: number;
+  displayIndex: number;
   badges: TaskNodeBadges;
   permissions: TaskNodePermissions;
   version: number;

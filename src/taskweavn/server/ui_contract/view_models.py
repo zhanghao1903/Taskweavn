@@ -118,6 +118,7 @@ class TaskNodeCardView(UiContractModel):
     execution: ExecutionStatus = "unknown"
     depth: int = Field(default=0, ge=0)
     order_index: int = Field(default=0, ge=0)
+    display_index: int = Field(default=1, ge=1)
     result_ref: str | None = Field(default=None, min_length=1)
     error_ref: str | None = Field(default=None, min_length=1)
     interruption_requested: bool = False
@@ -202,7 +203,7 @@ class PlanningAskView(UiContractModel):
     reason: str = Field(min_length=1)
     required: bool = True
     options: tuple[ConfirmationOptionView, ...] = ()
-    status: Literal["pending", "answered", "expired"] = "pending"
+    status: Literal["pending", "answered", "expired", "superseded"] = "pending"
 
 
 class PlanningView(UiContractModel):

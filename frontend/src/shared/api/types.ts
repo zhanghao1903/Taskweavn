@@ -272,6 +272,7 @@ export type TaskNodeCardView = {
   interruptionRequested?: boolean;
   depth: number;
   orderIndex: number;
+  displayIndex: number;
   badges: TaskNodeBadges;
   permissions: TaskNodePermissions;
   readonlyReason?: string | null;
@@ -352,7 +353,7 @@ export type PlanningAskView = {
   reason: string;
   required: boolean;
   options: ConfirmationOptionView[];
-  status: "pending" | "answered" | "expired";
+  status: "pending" | "answered" | "expired" | "superseded";
 };
 
 export type PlanningView = {

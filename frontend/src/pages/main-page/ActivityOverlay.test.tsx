@@ -259,6 +259,7 @@ const taskNode: TaskNodeCardView = {
     unreadMessageCount: 0,
   },
   depth: 0,
+  displayIndex: 2,
   execution: "running",
   orderIndex: 1,
   parentId: null,

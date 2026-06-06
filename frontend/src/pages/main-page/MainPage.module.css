@@ -17,6 +17,9 @@
     11dvh,
     var(--plato-inputbar-max-height)
   );
+  --plato-input-action-size: 44px;
+  --plato-input-scope-min-width: 136px;
+  --plato-input-scope-max-width: 220px;
   --plato-sidebar-min-width: 200px;
   --plato-sidebar-max-width: 260px;
   --plato-workspace-min-width: 600px;
@@ -492,6 +495,19 @@
   overflow: auto;
 }
 
+.taskListPanel {
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  border-top: 1px solid var(--plato-color-line);
+  padding-top: var(--plato-space-4);
+}
+
+.workGridWithoutActivity .taskListPanel {
+  border-top: 0;
+  padding-top: 0;
+}
+
 .panelTitleRow {
   gap: var(--plato-space-2);
   margin-bottom: var(--plato-space-4);
@@ -512,6 +528,63 @@
 .messageList {
   display: grid;
   gap: var(--plato-space-3);
+}
+
+.taskListPanel .taskList {
+  padding-top: var(--plato-space-4);
+}
+
+.planCard,
+.selectedPlanCard {
+  display: grid;
+  width: 100%;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--plato-space-3);
+  border: 0;
+  border-bottom: 1px solid var(--plato-color-line);
+  border-left: 3px solid var(--plato-color-clear-blue);
+  border-radius: var(--plato-radius-sm);
+  padding: var(--plato-space-3) var(--plato-space-4);
+  background: var(--plato-color-placeholder-card-surface);
+  color: var(--plato-color-ink);
+  cursor: pointer;
+  text-align: left;
+}
+
+.selectedPlanCard {
+  border-bottom-color: var(--plato-color-line);
+  border-left-color: var(--plato-color-reason-blue);
+  background: linear-gradient(
+    90deg,
+    var(--plato-color-clear-blue) 0%,
+    var(--plato-color-placeholder-card-surface) 88%
+  );
+}
+
+.planCard:hover {
+  border-left-color: var(--plato-color-reason-blue);
+  background: var(--plato-color-clear-blue);
+}
+
+.planCard:focus-visible,
+.selectedPlanCard:focus-visible {
+  outline: none;
+  box-shadow: var(--plato-shadow-focus);
+}
+
+.planText {
+  display: grid;
+  min-width: 0;
+  gap: var(--plato-space-1);
+}
+
+.planEyebrow {
+  color: var(--plato-color-reason-blue);
+  font-size: var(--plato-type-caption-size);
+  font-weight: var(--plato-type-caption-weight);
+  line-height: var(--plato-type-caption-line-height);
+  text-transform: uppercase;
 }
 
 .emptyState {
@@ -675,6 +748,13 @@
   display: grid;
   min-width: 0;
   gap: var(--plato-space-1);
+}
+
+.taskIndex {
+  color: var(--plato-color-dim);
+  font-size: var(--plato-type-caption-size);
+  font-weight: var(--plato-type-caption-weight);
+  line-height: var(--plato-type-caption-line-height);
 }
 
 .listCardTitle,
@@ -961,13 +1041,25 @@
   bottom: var(--plato-page-padding);
   z-index: 20;
   display: grid;
-  grid-template-columns: minmax(220px, 0.6fr) minmax(280px, 1fr) 48px;
+  grid-template-columns:
+    minmax(
+      var(--plato-input-scope-min-width),
+      var(--plato-input-scope-max-width)
+    )
+    minmax(280px, 1fr)
+    var(--plato-input-action-size);
   min-width: 0;
   height: var(--plato-inputbar-height);
   align-items: center;
-  gap: var(--plato-space-4);
+  gap: var(--plato-space-3);
   overflow: hidden;
-  padding: var(--plato-space-5);
+  padding: var(--plato-space-4);
+}
+
+.contextInputScope {
+  display: grid;
+  min-width: 0;
+  gap: var(--plato-space-1);
 }
 
 .contextInputField {
@@ -976,26 +1068,41 @@
   gap: var(--plato-space-1);
 }
 
-.contextInput > div strong {
+.contextInputScope strong {
+  min-width: 0;
+  overflow: hidden;
   font-size: var(--plato-type-body-size);
   font-weight: var(--plato-type-body-strong-weight);
   line-height: var(--plato-type-body-line-height);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.contextInput > div p {
+.contextInputScope p {
+  min-width: 0;
+  overflow: hidden;
   font-size: var(--plato-type-body-sm-size);
   line-height: var(--plato-type-body-sm-line-height);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .contextInputField input {
   width: 100%;
   min-width: 0;
+  height: var(--plato-input-action-size);
   border: 1px solid var(--plato-color-line);
-  border-radius: var(--plato-radius-md);
-  padding: var(--plato-space-3);
+  border-radius: var(--plato-radius-lg);
+  padding: 0 var(--plato-space-4);
   background: var(--plato-color-panel);
   color: var(--plato-color-ink);
   font: inherit;
+}
+
+.contextInputField input:focus-visible {
+  border-color: var(--plato-color-reason-blue);
+  outline: none;
+  box-shadow: var(--plato-shadow-focus);
 }
 
 .contextInputField input:disabled {
@@ -1004,8 +1111,8 @@
 
 .contextInput button {
   display: inline-grid;
-  width: 48px;
-  height: 40px;
+  width: var(--plato-input-action-size);
+  height: var(--plato-input-action-size);
   place-items: center;
   background: var(--plato-color-reason-blue);
   color: var(--plato-color-semantic-on-action-primary);

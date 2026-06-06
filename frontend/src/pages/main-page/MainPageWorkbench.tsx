@@ -125,12 +125,16 @@ export function MainPageWorkbench({
               visibleMessageCount={viewModel.taskWorkspace.visibleMessageCount}
             />
             <TaskTreePanel
+              isTaskPlanSelected={
+                viewModel.taskWorkspace.isTaskPlanSelected
+              }
               onRetryTask={(taskNodeId) =>
                 actions.retryTask({
                   sessionId: viewModel.sessionId,
                   taskNodeId,
                 })
               }
+              onSelectTaskPlan={actions.selectTaskPlan}
               onSelectTask={actions.selectTask}
               onStopTask={(taskNodeId) =>
                 actions.stopTask({

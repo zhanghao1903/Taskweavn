@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from typing import Literal
 
 from taskweavn.core.session import Session
 from taskweavn.interaction import AskStatus
@@ -202,7 +203,7 @@ class DefaultUiQueryGateway:
                 self._session_messages(session.id),
             )
             confirmations = _confirmations_from_tree(source_tree, session_id=session.id)
-            planning = self._planning(session.id)
+            planning = self._planning(session.id, task_tree=task_tree)
             pending_asks = self._pending_asks(session.id)
             active_ask = self._active_ask(session.id, task_tree=task_tree)
             result = _result_from_tree(
@@ -737,11 +738,16 @@ class DefaultUiQueryGateway:
             return None
         return self._ask_projection.active_ask(session_id, task_tree=task_tree)
 
-    def _planning(self, session_id: str) -> PlanningView | None:
+    def _planning(
+        self,
+        session_id: str,
+        *,
+        task_tree: TaskTreeView | None,
+    ) -> PlanningView | None:
         raw_task = self._active_raw_task(session_id)
         if raw_task is None:
             return None
-        return _planning_from_raw_task(raw_task)
+        return _planning_from_raw_task(raw_task, task_tree=task_tree)
 
     def _active_raw_task(self, session_id: str) -> RawTask | None:
         if self._raw_task_store is None:
@@ -783,10 +789,21 @@ def _is_draft_tree(source: CoreTaskTreeView) -> bool:
     return all(node.task_ref.kind == "draft" for node in source.nodes)
 
 
-def _planning_from_raw_task(raw_task: RawTask) -> PlanningView:
+def _planning_from_raw_task(
+    raw_task: RawTask,
+    *,
+    task_tree: TaskTreeView | None = None,
+) -> PlanningView:
     answered_ask_ids = {answer.ask_id for answer in raw_task.answers}
+    ask_status: Literal["pending", "superseded"] = (
+        "superseded" if task_tree is not None else "pending"
+    )
     return PlanningView(
-        state=_planning_state(raw_task),
+        state=(
+            _planning_state_for_task_tree(task_tree)
+            if task_tree is not None
+            else _planning_state(raw_task)
+        ),
         source_raw_task_id=raw_task.raw_task_id,
         title=_planning_title(raw_task),
         summary=raw_task.intent_summary or raw_task.user_input,
@@ -803,12 +820,18 @@ def _planning_from_raw_task(raw_task: RawTask) -> PlanningView:
                     )
                     for option in ask.options
                 ),
-                status="answered" if ask.ask_id in answered_ask_ids else "pending",
+                status="answered" if ask.ask_id in answered_ask_ids else ask_status,
             )
             for ask in raw_task.asks
         ),
         validation=None,
     )
+
+
+def _planning_state_for_task_tree(task_tree: TaskTreeView) -> PlanningState:
+    if task_tree.status == "draft":
+        return "draft_ready"
+    return "published"
 
 
 def _planning_state(raw_task: RawTask) -> PlanningState:

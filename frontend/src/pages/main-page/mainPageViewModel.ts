@@ -26,6 +26,7 @@ import type {
   EventConnectionStatus,
   MainPageDetailHeader,
   MainPageInputScopeView,
+  MainPageSelectionTarget,
 } from "./mainPageUiTypes";
 import type { MainPageStateMetadata } from "./runtime/adapter";
 
@@ -73,6 +74,11 @@ export type MainPageDetailView =
       selectedTask: TaskNodeCardView;
     }
   | {
+      kind: "plan";
+      header: MainPageDetailHeader;
+      taskTree: NonNullable<MainPageSnapshot["taskTree"]>;
+    }
+  | {
       kind: "note";
       body: string;
       header: MainPageDetailHeader;
@@ -80,6 +86,7 @@ export type MainPageDetailView =
 
 export type MainPageInputCommandMode =
   | "generate_task_tree"
+  | "append_plan_input"
   | "append_session_input"
   | "append_task_input";
 
@@ -88,7 +95,7 @@ export type MainPageInputViewModel = {
   disabledReason: string | null;
   mode: MainPageInputCommandMode;
   scope: MainPageInputScopeView;
-  target: "session" | "task";
+  target: "session" | "plan" | "task";
   taskNodeId: TaskNodeId | null;
 };
 
@@ -128,6 +135,7 @@ export type MainPageTaskWorkspaceViewModel = {
   fileChangeSummary: FileChangeSummaryView | null;
   isGeneratingTaskPlan: boolean;
   isMessageScoped: boolean;
+  isTaskPlanSelected: boolean;
   messages: SessionMessageView[];
   result: ResultCardView | null;
   selectedTask: TaskNodeCardView | undefined;
@@ -184,6 +192,7 @@ export type BuildMainPageViewModelInput = {
   isStoppingTask: boolean;
   isResolvingConfirmation: boolean;
   metadata: MainPageStateMetadata;
+  selectionTarget?: MainPageSelectionTarget;
   selectedTaskNodeId: TaskNodeId | null;
   snapshot: MainPageSnapshot;
   taskTreeCommandError: string | null;
@@ -208,6 +217,7 @@ export function buildMainPageViewModel({
   isStoppingTask,
   isResolvingConfirmation,
   metadata,
+  selectionTarget,
   selectedTaskNodeId,
   snapshot,
   taskTreeCommandError,
@@ -219,8 +229,12 @@ export function buildMainPageViewModel({
     isSubmitting: isAnsweringAuthoringAsk,
     planning: snapshot.planning,
   });
+  const effectiveSelectionTarget =
+    selectionTarget ?? (selectedTaskNodeId ? "task" : "auto");
   const effectiveSelectedTaskNodeId =
-    selectedTaskNodeId ?? metadata.initialSelectedTaskNodeId;
+    effectiveSelectionTarget === "plan"
+      ? null
+      : selectedTaskNodeId ?? metadata.initialSelectedTaskNodeId;
   const activeConfirmation =
     snapshot.pendingConfirmations.find(
       (confirmation) => confirmation.taskNodeId === effectiveSelectedTaskNodeId,
@@ -253,6 +267,7 @@ export function buildMainPageViewModel({
   } = scopedProjection;
   const hasExecutionAskFocus = shouldShowExecutionAskDetail({
     activeExecutionAsk,
+    isTaskPlanExplicitlySelected: effectiveSelectionTarget === "plan",
     selectedTask,
   });
   const header = detailHeaderFor({
@@ -263,6 +278,7 @@ export function buildMainPageViewModel({
     hasResultView: wantsResultView && result !== null,
     metadata,
     selectedTask,
+    taskTree: snapshot.taskTree,
   });
   const input = inputViewFor({
     hasAuthoringAsk: authoringAsk !== null,
@@ -305,6 +321,7 @@ export function buildMainPageViewModel({
       isResolvingConfirmation,
       result,
       selectedTask,
+      taskTree: snapshot.taskTree,
       wantsFileChangeView,
       wantsResultView,
     }),
@@ -324,6 +341,8 @@ export function buildMainPageViewModel({
       isGeneratingTaskPlan:
         authoringAsk === null && snapshot.taskTree === null && inputDisabled,
       isMessageScoped: scopedProjection.isMessageScoped,
+      isTaskPlanSelected:
+        snapshot.taskTree !== null && effectiveSelectedTaskNodeId === null,
       messages,
       result,
       selectedTask,
@@ -552,6 +571,7 @@ function detailViewFor({
   isResolvingConfirmation,
   result,
   selectedTask,
+  taskTree,
   wantsFileChangeView,
   wantsResultView,
 }: {
@@ -571,6 +591,7 @@ function detailViewFor({
   isResolvingConfirmation: boolean;
   result: ResultCardView | null;
   selectedTask: TaskNodeCardView | undefined;
+  taskTree: MainPageSnapshot["taskTree"];
   wantsFileChangeView: boolean;
   wantsResultView: boolean;
 }): MainPageDetailView {
@@ -626,6 +647,14 @@ function detailViewFor({
     };
   }
 
+  if (taskTree) {
+    return {
+      kind: "plan",
+      header,
+      taskTree,
+    };
+  }
+
   return {
     kind: "note",
     body: header.body,
@@ -641,6 +670,7 @@ function detailHeaderFor({
   hasResultView,
   metadata,
   selectedTask,
+  taskTree,
 }: {
   activeExecutionAsk: AskRequestView | null;
   hasExecutionAskFocus: boolean;
@@ -649,6 +679,7 @@ function detailHeaderFor({
   hasResultView: boolean;
   metadata: MainPageStateMetadata;
   selectedTask: TaskNodeCardView | undefined;
+  taskTree: MainPageSnapshot["taskTree"];
 }): MainPageDetailHeader {
   if (hasExecutionAskFocus && activeExecutionAsk) {
     return {
@@ -670,17 +701,33 @@ function detailHeaderFor({
     };
   }
 
+  if (taskTree) {
+    return {
+      eyebrow: metadata.detail.eyebrow,
+      title: metadata.detail.title || taskTree.title,
+      body:
+        metadata.detail.body ||
+        "Review or refine the generated task plan before publishing.",
+    };
+  }
+
   return metadata.detail;
 }
 
 function shouldShowExecutionAskDetail({
   activeExecutionAsk,
+  isTaskPlanExplicitlySelected,
   selectedTask,
 }: {
   activeExecutionAsk: AskRequestView | null;
+  isTaskPlanExplicitlySelected: boolean;
   selectedTask: TaskNodeCardView | undefined;
 }): boolean {
   if (!activeExecutionAsk) {
+    return false;
+  }
+
+  if (isTaskPlanExplicitlySelected) {
     return false;
   }
 
@@ -718,6 +765,7 @@ function inputViewFor({
     hasConfirmationFocus,
     metadata,
     selectedTask,
+    taskTree,
   });
 
   const availability = inputAvailabilityFor({
@@ -742,9 +790,9 @@ function inputViewFor({
   return {
     disabled: availability.disabled,
     disabledReason: availability.disabledReason,
-    mode: taskTree === null ? "generate_task_tree" : "append_session_input",
+    mode: taskTree === null ? "generate_task_tree" : "append_plan_input",
     scope,
-    target: "session",
+    target: taskTree === null ? "session" : "plan",
     taskNodeId: null,
   };
 }
@@ -822,14 +870,17 @@ function inputScopeFor({
   hasConfirmationFocus,
   metadata,
   selectedTask,
+  taskTree,
 }: {
   detailOverride: DetailOverride;
   hasConfirmationFocus: boolean;
   metadata: MainPageStateMetadata;
   selectedTask: TaskNodeCardView | undefined;
+  taskTree: MainPageSnapshot["taskTree"];
 }): MainPageInputScopeView {
   if (hasConfirmationFocus || detailOverride !== "auto") {
     return {
+      description: metadata.inputScope.description ?? null,
       label: metadata.inputScope.label,
       placeholder: metadata.inputScope.placeholder,
     };
@@ -837,13 +888,27 @@ function inputScopeFor({
 
   if (selectedTask) {
     return {
-      label: `Writing to ${selectedTask.title}`,
+      description: selectedTask.title,
+      label: `Writing to ${taskIndexLabel(selectedTask)}`,
       placeholder: "Add guidance for this task.",
     };
   }
 
+  if (taskTree) {
+    return {
+      description: taskTree.title,
+      label: "Writing to plan",
+      placeholder: "Ask Plato to refine the overall plan.",
+    };
+  }
+
   return {
+    description: metadata.inputScope.description ?? null,
     label: metadata.inputScope.label,
     placeholder: metadata.inputScope.placeholder,
   };
+}
+
+function taskIndexLabel(task: TaskNodeCardView): string {
+  return `Task ${task.displayIndex ?? task.orderIndex + 1}`;
 }

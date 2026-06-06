@@ -21,6 +21,7 @@ export function ContextInputPanel({
   onSubmit,
 }: ContextInputPanelProps) {
   const helperText = error ?? input.disabledReason;
+  const scopeDescription = helperText ?? input.scope.description;
   const inputPlaceholder =
     input.disabled && input.disabledReason
       ? input.disabledReason
@@ -33,11 +34,11 @@ export function ContextInputPanel({
 
   return (
     <Panel as="form" className={styles.contextInput} onSubmit={handleSubmit}>
-      <div>
+      <div className={styles.contextInputScope}>
         <Text as="strong" variant="label">
           {input.scope.label}
         </Text>
-        {helperText ? <Text variant="muted">{helperText}</Text> : null}
+        {scopeDescription ? <Text variant="muted">{scopeDescription}</Text> : null}
       </div>
       <label className={styles.contextInputField}>
         <input

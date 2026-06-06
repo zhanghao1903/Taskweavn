@@ -1,6 +1,8 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
+import { getMainPageMockSnapshot } from "./mockPlatoApi";
 import { TaskTreePanel } from "./TaskTreePanel";
 
 describe("TaskTreePanel", () => {
@@ -8,6 +10,7 @@ describe("TaskTreePanel", () => {
     render(
       <TaskTreePanel
         onRetryTask={vi.fn()}
+        onSelectTaskPlan={vi.fn()}
         onSelectTask={vi.fn()}
         onStopTask={vi.fn()}
         selectedTaskNodeId={null}
@@ -32,6 +35,7 @@ describe("TaskTreePanel", () => {
       <TaskTreePanel
         isGeneratingTaskPlan={true}
         onRetryTask={vi.fn()}
+        onSelectTaskPlan={vi.fn()}
         onSelectTask={vi.fn()}
         onStopTask={vi.fn()}
         selectedTaskNodeId={null}
@@ -53,5 +57,33 @@ describe("TaskTreePanel", () => {
     expect(
       screen.queryByRole("heading", { name: "No task plan yet" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("exposes the whole plan as a selectable target", async () => {
+    const user = userEvent.setup();
+    const onSelectTaskPlan = vi.fn();
+    const { snapshot } = getMainPageMockSnapshot("s3-draft-ready");
+
+    render(
+      <TaskTreePanel
+        isTaskPlanSelected={true}
+        onRetryTask={vi.fn()}
+        onSelectTaskPlan={onSelectTaskPlan}
+        onSelectTask={vi.fn()}
+        onStopTask={vi.fn()}
+        selectedTaskNodeId={null}
+        taskTree={snapshot.taskTree}
+      />,
+    );
+
+    const planButton = screen.getByRole("button", {
+      name: "Plan overview Personal website project plan 4 tasks in this plan draft",
+    });
+
+    expect(planButton).toHaveAttribute("aria-pressed", "true");
+
+    await user.click(planButton);
+
+    expect(onSelectTaskPlan).toHaveBeenCalledTimes(1);
   });
 });

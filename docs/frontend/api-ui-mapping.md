@@ -92,6 +92,8 @@ If a task has pending confirmation, Main Page may derive a display state like `w
 | `parent_ref` | `parentId` via projection mapping | UI needs stable `TaskNodeId`. |
 | `title` | `title` | User-facing. |
 | `intent_preview` | `summary` | Keep concise. |
+| TaskTree projection order | `displayIndex` | 1-based, session-local user locator. Separate from backend `orderIndex`; use for compact labels such as `Task 3`. Raw Task authoring state does not share this TaskNode index space. |
+| TaskTree focus | local `selectedTarget = "plan"` | Selecting the whole plan is a Main Page local UI focus, not a backend field. Plan guidance reuses the session input command until a dedicated plan-guidance command exists. |
 | `status = draft` | `readiness = draft`, `execution = not_started` | Draft status is readiness. |
 | `status = pending` | `readiness = published`, `execution = pending` | Label as queued. |
 | `status = running` | `readiness = published`, `execution = running` | Execution active. |

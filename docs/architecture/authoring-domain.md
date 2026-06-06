@@ -1,7 +1,7 @@
 # Authoring Domain Architecture
 
 > Status: accepted baseline
-> Last Updated: 2026-05-14
+> Last Updated: 2026-06-06
 > Related Discussion: [RawTask、可行性判断与 Authoring Domain](../discussion/2026-05-14-raw-task-authoring-domain.md)
 > Related ADR: [ADR-0008](../decisions/ADR-0008-authoring-domain-execution-boundary.md)
 > Related Plans: [Collaborator Agent](../plans/feature/collaborator-agent-task-authoring.md), [Task model/UI separation](../plans/feature/task-domain-ui-model-separation.md)
@@ -73,6 +73,35 @@ Authoring Domain
 Execution Domain
   PublishedTask -> TaskBus -> Agent execution
 ```
+
+### 2.1 Single Active Domain Invariant
+
+Authoring facts and execution facts can coexist in storage for replay, but they
+must not coexist as active user workflows.
+
+```text
+Session without DraftTaskTree
+  -> active domain: Authoring
+  -> active objects: RawTask / RawTaskAsk
+
+Session with DraftTaskTree or PublishedTask
+  -> active domain: Task
+  -> active objects: DraftTaskTree / TaskNode / PublishedTask
+  -> RawTask and RawTaskAsk are provenance unless an explicit revision flow starts
+```
+
+The invariant is stricter than the storage model:
+
+- `RawTask`, `RawTaskAsk`, and `RawTaskAnswer` remain durable after conversion;
+- a `DraftTaskTree` keeps lineage to the RawTask that produced it;
+- unanswered RawTask asks are no longer actionable after a DraftTaskTree exists;
+- late answers to stale asks must not silently create another RawTask or
+  replace the current DraftTaskTree;
+- replanning requires an explicit command such as `StartNewDraft`,
+  `ReviseDraftTaskTree`, or `ApplyRawTaskAnswerAsPlanGuidance`.
+
+This protects the Product 1.0 line-first workflow. The user should not have to
+reason about two competing control objects in one Session.
 
 ---
 
@@ -172,6 +201,14 @@ class RawTaskAsk(BaseModel):
     options: tuple[AnswerOption, ...] = ()
     required: bool
     reason: str
+    status: Literal[
+        "pending",
+        "answered",
+        "cancelled",
+        "expired",
+        "superseded",
+    ]
+    superseded_by_draft_tree_id: str | None = None
 ```
 
 ```python
@@ -184,6 +221,11 @@ class RawTaskAnswer(BaseModel):
 ```
 
 In the first implementation, RawTaskAsk should also be represented as an actionable `AgentMessage` so the existing MessageStream and UI confirmation machinery can render and resolve it.
+
+`superseded` means the ask was valid during authoring, but is no longer a safe
+mutation entry because the Session has moved to DraftTaskTree or execution
+state. A superseded ask remains auditable and readable, but answering it is not
+an authoring command anymore.
 
 ### 3.5 DraftTaskTree And DraftTaskNode
 
@@ -224,6 +266,10 @@ Alternative terminal paths:
 created/assessing/awaiting_user
   -> rejected
   -> cancelled
+
+awaiting_user
+  -> converted
+  -> supersede unanswered RawTaskAsk objects
 ```
 
 Rules:
@@ -235,6 +281,10 @@ Rules:
 - `converted`: a DraftTaskTree has been generated from this RawTask.
 - `rejected`: task is unsafe, unsupported, or cannot be meaningfully planned.
 - `cancelled`: user or system cancelled authoring.
+
+When RawTask reaches `converted`, any still-pending RawTaskAsk for that RawTask
+must be marked `superseded` or hidden from active UI. This is a projection and
+command-safety rule even if the underlying store keeps the old ask row.
 
 ### 4.2 DraftTaskTree Lifecycle
 
@@ -273,6 +323,30 @@ pending -> running -> done
 
 This lifecycle must not absorb authoring-specific states such as `awaiting_user`, `ready_to_plan`, or `ready_to_publish`.
 
+### 4.4 Dirty Session Projection Rule
+
+Legacy data, failed migrations, or interrupted early implementations can produce
+mixed facts such as:
+
+```text
+RawTaskAsk(status="pending") + DraftTaskTree(status="draft")
+RawTaskAnswer(created after DraftTaskTree) + existing TaskTree
+new RawTask generated after TaskTree already exists
+```
+
+The projection layer must repair the user-facing view without deleting evidence:
+
+1. If a DraftTaskTree or PublishedTask exists, project the Session as Task
+   Domain active.
+2. Do not expose pending RawTaskAsk as an actionable control.
+3. Mark or report the old RawTaskAsk as `superseded`.
+4. Preserve RawTask/RawTaskAsk/RawTaskAnswer records for audit and replay.
+5. If a late answer is useful, offer an explicit conversion to plan guidance or
+   a new draft revision flow.
+
+This rule is intentionally product-facing. It prevents confusing UI states even
+before every old fixture or runtime edge case is fully cleaned up.
+
 ---
 
 ## 5. Message, Event, And Store Model
@@ -303,6 +377,7 @@ Candidate events:
 - `RawTaskFeasibilityAssessed`
 - `RawTaskAskCreated`
 - `RawTaskAnswered`
+- `RawTaskAskSuperseded`
 - `RawTaskReadyToPlan`
 - `DraftTaskTreeCreated`
 - `DraftTaskNodePatched`
