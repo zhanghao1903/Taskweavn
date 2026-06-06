@@ -25,6 +25,7 @@ describe("TaskNodeCard", () => {
     );
 
     expect(screen.getByText("Visual direction")).toBeInTheDocument();
+    expect(screen.getByText("Task 4")).toBeInTheDocument();
     expect(screen.getByText("Fonts, color, and spacing")).toBeInTheDocument();
     expect(screen.getByText("Visual direction")).toHaveAttribute(
       "title",
@@ -135,6 +136,7 @@ const taskNode: TaskNodeCardView = {
     unreadMessageCount: 0,
   },
   depth: 1,
+  displayIndex: 4,
   orderIndex: 3,
   parentId: "task-parent",
   permissions: {

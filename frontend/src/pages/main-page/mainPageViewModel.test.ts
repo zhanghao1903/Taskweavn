@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import type { TaskNodeId } from "../../shared/api/types";
-import type { DetailOverride, EventConnectionStatus } from "./mainPageUiTypes";
+import type { MainPageSnapshot, TaskNodeId } from "../../shared/api/types";
+import type {
+  DetailOverride,
+  EventConnectionStatus,
+  MainPageSelectionTarget,
+} from "./mainPageUiTypes";
 import type { MainPageStateId } from "./mockPlatoApi";
 import { getMainPageMockSnapshot } from "./mockPlatoApi";
 import { buildMainPageViewModel } from "./mainPageViewModel";
@@ -20,15 +24,46 @@ describe("buildMainPageViewModel", () => {
     expect(viewModel.workspace.title).toBe("Start a new session");
   });
 
-  it("routes draft-ready session input to session guidance and exposes publish", () => {
+  it("marks the empty task workspace as generating while initial input is pending", () => {
+    const viewModel = buildViewModel("s1-empty", {
+      inputDisabled: true,
+    });
+
+    expect(viewModel.taskWorkspace.isGeneratingTaskPlan).toBe(true);
+  });
+
+  it("does not show the generation transition once a TaskTree exists", () => {
+    const viewModel = buildViewModel("s3-draft-ready", {
+      inputDisabled: true,
+    });
+
+    expect(viewModel.taskWorkspace.isGeneratingTaskPlan).toBe(false);
+  });
+
+  it("does not replace authoring ASK work areas with the generation transition", () => {
+    const viewModel = buildViewModel("s2-understanding", {
+      inputDisabled: true,
+    });
+
+    expect(viewModel.mainWorkArea.kind).toBe("authoringAsk");
+    expect(viewModel.taskWorkspace.isGeneratingTaskPlan).toBe(false);
+  });
+
+  it("routes draft-ready input to plan guidance and exposes publish", () => {
     const viewModel = buildViewModel("s3-draft-ready");
 
-    expect(viewModel.detail.kind).toBe("note");
+    expect(viewModel.detail.kind).toBe("plan");
     expect(viewModel.input).toMatchObject({
-      mode: "append_session_input",
-      target: "session",
+      mode: "append_plan_input",
+      scope: {
+        description: "Personal website project plan",
+        label: "Writing to plan",
+        placeholder: "Ask Plato to refine the overall plan.",
+      },
+      target: "plan",
       taskNodeId: null,
     });
+    expect(viewModel.taskWorkspace.isTaskPlanSelected).toBe(true);
     expect(viewModel.topBar.statuses).toHaveLength(2);
     expect(viewModel.workspace.showPublishTaskTree).toBe(true);
   });
@@ -52,6 +87,38 @@ describe("buildMainPageViewModel", () => {
     expect(viewModel.workspace.showPublishTaskTree).toBe(false);
   });
 
+  it("keeps TaskTree as the active work area when authoring asks are superseded", () => {
+    const { snapshot } = getMainPageMockSnapshot("s3-draft-ready");
+    const dirtySnapshot: MainPageSnapshot = {
+      ...snapshot,
+      planning: {
+        asks: [
+          {
+            id: "ask-stale-authoring",
+            options: [],
+            question: "Which deployment target?",
+            reason: "Old authoring context from before the TaskTree was generated.",
+            required: true,
+            status: "superseded",
+          },
+        ],
+        sourceRawTaskId: "raw-task-stale",
+        state: "draft_ready",
+        summary: "A TaskTree already exists.",
+        title: "Planning questions",
+        validation: null,
+      },
+    };
+    const viewModel = buildViewModel("s3-draft-ready", {
+      snapshot: dirtySnapshot,
+    });
+
+    expect(viewModel.mainWorkArea.kind).toBe("taskWorkspace");
+    expect(viewModel.input.disabled).toBe(false);
+    expect(viewModel.input.target).toBe("plan");
+    expect(viewModel.workspace.showPublishTaskTree).toBe(true);
+  });
+
   it("routes selected TaskNode input to task guidance", () => {
     const viewModel = buildViewModel("s3-draft-ready", {
       selectedTaskNodeId: "task-visual-direction",
@@ -63,10 +130,27 @@ describe("buildMainPageViewModel", () => {
     expect(viewModel.input).toMatchObject({
       mode: "append_task_input",
       scope: {
+        description: "Visual direction",
+        label: "Writing to Task 3",
         placeholder: "Add guidance for this task.",
       },
       target: "task",
       taskNodeId: "task-visual-direction",
+    });
+  });
+
+  it("lets explicit plan selection override an initial TaskNode focus", () => {
+    const viewModel = buildViewModel("s4-task-selected", {
+      selectionTarget: "plan",
+    });
+
+    expect(viewModel.detail.kind).toBe("plan");
+    expect(viewModel.taskWorkspace.selectedTask).toBeUndefined();
+    expect(viewModel.taskWorkspace.selectedTaskNodeId).toBeNull();
+    expect(viewModel.input).toMatchObject({
+      mode: "append_plan_input",
+      target: "plan",
+      taskNodeId: null,
     });
   });
 
@@ -192,7 +276,9 @@ function buildViewModel(
     detailOverride?: DetailOverride;
     eventConnectionStatus?: EventConnectionStatus;
     inputDisabled?: boolean;
+    selectionTarget?: MainPageSelectionTarget;
     selectedTaskNodeId?: TaskNodeId | null;
+    snapshot?: MainPageSnapshot;
   } = {},
 ) {
   const { metadata, snapshot } = getMainPageMockSnapshot(stateId);
@@ -215,8 +301,9 @@ function buildViewModel(
     isStoppingTask: false,
     isResolvingConfirmation: false,
     metadata,
+    selectionTarget: overrides.selectionTarget,
     selectedTaskNodeId: overrides.selectedTaskNodeId ?? null,
-    snapshot,
+    snapshot: overrides.snapshot ?? snapshot,
     taskTreeCommandError: null,
     uiNotice: null,
   });

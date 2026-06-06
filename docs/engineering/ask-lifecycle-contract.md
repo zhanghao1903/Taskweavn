@@ -1,13 +1,14 @@
 # ASK Lifecycle Contract
 
 > Status: draft contract
-> Last Updated: 2026-06-03
+> Last Updated: 2026-06-06
 > Scope: `ask_user` tool semantics, durable ASK objects, answer contract,
 > task pause/resume behavior, events, API candidates, and recovery rules.
 > Related: [UI ViewModel Contract](../frontend/ui-viewmodel-contract.md),
 > [Event Reducer Contract](../frontend/event-reducer-contract.md),
 > [Main Page Interaction Model](../interaction-model/main-page.md),
 > [ASK User Interaction](../interaction-model/ask-user-interaction.md),
+> [Authoring Domain](../architecture/authoring-domain.md),
 > [ADR-0014 Interaction Control Taxonomy](../decisions/ADR-0014-interaction-control-taxonomy-for-product-1-0.md),
 > [Canonical Status Model](../product/canonical-status-model.md).
 
@@ -48,6 +49,11 @@ closed-loop trust, DFX, restart recovery, and task-level accountability.
 9. Unknown or malformed ASK events must trigger resync instead of optimistic UI
    mutation.
 10. ASK answers must be persisted before task execution resumes.
+11. An ASK has exactly one active parent domain at answer time: Authoring
+    `RawTask` before a TaskTree exists, or Execution `TaskNode` / published
+    task after publication.
+12. If an authoring ASK becomes stale because a TaskTree now exists, answering
+    it must not mutate the active plan implicitly.
 
 ## 3. LLM Tool Contract
 
@@ -148,6 +154,8 @@ type AskRequest = {
   id: string;
   sessionId: string;
   taskId?: string | null;
+  rawTaskId?: string | null;
+  parentDomain?: "authoring" | "execution" | "session";
   question: string;
   reason: string;
   questions: AskQuestion[];
@@ -189,12 +197,18 @@ type AskStatus =
   | "answered"
   | "deferred"
   | "cancelled"
-  | "expired";
+  | "expired"
+  | "superseded";
 ```
 
 `answering` is a frontend/local or command-in-flight state unless the backend
 needs to expose command progress. Backend canonical status should normally be
 `pending`, then `answered`, `deferred`, `cancelled`, or `expired`.
+
+`superseded` is used mainly for authoring asks. It means the question was valid
+while RawTask authoring was active, but the Session has since moved to a
+TaskTree/TaskNode workflow. It is readable and auditable, but no longer an
+active answer target.
 
 ```ts
 type AskAnswer = {
@@ -260,6 +274,34 @@ Agent running task
 - `running`: executor is actively making progress;
 - `failed`: task cannot proceed without retry or user intervention;
 - `confirmation.pending`: user authorization is required for a known action.
+
+### 5.1 Authoring ASK Integration
+
+Authoring ASK uses the same answer UI primitives, but its parent is RawTask, not
+an execution Task.
+
+```text
+User input
+  -> RawTask
+  -> RawTaskAsk pending
+  -> user answers
+  -> RawTaskAnswer
+  -> RawTask reassessed
+  -> DraftTaskTree generated
+```
+
+Once a DraftTaskTree exists, the active workflow has moved from Authoring
+Domain to Task Domain. Pending authoring asks must then be treated as stale:
+
+```text
+RawTaskAsk pending
+  + DraftTaskTree exists
+  -> RawTaskAsk superseded
+  -> answer command rejected or converted only through explicit plan revision
+```
+
+The system must not let a late authoring ASK answer create a second RawTask or
+replace the current DraftTaskTree without a visible revision action.
 
 For Product 1.0, a task should have at most one active blocking ASK. Multiple
 pending ASK objects can exist at session level after restarts or concurrent
@@ -397,6 +439,8 @@ Product 1.0 policy:
 | User cannot answer ASK | UI shows permission-limited state and disables submit. |
 | ASK already answered | Reject duplicate answer idempotently or return existing result. |
 | ASK expired | Reject answer with `ask_expired`; refresh snapshot. |
+| Authoring ASK superseded by TaskTree | Reject answer with `stale_authoring_context`; refresh snapshot and optionally offer plan-guidance conversion. |
+| Authoring ASK answer arrives after Task Domain is active | Persist only if the command is explicitly a note/revision command; otherwise reject as stale. |
 | Unsupported attachment | Reject with `unsupported_input_mode`. |
 | Stale snapshot | Reject or accept according to version policy, then return refresh hint. |
 | Runtime cannot resume after answer | Persist answer, show task recoverable error or retry action. |

@@ -1,7 +1,7 @@
 # UI ViewModel Contract
 
 > Status: draft
-> Last Updated: 2026-06-04
+> Last Updated: 2026-06-06
 > Scope: Frontend-facing ViewModels for Plato Main Page and Audit Page.
 > Related: `docs/engineering/audit-page-contract.md`, `docs/ux/screen-state-spec.md`, `docs/ux/ask-ui-spec.md`, `docs/ux/confirmation-ui-spec.md`, `docs/frontend/event-reducer-contract.md`, `docs/frontend/api-ui-mapping.md`, `docs/architecture/task-domain-ui-model-separation.md`, `docs/product/plato-ui-api-contract.md`
 
@@ -188,6 +188,18 @@ The snapshot must not include frontend-only state:
 - hover/focus;
 - optimistic command spinners.
 
+The snapshot must expose only one active domain for Main Page interaction.
+
+| Condition | Active domain | UI target |
+|---|---|---|
+| `taskTree === null` and planning has pending asks | Authoring | RawTask / authoring ASK |
+| `taskTree !== null` and no task is selected | Task plan | Whole plan |
+| `taskTree !== null` and a task is selected | Task node | Selected TaskNode |
+
+If backend stores contain both pending RawTask asks and a TaskTree, the gateway
+must project stale authoring asks out of the active control surface. UI
+components should not implement their own domain priority rules.
+
 ### 5.2 PlanningView
 
 ```ts
@@ -206,9 +218,13 @@ type PlanningAskView = {
   reason: string;
   required: boolean;
   options: ConfirmationOptionView[];
-  status: "pending" | "answered" | "expired";
+  status: "pending" | "answered" | "expired" | "superseded";
 };
 ```
+
+`superseded` asks are read-only history. They must not render as answerable ASK
+controls on the Main Page once `taskTree` exists. If shown at all, they belong
+to history/audit/recovery affordances.
 
 ### 5.3 TaskTreeView
 
@@ -236,6 +252,7 @@ type TaskNodeCardView = {
   summary: string;
   depth: number;
   orderIndex: number;
+  displayIndex: number;
   readiness: TaskNodeReadiness;
   execution: ExecutionStatus;
   confirmation: ConfirmationStatus | null;
@@ -328,12 +345,13 @@ type InputView = {
   mode:
     | "create_session_goal"
     | "generate_task_tree"
+    | "plan_guidance"
     | "global_guidance"
     | "task_guidance"
     | "task_revision_request"
     | "clarification_answer"
     | "disabled_readonly";
-  scope: "session" | "task" | "confirmation" | "planning_ask" | "none";
+  scope: "session" | "plan" | "task" | "confirmation" | "planning_ask" | "none";
   targetTaskNodeId?: TaskNodeId | null;
   targetConfirmationId?: string | null;
   disabled: boolean;
@@ -630,6 +648,7 @@ type RelatedLogsLinkView = {
 
 ```ts
 type MainPageLocalState = {
+  selectedTarget: "auto" | "plan" | "task";
   selectedTaskNodeId: TaskNodeId | null;
   expandedTaskNodeIds: TaskNodeId[];
   inputDraft: string;
@@ -647,6 +666,11 @@ type SyncState =
 ```
 
 Local state must not be sent back to the backend except through explicit commands.
+
+When `selectedTarget` is `"plan"`, the Main Page treats the whole TaskTree as
+the active interaction object even if runtime metadata contains an initial
+TaskNode focus. This selection is local UI state only and must not be persisted
+in the backend snapshot.
 
 ## 8. Acceptance Criteria
 

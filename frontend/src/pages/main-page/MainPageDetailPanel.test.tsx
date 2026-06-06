@@ -7,6 +7,51 @@ import { MainPageDetailPanel } from "./MainPageDetailPanel";
 import type { MainPageDetailView } from "./mainPageViewModel";
 
 describe("MainPageDetailPanel", () => {
+  it("shows whole-plan interaction details", () => {
+    render(
+      <MainPageDetailPanel
+        detail={{
+          header: {
+            body: "Review the generated task plan before publishing.",
+            eyebrow: "Draft task plan",
+            title: "Review the generated structure",
+          },
+          kind: "plan",
+          taskTree: {
+            generatedAt: "2026-06-05T00:00:00.000Z",
+            id: "task-tree-1",
+            nodes: [
+              taskNode({
+                id: "task-one",
+                summary: "Plan-level task.",
+                title: "Task one",
+              }),
+            ],
+            sessionId: "session-website-plan",
+            status: "draft",
+            title: "Personal website project plan",
+            version: 1,
+          },
+        }}
+        onAnswerAsk={vi.fn()}
+        onCancelAsk={vi.fn()}
+        onConfirmationDecision={vi.fn()}
+        onDeferAsk={vi.fn()}
+        onRetryTask={vi.fn()}
+        onShowFileChanges={vi.fn()}
+        onShowResult={vi.fn()}
+        onStopTask={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByRole("heading", { name: "Review the generated structure" }),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Plan interaction")).toBeInTheDocument();
+    expect(screen.getByText("1 task")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Task actions")).not.toBeInTheDocument();
+  });
+
   it("shows the full selected task content in the detail panel", () => {
     const title =
       "Choose the right technical stack and deployment approach for the content site";
@@ -351,6 +396,7 @@ function taskNode(
       unreadMessageCount: 0,
     },
     depth: 1,
+    displayIndex: 2,
     execution: "not_started",
     orderIndex: 1,
     parentId: null,

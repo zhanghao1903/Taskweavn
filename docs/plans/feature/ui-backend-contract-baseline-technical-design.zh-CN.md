@@ -493,6 +493,7 @@ class TaskNodeCardView(UiContractModel):
     status: TaskNodeStatus
     depth: int
     order_index: int
+    display_index: int
     badges: TaskNodeBadges
     permissions: TaskNodePermissions
     version: int
@@ -510,8 +511,15 @@ Mapping from server-core:
 | `TaskCardView.status` | mapped `status` |
 | `TaskCardView.depth` | `depth` |
 | `TaskCardView.order_index` | `order_index` |
+| TaskTree projection order | `display_index` |
 | `TaskCardView.badges` | badge subset |
 | `TaskCardView.permissions` | permission subset |
+
+`display_index` is a 1-based, session-local, user-facing locator for TaskTree
+nodes. It is intentionally separate from `order_index`: `order_index` remains
+backend ordering data, while `display_index` is used by the frontend to show
+compact references such as `Task 3` in the input bar and task cards. Raw Task
+authoring state does not share this TaskNode index space.
 
 Status mapping:
 

@@ -275,6 +275,7 @@ function taskNode(
       unreadMessageCount: 0,
     },
     depth: parentId ? 1 : 0,
+    displayIndex: 1,
     orderIndex: 0,
     parentId,
     permissions: {

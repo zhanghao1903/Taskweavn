@@ -672,6 +672,7 @@ function toTaskTreeView(
       auditVerdict: dimensions.auditVerdict,
       depth: 0,
       orderIndex: index,
+      displayIndex: index + 1,
       badges: {
         pendingConfirmationCount,
         unreadMessageCount: 0,

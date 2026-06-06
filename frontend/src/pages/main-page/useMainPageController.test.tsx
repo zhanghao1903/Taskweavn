@@ -71,8 +71,16 @@ describe("useMainPageController", () => {
     });
 
     expect(result.current.selectedTaskNodeId).toBe("task-visual-direction");
+    expect(result.current.selectionTarget).toBe("task");
     expect(result.current.detailOverride).toBe("result");
     expect(result.current.inputDraft).toBe("temporary guidance");
+
+    act(() => {
+      result.current.actions.selectTaskPlan();
+    });
+
+    expect(result.current.selectedTaskNodeId).toBe(null);
+    expect(result.current.selectionTarget).toBe("plan");
 
     act(() => {
       result.current.actions.changeState("s9-file-changes");
@@ -80,6 +88,7 @@ describe("useMainPageController", () => {
 
     expect(result.current.stateId).toBe("s9-file-changes");
     expect(result.current.selectedTaskNodeId).toBe(null);
+    expect(result.current.selectionTarget).toBe("auto");
     expect(result.current.detailOverride).toBe("auto");
     expect(result.current.inputDraft).toBe("");
     expect(result.current.inputError).toBe(null);

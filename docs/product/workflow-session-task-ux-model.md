@@ -1,6 +1,7 @@
 # Workflow, Session, And Task UX Model
 
 > Status: product direction baseline
+> Last Updated: 2026-06-06
 >
 > Scope: user-facing objects and lifecycle semantics. This document avoids
 > concrete page layout, visual hierarchy, and component-level design.
@@ -76,6 +77,10 @@ happen implicitly by having every Session write into the same shared workspace.
 
 The product should distinguish Task authoring from Task execution.
 
+Product 1.0 is line-first. A Session may preserve both authoring evidence and
+execution evidence for replay, but the user must see only one active domain at a
+time.
+
 ### 3.1 Authoring Workflow
 
 The goal is to produce a TaskTree.
@@ -108,6 +113,39 @@ Input goal or approved TaskTree
 
 The TaskTree may still be visible, but it is now a control surface for work in
 progress rather than the final deliverable.
+
+### 3.3 Single Active Domain Rule
+
+Authoring Domain and Task Domain must not be active at the same time in the
+Main Page control surface.
+
+```text
+No TaskTree yet
+  -> RawTask / authoring ASK can be active
+
+TaskTree exists
+  -> plan or TaskNode is active
+  -> RawTask / authoring ASK becomes provenance, not the active workflow
+```
+
+This rule exists because users operate Plato through one current object. If a
+Session shows an unanswered authoring ASK and an executable TaskTree at the same
+time, the user cannot know whether they are correcting the original intent,
+editing the plan, or affecting running work.
+
+Product behavior:
+
+- before a TaskTree exists, the input area may target the Session RawTask or an
+  authoring ASK;
+- after a TaskTree exists, the input area targets the whole plan or a selected
+  TaskNode;
+- answering an old authoring ASK after a TaskTree exists must not silently
+  generate a new RawTask or replace the existing TaskTree;
+- replanning is an explicit action such as `Revise plan`, `Start new draft`, or
+  `Apply answer as plan guidance`;
+- legacy/dirty Sessions that contain both active authoring facts and TaskTree
+  facts should project to the TaskTree view and expose stale authoring facts
+  only as history, audit, or recovery notes.
 
 ## 4. Workflow Lifecycle
 
@@ -159,7 +197,7 @@ Captured
   -> Feasibility Checking
   -> Clarifying
   -> Converted to Draft TaskTree
-  -> Accepted / Abandoned
+  -> Accepted / Abandoned / Superseded
 ```
 
 RawTask is important because ordinary natural language is exploratory. The
@@ -167,6 +205,18 @@ system should not treat every user sentence as an immediately executable Task.
 
 RawTask can carry ASK actions, clarification turns, feasibility notes, and
 conversion lineage before a Draft TaskTree exists.
+
+Once a Draft TaskTree exists for the same Session path, the RawTask is no longer
+the active control object. Its unanswered asks become stale unless the system
+explicitly starts a replanning/revision flow.
+
+User-facing recovery for stale RawTask asks:
+
+| Situation | Product behavior |
+|---|---|
+| User answers an old RawTask ASK after a TaskTree exists | Do not generate a new RawTask automatically. Show that the answer is stale or offer to apply it as plan guidance. |
+| RawTask and TaskTree both exist because of old fixture/runtime behavior | Prefer the TaskTree as the active object; keep RawTask evidence available in history/audit. |
+| User wants to restart authoring from that answer | Use an explicit `Revise plan` or `Start new draft` action with visible consequences. |
 
 ## 7. TaskTree / WorkTree Lifecycle
 
