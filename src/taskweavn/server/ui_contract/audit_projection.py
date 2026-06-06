@@ -73,6 +73,7 @@ from taskweavn.server.ui_contract.audit_source_providers import (
     config_audit_records,
     log_audit_records,
 )
+from taskweavn.server.ui_contract.audit_timeline_records import timeline_audit_records
 from taskweavn.server.ui_contract.gateway_protocols import (
     AuditConfigProvider,
     AuditEventProvider,
@@ -96,8 +97,10 @@ from taskweavn.server.ui_contract.view_models import (
 )
 from taskweavn.task.models import TaskRef
 from taskweavn.task.projection import TaskProjectionService
+from taskweavn.task.timeline import TaskInteractionTimelineService
 from taskweavn.task.views import ConfirmationActionView as CoreConfirmationActionView
 from taskweavn.task.views import TaskCardView as CoreTaskCardView
+from taskweavn.task.views import TaskDetailView as CoreTaskDetailView
 from taskweavn.task.views import TaskTreeView as CoreTaskTreeView
 
 
@@ -121,6 +124,7 @@ def _audit_records_from_projection(
     task_node_id: str | None,
     messages: Sequence[SessionMessageView],
     task_projection: TaskProjectionService,
+    task_timeline_service: TaskInteractionTimelineService | None,
     event_provider: AuditEventProvider | None,
     config_provider: AuditConfigProvider | None,
     log_provider: AuditLogProvider | None,
@@ -128,16 +132,24 @@ def _audit_records_from_projection(
     records: list[AuditRecord] = []
     scoped_nodes = _scoped_nodes(source, task_node_id=task_node_id)
     for node in scoped_nodes:
+        detail = _task_detail(
+            session_id,
+            node.task_ref,
+            task_projection=task_projection,
+        )
         records.append(_task_state_audit_record(session_id, node))
         if node.confirmation is not None:
             records.append(_confirmation_audit_record(session_id, node.confirmation))
-        records.extend(
-            _detail_audit_records(
-                session_id,
-                node.task_ref,
-                task_projection=task_projection,
+        records.extend(_detail_audit_records(session_id, detail))
+        if task_timeline_service is not None:
+            records.extend(
+                timeline_audit_records(
+                    session_id,
+                    node.task_ref,
+                    task_detail=detail,
+                    timeline_service=task_timeline_service,
+                )
             )
-        )
     records.extend(
         _message_audit_record(message)
         for message in messages
@@ -168,13 +180,9 @@ def _scoped_nodes(
 
 def _detail_audit_records(
     session_id: str,
-    task_ref: TaskRef,
-    *,
-    task_projection: TaskProjectionService,
+    detail: CoreTaskDetailView | None,
 ) -> tuple[AuditRecord, ...]:
-    try:
-        detail = task_projection.get_task_detail(session_id, task_ref)
-    except LookupError:
+    if detail is None:
         return ()
     records: list[AuditRecord] = []
     for change in detail.file_changes:
@@ -250,6 +258,18 @@ def _detail_audit_records(
             )
         )
     return tuple(records)
+
+
+def _task_detail(
+    session_id: str,
+    task_ref: TaskRef,
+    *,
+    task_projection: TaskProjectionService,
+) -> CoreTaskDetailView | None:
+    try:
+        return task_projection.get_task_detail(session_id, task_ref)
+    except LookupError:
+        return None
 
 
 def _task_state_audit_record(session_id: str, node: CoreTaskCardView) -> AuditRecord:

@@ -32,6 +32,13 @@ from taskweavn.server.ui_contract import (
     UiEvent,
     UpdateTaskNodePayload,
     WorkflowSummary,
+    product_error_details_for_llm_classification,
+)
+from taskweavn.server.ui_contract.errors import (
+    bad_request,
+    command_rejected,
+    internal_error,
+    not_found,
 )
 from taskweavn.task import TaskRef
 
@@ -290,6 +297,41 @@ def test_error_code_enum_includes_permission_denied_and_rejects_unknown() -> Non
 
     with pytest.raises(ValidationError):
         ApiError(code="rate_limited", message="unknown")  # type: ignore[arg-type]
+
+
+def test_error_helpers_attach_product_error_metadata() -> None:
+    bad = bad_request("missing input", field="prompt")
+    missing = not_found("session not found", session_id="missing")
+    rejected = command_rejected("cannot edit completed task")
+    internal = internal_error("Unable to load snapshot", error_type="RuntimeError")
+
+    assert bad.details["productCategory"] == "input_validation"
+    assert bad.details["recoveryActions"] == ["edit_input"]
+    assert bad.details["field"] == "prompt"
+    assert missing.details["productCategory"] == "missing_context"
+    assert rejected.details["productCategory"] == "command_conflict"
+    assert internal.details["productCategory"] == "unexpected_internal"
+    assert internal.details["recoveryActions"] == [
+        "refresh_snapshot",
+        "export_diagnostics",
+    ]
+    assert internal.details["error_type"] == "RuntimeError"
+
+
+def test_llm_product_error_metadata_mapping() -> None:
+    auth = product_error_details_for_llm_classification(
+        "fatal_auth",
+        diagnostic_refs={"providerName": "deepseek"},
+    )
+    rate = product_error_details_for_llm_classification("rate_limit", retry_count=2)
+    context = product_error_details_for_llm_classification("context_limit")
+
+    assert auth["productCategory"] == "llm_auth_or_config"
+    assert auth["recoveryActions"] == ["open_settings", "export_diagnostics"]
+    assert auth["diagnosticRefs"] == {"providerName": "deepseek"}
+    assert rate["productCategory"] == "llm_rate_or_retry_exhausted"
+    assert rate["retryCount"] == 2
+    assert context["productCategory"] == "llm_context_or_capability"
 
 
 def test_ui_event_validates_type_and_serializes_aliases() -> None:

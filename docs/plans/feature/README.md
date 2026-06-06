@@ -9,6 +9,7 @@ Feature plans are scoped implementation packets for independent feature sessions
 | [configurable-logging-system.md](configurable-logging-system.md) | Configurable layered logging system. |
 | [cooperative-task-interruption.md](cooperative-task-interruption.md) | Done / accepted: Product 1.0 minimal interrupt intent, safe points, stopping projection, Context Manager interruption facts, and cancelled failure outcome. |
 | [cooperative-task-interruption-technical-design.zh-CN.md](cooperative-task-interruption-technical-design.zh-CN.md) | Done / accepted 中文详细技术方案：TaskBus interrupt intent、AgentLoop safe points、Context Manager interruption facts、UI stopping projection 和 TaskBus terminal outcome。 |
+| [diagnostic-bundle-export.md](diagnostic-bundle-export.md) | In progress: Product 1.0 CLI-first redacted diagnostic bundle export for early tester/support workflows. |
 | [context-manager-1-0.md](context-manager-1-0.md) | Done: Product 1.0 deterministic execution context governance for the fixed-route Default Agent path. |
 | [context-manager-1-0-technical-design.zh-CN.md](context-manager-1-0-technical-design.zh-CN.md) | Implemented 中文详细技术方案：Context Manager 1.0 schema、source adapters、policy、renderer、store、Default Agent 集成和 AgentLoop per-call seam。 |
 | [context-manager-cache-aware-rendering.md](context-manager-cache-aware-rendering.md) | Done: Product 1.0 cache-aware append-only rendering hardening for Context Manager LLM calls. |
@@ -25,6 +26,7 @@ Feature plans are scoped implementation packets for independent feature sessions
 | [ask-domain-unification-batch-answer.md](ask-domain-unification-batch-answer.md) | Done on branch / accepted after PR merge: Product 1.0 ASK domain unification guidance, authoring batch answer backend support, and Main Page Authoring ASK projection/UI follow-up. |
 | [ask-domain-unification-batch-answer-technical-design.zh-CN.md](ask-domain-unification-batch-answer-technical-design.zh-CN.md) | Done on branch / accepted after PR merge 中文详细技术方案：Authoring ASK 与 Execution ASK UI 语义统一、权威数据源分离、authoring batch answer 和 execution batch 预留。 |
 | [ask-confirmation-frontend-integration.md](ask-confirmation-frontend-integration.md) | Done on branch / accepted after PR merge: Product 1.0 frontend implementation for Authoring ASK Work Area, Execution ASK Detail Panel, Confirmation Detail Panel, event/refetch alignment, and QA closure. |
+| [audit-entry-closure-technical-slice.md](audit-entry-closure-technical-slice.md) | Implemented backend slice: Product 1.0 Audit source orchestration through task interaction timelines without changing Audit contract shapes; frontend validation pending. |
 | [fixed-route-task-execution-bridge.md](fixed-route-task-execution-bridge.md) | In progress: Product 1.0 fixed-route bridge from TaskBus pending Tasks to Task-run Default Agent execution and complete/fail. |
 | [fixed-route-task-execution-bridge-technical-design.zh-CN.md](fixed-route-task-execution-bridge-technical-design.zh-CN.md) | In progress 中文详细技术方案：Task-run Default Agent、TaskBus claim_next、complete/fail 和测试设计。 |
 | [linear-authoring-retry-recovery.md](linear-authoring-retry-recovery.md) | In progress: Product 1.0 default linear authoring shape, dependency-safe sequential execution, minimal manual retry, and retry evidence capture. |
@@ -33,12 +35,16 @@ Feature plans are scoped implementation packets for independent feature sessions
 | [frontend-api-mock-happy-path.md](frontend-api-mock-happy-path.md) | Deferred: in-memory `PlatoApi` happy path mock for Main/Audit frontend integration. |
 | [frontend-api-mock-happy-path-technical-design.zh-CN.md](frontend-api-mock-happy-path-technical-design.zh-CN.md) | Deferred 中文详细技术方案：单 session happy path API mock、状态机、Main/Audit snapshot builders、事件/cursor 和测试设计。 |
 | [pipeline-task-loading.md](pipeline-task-loading.md) | Pipeline task loading before/begin/after normal tasks. |
+| [product-error-handling.md](product-error-handling.md) | In progress: Product 1.0 product error taxonomy, recovery actions, backend mapping, and QA closure. |
 | [publish-persistence-foundation.md](publish-persistence-foundation.md) | Done: SQLite publish stores, service assembly, API integration coverage, and deterministic idempotency hardening. |
 | [publish-persistence-foundation-technical-design.zh-CN.md](publish-persistence-foundation-technical-design.zh-CN.md) | 中文详细技术方案：发布持久化 SQLite schema、store、事务、错误处理和测试设计。 |
 | [raw-task-draft-tree-persistence.md](raw-task-draft-tree-persistence.md) | Done: SQLite RawTask/DraftTaskTree persistence, active authoring state, publish identity alignment, and API command response idempotency for Product 1.0 authoring recovery. |
 | [raw-task-draft-tree-persistence-technical-design.zh-CN.md](raw-task-draft-tree-persistence-technical-design.zh-CN.md) | Implemented 中文详细技术方案：RawTask/DraftTaskTree SQLite schema、store、active state、publish identity、authoring command idempotency 和 API command response idempotency。 |
 | [result-exposure-surface.md](result-exposure-surface.md) | Planned: Product 1.0 result, evidence, audit, and diagnostics exposure boundary for Main Page and Audit Page closure. |
 | [result-packaging-agent-cards.md](result-packaging-agent-cards.md) | Result Packaging Agent and card-based result presentation. |
+| [settings-first-run-readiness.md](settings-first-run-readiness.md) | In progress: Product 1.0 read-only Settings/first-run readiness contract for LLM config, logging profiles, and diagnostic export discovery. |
+| [settings-first-run-frontend-completion.md](settings-first-run-frontend-completion.md) | Draft: Product-complete Settings first-run frontend setup flow, including Settings route, save/recheck loop, diagnostics action, degraded warnings, and required backend write API dependency. |
+| [settings-first-run-frontend-completion-technical-design.md](settings-first-run-frontend-completion-technical-design.md) | Draft technical design for the Settings first-run frontend completion slices, route/state model, API client contract, tests, and E2E acceptance. |
 | [task-domain-ui-model-separation.md](task-domain-ui-model-separation.md) | Task domain model and UI ViewModel separation. |
 | [task-publishers-schedule-api.md](task-publishers-schedule-api.md) | Done: TaskPublisher abstraction, scheduled publish, API publish, custom task trees, and publish-time pipeline expansion. |
 | [ui-backend-contract-baseline.md](ui-backend-contract-baseline.md) | Done: split and harden Plato UI snapshot/query/command/event/error contracts before sidecar transport. |

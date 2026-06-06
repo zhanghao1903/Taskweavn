@@ -132,6 +132,27 @@ describe("AuditPageRoute", () => {
     expect(screen.getByText("Related logs")).toBeInTheDocument();
   });
 
+  it("opens enabled related log links through the diagnostics route", async () => {
+    const user = userEvent.setup();
+
+    globalThis.history.pushState(
+      null,
+      "",
+      "/sessions/session-website-plan/tasks/task-implementation/audit?recordId=record-file-1",
+    );
+    renderWithQueryClient(<AuditPageRoute api={createAuditMockApi("a4-record-selected")} />);
+
+    expect(await screen.findByLabelText("Audit record detail")).toBeInTheDocument();
+    await user.click(screen.getByRole("link", { name: "View related logs" }));
+
+    expect(globalThis.location.pathname).toBe(
+      "/sessions/session-website-plan/diagnostics/logs",
+    );
+    expect(globalThis.location.search).toBe(
+      "?category=audit&recordId=record-file-1&taskNodeId=task-implementation",
+    );
+  });
+
   it("surfaces non-ready snapshot state without hiding the audit shell", async () => {
     renderWithQueryClient(
       <AuditPageRoute

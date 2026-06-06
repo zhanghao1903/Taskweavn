@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from taskweavn.llm import ErrorClassification
+from taskweavn.llm.errors import LLMProviderError
 from taskweavn.task import (
     InMemoryTaskExecutionSummaryStore,
     SqliteTaskExecutionSummaryStore,
@@ -9,6 +11,7 @@ from taskweavn.task import (
     TaskExecutionSummaryViewStore,
     build_agent_loop_error_summary,
     build_agent_loop_result_summary,
+    build_execution_exception_summary,
 )
 
 
@@ -90,6 +93,60 @@ def test_task_execution_summary_view_store_projects_error_summary() -> None:
     assert view.task_ref.id == "task-1"
     assert view.summary == "AgentLoop stopped before finishing: max_steps."
     assert view.failure_reason == "AgentLoop stopped before finishing: max_steps."
+
+
+def test_execution_exception_summary_maps_llm_error_without_raw_message() -> None:
+    task = _task("task-1")
+    exc = LLMProviderError(
+        "raw provider payload with sensitive details",
+        provider_name="deepseek",
+        model="deepseek-chat",
+        classification=ErrorClassification.FATAL_AUTH,
+    )
+
+    summary = build_execution_exception_summary(
+        summary_id="task_error:s1:task-1:llm",
+        task=task,
+        exc=exc,
+    )
+
+    assert summary.error_message == "Task execution failed with LLMProviderError."
+    assert "sensitive details" not in summary.error_message
+    assert summary.metadata["productCategory"] == "llm_auth_or_config"
+    assert summary.metadata["recoveryActions"] == [
+        "open_settings",
+        "export_diagnostics",
+    ]
+    assert summary.metadata["llmClassification"] == "fatal_auth"
+    assert summary.metadata["diagnosticRefs"] == {
+        "errorRef": "task_error:s1:task-1:llm",
+        "taskId": "task-1",
+        "sessionId": "s1",
+        "providerName": "deepseek",
+        "model": "deepseek-chat",
+    }
+
+
+def test_agent_loop_error_summary_marks_task_failure_recovery() -> None:
+    task = _task("task-1")
+
+    summary = build_agent_loop_error_summary(
+        summary_id="agent_loop_failed:s1:task-1:max_steps",
+        task=task,
+        stop_reason="max_steps",
+    )
+
+    assert summary.metadata["productCategory"] == "task_execution_failed"
+    assert summary.metadata["recoveryActions"] == [
+        "retry_task",
+        "open_audit",
+        "export_diagnostics",
+    ]
+    assert summary.metadata["diagnosticRefs"] == {
+        "errorRef": "agent_loop_failed:s1:task-1:max_steps",
+        "taskId": "task-1",
+        "sessionId": "s1",
+    }
 
 
 def _task(task_id: str) -> TaskDomain:

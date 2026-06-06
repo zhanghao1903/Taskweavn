@@ -3,10 +3,29 @@ import { useEffect, useState } from "react";
 import { AppErrorBoundary } from "./AppErrorBoundary";
 import { MainPageRoute } from "./MainPageRoute";
 import { PLATO_NAVIGATION_EVENT } from "./navigation";
+import type { PlatoRuntimeEnv } from "./platoRuntime";
 import { AuditPageRoute } from "../pages/audit-page/AuditPageRoute";
 import { isAuditPath } from "../pages/audit-page/auditRouteModel";
+import { DiagnosticsLogsRoute } from "../pages/diagnostics/DiagnosticsLogsRoute";
+import { isDiagnosticsLogsPath } from "../pages/diagnostics/diagnosticsRouteModel";
+import {
+  FirstRunReadinessGate,
+  type SettingsReadinessApi,
+} from "../pages/settings/FirstRunReadinessGate";
+import { SettingsRoute, type SettingsRouteApi } from "../pages/settings/SettingsRoute";
+import { isSettingsPath } from "../pages/settings/settingsRouteModel";
 
-export function App() {
+export type AppProps = {
+  readinessApi?: SettingsReadinessApi;
+  runtimeEnv?: PlatoRuntimeEnv;
+  settingsApi?: SettingsRouteApi;
+};
+
+export function App({
+  readinessApi,
+  runtimeEnv = import.meta.env,
+  settingsApi,
+}: AppProps = {}) {
   const [pathname, setPathname] = useState(() => globalThis.location.pathname);
 
   useEffect(() => {
@@ -25,9 +44,15 @@ export function App() {
   return (
     <AppErrorBoundary>
       {isAuditPath(pathname) ? (
-        <AuditPageRoute />
+        <AuditPageRoute runtimeEnv={runtimeEnv} />
+      ) : isDiagnosticsLogsPath(pathname) ? (
+        <DiagnosticsLogsRoute runtimeEnv={runtimeEnv} />
+      ) : isSettingsPath(pathname) ? (
+        <SettingsRoute api={settingsApi} runtimeEnv={runtimeEnv} />
       ) : (
-        <MainPageRoute />
+        <FirstRunReadinessGate api={readinessApi} runtimeEnv={runtimeEnv}>
+          <MainPageRoute runtimeEnv={runtimeEnv} />
+        </FirstRunReadinessGate>
       )}
     </AppErrorBoundary>
   );

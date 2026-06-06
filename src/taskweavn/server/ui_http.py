@@ -7,6 +7,10 @@ from typing import Any, Protocol
 
 from taskweavn.observability.main_page_trace import main_page_trace
 from taskweavn.server.client_logs import ClientErrorLogSink
+from taskweavn.server.diagnostics_export import (
+    DiagnosticExportFailure,
+    DiagnosticExportSessionNotFound,
+)
 from taskweavn.server.transport import HttpApiRequest, HttpApiResponse
 from taskweavn.server.ui_command_idempotency import UiCommandResponseIdempotencyStore
 from taskweavn.server.ui_contract import (
@@ -52,6 +56,13 @@ from taskweavn.server.ui_http_responses import (
     _request_id_hint,
 )
 from taskweavn.server.ui_http_routes import _match_route
+from taskweavn.server.ui_http_settings import (
+    SettingsConfigGateway,
+    SettingsReadinessGateway,
+    _settings_config_response,
+    _settings_readiness_recheck_response,
+    _settings_readiness_response,
+)
 from taskweavn.server.ui_http_sse import _sse_response
 from taskweavn.task import ExecutionTriggerGateway
 
@@ -72,6 +83,12 @@ class SnapshotRecoveryGateway(Protocol):
     """Best-effort recovery hook that runs before snapshot projection."""
 
     def recover_session(self, session_id: str) -> object: ...
+
+
+class DiagnosticExportGateway(Protocol):
+    """Local diagnostic bundle export source."""
+
+    def export_session(self, session_id: str) -> dict[str, Any]: ...
 
 
 @dataclass(frozen=True)
@@ -108,6 +125,9 @@ class PlatoUiHttpTransport:
         command_idempotency_store: UiCommandResponseIdempotencyStore | None = None,
         execution_trigger_gateway: ExecutionTriggerGateway | None = None,
         snapshot_recovery_gateway: SnapshotRecoveryGateway | None = None,
+        settings_readiness_gateway: SettingsReadinessGateway | None = None,
+        settings_config_gateway: SettingsConfigGateway | None = None,
+        diagnostic_export_gateway: DiagnosticExportGateway | None = None,
     ) -> None:
         self._query_gateway = query_gateway
         self._command_gateway = command_gateway
@@ -118,6 +138,9 @@ class PlatoUiHttpTransport:
         self._command_idempotency_store = command_idempotency_store
         self._execution_trigger_gateway = execution_trigger_gateway
         self._snapshot_recovery_gateway = snapshot_recovery_gateway
+        self._settings_readiness_gateway = settings_readiness_gateway
+        self._settings_config_gateway = settings_config_gateway
+        self._diagnostic_export_gateway = diagnostic_export_gateway
 
     def handle(self, request: HttpApiRequest) -> HttpApiResponse:
         route = _match_route(request.path)
@@ -173,6 +196,13 @@ class PlatoUiHttpTransport:
                             "version": "0.1.0",
                             "api_base_path": "/api/v1",
                             "health_url": "/api/v1/health",
+                            "settings_readiness_url": (
+                                "/api/v1/settings/readiness"
+                            ),
+                            "settings_config_url": "/api/v1/settings/config",
+                            "settings_readiness_recheck_url": (
+                                "/api/v1/settings/readiness/recheck"
+                            ),
                             "snapshot_url_template": (
                                 "/api/v1/sessions/{sessionId}/snapshot"
                             ),
@@ -181,6 +211,9 @@ class PlatoUiHttpTransport:
                             ),
                             "dispatch_url_template": (
                                 "/api/v1/sessions/{sessionId}/execution/dispatch"
+                            ),
+                            "diagnostics_export_url_template": (
+                                "/api/v1/sessions/{sessionId}/diagnostics/export"
                             ),
                         },
                         "error": None,
@@ -194,6 +227,41 @@ class PlatoUiHttpTransport:
                             "name": "Plato Sidecar",
                             "version": "0.1.0",
                         },
+                        "error": None,
+                    }
+                )
+            if route_name == "settings_readiness":
+                return _settings_readiness_response(
+                    request,
+                    self._settings_readiness_gateway,
+                )
+            if route_name == "settings_readiness_recheck":
+                return _settings_readiness_recheck_response(
+                    request,
+                    self._settings_config_gateway or self._settings_readiness_gateway,
+                )
+            if route_name == "settings_config":
+                return _settings_config_response(
+                    request,
+                    self._settings_config_gateway,
+                )
+            if route_name == "diagnostics_export":
+                if self._diagnostic_export_gateway is None:
+                    return _error_response(
+                        503,
+                        ApiError(
+                            code="internal_error",
+                            message="diagnostic export gateway is not configured",
+                            details={"route": route_name},
+                        ),
+                        request_id=_request_id_hint(request),
+                    )
+                return _json_response(
+                    {
+                        "ok": True,
+                        "data": self._diagnostic_export_gateway.export_session(
+                            route.session_id
+                        ),
                         "error": None,
                     }
                 )
@@ -580,6 +648,27 @@ class PlatoUiHttpTransport:
                 )
             if route_name == "events":
                 return _sse_response(self._event_source, request, route)
+        except DiagnosticExportSessionNotFound:
+            return _error_response(
+                404,
+                ApiError(
+                    code="not_found",
+                    message="session not found",
+                    details={"route": route_name},
+                ),
+                request_id=_request_id_hint(request),
+            )
+        except DiagnosticExportFailure:
+            return _error_response(
+                500,
+                ApiError(
+                    code="internal_error",
+                    message="diagnostic bundle export failed",
+                    retryable=True,
+                    details={"route": route_name},
+                ),
+                request_id=_request_id_hint(request),
+            )
         except ValueError as exc:
             return _error_response(
                 400,

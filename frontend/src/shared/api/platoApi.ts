@@ -163,7 +163,193 @@ export type EvidenceDetailRequest = {
   includeSanitizedPayload?: boolean;
 };
 
+export type DiagnosticExportSection = {
+  name: string;
+  status: "included" | "partial" | "missing" | "skipped";
+  warnings: string[];
+};
+
+export type DiagnosticBundleExportResult = {
+  schemaVersion: "plato.diagnostics_export.v1";
+  bundleId: string;
+  bundleDir: string;
+  bundleDirLabel: string;
+  zipPath: string | null;
+  zipPathLabel: string | null;
+  manifestPath: string;
+  manifestPathLabel: string;
+  createdAt: string;
+  redactionProfile: string;
+  includedSections: string[];
+  sections: DiagnosticExportSection[];
+  warnings: string[];
+  fileCount: number;
+};
+
+export type ProductRecoveryAction =
+  | "edit_input"
+  | "answer_ask"
+  | "retry_command"
+  | "retry_task"
+  | "refresh_snapshot"
+  | "wait_for_events"
+  | "open_audit"
+  | "open_settings"
+  | "export_diagnostics"
+  | "none";
+
+export type SettingsReadinessStatus =
+  | "ready"
+  | "needs_configuration"
+  | "degraded";
+
+export type SettingsReadinessIssue = {
+  code: string;
+  severity: "blocking" | "warning";
+  message: string;
+  recoveryActions: ProductRecoveryAction[];
+  envVars: string[];
+};
+
+export type SettingsReadinessFirstRun = {
+  ready: boolean;
+  blockingIssueCodes: string[];
+  recommendedActions: ProductRecoveryAction[];
+};
+
+export type SettingsReadinessThinking = {
+  configured: boolean;
+  enabled?: boolean | null;
+  effort?: string | null;
+};
+
+export type SettingsReadinessOpenRouterRouting = {
+  configured: boolean;
+  invalidEnvVars: string[];
+  providerOrderCount: number;
+  providerOnlyCount: number;
+  providerIgnoreCount: number;
+  allowFallbacks?: boolean | null;
+  requireParameters?: boolean | null;
+  dataCollectionConfigured: boolean;
+  zdr?: boolean | null;
+};
+
+export type SettingsReadinessLlm = {
+  provider: string;
+  providerSource: "default" | "env";
+  model: string;
+  modelSource: "default" | "env";
+  configured: boolean;
+  apiKeyConfigured: boolean;
+  missingEnvVars: string[];
+  requestTimeoutSeconds: number | null;
+  requestTimeoutConfigured: boolean;
+  requestTimeoutValid: boolean;
+  thinking: SettingsReadinessThinking;
+  routing?: SettingsReadinessOpenRouterRouting | null;
+};
+
+export type SettingsReadinessLoggingProfile = {
+  id: string;
+  description: string;
+};
+
+export type SettingsReadinessLogging = {
+  enabled: boolean;
+  level: string;
+  selectedProfile?: string | null;
+  selectedProfileKnown: boolean;
+  defaultProfile?: string | null;
+  profiles: SettingsReadinessLoggingProfile[];
+};
+
+export type SettingsReadinessDiagnostics = {
+  bundleExportAvailable: boolean;
+  httpExportRouteAvailable: boolean;
+  cliCommandTemplate: string;
+};
+
+export type SettingsReadinessReport = {
+  schemaVersion: "plato.settings_readiness.v1";
+  generatedAt: string;
+  workspaceRootLabel: string;
+  status: SettingsReadinessStatus;
+  firstRun: SettingsReadinessFirstRun;
+  llm: SettingsReadinessLlm;
+  logging: SettingsReadinessLogging;
+  diagnostics: SettingsReadinessDiagnostics;
+  blockingIssues: SettingsReadinessIssue[];
+  warnings: SettingsReadinessIssue[];
+};
+
+export type SettingsProvider = "litellm" | "deepseek" | "openrouter";
+
+export type SettingsConfigSource = "default" | "env" | "stored";
+
+export type SettingsApiKeySource = "none" | "env" | "stored";
+
+export type SettingsConfigProviderOption = {
+  id: SettingsProvider;
+  label: string;
+  requiredApiKeyEnvVars: string[];
+  preferredApiKeyEnvVar: string;
+};
+
+export type SettingsConfigSummary = {
+  schemaVersion: "plato.settings_config.v1";
+  generatedAt: string;
+  workspaceRootLabel: string;
+  llm: {
+    provider: string;
+    providerSource: SettingsConfigSource;
+    providerOptions: SettingsConfigProviderOption[];
+    model: string;
+    modelSource: SettingsConfigSource;
+    apiKeyConfigured: boolean;
+    apiKeySource: SettingsApiKeySource;
+    apiKeyEnvVar: string;
+  };
+  logging: {
+    enabled: boolean;
+    level: string;
+    selectedProfile?: string | null;
+    selectedProfileSource: SettingsConfigSource;
+    selectedProfileKnown: boolean;
+    defaultProfile?: string | null;
+    profiles: SettingsReadinessLoggingProfile[];
+  };
+  diagnostics: {
+    bundleExportAvailable: boolean;
+    httpExportRouteAvailable: boolean;
+  };
+};
+
+export type UpdateSettingsConfigPayload = {
+  llm?: {
+    provider: SettingsProvider;
+    model: string;
+    apiKey?: string;
+  };
+  logging?: {
+    selectedProfile?: string | null;
+  };
+};
+
+export type SettingsConfigUpdateResult = {
+  schemaVersion: "plato.settings_config_update.v1";
+  updatedAt: string;
+  config: SettingsConfigSummary;
+  readiness: SettingsReadinessReport;
+};
+
 export type PlatoApi = {
+  getSettingsReadiness(): Promise<QueryResponse<SettingsReadinessReport>>;
+  recheckSettingsReadiness(): Promise<QueryResponse<SettingsReadinessReport>>;
+  getSettingsConfig(): Promise<QueryResponse<SettingsConfigSummary>>;
+  updateSettingsConfig(
+    payload: UpdateSettingsConfigPayload,
+  ): Promise<QueryResponse<SettingsConfigUpdateResult>>;
   listSessions(): Promise<QueryResponse<SessionListResult>>;
   createSession(
     payload: CreateSessionPayload,
@@ -183,6 +369,9 @@ export type PlatoApi = {
   getEvidenceDetail(
     request: EvidenceDetailRequest,
   ): Promise<QueryResponse<EvidenceDetail>>;
+  exportDiagnosticBundle(
+    sessionId: SessionId,
+  ): Promise<QueryResponse<DiagnosticBundleExportResult>>;
   renameSession(
     sessionId: SessionId,
     payload: RenameSessionPayload,
@@ -293,6 +482,28 @@ export function createHttpPlatoApi(options: HttpPlatoApiOptions): PlatoApi {
     options.eventSourceFactory ?? createDefaultEventSource;
 
   return {
+    getSettingsReadiness() {
+      return client.getJson<QueryResponse<SettingsReadinessReport>>(
+        "/api/v1/settings/readiness",
+      );
+    },
+    recheckSettingsReadiness() {
+      return client.postJson<QueryResponse<SettingsReadinessReport>>(
+        "/api/v1/settings/readiness/recheck",
+        {},
+      );
+    },
+    getSettingsConfig() {
+      return client.getJson<QueryResponse<SettingsConfigSummary>>(
+        "/api/v1/settings/config",
+      );
+    },
+    updateSettingsConfig(payload) {
+      return client.patchJson<QueryResponse<SettingsConfigUpdateResult>>(
+        "/api/v1/settings/config",
+        payload,
+      );
+    },
     listSessions() {
       return client.getJson<QueryResponse<SessionListResult>>("/api/v1/sessions");
     },
@@ -359,6 +570,12 @@ export function createHttpPlatoApi(options: HttpPlatoApiOptions): PlatoApi {
             ),
           },
         ),
+      );
+    },
+    exportDiagnosticBundle(sessionId) {
+      return client.postJson<QueryResponse<DiagnosticBundleExportResult>>(
+        `/api/v1/sessions/${segment(sessionId)}/diagnostics/export`,
+        {},
       );
     },
     renameSession(sessionId, payload) {

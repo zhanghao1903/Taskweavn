@@ -1,0 +1,200 @@
+.page {
+  min-height: 100vh;
+  padding: 32px;
+  background: var(--plato-color-semantic-page-bg);
+  color: var(--plato-color-semantic-text-primary);
+}
+
+.panel {
+  max-width: 880px;
+  margin: 0 auto;
+  border: 1px solid var(--plato-color-semantic-border);
+  border-radius: 8px;
+  padding: 24px;
+  background: var(--plato-color-semantic-surface);
+}
+
+.panel[data-tone="warning"] {
+  border-color: var(--plato-color-semantic-text-warning);
+}
+
+.headerRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.eyebrow {
+  display: block;
+  color: var(--plato-color-semantic-text-secondary);
+  font-size: 12px;
+  line-height: 17px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.headerRow h1 {
+  margin: 6px 0 0;
+  font-size: 28px;
+  line-height: 34px;
+}
+
+.headerRow p {
+  max-width: 560px;
+  margin: 8px 0 0;
+  color: var(--plato-color-semantic-text-secondary);
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.statusBadge {
+  display: inline-flex;
+  min-height: 24px;
+  align-items: center;
+  border-radius: 6px;
+  padding: 0 10px;
+  background: var(--plato-color-status-audit-verdict-warning-bg);
+  color: var(--plato-color-status-audit-verdict-warning-text);
+  font-size: 12px;
+  line-height: 18px;
+  font-weight: 700;
+}
+
+.summaryGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin: 24px 0 0;
+}
+
+.summaryGrid > div {
+  min-width: 0;
+  border: 1px solid var(--plato-color-semantic-border);
+  border-radius: 6px;
+  padding: 10px;
+  background: var(--plato-color-semantic-surface-muted);
+}
+
+.summaryGrid dt,
+.section h2 {
+  color: var(--plato-color-semantic-text-secondary);
+  font-size: 12px;
+  line-height: 17px;
+  font-weight: 700;
+}
+
+.summaryGrid dd {
+  margin: 4px 0 0;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 600;
+}
+
+.section {
+  margin-top: 22px;
+}
+
+.section h2 {
+  margin: 0 0 8px;
+  text-transform: uppercase;
+}
+
+.issueList,
+.actionList {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.issueList li {
+  display: grid;
+  gap: 3px;
+  border-left: 3px solid var(--plato-color-semantic-text-warning);
+  padding-left: 10px;
+}
+
+.issueList strong {
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.issueList span,
+.actionList li,
+.footerRow span {
+  color: var(--plato-color-semantic-text-secondary);
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.codeList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.codeList code {
+  border: 1px solid var(--plato-color-semantic-border);
+  border-radius: 6px;
+  padding: 4px 7px;
+  background: var(--plato-color-semantic-surface-muted);
+  font-size: 12px;
+  line-height: 17px;
+}
+
+.footerRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.degradedBanner {
+  display: flex;
+  min-height: 48px;
+  align-items: center;
+  gap: 12px;
+  border-bottom: 1px solid var(--plato-color-semantic-border);
+  padding: 10px 24px;
+  background: var(--plato-color-status-audit-verdict-warning-bg);
+  color: var(--plato-color-status-audit-verdict-warning-text);
+}
+
+.degradedBanner strong,
+.degradedBanner span {
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.degradedBanner span {
+  min-width: 0;
+  flex: 1;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 720px) {
+  .page {
+    padding: 16px;
+  }
+
+  .panel {
+    padding: 18px;
+  }
+
+  .headerRow {
+    display: grid;
+  }
+
+  .summaryGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .degradedBanner {
+    display: grid;
+    padding: 10px 16px;
+  }
+}

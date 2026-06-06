@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef } from "react";
 
 import { Button } from "../../shared/components";
+import { navigateApp } from "../../app/navigation";
 import type {
   AuditDisclosure,
   AuditRecordDetail,
@@ -158,10 +159,7 @@ export function DetailPanel({
               <ul className={styles.reservedList}>
                 {logLinks.map((log) => (
                   <li key={`${log.label}-${log.href}`}>
-                    {log.label}
-                    {!log.enabled && log.disabledReason !== undefined && (
-                      <span> · {log.disabledReason}</span>
-                    )}
+                    <RelatedLogLink link={log} />
                   </li>
                 ))}
               </ul>
@@ -170,6 +168,37 @@ export function DetailPanel({
         </div>
       </section>
     </aside>
+  );
+}
+
+function RelatedLogLink({ link }: { link: RelatedLogsLink }) {
+  if (!link.enabled) {
+    return (
+      <>
+        <span>{link.label}</span>
+        {link.disabledReason !== undefined && (
+          <span> · {link.disabledReason}</span>
+        )}
+      </>
+    );
+  }
+
+  return (
+    <Button
+      asChild
+      size="sm"
+      variant="ghost"
+    >
+      <a
+        href={link.href}
+        onClick={(event) => {
+          event.preventDefault();
+          navigateApp(link.href);
+        }}
+      >
+        {link.label}
+      </a>
+    </Button>
   );
 }
 

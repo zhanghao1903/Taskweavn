@@ -1,7 +1,7 @@
 # Plato Product 1.0 Frontend QA Runbook
 
 > Status: draft QA runbook
-> Last Updated: 2026-06-02
+> Last Updated: 2026-06-06
 > Scope: Product 1.0 Main Page + Audit Page frontend user-path validation.
 > Related:
 > [MVP PRD](plato-mvp-prd.md),
@@ -66,6 +66,7 @@ The user should not need to understand:
 | Environment | Purpose | Expected command / setup | Exit criteria |
 |---|---|---|---|
 | Mock frontend | Fast UI regression and scenario parity. | `cd frontend && npm run test`; optional Vite mock mode without `VITE_PLATO_API_MODE=http`. | Main Page and Audit Page mock scenarios still render and tests pass. |
+| Formal sidecar E2E | Product 1.0 frontend integration acceptance and CI gate. | `cd frontend && npm run test:e2e:sidecar`. CI runs the same command in `.github/workflows/product-1-0-frontend-integration.yml`. | Real sidecar fixtures validate Diagnostic Bundle export plus the current read-only Settings first-run configured and unconfigured paths. |
 | Local sidecar HTTP | Main Product 1.0 runtime validation. | `uv run taskweavn plato-dev --workspace ./plato-workspace`. | Browser can complete the user loop through local HTTP/SSE. |
 | Direct sidecar + frontend | Debug mode when ports/env need inspection. | `uv run taskweavn plato-sidecar --workspace ./plato-workspace`; then run Vite with printed env vars. | Frontend can load `GET /api/v1/sessions/{sessionId}/snapshot` and receive events. |
 | Packaged browser/Electron | Release-readiness smoke. | TBD packaging command. | Same user loop works outside developer-only setup. |
@@ -81,6 +82,8 @@ Before manual QA:
 - `git status --short --branch` is clean or the changed files are intentional.
 - `cd frontend && npm run test` passes.
 - `cd frontend && npm run build` passes.
+- `cd frontend && npm run test:e2e:sidecar` passes for the formal sidecar
+  frontend integration acceptance path.
 - Backend focused tests for the touched runtime area pass when a backend change
   is part of the release candidate.
 - `uv run taskweavn plato-dev --workspace ./plato-workspace` starts both the
@@ -89,6 +92,14 @@ Before manual QA:
 - The sidecar health endpoint is reachable.
 - The frontend console has no startup crash.
 - Any known unrelated failure is recorded in the QA notes before testing.
+
+CI acceptance:
+
+- The GitHub Actions workflow `Product 1.0 Frontend Integration` runs
+  `npm run test:e2e:sidecar` on relevant pull requests, pushes to `main`, and
+  manual dispatch.
+- This CI path uses deterministic sidecar fixtures and does not require real
+  LLM provider secrets.
 
 ---
 
@@ -489,6 +500,7 @@ These are known gaps. QA should observe them, but not silently expand Product
 | Broader evidence coverage | Verify current EventStream/log/config/confirmation coverage; record missing evidence as partial/not_available if safe. |
 | Message and confirmation UI hardening | Treat confusing or unsafe confirmation behavior as P0/P1. |
 | Recoverable error UX | Treat missing user recovery on common failures as P1. |
+| Settings first-run completion | Current E2E covers the read-only gate. Full product acceptance still requires Settings route, save/recheck flow, secret-storage/write API decision, degraded warnings, and setup diagnostics action. |
 | Diagnostic bundle | Needed for early testers, but can be a separate release-readiness task. |
 | Packaging / Electron | Required before non-developer users; not required for local developer smoke. |
 | Mobile-specific Audit polish | Defer unless mobile is included in the first user test group. |

@@ -4,6 +4,18 @@ from taskweavn.server.api_publish import (
     ApiPublishHttpTransport,
 )
 from taskweavn.server.client_logs import ClientErrorLogSink, FileClientErrorLogSink
+from taskweavn.server.diagnostics_export import (
+    DIAGNOSTIC_EXPORT_SCHEMA_VERSION,
+    DefaultDiagnosticExportGateway,
+    DiagnosticExportFailure,
+    DiagnosticExportSessionNotFound,
+)
+from taskweavn.server.settings_config import (
+    SETTINGS_CONFIG_SCHEMA_VERSION,
+    SETTINGS_CONFIG_UPDATE_SCHEMA_VERSION,
+    DefaultSettingsConfigGateway,
+    FileSettingsConfigStore,
+)
 from taskweavn.server.main_page import (
     DEFAULT_PLATO_SIDECAR_PORT,
     MainPageSessionLifecycleGateway,
@@ -50,6 +62,14 @@ __all__ = [
     "LocalSidecarServer",
     "DEFAULT_PLATO_SIDECAR_PORT",
     "ClientErrorLogSink",
+    "DIAGNOSTIC_EXPORT_SCHEMA_VERSION",
+    "SETTINGS_CONFIG_SCHEMA_VERSION",
+    "SETTINGS_CONFIG_UPDATE_SCHEMA_VERSION",
+    "DefaultDiagnosticExportGateway",
+    "DefaultSettingsConfigGateway",
+    "DiagnosticExportFailure",
+    "DiagnosticExportSessionNotFound",
+    "FileSettingsConfigStore",
     "FileClientErrorLogSink",
     "MainPageSidecarApp",
     "MainPageSidecarConfig",

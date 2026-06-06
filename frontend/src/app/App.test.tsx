@@ -2,13 +2,18 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { App } from "./App";
 import { AppErrorBoundary } from "./AppErrorBoundary";
 import { AppProviders } from "./providers";
 import { MainPage } from "../pages/main-page/MainPage";
-import type { CommandResponse, UiEvent } from "../shared/api/types";
+import type { CommandResponse, QueryResponse, UiEvent } from "../shared/api/types";
+import type {
+  SettingsConfigSummary,
+  SettingsReadinessReport,
+} from "../shared/api/platoApi";
+import type { SettingsRouteApi } from "../pages/settings/SettingsRoute";
 import type {
   AppendSessionInputCommand,
   AppendTaskInputCommand,
@@ -27,6 +32,10 @@ import {
 } from "../pages/main-page/mockPlatoApi";
 
 describe("App", () => {
+  afterEach(() => {
+    globalThis.history.pushState(null, "", "/");
+  });
+
   it("renders the Plato main page shell", async () => {
     render(
       <AppProviders>
@@ -43,6 +52,75 @@ describe("App", () => {
     expect(screen.getByLabelText("Context message")).toBeInTheDocument();
     expect(screen.queryByText("Message")).not.toBeInTheDocument();
     expect(screen.getByText("Requirement analysis")).toBeInTheDocument();
+  });
+
+  it("renders the diagnostics log handoff route", () => {
+    globalThis.history.pushState(
+      null,
+      "",
+      "/sessions/session-website-plan/diagnostics/logs?category=audit&recordId=record-1&taskNodeId=task-1",
+    );
+
+    render(
+      <AppProviders>
+        <App />
+      </AppProviders>,
+    );
+
+    expect(screen.getByRole("heading", { name: "Diagnostics" })).toBeInTheDocument();
+    expect(screen.getByText("session-website-plan")).toBeInTheDocument();
+    expect(screen.getByText("record-1")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "uv run taskweavn diagnostics export --workspace <workspace> --session-id session-website-plan --output <dir>",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("renders first-run setup in HTTP mode before opening the Main Page", async () => {
+    const readinessApi = {
+      getSettingsReadiness: vi.fn(async () => settingsReadinessResponse()),
+    };
+
+    render(
+      <AppProviders>
+        <App
+          readinessApi={readinessApi}
+          runtimeEnv={{ VITE_PLATO_API_MODE: "http" }}
+        />
+      </AppProviders>,
+    );
+
+    expect(
+      await screen.findByRole("heading", { name: "Setup required" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("LLM_API_KEY")).toBeInTheDocument();
+    expect(screen.queryByRole("banner")).not.toBeInTheDocument();
+  });
+
+  it("opens the Settings route without passing through the first-run gate", async () => {
+    const readinessApi = {
+      getSettingsReadiness: vi.fn(async () => settingsReadinessResponse()),
+    };
+    const settingsApi = appSettingsApi();
+    globalThis.history.pushState(null, "", "/settings?source=first-run&returnTo=/");
+
+    render(
+      <AppProviders>
+        <App
+          readinessApi={readinessApi}
+          runtimeEnv={{ VITE_PLATO_API_MODE: "http" }}
+          settingsApi={settingsApi}
+        />
+      </AppProviders>,
+    );
+
+    expect(
+      await screen.findByRole("heading", { name: "Complete first-run setup" }),
+    ).toBeInTheDocument();
+    expect(screen.getByDisplayValue("anthropic/test-model")).toBeInTheDocument();
+    expect(readinessApi.getSettingsReadiness).not.toHaveBeenCalled();
+    expect(settingsApi.getSettingsConfig).toHaveBeenCalledTimes(1);
   });
 
   it("keeps the fixture state picker available when explicitly enabled", () => {
@@ -68,15 +146,21 @@ describe("App", () => {
     expect(screen.queryByText("Session messages")).not.toBeInTheDocument();
 
     await user.click(
-      screen.getByRole("button", { name: "Open activity overlay" }),
+      screen.getByRole("button", { name: /Open session activity/ }),
     );
 
-    expect(screen.getByLabelText("Activity overlay")).toBeInTheDocument();
-    expect(screen.getByText("Task updates")).toBeInTheDocument();
+    expect(
+      screen.getByRole("dialog", { name: "Session activity" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Session activity" }),
+    ).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Close" }));
 
-    expect(screen.queryByLabelText("Activity overlay")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("dialog", { name: "Session activity" }),
+    ).not.toBeInTheDocument();
   });
 
   it("renders confirmation and file-change fixture states when explicitly requested", async () => {
@@ -102,8 +186,8 @@ describe("App", () => {
     );
 
     expect(screen.getByRole("heading", { name: "Initial implementation" })).toBeInTheDocument();
-    expect(screen.getByText("Task details")).toBeInTheDocument();
-    expect(screen.getByText("Scope: selected task / Initial implementation")).toBeInTheDocument();
+    expect(screen.getByRole("complementary", { name: "Details" })).toBeInTheDocument();
+    expect(screen.getByText("Writing to Initial implementation")).toBeInTheDocument();
     expect(screen.getByLabelText("Latest activity")).toBeInTheDocument();
   });
 
@@ -116,8 +200,10 @@ describe("App", () => {
     await user.click(screen.getByRole("button", { name: /Visual direction/i }));
 
     expect(screen.queryByText("Implementation started")).not.toBeInTheDocument();
-    expect(screen.getByText("1/2 shown")).toBeInTheDocument();
-    expect(screen.getByText("Session-wide")).toBeInTheDocument();
+    expect(screen.getByLabelText("Latest activity")).toHaveTextContent("Draft task plan ready");
+    expect(
+      screen.getByRole("button", { name: /Open task updates \(Activity 1\/2\)/ }),
+    ).toBeInTheDocument();
     expect(screen.queryByText("Session messages")).not.toBeInTheDocument();
   });
 
@@ -132,7 +218,7 @@ describe("App", () => {
 
     expect(screen.getByRole("heading", { name: "Visual direction" })).toBeInTheDocument();
     expect(screen.queryByText("package.json")).not.toBeInTheDocument();
-    expect(screen.getByText("Task details")).toBeInTheDocument();
+    expect(screen.getByRole("complementary", { name: "Details" })).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /Initial implementation/i }));
 
@@ -207,7 +293,7 @@ describe("App", () => {
     await user.click(screen.getByRole("button", { name: "Resolve decision" }));
 
     expect(
-      await screen.findByText("Confirmation command failed. Please retry."),
+      await screen.findByText("Confirmation failed. Please retry."),
     ).toBeInTheDocument();
     expect(screen.getByText("Decision needed")).toBeInTheDocument();
   });
@@ -679,7 +765,9 @@ describe("App", () => {
       <MainPage adapter={testAdapter({ loadSnapshot: pendingLoader })} />,
     );
 
-    expect(screen.getByText("Loading session snapshot")).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Opening session" }),
+    ).toBeInTheDocument();
     expect(screen.getByLabelText("State")).toBeInTheDocument();
   });
 
@@ -693,7 +781,7 @@ describe("App", () => {
     );
 
     expect(
-      await screen.findByText("Unable to load session snapshot"),
+      await screen.findByRole("heading", { name: "Unable to open session" }),
     ).toBeInTheDocument();
   });
 
@@ -790,6 +878,142 @@ function acceptedCommandResponse(commandId: string): CommandResponse {
       affectedTaskRefs: [],
       affectedScopes: [],
     },
+  };
+}
+
+function appSettingsApi(): SettingsRouteApi {
+  return {
+    exportDiagnosticBundle: vi.fn(async () => ({
+      data: null,
+      error: null,
+      generatedAt: "2026-06-06T09:00:00Z",
+      ok: true,
+      requestId: "diagnostics",
+    })),
+    getSettingsConfig: vi.fn(async () => ({
+      data: settingsConfigSummary(),
+      error: null,
+      generatedAt: "2026-06-06T09:00:00Z",
+      ok: true,
+      requestId: "settings-config",
+    })),
+    listSessions: vi.fn(async () => ({
+      data: { sessions: [] },
+      error: null,
+      generatedAt: "2026-06-06T09:00:00Z",
+      ok: true,
+      requestId: "sessions",
+    })),
+    recheckSettingsReadiness: vi.fn(async () => settingsReadinessResponse()),
+    updateSettingsConfig: vi.fn(async () => ({
+      data: null,
+      error: null,
+      generatedAt: "2026-06-06T09:00:00Z",
+      ok: true,
+      requestId: "settings-update",
+    })),
+  };
+}
+
+function settingsConfigSummary(): SettingsConfigSummary {
+  return {
+    diagnostics: {
+      bundleExportAvailable: true,
+      httpExportRouteAvailable: true,
+    },
+    generatedAt: "2026-06-06T09:00:00Z",
+    llm: {
+      apiKeyConfigured: false,
+      apiKeyEnvVar: "LLM_API_KEY",
+      apiKeySource: "none",
+      model: "anthropic/test-model",
+      modelSource: "default",
+      provider: "litellm",
+      providerOptions: [
+        {
+          id: "litellm",
+          label: "LiteLLM",
+          preferredApiKeyEnvVar: "LLM_API_KEY",
+          requiredApiKeyEnvVars: ["LLM_API_KEY"],
+        },
+      ],
+      providerSource: "default",
+    },
+    logging: {
+      defaultProfile: "normal",
+      enabled: true,
+      level: "INFO",
+      profiles: [
+        {
+          description: "Record normal summaries.",
+          id: "normal",
+        },
+      ],
+      selectedProfile: "normal",
+      selectedProfileKnown: true,
+      selectedProfileSource: "default",
+    },
+    schemaVersion: "plato.settings_config.v1",
+    workspaceRootLabel: "workspace://current",
+  };
+}
+
+function settingsReadinessResponse(): QueryResponse<SettingsReadinessReport> {
+  return {
+    data: {
+      blockingIssues: [
+        {
+          code: "llm.missing_api_key",
+          envVars: ["LLM_API_KEY"],
+          message: "LLM API key configuration is missing.",
+          recoveryActions: ["open_settings"],
+          severity: "blocking",
+        },
+      ],
+      diagnostics: {
+        bundleExportAvailable: true,
+        cliCommandTemplate:
+          "uv run taskweavn diagnostics export --workspace <workspace> --session-id <sessionId> --output <dir>",
+        httpExportRouteAvailable: true,
+      },
+      firstRun: {
+        blockingIssueCodes: ["llm.missing_api_key"],
+        ready: false,
+        recommendedActions: ["open_settings"],
+      },
+      generatedAt: "2026-06-05T12:00:00Z",
+      llm: {
+        apiKeyConfigured: false,
+        configured: false,
+        missingEnvVars: ["LLM_API_KEY"],
+        model: "anthropic/test-model",
+        modelSource: "default",
+        provider: "litellm",
+        providerSource: "default",
+        requestTimeoutConfigured: false,
+        requestTimeoutSeconds: 180,
+        requestTimeoutValid: true,
+        thinking: {
+          configured: false,
+        },
+      },
+      logging: {
+        defaultProfile: "normal",
+        enabled: true,
+        level: "INFO",
+        profiles: [],
+        selectedProfile: null,
+        selectedProfileKnown: true,
+      },
+      schemaVersion: "plato.settings_readiness.v1",
+      status: "needs_configuration",
+      warnings: [],
+      workspaceRootLabel: "workspace://current",
+    },
+    error: null,
+    generatedAt: "2026-06-05T12:00:00Z",
+    ok: true,
+    requestId: "settings-readiness",
   };
 }
 

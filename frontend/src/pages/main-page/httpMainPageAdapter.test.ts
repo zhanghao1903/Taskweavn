@@ -8,7 +8,6 @@ import type {
   CancelAskPayload,
   DeferAskPayload,
   GenerateTaskTreePayload,
-  PlatoApi,
   PublishTaskTreePayload,
   ResolveConfirmationPayload,
   SessionLifecycleResult,
@@ -23,8 +22,10 @@ import type {
   QueryResponse,
   UiEvent,
 } from "../../shared/api/types";
-import { createAuditMockApi } from "../audit-page/mockAuditApi";
-import { createHttpMainPageAdapter } from "./httpMainPageAdapter";
+import {
+  createHttpMainPageAdapter,
+  type HttpMainPageApi,
+} from "./httpMainPageAdapter";
 import { getMainPageMockSnapshot } from "./mockPlatoApi";
 
 describe("HTTP MainPage adapter bridge", () => {
@@ -307,7 +308,6 @@ describe("HTTP MainPage adapter bridge", () => {
 
 function stubPlatoApi(snapshot: MainPageSnapshot) {
   const response = acceptedCommandResponse("accepted");
-  const auditApi = createAuditMockApi();
   return {
     listSessions: vi.fn(async () =>
       lifecycleResponse({ sessions: snapshot.sessions }),
@@ -326,28 +326,12 @@ function stubPlatoApi(snapshot: MainPageSnapshot) {
     retryTask: vi.fn(async () => response),
     stopTask: vi.fn(async () => response),
     resolveConfirmation: vi.fn(async () => response),
-    listAsks: vi.fn(async () => ({
-      cursor: null,
-      data: {
-        activeAsk: null,
-        asks: [],
-        sessionId: snapshot.session.id,
-      },
-      error: null,
-      generatedAt: "2026-06-04T10:00:00Z",
-      ok: true,
-      requestId: "asks",
-    })),
     answerAsk: vi.fn(async () => response),
     answerAuthoringAskBatch: vi.fn(async () => response),
     deferAsk: vi.fn(async () => response),
     cancelAsk: vi.fn(async () => response),
     subscribeSessionEvents: vi.fn(() => () => undefined),
-    getAuditSnapshot: vi.fn(auditApi.getAuditSnapshot),
-    listAuditRecords: vi.fn(auditApi.listAuditRecords),
-    getAuditRecordDetail: vi.fn(auditApi.getAuditRecordDetail),
-    getEvidenceDetail: vi.fn(auditApi.getEvidenceDetail),
-  } satisfies PlatoApi;
+  } satisfies HttpMainPageApi;
 }
 
 function lifecycleResponse<T extends SessionLifecycleResult | SessionListResult>(
@@ -374,6 +358,7 @@ function snapshotResponse(
     generatedAt: snapshot.generatedAt,
   };
 }
+
 
 function acceptedCommandResponse(commandId: string): CommandResponse {
   return {

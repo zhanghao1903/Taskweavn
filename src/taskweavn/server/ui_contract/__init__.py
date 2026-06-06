@@ -90,6 +90,15 @@ from taskweavn.server.ui_contract.mapping import (
     map_task_permissions,
     map_task_tree_view,
 )
+from taskweavn.server.ui_contract.product_errors import (
+    ProductErrorCategory,
+    ProductErrorSeverity,
+    ProductRecoveryAction,
+    product_error_details,
+    product_error_details_for_api_error,
+    product_error_details_for_llm_classification,
+    product_error_details_for_task_failure,
+)
 from taskweavn.server.ui_contract.refs import (
     AffectedObjectImpact,
     AffectedObjectRef,
@@ -280,6 +289,9 @@ __all__ = [
     "ObjectRef",
     "ObjectRefKind",
     "ProjectProvider",
+    "ProductErrorCategory",
+    "ProductErrorSeverity",
+    "ProductRecoveryAction",
     "PayloadDisclosureResult",
     "ProjectSummary",
     "PublishTaskTreePayload",
@@ -336,6 +348,10 @@ __all__ = [
     "map_task_node_status",
     "map_task_permissions",
     "map_task_tree_view",
+    "product_error_details",
+    "product_error_details_for_api_error",
+    "product_error_details_for_llm_classification",
+    "product_error_details_for_task_failure",
     "to_camel",
     "utcnow",
 ]
