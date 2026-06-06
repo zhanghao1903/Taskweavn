@@ -1,0 +1,331 @@
+.page {
+  min-height: 100vh;
+  padding: 32px;
+  background: var(--plato-color-semantic-page-bg);
+  color: var(--plato-color-semantic-text-primary);
+}
+
+.modalViewport {
+  position: fixed;
+  z-index: 80;
+  inset: 0;
+  display: grid;
+  align-items: center;
+  justify-items: center;
+  overflow: auto;
+  padding: clamp(18px, 4vw, 48px);
+  background: linear-gradient(
+    135deg,
+    rgba(229, 247, 248, 0.2),
+    rgba(221, 237, 249, 0.24)
+  );
+  color: var(--plato-color-semantic-text-primary);
+}
+
+.panel {
+  max-width: 920px;
+  margin: 0 auto;
+  border: 1px solid var(--plato-color-semantic-border);
+  border-radius: 8px;
+  padding: 24px;
+  background: var(--plato-color-semantic-surface);
+}
+
+.modalPanel {
+  width: min(1040px, calc(100vw - 48px));
+  max-width: none;
+  max-height: min(860px, calc(100vh - 48px));
+  overflow: auto;
+  border-color: rgba(255, 255, 255, 0.68);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.78), rgba(250, 253, 253, 0.68));
+  -webkit-backdrop-filter: blur(28px) saturate(1.12);
+  backdrop-filter: blur(28px) saturate(1.12);
+  box-shadow:
+    0 24px 80px rgba(28, 44, 52, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.82);
+}
+
+.headerRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.headerActions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.eyebrow {
+  display: block;
+  color: var(--plato-color-semantic-text-secondary);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 17px;
+  text-transform: uppercase;
+}
+
+.headerRow h1 {
+  margin: 6px 0 0;
+  font-size: 28px;
+  line-height: 34px;
+}
+
+.headerRow p {
+  max-width: 600px;
+  margin: 8px 0 0;
+  color: var(--plato-color-semantic-text-secondary);
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.statusBadge {
+  display: inline-flex;
+  min-height: 24px;
+  align-items: center;
+  border-radius: 6px;
+  padding: 0 10px;
+  background: var(--plato-color-status-execution-pending-bg);
+  color: var(--plato-color-status-execution-pending-text);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 18px;
+  white-space: nowrap;
+}
+
+.summaryGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin: 24px 0 0;
+}
+
+.summaryGrid > div {
+  min-width: 0;
+  border: 1px solid var(--plato-color-semantic-border);
+  border-radius: 6px;
+  padding: 10px;
+  background: var(--plato-color-semantic-surface-muted);
+}
+
+.summaryGrid dt,
+.exportResult dt {
+  color: var(--plato-color-semantic-text-secondary);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 17px;
+}
+
+.summaryGrid dd,
+.exportResult dd {
+  margin: 4px 0 0;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 18px;
+}
+
+.form {
+  display: grid;
+  gap: 16px;
+  margin-top: 24px;
+  border-top: 1px solid var(--plato-color-semantic-border);
+  padding-top: 20px;
+}
+
+.formGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.field {
+  display: grid;
+  min-width: 0;
+  gap: 6px;
+}
+
+.field span {
+  color: var(--plato-color-semantic-text-secondary);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 17px;
+  text-transform: uppercase;
+}
+
+.field input,
+.field select {
+  min-height: 40px;
+  min-width: 0;
+  width: 100%;
+  border: 1px solid var(--plato-color-semantic-border);
+  border-radius: 6px;
+  padding: 0 10px;
+  background: var(--plato-color-semantic-surface);
+  color: var(--plato-color-semantic-text-primary);
+  font: inherit;
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.field input:focus,
+.field select:focus {
+  outline: none;
+  box-shadow: var(--plato-shadow-focus);
+}
+
+.field input:disabled,
+.field select:disabled {
+  color: var(--plato-color-semantic-text-disabled);
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.field small,
+.helperText {
+  margin: 0;
+  color: var(--plato-color-semantic-text-secondary);
+  font-size: 13px;
+  line-height: 18px;
+  overflow-wrap: anywhere;
+}
+
+.fieldError {
+  color: var(--plato-color-semantic-text-danger);
+  font-weight: 600;
+}
+
+.infoBanner,
+.errorBanner {
+  border-radius: 6px;
+  padding: 10px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 18px;
+}
+
+.infoBanner {
+  background: var(--plato-color-status-execution-done-bg);
+  color: var(--plato-color-status-execution-done-text);
+}
+
+.errorBanner {
+  background: var(--plato-color-status-execution-failed-bg);
+  color: var(--plato-color-status-execution-failed-text);
+}
+
+.issueSection {
+  display: grid;
+  gap: 8px;
+}
+
+.issueSection h2,
+.diagnosticsPanel h2 {
+  margin: 0;
+  color: var(--plato-color-semantic-text-secondary);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 17px;
+  text-transform: uppercase;
+}
+
+.issueList {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.issueList li {
+  display: grid;
+  gap: 3px;
+  border-left: 3px solid var(--plato-color-semantic-text-warning);
+  padding-left: 10px;
+}
+
+.issueList strong {
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.issueList span {
+  color: var(--plato-color-semantic-text-secondary);
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.footerActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.footerActions button {
+  min-width: 132px;
+}
+
+.diagnosticsPanel {
+  display: grid;
+  gap: 12px;
+  margin-top: 24px;
+  border-top: 1px solid var(--plato-color-semantic-border);
+  padding-top: 20px;
+}
+
+.diagnosticsPanel p {
+  margin: 4px 0 0;
+  color: var(--plato-color-semantic-text-secondary);
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.exportResult {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0;
+}
+
+@media (max-width: 760px) {
+  .page {
+    padding: 16px;
+  }
+
+  .modalViewport {
+    align-items: stretch;
+    padding: 12px;
+  }
+
+  .panel {
+    padding: 18px;
+  }
+
+  .modalPanel {
+    width: 100%;
+    max-height: calc(100vh - 24px);
+  }
+
+  .headerRow,
+  .formGrid,
+  .summaryGrid,
+  .exportResult {
+    grid-template-columns: 1fr;
+  }
+
+  .headerRow {
+    display: grid;
+  }
+
+  .headerActions {
+    justify-content: space-between;
+  }
+
+  .footerActions {
+    display: grid;
+  }
+}

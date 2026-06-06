@@ -14,6 +14,8 @@ from __future__ import annotations
 
 import io
 import json
+import subprocess
+import sys
 import threading
 from collections.abc import Iterator
 from pathlib import Path
@@ -54,6 +56,21 @@ def bus(tmp_path: Path) -> Iterator[InProcessMessageBus]:
 # ---------------------------------------------------------------------------
 # --autonomy preset validation
 # ---------------------------------------------------------------------------
+
+
+def test_cli_import_does_not_cycle_diagnostics_and_server() -> None:
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "from taskweavn.cli.main import app; print(app.info.name)",
+        ],
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "taskweavn" in result.stdout
 
 
 def test_autonomy_unknown_preset_rejected(tmp_path: Path) -> None:

@@ -5,8 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:sidecar:configured": "node scripts/run-sidecar-dev.mjs --first-run-configured",
+    "dev:sidecar:first-run": "node scripts/run-sidecar-dev.mjs --first-run-unconfigured",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
+    "test:e2e:sidecar": "node scripts/run-sidecar-e2e.mjs",
     "test": "vitest run --config vitest.config.ts",
     "test:watch": "vitest --config vitest.config.ts"
   },

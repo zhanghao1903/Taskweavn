@@ -7,6 +7,7 @@ import json
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, cast
 from urllib.parse import quote
 
@@ -33,6 +34,7 @@ from taskweavn.task import (
     TaskRef,
     TaskRunResult,
 )
+from tests.fixtures.sidecar_smoke import build_audit_sidecar_smoke_fixture
 
 
 def test_main_page_sidecar_config_uses_stable_dev_port_by_default(
@@ -41,6 +43,138 @@ def test_main_page_sidecar_config_uses_stable_dev_port_by_default(
     config = MainPageSidecarConfig(workspace_root=tmp_path)
 
     assert config.port == DEFAULT_PLATO_SIDECAR_PORT
+
+
+def test_main_page_sidecar_app_exposes_settings_readiness_without_secret(
+    tmp_path: Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("LLM_PROVIDER", "litellm")
+    monkeypatch.setenv("LLM_API_KEY", "sk-sidecar-readiness-secret")
+    monkeypatch.setenv("LLM_MODEL", "anthropic/test-model")
+
+    app = build_main_page_sidecar_app(
+        MainPageSidecarConfig(workspace_root=tmp_path, port=0),
+        MainPageSidecarDependencies(llm=_StubLLM()),
+    )
+    try:
+        response = _request(app, "GET", "/api/v1/settings/readiness")
+    finally:
+        app.close()
+
+    profile_ids = {profile["id"] for profile in response.json["data"]["logging"]["profiles"]}
+    assert response.status == 200
+    assert response.json["ok"] is True
+    assert response.json["data"]["schemaVersion"] == "plato.settings_readiness.v1"
+    assert response.json["data"]["status"] == "ready"
+    assert response.json["data"]["llm"]["apiKeyConfigured"] is True
+    assert response.json["data"]["diagnostics"]["bundleExportAvailable"] is True
+    assert response.json["data"]["diagnostics"]["httpExportRouteAvailable"] is True
+    assert "normal" in profile_ids
+    assert "sk-sidecar-readiness-secret" not in response.text
+
+
+def test_main_page_sidecar_app_saves_settings_config_and_refreshes_readiness(
+    tmp_path: Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    for key in (
+        "LLM_PROVIDER",
+        "LLM_MODEL",
+        "LLM_API_KEY",
+        "DEEPSEEK_API_KEY",
+        "OPENROUTER_API_KEY",
+    ):
+        monkeypatch.delenv(key, raising=False)
+    secret = "sk-sidecar-settings-secret"
+
+    app = build_main_page_sidecar_app(
+        MainPageSidecarConfig(workspace_root=tmp_path, port=0),
+        MainPageSidecarDependencies(llm=_StubLLM()),
+    )
+    try:
+        initial = _request(app, "GET", "/api/v1/settings/readiness")
+        saved = _request(
+            app,
+            "PATCH",
+            "/api/v1/settings/config",
+            body={
+                "llm": {
+                    "provider": "litellm",
+                    "model": "anthropic/test-model",
+                    "apiKey": secret,
+                },
+                "logging": {"selectedProfile": "normal"},
+            },
+        )
+        config = _request(app, "GET", "/api/v1/settings/config")
+        readiness = _request(app, "GET", "/api/v1/settings/readiness")
+    finally:
+        app.close()
+
+    assert initial.status == 200
+    assert initial.json["data"]["status"] == "needs_configuration"
+    assert saved.status == 200
+    assert saved.json["data"]["schemaVersion"] == "plato.settings_config_update.v1"
+    assert saved.json["data"]["config"]["llm"]["apiKeyConfigured"] is True
+    assert saved.json["data"]["config"]["llm"]["apiKeySource"] == "stored"
+    assert saved.json["data"]["readiness"]["status"] == "ready"
+    assert config.json["data"]["schemaVersion"] == "plato.settings_config.v1"
+    assert config.json["data"]["llm"]["model"] == "anthropic/test-model"
+    assert config.json["data"]["logging"]["selectedProfile"] == "normal"
+    assert readiness.json["data"]["status"] == "ready"
+    assert readiness.json["data"]["firstRun"]["ready"] is True
+    combined_text = saved.text + config.text + readiness.text
+    assert secret not in combined_text
+    assert secret not in (
+        tmp_path / ".taskweavn" / "settings" / "config.json"
+    ).read_text(encoding="utf-8")
+
+
+def test_audit_sidecar_smoke_fixture_can_force_first_run_unconfigured(
+    tmp_path: Any,
+) -> None:
+    fixture = build_audit_sidecar_smoke_fixture(
+        tmp_path,
+        settings_readiness_env={},
+    )
+    try:
+        response = fixture.request("GET", "/api/v1/settings/readiness")
+    finally:
+        fixture.close()
+
+    assert response.status == 200
+    assert response.json["ok"] is True
+    assert response.json["data"]["status"] == "needs_configuration"
+    assert response.json["data"]["firstRun"]["ready"] is False
+    assert response.json["data"]["llm"]["provider"] == "litellm"
+    assert response.json["data"]["llm"]["missingEnvVars"] == ["LLM_API_KEY"]
+    assert response.json["data"]["blockingIssues"][0]["code"] == "llm.missing_api_key"
+
+
+def test_audit_sidecar_smoke_fixture_can_force_first_run_configured(
+    tmp_path: Any,
+) -> None:
+    fixture = build_audit_sidecar_smoke_fixture(
+        tmp_path,
+        settings_readiness_env={
+            "LLM_PROVIDER": "litellm",
+            "LLM_MODEL": "anthropic/test-model",
+            "LLM_API_KEY": "test-sidecar-readiness-key",
+        },
+    )
+    try:
+        response = fixture.request("GET", "/api/v1/settings/readiness")
+    finally:
+        fixture.close()
+
+    assert response.status == 200
+    assert response.json["ok"] is True
+    assert response.json["data"]["status"] == "ready"
+    assert response.json["data"]["firstRun"]["ready"] is True
+    assert response.json["data"]["llm"]["provider"] == "litellm"
+    assert response.json["data"]["llm"]["missingEnvVars"] == []
+    assert "test-sidecar-readiness-key" not in response.text
 
 
 def test_build_main_page_sidecar_app_starts_without_session_and_frontend_creates_one(
@@ -1103,6 +1237,53 @@ def test_main_page_sidecar_app_writes_frontend_error_log_file(tmp_path: Any) -> 
     assert "event: audit.records_changed" in events.text
     assert '"reason":"log_archive_updated"' in events.text
     assert '"record-log-frontend-errors.jsonl"' in events.text
+
+
+def test_sidecar_smoke_fixture_exports_diagnostics_bundle_over_http(
+    tmp_path: Path,
+) -> None:
+    fixture = build_audit_sidecar_smoke_fixture(tmp_path)
+    try:
+        response = fixture.request("POST", fixture.diagnostic_export_path)
+    finally:
+        fixture.close()
+
+    data = response.json["data"]
+    manifest_path = Path(data["manifestPath"])
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest_files = {entry["path"] for entry in manifest["files"]}
+    bundle_text = "\n".join(
+        file.read_text(encoding="utf-8")
+        for file in manifest_path.parent.rglob("*")
+        if file.is_file()
+    )
+
+    assert response.status == 200
+    assert response.json["ok"] is True
+    assert data["schemaVersion"] == "plato.diagnostics_export.v1"
+    assert data["bundleId"].startswith(f"diagnostic-bundle-{fixture.session_id}-")
+    assert data["bundleDirLabel"].startswith(
+        "workspace://current/.taskweavn/diagnostics/"
+    )
+    assert data["zipPath"] is not None
+    assert data["zipPathLabel"].startswith(
+        "workspace://current/.taskweavn/diagnostics/"
+    )
+    assert data["manifestPathLabel"].startswith(
+        "workspace://current/.taskweavn/diagnostics/"
+    )
+    assert data["redactionProfile"] == "product_1_0_default"
+    assert {"session", "tasks", "audit", "logs", "frontend"}.issubset(
+        set(data["includedSections"])
+    )
+    assert data["fileCount"] == len(manifest["files"])
+    assert {
+        "frontend/client-errors.summary.jsonl",
+        "logs/manifest.json",
+        "session/tasks.json",
+    }.issubset(manifest_files)
+    assert fixture.log_record_id in fixture.diagnostics_log_href
+    assert str(tmp_path) not in bundle_text
 
 
 def test_main_page_sidecar_app_resolve_confirmation_emits_audit_event(

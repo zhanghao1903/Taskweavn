@@ -1046,6 +1046,10 @@ def test_audit_snapshot_includes_workspace_log_and_config_records(
     assert snapshot.data.effective_config is not None
     assert snapshot.data.effective_config.profile_label == "Session log manifest"
     assert snapshot.data.related_logs[0].enabled is True
+    assert snapshot.data.related_logs[0].href == (
+        "/sessions/session-1/diagnostics/logs?category=audit"
+    )
+    assert str(log_dir) not in snapshot.data.related_logs[0].href
     assert config_evidence.ok is True
     assert config_evidence.data is not None
     assert config_evidence.data.source == "config_store"
@@ -1086,4 +1090,9 @@ def test_query_gateway_converts_unexpected_errors_to_internal_error() -> None:
     assert response.ok is False
     assert response.error is not None
     assert response.error.code == "internal_error"
+    assert response.error.details["productCategory"] == "unexpected_internal"
+    assert response.error.details["recoveryActions"] == [
+        "refresh_snapshot",
+        "export_diagnostics",
+    ]
     assert response.error.details["error_type"] == "RuntimeError"

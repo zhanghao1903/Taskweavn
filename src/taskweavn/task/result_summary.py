@@ -12,6 +12,10 @@ from typing import Any, ClassVar, Literal, Protocol, runtime_checkable
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from taskweavn.product_errors import (
+    product_error_details_for_llm_classification,
+    product_error_details_for_task_failure,
+)
 from taskweavn.task.models import TaskDomain, TaskRef
 from taskweavn.task.views import TaskSummaryView
 
@@ -184,7 +188,18 @@ def build_agent_loop_error_summary(
         stop_reason=reason,
         error_type="agent_loop_failed",
         error_message=message,
-        metadata={"requiredCapability": task.required_capability},
+        metadata={
+            "requiredCapability": task.required_capability,
+            **product_error_details_for_task_failure(
+                error_type="agent_loop_failed",
+                interrupted=reason == "interrupted" or reason.startswith("cancelled"),
+                diagnostic_refs={
+                    "errorRef": summary_id,
+                    "taskId": task.task_id,
+                    "sessionId": task.session_id,
+                },
+            ),
+        },
     )
 
 
@@ -196,6 +211,12 @@ def build_execution_exception_summary(
 ) -> TaskExecutionSummary:
     error_type = type(exc).__name__
     message = f"Task execution failed with {error_type}."
+    product_details = _product_error_details_for_exception(
+        summary_id=summary_id,
+        task=task,
+        exc=exc,
+        error_type=error_type,
+    )
     return TaskExecutionSummary(
         summary_id=summary_id,
         session_id=task.session_id,
@@ -205,8 +226,11 @@ def build_execution_exception_summary(
         title="Task execution failed",
         summary=message,
         error_type=error_type,
-        error_message=str(exc) or message,
-        metadata={"requiredCapability": task.required_capability},
+        error_message=message,
+        metadata={
+            "requiredCapability": task.required_capability,
+            **product_details,
+        },
     )
 
 
@@ -259,7 +283,50 @@ def build_external_error_ref_summary(
         summary=f"Task execution failed. Error reference: {error_ref}.",
         error_type="external_agent_error",
         error_message=error_ref,
-        metadata={"requiredCapability": task.required_capability},
+        metadata={
+            "requiredCapability": task.required_capability,
+            **product_error_details_for_task_failure(
+                error_type="external_agent_error",
+                diagnostic_refs={
+                    "errorRef": error_ref,
+                    "taskId": task.task_id,
+                    "sessionId": task.session_id,
+                },
+            ),
+        },
+    )
+
+
+def _product_error_details_for_exception(
+    *,
+    summary_id: str,
+    task: TaskDomain,
+    exc: Exception,
+    error_type: str,
+) -> dict[str, object]:
+    diagnostic_refs: dict[str, object] = {
+        "errorRef": summary_id,
+        "taskId": task.task_id,
+        "sessionId": task.session_id,
+    }
+    classification = getattr(exc, "classification", None)
+    if classification is not None:
+        provider_name = getattr(exc, "provider_name", None)
+        model = getattr(exc, "model", None)
+        retry_records = getattr(exc, "retry_records", ())
+        if provider_name:
+            diagnostic_refs["providerName"] = provider_name
+        if model:
+            diagnostic_refs["model"] = model
+        return product_error_details_for_llm_classification(
+            classification,
+            retry_count=len(retry_records),
+            diagnostic_refs=diagnostic_refs,
+            extra={"errorType": error_type},
+        )
+    return product_error_details_for_task_failure(
+        error_type=error_type,
+        diagnostic_refs=diagnostic_refs,
     )
 
 

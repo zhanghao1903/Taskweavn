@@ -25,6 +25,12 @@ def _match_route(path: str) -> _Route | None:
         return _Route(name="root", method="GET")
     if parts == ("api", "v1", "health"):
         return _Route(name="health", method="GET")
+    if parts == ("api", "v1", "settings", "readiness"):
+        return _Route(name="settings_readiness", method="GET")
+    if parts == ("api", "v1", "settings", "readiness", "recheck"):
+        return _Route(name="settings_readiness_recheck", method="POST")
+    if parts == ("api", "v1", "settings", "config"):
+        return _Route(name="settings_config", method="*")
     if parts == ("api", "v1", "sessions"):
         return _Route(name="sessions", method="*")
     if len(parts) < 4 or parts[:3] != ("api", "v1", "sessions"):
@@ -79,6 +85,8 @@ def _match_route(path: str) -> _Route | None:
         return _Route(name="events", method="GET", session_id=session_id)
     if suffix == ("client-logs", "errors"):
         return _Route(name="client_error_log", method="POST", session_id=session_id)
+    if suffix == ("diagnostics", "export"):
+        return _Route(name="diagnostics_export", method="POST", session_id=session_id)
     if len(suffix) == 2 and suffix[0] == "tasks":
         return _Route(
             name="update_task_node",

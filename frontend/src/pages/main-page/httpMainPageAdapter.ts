@@ -13,8 +13,30 @@ import type { MainPageAdapter } from "./runtime/adapter";
 import { deriveMainPageMetadataFromSnapshot } from "./runtime/metadata";
 import { summarizeMainPageSnapshot } from "../../shared/api/traceSummary";
 
+export type HttpMainPageApi = Pick<
+  PlatoApi,
+  | "answerAsk"
+  | "answerAuthoringAskBatch"
+  | "appendSessionInput"
+  | "appendTaskInput"
+  | "cancelAsk"
+  | "createSession"
+  | "deferAsk"
+  | "deleteSession"
+  | "generateTaskTree"
+  | "getSessionSnapshot"
+  | "listSessions"
+  | "publishTaskTree"
+  | "renameSession"
+  | "resolveConfirmation"
+  | "retryTask"
+  | "stopTask"
+  | "subscribeSessionEvents"
+  | "updateTaskNode"
+>;
+
 export type HttpMainPageAdapterOptions = {
-  api: PlatoApi;
+  api: HttpMainPageApi;
   liveLabel?: string;
   sessionId?: SessionId | null;
   showStatePicker?: boolean;
@@ -142,7 +164,7 @@ export function createHttpMainPageAdapter({
 }
 
 async function resolveActiveSessionId(
-  api: PlatoApi,
+  api: Pick<PlatoApi, "listSessions">,
   preferredSessionId: SessionId | null | undefined,
 ): Promise<SessionId> {
   if (preferredSessionId) {

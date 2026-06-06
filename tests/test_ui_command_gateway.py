@@ -1022,6 +1022,8 @@ def test_retry_task_rejects_draft_task_ref() -> None:
     assert response.ok is False
     assert response.error is not None
     assert response.error.code == "command_rejected"
+    assert response.error.details["productCategory"] == "command_conflict"
+    assert response.error.details["recoveryActions"] == ["refresh_snapshot"]
     assert commands.calls == []
 
 

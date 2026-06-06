@@ -22,6 +22,7 @@ from taskweavn.interaction import (
 from taskweavn.observability.main_page_trace import main_page_trace
 from taskweavn.server.ask_recovery import DefaultAskRecoveryService
 from taskweavn.server.client_logs import FileClientErrorLogSink
+from taskweavn.server.diagnostics_export import DefaultDiagnosticExportGateway
 from taskweavn.server.main_page_agent import build_agent_loop_resident_default_agent
 from taskweavn.server.main_page_audit_events import (
     FRONTEND_ERROR_LOG_FILENAME,
@@ -36,7 +37,9 @@ from taskweavn.server.main_page_sessions import (
     MainPageTaskRefResolver,
     resolve_configured_session,
 )
+from taskweavn.server.settings_config import DefaultSettingsConfigGateway
 from taskweavn.server.sidecar import LocalSidecarConfig, LocalSidecarServer
+from taskweavn.server.task_timeline import WorkspaceTaskInteractionTimelineService
 from taskweavn.server.ui_command_idempotency import (
     SqliteUiCommandResponseIdempotencyStore,
     UiCommandResponseIdempotencyStore,
@@ -57,6 +60,10 @@ from taskweavn.server.ui_events import (
     UiEventStore,
 )
 from taskweavn.server.ui_http import PlatoUiHttpTransport, SidecarAuth
+from taskweavn.server.ui_http_settings import (
+    SettingsConfigGateway,
+    SettingsReadinessGateway,
+)
 from taskweavn.task import (
     DEFAULT_FIXED_ROUTE_AGENT_ID,
     AuthoringCommandIdempotencyStore,
@@ -71,6 +78,7 @@ from taskweavn.task import (
     DefaultTaskCommandService,
     DefaultTaskProjectionService,
     DefaultTaskPublisher,
+    DraftPublicationStore,
     DraftTaskStore,
     EventStreamFileChangeStore,
     FixedRouteExecutionDispatcher,
@@ -129,6 +137,8 @@ class MainPageSidecarDependencies:
     authoring_idempotency_store: AuthoringCommandIdempotencyStore | None = None
     ui_command_idempotency_store: UiCommandResponseIdempotencyStore | None = None
     result_summary_store: TaskExecutionSummaryStore | None = None
+    settings_readiness_gateway: SettingsReadinessGateway | None = None
+    settings_config_gateway: SettingsConfigGateway | None = None
     default_agent: ResidentDefaultAgent | None = None
     ask_store: AskStore | None = None
 
@@ -339,13 +349,26 @@ def build_main_page_sidecar_app(
             ask_store=ask_store,
             task_bus=task_bus,
         )
+        file_change_store = EventStreamFileChangeStore(layout)
+        summary_view_store = TaskExecutionSummaryViewStore(result_summary_store)
         task_projection = DefaultTaskProjectionService(
             task_store=task_bus,
             draft_store=draft_store,
             message_stream=message_stream,
-            file_change_store=EventStreamFileChangeStore(layout),
-            summary_store=TaskExecutionSummaryViewStore(result_summary_store),
+            file_change_store=file_change_store,
+            summary_store=summary_view_store,
             authoring_state_store=authoring_state_store,
+        )
+        task_timeline = WorkspaceTaskInteractionTimelineService(
+            layout=layout,
+            projection_service=task_projection,
+            draft_store=draft_store,
+            message_stream=message_stream,
+            file_change_store=file_change_store,
+            summary_store=summary_view_store,
+            publication_store=(
+                draft_store if isinstance(draft_store, DraftPublicationStore) else None
+            ),
         )
         query_gateway = DefaultUiQueryGateway(
             session_reader=session_manager,
@@ -353,6 +376,7 @@ def build_main_page_sidecar_app(
             audit_event_provider=WorkspaceAuditEventProvider(layout),
             audit_config_provider=WorkspaceAuditConfigProvider(),
             audit_log_provider=WorkspaceAuditLogProvider(),
+            task_timeline_service=task_timeline,
             session_message_provider=message_stream,
             authoring_state_store=authoring_state_store,
             raw_task_store=raw_task_store,
@@ -387,6 +411,15 @@ def build_main_page_sidecar_app(
             dependencies.ui_command_idempotency_store
             or SqliteUiCommandResponseIdempotencyStore(layout.workspace_ui_commands_db)
         )
+        settings_config_gateway = (
+            dependencies.settings_config_gateway
+            or DefaultSettingsConfigGateway(
+                workspace_root=config.workspace_root,
+                logging_enabled=config.enable_session_logging,
+                logging_level=config.logging_level,
+                selected_logging_profile=config.logging_profile,
+            )
+        )
         transport = PlatoUiHttpTransport(
             query_gateway=query_gateway,
             command_gateway=command_gateway,
@@ -407,6 +440,13 @@ def build_main_page_sidecar_app(
             command_idempotency_store=ui_command_idempotency_store,
             execution_trigger_gateway=execution_dispatcher,
             snapshot_recovery_gateway=ask_recovery,
+            settings_readiness_gateway=(
+                dependencies.settings_readiness_gateway or settings_config_gateway
+            ),
+            settings_config_gateway=settings_config_gateway,
+            diagnostic_export_gateway=DefaultDiagnosticExportGateway(
+                workspace_root=config.workspace_root,
+            ),
         )
         server = LocalSidecarServer(
             transport,

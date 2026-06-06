@@ -1,0 +1,70 @@
+name: Product 1.0 Frontend Integration
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/product-1-0-frontend-integration.yml"
+      - "frontend/**"
+      - "src/**"
+      - "tests/fixtures/**"
+      - "tests/test_main_page_sidecar_app.py"
+      - "pyproject.toml"
+      - "uv.lock"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/product-1-0-frontend-integration.yml"
+      - "frontend/**"
+      - "src/**"
+      - "tests/fixtures/**"
+      - "tests/test_main_page_sidecar_app.py"
+      - "pyproject.toml"
+      - "uv.lock"
+  workflow_dispatch:
+
+concurrency:
+  group: product-1-0-frontend-integration-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sidecar-e2e:
+    name: Sidecar E2E Acceptance
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    env:
+      OPENHANDS_SUPPRESS_BANNER: "1"
+      PLATO_MAIN_PAGE_TRACE_PRINT: "0"
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install Python dependencies
+        run: uv sync --dev
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Run Product 1.0 sidecar frontend E2E
+        working-directory: frontend
+        run: npm run test:e2e:sidecar

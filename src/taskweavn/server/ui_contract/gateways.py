@@ -79,6 +79,7 @@ from taskweavn.server.ui_contract.view_models import (
     AskRequestView,
     AuditLinkView,
     AuditPageRequestView,
+    AuditPermissions,
     AuditRecordDetail,
     AuditRecordsResult,
     ConfirmationActionView,
@@ -99,6 +100,7 @@ from taskweavn.server.ui_contract.view_models import (
 from taskweavn.task.authoring import RawTask
 from taskweavn.task.projection import TaskProjectionService
 from taskweavn.task.stores import AuthoringStateStore, RawTaskStore
+from taskweavn.task.timeline import TaskInteractionTimelineService
 from taskweavn.task.views import (
     ConfirmationActionView as CoreConfirmationActionView,
 )
@@ -150,6 +152,7 @@ class DefaultUiQueryGateway:
         audit_config_provider: AuditConfigProvider | None = None,
         audit_log_provider: AuditLogProvider | None = None,
         audit_payload_disclosure_service: AuditPayloadDisclosureService | None = None,
+        task_timeline_service: TaskInteractionTimelineService | None = None,
         session_message_provider: SessionMessageProvider | None = None,
         authoring_state_store: AuthoringStateStore | None = None,
         raw_task_store: RawTaskStore | None = None,
@@ -164,6 +167,7 @@ class DefaultUiQueryGateway:
         self._audit_event_provider = audit_event_provider
         self._audit_config_provider = audit_config_provider
         self._audit_log_provider = audit_log_provider
+        self._task_timeline_service = task_timeline_service
         self._audit_payload_disclosure_service = (
             audit_payload_disclosure_service
             or DefaultAuditPayloadDisclosureService(
@@ -405,6 +409,12 @@ class DefaultUiQueryGateway:
             should_include_detail = (
                 record_id is not None if include_detail is None else include_detail
             )
+            related_logs = _related_logs(
+                bundle.session,
+                task_node_id=task_node_id,
+                record_id=record_id,
+                log_provider=self._audit_log_provider,
+            )
             selected_record = (
                 _audit_record_detail(
                     _require_audit_record(bundle.records, record_id),
@@ -456,11 +466,9 @@ class DefaultUiQueryGateway:
                     bundle.records,
                     self._audit_config_provider,
                 ),
-                related_logs=_related_logs(
-                    bundle.session,
-                    task_node_id=task_node_id,
-                    record_id=record_id,
-                    log_provider=self._audit_log_provider,
+                related_logs=related_logs,
+                permissions=AuditPermissions(
+                    can_open_related_logs=any(link.enabled for link in related_logs),
                 ),
                 page_state=_audit_page_state(bundle.records, filtered),
                 cursor=next_cursor,
@@ -711,6 +719,7 @@ class DefaultUiQueryGateway:
                 task_node_id=task_node_id,
                 messages=messages,
                 task_projection=self._task_projection,
+                task_timeline_service=self._task_timeline_service,
                 event_provider=self._audit_event_provider,
                 config_provider=self._audit_config_provider,
                 log_provider=self._audit_log_provider,

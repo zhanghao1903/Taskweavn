@@ -1,5 +1,9 @@
+import { Settings as SettingsIcon } from "lucide-react";
+
+import { navigateApp } from "../../app/navigation";
 import type { BadgeTone } from "../../shared/components";
 import { Button, Panel, Text } from "../../shared/components";
+import { buildSettingsRoute } from "../settings/settingsRouteModel";
 import { NO_SESSION_AVAILABLE_MESSAGE } from "./httpMainPageAdapter";
 import { MainPageTopBar } from "./MainPageTopBar";
 import { MainPageWorkbench } from "./MainPageWorkbench";
@@ -116,6 +120,11 @@ export function MainPage({
   }
 
   const { metadata, snapshot } = snapshotData;
+  const topBarTrailing = renderTopBarTrailing({
+    onStateChange: actions.changeState,
+    showStatePicker: adapter.showStatePicker,
+    stateId,
+  });
   const viewModel = buildMainPageViewModel({
     auditRouteAvailable,
     authoringAskError,
@@ -150,13 +159,39 @@ export function MainPage({
       isDeletingSession={isDeletingSession}
       isRenamingSession={isRenamingSession}
       sessionDialog={sessionDialog}
-      statePicker={
-        adapter.showStatePicker ? (
-          <StatePicker stateId={stateId} onStateChange={actions.changeState} />
-        ) : null
-      }
+      topBarTrailing={topBarTrailing}
       viewModel={viewModel}
     />
+  );
+}
+
+function SettingsTopBarButton() {
+  return (
+    <Button
+      aria-label="Settings"
+      onClick={() => navigateApp(buildSettingsRoute())}
+      size="icon"
+      title="Settings"
+      variant="ghost"
+    >
+      <SettingsIcon aria-hidden="true" size={18} />
+    </Button>
+  );
+}
+
+function renderTopBarTrailing({
+  onStateChange,
+  showStatePicker,
+  stateId,
+}: {
+  onStateChange: (stateId: MainPageStateId) => void;
+  showStatePicker: boolean;
+  stateId: MainPageStateId;
+}) {
+  return showStatePicker ? (
+    <StatePicker stateId={stateId} onStateChange={onStateChange} />
+  ) : (
+    <SettingsTopBarButton />
   );
 }
 
@@ -222,9 +257,11 @@ function MainPageStatusFrame({
           },
         ]}
         trailing={
-          showStatePicker ? (
-            <StatePicker stateId={stateId} onStateChange={onStateChange} />
-          ) : null
+          renderTopBarTrailing({
+            onStateChange,
+            showStatePicker,
+            stateId,
+          })
         }
       />
 

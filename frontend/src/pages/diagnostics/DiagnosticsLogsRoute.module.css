@@ -1,0 +1,214 @@
+.page {
+  min-height: 100vh;
+  padding: 32px;
+  background: var(--plato-color-semantic-page-bg);
+  color: var(--plato-color-semantic-text-primary);
+}
+
+.panel {
+  max-width: 840px;
+  margin: 0 auto;
+  border: 1px solid var(--plato-color-semantic-border);
+  border-radius: 8px;
+  padding: 24px;
+  background: var(--plato-color-semantic-surface);
+}
+
+.headerRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.headerRow h1 {
+  margin: 0;
+  font-size: 28px;
+  line-height: 34px;
+}
+
+.headerRow p {
+  margin: 8px 0 0;
+  color: var(--plato-color-semantic-text-secondary);
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.badge {
+  display: inline-flex;
+  min-height: 24px;
+  align-items: center;
+  border-radius: 6px;
+  padding: 0 10px;
+  background: var(--plato-color-status-audit-verdict-not-available-bg);
+  color: var(--plato-color-status-audit-verdict-not-available-text);
+  font-size: 12px;
+  line-height: 18px;
+  font-weight: 600;
+}
+
+.contextGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin: 24px 0 0;
+}
+
+.contextGrid > div {
+  min-width: 0;
+  border: 1px solid var(--plato-color-semantic-border);
+  border-radius: 6px;
+  padding: 10px;
+  background: var(--plato-color-semantic-surface-muted);
+}
+
+.contextGrid dt {
+  color: var(--plato-color-semantic-text-secondary);
+  font-size: 12px;
+  line-height: 17px;
+}
+
+.contextGrid dd {
+  margin: 4px 0 0;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 600;
+}
+
+.command {
+  margin: 20px 0 0;
+  border-radius: 6px;
+  padding: 14px;
+  background: var(--plato-color-semantic-surface-muted);
+  color: var(--plato-color-semantic-text-primary);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+  line-height: 18px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.exportPanel {
+  display: grid;
+  gap: 12px;
+  margin-top: 20px;
+  border: 1px solid var(--plato-color-semantic-border);
+  border-radius: 6px;
+  padding: 14px;
+  background: var(--plato-color-semantic-surface);
+}
+
+.exportPanel h2,
+.exportResult h2 {
+  margin: 0;
+  font-size: 16px;
+  line-height: 22px;
+}
+
+.exportPanel p {
+  margin: 4px 0 0;
+  color: var(--plato-color-semantic-text-secondary);
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.helperText {
+  margin: 0;
+  color: var(--plato-color-semantic-text-secondary);
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.errorState {
+  border: 1px solid var(--plato-color-semantic-border);
+  border-radius: 6px;
+  padding: 10px;
+  background: var(--plato-color-status-audit-verdict-failed-bg);
+  color: var(--plato-color-status-audit-verdict-failed-text);
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.exportResult {
+  display: grid;
+  gap: 12px;
+  border-top: 1px solid var(--plato-color-semantic-border);
+  padding-top: 12px;
+}
+
+.resultHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.resultHeader span {
+  color: var(--plato-color-semantic-text-secondary);
+  font-size: 12px;
+  line-height: 17px;
+  font-weight: 600;
+}
+
+.resultGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0;
+}
+
+.resultGrid > div {
+  min-width: 0;
+}
+
+.resultGrid dt {
+  color: var(--plato-color-semantic-text-secondary);
+  font-size: 12px;
+  line-height: 17px;
+}
+
+.resultGrid dd {
+  margin: 3px 0 0;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  line-height: 17px;
+  font-weight: 600;
+}
+
+.warningText {
+  margin: 0;
+  color: var(--plato-color-status-audit-verdict-warning-text);
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 600;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+@media (max-width: 720px) {
+  .page {
+    padding: 16px;
+  }
+
+  .panel {
+    padding: 18px;
+  }
+
+  .headerRow {
+    display: grid;
+  }
+
+  .contextGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .resultGrid {
+    grid-template-columns: 1fr;
+  }
+}

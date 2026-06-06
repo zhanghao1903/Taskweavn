@@ -26,12 +26,42 @@ Product 1.0 default:
   them as sequential.
 - TaskBus dependency blocking works only when `parent_id` expresses the
   dependency.
-- A crash while a Task is `running` can leave it stuck without a recovery path.
-- Retry can replay a whole Task only if enough task/session evidence remains
-  available.
+- Stop-intent interrupted running Tasks now have sidecar startup recovery, but
+  generic stale `running` Tasks without an interrupt intent still need a
+  Product 1.0 recovery policy.
+- Minimal manual retry exists for failed Tasks, but retry explanation still
+  depends on richer task/evidence projection.
 
 This work package scopes the minimal Product 1.0 fixes without expanding into
 full context governance.
+
+### 1.1 Current Implementation Status
+
+As of 2026-06-05:
+
+Done:
+
+- failed published Tasks expose retry eligibility in projection;
+- retry moves the same published Task identity from `failed` back to `pending`;
+- retry clears the active-attempt lifecycle fields and preserves previous
+  failure evidence in append-only sources;
+- Main Page command contract has a retry route;
+- TaskBus dependency checks keep children blocked until the same parent Task
+  reaches `done`;
+- sidecar startup can recover running Tasks that had an explicit stop/interrupt
+  intent into a cancelled failed state.
+
+Still open:
+
+- default Collaborator-generated DraftTaskTrees are not yet guaranteed to be a
+  single Product 1.0 line;
+- publish needs focused validation that linear draft parentage survives
+  persistence and reaches TaskBus parent ids;
+- stale `running` Tasks from a previous sidecar process without an interrupt
+  intent need a product decision: mark recoverable, fail with infrastructure
+  error, or require manual operator intervention;
+- retry evidence should be surfaced through Audit/Diagnostics without adding a
+  full TaskAttempt model to Product 1.0.
 
 ---
 
@@ -180,6 +210,8 @@ Initial policy:
 
 ### P8.L1 Linear Authoring Shape
 
+Status: planned / next recommended implementation slice.
+
 Deliver:
 
 - Authoring service option or default policy for linear draft output.
@@ -217,6 +249,8 @@ Acceptance:
 
 ### P8.L2 Publish Linear Dependencies
 
+Status: planned after or together with P8.L1 validation.
+
 Deliver:
 
 - publish preserves draft parent-child chain into published Task parent ids;
@@ -231,6 +265,8 @@ Acceptance:
 - if first Task fails, second Task remains blocked.
 
 ### P8.R1 Minimal Retry Model
+
+Status: implemented for the Product 1.0 minimum.
 
 Deliver:
 
@@ -253,7 +289,20 @@ Acceptance:
 - retry result is visible in snapshot/audit-ready refs;
 - unsupported retry returns a structured command error.
 
+Implementation notes:
+
+- `TaskBus.retry(...)` and `SqliteTaskBus.retry(...)` reset the same Task row
+  from failed back to pending and clear active-attempt fields.
+- `TaskPublisher.retry_task(...)`, task command services, UI command gateway,
+  and sidecar HTTP routes expose the retry path.
+- Projection keeps the original failed Task card and exposes retry eligibility
+  instead of creating replacement retry Task cards.
+- Fixed-route execution tests cover parent retry without unblocking children
+  early.
+
 ### P8.R2 Interrupted Running Recovery
+
+Status: partially implemented.
 
 Deliver:
 
@@ -268,7 +317,18 @@ Acceptance:
 - Main Page can show recovery-required state;
 - user-triggered retry follows P8.R1 semantics.
 
+Implementation notes:
+
+- Stop-intent interrupted running Tasks are recovered on sidecar startup through
+  `recover_interrupted_running_tasks(...)` into failed/cancelled state with a
+  `sidecar_recovery` safe point.
+- This does not yet cover a generic stale `running` Task without an interrupt
+  intent. Product 1.0 still needs a narrow stale-running policy before claiming
+  full restart recovery.
+
 ### P8.C1 Retry Evidence Capture
+
+Status: planned / partially covered by existing durable streams.
 
 Deliver:
 
@@ -320,16 +380,13 @@ Projection/API tests:
 
 ### 7.1 Retry Domain Shape
 
-Open decision:
+Decision for Product 1.0:
 
-- add first-class TaskAttempt model, or
-- use minimal Task reset metadata for Product 1.0.
+- use minimal Task reset metadata and append-only evidence streams;
+- defer first-class TaskAttempt history and attempt UI to Product 1.1+.
 
-Recommendation:
-
-- prefer TaskAttempt if implementation cost is moderate;
-- accept reset metadata only as a narrow Product 1.0 shortcut if audit evidence
-  remains intact.
+This is acceptable only if previous failure evidence remains available through
+MessageStream, result/error summaries, Audit, logs, and the diagnostic bundle.
 
 ### 7.2 Non-idempotent Side Effects
 
@@ -373,7 +430,8 @@ Product 1.1 includes:
 Use the product-workflow-gate skill first.
 
 Task:
-Implement P8.L1 Linear Authoring Shape for Product 1.0.
+Implement P8.L1 Linear Authoring Shape and P8.L2 publish-dependency validation
+for Product 1.0.
 
 Context:
 docs/plans/feature/linear-authoring-retry-recovery.md defines the default
@@ -381,7 +439,7 @@ line-first authoring plan. Product 1.0 should generate one active linear draft
 tree by default while preserving explicit non-linear tree support for future
 use.
 
-Do not implement retry yet.
+Minimal retry is already implemented; do not redesign retry in this slice.
 Do not rewrite Main Page UI.
 Do not remove existing tree-domain support.
 
@@ -390,10 +448,12 @@ Required work:
    single parent-child chain.
 2. Preserve current active RawTask/DraftTaskTree persistence behavior.
 3. Add focused tests for generated chain shape and restart persistence.
-4. Confirm publish can preserve parent ids, or document the P8.L2 gap.
+4. Add publish tests proving the draft chain becomes TaskBus parent ids.
+5. Confirm fixed-route claim order exposes only the next line step.
+6. Document the remaining stale-running recovery gap if it is not implemented.
 
 Output:
 - files changed
 - tests run
-- remaining P8.L2/P8.R1 gaps
+- remaining stale-running recovery / retry evidence gaps
 ```

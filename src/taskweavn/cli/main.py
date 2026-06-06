@@ -17,6 +17,11 @@ import typer
 from taskweavn import __version__
 from taskweavn.audit import AuditAgent, AuditConfig
 from taskweavn.core.loop import AgentLoop
+from taskweavn.diagnostics import (
+    DiagnosticBundleError,
+    DiagnosticBundleExporter,
+    DiagnosticExportOptions,
+)
 from taskweavn.interaction import (
     AUTONOMY_PRESETS,
     AgentMessage,
@@ -63,6 +68,13 @@ logging_app = typer.Typer(
     no_args_is_help=True,
 )
 app.add_typer(logging_app, name="logging")
+
+diagnostics_app = typer.Typer(
+    name="diagnostics",
+    help="Export Product 1.0 diagnostic bundles.",
+    no_args_is_help=True,
+)
+app.add_typer(diagnostics_app, name="diagnostics")
 
 
 @app.command()
@@ -296,6 +308,73 @@ def logging_render(
             typer.echo(line)
             continue
         typer.echo(event_to_pretty(event))
+
+
+@diagnostics_app.command("export")
+def diagnostics_export(
+    session_id: Annotated[str, typer.Option("--session-id", help="Session id.")],
+    workspace: Annotated[
+        Path,
+        typer.Option(
+            "--workspace",
+            "-w",
+            help="Plato workspace root to read durable stores from.",
+        ),
+    ] = Path("./plato-workspace"),
+    output: Annotated[
+        Path,
+        typer.Option("--output", "-o", help="Directory where the bundle is written."),
+    ] = Path("./diagnostics"),
+    create_zip: Annotated[
+        bool,
+        typer.Option("--zip/--no-zip", help="Also write a .zip next to the bundle dir."),
+    ] = True,
+    max_messages: Annotated[
+        int,
+        typer.Option("--max-messages", help="Maximum message summaries to include."),
+    ] = 50,
+    max_events: Annotated[
+        int,
+        typer.Option("--max-events", help="Maximum EventStream summaries to include."),
+    ] = 100,
+    max_log_entries: Annotated[
+        int,
+        typer.Option(
+            "--max-log-entries",
+            help="Maximum entries per log category/client-error file.",
+        ),
+    ] = 40,
+) -> None:
+    """Export one redacted local diagnostic bundle for a session."""
+    exporter = DiagnosticBundleExporter(
+        DiagnosticExportOptions(
+            workspace_root=workspace,
+            session_id=session_id,
+            output_dir=output,
+            create_zip=create_zip,
+            max_messages=max_messages,
+            max_events=max_events,
+            max_log_entries_per_category=max_log_entries,
+        )
+    )
+    try:
+        result = exporter.export()
+    except DiagnosticBundleError as exc:
+        typer.secho(str(exc), fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from None
+    typer.echo(
+        json.dumps(
+            {
+                "bundleId": result.bundle_id,
+                "bundleDir": str(result.bundle_dir),
+                "zipPath": None if result.zip_path is None else str(result.zip_path),
+                "warnings": list(result.manifest.warnings),
+            },
+            ensure_ascii=False,
+            indent=2,
+            sort_keys=True,
+        )
+    )
 
 
 @app.command()

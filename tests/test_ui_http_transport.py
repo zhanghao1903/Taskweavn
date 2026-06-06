@@ -16,6 +16,10 @@ from taskweavn.server import (
     StaticUiEventSource,
     UiEventSource,
 )
+from taskweavn.server.settings_config import (
+    SettingsConfigFieldError,
+    SettingsConfigValidationError,
+)
 from taskweavn.server.ui_contract import (
     ApiError,
     AskListResult,
@@ -57,6 +61,11 @@ def test_root_route_returns_sidecar_api_hint() -> None:
     assert body["data"]["name"] == "Plato Sidecar"
     assert body["data"]["api_base_path"] == "/api/v1"
     assert body["data"]["health_url"] == "/api/v1/health"
+    assert body["data"]["settings_readiness_url"] == "/api/v1/settings/readiness"
+    assert body["data"]["settings_config_url"] == "/api/v1/settings/config"
+    assert body["data"]["settings_readiness_recheck_url"] == (
+        "/api/v1/settings/readiness/recheck"
+    )
     assert body["data"]["snapshot_url_template"] == (
         "/api/v1/sessions/{sessionId}/snapshot"
     )
@@ -71,6 +80,182 @@ def test_health_route_returns_sidecar_identity() -> None:
     assert response.status_code == 200
     assert body["ok"] is True
     assert body["data"] == {"name": "Plato Sidecar", "version": "0.1.0"}
+
+
+def test_settings_readiness_route_returns_gateway_payload() -> None:
+    readiness = _SettingsReadinessGateway()
+    transport = _transport(settings_readiness_gateway=readiness)
+
+    response = transport.handle(
+        HttpApiRequest(method="GET", path="/api/v1/settings/readiness")
+    )
+    body = _dict_body(response.body)
+
+    assert response.status_code == 200
+    assert body["ok"] is True
+    assert body["data"]["schemaVersion"] == "plato.settings_readiness.v1"
+    assert body["data"]["status"] == "ready"
+    assert readiness.calls == 1
+
+
+def test_settings_readiness_route_requires_gateway() -> None:
+    transport = _transport()
+
+    response = transport.handle(
+        HttpApiRequest(method="GET", path="/api/v1/settings/readiness")
+    )
+    body = _dict_body(response.body)
+
+    assert response.status_code == 503
+    assert body["error"]["code"] == "internal_error"
+    assert body["error"]["details"]["route"] == "settings_readiness"
+
+
+def test_settings_readiness_recheck_route_returns_refreshed_gateway_payload() -> None:
+    settings = _SettingsConfigGateway()
+    transport = _transport(settings_config_gateway=settings)
+
+    response = transport.handle(
+        HttpApiRequest(method="POST", path="/api/v1/settings/readiness/recheck")
+    )
+    body = _dict_body(response.body)
+
+    assert response.status_code == 200
+    assert body["ok"] is True
+    assert body["data"]["schemaVersion"] == "plato.settings_readiness.v1"
+    assert body["data"]["status"] == "ready"
+    assert settings.recheck_calls == 1
+
+
+def test_settings_config_route_returns_gateway_payload() -> None:
+    settings = _SettingsConfigGateway()
+    transport = _transport(settings_config_gateway=settings)
+
+    response = transport.handle(
+        HttpApiRequest(method="GET", path="/api/v1/settings/config")
+    )
+    body = _dict_body(response.body)
+
+    assert response.status_code == 200
+    assert body["ok"] is True
+    assert body["data"]["schemaVersion"] == "plato.settings_config.v1"
+    assert body["data"]["llm"]["apiKeyConfigured"] is False
+    assert settings.config_calls == 1
+
+
+def test_settings_config_route_patches_without_echoing_secret() -> None:
+    settings = _SettingsConfigGateway()
+    transport = _transport(settings_config_gateway=settings)
+
+    response = transport.handle(
+        HttpApiRequest(
+            method="PATCH",
+            path="/api/v1/settings/config",
+            body={
+                "llm": {
+                    "provider": "litellm",
+                    "model": "anthropic/test-model",
+                    "apiKey": "sk-transport-secret",
+                }
+            },
+        )
+    )
+    body = _dict_body(response.body)
+
+    assert response.status_code == 200
+    assert body["ok"] is True
+    assert body["data"]["schemaVersion"] == "plato.settings_config_update.v1"
+    assert settings.update_calls == [
+        {
+            "llm": {
+                "provider": "litellm",
+                "model": "anthropic/test-model",
+                "apiKey": "sk-transport-secret",
+            }
+        }
+    ]
+    assert "sk-transport-secret" not in str(body)
+
+
+def test_settings_config_route_maps_validation_error_without_secret() -> None:
+    settings = _SettingsConfigGateway(
+        validation_error=SettingsConfigValidationError(
+            (
+                SettingsConfigFieldError(
+                    path="llm.apiKey",
+                    message="an API key is required for the selected provider",
+                    env_vars=("LLM_API_KEY",),
+                ),
+            )
+        )
+    )
+    transport = _transport(settings_config_gateway=settings)
+
+    response = transport.handle(
+        HttpApiRequest(
+            method="PATCH",
+            path="/api/v1/settings/config",
+            body={
+                "llm": {
+                    "provider": "litellm",
+                    "model": "anthropic/test-model",
+                    "apiKey": "sk-validation-secret",
+                }
+            },
+        )
+    )
+    body = _dict_body(response.body)
+
+    assert response.status_code == 400
+    assert body["error"]["code"] == "bad_request"
+    assert body["error"]["details"]["productCategory"] == "llm_auth_or_config"
+    assert body["error"]["details"]["fieldErrors"][0]["path"] == "llm.apiKey"
+    assert "sk-validation-secret" not in str(body)
+
+
+def test_settings_config_route_requires_gateway() -> None:
+    transport = _transport()
+
+    response = transport.handle(
+        HttpApiRequest(method="GET", path="/api/v1/settings/config")
+    )
+    body = _dict_body(response.body)
+
+    assert response.status_code == 503
+    assert body["error"]["code"] == "internal_error"
+    assert body["error"]["details"]["route"] == "settings_config"
+
+
+def test_diagnostics_export_route_returns_bundle_descriptor() -> None:
+    diagnostics = _DiagnosticExportGateway()
+    transport = _transport(diagnostic_export_gateway=diagnostics)
+
+    response = transport.handle(
+        HttpApiRequest(
+            method="POST",
+            path="/api/v1/sessions/session%201/diagnostics/export",
+        )
+    )
+    body = _dict_body(response.body)
+
+    assert response.status_code == 200
+    assert body["ok"] is True
+    assert body["data"]["schemaVersion"] == "plato.diagnostics_export.v1"
+    assert body["data"]["bundleId"] == "diagnostic-bundle-session 1"
+    assert diagnostics.calls == ["session 1"]
+
+
+def test_diagnostics_export_route_requires_gateway() -> None:
+    transport = _transport()
+
+    response = transport.handle(
+        HttpApiRequest(method="POST", path="/api/v1/sessions/session-1/diagnostics/export")
+    )
+    body = _dict_body(response.body)
+
+    assert response.status_code == 503
+    assert body["error"]["code"] == "internal_error"
+    assert body["error"]["details"]["route"] == "diagnostics_export"
 
 
 def test_snapshot_route_decodes_session_and_returns_contract_json() -> None:
@@ -1308,6 +1493,91 @@ class _SnapshotRecoveryGateway:
         return {"recovered": True}
 
 
+@dataclass
+class _SettingsReadinessGateway:
+    calls: int = 0
+
+    def get_readiness(self) -> dict[str, Any]:
+        self.calls += 1
+        return {
+            "schemaVersion": "plato.settings_readiness.v1",
+            "status": "ready",
+        }
+
+
+@dataclass
+class _SettingsConfigGateway:
+    validation_error: SettingsConfigValidationError | None = None
+    config_calls: int = 0
+    recheck_calls: int = 0
+    update_calls: list[dict[str, Any]] = field(default_factory=list)
+
+    def get_config(self) -> dict[str, Any]:
+        self.config_calls += 1
+        return {
+            "schemaVersion": "plato.settings_config.v1",
+            "llm": {
+                "provider": "litellm",
+                "apiKeyConfigured": False,
+            },
+        }
+
+    def update_config(self, payload: dict[str, Any]) -> dict[str, Any]:
+        self.update_calls.append(payload)
+        if self.validation_error is not None:
+            raise self.validation_error
+        return {
+            "schemaVersion": "plato.settings_config_update.v1",
+            "config": {
+                "schemaVersion": "plato.settings_config.v1",
+                "llm": {
+                    "provider": "litellm",
+                    "apiKeyConfigured": True,
+                },
+            },
+            "readiness": {
+                "schemaVersion": "plato.settings_readiness.v1",
+                "status": "ready",
+            },
+        }
+
+    def get_readiness(self) -> dict[str, Any]:
+        return self.recheck_readiness()
+
+    def recheck_readiness(self) -> dict[str, Any]:
+        self.recheck_calls += 1
+        return {
+            "schemaVersion": "plato.settings_readiness.v1",
+            "status": "ready",
+        }
+
+
+@dataclass
+class _DiagnosticExportGateway:
+    calls: list[str] = field(default_factory=list)
+
+    def export_session(self, session_id: str) -> dict[str, Any]:
+        self.calls.append(session_id)
+        return {
+            "schemaVersion": "plato.diagnostics_export.v1",
+            "bundleId": f"diagnostic-bundle-{session_id}",
+            "bundleDir": "/tmp/bundle",
+            "bundleDirLabel": "workspace://current/.taskweavn/diagnostics/bundle",
+            "zipPath": "/tmp/bundle.zip",
+            "zipPathLabel": "workspace://current/.taskweavn/diagnostics/bundle.zip",
+            "manifestPath": "/tmp/bundle/manifest.json",
+            "manifestPathLabel": (
+                "workspace://current/.taskweavn/diagnostics/bundle/manifest.json"
+            ),
+            "createdAt": "2026-05-21T09:00:00Z",
+            "redactionProfile": "product_1_0_default",
+            "includedSections": ["session"],
+            "sections": [{"name": "session", "status": "included", "warnings": []}],
+            "warnings": [],
+            "fileCount": 1,
+        }
+
+
 def _transport(
     *,
     query: _QueryGateway | None = None,
@@ -1319,6 +1589,9 @@ def _transport(
     command_idempotency_store: InMemoryUiCommandResponseIdempotencyStore | None = None,
     execution_trigger_gateway: _ExecutionTriggerGateway | None = None,
     snapshot_recovery_gateway: _SnapshotRecoveryGateway | None = None,
+    settings_readiness_gateway: _SettingsReadinessGateway | None = None,
+    settings_config_gateway: _SettingsConfigGateway | None = None,
+    diagnostic_export_gateway: _DiagnosticExportGateway | None = None,
 ) -> PlatoUiHttpTransport:
     return PlatoUiHttpTransport(
         query_gateway=query or _QueryGateway(),
@@ -1330,6 +1603,9 @@ def _transport(
         command_idempotency_store=command_idempotency_store,
         execution_trigger_gateway=execution_trigger_gateway,
         snapshot_recovery_gateway=snapshot_recovery_gateway,
+        settings_readiness_gateway=settings_readiness_gateway,
+        settings_config_gateway=settings_config_gateway,
+        diagnostic_export_gateway=diagnostic_export_gateway,
     )
 
 

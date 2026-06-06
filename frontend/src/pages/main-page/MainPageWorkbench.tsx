@@ -22,7 +22,7 @@ export type MainPageWorkbenchProps = {
   isDeletingSession: boolean;
   isRenamingSession: boolean;
   sessionDialog: MainPageController["sessionDialog"];
-  statePicker?: ReactNode;
+  topBarTrailing?: ReactNode;
   viewModel: MainPageViewModel;
 };
 
@@ -34,7 +34,7 @@ export function MainPageWorkbench({
   isDeletingSession,
   isRenamingSession,
   sessionDialog,
-  statePicker = null,
+  topBarTrailing = null,
   viewModel,
 }: MainPageWorkbenchProps) {
   const [isActivityOverlayOpen, setIsActivityOverlayOpen] = useState(false);
@@ -55,7 +55,7 @@ export function MainPageWorkbench({
         brandLabel={viewModel.topBar.brandLabel}
         contextItems={viewModel.topBar.contextItems}
         statuses={viewModel.topBar.statuses}
-        trailing={statePicker}
+        trailing={topBarTrailing}
       />
 
       <MainPageSessionSidebar

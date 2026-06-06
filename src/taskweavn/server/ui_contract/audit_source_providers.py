@@ -6,6 +6,7 @@ import re
 from collections.abc import Sequence
 from datetime import UTC, datetime
 from pathlib import Path
+from urllib.parse import quote, urlencode
 
 from taskweavn.core.session import Session
 from taskweavn.observability.models import LogArchiveManifest
@@ -102,7 +103,11 @@ class WorkspaceAuditLogProvider:
         return (
             RelatedLogsLink(
                 label="Session log archive",
-                href=str(log_dir),
+                href=_diagnostics_logs_href(
+                    session.id,
+                    task_node_id=task_node_id,
+                    record_id=record_id,
+                ),
                 filters={
                     "sessionId": session.id,
                     "taskNodeId": task_node_id,
@@ -232,7 +237,7 @@ def _log_record_from_path(
                 id=evidence_id,
                 kind="log_excerpt",
                 label=path.name,
-                summary=f"Session log file: {path}",
+                summary=f"Session log file: session-logs://{path.name}",
             ),
         ),
         flags=AuditRecordFlags(partial=True),
@@ -251,6 +256,22 @@ def _read_session_log_manifest(session: Session) -> LogArchiveManifest | None:
 
 def _safe_token(value: str) -> str:
     return _ID_SAFE_RE.sub("-", value).strip("-") or "item"
+
+
+def _diagnostics_logs_href(
+    session_id: str,
+    *,
+    task_node_id: str | None,
+    record_id: str | None,
+) -> str:
+    params = {
+        "category": "audit",
+        "recordId": record_id,
+        "taskNodeId": task_node_id,
+    }
+    query = urlencode({key: value for key, value in params.items() if value})
+    path = f"/sessions/{quote(session_id, safe='')}/diagnostics/logs"
+    return f"{path}?{query}" if query else path
 
 
 __all__ = [

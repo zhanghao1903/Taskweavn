@@ -2,8 +2,9 @@
 
 > Status: in_progress
 > Type: Product 1.0 UI projection / result evidence boundary
-> Last Updated: 2026-06-01
+> Last Updated: 2026-06-05
 > Related Plans: [Fixed-Route Task Execution Bridge](fixed-route-task-execution-bridge.md), [Main Page Real Backend Integration](main-page-real-backend-integration.md), [Audit Page Contract](../../engineering/audit-page-contract.md), [Audit Page Runtime Event/Refetch Design](../ui/audit-page-runtime-event-refetch-technical-design.md)
+> Related Follow-up Plans: [Product Error Handling](product-error-handling.md), [Diagnostic Bundle Export](diagnostic-bundle-export.md)
 > Related Contracts: [UI ViewModel Contract](../../frontend/ui-viewmodel-contract.md), [API UI Mapping](../../frontend/api-ui-mapping.md), [UI API Contract](../../product/plato-ui-api-contract.md)
 
 ---
@@ -17,8 +18,9 @@ still lacks enough product-facing evidence to understand what happened.
 Current remaining exposure gaps:
 
 - file changes now have a minimal Main Page projection and Audit Page can
-  project first-pass file evidence records, but richer timeline ordering and
-  broader source coverage remain follow-up work;
+  project first-pass file evidence records, but richer timeline ordering still
+  needs to use the task interaction timeline source instead of ad hoc source
+  ordering;
 - raw `Observation` / EventStream facts exist and can be summarized into Audit
   records in the first backend path, but they are not default Main Page content;
 - Audit Page contracts, projection-backed routes, request-time sanitized
@@ -28,6 +30,9 @@ Current remaining exposure gaps:
   first AgentLoop/EventStream task-scoped audit event, and AP-013F emits
   config/log/confirmation source changes; final user-path validation remains
   open.
+- recoverable error summary and recovery actions are visible through result /
+  task projection paths in some cases, but the product-level error taxonomy is
+  now owned by the separate Product Error Handling plan.
 
 Without a clear exposure boundary, the product risks mixing three different
 concepts:
@@ -314,6 +319,31 @@ Deferred to P8.E5 / Audit:
 
 ### P8.E5 Audit Entry Closure
 
+Status: implemented for backend source orchestration; frontend Audit validation
+remains pending.
+
+Technical slice: [Audit Entry Closure](audit-entry-closure-technical-slice.md).
+
+Current facts:
+
+- Main Page can route to Audit Page with session/task return context.
+- `DefaultUiQueryGateway` can return Audit Page snapshot, record list, record
+  detail, and evidence detail through the frontend API methods.
+- Audit projection now accepts a task interaction timeline source for message,
+  confirmation, file, result/error, and draft publication closure records while
+  preserving existing Audit contract shapes.
+- EventStream action/observation records, config evidence, and log evidence
+  remain on their typed providers.
+- The first projection path maps Task projection, MessageStream,
+  confirmations, file changes, task result/error summaries, EventStream
+  action/observation/AuditObservation facts, session log archive references,
+  and config manifest references when present.
+- `TaskInteractionTimelineService` exists as a read-only task timeline source,
+  but it is not yet the Audit Page gateway's orchestration source.
+- Runtime event/refetch has first coverage through workspace-backed
+  `SqliteUiEventSource` and `audit.records_changed` emissions for AgentLoop,
+  config, log, and confirmation source changes.
+
 Deliver:
 
 - route-ready audit entry from session/task/result/file context;
@@ -321,6 +351,70 @@ Deliver:
 - structured not_available state when Audit records are not populated yet.
 - AP-013 live runtime audit event source/emission so Audit Page does not
   require manual refresh while execution facts continue to change.
+
+Backend work:
+
+1. Add an Audit source orchestration step that can consume
+   `TaskInteractionTimelineService` entries for task-scoped ordering while
+   preserving the current snapshot/record/detail contract.
+2. Keep source-specific mappers additive:
+   - task lifecycle / result / error summaries;
+   - deterministic file-change facts;
+   - confirmation and ASK-related facts;
+   - EventStream action / observation / AuditObservation facts;
+   - config manifest and log archive references.
+3. Preserve explicit `partial`, `not_available`, `hidden`, `redacted`,
+   `permission_denied`, `stale`, and query-error states. Missing source facts
+   must not become silent success records.
+4. Keep sanitized payload generation request-time only. Do not persist
+   sanitized payload copies.
+5. Emit `audit.records_changed` for newly covered source writes when the source
+   can affect the current session/task Audit Page view.
+6. Add a real HTTP-mode user-path validation that opens Audit from Main Page,
+   inspects at least one result/file record, one runtime/event record, and one
+   config or log reference when available.
+
+Contract boundaries:
+
+- Do not return raw EventStream rows, MessageStream rows, SQLite rows, or log
+  payloads to the frontend.
+- Do not require frontend code to reconstruct audit records from raw sources.
+- Do not rewrite `AuditPageSnapshot`, `AuditRecord`, or evidence detail shapes
+  unless a contract gap is documented first.
+- Do not expand Main Page into a raw evidence or diagnostics surface.
+
+Tests and validation:
+
+- backend gateway tests for timeline-ordered records across task lifecycle,
+  result/error, file, confirmation, EventStream, config, and log source refs;
+- HTTP route tests for snapshot, list records, record detail, and evidence
+  detail with partial/hidden/error states;
+- event-source tests for source writes that emit `audit.records_changed`;
+- frontend HTTP-mode regression that keeps A1-A14 mock fixtures as parity
+  fixtures while proving at least one real sidecar Audit path;
+- QA note update that records whether evidence ordering is clear enough for a
+  Product 1.0 user test.
+
+Acceptance:
+
+- a completed or failed Product 1.0 Task can be opened from Main Page into
+  Audit Page with coherent task/session scope and return context;
+- Audit records are ordered by backend-projected task/evidence chronology, not
+  frontend guesses;
+- result, file, confirmation, EventStream, config, and log reference records
+  appear when their source facts exist;
+- missing or permission-limited source facts are labeled as partial,
+  not_available, hidden, redacted, or permission_denied;
+- Audit Page can update or mark itself stale through runtime events during the
+  covered source changes;
+- no raw payload is exposed by default.
+
+Handoffs:
+
+- User-facing recovery labels, retry affordance policy, and common error
+  taxonomy are owned by [Product Error Handling](product-error-handling.md).
+- Raw support export, redaction, and tester diagnostic packaging are owned by
+  [Diagnostic Bundle Export](diagnostic-bundle-export.md).
 
 ---
 
@@ -334,9 +428,15 @@ Deliver:
 
 ---
 
-## 9. Open Questions
+## 9. Open Questions And Decisions
 
-1. Should file summary projection be driven by observed tool outputs first, or
-   by workspace diff snapshots?
-2. How much of the execution completion/failure message should be authored by
+1. Decision for Product 1.0: file summary projection is driven by observed
+   tool/EventStream file facts first. Workspace diff snapshots can be added as
+   a later evidence source when observed facts are incomplete.
+2. Open: how much of the execution completion/failure message should be authored by
    AgentLoop vs a deterministic bridge template for non-AgentLoop executions?
+3. Open: whether the next Audit hardening implementation should prioritize
+   richer timeline ordering first or AuditAgent verdict mapping first. The
+   current Product 1.0 recommendation is timeline/source orchestration first
+   because it improves existing records without changing the trust verdict
+   model.
