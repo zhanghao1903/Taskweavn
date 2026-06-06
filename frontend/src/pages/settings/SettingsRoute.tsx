@@ -1,4 +1,5 @@
 import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
+import { X } from "lucide-react";
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 
@@ -41,6 +42,7 @@ export type SettingsRouteApi = Pick<
 export type SettingsRouteProps = {
   api?: SettingsRouteApi;
   location?: Pick<Location, "pathname" | "search">;
+  presentation?: "modal" | "page";
   runtimeEnv?: PlatoRuntimeEnv;
 };
 
@@ -55,6 +57,7 @@ type DiagnosticExportState =
 export function SettingsRoute({
   api,
   location,
+  presentation = "page",
   runtimeEnv = import.meta.env,
 }: SettingsRouteProps = {}) {
   const routeLocation = location ?? globalThis.location;
@@ -80,6 +83,20 @@ export function SettingsRoute({
   const [diagnosticExportState, setDiagnosticExportState] =
     useState<DiagnosticExportState>({ kind: "idle" });
 
+  useEffect(() => {
+    if (presentation !== "modal") {
+      return;
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        navigateApp(routeContext.returnTo);
+      }
+    };
+    globalThis.addEventListener("keydown", handleKeyDown);
+    return () => globalThis.removeEventListener("keydown", handleKeyDown);
+  }, [presentation, routeContext.returnTo]);
+
   const configQuery = useQuery({
     enabled: settingsApi !== null,
     queryFn: () => settingsApi!.getSettingsConfig(),
@@ -104,6 +121,7 @@ export function SettingsRoute({
     return (
       <SettingsShell
         heading="Settings unavailable"
+        presentation={presentation}
         routeContext={routeContext}
         status="Sidecar required"
       >
@@ -118,6 +136,7 @@ export function SettingsRoute({
     return (
       <SettingsShell
         heading="Loading settings"
+        presentation={presentation}
         routeContext={routeContext}
         status="Checking"
       >
@@ -130,6 +149,7 @@ export function SettingsRoute({
     return (
       <SettingsShell
         heading="Settings unavailable"
+        presentation={presentation}
         routeContext={routeContext}
         status="Retry available"
       >
@@ -238,6 +258,7 @@ export function SettingsRoute({
           ? "Complete first-run setup"
           : "Settings"
       }
+      presentation={presentation}
       routeContext={routeContext}
       status={statusLabel(readiness, saveState)}
     >
@@ -362,29 +383,60 @@ export function SettingsRoute({
 function SettingsShell({
   children,
   heading,
+  presentation,
   routeContext,
   status,
 }: {
   children: ReactNode;
   heading: string;
+  presentation: "modal" | "page";
   routeContext: SettingsRouteContext;
   status: string;
 }) {
+  const isModal = presentation === "modal";
+  const headingId = "settings-route-heading";
+  const content = (
+    <section
+      aria-label={isModal ? undefined : "Settings"}
+      aria-labelledby={isModal ? headingId : undefined}
+      aria-modal={isModal ? true : undefined}
+      className={`${styles.panel} ${isModal ? styles.modalPanel : ""}`}
+      role={isModal ? "dialog" : undefined}
+    >
+      <div className={styles.headerRow}>
+        <div>
+          <span className={styles.eyebrow}>
+            {routeContext.source === "first-run" ? "First run" : "Local setup"}
+          </span>
+          <h1 id={headingId}>{heading}</h1>
+          <p>Configure the local LLM setup used by Product 1.0 workflows.</p>
+        </div>
+        <div className={styles.headerActions}>
+          <span className={styles.statusBadge}>{status}</span>
+          {isModal ? (
+            <Button
+              aria-label="Close settings"
+              onClick={() => navigateApp(routeContext.returnTo)}
+              size="icon"
+              title="Close settings"
+              variant="ghost"
+            >
+              <X aria-hidden="true" size={18} />
+            </Button>
+          ) : null}
+        </div>
+      </div>
+      {children}
+    </section>
+  );
+
+  if (isModal) {
+    return <div className={styles.modalViewport}>{content}</div>;
+  }
+
   return (
     <main className={styles.page}>
-      <section aria-label="Settings" className={styles.panel}>
-        <div className={styles.headerRow}>
-          <div>
-            <span className={styles.eyebrow}>
-              {routeContext.source === "first-run" ? "First run" : "Local setup"}
-            </span>
-            <h1>{heading}</h1>
-            <p>Configure the local LLM setup used by Product 1.0 workflows.</p>
-          </div>
-          <span className={styles.statusBadge}>{status}</span>
-        </div>
-        {children}
-      </section>
+      {content}
     </main>
   );
 }

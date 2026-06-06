@@ -48,7 +48,16 @@ export function App({
       ) : isDiagnosticsLogsPath(pathname) ? (
         <DiagnosticsLogsRoute runtimeEnv={runtimeEnv} />
       ) : isSettingsPath(pathname) ? (
-        <SettingsRoute api={settingsApi} runtimeEnv={runtimeEnv} />
+        <>
+          <FirstRunReadinessGate api={readinessApi} runtimeEnv={runtimeEnv}>
+            <MainPageRoute runtimeEnv={runtimeEnv} />
+          </FirstRunReadinessGate>
+          <SettingsRoute
+            api={settingsApi}
+            presentation="modal"
+            runtimeEnv={runtimeEnv}
+          />
+        </>
       ) : (
         <FirstRunReadinessGate api={readinessApi} runtimeEnv={runtimeEnv}>
           <MainPageRoute runtimeEnv={runtimeEnv} />

@@ -1,6 +1,6 @@
 # Technical Design: Settings First-Run Frontend Completion
 
-> Status: draft
+> Status: accepted
 > Last Updated: 2026-06-06
 > Plan: [Settings first-run frontend completion](settings-first-run-frontend-completion.md)
 > Existing Baseline: [Settings readiness](settings-first-run-readiness.md)
@@ -17,42 +17,52 @@ The frontend architecture should stay narrow:
 
 ```text
 App route guard
-  -> FirstRunReadinessGate
-      -> setup summary / configure action
-      -> SettingsSetupRoute
-          -> SettingsSetupForm
+  -> Main Page route
+      -> FirstRunReadinessGate
+          -> setup summary / configure action
+          -> Main Page when ready
+  -> Settings route
+      -> FirstRunReadinessGate + Main Page/first-run background
+      -> SettingsRoute(presentation="modal")
+          -> Settings setup form
           -> readiness recheck
-          -> continue to Main Page
+          -> continue / close to safe return target
 ```
 
-The route guard still protects only Main Page in HTTP runtime mode. Audit and
+The route guard still protects Main Page work in HTTP runtime mode. `/settings`
+is available as an in-app modal route even when readiness is blocked; Audit and
 Diagnostics routes remain accessible.
 
 ---
 
-## 2. Current Baseline
+## 2. Accepted Closure
 
-Implemented today:
+Accepted Product 1.0 implementation:
 
 - `PlatoApi.getSettingsReadiness()`;
+- `PlatoApi.getSettingsConfig()`;
+- `PlatoApi.updateSettingsConfig()`;
+- `PlatoApi.recheckSettingsReadiness()`;
 - `FirstRunReadinessGate`;
 - loading state;
 - route-unavailable retry state;
 - blocking setup panel;
 - configured path to Main Page;
-- sidecar E2E for configured/unconfigured readiness;
-- CI gate for the sidecar E2E runner.
-
-Known limitations:
-
-- no `/settings` route;
-- no Settings page;
-- no config read/write API client;
-- no secret input;
-- no save/recheck loop;
-- no degraded warning in Main Page;
-- diagnostics export is not available from the setup blocker;
-- recovery actions are text only.
+- `/settings` route as a large in-app modal over the Main Page/first-run
+  background;
+- provider/model/API-key/logging profile setup form;
+- write-only secret input that is never prefilled or echoed after save;
+- save/recheck/continue flow;
+- degraded warning in Main Page with a Settings link;
+- Main Page Settings entry after setup is ready;
+- Settings modal close behavior through the safe `returnTo` target;
+- panel-level frosted blur while keeping the outside Main Page background
+  recognizable;
+- diagnostics export action from Settings setup;
+- sidecar E2E for configured readiness, unconfigured save/recheck, and
+  diagnostic export;
+- CI gate for the sidecar E2E runner;
+- manual first-run smoke command: `npm run dev:sidecar:first-run`.
 
 ---
 
@@ -94,16 +104,19 @@ isSettingsPath(pathname) -> pathname === "/settings"
 ```text
 Audit route
 Diagnostics route
-Settings route
+Settings route: gated Main Page/first-run background + Settings modal
 Main Page route wrapped in FirstRunReadinessGate
 ```
 
 Behavior:
 
 - `/settings` is available even when first-run readiness is blocked.
+- `/settings` does not open a new window and does not replace the whole visual
+  page; it overlays a modal on the current Main Page/first-run background.
 - Main Page remains blocked while `firstRun.ready=false`.
 - Returning from Settings after successful save should navigate to `/` or the
   original `returnTo` path if one is present and safe.
+- Closing the modal without saving also returns to the safe `returnTo` path.
 
 Allowed query:
 
@@ -256,7 +269,8 @@ Required controls:
 - save/check button;
 - retry readiness button;
 - export diagnostics button when available;
-- continue button after ready.
+- continue button after ready;
+- close button for modal Settings entry.
 
 Interaction details:
 
@@ -268,6 +282,9 @@ Interaction details:
 - Saving shows pending state and disables duplicate submit.
 - Failed save preserves user-entered non-secret fields but clears the secret
   field unless a clear reason exists to keep it in memory.
+- Modal Settings uses a light page overlay and applies `backdrop-filter` to the
+  Settings panel itself, so the Main Page/first-run background remains visible
+  outside the panel and is visually blurred through the panel.
 
 ---
 
@@ -296,8 +313,11 @@ Required:
 - errors are associated with fields or sections;
 - pending state is announced through visible text;
 - keyboard can reach every control;
+- modal Settings uses `role="dialog"` and exposes a close affordance;
 - desktop, tablet, and mobile widths do not clip long env var names;
-- buttons do not resize layout when pending text changes.
+- buttons do not resize layout when pending text changes;
+- mobile Settings modal stays inside the viewport width and uses internal
+  scrolling when the setup form is taller than the viewport.
 
 Settings surfaces should be utilitarian and dense enough for repeated use. This
 is an operational setup screen, not a marketing page.
@@ -331,7 +351,10 @@ E2E:
 - Main Page opens;
 - configured sidecar opens Main Page directly;
 - diagnostic export remains available;
-- no fake secret appears in DOM or exported bundle text.
+- no fake secret appears in DOM or exported bundle text;
+- manual browser visual smoke confirms the Settings modal is a large in-app
+  overlay over Main Page/first-run background, with panel-level blur and no
+  mobile horizontal overflow.
 
 CI:
 
@@ -350,38 +373,52 @@ CI:
 6. Degraded warning on Main Page.
 7. Diagnostics action integration.
 8. Sidecar E2E unconfigured -> save -> ready.
-9. Browser/Electron release smoke.
+9. Settings modal visual acceptance on desktop and mobile browser viewports.
+10. Browser/Electron release smoke, tracked separately under release readiness.
 
 Do not start at step 5 before step 1 is accepted. A frontend-only form without
 a backend write contract would create a false product acceptance signal.
 
 ---
 
-## 13. Open Decisions
+## 13. Closed Decisions
 
 1. Where is Product 1.0 local secret storage implemented?
-   - environment file;
-   - OS keychain;
-   - encrypted workspace secret store;
-   - process-local development store.
+   - accepted Product 1.0 answer: local sidecar storage under
+     `.taskweavn/settings/`, with safe read summaries and write-only secret
+     replacement;
+   - OS keychain and encrypted workspace secret store remain future
+     hardening options.
 
 2. Does Product 1.0 allow provider network test?
-   - default recommendation: no, save and local readiness only.
+   - accepted answer: no. Save and local readiness only unless a separate
+     test-connection API is accepted.
 
 3. Can setup diagnostics be exported before a session exists?
-   - default recommendation: no, unless a backend setup diagnostics endpoint is
-     added.
+   - accepted answer: no. The Settings page exports diagnostics for an
+     available sidecar session and shows limited setup diagnostics guidance
+     when no session exists.
 
 4. Is logging profile save in Product 1.0 required or read-only?
-   - default recommendation: allow selection only if the backend config write
-     slice includes it; otherwise display as read-only.
+   - accepted answer: logging profile selection is part of the Product 1.0
+     settings config write slice.
+
+5. Is Settings a separate page/window or an in-app modal?
+   - accepted answer: `/settings` remains a route for deep-linking and return
+     targets, but Product 1.0 presents it as a large modal over the
+     Main Page/first-run background. The outside background stays recognizable;
+     the Settings panel carries the frosted blur treatment.
 
 ---
 
 ## 14. Completion Boundary
 
-This feature is complete when Settings first-run is usable as a product setup
-flow. It does not complete the broader centralized runtime configuration system.
+This feature is accepted because Settings first-run is usable as a Product 1.0
+setup flow and the Settings surface visual treatment has been accepted as an
+in-app Main Page modal. It does not complete the broader centralized runtime
+configuration system.
 
 The broader system remains governed by
 [Centralized runtime configuration](centralized-runtime-configuration.md).
+Browser/Electron smoke remains a release-readiness activity outside this
+technical design's acceptance boundary.

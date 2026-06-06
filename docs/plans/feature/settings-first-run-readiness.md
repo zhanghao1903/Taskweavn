@@ -1,7 +1,7 @@
 # Feature Plan: Settings And First-Run Readiness
 
-> Status: in_progress
-> Last Updated: 2026-06-05
+> Status: done
+> Last Updated: 2026-06-06
 > Gap: [Settings and first run](../../gaps/README.md)
 > Architecture: [Configurable Logging System](../../architecture/configurable-logging-system.md), [LLM Provider Reliability](../../architecture/llm-provider-reliability.md), [UI And Backend Communication](../../architecture/ui-backend-communication.md)
 > Product: [Plato Settings, Logs, And Audit Boundary](../../product/plato-settings-logs-audit-boundary.md)
@@ -18,7 +18,7 @@ larger than the current backend closure work, but the frontend still needs a
 stable way to know whether the local sidecar can create and run a session.
 
 This plan owns the read-only readiness contract. Product-complete frontend
-setup work is now tracked separately in
+setup work is accepted separately in
 [Settings first-run frontend completion](settings-first-run-frontend-completion.md).
 
 The immediate backend gap is read-only readiness:
@@ -218,10 +218,9 @@ Required backend tests:
 - HTTP route returns the readiness payload through the sidecar envelope.
 - Main Page sidecar assembly wires the real readiness provider.
 
-Full user-path acceptance is intentionally deferred until frontend integration.
-The current read-only gate is not sufficient for final product acceptance of
-the Settings first-run feature; final acceptance requires the completion plan's
-save/recheck setup flow.
+This read-only readiness slice is accepted as the backend baseline. Full
+user-path acceptance is closed by the completion plan's save/recheck setup
+flow, not by this readiness slice alone.
 
 ---
 

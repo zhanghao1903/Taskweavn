@@ -1,6 +1,6 @@
 # Feature Plan: Settings First-Run Frontend Completion
 
-> Status: in_progress
+> Status: accepted
 > Last Updated: 2026-06-06
 > Gap: [Settings and first run](../../gaps/README.md)
 > Upstream: [Settings readiness](settings-first-run-readiness.md), [Centralized runtime configuration](centralized-runtime-configuration.md), [Diagnostic bundle export](diagnostic-bundle-export.md), [Product error handling](product-error-handling.md)
@@ -12,17 +12,16 @@
 
 ## 1. Problem
 
-The current Settings first-run frontend path is a read-only gate:
+Before this feature, the Settings first-run frontend path was a read-only gate:
 
 - it calls `GET /api/v1/settings/readiness`;
 - it blocks Main Page when `firstRun.ready=false`;
 - it shows safe setup facts and recovery copy;
 - it is covered by the sidecar E2E runner.
 
-That is useful but not a complete product experience. A user who sees the
-blocker still cannot fix configuration in the app. Product acceptance should
-wait until the user can move from "setup required" to "ready" without leaving
-Plato or manually editing environment variables.
+That was useful but not a complete product experience. The accepted Product
+1.0 closure now lets the user move from "setup required" to "ready" inside
+Plato without manually editing environment variables.
 
 ---
 
@@ -38,7 +37,10 @@ For Product 1.0, Settings first-run is complete when a local user can:
 6. re-run readiness from the UI;
 7. continue to Main Page after readiness becomes ready;
 8. export diagnostics if setup still fails;
-9. revisit a Settings surface later to inspect current safe config summaries.
+9. revisit a Settings surface later to inspect current safe config summaries;
+10. open Settings as a large in-app modal over the Main Page/first-run
+    background, with the background still recognizable and the Settings panel
+    using a frosted blur treatment.
 
 This plan intentionally stays smaller than the full centralized runtime
 configuration system. It only completes the first-run/product setup path needed
@@ -52,6 +54,8 @@ for Product 1.0.
 
 - First-run setup screen as a real setup flow, not only a blocker.
 - Settings route/surface for Product 1.0 setup.
+- Settings opens as an in-app modal surface over the Main Page or first-run
+  background, not as a separate browser window or isolated page.
 - LLM provider selection for `litellm`, `deepseek`, and `openrouter`.
 - Model text input.
 - API key secret input with masked display and no value echo after save.
@@ -92,6 +96,11 @@ completion requires a small backend/API slice before or alongside the frontend:
 If these are not available, the frontend can only deliver a read-only setup
 guide, not a complete product experience.
 
+Closure status: these dependencies are accepted through
+[Settings first-run API contract](../../engineering/settings-first-run-api-contract.md)
+and the Product 1.0 backend/frontend implementation slices. The full
+centralized runtime configuration system remains outside this plan.
+
 ---
 
 ## 5. UX Surfaces
@@ -123,6 +132,7 @@ Expected content:
 - diagnostics availability;
 - primary action: `Save and check`;
 - secondary actions: `Retry check`, `Export diagnostics`;
+- dismiss action for modal Settings entry;
 - safe explanation that secret values are never displayed.
 
 ### 5.2 Settings Route
@@ -138,6 +148,14 @@ Product 1.0 route target:
 ```text
 /settings
 ```
+
+Accepted presentation:
+
+- `/settings` remains a route, but renders as a large modal over the current
+  Main Page/first-run background;
+- the outside area keeps the Main Page background recognizable;
+- the modal panel itself applies the frosted/background-blur treatment;
+- closing the modal returns to the safe `returnTo` path.
 
 Required states:
 
@@ -251,7 +269,7 @@ Acceptance:
 Deliver:
 
 - `/settings` route;
-- setup/edit page layout;
+- setup/edit modal layout over the Main Page/first-run background;
 - loading/error/disabled states;
 - provider/model/logging controls;
 - masked API key field;
@@ -262,6 +280,8 @@ Acceptance:
 - no one-off controls if shared primitives exist;
 - no hardcoded API shapes in page code;
 - mobile/tablet/desktop text does not overlap.
+- modal presentation keeps the Main Page background visible while the panel
+  provides the frosted blur treatment.
 
 ### F4 First-Run Blocker To Setup Flow
 
@@ -337,8 +357,15 @@ The Settings first-run frontend feature is product-complete when:
 9. Audit/Diagnostics deep links remain usable when Main Page is blocked;
 10. the formal sidecar E2E runner covers unconfigured, configured, and
     diagnostic export paths;
-11. docs and gap registry mark exactly this frontend completion scope as
+11. Settings opens as a large Main Page modal with panel-level background blur,
+    not as a separate window or full-page replacement;
+12. docs and gap registry mark exactly this frontend completion scope as
     accepted, without claiming the full centralized Settings system.
+
+Acceptance status: accepted on 2026-06-06 after manual first-run browser
+validation, Settings modal visual acceptance, and formal sidecar E2E coverage.
+Browser/Electron release smoke is tracked separately as release readiness, not
+as a blocker for this feature's frontend completion scope.
 
 ---
 
@@ -354,35 +381,29 @@ The Settings first-run frontend feature is product-complete when:
 
 ---
 
-## 10. Recommended Next Task Prompt
+## 10. Closure Summary
 
-```text
-Use the product-workflow-gate skill first.
+Accepted implementation evidence:
 
-Task:
-Finalize the Settings first-run frontend completion API contract and backend
-write slice.
+- safe Settings config API contract and backend write slice;
+- frontend API client/types and contract tests;
+- `/settings` route with provider, model, API-key, and logging profile form;
+- write-only secret handling with no stored secret echo;
+- save/recheck/continue flow from first-run blocker to Main Page;
+- degraded readiness warning with a Settings link;
+- Settings entry from Main Page after setup is ready;
+- large Settings modal over the Main Page/first-run background with
+  panel-level frosted blur visual treatment;
+- diagnostics export action from Settings setup;
+- formal sidecar E2E for unconfigured save/recheck, configured readiness, and
+  diagnostic export;
+- first-run manual smoke command: `npm run dev:sidecar:first-run`;
+- Product 1.0 frontend integration CI command:
+  `npm run test:e2e:sidecar`.
 
-Context:
-docs/plans/feature/settings-first-run-frontend-completion.md defines the
-product-complete frontend experience. The current frontend blocker is read-only
-and cannot be accepted as the full feature until settings save/recheck exists.
+Remaining adjacent work:
 
-Scope:
-1. Define safe settings config read/save contract.
-2. Implement backend storage/write gateway for Product 1.0 LLM setup and
-   logging profile only.
-3. Ensure secret input is write-only and redacted from logs/diagnostics.
-4. Refresh readiness after save.
-5. Add contract tests.
-
-Do not implement full centralized runtime configuration.
-Do not expose stored secret values.
-Do not run provider network validation unless a separate API is accepted.
-
-Output:
-- files changed
-- tests run
-- API contract implemented
-- remaining frontend slices
-```
+- broader centralized runtime configuration remains governed by
+  [Centralized runtime configuration](centralized-runtime-configuration.md);
+- Browser/Electron smoke belongs to release readiness and packaging, not this
+  feature's acceptance boundary.

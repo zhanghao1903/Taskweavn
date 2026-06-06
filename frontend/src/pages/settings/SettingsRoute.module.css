@@ -5,6 +5,23 @@
   color: var(--plato-color-semantic-text-primary);
 }
 
+.modalViewport {
+  position: fixed;
+  z-index: 80;
+  inset: 0;
+  display: grid;
+  align-items: center;
+  justify-items: center;
+  overflow: auto;
+  padding: clamp(18px, 4vw, 48px);
+  background: linear-gradient(
+    135deg,
+    rgba(229, 247, 248, 0.2),
+    rgba(221, 237, 249, 0.24)
+  );
+  color: var(--plato-color-semantic-text-primary);
+}
+
 .panel {
   max-width: 920px;
   margin: 0 auto;
@@ -14,11 +31,33 @@
   background: var(--plato-color-semantic-surface);
 }
 
+.modalPanel {
+  width: min(1040px, calc(100vw - 48px));
+  max-width: none;
+  max-height: min(860px, calc(100vh - 48px));
+  overflow: auto;
+  border-color: rgba(255, 255, 255, 0.68);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.78), rgba(250, 253, 253, 0.68));
+  -webkit-backdrop-filter: blur(28px) saturate(1.12);
+  backdrop-filter: blur(28px) saturate(1.12);
+  box-shadow:
+    0 24px 80px rgba(28, 44, 52, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.82);
+}
+
 .headerRow {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
+}
+
+.headerActions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
 }
 
 .eyebrow {
@@ -257,8 +296,18 @@
     padding: 16px;
   }
 
+  .modalViewport {
+    align-items: stretch;
+    padding: 12px;
+  }
+
   .panel {
     padding: 18px;
+  }
+
+  .modalPanel {
+    width: 100%;
+    max-height: calc(100vh - 24px);
   }
 
   .headerRow,
@@ -270,6 +319,10 @@
 
   .headerRow {
     display: grid;
+  }
+
+  .headerActions {
+    justify-content: space-between;
   }
 
   .footerActions {

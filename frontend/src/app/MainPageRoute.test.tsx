@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -12,6 +13,7 @@ import { MainPageRoute } from "./MainPageRoute";
 
 describe("MainPageRoute", () => {
   afterEach(() => {
+    globalThis.history.pushState(null, "", "/");
     vi.unstubAllGlobals();
   });
 
@@ -22,6 +24,17 @@ describe("MainPageRoute", () => {
     expect(screen.queryByLabelText("State")).not.toBeInTheDocument();
     expect(screen.getByLabelText("Task workspace")).toBeInTheDocument();
     expect(screen.getByText("Requirement analysis")).toBeInTheDocument();
+  });
+
+  it("opens the Settings route from the Main Page top bar", async () => {
+    const user = userEvent.setup();
+    renderWithQueryClient(<MainPageRoute runtimeEnv={{}} />);
+
+    await screen.findByText("Personal Website");
+
+    await user.click(screen.getByRole("button", { name: "Settings" }));
+
+    expect(globalThis.location.pathname).toBe("/settings");
   });
 
   it("creates an HTTP runtime adapter from route env without exposing the state picker", async () => {
@@ -87,7 +100,7 @@ describe("MainPageRoute", () => {
       />,
     );
 
-    expect(await screen.findByText("No TaskTree yet")).toBeInTheDocument();
+    expect(await screen.findByText("No task plan yet")).toBeInTheDocument();
     expect(screen.queryByLabelText("State")).not.toBeInTheDocument();
     expect(loadSnapshot).toHaveBeenCalledWith("s1-empty", null);
   });

@@ -98,7 +98,7 @@ describe("App", () => {
     expect(screen.queryByRole("banner")).not.toBeInTheDocument();
   });
 
-  it("opens the Settings route without passing through the first-run gate", async () => {
+  it("opens the Settings route as a modal over the first-run gate", async () => {
     const readinessApi = {
       getSettingsReadiness: vi.fn(async () => settingsReadinessResponse()),
     };
@@ -116,10 +116,13 @@ describe("App", () => {
     );
 
     expect(
-      await screen.findByRole("heading", { name: "Complete first-run setup" }),
+      await screen.findByRole("dialog", { name: "Complete first-run setup" }),
     ).toBeInTheDocument();
     expect(screen.getByDisplayValue("anthropic/test-model")).toBeInTheDocument();
-    expect(readinessApi.getSettingsReadiness).not.toHaveBeenCalled();
+    expect(
+      await screen.findByRole("heading", { name: "Setup required" }),
+    ).toBeInTheDocument();
+    expect(readinessApi.getSettingsReadiness).toHaveBeenCalledTimes(1);
     expect(settingsApi.getSettingsConfig).toHaveBeenCalledTimes(1);
   });
 
@@ -187,7 +190,7 @@ describe("App", () => {
 
     expect(screen.getByRole("heading", { name: "Initial implementation" })).toBeInTheDocument();
     expect(screen.getByRole("complementary", { name: "Details" })).toBeInTheDocument();
-    expect(screen.getByText("Writing to Initial implementation")).toBeInTheDocument();
+    expect(screen.getByText(/^Writing to Task /)).toBeInTheDocument();
     expect(screen.getByLabelText("Latest activity")).toBeInTheDocument();
   });
 

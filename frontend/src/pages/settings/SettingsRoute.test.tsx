@@ -30,6 +30,27 @@ describe("SettingsRoute", () => {
     expect(document.body).not.toHaveTextContent("sk-existing-secret");
   });
 
+  it("renders as a dismissible modal when requested", async () => {
+    const user = userEvent.setup();
+    globalThis.history.pushState(null, "", "/settings?returnTo=/sessions/live");
+
+    renderWithQueryClient(
+      <SettingsRoute
+        api={settingsApi()}
+        presentation="modal"
+        runtimeEnv={{ VITE_PLATO_API_MODE: "http" }}
+      />,
+    );
+
+    expect(
+      await screen.findByRole("dialog", { name: "Settings" }),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Close settings" }));
+
+    expect(globalThis.location.pathname).toBe("/sessions/live");
+  });
+
   it("saves config, rechecks readiness, and continues to Main Page", async () => {
     const user = userEvent.setup();
     const api = settingsApi({

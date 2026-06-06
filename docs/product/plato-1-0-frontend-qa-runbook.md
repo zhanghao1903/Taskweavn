@@ -2,7 +2,7 @@
 
 > Status: draft QA runbook
 > Last Updated: 2026-06-06
-> Scope: Product 1.0 Main Page + Audit Page frontend user-path validation.
+> Scope: Product 1.0 Main Page + Settings first-run + Audit Page frontend user-path validation.
 > Related:
 > [MVP PRD](plato-mvp-prd.md),
 > [Main Page UX Flow](plato-main-page-ux-flow.md),
@@ -38,6 +38,7 @@ Product 1.0 is validated only if this user-visible loop works:
 
 ```text
 User opens Plato
+  -> completes Settings first-run setup when local config is missing
   -> creates or selects a Session
   -> enters a natural-language goal
   -> sees a TaskTree
@@ -67,7 +68,7 @@ The user should not need to understand:
 |---|---|---|---|
 | Mock frontend | Fast UI regression and scenario parity. | `cd frontend && npm run test`; optional Vite mock mode without `VITE_PLATO_API_MODE=http`. | Main Page and Audit Page mock scenarios still render and tests pass. |
 | Formal sidecar E2E | Product 1.0 frontend integration acceptance and CI gate. | `cd frontend && npm run test:e2e:sidecar`. CI runs the same command in `.github/workflows/product-1-0-frontend-integration.yml`. | Real sidecar fixtures validate Diagnostic Bundle export plus Settings first-run configured and unconfigured save/recheck paths. |
-| First-run manual smoke | Product setup acceptance without manually copying sidecar env vars. | `cd frontend && npm run dev:sidecar:first-run`. Optional Vite args can be passed after `--`, such as `npm run dev:sidecar:first-run -- --port 5174`. | Browser opens `/` in HTTP mode, shows first-run setup required, saves Settings, rechecks readiness, and reaches Main Page. |
+| First-run manual smoke | Product setup acceptance without manually copying sidecar env vars. | `cd frontend && npm run dev:sidecar:first-run`. Optional Vite args can be passed after `--`, such as `npm run dev:sidecar:first-run -- --port 5174`. | Browser opens `/` in HTTP mode, shows first-run setup required, opens Settings as a large Main Page modal, saves Settings, rechecks readiness, and reaches Main Page. |
 | Local sidecar HTTP | Main Product 1.0 runtime validation. | `uv run taskweavn plato-dev --workspace ./plato-workspace`. | Browser can complete the user loop through local HTTP/SSE. |
 | Direct sidecar + frontend | Debug mode when ports/env need inspection. | `uv run taskweavn plato-sidecar --workspace ./plato-workspace`; then run Vite with printed env vars. | Frontend can load `GET /api/v1/sessions/{sessionId}/snapshot` and receive events. |
 | Packaged browser/Electron | Release-readiness smoke. | TBD packaging command. | Same user loop works outside developer-only setup. |
@@ -91,6 +92,9 @@ Before manual QA:
   sidecar and frontend.
 - For Settings first-run acceptance, `cd frontend && npm run dev:sidecar:first-run`
   starts an unconfigured sidecar and Vite without manual env copying.
+- Settings visual acceptance verifies that `/settings` is an in-app modal over
+  the Main Page/first-run background, the outside background remains visible,
+  and the panel itself carries the frosted blur treatment.
 - The browser can reach the frontend dev URL.
 - The sidecar health endpoint is reachable.
 - The frontend console has no startup crash.
@@ -503,7 +507,7 @@ These are known gaps. QA should observe them, but not silently expand Product
 | Broader evidence coverage | Verify current EventStream/log/config/confirmation coverage; record missing evidence as partial/not_available if safe. |
 | Message and confirmation UI hardening | Treat confusing or unsafe confirmation behavior as P0/P1. |
 | Recoverable error UX | Treat missing user recovery on common failures as P1. |
-| Settings first-run completion | Verify the product setup path manually with `npm run dev:sidecar:first-run`; the formal E2E covers unconfigured save/recheck and configured readiness. |
+| Settings release smoke | Settings first-run frontend completion is accepted. Use `npm run dev:sidecar:first-run` for manual regression; Browser/Electron smoke remains under release readiness. |
 | Diagnostic bundle | Needed for early testers, but can be a separate release-readiness task. |
 | Packaging / Electron | Required before non-developer users; not required for local developer smoke. |
 | Mobile-specific Audit polish | Defer unless mobile is included in the first user test group. |
