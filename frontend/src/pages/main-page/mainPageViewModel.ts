@@ -372,7 +372,8 @@ export function buildMainPageViewModel({
       taskTreeCommandError,
       taskTreeId: snapshot.taskTree?.id ?? null,
       title:
-        authoringAsk?.title ?? snapshot.taskTree?.title ?? "Start a new session",
+        authoringAsk?.title ??
+        (snapshot.taskTree === null ? "Start a new session" : "Plan & Progress"),
       uiNotice,
     },
   };

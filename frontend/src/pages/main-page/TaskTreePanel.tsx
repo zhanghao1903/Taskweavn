@@ -1,3 +1,5 @@
+import type { ReactNode } from "react";
+
 import type {
   TaskNodeId,
   TaskTreeView,
@@ -7,6 +9,7 @@ import { TaskNodeCard } from "./TaskNodeCard";
 import styles from "./MainPage.module.css";
 
 export type TaskTreePanelProps = {
+  activitySlot?: ReactNode;
   isTaskPlanSelected?: boolean;
   isGeneratingTaskPlan?: boolean;
   onRetryTask: (nodeId: TaskNodeId) => void;
@@ -18,6 +21,7 @@ export type TaskTreePanelProps = {
 };
 
 export function TaskTreePanel({
+  activitySlot = null,
   isTaskPlanSelected = false,
   isGeneratingTaskPlan = false,
   onRetryTask,
@@ -51,6 +55,7 @@ export function TaskTreePanel({
           </span>
           <Badge tone="blue">{taskTree.status}</Badge>
         </button>
+        {activitySlot}
         <div className={styles.taskList}>
           {taskTree.nodes.map((node) => (
             <TaskNodeCard

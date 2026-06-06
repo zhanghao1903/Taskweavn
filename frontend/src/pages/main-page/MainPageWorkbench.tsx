@@ -107,24 +107,28 @@ export function MainPageWorkbench({
             view={viewModel.mainWorkArea.authoringAsk}
           />
         ) : (
-          <div
-            className={
-              hasVisibleActivity
-                ? styles.workGrid
-                : `${styles.workGrid} ${styles.workGridWithoutActivity}`
-            }
-          >
-            <LatestActivityStrip
-              isMessageScoped={viewModel.taskWorkspace.isMessageScoped}
-              messages={viewModel.taskWorkspace.messages}
-              onOpenActivity={
-                hasActivity ? () => setIsActivityOverlayOpen(true) : undefined
-              }
-              selectedTask={viewModel.taskWorkspace.selectedTask}
-              totalMessageCount={viewModel.taskWorkspace.totalMessageCount}
-              visibleMessageCount={viewModel.taskWorkspace.visibleMessageCount}
-            />
+          <div className={styles.workGrid}>
             <TaskTreePanel
+              activitySlot={
+                hasVisibleActivity ? (
+                  <LatestActivityStrip
+                    isMessageScoped={viewModel.taskWorkspace.isMessageScoped}
+                    messages={viewModel.taskWorkspace.messages}
+                    onOpenActivity={
+                      hasActivity
+                        ? () => setIsActivityOverlayOpen(true)
+                        : undefined
+                    }
+                    selectedTask={viewModel.taskWorkspace.selectedTask}
+                    totalMessageCount={
+                      viewModel.taskWorkspace.totalMessageCount
+                    }
+                    visibleMessageCount={
+                      viewModel.taskWorkspace.visibleMessageCount
+                    }
+                  />
+                ) : null
+              }
               isTaskPlanSelected={
                 viewModel.taskWorkspace.isTaskPlanSelected
               }
