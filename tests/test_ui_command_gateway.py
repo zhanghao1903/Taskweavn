@@ -707,6 +707,48 @@ def test_answer_authoring_ask_batch_generates_tree_after_all_asks_answered() -> 
     )
 
 
+def test_answer_authoring_ask_batch_rejects_stale_authoring_context() -> None:
+    collaborator = _Collaborator()
+    state_store = _AuthoringStateStore(
+        ActiveAuthoringState(
+            session_id="session-1",
+            active_raw_task_id="raw-1",
+            active_draft_tree_id="tree-active",
+            active_state="draft_tree",
+        )
+    )
+    gateway = _gateway(
+        collaborator=collaborator,
+        authoring_state_store=state_store,
+    )
+    request = CommandRequest[AnswerAuthoringAskBatchPayload](
+        command_id="answer-authoring-stale",
+        session_id="session-1",
+        payload=AnswerAuthoringAskBatchPayload(
+            answers=(AnswerAuthoringAskItemPayload(ask_id="ask-1", value="static"),)
+        ),
+    )
+
+    response = gateway.answer_authoring_ask_batch("raw-1", request)
+
+    assert response.ok is False
+    assert response.error is not None
+    assert response.error.code == "command_rejected"
+    assert response.result is not None
+    assert response.result.status == "rejected"
+    assert "stale_authoring_context" in response.result.message
+    assert collaborator.calls == []
+    dumped = response.result.model_dump(mode="json")
+    assert {"kind": "raw_task", "id": "raw-1"} in dumped["objectRefs"]
+    assert dumped["affectedObjects"][0]["impact"] == "superseded"
+    assert response.refresh.wait_for_events is False
+    assert response.refresh.suggested_queries == (
+        "session.snapshot",
+        "session.messages",
+        "task.tree",
+    )
+
+
 def test_update_task_node_resolves_task_ref_and_preserves_subtree_intent() -> None:
     commands = _TaskCommands()
     gateway = _gateway(task_commands=commands)

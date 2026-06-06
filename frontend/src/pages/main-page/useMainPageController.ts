@@ -22,6 +22,7 @@ import type {
   DetailOverride,
   EventConnectionStatus,
   InputTarget,
+  MainPageSelectionTarget,
 } from "./mainPageUiTypes";
 import type { MainPageInputCommandMode } from "./mainPageViewModel";
 import type { MainPageStateId } from "./mockPlatoApi";
@@ -134,6 +135,7 @@ export type MainPageController = {
   isRetryingTask: boolean;
   isStoppingTask: boolean;
   isResolvingConfirmation: boolean;
+  selectionTarget: MainPageSelectionTarget;
   sessionDialog: SessionLifecycleDialog;
   isSnapshotError: boolean;
   isSnapshotPending: boolean;
@@ -159,6 +161,7 @@ export type MainPageController = {
     retryTask: (context: RetryTaskContext) => void;
     stopTask: (context: StopTaskContext) => void;
     selectSession: (session: SessionSummary, currentSessionId: string) => void;
+    selectTaskPlan: () => void;
     selectTask: (nodeId: TaskNodeId) => void;
     showFileChanges: () => void;
     showResult: () => void;
@@ -180,6 +183,8 @@ export function useMainPageController({
   const [stateId, setStateId] = useState<MainPageStateId>(initialStateId);
   const [selectedTaskNodeId, setSelectedTaskNodeId] =
     useState<TaskNodeId | null>(null);
+  const [selectionTarget, setSelectionTarget] =
+    useState<MainPageSelectionTarget>("auto");
   const [detailOverride, setDetailOverride] =
     useState<DetailOverride>("auto");
   const [confirmationError, setConfirmationError] = useState<string | null>(
@@ -710,6 +715,7 @@ export function useMainPageController({
     }
 
     setSelectedTaskNodeId(currentSnapshot.metadata.initialSelectedTaskNodeId);
+    setSelectionTarget("auto");
     setDetailOverride("auto");
     setAuthoringAskError(null);
     setExecutionAskError(null);
@@ -837,6 +843,7 @@ export function useMainPageController({
   function handleStateChange(nextStateId: MainPageStateId) {
     setStateId(nextStateId);
     setSelectedTaskNodeId(null);
+    setSelectionTarget("auto");
     setDetailOverride("auto");
     setAuthoringAskError(null);
     setExecutionAskError(null);
@@ -861,6 +868,14 @@ export function useMainPageController({
 
   function selectTask(nodeId: TaskNodeId) {
     setSelectedTaskNodeId(nodeId);
+    setSelectionTarget("task");
+    setDetailOverride("auto");
+    setUiNotice(null);
+  }
+
+  function selectTaskPlan() {
+    setSelectedTaskNodeId(null);
+    setSelectionTarget("plan");
     setDetailOverride("auto");
     setUiNotice(null);
   }
@@ -1135,6 +1150,7 @@ export function useMainPageController({
     isRetryingTask: retryTaskMutation.isPending,
     isStoppingTask: stopTaskMutation.isPending,
     isResolvingConfirmation: resolveConfirmationMutation.isPending,
+    selectionTarget,
     sessionDialog,
     isSnapshotError: snapshotQuery.isError,
     isSnapshotPending: snapshotQuery.isPending,
@@ -1160,6 +1176,7 @@ export function useMainPageController({
       retryTask: handleRetryTask,
       stopTask: handleStopTask,
       selectSession: handleSessionSelect,
+      selectTaskPlan,
       selectTask,
       showFileChanges: () => setDetailOverride("fileChanges"),
       showResult: () => setDetailOverride("result"),

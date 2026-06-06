@@ -33,6 +33,7 @@ type ConfirmationResolvedDetail = Extract<
 >;
 type ResultDetail = Extract<MainPageDetailView, { kind: "result" }>;
 type FileChangesDetail = Extract<MainPageDetailView, { kind: "fileChanges" }>;
+type PlanDetail = Extract<MainPageDetailView, { kind: "plan" }>;
 type TaskDetail = Extract<MainPageDetailView, { kind: "task" }>;
 
 export function MainPageDetailPanel({
@@ -144,9 +145,36 @@ function DetailContent({
           onStopTask={onStopTask}
         />
       );
+    case "plan":
+      return <PlanDetailPanel detail={detail} />;
     case "note":
       return null;
   }
+}
+
+function PlanDetailPanel({ detail }: { detail: PlanDetail }) {
+  const taskCount = detail.taskTree.nodes.length;
+
+  return (
+    <Panel
+      aria-label="Plan interaction"
+      className={styles.detailBox}
+      tone="muted"
+    >
+      <div className={styles.detailTitleRow}>
+        <Text as="strong" variant="label">
+          Plan interaction
+        </Text>
+        <Badge size="sm" tone="blue">
+          {taskCount === 1 ? "1 task" : `${taskCount} tasks`}
+        </Badge>
+      </div>
+      <Text variant="muted">
+        Input now refines the whole plan. Select a task to inspect or guide one
+        Task.
+      </Text>
+    </Panel>
+  );
 }
 
 function ConfirmationResolvedPanel({

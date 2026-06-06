@@ -22,6 +22,7 @@ export function TaskNodeCard({
 }: TaskNodeCardProps) {
   const statusPresentation = selectTaskNodeDimensionPresentation(node);
   const isRunning = node.execution === "running" || node.status === "running";
+  const displayIndex = node.displayIndex ?? node.orderIndex + 1;
   const isStopping = Boolean(
     node.interruptionRequested && isRunning,
   );
@@ -41,6 +42,7 @@ export function TaskNodeCard({
       >
         <Circle size={12} aria-hidden="true" />
         <span className={styles.taskText}>
+          <span className={styles.taskIndex}>Task {displayIndex}</span>
           <strong className={styles.listCardTitle} title={node.title}>
             {node.title}
           </strong>

@@ -69,10 +69,37 @@ def test_select_active_ask_falls_back_to_oldest_blocking_pending() -> None:
     assert active.id == "ask-old"
 
 
+def test_select_active_ask_ignores_non_waiting_asks_when_task_tree_exists() -> None:
+    store = InMemoryAskStore(
+        [
+            _ask("ask-other", task_id="other", created_at=NOW),
+            _ask(
+                "ask-session",
+                task_id=None,
+                blocking=False,
+                created_at=NOW + timedelta(seconds=1),
+            ),
+        ]
+    )
+    asks = DefaultAskProjectionService(store).pending_asks("s1")
+    tree = TaskTreeView(
+        id="tree-1",
+        session_id="s1",
+        title="Task Tree",
+        status="running",
+        nodes=(_node("task-1", execution="pending", status="queued"),),
+    )
+
+    active = select_active_ask(asks, task_tree=tree)
+
+    assert active is None
+
+
 def _ask(
     ask_id: str,
     *,
-    task_id: str,
+    task_id: str | None,
+    blocking: bool = True,
     created_at: datetime = NOW,
 ) -> AskRequest:
     return AskRequest(
@@ -81,6 +108,7 @@ def _ask(
         task_id=task_id,
         question="What should the agent use?",
         reason="The agent needs user-owned missing information.",
+        blocking=blocking,
         created_at=created_at,
     )
 

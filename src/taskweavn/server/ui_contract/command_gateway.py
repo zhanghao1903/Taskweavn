@@ -443,6 +443,49 @@ class DefaultUiCommandGateway:
         request: CommandRequest[AnswerAuthoringAskBatchPayload],
     ) -> CommandResponse:
         try:
+            if self._authoring_context_is_superseded(request.session_id):
+                raw_ref = ObjectRef(kind="raw_task", id=raw_task_id)
+                ask_refs = tuple(
+                    ObjectRef(kind="raw_task_ask", id=answer.ask_id)
+                    for answer in request.payload.answers
+                )
+                result = CoreCommandResult(
+                    status="rejected",
+                    message=(
+                        "stale_authoring_context: authoring ASK was superseded "
+                        "by the active TaskTree"
+                    ),
+                )
+                return _command_response(
+                    request,
+                    result,
+                    object_refs=(raw_ref, *ask_refs),
+                    affected_objects=(
+                        AffectedObjectRef(
+                            ref=raw_ref,
+                            impact="superseded",
+                            reason="stale_authoring_context",
+                        ),
+                        *(
+                            AffectedObjectRef(
+                                ref=ask_ref,
+                                impact="superseded",
+                                reason="stale_authoring_context",
+                            )
+                            for ask_ref in ask_refs
+                        ),
+                    ),
+                    suggested_queries=(
+                        "session.snapshot",
+                        "session.messages",
+                        "task.tree",
+                    ),
+                    affected_scopes=(
+                        AffectedScope(kind="session"),
+                        AffectedScope(kind="messages"),
+                        AffectedScope(kind="task_tree"),
+                    ),
+                )
             result = self._collaborator.answer_raw_task_asks(
                 session_id=request.session_id,
                 raw_task_id=raw_task_id,
@@ -587,6 +630,15 @@ class DefaultUiCommandGateway:
             return False
         answered_ask_ids = {answer.ask_id for answer in raw_task.answers}
         return all(ask.ask_id in answered_ask_ids for ask in raw_task.asks)
+
+    def _authoring_context_is_superseded(
+        self,
+        session_id: str,
+    ) -> bool:
+        if self._authoring_state_store is None:
+            return False
+        active = self._authoring_state_store.get_active(session_id)
+        return active.active_state in {"draft_tree", "published"}
 
     def _resolve_publish_draft_tree_id(
         self,

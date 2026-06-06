@@ -45,6 +45,7 @@ export type MainPageDetail = {
 };
 
 export type MainPageInputScope = {
+  description?: string | null;
   label: string;
   placeholder: string;
 };

@@ -12,7 +12,7 @@ import type { MainPageController } from "./useMainPageController";
 
 describe("MainPageWorkbench layout", () => {
   it("expands the workspace when generic notes hide the detail panel", () => {
-    const viewModel = buildViewModel("s3-draft-ready");
+    const viewModel = buildViewModel("s1-empty");
 
     expect(viewModel.detail.kind).toBe("note");
 
@@ -23,6 +23,19 @@ describe("MainPageWorkbench layout", () => {
     expect(
       screen.queryByRole("complementary", { name: "Details" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("keeps the detail column when the whole plan is selected", () => {
+    const viewModel = buildViewModel("s3-draft-ready");
+
+    expect(viewModel.detail.kind).toBe("plan");
+
+    renderWorkbench(viewModel);
+
+    expect(screen.getByRole("main")).not.toHaveClass(styles.pageWithoutDetail);
+    expect(
+      screen.getByRole("complementary", { name: "Details" }),
+    ).toBeInTheDocument();
   });
 
   it("keeps the detail column when a selected TaskNode has detail content", () => {
@@ -123,6 +136,7 @@ function buildActions(): MainPageController["actions"] {
     resolveConfirmation: vi.fn(),
     retryTask: vi.fn(),
     selectSession: vi.fn(),
+    selectTaskPlan: vi.fn(),
     selectTask: vi.fn(),
     showFileChanges: vi.fn(),
     showResult: vi.fn(),

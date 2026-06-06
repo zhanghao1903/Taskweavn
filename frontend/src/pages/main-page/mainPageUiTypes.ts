@@ -11,7 +11,9 @@ export type EventConnectionStatus =
   | "disconnected"
   | "resyncing";
 
-export type InputTarget = "session" | "task";
+export type InputTarget = "session" | "plan" | "task";
+
+export type MainPageSelectionTarget = "auto" | "plan" | "task";
 
 export type MainPageDetailHeader = {
   body: string;
@@ -20,6 +22,7 @@ export type MainPageDetailHeader = {
 };
 
 export type MainPageInputScopeView = {
+  description?: string | null;
   label: string;
   placeholder: string;
 };

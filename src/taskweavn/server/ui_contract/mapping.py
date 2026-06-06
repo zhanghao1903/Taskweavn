@@ -49,7 +49,10 @@ def map_task_tree_view(
 ) -> ContractTaskTreeView:
     """Map server-core TaskTreeView into the transport-facing contract shape."""
 
-    nodes = tuple(map_task_node_card(node) for node in view.nodes)
+    nodes = tuple(
+        map_task_node_card(node, display_index=index + 1)
+        for index, node in enumerate(view.nodes)
+    )
     return ContractTaskTreeView(
         id=tree_id or _synthetic_tree_id(view.session_id),
         session_id=view.session_id,
@@ -60,7 +63,11 @@ def map_task_tree_view(
     )
 
 
-def map_task_node_card(view: task_views.TaskCardView) -> TaskNodeCardView:
+def map_task_node_card(
+    view: task_views.TaskCardView,
+    *,
+    display_index: int | None = None,
+) -> TaskNodeCardView:
     """Map a server-core Task card into the frontend card contract."""
 
     return TaskNodeCardView(
@@ -73,6 +80,9 @@ def map_task_node_card(view: task_views.TaskCardView) -> TaskNodeCardView:
         execution=map_task_execution_status(view.status),
         depth=view.depth,
         order_index=view.order_index,
+        display_index=(
+            display_index if display_index is not None else view.order_index + 1
+        ),
         result_ref=view.result_ref,
         error_ref=view.error_ref,
         interruption_requested=view.interrupt_requested,

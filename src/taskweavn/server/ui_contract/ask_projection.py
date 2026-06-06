@@ -144,6 +144,7 @@ def select_active_ask(
             ]
             if task_candidates:
                 return sorted(task_candidates, key=lambda ask: (ask.created_at, ask.id))[0]
+        return None
     blocking = [ask for ask in pending if ask.blocking]
     candidates = blocking or list(pending)
     return sorted(candidates, key=lambda ask: (ask.created_at, ask.id))[0]

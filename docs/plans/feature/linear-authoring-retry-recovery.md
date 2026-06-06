@@ -2,7 +2,7 @@
 
 > Status: in_progress
 > Type: Product 1.0 authoring policy / execution recovery
-> Last Updated: 2026-06-05
+> Last Updated: 2026-06-06
 > Product Policy: [Plato 1.0 Line-First Authoring Policy](../../product/plato-1-0-line-first-authoring-policy.md)
 > Related Plans: [RawTask And DraftTaskTree Persistence](raw-task-draft-tree-persistence.md), [Fixed-Route Task Execution Bridge](fixed-route-task-execution-bridge.md)
 > Related Decisions: [ADR-0009](../../decisions/ADR-0009-single-active-session-worktree.md), [ADR-0010](../../decisions/ADR-0010-line-first-authoring-experience-for-1-0.md)
@@ -75,6 +75,8 @@ Still open:
    context governance.
 6. Keep full SessionContext governance, summarization, and budget management
    out of Product 1.0.
+7. Prevent Authoring Domain and Task Domain from appearing as simultaneous
+   active workflows in one Session.
 
 ---
 
@@ -175,6 +177,33 @@ Product 1.0 does not need a new general context governance layer. Product 1.1
 can later introduce session summaries, context budgets, task-local pruning, and
 context assembly policies using this durable material.
 
+### 4.5 Active Domain Guard
+
+Product 1.0 must enforce a single active domain in the user control surface.
+
+```text
+RawTask / RawTaskAsk active
+  -> no TaskTree yet
+
+TaskTree / TaskNode active
+  -> RawTask / RawTaskAsk is history unless explicit revision starts
+```
+
+This addresses the dirty-session case where an old pending authoring ASK is
+answered after a TaskTree already exists, accidentally producing a new RawTask
+beside the current TaskTree.
+
+Initial policy:
+
+- Gateway projection prefers Task Domain once `TaskTreeView` exists.
+- Pending authoring asks are marked or projected as `superseded`.
+- Answering a superseded authoring ask returns `command_rejected` with
+  `details.reason = "stale_authoring_context"`.
+- Reusing a late answer requires explicit `Apply as plan guidance` or
+  `Revise plan` behavior.
+- No data is deleted; old RawTask/ASK/answer facts remain available for audit
+  and replay.
+
 ---
 
 ## 5. Proposed Implementation Phases
@@ -196,6 +225,27 @@ Acceptance:
 - every later node points to the previous node as parent;
 - existing non-linear/imported tree fixtures still work when explicitly used;
 - no Main Page UI rewrite is required.
+
+### P8.A1 Active Domain Projection And Stale ASK Guard
+
+Deliver:
+
+- snapshot projection rule that hides/supersedes pending RawTaskAsk when a
+  TaskTree exists;
+- command guard for authoring ASK answers after Task Domain is active;
+- dirty fixture covering RawTaskAsk + TaskTree coexistence;
+- UI/API docs and tests proving the Main Page shows plan/TaskNode targets, not
+  stale authoring controls.
+
+Acceptance:
+
+- a Session cannot show active RawTaskAsk controls and active TaskTree controls
+  at the same time;
+- answering an old authoring ASK after TaskTree generation cannot create a new
+  RawTask silently;
+- the user is offered an explicit path to apply the answer as plan guidance or
+  start a plan revision;
+- audit/replay can still explain the old ask and late answer.
 
 ### P8.L2 Publish Linear Dependencies
 
