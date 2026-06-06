@@ -53,17 +53,23 @@ describe("MainPageWorkbench layout", () => {
     ).toBeInTheDocument();
   });
 
-  it("places latest activity above the task list", () => {
+  it("places the plan line above latest activity and the task list", () => {
     const viewModel = buildViewModel("s7-confirmation", {
       selectedTaskNodeId: "task-visual-direction",
     });
 
     renderWorkbench(viewModel);
 
+    const planLine = screen.getByText("Plan overview").closest("button");
     const latestActivity = screen.getByLabelText("Latest activity");
     const firstTaskCard = screen.getByText("Requirement analysis").closest("button");
 
+    expect(planLine).not.toBeNull();
     expect(firstTaskCard).not.toBeNull();
+    expect(
+      planLine!.compareDocumentPosition(latestActivity) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
     expect(
       latestActivity.compareDocumentPosition(firstTaskCard!) &
         Node.DOCUMENT_POSITION_FOLLOWING,

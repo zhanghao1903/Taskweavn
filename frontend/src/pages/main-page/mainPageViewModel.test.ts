@@ -66,6 +66,7 @@ describe("buildMainPageViewModel", () => {
     expect(viewModel.taskWorkspace.isTaskPlanSelected).toBe(true);
     expect(viewModel.topBar.statuses).toHaveLength(2);
     expect(viewModel.workspace.showPublishTaskTree).toBe(true);
+    expect(viewModel.workspace.title).toBe("Plan & Progress");
   });
 
   it("replaces the main work area when authoring ASK is pending", () => {

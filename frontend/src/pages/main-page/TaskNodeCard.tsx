@@ -1,4 +1,4 @@
-import { Circle, CircleStop, RotateCcw } from "lucide-react";
+import { CircleStop, RotateCcw } from "lucide-react";
 
 import type { TaskNodeCardView, TaskNodeId } from "../../shared/api/types";
 import { Badge, Button } from "../../shared/components";
@@ -40,9 +40,8 @@ export function TaskNodeCard({
         onClick={() => onSelectTask(node.id)}
         type="button"
       >
-        <Circle size={12} aria-hidden="true" />
+        <span className={styles.taskIndex}>Task {displayIndex}</span>
         <span className={styles.taskText}>
-          <span className={styles.taskIndex}>Task {displayIndex}</span>
           <strong className={styles.listCardTitle} title={node.title}>
             {node.title}
           </strong>
