@@ -94,6 +94,10 @@ class AnswerAuthoringAskBatchPayload(UiContractModel):
         return self
 
 
+class RepairAuthoringStatePayload(UiContractModel):
+    reason: Literal["dirty_authoring_state"] = "dirty_authoring_state"
+
+
 class DeferAskPayload(UiContractModel):
     reason: str | None = Field(default=None, min_length=1)
 

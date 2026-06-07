@@ -16,6 +16,7 @@ from taskweavn.server.ui_contract import (
     DeferAskPayload,
     GenerateTaskTreePayload,
     PublishTaskTreePayload,
+    RepairAuthoringStatePayload,
     ResolveConfirmationPayload,
     RetryTaskPayload,
     StopTaskPayload,
@@ -36,6 +37,15 @@ from taskweavn.task import (
 )
 from taskweavn.task import (
     CommandResult as CoreCommandResult,
+)
+from taskweavn.task.views import (
+    TaskCardView as CoreTaskCardView,
+)
+from taskweavn.task.views import (
+    TaskDetailView as CoreTaskDetailView,
+)
+from taskweavn.task.views import (
+    TaskTreeView as CoreTaskTreeView,
 )
 
 
@@ -381,6 +391,47 @@ class _Resolver:
             raise LookupError(f"task node {task_node_id!r} not found") from exc
 
 
+@dataclass(frozen=True)
+class _TaskProjection:
+    has_published_tree: bool = False
+
+    def list_task_tree(
+        self,
+        session_id: str,
+        *,
+        root_ref: TaskRef | None = None,
+        include_drafts: bool = True,
+        include_published: bool = True,
+    ) -> CoreTaskTreeView:
+        if not include_published or not self.has_published_tree:
+            return CoreTaskTreeView(session_id=session_id)
+        ref = TaskRef.published("task-1")
+        return CoreTaskTreeView(
+            session_id=session_id,
+            nodes=(
+                CoreTaskCardView(
+                    task_ref=ref,
+                    root_ref=ref,
+                    title="Published task",
+                    intent_preview="A published task exists.",
+                    status="pending",
+                ),
+            ),
+        )
+
+    def get_task_card(self, session_id: str, task_ref: TaskRef) -> CoreTaskCardView:
+        raise NotImplementedError
+
+    def get_task_detail(
+        self,
+        session_id: str,
+        task_ref: TaskRef,
+        *,
+        message_limit: int = 100,
+    ) -> CoreTaskDetailView:
+        raise NotImplementedError
+
+
 @dataclass
 class _AuthoringStateStore:
     state: ActiveAuthoringState
@@ -403,6 +454,14 @@ class _AuthoringStateStore:
     def mark_published(self, session_id: str, draft_tree_id: str) -> None:
         self.published.append((session_id, draft_tree_id))
 
+    def cancel_active(self, session_id: str) -> None:
+        self.state = ActiveAuthoringState(
+            session_id=session_id,
+            active_raw_task_id=self.state.active_raw_task_id,
+            active_draft_tree_id=self.state.active_draft_tree_id,
+            active_state="cancelled",
+        )
+
 
 def _gateway(
     *,
@@ -412,6 +471,7 @@ def _gateway(
     resolver: _Resolver | None = None,
     authoring_state_store: _AuthoringStateStore | None = None,
     raw_task_store: InMemoryRawTaskStore | None = None,
+    task_projection: _TaskProjection | None = None,
 ) -> DefaultUiCommandGateway:
     return DefaultUiCommandGateway(
         collaborator=collaborator or _Collaborator(),
@@ -421,6 +481,7 @@ def _gateway(
         authoring_state_store=authoring_state_store,
         raw_task_store=raw_task_store,
         ask_commands=ask_commands,
+        task_projection=task_projection,
     )
 
 
@@ -747,6 +808,102 @@ def test_answer_authoring_ask_batch_rejects_stale_authoring_context() -> None:
         "session.messages",
         "task.tree",
     )
+
+
+def test_answer_authoring_ask_batch_rejects_raw_task_when_published_tree_exists() -> None:
+    collaborator = _Collaborator()
+    state_store = _AuthoringStateStore(
+        ActiveAuthoringState(
+            session_id="session-1",
+            active_raw_task_id="raw-1",
+            active_state="raw_task",
+        )
+    )
+    gateway = _gateway(
+        collaborator=collaborator,
+        authoring_state_store=state_store,
+        task_projection=_TaskProjection(has_published_tree=True),
+    )
+    request = CommandRequest[AnswerAuthoringAskBatchPayload](
+        command_id="answer-authoring-dirty",
+        session_id="session-1",
+        payload=AnswerAuthoringAskBatchPayload(
+            answers=(AnswerAuthoringAskItemPayload(ask_id="ask-1", value="static"),)
+        ),
+    )
+
+    response = gateway.answer_authoring_ask_batch("raw-1", request)
+
+    assert response.ok is False
+    assert response.result is not None
+    assert "stale_authoring_context" in response.result.message
+    assert collaborator.calls == []
+    dumped = response.result.model_dump(mode="json")
+    assert {"kind": "raw_task_ask", "id": "ask-1"} in dumped["objectRefs"]
+    assert dumped["affectedObjects"][0]["impact"] == "superseded"
+
+
+def test_repair_authoring_state_closes_dirty_raw_task_flow() -> None:
+    state_store = _AuthoringStateStore(
+        ActiveAuthoringState(
+            session_id="session-1",
+            active_raw_task_id="raw-1",
+            active_state="raw_task",
+        )
+    )
+    gateway = _gateway(
+        authoring_state_store=state_store,
+        task_projection=_TaskProjection(has_published_tree=True),
+    )
+    request = CommandRequest[RepairAuthoringStatePayload](
+        command_id="repair-authoring-1",
+        session_id="session-1",
+        payload=RepairAuthoringStatePayload(),
+    )
+
+    response = gateway.repair_authoring_state(request)
+
+    assert response.ok is True
+    assert response.result is not None
+    assert state_store.state.active_state == "cancelled"
+    assert state_store.state.active_raw_task_id == "raw-1"
+    assert any(
+        ref.kind == "raw_task" and ref.id == "raw-1"
+        for ref in response.result.object_refs
+    )
+    assert response.result.affected_objects[0].impact == "superseded"
+    assert response.refresh.suggested_queries == (
+        "session.snapshot",
+        "session.messages",
+        "task.tree",
+    )
+
+
+def test_repair_authoring_state_rejects_without_existing_task_tree() -> None:
+    state_store = _AuthoringStateStore(
+        ActiveAuthoringState(
+            session_id="session-1",
+            active_raw_task_id="raw-1",
+            active_state="raw_task",
+        )
+    )
+    gateway = _gateway(
+        authoring_state_store=state_store,
+        task_projection=_TaskProjection(has_published_tree=False),
+    )
+    request = CommandRequest[RepairAuthoringStatePayload](
+        command_id="repair-authoring-1",
+        session_id="session-1",
+        payload=RepairAuthoringStatePayload(),
+    )
+
+    response = gateway.repair_authoring_state(request)
+
+    assert response.ok is False
+    assert response.result is not None
+    assert response.result.status == "rejected"
+    assert state_store.state.active_state == "raw_task"
+    assert "requires an existing TaskTree" in response.result.message
 
 
 def test_update_task_node_resolves_task_ref_and_preserves_subtree_intent() -> None:

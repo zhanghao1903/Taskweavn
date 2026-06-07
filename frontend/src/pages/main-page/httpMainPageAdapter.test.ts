@@ -9,6 +9,7 @@ import type {
   DeferAskPayload,
   GenerateTaskTreePayload,
   PublishTaskTreePayload,
+  RepairAuthoringStatePayload,
   ResolveConfirmationPayload,
   SessionLifecycleResult,
   SessionListResult,
@@ -180,6 +181,14 @@ describe("HTTP MainPage adapter bridge", () => {
         startImmediately: true,
       },
     };
+    const repairAuthoringStateRequest: CommandRequest<RepairAuthoringStatePayload> =
+      {
+        commandId: "repair-authoring",
+        sessionId: snapshot.session.id,
+        payload: {
+          reason: "dirty_authoring_state",
+        },
+      };
     const stopRequest: CommandRequest<StopTaskPayload> = {
       commandId: "stop-task",
       sessionId: snapshot.session.id,
@@ -198,6 +207,7 @@ describe("HTTP MainPage adapter bridge", () => {
       updateRequest,
     );
     await adapter.publishTaskTree(publishRequest);
+    await adapter.repairAuthoringState(repairAuthoringStateRequest);
     await adapter.stopTask(snapshot.session.id, "task-implementation", stopRequest);
     await adapter.createSession({ name: "New session" });
     await adapter.renameSession({
@@ -238,6 +248,9 @@ describe("HTTP MainPage adapter bridge", () => {
       updateRequest,
     );
     expect(api.publishTaskTree).toHaveBeenCalledWith(publishRequest);
+    expect(api.repairAuthoringState).toHaveBeenCalledWith(
+      repairAuthoringStateRequest,
+    );
     expect(api.stopTask).toHaveBeenCalledWith(
       snapshot.session.id,
       "task-implementation",
@@ -323,6 +336,7 @@ function stubPlatoApi(snapshot: MainPageSnapshot) {
     updateTaskNode: vi.fn(async () => response),
     appendTaskInput: vi.fn(async () => response),
     publishTaskTree: vi.fn(async () => response),
+    repairAuthoringState: vi.fn(async () => response),
     retryTask: vi.fn(async () => response),
     stopTask: vi.fn(async () => response),
     resolveConfirmation: vi.fn(async () => response),

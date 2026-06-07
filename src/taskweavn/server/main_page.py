@@ -393,6 +393,7 @@ def build_main_page_sidecar_app(
             authoring_state_store=authoring_state_store,
             raw_task_store=raw_task_store,
             ask_commands=ask_commands,
+            task_projection=task_projection,
         )
         command_gateway: UiCommandGateway = AuditEventCommandGateway(
             inner=core_command_gateway,

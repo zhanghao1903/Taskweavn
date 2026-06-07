@@ -9,6 +9,7 @@ export type ContextInputPanelProps = {
   draft: string;
   error: string | null;
   input: MainPageInputViewModel;
+  isFloating?: boolean;
   onDraftChange: (draft: string) => void;
   onSubmit: () => void;
 };
@@ -17,10 +18,12 @@ export function ContextInputPanel({
   draft,
   error,
   input,
+  isFloating = false,
   onDraftChange,
   onSubmit,
 }: ContextInputPanelProps) {
-  const helperText = error ?? input.disabledReason;
+  const scopeLabel = splitWritingScopeLabel(input.scope.label);
+  const helperText = error ?? null;
   const scopeDescription = helperText ?? input.scope.description;
   const inputPlaceholder =
     input.disabled && input.disabledReason
@@ -33,14 +36,45 @@ export function ContextInputPanel({
   }
 
   return (
-    <Panel as="form" className={styles.contextInput} onSubmit={handleSubmit}>
+    <Panel
+      as="form"
+      className={
+        isFloating
+          ? `${styles.contextInput} ${styles.floatingContextInput}`
+          : styles.contextInput
+      }
+      onSubmit={handleSubmit}
+    >
       <div className={styles.contextInputScope}>
-        <Text as="strong" variant="label">
-          {input.scope.label}
-        </Text>
-        {scopeDescription ? <Text variant="muted">{scopeDescription}</Text> : null}
+        {scopeLabel ? (
+          <>
+            <Text
+              as="span"
+              className={styles.contextInputScopePrefix}
+              variant="label"
+            >
+              Writing to
+            </Text>
+            <Text
+              as="strong"
+              className={styles.contextInputScopeTarget}
+              variant="label"
+            >
+              {scopeLabel.target}
+            </Text>
+          </>
+        ) : (
+          <Text as="strong" variant="label">
+            {input.scope.label}
+          </Text>
+        )}
+        {helperText ? (
+          <Text variant="muted">{helperText}</Text>
+        ) : scopeDescription && !scopeLabel ? (
+          <Text variant="muted">{scopeDescription}</Text>
+        ) : null}
       </div>
-      <label className={styles.contextInputField}>
+      <div className={styles.contextInputField}>
         <input
           aria-label="Context message"
           disabled={input.disabled}
@@ -48,16 +82,26 @@ export function ContextInputPanel({
           placeholder={inputPlaceholder}
           value={draft}
         />
-      </label>
-      <Button
-        disabled={!draft.trim() || input.disabled}
-        type="submit"
-        aria-label="Send message"
-        size="icon"
-        variant="primary"
-      >
-        <SendHorizontal size={18} aria-hidden="true" />
-      </Button>
+        <Button
+          disabled={!draft.trim() || input.disabled}
+          type="submit"
+          aria-label="Send message"
+          size="icon"
+          variant="primary"
+        >
+          <SendHorizontal size={18} aria-hidden="true" />
+        </Button>
+      </div>
     </Panel>
   );
+}
+
+function splitWritingScopeLabel(label: string): { target: string } | null {
+  const prefix = "Writing to ";
+  if (!label.startsWith(prefix)) {
+    return null;
+  }
+
+  const target = label.slice(prefix.length).trim();
+  return target ? { target } : null;
 }

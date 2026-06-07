@@ -20,6 +20,7 @@ export type MainPageWorkbenchProps = {
   inputError: string | null;
   isCreatingSession: boolean;
   isDeletingSession: boolean;
+  isRepairingAuthoringState: boolean;
   isRenamingSession: boolean;
   sessionDialog: MainPageController["sessionDialog"];
   topBarTrailing?: ReactNode;
@@ -32,6 +33,7 @@ export function MainPageWorkbench({
   inputError,
   isCreatingSession,
   isDeletingSession,
+  isRepairingAuthoringState,
   isRenamingSession,
   sessionDialog,
   topBarTrailing = null,
@@ -129,6 +131,10 @@ export function MainPageWorkbench({
                   />
                 ) : null
               }
+              authoringDiagnostic={
+                viewModel.taskWorkspace.authoringDiagnostic
+              }
+              isRepairingAuthoringState={isRepairingAuthoringState}
               isTaskPlanSelected={
                 viewModel.taskWorkspace.isTaskPlanSelected
               }
@@ -136,6 +142,11 @@ export function MainPageWorkbench({
                 actions.retryTask({
                   sessionId: viewModel.sessionId,
                   taskNodeId,
+                })
+              }
+              onRepairAuthoringState={() =>
+                actions.repairAuthoringState({
+                  sessionId: viewModel.sessionId,
                 })
               }
               onSelectTaskPlan={actions.selectTaskPlan}

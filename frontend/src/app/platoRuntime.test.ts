@@ -206,7 +206,7 @@ describe("Plato runtime wiring", () => {
     ).toMatchObject({
       compatible: true,
       legacyAction: {
-        errorMessage: "Command could not be applied.",
+        errorMessage: "An update failed. Refreshing the session.",
         kind: "refetch",
         status: "connected",
       },

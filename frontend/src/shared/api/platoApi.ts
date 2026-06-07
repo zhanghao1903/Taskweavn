@@ -115,6 +115,10 @@ export type CancelAskPayload = {
   reason: string;
 };
 
+export type RepairAuthoringStatePayload = {
+  reason: "dirty_authoring_state";
+};
+
 export type ListAsksRequest = {
   sessionId: SessionId;
   status?: string;
@@ -424,6 +428,9 @@ export type PlatoApi = {
     rawTaskId: string,
     request: CommandRequest<AnswerAuthoringAskBatchPayload>,
   ): Promise<CommandResponse>;
+  repairAuthoringState(
+    request: CommandRequest<RepairAuthoringStatePayload>,
+  ): Promise<CommandResponse>;
   deferAsk(
     sessionId: SessionId,
     askId: AskId,
@@ -672,6 +679,12 @@ export function createHttpPlatoApi(options: HttpPlatoApiOptions): PlatoApi {
         `/api/v1/sessions/${segment(
           sessionId,
         )}/authoring/raw-tasks/${segment(rawTaskId)}/asks/answers`,
+        request,
+      );
+    },
+    repairAuthoringState(request) {
+      return client.postJson<CommandResponse>(
+        `/api/v1/sessions/${segment(request.sessionId)}/authoring/repair`,
         request,
       );
     },

@@ -56,7 +56,7 @@ describe("buildMainPageViewModel", () => {
     expect(viewModel.input).toMatchObject({
       mode: "append_plan_input",
       scope: {
-        description: "Personal website project plan",
+        description: null,
         label: "Writing to plan",
         placeholder: "Ask Plato to refine the overall plan.",
       },
@@ -120,6 +120,42 @@ describe("buildMainPageViewModel", () => {
     expect(viewModel.workspace.showPublishTaskTree).toBe(true);
   });
 
+  it("surfaces dirty authoring diagnostics without replacing the task workspace", () => {
+    const { snapshot } = getMainPageMockSnapshot("s3-draft-ready");
+    const dirtySnapshot: MainPageSnapshot = {
+      ...snapshot,
+      planning: {
+        ...(snapshot.planning ?? {
+          asks: [],
+          sourceRawTaskId: null,
+          state: "draft_ready",
+          summary: null,
+          title: "Task Tree",
+          validation: null,
+        }),
+        diagnostics: [
+          {
+            code: "dirty_authoring_state",
+            message:
+              "A stale authoring draft was found after this TaskTree was generated.",
+            severity: "warning",
+          },
+        ],
+      },
+    };
+    const viewModel = buildViewModel("s3-draft-ready", {
+      snapshot: dirtySnapshot,
+    });
+
+    expect(viewModel.mainWorkArea.kind).toBe("taskWorkspace");
+    expect(viewModel.taskWorkspace.authoringDiagnostic).toEqual({
+      code: "dirty_authoring_state",
+      message:
+        "A stale authoring draft was found after this TaskTree was generated.",
+      severity: "warning",
+    });
+  });
+
   it("routes selected TaskNode input to task guidance", () => {
     const viewModel = buildViewModel("s3-draft-ready", {
       selectedTaskNodeId: "task-visual-direction",
@@ -131,7 +167,7 @@ describe("buildMainPageViewModel", () => {
     expect(viewModel.input).toMatchObject({
       mode: "append_task_input",
       scope: {
-        description: "Visual direction",
+        description: null,
         label: "Writing to Task 3",
         placeholder: "Add guidance for this task.",
       },

@@ -27,6 +27,7 @@ export type HttpMainPageApi = Pick<
   | "getSessionSnapshot"
   | "listSessions"
   | "publishTaskTree"
+  | "repairAuthoringState"
   | "renameSession"
   | "resolveConfirmation"
   | "retryTask"
@@ -144,6 +145,9 @@ export function createHttpMainPageAdapter({
     },
     publishTaskTree(request) {
       return api.publishTaskTree(request);
+    },
+    repairAuthoringState(request) {
+      return api.repairAuthoringState(request);
     },
     retryTask(nextSessionId, taskNodeId, request) {
       return api.retryTask(nextSessionId, taskNodeId, request);

@@ -507,6 +507,34 @@ def test_sqlite_authoring_state_marks_active_draft_tree_published(
         state_store.close()
 
 
+def test_sqlite_authoring_state_cancels_active_flow_without_deleting_refs(
+    tmp_path: Path,
+) -> None:
+    db = tmp_path / "authoring.sqlite"
+    raw_store = SqliteRawTaskStore(db)
+    draft_store = SqliteDraftTaskStore(db)
+    state_store = SqliteAuthoringStateStore(db)
+    try:
+        raw_store.create(_raw_task())
+        tree = draft_store.create_tree("s1", [_draft_node("root")])
+        state_store.set_active_draft_tree("s1", "raw1", tree.draft_tree_id)
+        state_store.cancel_active("s1")
+    finally:
+        raw_store.close()
+        draft_store.close()
+        state_store.close()
+
+    reopened = SqliteAuthoringStateStore(db)
+    try:
+        active = reopened.get_active("s1")
+
+        assert active.active_state == "cancelled"
+        assert active.active_raw_task_id == "raw1"
+        assert active.active_draft_tree_id == tree.draft_tree_id
+    finally:
+        reopened.close()
+
+
 def test_sqlite_authoring_state_rejects_missing_or_inactive_refs(
     tmp_path: Path,
 ) -> None:
