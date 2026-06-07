@@ -1,11 +1,14 @@
 # Feature Plan: Linear Authoring And Minimal Retry Recovery
 
-> Status: in_progress
+> Status: accepted for Product 1.0 local unsigned RC
 > Type: Product 1.0 authoring policy / execution recovery
-> Last Updated: 2026-06-06
+> Last Updated: 2026-06-07
 > Product Policy: [Plato 1.0 Line-First Authoring Policy](../../product/plato-1-0-line-first-authoring-policy.md)
 > Related Plans: [RawTask And DraftTaskTree Persistence](raw-task-draft-tree-persistence.md), [Fixed-Route Task Execution Bridge](fixed-route-task-execution-bridge.md)
 > Related Decisions: [ADR-0009](../../decisions/ADR-0009-single-active-session-worktree.md), [ADR-0010](../../decisions/ADR-0010-line-first-authoring-experience-for-1-0.md)
+> Release Record: Accepted on 2026-06-07. Line-first execution is controlled by
+> TaskBus parent/dependency semantics; stronger generated-line guarantees and
+> richer attempt UI remain follow-up hardening.
 
 ---
 
@@ -18,8 +21,9 @@ Product 1.0 is converging on a line-first execution model:
 - users need reliable step-by-step progress more than parallel orchestration;
 - failed upstream work should not let downstream work continue blindly.
 
-Current implementation has useful primitives, but it does not fully enforce the
-Product 1.0 default:
+Product 1.0 local RC accepts the existing TaskBus-controlled execution path as
+the shipped boundary. The remaining risks are now follow-up hardening rather
+than local RC blockers:
 
 - Authoring Domain can still represent a tree/forest-like draft structure.
 - Published root Tasks can execute independently even when users mentally see
@@ -28,16 +32,16 @@ Product 1.0 default:
   dependency.
 - Stop-intent interrupted running Tasks now have sidecar startup recovery, but
   generic stale `running` Tasks without an interrupt intent still need a
-  Product 1.0 recovery policy.
-- Minimal manual retry exists for failed Tasks, but retry explanation still
-  depends on richer task/evidence projection.
+  follow-up recovery policy.
+- Minimal manual retry exists for failed Tasks, while richer retry-attempt UI
+  remains future work.
 
-This work package scopes the minimal Product 1.0 fixes without expanding into
-full context governance.
+This work package records the accepted Product 1.0 minimum without expanding
+into full context governance.
 
 ### 1.1 Current Implementation Status
 
-As of 2026-06-05:
+As of 2026-06-07:
 
 Done:
 
@@ -49,34 +53,41 @@ Done:
 - TaskBus dependency checks keep children blocked until the same parent Task
   reaches `done`;
 - sidecar startup can recover running Tasks that had an explicit stop/interrupt
-  intent into a cancelled failed state.
+  intent into a cancelled failed state;
+- Product 1.0 local unsigned RC accepts TaskBus-controlled linear execution as
+  the current product boundary.
 
-Still open:
+Follow-up hardening, not Product 1.0 local RC blockers:
 
-- default Collaborator-generated DraftTaskTrees are not yet guaranteed to be a
-  single Product 1.0 line;
-- publish needs focused validation that linear draft parentage survives
-  persistence and reaches TaskBus parent ids;
+- stronger default-generation guarantees for Collaborator-generated
+  DraftTaskTrees;
+- additional publish/dependency regression coverage for generated chains;
 - stale `running` Tasks from a previous sidecar process without an interrupt
   intent need a product decision: mark recoverable, fail with infrastructure
   error, or require manual operator intervention;
-- retry evidence should be surfaced through Audit/Diagnostics without adding a
-  full TaskAttempt model to Product 1.0.
+- richer retry evidence should be surfaced through Audit/Diagnostics without
+  adding a full TaskAttempt model to Product 1.0.
 
 ---
 
 ## 2. Goals
 
-1. Make Authoring Domain support a linear structure explicitly.
-2. Make the default generated DraftTaskTree linear for Product 1.0.
-3. Ensure fixed-route execution observes sequential dependency by default.
-4. Add minimal whole-Task retry for failed/interrupted Tasks.
-5. Preserve enough task-related raw material to support retry and future
+Product 1.0 accepted goals:
+
+1. Use TaskBus parent/dependency semantics as the line-first execution control.
+2. Keep minimal whole-Task retry for failed/interrupted Tasks.
+3. Preserve enough task-related raw material to support retry and future
    context governance.
-6. Keep full SessionContext governance, summarization, and budget management
+4. Keep full SessionContext governance, summarization, and budget management
    out of Product 1.0.
-7. Prevent Authoring Domain and Task Domain from appearing as simultaneous
+5. Prevent Authoring Domain and Task Domain from appearing as simultaneous
    active workflows in one Session.
+
+Follow-up hardening goals:
+
+1. Make Authoring Domain support a stricter generated linear structure.
+2. Make the default generated DraftTaskTree linear by construction.
+3. Add richer retry-attempt evidence and UI if Product 1.1 needs it.
 
 ---
 
@@ -96,7 +107,9 @@ Still open:
 
 ### 4.1 Default Authoring Shape
 
-Product 1.0 should default to a linear DraftTaskTree.
+The Product 1.0 policy prefers a linear DraftTaskTree. For local unsigned RC,
+the accepted control point is TaskBus parent/dependency execution; generated
+line enforcement is follow-up hardening.
 
 Recommended representation:
 
@@ -119,14 +132,15 @@ Rationale:
 
 ### 4.2 Root Task Semantics
 
-For Product 1.0, generated plans should normally have one root Task.
+The intended line-first policy is for generated plans to normally have one root
+Task.
 
 Multiple root Tasks should be treated as an advanced or imported shape, not the
 default output of authoring.
 
 If multiple roots exist, fixed-route execution may still claim eligible root
-Tasks unless a separate fail-stop policy blocks the Session. Therefore the
-authoring default must encode sequence explicitly.
+Tasks unless a separate fail-stop policy blocks the Session. Therefore stronger
+authoring hardening should encode sequence explicitly.
 
 ### 4.3 Retry Semantics
 
@@ -210,7 +224,7 @@ Initial policy:
 
 ### P8.L1 Linear Authoring Shape
 
-Status: planned / next recommended implementation slice.
+Status: follow-up hardening, not a Product 1.0 local RC blocker.
 
 Deliver:
 
@@ -249,7 +263,7 @@ Acceptance:
 
 ### P8.L2 Publish Linear Dependencies
 
-Status: planned after or together with P8.L1 validation.
+Status: follow-up validation after generated-line hardening.
 
 Deliver:
 
@@ -266,7 +280,7 @@ Acceptance:
 
 ### P8.R1 Minimal Retry Model
 
-Status: implemented for the Product 1.0 minimum.
+Status: accepted for the Product 1.0 minimum.
 
 Deliver:
 
@@ -302,7 +316,8 @@ Implementation notes:
 
 ### P8.R2 Interrupted Running Recovery
 
-Status: partially implemented.
+Status: accepted for explicit stop/interrupt recovery; generic stale-running
+policy remains follow-up hardening.
 
 Deliver:
 
@@ -323,12 +338,12 @@ Implementation notes:
   `recover_interrupted_running_tasks(...)` into failed/cancelled state with a
   `sidecar_recovery` safe point.
 - This does not yet cover a generic stale `running` Task without an interrupt
-  intent. Product 1.0 still needs a narrow stale-running policy before claiming
-  full restart recovery.
+  intent. That edge policy is deferred out of Product 1.0 local RC.
 
 ### P8.C1 Retry Evidence Capture
 
-Status: planned / partially covered by existing durable streams.
+Status: accepted for Product 1.0 minimum through existing durable streams;
+richer TaskAttempt evidence UI remains follow-up hardening.
 
 Deliver:
 
@@ -347,32 +362,31 @@ Acceptance:
 
 ---
 
-## 6. Required Tests
+## 6. Product 1.0 Accepted Coverage
 
-Authoring tests:
+Accepted behavior:
 
-- generated default plan is a single chain;
-- explicit non-linear tree input is not destroyed when allowed by API;
-- active draft tree persistence keeps parent-child chain after reopen.
+- failed published Tasks expose retry eligibility;
+- retry moves the same published Task identity from `failed` back to `pending`;
+- retry clears active-attempt lifecycle fields while preserving append-only
+  failure evidence;
+- snapshot projection keeps the same Task card stable across retry;
+- TaskBus parent/dependency checks keep downstream Tasks blocked until the
+  upstream Task reaches `done`;
+- explicit stop/interrupt startup recovery moves interrupted running Tasks into
+  a cancelled failed state that can be retried manually;
+- unsupported retry returns a structured command error.
 
-Publish/TaskBus tests:
+Follow-up regression coverage:
 
-- linear draft publishes to linear TaskBus parent dependencies;
-- claim order follows the chain;
-- failed parent blocks child claim.
-
-Retry tests:
-
-- failed Task exposes retry eligibility;
-- retry creates/reopens a pending executable Task according to chosen model;
-- retry preserves or references previous failure evidence;
-- interrupted running Task after restart becomes recoverable, not silently stuck.
-
-Projection/API tests:
-
-- snapshot shows retry/recovery affordance when applicable;
-- unsupported retry returns structured error;
-- downstream Task remains blocked until dependency succeeds.
+- generated default plan shape can be tightened to one parent-child chain;
+- explicit non-linear tree input should remain supported when intentionally
+  used;
+- generated-chain publish tests can prove draft parentage reaches TaskBus
+  parent ids;
+- generic stale `running` Tasks without interrupt intent need a product policy;
+- richer retry evidence can be projected through Audit/Diagnostics or a future
+  TaskAttempt UI.
 
 ---
 
@@ -407,14 +421,22 @@ clear recover/retry affordance for failed/interrupted current Task.
 
 ## 8. Product 1.0 Boundary
 
-Product 1.0 includes:
+Product 1.0 local unsigned RC includes:
 
-- default linear generated plans;
-- dependency-safe sequential execution;
-- minimal manual retry for failed/interrupted Tasks;
-- enough persisted evidence for retry explanation.
+- TaskBus-controlled dependency-safe sequential execution;
+- minimal manual retry for failed/interrupted Tasks on the same Task identity;
+- explicit stop/interrupt startup recovery;
+- enough persisted evidence for retry explanation through existing append-only
+  records.
 
-Product 1.1 includes:
+Product 1.0 local unsigned RC does not require:
+
+- stricter default generated DraftTaskTree chain guarantees;
+- generic stale-running recovery without explicit interrupt intent;
+- richer TaskAttempt history UI;
+- automatic retry policy.
+
+Product 1.1+ includes:
 
 - context governance and summarization;
 - richer task attempt history UI;
@@ -424,36 +446,34 @@ Product 1.1 includes:
 
 ---
 
-## 9. Recommended Next Task Prompt
+## 9. Follow-Up Task Prompt
 
 ```text
 Use the product-workflow-gate skill first.
 
 Task:
-Implement P8.L1 Linear Authoring Shape and P8.L2 publish-dependency validation
-for Product 1.0.
+Audit or harden Linear authoring / retry behavior after Product 1.0 local RC
+acceptance.
 
 Context:
-docs/plans/feature/linear-authoring-retry-recovery.md defines the default
-line-first authoring plan. Product 1.0 should generate one active linear draft
-tree by default while preserving explicit non-linear tree support for future
-use.
+docs/plans/feature/linear-authoring-retry-recovery.md records Product 1.0
+local unsigned RC acceptance. Current linear execution is controlled by TaskBus
+dependency semantics. Do not reopen Product 1.0 local RC unless that
+TaskBus-controlled execution behavior regresses.
 
-Minimal retry is already implemented; do not redesign retry in this slice.
-Do not rewrite Main Page UI.
-Do not remove existing tree-domain support.
+Scope:
+1. Add focused regression tests for generated chain shape if still needed.
+2. Document or implement the generic stale-running policy without interrupt
+   intent.
+3. Add richer retry evidence / TaskAttempt UI only if Product 1.1 needs it.
+4. Preserve explicit non-linear tree support.
 
-Required work:
-1. Add/adjust authoring logic so default generated DraftTaskTree nodes form a
-   single parent-child chain.
-2. Preserve current active RawTask/DraftTaskTree persistence behavior.
-3. Add focused tests for generated chain shape and restart persistence.
-4. Add publish tests proving the draft chain becomes TaskBus parent ids.
-5. Confirm fixed-route claim order exposes only the next line step.
-6. Document the remaining stale-running recovery gap if it is not implemented.
+Do not implement automatic retry policy in this slice.
+Do not rewrite Main Page UI unless a concrete Product 1.1 acceptance need is
+accepted first.
 
 Output:
 - files changed
 - tests run
-- remaining stale-running recovery / retry evidence gaps
+- remaining follow-up hardening gaps
 ```

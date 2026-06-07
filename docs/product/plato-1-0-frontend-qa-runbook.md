@@ -1,7 +1,7 @@
 # Plato Product 1.0 Frontend QA Runbook
 
-> Status: draft QA runbook
-> Last Updated: 2026-06-06
+> Status: accepted for Product 1.0 local unsigned RC
+> Last Updated: 2026-06-07
 > Scope: Product 1.0 Main Page + Settings first-run + Audit Page frontend user-path validation.
 > Related:
 > [MVP PRD](plato-mvp-prd.md),
@@ -11,7 +11,8 @@
 > [Frontend Technical Design](plato-frontend-technical-design.md),
 > [UI API Contract](plato-ui-api-contract.md),
 > [Audit Page Contract](../engineering/audit-page-contract.md),
-> [Gap Registry](../gaps/README.md)
+> [Gap Registry](../gaps/README.md),
+> [Packaging/Electron Release Plan](../plans/feature/packaging-electron-release-plan.md)
 
 ---
 
@@ -23,12 +24,31 @@ path.
 The current judgement is:
 
 ```text
-The Product 1.0 vertical user loop is basically wired.
-Remaining work is validation, polish, recovery hardening, and release readiness.
+Product 1.0 local unsigned RC is accepted.
+Signed distribution is deferred until Apple Developer credentials are available.
 ```
 
-This document does not declare Product 1.0 released. It defines how to verify
-whether the current frontend is ready for a first real user test.
+This document declares the local unsigned release candidate accepted for
+Product 1.0 testing. It does not declare signed/notarized public distribution
+released.
+
+### 1.1 Local RC Acceptance Evidence
+
+Accepted on 2026-06-07:
+
+- artifact:
+  `frontend/dist-electron-installer/Plato-0.1.0-macos-arm64.dmg`;
+- SHA256:
+  `0eeb265a5f6ccb17958eb8a6dbb97aa50afaa842b706e946e14df298719877b2`;
+- `hdiutil verify` passed for the unsigned DMG;
+- `npm run electron:check:release-assets -- --json` returned `ok=true` with
+  `runtimeKind=bundled-python` and `externalSymlinks=0`;
+- `npm run electron:smoke:installer -- --skip-package` passed configured
+  packaged-default-workspace, first-run, and startup-diagnostics paths;
+- manual Finder launch from the unsigned DMG reached Main Page.
+
+Signed distribution remains deferred until Apple Developer credentials are
+available.
 
 ---
 
@@ -67,11 +87,16 @@ The user should not need to understand:
 | Environment | Purpose | Expected command / setup | Exit criteria |
 |---|---|---|---|
 | Mock frontend | Fast UI regression and scenario parity. | `cd frontend && npm run test`; optional Vite mock mode without `VITE_PLATO_API_MODE=http`. | Main Page and Audit Page mock scenarios still render and tests pass. |
-| Formal sidecar E2E | Product 1.0 frontend integration acceptance and CI gate. | `cd frontend && npm run test:e2e:sidecar`. CI runs the same command in `.github/workflows/product-1-0-frontend-integration.yml`. | Real sidecar fixtures validate Diagnostic Bundle export plus Settings first-run configured and unconfigured save/recheck paths. |
+| Formal sidecar E2E | Product 1.0 frontend integration acceptance and CI gate. | `cd frontend && npm run test:e2e:sidecar`. CI runs the same command in `.github/workflows/product-1-0-frontend-integration.yml`. | Real sidecar fixtures validate Main Page -> Audit -> record/detail/evidence, Main Page rejected-command recovery labels, Diagnostic Bundle export, and Settings first-run configured/unconfigured save/recheck paths. |
 | First-run manual smoke | Product setup acceptance without manually copying sidecar env vars. | `cd frontend && npm run dev:sidecar:first-run`. Optional Vite args can be passed after `--`, such as `npm run dev:sidecar:first-run -- --port 5174`. | Browser opens `/` in HTTP mode, shows first-run setup required, opens Settings as a large Main Page modal, saves Settings, rechecks readiness, and reaches Main Page. |
 | Local sidecar HTTP | Main Product 1.0 runtime validation. | `uv run taskweavn plato-dev --workspace ./plato-workspace`. | Browser can complete the user loop through local HTTP/SSE. |
 | Direct sidecar + frontend | Debug mode when ports/env need inspection. | `uv run taskweavn plato-sidecar --workspace ./plato-workspace`; then run Vite with printed env vars. | Frontend can load `GET /api/v1/sessions/{sessionId}/snapshot` and receive events. |
-| Packaged browser/Electron | Release-readiness smoke. | TBD packaging command. | Same user loop works outside developer-only setup. |
+| Electron dev shell | Release-readiness entrypoint foundation. | `cd frontend && npm run electron:dev`. Optional args: `--workspace <path>`, `--renderer-port <number>`, `--sidecar-timeout-ms <number>`, `--open-devtools`. | Electron starts Vite, launches a desktop window, owns the Python sidecar, injects HTTP runtime config through preload, and shows startup diagnostics if sidecar startup fails. |
+| Electron configured smoke | Release-readiness smoke for configured Product 1.0 paths. | `cd frontend && npm run electron:smoke`. | Seeded sidecar data validates Main Page -> Audit -> record/detail/evidence, Diagnostic Bundle export, and command-failure recovery labels in the Electron dev shell. |
+| Electron first-run smoke | Release-readiness smoke for first-run Settings setup in the Electron dev shell. | `cd frontend && npm run electron:smoke:first-run`. | Seeded unconfigured sidecar data validates setup required -> Settings modal -> save/recheck -> secret redaction -> Main Page. |
+| Packaged browser/Electron | Release-readiness smoke for the unsigned local app directory. | `cd frontend && npm run electron:package:dir`; `cd frontend && npm run electron:smoke:packaged`. | Packaged app loads without Vite, reuses the configured plus first-run Product 1.0 smoke paths against seeded sidecar data, and validates startup diagnostics failure without a seeded external sidecar. |
+| Launcher-backed packaged Electron | Release-readiness smoke for the package-local sidecar launcher boundary and runtime candidate. | `cd frontend && npm run electron:package:launcher-dir`; `cd frontend && npm run electron:smoke:launcher`. | Packaged app starts sidecar through the release-local launcher contract and package-local runtime candidate, validating configured, first-run, and startup diagnostics paths without `PLATO_ELECTRON_REPO_ROOT`, Electron-main `uv`, repo `src/tests`, or the developer `.venv`. |
+| Unsigned DMG local RC | Local Product 1.0 release-candidate acceptance. | `cd frontend && npm run electron:package:installer`; `cd frontend && npm run electron:smoke:installer -- --skip-package`; manual Finder launch from `frontend/dist-electron-installer/Plato-0.1.0-macos-arm64.dmg`. | Mounted DMG smoke passes configured/default-workspace, first-run, and startup-diagnostics paths. Manual Finder launch reaches Main Page. The artifact remains unsigned/unnotarized. |
 
 Product 1.0 QA should not pass solely on mock mode.
 
@@ -107,6 +132,12 @@ CI acceptance:
   manual dispatch.
 - This CI path uses deterministic sidecar fixtures and does not require real
   LLM provider secrets.
+- The formal sidecar runner covers seeded result, projected file,
+  `FileWriteObservation`, config, log Audit records, and a real Main Page stale
+  retry command rejection that renders a safe recovery label. Browser dev,
+  Electron dev-shell, packaged app, launcher-backed bundled runtime, and mounted
+  unsigned DMG smoke are covered. Signed/notarized distribution remains
+  deferred until Apple Developer credentials are available.
 
 ---
 
@@ -220,9 +251,9 @@ Do not use broad multi-agent or Product 1.1 scenarios for Product 1.0 QA.
 | Item | Expectation |
 |---|---|
 | Action | Trigger or inspect a failed command/task path. |
-| Expected UI | Error is user-readable and offers a recovery path when supported. |
-| Expected API | Error response uses the contract shape and does not crash the page. |
-| Pass criteria | User knows whether to retry, edit input, inspect audit, or stop. |
+| Expected UI | Error is user-readable and shows Product 1.0 recovery labels such as edit input, answer question, retry command/task, refresh session, view audit, open settings, or export diagnostics when backend metadata provides them. |
+| Expected API | Error response keeps the stable `ApiError` shape and carries safe `details.recoveryActions`; raw exception, prompt, provider payload, logs, and SQLite payloads are not rendered. |
+| Pass criteria | User knows the next safe action without reading backend metadata or raw diagnostics. The formal sidecar E2E validates this with a real stale retry rejection and confirms `Refresh session` remains a label, not a button, until a dedicated safe refresh handler is accepted. |
 
 ---
 
@@ -264,6 +295,12 @@ Do not use broad multi-agent or Product 1.1 scenarios for Product 1.0 QA.
 | Expected API | Detail query succeeds or falls back to snapshot detail when appropriate. |
 | Pass criteria | User can understand the selected evidence without raw internal objects. |
 
+Formal sidecar coverage:
+
+- `frontend/src/e2e/auditEvidence.e2e.test.tsx` validates a real sidecar
+  failure result record and a projected file-change record opened from the
+  Main Page Audit entry.
+
 ### QA-AP-005 Sanitized Payload Disclosure
 
 | Item | Expectation |
@@ -272,6 +309,13 @@ Do not use broad multi-agent or Product 1.1 scenarios for Product 1.0 QA.
 | Expected UI | Hidden/partial/redacted states are explicitly labeled; sensitive payloads are not shown by default. |
 | Expected API | Sanitized disclosure is generated at request time and not stored as a separate durable payload. |
 | Pass criteria | User sees enough context to trust the result without exposing raw sensitive evidence. |
+
+Formal sidecar coverage:
+
+- Projected file-change records show summary-only evidence.
+- The typed `FileWriteObservation` runtime record exposes request-time
+  sanitized payload detail when policy allows it.
+- The frontend body does not expose the seeded workspace root path.
 
 ### QA-AP-006 Live Refresh
 
@@ -503,13 +547,14 @@ These are known gaps. QA should observe them, but not silently expand Product
 
 | Gap | QA stance |
 |---|---|
-| Richer timeline orchestration | Watch for confusing order or missing evidence; do not require full timeline service unless a Product 1.0 path is blocked. |
-| Broader evidence coverage | Verify current EventStream/log/config/confirmation coverage; record missing evidence as partial/not_available if safe. |
+| Broader evidence coverage | Current formal E2E covers result, projected file, typed EventStream observation, config, and log records. Record missing additional evidence as partial/not_available if safe. |
+| Audit browser/Electron smoke | Formal sidecar E2E is accepted for automated integration. Browser dev smoke, configured Electron dev-shell smoke, packaged app smoke, launcher-backed bundled-runtime smoke, and mounted unsigned DMG smoke are covered. |
 | Message and confirmation UI hardening | Treat confusing or unsafe confirmation behavior as P0/P1. |
-| Recoverable error UX | Treat missing user recovery on common failures as P1. |
-| Settings release smoke | Settings first-run frontend completion is accepted. Use `npm run dev:sidecar:first-run` for manual regression; Browser/Electron smoke remains under release readiness. |
-| Diagnostic bundle | Needed for early testers, but can be a separate release-readiness task. |
-| Packaging / Electron | Required before non-developer users; not required for local developer smoke. |
+| Recoverable error UX | Main Page command/query recovery labels are in place and validated against a real sidecar command rejection. Treat missing labels on common new failure paths as P1. Promote labels to buttons/deep links only when a concrete safe target and required refs exist. |
+| Linear execution / retry | Accepted for Product 1.0 local unsigned RC through TaskBus-controlled dependency execution and same-Task manual retry. Treat regressions in upstream-blocks-child or retry-reset behavior as P0/P1; stricter generated-line guarantees, generic stale-running policy, and richer retry-attempt UI remain follow-up hardening. |
+| Settings release smoke | Settings first-run frontend completion is accepted. Use `npm run dev:sidecar:first-run` for manual regression; Electron first-run dev-shell smoke is covered by `npm run electron:smoke:first-run`; packaged first-run smoke is covered by `npm run electron:smoke:packaged`; mounted unsigned DMG first-run smoke is covered by `npm run electron:smoke:installer`. |
+| Diagnostic bundle | UI export flow, sidecar E2E, and mounted unsigned DMG smoke are in place; broader Audit-specific diagnostic refs remain a Product 1.1/support follow-up. |
+| Packaging / Electron | Accepted for Product 1.0 local unsigned RC. `npm run electron:dev` covers the dev shell, main-owned sidecar lifecycle, startup diagnostics foundation, and preload runtime injection. `npm run electron:smoke` covers configured Main/Audit/Diagnostics/recovery paths. `npm run electron:smoke:first-run` covers Settings first-run save/recheck and secret redaction. `npm run electron:package:dir` and `npm run electron:smoke:packaged` cover unsigned package-dir configured, first-run, and startup-diagnostics smoke. `npm run electron:package:launcher-dir` builds a launcher-backed package with bundled Python behind the launcher, and `npm run electron:smoke:launcher` covers launcher-backed configured, first-run, and startup-diagnostics smoke without repo `uv`, repo `src/tests`, the developer `.venv`, external Python symlinks, or external `pyvenv.cfg`. `npm run electron:check:release-assets` returns `ok=true` for the bundled runtime. `npm run electron:package:installer` creates the local unsigned DMG candidate. `npm run electron:smoke:installer` mounts the DMG read-only and covers configured/default-workspace, first-run, and startup-diagnostics paths through the mounted launcher-backed bundled runtime. Manual Finder launch has reached Main Page. Developer ID signing, notarization, Gatekeeper assessment, and signed installer acceptance are deferred until Apple Developer credentials are available. |
 | Mobile-specific Audit polish | Defer unless mobile is included in the first user test group. |
 
 Product 1.1 items such as result packaging cards, routing/assignment
@@ -518,27 +563,34 @@ pipelines are outside this runbook.
 
 ---
 
-## 16. Recommended Next Execution Slice
+## 16. Deferred Signed Distribution Slice
 
-Recommended next task:
+Run this only after Apple Developer credentials are available:
 
 ```text
 Use the product-workflow-gate skill first.
 
 Task:
-Run Product 1.0 frontend QA against docs/product/plato-1-0-frontend-qa-runbook.md.
+Implement the credentialed signed/notarized distribution slice from
+docs/plans/feature/packaging-electron-release-plan.md.
 
 Scope:
-- local sidecar HTTP mode;
-- one primary personal-website scenario;
-- Main Page QA-MP-001 through QA-MP-010;
-- Audit Page QA-AP-001 through QA-AP-007;
-- cross-page QA-X-001 through QA-X-005;
-- desktop 1440x1024 and laptop 1280x800 smoke.
+- run the signing/notarization credentialed release slice for the local DMG
+  installer foundation;
+- provide `PLATO_ELECTRON_CODESIGN_IDENTITY` or `CSC_NAME`;
+- provide either `PLATO_ELECTRON_NOTARY_KEYCHAIN_PROFILE` or
+  `PLATO_ELECTRON_NOTARY_APPLE_ID`, `PLATO_ELECTRON_NOTARY_PASSWORD`, and
+  `PLATO_ELECTRON_NOTARY_TEAM_ID`;
+- run `npm run electron:package:installer -- --sign --notarize`;
+- run `npm run electron:smoke:installer -- --skip-package`;
+- preserve the launcher-owned bundled Python boundary and release asset checker;
+- keep real provider validation out of deterministic smoke.
 
 Output:
-- QA notes using the template in the runbook;
-- P0/P1 issue list;
-- whether first external user testing is allowed;
-- gaps that should become the next implementation slice.
+- files changed;
+- tests/checks run;
+- signing/notarization evidence;
+- installer smoke evidence;
+- bundled Python release asset checker preserved;
+- remaining release-readiness gaps.
 ```

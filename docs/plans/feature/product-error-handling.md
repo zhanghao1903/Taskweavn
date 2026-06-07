@@ -1,20 +1,21 @@
 # Feature Plan: Product Error Handling
 
-> Status: in_progress
-> Last Updated: 2026-06-05
+> Status: accepted for Product 1.0 local unsigned RC
+> Last Updated: 2026-06-07
 > Gap: [Product error handling](../../gaps/README.md)
 > Architecture: [LLM Provider Reliability](../../architecture/llm-provider-reliability.md), [Configurable Logging System](../../architecture/configurable-logging-system.md), [UI And Backend Communication](../../architecture/ui-backend-communication.md), [Task Domain/UI Model Separation](../../architecture/task-domain-ui-model-separation.md)
 > Product: [Plato UI API Contract](../../product/plato-ui-api-contract.md), [Plato Product 1.0 Frontend QA Runbook](../../product/plato-1-0-frontend-qa-runbook.md)
 > Related Plans: [Result And Evidence Exposure Surface](result-exposure-surface.md), [Linear Authoring And Minimal Retry Recovery](linear-authoring-retry-recovery.md), [Diagnostic Bundle Export](diagnostic-bundle-export.md)
-> Release Record: TBD
+> Release Record: Product 1.0 local unsigned RC accepted on 2026-06-07; dedicated recovery buttons/deep links remain follow-up work only when safe refs exist.
 
 ---
 
 ## 1. Problem / Gap
 
 Product 1.0 can now run the main local sidecar path, project result/error
-summaries, expose retry for failed Tasks, and show Audit Page evidence. The
-remaining error-handling gap is product semantics:
+summaries, expose retry for failed Tasks, show Audit Page evidence, and surface
+safe recovery labels. The accepted local RC error-handling boundary is product
+semantics:
 
 - backend `ApiError` codes exist, but they are transport-level categories, not a
   product-level taxonomy;
@@ -213,7 +214,26 @@ Acceptance:
 
 ### E4 Main Page And Audit Projection
 
-Status: planned.
+Status: partially implemented. Main Page command/query errors now preserve
+`ApiError.details.recoveryActions` as whitelisted frontend metadata and render
+user-facing recovery labels in load-error, workspace command-error, input,
+authoring ASK, execution ASK, and confirmation error surfaces. Audit-specific
+product-error recovery UI remains a follow-up.
+
+Acceptance update on 2026-06-06: the formal sidecar E2E path now validates a
+real Main Page command failure. The seeded failed task is retried twice; the
+second retry is rejected by the sidecar as a stale command and the Main Page
+renders the safe `refresh_snapshot` recovery label without exposing raw
+metadata keys or backend exception types.
+
+UI action decision: Product 1.0 keeps recovery actions as visible labels for
+command/query errors unless a concrete, safe frontend target already exists.
+`refresh_snapshot`, `retry_command`, `retry_task`, `edit_input`,
+`answer_ask`, and `wait_for_events` stay guidance labels in this slice because
+their executable behavior depends on the current surface and state. Future
+small slices may promote `open_settings`, `open_audit`, and
+`export_diagnostics` to buttons or deep links where the affected
+session/task/record refs are present and safe.
 
 Deliver:
 
@@ -231,7 +251,7 @@ Acceptance:
 
 ### E5 QA And Runbook Closure
 
-Status: planned.
+Status: accepted for Product 1.0 local unsigned RC on 2026-06-07.
 
 Deliver:
 
@@ -246,6 +266,8 @@ Acceptance:
 - recoverable errors do not crash Main Page or Audit Page;
 - first tester can capture enough refs for support without SQLite/manual log
   spelunking.
+- mounted unsigned DMG smoke covers command-failure recovery labels through the
+  packaged launcher-backed runtime.
 
 ---
 
@@ -277,7 +299,9 @@ Required backend tests:
   internal exception;
 - LLM classification to product category/action;
 - Task execution failure/cancellation to result/error summary metadata;
-- Audit record mapping for product error refs.
+- Audit record/evidence id linkage for product error refs.
+- Diagnostic bundle product-error export with Audit ids and redacted
+  diagnostic refs.
 
 Required frontend/API tests if UI behavior changes:
 
@@ -311,25 +335,25 @@ Product 1.0 error handling is acceptable when:
 
 ---
 
-## 10. Recommended Next Task Prompt
+## 10. Follow-Up Task Prompt
 
 ```text
 Use the product-workflow-gate skill first.
 
 Task:
-Implement Product 1.0 product error taxonomy and backend mapping.
+Implement a small Product Error recovery action-button/deep-link follow-up.
 
 Context:
-docs/plans/feature/product-error-handling.md defines the planned taxonomy,
-recovery actions, and metadata rules. Keep the existing ApiError top-level
-shape unless a contract gap is documented first.
+Product 1.0 local unsigned RC keeps recovery actions as user-facing labels.
+Only promote labels to buttons/deep links when a safe route/handler and the
+required session/task/audit/diagnostic refs are present.
 
 Scope:
-1. Add product error category/recovery action constants and mapper helpers.
-2. Attach metadata through ApiError.details in command/query gateways.
-3. Map LLM provider classifications and Task execution failures where already
-   available.
-4. Add focused backend contract tests.
+1. Pick one concrete action such as open_settings, open_audit, or
+   export_diagnostics.
+2. Verify the backend metadata includes the required safe refs.
+3. Add the minimal frontend button/deep-link behavior and focused tests.
+4. Keep unsupported recovery actions as labels.
 
 Do not implement full Settings UI.
 Do not implement automatic retry policy.
@@ -338,8 +362,9 @@ Do not expose raw exception, prompt, provider, log, or SQLite payloads.
 Output:
 - files changed
 - tests run
-- categories/actions implemented
-- remaining UI/Audit/diagnostic gaps
+- action promoted
+- refs required
+- remaining label-only actions
 ```
 
 ---
@@ -360,10 +385,36 @@ Output:
 - Added focused backend tests for metadata helpers, command/query gateway error
   paths, task failure summaries, and LLM failure classification mapping.
 
-Remaining:
+2026-06-06:
 
-- Main Page rendering still needs to consume product metadata for visible
-  recovery labels beyond existing retry projection.
-- Audit record projection still needs first-class product error refs.
-- Diagnostic bundle export still needs to consume product error refs once that
-  plan is implemented.
+- Added stable task-level Audit product-error refs:
+  `record-result-published-{taskId}` and
+  `evidence-record-result-published-{taskId}`.
+- Task execution and LLM failure summaries now include `auditRef` alongside
+  existing `diagnosticRefs`.
+- Diagnostic Bundle task summaries now consume real flat product error metadata
+  and merge `auditRecordId` / `auditEvidenceId` into redacted
+  `diagnosticRefs`.
+- Added focused tests for the Audit id helper, failure summary metadata, and
+  diagnostic bundle export redaction/linkage.
+- Added Main Page frontend recovery-label consumption for product error
+  metadata: command responses and snapshot query failures retain safe
+  `recoveryActions`, unknown actions are ignored, and visible labels are shown
+  across load, workspace, input, authoring ASK, execution ASK, and confirmation
+  error surfaces.
+- Added formal sidecar E2E validation for a real Main Page command rejection:
+  a stale retry command surfaces the `Refresh session` recovery label and keeps
+  raw error metadata out of the visible UI.
+- Decided that Main Page recovery actions remain labels for Product 1.0 unless
+  a safe route/handler and required refs exist; concrete button/deep-link
+  promotion is reserved for `open_settings`, `open_audit`, and
+  `export_diagnostics` follow-up slices.
+
+Local RC follow-ups:
+
+- Audit Page does not yet render dedicated product-error recovery UI; it links
+  through existing result record/evidence ids.
+- Broader product error refs beyond task result failures remain Product 1.1 /
+  support hardening unless a Product 1.0 user path needs them.
+- Signed/notarized distribution validation is deferred under the Packaging plan
+  until Apple Developer credentials are available.

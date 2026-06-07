@@ -287,12 +287,15 @@ function buildViewModel(
   return buildMainPageViewModel({
     auditRouteAvailable: overrides.auditRouteAvailable,
     authoringAskError: null,
+    authoringAskRecoveryActions: [],
     confirmationError: null,
+    confirmationRecoveryActions: [],
     detailOverride: overrides.detailOverride ?? "auto",
     eventConnectionStatus: overrides.eventConnectionStatus ?? "disconnected",
     eventError: null,
     isAnsweringAuthoringAsk: false,
     executionAskError: null,
+    executionAskRecoveryActions: [],
     isAnsweringAsk: false,
     isCancellingAsk: false,
     isDeferringAsk: false,
@@ -306,6 +309,7 @@ function buildViewModel(
     selectedTaskNodeId: overrides.selectedTaskNodeId ?? null,
     snapshot: overrides.snapshot ?? snapshot,
     taskTreeCommandError: null,
+    taskTreeCommandRecoveryActions: [],
     uiNotice: null,
   });
 }

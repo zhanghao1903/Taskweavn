@@ -30,6 +30,12 @@
   background: var(--plato-color-panel);
 }
 
+.commandErrorBlock {
+  display: grid;
+  min-width: 0;
+  gap: var(--plato-space-2);
+}
+
 .error {
   color: var(--plato-color-danger-text);
 }

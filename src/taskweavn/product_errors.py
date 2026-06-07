@@ -40,6 +40,26 @@ ProductErrorSeverity = Literal[
     "fatal",
     "unknown",
 ]
+TaskAuditRefKind = Literal["draft", "published"]
+
+
+def product_error_audit_ref_for_task(
+    *,
+    session_id: str,
+    task_id: str,
+    task_ref_kind: TaskAuditRefKind = "published",
+) -> dict[str, object]:
+    """Build the stable Audit result/evidence ids for a task-level failure."""
+
+    record_id = f"record-result-{task_ref_kind}-{task_id}"
+    return {
+        "scope": "task",
+        "sessionId": session_id,
+        "taskId": task_id,
+        "recordId": record_id,
+        "evidenceId": f"evidence-{record_id}",
+        "filter": "results",
+    }
 
 
 def product_error_details(
@@ -147,6 +167,7 @@ def product_error_details_for_llm_classification(
     *,
     retry_count: int = 0,
     diagnostic_refs: dict[str, object] | None = None,
+    audit_ref: dict[str, object] | None = None,
     extra: dict[str, object] | None = None,
 ) -> dict[str, object]:
     """Map LLM provider classifications without coupling callers to LLM types."""
@@ -164,6 +185,7 @@ def product_error_details_for_llm_classification(
             severity="action_required",
             user_message_key="llm.auth_or_config",
             diagnostic_refs=diagnostic_refs,
+            audit_ref=audit_ref,
             extra=details_extra,
         )
     if classification_value in {"retryable", "rate_limit"}:
@@ -173,6 +195,7 @@ def product_error_details_for_llm_classification(
             severity="recoverable",
             user_message_key="llm.rate_or_retry_exhausted",
             diagnostic_refs=diagnostic_refs,
+            audit_ref=audit_ref,
             extra=details_extra,
         )
     if classification_value in {"context_limit", "fatal_capability"}:
@@ -182,6 +205,7 @@ def product_error_details_for_llm_classification(
             severity="action_required",
             user_message_key="llm.context_or_capability",
             diagnostic_refs=diagnostic_refs,
+            audit_ref=audit_ref,
             extra=details_extra,
         )
     if classification_value == "fatal_request":
@@ -191,6 +215,7 @@ def product_error_details_for_llm_classification(
             severity="action_required",
             user_message_key="llm.request_or_config",
             diagnostic_refs=diagnostic_refs,
+            audit_ref=audit_ref,
             extra=details_extra,
         )
     return product_error_details(
@@ -199,6 +224,7 @@ def product_error_details_for_llm_classification(
         severity="unknown",
         user_message_key="llm.unknown_failure",
         diagnostic_refs=diagnostic_refs,
+        audit_ref=audit_ref,
         extra=details_extra,
     )
 
@@ -209,6 +235,7 @@ def product_error_details_for_task_failure(
     interrupted: bool = False,
     can_retry: bool = True,
     diagnostic_refs: dict[str, object] | None = None,
+    audit_ref: dict[str, object] | None = None,
     extra: dict[str, object] | None = None,
 ) -> dict[str, object]:
     """Map Task execution failures to stable recovery guidance."""
@@ -228,6 +255,7 @@ def product_error_details_for_task_failure(
             severity="recoverable",
             user_message_key="task.cancelled_or_interrupted",
             diagnostic_refs=diagnostic_refs,
+            audit_ref=audit_ref,
             extra=details_extra,
         )
     return product_error_details(
@@ -236,6 +264,7 @@ def product_error_details_for_task_failure(
         severity="recoverable" if can_retry else "blocked",
         user_message_key="task.execution_failed",
         diagnostic_refs=diagnostic_refs,
+        audit_ref=audit_ref,
         extra=details_extra,
     )
 
@@ -256,7 +285,9 @@ __all__ = [
     "ProductErrorCategory",
     "ProductErrorSeverity",
     "ProductRecoveryAction",
+    "TaskAuditRefKind",
     "merge_product_error_details",
+    "product_error_audit_ref_for_task",
     "product_error_details",
     "product_error_details_for_api_error",
     "product_error_details_for_llm_classification",

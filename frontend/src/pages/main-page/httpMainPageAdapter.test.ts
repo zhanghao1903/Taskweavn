@@ -22,6 +22,7 @@ import type {
   QueryResponse,
   UiEvent,
 } from "../../shared/api/types";
+import { productRecoveryActionsFromUnknown } from "../../shared/api/productErrors";
 import {
   createHttpMainPageAdapter,
   type HttpMainPageApi,
@@ -291,7 +292,9 @@ describe("HTTP MainPage adapter bridge", () => {
         code: "internal_error",
         message: "projection unavailable",
         retryable: true,
-        details: {},
+        details: {
+          recoveryActions: ["refresh_snapshot", "export_diagnostics"],
+        },
       },
       generatedAt: "2026-05-17T10:20:00+08:00",
     });
@@ -300,9 +303,17 @@ describe("HTTP MainPage adapter bridge", () => {
       sessionId: snapshot.session.id,
     });
 
-    await expect(adapter.loadSnapshot("s1-empty")).rejects.toThrow(
-      "projection unavailable",
-    );
+    const loadError = await adapter
+      .loadSnapshot("s1-empty")
+      .then(() => null, (error: unknown) => error);
+
+    expect(loadError).toMatchObject({
+      message: "projection unavailable",
+    });
+    expect(productRecoveryActionsFromUnknown(loadError)).toEqual([
+      "refresh_snapshot",
+      "export_diagnostics",
+    ]);
   });
 });
 

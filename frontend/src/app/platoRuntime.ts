@@ -15,7 +15,10 @@ import {
 } from "../pages/main-page/runtime/mockRuntimeFacade";
 import type { MainPageAdapter } from "../pages/main-page/runtime/adapter";
 import type { UiEvent } from "../shared/api/types";
-import { createHttpPlatoApi } from "../shared/api/platoApi";
+import {
+  createHttpPlatoApi,
+  type EventSourceLike,
+} from "../shared/api/platoApi";
 import {
   configureFrontendLogSink,
   createFrontendLogger,
@@ -27,61 +30,102 @@ export type PlatoRuntimeEnv = {
   VITE_PLATO_LOG_LEVEL?: "debug" | "info" | "warn" | "error" | "silent";
   VITE_PLATO_API_MODE?: "mock" | "http";
   VITE_PLATO_SESSION_ID?: string;
+  VITE_PLATO_DISABLE_EVENTS?: "0" | "1";
   VITE_PLATO_AUDIT_MOCK_SCENARIO?: AuditMockScenarioId;
   VITE_PLATO_RUNTIME_REDUCER_HARNESS?: "off" | "test";
 };
 
 const runtimeLogger = createFrontendLogger("runtime");
 
+export function resolvePlatoRuntimeEnv(
+  env: PlatoRuntimeEnv = import.meta.env,
+): PlatoRuntimeEnv {
+  const electronRuntime = globalThis.window?.platoRuntimeConfig;
+  if (!electronRuntime) {
+    return env;
+  }
+
+  return {
+    ...env,
+    VITE_PLATO_API_BASE_URL:
+      electronRuntime.apiBaseUrl ?? env.VITE_PLATO_API_BASE_URL,
+    VITE_PLATO_API_MODE: electronRuntime.apiMode ?? env.VITE_PLATO_API_MODE,
+    VITE_PLATO_DISABLE_EVENTS:
+      electronRuntime.disableEvents === true
+        ? "1"
+        : env.VITE_PLATO_DISABLE_EVENTS,
+    VITE_PLATO_SESSION_ID:
+      electronRuntime.sessionId ?? env.VITE_PLATO_SESSION_ID,
+  };
+}
+
 export function createMainPageAdapterFromRuntimeEnv(
   env: PlatoRuntimeEnv = import.meta.env,
 ): MainPageAdapter | undefined {
-  if (env.VITE_PLATO_API_MODE !== "http") {
+  const runtimeEnv = resolvePlatoRuntimeEnv(env);
+  if (runtimeEnv.VITE_PLATO_API_MODE !== "http") {
     configureFrontendLogSink(null);
     runtimeLogger.info("main-page.adapter.mock", {
-      mode: env.VITE_PLATO_API_MODE ?? "mock",
+      mode: runtimeEnv.VITE_PLATO_API_MODE ?? "mock",
     });
     return createMainPageMockAdapter({
       showStatePicker: false,
     });
   }
 
-  const sessionId = env.VITE_PLATO_SESSION_ID;
-  const baseUrl = env.VITE_PLATO_API_BASE_URL ?? globalThis.location.origin;
+  const sessionId = runtimeEnv.VITE_PLATO_SESSION_ID;
+  const baseUrl = runtimeEnv.VITE_PLATO_API_BASE_URL ?? globalThis.location.origin;
   configureFrontendLogSink(
     sessionId ? createHttpErrorLogSink(baseUrl, sessionId) : null,
   );
 
   runtimeLogger.info("main-page.adapter.http", {
     baseUrl,
-    logLevel: env.VITE_PLATO_LOG_LEVEL ?? "default",
+    logLevel: runtimeEnv.VITE_PLATO_LOG_LEVEL ?? "default",
     sessionId: sessionId ?? null,
   });
 
   return createHttpMainPageAdapter({
     api: createHttpPlatoApi({
       baseUrl,
+      eventSourceFactory:
+        runtimeEnv.VITE_PLATO_DISABLE_EVENTS === "1"
+          ? createNoopEventSource
+          : undefined,
     }),
     liveLabel: "Live Session",
     sessionId: sessionId ?? null,
   });
 }
 
+function createNoopEventSource(): EventSourceLike {
+  return {
+    addEventListener() {
+      return undefined;
+    },
+    close() {
+      return undefined;
+    },
+  };
+}
+
 export function createAuditApiFromRuntimeEnv(
   env: PlatoRuntimeEnv = import.meta.env,
 ): AuditMockApi {
-  if (env.VITE_PLATO_API_MODE === "http") {
-    const baseUrl = env.VITE_PLATO_API_BASE_URL ?? globalThis.location.origin;
+  const runtimeEnv = resolvePlatoRuntimeEnv(env);
+  if (runtimeEnv.VITE_PLATO_API_MODE === "http") {
+    const baseUrl = runtimeEnv.VITE_PLATO_API_BASE_URL ?? globalThis.location.origin;
 
     runtimeLogger.info("audit.adapter.http", {
       baseUrl,
-      sessionId: env.VITE_PLATO_SESSION_ID ?? null,
+      sessionId: runtimeEnv.VITE_PLATO_SESSION_ID ?? null,
     });
 
     return createHttpPlatoApi({ baseUrl });
   }
 
-  const scenarioId = env.VITE_PLATO_AUDIT_MOCK_SCENARIO ?? "a3-records-ready";
+  const scenarioId =
+    runtimeEnv.VITE_PLATO_AUDIT_MOCK_SCENARIO ?? "a3-records-ready";
   runtimeLogger.info("audit.adapter.mock", {
     scenarioId,
   });
@@ -97,12 +141,13 @@ export type MainPageRuntimeReducerHarness = {
 export function createMainPageRuntimeReducerHarnessFromEnv(
   env: PlatoRuntimeEnv = import.meta.env,
 ): MainPageRuntimeReducerHarness | null {
-  if (env.VITE_PLATO_RUNTIME_REDUCER_HARNESS !== "test") {
+  const runtimeEnv = resolvePlatoRuntimeEnv(env);
+  if (runtimeEnv.VITE_PLATO_RUNTIME_REDUCER_HARNESS !== "test") {
     return null;
   }
 
   runtimeLogger.info("main-page.runtime-reducer-harness.enabled", {
-    mode: env.VITE_PLATO_RUNTIME_REDUCER_HARNESS,
+    mode: runtimeEnv.VITE_PLATO_RUNTIME_REDUCER_HARNESS,
   });
 
   const facade = createMainPageMockRuntimeFacade();

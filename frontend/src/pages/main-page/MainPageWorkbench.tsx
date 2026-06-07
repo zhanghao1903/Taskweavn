@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from "react";
 
+import type { ProductRecoveryAction } from "../../shared/api/platoApi";
 import { Panel } from "../../shared/components";
 import { ActivityOverlay } from "./ActivityOverlay";
 import { ContextInputPanel } from "./ContextInputPanel";
@@ -18,6 +19,7 @@ export type MainPageWorkbenchProps = {
   actions: MainPageController["actions"];
   inputDraft: string;
   inputError: string | null;
+  inputRecoveryActions: ProductRecoveryAction[];
   isCreatingSession: boolean;
   isDeletingSession: boolean;
   isRenamingSession: boolean;
@@ -30,6 +32,7 @@ export function MainPageWorkbench({
   actions,
   inputDraft,
   inputError,
+  inputRecoveryActions,
   isCreatingSession,
   isDeletingSession,
   isRenamingSession,
@@ -91,6 +94,9 @@ export function MainPageWorkbench({
           }
           showPublishTaskTree={viewModel.workspace.showPublishTaskTree}
           taskTreeCommandError={viewModel.workspace.taskTreeCommandError}
+          taskTreeCommandRecoveryActions={
+            viewModel.workspace.taskTreeCommandRecoveryActions
+          }
           title={viewModel.workspace.title}
           uiNotice={viewModel.workspace.uiNotice}
         />
@@ -231,6 +237,7 @@ export function MainPageWorkbench({
         draft={inputDraft}
         error={inputError}
         input={viewModel.input}
+        recoveryActions={inputRecoveryActions}
         onDraftChange={actions.changeInputDraft}
         onSubmit={() =>
           actions.submitInput({

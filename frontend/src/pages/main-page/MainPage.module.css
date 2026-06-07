@@ -33,7 +33,7 @@
 
   display: grid;
   width: 100%;
-  min-width: var(--plato-page-min-width);
+  min-width: min(var(--plato-page-min-width), 100%);
   height: 100dvh;
   min-height: var(--plato-page-min-height);
   grid-template:
@@ -466,6 +466,12 @@
   font-size: var(--plato-type-page-title-size);
   font-weight: var(--plato-type-page-title-weight);
   line-height: var(--plato-type-page-title-line-height);
+}
+
+.commandErrorBlock {
+  display: grid;
+  min-width: 0;
+  gap: var(--plato-space-2);
 }
 
 .workGrid {

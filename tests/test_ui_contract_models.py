@@ -32,6 +32,7 @@ from taskweavn.server.ui_contract import (
     UiEvent,
     UpdateTaskNodePayload,
     WorkflowSummary,
+    product_error_audit_ref_for_task,
     product_error_details_for_llm_classification,
 )
 from taskweavn.server.ui_contract.errors import (
@@ -332,6 +333,20 @@ def test_llm_product_error_metadata_mapping() -> None:
     assert rate["productCategory"] == "llm_rate_or_retry_exhausted"
     assert rate["retryCount"] == 2
     assert context["productCategory"] == "llm_context_or_capability"
+
+
+def test_product_error_audit_ref_matches_audit_result_ids() -> None:
+    assert product_error_audit_ref_for_task(
+        session_id="session-1",
+        task_id="task-1",
+    ) == {
+        "scope": "task",
+        "sessionId": "session-1",
+        "taskId": "task-1",
+        "recordId": "record-result-published-task-1",
+        "evidenceId": "evidence-record-result-published-task-1",
+        "filter": "results",
+    }
 
 
 def test_ui_event_validates_type_and_serializes_aliases() -> None:

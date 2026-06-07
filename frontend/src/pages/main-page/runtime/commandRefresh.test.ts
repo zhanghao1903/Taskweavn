@@ -15,6 +15,7 @@ describe("command response handling", () => {
       ),
     ).toEqual({
       errorMessage: null,
+      recoveryActions: [],
       shouldRefetch: true,
     });
   });
@@ -30,6 +31,7 @@ describe("command response handling", () => {
       ),
     ).toEqual({
       errorMessage: null,
+      recoveryActions: [],
       shouldRefetch: true,
     });
   });
@@ -46,7 +48,9 @@ describe("command response handling", () => {
           result: null,
           error: {
             code: "command_rejected",
-            details: {},
+            details: {
+              recoveryActions: ["refresh_snapshot", "retry_command"],
+            },
             message: "No permission.",
             retryable: false,
           },
@@ -55,6 +59,7 @@ describe("command response handling", () => {
       ),
     ).toEqual({
       errorMessage: "No permission.",
+      recoveryActions: ["refresh_snapshot", "retry_command"],
       shouldRefetch: true,
     });
   });
@@ -80,6 +85,7 @@ describe("command response handling", () => {
       ),
     ).toEqual({
       errorMessage: "No permission.",
+      recoveryActions: [],
       shouldRefetch: false,
     });
   });

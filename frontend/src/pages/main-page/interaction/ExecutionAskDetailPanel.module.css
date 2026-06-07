@@ -70,6 +70,12 @@
   opacity: 0.56;
 }
 
+.commandErrorBlock {
+  display: grid;
+  min-width: 0;
+  gap: var(--plato-space-2);
+}
+
 .error {
   color: var(--plato-color-danger-text);
 }

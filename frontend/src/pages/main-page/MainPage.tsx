@@ -1,12 +1,15 @@
 import { Settings as SettingsIcon } from "lucide-react";
 
 import { navigateApp } from "../../app/navigation";
+import { productRecoveryActionsFromUnknown } from "../../shared/api/productErrors";
+import type { ProductRecoveryAction } from "../../shared/api/platoApi";
 import type { BadgeTone } from "../../shared/components";
 import { Button, Panel, Text } from "../../shared/components";
 import { buildSettingsRoute } from "../settings/settingsRouteModel";
 import { NO_SESSION_AVAILABLE_MESSAGE } from "./httpMainPageAdapter";
 import { MainPageTopBar } from "./MainPageTopBar";
 import { MainPageWorkbench } from "./MainPageWorkbench";
+import { ProductRecoveryActions } from "./ProductRecoveryActions";
 import { buildMainPageViewModel } from "./mainPageViewModel";
 import {
   defaultMainPageStateId,
@@ -34,16 +37,20 @@ export function MainPage({
   const {
     actions,
     authoringAskError,
+    authoringAskRecoveryActions,
     confirmationError,
+    confirmationRecoveryActions,
     detailOverride,
     eventConnectionStatus,
     eventError,
     inputDraft,
     inputError,
+    inputRecoveryActions,
     isCreatingSession,
     isDeletingSession,
     isAnsweringAuthoringAsk,
     executionAskError,
+    executionAskRecoveryActions,
     isAnsweringAsk,
     isCancellingAsk,
     isDeferringAsk,
@@ -62,6 +69,7 @@ export function MainPage({
     snapshotError,
     stateId,
     taskTreeCommandError,
+    taskTreeCommandRecoveryActions,
     uiNotice,
   } = useMainPageController({
     adapter,
@@ -115,6 +123,11 @@ export function MainPage({
             ? "This workspace has no sessions yet. Create one when you are ready to start."
             : "Plato could not load this session. Refresh the page or choose another session."
         }
+        recoveryActions={
+          noSessionAvailable
+            ? []
+            : productRecoveryActionsFromUnknown(snapshotError)
+        }
       />
     );
   }
@@ -128,12 +141,15 @@ export function MainPage({
   const viewModel = buildMainPageViewModel({
     auditRouteAvailable,
     authoringAskError,
+    authoringAskRecoveryActions,
     confirmationError,
+    confirmationRecoveryActions,
     detailOverride,
     eventConnectionStatus,
     eventError,
     isAnsweringAuthoringAsk,
     executionAskError,
+    executionAskRecoveryActions,
     isAnsweringAsk,
     isCancellingAsk,
     isDeferringAsk,
@@ -147,6 +163,7 @@ export function MainPage({
     selectedTaskNodeId,
     snapshot,
     taskTreeCommandError,
+    taskTreeCommandRecoveryActions,
     uiNotice,
   });
 
@@ -155,6 +172,7 @@ export function MainPage({
       actions={actions}
       inputDraft={inputDraft}
       inputError={inputError}
+      inputRecoveryActions={inputRecoveryActions}
       isCreatingSession={isCreatingSession}
       isDeletingSession={isDeletingSession}
       isRenamingSession={isRenamingSession}
@@ -232,6 +250,7 @@ type MainPageStatusFrameProps = {
   stateId: MainPageStateId;
   statusLabel: string;
   statusTone: BadgeTone;
+  recoveryActions?: ProductRecoveryAction[];
   title: string;
 };
 
@@ -243,6 +262,7 @@ function MainPageStatusFrame({
   stateId,
   statusLabel,
   statusTone,
+  recoveryActions = [],
   title,
 }: MainPageStatusFrameProps) {
   return (
@@ -275,6 +295,7 @@ function MainPageStatusFrame({
             {title}
           </Text>
           <Text variant="muted">{body}</Text>
+          <ProductRecoveryActions actions={recoveryActions} />
           {action ? (
             <Button
               disabled={action.disabled}

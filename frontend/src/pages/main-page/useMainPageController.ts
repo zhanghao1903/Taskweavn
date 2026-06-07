@@ -1,7 +1,10 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 
-import type { AnswerAuthoringAskItemPayload } from "../../shared/api/platoApi";
+import type {
+  AnswerAuthoringAskItemPayload,
+  ProductRecoveryAction,
+} from "../../shared/api/platoApi";
 import type {
   ConfirmationActionView,
   AskId,
@@ -116,16 +119,20 @@ export type SessionLifecycleDialog =
 export type MainPageController = {
   activeSessionId: string | null;
   authoringAskError: string | null;
+  authoringAskRecoveryActions: ProductRecoveryAction[];
   confirmationError: string | null;
+  confirmationRecoveryActions: ProductRecoveryAction[];
   detailOverride: DetailOverride;
   eventConnectionStatus: EventConnectionStatus;
   eventError: string | null;
   inputDraft: string;
   inputError: string | null;
+  inputRecoveryActions: ProductRecoveryAction[];
   isCreatingSession: boolean;
   isDeletingSession: boolean;
   isAnsweringAuthoringAsk: boolean;
   executionAskError: string | null;
+  executionAskRecoveryActions: ProductRecoveryAction[];
   isAnsweringAsk: boolean;
   isCancellingAsk: boolean;
   isDeferringAsk: boolean;
@@ -144,6 +151,7 @@ export type MainPageController = {
   snapshotError: unknown;
   stateId: MainPageStateId;
   taskTreeCommandError: string | null;
+  taskTreeCommandRecoveryActions: ProductRecoveryAction[];
   uiNotice: string | null;
   actions: {
     cancelSessionDialog: () => void;
@@ -190,17 +198,30 @@ export function useMainPageController({
   const [confirmationError, setConfirmationError] = useState<string | null>(
     null,
   );
+  const [confirmationRecoveryActions, setConfirmationRecoveryActions] =
+    useState<ProductRecoveryAction[]>([]);
   const [authoringAskError, setAuthoringAskError] = useState<string | null>(
     null,
   );
+  const [authoringAskRecoveryActions, setAuthoringAskRecoveryActions] =
+    useState<ProductRecoveryAction[]>([]);
   const [executionAskError, setExecutionAskError] = useState<string | null>(
     null,
   );
+  const [executionAskRecoveryActions, setExecutionAskRecoveryActions] =
+    useState<ProductRecoveryAction[]>([]);
   const [inputDraft, setInputDraft] = useState("");
   const [inputError, setInputError] = useState<string | null>(null);
+  const [inputRecoveryActions, setInputRecoveryActions] = useState<
+    ProductRecoveryAction[]
+  >([]);
   const [taskTreeCommandError, setTaskTreeCommandError] = useState<string | null>(
     null,
   );
+  const [
+    taskTreeCommandRecoveryActions,
+    setTaskTreeCommandRecoveryActions,
+  ] = useState<ProductRecoveryAction[]>([]);
   const [uiNotice, setUiNotice] = useState<string | null>(null);
   const [sessionDialog, setSessionDialog] = useState<SessionLifecycleDialog>({
     mode: "idle",
@@ -225,6 +246,56 @@ export function useMainPageController({
     ? mainPageSnapshotIdentity(adapter, stateId, snapshotData, activeSessionId)
     : null;
   const refetchSnapshot = snapshotQuery.refetch;
+
+  function setConfirmationCommandError(
+    message: string | null,
+    recoveryActions: ProductRecoveryAction[] = [],
+  ) {
+    setConfirmationError(message);
+    setConfirmationRecoveryActions(message === null ? [] : recoveryActions);
+  }
+
+  function setAuthoringAskCommandError(
+    message: string | null,
+    recoveryActions: ProductRecoveryAction[] = [],
+  ) {
+    setAuthoringAskError(message);
+    setAuthoringAskRecoveryActions(message === null ? [] : recoveryActions);
+  }
+
+  function setExecutionAskCommandError(
+    message: string | null,
+    recoveryActions: ProductRecoveryAction[] = [],
+  ) {
+    setExecutionAskError(message);
+    setExecutionAskRecoveryActions(message === null ? [] : recoveryActions);
+  }
+
+  function setInputCommandError(
+    message: string | null,
+    recoveryActions: ProductRecoveryAction[] = [],
+  ) {
+    setInputError(message);
+    setInputRecoveryActions(message === null ? [] : recoveryActions);
+  }
+
+  function setTaskTreeCommandFailure(
+    message: string | null,
+    recoveryActions: ProductRecoveryAction[] = [],
+  ) {
+    setTaskTreeCommandError(message);
+    setTaskTreeCommandRecoveryActions(
+      message === null ? [] : recoveryActions,
+    );
+  }
+
+  function clearCommandRecoveryActions() {
+    setAuthoringAskRecoveryActions([]);
+    setConfirmationRecoveryActions([]);
+    setExecutionAskRecoveryActions([]);
+    setInputRecoveryActions([]);
+    setTaskTreeCommandRecoveryActions([]);
+  }
 
   useEffect(() => {
     if (!snapshotData || activeSessionId !== null) {
@@ -281,7 +352,7 @@ export function useMainPageController({
         },
       }),
     onError: () => {
-      setConfirmationError("Confirmation failed. Please retry.");
+      setConfirmationCommandError("Confirmation failed. Please retry.");
     },
     onSuccess: (response) => {
       const result = handleCommandResponse(
@@ -290,11 +361,14 @@ export function useMainPageController({
       );
 
       if (result.errorMessage) {
-        setConfirmationError(result.errorMessage);
+        setConfirmationCommandError(
+          result.errorMessage,
+          result.recoveryActions,
+        );
         return;
       }
 
-      setConfirmationError(null);
+      setConfirmationCommandError(null);
       if (result.shouldRefetch) {
         void refetchSnapshot();
       }
@@ -315,7 +389,7 @@ export function useMainPageController({
         },
       }),
     onError: () => {
-      setAuthoringAskError("Answer submission failed. Please retry.");
+      setAuthoringAskCommandError("Answer submission failed. Please retry.");
     },
     onSuccess: (response) => {
       const result = handleCommandResponse(
@@ -324,11 +398,14 @@ export function useMainPageController({
       );
 
       if (result.errorMessage) {
-        setAuthoringAskError(result.errorMessage);
+        setAuthoringAskCommandError(
+          result.errorMessage,
+          result.recoveryActions,
+        );
         return;
       }
 
-      setAuthoringAskError(null);
+      setAuthoringAskCommandError(null);
       setUiNotice("Authoring answers submitted.");
       if (result.shouldRefetch) {
         void refetchSnapshot();
@@ -352,7 +429,7 @@ export function useMainPageController({
         },
       }),
     onError: () => {
-      setExecutionAskError("Answer submission failed. Please retry.");
+      setExecutionAskCommandError("Answer submission failed. Please retry.");
     },
     onSuccess: (response) => {
       const result = handleCommandResponse(
@@ -361,14 +438,17 @@ export function useMainPageController({
       );
 
       if (result.errorMessage) {
-        setExecutionAskError(result.errorMessage);
+        setExecutionAskCommandError(
+          result.errorMessage,
+          result.recoveryActions,
+        );
         if (result.shouldRefetch) {
           void refetchSnapshot();
         }
         return;
       }
 
-      setExecutionAskError(null);
+      setExecutionAskCommandError(null);
       setUiNotice("Answer submitted.");
       if (result.shouldRefetch) {
         void refetchSnapshot();
@@ -386,7 +466,7 @@ export function useMainPageController({
         },
       }),
     onError: () => {
-      setExecutionAskError("Defer failed. Please retry.");
+      setExecutionAskCommandError("Defer failed. Please retry.");
     },
     onSuccess: (response) => {
       const result = handleCommandResponse(
@@ -395,11 +475,14 @@ export function useMainPageController({
       );
 
       if (result.errorMessage) {
-        setExecutionAskError(result.errorMessage);
+        setExecutionAskCommandError(
+          result.errorMessage,
+          result.recoveryActions,
+        );
         return;
       }
 
-      setExecutionAskError(null);
+      setExecutionAskCommandError(null);
       setUiNotice("Question deferred.");
       if (result.shouldRefetch) {
         void refetchSnapshot();
@@ -417,7 +500,7 @@ export function useMainPageController({
         },
       }),
     onError: () => {
-      setExecutionAskError("Cancel failed. Please retry.");
+      setExecutionAskCommandError("Cancel failed. Please retry.");
     },
     onSuccess: (response) => {
       const result = handleCommandResponse(
@@ -426,11 +509,14 @@ export function useMainPageController({
       );
 
       if (result.errorMessage) {
-        setExecutionAskError(result.errorMessage);
+        setExecutionAskCommandError(
+          result.errorMessage,
+          result.recoveryActions,
+        );
         return;
       }
 
-      setExecutionAskError(null);
+      setExecutionAskCommandError(null);
       setUiNotice("Question cancelled.");
       if (result.shouldRefetch) {
         void refetchSnapshot();
@@ -485,7 +571,7 @@ export function useMainPageController({
       });
     },
     onError: () => {
-      setInputError("Input submission failed. Please retry.");
+      setInputCommandError("Input submission failed. Please retry.");
     },
     onSuccess: (response) => {
       const result = handleCommandResponse(
@@ -494,11 +580,11 @@ export function useMainPageController({
       );
 
       if (result.errorMessage) {
-        setInputError(result.errorMessage);
+        setInputCommandError(result.errorMessage, result.recoveryActions);
         return;
       }
 
-      setInputError(null);
+      setInputCommandError(null);
       setInputDraft("");
       if (result.shouldRefetch) {
         void refetchSnapshot();
@@ -523,7 +609,7 @@ export function useMainPageController({
         },
       }),
     onError: () => {
-      setTaskTreeCommandError("Publish failed. Please retry.");
+      setTaskTreeCommandFailure("Publish failed. Please retry.");
     },
     onSuccess: (response) => {
       const result = handleCommandResponse(
@@ -532,11 +618,14 @@ export function useMainPageController({
       );
 
       if (result.errorMessage) {
-        setTaskTreeCommandError(result.errorMessage);
+        setTaskTreeCommandFailure(
+          result.errorMessage,
+          result.recoveryActions,
+        );
         return;
       }
 
-      setTaskTreeCommandError(null);
+      setTaskTreeCommandFailure(null);
       if (result.shouldRefetch) {
         void refetchSnapshot();
       }
@@ -559,7 +648,7 @@ export function useMainPageController({
         },
       }),
     onError: () => {
-      setTaskTreeCommandError("Retry failed. Please retry.");
+      setTaskTreeCommandFailure("Retry failed. Please retry.");
     },
     onSuccess: (response) => {
       const result = handleCommandResponse(
@@ -568,11 +657,14 @@ export function useMainPageController({
       );
 
       if (result.errorMessage) {
-        setTaskTreeCommandError(result.errorMessage);
+        setTaskTreeCommandFailure(
+          result.errorMessage,
+          result.recoveryActions,
+        );
         return;
       }
 
-      setTaskTreeCommandError(null);
+      setTaskTreeCommandFailure(null);
       setUiNotice("Retry queued.");
       if (result.shouldRefetch) {
         void refetchSnapshot();
@@ -606,7 +698,7 @@ export function useMainPageController({
       mainPageLogger.error("command.stop.failed", {
         error: toLoggableError(error),
       });
-      setTaskTreeCommandError("Stop failed. Please retry.");
+      setTaskTreeCommandFailure("Stop failed. Please retry.");
     },
     onSuccess: (response) => {
       const result = handleCommandResponse(
@@ -619,11 +711,14 @@ export function useMainPageController({
       });
 
       if (result.errorMessage) {
-        setTaskTreeCommandError(result.errorMessage);
+        setTaskTreeCommandFailure(
+          result.errorMessage,
+          result.recoveryActions,
+        );
         return;
       }
 
-      setTaskTreeCommandError(null);
+      setTaskTreeCommandFailure(null);
       setUiNotice("Stop requested.");
       if (result.shouldRefetch) {
         mainPageLogger.info("snapshot.refetch.request", {
@@ -723,6 +818,7 @@ export function useMainPageController({
     setInputDraft("");
     setInputError(null);
     setTaskTreeCommandError(null);
+    clearCommandRecoveryActions();
     setUiNotice(null);
     setSessionDialog({ mode: "idle" });
     setEventError(null);
@@ -851,6 +947,7 @@ export function useMainPageController({
     setInputDraft("");
     setInputError(null);
     setTaskTreeCommandError(null);
+    clearCommandRecoveryActions();
     setUiNotice(null);
     setSessionDialog({ mode: "idle" });
     setEventError(null);
@@ -1003,7 +1100,7 @@ export function useMainPageController({
       return;
     }
 
-    setInputError(null);
+    setInputCommandError(null);
     setUiNotice(null);
     inputMutation.mutate({
       content,
@@ -1019,11 +1116,11 @@ export function useMainPageController({
     taskTreeId,
   }: PublishTaskTreeContext) {
     if (taskTreeId === null) {
-      setTaskTreeCommandError("No draft task plan is available to publish.");
+      setTaskTreeCommandFailure("No draft task plan is available to publish.");
       return;
     }
 
-    setTaskTreeCommandError(null);
+    setTaskTreeCommandFailure(null);
     setUiNotice(null);
     publishTaskTreeMutation.mutate({
       sessionId,
@@ -1037,11 +1134,11 @@ export function useMainPageController({
     sessionId,
   }: ConfirmationDecisionContext) {
     if (!confirmation) {
-      setConfirmationError("No pending confirmation is available.");
+      setConfirmationCommandError("No pending confirmation is available.");
       return;
     }
 
-    setConfirmationError(null);
+    setConfirmationCommandError(null);
     setUiNotice(null);
     resolveConfirmationMutation.mutate({
       confirmation,
@@ -1056,11 +1153,11 @@ export function useMainPageController({
     sessionId,
   }: AnswerAuthoringAskBatchContext) {
     if (answers.length === 0) {
-      setAuthoringAskError("Answer at least one authoring question.");
+      setAuthoringAskCommandError("Answer at least one authoring question.");
       return;
     }
 
-    setAuthoringAskError(null);
+    setAuthoringAskCommandError(null);
     setUiNotice(null);
     answerAuthoringAskBatchMutation.mutate({
       answers,
@@ -1076,11 +1173,11 @@ export function useMainPageController({
     text,
   }: AnswerExecutionAskContext) {
     if (selectedOptionIds.length === 0 && !text?.trim()) {
-      setExecutionAskError("Answer the question before submitting.");
+      setExecutionAskCommandError("Answer the question before submitting.");
       return;
     }
 
-    setExecutionAskError(null);
+    setExecutionAskCommandError(null);
     setUiNotice(null);
     answerAskMutation.mutate({
       askId,
@@ -1091,7 +1188,7 @@ export function useMainPageController({
   }
 
   function handleDeferAsk({ askId, reason, sessionId }: DeferExecutionAskContext) {
-    setExecutionAskError(null);
+    setExecutionAskCommandError(null);
     setUiNotice(null);
     deferAskMutation.mutate({
       askId,
@@ -1101,7 +1198,7 @@ export function useMainPageController({
   }
 
   function handleCancelAsk({ askId, reason, sessionId }: CancelExecutionAskContext) {
-    setExecutionAskError(null);
+    setExecutionAskCommandError(null);
     setUiNotice(null);
     cancelAskMutation.mutate({
       askId,
@@ -1111,7 +1208,7 @@ export function useMainPageController({
   }
 
   function handleRetryTask({ sessionId, taskNodeId }: RetryTaskContext) {
-    setTaskTreeCommandError(null);
+    setTaskTreeCommandFailure(null);
     setUiNotice(null);
     retryTaskMutation.mutate({
       sessionId,
@@ -1120,7 +1217,7 @@ export function useMainPageController({
   }
 
   function handleStopTask({ sessionId, taskNodeId }: StopTaskContext) {
-    setTaskTreeCommandError(null);
+    setTaskTreeCommandFailure(null);
     setUiNotice(null);
     stopTaskMutation.mutate({
       sessionId,
@@ -1131,16 +1228,20 @@ export function useMainPageController({
   return {
     activeSessionId,
     authoringAskError,
+    authoringAskRecoveryActions,
     confirmationError,
+    confirmationRecoveryActions,
     detailOverride,
     eventConnectionStatus,
     eventError,
     inputDraft,
     inputError,
+    inputRecoveryActions,
     isCreatingSession: createSessionMutation.isPending,
     isDeletingSession: deleteSessionMutation.isPending,
     isAnsweringAuthoringAsk: answerAuthoringAskBatchMutation.isPending,
     executionAskError,
+    executionAskRecoveryActions,
     isAnsweringAsk: answerAskMutation.isPending,
     isCancellingAsk: cancelAskMutation.isPending,
     isDeferringAsk: deferAskMutation.isPending,
@@ -1159,6 +1260,7 @@ export function useMainPageController({
     snapshotError: snapshotQuery.error,
     stateId,
     taskTreeCommandError,
+    taskTreeCommandRecoveryActions,
     uiNotice,
     actions: {
       answerAuthoringAskBatch: handleAnswerAuthoringAskBatch,

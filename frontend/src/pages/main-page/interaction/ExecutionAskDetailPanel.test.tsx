@@ -183,6 +183,7 @@ describe("ExecutionAskDetailPanel", () => {
       <ExecutionAskDetailPanel
         detail={executionAskDetail({
           commandError: "Answer submission was rejected.",
+          commandRecoveryActions: ["answer_ask", "open_audit"],
         })}
         onAnswer={vi.fn()}
         onCancel={vi.fn()}
@@ -199,6 +200,8 @@ describe("ExecutionAskDetailPanel", () => {
     expect(screen.getByRole("alert")).toHaveTextContent(
       "Answer submission was rejected.",
     );
+    expect(screen.getByText("Answer question")).toBeInTheDocument();
+    expect(screen.getByText("View audit")).toBeInTheDocument();
   });
 
   it("disables controls while defer and cancel commands are pending", () => {
@@ -293,6 +296,7 @@ function executionAskDetail(
       expiredAt: null,
     },
     commandError: null,
+    commandRecoveryActions: [],
     header: {
       body: "The task needs user input.",
       eyebrow: "Task input",

@@ -1,7 +1,7 @@
 # Technical Slice: Audit Entry Closure
 
-> Status: implemented_backend
-> Last Updated: 2026-06-05
+> Status: validated
+> Last Updated: 2026-06-06
 > Parent Plan: [Result And Evidence Exposure Surface](result-exposure-surface.md)
 > Related: [Audit Page Contract](../../engineering/audit-page-contract.md), [Product Error Handling](product-error-handling.md), [Diagnostic Bundle Export](diagnostic-bundle-export.md)
 
@@ -26,10 +26,13 @@ Product 1.0 Tasks without changing the existing `AuditPageSnapshot`,
   config, and log records.
 - `TaskInteractionTimelineService` already stitches task messages,
   confirmations, EventStream refs, file facts, result summaries, and draft
-  publication lineage, but the Audit gateway does not use it as an orchestration
-  source.
+  publication lineage, and the sidecar Audit gateway uses the workspace-backed
+  timeline provider as an orchestration source.
 - Runtime `audit.records_changed` UI events already exist for AgentLoop,
   config/log manifest, and confirmation source changes.
+- The formal frontend sidecar E2E runner now validates Main Page -> Audit ->
+  result/detail/evidence and file/runtime/config/log records with real sidecar
+  data.
 
 ---
 
@@ -138,11 +141,25 @@ Backend tests for this slice:
 - existing Audit EventStream/config/log tests remain covered by
   `tests/test_ui_query_gateway.py`.
 
+Frontend integration validation:
+
+- `frontend/src/e2e/auditEvidence.e2e.test.tsx` runs under
+  `npm run test:e2e:sidecar` and validates:
+  - Main Page opens a real sidecar seeded session;
+  - `View audit` leads to a task-scoped Audit route;
+  - result, projected file, typed `FileWriteObservation`, config, and log
+    records are visible;
+  - result evidence detail loads request-time disclosure;
+  - projected file records remain summary-only while typed EventStream
+    observation records expose sanitized payload detail when allowed;
+  - workspace filesystem paths are not exposed in the frontend body.
+
 ---
 
 ## 9. Remaining Follow-ups
 
-- Frontend first-run and Audit Page integration validation.
 - Broader product error refs once frontend consumes recovery actions.
-- Diagnostic bundle Audit-specific refs after Audit evidence closure is
-  validated in a real sidecar session.
+- Diagnostic bundle Audit-specific refs are linked for task result failures;
+  broader non-result product error refs remain a follow-up.
+- Browser/Electron smoke remains release-readiness coverage, not a blocker for
+  this technical slice.

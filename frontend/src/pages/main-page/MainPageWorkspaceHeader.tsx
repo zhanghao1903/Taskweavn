@@ -1,5 +1,7 @@
 import { Button, Text } from "../../shared/components";
+import type { ProductRecoveryAction } from "../../shared/api/platoApi";
 import type { MainPageAuditEntryViewModel } from "./mainPageViewModel";
+import { ProductRecoveryActions } from "./ProductRecoveryActions";
 import styles from "./MainPage.module.css";
 
 export type MainPageWorkspaceHeaderProps = {
@@ -9,6 +11,7 @@ export type MainPageWorkspaceHeaderProps = {
   onPublishTaskTree: () => void;
   showPublishTaskTree: boolean;
   taskTreeCommandError: string | null;
+  taskTreeCommandRecoveryActions: ProductRecoveryAction[];
   title: string;
   uiNotice: string | null;
 };
@@ -20,6 +23,7 @@ export function MainPageWorkspaceHeader({
   onPublishTaskTree,
   showPublishTaskTree,
   taskTreeCommandError,
+  taskTreeCommandRecoveryActions,
   title,
   uiNotice,
 }: MainPageWorkspaceHeaderProps) {
@@ -30,7 +34,12 @@ export function MainPageWorkspaceHeader({
           {title}
         </Text>
         {taskTreeCommandError ? (
-          <Text variant="muted">{taskTreeCommandError}</Text>
+          <div className={styles.commandErrorBlock}>
+            <Text variant="muted">{taskTreeCommandError}</Text>
+            <ProductRecoveryActions
+              actions={taskTreeCommandRecoveryActions}
+            />
+          </div>
         ) : null}
         {eventError ? <Text variant="muted">{eventError}</Text> : null}
         {uiNotice ? <Text variant="muted">{uiNotice}</Text> : null}

@@ -1,7 +1,9 @@
 import { SendHorizontal } from "lucide-react";
 import type { FormEvent } from "react";
 
+import type { ProductRecoveryAction } from "../../shared/api/platoApi";
 import { Button, Panel, Text } from "../../shared/components";
+import { ProductRecoveryActions } from "./ProductRecoveryActions";
 import type { MainPageInputViewModel } from "./mainPageViewModel";
 import styles from "./MainPage.module.css";
 
@@ -11,6 +13,7 @@ export type ContextInputPanelProps = {
   input: MainPageInputViewModel;
   onDraftChange: (draft: string) => void;
   onSubmit: () => void;
+  recoveryActions: ProductRecoveryAction[];
 };
 
 export function ContextInputPanel({
@@ -19,6 +22,7 @@ export function ContextInputPanel({
   input,
   onDraftChange,
   onSubmit,
+  recoveryActions,
 }: ContextInputPanelProps) {
   const helperText = error ?? input.disabledReason;
   const scopeDescription = helperText ?? input.scope.description;
@@ -39,6 +43,7 @@ export function ContextInputPanel({
           {input.scope.label}
         </Text>
         {scopeDescription ? <Text variant="muted">{scopeDescription}</Text> : null}
+        {error ? <ProductRecoveryActions actions={recoveryActions} /> : null}
       </div>
       <label className={styles.contextInputField}>
         <input

@@ -1,0 +1,475 @@
+import { setTimeout as delay } from "node:timers/promises";
+
+const DEFAULT_TIMEOUT_MS = 15_000;
+
+export async function runElectronSmoke({
+  baseUrl,
+  fixture,
+  kind = "configured",
+  window,
+}) {
+  validateFixture(fixture);
+
+  if (kind === "first-run") {
+    await smokeSettingsFirstRun(window, fixture);
+    return;
+  }
+
+  await waitForText(window, "Diagnostics smoke", {
+    label: "Main Page seeded session title",
+  });
+  await waitForText(window, `Run ${fixture.taskId}`, {
+    label: "Main Page seeded task",
+  });
+
+  await smokeAuditEvidence(window, fixture);
+  await smokeDiagnosticsExport(window, fixture);
+  await smokeCommandFailureRecovery(window, { baseUrl, fixture });
+}
+
+export async function runElectronStartupDiagnosticsSmoke({ fixture = {}, window }) {
+  const expectedFailureText =
+    typeof fixture.expectedStartupDiagnosticText === "string"
+      ? fixture.expectedStartupDiagnosticText
+      : "Timed out waiting for Python sidecar health";
+
+  await waitForText(window, "Plato startup diagnostics", {
+    label: "Startup diagnostics heading",
+  });
+  await waitForText(window, "sidecar_failed", {
+    label: "Startup diagnostics status",
+  });
+  await waitForText(window, expectedFailureText, {
+    label: "Startup diagnostics failure reason",
+  });
+  await waitForText(window, "workspace://current", {
+    label: "Startup diagnostics workspace alias",
+  });
+  await waitForText(window, "Timeout", {
+    label: "Startup diagnostics timeout field",
+  });
+
+  await assertBodyDoesNotContain(window, fixture.workspaceDir, "workspace root");
+  await assertBodyDoesNotContain(window, fixture.repoRoot, "repository root");
+  await assertBodyDoesNotContain(window, "LLM_API_KEY=", "raw LLM API key");
+  await assertBodyDoesNotContain(window, "DEEPSEEK_API_KEY=", "raw DeepSeek API key");
+  await assertBodyDoesNotContain(window, "OPENROUTER_API_KEY=", "raw OpenRouter API key");
+  await assertBodyDoesNotContain(window, "Bearer ", "raw bearer token");
+}
+
+async function smokeSettingsFirstRun(window, fixture) {
+  const secret = `sk-electron-first-run-${fixture.sessionId}`;
+
+  await waitForText(window, "Setup required", {
+    label: "First-run setup required",
+  });
+  await waitForText(window, "needs_configuration", {
+    label: "First-run blocking issue",
+  });
+  await waitForText(window, "LLM_API_KEY", {
+    label: "First-run missing API key hint",
+  });
+  await assertBodyDoesNotContain(
+    window,
+    "test-sidecar-readiness-key",
+    "seeded configured secret",
+  );
+
+  await clickByText(window, "button", "Configure settings");
+  await waitForText(window, "Complete first-run setup", {
+    label: "Settings first-run modal",
+  });
+  await waitForControlValue(window, "Provider", "litellm", {
+    label: "first-run provider default",
+  });
+
+  await setLabeledControlValue(window, "API key", secret);
+  await clickByText(window, "button", "Save and check");
+
+  await waitForText(window, "First-run setup is ready.", {
+    label: "Settings save/recheck success",
+    timeoutMs: 20_000,
+  });
+  await assertBodyDoesNotContain(window, secret, "first-run API key text");
+  await assertControlValuesDoNotContain(
+    window,
+    secret,
+    "first-run API key input",
+  );
+  await assertBodyDoesNotContain(
+    window,
+    "test-sidecar-readiness-key",
+    "seeded configured secret",
+  );
+
+  await clickByText(window, "button", "Continue to Main Page");
+  await waitForText(window, "Diagnostics smoke", {
+    label: "Main Page after first-run setup",
+    timeoutMs: 20_000,
+  });
+  await waitForText(window, `Run ${fixture.taskId}`, {
+    label: "Main Page task after first-run setup",
+  });
+  await assertBodyDoesNotContain(window, secret, "first-run API key text");
+  await assertControlValuesDoNotContain(
+    window,
+    secret,
+    "first-run API key input",
+  );
+  await assertBodyDoesNotContain(window, fixture.workspaceDir, "workspace root");
+}
+
+async function smokeAuditEvidence(window, fixture) {
+  const auditHref = await evaluate(window, findHrefScript("View audit"));
+  if (typeof auditHref !== "string" || !auditHref.includes("/audit")) {
+    throw new Error(`View audit href was not available: ${String(auditHref)}`);
+  }
+
+  await navigate(window, withAuditFilter(auditHref, "all"));
+  await waitForText(window, "Audit", { label: "Audit heading" });
+  await waitForAccessibleText(window, "Audit record Task result available");
+  await waitForAccessibleText(window, "Audit record File change recorded");
+  await waitForAccessibleText(window, "Audit record FileWriteObservation observation");
+  await waitForAccessibleText(window, "Audit record Logging config snapshot");
+  await waitForAccessibleText(window, "Audit record Log evidence available");
+
+  await clickByText(window, "button", "Audit record Task result available");
+  await waitForText(window, "Why it matters", {
+    label: "Task result audit detail",
+  });
+  await waitForText(window, "Evidence", {
+    label: "Task result audit evidence heading",
+  });
+  await waitForText(window, "Timeline task result", {
+    label: "Task result audit evidence source",
+  });
+  await waitForText(window, "Provider rate limit prevented task completion.", {
+    label: "Task result audit body",
+  });
+
+  await clickByText(window, "button", "Audit record File change recorded");
+  await waitForText(window, "diagnostics-summary.md", {
+    label: "File change audit detail",
+  });
+  await waitForText(window, "No sanitized payload is available for this record.", {
+    label: "Projected file sanitized payload boundary",
+  });
+
+  await clickByText(
+    window,
+    "button",
+    "Audit record FileWriteObservation observation",
+  );
+  await waitForText(window, "FileWriteObservation payload", {
+    label: "FileWriteObservation detail",
+  });
+  await waitForText(window, "Evidence payload · FileWriteObservation payload", {
+    label: "FileWriteObservation sanitized payload",
+  });
+  await assertBodyDoesNotContain(window, fixture.workspaceDir, "workspace root");
+}
+
+async function smokeDiagnosticsExport(window, fixture) {
+  const diagnosticsUrl = new URL(fixture.diagnosticsLogUrl);
+  await navigate(window, `${diagnosticsUrl.pathname}${diagnosticsUrl.search}`);
+  await waitForText(window, "Diagnostics", {
+    label: "Diagnostics route heading",
+  });
+  await waitForText(window, fixture.sessionId, {
+    label: "Diagnostics session id",
+  });
+  await waitForText(window, fixture.logRecordId, {
+    label: "Diagnostics log record id",
+  });
+
+  await clickByText(window, "button", "Export diagnostics");
+  await waitForText(window, "Bundle ready", {
+    label: "Diagnostic bundle export success",
+    timeoutMs: 20_000,
+  });
+  await waitForText(window, "product_1_0_default", {
+    label: "Diagnostic bundle redaction profile",
+  });
+  await waitForText(window, "workspace://current/.taskweavn/diagnostics/", {
+    label: "Diagnostic bundle workspace label",
+  });
+  await assertBodyDoesNotContain(window, fixture.workspaceDir, "workspace root");
+}
+
+async function smokeCommandFailureRecovery(window, { baseUrl, fixture }) {
+  await navigate(window, "/");
+  await waitForText(window, "Diagnostics smoke", {
+    label: "Main Page before retry rejection",
+  });
+  await waitForText(window, `Run ${fixture.taskId}`, {
+    label: "Retry task before stale command",
+  });
+  await waitForText(window, "Retry", {
+    label: "Retry action before stale command",
+  });
+
+  const primerResponse = await evaluate(
+    window,
+    `fetch(${JSON.stringify(
+      `${baseUrl.replace(/\/$/, "")}/api/v1/sessions/${encodeURIComponent(
+        fixture.sessionId,
+      )}/tasks/${encodeURIComponent(fixture.taskId)}/retry`,
+    )}, {
+      body: JSON.stringify({
+        commandId: ${JSON.stringify(`prime-electron-retry-${Date.now()}`)},
+        payload: { startImmediately: true },
+        sessionId: ${JSON.stringify(fixture.sessionId)}
+      }),
+      headers: {
+        "Content-Type": "application/json"
+      },
+      method: "POST"
+    }).then((response) => response.json())`,
+  );
+  if (primerResponse?.ok !== true) {
+    throw new Error(
+      `Retry primer did not return ok=true: ${JSON.stringify(primerResponse)}`,
+    );
+  }
+
+  await clickByText(window, "button", "Retry");
+  await waitForText(window, "only failed tasks can be retried", {
+    label: "Rejected retry command text",
+  });
+  await waitForText(window, "Refresh session", {
+    label: "Recovery label",
+  });
+  await assertBodyDoesNotContain(window, "command_rejected", "raw error code");
+  await assertBodyDoesNotContain(window, "recoveryActions", "raw recovery key");
+  await assertBodyDoesNotContain(window, "productCategory", "raw category key");
+  await assertBodyDoesNotContain(window, "TaskStoreError", "raw exception type");
+}
+
+async function waitForText(window, text, { label, timeoutMs = DEFAULT_TIMEOUT_MS } = {}) {
+  await waitFor(
+    window,
+    label ?? `text ${text}`,
+    `document.body.textContent.includes(${JSON.stringify(text)})`,
+    timeoutMs,
+  );
+}
+
+async function waitForAccessibleText(
+  window,
+  text,
+  { timeoutMs = DEFAULT_TIMEOUT_MS } = {},
+) {
+  await waitFor(
+    window,
+    `accessible text ${text}`,
+    `Boolean(findElementByText("*", ${JSON.stringify(text)}))`,
+    timeoutMs,
+  );
+}
+
+async function clickByText(window, selector, text, { optional = false } = {}) {
+  const clicked = await evaluate(
+    window,
+    `(() => {
+      ${domHelperSource()}
+      const element = findElementByText(${JSON.stringify(selector)}, ${JSON.stringify(
+        text,
+      )});
+      if (!element) return false;
+      element.click();
+      return true;
+    })()`,
+  );
+  if (clicked !== true) {
+    if (optional) {
+      return;
+    }
+    throw new Error(`Could not click ${selector} with text ${text}`);
+  }
+}
+
+async function setLabeledControlValue(window, label, value) {
+  const changed = await evaluate(
+    window,
+    `(() => {
+      ${domHelperSource()}
+      const control = findControlByLabel(${JSON.stringify(label)});
+      if (!control) return false;
+      const descriptor = Object.getOwnPropertyDescriptor(
+        Object.getPrototypeOf(control),
+        "value"
+      );
+      if (descriptor?.set) {
+        descriptor.set.call(control, ${JSON.stringify(value)});
+      } else {
+        control.value = ${JSON.stringify(value)};
+      }
+      control.dispatchEvent(new Event("input", { bubbles: true }));
+      control.dispatchEvent(new Event("change", { bubbles: true }));
+      return true;
+    })()`,
+  );
+  if (changed !== true) {
+    throw new Error(`Could not set control with label ${label}`);
+  }
+}
+
+async function waitForControlValue(
+  window,
+  label,
+  value,
+  { label: waitLabel, timeoutMs = DEFAULT_TIMEOUT_MS } = {},
+) {
+  await waitFor(
+    window,
+    waitLabel ?? `control ${label} value ${value}`,
+    `(() => {
+      const control = findControlByLabel(${JSON.stringify(label)});
+      return control !== null && control.value === ${JSON.stringify(value)};
+    })()`,
+    timeoutMs,
+  );
+}
+
+async function assertBodyDoesNotContain(window, text, label) {
+  if (!text) {
+    return;
+  }
+  const found = await evaluate(
+    window,
+    `document.body.textContent.includes(${JSON.stringify(text)})`,
+  );
+  if (found) {
+    throw new Error(`UI exposed ${label}: ${text}`);
+  }
+}
+
+async function assertControlValuesDoNotContain(window, text, label) {
+  if (!text) {
+    return;
+  }
+  const found = await evaluate(
+    window,
+    `Array.from(document.querySelectorAll("input, select, textarea")).some((control) =>
+      String(control.value ?? "").includes(${JSON.stringify(text)})
+    )`,
+  );
+  if (found) {
+    throw new Error(`UI control exposed ${label}: ${text}`);
+  }
+}
+
+async function navigate(window, path) {
+  await evaluate(
+    window,
+    `(() => {
+      history.pushState(null, "", ${JSON.stringify(path)});
+      dispatchEvent(new Event("plato:navigation"));
+    })()`,
+  );
+}
+
+async function waitFor(window, label, predicateScript, timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const result = await evaluateWithDomHelpers(
+      window,
+      `Boolean(${predicateScript})`,
+    );
+    if (result === true) {
+      return;
+    }
+    await delay(150);
+  }
+
+  const body = await evaluate(
+    window,
+    `document.body.textContent.replace(/\\s+/g, " ").slice(0, 1200)`,
+  );
+  throw new Error(`Timed out waiting for ${label}. Body: ${body}`);
+}
+
+async function evaluate(window, script) {
+  await window.webContents.executeJavaScript("undefined", true);
+  return await window.webContents.executeJavaScript(script, true);
+}
+
+async function evaluateWithDomHelpers(window, expression) {
+  return await evaluate(
+    window,
+    `(() => {
+      ${domHelperSource()}
+      return ${expression};
+    })()`,
+  );
+}
+
+function findHrefScript(label) {
+  return `(() => {
+    ${domHelperSource()}
+    const element = findElementByText("a", ${JSON.stringify(label)});
+    return element ? element.getAttribute("href") : null;
+  })()`;
+}
+
+function domHelperSource() {
+  return `
+    function findElementByText(selector, text) {
+      const expected = String(text);
+      const elements = Array.from(document.querySelectorAll(selector));
+      return elements.find((element) => {
+        const accessible = [
+          element.getAttribute("aria-label"),
+          element.getAttribute("title"),
+          element.textContent
+        ].filter(Boolean).join(" ").replace(/\\s+/g, " ").trim();
+        return accessible.includes(expected);
+      }) ?? null;
+    }
+    function findControlByLabel(text) {
+      const expected = String(text);
+      const labels = Array.from(document.querySelectorAll("label"));
+      for (const label of labels) {
+        const accessible = String(label.textContent ?? "")
+          .replace(/\\s+/g, " ")
+          .trim();
+        if (!accessible.includes(expected)) continue;
+        const labeledControl = label.control;
+        if (labeledControl) return labeledControl;
+        const nestedControl = label.querySelector("input, select, textarea");
+        if (nestedControl) return nestedControl;
+      }
+      return Array.from(document.querySelectorAll("input, select, textarea")).find(
+        (control) => {
+          const accessible = [
+            control.getAttribute("aria-label"),
+            control.getAttribute("name"),
+            control.getAttribute("placeholder")
+          ].filter(Boolean).join(" ").replace(/\\s+/g, " ").trim();
+          return accessible.includes(expected);
+        },
+      ) ?? null;
+    }
+  `;
+}
+
+function validateFixture(fixture) {
+  const required = [
+    "baseUrl",
+    "diagnosticsLogUrl",
+    "logRecordId",
+    "sessionId",
+    "taskId",
+    "workspaceDir",
+  ];
+  const missing = required.filter((key) => !fixture[key]);
+  if (missing.length > 0) {
+    throw new Error(`Electron smoke fixture is missing: ${missing.join(", ")}`);
+  }
+}
+
+function withAuditFilter(href, filter) {
+  const url = new URL(href, "http://plato.local");
+  url.searchParams.set("filter", filter);
+  return `${url.pathname}${url.search}`;
+}

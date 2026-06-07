@@ -8,6 +8,7 @@ import type {
 import type { AskRequestView } from "../../../shared/api/types";
 import { Badge, Button, ChoiceGroup, Text } from "../../../shared/components";
 import type { ChoiceGroupMode } from "../../../shared/components";
+import { ProductRecoveryActions } from "../ProductRecoveryActions";
 import type { MainPageDetailView } from "../mainPageViewModel";
 import styles from "./ExecutionAskDetailPanel.module.css";
 
@@ -198,9 +199,12 @@ export function ExecutionAskDetailPanel({
       ) : null}
 
       {detail.commandError ? (
-        <Text className={styles.error} role="alert" variant="muted">
-          {detail.commandError}
-        </Text>
+        <div className={styles.commandErrorBlock}>
+          <Text className={styles.error} role="alert" variant="muted">
+            {detail.commandError}
+          </Text>
+          <ProductRecoveryActions actions={detail.commandRecoveryActions} />
+        </div>
       ) : null}
 
       <div className={styles.actionRow}>

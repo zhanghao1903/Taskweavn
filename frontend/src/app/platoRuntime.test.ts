@@ -5,6 +5,7 @@ import {
   createAuditApiFromRuntimeEnv,
   createMainPageAdapterFromRuntimeEnv,
   createMainPageRuntimeReducerHarnessFromEnv,
+  resolvePlatoRuntimeEnv,
 } from "./platoRuntime";
 
 describe("Plato runtime wiring", () => {
@@ -22,6 +23,24 @@ describe("Plato runtime wiring", () => {
       runtimeKind: "mock",
       sessionId: null,
       showStatePicker: false,
+    });
+  });
+
+  it("prefers Electron preload runtime config when available", () => {
+    vi.stubGlobal("window", {
+      platoRuntimeConfig: {
+        apiBaseUrl: "http://127.0.0.1:53226",
+        apiMode: "http",
+        disableEvents: true,
+        sessionId: "session-electron",
+      },
+    });
+
+    expect(resolvePlatoRuntimeEnv({ VITE_PLATO_API_MODE: "mock" })).toMatchObject({
+      VITE_PLATO_API_BASE_URL: "http://127.0.0.1:53226",
+      VITE_PLATO_API_MODE: "http",
+      VITE_PLATO_DISABLE_EVENTS: "1",
+      VITE_PLATO_SESSION_ID: "session-electron",
     });
   });
 
@@ -206,7 +225,7 @@ describe("Plato runtime wiring", () => {
     ).toMatchObject({
       compatible: true,
       legacyAction: {
-        errorMessage: "Command could not be applied.",
+        errorMessage: "An update failed. Refreshing the session.",
         kind: "refetch",
         status: "connected",
       },

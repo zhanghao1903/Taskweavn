@@ -13,6 +13,7 @@ describe("ContextInputPanel", () => {
         input={inputView()}
         onDraftChange={vi.fn()}
         onSubmit={vi.fn()}
+        recoveryActions={[]}
       />,
     );
 
@@ -36,6 +37,7 @@ describe("ContextInputPanel", () => {
         })}
         onDraftChange={vi.fn()}
         onSubmit={vi.fn()}
+        recoveryActions={[]}
       />,
     );
 
@@ -45,6 +47,23 @@ describe("ContextInputPanel", () => {
       "placeholder",
       "Completed tasks are read-only.",
     );
+  });
+
+  it("renders input command recovery labels with command errors", () => {
+    render(
+      <ContextInputPanel
+        draft="Plan a smaller version"
+        error="Input submission was rejected."
+        input={inputView()}
+        onDraftChange={vi.fn()}
+        onSubmit={vi.fn()}
+        recoveryActions={["edit_input", "retry_command"]}
+      />,
+    );
+
+    expect(screen.getByText("Input submission was rejected.")).toBeInTheDocument();
+    expect(screen.getByText("Edit input")).toBeInTheDocument();
+    expect(screen.getByText("Retry command")).toBeInTheDocument();
   });
 });
 

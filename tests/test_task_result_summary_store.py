@@ -125,6 +125,14 @@ def test_execution_exception_summary_maps_llm_error_without_raw_message() -> Non
         "providerName": "deepseek",
         "model": "deepseek-chat",
     }
+    assert summary.metadata["auditRef"] == {
+        "scope": "task",
+        "sessionId": "s1",
+        "taskId": "task-1",
+        "recordId": "record-result-published-task-1",
+        "evidenceId": "evidence-record-result-published-task-1",
+        "filter": "results",
+    }
 
 
 def test_agent_loop_error_summary_marks_task_failure_recovery() -> None:
@@ -146,6 +154,14 @@ def test_agent_loop_error_summary_marks_task_failure_recovery() -> None:
         "errorRef": "agent_loop_failed:s1:task-1:max_steps",
         "taskId": "task-1",
         "sessionId": "s1",
+    }
+    assert summary.metadata["auditRef"] == {
+        "scope": "task",
+        "sessionId": "s1",
+        "taskId": "task-1",
+        "recordId": "record-result-published-task-1",
+        "evidenceId": "evidence-record-result-published-task-1",
+        "filter": "results",
     }
 
 

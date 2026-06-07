@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any, cast
 from urllib.parse import quote
 
+from taskweavn.core import SqliteEventStream
 from taskweavn.server import (
     MainPageSidecarApp,
     MainPageSidecarConfig,
@@ -19,7 +20,8 @@ from taskweavn.server import (
     build_main_page_sidecar_app,
 )
 from taskweavn.server.settings_config import DefaultSettingsConfigGateway
-from taskweavn.task import TaskDomain
+from taskweavn.task import TaskDomain, TaskExecutionSummary
+from taskweavn.tools.fs import FileWriteObservation
 
 SMOKE_TASK_ID = "diagnostic-export-task"
 SMOKE_ERROR_REF = "provider:rate_limit"
@@ -84,6 +86,8 @@ class SidecarSmokeFixture:
 def build_audit_sidecar_smoke_fixture(
     workspace_root: Path,
     *,
+    host: str = "127.0.0.1",
+    port: int = 0,
     settings_readiness_env: Mapping[str, str] | None = None,
 ) -> SidecarSmokeFixture:
     """Create a deterministic real-sidecar session for frontend integration checks."""
@@ -91,7 +95,8 @@ def build_audit_sidecar_smoke_fixture(
     app = build_main_page_sidecar_app(
         MainPageSidecarConfig(
             workspace_root=workspace_root,
-            port=0,
+            host=host,
+            port=port,
             enable_default_agent=False,
             enable_execution_dispatcher=False,
         ),
@@ -109,7 +114,8 @@ def build_audit_sidecar_smoke_fixture(
     )
     try:
         session_id = _create_session(app)
-        app.task_bus.publish(_published_task(SMOKE_TASK_ID, session_id=session_id))
+        task = _published_task(SMOKE_TASK_ID, session_id=session_id)
+        app.task_bus.publish(task)
         claimed = app.task_bus.claim_next(
             session_id,
             capability="general",
@@ -117,6 +123,7 @@ def build_audit_sidecar_smoke_fixture(
         )
         if claimed is None:
             raise AssertionError("sidecar smoke task was not claimable")
+        _seed_result_and_file_evidence(app, session_id, task)
         app.task_bus.fail(session_id, SMOKE_TASK_ID, error_ref=SMOKE_ERROR_REF)
         _write_frontend_error_log(app, session_id)
         diagnostics_log_href = _require_related_log_href(app, session_id)
@@ -161,6 +168,41 @@ def _create_session(app: MainPageSidecarApp, name: str = "Diagnostics smoke") ->
     if response.status != 200:
         raise AssertionError(f"session creation failed: {response.text}")
     return cast(str, response.json["data"]["sessionId"])
+
+
+def _seed_result_and_file_evidence(
+    app: MainPageSidecarApp,
+    session_id: str,
+    task: TaskDomain,
+) -> None:
+    app.result_summary_store.put(
+        TaskExecutionSummary(
+            summary_id=SMOKE_ERROR_REF,
+            session_id=session_id,
+            task_id=task.task_id,
+            kind="error",
+            source="execution_bridge",
+            title="Task execution failed",
+            summary="Provider rate limit prevented task completion.",
+            error_type="provider_rate_limit",
+            error_message="Provider rate limit prevented task completion.",
+            metadata={
+                "requiredCapability": task.required_capability,
+                "smokeFixture": "audit_result_file_evidence",
+            },
+        )
+    )
+    with SqliteEventStream(app.layout.session_events_db(session_id)) as stream:
+        stream.append(
+            FileWriteObservation(
+                event_id="file-write-observation-1",
+                action_id="file-write-action-1",
+                path="diagnostics-summary.md",
+                bytes_written=42,
+                created=True,
+            ),
+            task_id=task.task_id,
+        )
 
 
 def _write_frontend_error_log(app: MainPageSidecarApp, session_id: str) -> None:
@@ -272,10 +314,22 @@ def main(argv: Sequence[str] | None = None) -> int:
             "state for frontend first-run checks."
         ),
     )
+    parser.add_argument("--host", default="127.0.0.1")
+    parser.add_argument("--port", type=int, default=0)
+    parser.add_argument(
+        "--serve-existing",
+        action="store_true",
+        help="Serve an already seeded workspace without creating another session.",
+    )
     args = parser.parse_args(argv)
+
+    if args.serve_existing:
+        return _serve_existing_workspace(args)
 
     fixture = build_audit_sidecar_smoke_fixture(
         args.workspace,
+        host=args.host,
+        port=args.port,
         settings_readiness_env=_settings_readiness_env_from_args(args),
     )
     try:
@@ -297,6 +351,43 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
     finally:
         fixture.close()
+    return 0
+
+
+def _serve_existing_workspace(args: argparse.Namespace) -> int:
+    app = build_main_page_sidecar_app(
+        MainPageSidecarConfig(
+            workspace_root=args.workspace,
+            host=args.host,
+            port=args.port,
+            enable_default_agent=False,
+            enable_execution_dispatcher=False,
+        ),
+        MainPageSidecarDependencies(
+            llm=_StubLLM(),
+            settings_config_gateway=DefaultSettingsConfigGateway(
+                workspace_root=args.workspace,
+                env=_settings_readiness_env_from_args(args) or {},
+            ),
+        ),
+    )
+    try:
+        app.start_in_thread()
+        ready_payload = {"baseUrl": app.base_url}
+        if args.ready_file is not None:
+            args.ready_file.parent.mkdir(parents=True, exist_ok=True)
+            args.ready_file.write_text(
+                json.dumps(ready_payload, indent=2, sort_keys=True),
+                encoding="utf-8",
+            )
+        print(json.dumps(ready_payload, indent=2, sort_keys=True), flush=True)
+        if args.keep_alive:
+            while True:
+                time.sleep(3600)
+    except KeyboardInterrupt:
+        return 0
+    finally:
+        app.close()
     return 0
 
 

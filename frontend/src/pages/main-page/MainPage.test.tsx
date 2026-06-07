@@ -3,6 +3,8 @@ import { render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
+import { ApiResponseError } from "../../shared/api/productErrors";
+import type { ApiError } from "../../shared/api/types";
 import { MainPage } from "./MainPage";
 import { createMainPageMockAdapter } from "./mockPlatoApi";
 import type { LoadMainPageSnapshot, MainPageAdapter } from "./runtime/adapter";
@@ -50,6 +52,30 @@ describe("MainPage fallback states", () => {
     expect(screen.queryByText(/projection/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/snapshot/i)).not.toBeInTheDocument();
   });
+
+  it("renders recovery labels from product error metadata on load errors", async () => {
+    renderWithQueryClient(
+      <MainPage
+        adapter={testAdapter({
+          loadSnapshot: vi.fn<LoadMainPageSnapshot>(async () => {
+            throw new ApiResponseError(
+              apiError({
+                recoveryActions: ["refresh_snapshot", "open_settings"],
+              }),
+              "Unable to open session.",
+            );
+          }),
+        })}
+      />,
+    );
+
+    expect(
+      await screen.findByRole("heading", { name: "Unable to open session" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Unable to open session.")).not.toBeInTheDocument();
+    expect(screen.getByText("Refresh session")).toBeInTheDocument();
+    expect(screen.getByText("Open settings")).toBeInTheDocument();
+  });
 });
 
 function renderWithQueryClient(children: ReactNode) {
@@ -71,4 +97,13 @@ function testAdapter(overrides: Partial<MainPageAdapter> = {}): MainPageAdapter 
     showStatePicker: false,
     ...overrides,
   });
+}
+
+function apiError(details: Record<string, unknown>): ApiError {
+  return {
+    code: "internal_error",
+    details,
+    message: "Internal sidecar error.",
+    retryable: true,
+  };
 }

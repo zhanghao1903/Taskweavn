@@ -100,7 +100,29 @@ def test_diagnostic_bundle_export_writes_redacted_manifest_and_sections(
     tasks = json.loads((result.bundle_dir / "session/tasks.json").read_text(encoding="utf-8"))
     assert tasks["tasks"][0]["taskId"] == "task-1"
     assert tasks["tasks"][0]["retryEligible"] is True
-    assert tasks["tasks"][0]["productError"]["category"] == "execution_failed"
+    product_error = tasks["tasks"][0]["productError"]
+    assert product_error["productCategory"] == "task_execution_failed"
+    assert product_error["recoveryActions"] == [
+        "retry_task",
+        "open_audit",
+        "export_diagnostics",
+    ]
+    assert product_error["auditRef"] == {
+        "scope": "task",
+        "sessionId": session.id,
+        "taskId": "task-1",
+        "recordId": "record-result-published-task-1",
+        "evidenceId": "evidence-record-result-published-task-1",
+        "filter": "results",
+    }
+    assert product_error["diagnosticRefs"] == {
+        "sessionId": session.id,
+        "taskId": "task-1",
+        "errorRef": "error-1",
+        "path": "workspace://current/secret.txt",
+        "auditRecordId": "record-result-published-task-1",
+        "auditEvidenceId": "evidence-record-result-published-task-1",
+    }
 
 
 def test_diagnostic_bundle_marks_missing_sources_without_failing(tmp_path: Path) -> None:
@@ -218,15 +240,19 @@ def _write_failed_task(layout: WorkspaceLayout, session: Session) -> None:
                 metadata={
                     "api_key": "secret-value",
                     "logPath": str(layout.root / "sessions" / session.id / ".session"),
-                    "productError": {
-                        "category": "execution_failed",
-                        "recoveryAction": "retry_task",
-                        "retryEligible": True,
-                        "diagnosticRefs": {
-                            "sessionId": session.id,
-                            "taskId": "task-1",
-                            "path": str(layout.root / "secret.txt"),
-                        },
+                    "productCategory": "task_execution_failed",
+                    "recoveryActions": [
+                        "retry_task",
+                        "open_audit",
+                        "export_diagnostics",
+                    ],
+                    "severity": "recoverable",
+                    "userMessageKey": "task.execution_failed",
+                    "diagnosticRefs": {
+                        "sessionId": session.id,
+                        "taskId": "task-1",
+                        "errorRef": "error-1",
+                        "path": str(layout.root / "secret.txt"),
                     },
                 },
             )

@@ -5,11 +5,20 @@ import globals from "globals";
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
-  { ignores: [".vite", "dist", "*.tsbuildinfo"] },
+  {
+    ignores: [
+      ".vite",
+      "dist",
+      "dist-electron",
+      "dist-electron-installer",
+      "dist-electron-launcher",
+      "*.tsbuildinfo",
+    ],
+  },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
-    files: ["scripts/**/*.mjs"],
+    files: ["electron/**/*.mjs", "scripts/**/*.mjs", "sidecar/**/*.mjs"],
     languageOptions: {
       ecmaVersion: 2022,
       globals: globals.node,

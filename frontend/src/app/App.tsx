@@ -3,7 +3,10 @@ import { useEffect, useState } from "react";
 import { AppErrorBoundary } from "./AppErrorBoundary";
 import { MainPageRoute } from "./MainPageRoute";
 import { PLATO_NAVIGATION_EVENT } from "./navigation";
-import type { PlatoRuntimeEnv } from "./platoRuntime";
+import {
+  resolvePlatoRuntimeEnv,
+  type PlatoRuntimeEnv,
+} from "./platoRuntime";
 import { AuditPageRoute } from "../pages/audit-page/AuditPageRoute";
 import { isAuditPath } from "../pages/audit-page/auditRouteModel";
 import { DiagnosticsLogsRoute } from "../pages/diagnostics/DiagnosticsLogsRoute";
@@ -23,7 +26,7 @@ export type AppProps = {
 
 export function App({
   readinessApi,
-  runtimeEnv = import.meta.env,
+  runtimeEnv = resolvePlatoRuntimeEnv(),
   settingsApi,
 }: AppProps = {}) {
   const [pathname, setPathname] = useState(() => globalThis.location.pathname);
