@@ -89,6 +89,8 @@ class AuthoringStateStore(Protocol):
 
     def mark_published(self, session_id: str, draft_tree_id: str) -> None: ...
 
+    def cancel_active(self, session_id: str) -> None: ...
+
 
 @runtime_checkable
 class TaskStore(Protocol):

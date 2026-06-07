@@ -452,6 +452,22 @@ class SqliteAuthoringStateStore(_SqliteAuthoringStore):
                 )
             )
 
+    def cancel_active(self, session_id: str) -> None:
+        """Close the active authoring flow without deleting authoring facts."""
+        with self._lock:
+            active = self.get_active(session_id)
+            if active.active_state == "none":
+                return
+            self._upsert_active(
+                ActiveAuthoringState(
+                    session_id=session_id,
+                    active_raw_task_id=active.active_raw_task_id,
+                    active_draft_tree_id=active.active_draft_tree_id,
+                    active_state="cancelled",
+                    updated_at=_utcnow(),
+                )
+            )
+
     def _upsert_active(self, state: ActiveAuthoringState) -> None:
         try:
             with self._write_transaction():

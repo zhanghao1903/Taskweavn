@@ -4,15 +4,19 @@ import type {
   TaskNodeId,
   TaskTreeView,
 } from "../../shared/api/types";
-import { Badge, Panel, Text } from "../../shared/components";
+import { Badge, Button, Panel, Text } from "../../shared/components";
 import { TaskNodeCard } from "./TaskNodeCard";
+import type { MainPageAuthoringDiagnosticViewModel } from "./mainPageViewModel";
 import styles from "./MainPage.module.css";
 
 export type TaskTreePanelProps = {
   activitySlot?: ReactNode;
+  authoringDiagnostic?: MainPageAuthoringDiagnosticViewModel | null;
+  isRepairingAuthoringState?: boolean;
   isTaskPlanSelected?: boolean;
   isGeneratingTaskPlan?: boolean;
   onRetryTask: (nodeId: TaskNodeId) => void;
+  onRepairAuthoringState?: () => void;
   onSelectTaskPlan: () => void;
   onSelectTask: (nodeId: TaskNodeId) => void;
   onStopTask: (nodeId: TaskNodeId) => void;
@@ -22,9 +26,12 @@ export type TaskTreePanelProps = {
 
 export function TaskTreePanel({
   activitySlot = null,
+  authoringDiagnostic = null,
+  isRepairingAuthoringState = false,
   isTaskPlanSelected = false,
   isGeneratingTaskPlan = false,
   onRetryTask,
+  onRepairAuthoringState,
   onSelectTaskPlan,
   onSelectTask,
   onStopTask,
@@ -32,6 +39,8 @@ export function TaskTreePanel({
   taskTree,
 }: TaskTreePanelProps) {
   if (taskTree) {
+    const planOverview = planOverviewText(taskTree);
+
     return (
       <div className={styles.taskListPanel}>
         <button
@@ -44,8 +53,8 @@ export function TaskTreePanel({
         >
           <span className={styles.planText}>
             <span className={styles.planEyebrow}>Plan overview</span>
-            <strong className={styles.listCardTitle} title={taskTree.title}>
-              {taskTree.title}
+            <strong className={styles.listCardTitle} title={planOverview}>
+              {planOverview}
             </strong>
             <small className={styles.listCardBody}>
               {taskTree.nodes.length === 1
@@ -55,6 +64,23 @@ export function TaskTreePanel({
           </span>
           <Badge tone="blue">{taskTree.status}</Badge>
         </button>
+        {authoringDiagnostic ? (
+          <div className={styles.authoringDiagnosticBanner} role="status">
+            <span className={styles.authoringDiagnosticText}>
+              <strong>Authoring state needs repair</strong>
+              <small>{authoringDiagnostic.message}</small>
+            </span>
+            <Button
+              aria-label="Repair authoring state"
+              disabled={isRepairingAuthoringState || !onRepairAuthoringState}
+              onClick={onRepairAuthoringState}
+              size="sm"
+              variant="secondary"
+            >
+              {isRepairingAuthoringState ? "Repairing" : "Repair"}
+            </Button>
+          </div>
+        ) : null}
         {activitySlot}
         <div className={styles.taskList}>
           {taskTree.nodes.map((node) => (
@@ -121,3 +147,19 @@ function TaskPlanGeneratingState() {
 }
 
 const SKELETON_GROUP_COUNT = 5;
+
+function planOverviewText(taskTree: TaskTreeView): string {
+  const summary = taskTree.summary?.trim();
+  if (summary) {
+    return summary;
+  }
+
+  if (taskTree.nodes.length === 0) {
+    return "Plan overview is being prepared.";
+  }
+
+  const visibleTitles = taskTree.nodes.slice(0, 2).map((node) => node.title);
+  const remainingCount = taskTree.nodes.length - visibleTitles.length;
+  const suffix = remainingCount > 0 ? `, and ${remainingCount} more` : "";
+  return `${taskTree.nodes.length}-task plan covering ${visibleTitles.join(", ")}${suffix}.`;
+}

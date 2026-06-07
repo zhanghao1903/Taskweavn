@@ -67,6 +67,8 @@ def _match_route(path: str) -> _Route | None:
         return _Route(name="generate_task_tree", method="POST", session_id=session_id)
     if suffix == ("task-tree", "publish"):
         return _Route(name="publish_task_tree", method="POST", session_id=session_id)
+    if suffix == ("authoring", "repair"):
+        return _Route(name="repair_authoring_state", method="POST", session_id=session_id)
     if (
         len(suffix) == 5
         and suffix[0] == "authoring"

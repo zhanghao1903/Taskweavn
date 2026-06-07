@@ -140,6 +140,14 @@ class _AuthoringStateStore:
     def mark_published(self, session_id: str, draft_tree_id: str) -> None:
         raise NotImplementedError
 
+    def cancel_active(self, session_id: str) -> None:
+        self._state = ActiveAuthoringState(
+            session_id=session_id,
+            active_raw_task_id=self._state.active_raw_task_id,
+            active_draft_tree_id=self._state.active_draft_tree_id,
+            active_state="cancelled",
+        )
+
 
 def _session(
     session_id: str = "session-1",
@@ -507,6 +515,33 @@ def test_get_session_snapshot_supersedes_authoring_ask_when_task_tree_exists() -
     assert response.data.planning.state == "draft_ready"
     assert response.data.planning.asks[0].id == "ask-1"
     assert response.data.planning.asks[0].status == "superseded"
+
+
+def test_get_session_snapshot_diagnoses_dirty_authoring_state() -> None:
+    raw_task = _awaiting_raw_task()
+    tree = TaskTreeView(session_id="session-1", nodes=(_draft_card(),))
+    gateway = DefaultUiQueryGateway(
+        session_reader=_SessionReader([_session()]),
+        task_projection=_Projection(tree),
+        authoring_state_store=_AuthoringStateStore(
+            ActiveAuthoringState(
+                session_id="session-1",
+                active_raw_task_id=raw_task.raw_task_id,
+                active_state="raw_task",
+            )
+        ),
+        raw_task_store=InMemoryRawTaskStore([raw_task]),
+    )
+
+    response = gateway.get_session_snapshot("session-1")
+
+    assert response.ok is True
+    assert response.data is not None
+    assert response.data.task_tree is not None
+    assert response.data.planning is not None
+    assert response.data.planning.asks[0].status == "superseded"
+    assert response.data.planning.diagnostics[0].code == "dirty_authoring_state"
+    assert response.data.planning.diagnostics[0].severity == "warning"
 
 
 def test_get_session_snapshot_includes_session_level_messages_without_task_tree() -> None:

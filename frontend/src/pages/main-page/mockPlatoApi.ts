@@ -7,6 +7,7 @@ import type {
   DeferAskPayload,
   GenerateTaskTreePayload,
   PublishTaskTreePayload,
+  RepairAuthoringStatePayload,
   ResolveConfirmationPayload,
   RetryTaskPayload,
   StopTaskPayload,
@@ -52,6 +53,7 @@ import type {
   MainPageRuntimeSnapshot,
   MainPageStateMetadata as RuntimeMainPageStateMetadata,
   PublishTaskTreeCommand,
+  RepairAuthoringStateCommand,
   ResolveConfirmationCommand,
   StopTaskCommand,
   SubscribeSessionEvents,
@@ -80,6 +82,7 @@ export type {
   MainPageRuntimeSnapshot as MainPageMockSnapshot,
   MainPageStateId,
   PublishTaskTreeCommand,
+  RepairAuthoringStateCommand,
   ResolveConfirmationCommand,
   StopTaskCommand,
   SubscribeSessionEvents,
@@ -266,6 +269,18 @@ export async function answerAuthoringAskBatchMockCommand(
   });
 }
 
+export async function repairAuthoringStateMockCommand(
+  request: CommandRequest<RepairAuthoringStatePayload>,
+): Promise<CommandResponse> {
+  await delay(60);
+
+  return acceptedCommandResponse({
+    commandId: request.commandId,
+    message: "Authoring state repaired.",
+    sessionId: request.sessionId,
+  });
+}
+
 export async function deferAskMockCommand(
   sessionId: SessionId,
   _askId: AskId,
@@ -409,6 +424,7 @@ export const mainPageMockAdapter: MainPageAdapter = {
   generateTaskTree: generateTaskTreeMockCommand,
   loadSnapshot: loadMainPageMockSnapshot,
   publishTaskTree: publishTaskTreeMockCommand,
+  repairAuthoringState: repairAuthoringStateMockCommand,
   async renameSession(payload) {
     await delay(20);
     return {

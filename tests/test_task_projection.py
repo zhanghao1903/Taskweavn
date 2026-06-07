@@ -165,6 +165,14 @@ class _AuthoringStateStore:
     def mark_published(self, session_id: str, draft_tree_id: str) -> None:
         raise NotImplementedError
 
+    def cancel_active(self, session_id: str) -> None:
+        self._state = ActiveAuthoringState(
+            session_id=session_id,
+            active_raw_task_id=self._state.active_raw_task_id,
+            active_draft_tree_id=self._state.active_draft_tree_id,
+            active_state="cancelled",
+        )
+
 
 class _MessageStream:
     def __init__(self, messages: list[AgentMessage]) -> None:

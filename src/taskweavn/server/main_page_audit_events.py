@@ -25,6 +25,7 @@ from taskweavn.server.ui_contract import (
     DeferAskPayload,
     GenerateTaskTreePayload,
     PublishTaskTreePayload,
+    RepairAuthoringStatePayload,
     ResolveConfirmationPayload,
     RetryTaskPayload,
     StopTaskPayload,
@@ -127,6 +128,12 @@ class AuditEventCommandGateway:
         request: CommandRequest[AnswerAuthoringAskBatchPayload],
     ) -> CommandResponse:
         return self.inner.answer_authoring_ask_batch(raw_task_id, request)
+
+    def repair_authoring_state(
+        self,
+        request: CommandRequest[RepairAuthoringStatePayload],
+    ) -> CommandResponse:
+        return self.inner.repair_authoring_state(request)
 
     def defer_ask(
         self,

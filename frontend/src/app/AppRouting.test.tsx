@@ -19,7 +19,7 @@ describe("App routing", () => {
       </AppProviders>,
     );
 
-    expect(await screen.findByText("TaskTree")).toBeInTheDocument();
+    expect(await screen.findByText("Plan & Progress")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "View audit" })).toHaveAttribute(
       "href",
       expect.stringContaining("/audit"),
@@ -75,7 +75,7 @@ describe("App routing", () => {
 
     await user.click(screen.getByRole("button", { name: "Return" }));
 
-    expect(await screen.findByText("TaskTree")).toBeInTheDocument();
+    expect(await screen.findByText("Plan & Progress")).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Audit" })).not.toBeInTheDocument();
     expect(globalThis.location.pathname).not.toContain("/audit");
   });
