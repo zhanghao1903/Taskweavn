@@ -16,6 +16,21 @@ Tasks.
 The core product object is not the chat transcript, not the file tree, and not
 the Agent. The core product object is the Task.
 
+A Task is a user-visible work contract between the user and Plato. Before
+execution, it is a reviewed plan. During execution, it is delegated work under
+user supervision. After execution, it is a result and evidence anchor. See
+[Plato Task Semantics](plato-task-semantics.md) for the canonical Task product
+meaning.
+
+Session content is the typed collaboration record around Tasks and Plans, not
+raw chat. It explains how intent became plan, how plan became execution, and
+how execution produced outcome and evidence. See
+[Plato Session Content Model](plato-session-content-model.md).
+
+A Session may contain multiple Plan Cycles over time. Each Plan Cycle is one
+round of authoring, execution, outcome review, and acceptance. See
+[Plato Plan Cycle Semantics](plato-plan-cycle-semantics.md).
+
 ```text
 Natural language goal
   -> Workflow
@@ -223,10 +238,14 @@ focused on user intent, progress, and decisions.
 1. Task-first, not Chat-first.
 2. Workflow-first entry, not Agent-first entry.
 3. Draft before execution for consequential work.
-4. TaskNode is the smallest interaction anchor.
-5. Main Page is a control plane.
-6. Audit Page is a trust plane.
-7. Agent routing is lightweight orchestration.
-8. WorkTree carries power; Workflow hides initial complexity.
-9. Ordinary users should see goals, tasks, status, choices, results, and changes.
-10. Internal system concepts should surface only when they improve control or trust.
+4. Task is a visible work contract: Intent, Plan, Execution, and Evidence.
+5. Session content is typed collaboration record, not raw chat.
+6. A Session can continue through explicit Plan Cycles.
+7. Runtime input has one user surface but distinct internal intent routing.
+8. TaskNode is the smallest interaction anchor.
+9. Main Page is a control plane.
+10. Audit Page is a trust plane.
+11. Agent routing is lightweight orchestration.
+12. WorkTree carries power; Workflow hides initial complexity.
+13. Ordinary users should see goals, tasks, status, choices, results, and changes.
+14. Internal system concepts should surface only when they improve control or trust.

@@ -2,7 +2,7 @@
 
 > Status: planning baseline
 >
-> Last Updated: 2026-05-28
+> Last Updated: 2026-06-07
 >
 > Scope: Product 1.1 capability direction after the Plato 1.0 closed loop.
 > This document records what is intentionally moved out of Product 1.0 and
@@ -23,6 +23,33 @@ Natural language goal
 The 1.0 bar is a coherent user journey, not the richest possible automation
 system. A feature should remain in 1.0 only if removing it would break this
 closed loop.
+
+## 1.1 Focus Memo And Semantic Prerequisites
+
+The current Product 1.1 focus is workspace-aware coding collaboration:
+
+- git and diff support;
+- text file viewing;
+- line-scoped tool operations;
+- runtime user input modes;
+- read-only inquiry;
+- skills contract after workspace and input foundations are stable.
+
+See
+[Plato Product 1.1 Focus Memo: Workspace-Aware Agent Foundation](plato-1-1-workspace-aware-agent-foundation.md).
+
+Before executable Product 1.1 implementation plans, these semantic baselines
+should remain aligned:
+
+- [Plato Task Semantics](plato-task-semantics.md);
+- [Plato Session Content Model](plato-session-content-model.md);
+- [Plato Runtime Input Model](plato-runtime-input-model.md);
+- [Plato Plan Cycle Semantics](plato-plan-cycle-semantics.md);
+- [Plato Outcome Review Model](plato-outcome-review-model.md).
+
+These documents define what users believe Tasks, Session content, runtime
+input, post-execution continuation, and outcome review mean. Implementation
+plans should not invent conflicting meanings in API, frontend, or backend code.
 
 ## 2. Moved Out Of 1.0
 
@@ -132,6 +159,8 @@ feature plans for:
 - skills integration;
 - MCP integration;
 - file and multimodal support;
+- runtime input model implementation;
+- authoring context and Plan Cycle continuation;
 - Agent protocol, special Agent protocols, and custom Agent creation /
   validation workflow.
 

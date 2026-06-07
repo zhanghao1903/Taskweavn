@@ -17,6 +17,7 @@ Plato should keep a small set of objects stable in the user's mind.
 | Session | One run of a Workflow. | Holds the current collaboration, messages, Tasks, results, and isolated execution workspace. |
 | Session Workspace | The file execution boundary for one Session. | Keeps file writes isolated so sessions do not default to concurrent writes into the same workspace. |
 | RawTask | The user's original intention before structure. | Captures natural language and clarification history. |
+| Plan Cycle | One round of authoring, execution, outcome review, and acceptance inside a Session. | Lets a Session continue after outcome review without silently overwriting previous Plans. |
 | TaskTree / WorkTree | A structured plan or work graph. | Lets the user review, edit, publish, and track work. |
 | TaskNode | One actionable unit in the tree. | Smallest anchor for status, confirmation, instruction, result, and file changes. |
 | Agent / Capability | Who or what can do a Task. | Advanced routing and collaboration concept. |
@@ -189,6 +190,35 @@ User-facing meaning:
 - `Completed`: The Session produced its intended deliverable.
 - `Failed`: The Session cannot continue without recovery.
 - `Paused`: The user intentionally stopped progress for now.
+
+## 5.1 Plan Cycle Lifecycle
+
+Plan Cycle is the lifecycle unit for one round of work inside a Session.
+
+```text
+Authoring
+  -> Plan Ready
+  -> Executing
+  -> Outcome Review
+  -> Accepted / Closed / Follow-up Requested / Recovery
+```
+
+User-facing meaning:
+
+- `Authoring`: The user and Collaborator are shaping a Plan.
+- `Plan Ready`: The Plan is reviewable and can become executable work.
+- `Executing`: Published Tasks are being worked on.
+- `Outcome Review`: Plan execution completed enough for result, file, warning,
+  failure, and audit review.
+- `Accepted`: The user accepts the outcome.
+- `Closed`: The Session stops after this Plan Cycle.
+- `Follow-up Requested`: The user wants related additional work in the same
+  Session.
+- `Recovery`: The user wants to retry, revise, or resolve failed work.
+
+A Session may contain multiple Plan Cycles over time, but it should expose at
+most one active Plan at a time. Previous Plans remain history, baseline, and
+evidence; they should not be silently overwritten.
 
 ## 6. RawTask Lifecycle
 
