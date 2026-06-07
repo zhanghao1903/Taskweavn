@@ -76,6 +76,10 @@ export type AnswerAuthoringAskBatchContext = {
   sessionId: string;
 };
 
+export type RepairAuthoringStateContext = {
+  sessionId: string;
+};
+
 export type AnswerExecutionAskContext = {
   askId: AskId;
   selectedOptionIds: string[];
@@ -138,6 +142,7 @@ export type MainPageController = {
   isDeferringAsk: boolean;
   isInputSubmitting: boolean;
   isPublishingTaskTree: boolean;
+  isRepairingAuthoringState: boolean;
   isRenamingSession: boolean;
   isRetryingTask: boolean;
   isStoppingTask: boolean;
@@ -161,6 +166,7 @@ export type MainPageController = {
     createSession: () => void;
     deleteSession: (session: SessionSummary) => void;
     answerAuthoringAskBatch: (context: AnswerAuthoringAskBatchContext) => void;
+    repairAuthoringState: (context: RepairAuthoringStateContext) => void;
     answerAsk: (context: AnswerExecutionAskContext) => void;
     cancelAsk: (context: CancelExecutionAskContext) => void;
     deferAsk: (context: DeferExecutionAskContext) => void;
@@ -407,6 +413,37 @@ export function useMainPageController({
 
       setAuthoringAskCommandError(null);
       setUiNotice("Authoring answers submitted.");
+      if (result.shouldRefetch) {
+        void refetchSnapshot();
+      }
+    },
+  });
+
+  const repairAuthoringStateMutation = useMutation({
+    mutationFn: async ({ sessionId }: RepairAuthoringStateContext) =>
+      adapter.repairAuthoringState({
+        commandId: `repair-authoring-state-${Date.now()}`,
+        sessionId,
+        payload: {
+          reason: "dirty_authoring_state",
+        },
+      }),
+    onError: () => {
+      setTaskTreeCommandError("Authoring repair failed. Please retry.");
+    },
+    onSuccess: (response) => {
+      const result = handleCommandResponse(
+        response,
+        "Authoring repair was rejected.",
+      );
+
+      if (result.errorMessage) {
+        setTaskTreeCommandError(result.errorMessage);
+        return;
+      }
+
+      setTaskTreeCommandError(null);
+      setUiNotice("Authoring state repaired.");
       if (result.shouldRefetch) {
         void refetchSnapshot();
       }
@@ -953,6 +990,7 @@ export function useMainPageController({
     setEventError(null);
     resolveConfirmationMutation.reset();
     answerAuthoringAskBatchMutation.reset();
+    repairAuthoringStateMutation.reset();
     answerAskMutation.reset();
     deferAskMutation.reset();
     cancelAskMutation.reset();
@@ -1166,6 +1204,16 @@ export function useMainPageController({
     });
   }
 
+  function handleRepairAuthoringState({
+    sessionId,
+  }: RepairAuthoringStateContext) {
+    setTaskTreeCommandError(null);
+    setUiNotice(null);
+    repairAuthoringStateMutation.mutate({
+      sessionId,
+    });
+  }
+
   function handleAnswerAsk({
     askId,
     selectedOptionIds,
@@ -1247,6 +1295,7 @@ export function useMainPageController({
     isDeferringAsk: deferAskMutation.isPending,
     isInputSubmitting: inputMutation.isPending,
     isPublishingTaskTree: publishTaskTreeMutation.isPending,
+    isRepairingAuthoringState: repairAuthoringStateMutation.isPending,
     isRenamingSession: renameSessionMutation.isPending,
     isRetryingTask: retryTaskMutation.isPending,
     isStoppingTask: stopTaskMutation.isPending,
@@ -1272,6 +1321,7 @@ export function useMainPageController({
       changeState: handleStateChange,
       createSession: handleCreateSession,
       deleteSession: handleDeleteSession,
+      repairAuthoringState: handleRepairAuthoringState,
       deferAsk: handleDeferAsk,
       renameSession: handleRenameSession,
       resolveConfirmation: handleConfirmationDecision,

@@ -87,6 +87,7 @@ from taskweavn.server.ui_contract.view_models import (
     EvidenceDetail,
     FileChangeSummaryView,
     PlanningAskView,
+    PlanningDiagnosticView,
     PlanningState,
     PlanningView,
     ProjectSummary,
@@ -753,10 +754,28 @@ class DefaultUiQueryGateway:
         *,
         task_tree: TaskTreeView | None,
     ) -> PlanningView | None:
+        active = (
+            self._authoring_state_store.get_active(session_id)
+            if self._authoring_state_store is not None
+            else None
+        )
         raw_task = self._active_raw_task(session_id)
         if raw_task is None:
             return None
-        return _planning_from_raw_task(raw_task, task_tree=task_tree)
+        return _planning_from_raw_task(
+            raw_task,
+            task_tree=task_tree,
+            dirty_authoring_state=(
+                task_tree is not None
+                and active is not None
+                and active.active_state == "raw_task"
+            ),
+            authoring_state_cancelled=(
+                task_tree is not None
+                and active is not None
+                and active.active_state == "cancelled"
+            ),
+        )
 
     def _active_raw_task(self, session_id: str) -> RawTask | None:
         if self._raw_task_store is None:
@@ -802,6 +821,8 @@ def _planning_from_raw_task(
     raw_task: RawTask,
     *,
     task_tree: TaskTreeView | None = None,
+    dirty_authoring_state: bool = False,
+    authoring_state_cancelled: bool = False,
 ) -> PlanningView:
     answered_ask_ids = {answer.ask_id for answer in raw_task.answers}
     ask_status: Literal["pending", "superseded"] = (
@@ -834,7 +855,42 @@ def _planning_from_raw_task(
             for ask in raw_task.asks
         ),
         validation=None,
+        diagnostics=_planning_diagnostics(
+            dirty_authoring_state=dirty_authoring_state,
+            authoring_state_cancelled=authoring_state_cancelled,
+        ),
     )
+
+
+def _planning_diagnostics(
+    *,
+    dirty_authoring_state: bool,
+    authoring_state_cancelled: bool,
+) -> tuple[PlanningDiagnosticView, ...]:
+    diagnostics: list[PlanningDiagnosticView] = []
+    if dirty_authoring_state:
+        diagnostics.append(
+            PlanningDiagnosticView(
+                code="dirty_authoring_state",
+                severity="warning",
+                message=(
+                    "Authoring ASK state is still active even though a TaskTree "
+                    "already exists."
+                ),
+            )
+        )
+    if authoring_state_cancelled:
+        diagnostics.append(
+            PlanningDiagnosticView(
+                code="authoring_state_cancelled",
+                severity="info",
+                message=(
+                    "The previous authoring flow was closed; RawTask facts are "
+                    "kept for traceability."
+                ),
+            )
+        )
+    return tuple(diagnostics)
 
 
 def _planning_state_for_task_tree(task_tree: TaskTreeView) -> PlanningState:

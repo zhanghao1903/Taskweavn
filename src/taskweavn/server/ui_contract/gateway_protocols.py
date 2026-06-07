@@ -17,6 +17,7 @@ from taskweavn.server.ui_contract.commands import (
     DeferAskPayload,
     GenerateTaskTreePayload,
     PublishTaskTreePayload,
+    RepairAuthoringStatePayload,
     ResolveConfirmationPayload,
     RetryTaskPayload,
     StopTaskPayload,
@@ -311,6 +312,11 @@ class UiCommandGateway(Protocol):
         self,
         raw_task_id: str,
         request: CommandRequest[AnswerAuthoringAskBatchPayload],
+    ) -> CommandResponse: ...
+
+    def repair_authoring_state(
+        self,
+        request: CommandRequest[RepairAuthoringStatePayload],
     ) -> CommandResponse: ...
 
     def defer_ask(

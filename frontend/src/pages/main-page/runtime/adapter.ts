@@ -8,6 +8,7 @@ import type {
   CreateSessionPayload,
   GenerateTaskTreePayload,
   PublishTaskTreePayload,
+  RepairAuthoringStatePayload,
   RenameSessionPayload,
   ResolveConfirmationPayload,
   RetryTaskPayload,
@@ -130,6 +131,10 @@ export type PublishTaskTreeCommand = (
   request: CommandRequest<PublishTaskTreePayload>,
 ) => Promise<CommandResponse>;
 
+export type RepairAuthoringStateCommand = (
+  request: CommandRequest<RepairAuthoringStatePayload>,
+) => Promise<CommandResponse>;
+
 export type RetryTaskCommand = (
   sessionId: SessionId,
   taskNodeId: TaskNodeId,
@@ -160,6 +165,7 @@ export type MainPageAdapter = {
   generateTaskTree: GenerateTaskTreeCommand;
   loadSnapshot: LoadMainPageSnapshot;
   publishTaskTree: PublishTaskTreeCommand;
+  repairAuthoringState: RepairAuthoringStateCommand;
   renameSession: SessionLifecycleCommand<
     RenameSessionPayload & { sessionId: SessionId }
   >;

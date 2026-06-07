@@ -77,7 +77,13 @@ describe("TaskTreePanel", () => {
     );
 
     const planButton = screen.getByRole("button", {
-      name: "Plan overview Personal website project plan 4 tasks in this plan draft",
+      name: [
+        "Plan overview",
+        "4-task plan covering Requirement analysis,",
+        "Information architecture, and 2 more.",
+        "4 tasks in this plan",
+        "draft",
+      ].join(" "),
     });
 
     expect(planButton).toHaveAttribute("aria-pressed", "true");
@@ -85,5 +91,69 @@ describe("TaskTreePanel", () => {
     await user.click(planButton);
 
     expect(onSelectTaskPlan).toHaveBeenCalledTimes(1);
+  });
+
+  it("prefers an explicit plan summary when present", () => {
+    const { snapshot } = getMainPageMockSnapshot("s3-draft-ready");
+
+    render(
+      <TaskTreePanel
+        onRetryTask={vi.fn()}
+        onSelectTaskPlan={vi.fn()}
+        onSelectTask={vi.fn()}
+        onStopTask={vi.fn()}
+        selectedTaskNodeId={null}
+        taskTree={{
+          ...snapshot.taskTree!,
+          summary: "A concise website plan from content to implementation.",
+        }}
+      />,
+    );
+
+    expect(
+      screen.getByText("A concise website plan from content to implementation."),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Personal website project plan"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows dirty authoring diagnostics and exposes a repair action", async () => {
+    const user = userEvent.setup();
+    const onRepairAuthoringState = vi.fn();
+    const { snapshot } = getMainPageMockSnapshot("s3-draft-ready");
+
+    render(
+      <TaskTreePanel
+        authoringDiagnostic={{
+          code: "dirty_authoring_state",
+          message:
+            "A stale authoring draft was found after this TaskTree was generated.",
+          severity: "warning",
+        }}
+        onRepairAuthoringState={onRepairAuthoringState}
+        onRetryTask={vi.fn()}
+        onSelectTaskPlan={vi.fn()}
+        onSelectTask={vi.fn()}
+        onStopTask={vi.fn()}
+        selectedTaskNodeId={null}
+        taskTree={snapshot.taskTree}
+      />,
+    );
+
+    expect(
+      screen.getByText("Authoring state needs repair"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "A stale authoring draft was found after this TaskTree was generated.",
+      ),
+    ).toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole("button", { name: "Repair authoring state" }),
+    );
+
+    expect(onRepairAuthoringState).toHaveBeenCalledTimes(1);
   });
 });

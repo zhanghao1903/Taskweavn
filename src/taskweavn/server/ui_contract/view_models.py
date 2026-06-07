@@ -139,6 +139,7 @@ class TaskTreeView(UiContractModel):
     id: str = Field(min_length=1)
     session_id: str = Field(min_length=1)
     title: str = Field(min_length=1)
+    summary: str | None = None
     status: TaskTreeStatus
     nodes: tuple[TaskNodeCardView, ...] = ()
     version: int = Field(default=1, ge=1)
@@ -206,6 +207,12 @@ class PlanningAskView(UiContractModel):
     status: Literal["pending", "answered", "expired", "superseded"] = "pending"
 
 
+class PlanningDiagnosticView(UiContractModel):
+    code: Literal["dirty_authoring_state", "authoring_state_cancelled"]
+    severity: Literal["info", "warning"]
+    message: str = Field(min_length=1)
+
+
 class PlanningView(UiContractModel):
     state: PlanningState
     source_raw_task_id: str | None = Field(default=None, min_length=1)
@@ -213,6 +220,7 @@ class PlanningView(UiContractModel):
     summary: str | None = Field(default=None, min_length=1)
     asks: tuple[PlanningAskView, ...] = ()
     validation: ValidationSummaryView | None = None
+    diagnostics: tuple[PlanningDiagnosticView, ...] = ()
 
 
 class AskOptionView(UiContractModel):

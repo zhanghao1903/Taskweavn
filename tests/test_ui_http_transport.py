@@ -480,6 +480,12 @@ def test_command_routes_validate_and_dispatch_to_gateway_methods() -> None:
             "answer_authoring_ask_batch:raw 1",
         ),
         (
+            "POST",
+            "/api/v1/sessions/session%201/authoring/repair",
+            _command_body("session 1", {"reason": "dirty_authoring_state"}),
+            "repair_authoring_state",
+        ),
+        (
             "PATCH",
             "/api/v1/sessions/session%201/tasks/task%201",
             _command_body("session 1", {"summary": "Updated"}),
@@ -1344,6 +1350,13 @@ class _CommandGateway:
         request: CommandRequest[Any],
     ) -> CommandResponse:
         self.calls.append(f"answer_authoring_ask_batch:{raw_task_id}")
+        return _accepted(request.command_id)
+
+    def repair_authoring_state(
+        self,
+        request: CommandRequest[Any],
+    ) -> CommandResponse:
+        self.calls.append("repair_authoring_state")
         return _accepted(request.command_id)
 
     def defer_ask(

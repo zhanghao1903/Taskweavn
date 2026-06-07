@@ -186,6 +186,10 @@ Task active:
    read-only history/audit evidence 暴露；
 3. 用户旧回答不能隐式生成新的 RawTask；
 4. 如需复用旧回答，必须通过显式命令进入 plan guidance 或 draft revision。
+5. 如果 session-level `active_authoring_state` 仍停留在 `raw_task`，但
+   `TaskTreeView` 已存在，Gateway 应把该状态诊断为
+   `dirty_authoring_state`。诊断不等于删除数据；RawTask/ASK 仍作为
+   lineage/audit 事实保留。
 
 前端只负责展示已归一化 ViewModel，不应在组件里自行判断 RawTask 与
 TaskTree 谁优先。
@@ -370,6 +374,31 @@ type ApiError = {
 TaskTree / Task Domain supersede。前端收到后应刷新 snapshot，并提示用户改用
 plan guidance 或显式修订计划。
 
+### 4.x Dirty Authoring Session Repair
+
+维护入口：
+
+```http
+POST /api/v1/sessions/{sessionId}/authoring/repair
+```
+
+请求：
+
+```ts
+type RepairAuthoringStatePayload = {
+  reason: "dirty_authoring_state";
+};
+```
+
+语义：
+
+- 只在 `active_authoring_state == raw_task` 且当前 session 已有 TaskTree 时
+  接受；
+- 将 session active authoring state 关闭为 `cancelled`；
+- 不删除 RawTask、RawTaskAsk、RawTaskAnswer 或 DraftTaskTree；
+- 返回 `session.snapshot`、`session.messages`、`task.tree` refresh hint；
+- 如果没有 dirty state，返回 `command_rejected`，不产生副作用。
+
 ## 7. Main Page ViewModel
 
 ### 7.1 MainPageSnapshot
@@ -461,6 +490,7 @@ type TaskTreeView = {
   id: TaskTreeId;
   sessionId: SessionId;
   title: string;
+  summary?: string | null;
   status: "draft" | "published" | "running" | "completed" | "failed";
   nodes: TaskNodeCardView[];
   version: number;
@@ -468,6 +498,11 @@ type TaskTreeView = {
 ```
 
 第一版 `nodes` 返回 flat preorder。前端通过 `parentId` 还原树形和缩进。
+
+`summary` 是面向用户的计划概况，不是 TaskTree 的内部类型名。Main Page 的
+`Plan overview` 行优先展示 `summary`；缺失时前端只能用 TaskNode 标题生成临时概况。
+产品目标是在生成 Raw Task → TaskTree 时由 Collaborator/LLM 一并生成该字段，避免用户看到
+`Task Tree` 这类系统内部命名。
 
 `TaskTreeView.id` 是 UI projection/cache/debug id，不是普通用户可见字段。产品 UI 默认展示 `title`、状态和节点内容，不展示该 id。第一版允许 synthetic id；如果 command 需要真实 draft tree id，必须由 Gateway 解析，不能把 synthetic projection id 当成 domain primary key。
 

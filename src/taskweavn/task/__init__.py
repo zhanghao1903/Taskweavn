@@ -414,6 +414,7 @@ __all__ = [
     "RawTask",
     "RawTaskAnswer",
     "RawTaskAnswerOption",
+    "RawTaskAskAnswerSubmission",
     "RawTaskAskProposal",
     "RawTaskAsk",
     "RawTaskOperation",

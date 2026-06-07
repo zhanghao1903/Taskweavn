@@ -11,6 +11,7 @@ import type {
   DeferAskCommand,
   LoadMainPageSnapshot,
   MainPageAdapter,
+  RepairAuthoringStateCommand,
   RetryTaskCommand,
   StopTaskCommand,
   SubscribeSessionEvents,
@@ -244,6 +245,52 @@ describe("useMainPageController", () => {
 
     expect(result.current.authoringAskError).toBe(null);
     expect(result.current.uiNotice).toBe("Authoring answers submitted.");
+  });
+
+  it("repairs dirty authoring state and refetches projection", async () => {
+    const repairAuthoringState = vi.fn<RepairAuthoringStateCommand>(
+      async (request) =>
+        acceptedCommandResponse({
+          commandId: request.commandId,
+          sessionId: request.sessionId,
+        }),
+    );
+    const loadSnapshot = vi.fn<LoadMainPageSnapshot>(loadImmediateSnapshot);
+
+    const { result } = renderMainPageController({
+      adapter: testAdapter({
+        loadSnapshot,
+        repairAuthoringState,
+      }),
+      initialStateId: "s3-draft-ready",
+    });
+
+    await waitFor(() => {
+      expect(result.current.snapshotData?.metadata.id).toBe("s3-draft-ready");
+    });
+
+    act(() => {
+      result.current.actions.repairAuthoringState({
+        sessionId: "session-website-plan",
+      });
+    });
+
+    await waitFor(() => {
+      expect(repairAuthoringState).toHaveBeenCalledWith(
+        expect.objectContaining({
+          sessionId: "session-website-plan",
+          payload: {
+            reason: "dirty_authoring_state",
+          },
+        }),
+      );
+    });
+    await waitFor(() => {
+      expect(loadSnapshot).toHaveBeenCalledTimes(2);
+    });
+
+    expect(result.current.taskTreeCommandError).toBe(null);
+    expect(result.current.uiNotice).toBe("Authoring state repaired.");
   });
 
   it("answers an execution ASK through its concrete ask id", async () => {

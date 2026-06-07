@@ -25,6 +25,7 @@ from taskweavn.server.ui_contract.commands import (
     DeferAskPayload,
     GenerateTaskTreePayload,
     PublishTaskTreePayload,
+    RepairAuthoringStatePayload,
     ResolveConfirmationPayload,
     RetryTaskPayload,
     StopTaskPayload,
@@ -47,6 +48,7 @@ from taskweavn.task.collaborator_api import (
 from taskweavn.task.commands import CommandResult as CoreCommandResult
 from taskweavn.task.commands import TaskCommandService
 from taskweavn.task.models import TaskRef
+from taskweavn.task.projection import TaskProjectionService
 from taskweavn.task.stores import AuthoringStateStore, RawTaskStore
 
 
@@ -62,6 +64,7 @@ class DefaultUiCommandGateway:
         authoring_state_store: AuthoringStateStore | None = None,
         raw_task_store: RawTaskStore | None = None,
         ask_commands: TaskAskCommandService | None = None,
+        task_projection: TaskProjectionService | None = None,
     ) -> None:
         self._collaborator = collaborator
         self._task_commands = task_commands
@@ -69,6 +72,7 @@ class DefaultUiCommandGateway:
         self._authoring_state_store = authoring_state_store
         self._raw_task_store = raw_task_store
         self._ask_commands = ask_commands
+        self._task_projection = task_projection
 
     def append_session_input(
         self,
@@ -545,6 +549,61 @@ class DefaultUiCommandGateway:
         except Exception as exc:
             return _command_exception_response(request, exc)
 
+    def repair_authoring_state(
+        self,
+        request: CommandRequest[RepairAuthoringStatePayload],
+    ) -> CommandResponse:
+        try:
+            if self._authoring_state_store is None:
+                result = CoreCommandResult(
+                    status="rejected",
+                    message="authoring state store is not configured",
+                )
+                return _command_response(request, result)
+
+            active = self._authoring_state_store.get_active(request.session_id)
+            if active.active_state != "raw_task" or active.active_raw_task_id is None:
+                result = CoreCommandResult(
+                    status="rejected",
+                    message="no active raw authoring state requires repair",
+                )
+                return _command_response(request, result)
+
+            if not self._session_has_published_task_tree(request.session_id):
+                result = CoreCommandResult(
+                    status="rejected",
+                    message="authoring state repair requires an existing TaskTree",
+                )
+                return _command_response(request, result)
+
+            raw_ref = ObjectRef(kind="raw_task", id=active.active_raw_task_id)
+            self._authoring_state_store.cancel_active(request.session_id)
+            result = CoreCommandResult(
+                status="accepted",
+                message="dirty authoring state repaired; active authoring flow closed",
+            )
+            return _command_response(
+                request,
+                result,
+                object_refs=(raw_ref,),
+                affected_objects=(
+                    AffectedObjectRef(
+                        ref=raw_ref,
+                        impact="superseded",
+                        reason=request.payload.reason,
+                    ),
+                ),
+                suggested_queries=("session.snapshot", "session.messages", "task.tree"),
+                affected_scopes=(
+                    AffectedScope(kind="session"),
+                    AffectedScope(kind="messages"),
+                    AffectedScope(kind="task_tree"),
+                    AffectedScope(kind="asks"),
+                ),
+            )
+        except Exception as exc:
+            return _command_exception_response(request, exc)
+
     def defer_ask(
         self,
         ask_id: str,
@@ -636,9 +695,26 @@ class DefaultUiCommandGateway:
         session_id: str,
     ) -> bool:
         if self._authoring_state_store is None:
-            return False
+            return self._session_has_published_task_tree(session_id)
         active = self._authoring_state_store.get_active(session_id)
-        return active.active_state in {"draft_tree", "published"}
+        if active.active_state in {"draft_tree", "published", "cancelled"}:
+            return True
+        return active.active_state == "raw_task" and self._session_has_published_task_tree(
+            session_id
+        )
+
+    def _session_has_published_task_tree(self, session_id: str) -> bool:
+        if self._task_projection is None:
+            return False
+        try:
+            tree = self._task_projection.list_task_tree(
+                session_id,
+                include_drafts=False,
+                include_published=True,
+            )
+        except Exception:  # noqa: BLE001 - stale detection must not crash commands.
+            return False
+        return bool(tree.nodes)
 
     def _resolve_publish_draft_tree_id(
         self,

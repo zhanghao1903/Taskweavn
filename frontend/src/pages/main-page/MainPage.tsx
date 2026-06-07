@@ -56,6 +56,7 @@ export function MainPage({
     isDeferringAsk,
     isInputSubmitting,
     isPublishingTaskTree,
+    isRepairingAuthoringState,
     isRenamingSession,
     isRetryingTask,
     isStoppingTask,
@@ -175,6 +176,7 @@ export function MainPage({
       inputRecoveryActions={inputRecoveryActions}
       isCreatingSession={isCreatingSession}
       isDeletingSession={isDeletingSession}
+      isRepairingAuthoringState={isRepairingAuthoringState}
       isRenamingSession={isRenamingSession}
       sessionDialog={sessionDialog}
       topBarTrailing={topBarTrailing}

@@ -17,8 +17,9 @@ describe("ContextInputPanel", () => {
       />,
     );
 
-    expect(screen.getByText("Writing to Task 4")).toBeInTheDocument();
-    expect(screen.getByText("Visual direction")).toBeInTheDocument();
+    expect(screen.getByText("Writing to")).toBeInTheDocument();
+    expect(screen.getByText("Task 4")).toBeInTheDocument();
+    expect(screen.queryByText("Visual direction")).not.toBeInTheDocument();
     expect(screen.getByLabelText("Context message")).toHaveAttribute(
       "placeholder",
       "Add guidance for this task.",
@@ -41,12 +42,14 @@ describe("ContextInputPanel", () => {
       />,
     );
 
-    expect(screen.getByText("Completed tasks are read-only.")).toBeInTheDocument();
     expect(screen.getByLabelText("Context message")).toBeDisabled();
     expect(screen.getByLabelText("Context message")).toHaveAttribute(
       "placeholder",
       "Completed tasks are read-only.",
     );
+    expect(
+      screen.queryByText("Completed tasks are read-only."),
+    ).not.toBeInTheDocument();
   });
 
   it("renders input command recovery labels with command errors", () => {

@@ -1,7 +1,8 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
-import type { TaskNodeId } from "../../shared/api/types";
+import type { MainPageSnapshot, TaskNodeId } from "../../shared/api/types";
 import styles from "./MainPage.module.css";
 import { MainPageWorkbench } from "./MainPageWorkbench";
 import type { MainPageViewModel } from "./mainPageViewModel";
@@ -23,6 +24,20 @@ describe("MainPageWorkbench layout", () => {
     expect(
       screen.queryByRole("complementary", { name: "Details" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("keeps the empty-session input in the bottom input area", () => {
+    const viewModel = buildViewModel("s1-empty");
+
+    expect(viewModel.taskWorkspace.taskTree).toBeNull();
+
+    renderWorkbench(viewModel);
+
+    const inputForm = screen.getByLabelText("Context message").closest("form");
+
+    expect(inputForm).not.toBeNull();
+    expect(inputForm).toHaveClass(styles.contextInput);
+    expect(inputForm).not.toHaveClass(styles.floatingContextInput);
   });
 
   it("keeps the detail column when the whole plan is selected", () => {
@@ -75,17 +90,61 @@ describe("MainPageWorkbench layout", () => {
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
   });
+
+  it("wires dirty authoring repair from the diagnostic banner", async () => {
+    const user = userEvent.setup();
+    const actions = buildActions();
+    const { snapshot } = getMainPageMockSnapshot("s3-draft-ready");
+    const dirtySnapshot: MainPageSnapshot = {
+      ...snapshot,
+      planning: {
+        ...(snapshot.planning ?? {
+          asks: [],
+          sourceRawTaskId: null,
+          state: "draft_ready",
+          summary: null,
+          title: "Task Tree",
+          validation: null,
+        }),
+        diagnostics: [
+          {
+            code: "dirty_authoring_state",
+            message:
+              "A stale authoring draft was found after this TaskTree was generated.",
+            severity: "warning",
+          },
+        ],
+      },
+    };
+    const viewModel = buildViewModel("s3-draft-ready", {
+      snapshot: dirtySnapshot,
+    });
+
+    renderWorkbench(viewModel, actions);
+
+    await user.click(
+      screen.getByRole("button", { name: "Repair authoring state" }),
+    );
+
+    expect(actions.repairAuthoringState).toHaveBeenCalledWith({
+      sessionId: "session-website-plan",
+    });
+  });
 });
 
-function renderWorkbench(viewModel: MainPageViewModel) {
+function renderWorkbench(
+  viewModel: MainPageViewModel,
+  actions: MainPageController["actions"] = buildActions(),
+) {
   render(
     <MainPageWorkbench
-      actions={buildActions()}
+      actions={actions}
       inputDraft=""
       inputError={null}
       inputRecoveryActions={[]}
       isCreatingSession={false}
       isDeletingSession={false}
+      isRepairingAuthoringState={false}
       isRenamingSession={false}
       sessionDialog={{ mode: "idle" }}
       viewModel={viewModel}
@@ -97,6 +156,7 @@ function buildViewModel(
   stateId: MainPageStateId,
   overrides: {
     selectedTaskNodeId?: TaskNodeId | null;
+    snapshot?: MainPageSnapshot;
   } = {},
 ) {
   const { metadata, snapshot } = getMainPageMockSnapshot(stateId);
@@ -123,7 +183,7 @@ function buildViewModel(
     isResolvingConfirmation: false,
     metadata,
     selectedTaskNodeId: overrides.selectedTaskNodeId ?? null,
-    snapshot,
+    snapshot: overrides.snapshot ?? snapshot,
     taskTreeCommandError: null,
     taskTreeCommandRecoveryActions: [],
     uiNotice: null,
@@ -143,6 +203,7 @@ function buildActions(): MainPageController["actions"] {
     deferAsk: vi.fn(),
     deleteSession: vi.fn(),
     publishTaskTree: vi.fn(),
+    repairAuthoringState: vi.fn(),
     renameSession: vi.fn(),
     resolveConfirmation: vi.fn(),
     retryTask: vi.fn(),

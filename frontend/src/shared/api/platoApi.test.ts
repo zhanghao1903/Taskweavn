@@ -8,6 +8,7 @@ import type {
   CancelAskPayload,
   DeferAskPayload,
   EventSourceLike,
+  RepairAuthoringStatePayload,
   ResolveConfirmationPayload,
 } from "./platoApi";
 import type {
@@ -176,6 +177,13 @@ describe("createHttpPlatoApi", () => {
         reason: "User cancelled the question.",
       },
     };
+    const repairRequest: CommandRequest<RepairAuthoringStatePayload> = {
+      commandId: "repair-authoring",
+      sessionId: "session/1",
+      payload: {
+        reason: "dirty_authoring_state",
+      },
+    };
 
     await api.listAsks({
       sessionId: "session/1",
@@ -190,6 +198,7 @@ describe("createHttpPlatoApi", () => {
     );
     await api.deferAsk("session/1", "ask#1", deferRequest);
     await api.cancelAsk("session/1", "ask#1", cancelRequest);
+    await api.repairAuthoringState(repairRequest);
 
     expect(calls).toEqual([
       {
@@ -216,6 +225,11 @@ describe("createHttpPlatoApi", () => {
         body: cancelRequest,
         method: "POST",
         url: "https://plato.test/api/v1/sessions/session%2F1/asks/ask%231/cancel",
+      },
+      {
+        body: repairRequest,
+        method: "POST",
+        url: "https://plato.test/api/v1/sessions/session%2F1/authoring/repair",
       },
     ]);
   });

@@ -440,6 +440,7 @@ Product 1.0 policy:
 | ASK already answered | Reject duplicate answer idempotently or return existing result. |
 | ASK expired | Reject answer with `ask_expired`; refresh snapshot. |
 | Authoring ASK superseded by TaskTree | Reject answer with `stale_authoring_context`; refresh snapshot and optionally offer plan-guidance conversion. |
+| Dirty authoring active state after TaskTree exists | Expose `dirty_authoring_state` diagnostics; allow an explicit repair command that closes the active authoring pointer without deleting RawTask/ASK facts. |
 | Authoring ASK answer arrives after Task Domain is active | Persist only if the command is explicitly a note/revision command; otherwise reject as stale. |
 | Unsupported attachment | Reject with `unsupported_input_mode`. |
 | Stale snapshot | Reject or accept according to version policy, then return refresh hint. |

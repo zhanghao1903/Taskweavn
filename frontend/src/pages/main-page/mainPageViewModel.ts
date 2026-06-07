@@ -136,6 +136,7 @@ export type MainPageAuditEntryViewModel = {
 
 export type MainPageTaskWorkspaceViewModel = {
   allMessages: SessionMessageView[];
+  authoringDiagnostic: MainPageAuthoringDiagnosticViewModel | null;
   fileChangeSummary: FileChangeSummaryView | null;
   isGeneratingTaskPlan: boolean;
   isMessageScoped: boolean;
@@ -147,6 +148,12 @@ export type MainPageTaskWorkspaceViewModel = {
   taskTree: MainPageSnapshot["taskTree"];
   totalMessageCount: number;
   visibleMessageCount: number;
+};
+
+export type MainPageAuthoringDiagnosticViewModel = {
+  code: "dirty_authoring_state";
+  message: string;
+  severity: "warning";
 };
 
 export type MainPageAuthoringAskViewModel = {
@@ -353,6 +360,7 @@ export function buildMainPageViewModel({
     },
     taskWorkspace: {
       allMessages: snapshot.messages,
+      authoringDiagnostic: authoringDiagnosticViewFor(snapshot.planning),
       fileChangeSummary,
       isGeneratingTaskPlan:
         authoringAsk === null && snapshot.taskTree === null && inputDisabled,
@@ -393,6 +401,24 @@ export function buildMainPageViewModel({
         (snapshot.taskTree === null ? "Start a new session" : "Plan & Progress"),
       uiNotice,
     },
+  };
+}
+
+function authoringDiagnosticViewFor(
+  planning: MainPageSnapshot["planning"],
+): MainPageAuthoringDiagnosticViewModel | null {
+  const diagnostic = planning?.diagnostics?.find(
+    (item) => item.code === "dirty_authoring_state",
+  );
+
+  if (!diagnostic) {
+    return null;
+  }
+
+  return {
+    code: "dirty_authoring_state",
+    message: diagnostic.message,
+    severity: "warning",
   };
 }
 
@@ -915,7 +941,7 @@ function inputScopeFor({
 
   if (selectedTask) {
     return {
-      description: selectedTask.title,
+      description: null,
       label: `Writing to ${taskIndexLabel(selectedTask)}`,
       placeholder: "Add guidance for this task.",
     };
@@ -923,7 +949,7 @@ function inputScopeFor({
 
   if (taskTree) {
     return {
-      description: taskTree.title,
+      description: null,
       label: "Writing to plan",
       placeholder: "Ask Plato to refine the overall plan.",
     };

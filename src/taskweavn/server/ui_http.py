@@ -25,6 +25,7 @@ from taskweavn.server.ui_contract import (
     DispatchExecutionPayload,
     GenerateTaskTreePayload,
     PublishTaskTreePayload,
+    RepairAuthoringStatePayload,
     ResolveConfirmationPayload,
     RetryTaskPayload,
     StopTaskPayload,
@@ -455,6 +456,22 @@ class PlatoUiHttpTransport:
                     lambda: self._command_gateway.answer_authoring_ask_batch(
                         route.raw_task_id,
                         answer_authoring_request,
+                    ),
+                    self._command_idempotency_store,
+                )
+            if route_name == "repair_authoring_state":
+                repair_authoring_request = _parse_command_request(
+                    request,
+                    route.session_id,
+                    CommandRequest[RepairAuthoringStatePayload],
+                )
+                if isinstance(repair_authoring_request, HttpApiResponse):
+                    return repair_authoring_request
+                return _command_response(
+                    route,
+                    repair_authoring_request,
+                    lambda: self._command_gateway.repair_authoring_state(
+                        repair_authoring_request
                     ),
                     self._command_idempotency_store,
                 )

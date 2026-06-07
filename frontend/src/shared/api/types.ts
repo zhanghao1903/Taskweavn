@@ -48,6 +48,7 @@ export type AffectedObjectRef = {
 
 export type AffectedScope = {
   kind:
+    | "asks"
     | "session"
     | "task_tree"
     | "task_subtree"
@@ -296,6 +297,7 @@ export type TaskTreeView = {
   id: TaskTreeId;
   sessionId: SessionId;
   title: string;
+  summary?: string | null;
   status: TaskTreeStatus;
   readiness?: TaskTreeReadiness;
   executionRollup?: ExecutionRollupView;
@@ -356,12 +358,19 @@ export type PlanningAskView = {
   status: "pending" | "answered" | "expired" | "superseded";
 };
 
+export type PlanningDiagnosticView = {
+  code: "dirty_authoring_state" | "authoring_state_cancelled";
+  severity: "info" | "warning";
+  message: string;
+};
+
 export type PlanningView = {
   state: PlanningState;
   sourceRawTaskId?: string | null;
   title?: string | null;
   summary?: string | null;
   asks: PlanningAskView[];
+  diagnostics?: PlanningDiagnosticView[];
   validation: ValidationSummaryView | null;
 };
 
