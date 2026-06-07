@@ -66,6 +66,7 @@ describe("ConfirmationDetailPanel", () => {
       <ConfirmationDetailPanel
         detail={confirmationDetail({
           commandError: "Confirmation was rejected.",
+          commandRecoveryActions: ["refresh_snapshot", "open_audit"],
         })}
         onResolve={vi.fn()}
       />,
@@ -80,6 +81,8 @@ describe("ConfirmationDetailPanel", () => {
     expect(screen.getByRole("alert")).toHaveTextContent(
       "Confirmation was rejected.",
     );
+    expect(screen.getByText("Refresh session")).toBeInTheDocument();
+    expect(screen.getByText("View audit")).toBeInTheDocument();
   });
 
   it("disables options and resolve while resolving", () => {
@@ -135,6 +138,7 @@ function confirmationDetail(
 ): ConfirmationDetail {
   const detail: ConfirmationDetail = {
     commandError: null,
+    commandRecoveryActions: [],
     confirmation: {
       id: "confirmation-visual-baseline",
       sessionId: "session-website-plan",

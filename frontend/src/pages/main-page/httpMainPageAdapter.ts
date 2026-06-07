@@ -1,4 +1,5 @@
 import type { PlatoApi } from "../../shared/api/platoApi";
+import { ApiResponseError } from "../../shared/api/productErrors";
 import type {
   MainPageSnapshot,
   QueryResponse,
@@ -187,7 +188,14 @@ function unwrapSnapshot(
   response: QueryResponse<MainPageSnapshot>,
 ): MainPageSnapshot {
   if (!response.ok || response.data === null) {
-    throw new Error(response.error?.message ?? "Unable to load session snapshot.");
+    if (response.error) {
+      throw new ApiResponseError(
+        response.error,
+        "Unable to load session snapshot.",
+      );
+    }
+
+    throw new Error("Unable to load session snapshot.");
   }
 
   return response.data;
@@ -195,7 +203,11 @@ function unwrapSnapshot(
 
 function unwrapLifecycle<T>(response: QueryResponse<T>): T {
   if (!response.ok || response.data === null) {
-    throw new Error(response.error?.message ?? "Session command failed.");
+    if (response.error) {
+      throw new ApiResponseError(response.error, "Session command failed.");
+    }
+
+    throw new Error("Session command failed.");
   }
 
   return response.data;

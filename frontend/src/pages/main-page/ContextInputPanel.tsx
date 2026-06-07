@@ -1,7 +1,9 @@
 import { SendHorizontal } from "lucide-react";
 import type { FormEvent } from "react";
 
+import type { ProductRecoveryAction } from "../../shared/api/platoApi";
 import { Button, Panel, Text } from "../../shared/components";
+import { ProductRecoveryActions } from "./ProductRecoveryActions";
 import type { MainPageInputViewModel } from "./mainPageViewModel";
 import styles from "./MainPage.module.css";
 
@@ -12,6 +14,7 @@ export type ContextInputPanelProps = {
   isFloating?: boolean;
   onDraftChange: (draft: string) => void;
   onSubmit: () => void;
+  recoveryActions: ProductRecoveryAction[];
 };
 
 export function ContextInputPanel({
@@ -21,6 +24,7 @@ export function ContextInputPanel({
   isFloating = false,
   onDraftChange,
   onSubmit,
+  recoveryActions,
 }: ContextInputPanelProps) {
   const scopeLabel = splitWritingScopeLabel(input.scope.label);
   const helperText = error ?? null;
@@ -73,6 +77,7 @@ export function ContextInputPanel({
         ) : scopeDescription && !scopeLabel ? (
           <Text variant="muted">{scopeDescription}</Text>
         ) : null}
+        {error ? <ProductRecoveryActions actions={recoveryActions} /> : null}
       </div>
       <div className={styles.contextInputField}>
         <input

@@ -190,7 +190,8 @@ describe("App", () => {
 
     expect(screen.getByRole("heading", { name: "Initial implementation" })).toBeInTheDocument();
     expect(screen.getByRole("complementary", { name: "Details" })).toBeInTheDocument();
-    expect(screen.getByText(/^Writing to Task /)).toBeInTheDocument();
+    expect(screen.getByText("Writing to")).toBeInTheDocument();
+    expect(screen.getAllByText("Task 2").length).toBeGreaterThan(0);
     expect(screen.getByLabelText("Latest activity")).toBeInTheDocument();
   });
 

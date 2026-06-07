@@ -76,6 +76,7 @@ describe("App routing", () => {
     await user.click(screen.getByRole("button", { name: "Return" }));
 
     expect(await screen.findByText("Plan & Progress")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "View audit" })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Audit" })).not.toBeInTheDocument();
     expect(globalThis.location.pathname).not.toContain("/audit");
   });

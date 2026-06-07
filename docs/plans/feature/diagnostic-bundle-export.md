@@ -1,23 +1,25 @@
 # Feature Plan: Diagnostic Bundle Export
 
-> Status: in_progress
-> Last Updated: 2026-06-05
+> Status: accepted for Product 1.0 local unsigned RC
+> Last Updated: 2026-06-07
 > Gap: [Diagnostic bundle](../../gaps/README.md)
 > Architecture: [Configurable Logging System](../../architecture/configurable-logging-system.md), [UI And Backend Communication](../../architecture/ui-backend-communication.md), [Task Domain/UI Model Separation](../../architecture/task-domain-ui-model-separation.md)
 > Product: [Plato Settings, Logs, And Audit Boundary](../../product/plato-settings-logs-audit-boundary.md), [Plato Product 1.0 Frontend QA Runbook](../../product/plato-1-0-frontend-qa-runbook.md)
 > Related Plans: [Product Error Handling](product-error-handling.md), [Result And Evidence Exposure Surface](result-exposure-surface.md), [Configurable Logging System](configurable-logging-system.md)
-> Release Record: TBD
+> Release Record: Product 1.0 local unsigned RC accepted on 2026-06-07; broader support diagnostics remain follow-up work.
 
 ---
 
 ## 1. Problem / Gap
 
 Product 1.0 needs enough diagnostics for early technical users and testers.
-The logging system already has session archive manifests, category JSONL files,
+The accepted local RC diagnostic boundary includes redacted export packaging,
+HTTP/frontend export, formal sidecar E2E, and mounted unsigned DMG smoke.
+The logging system has session archive manifests, category JSONL files,
 redaction hooks, and CLI manifest inspection. Audit Page can expose selected
 evidence records, config/log references, and sanitized payload details.
 
-The remaining gap is export packaging:
+The product boundary is:
 
 - testers should not have to inspect SQLite files, guess log paths, or manually
   collect session artifacts;
@@ -364,35 +366,49 @@ later without changing the bundle contract.
 - Default redaction masks secret-like keys, omits prompt/raw/provider/tool
   payload-like fields, truncates long strings, and normalizes workspace paths
   to `workspace://current`.
+- Task-level product error summaries consume flat Product 1.0 metadata and add
+  validated Audit result/evidence ids (`auditRef`, `auditRecordId`,
+  `auditEvidenceId`) without exposing raw provider, prompt, log, or SQLite
+  payloads.
 
-Remaining Product 1.0 closure:
+Product 1.0 local RC closure:
 
-- Frontend/export-route affordance is being added for non-developer local
-  testing.
-- Expand Audit-specific diagnostic refs once Audit evidence closure lands.
-- Add QA runbook handoff copy beyond the in-app descriptor state.
+- CLI/backend export, HTTP export route, frontend diagnostic export flow,
+  redacted session/task/result/message/event/audit/log/config/frontend
+  summaries, task-result product-error Audit refs, workspace path
+  normalization, zip output, and formal sidecar E2E coverage are in place.
+- Mounted unsigned DMG smoke covers Diagnostic Bundle export through the
+  launcher-backed bundled runtime.
+
+Follow-ups:
+
+- Broaden Audit-specific diagnostic refs beyond task result failures when
+  additional support paths need them.
+- Add richer QA handoff copy beyond the in-app descriptor state if early tester
+  support needs it.
+- Signed/notarized distribution validation is deferred under the Packaging plan
+  until Apple Developer credentials are available.
 
 ---
 
-## 12. Recommended Next Task Prompt
+## 12. Follow-Up Task Prompt
 
 ```text
 Use the product-workflow-gate skill first.
 
 Task:
-Implement Product 1.0 diagnostic bundle export backend service and CLI.
+Implement a small Diagnostic Bundle support-handoff hardening slice.
 
 Context:
-docs/plans/feature/diagnostic-bundle-export.md defines the bundle contract,
-source sections, and redaction rules. Product 1.0 needs a local tester/support
-export, not a full Diagnostics UI.
+Product 1.0 local unsigned RC already includes backend/HTTP/frontend export,
+redacted zip output, sidecar E2E, and mounted unsigned DMG smoke. This follow-up
+should improve support handoff only where early tester feedback needs it.
 
 Scope:
-1. Add bundle manifest and section models.
-2. Implement session/task/result/message/event/audit/log/config collectors.
-3. Add default redaction and workspace path normalization.
-4. Add CLI export command.
-5. Add focused tests and one local workspace smoke.
+1. Add or refine QA/support copy for bundle path, warnings, missing sections,
+   and redaction profile.
+2. Broaden Audit-specific diagnostic refs only for a concrete support path.
+3. Add focused tests for any new descriptor/copy/ref behavior.
 
 Do not implement remote upload.
 Do not build a full logs browser.
@@ -402,7 +418,7 @@ default.
 Output:
 - files changed
 - tests run
-- bundle path from smoke, if run
-- included/missing sections
-- remaining UI/export route gaps
+- support handoff behavior
+- redaction/ref evidence
+- remaining Product 1.1 diagnostics gaps
 ```

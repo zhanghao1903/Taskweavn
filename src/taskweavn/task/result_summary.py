@@ -13,6 +13,7 @@ from typing import Any, ClassVar, Literal, Protocol, runtime_checkable
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from taskweavn.product_errors import (
+    product_error_audit_ref_for_task,
     product_error_details_for_llm_classification,
     product_error_details_for_task_failure,
 )
@@ -198,6 +199,10 @@ def build_agent_loop_error_summary(
                     "taskId": task.task_id,
                     "sessionId": task.session_id,
                 },
+                audit_ref=product_error_audit_ref_for_task(
+                    session_id=task.session_id,
+                    task_id=task.task_id,
+                ),
             ),
         },
     )
@@ -292,6 +297,10 @@ def build_external_error_ref_summary(
                     "taskId": task.task_id,
                     "sessionId": task.session_id,
                 },
+                audit_ref=product_error_audit_ref_for_task(
+                    session_id=task.session_id,
+                    task_id=task.task_id,
+                ),
             ),
         },
     )
@@ -322,11 +331,19 @@ def _product_error_details_for_exception(
             classification,
             retry_count=len(retry_records),
             diagnostic_refs=diagnostic_refs,
+            audit_ref=product_error_audit_ref_for_task(
+                session_id=task.session_id,
+                task_id=task.task_id,
+            ),
             extra={"errorType": error_type},
         )
     return product_error_details_for_task_failure(
         error_type=error_type,
         diagnostic_refs=diagnostic_refs,
+        audit_ref=product_error_audit_ref_for_task(
+            session_id=task.session_id,
+            task_id=task.task_id,
+        ),
     )
 
 

@@ -74,6 +74,7 @@ describe("AuthoringAskWorkArea", () => {
         onSubmit={vi.fn()}
         view={authoringAskView({
           commandError: "Answer submission was rejected.",
+          commandRecoveryActions: ["answer_ask", "refresh_snapshot"],
         })}
       />,
     );
@@ -83,6 +84,8 @@ describe("AuthoringAskWorkArea", () => {
     expect(screen.getByRole("alert")).toHaveTextContent(
       "Answer submission was rejected.",
     );
+    expect(screen.getByText("Answer question")).toBeInTheDocument();
+    expect(screen.getByText("Refresh session")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Portfolio" })).toHaveAttribute(
       "aria-pressed",
       "true",
@@ -135,6 +138,7 @@ function authoringAskView(
       },
     ],
     commandError: null,
+    commandRecoveryActions: [],
     isSubmitting: false,
     rawTaskId: "raw-task-website-goal",
     summary: "The session needs planning clarification.",

@@ -25,6 +25,7 @@ from taskweavn.core import Session, SessionManager, WorkspaceLayout
 from taskweavn.interaction import AgentMessage, SqliteMessageStream
 from taskweavn.observability import LogArchiveManifest
 from taskweavn.observability.redaction import redact_payload
+from taskweavn.product_errors import product_error_audit_ref_for_task
 from taskweavn.server.ui_contract.audit_source_providers import (
     WorkspaceAuditConfigProvider,
     WorkspaceAuditLogProvider,
@@ -117,7 +118,7 @@ class DiagnosticBundleSection(_FrozenModel):
 
 class DiagnosticBundleManifest(_FrozenModel):
     schema_version: Literal["diagnostic_bundle.v1"] = Field(
-        default=DIAGNOSTIC_BUNDLE_SCHEMA_VERSION,
+        default="diagnostic_bundle.v1",
         alias="schemaVersion",
     )
     bundle_id: str = Field(alias="bundleId", min_length=1)
@@ -1085,7 +1086,10 @@ def _read_frontend_error_rows(path: Path, limit: int) -> tuple[tuple[dict[str, A
     rows: list[dict[str, Any]] = []
     for line in selected:
         item = _parse_json_object(line)
-        payload = item.get("payload") if isinstance(item.get("payload"), Mapping) else {}
+        raw_payload = item.get("payload")
+        payload: Mapping[str, Any] = (
+            raw_payload if isinstance(raw_payload, Mapping) else {}
+        )
         rows.append(
             {
                 "receivedAt": item.get("receivedAt"),
@@ -1215,9 +1219,35 @@ def _product_error_from_task(
         summary = summary_by_id.get(task.error_ref)
     if summary is None:
         return None
+    details = _product_error_details_from_summary(summary)
+    if details is None:
+        return None
+    return _with_audit_diagnostic_refs(details, task)
+
+
+def _product_error_details_from_summary(
+    summary: TaskExecutionSummary,
+) -> dict[str, Any] | None:
     details = summary.metadata.get("productError")
     if isinstance(details, Mapping):
         return dict(details)
+    flat_details = {
+        key: summary.metadata[key]
+        for key in (
+            "productCategory",
+            "recoveryActions",
+            "severity",
+            "userMessageKey",
+            "diagnosticRefs",
+            "auditRef",
+            "llmClassification",
+            "retryCount",
+            "errorType",
+        )
+        if key in summary.metadata
+    }
+    if flat_details:
+        return flat_details
     category = summary.metadata.get("errorCategory")
     action = summary.metadata.get("recoveryAction")
     if category is None and action is None:
@@ -1228,6 +1258,34 @@ def _product_error_from_task(
         "retryEligible": summary.metadata.get("retryEligible"),
         "diagnosticRefs": summary.metadata.get("diagnosticRefs"),
     }
+
+
+def _with_audit_diagnostic_refs(
+    details: dict[str, Any],
+    task: TaskDomain,
+) -> dict[str, Any]:
+    result = dict(details)
+    audit_ref = result.get("auditRef")
+    if not isinstance(audit_ref, Mapping):
+        audit_ref = product_error_audit_ref_for_task(
+            session_id=task.session_id,
+            task_id=task.task_id,
+        )
+    else:
+        audit_ref = dict(audit_ref)
+    result["auditRef"] = audit_ref
+
+    diagnostic_refs = result.get("diagnosticRefs")
+    refs = dict(diagnostic_refs) if isinstance(diagnostic_refs, Mapping) else {}
+    refs.setdefault("errorRef", task.error_ref)
+    refs.setdefault("taskId", task.task_id)
+    refs.setdefault("sessionId", task.session_id)
+    if isinstance(audit_ref.get("recordId"), str):
+        refs.setdefault("auditRecordId", audit_ref["recordId"])
+    if isinstance(audit_ref.get("evidenceId"), str):
+        refs.setdefault("auditEvidenceId", audit_ref["evidenceId"])
+    result["diagnosticRefs"] = refs
+    return result
 
 
 def _sanitize_value(

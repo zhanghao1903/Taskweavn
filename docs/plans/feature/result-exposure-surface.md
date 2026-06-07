@@ -1,8 +1,8 @@
 # Feature Plan: Result And Evidence Exposure Surface
 
-> Status: in_progress
+> Status: accepted for Product 1.0 local unsigned RC
 > Type: Product 1.0 UI projection / result evidence boundary
-> Last Updated: 2026-06-05
+> Last Updated: 2026-06-07
 > Related Plans: [Fixed-Route Task Execution Bridge](fixed-route-task-execution-bridge.md), [Main Page Real Backend Integration](main-page-real-backend-integration.md), [Audit Page Contract](../../engineering/audit-page-contract.md), [Audit Page Runtime Event/Refetch Design](../ui/audit-page-runtime-event-refetch-technical-design.md)
 > Related Follow-up Plans: [Product Error Handling](product-error-handling.md), [Diagnostic Bundle Export](diagnostic-bundle-export.md)
 > Related Contracts: [UI ViewModel Contract](../../frontend/ui-viewmodel-contract.md), [API UI Mapping](../../frontend/api-ui-mapping.md), [UI API Contract](../../product/plato-ui-api-contract.md)
@@ -15,12 +15,11 @@ The fixed-route execution bridge can now move published Tasks through pending,
 running, done, and failed. The Main Page can expose task status, but the user
 still lacks enough product-facing evidence to understand what happened.
 
-Current remaining exposure gaps:
+Product 1.0 accepted exposure boundary:
 
-- file changes now have a minimal Main Page projection and Audit Page can
-  project first-pass file evidence records, but richer timeline ordering still
-  needs to use the task interaction timeline source instead of ad hoc source
-  ordering;
+- file changes have a minimal Main Page projection and Audit Page can project
+  first-pass file evidence records through backend-owned timeline/source
+  orchestration;
 - raw `Observation` / EventStream facts exist and can be summarized into Audit
   records in the first backend path, but they are not default Main Page content;
 - Audit Page contracts, projection-backed routes, request-time sanitized
@@ -28,14 +27,16 @@ Current remaining exposure gaps:
   frontend event router/hook, AP-013C live refresh/stale/disconnected UI, and
   AP-013D workspace-backed UI event replay source exist; AP-013E emits the
   first AgentLoop/EventStream task-scoped audit event, and AP-013F emits
-  config/log/confirmation source changes; final user-path validation remains
-  open.
+  config/log/confirmation source changes; the first real sidecar Main Page ->
+  Audit -> record/detail/evidence validation path is now covered by the formal
+  frontend sidecar E2E runner.
 - recoverable error summary and recovery actions are visible through result /
   task projection paths in some cases, but the product-level error taxonomy is
   now owned by the separate Product Error Handling plan.
 
-Without a clear exposure boundary, the product risks mixing three different
-concepts:
+Product 1.0 local unsigned RC acceptance closes the exposure boundary for the
+first user-test path. Future work should expand source coverage without mixing
+three different concepts:
 
 1. what the Agent says it completed;
 2. what deterministic system facts prove happened;
@@ -310,17 +311,24 @@ Implementation note:
 - Agent final answers remain result summaries; file change copy is generated
   only from observed facts.
 
-Deferred to P8.E5 / Audit:
+Covered by P8.E5 / Audit:
 
-- broader hidden/partial evidence states beyond the AP-012 first pass;
-- evidence record ids and Audit detail links;
+- evidence record ids and Audit detail links for result, file, runtime event,
+  config, and log records;
+- first real sidecar validation that projected file records expose summarized
+  evidence while typed EventStream observation records expose sanitized payload
+  detail when policy allows it.
+
+Still deferred:
+
+- broader hidden/partial evidence cases beyond the AP-012 first pass;
 - runtime audit event emission/source coverage beyond the AP-013F
   AgentLoop/config/log/confirmation source set.
 
 ### P8.E5 Audit Entry Closure
 
-Status: implemented for backend source orchestration; frontend Audit validation
-remains pending.
+Status: implemented for backend source orchestration and validated through the
+first formal real-sidecar frontend path.
 
 Technical slice: [Audit Entry Closure](audit-entry-closure-technical-slice.md).
 
@@ -338,11 +346,15 @@ Current facts:
   confirmations, file changes, task result/error summaries, EventStream
   action/observation/AuditObservation facts, session log archive references,
   and config manifest references when present.
-- `TaskInteractionTimelineService` exists as a read-only task timeline source,
-  but it is not yet the Audit Page gateway's orchestration source.
+- `WorkspaceTaskInteractionTimelineService` is wired into the sidecar Audit
+  gateway as the task interaction orchestration source.
 - Runtime event/refetch has first coverage through workspace-backed
   `SqliteUiEventSource` and `audit.records_changed` emissions for AgentLoop,
   config, log, and confirmation source changes.
+- `frontend/src/e2e/auditEvidence.e2e.test.tsx`, run by
+  `npm run test:e2e:sidecar`, validates Main Page -> Audit from real sidecar
+  data, including result, projected file, typed EventStream observation,
+  config, and log records.
 
 Deliver:
 
@@ -372,7 +384,8 @@ Backend work:
    can affect the current session/task Audit Page view.
 6. Add a real HTTP-mode user-path validation that opens Audit from Main Page,
    inspects at least one result/file record, one runtime/event record, and one
-   config or log reference when available.
+   config or log reference when available. Done for the formal sidecar E2E
+   fixture.
 
 Contract boundaries:
 
@@ -391,9 +404,11 @@ Tests and validation:
   detail with partial/hidden/error states;
 - event-source tests for source writes that emit `audit.records_changed`;
 - frontend HTTP-mode regression that keeps A1-A14 mock fixtures as parity
-  fixtures while proving at least one real sidecar Audit path;
-- QA note update that records whether evidence ordering is clear enough for a
-  Product 1.0 user test.
+  fixtures while proving at least one real sidecar Audit path:
+  `frontend/src/e2e/auditEvidence.e2e.test.tsx`;
+- QA note update records that projected file-change records carry summary
+  evidence and typed EventStream observation records carry request-time
+  sanitized payload detail when policy allows it.
 
 Acceptance:
 
@@ -413,8 +428,27 @@ Handoffs:
 
 - User-facing recovery labels, retry affordance policy, and common error
   taxonomy are owned by [Product Error Handling](product-error-handling.md).
+  Main Page command/query recovery labels are now implemented; dedicated Audit
+  product-error recovery UI remains in that plan.
 - Raw support export, redaction, and tester diagnostic packaging are owned by
   [Diagnostic Bundle Export](diagnostic-bundle-export.md).
+
+### Product 1.0 Local RC Closure
+
+Accepted on 2026-06-07 for the local unsigned RC:
+
+- Main Page exposes task progress, result/error summaries, file summary, audit
+  entry links, and recovery labels without showing raw logs or raw payloads;
+- Audit Page record/detail/evidence paths are validated with real sidecar data
+  in the formal frontend E2E path;
+- normal browser dev smoke and mounted unsigned DMG smoke cover the Product 1.0
+  Main Page -> Audit/Diagnostics path;
+- signed distribution is not required for this exposure boundary and is
+  deferred under the Packaging plan until Apple Developer credentials are
+  available.
+
+Remaining evidence expansion, richer Audit verdicts, and broader hidden/partial
+cases are follow-up hardening, not blockers for Product 1.0 local unsigned RC.
 
 ---
 
@@ -435,8 +469,12 @@ Handoffs:
    a later evidence source when observed facts are incomplete.
 2. Open: how much of the execution completion/failure message should be authored by
    AgentLoop vs a deterministic bridge template for non-AgentLoop executions?
-3. Open: whether the next Audit hardening implementation should prioritize
-   richer timeline ordering first or AuditAgent verdict mapping first. The
-   current Product 1.0 recommendation is timeline/source orchestration first
-   because it improves existing records without changing the trust verdict
-   model.
+3. Decision: first-pass timeline/source orchestration is implemented and
+   validated through the formal sidecar E2E path. Remaining Audit hardening
+   should prioritize broader evidence coverage, product error refs, and
+   release-readiness smoke before any AuditAgent verdict expansion.
+4. Decision: Main Page consumes Product 1.0 command/query recovery metadata as
+   visible labels. The formal sidecar E2E path validates this with a real stale
+   retry command rejection; `Refresh session` remains guidance, not a concrete
+   button, until a dedicated safe refresh handler is accepted. Result exposure
+   should not expand into raw diagnostics.

@@ -1,7 +1,10 @@
+import type { ProductRecoveryAction } from "../../../shared/api/platoApi";
 import type { CommandResponse } from "../../../shared/api/types";
+import { productRecoveryActionsFromApiError } from "../../../shared/api/productErrors";
 
 export type CommandHandlingResult = {
   errorMessage: string | null;
+  recoveryActions: ProductRecoveryAction[];
   shouldRefetch: boolean;
 };
 
@@ -12,12 +15,14 @@ export function handleCommandResponse(
   if (!response.ok || response.result?.status !== "accepted") {
     return {
       errorMessage: response.error?.message ?? fallbackRejectedMessage,
+      recoveryActions: productRecoveryActionsFromApiError(response.error),
       shouldRefetch: shouldRefetchFromRefreshHint(response),
     };
   }
 
   return {
     errorMessage: null,
+    recoveryActions: [],
     shouldRefetch: shouldRefetchFromRefreshHint(response),
   };
 }

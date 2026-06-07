@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { ConfirmationActionView } from "../../../shared/api/types";
 import { Badge, Button, ChoiceGroup, Text } from "../../../shared/components";
 import type { ChoiceOptionTone } from "../../../shared/components";
+import { ProductRecoveryActions } from "../ProductRecoveryActions";
 import type { MainPageDetailView } from "../mainPageViewModel";
 import styles from "./ConfirmationDetailPanel.module.css";
 
@@ -161,9 +162,12 @@ export function ConfirmationDetailPanel({
       />
 
       {detail.commandError ? (
-        <Text className={styles.error} role="alert" variant="muted">
-          {detail.commandError}
-        </Text>
+        <div className={styles.commandErrorBlock}>
+          <Text className={styles.error} role="alert" variant="muted">
+            {detail.commandError}
+          </Text>
+          <ProductRecoveryActions actions={detail.commandRecoveryActions} />
+        </div>
       ) : null}
 
       <div className={styles.actionRow}>

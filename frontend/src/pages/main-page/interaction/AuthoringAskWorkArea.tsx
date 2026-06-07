@@ -8,6 +8,7 @@ import type {
 } from "../../../shared/api/types";
 import { Badge, Button, ChoiceGroup, Text } from "../../../shared/components";
 import type { ChoiceOptionTone } from "../../../shared/components";
+import { ProductRecoveryActions } from "../ProductRecoveryActions";
 import type { MainPageAuthoringAskViewModel } from "../mainPageViewModel";
 import styles from "./AuthoringAskWorkArea.module.css";
 
@@ -128,9 +129,14 @@ export function AuthoringAskWorkArea({
               : "Review the questions, then submit all answers together."}
           </Text>
           {view.commandError ? (
-            <Text className={styles.error} role="alert" variant="muted">
-              {view.commandError}
-            </Text>
+            <div className={styles.commandErrorBlock}>
+              <Text className={styles.error} role="alert" variant="muted">
+                {view.commandError}
+              </Text>
+              <ProductRecoveryActions
+                actions={view.commandRecoveryActions}
+              />
+            </div>
           ) : null}
         </div>
         <Button disabled={!canSubmit} type="submit" variant="primary">

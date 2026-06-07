@@ -351,6 +351,7 @@ describe("useMainPageController", () => {
         rejectedCommandResponse({
           commandId: request.commandId,
           message: "Choose an option or enter text, not both.",
+          recoveryActions: ["answer_ask", "refresh_snapshot"],
         }),
     );
     const loadSnapshot = vi.fn<LoadMainPageSnapshot>(loadImmediateSnapshot);
@@ -381,6 +382,10 @@ describe("useMainPageController", () => {
         "Choose an option or enter text, not both.",
       );
     });
+    expect(result.current.executionAskRecoveryActions).toEqual([
+      "answer_ask",
+      "refresh_snapshot",
+    ]);
     await waitFor(() => {
       expect(loadSnapshot).toHaveBeenCalledTimes(2);
     });
@@ -941,9 +946,11 @@ function acceptedCommandResponse({
 function rejectedCommandResponse({
   commandId,
   message,
+  recoveryActions = [],
 }: {
   commandId: string;
   message: string;
+  recoveryActions?: string[];
 }): CommandResponse {
   return {
     requestId: `request-${commandId}`,
@@ -961,7 +968,9 @@ function rejectedCommandResponse({
     },
     error: {
       code: "command_rejected",
-      details: {},
+      details: {
+        recoveryActions,
+      },
       message,
       retryable: false,
     },

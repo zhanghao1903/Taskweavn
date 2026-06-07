@@ -11,6 +11,7 @@ import type {
   TaskNodeCardView,
   TaskNodeId,
 } from "../../shared/api/types";
+import type { ProductRecoveryAction } from "../../shared/api/platoApi";
 import {
   buildAuditSessionRoute,
   buildAuditTaskRoute,
@@ -35,6 +36,7 @@ export type MainPageDetailView =
       kind: "executionAsk";
       ask: AskRequestView;
       commandError: string | null;
+      commandRecoveryActions: ProductRecoveryAction[];
       header: MainPageDetailHeader;
       isAnsweringAsk: boolean;
       isCancellingAsk: boolean;
@@ -44,6 +46,7 @@ export type MainPageDetailView =
   | {
       kind: "confirmation";
       commandError: string | null;
+      commandRecoveryActions: ProductRecoveryAction[];
       confirmation: ConfirmationActionView | undefined;
       fallbackBody: string;
       header: MainPageDetailHeader;
@@ -116,6 +119,7 @@ export type MainPageWorkspaceViewModel = {
   isPublishingTaskTree: boolean;
   showPublishTaskTree: boolean;
   taskTreeCommandError: string | null;
+  taskTreeCommandRecoveryActions: ProductRecoveryAction[];
   taskTreeId: string | null;
   title: string;
   uiNotice: string | null;
@@ -155,6 +159,7 @@ export type MainPageAuthoringDiagnosticViewModel = {
 export type MainPageAuthoringAskViewModel = {
   asks: PlanningAskView[];
   commandError: string | null;
+  commandRecoveryActions: ProductRecoveryAction[];
   isSubmitting: boolean;
   rawTaskId: string;
   summary: string | null;
@@ -184,12 +189,15 @@ export type MainPageViewModel = {
 export type BuildMainPageViewModelInput = {
   auditRouteAvailable?: boolean;
   authoringAskError: string | null;
+  authoringAskRecoveryActions: ProductRecoveryAction[];
   confirmationError: string | null;
+  confirmationRecoveryActions: ProductRecoveryAction[];
   detailOverride: DetailOverride;
   eventConnectionStatus: EventConnectionStatus;
   eventError: string | null;
   isAnsweringAuthoringAsk: boolean;
   executionAskError: string | null;
+  executionAskRecoveryActions: ProductRecoveryAction[];
   isAnsweringAsk: boolean;
   isCancellingAsk: boolean;
   isDeferringAsk: boolean;
@@ -203,18 +211,22 @@ export type BuildMainPageViewModelInput = {
   selectedTaskNodeId: TaskNodeId | null;
   snapshot: MainPageSnapshot;
   taskTreeCommandError: string | null;
+  taskTreeCommandRecoveryActions: ProductRecoveryAction[];
   uiNotice: string | null;
 };
 
 export function buildMainPageViewModel({
   auditRouteAvailable = true,
   authoringAskError,
+  authoringAskRecoveryActions,
   confirmationError,
+  confirmationRecoveryActions,
   detailOverride,
   eventConnectionStatus,
   eventError,
   isAnsweringAuthoringAsk,
   executionAskError,
+  executionAskRecoveryActions,
   isAnsweringAsk,
   isCancellingAsk,
   isDeferringAsk,
@@ -228,11 +240,13 @@ export function buildMainPageViewModel({
   selectedTaskNodeId,
   snapshot,
   taskTreeCommandError,
+  taskTreeCommandRecoveryActions,
   uiNotice,
 }: BuildMainPageViewModelInput): MainPageViewModel {
   const nodes = snapshot.taskTree?.nodes ?? [];
   const authoringAsk = authoringAskViewFor({
     commandError: authoringAskError,
+    commandRecoveryActions: authoringAskRecoveryActions,
     isSubmitting: isAnsweringAuthoringAsk,
     planning: snapshot.planning,
   });
@@ -315,6 +329,8 @@ export function buildMainPageViewModel({
       activeConfirmation,
       activeExecutionAsk,
       commandError: confirmationError,
+      commandRecoveryActions: confirmationRecoveryActions,
+      executionAskRecoveryActions,
       executionAskError,
       fileChangeSummary,
       hasExecutionAskFocus,
@@ -378,6 +394,7 @@ export function buildMainPageViewModel({
       showPublishTaskTree:
         authoringAsk === null && snapshot.taskTree?.status === "draft",
       taskTreeCommandError,
+      taskTreeCommandRecoveryActions,
       taskTreeId: snapshot.taskTree?.id ?? null,
       title:
         authoringAsk?.title ??
@@ -407,10 +424,12 @@ function authoringDiagnosticViewFor(
 
 function authoringAskViewFor({
   commandError,
+  commandRecoveryActions,
   isSubmitting,
   planning,
 }: {
   commandError: string | null;
+  commandRecoveryActions: ProductRecoveryAction[];
   isSubmitting: boolean;
   planning: MainPageSnapshot["planning"];
 }): MainPageAuthoringAskViewModel | null {
@@ -425,6 +444,7 @@ function authoringAskViewFor({
   return {
     asks: pendingAsks,
     commandError,
+    commandRecoveryActions,
     isSubmitting,
     rawTaskId,
     summary: planning.summary ?? null,
@@ -585,7 +605,9 @@ function detailViewFor({
   activeConfirmation,
   activeExecutionAsk,
   commandError,
+  commandRecoveryActions,
   executionAskError,
+  executionAskRecoveryActions,
   fileChangeSummary,
   hasExecutionAskFocus,
   hasConfirmationFocus,
@@ -605,7 +627,9 @@ function detailViewFor({
   activeConfirmation: ConfirmationActionView | undefined;
   activeExecutionAsk: AskRequestView | null;
   commandError: string | null;
+  commandRecoveryActions: ProductRecoveryAction[];
   executionAskError: string | null;
+  executionAskRecoveryActions: ProductRecoveryAction[];
   fileChangeSummary: FileChangeSummaryView | null;
   hasExecutionAskFocus: boolean;
   hasConfirmationFocus: boolean;
@@ -627,6 +651,7 @@ function detailViewFor({
       kind: "executionAsk",
       ask: activeExecutionAsk,
       commandError: executionAskError,
+      commandRecoveryActions: executionAskRecoveryActions,
       header,
       isAnsweringAsk,
       isCancellingAsk,
@@ -639,6 +664,7 @@ function detailViewFor({
     return {
       kind: "confirmation",
       commandError,
+      commandRecoveryActions,
       confirmation: activeConfirmation,
       fallbackBody: header.body,
       header,

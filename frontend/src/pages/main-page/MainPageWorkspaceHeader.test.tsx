@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { MainPageWorkspaceHeader } from "./MainPageWorkspaceHeader";
@@ -14,6 +14,7 @@ describe("MainPageWorkspaceHeader", () => {
         onPublishTaskTree={vi.fn()}
         showPublishTaskTree={false}
         taskTreeCommandError={null}
+        taskTreeCommandRecoveryActions={[]}
         title="Personal website project plan"
         uiNotice={null}
       />,
@@ -37,6 +38,7 @@ describe("MainPageWorkspaceHeader", () => {
         onPublishTaskTree={vi.fn()}
         showPublishTaskTree={false}
         taskTreeCommandError={null}
+        taskTreeCommandRecoveryActions={[]}
         title="Personal website project plan"
         uiNotice={null}
       />,
@@ -63,6 +65,7 @@ describe("MainPageWorkspaceHeader", () => {
         onPublishTaskTree={vi.fn()}
         showPublishTaskTree={false}
         taskTreeCommandError={null}
+        taskTreeCommandRecoveryActions={[]}
         title="Personal website project plan"
         uiNotice={null}
       />,
@@ -83,6 +86,7 @@ describe("MainPageWorkspaceHeader", () => {
         onPublishTaskTree={vi.fn()}
         showPublishTaskTree
         taskTreeCommandError={null}
+        taskTreeCommandRecoveryActions={[]}
         title="Personal website project plan"
         uiNotice={null}
       />,
@@ -103,6 +107,7 @@ describe("MainPageWorkspaceHeader", () => {
         onPublishTaskTree={vi.fn()}
         showPublishTaskTree
         taskTreeCommandError={null}
+        taskTreeCommandRecoveryActions={[]}
         title="Personal website project plan"
         uiNotice={null}
       />,
@@ -112,6 +117,34 @@ describe("MainPageWorkspaceHeader", () => {
       screen.getByRole("button", { name: "Publishing plan" }),
     ).toBeDisabled();
     expect(screen.queryByText("Publishing tasks")).not.toBeInTheDocument();
+  });
+
+  it("renders command recovery actions as user-facing labels", () => {
+    render(
+      <MainPageWorkspaceHeader
+        auditEntry={auditEntry({ isEnabled: true })}
+        eventError={null}
+        isPublishingTaskTree={false}
+        onPublishTaskTree={vi.fn()}
+        showPublishTaskTree={false}
+        taskTreeCommandError="Publish was rejected."
+        taskTreeCommandRecoveryActions={[
+          "refresh_snapshot",
+          "open_audit",
+          "export_diagnostics",
+        ]}
+        title="Personal website project plan"
+        uiNotice={null}
+      />,
+    );
+
+    expect(screen.getByText("Publish was rejected.")).toBeInTheDocument();
+    const recoveryActions = screen.getByLabelText("Suggested recovery actions");
+    expect(within(recoveryActions).getByText("Refresh session")).toBeInTheDocument();
+    expect(within(recoveryActions).getByText("View audit")).toBeInTheDocument();
+    expect(
+      within(recoveryActions).getByText("Export diagnostics"),
+    ).toBeInTheDocument();
   });
 });
 

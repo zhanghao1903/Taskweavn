@@ -141,6 +141,7 @@ function renderWorkbench(
       actions={actions}
       inputDraft=""
       inputError={null}
+      inputRecoveryActions={[]}
       isCreatingSession={false}
       isDeletingSession={false}
       isRepairingAuthoringState={false}
@@ -163,12 +164,15 @@ function buildViewModel(
   return buildMainPageViewModel({
     auditRouteAvailable: true,
     authoringAskError: null,
+    authoringAskRecoveryActions: [],
     confirmationError: null,
+    confirmationRecoveryActions: [],
     detailOverride: "auto",
     eventConnectionStatus: "disconnected",
     eventError: null,
     isAnsweringAuthoringAsk: false,
     executionAskError: null,
+    executionAskRecoveryActions: [],
     isAnsweringAsk: false,
     isCancellingAsk: false,
     isDeferringAsk: false,
@@ -181,6 +185,7 @@ function buildViewModel(
     selectedTaskNodeId: overrides.selectedTaskNodeId ?? null,
     snapshot: overrides.snapshot ?? snapshot,
     taskTreeCommandError: null,
+    taskTreeCommandRecoveryActions: [],
     uiNotice: null,
   });
 }
