@@ -271,7 +271,7 @@ Product 1.0 UI export slice assumptions:
 
 - `POST /api/v1/sessions/{sessionId}/diagnostics/export` writes a local bundle
   under a sidecar-controlled diagnostics directory, defaulting to
-  `workspace://current/.taskweavn/diagnostics`.
+  `workspace://current/.plato/diagnostics`.
 - The response returns a descriptor only:
   `bundleId`, `bundleDir`, `bundleDirLabel`, `zipPath`, `zipPathLabel`,
   `manifestPath`, `redactionProfile`, `includedSections`, `sections`,

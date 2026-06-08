@@ -1575,12 +1575,12 @@ class _DiagnosticExportGateway:
             "schemaVersion": "plato.diagnostics_export.v1",
             "bundleId": f"diagnostic-bundle-{session_id}",
             "bundleDir": "/tmp/bundle",
-            "bundleDirLabel": "workspace://current/.taskweavn/diagnostics/bundle",
+            "bundleDirLabel": "workspace://current/.plato/diagnostics/bundle",
             "zipPath": "/tmp/bundle.zip",
-            "zipPathLabel": "workspace://current/.taskweavn/diagnostics/bundle.zip",
+            "zipPathLabel": "workspace://current/.plato/diagnostics/bundle.zip",
             "manifestPath": "/tmp/bundle/manifest.json",
             "manifestPathLabel": (
-                "workspace://current/.taskweavn/diagnostics/bundle/manifest.json"
+                "workspace://current/.plato/diagnostics/bundle/manifest.json"
             ),
             "createdAt": "2026-05-21T09:00:00Z",
             "redactionProfile": "product_1_0_default",

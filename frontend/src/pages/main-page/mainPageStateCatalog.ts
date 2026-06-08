@@ -24,9 +24,9 @@ export const mainPageStateCatalog = [
     id: "s1-empty",
     label: "S1 Empty",
     lifecycle: "empty",
-    userSituation: "The user has opened a Workflow but has not entered a goal.",
-    pageFocus: "Show the Workflow entry point and make natural-language input obvious.",
-    primarySurfaces: ["Context input", "Workflow sidebar", "Empty task plan"],
+    userSituation: "The user has opened a workspace but has not entered a goal.",
+    pageFocus: "Show the workspace entry point and make natural-language input obvious.",
+    primarySurfaces: ["Context input", "Workspace sidebar", "Empty task plan"],
     expectedUserAction: "Describe the goal they want Plato to plan.",
   },
   {

@@ -76,8 +76,8 @@ def test_read_workspace_accepts_safe_labels(tmp_path: Path) -> None:
 
 
 def test_read_workspace_protects_taskweavn_metadata(tmp_path: Path) -> None:
-    (tmp_path / ".taskweavn").mkdir()
-    (tmp_path / ".taskweavn" / "secret.json").write_text("secret", encoding="utf-8")
+    (tmp_path / ".plato").mkdir()
+    (tmp_path / ".plato" / "secret.json").write_text("secret", encoding="utf-8")
     store = InMemoryAuthoringEvidenceStore()
     source = LocalCollaboratorWorkspaceContextSource(
         workspace_root=tmp_path,
@@ -88,7 +88,7 @@ def test_read_workspace_protects_taskweavn_metadata(tmp_path: Path) -> None:
         session_id="s1",
         loop_id="loop-1",
         request=AuthoringReadWorkspaceRequest(
-            paths=(".taskweavn/secret.json",),
+            paths=(".plato/secret.json",),
             purpose="Inspect hidden state",
         ),
     )
@@ -97,7 +97,7 @@ def test_read_workspace_protects_taskweavn_metadata(tmp_path: Path) -> None:
     record = store.get("s1", file.evidence_ref)
     assert file.content_snippet is None
     assert file.omitted_reason is not None
-    assert file.path_label == "workspace://current/.taskweavn/secret.json"
+    assert file.path_label == "workspace://current/.plato/secret.json"
     assert record is not None
     assert record.policy_decision == "denied"
     assert record.snippet is None

@@ -70,10 +70,10 @@ def test_run_command_cwd_outside_workspace_via_runtime(workspace: Workspace) -> 
 
 
 def test_run_command_rejects_private_metadata_cwd(workspace: Workspace) -> None:
-    (workspace.root / ".taskweavn").mkdir()
+    (workspace.root / ".plato").mkdir()
     rt = LocalRuntime()
     RunCommandTool(workspace).register(rt)
-    obs = rt.execute(RunCommandAction(command="pwd", cwd=".taskweavn"))
+    obs = rt.execute(RunCommandAction(command="pwd", cwd=".plato"))
     assert isinstance(obs, ErrorObservation)
     assert "private metadata" in obs.message.lower()
 
@@ -81,10 +81,10 @@ def test_run_command_rejects_private_metadata_cwd(workspace: Workspace) -> None:
 def test_run_command_rejects_direct_private_metadata_reference(
     workspace: Workspace,
 ) -> None:
-    (workspace.root / ".taskweavn").mkdir()
+    (workspace.root / ".plato").mkdir()
     rt = LocalRuntime()
     RunCommandTool(workspace).register(rt)
-    obs = rt.execute(RunCommandAction(command="cat .taskweavn/workspace.sqlite"))
+    obs = rt.execute(RunCommandAction(command="cat .plato/workspace.sqlite"))
     assert isinstance(obs, ErrorObservation)
     assert "private metadata" in obs.message.lower()
 

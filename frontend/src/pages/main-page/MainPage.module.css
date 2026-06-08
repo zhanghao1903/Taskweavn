@@ -74,7 +74,6 @@
   grid-template-columns:
     minmax(128px, 156px)
     minmax(144px, 170px)
-    minmax(180px, 240px)
     minmax(180px, 1fr)
     minmax(120px, auto)
     minmax(152px, auto);
@@ -262,6 +261,7 @@
 
 .sidebarHeader {
   margin-bottom: var(--plato-space-5);
+  gap: var(--plato-space-2);
   font-weight: var(--plato-type-label-weight);
 }
 
@@ -273,7 +273,8 @@
 
 .sidebarHeader button,
 .secondaryButton,
-.contextInput button {
+.contextInput button,
+.workspaceTreeCurrentActions button {
   border: 1px solid var(--plato-color-line);
   border-radius: var(--plato-radius-md);
   background: var(--plato-color-panel);
@@ -284,8 +285,119 @@
 }
 
 .sidebarHeader button,
-.secondaryButton {
+.secondaryButton,
+.workspaceTreeCurrentActions button {
   padding: var(--plato-space-2) var(--plato-space-3);
+}
+
+.workspaceSessionTree {
+  display: grid;
+  min-width: 0;
+  gap: var(--plato-space-3);
+}
+
+.sessionTreeList {
+  display: grid;
+  min-width: 0;
+  padding-left: 30px;
+}
+
+.workspaceExplorer,
+.workspaceTreeGroup {
+  display: grid;
+  min-width: 0;
+  gap: var(--plato-space-2);
+}
+
+.workspaceTreeCurrent,
+.workspaceTreeRow {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  align-items: center;
+  gap: var(--plato-space-2);
+  border: 1px solid var(--plato-color-transparent);
+  border-radius: var(--plato-radius-md);
+  padding: var(--plato-space-2);
+  background: var(--plato-color-transparent);
+  color: var(--plato-color-ink);
+  font-size: var(--plato-type-nav-size);
+  font-weight: var(--plato-type-nav-active-weight);
+  line-height: var(--plato-type-nav-line-height);
+  text-align: left;
+}
+
+.workspaceTreeCurrent {
+  background: var(--plato-color-clear-blue);
+  color: var(--plato-color-reason-blue);
+}
+
+.workspaceTreeRow:hover:not(:disabled),
+.workspaceTreeRow:focus-visible:not(:disabled) {
+  background: var(--plato-color-clear-blue);
+  color: var(--plato-color-reason-blue);
+  outline: none;
+}
+
+.workspaceTreeRow:disabled {
+  color: var(--plato-color-muted);
+  cursor: default;
+  opacity: 0.55;
+}
+
+.workspaceSwitcherIcon {
+  flex: 0 0 auto;
+  color: var(--plato-color-muted);
+}
+
+.workspaceTreeCurrentLabel {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  align-items: center;
+}
+
+.workspaceTreeCurrentLabel > span {
+  display: grid;
+  min-width: 0;
+  gap: 1px;
+}
+
+.workspaceTreeCurrentActions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.workspaceTreeCurrent strong,
+.workspaceTreeRow span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspaceSwitcherEyebrow {
+  color: var(--plato-color-muted);
+  font-size: 10px;
+  font-weight: var(--plato-type-badge-weight);
+  line-height: 1.1;
+  text-transform: uppercase;
+}
+
+.workspaceSwitcherNotice,
+.workspaceSwitcherError {
+  border-radius: var(--plato-radius-md);
+  padding: var(--plato-space-2) var(--plato-space-3);
+}
+
+.workspaceSwitcherError {
+  background: var(--plato-color-danger-bg);
+  color: var(--plato-color-danger-text);
+  font-size: var(--plato-type-caption-size);
+  font-weight: var(--plato-type-control-weight);
+  line-height: var(--plato-type-caption-line-height);
 }
 
 .sidebarGroupTitle,

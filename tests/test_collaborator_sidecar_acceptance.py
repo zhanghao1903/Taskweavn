@@ -77,6 +77,51 @@ class _ForcedCollaboratorProvider:
         return 0
 
 
+class _ForcedCollaboratorAskProvider:
+    """Provider-shaped LLM that reads workspace evidence before asking the user."""
+
+    name = "forced_collaborator_ask_acceptance_provider"
+    capabilities = ProviderCapabilities(chat=True, tool_calls=True)
+
+    def __init__(self) -> None:
+        self.requests: list[ChatRequest] = []
+
+    def chat(self, request: ChatRequest) -> ChatResponse:
+        self.requests.append(request)
+        call_number = len(self.requests)
+        if call_number == 1:
+            return _tool_response(
+                "authoring_read_workspace",
+                {
+                    "paths": ["README.md"],
+                    "purpose": "Read workspace guidance before deciding whether to ask.",
+                    "max_snippet_chars": 200,
+                },
+                call_id="forced-read-ask-1",
+            )
+        if call_number == 2:
+            return _tool_response(
+                "ask_authoring",
+                {
+                    "intent_summary": "Plan a workspace-informed feature",
+                    "question": "Which user workflow should this feature support first?",
+                    "reason": (
+                        "Workspace guidance is available, but the requested workflow "
+                        "is still underspecified."
+                    ),
+                    "missing_inputs": ["first user workflow"],
+                },
+                call_id="forced-ask-1",
+            )
+        raise AssertionError(f"unexpected provider call {call_number}")
+
+    def complete(self, request: object) -> object:
+        raise NotImplementedError
+
+    def count_tokens(self, request: object) -> int:
+        return 0
+
+
 def test_collaborator_sidecar_acceptance_forced_read_search_finish(
     tmp_path: Path,
 ) -> None:
@@ -85,7 +130,7 @@ def test_collaborator_sidecar_acceptance_forced_read_search_finish(
     llm = LLMClient(
         model="forced/collaborator-acceptance",
         api_key="test-key",
-        provider=provider,
+        provider=cast(Any, provider),
     )
     app = build_main_page_sidecar_app(
         MainPageSidecarConfig(
@@ -139,6 +184,7 @@ def test_collaborator_sidecar_acceptance_forced_read_search_finish(
     assert tool_names == {
         "authoring_read_workspace",
         "authoring_search_workspace",
+        "ask_authoring",
         "finish_authoring",
     }
     assert not {"write_file", "run_command", "shell", "execute_code"} & tool_names
@@ -148,8 +194,70 @@ def test_collaborator_sidecar_acceptance_forced_read_search_finish(
     assert str(tmp_path) not in second_messages
     assert str(tmp_path) not in third_messages
     assert str(tmp_path) not in snapshot_text
-    assert ".taskweavn/secret" not in second_messages
-    assert ".taskweavn/secret" not in third_messages
+    assert ".plato/secret" not in second_messages
+    assert ".plato/secret" not in third_messages
+
+
+def test_collaborator_sidecar_acceptance_forced_read_ask(
+    tmp_path: Path,
+) -> None:
+    _seed_workspace_guidance(tmp_path)
+    provider = _ForcedCollaboratorAskProvider()
+    llm = LLMClient(
+        model="forced/collaborator-ask-acceptance",
+        api_key="test-key",
+        provider=cast(Any, provider),
+    )
+    app = build_main_page_sidecar_app(
+        MainPageSidecarConfig(
+            workspace_root=tmp_path,
+            port=0,
+            enable_default_agent=False,
+            enable_execution_dispatcher=False,
+        ),
+        MainPageSidecarDependencies(llm=llm),
+    )
+    try:
+        session_id = _create_session(app)
+        command_status, command_text, command = _request(
+            app,
+            "POST",
+            f"/api/v1/sessions/{session_id}/input",
+            body={
+                "commandId": "command-collaborator-sidecar-ask-acceptance",
+                "sessionId": session_id,
+                "payload": {
+                    "content": "Plan this feature using workspace guidance.",
+                    "mode": "global_guidance",
+                },
+            },
+        )
+        raw_tasks = app.raw_task_store.list_for_session(session_id)
+    finally:
+        app.close()
+
+    tool_names = {
+        tool["function"]["name"]
+        for tool in (provider.requests[0].tools or [])
+    }
+    second_messages = json.dumps(provider.requests[1].messages, ensure_ascii=False)
+
+    assert command_status == 200
+    assert command["ok"] is True, command_text
+    assert command["result"]["status"] == "accepted", command_text
+    assert len(raw_tasks) == 1
+    assert raw_tasks[0].status == "awaiting_user"
+    assert raw_tasks[0].asks[0].question == (
+        "Which user workflow should this feature support first?"
+    )
+    assert tool_names == {
+        "authoring_read_workspace",
+        "authoring_search_workspace",
+        "ask_authoring",
+        "finish_authoring",
+    }
+    assert "workspace://current/README.md" in second_messages
+    assert str(tmp_path) not in second_messages
 
 
 def _seed_workspace_guidance(workspace: Path) -> None:
@@ -162,8 +270,8 @@ def _seed_workspace_guidance(workspace: Path) -> None:
         "Accepted plan: collaborator should use workspace-informed authoring evidence.\n",
         encoding="utf-8",
     )
-    (workspace / ".taskweavn").mkdir()
-    (workspace / ".taskweavn" / "secret.txt").write_text(
+    (workspace / ".plato").mkdir()
+    (workspace / ".plato" / "secret.txt").write_text(
         "must not be read",
         encoding="utf-8",
     )

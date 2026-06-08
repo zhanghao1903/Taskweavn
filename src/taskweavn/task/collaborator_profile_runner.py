@@ -90,10 +90,10 @@ class CollaboratorAuthoringProfileRunner:
                     )
                     return self._profile.map_terminal_action(terminal_action, request)
 
-                finish_call = self._single_finish_call(response.tool_calls)
-                if finish_call is not None:
+                terminal_call = self._single_terminal_call(response.tool_calls)
+                if terminal_call is not None:
                     terminal_action = self._terminal_action_from_tool_call(
-                        finish_call,
+                        terminal_call,
                         evidence_refs=tuple(evidence_refs),
                     )
                     return self._profile.map_terminal_action(terminal_action, request)
@@ -165,17 +165,18 @@ class CollaboratorAuthoringProfileRunner:
         )
         return response
 
-    def _single_finish_call(self, tool_calls: list[ToolCall]) -> ToolCall | None:
-        finish_calls = [
+    def _single_terminal_call(self, tool_calls: list[ToolCall]) -> ToolCall | None:
+        terminal_tool_names = set(self._profile.terminal_tool_names)
+        terminal_calls = [
             tool_call
             for tool_call in tool_calls
-            if tool_call.name == self._profile.terminal_tool_name
+            if tool_call.name in terminal_tool_names
         ]
-        if not finish_calls:
+        if not terminal_calls:
             return None
         if len(tool_calls) > 1:
-            raise ValueError("finish_authoring must be the only terminal tool call")
-        return finish_calls[0]
+            raise ValueError("authoring terminal tool call must be the only tool call")
+        return terminal_calls[0]
 
     def _terminal_action_from_tool_call(
         self,

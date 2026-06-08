@@ -379,7 +379,6 @@ export function buildMainPageViewModel({
       brandLabel: "柏拉图 Plato",
       contextItems: [
         snapshot.project.name,
-        snapshot.workflow.name,
         snapshot.session.name,
       ],
       statuses: [

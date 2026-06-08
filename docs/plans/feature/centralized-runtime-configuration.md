@@ -126,9 +126,9 @@ ConfigPatch
 
 ```text
 built-in defaults
-  -> user global config        (~/.taskweavn/config.yaml)
-  -> workspace config          <workspace>/.taskweavn/config.yaml
-  -> session config            workspace/.taskweavn/sessions/<id>/config overlay
+  -> user global config        (~/.plato/config.yaml)
+  -> workspace config          <workspace>/.plato/config.yaml
+  -> session config            workspace/.plato/sessions/<id>/config overlay
   -> task config               task metadata / task config patch
   -> runtime override          UI / CLI / API hot patch
 ```
@@ -476,7 +476,7 @@ llm:
 
 1. 是否需要单独的 `workspace_id`，还是 workspace path 足够？
 2. runtime override 是否默认带 TTL？
-3. user/global config 存放路径是否固定为 `~/.taskweavn/config.yaml`？
+3. user/global config 存放路径是否固定为 `~/.plato/config.yaml`？
 4. secret 是否进入同一配置系统，还是单独 SecretStore？
 5. UI 是否允许编辑 task-level 配置，还是第一版只读展示？
 

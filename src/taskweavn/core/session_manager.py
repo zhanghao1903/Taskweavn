@@ -139,7 +139,7 @@ class SessionManager:
         """Delete a session registry row and archive its on-disk directory.
 
         The local 1.0 UI exposes this as "delete", but we archive files under
-        ``.taskweavn/deleted-sessions`` instead of physically removing the
+        ``.plato/deleted-sessions`` instead of physically removing the
         project directory. That keeps user work recoverable while making the
         session disappear from normal lists.
         """

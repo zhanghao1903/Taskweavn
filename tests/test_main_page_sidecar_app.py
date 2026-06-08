@@ -127,7 +127,7 @@ def test_main_page_sidecar_app_saves_settings_config_and_refreshes_readiness(
     combined_text = saved.text + config.text + readiness.text
     assert secret not in combined_text
     assert secret not in (
-        tmp_path / ".taskweavn" / "settings" / "config.json"
+        tmp_path / ".plato" / "settings" / "config.json"
     ).read_text(encoding="utf-8")
 
 
@@ -256,10 +256,16 @@ def test_build_main_page_sidecar_app_initializes_existing_session_logs(
         manifest_path.read_text(encoding="utf-8")
     )
     rows = _read_jsonl(session.logs_dir / "session.jsonl")
+    bus_rows = _read_jsonl(session.logs_dir / "bus.jsonl")
     assert manifest.archive_root == str(session.logs_dir)
     assert manifest.files["session"] == "session.jsonl"
     assert rows[-1]["event"] == "debug_check"
     assert rows[-1]["context"] == {"session_id": session.id}
+    assert bus_rows[-1]["event"] == "close"
+    assert bus_rows[-1]["context"] == {"session_id": session.id}
+    assert not (tmp_path / ".plato" / "sessions" / "_unknown").exists()
+    assert (tmp_path / ".plato" / "logs" / "global" / "config.jsonl").exists()
+    assert not (tmp_path / ".code-agent").exists()
 
 
 def test_session_lifecycle_create_initializes_session_logs(tmp_path: Any) -> None:
@@ -1265,14 +1271,14 @@ def test_sidecar_smoke_fixture_exports_diagnostics_bundle_over_http(
     assert data["schemaVersion"] == "plato.diagnostics_export.v1"
     assert data["bundleId"].startswith(f"diagnostic-bundle-{fixture.session_id}-")
     assert data["bundleDirLabel"].startswith(
-        "workspace://current/.taskweavn/diagnostics/"
+        "workspace://current/.plato/diagnostics/"
     )
     assert data["zipPath"] is not None
     assert data["zipPathLabel"].startswith(
-        "workspace://current/.taskweavn/diagnostics/"
+        "workspace://current/.plato/diagnostics/"
     )
     assert data["manifestPathLabel"].startswith(
-        "workspace://current/.taskweavn/diagnostics/"
+        "workspace://current/.plato/diagnostics/"
     )
     assert data["redactionProfile"] == "product_1_0_default"
     assert {"session", "tasks", "audit", "logs", "frontend"}.issubset(

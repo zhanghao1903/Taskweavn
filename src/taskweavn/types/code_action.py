@@ -76,7 +76,7 @@ class FileChange(BaseModel):
     Either ``before_sha256`` or ``after_sha256`` is None when the change is a
     creation or deletion respectively. The diff text is intentionally not
     embedded — the sandbox writes a snapshot under
-    ``<workspace>/.taskweavn/snapshots/<event_id>/`` and AuditAgent can pull
+    ``<workspace>/.plato/snapshots/<event_id>/`` and AuditAgent can pull
     the full content on demand.
     """
 

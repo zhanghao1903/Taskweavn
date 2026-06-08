@@ -8,6 +8,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from taskweavn.core import Session
+from taskweavn.core.workspace_layout import WORKSPACE_META_DIR_NAME
 from taskweavn.observability import (
     LogArchiveManifest,
     LogRule,
@@ -38,7 +39,7 @@ def configure_sidecar_logging(
     sinks["session_file"] = session_sink.model_copy(
         update={
             "path_template": (
-                "{archive_root}/.taskweavn/sessions/{session_id}/logs/"
+                f"{{archive_root}}/{WORKSPACE_META_DIR_NAME}/sessions/{{session_id}}/logs/"
                 "{category}.jsonl"
             )
         }
@@ -47,7 +48,8 @@ def configure_sidecar_logging(
     sinks["global_config_file"] = global_config_sink.model_copy(
         update={
             "path_template": (
-                "{archive_root}/.code-agent/logs/global/{category}.jsonl"
+                f"{{archive_root}}/{WORKSPACE_META_DIR_NAME}/logs/global/"
+                "{category}.jsonl"
             )
         }
     )

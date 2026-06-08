@@ -23,8 +23,12 @@ export function MainPageTopBar({
   statuses,
   trailing = null,
 }: MainPageTopBarProps) {
-  const [projectName = "Project", workflowName = "Workflow", sessionName] =
-    contextItems;
+  const [
+    workspaceName = "Workspace",
+    maybeSessionName,
+    legacySessionName,
+  ] = contextItems;
+  const sessionName = legacySessionName ?? maybeSessionName;
 
   return (
     <header aria-label={brandLabel} className={styles.topBar}>
@@ -36,11 +40,9 @@ export function MainPageTopBar({
       </div>
 
       <div className={styles.topBarContextBlock}>
-        <span className={styles.topBarLabel}>Project</span>
-        <span className={styles.topBarValue}>{projectName}</span>
+        <span className={styles.topBarLabel}>Workspace</span>
+        <span className={styles.topBarValue}>{workspaceName}</span>
       </div>
-
-      <div className={styles.workflowPill}>{workflowName}</div>
 
       <div className={styles.sessionContextBlock}>
         <span className={styles.sessionValue}>

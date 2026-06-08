@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from taskweavn.core.session import Session
+from taskweavn.core.workspace_layout import WORKSPACE_META_DIR_NAME
 from taskweavn.observability.models import LogArchiveManifest
 from taskweavn.server.ui_contract.gateway_protocols import (
     AuditEventProvider,
@@ -491,7 +492,7 @@ def _normalize_paths(text: str, *, session: Session) -> tuple[str, tuple[str, ..
     normalized = text
     for root, label in (
         (session.logs_dir, "session-logs://"),
-        (session.layout.meta_dir, "workspace://current/.taskweavn/"),
+        (session.layout.meta_dir, f"workspace://current/{WORKSPACE_META_DIR_NAME}/"),
         (session.project_dir, "workspace://current/"),
     ):
         try:

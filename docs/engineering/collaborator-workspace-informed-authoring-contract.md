@@ -17,10 +17,13 @@ The contract is:
 ```text
 Authoring request
   -> zero or more read/query/search observations
-  -> finished authoring proposal OR waiting_for_context OR rejected
+  -> finish_authoring OR ask_authoring OR waiting_for_context OR rejected
 ```
 
-Only a `finished` result may submit a proposal to AuthoringCommandService.
+Only a finished authoring terminal action may submit a proposal to
+AuthoringCommandService. `ask_authoring` is a finished RawTask authoring
+proposal whose mutation records one or more `RawTaskAsk` objects and leaves the
+RawTask awaiting the user's answer.
 
 ## 2. CollaboratorAuthoringProfile
 
@@ -35,6 +38,7 @@ type CollaboratorAuthoringProfile = {
   allowedTools: [
     "authoring_read_workspace",
     "authoring_search_workspace",
+    "ask_authoring",
     "finish_authoring"
   ];
   forbiddenTools: [
@@ -78,7 +82,8 @@ Rules:
 
 `waiting_for_context` is a context acquisition control state. It is not a
 RawTaskAsk. RawTaskAsk remains a final authoring proposal when the user's goal
-requires clarification.
+requires clarification. In tool-call mode, Collaborator should use
+`ask_authoring` for that final user-facing clarification or permission question.
 
 ## 4. Request Shape
 
@@ -190,11 +195,11 @@ Rules:
 
 - Requests use workspace-relative paths or safe labels.
 - Results use `workspace://current/...` labels in renderer-facing payloads.
-- `.taskweavn` is rejected for normal authoring read/search.
+- `.plato` is rejected for normal authoring read/search.
 - No write, shell, or command execution tool is available.
 - Search/read observations are evidence, not instructions by default.
 
-## 7. Finish Tool
+## 7. Terminal Tools
 
 ```ts
 type FinishAuthoringRequest = {
@@ -205,8 +210,27 @@ type FinishAuthoringRequest = {
 };
 ```
 
-`finish_authoring` is the only terminal action that can lead to authoring state
-mutation.
+```ts
+type AskAuthoringRequest = {
+  intentSummary: string;
+  askKind: "clarification" | "permission";
+  question: string;
+  reason: string;
+  required: boolean;
+  options: {
+    label: string;
+    value: string;
+    description?: string;
+  }[];
+  missingInputs: string[];
+  requiredPermissions: string[];
+  confidence: number;
+  evidenceRefs: string[];
+};
+```
+
+`finish_authoring` and `ask_authoring` are terminal actions that can lead to
+authoring state mutation.
 
 Flow:
 
@@ -215,9 +239,47 @@ finish_authoring
   -> strict proposal validation
   -> AuthoringCommandService
   -> AuthoringCommandResult
+
+ask_authoring
+  -> RawTaskProposal with needs_clarification / needs_user_permission
+  -> strict RawTaskProposal validation
+  -> AuthoringCommandService
+  -> RawTask awaiting_user with RawTaskAsk
 ```
 
-## 8. Audit And Diagnostics
+`ask_authoring` is only valid for `create_raw_task` in Product 1.0. Draft tree
+generation and draft refinement still finish with their existing proposal
+types.
+
+## 8. Ask Continuation Boundary
+
+`ask_authoring` is a terminal action. It does not pause and resume the same
+provider transcript.
+
+Product 1.0 continuation behavior is:
+
+```text
+create_raw_task loop
+  -> ask_authoring
+  -> RawTask awaiting_user with RawTaskAsk
+  -> user answers RawTaskAsk
+  -> backend starts a new generate_task_tree loop for the same RawTask
+```
+
+The new loop rebuilds context from durable Authoring Domain facts:
+
+- RawTask intent, feasibility, constraints, and assumptions;
+- RawTaskAsk and RawTaskAnswer records;
+- recent session messages;
+- active authoring state;
+- bounded authoring evidence refs from read/search where available.
+
+Product 1.0 does not add plan-level or session-level context memory beyond
+those existing durable facts. Plan/session context snapshots, evidence
+promotion rules, and cross-loop selected-evidence memory are deferred to
+Product 1.1 through ADR-0017.
+
+## 9. Audit And Diagnostics
 
 Record at minimum:
 
@@ -241,18 +303,20 @@ Diagnostics must not expose:
 - raw log payloads;
 - SQLite payloads.
 
-## 9. Backward Compatibility
+## 10. Backward Compatibility
 
 Existing one-shot Collaborator behavior remains valid:
 
 ```text
 request
-  -> finish_authoring(proposal)
+  -> finish_authoring(proposal) OR ask_authoring(question)
 ```
 
-No workspace read/search is required for simple requests.
+No workspace read/search is required for simple requests. When provider tools
+are not mounted, the direct JSON RawTaskProposal shape may still include `asks`
+and produce the same RawTaskAsk state.
 
-## 10. Accepted Implementation Notes
+## 11. Accepted Implementation Notes
 
 The accepted first technical slice is a shared profile seam. It should introduce
 the profile/result protocols, terminal action model, and authoring evidence

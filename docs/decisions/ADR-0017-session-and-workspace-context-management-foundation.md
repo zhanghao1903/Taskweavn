@@ -51,6 +51,26 @@ context is not automatically dumped into every lower-level prompt. Agents
 request or receive selected context according to their profile and current
 workflow.
 
+## Product Version Boundary
+
+Product 1.0 does not implement durable WorkspaceContext or SessionContext
+storage. It keeps the existing Product 1.0 continuation model:
+
+- RawTask, RawTaskAsk, RawTaskAnswer, DraftTaskTree, recent messages, active
+  authoring state, and bounded authoring evidence remain the durable facts.
+- When Collaborator asks the user through `ask_authoring`, that authoring loop
+  ends and the RawTask waits for the answer.
+- When the user answers all required RawTaskAsk objects, the backend starts a
+  new authoring loop against the same RawTask to generate the DraftTaskTree.
+  It does not resume the provider transcript from the prior loop.
+- Any context carried into that new loop is rebuilt from durable authoring facts
+  and bounded read/search policy, not from a new plan-level or session-level
+  memory system.
+
+Plan-level and session-level context management, including context snapshots,
+promotion rules, and cross-loop selected-evidence memory, is deferred to
+Product 1.1.
+
 ## Layer Contract
 
 ### Workspace Context
@@ -60,7 +80,7 @@ Workspace Context is durable, workspace-scoped, and cross-session.
 It may contain:
 
 - safe workspace identity labels;
-- workspace root semantics and `.taskweavn` metadata boundary;
+- workspace root semantics and `.plato` metadata boundary;
 - project policy or guidance path declarations;
 - lightweight workspace manifests or indexes;
 - user-selected reusable guidance refs;
@@ -140,7 +160,7 @@ layer.
 5. Reads/searches create evidence refs and policy decisions.
 6. Rendered LLM input is not the audit record; snapshots and traces retain
    provenance separately.
-7. `.taskweavn` remains protected from normal workspace access.
+7. `.plato` remains protected from normal workspace access.
 8. Cross-session reuse happens only through promoted Workspace Context, not by
    replaying arbitrary session transcripts.
 
@@ -189,7 +209,7 @@ This ADR does not implement storage, but future storage should preserve the
 layer boundary:
 
 ```text
-<workspace>/.taskweavn/
+<workspace>/.plato/
   context/
     workspace.sqlite or workspace.jsonl
   sessions/<session_id>/
@@ -223,7 +243,7 @@ Positive:
 - Keeps workspace-wide facts from leaking into every task prompt.
 - Gives future agents a shared context foundation instead of one-off memory
   systems.
-- Supports Product 1.0 root semantics and `.taskweavn` metadata ownership.
+- Supports Product 1.0 root semantics and `.plato` metadata ownership.
 
 Trade-offs:
 
@@ -248,7 +268,7 @@ Rejected alternatives:
 
 This ADR is contract-only. No implementation is accepted by this document.
 
-Future planning slices:
+Product 1.1 planning slices:
 
 1. Define `WorkspaceContextSnapshot`, `SessionContextSnapshot`, and evidence ref
    schemas.

@@ -465,7 +465,7 @@ Pipeline Loader 可以被 PublishOptions 控制是否参与。
 可以支持项目级定时发布配置：
 
 ```text
-.taskweavn/schedules.yaml
+.plato/schedules.yaml
 ```
 
 示例：

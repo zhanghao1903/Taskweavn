@@ -29,7 +29,7 @@ export const mainPageMockScenarios: readonly MainPageMockScenario[] = [
     execution: "not_started",
     primary: ["Start"],
     disabled: ["Publish", "Audit"],
-    visible: ["Header", "Workflow navigation", "Empty plan", "Context input"],
+    visible: ["Header", "Workspace navigation", "Empty plan", "Context input"],
   }),
   mainScenario({
     fixtureId: "s2-understanding",

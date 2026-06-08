@@ -67,9 +67,9 @@ Out of scope:
 In scope and implemented:
 
 - Change user project root to `<workspace>/`.
-- Move session metadata under `<workspace>/.taskweavn/sessions/<session_id>/`.
+- Move session metadata under `<workspace>/.plato/sessions/<session_id>/`.
 - Make Agent tools use `<workspace>/` as cwd.
-- Protect `.taskweavn` from normal tool access.
+- Protect `.plato` from normal tool access.
 - Update Audit, Diagnostic Bundle, file evidence, and smoke fixtures.
 
 Out of scope for W2:
@@ -118,7 +118,7 @@ Current layout:
 
 ```text
 <workspace>/
-  .taskweavn/
+  .plato/
   shared/
   sessions/<session_id>/.session/
   sessions/<session_id>/<session_id>/   # current Agent cwd
@@ -128,7 +128,7 @@ Target W2 layout:
 
 ```text
 <workspace>/
-  .taskweavn/
+  .plato/
     workspace.sqlite
     sessions/<session_id>/
       events.sqlite
@@ -139,17 +139,17 @@ Target W2 layout:
 ```
 
 The target keeps Product 1.0's "one local workspace" mental model while hiding
-session internals under `.taskweavn`.
+session internals under `.plato`.
 
-W2 must add explicit protection for `.taskweavn`. Without that protection,
+W2 must add explicit protection for `.plato`. Without that protection,
 moving Agent cwd to workspace root would expose private metadata and SQLite
 stores to tools and prompts.
 
 Implemented protection covers normal workspace tool path access:
 
-- `read_file`, `write_file`, and `list_dir` reject direct `.taskweavn` access;
-- root `list_dir` hides `.taskweavn`;
-- `run_command` rejects `.taskweavn` as cwd and direct command text references.
+- `read_file`, `write_file`, and `list_dir` reject direct `.plato` access;
+- root `list_dir` hides `.plato`;
+- `run_command` rejects `.plato` as cwd and direct command text references.
 
 This is a Product 1.0 tool policy guard, not a full OS sandbox. Stronger shell
 isolation remains future sandbox hardening.
@@ -171,8 +171,8 @@ W1 acceptance:
 W2 acceptance:
 
 - New sessions write user files directly under workspace root.
-- Session metadata is hidden under `.taskweavn/sessions/<session_id>`.
-- Agent tools cannot read/write `.taskweavn` through normal workspace tools.
+- Session metadata is hidden under `.plato/sessions/<session_id>`.
+- Agent tools cannot read/write `.plato` through normal workspace tools.
 - Audit, Diagnostics, result file summaries, Electron smoke, and sidecar E2E
   remain workspace-relative and redacted.
 
@@ -191,7 +191,7 @@ Scope:
 1. Start Electron through the Workspace Picker.
 2. Select a clean local workspace.
 3. Run a task that writes a visible file at workspace root.
-4. Verify .taskweavn is not visible through normal UI/tool surfaces.
+4. Verify .plato is not visible through normal UI/tool surfaces.
 5. Verify Audit/Diagnostics expose workspace labels, not absolute paths.
 
 Do not add cloud auth or multi-workspace concurrency.

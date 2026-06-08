@@ -96,12 +96,14 @@ Shared AgentLoop Core
 
 `CollaboratorAuthoringProfile` owns the authoring-specific boundary:
 
-- allowed tools: read/query/search workspace context only;
+- allowed tools: read/query/search workspace context and terminal authoring
+  ask/finish tools only;
 - forbidden tools: write, shell, command execution, unrestricted workspace
   mutation;
 - states: `running`, `reading_context`, `waiting_for_context`, `finished`,
   `rejected`;
-- terminal action: `finish_authoring(proposal)`;
+- terminal actions: `finish_authoring(proposal)` and
+  `ask_authoring(question)`;
 - outcome mapping: final proposal -> AuthoringCommandService validation;
 - audit semantics: context reads/searches are evidence, not Tasks and not file
   mutations.
@@ -120,13 +122,13 @@ That terminal contract stays the same.
 Workspace read/query/search calls are intermediate context-gathering steps.
 They do not directly mutate Authoring Domain state. RawTask, RawTaskAsk,
 DraftTaskTree, and DraftTask patches are still produced only when the
-Collaborator reaches an explicit authoring finish state and the
+Collaborator reaches an explicit terminal authoring state and the
 AuthoringCommandService validates the final proposal.
 
 ```text
 start authoring call
   -> optional read/query/search observations
-  -> finish_authoring(proposal)
+  -> finish_authoring(proposal) OR ask_authoring(question)
   -> AuthoringCommandService validates and persists
 ```
 
@@ -147,8 +149,9 @@ execution AgentLoop lifecycle wholesale:
 | `rejected` | Collaborator failed safely or exceeded policy/step limits. |
 
 `waiting_for_context` is not the same as a RawTaskAsk. It is a control state for
-context acquisition, such as "choose which files I may read". A RawTaskAsk is
-part of the final authoring proposal when the user's goal itself needs
+context acquisition, such as "choose which files I may read". `ask_authoring`
+is the terminal tool-call form that creates a RawTaskAsk. A RawTaskAsk is part
+of the final authoring proposal when the user's goal itself needs
 clarification.
 
 The loop must have explicit limits:
@@ -251,7 +254,7 @@ without making Collaborator responsible for file mutation.
    channel, not raw shell access.
 2. Reads, queries, and search results must be workspace-root relative and must
    not expose raw absolute paths in renderer diagnostics.
-3. `.taskweavn` metadata remains protected from normal workspace access.
+3. `.plato` metadata remains protected from normal workspace access.
 4. Collaborator does not write workspace files in the first version.
 5. Any workspace write requested by a project workflow is a published execution
    Task, not a Collaborator authoring side effect.
@@ -393,7 +396,7 @@ Add focused tests for:
 - only `finished` submits an authoring proposal to AuthoringCommandService;
 - collaborator reads selected/guidance docs before DraftTaskTree generation;
 - collaborator searches configured guidance paths before planning;
-- collaborator cannot read `.taskweavn` through normal paths;
+- collaborator cannot read `.plato` through normal paths;
 - collaborator has no first-version write operation;
 - audit/diagnostics path labels do not expose raw absolute paths.
 

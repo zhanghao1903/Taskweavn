@@ -22,6 +22,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from taskweavn import __version__
 from taskweavn.core import Session, SessionManager, WorkspaceLayout
+from taskweavn.core.workspace_layout import WORKSPACE_META_DIR_NAME
 from taskweavn.interaction import AgentMessage, SqliteMessageStream
 from taskweavn.observability import LogArchiveManifest
 from taskweavn.observability.redaction import redact_payload
@@ -345,7 +346,7 @@ class DiagnosticBundleExporter:
                 "lastActiveAt": session.last_active_at,
                 "workspaceRootLabel": "workspace://current",
                 "sessionDirLabel": (
-                    f"workspace://current/.taskweavn/sessions/{session.id}"
+                    f"workspace://current/{WORKSPACE_META_DIR_NAME}/sessions/{session.id}"
                 ),
                 "taskCount": len(tasks),
                 "taskStatusCounts": task_status_counts,

@@ -14,7 +14,7 @@ the user chooses which local workspace Plato should open.
 
 This contract defines the W1 desktop Workspace Picker and the W2 workspace-root
 execution semantics. Agent tools now treat the selected workspace root as the
-project cwd; session-private metadata lives under `.taskweavn`.
+project cwd; session-private metadata lives under `.plato`.
 
 ---
 
@@ -153,11 +153,11 @@ flag and wins over the default-workspace escape hatch.
 W2 workspace root semantics:
 
 - user project files live directly under `<workspace>/`;
-- session metadata moves under `<workspace>/.taskweavn/sessions/<session_id>/`;
+- session metadata moves under `<workspace>/.plato/sessions/<session_id>/`;
 - Agent tool cwd becomes `<workspace>/`;
-- `.taskweavn` is protected from normal tool reads/writes.
+- `.plato` is protected from normal tool reads/writes.
 
 Normal tool protection includes filesystem tool path rejection, hidden root
-directory listing for `.taskweavn`, and direct `.taskweavn` shell command/cwd
+directory listing for `.plato`, and direct `.plato` shell command/cwd
 rejection. This is not a full OS sandbox; shell hardening remains future
 defense-in-depth work.

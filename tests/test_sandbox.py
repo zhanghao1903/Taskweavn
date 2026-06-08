@@ -35,15 +35,21 @@ from taskweavn.types import CodeAction, CodeExecutionObservation, TrackingConfig
 # ---------------------------------------------------------------------------
 
 
-def test_snapshot_workspace_skips_taskweavn_dir(tmp_path: Path) -> None:
+def test_snapshot_workspace_skips_plato_metadata_dir(tmp_path: Path) -> None:
     (tmp_path / "kept.txt").write_text("hi")
-    runs = tmp_path / ".taskweavn" / "runs" / "x"
+    runs = tmp_path / ".plato" / "runs" / "x"
     runs.mkdir(parents=True)
     (runs / "noise.txt").write_text("ignore me")
+    (tmp_path / ".taskweavn").mkdir()
+    (tmp_path / ".taskweavn" / "legacy.txt").write_text("ignore me")
+    (tmp_path / ".code-agent").mkdir()
+    (tmp_path / ".code-agent" / "legacy.txt").write_text("ignore me")
 
     snap = _snapshot_workspace(tmp_path)
     assert "kept.txt" in snap
+    assert all(not k.startswith(".plato") for k in snap)
     assert all(not k.startswith(".taskweavn") for k in snap)
+    assert all(not k.startswith(".code-agent") for k in snap)
 
 
 def test_snapshot_workspace_handles_subdirs(tmp_path: Path) -> None:
@@ -432,7 +438,7 @@ def test_execute_writes_script_and_invokes_docker_with_python(tmp_path: Path) ->
     )
     ex.execute(action)
 
-    # Script file was written under .taskweavn/runs/<event_id>/script.py
+    # Script file was written under .plato/runs/<event_id>/script.py
     runs_dir = ws / RUNS_SUBDIR / action.event_id
     assert (runs_dir / SCRIPT_FILENAME).exists()
     body = (runs_dir / SCRIPT_FILENAME).read_text()

@@ -6,7 +6,7 @@ across many ``CodeAction`` invocations:
 * :meth:`SandboxExecutor.start` runs ``docker run -d ... sleep infinity`` with
   the workspace bind-mounted at ``/workspace`` and an isolated network.
 * :meth:`SandboxExecutor.execute` writes the snippet (plus a tiny
-  instrumentation wrapper) into ``<workspace>/.taskweavn/runs/<event_id>/``,
+  instrumentation wrapper) into ``<workspace>/.plato/runs/<event_id>/``,
   then calls ``docker exec`` on the running container.
 * :meth:`SandboxExecutor.stop` removes the container.
 
@@ -19,7 +19,7 @@ Phase 2.2 for the full rationale.
 Side-effect tracking
 --------------------
 Before executing, the sandbox snapshots SHA-256 of every file under the
-workspace (skipping ``.taskweavn/`` so our own bookkeeping doesn't show up
+workspace (skipping Plato metadata so our own bookkeeping doesn't show up
 as undeclared churn). After the run it diffs the snapshot to produce
 ``FileChange`` records, partitioned into ``declared_changes`` (paths inside
 ``action.tracking.files``) and ``undeclared_changes`` (everything else).
@@ -39,6 +39,10 @@ from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, Any
 
+from taskweavn.core.workspace_layout import (
+    PROTECTED_WORKSPACE_METADATA_DIR_NAMES,
+    WORKSPACE_META_DIR_NAME,
+)
 from taskweavn.observability import LogContext, get_object_logger
 from taskweavn.types.code_action import (
     CodeAction,
@@ -53,7 +57,7 @@ if TYPE_CHECKING:
 _SANDBOX_LOGGER = get_object_logger("sandbox")
 
 #: Subdirectory inside the workspace where per-run intermediates live.
-RUNS_SUBDIR = ".taskweavn/runs"
+RUNS_SUBDIR = f"{WORKSPACE_META_DIR_NAME}/runs"
 
 #: Maximum repr length kept per variable in the dump (post-truncation).
 VARIABLE_REPR_MAX_CHARS = 1000
@@ -105,17 +109,20 @@ def _hash_file(path: Path, *, chunk: int = 65536) -> str:
 def _snapshot_workspace(root: Path) -> dict[str, tuple[str, int]]:
     """Walk ``root`` and return ``{relpath: (sha256, size)}``.
 
-    Anything under ``.taskweavn/`` is skipped so the runtime's own scratch
+    Anything under Plato metadata is skipped so the runtime's own scratch
     dir does not pollute the diff. Symlinks are read at face value (their
     target's content); broken links are ignored.
     """
     snapshot: dict[str, tuple[str, int]] = {}
-    skip_prefix = root / ".taskweavn"
+    skip_prefixes = tuple(root / name for name in PROTECTED_WORKSPACE_METADATA_DIR_NAMES)
     for path in root.rglob("*"):
         if not path.is_file():
             continue
         try:
-            if path == skip_prefix or skip_prefix in path.parents:
+            if any(
+                path == skip_prefix or skip_prefix in path.parents
+                for skip_prefix in skip_prefixes
+            ):
                 continue
             rel = path.relative_to(root).as_posix()
             stat = path.stat()

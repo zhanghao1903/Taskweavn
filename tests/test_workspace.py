@@ -58,8 +58,20 @@ def test_root_itself_is_allowed(tmp_path: Path) -> None:
 
 
 def test_reject_workspace_private_metadata(tmp_path: Path) -> None:
-    (tmp_path / ".taskweavn").mkdir()
+    (tmp_path / ".plato").mkdir()
     ws = Workspace(tmp_path)
 
     with pytest.raises(PathProtectedWorkspaceError):
-        ws.resolve(".taskweavn/workspace.sqlite")
+        ws.resolve(".plato/workspace.sqlite")
+
+
+@pytest.mark.parametrize("dirname", [".taskweavn", ".code-agent"])
+def test_reject_legacy_workspace_private_metadata(
+    tmp_path: Path,
+    dirname: str,
+) -> None:
+    (tmp_path / dirname).mkdir()
+    ws = Workspace(tmp_path)
+
+    with pytest.raises(PathProtectedWorkspaceError):
+        ws.resolve(f"{dirname}/workspace.sqlite")

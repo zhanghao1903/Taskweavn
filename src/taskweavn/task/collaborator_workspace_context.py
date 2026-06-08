@@ -8,6 +8,7 @@ from typing import ClassVar, Protocol, runtime_checkable
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from taskweavn.core.workspace_layout import PROTECTED_WORKSPACE_METADATA_DIR_NAMES
 from taskweavn.task.authoring_evidence import (
     AuthoringEvidenceOperation,
     AuthoringEvidencePolicyDecision,
@@ -488,7 +489,10 @@ def _expanded_glob_patterns(pattern: str) -> tuple[str, ...]:
 
 def _is_protected_glob(pattern: str) -> bool:
     normalized = pattern.strip().replace("\\", "/")
-    return normalized == ".taskweavn" or normalized.startswith(".taskweavn/")
+    return any(
+        normalized == name or normalized.startswith(f"{name}/")
+        for name in PROTECTED_WORKSPACE_METADATA_DIR_NAMES
+    )
 
 
 __all__ = [

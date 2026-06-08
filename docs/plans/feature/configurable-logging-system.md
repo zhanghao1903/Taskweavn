@@ -201,9 +201,9 @@ class LogSinkConfig(BaseModel):
 路径模板示例：
 
 ```text
-{workspace}/.taskweavn/logs/global/{category}.log
-{workspace}/.taskweavn/logs/sessions/{session_id}/{category}.log
-{workspace}/.taskweavn/logs/sessions/{session_id}/tasks/{task_id}.log
+{workspace}/.plato/logs/global/{category}.log
+{workspace}/.plato/logs/sessions/{session_id}/{category}.log
+{workspace}/.plato/logs/sessions/{session_id}/tasks/{task_id}.log
 ```
 
 ### 7.4 LogRule
@@ -224,7 +224,7 @@ class LoggingConfig(BaseModel):
     version: Literal["1"] = "1"
     enabled: bool = True
     default_level: LogLevel = "INFO"
-    archive_root: str = "{workspace}/.taskweavn/logs"
+    archive_root: str = "{workspace}/.plato/logs"
     sinks: dict[str, LogSinkConfig]
     rules: dict[str, LogRule]
     profiles: dict[str, LoggingProfile] = {}
@@ -283,7 +283,7 @@ logging:
   version: "1"
   enabled: true
   default_level: INFO
-  archive_root: "{workspace}/.taskweavn/logs"
+  archive_root: "{workspace}/.plato/logs"
   sinks:
     session_file:
       type: file
@@ -406,7 +406,7 @@ object override > session rule > global rule > default_level
 建议归档目录：
 
 ```text
-.taskweavn/
+.plato/
   logs/
     global/
       taskweavn.jsonl

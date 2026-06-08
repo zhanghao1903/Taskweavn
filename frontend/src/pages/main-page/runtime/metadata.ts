@@ -95,9 +95,9 @@ function detailFromSnapshot(
   }
 
   return {
-    mode: "workflow",
-    eyebrow: "Workflow",
-    title: snapshot.workflow.name,
+    mode: "session",
+    eyebrow: "Workspace",
+    title: snapshot.project.name,
     body:
       snapshot.workflow.inputHint ??
       "Describe the goal you want Plato to turn into a task plan.",

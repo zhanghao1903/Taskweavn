@@ -104,7 +104,7 @@ API / scheduler / collaborator / custom tree / pipeline
 持久化分层：
 
 ```text
-<workspace>/.taskweavn/
+<workspace>/.plato/
   tasks.sqlite       # Execution Domain: 已发布 TaskBus facts
   publish.sqlite     # Publish Control Plane: 幂等、调度、发布审计
 ```
@@ -571,12 +571,12 @@ class PublishStoreError(TaskStoreError):
 第一版可先不新增 factory：
 
 ```python
-task_bus = SqliteTaskBus(workspace / ".taskweavn" / "tasks.sqlite")
+task_bus = SqliteTaskBus(workspace / ".plato" / "tasks.sqlite")
 idempotency_store = SqlitePublishIdempotencyStore(
-    workspace / ".taskweavn" / "publish.sqlite"
+    workspace / ".plato" / "publish.sqlite"
 )
 audit_sink = SqliteTaskPublishAuditSink(
-    workspace / ".taskweavn" / "publish.sqlite"
+    workspace / ".plato" / "publish.sqlite"
 )
 
 publish_service = TaskPublishService(
@@ -617,7 +617,7 @@ API adapter 不需要知道 SQLite 细节，它只依赖 `TaskPublishService`。
 
 ```python
 scheduled_store = SqliteScheduledPublishStore(
-    workspace / ".taskweavn" / "publish.sqlite"
+    workspace / ".plato" / "publish.sqlite"
 )
 
 scheduler = SchedulerPublisher(

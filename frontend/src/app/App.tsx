@@ -60,7 +60,10 @@ export function App({
       ) : isSettingsPath(pathname) ? (
         <>
           <FirstRunReadinessGate api={readinessApi} runtimeEnv={runtimeEnv}>
-            <MainPageRoute runtimeEnv={runtimeEnv} />
+            <MainPageRoute
+              runtimeEnv={runtimeEnv}
+              workspaceEntryRuntime={workspaceEntryRuntime}
+            />
           </FirstRunReadinessGate>
           <SettingsRoute
             api={settingsApi}
@@ -70,7 +73,10 @@ export function App({
         </>
       ) : (
         <FirstRunReadinessGate api={readinessApi} runtimeEnv={runtimeEnv}>
-          <MainPageRoute runtimeEnv={runtimeEnv} />
+          <MainPageRoute
+            runtimeEnv={runtimeEnv}
+            workspaceEntryRuntime={workspaceEntryRuntime}
+          />
         </FirstRunReadinessGate>
       )}
     </AppErrorBoundary>

@@ -12,6 +12,7 @@ from taskweavn.llm import ChatResponse, ToolCall
 from taskweavn.observability import configure_session_logging
 from taskweavn.prompts import COLLABORATOR_AUTHORING_SYSTEM_PROMPT
 from taskweavn.task import (
+    ASK_AUTHORING_TOOL_NAME,
     AUTHORING_READ_WORKSPACE_TOOL_NAME,
     AUTHORING_SEARCH_WORKSPACE_TOOL_NAME,
     FINISH_AUTHORING_TOOL_NAME,
@@ -202,7 +203,59 @@ def test_create_raw_task_from_message_routes_through_finish_profile() -> None:
     assert action.arguments["proposal_kind"] == "raw_task"
     assert AUTHORING_READ_WORKSPACE_TOOL_NAME in profile.allowed_tool_names
     assert AUTHORING_SEARCH_WORKSPACE_TOOL_NAME in profile.allowed_tool_names
+    assert ASK_AUTHORING_TOOL_NAME in profile.allowed_tool_names
     assert llm.tools_calls == [None]
+
+
+def test_create_raw_task_from_message_dispatches_ask_authoring_tool(
+    tmp_path: Path,
+) -> None:
+    source = LocalCollaboratorWorkspaceContextSource(
+        workspace_root=tmp_path,
+        evidence_store=InMemoryAuthoringEvidenceStore(),
+    )
+    llm = _StubLLM(
+        [
+            _tool_call_response(
+                ASK_AUTHORING_TOOL_NAME,
+                {
+                    "intent_summary": "Build a website",
+                    "question": "Who is the audience?",
+                    "reason": "Audience changes the task plan.",
+                    "options": [
+                        {"label": "Developers", "value": "developers"},
+                    ],
+                },
+                call_id="ask-1",
+            ),
+        ]
+    )
+    service, raw_store, _ = _service(
+        llm,
+        workspace_context_source=source,
+    )
+
+    result = service.create_raw_task_from_message(
+        session_id="s1",
+        source_message_id="m1",
+        user_input="Build a website",
+    )
+    raw = raw_store.list_for_session("s1")[0]
+    tool_names = _tool_names(llm.tools_calls[0] or [])
+
+    assert result.ok
+    assert raw.intent_summary == "Build a website"
+    assert raw.status == "awaiting_user"
+    assert raw.feasibility is not None
+    assert raw.feasibility.status == "needs_clarification"
+    assert raw.asks[0].question == "Who is the audience?"
+    assert raw.asks[0].options[0].label == "Developers"
+    assert tool_names == {
+        AUTHORING_READ_WORKSPACE_TOOL_NAME,
+        AUTHORING_SEARCH_WORKSPACE_TOOL_NAME,
+        ASK_AUTHORING_TOOL_NAME,
+        FINISH_AUTHORING_TOOL_NAME,
+    }
 
 
 def test_create_raw_task_from_message_dispatches_workspace_read_then_finish(
@@ -269,12 +322,78 @@ def test_create_raw_task_from_message_dispatches_workspace_read_then_finish(
     assert first_tool_names == {
         AUTHORING_READ_WORKSPACE_TOOL_NAME,
         AUTHORING_SEARCH_WORKSPACE_TOOL_NAME,
+        ASK_AUTHORING_TOOL_NAME,
         FINISH_AUTHORING_TOOL_NAME,
     }
     assert evidence[0].tool_name == AUTHORING_READ_WORKSPACE_TOOL_NAME
     assert evidence[0].path_label == "workspace://current/README.md"
     assert "workspace://current/README.md" in tool_message["content"]
     assert profile.terminal_actions[0].tool_call_id == "finish-1"
+    assert profile.terminal_actions[0].arguments["evidence_refs"] == [
+        evidence[0].evidence_id
+    ]
+
+
+def test_create_raw_task_from_message_dispatches_workspace_read_then_ask(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "README.md").write_text(
+        "Product guidance: ask when requirements are underspecified.",
+        encoding="utf-8",
+    )
+    evidence_store = InMemoryAuthoringEvidenceStore()
+    source = LocalCollaboratorWorkspaceContextSource(
+        workspace_root=tmp_path,
+        evidence_store=evidence_store,
+    )
+    profile = _SpyProfile()
+    llm = _StubLLM(
+        [
+            _tool_call_response(
+                AUTHORING_READ_WORKSPACE_TOOL_NAME,
+                {
+                    "paths": ["README.md"],
+                    "purpose": "Inspect ask policy",
+                    "max_snippet_chars": 80,
+                },
+                call_id="read-1",
+            ),
+            _tool_call_response(
+                ASK_AUTHORING_TOOL_NAME,
+                {
+                    "intent_summary": "Plan an underspecified feature",
+                    "question": "Which user workflow should this feature support first?",
+                    "reason": (
+                        "The workspace guidance says to ask when requirements are "
+                        "underspecified."
+                    ),
+                    "missing_inputs": ["first workflow"],
+                },
+                call_id="ask-1",
+            ),
+        ]
+    )
+    service, raw_store, _ = _service(
+        llm,
+        profile=profile,
+        workspace_context_source=source,
+    )
+
+    result = service.create_raw_task_from_message(
+        session_id="s1",
+        source_message_id="m1",
+        user_input="Plan the feature",
+    )
+    raw = raw_store.list_for_session("s1")[0]
+    evidence = evidence_store.list_for_session("s1")
+
+    assert result.ok
+    assert raw.status == "awaiting_user"
+    assert raw.asks[0].question == (
+        "Which user workflow should this feature support first?"
+    )
+    assert profile.terminal_actions[0].tool_name == ASK_AUTHORING_TOOL_NAME
+    assert profile.terminal_actions[0].tool_call_id == "ask-1"
     assert profile.terminal_actions[0].arguments["evidence_refs"] == [
         evidence[0].evidence_id
     ]

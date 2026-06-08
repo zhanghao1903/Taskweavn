@@ -1,9 +1,9 @@
 import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
-import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { startPythonSidecar } from "./sidecarProcess.mjs";
+import { resolvePackagedSidecarLauncherPath } from "./sidecarLauncherPath.mjs";
 import {
   buildStartupDiagnostics,
   createStartupId,
@@ -346,20 +346,12 @@ async function workspaceEntryState(status, error = null) {
 }
 
 function resolveSidecarLauncherPath() {
-  const explicitLauncherPath = process.env.PLATO_ELECTRON_SIDECAR_LAUNCHER_PATH;
-  if (explicitLauncherPath) {
-    return explicitLauncherPath;
-  }
-  if (!app.isPackaged) {
-    return null;
-  }
-
-  const packagedLauncherPath = path.join(
+  return resolvePackagedSidecarLauncherPath({
+    appIsPackaged: app.isPackaged,
+    env: process.env,
     frontendRoot,
-    "sidecar",
-    "plato-sidecar-launcher.mjs",
-  );
-  return existsSync(packagedLauncherPath) ? packagedLauncherPath : null;
+    resourcesPath: process.resourcesPath,
+  });
 }
 
 async function runSmokeIfRequested() {

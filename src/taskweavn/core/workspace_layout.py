@@ -4,7 +4,7 @@ A *workspace* is the user-facing root that owns one or more *sessions*. The
 layout is::
 
     <workspace_root>/
-      .taskweavn/
+      .plato/
         workspace.sqlite           # session registry
         sessions/
           <session_id>/             # session-private metadata
@@ -16,8 +16,8 @@ layout is::
       ... user project files ...    # the project root the agent works in
 
 The workspace root is the agent's project directory. Session-private metadata
-lives under ``.taskweavn/sessions/<id>/`` and normal workspace tools must not
-read or write that internal tree.
+lives under ``.plato/sessions/<id>/`` and normal workspace tools must not read
+or write that internal tree.
 
 This module is pure path math — :class:`WorkspaceLayout` doesn't open any
 files or databases. :class:`taskweavn.core.session_manager.SessionManager`
@@ -26,8 +26,18 @@ uses it as the source of truth for "where does X live."
 
 from __future__ import annotations
 
+import contextlib
 from dataclasses import dataclass
 from pathlib import Path
+
+WORKSPACE_META_DIR_NAME = ".plato"
+LEGACY_TASKWEAVN_META_DIR_NAME = ".taskweavn"
+LEGACY_CODE_AGENT_META_DIR_NAME = ".code-agent"
+PROTECTED_WORKSPACE_METADATA_DIR_NAMES = (
+    WORKSPACE_META_DIR_NAME,
+    LEGACY_TASKWEAVN_META_DIR_NAME,
+    LEGACY_CODE_AGENT_META_DIR_NAME,
+)
 
 
 @dataclass(frozen=True)
@@ -42,7 +52,7 @@ class WorkspaceLayout:
 
     @property
     def meta_dir(self) -> Path:
-        return self.root / ".taskweavn"
+        return self.root / WORKSPACE_META_DIR_NAME
 
     @property
     def registry_db_path(self) -> Path:
@@ -135,7 +145,9 @@ class WorkspaceLayout:
     def bootstrap(self) -> None:
         """Create the workspace skeleton if it doesn't exist. Idempotent."""
         self.root.mkdir(parents=True, exist_ok=True)
+        self._migrate_legacy_taskweavn_meta_dir()
         self.meta_dir.mkdir(exist_ok=True)
+        self._migrate_legacy_code_agent_logs()
         self.shared_dir.mkdir(exist_ok=True)
         self.sessions_root.mkdir(exist_ok=True)
 
@@ -144,3 +156,19 @@ class WorkspaceLayout:
         self.session_meta_dir(session_id).mkdir(parents=True, exist_ok=True)
         self.session_logs_dir(session_id).mkdir(exist_ok=True)
         self.session_project_dir(session_id).mkdir(exist_ok=True)
+
+    def _migrate_legacy_taskweavn_meta_dir(self) -> None:
+        legacy = self.root / LEGACY_TASKWEAVN_META_DIR_NAME
+        if self.meta_dir.exists() or not legacy.exists():
+            return
+        legacy.replace(self.meta_dir)
+
+    def _migrate_legacy_code_agent_logs(self) -> None:
+        legacy = self.root / LEGACY_CODE_AGENT_META_DIR_NAME
+        legacy_logs = legacy / "logs"
+        target_logs = self.meta_dir / "logs"
+        if legacy_logs.exists() and not target_logs.exists():
+            legacy_logs.replace(target_logs)
+        for directory in (legacy / "logs", legacy):
+            with contextlib.suppress(OSError):
+                directory.rmdir()

@@ -18,6 +18,7 @@ AUTHORING_READ_WORKSPACE_TOOL_NAME: Literal["authoring_read_workspace"] = (
 AUTHORING_SEARCH_WORKSPACE_TOOL_NAME: Literal["authoring_search_workspace"] = (
     "authoring_search_workspace"
 )
+ASK_AUTHORING_TOOL_NAME: Literal["ask_authoring"] = "ask_authoring"
 COLLABORATOR_AUTHORING_PROFILE_ID: Literal["collaborator_authoring"] = (
     "collaborator_authoring"
 )
@@ -26,6 +27,7 @@ FINISH_AUTHORING_TOOL_NAME: Literal["finish_authoring"] = "finish_authoring"
 COLLABORATOR_AUTHORING_ALLOWED_TOOL_NAMES: tuple[str, ...] = (
     AUTHORING_READ_WORKSPACE_TOOL_NAME,
     AUTHORING_SEARCH_WORKSPACE_TOOL_NAME,
+    ASK_AUTHORING_TOOL_NAME,
     FINISH_AUTHORING_TOOL_NAME,
 )
 COLLABORATOR_AUTHORING_FORBIDDEN_TOOL_NAMES: tuple[str, ...] = (
@@ -61,6 +63,10 @@ CollaboratorProposalKind = Literal[
     "raw_task",
     "draft_task_tree",
     "draft_task_patch",
+]
+CollaboratorAskKind = Literal[
+    "clarification",
+    "permission",
 ]
 
 _WORKSPACE_LABEL_PREFIX = "workspace://current"
@@ -200,13 +206,17 @@ class CollaboratorAuthoringLoopResult(_FrozenCollaboratorLoopModel):
 class CollaboratorAuthoringProfile:
     """One-shot Collaborator profile over the shared loop profile seam.
 
-    Slice C defines read/search/finish as the profile boundary. The bounded
+    Slice C defines read/search/ask/finish as the profile boundary. The bounded
     runner decides whether to expose the context tools for a concrete request.
     """
 
     system_prompt: str = COLLABORATOR_AUTHORING_SYSTEM_PROMPT
     profile_id: str = COLLABORATOR_AUTHORING_PROFILE_ID
     terminal_tool_name: str = FINISH_AUTHORING_TOOL_NAME
+    terminal_tool_names: tuple[str, ...] = (
+        ASK_AUTHORING_TOOL_NAME,
+        FINISH_AUTHORING_TOOL_NAME,
+    )
     allowed_tool_names: tuple[str, ...] = COLLABORATOR_AUTHORING_ALLOWED_TOOL_NAMES
 
     def build_initial_messages(self, request: object) -> list[dict[str, Any]]:
@@ -241,6 +251,35 @@ class CollaboratorAuthoringProfile:
             },
         )
 
+    def ask_action(
+        self,
+        *,
+        intent_summary: str,
+        question: str,
+        reason: str,
+        ask_kind: CollaboratorAskKind = "clarification",
+        required: bool = True,
+        options: tuple[dict[str, Any], ...] = (),
+        missing_inputs: tuple[str, ...] = (),
+        required_permissions: tuple[str, ...] = (),
+        evidence_refs: tuple[str, ...] = (),
+    ) -> LoopTerminalAction:
+        return LoopTerminalAction(
+            profile_id=self.profile_id,
+            tool_name=ASK_AUTHORING_TOOL_NAME,
+            arguments={
+                "intent_summary": intent_summary,
+                "ask_kind": ask_kind,
+                "question": question,
+                "reason": reason,
+                "required": required,
+                "options": list(options),
+                "missing_inputs": list(missing_inputs),
+                "required_permissions": list(required_permissions),
+                "evidence_refs": list(evidence_refs),
+            },
+        )
+
     def tool_schemas(self, *, include_context_tools: bool) -> list[dict[str, Any]]:
         """Return provider-facing tool schemas for this profile."""
 
@@ -252,6 +291,7 @@ class CollaboratorAuthoringProfile:
                     _search_workspace_tool_schema(),
                 ]
             )
+        schemas.append(_ask_authoring_tool_schema())
         schemas.append(_finish_authoring_tool_schema())
         return schemas
 
@@ -262,14 +302,89 @@ class CollaboratorAuthoringProfile:
     ) -> CollaboratorAuthoringLoopResult:
         if action.profile_id != self.profile_id:
             raise ValueError("terminal action profile_id does not match profile")
+        if action.tool_name == ASK_AUTHORING_TOOL_NAME:
+            return self._map_ask_action(action, context)
         if action.tool_name != self.terminal_tool_name:
-            raise ValueError("terminal action tool_name does not match finish_authoring")
+            raise ValueError("terminal action tool_name does not match authoring terminal")
         proposal_kind = _proposal_kind_from_argument(action.arguments.get("proposal_kind"))
         proposal = action.arguments.get("proposal")
         if not isinstance(proposal, dict):
             raise ValueError("finish_authoring requires proposal object")
         return CollaboratorAuthoringLoopResult.finished_result(
             proposal_kind=proposal_kind,
+            proposal=proposal,
+            evidence_refs=_string_tuple_from_argument(
+                action.arguments.get("evidence_refs", ())
+            ),
+        )
+
+    def _map_ask_action(
+        self,
+        action: LoopTerminalAction,
+        context: object,
+    ) -> CollaboratorAuthoringLoopResult:
+        if not isinstance(context, CollaboratorAuthoringProfileRequest):
+            raise TypeError("ask_authoring requires authoring request context")
+        if context.operation != "create_raw_task" or context.proposal_kind != "raw_task":
+            raise ValueError("ask_authoring is only valid while creating a RawTask")
+
+        intent_summary = _string_from_argument(
+            action.arguments.get("intent_summary"),
+            field_name="intent_summary",
+        )
+        question = _string_from_argument(
+            action.arguments.get("question"),
+            field_name="question",
+        )
+        reason = _string_from_argument(
+            action.arguments.get("reason"),
+            field_name="reason",
+        )
+        ask_kind = _ask_kind_from_argument(action.arguments.get("ask_kind"))
+        missing_inputs = _string_tuple_from_argument(
+            action.arguments.get("missing_inputs", ())
+        )
+        required_permissions = _string_tuple_from_argument(
+            action.arguments.get("required_permissions", ())
+        )
+        if ask_kind == "clarification" and not missing_inputs:
+            missing_inputs = (question,)
+        if ask_kind == "permission" and not required_permissions:
+            required_permissions = (reason,)
+
+        proposal = {
+            "kind": "raw_task",
+            "intent_summary": intent_summary,
+            "feasibility": {
+                "status": (
+                    "needs_user_permission"
+                    if ask_kind == "permission"
+                    else "needs_clarification"
+                ),
+                "confidence": _confidence_from_argument(
+                    action.arguments.get("confidence", 0.5)
+                ),
+                "reasons": (reason,),
+                "missing_inputs": missing_inputs,
+                "required_permissions": required_permissions,
+                "suggested_next_action": "ask_user",
+            },
+            "asks": (
+                {
+                    "question": question,
+                    "reason": reason,
+                    "required": _bool_from_argument(
+                        action.arguments.get("required", True),
+                        field_name="required",
+                    ),
+                    "options": _options_from_argument(
+                        action.arguments.get("options", ())
+                    ),
+                },
+            ),
+        }
+        return CollaboratorAuthoringLoopResult.finished_result(
+            proposal_kind="raw_task",
             proposal=proposal,
             evidence_refs=_string_tuple_from_argument(
                 action.arguments.get("evidence_refs", ())
@@ -296,6 +411,48 @@ def _proposal_kind_from_argument(value: object) -> CollaboratorProposalKind:
     if value in {"raw_task", "draft_task_tree", "draft_task_patch"}:
         return cast(CollaboratorProposalKind, value)
     raise ValueError("finish_authoring requires valid proposal_kind")
+
+
+def _ask_kind_from_argument(value: object) -> CollaboratorAskKind:
+    if value in {"clarification", "permission"}:
+        return cast(CollaboratorAskKind, value)
+    if value is None:
+        return "clarification"
+    raise ValueError("ask_authoring requires valid ask_kind")
+
+
+def _string_from_argument(value: object, *, field_name: str) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"ask_authoring requires non-empty {field_name}")
+    return value
+
+
+def _confidence_from_argument(value: object) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError("confidence must be a number")
+    confidence = float(value)
+    if confidence < 0.0 or confidence > 1.0:
+        raise ValueError("confidence must be between 0.0 and 1.0")
+    return confidence
+
+
+def _bool_from_argument(value: object, *, field_name: str) -> bool:
+    if not isinstance(value, bool):
+        raise ValueError(f"{field_name} must be a boolean")
+    return value
+
+
+def _options_from_argument(value: object) -> tuple[dict[str, Any], ...]:
+    if value is None:
+        return ()
+    if not isinstance(value, (list, tuple)):
+        raise ValueError("options must be an object sequence")
+    options: list[dict[str, Any]] = []
+    for item in value:
+        if not isinstance(item, dict):
+            raise ValueError("options must be an object sequence")
+        options.append(item)
+    return tuple(options)
 
 
 def _string_tuple_from_argument(value: object) -> tuple[str, ...]:
@@ -387,6 +544,67 @@ def _search_workspace_tool_schema() -> dict[str, Any]:
     )
 
 
+def _ask_authoring_tool_schema() -> dict[str, Any]:
+    return _tool_schema(
+        name=ASK_AUTHORING_TOOL_NAME,
+        description=(
+            "Ask the user one RawTask clarification or permission question and "
+            "stop authoring until the answer is provided."
+        ),
+        parameters={
+            "type": "object",
+            "properties": {
+                "intent_summary": {"type": "string", "minLength": 1},
+                "ask_kind": {
+                    "type": "string",
+                    "enum": ["clarification", "permission"],
+                    "default": "clarification",
+                },
+                "question": {"type": "string", "minLength": 1},
+                "reason": {"type": "string", "minLength": 1},
+                "required": {"type": "boolean", "default": True},
+                "options": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "label": {"type": "string", "minLength": 1},
+                            "value": {"type": "string", "minLength": 1},
+                            "description": {"type": "string"},
+                        },
+                        "required": ["label", "value"],
+                        "additionalProperties": False,
+                    },
+                    "default": [],
+                },
+                "missing_inputs": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "default": [],
+                },
+                "required_permissions": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "default": [],
+                },
+                "confidence": {
+                    "type": "number",
+                    "minimum": 0.0,
+                    "maximum": 1.0,
+                    "default": 0.5,
+                },
+                "evidence_refs": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "default": [],
+                },
+            },
+            "required": ["intent_summary", "question", "reason"],
+            "additionalProperties": False,
+        },
+    )
+
+
 def _finish_authoring_tool_schema() -> dict[str, Any]:
     return _tool_schema(
         name=FINISH_AUTHORING_TOOL_NAME,
@@ -434,6 +652,7 @@ def _tool_schema(
 
 
 __all__ = [
+    "ASK_AUTHORING_TOOL_NAME",
     "AUTHORING_READ_WORKSPACE_TOOL_NAME",
     "AUTHORING_SEARCH_WORKSPACE_TOOL_NAME",
     "COLLABORATOR_AUTHORING_ALLOWED_TOOL_NAMES",

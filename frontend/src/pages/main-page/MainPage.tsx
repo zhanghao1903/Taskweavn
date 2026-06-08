@@ -7,8 +7,10 @@ import type { BadgeTone } from "../../shared/components";
 import { Button, Panel, Text } from "../../shared/components";
 import { buildSettingsRoute } from "../settings/settingsRouteModel";
 import { NO_SESSION_AVAILABLE_MESSAGE } from "./httpMainPageAdapter";
+import { MainPageSessionSidebar } from "./MainPageSessionSidebar";
 import { MainPageTopBar } from "./MainPageTopBar";
 import { MainPageWorkbench } from "./MainPageWorkbench";
+import type { MainPageWorkspaceRuntime } from "./MainPageWorkspaceSwitcher";
 import { ProductRecoveryActions } from "./ProductRecoveryActions";
 import { buildMainPageViewModel } from "./mainPageViewModel";
 import {
@@ -27,12 +29,14 @@ export type MainPageProps = {
   adapter?: MainPageAdapter;
   auditRouteAvailable?: boolean;
   initialStateId?: MainPageStateId;
+  workspaceRuntime?: MainPageWorkspaceRuntime | null;
 };
 
 export function MainPage({
   adapter = mainPageMockAdapter,
   auditRouteAvailable = true,
   initialStateId = defaultMainPageStateId,
+  workspaceRuntime = null,
 }: MainPageProps = {}) {
   const {
     actions,
@@ -95,6 +99,28 @@ export function MainPage({
     const noSessionAvailable =
       snapshotError instanceof Error &&
       snapshotError.message === NO_SESSION_AVAILABLE_MESSAGE;
+
+    if (noSessionAvailable) {
+      return (
+        <MainPageNoSessionFrame
+          isCreatingSession={isCreatingSession}
+          isDeletingSession={isDeletingSession}
+          isRenamingSession={isRenamingSession}
+          onCancelSessionDialog={actions.cancelSessionDialog}
+          onChangeSessionDialogDraft={actions.changeSessionDialogDraft}
+          onCreateSession={actions.createSession}
+          onDeleteSession={actions.deleteSession}
+          onRenameSession={actions.renameSession}
+          onSelectSession={actions.selectSession}
+          onStateChange={actions.changeState}
+          onSubmitSessionDialog={actions.submitSessionDialog}
+          sessionDialog={sessionDialog}
+          showStatePicker={adapter.showStatePicker}
+          stateId={stateId}
+          workspaceRuntime={workspaceRuntime}
+        />
+      );
+    }
 
     return (
       <MainPageStatusFrame
@@ -181,7 +207,110 @@ export function MainPage({
       sessionDialog={sessionDialog}
       topBarTrailing={topBarTrailing}
       viewModel={viewModel}
+      workspaceRuntime={workspaceRuntime}
     />
+  );
+}
+
+type MainPageNoSessionFrameProps = {
+  isCreatingSession: boolean;
+  isDeletingSession: boolean;
+  isRenamingSession: boolean;
+  onCancelSessionDialog: () => void;
+  onChangeSessionDialogDraft: (draftName: string) => void;
+  onCreateSession: () => void;
+  onDeleteSession: MainPageControllerAction<"deleteSession">;
+  onRenameSession: MainPageControllerAction<"renameSession">;
+  onSelectSession: MainPageControllerAction<"selectSession">;
+  onStateChange: (stateId: MainPageStateId) => void;
+  onSubmitSessionDialog: () => void;
+  sessionDialog: ReturnType<typeof useMainPageController>["sessionDialog"];
+  showStatePicker: boolean;
+  stateId: MainPageStateId;
+  workspaceRuntime?: MainPageWorkspaceRuntime | null;
+};
+
+type MainPageControllerAction<
+  TAction extends keyof ReturnType<typeof useMainPageController>["actions"],
+> = ReturnType<typeof useMainPageController>["actions"][TAction];
+
+function MainPageNoSessionFrame({
+  isCreatingSession,
+  isDeletingSession,
+  isRenamingSession,
+  onCancelSessionDialog,
+  onChangeSessionDialogDraft,
+  onCreateSession,
+  onDeleteSession,
+  onRenameSession,
+  onSelectSession,
+  onStateChange,
+  onSubmitSessionDialog,
+  sessionDialog,
+  showStatePicker,
+  stateId,
+  workspaceRuntime = null,
+}: MainPageNoSessionFrameProps) {
+  return (
+    <main className={`${styles.page} ${styles.pageWithoutDetail}`}>
+      <MainPageTopBar
+        brandLabel="柏拉图 Plato"
+        contextItems={["Local Project", "Session"]}
+        statuses={[
+          {
+            label: "No sessions",
+            tone: "neutral",
+          },
+        ]}
+        trailing={
+          renderTopBarTrailing({
+            onStateChange,
+            showStatePicker,
+            stateId,
+          })
+        }
+      />
+
+      <MainPageSessionSidebar
+        activeSession={null}
+        isCreatingSession={isCreatingSession}
+        isDeletingSession={isDeletingSession}
+        isRenamingSession={isRenamingSession}
+        onCancelSessionDialog={onCancelSessionDialog}
+        onChangeSessionDialogDraft={onChangeSessionDialogDraft}
+        onCreateSession={onCreateSession}
+        onDeleteSession={onDeleteSession}
+        onRenameSession={onRenameSession}
+        onSelectSession={onSelectSession}
+        onSubmitSessionDialog={onSubmitSessionDialog}
+        sessionDialog={sessionDialog}
+        sessions={[]}
+        workspaceRuntime={workspaceRuntime}
+      />
+
+      <Panel
+        as="section"
+        className={styles.workspace}
+        aria-label="Task workspace"
+      >
+        <div className={styles.emptyState}>
+          <Text as="h1" variant="heading">
+            Create your first session
+          </Text>
+          <Text variant="muted">
+            This workspace has no sessions yet. Create one when you are ready to
+            start.
+          </Text>
+          <Button
+            disabled={isCreatingSession}
+            onClick={onCreateSession}
+            variant="primary"
+          >
+            {isCreatingSession ? "Creating session" : "New session"}
+          </Button>
+        </div>
+      </Panel>
+    </main>
   );
 }
 

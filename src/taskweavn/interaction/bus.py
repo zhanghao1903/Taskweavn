@@ -100,8 +100,14 @@ class InProcessMessageBus:
     SQLite-only bus or a Redis-backed pub/sub.
     """
 
-    def __init__(self, stream: SqliteMessageStream) -> None:
+    def __init__(
+        self,
+        stream: SqliteMessageStream,
+        *,
+        default_context: LogContext | None = None,
+    ) -> None:
         self._stream = stream
+        self._default_context = default_context
         # One condition coordinates publishers, response-waiters, and
         # subscription iterators. ``notify_all`` is the cheap, correct choice
         # at this scale: a handful of subscribers, predicates that check
@@ -253,7 +259,12 @@ class InProcessMessageBus:
             # iterate over a snapshot to avoid mutation-during-iteration.
             for sub in list(self._subs):
                 sub._mark_closed()  # noqa: SLF001
-            _BUS_LOGGER.info("close", data={"subscriber_count": len(self._subs)})
+            if self._default_context is not None:
+                _BUS_LOGGER.info(
+                    "close",
+                    context=self._default_context,
+                    data={"subscriber_count": len(self._subs)},
+                )
             self._cond.notify_all()
 
     def __enter__(self) -> InProcessMessageBus:

@@ -221,7 +221,7 @@ async function smokeDiagnosticsExport(window, fixture) {
   await waitForText(window, "product_1_0_default", {
     label: "Diagnostic bundle redaction profile",
   });
-  await waitForText(window, "workspace://current/.taskweavn/diagnostics/", {
+  await waitForText(window, "workspace://current/.plato/diagnostics/", {
     label: "Diagnostic bundle workspace label",
   });
   await assertBodyDoesNotContain(window, fixture.workspaceDir, "workspace root");

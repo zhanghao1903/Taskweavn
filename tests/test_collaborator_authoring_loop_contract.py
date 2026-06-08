@@ -7,6 +7,7 @@ from pydantic import ValidationError
 
 from taskweavn.core import AgentLoopProfile
 from taskweavn.task import (
+    ASK_AUTHORING_TOOL_NAME,
     AUTHORING_READ_WORKSPACE_TOOL_NAME,
     AUTHORING_SEARCH_WORKSPACE_TOOL_NAME,
     COLLABORATOR_AUTHORING_ALLOWED_TOOL_NAMES,
@@ -26,6 +27,7 @@ def test_collaborator_profile_names_are_contract_only_for_slice_a() -> None:
     assert COLLABORATOR_AUTHORING_ALLOWED_TOOL_NAMES == (
         AUTHORING_READ_WORKSPACE_TOOL_NAME,
         AUTHORING_SEARCH_WORKSPACE_TOOL_NAME,
+        ASK_AUTHORING_TOOL_NAME,
         FINISH_AUTHORING_TOOL_NAME,
     )
     assert "write_file" in COLLABORATOR_AUTHORING_FORBIDDEN_TOOL_NAMES
@@ -35,7 +37,7 @@ def test_collaborator_profile_names_are_contract_only_for_slice_a() -> None:
     assert template.llm_visible_tool_pools == ()
 
 
-def test_collaborator_profile_exposes_read_search_finish_boundary() -> None:
+def test_collaborator_profile_exposes_read_search_ask_finish_boundary() -> None:
     profile = CollaboratorAuthoringProfile(system_prompt="system prompt")
     request = CollaboratorAuthoringProfileRequest(
         session_id="s1",
@@ -57,12 +59,56 @@ def test_collaborator_profile_exposes_read_search_finish_boundary() -> None:
     assert profile.allowed_tool_names == COLLABORATOR_AUTHORING_ALLOWED_TOOL_NAMES
     assert AUTHORING_READ_WORKSPACE_TOOL_NAME in profile.allowed_tool_names
     assert AUTHORING_SEARCH_WORKSPACE_TOOL_NAME in profile.allowed_tool_names
+    assert ASK_AUTHORING_TOOL_NAME in profile.allowed_tool_names
     assert FINISH_AUTHORING_TOOL_NAME in profile.allowed_tool_names
+    assert set(profile.terminal_tool_names) == {
+        ASK_AUTHORING_TOOL_NAME,
+        FINISH_AUTHORING_TOOL_NAME,
+    }
     assert messages[0] == {"role": "system", "content": "system prompt"}
     assert '"user_input": "Write docs"' in messages[1]["content"]
     assert result.status == "finished"
     assert result.proposal_kind == "raw_task"
     assert result.proposal == {"intent_summary": "Write docs"}
+
+
+def test_collaborator_profile_maps_ask_authoring_to_raw_task_ask_proposal() -> None:
+    profile = CollaboratorAuthoringProfile(system_prompt="system prompt")
+    request = CollaboratorAuthoringProfileRequest(
+        session_id="s1",
+        operation="create_raw_task",
+        proposal_kind="raw_task",
+        request_purpose="collaborator.create_raw_task",
+        task="Assess the user input.",
+        payload={"user_input": "Build a website"},
+    )
+
+    result = profile.map_terminal_action(
+        profile.ask_action(
+            intent_summary="Build a website",
+            question="Who is the audience?",
+            reason="Audience changes the plan.",
+            options=({"label": "Developers", "value": "developers"},),
+            evidence_refs=("evidence-1",),
+        ),
+        request,
+    )
+
+    assert result.status == "finished"
+    assert result.proposal_kind == "raw_task"
+    assert result.evidence_refs == ("evidence-1",)
+    assert result.proposal is not None
+    assert result.proposal["feasibility"]["status"] == "needs_clarification"
+    assert result.proposal["feasibility"]["suggested_next_action"] == "ask_user"
+    assert result.proposal["feasibility"]["missing_inputs"] == ("Who is the audience?",)
+    assert result.proposal["asks"] == (
+        {
+            "question": "Who is the audience?",
+            "reason": "Audience changes the plan.",
+            "required": True,
+            "options": ({"label": "Developers", "value": "developers"},),
+        },
+    )
 
 
 def test_waiting_for_context_result_is_not_authoring_proposal() -> None:

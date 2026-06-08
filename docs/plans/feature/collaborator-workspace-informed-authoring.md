@@ -32,6 +32,7 @@ This feature does not:
 - give Collaborator shell or command execution;
 - make Collaborator an unrestricted execution Agent;
 - implement session/workspace context storage from ADR-0017;
+- implement plan-level or session-level cross-loop context management;
 - make document-driven planning a general Plato system capability;
 - change AuthoringCommandService as the authority for authoring mutation.
 
@@ -68,11 +69,13 @@ core rather than building a bespoke Collaborator-only loop.
 
 Profile boundaries:
 
-- allowed tools: read/query/search workspace context;
+- allowed tools: read/query/search workspace context and terminal
+  ask/finish authoring tools;
 - forbidden tools: write, shell, command execution;
 - states: `running`, `reading_context`, `waiting_for_context`, `finished`,
   `rejected`;
-- terminal action: `finish_authoring(proposal)`;
+- terminal actions: `finish_authoring(proposal)` and
+  `ask_authoring(question)`;
 - outcome mapping: final proposal to AuthoringCommandService validation.
 
 ### C2. Workspace Context Source
@@ -95,6 +98,8 @@ Differentiate:
   user file selection;
 - RawTaskAsk: final authoring proposal when the user's goal itself needs
   clarification;
+- `ask_authoring`: terminal tool-call form that creates a RawTaskAsk during
+  RawTask authoring;
 - `finished`: only state that submits a final proposal to
   AuthoringCommandService.
 
@@ -132,7 +137,7 @@ The feature is accepted when:
    finishing the same authoring outcome.
 3. `waiting_for_context` can be returned without creating a RawTaskAsk.
 4. Only `finished` submits proposals to AuthoringCommandService.
-5. `.taskweavn` is protected from normal read/search paths.
+5. `.plato` is protected from normal read/search paths.
 6. No workspace write, shell, or command execution operation is exposed.
 7. Audit/diagnostics use safe path labels and evidence refs.
 
@@ -146,7 +151,7 @@ Focused tests:
 - `waiting_for_context` is distinct from RawTaskAsk;
 - `finished` is the only state that mutates authoring state;
 - path labels normalize to `workspace://current/...`;
-- `.taskweavn` is rejected for normal authoring context reads;
+- `.plato` is rejected for normal authoring context reads;
 - existing one-shot Collaborator behavior remains compatible.
 
 ## 7. Accepted Decisions And Deferred Questions
@@ -168,4 +173,6 @@ Deferred:
 - dedicated context-selection UI;
 - configurable guidance policy;
 - EventStream mirroring for authoring evidence;
-- semantic/vector search.
+- semantic/vector search;
+- Product 1.1 plan-level and session-level context management, including
+  context snapshots, promotion rules, and cross-loop selected-evidence memory.

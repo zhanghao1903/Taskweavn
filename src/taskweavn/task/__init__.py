@@ -107,6 +107,7 @@ from taskweavn.task.collaborator_api import (
     RawTaskAskAnswerSubmission,
 )
 from taskweavn.task.collaborator_loop import (
+    ASK_AUTHORING_TOOL_NAME,
     AUTHORING_READ_WORKSPACE_TOOL_NAME,
     AUTHORING_SEARCH_WORKSPACE_TOOL_NAME,
     COLLABORATOR_AUTHORING_ALLOWED_TOOL_NAMES,
@@ -354,6 +355,7 @@ __all__ = [
     "AuthoringContextBuilder",
     "AUTHORING_READ_WORKSPACE_TOOL_NAME",
     "AUTHORING_SEARCH_WORKSPACE_TOOL_NAME",
+    "ASK_AUTHORING_TOOL_NAME",
     "AuthoringEvidenceOperation",
     "AuthoringEvidencePolicyDecision",
     "AuthoringEvidenceRecord",

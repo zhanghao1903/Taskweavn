@@ -69,9 +69,16 @@ This design does not implement:
 - shell or command execution for Collaborator;
 - project document writing as a Plato system capability;
 - session/workspace context storage from ADR-0017;
+- plan-level or session-level cross-loop context management;
 - semantic/vector search;
 - broad `AgentLoop` rewrite;
 - concurrent multi-Agent context ownership.
+
+Product 1.0 uses durable Authoring Domain facts for ask continuation. After a
+RawTaskAsk is answered, the backend starts a new authoring loop for the same
+RawTask instead of resuming the previous provider transcript. Plan/session
+context snapshots, promotion rules, and cross-loop selected-evidence memory are
+deferred to Product 1.1.
 
 ## 5. Accepted Review Decisions
 
@@ -132,7 +139,7 @@ Product 1.0 starts with a conservative static policy:
 - `docs/decisions/**`;
 - `docs/engineering/**`.
 
-The policy must respect read/search limits, reject `.taskweavn`, avoid full
+The policy must respect read/search limits, reject `.plato`, avoid full
 workspace crawls, and remain configurable only in a later slice.
 
 ## 6. Architecture
@@ -147,7 +154,7 @@ Shared loop mechanics
        result: LoopResult
 
   -> CollaboratorAuthoringProfile
-       terminal: finish_authoring
+       terminal: finish_authoring, ask_authoring
        tools: authoring_read_workspace, authoring_search_workspace
        result: CollaboratorAuthoringLoopResult
 ```
@@ -220,9 +227,14 @@ Collaborator profile:
 class CollaboratorAuthoringProfile:
     profile_id: str = "collaborator_authoring"
     terminal_tool_name: str = "finish_authoring"
+    terminal_tool_names: tuple[str, ...] = (
+        "ask_authoring",
+        "finish_authoring",
+    )
     allowed_tool_names: tuple[str, ...] = (
         "authoring_read_workspace",
         "authoring_search_workspace",
+        "ask_authoring",
         "finish_authoring",
     )
 ```
@@ -238,7 +250,7 @@ Purpose:
 
 - read selected or referenced files;
 - return bounded snippets and evidence refs;
-- reject `.taskweavn` and unsafe paths.
+- reject `.plato` and unsafe paths.
 
 Not allowed:
 
@@ -258,6 +270,25 @@ Purpose:
 Search implementation should start simple and deterministic. It can use local
 structured filesystem APIs or controlled text search, but the contract should
 not expose shell execution.
+
+### ask_authoring
+
+Purpose:
+
+- ask the user one RawTask clarification or permission question;
+- stop the current authoring loop until the user answers;
+- preserve the existing authoring-domain `RawTaskAsk` semantics.
+
+Rules:
+
+- `ask_authoring` is a terminal tool, not an intermediate observation.
+- It is only valid during `create_raw_task` for Product 1.0.
+- It maps to a RawTaskProposal with `needs_clarification` or
+  `needs_user_permission`, then AuthoringCommandService records the RawTask and
+  RawTaskAsk.
+- It is not `waiting_for_context`; `waiting_for_context` is for missing
+  workspace selection, permission to read context, or unavailable context
+  source.
 
 ### finish_authoring
 
@@ -415,7 +446,7 @@ Goal:
 - add `authoring_read_workspace`;
 - add `authoring_search_workspace`;
 - add evidence refs and path redaction;
-- keep `.taskweavn` protected.
+- keep `.plato` protected.
 
 Validation:
 
@@ -457,7 +488,7 @@ Backend tests:
 - read/search can precede `finish_authoring`;
 - only `finish_authoring` mutates authoring stores;
 - `waiting_for_context` does not create RawTaskAsk;
-- `.taskweavn` paths reject;
+- `.plato` paths reject;
 - write/shell tools are absent;
 - step limits reject safely;
 - evidence refs are persisted or projected with safe labels.

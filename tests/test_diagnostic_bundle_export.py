@@ -316,7 +316,7 @@ def _write_logs(layout: WorkspaceLayout, session: Session) -> None:
         session_id=session.id,
         created_at=NOW,
         config_hash="hash-1",
-        active_config_path=str(layout.root / ".taskweavn" / "logging.json"),
+        active_config_path=str(layout.root / ".plato" / "logging.json"),
         archive_root=str(session.logs_dir),
         files={
             "llm": "llm.jsonl",

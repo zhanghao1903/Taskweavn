@@ -14,8 +14,9 @@ describe("MainPageTopBar", () => {
     );
 
     expect(screen.getByRole("banner", { name: "Plato" })).toBeInTheDocument();
+    expect(screen.getByText("Workspace")).toBeInTheDocument();
     expect(screen.getByText("Personal Website")).toBeInTheDocument();
-    expect(screen.getByText("Task authoring")).toBeInTheDocument();
+    expect(screen.queryByText("Task authoring")).not.toBeInTheDocument();
     expect(screen.getByText("Session: website")).toBeInTheDocument();
     expect(screen.getByText("Running")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "查看审计" })).toBeNull();

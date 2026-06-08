@@ -14,6 +14,7 @@ from typing import ClassVar
 
 from pydantic import Field
 
+from taskweavn.core.workspace_layout import PROTECTED_WORKSPACE_METADATA_DIR_NAMES
 from taskweavn.tools.base import Tool
 from taskweavn.tools.workspace import PathProtectedWorkspaceError, Workspace
 from taskweavn.types.base import BaseAction, BaseObservation
@@ -99,11 +100,14 @@ class RunCommandTool(Tool[RunCommandAction, CommandResultObservation]):
             return path
 
     def _reject_protected_path_references(self, command: str) -> None:
-        protected_root = self._workspace.root / ".taskweavn"
-        protected_fragments = (
-            ".taskweavn",
-            protected_root.as_posix(),
-            str(protected_root),
+        protected_roots = tuple(
+            (self._workspace.root / name).resolve()
+            for name in PROTECTED_WORKSPACE_METADATA_DIR_NAMES
+        )
+        protected_fragments = tuple(PROTECTED_WORKSPACE_METADATA_DIR_NAMES) + tuple(
+            fragment
+            for protected_root in protected_roots
+            for fragment in (protected_root.as_posix(), str(protected_root))
         )
         if any(fragment and fragment in command for fragment in protected_fragments):
             raise PathProtectedWorkspaceError(

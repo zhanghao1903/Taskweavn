@@ -5,7 +5,7 @@ escape the root (via ``..`` or absolute paths pointing outside) raise
 :class:`PathOutsideWorkspaceError`. This is a defense-in-depth check, not a
 security boundary — Phase 2.2 introduces a real sandbox runtime.
 
-Workspace-private metadata under ``.taskweavn/`` is also blocked from normal
+Workspace-private metadata under ``.plato/`` is also blocked from normal
 tool path access so Product 1.0 can use the selected workspace root as the
 agent cwd without exposing session databases, logs, or diagnostic payloads.
 """
@@ -13,6 +13,8 @@ agent cwd without exposing session databases, logs, or diagnostic payloads.
 from __future__ import annotations
 
 from pathlib import Path
+
+from taskweavn.core.workspace_layout import PROTECTED_WORKSPACE_METADATA_DIR_NAMES
 
 
 class PathOutsideWorkspaceError(ValueError):
@@ -55,5 +57,11 @@ class Workspace:
         if not candidate.is_absolute():
             candidate = self.root / candidate
         candidate = candidate.expanduser().resolve()
-        protected_root = self.root / ".taskweavn"
-        return candidate == protected_root or protected_root in candidate.parents
+        protected_roots = (
+            (self.root / name).resolve()
+            for name in PROTECTED_WORKSPACE_METADATA_DIR_NAMES
+        )
+        return any(
+            candidate == protected_root or protected_root in candidate.parents
+            for protected_root in protected_roots
+        )
