@@ -7,6 +7,7 @@ Feature plans are scoped implementation packets for independent feature sessions
 | [centralized-runtime-configuration.md](centralized-runtime-configuration.md) | Centralized hierarchical runtime configuration with hot updates. |
 | [collaborator-agent-task-authoring.md](collaborator-agent-task-authoring.md) | System Collaborator Agent and Task authoring tools. |
 | [collaborator-workspace-informed-authoring.md](collaborator-workspace-informed-authoring.md) | Planned: bounded read-only Collaborator authoring loop with workspace read/query/search and shared AgentLoop profile contract. |
+| [collaborator-workspace-informed-authoring-technical-design.md](collaborator-workspace-informed-authoring-technical-design.md) | Draft technical design: shared loop core/profile strategy, CollaboratorAuthoringProfile, wait/finish states, evidence/audit rules, and implementation slices. |
 | [configurable-logging-system.md](configurable-logging-system.md) | Configurable layered logging system. |
 | [cooperative-task-interruption.md](cooperative-task-interruption.md) | Done / accepted: Product 1.0 minimal interrupt intent, safe points, stopping projection, Context Manager interruption facts, and cancelled failure outcome. |
 | [cooperative-task-interruption-technical-design.zh-CN.md](cooperative-task-interruption-technical-design.zh-CN.md) | Done / accepted 中文详细技术方案：TaskBus interrupt intent、AgentLoop safe points、Context Manager interruption facts、UI stopping projection 和 TaskBus terminal outcome。 |

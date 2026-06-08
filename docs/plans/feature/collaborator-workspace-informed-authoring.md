@@ -4,6 +4,7 @@
 > Date: 2026-06-08
 > Related ADR: [ADR-0016 Collaborator Workspace-Informed Authoring](../../decisions/ADR-0016-collaborator-workspace-aware-authoring.md)
 > Related Contract: [Collaborator Workspace-Informed Authoring Contract](../../engineering/collaborator-workspace-informed-authoring-contract.md)
+> Technical Design: [Collaborator Workspace-Informed Authoring Technical Design](collaborator-workspace-informed-authoring-technical-design.md)
 > Related Architecture: [Authoring Domain](../../architecture/authoring-domain.md), [Tool Capability Layer](../../architecture/tool-capability-layer.md), [Context Manager](../../architecture/context-manager.md), [ADR-0017 Session And Workspace Context Management Foundation](../../decisions/ADR-0017-session-and-workspace-context-management-foundation.md)
 
 ---
@@ -53,6 +54,10 @@ draft or refine an execution Task that asks an Execution Agent to write that
 document after publish.
 
 ## 4. Implementation Slices
+
+Implementation is blocked until the
+[technical design](collaborator-workspace-informed-authoring-technical-design.md)
+is accepted.
 
 ### C1. Shared Loop Profile Contract
 
