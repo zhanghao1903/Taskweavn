@@ -123,6 +123,10 @@ from taskweavn.task.collaborator_loop import (
     CollaboratorContextRequestKind,
     CollaboratorProposalKind,
 )
+from taskweavn.task.collaborator_profile_runner import (
+    CollaboratorAuthoringProfileRunner,
+    CollaboratorProfileLLM,
+)
 from taskweavn.task.collaborator_workspace_context import (
     DEFAULT_AUTHORING_GUIDANCE_GLOBS,
     AuthoringReadWorkspaceFile,
@@ -386,10 +390,12 @@ __all__ = [
     "CollaboratorAuthoringLoopStatus",
     "CollaboratorAuthoringOperation",
     "CollaboratorAuthoringProfile",
+    "CollaboratorAuthoringProfileRunner",
     "CollaboratorAuthoringProfileRequest",
     "CollaboratorContextRequest",
     "CollaboratorContextRequestKind",
     "CollaboratorLLM",
+    "CollaboratorProfileLLM",
     "CollaboratorProposalKind",
     "CollaboratorTemplateRegistry",
     "CollaboratorWorkspaceContextSource",

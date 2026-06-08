@@ -9,8 +9,6 @@ from typing import Any, ClassVar, Protocol, runtime_checkable
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
-from taskweavn.llm.logging import log_agent_llm_input, log_agent_llm_output
-from taskweavn.observability import LogContext
 from taskweavn.prompts import COLLABORATOR_AUTHORING_SYSTEM_PROMPT
 from taskweavn.task.authoring import (
     ActorRef,
@@ -35,6 +33,8 @@ from taskweavn.task.collaborator_loop import (
     CollaboratorAuthoringProfileRequest,
     CollaboratorProposalKind,
 )
+from taskweavn.task.collaborator_profile_runner import CollaboratorAuthoringProfileRunner
+from taskweavn.task.collaborator_workspace_context import CollaboratorWorkspaceContextSource
 from taskweavn.task.models import TaskRef
 
 _JSON_OBJECT_RE = re.compile(r"\{.*\}", re.DOTALL)
@@ -220,12 +220,21 @@ class DefaultCollaboratorAuthoringService:
         command_service: AuthoringCommandService,
         actor: ActorRef | None = None,
         profile: CollaboratorAuthoringProfile | None = None,
+        workspace_context_source: CollaboratorWorkspaceContextSource | None = None,
+        max_context_steps: int = 3,
     ) -> None:
         self._llm = llm
         self._context_builder = context_builder
         self._command_service = command_service
         self._actor = actor or ActorRef(actor_id="collaborator", kind="collaborator")
         self._profile = profile or CollaboratorAuthoringProfile()
+        self._profile_runner = CollaboratorAuthoringProfileRunner(
+            llm=self._llm,
+            profile=self._profile,
+            actor_id=self._actor.actor_id,
+            workspace_context_source=workspace_context_source,
+            max_context_steps=max_context_steps,
+        )
 
     def create_raw_task_from_message(
         self,
@@ -418,52 +427,10 @@ class DefaultCollaboratorAuthoringService:
             task=task,
             payload=payload,
         )
-        response = self._chat(request)
-        terminal_action = self._profile.finish_action(
-            proposal_kind=proposal_kind,
-            proposal=parse_response(response),
+        return self._profile_runner.run(
+            request=request,
+            parse_response=parse_response,
         )
-        return self._profile.map_terminal_action(terminal_action, request)
-
-    def _chat(self, request: CollaboratorAuthoringProfileRequest) -> str:
-        messages = self._profile.build_initial_messages(request)
-        metadata = {
-            "agent_kind": "collaborator",
-            "agent_id": self._actor.actor_id,
-            "component": "collaborator_authoring",
-            "loop_profile_id": self._profile.profile_id,
-            "request_purpose": request.request_purpose,
-            "session_id": request.session_id,
-            "terminal_tool_name": self._profile.terminal_tool_name,
-        }
-        log_context = LogContext(
-            session_id=request.session_id,
-            agent_id=self._actor.actor_id,
-        )
-        log_agent_llm_input(
-            agent_kind="collaborator",
-            request_purpose=request.request_purpose,
-            messages=messages,
-            tools=None,
-            metadata=metadata,
-            context=log_context,
-        )
-        response = self._llm.chat(
-            messages=messages,
-            tools=None,
-            metadata=metadata,
-        )
-        log_agent_llm_output(
-            agent_kind="collaborator",
-            request_purpose=request.request_purpose,
-            response=response,
-            metadata=metadata,
-            context=log_context,
-        )
-        content = response.content
-        if not isinstance(content, str):
-            raise TypeError("LLM response content must be a string")
-        return content
 
 
 def _json_from_response(content: str) -> dict[str, Any]:
@@ -486,7 +453,8 @@ def _finished_proposal(
     expected_kind: CollaboratorProposalKind,
 ) -> dict[str, Any]:
     if result.status != "finished":
-        raise ValueError(f"Collaborator loop did not finish: {result.status}")
+        reason = f": {result.reason}" if result.reason else ""
+        raise ValueError(f"Collaborator loop did not finish: {result.status}{reason}")
     if result.proposal_kind != expected_kind:
         raise ValueError(
             f"Collaborator loop returned {result.proposal_kind}, expected {expected_kind}"

@@ -200,9 +200,8 @@ class CollaboratorAuthoringLoopResult(_FrozenCollaboratorLoopModel):
 class CollaboratorAuthoringProfile:
     """One-shot Collaborator profile over the shared loop profile seam.
 
-    Slice C defines read/search/finish as the profile boundary. The current
-    one-shot service still calls the LLM with ``tools=None`` until the later
-    loop/tool-call slice wires provider tool dispatch.
+    Slice C defines read/search/finish as the profile boundary. The bounded
+    runner decides whether to expose the context tools for a concrete request.
     """
 
     system_prompt: str = COLLABORATOR_AUTHORING_SYSTEM_PROMPT
@@ -241,6 +240,20 @@ class CollaboratorAuthoringProfile:
                 "evidence_refs": list(evidence_refs),
             },
         )
+
+    def tool_schemas(self, *, include_context_tools: bool) -> list[dict[str, Any]]:
+        """Return provider-facing tool schemas for this profile."""
+
+        schemas: list[dict[str, Any]] = []
+        if include_context_tools:
+            schemas.extend(
+                [
+                    _read_workspace_tool_schema(),
+                    _search_workspace_tool_schema(),
+                ]
+            )
+        schemas.append(_finish_authoring_tool_schema())
+        return schemas
 
     def map_terminal_action(
         self,
@@ -298,6 +311,126 @@ def _string_tuple_from_argument(value: object) -> tuple[str, ...]:
             raise ValueError("evidence_refs must be a string sequence")
         refs.append(item)
     return tuple(refs)
+
+
+def _read_workspace_tool_schema() -> dict[str, Any]:
+    return _tool_schema(
+        name=AUTHORING_READ_WORKSPACE_TOOL_NAME,
+        description=(
+            "Read bounded UTF-8 snippets from explicitly named workspace files. "
+            "Paths must be relative or workspace://current labels."
+        ),
+        parameters={
+            "type": "object",
+            "properties": {
+                "paths": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "minItems": 1,
+                },
+                "purpose": {"type": "string", "minLength": 1},
+                "max_snippet_chars": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 20000,
+                    "default": 4000,
+                },
+            },
+            "required": ["paths", "purpose"],
+            "additionalProperties": False,
+        },
+    )
+
+
+def _search_workspace_tool_schema() -> dict[str, Any]:
+    return _tool_schema(
+        name=AUTHORING_SEARCH_WORKSPACE_TOOL_NAME,
+        description=(
+            "Search project guidance files for bounded matching snippets. "
+            "The search scope is limited to safe workspace labels and guidance globs."
+        ),
+        parameters={
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "minLength": 1},
+                "scope": {
+                    "type": "object",
+                    "properties": {
+                        "path_globs": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                        },
+                        "selected_folders": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                        },
+                    },
+                    "additionalProperties": False,
+                },
+                "max_results": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 50,
+                    "default": 10,
+                },
+                "max_snippet_chars": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 4000,
+                    "default": 500,
+                },
+                "purpose": {"type": "string", "minLength": 1},
+            },
+            "required": ["query", "purpose"],
+            "additionalProperties": False,
+        },
+    )
+
+
+def _finish_authoring_tool_schema() -> dict[str, Any]:
+    return _tool_schema(
+        name=FINISH_AUTHORING_TOOL_NAME,
+        description=(
+            "Finish Collaborator authoring with one structured proposal. "
+            "Do not call this until enough context has been gathered."
+        ),
+        parameters={
+            "type": "object",
+            "properties": {
+                "proposal_kind": {
+                    "type": "string",
+                    "enum": ["raw_task", "draft_task_tree", "draft_task_patch"],
+                },
+                "proposal": {
+                    "type": "object",
+                    "additionalProperties": True,
+                },
+                "evidence_refs": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "default": [],
+                },
+            },
+            "required": ["proposal_kind", "proposal"],
+            "additionalProperties": False,
+        },
+    )
+
+
+def _tool_schema(
+    *,
+    name: str,
+    description: str,
+    parameters: dict[str, Any],
+) -> dict[str, Any]:
+    return {
+        "type": "function",
+        "function": {
+            "name": name,
+            "description": description,
+            "parameters": parameters,
+        },
+    }
 
 
 __all__ = [
