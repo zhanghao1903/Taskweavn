@@ -14,8 +14,9 @@ from typing import ClassVar
 
 from pydantic import Field
 
+from taskweavn.core.workspace_layout import PROTECTED_WORKSPACE_METADATA_DIR_NAMES
 from taskweavn.tools.base import Tool
-from taskweavn.tools.workspace import Workspace
+from taskweavn.tools.workspace import PathProtectedWorkspaceError, Workspace
 from taskweavn.types.base import BaseAction, BaseObservation
 
 DEFAULT_TIMEOUT_SECONDS = 30.0
@@ -60,6 +61,7 @@ class RunCommandTool(Tool[RunCommandAction, CommandResultObservation]):
         cwd = self._workspace.resolve(action.cwd)
         if not cwd.is_dir():
             raise NotADirectoryError(f"cwd is not a directory: {cwd}")
+        self._reject_protected_path_references(action.command)
         try:
             completed = subprocess.run(  # noqa: S602 — `shell=True` is intentional
                 action.command,
@@ -96,3 +98,18 @@ class RunCommandTool(Tool[RunCommandAction, CommandResultObservation]):
             return path.relative_to(self._workspace.root)
         except ValueError:
             return path
+
+    def _reject_protected_path_references(self, command: str) -> None:
+        protected_roots = tuple(
+            (self._workspace.root / name).resolve()
+            for name in PROTECTED_WORKSPACE_METADATA_DIR_NAMES
+        )
+        protected_fragments = tuple(PROTECTED_WORKSPACE_METADATA_DIR_NAMES) + tuple(
+            fragment
+            for protected_root in protected_roots
+            for fragment in (protected_root.as_posix(), str(protected_root))
+        )
+        if any(fragment and fragment in command for fragment in protected_fragments):
+            raise PathProtectedWorkspaceError(
+                "Command references workspace-private metadata."
+            )

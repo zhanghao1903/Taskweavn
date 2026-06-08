@@ -14,14 +14,14 @@ describe("DiagnosticsLogsRoute", () => {
       >(async () => ({
         data: {
           bundleDir: "/tmp/diagnostics/diag-1",
-          bundleDirLabel: "workspace://current/.taskweavn/diagnostics/diag-1",
+          bundleDirLabel: "workspace://current/.plato/diagnostics/diag-1",
           bundleId: "diag-1",
           createdAt: "2026-06-05T12:00:00Z",
           fileCount: 7,
           includedSections: ["session", "audit", "frontend"],
           manifestPath: "/tmp/diagnostics/diag-1/manifest.json",
           manifestPathLabel:
-            "workspace://current/.taskweavn/diagnostics/diag-1/manifest.json",
+            "workspace://current/.plato/diagnostics/diag-1/manifest.json",
           redactionProfile: "product_1_0_default",
           schemaVersion: "plato.diagnostics_export.v1",
           sections: [
@@ -30,7 +30,7 @@ describe("DiagnosticsLogsRoute", () => {
           ],
           warnings: ["missing events"],
           zipPath: "/tmp/diagnostics/diag-1.zip",
-          zipPathLabel: "workspace://current/.taskweavn/diagnostics/diag-1.zip",
+          zipPathLabel: "workspace://current/.plato/diagnostics/diag-1.zip",
         },
         error: null,
         generatedAt: "2026-06-05T12:00:00Z",
@@ -57,11 +57,11 @@ describe("DiagnosticsLogsRoute", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("diag-1")).toBeInTheDocument();
     expect(
-      screen.getByText("workspace://current/.taskweavn/diagnostics/diag-1.zip"),
+      screen.getByText("workspace://current/.plato/diagnostics/diag-1.zip"),
     ).toBeInTheDocument();
     expect(
       screen.getByText(
-        "workspace://current/.taskweavn/diagnostics/diag-1/manifest.json",
+        "workspace://current/.plato/diagnostics/diag-1/manifest.json",
       ),
     ).toBeInTheDocument();
     expect(screen.getByText("product_1_0_default")).toBeInTheDocument();

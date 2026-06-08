@@ -10,6 +10,13 @@ from taskweavn.core.loop import (
     LoopResult,
     TaskInterruptChecker,
 )
+from taskweavn.core.loop_profile import (
+    AgentLoopProfile,
+    AgentLoopProfileResult,
+    LoopProfileResultStatus,
+    LoopProfileState,
+    LoopTerminalAction,
+)
 from taskweavn.core.session import (
     Session,
     SessionStatus,
@@ -27,11 +34,16 @@ __all__ = [
     "DEFAULT_SYSTEM_PROMPT",
     "FINISH_TOOL_NAME",
     "AgentLoop",
+    "AgentLoopProfile",
+    "AgentLoopProfileResult",
     "EventStream",
     "InMemoryEventStream",
     "LoopError",
     "LoopInterruptIntent",
+    "LoopProfileResultStatus",
+    "LoopProfileState",
     "LoopResult",
+    "LoopTerminalAction",
     "Session",
     "SessionManager",
     "SessionManagerError",

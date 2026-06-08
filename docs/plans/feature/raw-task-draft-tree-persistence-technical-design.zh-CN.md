@@ -36,7 +36,7 @@
 本阶段应为 Authoring Domain 新增本地 SQLite 持久化层：
 
 ```text
-<workspace>/.taskweavn/
+<workspace>/.plato/
   tasks.sqlite        # Execution Domain: published TaskBus facts
   publish.sqlite      # Publish control plane: idempotency, scheduler, publish audit
   authoring.sqlite    # Authoring Domain: RawTask, DraftTaskTree, active state

@@ -1,7 +1,7 @@
 # Plato Main Page States
 
 The Main Page prototype uses fourteen baseline states. They are not just visual samples:
-they describe the user-visible lifecycle of a Workflow Session, from natural-language
+they describe the user-visible lifecycle of a Workspace Session, from natural-language
 input to TaskTree planning, ASK clarification, execution, confirmation, recovery,
 and review.
 
@@ -10,7 +10,7 @@ The typed source of truth is `mainPageStateCatalog.ts`. The fixture data in
 
 | State | Lifecycle | User situation | Page focus | Expected user action |
 | --- | --- | --- | --- | --- |
-| S1 Empty | empty | The user opened a Workflow but has not entered a goal. | Show the Workflow entry point and make natural-language input obvious. | Describe the goal they want Plato to plan. |
+| S1 Empty | empty | The user opened a workspace but has not entered a goal. | Show the workspace entry point and make natural-language input obvious. | Describe the goal they want Plato to plan. |
 | S2 Authoring ASK | understanding | Plato needs structured answers before a TaskTree exists. | Replace the work area with batch ASK questions and keep the input disabled. | Select answers and submit them together. |
 | S3 Draft Ready | planning | A draft TaskTree exists and needs review before publication. | Present the generated TaskTree as the main object of interaction. | Review the draft, select a TaskNode, or refine the plan. |
 | S4 Task Selected | task_focus | The user selected a TaskNode while reviewing the TaskTree. | Narrow the interaction scope from the session to a single TaskNode. | Inspect the TaskNode or add guidance that only applies to it. |
@@ -30,7 +30,7 @@ The typed source of truth is `mainPageStateCatalog.ts`. The fixture data in
 - The TaskTree is the primary interaction object once it exists.
 - The Main Page shows only a Latest Activity strip by default; full message
   history belongs in the Activity Overlay once that surface is implemented.
-- The Detail Panel is contextual: Workflow before planning, TaskNode during planning/execution, execution ASK and confirmation during gates, and Result/File Change during review.
+- The Detail Panel is contextual: Workspace/session before planning, TaskNode during planning/execution, execution ASK and confirmation during gates, and Result/File Change during review.
 - Authoring ASK uses the main work area and submits answers in a batch; execution ASK uses the detail panel and targets one concrete ASK.
 - Local command pending state is temporary. `command.completed` and `command.failed` events invalidate the snapshot, and the refreshed MainPageSnapshot remains the durable convergence source.
 - The bottom input always has an explicit scope. When a TaskNode is selected, input is task-scoped unless the current state deliberately pins a broader session/review scope.

@@ -121,7 +121,7 @@ Use a dedicated publish control-plane database:
 
 ```text
 <workspace>/
-  .taskweavn/
+  .plato/
     tasks.sqlite      # Published TaskBus facts and task topology
     publish.sqlite    # Publish idempotency, scheduler config/state, publish audit
 ```

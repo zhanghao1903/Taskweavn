@@ -6,6 +6,7 @@ import type { MainPageAdapter } from "../pages/main-page/runtime/adapter";
 import {
   createMainPageAdapterFromRuntimeEnv,
   type PlatoRuntimeEnv,
+  type PlatoWorkspaceEntryRuntime,
 } from "./platoRuntime";
 
 export type MainPageRouteProps = {
@@ -13,6 +14,7 @@ export type MainPageRouteProps = {
   auditRouteAvailable?: boolean;
   initialStateId?: MainPageStateId;
   runtimeEnv?: PlatoRuntimeEnv;
+  workspaceEntryRuntime?: PlatoWorkspaceEntryRuntime;
 };
 
 export function MainPageRoute({
@@ -20,6 +22,7 @@ export function MainPageRoute({
   auditRouteAvailable = true,
   initialStateId,
   runtimeEnv,
+  workspaceEntryRuntime,
 }: MainPageRouteProps = {}) {
   const runtimeAdapter = useMemo(
     () => adapter ?? createMainPageAdapterFromRuntimeEnv(runtimeEnv),
@@ -31,6 +34,7 @@ export function MainPageRoute({
       adapter={runtimeAdapter}
       auditRouteAvailable={auditRouteAvailable}
       initialStateId={initialStateId}
+      workspaceRuntime={workspaceEntryRuntime}
     />
   );
 }

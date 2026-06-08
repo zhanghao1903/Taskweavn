@@ -235,7 +235,7 @@ Deliver:
 Implementation note:
 
 - `TaskExecutionSummary` and `SqliteTaskExecutionSummaryStore` store readable
-  result/error payloads in `.taskweavn/results.sqlite`.
+  result/error payloads in `.plato/results.sqlite`.
 - AgentLoop success refs point to stored `kind="result"` summaries.
 - Successful non-AgentLoop executors that omit `result_ref` receive a generated
   `task_result:{session_id}:{task_id}:completed` summary ref.

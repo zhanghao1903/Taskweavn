@@ -20,7 +20,11 @@ from taskweavn.tools.shell import (
     RunCommandAction,
     RunCommandTool,
 )
-from taskweavn.tools.workspace import PathOutsideWorkspaceError, Workspace
+from taskweavn.tools.workspace import (
+    PathOutsideWorkspaceError,
+    PathProtectedWorkspaceError,
+    Workspace,
+)
 
 __all__ = [
     "AskUserTool",
@@ -33,6 +37,7 @@ __all__ = [
     "ListDirAction",
     "ListDirTool",
     "PathOutsideWorkspaceError",
+    "PathProtectedWorkspaceError",
     "ReadFileAction",
     "ReadFileTool",
     "RunCommandAction",

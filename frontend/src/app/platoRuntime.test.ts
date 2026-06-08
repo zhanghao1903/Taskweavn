@@ -6,6 +6,7 @@ import {
   createMainPageAdapterFromRuntimeEnv,
   createMainPageRuntimeReducerHarnessFromEnv,
   resolvePlatoRuntimeEnv,
+  resolvePlatoWorkspaceEntryRuntime,
 } from "./platoRuntime";
 
 describe("Plato runtime wiring", () => {
@@ -41,6 +42,39 @@ describe("Plato runtime wiring", () => {
       VITE_PLATO_API_MODE: "http",
       VITE_PLATO_DISABLE_EVENTS: "1",
       VITE_PLATO_SESSION_ID: "session-electron",
+    });
+  });
+
+  it("resolves Electron workspace entry runtime when selection is required", () => {
+    const bridge = {
+      chooseWorkspace: vi.fn(),
+      getState: vi.fn(),
+      useWorkspace: vi.fn(),
+    };
+    vi.stubGlobal("window", {
+      platoElectronWorkspace: bridge,
+      platoRuntimeConfig: {
+        workspace: {
+          id: "workspace-1",
+          isCurrent: true,
+          label: "Project",
+          name: "Project",
+          pathLabel: "Project",
+        },
+        workspaceEntryRequired: true,
+      },
+    });
+
+    expect(resolvePlatoWorkspaceEntryRuntime()).toEqual({
+      bridge,
+      currentWorkspace: {
+        id: "workspace-1",
+        isCurrent: true,
+        label: "Project",
+        name: "Project",
+        pathLabel: "Project",
+      },
+      isRequired: true,
     });
   });
 

@@ -11,10 +11,18 @@ contextBridge.exposeInMainWorld("platoRuntimeConfig", {
   disableEvents: runtimeConfig.disableEvents,
   sessionId: runtimeConfig.sessionId ?? null,
   startupId: runtimeConfig.startupId,
+  workspace: runtimeConfig.workspace ?? null,
+  workspaceEntryRequired: runtimeConfig.workspaceEntryRequired,
 });
 
 contextBridge.exposeInMainWorld("platoElectron", {
   getStartupDiagnostics: () => ipcRenderer.invoke("plato:get-startup-diagnostics"),
+});
+
+contextBridge.exposeInMainWorld("platoElectronWorkspace", {
+  chooseWorkspace: () => ipcRenderer.invoke("plato:workspace:choose"),
+  getState: () => ipcRenderer.invoke("plato:workspace:get-state"),
+  useWorkspace: (id) => ipcRenderer.invoke("plato:workspace:use", id),
 });
 
 function parseRuntimeConfig(raw) {
@@ -48,5 +56,25 @@ function sanitizeRuntimeConfig(config) {
         : undefined,
     startupId:
       typeof config.startupId === "string" ? config.startupId : undefined,
+    workspace:
+      config.workspace && typeof config.workspace === "object"
+        ? sanitizeWorkspaceSummary(config.workspace)
+        : null,
+    workspaceEntryRequired: config.workspaceEntryRequired === true,
+  };
+}
+
+function sanitizeWorkspaceSummary(summary) {
+  const id = typeof summary.id === "string" ? summary.id : "";
+  const name = typeof summary.name === "string" ? summary.name : "Workspace";
+  const label = typeof summary.label === "string" ? summary.label : name;
+  const pathLabel =
+    typeof summary.pathLabel === "string" ? summary.pathLabel : label;
+  return {
+    id,
+    isCurrent: summary.isCurrent === true,
+    label,
+    name,
+    pathLabel,
   };
 }

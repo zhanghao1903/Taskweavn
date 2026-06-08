@@ -54,6 +54,42 @@ describe("App", () => {
     expect(screen.getByText("Requirement analysis")).toBeInTheDocument();
   });
 
+  it("renders Workspace Picker before Settings or Main Page when workspace entry is required", async () => {
+    const readinessApi = {
+      getSettingsReadiness: vi.fn(async () => settingsReadinessResponse()),
+    };
+    const workspaceBridge = {
+      chooseWorkspace: vi.fn(),
+      getState: vi.fn(async () => ({
+        currentWorkspace: null,
+        error: null,
+        recentWorkspaces: [],
+        status: "needs_selection" as const,
+      })),
+      useWorkspace: vi.fn(),
+    };
+
+    render(
+      <AppProviders>
+        <App
+          readinessApi={readinessApi}
+          runtimeEnv={{ VITE_PLATO_API_MODE: "http" }}
+          workspaceEntryRuntime={{
+            bridge: workspaceBridge,
+            currentWorkspace: null,
+            isRequired: true,
+          }}
+        />
+      </AppProviders>,
+    );
+
+    expect(
+      await screen.findByRole("heading", { name: "Open a workspace" }),
+    ).toBeInTheDocument();
+    expect(readinessApi.getSettingsReadiness).not.toHaveBeenCalled();
+    expect(screen.queryByLabelText("Task workspace")).not.toBeInTheDocument();
+  });
+
   it("renders the diagnostics log handoff route", () => {
     globalThis.history.pushState(
       null,

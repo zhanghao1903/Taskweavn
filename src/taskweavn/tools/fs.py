@@ -140,10 +140,11 @@ class ListDirTool(Tool[ListDirAction, DirListingObservation]):
             entries=entries,
         )
 
-    @staticmethod
-    def _iter_entries(directory: Path) -> list[DirEntry]:
+    def _iter_entries(self, directory: Path) -> list[DirEntry]:
         results: list[DirEntry] = []
         for child in directory.iterdir():
+            if self._workspace.is_protected_path(child):
+                continue
             is_dir = child.is_dir()
             size = None if is_dir else child.stat().st_size
             results.append(DirEntry(name=child.name, is_dir=is_dir, size=size))

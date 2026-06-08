@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from taskweavn.core.session import Session
+from taskweavn.core.workspace_layout import WORKSPACE_META_DIR_NAME
 from taskweavn.observability.models import LogArchiveManifest
 from taskweavn.server.ui_contract.gateway_protocols import (
     AuditEventProvider,
@@ -490,17 +491,16 @@ def _normalize_paths(text: str, *, session: Session) -> tuple[str, tuple[str, ..
     redactions: list[str] = []
     normalized = text
     for root, label in (
-        (session.project_dir, "workspace://"),
-        (session.workspace_root, "workspace-root://"),
         (session.logs_dir, "session-logs://"),
+        (session.layout.meta_dir, f"workspace://current/{WORKSPACE_META_DIR_NAME}/"),
+        (session.project_dir, "workspace://current/"),
     ):
         try:
             root_text = str(root.resolve())
         except OSError:
             root_text = str(root)
         if root_text and root_text in normalized:
-            replacement = f"{label.rstrip('/')}/"
-            normalized = normalized.replace(root_text, replacement)
+            normalized = _replace_path_root(normalized, root_text, label)
             redactions.append(f"path:{label.rstrip(':/')}")
 
     home_text = str(Path.home())
@@ -513,6 +513,25 @@ def _normalize_paths(text: str, *, session: Session) -> tuple[str, tuple[str, ..
             normalized = normalized.replace(temp_prefix, "[redacted:temp-path]/")
             redactions.append("path:temp")
     return normalized, _compact_redactions(redactions)
+
+
+def _path_label_prefix(label: str) -> str:
+    if label.endswith("://") or label.endswith("/"):
+        return label
+    return f"{label}/"
+
+
+def _replace_path_root(text: str, root_text: str, label: str) -> str:
+    exact_label = _path_label_exact(label)
+    prefix = _path_label_prefix(label)
+    normalized = text.replace(f"{root_text}/", prefix)
+    return normalized.replace(root_text, exact_label)
+
+
+def _path_label_exact(label: str) -> str:
+    if label.endswith("://"):
+        return label
+    return label[:-1] if label.endswith("/") else label
 
 
 def _compact_redactions(redactions: Iterable[str]) -> tuple[str, ...]:

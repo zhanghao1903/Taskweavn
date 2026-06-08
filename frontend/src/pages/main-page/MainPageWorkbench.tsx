@@ -8,6 +8,7 @@ import { LatestActivityStrip } from "./LatestActivityStrip";
 import { MainPageDetailPanel } from "./MainPageDetailPanel";
 import { MainPageSessionSidebar } from "./MainPageSessionSidebar";
 import { MainPageTopBar } from "./MainPageTopBar";
+import type { MainPageWorkspaceRuntime } from "./MainPageWorkspaceSwitcher";
 import { MainPageWorkspaceHeader } from "./MainPageWorkspaceHeader";
 import { TaskTreePanel } from "./TaskTreePanel";
 import { AuthoringAskWorkArea } from "./interaction/AuthoringAskWorkArea";
@@ -27,6 +28,7 @@ export type MainPageWorkbenchProps = {
   sessionDialog: MainPageController["sessionDialog"];
   topBarTrailing?: ReactNode;
   viewModel: MainPageViewModel;
+  workspaceRuntime?: MainPageWorkspaceRuntime | null;
 };
 
 export function MainPageWorkbench({
@@ -41,6 +43,7 @@ export function MainPageWorkbench({
   sessionDialog,
   topBarTrailing = null,
   viewModel,
+  workspaceRuntime = null,
 }: MainPageWorkbenchProps) {
   const [isActivityOverlayOpen, setIsActivityOverlayOpen] = useState(false);
   const hidesDetailPanel = viewModel.detail.kind === "note";
@@ -77,6 +80,7 @@ export function MainPageWorkbench({
         onSubmitSessionDialog={actions.submitSessionDialog}
         sessionDialog={sessionDialog}
         sessions={viewModel.sidebar.sessions}
+        workspaceRuntime={workspaceRuntime}
       />
 
       <Panel

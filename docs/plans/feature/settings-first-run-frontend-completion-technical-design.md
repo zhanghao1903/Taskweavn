@@ -385,7 +385,7 @@ a backend write contract would create a false product acceptance signal.
 
 1. Where is Product 1.0 local secret storage implemented?
    - accepted Product 1.0 answer: local sidecar storage under
-     `.taskweavn/settings/`, with safe read summaries and write-only secret
+     `.plato/settings/`, with safe read summaries and write-only secret
      replacement;
    - OS keychain and encrypted workspace secret store remain future
      hardening options.

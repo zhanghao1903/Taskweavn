@@ -69,8 +69,12 @@ class _StubLLM:
         self,
         messages: list[dict[str, Any]],
         tools: list[dict[str, Any]] | None = None,
+        *,
+        metadata: dict[str, Any] | None = None,
     ) -> ChatResponse:
-        self.calls.append({"messages": list(messages), "tools": tools})
+        self.calls.append(
+            {"messages": list(messages), "tools": tools, "metadata": metadata}
+        )
         return next(self._iter)
 
 

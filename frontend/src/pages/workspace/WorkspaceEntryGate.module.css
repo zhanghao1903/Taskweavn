@@ -1,0 +1,105 @@
+.page {
+  align-items: center;
+  background:
+    linear-gradient(135deg, rgba(238, 245, 248, 0.94), rgba(250, 251, 248, 0.9)),
+    #eef5f8;
+  color: var(--plato-color-semantic-text-primary);
+  display: flex;
+  min-height: 100vh;
+  padding: 48px 24px;
+}
+
+.panel {
+  display: grid;
+  gap: 28px;
+  margin: 0 auto;
+  max-width: 760px;
+  padding: 36px;
+  width: min(760px, 100%);
+}
+
+.header {
+  display: grid;
+  gap: 10px;
+}
+
+.eyebrow {
+  color: var(--plato-color-semantic-text-secondary);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.header h1 {
+  font-size: 2rem;
+  line-height: 1.15;
+  margin: 0;
+}
+
+.header p {
+  color: var(--plato-color-semantic-text-secondary);
+  margin: 0;
+  max-width: 58ch;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.recentSection {
+  border-top: 1px solid var(--plato-color-semantic-border);
+  display: grid;
+  gap: 12px;
+  padding-top: 22px;
+}
+
+.recentList {
+  display: grid;
+  gap: 8px;
+}
+
+.recentButton {
+  align-items: center;
+  background: var(--plato-color-semantic-surface);
+  border: 1px solid var(--plato-color-semantic-border);
+  border-radius: 8px;
+  color: inherit;
+  cursor: pointer;
+  display: flex;
+  gap: 12px;
+  justify-content: flex-start;
+  min-height: 54px;
+  padding: 10px 12px;
+  text-align: left;
+  width: 100%;
+}
+
+.recentButton:hover {
+  border-color: var(--plato-color-semantic-action-primary);
+}
+
+.recentButton:focus-visible {
+  outline: 2px solid var(--plato-color-semantic-action-primary);
+  outline-offset: 2px;
+}
+
+.recentButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
+.recentCopy {
+  display: grid;
+  gap: 2px;
+}
+
+.error {
+  background: var(--plato-color-status-execution-failed-bg);
+  border: 1px solid var(--plato-color-status-execution-failed-text);
+  border-radius: 8px;
+  color: var(--plato-color-status-execution-failed-text);
+  padding: 12px 14px;
+}

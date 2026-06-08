@@ -2,13 +2,17 @@ import type { MouseEvent } from "react";
 import { useEffect, useState } from "react";
 
 import type { SessionSummary } from "../../shared/api/types";
-import { Button, Panel, Text } from "../../shared/components";
+import { Button, Panel } from "../../shared/components";
 import { SessionLifecyclePanel } from "./SessionLifecyclePanel";
+import {
+  MainPageWorkspaceSwitcher,
+  type MainPageWorkspaceRuntime,
+} from "./MainPageWorkspaceSwitcher";
 import type { MainPageController } from "./useMainPageController";
 import styles from "./MainPage.module.css";
 
 export type MainPageSessionSidebarProps = {
-  activeSession: SessionSummary;
+  activeSession: SessionSummary | null;
   isCreatingSession: boolean;
   isDeletingSession: boolean;
   isRenamingSession: boolean;
@@ -21,6 +25,7 @@ export type MainPageSessionSidebarProps = {
   onSubmitSessionDialog: () => void;
   sessionDialog: MainPageController["sessionDialog"];
   sessions: SessionSummary[];
+  workspaceRuntime?: MainPageWorkspaceRuntime | null;
 };
 
 type SessionContextMenuState = {
@@ -43,6 +48,7 @@ export function MainPageSessionSidebar({
   onSubmitSessionDialog,
   sessionDialog,
   sessions,
+  workspaceRuntime = null,
 }: MainPageSessionSidebarProps) {
   const [contextMenu, setContextMenu] =
     useState<SessionContextMenuState | null>(null);
@@ -88,7 +94,7 @@ export function MainPageSessionSidebar({
 
   function selectFromContextMenu(session: SessionSummary) {
     setContextMenu(null);
-    onSelectSession(session, activeSession.id);
+    onSelectSession(session, activeSession?.id ?? session.id);
   }
 
   function renameFromContextMenu(session: SessionSummary) {
@@ -110,39 +116,43 @@ export function MainPageSessionSidebar({
     <Panel
       as="aside"
       className={styles.sidebar}
-      aria-label="Workflow sessions"
+      aria-label="Workspace sessions"
     >
-      <div className={styles.sidebarHeader}>
-        <Text as="span" className={styles.sidebarTitle} variant="label">
-          Workflow
-        </Text>
-        <Button
-          disabled={isCreatingSession}
-          onClick={onCreateSession}
-          size="sm"
-        >
-          {isCreatingSession ? "Creating" : "New"}
-        </Button>
-      </div>
-      <Text as="div" variant="eyebrow">
-        Sessions
-      </Text>
-      {sessions.map((session) => (
-        <button
-          className={
-            session.id === activeSession.id
-              ? styles.activeNavItem
-              : styles.navItem
+      <div className={styles.workspaceSessionTree}>
+        <MainPageWorkspaceSwitcher
+          actions={
+            <Button
+              disabled={isCreatingSession}
+              onClick={onCreateSession}
+              size="sm"
+            >
+              {isCreatingSession ? "Creating" : "New"}
+            </Button>
           }
-          key={session.id}
-          onContextMenu={(event) => openContextMenu(event, session)}
-          onDoubleClick={() => renameFromContextMenu(session)}
-          onClick={() => onSelectSession(session, activeSession.id)}
-          type="button"
+          runtime={workspaceRuntime}
         >
-          {session.name}
-        </button>
-      ))}
+          <div className={styles.sessionTreeList}>
+            {sessions.map((session) => (
+              <button
+                className={
+                  activeSession !== null && session.id === activeSession.id
+                    ? styles.activeNavItem
+                    : styles.navItem
+                }
+                key={session.id}
+                onContextMenu={(event) => openContextMenu(event, session)}
+                onDoubleClick={() => renameFromContextMenu(session)}
+                onClick={() =>
+                  onSelectSession(session, activeSession?.id ?? session.id)
+                }
+                type="button"
+              >
+                {session.name}
+              </button>
+            ))}
+          </div>
+        </MainPageWorkspaceSwitcher>
+      </div>
       {contextMenu ? (
         <div
           aria-label="Session actions"
@@ -156,7 +166,9 @@ export function MainPageSessionSidebar({
           }}
         >
           <button
-            disabled={contextMenu.session.id === activeSession.id}
+            disabled={
+              activeSession !== null && contextMenu.session.id === activeSession.id
+            }
             onClick={() => selectFromContextMenu(contextMenu.session)}
             role="menuitem"
             type="button"

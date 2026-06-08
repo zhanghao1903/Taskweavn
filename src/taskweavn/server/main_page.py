@@ -19,6 +19,7 @@ from taskweavn.interaction import (
     SqliteAskStore,
     SqliteMessageStream,
 )
+from taskweavn.observability import LogContext
 from taskweavn.observability.main_page_trace import main_page_trace
 from taskweavn.server.ask_recovery import DefaultAskRecoveryService
 from taskweavn.server.client_logs import FileClientErrorLogSink
@@ -84,9 +85,11 @@ from taskweavn.task import (
     FixedRouteExecutionDispatcher,
     FixedRouteTaskExecutor,
     FixedRouteTaskExecutorConfig,
+    InMemoryAuthoringEvidenceStore,
     InMemoryCollaboratorTemplateRegistry,
     InMemoryDraftTaskStore,
     InMemoryRawTaskStore,
+    LocalCollaboratorWorkspaceContextSource,
     RawTaskStore,
     ResidentDefaultAgent,
     SqliteAuthoringCommandIdempotencyStore,
@@ -263,7 +266,12 @@ def build_main_page_sidecar_app(
         if session is not None:
             logging_initializer(session)
         message_stream = SqliteMessageStream(layout.workspace_messages_db)
-        message_bus = InProcessMessageBus(message_stream)
+        message_bus = InProcessMessageBus(
+            message_stream,
+            default_context=(
+                LogContext(session_id=session.id) if session is not None else None
+            ),
+        )
         ask_store = dependencies.ask_store or SqliteAskStore(layout.workspace_asks_db)
         task_bus = SqliteTaskBus(layout.workspace_tasks_db)
         (
@@ -326,10 +334,16 @@ def build_main_page_sidecar_app(
             capability_catalog=capability_catalog,
             message_stream=message_stream,
         )
+        authoring_evidence_store = InMemoryAuthoringEvidenceStore()
+        workspace_context_source = LocalCollaboratorWorkspaceContextSource(
+            workspace_root=config.workspace_root,
+            evidence_store=authoring_evidence_store,
+        )
         collaborator_service = DefaultCollaboratorAuthoringService(
             llm=dependencies.llm,
             context_builder=context_builder,
             command_service=authoring_command_service,
+            workspace_context_source=workspace_context_source,
         )
         collaborator = DefaultCollaboratorApiAdapter(
             collaborator_service=collaborator_service,

@@ -6,7 +6,11 @@ from pathlib import Path
 
 import pytest
 
-from taskweavn.tools import PathOutsideWorkspaceError, Workspace
+from taskweavn.tools import (
+    PathOutsideWorkspaceError,
+    PathProtectedWorkspaceError,
+    Workspace,
+)
 
 
 def test_root_must_exist(tmp_path: Path) -> None:
@@ -51,3 +55,23 @@ def test_reject_absolute_path_outside_workspace(tmp_path: Path) -> None:
 def test_root_itself_is_allowed(tmp_path: Path) -> None:
     ws = Workspace(tmp_path)
     assert ws.resolve(".") == tmp_path.resolve()
+
+
+def test_reject_workspace_private_metadata(tmp_path: Path) -> None:
+    (tmp_path / ".plato").mkdir()
+    ws = Workspace(tmp_path)
+
+    with pytest.raises(PathProtectedWorkspaceError):
+        ws.resolve(".plato/workspace.sqlite")
+
+
+@pytest.mark.parametrize("dirname", [".taskweavn", ".code-agent"])
+def test_reject_legacy_workspace_private_metadata(
+    tmp_path: Path,
+    dirname: str,
+) -> None:
+    (tmp_path / dirname).mkdir()
+    ws = Workspace(tmp_path)
+
+    with pytest.raises(PathProtectedWorkspaceError):
+        ws.resolve(f"{dirname}/workspace.sqlite")

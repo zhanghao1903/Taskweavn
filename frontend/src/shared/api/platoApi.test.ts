@@ -404,20 +404,20 @@ describe("createHttpPlatoApi", () => {
       return jsonResponse({
         data: {
           bundleDir: "/tmp/bundle",
-          bundleDirLabel: "workspace://current/.taskweavn/diagnostics/bundle",
+          bundleDirLabel: "workspace://current/.plato/diagnostics/bundle",
           bundleId: "diagnostic-bundle-session-1",
           createdAt: "2026-06-05T12:00:00Z",
           fileCount: 3,
           includedSections: ["session", "frontend"],
           manifestPath: "/tmp/bundle/manifest.json",
           manifestPathLabel:
-            "workspace://current/.taskweavn/diagnostics/bundle/manifest.json",
+            "workspace://current/.plato/diagnostics/bundle/manifest.json",
           redactionProfile: "product_1_0_default",
           schemaVersion: "plato.diagnostics_export.v1",
           sections: [],
           warnings: [],
           zipPath: "/tmp/bundle.zip",
-          zipPathLabel: "workspace://current/.taskweavn/diagnostics/bundle.zip",
+          zipPathLabel: "workspace://current/.plato/diagnostics/bundle.zip",
         },
         error: null,
         generatedAt: "2026-06-05T12:00:00Z",

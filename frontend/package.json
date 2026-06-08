@@ -17,6 +17,7 @@
     "electron:smoke:installer": "node scripts/run-electron-installer-smoke.mjs",
     "electron:smoke:launcher": "node scripts/run-electron-launcher-smoke.mjs",
     "electron:smoke:packaged": "node scripts/run-electron-packaged-smoke.mjs",
+    "electron:smoke:workspace-entry": "node scripts/run-electron-smoke.mjs --workspace-entry",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "test:e2e:sidecar": "node scripts/run-sidecar-e2e.mjs",

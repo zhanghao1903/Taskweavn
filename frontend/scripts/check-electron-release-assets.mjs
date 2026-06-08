@@ -437,7 +437,7 @@ function scanTextFile(filePath, appRoot) {
     }
   }
 
-  if (text.includes("Contents/Resources/.taskweavn")) {
+  if (text.includes("Contents/Resources/.plato")) {
     addFailure(
       "runtime_write_inside_app",
       filePath,

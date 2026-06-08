@@ -334,8 +334,8 @@ const stateNoteDetail: MainPageDetailView = {
   body: "Describe the goal.",
   header: {
     body: "Describe the goal.",
-    eyebrow: "Workflow",
-    title: "Task authoring",
+    eyebrow: "Workspace",
+    title: "Workspace session",
   },
 };
 

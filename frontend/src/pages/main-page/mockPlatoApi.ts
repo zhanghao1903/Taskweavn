@@ -831,7 +831,7 @@ function toResultCardView(
     sections: [
       {
         title: "Delivered structure",
-        body: "Created the first runnable shell, connected the Main Page states, and prepared the review path for the task planning workflow.",
+        body: "Created the first runnable shell, connected the Main Page states, and prepared the review path for task planning.",
         kind: "list",
       },
       {

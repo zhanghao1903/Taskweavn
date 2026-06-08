@@ -115,7 +115,7 @@ return to the last working Session without losing an unpublished draft plan.
 The persistence foundation uses a dedicated authoring database:
 
 ```text
-<workspace>/.taskweavn/
+<workspace>/.plato/
   tasks.sqlite        # Execution Domain: published TaskBus facts
   publish.sqlite      # Publish control plane: idempotency, scheduler, publish audit
   authoring.sqlite    # Authoring Domain: RawTask, DraftTaskTree, active state
@@ -187,7 +187,7 @@ Acceptance:
 Deliver:
 
 - local sidecar service assembly uses SQLite authoring stores;
-- `authoring.sqlite` path lives under workspace `.taskweavn`;
+- `authoring.sqlite` path lives under workspace `.plato`;
 - smoke tests create draft tree, restart/reopen stores, query snapshot, publish.
 
 Acceptance:

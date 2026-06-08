@@ -20,8 +20,42 @@ type PlatoElectronRuntimeConfig = {
   readonly disableEvents?: boolean;
   readonly sessionId?: string | null;
   readonly startupId?: string;
+  readonly workspace?: PlatoWorkspaceEntrySummary | null;
+  readonly workspaceEntryRequired?: boolean;
+};
+
+type PlatoWorkspaceEntrySummary = {
+  readonly id: string;
+  readonly isCurrent: boolean;
+  readonly label: string;
+  readonly name: string;
+  readonly pathLabel: string;
+};
+
+type PlatoWorkspaceEntryState = {
+  readonly currentWorkspace: PlatoWorkspaceEntrySummary | null;
+  readonly error: string | null;
+  readonly recentWorkspaces: readonly PlatoWorkspaceEntrySummary[];
+  readonly status: "needs_selection" | "ready" | "starting" | "failed";
+};
+
+type PlatoWorkspaceSelectionResult =
+  | {
+      readonly state: PlatoWorkspaceEntryState;
+      readonly status: "cancelled";
+    }
+  | {
+      readonly state: PlatoWorkspaceEntryState;
+      readonly status: "ready";
+    };
+
+type PlatoElectronWorkspaceBridge = {
+  readonly chooseWorkspace: () => Promise<PlatoWorkspaceSelectionResult>;
+  readonly getState: () => Promise<PlatoWorkspaceEntryState>;
+  readonly useWorkspace: (id: string) => Promise<PlatoWorkspaceSelectionResult>;
 };
 
 interface Window {
+  readonly platoElectronWorkspace?: PlatoElectronWorkspaceBridge;
   readonly platoRuntimeConfig?: PlatoElectronRuntimeConfig;
 }

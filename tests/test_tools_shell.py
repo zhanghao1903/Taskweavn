@@ -69,6 +69,26 @@ def test_run_command_cwd_outside_workspace_via_runtime(workspace: Workspace) -> 
     assert "outside" in obs.message.lower()
 
 
+def test_run_command_rejects_private_metadata_cwd(workspace: Workspace) -> None:
+    (workspace.root / ".plato").mkdir()
+    rt = LocalRuntime()
+    RunCommandTool(workspace).register(rt)
+    obs = rt.execute(RunCommandAction(command="pwd", cwd=".plato"))
+    assert isinstance(obs, ErrorObservation)
+    assert "private metadata" in obs.message.lower()
+
+
+def test_run_command_rejects_direct_private_metadata_reference(
+    workspace: Workspace,
+) -> None:
+    (workspace.root / ".plato").mkdir()
+    rt = LocalRuntime()
+    RunCommandTool(workspace).register(rt)
+    obs = rt.execute(RunCommandAction(command="cat .plato/workspace.sqlite"))
+    assert isinstance(obs, ErrorObservation)
+    assert "private metadata" in obs.message.lower()
+
+
 def test_run_command_captures_stderr(workspace: Workspace) -> None:
     obs = RunCommandTool(workspace).execute(
         RunCommandAction(command="echo oops 1>&2; false")

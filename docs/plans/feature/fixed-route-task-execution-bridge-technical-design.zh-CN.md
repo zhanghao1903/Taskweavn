@@ -256,7 +256,7 @@ def build_agent_loop_resident_default_agent(
 - runner 使用 `layout.session_project_dir(session_id)` 作为模型可见 workspace；
 - runner 使用 `layout.session_events_db(session_id)` 作为 EventStream；
 - `MainPageSidecarApp` 默认创建 `SqliteTaskExecutionSummaryStore`，路径为
-  `layout.workspace_results_db` / `.taskweavn/results.sqlite`；
+  `layout.workspace_results_db` / `.plato/results.sqlite`；
 - 显式 `run_fixed_route_tick(...)` 和 background dispatcher 均注入同一个
   result summary store；
 - runner 使用 `LocalRuntime` 并在 run 前注册工具；

@@ -203,13 +203,13 @@ export const mainPageStates: MainPageFixture[] = [
     selectedTaskNodeId: null,
     messages: [],
     detail: {
-      mode: "workflow",
-      eyebrow: "Workflow",
-      title: workflow.name,
+      mode: "session",
+      eyebrow: "Workspace",
+      title: project.name,
       body: "Start with a natural language goal. Plato will turn it into a visible task plan before execution.",
     },
     inputScope: {
-      label: "Writing to workflow",
+      label: "Writing to session",
       placeholder: "Describe the goal you want Plato to plan.",
     },
     result: null,

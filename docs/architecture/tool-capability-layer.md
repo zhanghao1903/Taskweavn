@@ -223,6 +223,23 @@ Collaborator's LLM should output proposals, not perform state mutation through a
 
 For execution Agents, the later binding target should be a `WorkspaceRequest`, with current Tool classes acting as adapters while the protocol matures.
 
+### 2026-06-08 Addendum: Workspace-Informed Authoring
+
+[ADR-0016](../decisions/ADR-0016-collaborator-workspace-aware-authoring.md)
+amends the default boundary above.
+
+Collaborator still must not mount unrestricted execution tools by default, but
+it may use a bounded read-only authoring loop and workspace context channel for:
+
+- reading selected or policy-declared workspace guidance before planning;
+- querying and searching selected or policy-declared guidance paths.
+
+These operations are authoring context operations, not general project mutation.
+Collaborator does not write workspace files in the first version. If a project
+workflow requires writing planning documents, code, config, or generated
+artifacts, that remains Execution Agent work unless a later decision explicitly
+expands Collaborator scope.
+
 ---
 
 ## 7. Should Collaborator Be Split?

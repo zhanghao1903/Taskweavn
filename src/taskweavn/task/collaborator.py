@@ -4,12 +4,11 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Callable
 from typing import Any, ClassVar, Protocol, runtime_checkable
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
-from taskweavn.llm.logging import log_agent_llm_input, log_agent_llm_output
-from taskweavn.observability import LogContext
 from taskweavn.prompts import COLLABORATOR_AUTHORING_SYSTEM_PROMPT
 from taskweavn.task.authoring import (
     ActorRef,
@@ -27,6 +26,15 @@ from taskweavn.task.authoring import (
 )
 from taskweavn.task.authoring_context import AuthoringContextBuilder
 from taskweavn.task.authoring_service import AuthoringCommandService
+from taskweavn.task.collaborator_loop import (
+    CollaboratorAuthoringLoopResult,
+    CollaboratorAuthoringOperation,
+    CollaboratorAuthoringProfile,
+    CollaboratorAuthoringProfileRequest,
+    CollaboratorProposalKind,
+)
+from taskweavn.task.collaborator_profile_runner import CollaboratorAuthoringProfileRunner
+from taskweavn.task.collaborator_workspace_context import CollaboratorWorkspaceContextSource
 from taskweavn.task.models import TaskRef
 
 _JSON_OBJECT_RE = re.compile(r"\{.*\}", re.DOTALL)
@@ -211,11 +219,22 @@ class DefaultCollaboratorAuthoringService:
         context_builder: AuthoringContextBuilder,
         command_service: AuthoringCommandService,
         actor: ActorRef | None = None,
+        profile: CollaboratorAuthoringProfile | None = None,
+        workspace_context_source: CollaboratorWorkspaceContextSource | None = None,
+        max_context_steps: int = 3,
     ) -> None:
         self._llm = llm
         self._context_builder = context_builder
         self._command_service = command_service
         self._actor = actor or ActorRef(actor_id="collaborator", kind="collaborator")
+        self._profile = profile or CollaboratorAuthoringProfile()
+        self._profile_runner = CollaboratorAuthoringProfileRunner(
+            llm=self._llm,
+            profile=self._profile,
+            actor_id=self._actor.actor_id,
+            workspace_context_source=workspace_context_source,
+            max_context_steps=max_context_steps,
+        )
 
     def create_raw_task_from_message(
         self,
@@ -226,18 +245,21 @@ class DefaultCollaboratorAuthoringService:
         idempotency_key: str | None = None,
     ) -> AuthoringCommandResult:
         context = self._context_builder.build_session_context(session_id)
-        response = self._chat(
-            task="Assess the user input and return a raw_task proposal.",
-            session_id=session_id,
-            request_purpose="collaborator.create_raw_task",
-            payload={
-                "user_input": user_input,
-                "context": _context_payload(context),
-            },
-        )
         try:
+            loop_result = self._run_one_shot(
+                operation="create_raw_task",
+                proposal_kind="raw_task",
+                task="Assess the user input and return a raw_task proposal.",
+                session_id=session_id,
+                request_purpose="collaborator.create_raw_task",
+                payload={
+                    "user_input": user_input,
+                    "context": _context_payload(context),
+                },
+                parse_response=_raw_task_payload_from_response,
+            )
             proposal = RawTaskProposal.model_validate(
-                _raw_task_payload_from_response(response)
+                _finished_proposal(loop_result, expected_kind="raw_task")
             )
             operations = [
                 RawTaskOperation(
@@ -300,14 +322,19 @@ class DefaultCollaboratorAuthoringService:
                 "draft_task_tree",
                 ValueError("RawTask is required before generating a draft task tree"),
             )
-        response = self._chat(
-            task="Generate a draft task tree proposal for the selected RawTask.",
-            session_id=session_id,
-            request_purpose="collaborator.generate_task_tree",
-            payload={"context": _context_payload(context)},
-        )
         try:
-            proposal = DraftTaskTreeProposal.model_validate(_json_from_response(response))
+            loop_result = self._run_one_shot(
+                operation="generate_task_tree",
+                proposal_kind="draft_task_tree",
+                task="Generate a draft task tree proposal for the selected RawTask.",
+                session_id=session_id,
+                request_purpose="collaborator.generate_task_tree",
+                payload={"context": _context_payload(context)},
+                parse_response=_json_from_response,
+            )
+            proposal = DraftTaskTreeProposal.model_validate(
+                _finished_proposal(loop_result, expected_kind="draft_task_tree")
+            )
             command = MutateDraftTaskTreeCommand(
                 session_id=session_id,
                 raw_task_id=context.raw_task_id,
@@ -341,17 +368,22 @@ class DefaultCollaboratorAuthoringService:
         context = self._context_builder.build_task_context(session_id, selected_task_ref)
         if context.selected_node is None:
             return _proposal_error("draft_task_patch", ValueError("selected node missing"))
-        response = self._chat(
-            task="Refine only the selected draft task node using the instruction.",
-            session_id=session_id,
-            request_purpose="collaborator.refine_task_node",
-            payload={
-                "instruction": instruction,
-                "context": _context_payload(context),
-            },
-        )
         try:
-            proposal = DraftTaskPatchProposal.model_validate(_json_from_response(response))
+            loop_result = self._run_one_shot(
+                operation="refine_task_node",
+                proposal_kind="draft_task_patch",
+                task="Refine only the selected draft task node using the instruction.",
+                session_id=session_id,
+                request_purpose="collaborator.refine_task_node",
+                payload={
+                    "instruction": instruction,
+                    "context": _context_payload(context),
+                },
+                parse_response=_json_from_response,
+            )
+            proposal = DraftTaskPatchProposal.model_validate(
+                _finished_proposal(loop_result, expected_kind="draft_task_patch")
+            )
             command = MutateDraftTaskTreeCommand(
                 session_id=session_id,
                 draft_tree_id=context.selected_node.draft_tree_id,
@@ -376,60 +408,29 @@ class DefaultCollaboratorAuthoringService:
         except Exception as exc:  # noqa: BLE001 - surfaced as authoring result
             return _proposal_error("draft_task_patch", exc)
 
-    def _chat(
+    def _run_one_shot(
         self,
         *,
+        operation: CollaboratorAuthoringOperation,
+        proposal_kind: CollaboratorProposalKind,
         task: str,
         session_id: str,
         request_purpose: str,
         payload: dict[str, Any],
-    ) -> str:
-        messages = [
-            {"role": "system", "content": _SYSTEM_PROMPT},
-            {
-                "role": "user",
-                "content": json.dumps(
-                    {"task": task, **payload},
-                    ensure_ascii=False,
-                    sort_keys=True,
-                ),
-            },
-        ]
-        metadata = {
-            "agent_kind": "collaborator",
-            "agent_id": self._actor.actor_id,
-            "component": "collaborator_authoring",
-            "request_purpose": request_purpose,
-            "session_id": session_id,
-        }
-        log_context = LogContext(
+        parse_response: Callable[[str], dict[str, Any]],
+    ) -> CollaboratorAuthoringLoopResult:
+        request = CollaboratorAuthoringProfileRequest(
             session_id=session_id,
-            agent_id=self._actor.actor_id,
-        )
-        log_agent_llm_input(
-            agent_kind="collaborator",
+            operation=operation,
+            proposal_kind=proposal_kind,
             request_purpose=request_purpose,
-            messages=messages,
-            tools=None,
-            metadata=metadata,
-            context=log_context,
+            task=task,
+            payload=payload,
         )
-        response = self._llm.chat(
-            messages=messages,
-            tools=None,
-            metadata=metadata,
+        return self._profile_runner.run(
+            request=request,
+            parse_response=parse_response,
         )
-        log_agent_llm_output(
-            agent_kind="collaborator",
-            request_purpose=request_purpose,
-            response=response,
-            metadata=metadata,
-            context=log_context,
-        )
-        content = response.content
-        if not isinstance(content, str):
-            raise TypeError("LLM response content must be a string")
-        return content
 
 
 def _json_from_response(content: str) -> dict[str, Any]:
@@ -444,6 +445,23 @@ def _json_from_response(content: str) -> dict[str, Any]:
 
 def _raw_task_payload_from_response(content: str) -> dict[str, Any]:
     return _normalize_raw_task_payload(_json_from_response(content))
+
+
+def _finished_proposal(
+    result: CollaboratorAuthoringLoopResult,
+    *,
+    expected_kind: CollaboratorProposalKind,
+) -> dict[str, Any]:
+    if result.status != "finished":
+        reason = f": {result.reason}" if result.reason else ""
+        raise ValueError(f"Collaborator loop did not finish: {result.status}{reason}")
+    if result.proposal_kind != expected_kind:
+        raise ValueError(
+            f"Collaborator loop returned {result.proposal_kind}, expected {expected_kind}"
+        )
+    if result.proposal is None:
+        raise ValueError("Collaborator loop finished without a proposal")
+    return result.proposal
 
 
 def _normalize_raw_task_payload(payload: dict[str, Any]) -> dict[str, Any]:

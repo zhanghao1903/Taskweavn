@@ -220,7 +220,7 @@ class TaskDispatchConstraints(BaseModel):
 建议支持项目级文件：
 
 ```text
-.taskweavn/pipeline.yaml
+.plato/pipeline.yaml
 ```
 
 示例：

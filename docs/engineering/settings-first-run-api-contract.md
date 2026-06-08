@@ -111,7 +111,7 @@ payload as `GET /api/v1/settings/readiness`.
 
 ## Storage Policy
 
-Product 1.0 stores this local setup under `.taskweavn/settings/`:
+Product 1.0 stores this local setup under `.plato/settings/`:
 
 - `config.json`: provider, model, and logging profile;
 - `secrets.json`: the active provider's API key.
