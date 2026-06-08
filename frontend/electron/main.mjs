@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -9,6 +9,13 @@ import {
   createStartupId,
   startupDiagnosticsDataUrl,
 } from "./startupDiagnostics.mjs";
+import {
+  buildWorkspaceEntryState,
+  findWorkspacePathById,
+  readWorkspaceEntryStore,
+  rememberWorkspace,
+  summarizeWorkspace,
+} from "./workspaceEntry.mjs";
 import { resolveElectronWorkspaceRoot } from "./workspacePaths.mjs";
 
 const electronDir = path.dirname(fileURLToPath(import.meta.url));
@@ -21,6 +28,8 @@ const appVersion = process.env.npm_package_version ?? "0.1.0";
 let mainWindow = null;
 let sidecarRuntime = null;
 let lastStartupDiagnostics = null;
+let currentWorkspaceRoot = null;
+let isWorkspaceSidecarStarting = false;
 
 app.name = "Plato";
 if (process.env.PLATO_ELECTRON_USER_DATA_DIR) {
@@ -41,24 +50,18 @@ app.whenReady().then(async () => {
       return { action: "deny" };
     });
   });
+  registerWorkspaceEntryIpc();
 
   mainWindow = createMainWindow();
-  await showStartupDiagnostics({
-    message: "Starting the local Python sidecar.",
-    status: "starting_sidecar",
-  });
 
   try {
-    sidecarRuntime = await resolveSidecarRuntime();
-    setRendererRuntimeConfig({
-      apiBaseUrl: sidecarRuntime.baseUrl,
-      apiMode: "http",
-      appVersion,
-      disableEvents: process.env.PLATO_ELECTRON_DISABLE_EVENTS === "1",
-      sessionId: null,
-      startupId,
-    });
-    await loadRenderer(mainWindow);
+    const initialWorkspace = await resolveInitialWorkspaceRoot();
+    if (initialWorkspace === null) {
+      await showWorkspaceEntry();
+      await runSmokeIfRequested();
+      return;
+    }
+    await startSidecarForWorkspace(initialWorkspace);
     await runSmokeIfRequested();
   } catch (error) {
     const diagnostics =
@@ -156,7 +159,70 @@ function setRendererRuntimeConfig(config) {
   process.env.PLATO_ELECTRON_RUNTIME_CONFIG = JSON.stringify(config);
 }
 
-async function resolveSidecarRuntime() {
+async function resolveInitialWorkspaceRoot() {
+  if (process.env.PLATO_ELECTRON_SIDECAR_BASE_URL) {
+    return process.env.PLATO_ELECTRON_WORKSPACE ?? resolveDefaultWorkspaceRoot();
+  }
+
+  if (process.env.PLATO_ELECTRON_WORKSPACE) {
+    return process.env.PLATO_ELECTRON_WORKSPACE;
+  }
+
+  const persisted = await readWorkspaceEntryStore(app.getPath("userData"));
+  if (persisted.currentPath !== null) {
+    return persisted.currentPath;
+  }
+
+  if (process.env.PLATO_ELECTRON_REQUIRE_WORKSPACE_SELECTION === "1") {
+    return null;
+  }
+
+  if (process.env.PLATO_ELECTRON_ALLOW_DEFAULT_WORKSPACE === "1") {
+    return resolveDefaultWorkspaceRoot();
+  }
+
+  return null;
+}
+
+function resolveDefaultWorkspaceRoot() {
+  const sidecarLauncherPath = resolveSidecarLauncherPath();
+  return resolveElectronWorkspaceRoot({
+    env: process.env,
+    isPackaged: app.isPackaged,
+    repoRoot,
+    sidecarLauncherPath,
+    userDataPath: app.getPath("userData"),
+  });
+}
+
+async function startSidecarForWorkspace(workspaceRoot) {
+  currentWorkspaceRoot = workspaceRoot;
+  isWorkspaceSidecarStarting = true;
+  await showStartupDiagnostics({
+    message: "Starting the local Python sidecar.",
+    status: "starting_sidecar",
+  });
+  try {
+    sidecarRuntime?.stop();
+    sidecarRuntime = await resolveSidecarRuntime(workspaceRoot);
+    setRendererRuntimeConfig({
+      apiBaseUrl: sidecarRuntime.baseUrl,
+      apiMode: "http",
+      appVersion,
+      disableEvents: process.env.PLATO_ELECTRON_DISABLE_EVENTS === "1",
+      sessionId: null,
+      startupId,
+      workspace:
+        workspaceRoot === null ? null : summarizeWorkspace(workspaceRoot, workspaceRoot),
+      workspaceEntryRequired: false,
+    });
+    await loadRenderer(mainWindow);
+  } finally {
+    isWorkspaceSidecarStarting = false;
+  }
+}
+
+async function resolveSidecarRuntime(workspaceRoot) {
   const externalBaseUrl = process.env.PLATO_ELECTRON_SIDECAR_BASE_URL;
   if (externalBaseUrl) {
     return {
@@ -180,13 +246,7 @@ async function resolveSidecarRuntime() {
   }
 
   const sidecarLauncherPath = resolveSidecarLauncherPath();
-  const workspaceRoot = resolveElectronWorkspaceRoot({
-    env: process.env,
-    isPackaged: app.isPackaged,
-    repoRoot,
-    sidecarLauncherPath,
-    userDataPath: app.getPath("userData"),
-  });
+  const resolvedWorkspaceRoot = workspaceRoot ?? resolveDefaultWorkspaceRoot();
   return await startPythonSidecar({
     appVersion,
     electronVersion: process.versions.electron ?? "unknown",
@@ -197,7 +257,91 @@ async function resolveSidecarRuntime() {
         : null,
     startupId,
     timeoutMs: Number(process.env.PLATO_ELECTRON_SIDECAR_TIMEOUT_MS ?? 20_000),
-    workspaceRoot,
+    workspaceRoot: resolvedWorkspaceRoot,
+  });
+}
+
+async function showWorkspaceEntry() {
+  setRendererRuntimeConfig({
+    apiMode: "mock",
+    appVersion,
+    startupId,
+    workspace: null,
+    workspaceEntryRequired: true,
+  });
+  await loadRenderer(mainWindow);
+}
+
+function registerWorkspaceEntryIpc() {
+  ipcMain.handle("plato:workspace:get-state", async () =>
+    workspaceEntryState(
+      currentWorkspaceRoot === null ? "needs_selection" : "ready",
+    )
+  );
+
+  ipcMain.handle("plato:workspace:choose", async () => {
+    const result = await dialog.showOpenDialog(mainWindow, {
+      buttonLabel: "Open Workspace",
+      message: "Choose the folder Plato should use as its workspace.",
+      properties: ["openDirectory", "createDirectory"],
+      title: "Open Plato Workspace",
+    });
+    if (result.canceled || result.filePaths.length === 0) {
+      return {
+        state: await workspaceEntryState("needs_selection"),
+        status: "cancelled",
+      };
+    }
+
+    return await selectWorkspace(result.filePaths[0]);
+  });
+
+  ipcMain.handle("plato:workspace:use", async (_event, id) => {
+    if (typeof id !== "string" || id.length === 0) {
+      return {
+        state: await workspaceEntryState("failed", "Unknown workspace."),
+        status: "cancelled",
+      };
+    }
+    const workspacePath = await findWorkspacePathById(app.getPath("userData"), id);
+    if (workspacePath === null) {
+      return {
+        state: await workspaceEntryState("failed", "Recent workspace not found."),
+        status: "cancelled",
+      };
+    }
+    return await selectWorkspace(workspacePath);
+  });
+}
+
+async function selectWorkspace(workspacePath) {
+  currentWorkspaceRoot = workspacePath;
+  await rememberWorkspace(app.getPath("userData"), workspacePath);
+  void startSidecarForWorkspace(workspacePath).catch((error) => {
+    const diagnostics =
+      error && typeof error === "object" && "diagnostics" in error
+        ? error.diagnostics
+        : buildStartupDiagnostics({
+            appVersion,
+            electronVersion: process.versions.electron ?? "unknown",
+            message: "The local Python sidecar could not start.",
+            startupId,
+            status: "sidecar_failed",
+          });
+    void showStartupDiagnostics(diagnostics);
+  });
+  return {
+    state: await workspaceEntryState("starting"),
+    status: "ready",
+  };
+}
+
+async function workspaceEntryState(status, error = null) {
+  return await buildWorkspaceEntryState({
+    currentPath: currentWorkspaceRoot,
+    error,
+    status: isWorkspaceSidecarStarting ? "starting" : status,
+    userDataPath: app.getPath("userData"),
   });
 }
 
@@ -205,6 +349,9 @@ function resolveSidecarLauncherPath() {
   const explicitLauncherPath = process.env.PLATO_ELECTRON_SIDECAR_LAUNCHER_PATH;
   if (explicitLauncherPath) {
     return explicitLauncherPath;
+  }
+  if (!app.isPackaged) {
+    return null;
   }
 
   const packagedLauncherPath = path.join(
@@ -231,7 +378,7 @@ async function runSmokeIfRequested() {
   try {
     const { runElectronSmoke } = await import("./smokeRunner.mjs");
     await runElectronSmoke({
-      baseUrl: sidecarRuntime.baseUrl,
+      baseUrl: sidecarRuntime?.baseUrl ?? null,
       fixture: JSON.parse(process.env.PLATO_ELECTRON_SMOKE_FIXTURE ?? "{}"),
       kind: process.env.PLATO_ELECTRON_SMOKE_KIND ?? "configured",
       window: mainWindow,
@@ -295,6 +442,11 @@ async function restoreWindowContent() {
       disableEvents: process.env.PLATO_ELECTRON_DISABLE_EVENTS === "1",
       sessionId: null,
       startupId,
+      workspace:
+        currentWorkspaceRoot === null
+          ? null
+          : summarizeWorkspace(currentWorkspaceRoot, currentWorkspaceRoot),
+      workspaceEntryRequired: false,
     });
     await loadRenderer(mainWindow);
     return;
@@ -302,5 +454,13 @@ async function restoreWindowContent() {
 
   if (lastStartupDiagnostics !== null) {
     await mainWindow?.loadURL(startupDiagnosticsDataUrl(lastStartupDiagnostics));
+    return;
+  }
+
+  if (
+    currentWorkspaceRoot === null &&
+    process.env.PLATO_ELECTRON_REQUIRE_WORKSPACE_SELECTION === "1"
+  ) {
+    await showWorkspaceEntry();
   }
 }

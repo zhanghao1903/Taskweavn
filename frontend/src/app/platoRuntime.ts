@@ -35,6 +35,12 @@ export type PlatoRuntimeEnv = {
   VITE_PLATO_RUNTIME_REDUCER_HARNESS?: "off" | "test";
 };
 
+export type PlatoWorkspaceEntryRuntime = {
+  bridge: PlatoElectronWorkspaceBridge | null;
+  currentWorkspace: PlatoWorkspaceEntrySummary | null;
+  isRequired: boolean;
+};
+
 const runtimeLogger = createFrontendLogger("runtime");
 
 export function resolvePlatoRuntimeEnv(
@@ -56,6 +62,15 @@ export function resolvePlatoRuntimeEnv(
         : env.VITE_PLATO_DISABLE_EVENTS,
     VITE_PLATO_SESSION_ID:
       electronRuntime.sessionId ?? env.VITE_PLATO_SESSION_ID,
+  };
+}
+
+export function resolvePlatoWorkspaceEntryRuntime(): PlatoWorkspaceEntryRuntime {
+  const electronRuntime = globalThis.window?.platoRuntimeConfig;
+  return {
+    bridge: globalThis.window?.platoElectronWorkspace ?? null,
+    currentWorkspace: electronRuntime?.workspace ?? null,
+    isRequired: electronRuntime?.workspaceEntryRequired === true,
   };
 }
 

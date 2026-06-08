@@ -50,3 +50,4 @@ Feature plans are scoped implementation packets for independent feature sessions
 | [task-publishers-schedule-api.md](task-publishers-schedule-api.md) | Done: TaskPublisher abstraction, scheduled publish, API publish, custom task trees, and publish-time pipeline expansion. |
 | [ui-backend-contract-baseline.md](ui-backend-contract-baseline.md) | Done: split and harden Plato UI snapshot/query/command/event/error contracts before sidecar transport. |
 | [ui-backend-contract-baseline-technical-design.zh-CN.md](ui-backend-contract-baseline-technical-design.zh-CN.md) | 中文详细技术方案：后端 UI contract 包、camelCase 序列化、gateway 协议、mapping、event/error 模型和测试设计。 |
+| [workspace-entry-root-semantics.md](workspace-entry-root-semantics.md) | W1 implemented: Product 1.0 desktop Workspace Picker. W2 implemented: workspace-root-as-agent-cwd with `.taskweavn` normal tool protection. |

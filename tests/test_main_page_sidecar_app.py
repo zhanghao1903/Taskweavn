@@ -1081,6 +1081,8 @@ def test_main_page_sidecar_app_projects_file_change_summary_from_agent_loop_even
 
     assert tick.status == "completed"
     assert tick.completed_task_id == "loop-file-task"
+    assert (tmp_path / "notes" / "result.md").read_text(encoding="utf-8") == "done"
+    assert not (tmp_path / "sessions" / session_id / session_id / "notes").exists()
     assert snapshot.json["data"]["fileChangeSummary"] is not None
     file_summary = snapshot.json["data"]["fileChangeSummary"]
     assert file_summary["taskNodeId"] == "loop-file-task"

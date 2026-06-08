@@ -38,7 +38,7 @@ def configure_sidecar_logging(
     sinks["session_file"] = session_sink.model_copy(
         update={
             "path_template": (
-                "{archive_root}/sessions/{session_id}/.session/logs/"
+                "{archive_root}/.taskweavn/sessions/{session_id}/logs/"
                 "{category}.jsonl"
             )
         }

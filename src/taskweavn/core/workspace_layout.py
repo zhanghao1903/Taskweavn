@@ -6,19 +6,18 @@ layout is::
     <workspace_root>/
       .taskweavn/
         workspace.sqlite           # session registry
-      shared/                       # cross-session collaboration (Phase 3.5)
-      sessions/
-        <session_id>/
-          .session/                 # session-private metadata
+        sessions/
+          <session_id>/             # session-private metadata
             events.sqlite
             thoughts.sqlite
             plan.md
             logs/
-          <session_id>/             # the project root the agent works in
+      shared/                       # cross-session collaboration (Phase 3.5)
+      ... user project files ...    # the project root the agent works in
 
-Two-level nesting under ``sessions/<id>/`` is intentional: the outer ``<id>/``
-holds private metadata; the inner ``<id>/`` is the only place the agent's tools
-ever resolve paths against. That keeps ``.session/`` invisible to the model.
+The workspace root is the agent's project directory. Session-private metadata
+lives under ``.taskweavn/sessions/<id>/`` and normal workspace tools must not
+read or write that internal tree.
 
 This module is pure path math — :class:`WorkspaceLayout` doesn't open any
 files or databases. :class:`taskweavn.core.session_manager.SessionManager`
@@ -97,7 +96,7 @@ class WorkspaceLayout:
 
     @property
     def sessions_root(self) -> Path:
-        return self.root / "sessions"
+        return self.meta_dir / "sessions"
 
     # ------------------------------------------------------------------
     # Session-level (parameterized by id)
@@ -107,11 +106,12 @@ class WorkspaceLayout:
         return self.sessions_root / session_id
 
     def session_meta_dir(self, session_id: str) -> Path:
-        return self.session_dir(session_id) / ".session"
+        return self.session_dir(session_id)
 
     def session_project_dir(self, session_id: str) -> Path:
-        """Inner project root — the agent's view of its workspace."""
-        return self.session_dir(session_id) / session_id
+        """Project root — the agent's view of its selected workspace."""
+        del session_id
+        return self.root
 
     def session_events_db(self, session_id: str) -> Path:
         return self.session_meta_dir(session_id) / "events.sqlite"

@@ -1,6 +1,13 @@
 #!/usr/bin/env node
 import { spawn } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import net from "node:net";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -48,6 +55,17 @@ try {
     electronChild = startPackagedStartupDiagnosticsSmoke({
       fixture: smokeFixture,
       packageManifest: readPackageManifest(options.packageDir),
+    });
+  } else if (options.kind === "workspace-entry") {
+    const smokeFixture = await seedWorkspaceEntryWorkspace(options);
+    const rendererPort =
+      options.rendererPort ?? (await findAvailablePort("127.0.0.1"));
+    const rendererUrl = `http://127.0.0.1:${rendererPort}/`;
+    viteChild = startVite(rendererPort);
+    await waitForHttp(rendererUrl, 20_000, () => viteChild);
+    electronChild = startDevElectronWorkspaceEntrySmoke({
+      rendererUrl,
+      sidecarInfo: smokeFixture,
     });
   } else if (options.launcher) {
     const packageManifest = readPackageManifest(options.packageDir);
@@ -152,6 +170,10 @@ function parseArgs(args) {
       kind = "startup-diagnostics";
       continue;
     }
+    if (arg === "--workspace-entry") {
+      kind = "workspace-entry";
+      continue;
+    }
     throw new Error(`unknown option for electron:smoke: ${arg}`);
   }
 
@@ -166,6 +188,9 @@ function parseArgs(args) {
   }
   if (kind === "startup-diagnostics" && rendererPort !== null) {
     throw new Error("--startup-diagnostics cannot use --renderer-port");
+  }
+  if (kind === "workspace-entry" && packaged) {
+    throw new Error("--workspace-entry currently supports the Electron dev shell");
   }
   if (packagedDefaultWorkspace && !launcher) {
     throw new Error("--packaged-default-workspace requires --launcher");
@@ -188,6 +213,7 @@ function printUsage() {
   npm run electron:smoke -- --packaged --first-run-configured
   npm run electron:smoke -- --launcher --first-run-configured
   npm run electron:smoke -- --packaged --startup-diagnostics
+  npm run electron:smoke -- --workspace-entry
   npm run electron:smoke -- --renderer-port 5174
 
 Starts a seeded sidecar fixture, opens Electron in smoke mode, and verifies
@@ -201,6 +227,7 @@ Options:
   --first-run-configured     Run configured Main/Audit/Diagnostics smoke. Default.
   --first-run-unconfigured   Run Settings first-run setup smoke.
   --startup-diagnostics      Run packaged sidecar startup-failure diagnostics smoke.
+  --workspace-entry          Run Workspace Picker -> selected workspace smoke.
   --launcher                 Use the launcher-backed package directory.
   --packaged                 Launch the unsigned packaged app directory.
   --packaged-default-workspace
@@ -208,6 +235,60 @@ Options:
   --package-dir <path>       Package output root. Defaults to dist-electron.
   --renderer-port <number>    Vite dev-server port. Defaults to a free port.
   --help                      Show this help.`);
+}
+
+async function seedWorkspaceEntryWorkspace({ kind }) {
+  const userDataDir = path.join(runDir, "user-data-workspace-entry");
+  const workspaceDir = path.join(runDir, "workspace-entry-project");
+  const readyFile = path.join(runDir, "workspace-entry-seed-ready.json");
+  mkdirSync(userDataDir, { recursive: true });
+  mkdirSync(workspaceDir, { recursive: true });
+  seedChild = spawn(
+    "uv",
+    [
+      "run",
+      "python",
+      "-m",
+      "tests.fixtures.sidecar_smoke",
+      "--workspace",
+      workspaceDir,
+      "--ready-file",
+      readyFile,
+      kind === "first-run" ? "--first-run-unconfigured" : "--first-run-configured",
+    ],
+    {
+      cwd: repoRoot,
+      env: process.env,
+      stdio: ["ignore", "pipe", "pipe"],
+    },
+  );
+  seedChild.stdout.on("data", (chunk) => process.stdout.write(chunk));
+  seedChild.stderr.on("data", (chunk) => process.stderr.write(chunk));
+  const exitCode = await waitForExit(seedChild);
+  if (exitCode !== 0) {
+    throw new Error(`workspace entry seed failed with exit code ${exitCode}`);
+  }
+  seedChild = null;
+  const sidecarInfo = await waitForJsonFile(readyFile, 1_000);
+  const workspaceName = path.basename(workspaceDir);
+  writeFileSync(
+    path.join(userDataDir, "workspace-entry.json"),
+    `${JSON.stringify(
+      {
+        currentPath: null,
+        recentPaths: [workspaceDir],
+      },
+      null,
+      2,
+    )}\n`,
+    "utf8",
+  );
+  return {
+    ...sidecarInfo,
+    userDataDir,
+    workspaceDir,
+    workspaceName,
+  };
 }
 
 async function seedLauncherWorkspace({ kind, packagedDefaultWorkspace }, runtime) {
@@ -345,6 +426,33 @@ function startDevElectronSmoke({ kind, rendererUrl, sidecarInfo }) {
   });
 }
 
+function startDevElectronWorkspaceEntrySmoke({ rendererUrl, sidecarInfo }) {
+  console.log(`[plato-electron-smoke] renderer=${rendererUrl}`);
+  console.log(`[plato-electron-smoke] workspace=${sidecarInfo.workspaceName}`);
+  console.log("[plato-electron-smoke] kind=workspace-entry");
+  console.log("[plato-electron-smoke] mode=dev");
+
+  const env = {
+    ...process.env,
+    PLATO_ELECTRON_DISABLE_EVENTS: "1",
+    PLATO_ELECTRON_RENDERER_URL: rendererUrl,
+    PLATO_ELECTRON_REPO_ROOT: repoRoot,
+    PLATO_ELECTRON_REQUIRE_WORKSPACE_SELECTION: "1",
+    PLATO_ELECTRON_SMOKE: "1",
+    PLATO_ELECTRON_SMOKE_FIXTURE: JSON.stringify(sidecarInfo),
+    PLATO_ELECTRON_SMOKE_KIND: "workspace-entry",
+    PLATO_ELECTRON_USER_DATA_DIR: sidecarInfo.userDataDir,
+  };
+  delete env.PLATO_ELECTRON_SIDECAR_BASE_URL;
+  delete env.PLATO_ELECTRON_WORKSPACE;
+
+  return spawn(electronBin, [path.join(frontendRoot, "electron", "main.mjs")], {
+    cwd: frontendRoot,
+    env,
+    stdio: "inherit",
+  });
+}
+
 function startPackagedElectronSmoke({ kind, packageManifest, sidecarInfo }) {
   const baseUrl = sidecarInfo.baseUrl;
   console.log(`[plato-electron-smoke] app=${packageManifest.appRoot}`);
@@ -476,6 +584,7 @@ function launcherElectronEnv({
   if (explicitWorkspace) {
     env.PLATO_ELECTRON_WORKSPACE = sidecarInfo.workspaceDir;
   } else {
+    env.PLATO_ELECTRON_ALLOW_DEFAULT_WORKSPACE = "1";
     env.PLATO_ELECTRON_USER_DATA_DIR = sidecarInfo.userDataDir;
     delete env.PLATO_ELECTRON_WORKSPACE;
   }

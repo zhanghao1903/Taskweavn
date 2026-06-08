@@ -15,6 +15,18 @@ export async function runElectronSmoke({
     return;
   }
 
+  if (kind === "workspace-entry") {
+    await smokeWorkspaceEntry(window, fixture);
+    const runtimeBaseUrl = await evaluate(
+      window,
+      "window.platoRuntimeConfig && window.platoRuntimeConfig.apiBaseUrl",
+    );
+    if (typeof runtimeBaseUrl !== "string" || runtimeBaseUrl.length === 0) {
+      throw new Error("Workspace entry did not expose an HTTP runtime base URL");
+    }
+    baseUrl = runtimeBaseUrl;
+  }
+
   await waitForText(window, "Diagnostics smoke", {
     label: "Main Page seeded session title",
   });
@@ -25,6 +37,25 @@ export async function runElectronSmoke({
   await smokeAuditEvidence(window, fixture);
   await smokeDiagnosticsExport(window, fixture);
   await smokeCommandFailureRecovery(window, { baseUrl, fixture });
+}
+
+async function smokeWorkspaceEntry(window, fixture) {
+  await waitForText(window, "Open a workspace", {
+    label: "Workspace Picker heading",
+  });
+  await waitForText(window, fixture.workspaceName, {
+    label: "Workspace Picker recent workspace",
+  });
+  await clickByText(window, "button", fixture.workspaceName);
+  await waitForText(window, "Starting the local Python sidecar.", {
+    label: "Workspace-selected sidecar startup",
+    timeoutMs: 20_000,
+  });
+  await waitForText(window, "Diagnostics smoke", {
+    label: "Main Page after workspace selection",
+    timeoutMs: 30_000,
+  });
+  await assertBodyDoesNotContain(window, fixture.workspaceDir, "workspace root");
 }
 
 export async function runElectronStartupDiagnosticsSmoke({ fixture = {}, window }) {

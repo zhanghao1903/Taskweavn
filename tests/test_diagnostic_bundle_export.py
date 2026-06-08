@@ -239,7 +239,7 @@ def _write_failed_task(layout: WorkspaceLayout, session: Session) -> None:
                 error_message="Task execution failed with ExecutionError.",
                 metadata={
                     "api_key": "secret-value",
-                    "logPath": str(layout.root / "sessions" / session.id / ".session"),
+                    "logPath": str(layout.session_meta_dir(session.id)),
                     "productCategory": "task_execution_failed",
                     "recoveryActions": [
                         "retry_task",
@@ -355,7 +355,7 @@ def _write_logs(layout: WorkspaceLayout, session: Session) -> None:
                     "name": "TypeError",
                     "message": "token secret-value failed",
                     "stack": f"stack at {layout.root}/frontend/App.tsx",
-                    "route": str(layout.root / "sessions" / session.id),
+                    "route": str(layout.session_dir(session.id)),
                 },
             }
         )

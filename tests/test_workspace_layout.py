@@ -12,7 +12,7 @@ def test_layout_paths_are_derived_from_root(tmp_path: Path) -> None:
     assert layout.meta_dir == tmp_path / ".taskweavn"
     assert layout.registry_db_path == tmp_path / ".taskweavn" / "workspace.sqlite"
     assert layout.shared_dir == tmp_path / "shared"
-    assert layout.sessions_root == tmp_path / "sessions"
+    assert layout.sessions_root == tmp_path / ".taskweavn" / "sessions"
 
 
 def test_workspace_messages_db_is_workspace_scoped(tmp_path: Path) -> None:
@@ -53,26 +53,24 @@ def test_workspace_ui_events_db_is_workspace_scoped(tmp_path: Path) -> None:
 def test_session_paths(tmp_path: Path) -> None:
     layout = WorkspaceLayout(tmp_path)
     sid = "abc12345"
-    assert layout.session_dir(sid) == tmp_path / "sessions" / sid
-    assert layout.session_meta_dir(sid) == tmp_path / "sessions" / sid / ".session"
-    # Two-level nesting: .session/ stays invisible to the agent because the
-    # inner project_dir is a sibling, not a parent.
-    assert layout.session_project_dir(sid) == tmp_path / "sessions" / sid / sid
+    assert layout.session_dir(sid) == tmp_path / ".taskweavn" / "sessions" / sid
+    assert layout.session_meta_dir(sid) == tmp_path / ".taskweavn" / "sessions" / sid
+    assert layout.session_project_dir(sid) == tmp_path
     assert (
         layout.session_events_db(sid)
-        == tmp_path / "sessions" / sid / ".session" / "events.sqlite"
+        == tmp_path / ".taskweavn" / "sessions" / sid / "events.sqlite"
     )
     assert (
         layout.session_thoughts_db(sid)
-        == tmp_path / "sessions" / sid / ".session" / "thoughts.sqlite"
+        == tmp_path / ".taskweavn" / "sessions" / sid / "thoughts.sqlite"
     )
     assert (
         layout.session_plan_path(sid)
-        == tmp_path / "sessions" / sid / ".session" / "plan.md"
+        == tmp_path / ".taskweavn" / "sessions" / sid / "plan.md"
     )
     assert (
         layout.session_logs_dir(sid)
-        == tmp_path / "sessions" / sid / ".session" / "logs"
+        == tmp_path / ".taskweavn" / "sessions" / sid / "logs"
     )
 
 

@@ -592,7 +592,7 @@ def test_workspace_layout_has_session_context_db(tmp_path: Path) -> None:
     layout = WorkspaceLayout(tmp_path)
 
     assert layout.session_context_db("session-1") == (
-        tmp_path / "sessions" / "session-1" / ".session" / "context.sqlite"
+        tmp_path / ".taskweavn" / "sessions" / "session-1" / "context.sqlite"
     )
 
 

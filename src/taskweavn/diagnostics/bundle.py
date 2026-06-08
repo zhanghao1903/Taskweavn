@@ -344,7 +344,9 @@ class DiagnosticBundleExporter:
                 "createdAt": session.created_at,
                 "lastActiveAt": session.last_active_at,
                 "workspaceRootLabel": "workspace://current",
-                "sessionDirLabel": f"workspace://current/sessions/{session.id}",
+                "sessionDirLabel": (
+                    f"workspace://current/.taskweavn/sessions/{session.id}"
+                ),
                 "taskCount": len(tasks),
                 "taskStatusCounts": task_status_counts,
                 "hasSessionDirectory": session.session_dir.exists(),

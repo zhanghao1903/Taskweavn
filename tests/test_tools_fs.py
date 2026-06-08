@@ -14,6 +14,7 @@ from taskweavn.tools import (
     ListDirAction,
     ListDirTool,
     PathOutsideWorkspaceError,
+    PathProtectedWorkspaceError,
     ReadFileAction,
     ReadFileTool,
     Workspace,
@@ -55,6 +56,16 @@ def test_read_file_direct_traversal_raises(workspace: Workspace) -> None:
         ReadFileTool(workspace).execute(ReadFileAction(path="../escape.txt"))
 
 
+def test_read_file_rejects_workspace_private_metadata(workspace: Workspace) -> None:
+    (workspace.root / ".taskweavn").mkdir()
+    (workspace.root / ".taskweavn" / "workspace.sqlite").write_text("private")
+
+    with pytest.raises(PathProtectedWorkspaceError):
+        ReadFileTool(workspace).execute(
+            ReadFileAction(path=".taskweavn/workspace.sqlite")
+        )
+
+
 def test_write_file_creates_new_file(workspace: Workspace) -> None:
     obs = WriteFileTool(workspace).execute(
         WriteFileAction(path="out/note.txt", content="hello")
@@ -92,10 +103,18 @@ def test_write_file_skips_parent_creation_when_disabled(
     assert obs.error_type == "execution_error"
 
 
+def test_write_file_rejects_workspace_private_metadata(workspace: Workspace) -> None:
+    with pytest.raises(PathProtectedWorkspaceError):
+        WriteFileTool(workspace).execute(
+            WriteFileAction(path=".taskweavn/sessions/session-1/plan.md", content="x")
+        )
+
+
 def test_list_dir_returns_sorted_entries(workspace: Workspace) -> None:
     (workspace.root / "a.txt").write_text("a")
     (workspace.root / "b.txt").write_text("bb")
     (workspace.root / "subdir").mkdir()
+    (workspace.root / ".taskweavn").mkdir()
 
     obs = ListDirTool(workspace).execute(ListDirAction(path="."))
     assert isinstance(obs, DirListingObservation)
@@ -107,6 +126,14 @@ def test_list_dir_returns_sorted_entries(workspace: Workspace) -> None:
     assert sizes["a.txt"] == 1
     assert sizes["b.txt"] == 2
     assert sizes["subdir"] is None
+    assert ".taskweavn" not in names
+
+
+def test_list_dir_rejects_workspace_private_metadata(workspace: Workspace) -> None:
+    (workspace.root / ".taskweavn").mkdir()
+
+    with pytest.raises(PathProtectedWorkspaceError):
+        ListDirTool(workspace).execute(ListDirAction(path=".taskweavn"))
 
 
 def test_list_dir_on_file_errors(workspace: Workspace) -> None:

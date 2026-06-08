@@ -6,7 +6,11 @@ from pathlib import Path
 
 import pytest
 
-from taskweavn.tools import PathOutsideWorkspaceError, Workspace
+from taskweavn.tools import (
+    PathOutsideWorkspaceError,
+    PathProtectedWorkspaceError,
+    Workspace,
+)
 
 
 def test_root_must_exist(tmp_path: Path) -> None:
@@ -51,3 +55,11 @@ def test_reject_absolute_path_outside_workspace(tmp_path: Path) -> None:
 def test_root_itself_is_allowed(tmp_path: Path) -> None:
     ws = Workspace(tmp_path)
     assert ws.resolve(".") == tmp_path.resolve()
+
+
+def test_reject_workspace_private_metadata(tmp_path: Path) -> None:
+    (tmp_path / ".taskweavn").mkdir()
+    ws = Workspace(tmp_path)
+
+    with pytest.raises(PathProtectedWorkspaceError):
+        ws.resolve(".taskweavn/workspace.sqlite")
