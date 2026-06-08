@@ -12,10 +12,16 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from taskweavn.core.loop_profile import LoopTerminalAction
 from taskweavn.prompts import COLLABORATOR_AUTHORING_SYSTEM_PROMPT
 
-AUTHORING_READ_WORKSPACE_TOOL_NAME = "authoring_read_workspace"
-AUTHORING_SEARCH_WORKSPACE_TOOL_NAME = "authoring_search_workspace"
-COLLABORATOR_AUTHORING_PROFILE_ID = "collaborator_authoring"
-FINISH_AUTHORING_TOOL_NAME = "finish_authoring"
+AUTHORING_READ_WORKSPACE_TOOL_NAME: Literal["authoring_read_workspace"] = (
+    "authoring_read_workspace"
+)
+AUTHORING_SEARCH_WORKSPACE_TOOL_NAME: Literal["authoring_search_workspace"] = (
+    "authoring_search_workspace"
+)
+COLLABORATOR_AUTHORING_PROFILE_ID: Literal["collaborator_authoring"] = (
+    "collaborator_authoring"
+)
+FINISH_AUTHORING_TOOL_NAME: Literal["finish_authoring"] = "finish_authoring"
 
 COLLABORATOR_AUTHORING_ALLOWED_TOOL_NAMES: tuple[str, ...] = (
     AUTHORING_READ_WORKSPACE_TOOL_NAME,
@@ -194,15 +200,15 @@ class CollaboratorAuthoringLoopResult(_FrozenCollaboratorLoopModel):
 class CollaboratorAuthoringProfile:
     """One-shot Collaborator profile over the shared loop profile seam.
 
-    Slice B only exposes the terminal `finish_authoring` tool. Read/search tool
-    names remain contract constants for later slices, but they are not visible
-    to the current one-shot LLM call.
+    Slice C defines read/search/finish as the profile boundary. The current
+    one-shot service still calls the LLM with ``tools=None`` until the later
+    loop/tool-call slice wires provider tool dispatch.
     """
 
     system_prompt: str = COLLABORATOR_AUTHORING_SYSTEM_PROMPT
     profile_id: str = COLLABORATOR_AUTHORING_PROFILE_ID
     terminal_tool_name: str = FINISH_AUTHORING_TOOL_NAME
-    allowed_tool_names: tuple[str, ...] = (FINISH_AUTHORING_TOOL_NAME,)
+    allowed_tool_names: tuple[str, ...] = COLLABORATOR_AUTHORING_ALLOWED_TOOL_NAMES
 
     def build_initial_messages(self, request: object) -> list[dict[str, Any]]:
         if not isinstance(request, CollaboratorAuthoringProfileRequest):

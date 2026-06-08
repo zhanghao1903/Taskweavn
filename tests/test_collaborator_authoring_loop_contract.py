@@ -35,7 +35,7 @@ def test_collaborator_profile_names_are_contract_only_for_slice_a() -> None:
     assert template.llm_visible_tool_pools == ()
 
 
-def test_collaborator_one_shot_profile_exposes_only_finish_tool() -> None:
+def test_collaborator_profile_exposes_read_search_finish_boundary() -> None:
     profile = CollaboratorAuthoringProfile(system_prompt="system prompt")
     request = CollaboratorAuthoringProfileRequest(
         session_id="s1",
@@ -54,9 +54,10 @@ def test_collaborator_one_shot_profile_exposes_only_finish_tool() -> None:
     result = profile.map_terminal_action(action, request)
 
     assert isinstance(profile, AgentLoopProfile)
-    assert profile.allowed_tool_names == (FINISH_AUTHORING_TOOL_NAME,)
-    assert AUTHORING_READ_WORKSPACE_TOOL_NAME not in profile.allowed_tool_names
-    assert AUTHORING_SEARCH_WORKSPACE_TOOL_NAME not in profile.allowed_tool_names
+    assert profile.allowed_tool_names == COLLABORATOR_AUTHORING_ALLOWED_TOOL_NAMES
+    assert AUTHORING_READ_WORKSPACE_TOOL_NAME in profile.allowed_tool_names
+    assert AUTHORING_SEARCH_WORKSPACE_TOOL_NAME in profile.allowed_tool_names
+    assert FINISH_AUTHORING_TOOL_NAME in profile.allowed_tool_names
     assert messages[0] == {"role": "system", "content": "system prompt"}
     assert '"user_input": "Write docs"' in messages[1]["content"]
     assert result.status == "finished"

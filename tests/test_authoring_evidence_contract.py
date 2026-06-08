@@ -8,6 +8,7 @@ from pydantic import ValidationError
 from taskweavn.task import (
     AuthoringEvidenceRecord,
     AuthoringEvidenceStore,
+    InMemoryAuthoringEvidenceStore,
 )
 
 
@@ -66,6 +67,51 @@ def test_authoring_evidence_store_protocol_conformance() -> None:
     assert store.get("s1", record.evidence_id) == record
     assert store.list_for_loop("s1", "loop-1") == (record,)
     assert store.list_for_session("s1") == (record,)
+
+
+def test_in_memory_authoring_evidence_store_is_idempotent_for_same_record() -> None:
+    store = InMemoryAuthoringEvidenceStore()
+    record = AuthoringEvidenceRecord(
+        evidence_id="evidence-1",
+        session_id="s1",
+        loop_id="loop-1",
+        operation="read_workspace",
+        tool_name="authoring_read_workspace",
+        purpose="Inspect guidance",
+        path_label="workspace://current/README.md",
+        content_hash="sha256:abc",
+        snippet="Project guidance",
+        policy_decision="allowed",
+    )
+
+    store.put(record)
+    store.put(record)
+
+    assert isinstance(store, AuthoringEvidenceStore)
+    assert store.get("s1", "evidence-1") == record
+    assert store.list_for_loop("s1", "loop-1") == (record,)
+
+
+def test_in_memory_authoring_evidence_store_rejects_conflicting_duplicate() -> None:
+    store = InMemoryAuthoringEvidenceStore()
+    first = AuthoringEvidenceRecord(
+        evidence_id="evidence-1",
+        session_id="s1",
+        loop_id="loop-1",
+        operation="read_workspace",
+        tool_name="authoring_read_workspace",
+        purpose="Inspect guidance",
+        path_label="workspace://current/README.md",
+        content_hash="sha256:abc",
+        snippet="Project guidance",
+        policy_decision="allowed",
+    )
+    second = first.model_copy(update={"snippet": "Different snippet"})
+
+    store.put(first)
+
+    with pytest.raises(ValueError, match="already exists"):
+        store.put(second)
 
 
 def test_authoring_evidence_requires_safe_workspace_label() -> None:

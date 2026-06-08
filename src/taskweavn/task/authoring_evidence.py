@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from threading import RLock
 from typing import ClassVar, Literal, Protocol, runtime_checkable
 from uuid import uuid4
 
@@ -84,10 +85,80 @@ class AuthoringEvidenceStore(Protocol):
     def list_for_session(self, session_id: str) -> tuple[AuthoringEvidenceRecord, ...]: ...
 
 
+class InMemoryAuthoringEvidenceStore:
+    """Small in-memory authoring evidence store for tests and local sidecars."""
+
+    def __init__(
+        self,
+        records: tuple[AuthoringEvidenceRecord, ...] = (),
+    ) -> None:
+        self._lock = RLock()
+        self._records: dict[tuple[str, str], AuthoringEvidenceRecord] = {}
+        for record in records:
+            self.put(record)
+
+    def put(self, record: AuthoringEvidenceRecord) -> AuthoringEvidenceRecord:
+        key = (record.session_id, record.evidence_id)
+        with self._lock:
+            current = self._records.get(key)
+            if current is not None and current != record:
+                raise ValueError(
+                    f"authoring evidence {record.evidence_id!r} already exists"
+                )
+            self._records[key] = record
+            return record
+
+    def get(
+        self,
+        session_id: str,
+        evidence_id: str,
+    ) -> AuthoringEvidenceRecord | None:
+        with self._lock:
+            return self._records.get((session_id, evidence_id))
+
+    def list_for_loop(
+        self,
+        session_id: str,
+        loop_id: str,
+    ) -> tuple[AuthoringEvidenceRecord, ...]:
+        with self._lock:
+            records = [
+                record
+                for record in self._records.values()
+                if record.session_id == session_id and record.loop_id == loop_id
+            ]
+        return _ordered_records(records)
+
+    def list_for_session(self, session_id: str) -> tuple[AuthoringEvidenceRecord, ...]:
+        with self._lock:
+            records = [
+                record
+                for record in self._records.values()
+                if record.session_id == session_id
+            ]
+        return _ordered_records(records)
+
+
+def _ordered_records(
+    records: list[AuthoringEvidenceRecord],
+) -> tuple[AuthoringEvidenceRecord, ...]:
+    return tuple(
+        sorted(
+            records,
+            key=lambda record: (
+                record.created_at,
+                record.loop_id,
+                record.evidence_id,
+            ),
+        )
+    )
+
+
 __all__ = [
     "AuthoringEvidenceOperation",
     "AuthoringEvidencePolicyDecision",
     "AuthoringEvidenceRecord",
     "AuthoringEvidenceStore",
     "AuthoringEvidenceToolName",
+    "InMemoryAuthoringEvidenceStore",
 ]

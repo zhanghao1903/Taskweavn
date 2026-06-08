@@ -189,8 +189,8 @@ def test_create_raw_task_from_message_routes_through_finish_profile() -> None:
     action = profile.terminal_actions[0]
     assert action.tool_name == "finish_authoring"
     assert action.arguments["proposal_kind"] == "raw_task"
-    assert AUTHORING_READ_WORKSPACE_TOOL_NAME not in profile.allowed_tool_names
-    assert AUTHORING_SEARCH_WORKSPACE_TOOL_NAME not in profile.allowed_tool_names
+    assert AUTHORING_READ_WORKSPACE_TOOL_NAME in profile.allowed_tool_names
+    assert AUTHORING_SEARCH_WORKSPACE_TOOL_NAME in profile.allowed_tool_names
     assert llm.tools_calls == [None]
 
 
