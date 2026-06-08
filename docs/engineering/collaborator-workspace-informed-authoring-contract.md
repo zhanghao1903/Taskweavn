@@ -1,6 +1,6 @@
 # Collaborator Workspace-Informed Authoring Contract
 
-> Status: draft contract / planned
+> Status: accepted contract / Slice A implementation open
 > Date: 2026-06-08
 > Related Plan: [Collaborator Workspace-Informed Authoring](../plans/feature/collaborator-workspace-informed-authoring.md)
 > Related ADRs: [ADR-0016](../decisions/ADR-0016-collaborator-workspace-aware-authoring.md), [ADR-0017](../decisions/ADR-0017-session-and-workspace-context-management-foundation.md)
@@ -252,16 +252,19 @@ request
 
 No workspace read/search is required for simple requests.
 
-## 10. Implementation Notes
+## 10. Accepted Implementation Notes
 
-The first technical slice should decide whether to:
+The accepted first technical slice is a shared profile seam. It should introduce
+the profile/result protocols, terminal action model, and authoring evidence
+store contract without adding Collaborator workspace reads or changing execution
+Agent behavior.
 
-1. parameterize the existing AgentLoop enough to support
-   `CollaboratorAuthoringProfile`; or
-2. extract a small shared AgentLoop core used by both ExecutionProfile and
-   CollaboratorAuthoringProfile.
+The implementation should not directly mount Collaborator onto the current
+execution `AgentLoop`. If extraction is too large for the first slice, an
+adapter boundary is acceptable only if it preserves the profile contract and
+keeps Collaborator-specific behavior outside `src/taskweavn/core/loop.py`.
 
-Either path must preserve:
+The first slice must preserve:
 
 - append-only transcript behavior;
 - provider tool-call ordering;
@@ -269,3 +272,6 @@ Either path must preserve:
 - metadata and LLM logging;
 - evidence/audit refs;
 - strict terminal outcome mapping.
+
+Read/search tools, configurable guidance paths, and dedicated frontend
+`waiting_for_context` UI are later slices.

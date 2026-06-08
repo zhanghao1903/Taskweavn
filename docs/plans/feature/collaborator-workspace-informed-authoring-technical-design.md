@@ -1,6 +1,6 @@
 # Technical Design: Collaborator Workspace-Informed Authoring
 
-> Status: draft technical design
+> Status: accepted technical design
 > Last Updated: 2026-06-08
 > Feature Plan: [Collaborator Workspace-Informed Authoring](collaborator-workspace-informed-authoring.md)
 > Engineering Contract: [Collaborator Workspace-Informed Authoring Contract](../../engineering/collaborator-workspace-informed-authoring-contract.md)
@@ -23,8 +23,9 @@ Collaborator input
 The new behavior is that Collaborator may perform zero or more read/search
 context-gathering turns before it finishes that same terminal proposal.
 
-This technical design is intentionally draft. Implementation should not start
-until this design is accepted.
+This technical design is accepted for the first implementation slice. Later
+slices must return to design review if they change the profile boundary,
+evidence storage, result shape, write capability, or search policy.
 
 ## 2. Current Baseline
 
@@ -72,7 +73,69 @@ This design does not implement:
 - broad `AgentLoop` rewrite;
 - concurrent multi-Agent context ownership.
 
-## 5. Architecture
+## 5. Accepted Review Decisions
+
+### Profile Boundary
+
+Collaborator should reuse shared loop mechanics through a profile contract, not
+by directly mounting the current execution `AgentLoop`.
+
+The accepted first slice is a profile seam:
+
+- introduce shared `AgentLoopProfile` and terminal action/result protocols;
+- keep the execution Agent behavior unchanged;
+- do not add Collaborator read/search tools in the seam slice;
+- do not add Collaborator-specific behavior directly to
+  `src/taskweavn/core/loop.py`.
+
+If extraction proves too large, the first slice may add an adapter boundary, but
+the adapter must still define the profile-facing contract and keep
+Collaborator profile code outside the execution loop implementation.
+
+### Evidence Storage
+
+Read/search observations should use an authoring evidence source of truth,
+conceptually `AuthoringEvidenceStore`.
+
+MessageStream remains the user-facing conversation/proposal surface.
+EventStream remains the execution/run fact stream. Audit and diagnostics may
+project authoring evidence records, but neither MessageStream nor EventStream is
+the authoritative storage for first-version Collaborator read/search evidence.
+
+### Waiting Result Shape
+
+`waiting_for_context` is an explicit authoring loop result:
+
+```ts
+type CollaboratorWaitingForContextResult = {
+  status: "waiting_for_context";
+  reason: string;
+  requestedContext: CollaboratorContextRequest;
+  candidateEvidenceRefs: string[];
+};
+```
+
+The existing gateway can carry this shape through command result details in the
+first backend slice. It is not a RawTaskAsk, and it must not call
+AuthoringCommandService.
+
+### Default Guidance Policy
+
+Product 1.0 starts with a conservative static policy:
+
+- user-selected paths;
+- prompt-referenced paths that resolve inside the workspace;
+- `README*`;
+- `AGENTS.md`;
+- `docs/plans/**`;
+- `docs/architecture/**`;
+- `docs/decisions/**`;
+- `docs/engineering/**`.
+
+The policy must respect read/search limits, reject `.taskweavn`, avoid full
+workspace crawls, and remain configurable only in a later slice.
+
+## 6. Architecture
 
 Target shape:
 
@@ -109,7 +172,7 @@ The profile owns:
 - result mapping;
 - audit/evidence metadata policy.
 
-## 6. Module Direction
+## 7. Module Direction
 
 The first implementation should avoid adding more broad behavior to
 `src/taskweavn/core/loop.py` directly.
@@ -131,7 +194,11 @@ If extraction is too large for the first slice, an adapter may wrap current
 `AgentLoop` only if it preserves execution behavior and keeps Collaborator
 profile code outside `loop.py`.
 
-## 7. Profile Protocols
+The first implementation slice is not a Collaborator feature slice. It is a
+zero-behavior profile seam and authoring evidence contract slice that makes the
+later feature work safe to add.
+
+## 8. Profile Protocols
 
 Draft Python-facing protocol:
 
@@ -163,7 +230,7 @@ class CollaboratorAuthoringProfile:
 Execution profile can remain implicit in the first extraction if needed, but
 the design goal is for execution to become a profile over the same core.
 
-## 8. Collaborator Tools
+## 9. Collaborator Tools
 
 ### authoring_read_workspace
 
@@ -202,7 +269,7 @@ Purpose:
 
 Only `finish_authoring` may lead to Authoring Domain mutation.
 
-## 9. Loop States
+## 10. Loop States
 
 ```text
 running
@@ -225,7 +292,7 @@ State mapping:
 selection. RawTaskAsk remains a final proposal when user intent needs
 clarification.
 
-## 10. Outcome Mapping
+## 11. Outcome Mapping
 
 One-shot path:
 
@@ -268,19 +335,31 @@ request
   -> no AuthoringCommandService mutation
 ```
 
-## 11. Audit And Diagnostics
+## 12. Audit And Diagnostics
 
-Every read/search observation should produce an evidence ref containing:
+Every read/search observation should produce an authoring evidence record and a
+stable evidence ref. Conceptual first-version record shape:
 
-- loop id;
-- session id;
-- operation;
-- tool name;
-- purpose;
-- safe path label;
-- snippet hash or omitted reason;
-- policy decision;
-- timestamp.
+```ts
+type AuthoringEvidenceRecord = {
+  evidenceId: string;
+  sessionId: string;
+  loopId: string;
+  operation: "read_workspace" | "search_workspace";
+  toolName: "authoring_read_workspace" | "authoring_search_workspace";
+  purpose: string;
+  pathLabel: string;
+  contentHash?: string;
+  snippet?: string;
+  omittedReason?: string;
+  policyDecision: "allowed" | "denied" | "omitted";
+  timestamp: string;
+};
+```
+
+`AuthoringEvidenceStore` is the authoritative first-version storage/projection
+source. Audit and diagnostics should consume evidence refs or safe projected
+records from that store.
 
 Diagnostics must use safe labels such as:
 
@@ -297,21 +376,24 @@ Diagnostics must not expose:
 - raw logs;
 - SQLite payloads.
 
-## 12. Implementation Slices
+## 13. Implementation Slices
 
-### Slice A: Technical Seam
+### Slice A: Shared Profile Seam And Evidence Contract
 
 Goal:
 
 - add profile/result protocols and terminal action model;
+- define the `AuthoringEvidenceStore` interface/model;
 - no behavior change to execution Agent;
 - no Collaborator workspace reads yet.
+- no Collaborator-specific behavior inside `src/taskweavn/core/loop.py`.
 
 Validation:
 
 - existing `AgentLoop` tests pass;
 - Collaborator one-shot tests pass;
 - no public behavior change.
+- no read/search tool is registered yet.
 
 ### Slice B: Collaborator One-Shot Through Profile
 
@@ -365,7 +447,7 @@ Validation:
 
 - audit/diagnostic tests prove path labels and no raw absolute paths.
 
-## 13. Test Matrix
+## 14. Test Matrix
 
 Backend tests:
 
@@ -387,25 +469,39 @@ Regression tests:
 - provider tool-call ordering remains valid;
 - existing sidecar authoring command tests pass.
 
-## 14. Open Design Questions
+## 15. Accepted Decisions And Deferred Questions
 
-1. Should the first shared loop core extraction happen before the first
-   Collaborator profile slice, or can the profile be introduced as a wrapper
-   and later extracted?
-2. Should read/search observations write into EventStream, MessageStream, a new
-   authoring evidence store, or a small adapter over existing audit sources?
-3. Should `waiting_for_context` be represented through existing CommandResult
-   details first, or should it add a new explicit UI contract field?
-4. What is the Product 1.0 default guidance path policy?
+Accepted:
 
-## 15. Acceptance Gate
+1. Use a profile boundary over shared loop mechanics. Do not directly reuse the
+   execution `AgentLoop` as the Collaborator runtime.
+2. Use `AuthoringEvidenceStore` as the authoritative first-version source for
+   read/search evidence. Project audit/diagnostics from evidence refs.
+3. Represent `waiting_for_context` as an explicit
+   `CollaboratorAuthoringLoopResult` shape. Carry it through existing command
+   details first if a gateway response wrapper is required.
+4. Use the conservative Product 1.0 static guidance policy listed in this
+   design.
 
-Implementation should not begin until this technical design is accepted.
+Deferred:
 
-Acceptance requires agreement on:
+- dedicated frontend context-selection UI field beyond command result details;
+- configurable workspace guidance policy;
+- optional EventStream mirror for authoring evidence;
+- semantic/vector search.
 
-- profile vs direct `AgentLoop` reuse strategy;
+## 16. Acceptance Gate
+
+Accepted on 2026-06-08 for Slice A implementation.
+
+Implementation may start with Slice A only:
+
+- profile/result protocols;
 - terminal action model;
-- evidence storage/projection choice;
-- `waiting_for_context` result shape;
-- first implementation slice.
+- `AuthoringEvidenceStore` interface/model;
+- no behavior change;
+- no workspace read/search tools yet.
+
+Slices B-E remain gated by their per-slice validation criteria and must return
+to design review if they change the accepted profile, evidence, waiting result,
+or access policy decisions.

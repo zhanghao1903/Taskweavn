@@ -1,6 +1,6 @@
 # Collaborator Workspace-Informed Authoring
 
-> Status: planned / contract-first
+> Status: planned / accepted technical design
 > Date: 2026-06-08
 > Related ADR: [ADR-0016 Collaborator Workspace-Informed Authoring](../../decisions/ADR-0016-collaborator-workspace-aware-authoring.md)
 > Related Contract: [Collaborator Workspace-Informed Authoring Contract](../../engineering/collaborator-workspace-informed-authoring-contract.md)
@@ -55,9 +55,11 @@ document after publish.
 
 ## 4. Implementation Slices
 
-Implementation is blocked until the
-[technical design](collaborator-workspace-informed-authoring-technical-design.md)
-is accepted.
+Implementation may start with Slice A from the accepted
+[technical design](collaborator-workspace-informed-authoring-technical-design.md).
+Later slices remain gated by their own acceptance criteria and must return to
+design review if they change the profile, evidence storage, waiting result, or
+access policy decisions.
 
 ### C1. Shared Loop Profile Contract
 
@@ -147,12 +149,23 @@ Focused tests:
 - `.taskweavn` is rejected for normal authoring context reads;
 - existing one-shot Collaborator behavior remains compatible.
 
-## 7. Open Questions
+## 7. Accepted Decisions And Deferred Questions
 
-1. Should workspace guidance path policy come from Settings, workspace config,
-   or a static Product 1.0 default?
-2. Should `waiting_for_context` reuse existing ASK UI or get a distinct
-   context-selection UI state?
-3. Should shared AgentLoop core extraction happen before the first
-   Collaborator slice, or can the first slice wrap current AgentLoop with a
-   small profile adapter?
+Accepted by the technical design:
+
+1. Slice A starts with a shared loop profile seam and authoring evidence store
+   contract, not direct Collaborator reuse of the current execution
+   `AgentLoop`.
+2. Authoring read/search evidence uses `AuthoringEvidenceStore` as the
+   authoritative first-version source.
+3. `waiting_for_context` is an explicit loop result shape and may be carried
+   through existing command details before a dedicated UI field exists.
+4. Product 1.0 starts with a conservative static guidance policy over selected,
+   prompt-referenced, README, AGENTS, and docs guidance paths.
+
+Deferred:
+
+- dedicated context-selection UI;
+- configurable guidance policy;
+- EventStream mirroring for authoring evidence;
+- semantic/vector search.
