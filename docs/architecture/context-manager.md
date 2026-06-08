@@ -25,6 +25,13 @@ checkpoint messages when policy requires new context facts. See
 and the
 [cache-aware rendering plan](../plans/feature/context-manager-cache-aware-rendering.md).
 
+2026-06-08 follow-up:
+[ADR-0017](../decisions/ADR-0017-session-and-workspace-context-management-foundation.md)
+defines a future Workspace / Session / Task context layering contract. That
+contract is not implemented by Product 1.0. The current implementation remains
+Task execution context governance, while ADR-0017 reserves the architecture
+boundary for future workspace-level and session-level context sources.
+
 ---
 
 ## 1. Problem Statement

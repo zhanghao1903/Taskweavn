@@ -43,3 +43,4 @@ Each ADR should include:
 | [ADR-0014](ADR-0014-interaction-control-taxonomy-for-product-1-0.md) | accepted | Keep interruption, ASK, confirmation, and MessageStream as separate Product 1.0 interaction control mechanisms. |
 | [ADR-0015](ADR-0015-main-page-activity-overlay-message-history.md) | accepted | Replace the Main Page persistent message column with Latest Activity, Activity Overlay, and Result Artifact/Reader surfaces. |
 | [ADR-0016](ADR-0016-collaborator-workspace-aware-authoring.md) | accepted | Give Collaborator a bounded read-only authoring loop with workspace read/query/search, without workspace writes or unrestricted execution tools. |
+| [ADR-0017](ADR-0017-session-and-workspace-context-management-foundation.md) | accepted foundation | Define Workspace, Session, and Task context layers as a future contract without implementation. |
