@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
+from taskweavn.core import AgentLoopProfile
 from taskweavn.task import (
     AUTHORING_READ_WORKSPACE_TOOL_NAME,
     AUTHORING_SEARCH_WORKSPACE_TOOL_NAME,
@@ -13,6 +14,8 @@ from taskweavn.task import (
     COLLABORATOR_AUTHORING_PROFILE_ID,
     FINISH_AUTHORING_TOOL_NAME,
     CollaboratorAuthoringLoopResult,
+    CollaboratorAuthoringProfile,
+    CollaboratorAuthoringProfileRequest,
     CollaboratorContextRequest,
     default_collaborator_template,
 )
@@ -30,6 +33,35 @@ def test_collaborator_profile_names_are_contract_only_for_slice_a() -> None:
 
     template = default_collaborator_template()
     assert template.llm_visible_tool_pools == ()
+
+
+def test_collaborator_one_shot_profile_exposes_only_finish_tool() -> None:
+    profile = CollaboratorAuthoringProfile(system_prompt="system prompt")
+    request = CollaboratorAuthoringProfileRequest(
+        session_id="s1",
+        operation="create_raw_task",
+        proposal_kind="raw_task",
+        request_purpose="collaborator.create_raw_task",
+        task="Assess the user input.",
+        payload={"user_input": "Write docs"},
+    )
+
+    messages = profile.build_initial_messages(request)
+    action = profile.finish_action(
+        proposal_kind="raw_task",
+        proposal={"intent_summary": "Write docs"},
+    )
+    result = profile.map_terminal_action(action, request)
+
+    assert isinstance(profile, AgentLoopProfile)
+    assert profile.allowed_tool_names == (FINISH_AUTHORING_TOOL_NAME,)
+    assert AUTHORING_READ_WORKSPACE_TOOL_NAME not in profile.allowed_tool_names
+    assert AUTHORING_SEARCH_WORKSPACE_TOOL_NAME not in profile.allowed_tool_names
+    assert messages[0] == {"role": "system", "content": "system prompt"}
+    assert '"user_input": "Write docs"' in messages[1]["content"]
+    assert result.status == "finished"
+    assert result.proposal_kind == "raw_task"
+    assert result.proposal == {"intent_summary": "Write docs"}
 
 
 def test_waiting_for_context_result_is_not_authoring_proposal() -> None:

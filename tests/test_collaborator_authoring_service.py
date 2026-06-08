@@ -7,10 +7,14 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from taskweavn.core import LoopTerminalAction
 from taskweavn.llm import ChatResponse
 from taskweavn.observability import configure_session_logging
 from taskweavn.prompts import COLLABORATOR_AUTHORING_SYSTEM_PROMPT
 from taskweavn.task import (
+    AUTHORING_READ_WORKSPACE_TOOL_NAME,
+    AUTHORING_SEARCH_WORKSPACE_TOOL_NAME,
+    CollaboratorAuthoringProfile,
     CollaboratorAuthoringService,
     DefaultAuthoringCommandService,
     DefaultAuthoringContextBuilder,
@@ -29,6 +33,8 @@ from taskweavn.task import (
 class _StubLLM:
     responses: list[str]
     calls: list[list[dict[str, Any]]] = field(default_factory=list)
+    metadata_calls: list[dict[str, Any] | None] = field(default_factory=list)
+    tools_calls: list[list[dict[str, Any]] | None] = field(default_factory=list)
 
     def chat(
         self,
@@ -38,6 +44,8 @@ class _StubLLM:
         metadata: dict[str, Any] | None = None,
     ) -> ChatResponse:
         self.calls.append(messages)
+        self.tools_calls.append(tools)
+        self.metadata_calls.append(metadata)
         content = self.responses.pop(0)
         return ChatResponse(
             content=content,
@@ -49,6 +57,20 @@ class _StubLLM:
         )
 
 
+class _SpyProfile(CollaboratorAuthoringProfile):
+    def __init__(self) -> None:
+        super().__init__()
+        self.terminal_actions: list[LoopTerminalAction] = []
+
+    def map_terminal_action(
+        self,
+        action: LoopTerminalAction,
+        context: object,
+    ) -> Any:
+        self.terminal_actions.append(action)
+        return super().map_terminal_action(action, context)
+
+
 def _read_jsonl(path: Path) -> list[dict[str, Any]]:
     return [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
 
@@ -58,6 +80,7 @@ def _service(
     *,
     raw_store: InMemoryRawTaskStore | None = None,
     draft_store: InMemoryDraftTaskStore | None = None,
+    profile: CollaboratorAuthoringProfile | None = None,
 ) -> tuple[
     DefaultCollaboratorAuthoringService,
     InMemoryRawTaskStore,
@@ -79,6 +102,7 @@ def _service(
             llm=llm,
             context_builder=context_builder,
             command_service=command_service,
+            profile=profile,
         ),
         raw_store,
         draft_store,
@@ -132,6 +156,42 @@ def test_create_raw_task_from_message_maps_feasibility_to_command_service() -> N
     assert raw.status == "ready_to_plan"
     assert raw.constraints == ("concise",)
     assert "capabilities" in llm.calls[0][1]["content"]
+    assert llm.tools_calls == [None]
+    assert llm.metadata_calls[0] is not None
+    assert llm.metadata_calls[0]["loop_profile_id"] == "collaborator_authoring"
+    assert llm.metadata_calls[0]["terminal_tool_name"] == "finish_authoring"
+
+
+def test_create_raw_task_from_message_routes_through_finish_profile() -> None:
+    llm = _StubLLM(
+        [
+            """
+            {
+              "kind": "raw_task",
+              "intent_summary": "Write docs",
+              "feasibility": {"status": "ready", "confidence": 0.9}
+            }
+            """
+        ]
+    )
+    profile = _SpyProfile()
+    service, raw_store, _ = _service(llm, profile=profile)
+
+    result = service.create_raw_task_from_message(
+        session_id="s1",
+        source_message_id="m1",
+        user_input="Write docs",
+    )
+
+    assert result.ok
+    assert raw_store.list_for_session("s1")[0].intent_summary == "Write docs"
+    assert len(profile.terminal_actions) == 1
+    action = profile.terminal_actions[0]
+    assert action.tool_name == "finish_authoring"
+    assert action.arguments["proposal_kind"] == "raw_task"
+    assert AUTHORING_READ_WORKSPACE_TOOL_NAME not in profile.allowed_tool_names
+    assert AUTHORING_SEARCH_WORKSPACE_TOOL_NAME not in profile.allowed_tool_names
+    assert llm.tools_calls == [None]
 
 
 def test_collaborator_logs_agent_llm_input_and_output(tmp_path: Path) -> None:
