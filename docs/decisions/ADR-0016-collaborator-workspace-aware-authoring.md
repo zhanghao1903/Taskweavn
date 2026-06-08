@@ -2,7 +2,7 @@
 
 > Status: accepted
 > Date: 2026-06-08
-> Related: [Authoring Domain](../architecture/authoring-domain.md), [Collaborator Agent](../architecture/collaborator-agent-task-authoring.md), [Tool Capability Layer](../architecture/tool-capability-layer.md), [Workspace Communication Protocol](../architecture/workspace-communication-protocol.md), [Context Manager](../architecture/context-manager.md), [ADR-0008](ADR-0008-authoring-domain-execution-boundary.md), [ADR-0013](ADR-0013-cache-aware-append-only-context-rendering.md)
+> Related: [Authoring Domain](../architecture/authoring-domain.md), [Collaborator Agent](../architecture/collaborator-agent-task-authoring.md), [Tool Capability Layer](../architecture/tool-capability-layer.md), [Workspace Communication Protocol](../architecture/workspace-communication-protocol.md), [Context Manager](../architecture/context-manager.md), [Collaborator Workspace-Informed Authoring Plan](../plans/feature/collaborator-workspace-informed-authoring.md), [Collaborator Workspace-Informed Authoring Contract](../engineering/collaborator-workspace-informed-authoring-contract.md), [ADR-0008](ADR-0008-authoring-domain-execution-boundary.md), [ADR-0013](ADR-0013-cache-aware-append-only-context-rendering.md)
 
 ---
 
@@ -401,9 +401,10 @@ Add focused tests for:
 
 ## Follow-up
 
-- Create a feature plan for `Collaborator Workspace-Informed Authoring`.
-- Define the first API contract for workspace read preflight and
-  query/search.
+- Feature plan created:
+  [Collaborator Workspace-Informed Authoring](../plans/feature/collaborator-workspace-informed-authoring.md).
+- Engineering contract created:
+  [Collaborator Workspace-Informed Authoring Contract](../engineering/collaborator-workspace-informed-authoring-contract.md).
 - Decide the default project guidance path policy for Product 1.0 local RC.
 - Keep the first implementation narrow: read preflight plus query/search, not a
   full Collaborator execution loop and not file writes.

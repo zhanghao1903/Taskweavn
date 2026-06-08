@@ -1,0 +1,153 @@
+# Collaborator Workspace-Informed Authoring
+
+> Status: planned / contract-first
+> Date: 2026-06-08
+> Related ADR: [ADR-0016 Collaborator Workspace-Informed Authoring](../../decisions/ADR-0016-collaborator-workspace-aware-authoring.md)
+> Related Contract: [Collaborator Workspace-Informed Authoring Contract](../../engineering/collaborator-workspace-informed-authoring-contract.md)
+> Related Architecture: [Authoring Domain](../../architecture/authoring-domain.md), [Tool Capability Layer](../../architecture/tool-capability-layer.md), [Context Manager](../../architecture/context-manager.md), [ADR-0017 Session And Workspace Context Management Foundation](../../decisions/ADR-0017-session-and-workspace-context-management-foundation.md)
+
+---
+
+## 1. Purpose
+
+Collaborator currently behaves like a near-single LLM function call: it receives
+authoring input and produces a RawTask, RawTaskAsk, DraftTaskTree, DraftTask
+patch, or rejected authoring result.
+
+Some authoring requests require workspace context before the final proposal can
+be correct. Product 1.0 should not force Collaborator to guess when the user asks
+it to plan from project files.
+
+This feature adds a bounded, read-only authoring loop for Collaborator.
+
+The loop may read, query, and search workspace context before finishing the
+same terminal authoring contract.
+
+## 2. Non-Goals
+
+This feature does not:
+
+- give Collaborator write access to workspace files;
+- give Collaborator shell or command execution;
+- make Collaborator an unrestricted execution Agent;
+- implement session/workspace context storage from ADR-0017;
+- make document-driven planning a general Plato system capability;
+- change AuthoringCommandService as the authority for authoring mutation.
+
+## 3. Product Boundary
+
+The user-facing behavior remains:
+
+```text
+User authoring request
+  -> Collaborator may gather bounded read/search context
+  -> Collaborator finishes with an authoring proposal
+  -> AuthoringCommandService validates and persists
+```
+
+Intermediate workspace observations are evidence. They are not Tasks, not file
+writes, and not direct Authoring Domain mutations.
+
+If a project workflow requires writing a plan document, Collaborator should
+draft or refine an execution Task that asks an Execution Agent to write that
+document after publish.
+
+## 4. Implementation Slices
+
+### C1. Shared Loop Profile Contract
+
+Define `CollaboratorAuthoringProfile` as a profile over the shared AgentLoop
+core rather than building a bespoke Collaborator-only loop.
+
+Profile boundaries:
+
+- allowed tools: read/query/search workspace context;
+- forbidden tools: write, shell, command execution;
+- states: `running`, `reading_context`, `waiting_for_context`, `finished`,
+  `rejected`;
+- terminal action: `finish_authoring(proposal)`;
+- outcome mapping: final proposal to AuthoringCommandService validation.
+
+### C2. Workspace Context Source
+
+Add a read-only authoring context source for selected or policy-declared
+workspace evidence.
+
+Supported first operations:
+
+- read selected file snippets;
+- search selected or configured guidance paths;
+- list shallow selected directories;
+- return evidence refs and safe path labels.
+
+### C3. Wait/Finish Contract
+
+Differentiate:
+
+- `waiting_for_context`: control state for context acquisition, such as needing
+  user file selection;
+- RawTaskAsk: final authoring proposal when the user's goal itself needs
+  clarification;
+- `finished`: only state that submits a final proposal to
+  AuthoringCommandService.
+
+### C4. Audit And Diagnostics
+
+Record:
+
+- read/search intent;
+- selected paths and safe labels;
+- snippets included or omitted;
+- evidence refs;
+- policy denials;
+- final proposal refs.
+
+Renderer diagnostics must not expose raw absolute paths, secrets, prompts,
+provider payloads, raw logs, or SQLite payloads.
+
+### C5. UI Follow-Up
+
+The first backend slice may return `waiting_for_context` without full UI polish.
+The later frontend slice should show:
+
+- context selection request;
+- candidate files or guidance paths;
+- selected evidence summary;
+- final authoring outcome.
+
+## 5. Acceptance Criteria
+
+The feature is accepted when:
+
+1. Collaborator can finish the existing authoring outcomes without workspace
+   tool calls.
+2. Collaborator can perform one or more read/search observations before
+   finishing the same authoring outcome.
+3. `waiting_for_context` can be returned without creating a RawTaskAsk.
+4. Only `finished` submits proposals to AuthoringCommandService.
+5. `.taskweavn` is protected from normal read/search paths.
+6. No workspace write, shell, or command execution operation is exposed.
+7. Audit/diagnostics use safe path labels and evidence refs.
+
+## 6. Test Plan
+
+Focused tests:
+
+- profile denies write/shell tools;
+- read/search observations can precede RawTask creation;
+- read/search observations can precede DraftTaskTree generation;
+- `waiting_for_context` is distinct from RawTaskAsk;
+- `finished` is the only state that mutates authoring state;
+- path labels normalize to `workspace://current/...`;
+- `.taskweavn` is rejected for normal authoring context reads;
+- existing one-shot Collaborator behavior remains compatible.
+
+## 7. Open Questions
+
+1. Should workspace guidance path policy come from Settings, workspace config,
+   or a static Product 1.0 default?
+2. Should `waiting_for_context` reuse existing ASK UI or get a distinct
+   context-selection UI state?
+3. Should shared AgentLoop core extraction happen before the first
+   Collaborator slice, or can the first slice wrap current AgentLoop with a
+   small profile adapter?
