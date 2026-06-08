@@ -229,15 +229,16 @@ For execution Agents, the later binding target should be a `WorkspaceRequest`, w
 amends the default boundary above.
 
 Collaborator still must not mount unrestricted execution tools by default, but
-it may use a bounded authoring-scoped workspace channel for:
+it may use a bounded read-only authoring loop and workspace context channel for:
 
 - reading selected or policy-declared workspace guidance before planning;
 - querying and searching selected or policy-declared guidance paths.
 
 These operations are authoring context operations, not general project mutation.
-Collaborator does not write workspace files in the first version. Project
-planning documents, code, config, and generated artifacts remain Execution Agent
-work unless a later decision explicitly expands Collaborator scope.
+Collaborator does not write workspace files in the first version. If a project
+workflow requires writing planning documents, code, config, or generated
+artifacts, that remains Execution Agent work unless a later decision explicitly
+expands Collaborator scope.
 
 ---
 
