@@ -49,13 +49,13 @@ describeSidecarE2E("Diagnostics bundle export real sidecar E2E", () => {
     expect(screen.getByText("product_1_0_default")).toBeInTheDocument();
     expect(
       screen.getByText((content) =>
-        content.startsWith("workspace://current/.taskweavn/diagnostics/")
+        content.startsWith("workspace://current/.plato/diagnostics/")
         && content.endsWith(".zip"),
       ),
     ).toBeInTheDocument();
     expect(
       screen.getByText((content) =>
-        content.startsWith("workspace://current/.taskweavn/diagnostics/")
+        content.startsWith("workspace://current/.plato/diagnostics/")
         && content.endsWith("/manifest.json"),
       ),
     ).toBeInTheDocument();

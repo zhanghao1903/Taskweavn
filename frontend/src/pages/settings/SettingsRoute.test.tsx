@@ -335,18 +335,18 @@ function settingsReadiness({
 function diagnosticExport(): DiagnosticBundleExportResult {
   return {
     bundleDir: "/tmp/bundle",
-    bundleDirLabel: "workspace://current/.taskweavn/diagnostics/bundle",
+    bundleDirLabel: "workspace://current/.plato/diagnostics/bundle",
     bundleId: "diagnostic-bundle-session-1",
     createdAt: "2026-06-06T09:03:00Z",
     fileCount: 3,
     includedSections: ["session"],
     manifestPath: "/tmp/bundle/manifest.json",
-    manifestPathLabel: "workspace://current/.taskweavn/diagnostics/manifest.json",
+    manifestPathLabel: "workspace://current/.plato/diagnostics/manifest.json",
     redactionProfile: "product_1_0_default",
     schemaVersion: "plato.diagnostics_export.v1",
     sections: [],
     warnings: [],
     zipPath: "/tmp/bundle.zip",
-    zipPathLabel: "workspace://current/.taskweavn/diagnostics/bundle.zip",
+    zipPathLabel: "workspace://current/.plato/diagnostics/bundle.zip",
   };
 }
