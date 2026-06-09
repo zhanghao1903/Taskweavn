@@ -1,5 +1,6 @@
 export type ProjectId = string;
 export type WorkflowId = string;
+export type WorkspaceId = string;
 export type SessionId = string;
 export type TaskTreeId = string;
 export type TaskNodeId = string;
@@ -222,6 +223,7 @@ export type SessionSummary = {
   status: SessionStatus;
   createdAt: string;
   updatedAt: string;
+  workspaceId?: WorkspaceId;
   workspaceLabel?: string;
 };
 

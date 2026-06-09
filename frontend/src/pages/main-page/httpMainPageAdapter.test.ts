@@ -15,6 +15,7 @@ import type {
   SessionListResult,
   StopTaskPayload,
   UpdateTaskNodePayload,
+  WorkspaceCatalogResult,
 } from "../../shared/api/platoApi";
 import type {
   CommandRequest,
@@ -42,7 +43,10 @@ describe("HTTP MainPage adapter bridge", () => {
 
     const result = await adapter.loadSnapshot("s7-confirmation");
 
-    expect(api.getSessionSnapshot).toHaveBeenCalledWith(snapshot.session.id);
+    expect(api.getSessionSnapshot).toHaveBeenCalledWith(
+      snapshot.session.id,
+      undefined,
+    );
     expect(result.snapshot).toBe(snapshot);
     expect(result.metadata.label).toBe("Local live session");
     expect(result.metadata.detail.mode).toBe("confirmation");
@@ -61,7 +65,10 @@ describe("HTTP MainPage adapter bridge", () => {
 
     await adapter.loadSnapshot("s3-draft-ready", "selected-session");
 
-    expect(api.getSessionSnapshot).toHaveBeenCalledWith("selected-session");
+    expect(api.getSessionSnapshot).toHaveBeenCalledWith(
+      "selected-session",
+      undefined,
+    );
   });
 
   it("bootstraps from the session list when no startup session is configured", async () => {
@@ -75,7 +82,10 @@ describe("HTTP MainPage adapter bridge", () => {
 
     expect(api.listSessions).toHaveBeenCalled();
     expect(api.createSession).not.toHaveBeenCalled();
-    expect(api.getSessionSnapshot).toHaveBeenCalledWith(snapshot.session.id);
+    expect(api.getSessionSnapshot).toHaveBeenCalledWith(
+      snapshot.session.id,
+      undefined,
+    );
   });
 
   it("reports an empty workspace without creating a session implicitly", async () => {
@@ -236,61 +246,90 @@ describe("HTTP MainPage adapter bridge", () => {
     );
     unsubscribe();
 
-    expect(api.appendSessionInput).toHaveBeenCalledWith(sessionRequest);
+    expect(api.appendSessionInput).toHaveBeenCalledWith(
+      sessionRequest,
+      undefined,
+    );
     expect(api.appendTaskInput).toHaveBeenCalledWith(
       snapshot.session.id,
       "task-implementation",
       taskRequest,
+      undefined,
     );
-    expect(api.generateTaskTree).toHaveBeenCalledWith(generateRequest);
+    expect(api.generateTaskTree).toHaveBeenCalledWith(
+      generateRequest,
+      undefined,
+    );
     expect(api.updateTaskNode).toHaveBeenCalledWith(
       snapshot.session.id,
       "task-implementation",
       updateRequest,
+      undefined,
     );
-    expect(api.publishTaskTree).toHaveBeenCalledWith(publishRequest);
+    expect(api.publishTaskTree).toHaveBeenCalledWith(
+      publishRequest,
+      undefined,
+    );
     expect(api.repairAuthoringState).toHaveBeenCalledWith(
       repairAuthoringStateRequest,
+      undefined,
     );
     expect(api.stopTask).toHaveBeenCalledWith(
       snapshot.session.id,
       "task-implementation",
       stopRequest,
+      undefined,
     );
-    expect(api.createSession).toHaveBeenCalledWith({ name: "New session" });
-    expect(api.renameSession).toHaveBeenCalledWith(snapshot.session.id, {
-      name: "Renamed",
-    });
-    expect(api.deleteSession).toHaveBeenCalledWith(snapshot.session.id);
+    expect(api.createSession).toHaveBeenCalledWith(
+      { name: "New session" },
+      undefined,
+    );
+    expect(api.renameSession).toHaveBeenCalledWith(
+      snapshot.session.id,
+      {
+        name: "Renamed",
+      },
+      undefined,
+    );
+    expect(api.deleteSession).toHaveBeenCalledWith(
+      snapshot.session.id,
+      undefined,
+    );
     expect(api.resolveConfirmation).toHaveBeenCalledWith(
       snapshot.session.id,
       "confirmation-1",
       confirmationRequest,
+      undefined,
     );
     expect(api.answerAsk).toHaveBeenCalledWith(
       snapshot.session.id,
       "ask-1",
       answerAskRequest,
+      undefined,
     );
     expect(api.answerAuthoringAskBatch).toHaveBeenCalledWith(
       snapshot.session.id,
       "raw-task-1",
       answerAuthoringAskBatchRequest,
+      undefined,
     );
     expect(api.deferAsk).toHaveBeenCalledWith(
       snapshot.session.id,
       "ask-1",
       deferAskRequest,
+      undefined,
     );
     expect(api.cancelAsk).toHaveBeenCalledWith(
       snapshot.session.id,
       "ask-1",
       cancelAskRequest,
+      undefined,
     );
     expect(api.subscribeSessionEvents).toHaveBeenCalledWith(
       snapshot.session.id,
       snapshot.cursor,
       eventHandler,
+      undefined,
     );
   });
 
@@ -328,11 +367,52 @@ describe("HTTP MainPage adapter bridge", () => {
       "export_diagnostics",
     ]);
   });
+
+  it("passes workspace scope to HTTP API calls", async () => {
+    const snapshot = getMainPageMockSnapshot("s1-empty").snapshot;
+    const api = stubPlatoApi(snapshot);
+    const adapter = createHttpMainPageAdapter({
+      api,
+      sessionId: snapshot.session.id,
+      workspaceId: "workspace-1",
+    });
+
+    await adapter.loadWorkspaceCatalog?.();
+    await adapter.loadSnapshot("s1-empty");
+    await adapter.createSession({ name: "New session" });
+    const unsubscribe = adapter.subscribeSessionEvents(
+      snapshot.session.id,
+      "cursor-1",
+      () => undefined,
+    );
+    unsubscribe();
+
+    expect(api.listWorkspaces).toHaveBeenCalledWith();
+    expect(api.getSessionSnapshot).toHaveBeenCalledWith(snapshot.session.id, {
+      workspaceId: "workspace-1",
+    });
+    expect(api.createSession).toHaveBeenCalledWith(
+      { name: "New session" },
+      { workspaceId: "workspace-1" },
+    );
+    expect(api.subscribeSessionEvents).toHaveBeenCalledWith(
+      snapshot.session.id,
+      "cursor-1",
+      expect.any(Function),
+      { workspaceId: "workspace-1" },
+    );
+  });
 });
 
 function stubPlatoApi(snapshot: MainPageSnapshot) {
   const response = acceptedCommandResponse("accepted");
   return {
+    listWorkspaces: vi.fn(async () =>
+      lifecycleResponse({
+        currentWorkspaceId: "workspace-1",
+        workspaces: [],
+      }),
+    ),
     listSessions: vi.fn(async () =>
       lifecycleResponse({ sessions: snapshot.sessions }),
     ),
@@ -359,9 +439,9 @@ function stubPlatoApi(snapshot: MainPageSnapshot) {
   } satisfies HttpMainPageApi;
 }
 
-function lifecycleResponse<T extends SessionLifecycleResult | SessionListResult>(
-  data: T,
-): QueryResponse<T> {
+function lifecycleResponse<
+  T extends SessionLifecycleResult | SessionListResult | WorkspaceCatalogResult,
+>(data: T): QueryResponse<T> {
   return {
     requestId: "request-session-lifecycle",
     ok: true,

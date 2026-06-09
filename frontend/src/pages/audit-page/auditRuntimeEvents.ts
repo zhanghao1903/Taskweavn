@@ -8,6 +8,7 @@ import type {
   TaskNodeId,
   UiEvent,
   UiEventType,
+  WorkspaceId,
 } from "../../shared/api/types";
 import type { PlatoApi } from "../../shared/api/platoApi";
 
@@ -16,6 +17,7 @@ export type AuditPageRuntimeEventContext = {
   selectedRecordId: AuditRecordId | null;
   sessionId: SessionId;
   taskNodeId: TaskNodeId | null;
+  workspaceId?: WorkspaceId | null;
 };
 
 export type AuditPageRuntimeEventAction =
@@ -79,6 +81,7 @@ export function useAuditPageRuntimeEvents({
   selectedRecordId,
   sessionId,
   taskNodeId,
+  workspaceId = null,
 }: AuditPageRuntimeEventOptions): void {
   const lastEventCursorRef = useRef<EventCursor | null>(null);
   const refreshGenerationRef = useRef(0);
@@ -97,7 +100,7 @@ export function useAuditPageRuntimeEvents({
     };
 
     try {
-      unsubscribe = api.subscribeSessionEvents(sessionId, cursor, (event) => {
+      const handleEvent = (event: UiEvent) => {
         if (event.cursor === lastEventCursorRef.current) {
           return;
         }
@@ -107,6 +110,7 @@ export function useAuditPageRuntimeEvents({
           selectedRecordId,
           sessionId,
           taskNodeId,
+          workspaceId,
         });
 
         if (action.kind === "ignore") {
@@ -137,7 +141,13 @@ export function useAuditPageRuntimeEvents({
             });
           }
         });
-      });
+      };
+      unsubscribe =
+        workspaceId === null
+          ? api.subscribeSessionEvents(sessionId, cursor, handleEvent)
+          : api.subscribeSessionEvents(sessionId, cursor, handleEvent, {
+              workspaceId,
+            });
       setRuntimeState({
         eventCursor: cursor,
         message: null,
@@ -168,6 +178,7 @@ export function useAuditPageRuntimeEvents({
     selectedRecordId,
     sessionId,
     taskNodeId,
+    workspaceId,
   ]);
 }
 
@@ -175,6 +186,17 @@ export function routeAuditPageRuntimeEvent(
   event: UiEvent,
   context: AuditPageRuntimeEventContext,
 ): AuditPageRuntimeEventAction {
+  const eventWorkspaceId =
+    "workspaceId" in event && typeof event.workspaceId === "string"
+      ? event.workspaceId
+      : null;
+  if (
+    context.workspaceId &&
+    eventWorkspaceId !== null &&
+    eventWorkspaceId !== context.workspaceId
+  ) {
+    return { kind: "ignore" };
+  }
   if (event.sessionId !== context.sessionId) {
     return { kind: "ignore" };
   }

@@ -110,6 +110,7 @@ export function createMainPageAdapterFromRuntimeEnv(
     }),
     liveLabel: "Live Session",
     sessionId: sessionId ?? null,
+    workspaceId: globalThis.window?.platoRuntimeConfig?.workspace?.id ?? null,
   });
 }
 

@@ -5,6 +5,7 @@ import type {
   ProjectId,
   SessionId,
   TaskNodeId,
+  WorkspaceId,
   WorkflowId,
 } from "../shared/api/types";
 
@@ -27,6 +28,7 @@ export type AuditRouteQuery = {
   returnFocus?: "session" | "task" | "confirmation" | "result" | "file_change";
   returnSessionId?: SessionId;
   returnTaskNodeId?: TaskNodeId;
+  workspaceId?: WorkspaceId;
 };
 
 export function buildMainSessionRoute(params: {

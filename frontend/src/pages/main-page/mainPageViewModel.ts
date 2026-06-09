@@ -10,6 +10,7 @@ import type {
   SessionSummary,
   TaskNodeCardView,
   TaskNodeId,
+  WorkspaceId,
 } from "../../shared/api/types";
 import type { ProductRecoveryAction } from "../../shared/api/platoApi";
 import {
@@ -123,6 +124,7 @@ export type MainPageWorkspaceViewModel = {
   taskTreeId: string | null;
   title: string;
   uiNotice: string | null;
+  workspaceId?: WorkspaceId | null;
 };
 
 export type MainPageAuditEntryViewModel = {
@@ -213,6 +215,7 @@ export type BuildMainPageViewModelInput = {
   taskTreeCommandError: string | null;
   taskTreeCommandRecoveryActions: ProductRecoveryAction[];
   uiNotice: string | null;
+  workspaceId?: WorkspaceId | null;
 };
 
 export function buildMainPageViewModel({
@@ -242,6 +245,7 @@ export function buildMainPageViewModel({
   taskTreeCommandError,
   taskTreeCommandRecoveryActions,
   uiNotice,
+  workspaceId,
 }: BuildMainPageViewModelInput): MainPageViewModel {
   const nodes = snapshot.taskTree?.nodes ?? [];
   const authoringAsk = authoringAskViewFor({
@@ -322,6 +326,7 @@ export function buildMainPageViewModel({
     selectedTask,
     sessionId: snapshot.session.id,
     sessionPermissions: snapshot.permissions,
+    workspaceId,
   });
 
   return {
@@ -462,6 +467,7 @@ function auditEntryFor({
   selectedTask,
   sessionId,
   sessionPermissions,
+  workspaceId,
 }: {
   activeConfirmation: ConfirmationActionView | undefined;
   auditRouteAvailable: boolean;
@@ -473,6 +479,7 @@ function auditEntryFor({
   selectedTask: TaskNodeCardView | undefined;
   sessionId: string;
   sessionPermissions: MainPageSnapshot["permissions"];
+  workspaceId?: WorkspaceId | null;
 }): MainPageAuditEntryViewModel {
   const route = auditRouteFor({
     activeConfirmation,
@@ -483,6 +490,7 @@ function auditEntryFor({
     result,
     selectedTask,
     sessionId,
+    workspaceId,
   });
   const permissionReason =
     sessionPermissions && !sessionPermissions.canOpenAudit
@@ -511,6 +519,7 @@ function auditRouteFor({
   result,
   selectedTask,
   sessionId,
+  workspaceId,
 }: {
   activeConfirmation: ConfirmationActionView | undefined;
   fileChangeSummary: FileChangeSummaryView | null;
@@ -520,15 +529,17 @@ function auditRouteFor({
   result: ResultCardView | null;
   selectedTask: TaskNodeCardView | undefined;
   sessionId: string;
+  workspaceId?: WorkspaceId | null;
 }): Pick<MainPageAuditEntryViewModel, "href" | "returnFocus" | "scope"> {
   if (hasConfirmationFocus && activeConfirmation) {
     return taskAuditRoute({
       entry: "from_confirmation",
       filter: "confirmations",
-      returnFocus: "confirmation",
-      sessionId,
-      taskNodeId: activeConfirmation.taskNodeId,
-    });
+        returnFocus: "confirmation",
+        sessionId,
+        taskNodeId: activeConfirmation.taskNodeId,
+        workspaceId,
+      });
   }
 
   if (hasFileChangeView && fileChangeSummary?.taskNodeId) {
@@ -538,6 +549,7 @@ function auditRouteFor({
       returnFocus: "file_change",
       sessionId,
       taskNodeId: fileChangeSummary.taskNodeId,
+      workspaceId,
     });
   }
 
@@ -548,6 +560,7 @@ function auditRouteFor({
         filter: "results",
         returnFocus: "result",
         returnSessionId: sessionId,
+        workspaceId: workspaceId ?? undefined,
       }),
       returnFocus: "result",
       scope: "session",
@@ -560,6 +573,7 @@ function auditRouteFor({
       returnFocus: "task",
       sessionId,
       taskNodeId: selectedTask.id,
+      workspaceId,
     });
   }
 
@@ -568,6 +582,7 @@ function auditRouteFor({
       entry: "from_session",
       returnFocus: "session",
       returnSessionId: sessionId,
+      workspaceId: workspaceId ?? undefined,
     }),
     returnFocus: "session",
     scope: "session",
@@ -580,12 +595,14 @@ function taskAuditRoute({
   returnFocus,
   sessionId,
   taskNodeId,
+  workspaceId,
 }: {
   entry: "from_task" | "from_confirmation" | "from_file_change";
   filter?: AuditFilterKind;
   returnFocus: "task" | "confirmation" | "file_change";
   sessionId: string;
   taskNodeId: string;
+  workspaceId?: WorkspaceId | null;
 }): Pick<MainPageAuditEntryViewModel, "href" | "returnFocus" | "scope"> {
   return {
     href: buildAuditTaskRoute(sessionId, taskNodeId, {
@@ -594,6 +611,7 @@ function taskAuditRoute({
       returnFocus,
       returnSessionId: sessionId,
       returnTaskNodeId: taskNodeId,
+      workspaceId: workspaceId ?? undefined,
     }),
     returnFocus,
     scope: "task",

@@ -15,6 +15,7 @@ import type {
   SessionLifecycleResult,
   StopTaskPayload,
   UpdateTaskNodePayload,
+  WorkspaceCatalogResult,
 } from "../../../shared/api/platoApi";
 import type {
   CommandRequest,
@@ -25,6 +26,7 @@ import type {
   SessionId,
   TaskNodeId,
   UiEvent,
+  WorkspaceId,
 } from "../../../shared/api/types";
 import type { BadgeTone } from "../../../shared/components";
 
@@ -71,86 +73,102 @@ export type MainPageRuntimeKind = "mock" | "http";
 export type LoadMainPageSnapshot = (
   stateId: string,
   sessionId?: SessionId | null,
+  workspaceId?: WorkspaceId | null,
 ) => Promise<MainPageRuntimeSnapshot>;
 
 export type SessionLifecycleCommand<TPayload = void> = (
   payload: TPayload,
+  workspaceId?: WorkspaceId | null,
 ) => Promise<SessionLifecycleResult>;
 
 export type ResolveConfirmationCommand = (
   sessionId: SessionId,
   confirmationId: ConfirmationId,
   request: CommandRequest<ResolveConfirmationPayload>,
+  workspaceId?: WorkspaceId | null,
 ) => Promise<CommandResponse>;
 
 export type AnswerAskCommand = (
   sessionId: SessionId,
   askId: AskId,
   request: CommandRequest<AnswerAskPayload>,
+  workspaceId?: WorkspaceId | null,
 ) => Promise<CommandResponse>;
 
 export type AnswerAuthoringAskBatchCommand = (
   sessionId: SessionId,
   rawTaskId: string,
   request: CommandRequest<AnswerAuthoringAskBatchPayload>,
+  workspaceId?: WorkspaceId | null,
 ) => Promise<CommandResponse>;
 
 export type DeferAskCommand = (
   sessionId: SessionId,
   askId: AskId,
   request: CommandRequest<DeferAskPayload>,
+  workspaceId?: WorkspaceId | null,
 ) => Promise<CommandResponse>;
 
 export type CancelAskCommand = (
   sessionId: SessionId,
   askId: AskId,
   request: CommandRequest<CancelAskPayload>,
+  workspaceId?: WorkspaceId | null,
 ) => Promise<CommandResponse>;
 
 export type AppendSessionInputCommand = (
   request: CommandRequest<AppendSessionInputPayload>,
+  workspaceId?: WorkspaceId | null,
 ) => Promise<CommandResponse>;
 
 export type AppendTaskInputCommand = (
   sessionId: SessionId,
   taskNodeId: string,
   request: CommandRequest<AppendTaskInputPayload>,
+  workspaceId?: WorkspaceId | null,
 ) => Promise<CommandResponse>;
 
 export type GenerateTaskTreeCommand = (
   request: CommandRequest<GenerateTaskTreePayload>,
+  workspaceId?: WorkspaceId | null,
 ) => Promise<CommandResponse>;
 
 export type UpdateTaskNodeCommand = (
   sessionId: SessionId,
   taskNodeId: TaskNodeId,
   request: CommandRequest<UpdateTaskNodePayload>,
+  workspaceId?: WorkspaceId | null,
 ) => Promise<CommandResponse>;
 
 export type PublishTaskTreeCommand = (
   request: CommandRequest<PublishTaskTreePayload>,
+  workspaceId?: WorkspaceId | null,
 ) => Promise<CommandResponse>;
 
 export type RepairAuthoringStateCommand = (
   request: CommandRequest<RepairAuthoringStatePayload>,
+  workspaceId?: WorkspaceId | null,
 ) => Promise<CommandResponse>;
 
 export type RetryTaskCommand = (
   sessionId: SessionId,
   taskNodeId: TaskNodeId,
   request: CommandRequest<RetryTaskPayload>,
+  workspaceId?: WorkspaceId | null,
 ) => Promise<CommandResponse>;
 
 export type StopTaskCommand = (
   sessionId: SessionId,
   taskNodeId: TaskNodeId,
   request: CommandRequest<StopTaskPayload>,
+  workspaceId?: WorkspaceId | null,
 ) => Promise<CommandResponse>;
 
 export type SubscribeSessionEvents = (
   sessionId: SessionId,
   cursor: string | null,
   onEvent: (event: UiEvent) => void,
+  workspaceId?: WorkspaceId | null,
 ) => () => void;
 
 export type MainPageAdapter = {
@@ -164,6 +182,7 @@ export type MainPageAdapter = {
   deleteSession: SessionLifecycleCommand<SessionId>;
   generateTaskTree: GenerateTaskTreeCommand;
   loadSnapshot: LoadMainPageSnapshot;
+  loadWorkspaceCatalog?: () => Promise<WorkspaceCatalogResult>;
   publishTaskTree: PublishTaskTreeCommand;
   repairAuthoringState: RepairAuthoringStateCommand;
   renameSession: SessionLifecycleCommand<
@@ -177,19 +196,22 @@ export type MainPageAdapter = {
   stopTask: StopTaskCommand;
   subscribeSessionEvents: SubscribeSessionEvents;
   updateTaskNode: UpdateTaskNodeCommand;
+  workspaceId?: WorkspaceId | null;
 };
 
 export function mainPageSnapshotQueryKey(
-  adapter: Pick<MainPageAdapter, "runtimeKind" | "sessionId">,
+  adapter: Pick<MainPageAdapter, "runtimeKind" | "sessionId" | "workspaceId">,
   stateId: string,
   activeSessionId?: SessionId | null,
+  activeWorkspaceId?: WorkspaceId | null,
 ):
   | readonly ["main-page", "fixture", string]
-  | readonly ["main-page", "snapshot", string] {
+  | readonly ["main-page", "snapshot", string, string] {
   if (adapter.runtimeKind === "http") {
     return [
       "main-page",
       "snapshot",
+      activeWorkspaceId ?? adapter.workspaceId ?? "current-workspace",
       activeSessionId ?? adapter.sessionId ?? "unknown-session",
     ];
   }
@@ -198,13 +220,14 @@ export function mainPageSnapshotQueryKey(
 }
 
 export function mainPageSnapshotIdentity(
-  adapter: Pick<MainPageAdapter, "runtimeKind" | "sessionId">,
+  adapter: Pick<MainPageAdapter, "runtimeKind" | "sessionId" | "workspaceId">,
   stateId: string,
   snapshot: MainPageRuntimeSnapshot,
   activeSessionId?: SessionId | null,
+  activeWorkspaceId?: WorkspaceId | null,
 ): string {
   if (adapter.runtimeKind === "http") {
-    return `session:${
+    return `workspace:${activeWorkspaceId ?? adapter.workspaceId ?? "current"}:session:${
       activeSessionId ?? adapter.sessionId ?? snapshot.snapshot.session.id
     }`;
   }

@@ -52,6 +52,99 @@ describe("createHttpPlatoApi", () => {
     );
   });
 
+  it("loads workspace catalog and workspace-scoped resources", async () => {
+    const calls: Array<{
+      body: unknown;
+      method: string | undefined;
+      url: string;
+    }> = [];
+    const fetcher = vi.fn<FetchFn>(async (input, init) => {
+      calls.push({
+        body: init?.body ? JSON.parse(String(init.body)) : null,
+        method: init?.method,
+        url: String(input),
+      });
+
+      return jsonResponse({
+        data: {
+          currentWorkspaceId: "ws/1",
+          workspaces: [],
+        },
+        error: null,
+        generatedAt: "2026-06-09T10:00:00Z",
+        ok: true,
+        requestId: "workspace-query",
+      });
+    });
+    const eventUrls: string[] = [];
+    const api = createHttpPlatoApi({
+      baseUrl: "https://plato.test/",
+      eventSourceFactory: (url) => {
+        eventUrls.push(url);
+        return {
+          addEventListener() {
+            return undefined;
+          },
+          close() {
+            return undefined;
+          },
+        };
+      },
+      fetcher,
+    });
+
+    await api.listWorkspaces();
+    await api.listSessions({ workspaceId: "ws/1" });
+    await api.getSessionSnapshot("session/1", { workspaceId: "ws/1" });
+    await api.appendSessionInput(
+      {
+        commandId: "append-workspace",
+        sessionId: "session/1",
+        payload: {
+          content: "Use this workspace.",
+          mode: "global_guidance",
+        },
+      },
+      { workspaceId: "ws/1" },
+    );
+    await api.subscribeSessionEvents("session/1", "cursor/1", () => undefined, {
+      workspaceId: "ws/1",
+    })();
+
+    expect(calls).toEqual([
+      {
+        body: null,
+        method: "GET",
+        url: "https://plato.test/api/v1/workspaces",
+      },
+      {
+        body: null,
+        method: "GET",
+        url: "https://plato.test/api/v1/workspaces/ws%2F1/sessions",
+      },
+      {
+        body: null,
+        method: "GET",
+        url: "https://plato.test/api/v1/workspaces/ws%2F1/sessions/session%2F1/snapshot",
+      },
+      {
+        body: {
+          commandId: "append-workspace",
+          sessionId: "session/1",
+          payload: {
+            content: "Use this workspace.",
+            mode: "global_guidance",
+          },
+        },
+        method: "POST",
+        url: "https://plato.test/api/v1/workspaces/ws%2F1/sessions/session%2F1/input",
+      },
+    ]);
+    expect(eventUrls).toEqual([
+      "https://plato.test/api/v1/workspaces/ws%2F1/sessions/session%2F1/events?cursor=cursor%2F1",
+    ]);
+  });
+
   it("posts command requests to session and task endpoints", async () => {
     const calls: Array<{
       body: unknown;

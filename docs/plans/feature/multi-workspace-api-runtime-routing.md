@@ -1,7 +1,7 @@
 # Feature Plan: Multi-Workspace API And Runtime Routing
 
-> Status: draft plan / implementation not started
-> Last Updated: 2026-06-08
+> Status: accepted plan / implemented foundation
+> Last Updated: 2026-06-09
 > Gap: Main Page can show and switch workspaces, but backend APIs and runtime assembly remain single-workspace scoped
 > Engineering Contract: [Multi-Workspace API And Runtime Contract](../../engineering/multi-workspace-api-runtime-contract.md)
 > Related Plans: [Workspace Entry And Root Semantics](workspace-entry-root-semantics.md), [Workspace-First Main Page Switching](workspace-main-page-switching.md)
@@ -82,7 +82,7 @@ Out of scope:
 
 ### MW0: Contract Closure
 
-Status: this plan.
+Status: accepted.
 
 Deliverables:
 
@@ -123,6 +123,8 @@ Tests:
 - Missing workspace root appears as unavailable.
 - Multiple workspaces with sessions render as parallel sidebar rows.
 
+Status: implemented in the 2026-06-09 multi-workspace runtime slice.
+
 ### MW2: Workspace-Scoped Session Query And Lifecycle API
 
 Goal: route session reads and session lifecycle operations by workspace ID.
@@ -156,6 +158,9 @@ Tests:
 - Session create/rename/delete writes under the routed workspace.
 - Compatibility route still uses current workspace.
 
+Status: implemented for list/create/rename/delete/snapshot routing in the
+2026-06-09 multi-workspace runtime slice.
+
 ### MW3: Workspace-Scoped Commands, Events, Audit, Results, Diagnostics
 
 Goal: make the full Main Page/Audit flow workspace-routed.
@@ -181,6 +186,10 @@ Tests:
 - Command writes go to the correct workspace stores.
 - Event subscription reads the correct workspace event source.
 - Audit/evidence/diagnostic links carry workspace identity without raw paths.
+
+Status: implemented for route aliases, frontend HTTP client scope, Main Page
+Audit links, diagnostic export route scope, and the catalog-backed sidebar in
+the 2026-06-09 slice. Full Audit browser path migration remains deferred.
 
 ### MW4: Execution Runtime Policy
 
@@ -236,6 +245,18 @@ The multi-workspace foundation is accepted when:
 - Renderer-facing payloads do not expose raw absolute paths.
 - Inactive workspace catalog reads do not start agent loops.
 - Existing Product 1.0 active-workspace flow remains compatible.
+
+Current acceptance evidence:
+
+- Backend sidecar contract tests cover safe catalog payloads, missing
+  workspaces, duplicate session IDs across workspaces, workspace-scoped
+  snapshots, workspace-scoped commands, and compatibility routes.
+- Frontend tests cover workspace-scoped HTTP API URLs, HTTP Main Page adapter
+  scoping, controller state scoping, and sidebar/workbench compatibility.
+- Electron startup unit tests cover the launcher argument path after registry
+  injection.
+- Frontend build/typecheck validates the workspace-scoped Main Page and Audit
+  route contracts.
 
 ## 7. Risks And Assumptions
 
