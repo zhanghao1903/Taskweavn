@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from urllib.parse import unquote, urlsplit
 
 
@@ -10,6 +10,7 @@ from urllib.parse import unquote, urlsplit
 class _Route:
     name: str
     method: str
+    workspace_id: str = ""
     session_id: str = ""
     raw_task_id: str = ""
     task_node_id: str = ""
@@ -31,6 +32,11 @@ def _match_route(path: str) -> _Route | None:
         return _Route(name="settings_readiness_recheck", method="POST")
     if parts == ("api", "v1", "settings", "config"):
         return _Route(name="settings_config", method="*")
+    if parts == ("api", "v1", "workspaces"):
+        return _Route(name="workspaces", method="GET")
+    workspace_route = _match_workspace_route(parts)
+    if workspace_route is not None:
+        return workspace_route
     if parts == ("api", "v1", "sessions"):
         return _Route(name="sessions", method="*")
     if len(parts) < 4 or parts[:3] != ("api", "v1", "sessions"):
@@ -173,6 +179,19 @@ def _match_route(path: str) -> _Route | None:
             ask_id=suffix[1],
         )
     return None
+
+
+def _match_workspace_route(parts: tuple[str, ...]) -> _Route | None:
+    if len(parts) < 5 or parts[:3] != ("api", "v1", "workspaces"):
+        return None
+    workspace_id = parts[3]
+    if parts[4] != "sessions":
+        return None
+    active_workspace_parts = ("api", "v1", *parts[4:])
+    active_workspace_route = _match_route("/" + "/".join(active_workspace_parts))
+    if active_workspace_route is None:
+        return None
+    return replace(active_workspace_route, workspace_id=workspace_id)
 
 
 def _path_parts(path: str) -> tuple[str, ...]:

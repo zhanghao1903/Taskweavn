@@ -1,7 +1,7 @@
 # Multi-Workspace API And Runtime Contract
 
-> Status: draft contract / implementation not started
-> Last Updated: 2026-06-08
+> Status: accepted contract / implemented foundation
+> Last Updated: 2026-06-09
 > Related Plan: [Multi-Workspace API And Runtime Routing](../plans/feature/multi-workspace-api-runtime-routing.md)
 > Related Contracts: [Workspace Entry Contract](workspace-entry-contract.md), [Workspace Main Page Switching Contract](workspace-main-page-switching-contract.md)
 > Related ADR: [ADR-0017 Session And Workspace Context Management Foundation](../decisions/ADR-0017-session-and-workspace-context-management-foundation.md)
@@ -285,6 +285,28 @@ Compatibility rules:
 - New frontend work should use workspace-scoped routes.
 - Audit return links and diagnostic links should preserve `workspaceId` once
   route migration starts.
+
+## 10.1 Implemented Slice Status
+
+As of 2026-06-09, the accepted foundation implementation includes:
+
+- internal `WorkspaceRegistryEntry` bootstrap input for local sidecar startup;
+- one-process `WorkspaceRuntimeRegistry` with lazy per-workspace runtime
+  construction;
+- `GET /api/v1/workspaces` catalog responses with safe labels and recent
+  session summaries;
+- workspace-scoped session, snapshot, command, event, Audit, and diagnostic
+  route aliases under `/api/v1/workspaces/{workspaceId}/sessions/...`;
+- active-workspace compatibility routes under `/api/v1/sessions/...`;
+- frontend HTTP client and Main Page state keyed by `workspaceId + sessionId`;
+- Main Page workspace sidebar rows for all registered workspaces, including a
+  desktop `Open or add workspace` entry that stays owned by Electron main.
+
+Still deferred:
+
+- concurrent execution policy across multiple active workspaces;
+- inactive runtime eviction policy;
+- full Audit page path migration away from session-only browser paths.
 
 ## 11. Test Contract
 

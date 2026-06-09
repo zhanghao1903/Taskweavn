@@ -4,6 +4,7 @@ import type {
   MainPageSnapshot,
   QueryResponse,
   SessionId,
+  WorkspaceId,
 } from "../../shared/api/types";
 import {
   createFrontendLogger,
@@ -26,6 +27,7 @@ export type HttpMainPageApi = Pick<
   | "deleteSession"
   | "generateTaskTree"
   | "getSessionSnapshot"
+  | "listWorkspaces"
   | "listSessions"
   | "publishTaskTree"
   | "repairAuthoringState"
@@ -42,6 +44,7 @@ export type HttpMainPageAdapterOptions = {
   liveLabel?: string;
   sessionId?: SessionId | null;
   showStatePicker?: boolean;
+  workspaceId?: WorkspaceId | null;
 };
 
 export const NO_SESSION_AVAILABLE_MESSAGE =
@@ -54,40 +57,69 @@ export function createHttpMainPageAdapter({
   liveLabel = "Live Session",
   sessionId,
   showStatePicker = false,
+  workspaceId = null,
 }: HttpMainPageAdapterOptions): MainPageAdapter {
+  function workspaceOptions(nextWorkspaceId?: WorkspaceId | null) {
+    const resolvedWorkspaceId = nextWorkspaceId ?? workspaceId ?? null;
+    return resolvedWorkspaceId === null
+      ? undefined
+      : { workspaceId: resolvedWorkspaceId };
+  }
+
   return {
-    answerAsk(nextSessionId, askId, request) {
-      return api.answerAsk(nextSessionId, askId, request);
+    answerAsk(nextSessionId, askId, request, nextWorkspaceId) {
+      return api.answerAsk(
+        nextSessionId,
+        askId,
+        request,
+        workspaceOptions(nextWorkspaceId),
+      );
     },
-    answerAuthoringAskBatch(nextSessionId, rawTaskId, request) {
-      return api.answerAuthoringAskBatch(nextSessionId, rawTaskId, request);
+    answerAuthoringAskBatch(nextSessionId, rawTaskId, request, nextWorkspaceId) {
+      return api.answerAuthoringAskBatch(
+        nextSessionId,
+        rawTaskId,
+        request,
+        workspaceOptions(nextWorkspaceId),
+      );
     },
-    appendSessionInput(request) {
-      return api.appendSessionInput(request);
+    appendSessionInput(request, nextWorkspaceId) {
+      return api.appendSessionInput(request, workspaceOptions(nextWorkspaceId));
     },
-    appendTaskInput(nextSessionId, taskNodeId, request) {
-      return api.appendTaskInput(nextSessionId, taskNodeId, request);
+    appendTaskInput(nextSessionId, taskNodeId, request, nextWorkspaceId) {
+      return api.appendTaskInput(
+        nextSessionId,
+        taskNodeId,
+        request,
+        workspaceOptions(nextWorkspaceId),
+      );
     },
-    generateTaskTree(request) {
-      return api.generateTaskTree(request);
+    generateTaskTree(request, nextWorkspaceId) {
+      return api.generateTaskTree(request, workspaceOptions(nextWorkspaceId));
     },
-    async loadSnapshot(stateId, nextSessionId) {
+    async loadSnapshot(stateId, nextSessionId, nextWorkspaceId) {
       const activeSessionId = await resolveActiveSessionId(
         api,
         nextSessionId ?? sessionId,
+        nextWorkspaceId ?? workspaceId,
       );
       adapterLogger.info("snapshot.load.start", {
         sessionId: activeSessionId,
         stateId,
+        workspaceId: nextWorkspaceId ?? workspaceId ?? null,
       });
 
       try {
-        const response = await api.getSessionSnapshot(activeSessionId);
+        const response = await api.getSessionSnapshot(
+          activeSessionId,
+          workspaceOptions(nextWorkspaceId),
+        );
         adapterLogger.debug("snapshot.load.response", {
           ok: response.ok,
           requestId: response.requestId,
           sessionId: activeSessionId,
           stateId,
+          workspaceId: nextWorkspaceId ?? workspaceId ?? null,
         });
 
         const snapshot = unwrapSnapshot(response);
@@ -101,6 +133,7 @@ export function createHttpMainPageAdapter({
           detailMode: metadata.detail.mode,
           sessionId: activeSessionId,
           stateId,
+          workspaceId: nextWorkspaceId ?? workspaceId ?? null,
         });
 
         return {
@@ -116,67 +149,125 @@ export function createHttpMainPageAdapter({
             error: toLoggableError(error),
             sessionId: activeSessionId,
             stateId,
+            workspaceId: nextWorkspaceId ?? workspaceId ?? null,
           },
         );
         throw error;
       }
     },
-    async createSession(payload) {
-      const response = await api.createSession(payload);
+    async createSession(payload, nextWorkspaceId) {
+      const response = await api.createSession(
+        payload,
+        workspaceOptions(nextWorkspaceId),
+      );
       return unwrapLifecycle(response);
     },
-    async renameSession(payload) {
-      const response = await api.renameSession(payload.sessionId, {
-        name: payload.name,
-      });
+    async renameSession(payload, nextWorkspaceId) {
+      const response = await api.renameSession(
+        payload.sessionId,
+        {
+          name: payload.name,
+        },
+        workspaceOptions(nextWorkspaceId),
+      );
       return unwrapLifecycle(response);
     },
-    async deleteSession(nextSessionId) {
-      const response = await api.deleteSession(nextSessionId);
+    async deleteSession(nextSessionId, nextWorkspaceId) {
+      const response = await api.deleteSession(
+        nextSessionId,
+        workspaceOptions(nextWorkspaceId),
+      );
       return unwrapLifecycle(response);
     },
-    cancelAsk(nextSessionId, askId, request) {
-      return api.cancelAsk(nextSessionId, askId, request);
+    cancelAsk(nextSessionId, askId, request, nextWorkspaceId) {
+      return api.cancelAsk(
+        nextSessionId,
+        askId,
+        request,
+        workspaceOptions(nextWorkspaceId),
+      );
     },
-    deferAsk(nextSessionId, askId, request) {
-      return api.deferAsk(nextSessionId, askId, request);
+    deferAsk(nextSessionId, askId, request, nextWorkspaceId) {
+      return api.deferAsk(
+        nextSessionId,
+        askId,
+        request,
+        workspaceOptions(nextWorkspaceId),
+      );
     },
-    resolveConfirmation(nextSessionId, confirmationId, request) {
-      return api.resolveConfirmation(nextSessionId, confirmationId, request);
+    resolveConfirmation(nextSessionId, confirmationId, request, nextWorkspaceId) {
+      return api.resolveConfirmation(
+        nextSessionId,
+        confirmationId,
+        request,
+        workspaceOptions(nextWorkspaceId),
+      );
     },
-    publishTaskTree(request) {
-      return api.publishTaskTree(request);
+    async loadWorkspaceCatalog() {
+      const response = await api.listWorkspaces();
+      return unwrapLifecycle(response);
     },
-    repairAuthoringState(request) {
-      return api.repairAuthoringState(request);
+    publishTaskTree(request, nextWorkspaceId) {
+      return api.publishTaskTree(request, workspaceOptions(nextWorkspaceId));
     },
-    retryTask(nextSessionId, taskNodeId, request) {
-      return api.retryTask(nextSessionId, taskNodeId, request);
+    repairAuthoringState(request, nextWorkspaceId) {
+      return api.repairAuthoringState(request, workspaceOptions(nextWorkspaceId));
     },
-    stopTask(nextSessionId, taskNodeId, request) {
-      return api.stopTask(nextSessionId, taskNodeId, request);
+    retryTask(nextSessionId, taskNodeId, request, nextWorkspaceId) {
+      return api.retryTask(
+        nextSessionId,
+        taskNodeId,
+        request,
+        workspaceOptions(nextWorkspaceId),
+      );
+    },
+    stopTask(nextSessionId, taskNodeId, request, nextWorkspaceId) {
+      return api.stopTask(
+        nextSessionId,
+        taskNodeId,
+        request,
+        workspaceOptions(nextWorkspaceId),
+      );
     },
     runtimeKind: "http",
     sessionId: sessionId ?? null,
     showStatePicker,
-    subscribeSessionEvents(nextSessionId, cursor, onEvent) {
-      return api.subscribeSessionEvents(nextSessionId, cursor, onEvent);
+    subscribeSessionEvents(nextSessionId, cursor, onEvent, nextWorkspaceId) {
+      return api.subscribeSessionEvents(
+        nextSessionId,
+        cursor,
+        onEvent,
+        workspaceOptions(nextWorkspaceId),
+      );
     },
-    updateTaskNode(nextSessionId, taskNodeId, request) {
-      return api.updateTaskNode(nextSessionId, taskNodeId, request);
+    updateTaskNode(nextSessionId, taskNodeId, request, nextWorkspaceId) {
+      return api.updateTaskNode(
+        nextSessionId,
+        taskNodeId,
+        request,
+        workspaceOptions(nextWorkspaceId),
+      );
     },
+    workspaceId,
   };
 }
 
 async function resolveActiveSessionId(
   api: Pick<PlatoApi, "listSessions">,
   preferredSessionId: SessionId | null | undefined,
+  workspaceId: WorkspaceId | null | undefined,
 ): Promise<SessionId> {
   if (preferredSessionId) {
     return preferredSessionId;
   }
 
-  const sessions = unwrapLifecycle(await api.listSessions()).sessions;
+  const sessions = unwrapLifecycle(
+    await api.listSessions(
+      workspaceId === null || workspaceId === undefined
+        ? undefined
+        : { workspaceId },
+    ),
+  ).sessions;
   if (sessions.length > 0) {
     return sessions[0].id;
   }

@@ -14,7 +14,7 @@ from taskweavn.server.settings_readiness import (
 NOW = datetime(2026, 6, 5, 12, 0, tzinfo=UTC)
 
 
-def test_missing_default_litellm_key_returns_first_run_blocker(tmp_path: Path) -> None:
+def test_missing_default_deepseek_key_returns_first_run_blocker(tmp_path: Path) -> None:
     report = build_settings_readiness_report(
         workspace_root=tmp_path,
         env={},
@@ -29,20 +29,24 @@ def test_missing_default_litellm_key_returns_first_run_blocker(tmp_path: Path) -
         "blockingIssueCodes": ["llm.missing_api_key"],
         "recommendedActions": ["open_settings"],
     }
-    assert report["llm"]["provider"] == "litellm"
+    assert report["llm"]["provider"] == "deepseek"
+    assert report["llm"]["model"] == "deepseek-v4-pro"
     assert report["llm"]["providerSource"] == "default"
+    assert report["llm"]["modelSource"] == "default"
     assert report["llm"]["configured"] is False
     assert report["llm"]["apiKeyConfigured"] is False
-    assert report["llm"]["missingEnvVars"] == ["LLM_API_KEY"]
+    assert report["llm"]["missingEnvVars"] == ["DEEPSEEK_API_KEY", "LLM_API_KEY"]
     assert report["blockingIssues"][0]["recoveryActions"] == ["open_settings"]
 
 
-def test_configured_litellm_readiness_does_not_expose_secret(tmp_path: Path) -> None:
+def test_configured_default_deepseek_readiness_does_not_expose_secret(
+    tmp_path: Path,
+) -> None:
     report = build_settings_readiness_report(
         workspace_root=tmp_path,
         env={
             "LLM_API_KEY": "sk-super-secret",
-            "LLM_MODEL": "anthropic/test-model",
+            "LLM_MODEL": "deepseek-v4-pro",
             "LLM_REQUEST_TIMEOUT_SECONDS": "none",
             "LLM_THINKING_ENABLED": "yes",
             "LLM_THINKING_EFFORT": "low",

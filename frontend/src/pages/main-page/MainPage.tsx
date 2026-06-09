@@ -40,6 +40,7 @@ export function MainPage({
 }: MainPageProps = {}) {
   const {
     actions,
+    activeWorkspaceId,
     authoringAskError,
     authoringAskRecoveryActions,
     confirmationError,
@@ -76,6 +77,7 @@ export function MainPage({
     taskTreeCommandError,
     taskTreeCommandRecoveryActions,
     uiNotice,
+    workspaceCatalog,
   } = useMainPageController({
     adapter,
     initialStateId,
@@ -117,6 +119,8 @@ export function MainPage({
           sessionDialog={sessionDialog}
           showStatePicker={adapter.showStatePicker}
           stateId={stateId}
+          activeWorkspaceId={activeWorkspaceId}
+          workspaceCatalog={workspaceCatalog}
           workspaceRuntime={workspaceRuntime}
         />
       );
@@ -192,6 +196,7 @@ export function MainPage({
     taskTreeCommandError,
     taskTreeCommandRecoveryActions,
     uiNotice,
+    workspaceId: activeWorkspaceId,
   });
 
   return (
@@ -207,18 +212,21 @@ export function MainPage({
       sessionDialog={sessionDialog}
       topBarTrailing={topBarTrailing}
       viewModel={viewModel}
+      activeWorkspaceId={activeWorkspaceId}
+      workspaceCatalog={workspaceCatalog}
       workspaceRuntime={workspaceRuntime}
     />
   );
 }
 
 type MainPageNoSessionFrameProps = {
+  activeWorkspaceId: string | null;
   isCreatingSession: boolean;
   isDeletingSession: boolean;
   isRenamingSession: boolean;
   onCancelSessionDialog: () => void;
   onChangeSessionDialogDraft: (draftName: string) => void;
-  onCreateSession: () => void;
+  onCreateSession: MainPageControllerAction<"createSession">;
   onDeleteSession: MainPageControllerAction<"deleteSession">;
   onRenameSession: MainPageControllerAction<"renameSession">;
   onSelectSession: MainPageControllerAction<"selectSession">;
@@ -227,6 +235,7 @@ type MainPageNoSessionFrameProps = {
   sessionDialog: ReturnType<typeof useMainPageController>["sessionDialog"];
   showStatePicker: boolean;
   stateId: MainPageStateId;
+  workspaceCatalog: ReturnType<typeof useMainPageController>["workspaceCatalog"];
   workspaceRuntime?: MainPageWorkspaceRuntime | null;
 };
 
@@ -235,6 +244,7 @@ type MainPageControllerAction<
 > = ReturnType<typeof useMainPageController>["actions"][TAction];
 
 function MainPageNoSessionFrame({
+  activeWorkspaceId,
   isCreatingSession,
   isDeletingSession,
   isRenamingSession,
@@ -249,6 +259,7 @@ function MainPageNoSessionFrame({
   sessionDialog,
   showStatePicker,
   stateId,
+  workspaceCatalog,
   workspaceRuntime = null,
 }: MainPageNoSessionFrameProps) {
   return (
@@ -285,6 +296,8 @@ function MainPageNoSessionFrame({
         onSubmitSessionDialog={onSubmitSessionDialog}
         sessionDialog={sessionDialog}
         sessions={[]}
+        activeWorkspaceId={activeWorkspaceId}
+        workspaceCatalog={workspaceCatalog}
         workspaceRuntime={workspaceRuntime}
       />
 
@@ -303,7 +316,7 @@ function MainPageNoSessionFrame({
           </Text>
           <Button
             disabled={isCreatingSession}
-            onClick={onCreateSession}
+            onClick={() => onCreateSession(activeWorkspaceId)}
             variant="primary"
           >
             {isCreatingSession ? "Creating session" : "New session"}

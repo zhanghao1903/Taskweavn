@@ -48,6 +48,7 @@ from taskweavn.server import (
     DEFAULT_PLATO_SIDECAR_PORT,
     MainPageSidecarConfig,
     MainPageSidecarDependencies,
+    WorkspaceRegistryEntry,
     build_main_page_sidecar_app,
 )
 from taskweavn.tools.base import Tool
@@ -115,15 +116,28 @@ def plato_sidecar(
             help="LLM model identifier for Collaborator authoring. Defaults to env.",
         ),
     ] = None,
+    workspace_registry_json: Annotated[
+        str | None,
+        typer.Option(
+            "--workspace-registry-json",
+            envvar="PLATO_WORKSPACE_REGISTRY_JSON",
+            help=(
+                "Internal Plato desktop workspace registry JSON. Renderer-safe "
+                "workspace IDs map to local roots inside the sidecar only."
+            ),
+        ),
+    ] = None,
 ) -> None:
     """Start the local Plato Main Page backend sidecar."""
 
     llm = LLMClient.from_env() if model is None else LLMClient(model=model)
+    workspace_registry = _parse_workspace_registry_json(workspace_registry_json)
     sidecar = build_main_page_sidecar_app(
         MainPageSidecarConfig(
             workspace_root=workspace,
             host=host,
             port=port,
+            workspace_registry=workspace_registry,
         ),
         MainPageSidecarDependencies(llm=llm),
     )
@@ -140,6 +154,45 @@ def plato_sidecar(
         typer.echo("\n[plato-sidecar] stopping")
     finally:
         sidecar.close()
+
+
+def _parse_workspace_registry_json(raw: str | None) -> tuple[WorkspaceRegistryEntry, ...]:
+    if raw is None or raw.strip() == "":
+        return ()
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise typer.BadParameter("workspace registry must be valid JSON") from exc
+    if not isinstance(payload, list):
+        raise typer.BadParameter("workspace registry must be a JSON array")
+
+    entries: list[WorkspaceRegistryEntry] = []
+    for index, item in enumerate(payload):
+        if not isinstance(item, dict):
+            raise typer.BadParameter(f"workspace registry entry {index} must be an object")
+        workspace_id = item.get("workspaceId")
+        root_path = item.get("rootPath")
+        label = item.get("label")
+        if not isinstance(workspace_id, str) or not workspace_id:
+            raise typer.BadParameter(f"workspace registry entry {index} missing workspaceId")
+        if not isinstance(root_path, str) or not root_path:
+            raise typer.BadParameter(f"workspace registry entry {index} missing rootPath")
+        if not isinstance(label, str) or not label:
+            raise typer.BadParameter(f"workspace registry entry {index} missing label")
+        entries.append(
+            WorkspaceRegistryEntry(
+                workspace_id=workspace_id,
+                root_path=Path(root_path),
+                label=label,
+                is_current=item.get("isCurrent") is True,
+                last_opened_at=(
+                    item.get("lastOpenedAt")
+                    if isinstance(item.get("lastOpenedAt"), str)
+                    else None
+                ),
+            )
+        )
+    return tuple(entries)
 
 
 @app.command("plato-dev")

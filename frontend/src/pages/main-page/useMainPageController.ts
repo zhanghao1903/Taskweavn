@@ -4,12 +4,14 @@ import { useEffect, useRef, useState } from "react";
 import type {
   AnswerAuthoringAskItemPayload,
   ProductRecoveryAction,
+  WorkspaceCatalogResult,
 } from "../../shared/api/platoApi";
 import type {
   ConfirmationActionView,
   AskId,
   SessionSummary,
   TaskNodeId,
+  WorkspaceId,
 } from "../../shared/api/types";
 import {
   summarizeCommandResponse,
@@ -122,6 +124,7 @@ export type SessionLifecycleDialog =
 
 export type MainPageController = {
   activeSessionId: string | null;
+  activeWorkspaceId: WorkspaceId | null;
   authoringAskError: string | null;
   authoringAskRecoveryActions: ProductRecoveryAction[];
   confirmationError: string | null;
@@ -158,12 +161,13 @@ export type MainPageController = {
   taskTreeCommandError: string | null;
   taskTreeCommandRecoveryActions: ProductRecoveryAction[];
   uiNotice: string | null;
+  workspaceCatalog: WorkspaceCatalogResult | null;
   actions: {
     cancelSessionDialog: () => void;
     changeSessionDialogDraft: (draftName: string) => void;
     changeInputDraft: (draft: string) => void;
     changeState: (nextStateId: MainPageStateId) => void;
-    createSession: () => void;
+    createSession: (workspaceId?: WorkspaceId | null) => void;
     deleteSession: (session: SessionSummary) => void;
     answerAuthoringAskBatch: (context: AnswerAuthoringAskBatchContext) => void;
     repairAuthoringState: (context: RepairAuthoringStateContext) => void;
@@ -236,12 +240,32 @@ export function useMainPageController({
   const [activeSessionId, setActiveSessionId] = useState<string | null>(
     adapter.sessionId,
   );
+  const [activeWorkspaceId, setActiveWorkspaceId] = useState<WorkspaceId | null>(
+    adapter.workspaceId ?? null,
+  );
   const [eventConnectionStatus, setEventConnectionStatus] =
     useState<EventConnectionStatus>("disconnected");
 
+  const workspaceCatalogQuery = useQuery({
+    enabled: adapter.loadWorkspaceCatalog !== undefined,
+    queryKey: ["main-page", "workspaces", adapter.runtimeKind],
+    queryFn: () => {
+      if (adapter.loadWorkspaceCatalog === undefined) {
+        throw new Error("Workspace catalog is unavailable.");
+      }
+      return adapter.loadWorkspaceCatalog();
+    },
+  });
+  const workspaceCatalog = workspaceCatalogQuery.data ?? null;
+
   const snapshotQuery = useQuery({
-    queryKey: mainPageSnapshotQueryKey(adapter, stateId, activeSessionId),
-    queryFn: () => adapter.loadSnapshot(stateId, activeSessionId),
+    queryKey: mainPageSnapshotQueryKey(
+      adapter,
+      stateId,
+      activeSessionId,
+      activeWorkspaceId,
+    ),
+    queryFn: () => adapter.loadSnapshot(stateId, activeSessionId, activeWorkspaceId),
   });
   const snapshotData = snapshotQuery.data;
   const snapshotDataRef = useRef(snapshotData);
@@ -249,7 +273,13 @@ export function useMainPageController({
   const lastResyncEventKeyRef = useRef<string | null>(null);
   snapshotDataRef.current = snapshotData;
   const snapshotIdentity = snapshotData
-    ? mainPageSnapshotIdentity(adapter, stateId, snapshotData, activeSessionId)
+    ? mainPageSnapshotIdentity(
+        adapter,
+        stateId,
+        snapshotData,
+        activeSessionId,
+        activeWorkspaceId,
+      )
     : null;
   const refetchSnapshot = snapshotQuery.refetch;
 
@@ -311,6 +341,13 @@ export function useMainPageController({
   }, [activeSessionId, snapshotData]);
 
   useEffect(() => {
+    if (activeWorkspaceId !== null || workspaceCatalog === null) {
+      return;
+    }
+    setActiveWorkspaceId(workspaceCatalog.currentWorkspaceId);
+  }, [activeWorkspaceId, workspaceCatalog]);
+
+  useEffect(() => {
     if (!snapshotQuery.isError) {
       return;
     }
@@ -356,7 +393,7 @@ export function useMainPageController({
         payload: {
           value: decision,
         },
-      }),
+      }, activeWorkspaceId),
     onError: () => {
       setConfirmationCommandError("Confirmation failed. Please retry.");
     },
@@ -393,7 +430,7 @@ export function useMainPageController({
         payload: {
           answers,
         },
-      }),
+      }, activeWorkspaceId),
     onError: () => {
       setAuthoringAskCommandError("Answer submission failed. Please retry.");
     },
@@ -427,7 +464,7 @@ export function useMainPageController({
         payload: {
           reason: "dirty_authoring_state",
         },
-      }),
+      }, activeWorkspaceId),
     onError: () => {
       setTaskTreeCommandError("Authoring repair failed. Please retry.");
     },
@@ -464,7 +501,7 @@ export function useMainPageController({
           selectedOptionIds,
           text: text ?? null,
         },
-      }),
+      }, activeWorkspaceId),
     onError: () => {
       setExecutionAskCommandError("Answer submission failed. Please retry.");
     },
@@ -501,7 +538,7 @@ export function useMainPageController({
         payload: {
           reason: reason ?? null,
         },
-      }),
+      }, activeWorkspaceId),
     onError: () => {
       setExecutionAskCommandError("Defer failed. Please retry.");
     },
@@ -535,7 +572,7 @@ export function useMainPageController({
         payload: {
           reason,
         },
-      }),
+      }, activeWorkspaceId),
     onError: () => {
       setExecutionAskCommandError("Cancel failed. Please retry.");
     },
@@ -585,7 +622,7 @@ export function useMainPageController({
             content,
             mode: "guidance",
           },
-        });
+        }, activeWorkspaceId);
       }
 
       if (mode === "generate_task_tree") {
@@ -595,7 +632,7 @@ export function useMainPageController({
           payload: {
             prompt: content,
           },
-        });
+        }, activeWorkspaceId);
       }
 
       return adapter.appendSessionInput({
@@ -605,7 +642,7 @@ export function useMainPageController({
           content,
           mode: "global_guidance",
         },
-      });
+      }, activeWorkspaceId);
     },
     onError: () => {
       setInputCommandError("Input submission failed. Please retry.");
@@ -644,7 +681,7 @@ export function useMainPageController({
           taskTreeId,
           startImmediately: true,
         },
-      }),
+      }, activeWorkspaceId),
     onError: () => {
       setTaskTreeCommandFailure("Publish failed. Please retry.");
     },
@@ -683,7 +720,7 @@ export function useMainPageController({
         payload: {
           startImmediately: true,
         },
-      }),
+      }, activeWorkspaceId),
     onError: () => {
       setTaskTreeCommandFailure("Retry failed. Please retry.");
     },
@@ -729,7 +766,7 @@ export function useMainPageController({
         payload: {
           reason: "user requested stop",
         },
-      });
+      }, activeWorkspaceId);
     },
     onError: (error) => {
       mainPageLogger.error("command.stop.failed", {
@@ -784,10 +821,19 @@ export function useMainPageController({
   });
 
   const createSessionMutation = useMutation({
-    mutationFn: async (name: string) =>
-      adapter.createSession({
-        name,
-      }),
+    mutationFn: async ({
+      name,
+      workspaceId,
+    }: {
+      name: string;
+      workspaceId: WorkspaceId | null;
+    }) =>
+      adapter.createSession(
+        {
+          name,
+        },
+        workspaceId,
+      ),
     onError: () => {
       setSessionDialogError("Create session failed. Please retry.");
     },
@@ -798,6 +844,9 @@ export function useMainPageController({
         return;
       }
 
+      if (result.session?.workspaceId) {
+        setActiveWorkspaceId(result.session.workspaceId);
+      }
       setActiveSessionId(nextSessionId);
       setUiNotice(`Created session ${result.session?.name ?? nextSessionId}.`);
       setSessionDialog({ mode: "idle" });
@@ -808,14 +857,16 @@ export function useMainPageController({
     mutationFn: async ({
       name,
       sessionId,
+      workspaceId,
     }: {
       name: string;
       sessionId: string;
+      workspaceId: WorkspaceId | null;
     }) =>
       adapter.renameSession({
         name,
         sessionId,
-      }),
+      }, workspaceId),
     onError: () => {
       setSessionDialogError("Rename session failed. Please retry.");
     },
@@ -827,7 +878,13 @@ export function useMainPageController({
   });
 
   const deleteSessionMutation = useMutation({
-    mutationFn: async (sessionId: string) => adapter.deleteSession(sessionId),
+    mutationFn: async ({
+      sessionId,
+      workspaceId,
+    }: {
+      sessionId: string;
+      workspaceId: WorkspaceId | null;
+    }) => adapter.deleteSession(sessionId, workspaceId),
     onError: () => {
       setSessionDialogError("Delete session failed. Please retry.");
     },
@@ -948,6 +1005,7 @@ export function useMainPageController({
               }
             });
         },
+        activeWorkspaceId,
       );
     } catch (error) {
       mainPageLogger.error("events.subscribe.failed", {
@@ -971,7 +1029,7 @@ export function useMainPageController({
       });
       unsubscribe?.();
     };
-  }, [adapter, refetchSnapshot, snapshotData]);
+  }, [activeWorkspaceId, adapter, refetchSnapshot, snapshotData]);
 
   function handleStateChange(nextStateId: MainPageStateId) {
     setStateId(nextStateId);
@@ -1019,17 +1077,26 @@ export function useMainPageController({
     session: SessionSummary,
     currentSessionId: string,
   ) {
-    if (session.id === currentSessionId) {
+    const nextWorkspaceId = session.workspaceId ?? activeWorkspaceId;
+    if (session.id === currentSessionId && nextWorkspaceId === activeWorkspaceId) {
       setUiNotice("This session is already open.");
       return;
     }
 
+    setActiveWorkspaceId(nextWorkspaceId ?? null);
     setActiveSessionId(session.id);
   }
 
-  function handleCreateSession() {
+  function handleCreateSession(workspaceId?: WorkspaceId | null) {
+    const targetWorkspaceId = workspaceId ?? activeWorkspaceId;
+    if (targetWorkspaceId !== activeWorkspaceId) {
+      setActiveWorkspaceId(targetWorkspaceId ?? null);
+    }
     if (!snapshotDataRef.current) {
-      createSessionMutation.mutate("New session");
+      createSessionMutation.mutate({
+        name: "New session",
+        workspaceId: targetWorkspaceId ?? null,
+      });
       return;
     }
 
@@ -1090,7 +1157,10 @@ export function useMainPageController({
 
     if (sessionDialog.mode === "delete") {
       setUiNotice(null);
-      deleteSessionMutation.mutate(sessionDialog.session.id);
+      deleteSessionMutation.mutate({
+        sessionId: sessionDialog.session.id,
+        workspaceId: sessionDialog.session.workspaceId ?? activeWorkspaceId,
+      });
       return;
     }
 
@@ -1103,13 +1173,17 @@ export function useMainPageController({
     setUiNotice(null);
 
     if (sessionDialog.mode === "create") {
-      createSessionMutation.mutate(trimmed);
+      createSessionMutation.mutate({
+        name: trimmed,
+        workspaceId: activeWorkspaceId,
+      });
       return;
     }
 
     renameSessionMutation.mutate({
       name: trimmed,
       sessionId: sessionDialog.session.id,
+      workspaceId: sessionDialog.session.workspaceId ?? activeWorkspaceId,
     });
   }
 
@@ -1275,6 +1349,7 @@ export function useMainPageController({
 
   return {
     activeSessionId,
+    activeWorkspaceId,
     authoringAskError,
     authoringAskRecoveryActions,
     confirmationError,
@@ -1311,6 +1386,7 @@ export function useMainPageController({
     taskTreeCommandError,
     taskTreeCommandRecoveryActions,
     uiNotice,
+    workspaceCatalog,
     actions: {
       answerAuthoringAskBatch: handleAnswerAuthoringAskBatch,
       answerAsk: handleAnswerAsk,

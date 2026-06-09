@@ -20,12 +20,13 @@ def test_settings_config_summary_returns_safe_defaults(tmp_path: Path) -> None:
     summary = gateway.get_config()
 
     assert summary["schemaVersion"] == "plato.settings_config.v1"
-    assert summary["llm"]["provider"] == "litellm"
+    assert summary["llm"]["provider"] == "deepseek"
     assert summary["llm"]["providerSource"] == "default"
+    assert summary["llm"]["model"] == "deepseek-v4-pro"
     assert summary["llm"]["modelSource"] == "default"
     assert summary["llm"]["apiKeyConfigured"] is False
     assert summary["llm"]["apiKeySource"] == "none"
-    assert summary["llm"]["apiKeyEnvVar"] == "LLM_API_KEY"
+    assert summary["llm"]["apiKeyEnvVar"] == "DEEPSEEK_API_KEY"
     assert {"litellm", "deepseek", "openrouter"} == {
         option["id"] for option in summary["llm"]["providerOptions"]
     }
@@ -72,8 +73,8 @@ def test_settings_config_blank_api_key_keeps_existing_secret(tmp_path: Path) -> 
     gateway.update_config(
         {
             "llm": {
-                "provider": "litellm",
-                "model": "anthropic/initial",
+                "provider": "deepseek",
+                "model": "deepseek-chat",
                 "apiKey": "sk-existing-secret",
             }
         }
@@ -82,14 +83,14 @@ def test_settings_config_blank_api_key_keeps_existing_secret(tmp_path: Path) -> 
     result = gateway.update_config(
         {
             "llm": {
-                "provider": "litellm",
-                "model": "anthropic/updated",
+                "provider": "deepseek",
+                "model": "deepseek-v4-pro",
                 "apiKey": "",
             }
         }
     )
 
-    assert result["config"]["llm"]["model"] == "anthropic/updated"
+    assert result["config"]["llm"]["model"] == "deepseek-v4-pro"
     assert result["config"]["llm"]["apiKeyConfigured"] is True
     assert result["readiness"]["status"] == "ready"
     assert "sk-existing-secret" not in json.dumps(result)

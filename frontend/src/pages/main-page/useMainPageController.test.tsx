@@ -48,11 +48,12 @@ describe("useMainPageController", () => {
 
     expect(result.current.stateId).toBe("s3-draft-ready");
     expect(result.current.eventConnectionStatus).toBe("connected");
-    expect(loadSnapshot).toHaveBeenCalledWith("s3-draft-ready", null);
+    expect(loadSnapshot).toHaveBeenCalledWith("s3-draft-ready", null, null);
     expect(subscribeSessionEvents).toHaveBeenCalledWith(
       "session-website-plan",
       "cursor-s3-draft-ready",
       expect.any(Function),
+      null,
     );
   });
 
@@ -135,6 +136,7 @@ describe("useMainPageController", () => {
           sessionId: "session-website-plan",
           payload: { startImmediately: true },
         }),
+        null,
       );
     });
     await waitFor(() => {
@@ -181,6 +183,7 @@ describe("useMainPageController", () => {
           sessionId: "session-website-plan",
           payload: { reason: "user requested stop" },
         }),
+        null,
       );
     });
     await waitFor(() => {
@@ -237,6 +240,7 @@ describe("useMainPageController", () => {
             ],
           },
         }),
+        null,
       );
     });
     await waitFor(() => {
@@ -283,6 +287,7 @@ describe("useMainPageController", () => {
             reason: "dirty_authoring_state",
           },
         }),
+        null,
       );
     });
     await waitFor(() => {
@@ -335,6 +340,7 @@ describe("useMainPageController", () => {
             text: null,
           },
         }),
+        null,
       );
     });
     await waitFor(() => {
@@ -435,6 +441,7 @@ describe("useMainPageController", () => {
             reason: "user deferred ASK",
           },
         }),
+        null,
       );
     });
 
@@ -455,6 +462,7 @@ describe("useMainPageController", () => {
             reason: "user cancelled ASK",
           },
         }),
+        null,
       );
     });
   });
@@ -494,12 +502,13 @@ describe("useMainPageController", () => {
     });
 
     await waitFor(() => {
-      expect(createSession).toHaveBeenCalledWith({ name: "New session" });
+      expect(createSession).toHaveBeenCalledWith({ name: "New session" }, null);
     });
     await waitFor(() => {
       expect(loadSnapshot).toHaveBeenCalledWith(
         "s3-draft-ready",
         "session-new",
+        null,
       );
     });
 
@@ -641,7 +650,7 @@ describe("useMainPageController", () => {
       expect(renameSession).toHaveBeenCalledWith({
         name: "Renamed session",
         sessionId: "session-website-plan",
-      });
+      }, null);
     });
     expect(result.current.sessionDialog.mode).toBe("idle");
   });
@@ -727,7 +736,7 @@ describe("useMainPageController", () => {
     });
 
     await waitFor(() => {
-      expect(deleteSession).toHaveBeenCalledWith("session-website-plan");
+      expect(deleteSession).toHaveBeenCalledWith("session-website-plan", null);
     });
     expect(result.current.activeSessionId).toBe("session-next");
     expect(result.current.sessionDialog.mode).toBe("idle");

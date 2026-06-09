@@ -37,9 +37,14 @@ export async function startPythonSidecar({
   startupId,
   timeoutMs = DEFAULT_TIMEOUT_MS,
   validateLauncher = true,
+  workspaceRegistry = [],
   workspaceRoot,
 }) {
   const resolvedWorkspaceRoot = path.resolve(workspaceRoot);
+  const resolvedWorkspaceRegistry = workspaceRegistry.map((entry) => ({
+    ...entry,
+    rootPath: path.resolve(entry.rootPath),
+  }));
   const resolvedLauncherPath = launcherPath === null ? null : path.resolve(launcherPath);
   const resolvedRepoRoot =
     repoRoot === undefined || repoRoot === null ? null : path.resolve(repoRoot);
@@ -48,6 +53,7 @@ export async function startPythonSidecar({
   const healthUrl = `${baseUrl}/api/v1/health`;
   const redactionPaths = [
     resolvedWorkspaceRoot,
+    ...resolvedWorkspaceRegistry.map((entry) => entry.rootPath),
     resolvedRepoRoot,
     resolvedLauncherPath === null ? null : path.dirname(resolvedLauncherPath),
   ].filter(Boolean);
@@ -64,6 +70,7 @@ export async function startPythonSidecar({
     repoRoot: resolvedRepoRoot,
     startupId,
     validateLauncher,
+    workspaceRegistry: resolvedWorkspaceRegistry,
     workspaceRoot: resolvedWorkspaceRoot,
   });
   let exited = null;
@@ -145,8 +152,8 @@ export async function startPythonSidecar({
   };
 }
 
-export function buildSidecarArgs({ host, port, workspaceRoot }) {
-  return [
+export function buildSidecarArgs({ host, port, workspaceRegistry = [], workspaceRoot }) {
+  const args = [
     "run",
     "taskweavn",
     "plato-sidecar",
@@ -157,10 +164,19 @@ export function buildSidecarArgs({ host, port, workspaceRoot }) {
     "--port",
     String(port),
   ];
+  if (workspaceRegistry.length > 0) {
+    args.push("--workspace-registry-json", JSON.stringify(workspaceRegistry));
+  }
+  return args;
 }
 
-export function buildLauncherSidecarArgs({ host, port, workspaceRoot }) {
-  return [
+export function buildLauncherSidecarArgs({
+  host,
+  port,
+  workspaceRegistry = [],
+  workspaceRoot,
+}) {
+  const args = [
     "--workspace",
     workspaceRoot,
     "--host",
@@ -168,6 +184,10 @@ export function buildLauncherSidecarArgs({ host, port, workspaceRoot }) {
     "--port",
     String(port),
   ];
+  if (workspaceRegistry.length > 0) {
+    args.push("--workspace-registry-json", JSON.stringify(workspaceRegistry));
+  }
+  return args;
 }
 
 function buildLaunchCommand({
@@ -181,6 +201,7 @@ function buildLaunchCommand({
   repoRoot,
   startupId,
   validateLauncher,
+  workspaceRegistry,
   workspaceRoot,
 }) {
   if (launcherPath !== null) {
@@ -202,7 +223,15 @@ function buildLaunchCommand({
       }
     }
     return {
-      args: [launcherPath, ...buildLauncherSidecarArgs({ host, port, workspaceRoot })],
+      args: [
+        launcherPath,
+        ...buildLauncherSidecarArgs({
+          host,
+          port,
+          workspaceRegistry,
+          workspaceRoot,
+        }),
+      ],
       command: launcherNodePath,
       cwd: path.dirname(launcherPath),
       diagnostics: null,
@@ -229,7 +258,7 @@ function buildLaunchCommand({
   }
 
   return {
-    args: buildSidecarArgs({ host, port, workspaceRoot }),
+    args: buildSidecarArgs({ host, port, workspaceRegistry, workspaceRoot }),
     command: "uv",
     cwd: repoRoot,
     diagnostics: null,

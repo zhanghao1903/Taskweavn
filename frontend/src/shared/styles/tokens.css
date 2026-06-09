@@ -344,7 +344,7 @@
   --plato-type-control-line-height: 1.2;
   --plato-type-control-weight: 500;
   --plato-type-caption-size: 12px;
-  --plato-type-caption-line-height: 1.35;
+  --plato-type-caption-line-height: 1.2;
   --plato-type-caption-weight: 500;
   --plato-type-badge-size: 11px;
   --plato-type-badge-line-height: 1.2;
@@ -393,7 +393,7 @@
   --plato-font-mono: var(--plato-typography-family-mono);
 
   /* Plato Spacing */
-  --plato-space-1: 4px;
+  --plato-space-1: 2px;
   --plato-space-2: 8px;
   --plato-space-3: 12px;
   --plato-space-4: 16px;

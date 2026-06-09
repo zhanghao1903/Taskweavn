@@ -52,6 +52,99 @@ describe("createHttpPlatoApi", () => {
     );
   });
 
+  it("loads workspace catalog and workspace-scoped resources", async () => {
+    const calls: Array<{
+      body: unknown;
+      method: string | undefined;
+      url: string;
+    }> = [];
+    const fetcher = vi.fn<FetchFn>(async (input, init) => {
+      calls.push({
+        body: init?.body ? JSON.parse(String(init.body)) : null,
+        method: init?.method,
+        url: String(input),
+      });
+
+      return jsonResponse({
+        data: {
+          currentWorkspaceId: "ws/1",
+          workspaces: [],
+        },
+        error: null,
+        generatedAt: "2026-06-09T10:00:00Z",
+        ok: true,
+        requestId: "workspace-query",
+      });
+    });
+    const eventUrls: string[] = [];
+    const api = createHttpPlatoApi({
+      baseUrl: "https://plato.test/",
+      eventSourceFactory: (url) => {
+        eventUrls.push(url);
+        return {
+          addEventListener() {
+            return undefined;
+          },
+          close() {
+            return undefined;
+          },
+        };
+      },
+      fetcher,
+    });
+
+    await api.listWorkspaces();
+    await api.listSessions({ workspaceId: "ws/1" });
+    await api.getSessionSnapshot("session/1", { workspaceId: "ws/1" });
+    await api.appendSessionInput(
+      {
+        commandId: "append-workspace",
+        sessionId: "session/1",
+        payload: {
+          content: "Use this workspace.",
+          mode: "global_guidance",
+        },
+      },
+      { workspaceId: "ws/1" },
+    );
+    await api.subscribeSessionEvents("session/1", "cursor/1", () => undefined, {
+      workspaceId: "ws/1",
+    })();
+
+    expect(calls).toEqual([
+      {
+        body: null,
+        method: "GET",
+        url: "https://plato.test/api/v1/workspaces",
+      },
+      {
+        body: null,
+        method: "GET",
+        url: "https://plato.test/api/v1/workspaces/ws%2F1/sessions",
+      },
+      {
+        body: null,
+        method: "GET",
+        url: "https://plato.test/api/v1/workspaces/ws%2F1/sessions/session%2F1/snapshot",
+      },
+      {
+        body: {
+          commandId: "append-workspace",
+          sessionId: "session/1",
+          payload: {
+            content: "Use this workspace.",
+            mode: "global_guidance",
+          },
+        },
+        method: "POST",
+        url: "https://plato.test/api/v1/workspaces/ws%2F1/sessions/session%2F1/input",
+      },
+    ]);
+    expect(eventUrls).toEqual([
+      "https://plato.test/api/v1/workspaces/ws%2F1/sessions/session%2F1/events?cursor=cursor%2F1",
+    ]);
+  });
+
   it("posts command requests to session and task endpoints", async () => {
     const calls: Array<{
       body: unknown;
@@ -449,7 +542,7 @@ describe("createHttpPlatoApi", () => {
           blockingIssues: [
             {
               code: "llm.missing_api_key",
-              envVars: ["LLM_API_KEY"],
+              envVars: ["DEEPSEEK_API_KEY", "LLM_API_KEY"],
               message: "LLM API key configuration is missing.",
               recoveryActions: ["open_settings"],
               severity: "blocking",
@@ -470,10 +563,10 @@ describe("createHttpPlatoApi", () => {
           llm: {
             apiKeyConfigured: false,
             configured: false,
-            missingEnvVars: ["LLM_API_KEY"],
-            model: "anthropic/test-model",
+            missingEnvVars: ["DEEPSEEK_API_KEY", "LLM_API_KEY"],
+            model: "deepseek-v4-pro",
             modelSource: "default",
-            provider: "litellm",
+            provider: "deepseek",
             providerSource: "default",
             requestTimeoutConfigured: false,
             requestTimeoutSeconds: 180,
@@ -573,8 +666,8 @@ describe("createHttpPlatoApi", () => {
     const payload = {
       llm: {
         apiKey: "sk-client-secret",
-        model: "anthropic/test-model",
-        provider: "litellm" as const,
+        model: "deepseek-v4-pro",
+        provider: "deepseek" as const,
       },
       logging: {
         selectedProfile: "normal",
@@ -785,12 +878,18 @@ function settingsConfigSummary({
     generatedAt: "2026-06-06T09:00:00Z",
     llm: {
       apiKeyConfigured,
-      apiKeyEnvVar: "LLM_API_KEY",
+      apiKeyEnvVar: "DEEPSEEK_API_KEY",
       apiKeySource: apiKeyConfigured ? "stored" : "none",
-      model: "anthropic/test-model",
+      model: "deepseek-v4-pro",
       modelSource: "stored",
-      provider: "litellm",
+      provider: "deepseek",
       providerOptions: [
+        {
+          id: "deepseek",
+          label: "DeepSeek",
+          preferredApiKeyEnvVar: "DEEPSEEK_API_KEY",
+          requiredApiKeyEnvVars: ["DEEPSEEK_API_KEY", "LLM_API_KEY"],
+        },
         {
           id: "litellm",
           label: "LiteLLM",
@@ -826,7 +925,7 @@ function settingsReadiness({ ready }: { ready: boolean }) {
       : [
           {
             code: "llm.missing_api_key",
-            envVars: ["LLM_API_KEY"],
+            envVars: ["DEEPSEEK_API_KEY", "LLM_API_KEY"],
             message: "LLM API key configuration is missing.",
             recoveryActions: ["open_settings"],
             severity: "blocking",
@@ -847,10 +946,10 @@ function settingsReadiness({ ready }: { ready: boolean }) {
     llm: {
       apiKeyConfigured: ready,
       configured: ready,
-      missingEnvVars: ready ? [] : ["LLM_API_KEY"],
-      model: "anthropic/test-model",
+      missingEnvVars: ready ? [] : ["DEEPSEEK_API_KEY", "LLM_API_KEY"],
+      model: "deepseek-v4-pro",
       modelSource: "env",
-      provider: "litellm",
+      provider: "deepseek",
       providerSource: "env",
       requestTimeoutConfigured: false,
       requestTimeoutSeconds: 180,

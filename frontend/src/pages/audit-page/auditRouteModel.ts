@@ -7,6 +7,7 @@ import type {
   AuditRecordId,
   SessionId,
   TaskNodeId,
+  WorkspaceId,
 } from "../../shared/api/types";
 import {
   buildAuditSessionRoute,
@@ -17,6 +18,7 @@ import {
 export type ParsedAuditRoute = {
   request: AuditSnapshotRequest;
   routeKind: "session" | "task";
+  workspaceId?: WorkspaceId;
 };
 
 const auditFilterKinds = new Set<AuditFilterKind>([
@@ -59,6 +61,7 @@ export function parseAuditLocation(
     return {
       request: buildAuditSnapshotRequest(search, sessionId, taskNodeId),
       routeKind: "task",
+      workspaceId: parseWorkspaceId(search),
     };
   }
 
@@ -72,6 +75,7 @@ export function parseAuditLocation(
     return {
       request: buildAuditSnapshotRequest(search, sessionId),
       routeKind: "session",
+      workspaceId: parseWorkspaceId(search),
     };
   }
 
@@ -89,6 +93,7 @@ export function buildAuditLocation(
     entry: route.request.entry,
     filter: query.filter,
     recordId: query.recordId ?? undefined,
+    workspaceId: route.workspaceId,
   };
 
   if (route.routeKind === "task" && route.request.taskNodeId !== undefined) {
@@ -149,6 +154,14 @@ function parseRecordId(value: string | null): AuditRecordId | undefined {
   }
 
   return value as AuditRecordId;
+}
+
+function parseWorkspaceId(search: string): WorkspaceId | undefined {
+  const value = new URLSearchParams(search).get("workspaceId");
+  if (value === null || value.trim() === "") {
+    return undefined;
+  }
+  return value as WorkspaceId;
 }
 
 function decodeSegment(value: string): string | null {

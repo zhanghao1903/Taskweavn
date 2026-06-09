@@ -153,8 +153,8 @@ def test_settings_config_route_patches_without_echoing_secret() -> None:
             path="/api/v1/settings/config",
             body={
                 "llm": {
-                    "provider": "litellm",
-                    "model": "anthropic/test-model",
+                    "provider": "deepseek",
+                    "model": "deepseek-v4-pro",
                     "apiKey": "sk-transport-secret",
                 }
             },
@@ -168,8 +168,8 @@ def test_settings_config_route_patches_without_echoing_secret() -> None:
     assert settings.update_calls == [
         {
             "llm": {
-                "provider": "litellm",
-                "model": "anthropic/test-model",
+                "provider": "deepseek",
+                "model": "deepseek-v4-pro",
                 "apiKey": "sk-transport-secret",
             }
         }
@@ -184,7 +184,7 @@ def test_settings_config_route_maps_validation_error_without_secret() -> None:
                 SettingsConfigFieldError(
                     path="llm.apiKey",
                     message="an API key is required for the selected provider",
-                    env_vars=("LLM_API_KEY",),
+                    env_vars=("DEEPSEEK_API_KEY", "LLM_API_KEY"),
                 ),
             )
         )
@@ -197,8 +197,8 @@ def test_settings_config_route_maps_validation_error_without_secret() -> None:
             path="/api/v1/settings/config",
             body={
                 "llm": {
-                    "provider": "litellm",
-                    "model": "anthropic/test-model",
+                    "provider": "deepseek",
+                    "model": "deepseek-v4-pro",
                     "apiKey": "sk-validation-secret",
                 }
             },
@@ -1530,7 +1530,7 @@ class _SettingsConfigGateway:
         return {
             "schemaVersion": "plato.settings_config.v1",
             "llm": {
-                "provider": "litellm",
+                "provider": "deepseek",
                 "apiKeyConfigured": False,
             },
         }
@@ -1544,7 +1544,7 @@ class _SettingsConfigGateway:
             "config": {
                 "schemaVersion": "plato.settings_config.v1",
                 "llm": {
-                    "provider": "litellm",
+                    "provider": "deepseek",
                     "apiKeyConfigured": True,
                 },
             },

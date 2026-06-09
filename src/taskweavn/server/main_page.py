@@ -5,8 +5,9 @@ from __future__ import annotations
 import contextlib
 import threading
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
+from typing import cast
 
 from taskweavn.core import (
     Session,
@@ -38,8 +39,18 @@ from taskweavn.server.main_page_sessions import (
     MainPageTaskRefResolver,
     resolve_configured_session,
 )
+from taskweavn.server.multi_workspace import (
+    MultiWorkspacePlatoUiHttpTransport,
+    WorkspaceRegistryEntry,
+    WorkspaceRuntime,
+    WorkspaceRuntimeRegistry,
+)
 from taskweavn.server.settings_config import DefaultSettingsConfigGateway
-from taskweavn.server.sidecar import LocalSidecarConfig, LocalSidecarServer
+from taskweavn.server.sidecar import (
+    LocalSidecarConfig,
+    LocalSidecarServer,
+    SidecarTransport,
+)
 from taskweavn.server.task_timeline import WorkspaceTaskInteractionTimelineService
 from taskweavn.server.ui_command_idempotency import (
     SqliteUiCommandResponseIdempotencyStore,
@@ -125,6 +136,8 @@ class MainPageSidecarConfig:
     enable_session_logging: bool = True
     logging_level: str = "INFO"
     logging_profile: str | None = None
+    workspace_registry: tuple[WorkspaceRegistryEntry, ...] = ()
+    current_workspace_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -147,8 +160,8 @@ class MainPageSidecarDependencies:
 
 
 @dataclass
-class MainPageSidecarApp:
-    """Owns the composed Main Page backend and local sidecar lifecycle."""
+class MainPageWorkspaceRuntime:
+    """Owns one workspace's composed Main Page backend runtime."""
 
     layout: WorkspaceLayout
     session: Session | None
@@ -168,20 +181,7 @@ class MainPageSidecarApp:
     execution_dispatcher: FixedRouteExecutionDispatcher | None
     query_gateway: DefaultUiQueryGateway
     command_gateway: UiCommandGateway
-    transport: PlatoUiHttpTransport
-    server: LocalSidecarServer
-    _server_thread: threading.Thread | None = field(default=None, init=False)
-
-    @property
-    def base_url(self) -> str:
-        return self.server.base_url
-
-    def start_in_thread(self) -> threading.Thread:
-        self._server_thread = self.server.start_in_thread()
-        return self._server_thread
-
-    def serve_forever(self) -> None:
-        self.server.serve_forever()
+    transport: SidecarTransport
 
     def run_fixed_route_tick(
         self,
@@ -208,11 +208,6 @@ class MainPageSidecarApp:
         if self.execution_dispatcher is not None:
             with contextlib.suppress(Exception):
                 self.execution_dispatcher.stop()
-        if self._server_thread is not None:
-            with contextlib.suppress(Exception):
-                self.server.shutdown()
-        with contextlib.suppress(Exception):
-            self.server.server_close()
         with contextlib.suppress(Exception):
             self.message_bus.close()
         close_event_source = getattr(self.event_source, "close", None)
@@ -239,6 +234,37 @@ class MainPageSidecarApp:
         with contextlib.suppress(Exception):
             self.session_manager.close()
 
+
+@dataclass
+class MainPageSidecarApp(MainPageWorkspaceRuntime):
+    """Owns the composed Main Page backend and local sidecar lifecycle."""
+
+    server: LocalSidecarServer
+    _close_callback: Callable[[], None] | None = field(default=None, repr=False)
+    _server_thread: threading.Thread | None = field(default=None, init=False)
+
+    @property
+    def base_url(self) -> str:
+        return self.server.base_url
+
+    def start_in_thread(self) -> threading.Thread:
+        self._server_thread = self.server.start_in_thread()
+        return self._server_thread
+
+    def serve_forever(self) -> None:
+        self.server.serve_forever()
+
+    def close(self) -> None:
+        if self._server_thread is not None:
+            with contextlib.suppress(Exception):
+                self.server.shutdown()
+        with contextlib.suppress(Exception):
+            self.server.server_close()
+        if self._close_callback is not None:
+            self._close_callback()
+            return
+        super().close()
+
     def __enter__(self) -> MainPageSidecarApp:
         self.start_in_thread()
         return self
@@ -247,11 +273,11 @@ class MainPageSidecarApp:
         self.close()
 
 
-def build_main_page_sidecar_app(
+def build_main_page_workspace_runtime(
     config: MainPageSidecarConfig,
     dependencies: MainPageSidecarDependencies,
-) -> MainPageSidecarApp:
-    """Build the first local sidecar target for Plato Main Page."""
+) -> MainPageWorkspaceRuntime:
+    """Build one workspace runtime for Plato Main Page."""
 
     layout = WorkspaceLayout(config.workspace_root)
     session_manager = SessionManager(layout)
@@ -463,15 +489,11 @@ def build_main_page_sidecar_app(
                 workspace_root=config.workspace_root,
             ),
         )
-        server = LocalSidecarServer(
-            transport,
-            config=LocalSidecarConfig(host=config.host, port=config.port),
-        )
     except Exception:
         session_manager.close()
         raise
 
-    return MainPageSidecarApp(
+    return MainPageWorkspaceRuntime(
         layout=layout,
         session=session,
         session_manager=session_manager,
@@ -491,7 +513,118 @@ def build_main_page_sidecar_app(
         query_gateway=query_gateway,
         command_gateway=command_gateway,
         transport=transport,
+    )
+
+
+def build_main_page_sidecar_app(
+    config: MainPageSidecarConfig,
+    dependencies: MainPageSidecarDependencies,
+) -> MainPageSidecarApp:
+    """Build the local sidecar target for Plato Main Page."""
+
+    if config.workspace_registry:
+        return _build_multi_workspace_sidecar_app(config, dependencies)
+
+    runtime = build_main_page_workspace_runtime(config, dependencies)
+    server = LocalSidecarServer(
+        runtime.transport,
+        config=LocalSidecarConfig(host=config.host, port=config.port),
+    )
+    return _sidecar_app_from_runtime(runtime, server)
+
+
+def _build_multi_workspace_sidecar_app(
+    config: MainPageSidecarConfig,
+    dependencies: MainPageSidecarDependencies,
+) -> MainPageSidecarApp:
+    current_workspace_id = _current_workspace_id(
+        config.workspace_registry,
+        configured_id=config.current_workspace_id,
+    )
+
+    def runtime_factory(entry: WorkspaceRegistryEntry) -> MainPageWorkspaceRuntime:
+        runtime_config = replace(
+            config,
+            workspace_root=entry.root_path,
+            session_id=(
+                config.session_id
+                if entry.workspace_id == current_workspace_id
+                else None
+            ),
+            workspace_registry=(),
+            current_workspace_id=None,
+            port=0,
+        )
+        return build_main_page_workspace_runtime(runtime_config, dependencies)
+
+    registry = WorkspaceRuntimeRegistry(
+        entries=config.workspace_registry,
+        current_workspace_id=current_workspace_id,
+        runtime_factory=cast(
+            Callable[[WorkspaceRegistryEntry], WorkspaceRuntime],
+            runtime_factory,
+        ),
+    )
+    current_runtime = cast(
+        MainPageWorkspaceRuntime,
+        registry.get_runtime(current_workspace_id),
+    )
+    transport = MultiWorkspacePlatoUiHttpTransport(
+        registry=registry,
+        auth=None if config.auth_token is None else SidecarAuth(config.auth_token),
+    )
+    server = LocalSidecarServer(
+        transport,
+        config=LocalSidecarConfig(host=config.host, port=config.port),
+    )
+    return _sidecar_app_from_runtime(
+        replace(current_runtime, transport=transport),
+        server,
+        close_callback=registry.close_all,
+    )
+
+
+def _current_workspace_id(
+    entries: tuple[WorkspaceRegistryEntry, ...],
+    *,
+    configured_id: str | None,
+) -> str:
+    if configured_id is not None:
+        return configured_id
+    for entry in entries:
+        if entry.is_current:
+            return entry.workspace_id
+    return entries[0].workspace_id
+
+
+def _sidecar_app_from_runtime(
+    runtime: MainPageWorkspaceRuntime,
+    server: LocalSidecarServer,
+    *,
+    close_callback: Callable[[], None] | None = None,
+) -> MainPageSidecarApp:
+    return MainPageSidecarApp(
+        layout=runtime.layout,
+        session=runtime.session,
+        session_manager=runtime.session_manager,
+        message_stream=runtime.message_stream,
+        message_bus=runtime.message_bus,
+        ask_store=runtime.ask_store,
+        task_bus=runtime.task_bus,
+        raw_task_store=runtime.raw_task_store,
+        draft_store=runtime.draft_store,
+        authoring_state_store=runtime.authoring_state_store,
+        authoring_idempotency_store=runtime.authoring_idempotency_store,
+        ui_command_idempotency_store=runtime.ui_command_idempotency_store,
+        event_source=runtime.event_source,
+        result_summary_store=runtime.result_summary_store,
+        default_agent=runtime.default_agent,
+        execution_dispatcher=runtime.execution_dispatcher,
+        query_gateway=runtime.query_gateway,
+        command_gateway=runtime.command_gateway,
+        transport=runtime.transport,
         server=server,
+        _close_callback=close_callback,
     )
 
 
@@ -587,8 +720,11 @@ __all__ = [
     "MainPageSidecarApp",
     "MainPageSidecarConfig",
     "MainPageSidecarDependencies",
+    "MainPageWorkspaceRuntime",
     "MainPageSessionLifecycleGateway",
     "MainPageTaskRefResolver",
+    "WorkspaceRegistryEntry",
     "build_agent_loop_resident_default_agent",
     "build_main_page_sidecar_app",
+    "build_main_page_workspace_runtime",
 ]

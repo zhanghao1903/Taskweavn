@@ -70,6 +70,13 @@ export function AuditPageRoute({
     () => api ?? createAuditApiFromRuntimeEnv(runtimeEnv),
     [api, runtimeEnv],
   );
+  const workspaceOptions = useMemo(
+    () =>
+      parsedRoute?.workspaceId
+        ? { workspaceId: parsedRoute.workspaceId }
+        : undefined,
+    [parsedRoute?.workspaceId],
+  );
   const activeRequest = useMemo(
     () =>
       parsedRoute === null
@@ -85,8 +92,11 @@ export function AuditPageRoute({
 
   const snapshotQuery = useQuery({
     enabled: activeRequest !== null,
-    queryFn: () => auditApi.getAuditSnapshot(activeRequest!),
-    queryKey: ["audit-page", activeRequest],
+    queryFn: () =>
+      workspaceOptions
+        ? auditApi.getAuditSnapshot(activeRequest!, workspaceOptions)
+        : auditApi.getAuditSnapshot(activeRequest!),
+    queryKey: ["audit-page", workspaceOptions?.workspaceId ?? null, activeRequest],
   });
 
   useEffect(() => {
@@ -123,15 +133,20 @@ export function AuditPageRoute({
 
   const detailQuery = useQuery({
     enabled: shouldLoadRecordDetail,
-    queryFn: () =>
-      auditApi.getAuditRecordDetail({
+    queryFn: () => {
+      const request = {
         includeEvidence: true,
         includeSanitizedPayload: true,
         recordId: selectedRecordId!,
         sessionId: rawSnapshot!.session.id,
-      }),
+      };
+      return workspaceOptions
+        ? auditApi.getAuditRecordDetail(request, workspaceOptions)
+        : auditApi.getAuditRecordDetail(request);
+    },
     queryKey: [
       "audit-record-detail",
+      workspaceOptions?.workspaceId ?? null,
       rawSnapshot?.session.id,
       selectedRecordId,
     ],
@@ -153,14 +168,19 @@ export function AuditPageRoute({
 
   const evidenceQuery = useQuery({
     enabled: shouldLoadEvidenceDetail,
-    queryFn: () =>
-      auditApi.getEvidenceDetail({
+    queryFn: () => {
+      const request = {
         evidenceId: selectedEvidenceRef!.id,
         includeSanitizedPayload: true,
         sessionId: rawSnapshot!.session.id,
-      }),
+      };
+      return workspaceOptions
+        ? auditApi.getEvidenceDetail(request, workspaceOptions)
+        : auditApi.getEvidenceDetail(request);
+    },
     queryKey: [
       "audit-evidence-detail",
+      workspaceOptions?.workspaceId ?? null,
       rawSnapshot?.session.id,
       selectedRecordId,
       selectedEvidenceRef?.id,
@@ -178,6 +198,7 @@ export function AuditPageRoute({
     selectedRecordId,
     sessionId: activeRequest?.sessionId ?? "",
     taskNodeId: activeRequest?.taskNodeId ?? null,
+    workspaceId: workspaceOptions?.workspaceId ?? null,
   });
   const snapshot = useMemo(
     () =>
