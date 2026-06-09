@@ -542,7 +542,7 @@ describe("createHttpPlatoApi", () => {
           blockingIssues: [
             {
               code: "llm.missing_api_key",
-              envVars: ["LLM_API_KEY"],
+              envVars: ["DEEPSEEK_API_KEY", "LLM_API_KEY"],
               message: "LLM API key configuration is missing.",
               recoveryActions: ["open_settings"],
               severity: "blocking",
@@ -563,10 +563,10 @@ describe("createHttpPlatoApi", () => {
           llm: {
             apiKeyConfigured: false,
             configured: false,
-            missingEnvVars: ["LLM_API_KEY"],
-            model: "anthropic/test-model",
+            missingEnvVars: ["DEEPSEEK_API_KEY", "LLM_API_KEY"],
+            model: "deepseek-v4-pro",
             modelSource: "default",
-            provider: "litellm",
+            provider: "deepseek",
             providerSource: "default",
             requestTimeoutConfigured: false,
             requestTimeoutSeconds: 180,
@@ -666,8 +666,8 @@ describe("createHttpPlatoApi", () => {
     const payload = {
       llm: {
         apiKey: "sk-client-secret",
-        model: "anthropic/test-model",
-        provider: "litellm" as const,
+        model: "deepseek-v4-pro",
+        provider: "deepseek" as const,
       },
       logging: {
         selectedProfile: "normal",
@@ -878,12 +878,18 @@ function settingsConfigSummary({
     generatedAt: "2026-06-06T09:00:00Z",
     llm: {
       apiKeyConfigured,
-      apiKeyEnvVar: "LLM_API_KEY",
+      apiKeyEnvVar: "DEEPSEEK_API_KEY",
       apiKeySource: apiKeyConfigured ? "stored" : "none",
-      model: "anthropic/test-model",
+      model: "deepseek-v4-pro",
       modelSource: "stored",
-      provider: "litellm",
+      provider: "deepseek",
       providerOptions: [
+        {
+          id: "deepseek",
+          label: "DeepSeek",
+          preferredApiKeyEnvVar: "DEEPSEEK_API_KEY",
+          requiredApiKeyEnvVars: ["DEEPSEEK_API_KEY", "LLM_API_KEY"],
+        },
         {
           id: "litellm",
           label: "LiteLLM",
@@ -919,7 +925,7 @@ function settingsReadiness({ ready }: { ready: boolean }) {
       : [
           {
             code: "llm.missing_api_key",
-            envVars: ["LLM_API_KEY"],
+            envVars: ["DEEPSEEK_API_KEY", "LLM_API_KEY"],
             message: "LLM API key configuration is missing.",
             recoveryActions: ["open_settings"],
             severity: "blocking",
@@ -940,10 +946,10 @@ function settingsReadiness({ ready }: { ready: boolean }) {
     llm: {
       apiKeyConfigured: ready,
       configured: ready,
-      missingEnvVars: ready ? [] : ["LLM_API_KEY"],
-      model: "anthropic/test-model",
+      missingEnvVars: ready ? [] : ["DEEPSEEK_API_KEY", "LLM_API_KEY"],
+      model: "deepseek-v4-pro",
       modelSource: "env",
-      provider: "litellm",
+      provider: "deepseek",
       providerSource: "env",
       requestTimeoutConfigured: false,
       requestTimeoutSeconds: 180,

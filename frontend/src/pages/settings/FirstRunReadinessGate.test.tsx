@@ -41,7 +41,8 @@ describe("FirstRunReadinessGate", () => {
       await screen.findByRole("heading", { name: "Setup required" }),
     ).toBeInTheDocument();
     expect(screen.queryByText("Main Page Ready")).not.toBeInTheDocument();
-    expect(screen.getByText("litellm")).toBeInTheDocument();
+    expect(screen.getByText("deepseek")).toBeInTheDocument();
+    expect(screen.getByText("DEEPSEEK_API_KEY")).toBeInTheDocument();
     expect(screen.getByText("LLM_API_KEY")).toBeInTheDocument();
     expect(screen.getByText("Configure local provider settings.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Configure settings" })).toBeInTheDocument();
@@ -157,7 +158,7 @@ function blockedReadiness(): SettingsReadinessReport {
     blockingIssues: [
       {
         code: "llm.missing_api_key",
-        envVars: ["LLM_API_KEY"],
+        envVars: ["DEEPSEEK_API_KEY", "LLM_API_KEY"],
         message: "LLM API key configuration is missing.",
         recoveryActions: ["open_settings"],
         severity: "blocking",
@@ -172,7 +173,7 @@ function blockedReadiness(): SettingsReadinessReport {
       ...readyReadiness().llm,
       apiKeyConfigured: false,
       configured: false,
-      missingEnvVars: ["LLM_API_KEY"],
+      missingEnvVars: ["DEEPSEEK_API_KEY", "LLM_API_KEY"],
     },
     status: "needs_configuration",
   };
@@ -197,9 +198,9 @@ function readyReadiness(): SettingsReadinessReport {
       apiKeyConfigured: true,
       configured: true,
       missingEnvVars: [],
-      model: "anthropic/test-model",
+      model: "deepseek-v4-pro",
       modelSource: "env",
-      provider: "litellm",
+      provider: "deepseek",
       providerSource: "env",
       requestTimeoutConfigured: false,
       requestTimeoutSeconds: 180,

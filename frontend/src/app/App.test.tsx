@@ -130,6 +130,7 @@ describe("App", () => {
     expect(
       await screen.findByRole("heading", { name: "Setup required" }),
     ).toBeInTheDocument();
+    expect(screen.getByText("DEEPSEEK_API_KEY")).toBeInTheDocument();
     expect(screen.getByText("LLM_API_KEY")).toBeInTheDocument();
     expect(screen.queryByRole("banner")).not.toBeInTheDocument();
   });
@@ -154,7 +155,7 @@ describe("App", () => {
     expect(
       await screen.findByRole("dialog", { name: "Complete first-run setup" }),
     ).toBeInTheDocument();
-    expect(screen.getByDisplayValue("anthropic/test-model")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("deepseek-v4-pro")).toBeInTheDocument();
     expect(
       await screen.findByRole("heading", { name: "Setup required" }),
     ).toBeInTheDocument();
@@ -421,6 +422,7 @@ describe("App", () => {
           prompt: "Plan my personal website.",
         },
       }),
+      null,
     );
     expect(appendSessionInput).not.toHaveBeenCalled();
     await waitFor(() => {
@@ -453,6 +455,7 @@ describe("App", () => {
           startImmediately: true,
         },
       }),
+      null,
     );
     await waitFor(() => {
       expect(loadSnapshot).toHaveBeenCalledTimes(2);
@@ -498,6 +501,7 @@ describe("App", () => {
           mode: "guidance",
         },
       }),
+      null,
     );
     await waitFor(() => {
       expect(loadSnapshot).toHaveBeenCalledTimes(2);
@@ -547,6 +551,7 @@ describe("App", () => {
       "session-website-plan",
       "cursor-s3-draft-ready",
       expect.any(Function),
+      null,
     );
   });
 
@@ -649,9 +654,13 @@ describe("App", () => {
     );
     await user.click(screen.getByRole("button", { name: "Create session" }));
 
-    expect(createSession).toHaveBeenCalledWith({ name: "Launch session" });
+    expect(createSession).toHaveBeenCalledWith({ name: "Launch session" }, null);
     await waitFor(() => {
-      expect(loadSnapshot).toHaveBeenCalledWith("s3-draft-ready", "session-new");
+      expect(loadSnapshot).toHaveBeenCalledWith(
+        "s3-draft-ready",
+        "session-new",
+        null,
+      );
     });
   });
 
@@ -711,11 +720,16 @@ describe("App", () => {
     );
     await user.click(screen.getByRole("button", { name: "Rename session" }));
 
-    expect(renameSession).toHaveBeenCalledWith({
-      name: "Renamed session",
-      sessionId: "session-website-plan",
-    });
-    expect(await screen.findByText("Renamed session to Renamed session.")).toBeInTheDocument();
+    expect(renameSession).toHaveBeenCalledWith(
+      {
+        name: "Renamed session",
+        sessionId: "session-website-plan",
+      },
+      null,
+    );
+    expect(
+      await screen.findByText("Renamed session to Renamed session."),
+    ).toBeInTheDocument();
   });
 
   it("confirms session delete from the sidebar context menu", async () => {
@@ -746,7 +760,7 @@ describe("App", () => {
     expect(screen.queryByText(/local workspace state/i)).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Delete session" }));
 
-    expect(deleteSession).toHaveBeenCalledWith("session-website-plan");
+    expect(deleteSession).toHaveBeenCalledWith("session-website-plan", null);
     expect(await screen.findByText("Session deleted.")).toBeInTheDocument();
   });
 
@@ -791,6 +805,7 @@ describe("App", () => {
       expect(loadSnapshot).toHaveBeenCalledWith(
         "s3-draft-ready",
         "session-product-intro",
+        null,
       );
     });
   });
@@ -964,12 +979,18 @@ function settingsConfigSummary(): SettingsConfigSummary {
     generatedAt: "2026-06-06T09:00:00Z",
     llm: {
       apiKeyConfigured: false,
-      apiKeyEnvVar: "LLM_API_KEY",
+      apiKeyEnvVar: "DEEPSEEK_API_KEY",
       apiKeySource: "none",
-      model: "anthropic/test-model",
+      model: "deepseek-v4-pro",
       modelSource: "default",
-      provider: "litellm",
+      provider: "deepseek",
       providerOptions: [
+        {
+          id: "deepseek",
+          label: "DeepSeek",
+          preferredApiKeyEnvVar: "DEEPSEEK_API_KEY",
+          requiredApiKeyEnvVars: ["DEEPSEEK_API_KEY", "LLM_API_KEY"],
+        },
         {
           id: "litellm",
           label: "LiteLLM",
@@ -1004,7 +1025,7 @@ function settingsReadinessResponse(): QueryResponse<SettingsReadinessReport> {
       blockingIssues: [
         {
           code: "llm.missing_api_key",
-          envVars: ["LLM_API_KEY"],
+          envVars: ["DEEPSEEK_API_KEY", "LLM_API_KEY"],
           message: "LLM API key configuration is missing.",
           recoveryActions: ["open_settings"],
           severity: "blocking",
@@ -1025,10 +1046,10 @@ function settingsReadinessResponse(): QueryResponse<SettingsReadinessReport> {
       llm: {
         apiKeyConfigured: false,
         configured: false,
-        missingEnvVars: ["LLM_API_KEY"],
-        model: "anthropic/test-model",
+        missingEnvVars: ["DEEPSEEK_API_KEY", "LLM_API_KEY"],
+        model: "deepseek-v4-pro",
         modelSource: "default",
-        provider: "litellm",
+        provider: "deepseek",
         providerSource: "default",
         requestTimeoutConfigured: false,
         requestTimeoutSeconds: 180,

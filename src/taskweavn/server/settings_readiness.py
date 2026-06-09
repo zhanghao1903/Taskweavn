@@ -9,13 +9,19 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
 
-from taskweavn.llm.config import DEFAULT_LLM_REQUEST_TIMEOUT_SECONDS
+from taskweavn.llm.config import (
+    DEFAULT_LLM_PROVIDER,
+    DEFAULT_LLM_REQUEST_TIMEOUT_SECONDS,
+)
 from taskweavn.observability import build_session_logging_config
 from taskweavn.product_errors import ProductRecoveryAction
 from taskweavn.server.ui_contract.base import UiContractModel
 
-SETTINGS_READINESS_SCHEMA_VERSION = "plato.settings_readiness.v1"
-DEFAULT_FIRST_RUN_LLM_MODEL = "anthropic/claude-sonnet-4-5-20250929"
+SETTINGS_READINESS_SCHEMA_VERSION: Literal["plato.settings_readiness.v1"] = (
+    "plato.settings_readiness.v1"
+)
+DEFAULT_FIRST_RUN_LLM_PROVIDER = DEFAULT_LLM_PROVIDER
+DEFAULT_FIRST_RUN_LLM_MODEL = "deepseek-v4-pro"
 
 SettingsReadinessStatus = Literal["ready", "needs_configuration", "degraded"]
 SettingsReadinessIssueSeverity = Literal["blocking", "warning"]
@@ -198,7 +204,7 @@ def _llm_readiness(
     provider_source: Literal["default", "env"] = (
         "env" if "LLM_PROVIDER" in env else "default"
     )
-    provider = env.get("LLM_PROVIDER", "litellm").strip().lower()
+    provider = env.get("LLM_PROVIDER", DEFAULT_FIRST_RUN_LLM_PROVIDER).strip().lower()
     provider_for_payload = provider or "unknown"
     model_source: Literal["default", "env"] = "env" if "LLM_MODEL" in env else "default"
     model = env.get("LLM_MODEL", default_model)
@@ -486,6 +492,7 @@ def _recommended_actions(
 
 
 __all__ = [
+    "DEFAULT_FIRST_RUN_LLM_PROVIDER",
     "DEFAULT_FIRST_RUN_LLM_MODEL",
     "DefaultSettingsReadinessGateway",
     "SETTINGS_READINESS_SCHEMA_VERSION",

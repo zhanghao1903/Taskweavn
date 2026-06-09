@@ -60,7 +60,7 @@ class LLMClient:
         self._llm = LLM(model=model, api_key=api_key)
 
     @classmethod
-    def from_env(cls, default_model: str = "anthropic/claude-sonnet-4-5-20250929") -> LLMClient:
+    def from_env(cls, default_model: str = "deepseek-v4-pro") -> LLMClient:
         """Build a client from environment variables."""
         config = load_client_config_from_env(default_model)
         return cls(

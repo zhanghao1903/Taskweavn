@@ -28,9 +28,9 @@ SMOKE_ERROR_REF = "provider:rate_limit"
 SMOKE_FRONTEND_ERROR_MESSAGE = "diagnostics.route.render.failed"
 SMOKE_LOG_RECORD_ID = "record-log-frontend-errors.jsonl"
 FIRST_RUN_CONFIGURED_ENV = {
-    "LLM_PROVIDER": "litellm",
-    "LLM_MODEL": "anthropic/test-model",
-    "LLM_API_KEY": "test-sidecar-readiness-key",
+    "LLM_PROVIDER": "deepseek",
+    "LLM_MODEL": "deepseek-v4-pro",
+    "DEEPSEEK_API_KEY": "test-sidecar-readiness-key",
 }
 
 

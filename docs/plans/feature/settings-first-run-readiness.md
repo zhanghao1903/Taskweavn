@@ -1,7 +1,7 @@
 # Feature Plan: Settings And First-Run Readiness
 
 > Status: done
-> Last Updated: 2026-06-06
+> Last Updated: 2026-06-09
 > Gap: [Settings and first run](../../gaps/README.md)
 > Architecture: [Configurable Logging System](../../architecture/configurable-logging-system.md), [LLM Provider Reliability](../../architecture/llm-provider-reliability.md), [UI And Backend Communication](../../architecture/ui-backend-communication.md)
 > Product: [Plato Settings, Logs, And Audit Boundary](../../product/plato-settings-logs-audit-boundary.md)
@@ -80,13 +80,13 @@ envelope:
       "recommendedActions": ["open_settings"]
     },
     "llm": {
-      "provider": "litellm",
+      "provider": "deepseek",
       "providerSource": "default",
-      "model": "anthropic/claude-sonnet-4-5-20250929",
+      "model": "deepseek-v4-pro",
       "modelSource": "default",
       "configured": false,
       "apiKeyConfigured": false,
-      "missingEnvVars": ["LLM_API_KEY"],
+      "missingEnvVars": ["DEEPSEEK_API_KEY", "LLM_API_KEY"],
       "requestTimeoutSeconds": 180,
       "requestTimeoutConfigured": false,
       "requestTimeoutValid": true,

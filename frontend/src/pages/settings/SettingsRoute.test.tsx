@@ -24,7 +24,7 @@ describe("SettingsRoute", () => {
       <SettingsRoute api={settingsApi()} runtimeEnv={{ VITE_PLATO_API_MODE: "http" }} />,
     );
 
-    expect(await screen.findByDisplayValue("anthropic/test-model")).toBeInTheDocument();
+    expect(await screen.findByDisplayValue("deepseek-v4-pro")).toBeInTheDocument();
     expect(screen.getByText("configured")).toBeInTheDocument();
     expect(screen.getByText(/Configured via stored/)).toBeInTheDocument();
     expect(document.body).not.toHaveTextContent("sk-existing-secret");
@@ -73,7 +73,7 @@ describe("SettingsRoute", () => {
         llm: {
           apiKey: "sk-route-secret",
           model: "anthropic/updated-model",
-          provider: "litellm",
+          provider: "deepseek",
         },
         logging: {
           selectedProfile: "normal",
@@ -146,7 +146,7 @@ describe("SettingsRoute", () => {
       <SettingsRoute api={api} runtimeEnv={{ VITE_PLATO_API_MODE: "http" }} />,
     );
 
-    await screen.findByDisplayValue("anthropic/test-model");
+    await screen.findByDisplayValue("deepseek-v4-pro");
     await user.click(screen.getByRole("button", { name: "Export diagnostics" }));
 
     expect(await screen.findByText("diagnostic-bundle-session-1")).toBeInTheDocument();
@@ -233,11 +233,11 @@ function settingsConfig({
     generatedAt: "2026-06-06T09:00:00Z",
     llm: {
       apiKeyConfigured,
-      apiKeyEnvVar: "LLM_API_KEY",
+      apiKeyEnvVar: "DEEPSEEK_API_KEY",
       apiKeySource: apiKeyConfigured ? "stored" : "none",
-      model: "anthropic/test-model",
+      model: "deepseek-v4-pro",
       modelSource: "stored",
-      provider: "litellm",
+      provider: "deepseek",
       providerOptions: [
         {
           id: "litellm",
@@ -284,7 +284,7 @@ function settingsReadiness({
       : [
           {
             code: "llm.missing_api_key",
-            envVars: ["LLM_API_KEY"],
+            envVars: ["DEEPSEEK_API_KEY", "LLM_API_KEY"],
             message: "LLM API key configuration is missing.",
             recoveryActions: ["open_settings"],
             severity: "blocking",
@@ -305,10 +305,10 @@ function settingsReadiness({
     llm: {
       apiKeyConfigured: ready,
       configured: ready,
-      missingEnvVars: ready ? [] : ["LLM_API_KEY"],
-      model: "anthropic/test-model",
+      missingEnvVars: ready ? [] : ["DEEPSEEK_API_KEY", "LLM_API_KEY"],
+      model: "deepseek-v4-pro",
       modelSource: "env",
-      provider: "litellm",
+      provider: "deepseek",
       providerSource: "env",
       requestTimeoutConfigured: false,
       requestTimeoutSeconds: 180,
