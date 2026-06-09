@@ -273,8 +273,7 @@
 
 .sidebarHeader button,
 .secondaryButton,
-.contextInput button,
-.workspaceTreeCurrentActions button {
+.contextInput button {
   border: 1px solid var(--plato-color-line);
   border-radius: var(--plato-radius-md);
   background: var(--plato-color-panel);
@@ -285,9 +284,20 @@
 }
 
 .sidebarHeader button,
-.secondaryButton,
-.workspaceTreeCurrentActions button {
+.secondaryButton {
   padding: var(--plato-space-2) var(--plato-space-3);
+}
+
+:is(.workspaceTreeCurrent, .workspaceTreeRow) .workspaceTreeCurrentActions button {
+  min-height: 20px;
+  border: 1px solid var(--plato-color-line);
+  border-radius: var(--plato-radius-md);
+  padding: var(--plato-space-1) var(--plato-space-2);
+  background: var(--plato-color-panel);
+  color: var(--plato-color-reason-blue);
+  font-size: var(--plato-type-caption-size);
+  font-weight: var(--plato-type-control-weight);
+  line-height: var(--plato-type-caption-line-height);
 }
 
 .workspaceSessionTree {
@@ -299,6 +309,7 @@
 .sessionTreeList {
   display: grid;
   min-width: 0;
+  gap: var(--plato-space-1);
   padding-left: 30px;
 }
 
@@ -413,15 +424,15 @@
 .activeNavItem {
   display: block;
   width: 100%;
-  margin: var(--plato-space-2) 0;
+  margin: 0;
   border: 1px solid var(--plato-color-transparent);
   border-radius: var(--plato-radius-md);
-  padding: var(--plato-space-3);
+  padding: var(--plato-space-2) var(--plato-space-3);
   background: var(--plato-color-transparent);
   color: var(--plato-color-muted);
   font-size: var(--plato-type-nav-size);
   font-weight: var(--plato-type-nav-weight);
-  line-height: var(--plato-type-nav-line-height);
+  line-height: var(--plato-type-caption-line-height);
   overflow: hidden;
   text-align: left;
   text-overflow: ellipsis;
@@ -434,7 +445,7 @@
   color: var(--plato-color-reason-blue);
   font-size: var(--plato-type-nav-active-size);
   font-weight: var(--plato-type-nav-active-weight);
-  line-height: var(--plato-type-nav-active-line-height);
+  line-height: var(--plato-type-caption-line-height);
 }
 
 .sessionContextMenu {
