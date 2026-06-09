@@ -18,8 +18,8 @@ export type SettingsFieldError = {
 };
 
 const fallbackProviders: SettingsProvider[] = [
-  "litellm",
   "deepseek",
+  "litellm",
   "openrouter",
 ];
 
@@ -35,7 +35,7 @@ export function formStateFromConfig(
 }
 
 export function normalizeSettingsProvider(value: string): SettingsProvider {
-  return isSettingsProvider(value) ? value : "litellm";
+  return isSettingsProvider(value) ? value : "deepseek";
 }
 
 export function providerOptions(config: SettingsConfigSummary | null) {

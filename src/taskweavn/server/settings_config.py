@@ -18,6 +18,7 @@ from taskweavn.observability import build_session_logging_config
 from taskweavn.product_errors import product_error_details
 from taskweavn.server.settings_readiness import (
     DEFAULT_FIRST_RUN_LLM_MODEL,
+    DEFAULT_FIRST_RUN_LLM_PROVIDER,
     SettingsReadinessReport,
     build_settings_readiness_report,
 )
@@ -241,7 +242,7 @@ class FileSettingsConfigStore:
             if isinstance(model, str) and model.strip():
                 env["LLM_MODEL"] = model.strip()
         secret = self.read_secret()
-        provider = env.get("LLM_PROVIDER", "litellm").strip().lower()
+        provider = env.get("LLM_PROVIDER", DEFAULT_FIRST_RUN_LLM_PROVIDER).strip().lower()
         if secret is not None and secret[0] == provider:
             env[_preferred_api_key_env_var(provider)] = secret[1]
         return env
@@ -391,7 +392,10 @@ def _llm_summary(
     elif "LLM_MODEL" in base_env:
         model_source = "env"
 
-    provider = effective_env.get("LLM_PROVIDER", "litellm").strip().lower() or "unknown"
+    provider = (
+        effective_env.get("LLM_PROVIDER", DEFAULT_FIRST_RUN_LLM_PROVIDER).strip().lower()
+        or "unknown"
+    )
     model = effective_env.get("LLM_MODEL", default_model).strip() or default_model
     api_key_source, api_key_env_var = _api_key_source(provider, base_env=base_env, store=store)
 

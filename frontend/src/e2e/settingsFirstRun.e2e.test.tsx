@@ -42,7 +42,8 @@ describeSidecarE2E("Settings first-run real sidecar E2E", () => {
       await screen.findByRole("heading", { name: "Setup required" }),
     ).toBeInTheDocument();
     expect(screen.getByText("needs_configuration")).toBeInTheDocument();
-    expect(screen.getByText("litellm")).toBeInTheDocument();
+    expect(screen.getByText("deepseek")).toBeInTheDocument();
+    expect(screen.getByText("DEEPSEEK_API_KEY")).toBeInTheDocument();
     expect(screen.getByText("LLM_API_KEY")).toBeInTheDocument();
     expect(screen.getByText("Configure local provider settings.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Retry check" })).toBeInTheDocument();
@@ -55,7 +56,7 @@ describeSidecarE2E("Settings first-run real sidecar E2E", () => {
     expect(
       await screen.findByRole("heading", { name: "Complete first-run setup" }),
     ).toBeInTheDocument();
-    expect(screen.getByLabelText("Provider")).toHaveValue("litellm");
+    expect(screen.getByLabelText("Provider")).toHaveValue("deepseek");
     await user.type(screen.getByLabelText("API key"), secret);
     await user.click(screen.getByRole("button", { name: "Save and check" }));
 

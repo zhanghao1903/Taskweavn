@@ -29,11 +29,12 @@ class LLMClientConfig:
 
 
 DEFAULT_LLM_REQUEST_TIMEOUT_SECONDS = 180.0
+DEFAULT_LLM_PROVIDER = "deepseek"
 
 
 def load_client_config_from_env(default_model: str) -> LLMClientConfig:
     """Resolve provider config from environment variables."""
-    provider_name = os.environ.get("LLM_PROVIDER", "litellm").strip().lower()
+    provider_name = os.environ.get("LLM_PROVIDER", DEFAULT_LLM_PROVIDER).strip().lower()
     model = os.environ.get("LLM_MODEL", default_model)
     thinking = _thinking_from_env()
     routing = _openrouter_routing_from_env() if provider_name == "openrouter" else None
@@ -180,6 +181,7 @@ def _parse_bool(raw: str) -> bool:
 
 
 __all__ = [
+    "DEFAULT_LLM_PROVIDER",
     "DEFAULT_LLM_REQUEST_TIMEOUT_SECONDS",
     "LLMClientConfig",
     "build_provider",

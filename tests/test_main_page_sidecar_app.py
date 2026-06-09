@@ -51,7 +51,7 @@ def test_main_page_sidecar_app_exposes_settings_readiness_without_secret(
 ) -> None:
     monkeypatch.setenv("LLM_PROVIDER", "litellm")
     monkeypatch.setenv("LLM_API_KEY", "sk-sidecar-readiness-secret")
-    monkeypatch.setenv("LLM_MODEL", "anthropic/test-model")
+    monkeypatch.setenv("LLM_MODEL", "deepseek-v4-pro")
 
     app = build_main_page_sidecar_app(
         MainPageSidecarConfig(workspace_root=tmp_path, port=0),
@@ -100,8 +100,8 @@ def test_main_page_sidecar_app_saves_settings_config_and_refreshes_readiness(
             "/api/v1/settings/config",
             body={
                 "llm": {
-                    "provider": "litellm",
-                    "model": "anthropic/test-model",
+                    "provider": "deepseek",
+                    "model": "deepseek-v4-pro",
                     "apiKey": secret,
                 },
                 "logging": {"selectedProfile": "normal"},
@@ -120,7 +120,7 @@ def test_main_page_sidecar_app_saves_settings_config_and_refreshes_readiness(
     assert saved.json["data"]["config"]["llm"]["apiKeySource"] == "stored"
     assert saved.json["data"]["readiness"]["status"] == "ready"
     assert config.json["data"]["schemaVersion"] == "plato.settings_config.v1"
-    assert config.json["data"]["llm"]["model"] == "anthropic/test-model"
+    assert config.json["data"]["llm"]["model"] == "deepseek-v4-pro"
     assert config.json["data"]["logging"]["selectedProfile"] == "normal"
     assert readiness.json["data"]["status"] == "ready"
     assert readiness.json["data"]["firstRun"]["ready"] is True
@@ -147,8 +147,11 @@ def test_audit_sidecar_smoke_fixture_can_force_first_run_unconfigured(
     assert response.json["ok"] is True
     assert response.json["data"]["status"] == "needs_configuration"
     assert response.json["data"]["firstRun"]["ready"] is False
-    assert response.json["data"]["llm"]["provider"] == "litellm"
-    assert response.json["data"]["llm"]["missingEnvVars"] == ["LLM_API_KEY"]
+    assert response.json["data"]["llm"]["provider"] == "deepseek"
+    assert response.json["data"]["llm"]["missingEnvVars"] == [
+        "DEEPSEEK_API_KEY",
+        "LLM_API_KEY",
+    ]
     assert response.json["data"]["blockingIssues"][0]["code"] == "llm.missing_api_key"
 
 
@@ -158,9 +161,9 @@ def test_audit_sidecar_smoke_fixture_can_force_first_run_configured(
     fixture = build_audit_sidecar_smoke_fixture(
         tmp_path,
         settings_readiness_env={
-            "LLM_PROVIDER": "litellm",
-            "LLM_MODEL": "anthropic/test-model",
-            "LLM_API_KEY": "test-sidecar-readiness-key",
+            "LLM_PROVIDER": "deepseek",
+            "LLM_MODEL": "deepseek-v4-pro",
+            "DEEPSEEK_API_KEY": "test-sidecar-readiness-key",
         },
     )
     try:
@@ -172,7 +175,7 @@ def test_audit_sidecar_smoke_fixture_can_force_first_run_configured(
     assert response.json["ok"] is True
     assert response.json["data"]["status"] == "ready"
     assert response.json["data"]["firstRun"]["ready"] is True
-    assert response.json["data"]["llm"]["provider"] == "litellm"
+    assert response.json["data"]["llm"]["provider"] == "deepseek"
     assert response.json["data"]["llm"]["missingEnvVars"] == []
     assert "test-sidecar-readiness-key" not in response.text
 

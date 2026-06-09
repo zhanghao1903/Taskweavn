@@ -1,7 +1,7 @@
 # Settings First-Run API Contract
 
 > Status: accepted
-> Last Updated: 2026-06-06
+> Last Updated: 2026-06-09
 > Plan: [Settings first-run frontend completion](../plans/feature/settings-first-run-frontend-completion.md)
 > Baseline: [Settings and first-run readiness](../plans/feature/settings-first-run-readiness.md)
 
@@ -13,7 +13,8 @@ centralized runtime configuration plan.
 
 The sidecar supports local read/write setup for:
 
-- LLM provider: `litellm`, `deepseek`, `openrouter`;
+- LLM provider: `deepseek` by default, with `litellm` and `openrouter`
+  still supported;
 - LLM model;
 - write-only API key replacement;
 - logging profile selection.
@@ -43,13 +44,13 @@ POST /api/v1/settings/readiness/recheck
   "data": {
     "schemaVersion": "plato.settings_config.v1",
     "llm": {
-      "provider": "litellm",
+      "provider": "deepseek",
       "providerSource": "default",
-      "model": "anthropic/claude-sonnet-4-5-20250929",
+      "model": "deepseek-v4-pro",
       "modelSource": "default",
       "apiKeyConfigured": false,
       "apiKeySource": "none",
-      "apiKeyEnvVar": "LLM_API_KEY"
+      "apiKeyEnvVar": "DEEPSEEK_API_KEY"
     },
     "logging": {
       "selectedProfile": null,
@@ -72,8 +73,8 @@ POST /api/v1/settings/readiness/recheck
 ```json
 {
   "llm": {
-    "provider": "litellm",
-    "model": "anthropic/test-model",
+    "provider": "deepseek",
+    "model": "deepseek-v4-pro",
     "apiKey": "write-only replacement"
   },
   "logging": {
