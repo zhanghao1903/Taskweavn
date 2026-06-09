@@ -18,6 +18,7 @@ import styles from "./MainPage.module.css";
 
 export type MainPageWorkbenchProps = {
   actions: MainPageController["actions"];
+  activeWorkspaceId: MainPageController["activeWorkspaceId"];
   inputDraft: string;
   inputError: string | null;
   inputRecoveryActions: ProductRecoveryAction[];
@@ -28,11 +29,13 @@ export type MainPageWorkbenchProps = {
   sessionDialog: MainPageController["sessionDialog"];
   topBarTrailing?: ReactNode;
   viewModel: MainPageViewModel;
+  workspaceCatalog: MainPageController["workspaceCatalog"];
   workspaceRuntime?: MainPageWorkspaceRuntime | null;
 };
 
 export function MainPageWorkbench({
   actions,
+  activeWorkspaceId,
   inputDraft,
   inputError,
   inputRecoveryActions,
@@ -43,6 +46,7 @@ export function MainPageWorkbench({
   sessionDialog,
   topBarTrailing = null,
   viewModel,
+  workspaceCatalog,
   workspaceRuntime = null,
 }: MainPageWorkbenchProps) {
   const [isActivityOverlayOpen, setIsActivityOverlayOpen] = useState(false);
@@ -80,6 +84,8 @@ export function MainPageWorkbench({
         onSubmitSessionDialog={actions.submitSessionDialog}
         sessionDialog={sessionDialog}
         sessions={viewModel.sidebar.sessions}
+        activeWorkspaceId={activeWorkspaceId}
+        workspaceCatalog={workspaceCatalog}
         workspaceRuntime={workspaceRuntime}
       />
 

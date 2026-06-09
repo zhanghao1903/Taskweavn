@@ -247,6 +247,7 @@ async function resolveSidecarRuntime(workspaceRoot) {
 
   const sidecarLauncherPath = resolveSidecarLauncherPath();
   const resolvedWorkspaceRoot = workspaceRoot ?? resolveDefaultWorkspaceRoot();
+  const workspaceRegistry = await buildSidecarWorkspaceRegistry(resolvedWorkspaceRoot);
   return await startPythonSidecar({
     appVersion,
     electronVersion: process.versions.electron ?? "unknown",
@@ -257,6 +258,7 @@ async function resolveSidecarRuntime(workspaceRoot) {
         : null,
     startupId,
     timeoutMs: Number(process.env.PLATO_ELECTRON_SIDECAR_TIMEOUT_MS ?? 20_000),
+    workspaceRegistry,
     workspaceRoot: resolvedWorkspaceRoot,
   });
 }
@@ -342,6 +344,27 @@ async function workspaceEntryState(status, error = null) {
     error,
     status: isWorkspaceSidecarStarting ? "starting" : status,
     userDataPath: app.getPath("userData"),
+  });
+}
+
+async function buildSidecarWorkspaceRegistry(currentPath) {
+  const state = await readWorkspaceEntryStore(app.getPath("userData"));
+  const normalizedCurrentPath = path.resolve(currentPath);
+  const paths = [
+    normalizedCurrentPath,
+    ...state.recentPaths.filter(
+      (candidate) => path.resolve(candidate) !== normalizedCurrentPath,
+    ),
+  ];
+  return paths.map((workspacePath) => {
+    const summary = summarizeWorkspace(workspacePath, normalizedCurrentPath);
+    return {
+      workspaceId: summary.id,
+      rootPath: path.resolve(workspacePath),
+      label: summary.name,
+      isCurrent: summary.isCurrent,
+      lastOpenedAt: null,
+    };
   });
 }
 

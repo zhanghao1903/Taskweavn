@@ -59,6 +59,7 @@ __all__ = [
     "MainPageSidecarApp",
     "MainPageSidecarConfig",
     "MainPageSidecarDependencies",
+    "MainPageWorkspaceRuntime",
     "MainPageSessionLifecycleGateway",
     "MainPageTaskRefResolver",
     "PlatoUiHttpTransport",
@@ -74,8 +75,10 @@ __all__ = [
     "UiCommandResponseIdempotencyRecord",
     "UiCommandResponseIdempotencyStore",
     "UiCommandResponseIdempotencyStoreError",
+    "WorkspaceRegistryEntry",
     "build_agent_loop_resident_default_agent",
     "build_main_page_sidecar_app",
+    "build_main_page_workspace_runtime",
     "sse_frame",
     "sse_stream",
 ]
@@ -92,11 +95,14 @@ _LAZY_EXPORTS = {
     "MainPageSidecarApp": "taskweavn.server.main_page",
     "MainPageSidecarConfig": "taskweavn.server.main_page",
     "MainPageSidecarDependencies": "taskweavn.server.main_page",
+    "MainPageWorkspaceRuntime": "taskweavn.server.main_page",
     "MainPageTaskRefResolver": "taskweavn.server.main_page",
     "PlatoUiHttpTransport": "taskweavn.server.ui_http",
     "SidecarAuth": "taskweavn.server.ui_http",
+    "WorkspaceRegistryEntry": "taskweavn.server.main_page",
     "build_agent_loop_resident_default_agent": "taskweavn.server.main_page",
     "build_main_page_sidecar_app": "taskweavn.server.main_page",
+    "build_main_page_workspace_runtime": "taskweavn.server.main_page",
 }
 
 

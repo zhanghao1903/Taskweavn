@@ -21,6 +21,7 @@ import type {
   TaskNodeId,
   UiEvent,
   UiEventType,
+  WorkspaceId,
 } from "./types";
 import { ApiClient } from "./client";
 import type { ApiClientOptions } from "./client";
@@ -48,6 +49,31 @@ export type SessionLifecycleResult = {
 
 export type SessionListResult = {
   sessions: SessionSummary[];
+};
+
+export type WorkspaceRouteOptions = {
+  workspaceId?: WorkspaceId | null;
+};
+
+export type WorkspaceStatus =
+  | "available"
+  | "unavailable"
+  | "starting"
+  | "failed";
+
+export type WorkspaceCatalogEntry = {
+  workspaceId: WorkspaceId;
+  label: string;
+  status: WorkspaceStatus;
+  isCurrent: boolean;
+  sessionCount: number;
+  recentSessions: SessionSummary[];
+  updatedAt: string | null;
+};
+
+export type WorkspaceCatalogResult = {
+  currentWorkspaceId: WorkspaceId;
+  workspaces: WorkspaceCatalogEntry[];
 };
 
 export type AppendSessionInputPayload = {
@@ -354,97 +380,126 @@ export type PlatoApi = {
   updateSettingsConfig(
     payload: UpdateSettingsConfigPayload,
   ): Promise<QueryResponse<SettingsConfigUpdateResult>>;
-  listSessions(): Promise<QueryResponse<SessionListResult>>;
+  listWorkspaces(): Promise<QueryResponse<WorkspaceCatalogResult>>;
+  listSessions(
+    options?: WorkspaceRouteOptions,
+  ): Promise<QueryResponse<SessionListResult>>;
   createSession(
     payload: CreateSessionPayload,
+    options?: WorkspaceRouteOptions,
   ): Promise<QueryResponse<SessionLifecycleResult>>;
   getSessionSnapshot(
     sessionId: SessionId,
+    options?: WorkspaceRouteOptions,
   ): Promise<QueryResponse<MainPageSnapshot>>;
   getAuditSnapshot(
     request: AuditSnapshotRequest,
+    options?: WorkspaceRouteOptions,
   ): Promise<QueryResponse<AuditPageSnapshot>>;
   listAuditRecords(
     request: AuditRecordsRequest,
+    options?: WorkspaceRouteOptions,
   ): Promise<QueryResponse<AuditRecordsResult>>;
   getAuditRecordDetail(
     request: AuditRecordDetailRequest,
+    options?: WorkspaceRouteOptions,
   ): Promise<QueryResponse<AuditRecordDetail>>;
   getEvidenceDetail(
     request: EvidenceDetailRequest,
+    options?: WorkspaceRouteOptions,
   ): Promise<QueryResponse<EvidenceDetail>>;
   exportDiagnosticBundle(
     sessionId: SessionId,
+    options?: WorkspaceRouteOptions,
   ): Promise<QueryResponse<DiagnosticBundleExportResult>>;
   renameSession(
     sessionId: SessionId,
     payload: RenameSessionPayload,
+    options?: WorkspaceRouteOptions,
   ): Promise<QueryResponse<SessionLifecycleResult>>;
   deleteSession(
     sessionId: SessionId,
+    options?: WorkspaceRouteOptions,
   ): Promise<QueryResponse<SessionLifecycleResult>>;
   appendSessionInput(
     request: CommandRequest<AppendSessionInputPayload>,
+    options?: WorkspaceRouteOptions,
   ): Promise<CommandResponse>;
   generateTaskTree(
     request: CommandRequest<GenerateTaskTreePayload>,
+    options?: WorkspaceRouteOptions,
   ): Promise<CommandResponse>;
   updateTaskNode(
     sessionId: SessionId,
     taskNodeId: TaskNodeId,
     request: CommandRequest<UpdateTaskNodePayload>,
+    options?: WorkspaceRouteOptions,
   ): Promise<CommandResponse>;
   appendTaskInput(
     sessionId: SessionId,
     taskNodeId: TaskNodeId,
     request: CommandRequest<AppendTaskInputPayload>,
+    options?: WorkspaceRouteOptions,
   ): Promise<CommandResponse>;
   publishTaskTree(
     request: CommandRequest<PublishTaskTreePayload>,
+    options?: WorkspaceRouteOptions,
   ): Promise<CommandResponse>;
   retryTask(
     sessionId: SessionId,
     taskNodeId: TaskNodeId,
     request: CommandRequest<RetryTaskPayload>,
+    options?: WorkspaceRouteOptions,
   ): Promise<CommandResponse>;
   stopTask(
     sessionId: SessionId,
     taskNodeId: TaskNodeId,
     request: CommandRequest<StopTaskPayload>,
+    options?: WorkspaceRouteOptions,
   ): Promise<CommandResponse>;
   resolveConfirmation(
     sessionId: SessionId,
     confirmationId: ConfirmationId,
     request: CommandRequest<ResolveConfirmationPayload>,
+    options?: WorkspaceRouteOptions,
   ): Promise<CommandResponse>;
-  listAsks(request: ListAsksRequest): Promise<QueryResponse<AskListResult>>;
+  listAsks(
+    request: ListAsksRequest,
+    options?: WorkspaceRouteOptions,
+  ): Promise<QueryResponse<AskListResult>>;
   answerAsk(
     sessionId: SessionId,
     askId: AskId,
     request: CommandRequest<AnswerAskPayload>,
+    options?: WorkspaceRouteOptions,
   ): Promise<CommandResponse>;
   answerAuthoringAskBatch(
     sessionId: SessionId,
     rawTaskId: string,
     request: CommandRequest<AnswerAuthoringAskBatchPayload>,
+    options?: WorkspaceRouteOptions,
   ): Promise<CommandResponse>;
   repairAuthoringState(
     request: CommandRequest<RepairAuthoringStatePayload>,
+    options?: WorkspaceRouteOptions,
   ): Promise<CommandResponse>;
   deferAsk(
     sessionId: SessionId,
     askId: AskId,
     request: CommandRequest<DeferAskPayload>,
+    options?: WorkspaceRouteOptions,
   ): Promise<CommandResponse>;
   cancelAsk(
     sessionId: SessionId,
     askId: AskId,
     request: CommandRequest<CancelAskPayload>,
+    options?: WorkspaceRouteOptions,
   ): Promise<CommandResponse>;
   subscribeSessionEvents(
     sessionId: SessionId,
     cursor: EventCursor | null,
     onEvent: (event: UiEvent) => void,
+    options?: WorkspaceRouteOptions,
   ): () => void;
 };
 
@@ -511,23 +566,30 @@ export function createHttpPlatoApi(options: HttpPlatoApiOptions): PlatoApi {
         payload,
       );
     },
-    listSessions() {
-      return client.getJson<QueryResponse<SessionListResult>>("/api/v1/sessions");
+    listWorkspaces() {
+      return client.getJson<QueryResponse<WorkspaceCatalogResult>>(
+        "/api/v1/workspaces",
+      );
     },
-    createSession(payload) {
+    listSessions(options) {
+      return client.getJson<QueryResponse<SessionListResult>>(
+        sessionsBase(options),
+      );
+    },
+    createSession(payload, options) {
       return client.postJson<QueryResponse<SessionLifecycleResult>>(
-        "/api/v1/sessions",
+        sessionsBase(options),
         payload,
       );
     },
-    getSessionSnapshot(sessionId) {
+    getSessionSnapshot(sessionId, options) {
       return client.getJson<QueryResponse<MainPageSnapshot>>(
-        `/api/v1/sessions/${segment(sessionId)}/snapshot`,
+        `${sessionBase(sessionId, options)}/snapshot`,
       );
     },
-    getAuditSnapshot(request) {
+    getAuditSnapshot(request, options) {
       return client.getJson<QueryResponse<AuditPageSnapshot>>(
-        withQuery(auditBasePath(request), {
+        withQuery(auditBasePath(request, options), {
           cursor: request.cursor ?? undefined,
           entry: request.entry,
           filter: request.filter,
@@ -537,9 +599,9 @@ export function createHttpPlatoApi(options: HttpPlatoApiOptions): PlatoApi {
         }),
       );
     },
-    listAuditRecords(request) {
+    listAuditRecords(request, options) {
       return client.getJson<QueryResponse<AuditRecordsResult>>(
-        withQuery(`${auditBasePath(request)}/records`, {
+        withQuery(`${auditBasePath(request, options)}/records`, {
           cursor: request.cursor ?? undefined,
           filter: request.filter,
           from: request.from,
@@ -550,10 +612,10 @@ export function createHttpPlatoApi(options: HttpPlatoApiOptions): PlatoApi {
         }),
       );
     },
-    getAuditRecordDetail(request) {
+    getAuditRecordDetail(request, options) {
       return client.getJson<QueryResponse<AuditRecordDetail>>(
         withQuery(
-          `/api/v1/sessions/${segment(request.sessionId)}/audit/records/${segment(
+          `${sessionBase(request.sessionId, options)}/audit/records/${segment(
             request.recordId,
           )}`,
           {
@@ -565,10 +627,10 @@ export function createHttpPlatoApi(options: HttpPlatoApiOptions): PlatoApi {
         ),
       );
     },
-    getEvidenceDetail(request) {
+    getEvidenceDetail(request, options) {
       return client.getJson<QueryResponse<EvidenceDetail>>(
         withQuery(
-          `/api/v1/sessions/${segment(request.sessionId)}/audit/evidence/${segment(
+          `${sessionBase(request.sessionId, options)}/audit/evidence/${segment(
             request.evidenceId,
           )}`,
           {
@@ -579,61 +641,61 @@ export function createHttpPlatoApi(options: HttpPlatoApiOptions): PlatoApi {
         ),
       );
     },
-    exportDiagnosticBundle(sessionId) {
+    exportDiagnosticBundle(sessionId, options) {
       return client.postJson<QueryResponse<DiagnosticBundleExportResult>>(
-        `/api/v1/sessions/${segment(sessionId)}/diagnostics/export`,
+        `${sessionBase(sessionId, options)}/diagnostics/export`,
         {},
       );
     },
-    renameSession(sessionId, payload) {
+    renameSession(sessionId, payload, options) {
       return client.patchJson<QueryResponse<SessionLifecycleResult>>(
-        `/api/v1/sessions/${segment(sessionId)}`,
+        sessionBase(sessionId, options),
         payload,
       );
     },
-    deleteSession(sessionId) {
+    deleteSession(sessionId, options) {
       return client.postJson<QueryResponse<SessionLifecycleResult>>(
-        `/api/v1/sessions/${segment(sessionId)}/delete`,
+        `${sessionBase(sessionId, options)}/delete`,
         {},
       );
     },
-    appendSessionInput(request) {
+    appendSessionInput(request, options) {
       return client.postJson<CommandResponse>(
-        `/api/v1/sessions/${segment(request.sessionId)}/input`,
+        `${sessionBase(request.sessionId, options)}/input`,
         request,
       );
     },
-    generateTaskTree(request) {
+    generateTaskTree(request, options) {
       return client.postJson<CommandResponse>(
-        `/api/v1/sessions/${segment(request.sessionId)}/task-tree/generate`,
+        `${sessionBase(request.sessionId, options)}/task-tree/generate`,
         request,
       );
     },
-    updateTaskNode(sessionId, taskNodeId, request) {
+    updateTaskNode(sessionId, taskNodeId, request, options) {
       return client.patchJson<CommandResponse>(
-        `/api/v1/sessions/${segment(sessionId)}/tasks/${segment(taskNodeId)}`,
+        `${sessionBase(sessionId, options)}/tasks/${segment(taskNodeId)}`,
         request,
       );
     },
-    appendTaskInput(sessionId, taskNodeId, request) {
+    appendTaskInput(sessionId, taskNodeId, request, options) {
       return client.postJson<CommandResponse>(
-        `/api/v1/sessions/${segment(sessionId)}/tasks/${segment(taskNodeId)}/input`,
+        `${sessionBase(sessionId, options)}/tasks/${segment(taskNodeId)}/input`,
         request,
       );
     },
-    publishTaskTree(request) {
+    publishTaskTree(request, options) {
       return client.postJson<CommandResponse>(
-        `/api/v1/sessions/${segment(request.sessionId)}/task-tree/publish`,
+        `${sessionBase(request.sessionId, options)}/task-tree/publish`,
         request,
       );
     },
-    retryTask(sessionId, taskNodeId, request) {
+    retryTask(sessionId, taskNodeId, request, options) {
       return client.postJson<CommandResponse>(
-        `/api/v1/sessions/${segment(sessionId)}/tasks/${segment(taskNodeId)}/retry`,
+        `${sessionBase(sessionId, options)}/tasks/${segment(taskNodeId)}/retry`,
         request,
       );
     },
-    async stopTask(sessionId, taskNodeId, request) {
+    async stopTask(sessionId, taskNodeId, request, options) {
       platoApiLogger.info("command.stop.request", {
         commandId: request.commandId,
         reason: request.payload.reason ?? null,
@@ -641,7 +703,7 @@ export function createHttpPlatoApi(options: HttpPlatoApiOptions): PlatoApi {
         taskNodeId,
       });
       const response = await client.postJson<CommandResponse>(
-        `/api/v1/sessions/${segment(sessionId)}/tasks/${segment(taskNodeId)}/stop`,
+        `${sessionBase(sessionId, options)}/tasks/${segment(taskNodeId)}/stop`,
         request,
       );
       platoApiLogger.info("command.stop.response", {
@@ -652,58 +714,59 @@ export function createHttpPlatoApi(options: HttpPlatoApiOptions): PlatoApi {
       });
       return response;
     },
-    resolveConfirmation(sessionId, confirmationId, request) {
+    resolveConfirmation(sessionId, confirmationId, request, options) {
       return client.postJson<CommandResponse>(
-        `/api/v1/sessions/${segment(sessionId)}/confirmations/${segment(
+        `${sessionBase(sessionId, options)}/confirmations/${segment(
           confirmationId,
         )}/respond`,
         request,
       );
     },
-    listAsks(request) {
+    listAsks(request, options) {
       return client.getJson<QueryResponse<AskListResult>>(
-        withQuery(`/api/v1/sessions/${segment(request.sessionId)}/asks`, {
+        withQuery(`${sessionBase(request.sessionId, options)}/asks`, {
           status: request.status,
           taskNodeId: request.taskNodeId,
         }),
       );
     },
-    answerAsk(sessionId, askId, request) {
+    answerAsk(sessionId, askId, request, options) {
       return client.postJson<CommandResponse>(
-        `/api/v1/sessions/${segment(sessionId)}/asks/${segment(askId)}/answer`,
+        `${sessionBase(sessionId, options)}/asks/${segment(askId)}/answer`,
         request,
       );
     },
-    answerAuthoringAskBatch(sessionId, rawTaskId, request) {
+    answerAuthoringAskBatch(sessionId, rawTaskId, request, options) {
       return client.postJson<CommandResponse>(
-        `/api/v1/sessions/${segment(
-          sessionId,
-        )}/authoring/raw-tasks/${segment(rawTaskId)}/asks/answers`,
+        `${sessionBase(sessionId, options)}/authoring/raw-tasks/${segment(
+          rawTaskId,
+        )}/asks/answers`,
         request,
       );
     },
-    repairAuthoringState(request) {
+    repairAuthoringState(request, options) {
       return client.postJson<CommandResponse>(
-        `/api/v1/sessions/${segment(request.sessionId)}/authoring/repair`,
+        `${sessionBase(request.sessionId, options)}/authoring/repair`,
         request,
       );
     },
-    deferAsk(sessionId, askId, request) {
+    deferAsk(sessionId, askId, request, options) {
       return client.postJson<CommandResponse>(
-        `/api/v1/sessions/${segment(sessionId)}/asks/${segment(askId)}/defer`,
+        `${sessionBase(sessionId, options)}/asks/${segment(askId)}/defer`,
         request,
       );
     },
-    cancelAsk(sessionId, askId, request) {
+    cancelAsk(sessionId, askId, request, options) {
       return client.postJson<CommandResponse>(
-        `/api/v1/sessions/${segment(sessionId)}/asks/${segment(askId)}/cancel`,
+        `${sessionBase(sessionId, options)}/asks/${segment(askId)}/cancel`,
         request,
       );
     },
-    subscribeSessionEvents(sessionId, cursor, onEvent) {
+    subscribeSessionEvents(sessionId, cursor, onEvent, options) {
       const query = cursor === null ? "" : `?cursor=${segment(cursor)}`;
-      const url = `${client.baseUrl}/api/v1/sessions/${segment(
+      const url = `${client.baseUrl}${sessionBase(
         sessionId,
+        options,
       )}/events${query}`;
       platoApiLogger.info("events.subscribe.start", {
         sessionId,
@@ -755,17 +818,33 @@ function segment(value: string): string {
   return encodeURIComponent(value);
 }
 
+function sessionsBase(options?: WorkspaceRouteOptions): string {
+  const workspaceId = options?.workspaceId ?? null;
+  if (workspaceId) {
+    return `/api/v1/workspaces/${segment(workspaceId)}/sessions`;
+  }
+
+  return "/api/v1/sessions";
+}
+
+function sessionBase(
+  sessionId: SessionId,
+  options?: WorkspaceRouteOptions,
+): string {
+  return `${sessionsBase(options)}/${segment(sessionId)}`;
+}
+
 function auditBasePath(request: {
   sessionId: SessionId;
   taskNodeId?: TaskNodeId;
-}): string {
+}, options?: WorkspaceRouteOptions): string {
   if (request.taskNodeId !== undefined) {
-    return `/api/v1/sessions/${segment(request.sessionId)}/tasks/${segment(
+    return `${sessionBase(request.sessionId, options)}/tasks/${segment(
       request.taskNodeId,
     )}/audit`;
   }
 
-  return `/api/v1/sessions/${segment(request.sessionId)}/audit`;
+  return `${sessionBase(request.sessionId, options)}/audit`;
 }
 
 function withQuery(

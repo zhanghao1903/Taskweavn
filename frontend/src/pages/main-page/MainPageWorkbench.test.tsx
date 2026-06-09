@@ -3,12 +3,14 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import type { MainPageSnapshot, TaskNodeId } from "../../shared/api/types";
+import type { WorkspaceCatalogResult } from "../../shared/api/platoApi";
 import styles from "./MainPage.module.css";
 import { MainPageWorkbench } from "./MainPageWorkbench";
 import type { MainPageViewModel } from "./mainPageViewModel";
 import { buildMainPageViewModel } from "./mainPageViewModel";
 import type { MainPageStateId } from "./mockPlatoApi";
 import { getMainPageMockSnapshot } from "./mockPlatoApi";
+import type { MainPageWorkspaceRuntime } from "./MainPageWorkspaceSwitcher";
 import type { MainPageController } from "./useMainPageController";
 
 describe("MainPageWorkbench layout", () => {
@@ -130,15 +132,73 @@ describe("MainPageWorkbench layout", () => {
       sessionId: "session-website-plan",
     });
   });
+
+  it("keeps the add workspace entry visible in catalog mode", async () => {
+    const user = userEvent.setup();
+    const chooseWorkspace = vi.fn(async (): Promise<PlatoWorkspaceSelectionResult> => ({
+      state: {
+        currentWorkspace: workspaceEntry("workspace-local", "Local Project"),
+        error: null,
+        recentWorkspaces: [],
+        status: "ready",
+      },
+      status: "ready" as const,
+    }));
+    const viewModel = buildViewModel("s1-empty");
+
+    renderWorkbench(viewModel, buildActions(), {
+      activeWorkspaceId: "workspace-local",
+      workspaceCatalog: {
+        currentWorkspaceId: "workspace-local",
+        workspaces: [
+          workspaceCatalogEntry("workspace-local", "Local Project", [
+            {
+              createdAt: "2026-06-09T00:00:00.000Z",
+              id: "session-local",
+              name: "Local session",
+              projectId: "project-local",
+              status: "new",
+              updatedAt: "2026-06-09T00:00:00.000Z",
+              workflowId: "workflow-local",
+              workspaceId: "workspace-local",
+            },
+          ]),
+          workspaceCatalogEntry("workspace-other", "Other Project", []),
+        ],
+      },
+      workspaceRuntime: {
+        bridge: {
+          chooseWorkspace,
+          getState: vi.fn(),
+          useWorkspace: vi.fn(),
+        },
+        currentWorkspace: workspaceEntry("workspace-local", "Local Project"),
+        isRequired: true,
+      },
+    });
+
+    expect(screen.getByText("Local Project")).toBeInTheDocument();
+    expect(screen.getByText("Other Project")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Open or add workspace" }));
+
+    expect(chooseWorkspace).toHaveBeenCalledTimes(1);
+  });
 });
 
 function renderWorkbench(
   viewModel: MainPageViewModel,
   actions: MainPageController["actions"] = buildActions(),
+  options: {
+    activeWorkspaceId?: MainPageController["activeWorkspaceId"];
+    workspaceCatalog?: WorkspaceCatalogResult | null;
+    workspaceRuntime?: MainPageWorkspaceRuntime | null;
+  } = {},
 ) {
   render(
     <MainPageWorkbench
       actions={actions}
+      activeWorkspaceId={options.activeWorkspaceId ?? null}
       inputDraft=""
       inputError={null}
       inputRecoveryActions={[]}
@@ -148,8 +208,39 @@ function renderWorkbench(
       isRenamingSession={false}
       sessionDialog={{ mode: "idle" }}
       viewModel={viewModel}
+      workspaceCatalog={options.workspaceCatalog ?? null}
+      workspaceRuntime={options.workspaceRuntime ?? null}
     />,
   );
+}
+
+function workspaceCatalogEntry(
+  workspaceId: string,
+  label: string,
+  recentSessions: WorkspaceCatalogResult["workspaces"][number]["recentSessions"],
+): WorkspaceCatalogResult["workspaces"][number] {
+  return {
+    isCurrent: workspaceId === "workspace-local",
+    label,
+    recentSessions,
+    sessionCount: recentSessions.length,
+    status: "available",
+    updatedAt: "2026-06-09T00:00:00.000Z",
+    workspaceId,
+  };
+}
+
+function workspaceEntry(
+  id: string,
+  name: string,
+): PlatoWorkspaceEntrySummary {
+  return {
+    id,
+    isCurrent: id === "workspace-local",
+    label: name,
+    name,
+    pathLabel: "workspace://current",
+  };
 }
 
 function buildViewModel(

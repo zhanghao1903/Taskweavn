@@ -7,12 +7,11 @@ import sys
 import threading
 from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from typing import Any, cast
+from typing import Any, Protocol, cast
 from urllib.parse import urlsplit
 
 from taskweavn.server.transport import HttpApiRequest, HttpApiResponse
 from taskweavn.server.ui_contract import ApiError
-from taskweavn.server.ui_http import PlatoUiHttpTransport
 
 _LOOPBACK_HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
 _DEFAULT_ALLOWED_METHODS = "GET, POST, PATCH, OPTIONS"
@@ -22,6 +21,12 @@ _CLIENT_DISCONNECT_ERRORS = (
     ConnectionAbortedError,
     ConnectionResetError,
 )
+
+
+class SidecarTransport(Protocol):
+    """Transport boundary consumed by the stdlib sidecar server."""
+
+    def handle(self, request: HttpApiRequest) -> HttpApiResponse: ...
 
 
 @dataclass(frozen=True)
@@ -40,7 +45,7 @@ class LocalSidecarServer:
 
     def __init__(
         self,
-        transport: PlatoUiHttpTransport,
+        transport: SidecarTransport,
         *,
         config: LocalSidecarConfig | None = None,
     ) -> None:
@@ -105,7 +110,7 @@ class _SidecarHTTPServer(ThreadingHTTPServer):
         server_address: tuple[str, int],
         request_handler_class: type[BaseHTTPRequestHandler],
         *,
-        transport: PlatoUiHttpTransport,
+        transport: SidecarTransport,
         config: LocalSidecarConfig,
     ) -> None:
         super().__init__(server_address, request_handler_class)
@@ -278,4 +283,5 @@ def _json_error_response(*, status_code: int, error: ApiError) -> HttpApiRespons
 __all__ = [
     "LocalSidecarConfig",
     "LocalSidecarServer",
+    "SidecarTransport",
 ]
