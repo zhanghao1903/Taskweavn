@@ -25,6 +25,8 @@ from taskweavn.task import (
     FeasibilityReport,
     MutateDraftTaskTreeCommand,
     MutateRawTaskCommand,
+    PlanProposal,
+    PlanTaskNodeProposal,
     PublishDraftTaskTreeCommand,
     RawTask,
     RawTaskAnswer,
@@ -355,6 +357,90 @@ def test_draft_task_tree_proposal_supports_nested_nodes() -> None:
     assert proposal.roots[0].children[0].title == "Run checks"
     with pytest.raises(ValidationError):
         proposal.roots = ()
+
+
+def test_plan_proposal_is_flat_plan_plus_tasknodes_contract() -> None:
+    proposal = PlanProposal(
+        title="Release plan",
+        summary="Prepare the release safely.",
+        assistant_message="Drafted a flat plan.",
+        tasks=(
+            PlanTaskNodeProposal(
+                client_task_id="write-notes",
+                task_index=1,
+                title="Write notes",
+                intent="Prepare release notes",
+                required_capability="writing",
+            ),
+            PlanTaskNodeProposal(
+                client_task_id="run-checks",
+                task_index=2,
+                title="Run checks",
+                intent="Run regression tests",
+                required_capability="testing",
+                depends_on=("write-notes",),
+            ),
+        ),
+    )
+
+    assert proposal.schema_version == "plato.plan.proposal.v1"
+    assert [task.task_index for task in proposal.tasks] == [1, 2]
+    assert proposal.tasks[1].depends_on == ("write-notes",)
+
+
+def test_plan_proposal_rejects_hierarchy_and_role_fields() -> None:
+    with pytest.raises(ValidationError) as exc_info:
+        PlanProposal.model_validate(
+            {
+                "title": "Nested plan",
+                "assistant_message": "Drafted a nested plan.",
+                "tasks": [
+                    {
+                        "task_index": 1,
+                        "title": "Parent",
+                        "intent": "Do parent work",
+                        "required_capability": "writing",
+                        "children": [],
+                        "node_type": "summary",
+                        "execution_role": "aggregate_only",
+                        "children_policy": "all_done",
+                    }
+                ],
+            }
+        )
+
+    message = str(exc_info.value)
+    assert "children" in message
+    assert "node_type" in message
+    assert "execution_role" in message
+    assert "children_policy" in message
+
+
+def test_plan_proposal_requires_unique_task_indexes_and_client_ids() -> None:
+    duplicated_task = {
+        "client_task_id": "same",
+        "task_index": 1,
+        "title": "Write notes",
+        "intent": "Prepare release notes",
+        "required_capability": "writing",
+    }
+
+    with pytest.raises(ValidationError, match="task_index"):
+        PlanProposal.model_validate(
+            {
+                "title": "Release plan",
+                "assistant_message": "Drafted a flat plan.",
+                "tasks": [duplicated_task, {**duplicated_task, "client_task_id": "b"}],
+            }
+        )
+    with pytest.raises(ValidationError, match="client_task_id"):
+        PlanProposal.model_validate(
+            {
+                "title": "Release plan",
+                "assistant_message": "Drafted a flat plan.",
+                "tasks": [duplicated_task, {**duplicated_task, "task_index": 2}],
+            }
+        )
 
 
 def test_task_node_option_requires_patch_or_message() -> None:

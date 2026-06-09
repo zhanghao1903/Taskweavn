@@ -105,6 +105,28 @@ class DefaultTaskProjectionService:
             nodes.extend(self._published_cards(session_id, root_ref=root_ref))
         return TaskTreeView(session_id=session_id, nodes=tuple(nodes))
 
+    def list_plan_tree(
+        self,
+        session_id: str,
+        *,
+        root_ref: TaskRef | None = None,
+        include_drafts: bool = True,
+        include_published: bool = True,
+    ) -> TaskTreeView:
+        """Project the Product 1.1 Plan view as a flat TaskNode list.
+
+        Legacy draft/published stores may still contain parent-child links.
+        The main product surface intentionally hides that hierarchy until a
+        later TaskNode hierarchy design earns its complexity.
+        """
+
+        nodes: list[TaskCardView] = []
+        if include_drafts and self._draft_store is not None:
+            nodes.extend(self._draft_plan_cards(session_id, root_ref=root_ref))
+        if include_published:
+            nodes.extend(self._published_plan_cards(session_id, root_ref=root_ref))
+        return TaskTreeView(session_id=session_id, nodes=tuple(nodes))
+
     def get_task_card(self, session_id: str, task_ref: TaskRef) -> TaskCardView:
         if task_ref.kind == "draft":
             if self._draft_store is None:
@@ -176,6 +198,35 @@ class DefaultTaskProjectionService:
                     continue
                 ref = TaskRef.draft(node.draft_task_id)
                 cards.append(self._project_draft_node(node, depth=0, parent_ref=None, root_ref=ref))
+        return cards
+
+    def _draft_plan_cards(
+        self,
+        session_id: str,
+        *,
+        root_ref: TaskRef | None,
+    ) -> list[TaskCardView]:
+        if self._draft_store is None:
+            return []
+        if root_ref is not None and root_ref.kind != "draft":
+            return []
+
+        cards: list[TaskCardView] = []
+        for tree in self._draft_trees_for_projection(session_id):
+            for node in _ordered_draft_plan_nodes(
+                self._draft_store.list_nodes(session_id, tree.draft_tree_id)
+            ):
+                if root_ref is not None and node.draft_task_id != root_ref.id:
+                    continue
+                ref = TaskRef.draft(node.draft_task_id)
+                cards.append(
+                    self._project_draft_node(
+                        node,
+                        depth=0,
+                        parent_ref=None,
+                        root_ref=ref,
+                    )
+                )
         return cards
 
     def _draft_trees_for_projection(self, session_id: str) -> list[DraftTaskTree]:
@@ -254,6 +305,17 @@ class DefaultTaskProjectionService:
                 root_ref=TaskRef.published(root.root_id),
             )
         return cards
+
+    def _published_plan_cards(
+        self,
+        session_id: str,
+        *,
+        root_ref: TaskRef | None,
+    ) -> list[TaskCardView]:
+        return [
+            _flatten_plan_card(card)
+            for card in self._published_cards(session_id, root_ref=root_ref)
+        ]
 
     def _append_task_subtree(
         self,
@@ -462,6 +524,49 @@ class DefaultTaskProjectionService:
 
 def _ordered(tasks: Iterable[TaskDomain]) -> list[TaskDomain]:
     return sorted(tasks, key=lambda t: (t.order_index, t.created_at, t.task_id))
+
+
+def _ordered_draft_plan_nodes(nodes: Iterable[DraftTaskNode]) -> list[DraftTaskNode]:
+    node_list = list(nodes)
+    children: dict[str | None, list[DraftTaskNode]] = defaultdict(list)
+    by_id = {node.draft_task_id: node for node in node_list}
+    for node in node_list:
+        parent_id = node.parent_draft_task_id
+        children[parent_id if parent_id in by_id else None].append(node)
+
+    ordered: list[DraftTaskNode] = []
+
+    def visit(node: DraftTaskNode) -> None:
+        ordered.append(node)
+        for child in _ordered_draft_nodes(children[node.draft_task_id]):
+            visit(child)
+
+    for root in _ordered_draft_nodes(children[None]):
+        visit(root)
+    return ordered
+
+
+def _ordered_draft_nodes(nodes: Iterable[DraftTaskNode]) -> list[DraftTaskNode]:
+    return sorted(nodes, key=lambda n: (n.order_index, n.created_at, n.draft_task_id))
+
+
+def _flatten_plan_card(card: TaskCardView) -> TaskCardView:
+    badges = card.badges.model_copy(
+        update={
+            "child_count": 0,
+            "done_child_count": 0,
+            "failed_child_count": 0,
+        }
+    )
+    return card.model_copy(
+        update={
+            "parent_ref": None,
+            "root_ref": card.task_ref,
+            "depth": 0,
+            "badges": badges,
+            "progress": None,
+        }
+    )
 
 
 def _children_by_parent(tasks: list[TaskDomain]) -> dict[str | None, list[TaskDomain]]:

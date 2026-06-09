@@ -575,13 +575,19 @@ def test_collaborator_prompt_contains_exact_authoring_protocols() -> None:
     assert "first structured boundary" in system_prompt
     assert "product-facing contract" in system_prompt
     assert "Work scenario:" in system_prompt
+    assert "Plan/TaskNode workflow" in system_prompt
     assert "Authoring lifecycle:" in system_prompt
     assert "RawTaskProposal" in system_prompt
-    assert "DraftTaskTreeProposal" in system_prompt
+    assert "PlanProposal" in system_prompt
     assert "DraftTaskPatchProposal" in system_prompt
     assert "RawTaskProposal dependency rules:" in system_prompt
-    assert "DraftTaskTreeProposal dependency rules:" in system_prompt
+    assert "PlanProposal dependency rules:" in system_prompt
     assert "DraftTaskPatchProposal dependency rules:" in system_prompt
+    assert "Product 1.1 intentionally supports only two levels" in system_prompt
+    assert "Do not include parent_client_task_id" in system_prompt
+    assert "children_policy" in system_prompt
+    assert 'Must be "selected_node".' in system_prompt
+    assert "Always return []" in system_prompt
     assert "Do not return feasibility as a string" in system_prompt
     assert "Never return asks as a string list" in system_prompt
     assert "Do not generate ids, timestamps" in system_prompt
@@ -737,7 +743,100 @@ def test_generate_task_tree_maps_proposal_to_create_tree_command() -> None:
 
     assert result.ok
     assert len(result.object_refs) == 2
-    assert len(draft_store.list_nodes("s1", tree.draft_tree_id)) == 2
+    nodes = draft_store.list_nodes("s1", tree.draft_tree_id)
+    assert len(nodes) == 2
+    assert [node.title for node in nodes] == ["Write docs", "Test examples"]
+    assert [node.parent_draft_task_id for node in nodes] == [None, None]
+    assert "originally grouped under Write docs" in nodes[1].intent
+
+
+def test_generate_task_tree_accepts_flat_plan_proposal() -> None:
+    raw_store = InMemoryRawTaskStore([_raw_task()])
+    service, _, draft_store = _service(
+        _StubLLM(
+            [
+                """
+                {
+                  "schema_version": "plato.plan.proposal.v1",
+                  "title": "Docs plan",
+                  "summary": "Create useful developer documentation.",
+                  "assistant_message": "Drafted a flat plan",
+                  "tasks": [
+                    {
+                      "client_task_id": "run-examples",
+                      "task_index": 2,
+                      "title": "Run examples",
+                      "intent": "Run the examples and capture failures.",
+                      "required_capability": "testing"
+                    },
+                    {
+                      "client_task_id": "write-docs",
+                      "task_index": 1,
+                      "title": "Write docs",
+                      "intent": "Write the core documentation.",
+                      "summary": "Draft the user-facing docs.",
+                      "instructions": "Keep the scope focused.",
+                      "required_capability": "writing",
+                      "depends_on": ["run-examples"],
+                      "acceptance_criteria": ["Docs are clear"]
+                    }
+                  ]
+                }
+                """
+            ]
+        ),
+        raw_store=raw_store,
+    )
+
+    result = service.generate_task_tree(session_id="s1", raw_task_id="raw1")
+    tree = draft_store.list_trees("s1")[0]
+    nodes = draft_store.list_nodes("s1", tree.draft_tree_id)
+
+    assert result.ok
+    assert [node.title for node in nodes] == ["Write docs", "Run examples"]
+    assert [node.parent_draft_task_id for node in nodes] == [None, None]
+    assert "Summary: Draft the user-facing docs." in nodes[0].intent
+    assert "Instructions: Keep the scope focused." in nodes[0].intent
+    assert "Acceptance criteria: Docs are clear" in nodes[0].intent
+    assert nodes[0].constraints == ("Depends on: run-examples",)
+
+
+def test_generate_task_tree_rejects_plan_hierarchy_fields() -> None:
+    raw_store = InMemoryRawTaskStore([_raw_task()])
+    service, _, draft_store = _service(
+        _StubLLM(
+            [
+                """
+                {
+                  "schema_version": "plato.plan.proposal.v1",
+                  "title": "Nested plan",
+                  "assistant_message": "Drafted a nested plan",
+                  "tasks": [
+                    {
+                      "task_index": 1,
+                      "title": "Parent task",
+                      "intent": "Do parent work.",
+                      "required_capability": "writing",
+                      "children": [],
+                      "node_type": "summary",
+                      "execution_role": "aggregate_only",
+                      "children_policy": "all_done"
+                    }
+                  ]
+                }
+                """
+            ]
+        ),
+        raw_store=raw_store,
+    )
+
+    result = service.generate_task_tree(session_id="s1", raw_task_id="raw1")
+
+    assert not result.ok
+    assert result.errors[0].code == "invalid_llm_proposal"
+    assert "children" in result.errors[0].message
+    assert "execution_role" in result.errors[0].message
+    assert draft_store.list_trees("s1") == []
 
 
 def test_refine_task_node_maps_patch_without_rebuilding_tree() -> None:

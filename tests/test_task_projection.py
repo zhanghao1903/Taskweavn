@@ -12,6 +12,7 @@ from taskweavn.task import (
     DraftTaskNode,
     DraftTaskTree,
     DraftToPublishedMapping,
+    InMemoryDraftTaskStore,
     TaskDispatchConstraints,
     TaskDomain,
     TaskFileChangeSummary,
@@ -349,6 +350,25 @@ def test_published_tree_projection_is_preorder() -> None:
     assert tree.nodes[1].parent_ref == TaskRef.published("root")
 
 
+def test_plan_tree_projection_flattens_published_children_for_product_view() -> None:
+    root = _task("root")
+    child_b = _task("child-b", parent_id="root", order=1)
+    child_a = _task("child-a", parent_id="root", order=0)
+    service = DefaultTaskProjectionService(task_store=_TaskStore([child_b, root, child_a]))
+
+    tree = service.list_plan_tree("s1", include_drafts=False)
+
+    assert [node.task_ref.id for node in tree.nodes] == ["root", "child-a", "child-b"]
+    assert [node.depth for node in tree.nodes] == [0, 0, 0]
+    assert [node.parent_ref for node in tree.nodes] == [None, None, None]
+    assert [node.root_ref for node in tree.nodes] == [
+        TaskRef.published("root"),
+        TaskRef.published("child-a"),
+        TaskRef.published("child-b"),
+    ]
+    assert [node.badges.child_count for node in tree.nodes] == [0, 0, 0]
+
+
 def test_failed_task_projection_keeps_original_task_and_exposes_retry() -> None:
     failed = _task("root", status="failed", error_ref="error:root")
     child = _task("child", parent_id="root", order=0)
@@ -403,6 +423,52 @@ def test_draft_tree_projection_uses_editable_draft_cards() -> None:
     assert tree.nodes[0].task_ref == TaskRef.draft("draft-1")
     assert tree.nodes[0].permissions.can_edit is True
     assert tree.nodes[0].permissions.can_publish is True
+
+
+def test_plan_tree_projection_flattens_legacy_draft_children() -> None:
+    draft_store = InMemoryDraftTaskStore()
+    tree = draft_store.create_tree(
+        "s1",
+        [
+            DraftTaskNode(
+                draft_task_id="draft-root",
+                session_id="s1",
+                draft_tree_id="placeholder",
+                title="Draft plan",
+                intent="Create a careful plan",
+                required_capability="planning",
+            )
+        ],
+    )
+    draft_store.add_node(
+        "s1",
+        tree.draft_tree_id,
+        DraftTaskNode(
+            draft_task_id="draft-child",
+            session_id="s1",
+            draft_tree_id=tree.draft_tree_id,
+            parent_draft_task_id="draft-root",
+            title="Draft child",
+            intent="Fill in the plan",
+            required_capability="planning",
+        ),
+        expected_tree_version=tree.version,
+    )
+    service = DefaultTaskProjectionService(
+        task_store=_TaskStore([]),
+        draft_store=draft_store,
+    )
+
+    plan_tree = service.list_plan_tree("s1", include_published=False)
+    legacy_tree = service.list_task_tree("s1", include_published=False)
+
+    assert [node.task_ref.id for node in plan_tree.nodes] == [
+        "draft-root",
+        "draft-child",
+    ]
+    assert [node.depth for node in plan_tree.nodes] == [0, 0]
+    assert [node.parent_ref for node in plan_tree.nodes] == [None, None]
+    assert [node.task_ref.id for node in legacy_tree.nodes] == ["draft-root"]
 
 
 def test_draft_projection_uses_only_active_draft_tree_when_state_store_is_configured() -> None:

@@ -2,7 +2,7 @@
 
 > Status: product semantic baseline
 >
-> Last Updated: 2026-06-07
+> Last Updated: 2026-06-09
 >
 > Scope: user-facing meaning of Session content and its relationship to
 > Session, Plan, Task, Activity, MessageStream, and Audit. This is not a UI
@@ -11,7 +11,8 @@
 > Related:
 > [Plato Task Semantics](plato-task-semantics.md),
 > [Workflow, Session, And Task UX Model](workflow-session-task-ux-model.md),
-> [Core Product Principles](core-product-principles.md)
+> [Core Product Principles](core-product-principles.md),
+> [Plan / TaskNode Model Technical Design](../plans/feature/plan-tasknode-model-technical-design.zh-CN.md)
 
 ## 1. Core Definition
 
@@ -22,6 +23,10 @@ execution, user decisions, results, and recovery.
 
 Task remains the work contract and state authority. Session content is the
 user-readable narrative and interaction history around that contract.
+
+Plan is the scoped work program inside a Session. Session content should attach
+to Plan when the content is about this round of authoring, execution,
+finalization, or outcome review.
 
 ## 2. Product Meaning
 
@@ -39,9 +44,10 @@ Session content is therefore the collaboration layer around Session, Plan, and
 Task. It should not become the primary product object.
 
 ```text
-Task = work contract and state authority
-Session content = collaboration narrative around the contract
-Audit = evidence trace behind the contract
+Plan = scoped work program and context-management boundary
+Task = work contract and state authority inside a Plan
+Session content = collaboration narrative around Plan and Task contracts
+Audit = evidence trace behind the contracts
 ```
 
 ## 3. What Session Content Is Not
@@ -76,8 +82,12 @@ primary collaboration objects.
 | Scope | User meaning | Examples |
 |---|---|---|
 | Session | This collaboration run. | Original goal, session-wide preference, overall progress question. |
-| Plan | How this work is or will be organized. | Revise plan, split steps, simplify sequence, ask why the plan is structured this way. |
+| Plan | This round of organized work. | Revise plan, split steps, simplify sequence, review outcome, start follow-up plan. |
 | Task | A concrete work contract inside the plan. | Add guidance, answer ASK, resolve confirmation, retry, inspect result. |
+
+Plan scope is especially important because a long Session may contain multiple
+Plans. A user can ask about the Session, but most actionable collaboration
+should attach to the active Plan or a selected TaskNode.
 
 ## 5. References Are Not Scopes
 
@@ -96,6 +106,8 @@ Examples:
 | "Why did this file change?" | question | Task | file change summary |
 | "Do not touch CSS in this task." | guidance | Task | selected Task |
 | "Make the plan frontend-first." | command | Plan | current Plan |
+| "Summarize what this plan achieved." | question | Plan | Plan outcome |
+| "Start the next plan from these results." | command | Plan / Session | accepted Plan |
 | "Explain the overall status." | question | Session | none |
 
 This keeps the product model centered on collaboration rather than low-level
@@ -110,6 +122,8 @@ degrading into raw chat.
 |---|---|---|---|
 | User intent | Original user goal or follow-up goal. | Session / Plan | May create RawTask or Plan authoring. |
 | Planning note | User-readable note about interpretation or plan generation. | Plan | Explains plan state. |
+| Plan summary | User-readable summary of the current Plan. | Plan | Explains scope, progress, and outcome. |
+| Plan finalization note | Summary, validation, integration, or context-compression output after TaskNode execution. | Plan | May prepare outcome review or follow-up authoring. |
 | User guidance | Constraint, preference, or additional context. | Session / Task | Affects future context, not direct structure. |
 | Question | User asks for understanding. | Session / Plan / Task | No state mutation by default. |
 | Answer | Plato answers a read-only question. | Session / Plan / Task | No state mutation by default. |
@@ -122,6 +136,10 @@ degrading into raw chat.
 | File summary | User-readable workspace change summary. | Task / Session | Summarizes evidence. |
 | Recovery note | Failure, stop, retry, or recovery explanation. | Task / Session | Explains recovery path. |
 
+Plan-level content may be produced by Collaborator, reviewer, summarizer, audit,
+or context-management agents. It should still be projected into typed content
+rather than displayed as raw model output.
+
 ## 7. State Authority Rule
 
 Session content may explain state, but it does not own state.
@@ -130,6 +148,7 @@ State authority belongs to:
 
 - Session lifecycle facts;
 - Plan lifecycle facts;
+- Plan finalization facts;
 - Task lifecycle facts;
 - ASK facts;
 - confirmation facts;
@@ -190,9 +209,12 @@ It should show:
 
 - original goal;
 - planning notes;
+- Plan-level constraints and context policy when user-visible;
 - plan revision requests;
 - plan acceptance;
 - transition from plan to execution;
+- Plan finalization progress;
+- Plan outcome summary;
 - follow-up plan creation when Product 1.1 supports it.
 
 ### 8.4 Audit
@@ -219,7 +241,7 @@ MessageStream can be a storage or transport substrate for:
 The UI should project typed views from MessageStream and other facts:
 
 ```text
-MessageStream + Task facts + ASK facts + confirmation facts + result facts
+MessageStream + Plan facts + Task facts + ASK facts + confirmation facts + result facts
   -> Activity Stream
   -> Task Detail Activity
   -> Plan Activity
@@ -228,11 +250,11 @@ MessageStream + Task facts + ASK facts + confirmation facts + result facts
 ## 10. Relationship To Plan Cycles
 
 When a Session supports multiple rounds of planning and execution, content
-should attach to a Plan Cycle when applicable.
+should attach to a Plan when applicable.
 
 ```text
 Session
-  -> Plan Cycle
+  -> Plan
       -> Plan content
       -> Task content
       -> Outcome content
@@ -241,15 +263,28 @@ Session
 This lets the user continue a Session after accepting an outcome without
 mixing the old plan and the new follow-up plan into one ambiguous thread.
 
+Plan content should include enough information for the next Plan to be authored
+without relying on raw chat:
+
+- original Plan goal;
+- accepted TaskNode list;
+- TaskNode outcomes;
+- file-change rollups;
+- unresolved questions and warnings;
+- user acceptance or follow-up decision;
+- context-compression summary for Collaborator.
+
 ## 11. Product Invariants
 
 1. Session content is typed and scoped.
 2. Session content is not raw chat.
 3. Task remains the work contract and state authority.
-4. Plan explains how work is organized.
+4. Plan is the scoped work program and context-management boundary.
 5. Activity explains what happened in user-readable form.
 6. File, diff, result, audit, ASK, and confirmation are references unless they
    also represent a Task or Plan interaction.
 7. Raw LLM output should not be the default visible artifact.
 8. Every visible content item should make clear whether it changes nothing,
    changes context, changes state, or reports evidence.
+9. Plan-level summary, validation, integration, and context-compression content
+   belongs to Plan scope, not raw Session chat.

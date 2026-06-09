@@ -2,17 +2,19 @@
 
 > Status: product semantic baseline
 >
-> Last Updated: 2026-06-07
+> Last Updated: 2026-06-09
 >
-> Scope: user-facing meaning of Task, TaskTree, and Task lifecycle. This is not
-> a backend status model, not a UI layout spec, and not an implementation plan.
+> Scope: user-facing meaning of Plan-owned TaskNodes, Plan progress, and Task
+> lifecycle. This is not a backend status model, not a UI layout spec, and not
+> an implementation plan.
 >
 > Related:
 > [Core Product Principles](core-product-principles.md),
 > [Workflow, Session, And Task UX Model](workflow-session-task-ux-model.md),
 > [Plato Session Content Model](plato-session-content-model.md),
 > [Plato Plan Cycle Semantics](plato-plan-cycle-semantics.md),
-> [Canonical Status Model](canonical-status-model.md)
+> [Canonical Status Model](canonical-status-model.md),
+> [Plan / TaskNode Model Technical Design](../plans/feature/plan-tasknode-model-technical-design.zh-CN.md)
 
 ## 1. Core Definition
 
@@ -23,6 +25,24 @@ under user supervision. After execution, it is a result and evidence anchor.
 
 This definition is the core product meaning of Task. It is more important than
 the internal status names used by TaskBus, projection code, or API transport.
+
+In Product 1.1 language, Collaborator should not be understood as producing a
+loose `TaskTree` list. Collaborator produces a `Plan`, and the Plan owns a flat
+ordered `TaskNode` list.
+
+```text
+Session
+  -> Plan
+      -> TaskNode list
+```
+
+Every TaskNode is a work contract. The UI may simply call it a Task, but the
+contract/model name can remain `TaskNode`. Product 1.1 does not require
+parent/child task hierarchy, `node_type`, `execution_role`, or
+`children_policy`. What a TaskNode does is expressed through intent,
+instructions, constraints, capabilities, and acceptance criteria. The execution
+Agent decides how to satisfy that contract within runtime policy and
+audit/confirmation gates.
 
 ## 2. What A Task Is Not
 
@@ -56,7 +76,89 @@ formal names.
 | Execution | What is Plato doing now? | Delegated active work under user supervision. This is the core of a running Task. | Updating the Main Page detail panel. |
 | Evidence | What happened? | The result, changes, and proof after execution. This is the core of a completed or failed Task. | 3 files changed, tests passed, audit warning: none. |
 
-## 4. Unexecuted Task Semantics
+## 4. TaskNode Model
+
+Product 1.1 should use a two-level model:
+
+```text
+Plan
+  -> TaskNode 1
+  -> TaskNode 2
+  -> TaskNode 3
+```
+
+A TaskNode is a concrete user-visible work contract inside a Plan. It may
+involve implementation, research, validation, summary, documentation, or
+integration, but the system should not encode those as rigid execution roles in
+the Task model.
+
+Recommended TaskNode facts:
+
+| Fact | Meaning |
+|---|---|
+| `task_index` | Stable user-facing index inside one Plan, such as `1`, `2`, `3`. |
+| `title` | Short user-readable work label. |
+| `intent` | Why this line exists. |
+| `summary` | Compact description shown in the UI. |
+| `instructions` | Guidance passed to the execution Agent. |
+| `constraints` | What must be preserved or avoided. |
+| `acceptance_criteria` | How the result should be judged. |
+| `depends_on` | Minimal dependency hints between TaskNodes. |
+| `required_capability` | Optional capability hint, not a hard Agent role. |
+
+### 4.1 Why Not Parent/Child In The First Version
+
+Parent/child task hierarchy can express grouping, rollup, inherited constraints,
+and coordination, but it also adds substantial complexity:
+
+- LLM output must reliably distinguish group nodes from executable nodes;
+- UI must teach users tree semantics and parent-level selection;
+- TaskBus must decide whether parents execute, wait, summarize, or validate;
+- Audit and file summaries would need hierarchy-aware attribution if nested
+  TaskNodes are introduced later;
+- Context Manager must choose between Plan, parent, and child scopes.
+
+The first version should avoid that complexity until real usage proves the
+benefit is worth the extra model surface.
+
+### 4.2 Execution Agent Discretion
+
+TaskNode should define the work contract, not a system-owned execution role.
+
+The execution Agent can decide whether satisfying a TaskNode requires:
+
+- modifying workspace files;
+- reading and analyzing existing files;
+- writing documentation;
+- validating previous work;
+- summarizing results;
+- asking the user for missing information.
+
+Those decisions should be constrained by runtime policy, available tools,
+audit, confirmation, and the TaskNode's acceptance criteria rather than by a
+large `execution_role` enum.
+
+### 4.3 Plan-Level Summary And Rollup
+
+If the product needs summary, validation, integration, file rollup, or context
+compression after all TaskNodes finish, that should be modeled as Plan
+finalization.
+
+Plan finalization is not a hidden parent TaskNode in Product 1.1. It is a
+Plan-level lifecycle phase that can later be backed by Collaborator, reviewer,
+or context-management agents.
+
+### 4.4 LLM Output Requirements
+
+Collaborator output should produce a Plan proposal with a flat TaskNode list.
+It should not ask the model to choose parent/child semantics, `node_type`,
+`execution_role`, or `children_policy` in the first version.
+
+Raw LLM output should not decide product behavior implicitly. The product model
+should validate and normalize LLM output into explicit Plan and TaskNode facts
+before the UI or runtime acts on it.
+
+## 5. Unexecuted Task Semantics
 
 An unexecuted Task means:
 
@@ -93,7 +195,7 @@ Recommended actions:
 - approve;
 - regenerate.
 
-## 5. Running Task Semantics
+## 6. Running Task Semantics
 
 A running Task means:
 
@@ -133,7 +235,7 @@ Recommended actions:
 - resolve confirmation;
 - inspect file or diff when available.
 
-## 6. Completed Or Failed Task Semantics
+## 7. Completed Or Failed Task Semantics
 
 A terminal Task means:
 
@@ -165,12 +267,12 @@ Recommended actions:
 - revise and retry;
 - skip when safe.
 
-## 7. UI Implications
+## 8. UI Implications
 
 The UI should express Task semantics through layout, copy, state grouping, and
 available actions.
 
-### 7.1 Detail Panel
+### 8.1 Detail Panel
 
 Task Detail should change its primary framing by lifecycle.
 
@@ -183,12 +285,16 @@ Task Detail should change its primary framing by lifecycle.
 | Done | Result | This step is complete. Review the outcome and evidence. |
 | Failed | Recoverable failure | This step stopped before completion. You can retry or revise it. |
 
-### 7.2 TaskTree
+### 8.2 Plan & Progress
 
-TaskTree should not feel like a plain checklist. It is the visible structure of
-the work contract.
+Plan & Progress should not feel like a plain checklist. It is the visible
+structure of the current Plan and its TaskNode contracts.
 
-The tree should make lifecycle visible:
+Raw Task authoring and published Plan views should both show the same TaskNode
+set. If authoring shows one structure while published execution shows another,
+users cannot review the actual work contract before approval.
+
+The Plan & Progress area should make lifecycle visible:
 
 - planned work is reviewable;
 - running work is supervised;
@@ -202,10 +308,12 @@ Possible visual grouping:
 - Completed;
 - Needs recovery.
 
-If the UI does not group nodes physically, each TaskNode must still expose the
-same lifecycle meaning through label, tone, and actions.
+Each TaskNode should expose lifecycle meaning through label, tone, and actions.
+Selecting the Plan should show plan-level intent, progress, summary, and
+available Plan actions. Selecting a TaskNode should show concrete execution
+detail.
 
-### 7.3 Messages And Activity
+### 8.3 Messages And Activity
 
 Messages should explain what happened around a Task, but they should not become
 the Task authority.
@@ -222,7 +330,7 @@ Task authority comes from:
 Activity Stream is a user-readable projection of these facts. It is not raw LLM
 output and not the canonical source of Task state.
 
-### 7.4 Plan Cycle Context
+### 8.4 Plan Cycle Context
 
 Within a Plan Cycle, Task meaning changes by phase:
 
@@ -235,7 +343,7 @@ Within a Plan Cycle, Task meaning changes by phase:
 Task semantics should therefore remain stable even when a Session continues
 through multiple Plan Cycles.
 
-## 8. Relationship To Input Modes
+## 9. Relationship To Input Modes
 
 Task semantics clarify the meaning of user input:
 
@@ -250,7 +358,7 @@ Task semantics clarify the meaning of user input:
 This distinction should be internal first. The primary UI can remain one input
 surface, but the system must preserve the semantic difference after routing.
 
-## 9. Relationship To Audit And Diff
+## 10. Relationship To Audit And Diff
 
 Evidence is the post-execution layer of Task.
 
@@ -278,7 +386,7 @@ Task -> Result -> File changes -> Diff -> Audit
 
 without learning internal EventStream or tool schemas.
 
-## 10. Product Invariant
+## 11. Product Invariant
 
 Every important Task view should answer four questions:
 
@@ -290,7 +398,7 @@ Every important Task view should answer four questions:
 If a Task view cannot answer these questions, it is likely exposing internal
 status without enough product semantics.
 
-## 11. Acceptance Criteria For Future UI Work
+## 12. Acceptance Criteria For Future UI Work
 
 Future Main Page, Audit Page, and Task Detail work should satisfy:
 

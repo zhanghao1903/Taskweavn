@@ -498,6 +498,50 @@ class DraftTaskTreeProposal(_FrozenAuthoringModel):
     assistant_message: str = Field(min_length=1)
 
 
+class PlanTaskNodeProposal(_FrozenAuthoringModel):
+    """Product 1.1 LLM proposal shape for one flat TaskNode inside a Plan."""
+
+    client_task_id: str | None = Field(default=None, min_length=1)
+    task_index: int | None = Field(default=None, ge=1)
+    title: str = Field(min_length=1)
+    intent: str = Field(min_length=1)
+    summary: str | None = Field(default=None, min_length=1)
+    instructions: str | None = Field(default=None, min_length=1)
+    required_capability: str = Field(min_length=1)
+    depends_on: tuple[str, ...] = ()
+    constraints: tuple[str, ...] = ()
+    acceptance_criteria: tuple[str, ...] = ()
+    rationale: str | None = None
+
+
+class PlanProposal(_FrozenAuthoringModel):
+    """LLM contract for the first Plan model: Plan plus flat TaskNode list.
+
+    The model deliberately rejects hierarchy fields. The storage layer may keep
+    legacy DraftTaskTree names while the product contract exposes a two-level
+    Plan -> TaskNode[] shape.
+    """
+
+    schema_version: Literal["plato.plan.proposal.v1"] = "plato.plan.proposal.v1"
+    title: str = Field(min_length=1)
+    objective: str | None = Field(default=None, min_length=1)
+    summary: str | None = Field(default=None, min_length=1)
+    tasks: tuple[PlanTaskNodeProposal, ...] = Field(min_length=1)
+    assistant_message: str = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def _validate_task_identity(self) -> PlanProposal:
+        indexes = [task.task_index for task in self.tasks if task.task_index is not None]
+        if len(indexes) != len(set(indexes)):
+            raise ValueError("PlanProposal task_index values must be unique")
+        client_ids = [
+            task.client_task_id for task in self.tasks if task.client_task_id is not None
+        ]
+        if len(client_ids) != len(set(client_ids)):
+            raise ValueError("PlanProposal client_task_id values must be unique")
+        return self
+
+
 class DraftTaskPatchProposal(_FrozenAuthoringModel):
     patch: TaskNodePatch
     assistant_message: str = Field(min_length=1)
