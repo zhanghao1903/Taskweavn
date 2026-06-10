@@ -1,11 +1,12 @@
 # Plato Public Exposure Plan
 
-> Status: accepted
+> Status: done
 > Last Updated: 2026-06-10
 > Gap: [Public visual asset gaps](public-visual-asset-gaps.md)
 > Product: [Core product principles](../core-product-principles.md), [MVP PRD](../plato-mvp-prd.md), [Brand and UX direction](../plato-brand-and-ux-direction.md), [Product 1.1 workspace-aware foundation](../plato-1-1-workspace-aware-agent-foundation.md)
 > Architecture: [Architecture overview](../../architecture/overview.md), [UI/backend communication](../../architecture/ui-backend-communication.md), [Context Manager](../../architecture/context-manager.md), [Git/Diff/File Viewer API contract](../../engineering/git-diff-file-viewer-api-contract.md)
 > Public Repository Reviewed: `https://github.com/zhanghao1903/plato-public`
+> Public Implementation PR: `https://github.com/zhanghao1903/plato-public/pull/1`
 
 ---
 
@@ -15,7 +16,7 @@ This plan defines how Plato should expose selected product, architecture,
 release, and visual material through the public repository without copying
 private implementation context by default.
 
-The current public repository is a release-hosting shell:
+At plan intake, the public repository was a release-hosting shell:
 
 ```text
 README.md
@@ -23,13 +24,14 @@ releases/0.1.0/manifest.json
 releases/0.1.0/SHA256SUMS
 ```
 
-It already publishes the unsigned macOS Apple Silicon `0.1.0` local release
-candidate download and release metadata. It does not yet explain Plato as a
+It already published the unsigned macOS Apple Silicon `0.1.0` local release
+candidate download and release metadata, but did not yet explain Plato as a
 product, show the task-first user journey, show architecture, or provide
 public-ready UI/visual assets.
 
-This work is planning only. It does not move private docs, source code,
-screenshots, or assets into the public repository.
+The initial planning work did not move private docs, source code, screenshots,
+or assets into the public repository. The follow-up public implementation uses
+rewritten public docs and sanitized/exported visual assets only.
 
 ## 2. Exposure Goal
 
@@ -150,9 +152,9 @@ docs/
     macos-local-release.md
 assets/
   images/
-    plato-hero.png
-    plato-product-flow.png
-    plato-architecture-overview.png
+    plato-hero.svg
+    plato-product-flow.svg
+    plato-architecture-overview.svg
     plato-main-page.png
     plato-audit-page.png
     plato-workspace-inspection.png
@@ -358,11 +360,26 @@ This planning task is complete when:
 - no public repository content is changed;
 - no private implementation content is exposed.
 
-Current completion status: accepted on 2026-06-10 for the planning artifact.
-This means the private-repo public exposure strategy, public repository target
-structure, content boundaries, visual gap registry, and execution slices are
-ready for follow-up implementation. It does not mean the public repository has
-already received the README/docs/assets described in this plan.
+Current completion status: implemented in public draft PR on 2026-06-10.
+
+Evidence:
+
+- Public repository branch:
+  `zhanghao1903/plato-public@codex/plato-public-exposure`.
+- Public draft PR:
+  `https://github.com/zhanghao1903/plato-public/pull/1`.
+- Public commits:
+  - `8411de0 Add Plato public product docs`.
+  - `bd6a80e Complete public visual assets`.
+- Public docs added: README, product overview, task-first workflow, release
+  status, architecture overview, trust/audit, and macOS local release usage.
+- Public assets added: hero, product flow, architecture overview, trust flow,
+  Context Manager, Main Page vs Audit Page, macOS local release, public docs
+  map, Open Graph/social preview, sanitized Main Page screenshot, sanitized
+  Audit Page screenshot, and sanitized Workspace Inspection screenshot.
+
+The public PR remains draft until review/merge. The private planning artifact
+and public branch now satisfy the plan's first public exposure scope.
 
 ## 11. Risks And Assumptions
 
