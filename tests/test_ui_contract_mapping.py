@@ -83,6 +83,44 @@ def test_map_task_tree_uses_synthetic_projection_id_and_flat_nodes() -> None:
     assert payload["nodes"][0]["permissions"]["canCancel"] is True
 
 
+def test_map_task_tree_preserves_plan_metadata_from_projection() -> None:
+    source = TaskTreeView(
+        session_id="session-1",
+        title="Website plan",
+        summary="Prepare a concise website.",
+        nodes=(_published_card("root"),),
+    )
+
+    mapped = map_task_tree_view(source)
+
+    assert mapped.title == "Website plan"
+    assert mapped.summary == "Prepare a concise website."
+
+
+def test_map_task_node_preserves_structured_detail_content() -> None:
+    source = TaskTreeView(
+        session_id="session-1",
+        nodes=(
+            _published_card("root").model_copy(
+                update={
+                    "intent_preview": "Short card summary.",
+                    "full_intent": "Write the complete documentation.",
+                    "instructions": "Keep the scope focused.",
+                    "acceptance_criteria": ("Docs are clear",),
+                }
+            ),
+        ),
+    )
+
+    payload = map_task_tree_view(source).model_dump(mode="json")
+    node = payload["nodes"][0]
+
+    assert node["summary"] == "Short card summary."
+    assert node["intent"] == "Write the complete documentation."
+    assert node["instructions"] == "Keep the scope focused."
+    assert node["acceptanceCriteria"] == ["Docs are clear"]
+
+
 def test_map_task_node_preserves_canonical_execution_status() -> None:
     source = TaskTreeView(
         session_id="session-1",

@@ -124,7 +124,14 @@ class RawTaskStore(Protocol):
 class DraftTaskStore(Protocol):
     """Persistence boundary for unpublished Task authoring facts."""
 
-    def create_tree(self, session_id: str, roots: list[DraftTaskNode]) -> DraftTaskTree: ...
+    def create_tree(
+        self,
+        session_id: str,
+        roots: list[DraftTaskNode],
+        *,
+        title: str | None = None,
+        summary: str | None = None,
+    ) -> DraftTaskTree: ...
 
     def get_tree(self, session_id: str, draft_tree_id: str) -> DraftTaskTree: ...
 
@@ -255,7 +262,14 @@ class InMemoryDraftTaskStore:
         for tree in trees or []:
             self._load_tree(tree)
 
-    def create_tree(self, session_id: str, roots: list[DraftTaskNode]) -> DraftTaskTree:
+    def create_tree(
+        self,
+        session_id: str,
+        roots: list[DraftTaskNode],
+        *,
+        title: str | None = None,
+        summary: str | None = None,
+    ) -> DraftTaskTree:
         if not roots:
             raise ValueError("draft tree requires at least one root")
         draft_tree_id = _new_id()
@@ -271,6 +285,8 @@ class InMemoryDraftTaskStore:
         tree = DraftTaskTree(
             session_id=session_id,
             draft_tree_id=draft_tree_id,
+            title=title,
+            summary=summary,
             root_nodes=_sort_nodes(normalized_roots),
             created_by=normalized_roots[0].created_by,
         )
@@ -383,6 +399,17 @@ class InMemoryDraftTaskStore:
                 node,
                 title=patch.title or node.title,
                 intent=patch.intent or node.intent,
+                summary=patch.summary if patch.summary is not None else node.summary,
+                instructions=(
+                    patch.instructions
+                    if patch.instructions is not None
+                    else node.instructions
+                ),
+                acceptance_criteria=(
+                    patch.acceptance_criteria
+                    if patch.acceptance_criteria is not None
+                    else node.acceptance_criteria
+                ),
                 required_capability=patch.required_capability or node.required_capability,
                 constraints=_patched_constraints(node, patch),
                 status=patch.status or node.status,

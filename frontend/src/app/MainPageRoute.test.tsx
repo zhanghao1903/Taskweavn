@@ -46,7 +46,7 @@ describe("MainPageRoute", () => {
     vi.stubGlobal("fetch", async (input: RequestInfo | URL) => {
       const requestUrl = String(input);
       calls.push(requestUrl);
-      if (requestUrl.endsWith("/api/v1/workspaces")) {
+      if (requestUrl === "https://plato.example/api/v1/workspaces") {
         return jsonResponse({
           cursor: null,
           data: {

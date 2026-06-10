@@ -16,12 +16,15 @@ from taskweavn.task.authoring import (
     AuthoringCommandError,
     AuthoringCommandResult,
     AuthoringContext,
+    DraftTaskNodeProposal,
     DraftTaskPatchProposal,
     DraftTaskTreeOperation,
     DraftTaskTreeProposal,
     FeasibilityReport,
     MutateDraftTaskTreeCommand,
     MutateRawTaskCommand,
+    PlanProposal,
+    PlanTaskNodeProposal,
     RawTaskOperation,
 )
 from taskweavn.task.authoring_context import AuthoringContextBuilder
@@ -81,7 +84,7 @@ class CollaboratorAgentTemplate(_FrozenCollaboratorModel):
     template_id: str = COLLABORATOR_TEMPLATE_ID
     capability: str = COLLABORATOR_CAPABILITY
     display_name: str = "Collaborator"
-    description: str = "Helps users turn natural language goals into Task Trees."
+    description: str = "Helps users turn natural language goals into Plans."
     command_protocol: str = COLLABORATOR_COMMAND_PROTOCOL
     capability_catalog: str = "execution.capabilities.readonly"
     default_autonomy: str = "manual_or_collaborative"
@@ -320,19 +323,19 @@ class DefaultCollaboratorAuthoringService:
         if context.raw_task_id is None:
             return _proposal_error(
                 "draft_task_tree",
-                ValueError("RawTask is required before generating a draft task tree"),
+                ValueError("RawTask is required before generating a draft Plan"),
             )
         try:
             loop_result = self._run_one_shot(
                 operation="generate_task_tree",
                 proposal_kind="draft_task_tree",
-                task="Generate a draft task tree proposal for the selected RawTask.",
+                task="Generate a draft Plan proposal for the selected RawTask.",
                 session_id=session_id,
                 request_purpose="collaborator.generate_task_tree",
                 payload={"context": _context_payload(context)},
                 parse_response=_json_from_response,
             )
-            proposal = DraftTaskTreeProposal.model_validate(
+            proposal = _draft_tree_proposal_from_payload(
                 _finished_proposal(loop_result, expected_kind="draft_task_tree")
             )
             command = MutateDraftTaskTreeCommand(
@@ -343,7 +346,11 @@ class DefaultCollaboratorAuthoringService:
                 operations=(
                     DraftTaskTreeOperation(
                         op="create_tree",
-                        payload={"roots": _proposal_roots(proposal)},
+                        payload={
+                            "title": proposal.title,
+                            "summary": proposal.summary,
+                            "roots": _proposal_roots(proposal),
+                        },
                     ),
                 ),
             )
@@ -717,10 +724,95 @@ def _proposal_roots(proposal: DraftTaskTreeProposal) -> list[dict[str, Any]]:
     return [_proposal_node(root) for root in proposal.roots]
 
 
+def _draft_tree_proposal_from_payload(payload: object) -> DraftTaskTreeProposal:
+    if isinstance(payload, dict) and (
+        payload.get("schema_version") == "plato.plan.proposal.v1"
+        or "tasks" in payload
+    ):
+        return _draft_tree_from_plan_proposal(PlanProposal.model_validate(payload))
+    return _flatten_draft_task_tree_proposal(DraftTaskTreeProposal.model_validate(payload))
+
+
+def _draft_tree_from_plan_proposal(proposal: PlanProposal) -> DraftTaskTreeProposal:
+    indexed = tuple(enumerate(proposal.tasks, start=1))
+    ordered = sorted(
+        indexed,
+        key=lambda item: (item[1].task_index if item[1].task_index is not None else item[0]),
+    )
+    return DraftTaskTreeProposal(
+        title=proposal.title,
+        summary=proposal.summary,
+        roots=tuple(_draft_node_from_plan_task(task) for _, task in ordered),
+        assistant_message=proposal.assistant_message,
+    )
+
+
+def _draft_node_from_plan_task(task: PlanTaskNodeProposal) -> DraftTaskNodeProposal:
+    constraints = list(task.constraints)
+    if task.depends_on:
+        constraints.append("Depends on: " + ", ".join(task.depends_on))
+    return DraftTaskNodeProposal(
+        title=task.title,
+        intent=task.intent,
+        summary=task.summary,
+        instructions=task.instructions,
+        acceptance_criteria=task.acceptance_criteria,
+        required_capability=task.required_capability,
+        constraints=tuple(constraints),
+        rationale=task.rationale,
+    )
+
+
+def _flatten_draft_task_tree_proposal(
+    proposal: DraftTaskTreeProposal,
+) -> DraftTaskTreeProposal:
+    flat: list[DraftTaskNodeProposal] = []
+
+    def visit(
+        node: DraftTaskNodeProposal,
+        ancestors: tuple[DraftTaskNodeProposal, ...],
+    ) -> None:
+        flat.append(_flat_draft_node(node, ancestors))
+        for child in node.children:
+            visit(child, (*ancestors, node))
+
+    for root in proposal.roots:
+        visit(root, ())
+    return DraftTaskTreeProposal(
+        title=proposal.title,
+        summary=proposal.summary,
+        roots=tuple(flat),
+        assistant_message=proposal.assistant_message,
+    )
+
+
+def _flat_draft_node(
+    node: DraftTaskNodeProposal,
+    ancestors: tuple[DraftTaskNodeProposal, ...],
+) -> DraftTaskNodeProposal:
+    intent = node.intent
+    if ancestors:
+        ancestor_path = " > ".join(ancestor.title for ancestor in ancestors)
+        intent = f"{intent}\nContext: originally grouped under {ancestor_path}."
+    return DraftTaskNodeProposal(
+        title=node.title,
+        intent=intent,
+        summary=node.summary,
+        instructions=node.instructions,
+        acceptance_criteria=node.acceptance_criteria,
+        required_capability=node.required_capability,
+        constraints=node.constraints,
+        rationale=node.rationale,
+    )
+
+
 def _proposal_node(node: Any) -> dict[str, Any]:
     return {
         "title": node.title,
         "intent": node.intent,
+        "summary": node.summary,
+        "instructions": node.instructions,
+        "acceptance_criteria": list(node.acceptance_criteria),
         "required_capability": node.required_capability,
         "constraints": list(node.constraints),
         "rationale": node.rationale,

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from collections.abc import Iterable
+from dataclasses import dataclass
 from typing import Protocol, runtime_checkable
 
 from taskweavn.interaction import AgentMessage, MessageStream
@@ -103,7 +104,41 @@ class DefaultTaskProjectionService:
             nodes.extend(self._draft_cards(session_id, root_ref=root_ref))
         if include_published:
             nodes.extend(self._published_cards(session_id, root_ref=root_ref))
-        return TaskTreeView(session_id=session_id, nodes=tuple(nodes))
+        title, summary = self._plan_metadata(session_id)
+        return TaskTreeView(
+            session_id=session_id,
+            title=title,
+            summary=summary,
+            nodes=tuple(nodes),
+        )
+
+    def list_plan_tree(
+        self,
+        session_id: str,
+        *,
+        root_ref: TaskRef | None = None,
+        include_drafts: bool = True,
+        include_published: bool = True,
+    ) -> TaskTreeView:
+        """Project the Product 1.1 Plan view as a flat TaskNode list.
+
+        Legacy draft/published stores may still contain parent-child links.
+        The main product surface intentionally hides that hierarchy until a
+        later TaskNode hierarchy design earns its complexity.
+        """
+
+        nodes: list[TaskCardView] = []
+        if include_drafts and self._draft_store is not None:
+            nodes.extend(self._draft_plan_cards(session_id, root_ref=root_ref))
+        if include_published:
+            nodes.extend(self._published_plan_cards(session_id, root_ref=root_ref))
+        title, summary = self._plan_metadata(session_id)
+        return TaskTreeView(
+            session_id=session_id,
+            title=title,
+            summary=summary,
+            nodes=tuple(nodes),
+        )
 
     def get_task_card(self, session_id: str, task_ref: TaskRef) -> TaskCardView:
         if task_ref.kind == "draft":
@@ -148,6 +183,9 @@ class DefaultTaskProjectionService:
         return TaskDetailView(
             card=card,
             full_intent=self._full_intent(session_id, task_ref),
+            summary=card.intent_preview,
+            instructions=card.instructions,
+            acceptance_criteria=card.acceptance_criteria,
             constraints=self._constraints(session_id, task_ref),
             messages=tuple(messages),
             confirmations=tuple(confirmations),
@@ -178,6 +216,35 @@ class DefaultTaskProjectionService:
                 cards.append(self._project_draft_node(node, depth=0, parent_ref=None, root_ref=ref))
         return cards
 
+    def _draft_plan_cards(
+        self,
+        session_id: str,
+        *,
+        root_ref: TaskRef | None,
+    ) -> list[TaskCardView]:
+        if self._draft_store is None:
+            return []
+        if root_ref is not None and root_ref.kind != "draft":
+            return []
+
+        cards: list[TaskCardView] = []
+        for tree in self._draft_trees_for_projection(session_id):
+            for node in _ordered_draft_plan_nodes(
+                self._draft_store.list_nodes(session_id, tree.draft_tree_id)
+            ):
+                if root_ref is not None and node.draft_task_id != root_ref.id:
+                    continue
+                ref = TaskRef.draft(node.draft_task_id)
+                cards.append(
+                    self._project_draft_node(
+                        node,
+                        depth=0,
+                        parent_ref=None,
+                        root_ref=ref,
+                    )
+                )
+        return cards
+
     def _draft_trees_for_projection(self, session_id: str) -> list[DraftTaskTree]:
         if self._draft_store is None:
             return []
@@ -188,6 +255,31 @@ class DefaultTaskProjectionService:
         if active.active_state != "draft_tree" or active.active_draft_tree_id is None:
             return []
         return [self._draft_store.get_tree(session_id, active.active_draft_tree_id)]
+
+    def _plan_metadata(self, session_id: str) -> tuple[str | None, str | None]:
+        tree = self._draft_tree_for_plan_metadata(session_id)
+        if tree is None:
+            return None, None
+        return tree.title, tree.summary
+
+    def _draft_tree_for_plan_metadata(self, session_id: str) -> DraftTaskTree | None:
+        if self._draft_store is None:
+            return None
+        if self._authoring_state_store is not None:
+            active = self._authoring_state_store.get_active(session_id)
+            if active.active_draft_tree_id is not None:
+                try:
+                    return self._draft_store.get_tree(
+                        session_id,
+                        active.active_draft_tree_id,
+                    )
+                except LookupError:
+                    return None
+
+        trees = self._draft_store.list_trees(session_id)
+        if not trees:
+            return None
+        return max(trees, key=lambda tree: (tree.updated_at, tree.draft_tree_id))
 
     def _project_draft_node(
         self,
@@ -200,6 +292,7 @@ class DefaultTaskProjectionService:
         ref = TaskRef.draft(node.draft_task_id)
         status: TaskViewStatus = "cancelled" if node.status == "cancelled" else "draft"
         can_edit = node.status == "draft"
+        content = _draft_content(node)
         permissions = TaskCardPermissions(
             can_edit=can_edit,
             can_append_guidance=can_edit,
@@ -212,7 +305,10 @@ class DefaultTaskProjectionService:
             parent_ref=parent_ref,
             root_ref=root_ref,
             title=node.title,
-            intent_preview=_preview(node.intent),
+            intent_preview=content.summary or _preview(content.intent),
+            full_intent=content.intent,
+            instructions=content.instructions,
+            acceptance_criteria=content.acceptance_criteria,
             status=status,
             depth=depth,
             order_index=node.order_index,
@@ -254,6 +350,17 @@ class DefaultTaskProjectionService:
                 root_ref=TaskRef.published(root.root_id),
             )
         return cards
+
+    def _published_plan_cards(
+        self,
+        session_id: str,
+        *,
+        root_ref: TaskRef | None,
+    ) -> list[TaskCardView]:
+        return [
+            _flatten_plan_card(card)
+            for card in self._published_cards(session_id, root_ref=root_ref)
+        ]
 
     def _append_task_subtree(
         self,
@@ -316,12 +423,16 @@ class DefaultTaskProjectionService:
             )
         direct_file_changes = self._file_changes_for_ref(task.session_id, ref, recursive=False)
         subtree_file_changes = self._file_changes_for_ref(task.session_id, ref, recursive=True)
+        content = _task_content(task)
         return TaskCardView(
             task_ref=ref,
             parent_ref=parent_ref,
             root_ref=root_ref,
-            title=_title(task.intent),
-            intent_preview=_preview(task.intent),
+            title=_title(content.intent),
+            intent_preview=content.summary or _preview(content.intent),
+            full_intent=content.intent,
+            instructions=content.instructions,
+            acceptance_criteria=content.acceptance_criteria,
             status=task.status,
             depth=depth,
             order_index=task.order_index,
@@ -434,11 +545,11 @@ class DefaultTaskProjectionService:
             node = self._draft_store.get_node(session_id, task_ref.id)
             if node is None:
                 raise LookupError(f"draft task {task_ref.id!r} not found")
-            return node.intent
+            return _draft_content(node).intent
         task = self._task_store.get(session_id, task_ref.id)
         if task is None:
             raise LookupError(f"task {task_ref.id!r} not found")
-        return task.intent
+        return _task_content(task).intent
 
     def _constraints(self, session_id: str, task_ref: TaskRef) -> tuple[str, ...]:
         if task_ref.kind != "draft" or self._draft_store is None:
@@ -462,6 +573,125 @@ class DefaultTaskProjectionService:
 
 def _ordered(tasks: Iterable[TaskDomain]) -> list[TaskDomain]:
     return sorted(tasks, key=lambda t: (t.order_index, t.created_at, t.task_id))
+
+
+def _ordered_draft_plan_nodes(nodes: Iterable[DraftTaskNode]) -> list[DraftTaskNode]:
+    node_list = list(nodes)
+    children: dict[str | None, list[DraftTaskNode]] = defaultdict(list)
+    by_id = {node.draft_task_id: node for node in node_list}
+    for node in node_list:
+        parent_id = node.parent_draft_task_id
+        children[parent_id if parent_id in by_id else None].append(node)
+
+    ordered: list[DraftTaskNode] = []
+
+    def visit(node: DraftTaskNode) -> None:
+        ordered.append(node)
+        for child in _ordered_draft_nodes(children[node.draft_task_id]):
+            visit(child)
+
+    for root in _ordered_draft_nodes(children[None]):
+        visit(root)
+    return ordered
+
+
+def _ordered_draft_nodes(nodes: Iterable[DraftTaskNode]) -> list[DraftTaskNode]:
+    return sorted(nodes, key=lambda n: (n.order_index, n.created_at, n.draft_task_id))
+
+
+def _flatten_plan_card(card: TaskCardView) -> TaskCardView:
+    badges = card.badges.model_copy(
+        update={
+            "child_count": 0,
+            "done_child_count": 0,
+            "failed_child_count": 0,
+        }
+    )
+    return card.model_copy(
+        update={
+            "parent_ref": None,
+            "root_ref": card.task_ref,
+            "depth": 0,
+            "badges": badges,
+            "progress": None,
+        }
+    )
+
+
+@dataclass(frozen=True)
+class _ProjectedTaskContent:
+    intent: str
+    summary: str | None = None
+    instructions: str | None = None
+    acceptance_criteria: tuple[str, ...] = ()
+
+
+def _draft_content(node: DraftTaskNode) -> _ProjectedTaskContent:
+    parsed = _split_legacy_task_content(node.intent)
+    return _ProjectedTaskContent(
+        intent=parsed.intent,
+        summary=node.summary or parsed.summary,
+        instructions=node.instructions or parsed.instructions,
+        acceptance_criteria=node.acceptance_criteria or parsed.acceptance_criteria,
+    )
+
+
+def _task_content(task: TaskDomain) -> _ProjectedTaskContent:
+    parsed = _split_legacy_task_content(task.intent)
+    return _ProjectedTaskContent(
+        intent=parsed.intent,
+        summary=task.summary or parsed.summary,
+        instructions=task.instructions or parsed.instructions,
+        acceptance_criteria=task.acceptance_criteria or parsed.acceptance_criteria,
+    )
+
+
+def _split_legacy_task_content(text: str) -> _ProjectedTaskContent:
+    intent_lines: list[str] = []
+    summary: str | None = None
+    instructions: str | None = None
+    acceptance_criteria: tuple[str, ...] = ()
+
+    for line in text.splitlines():
+        stripped = line.strip()
+        summary_value = _strip_legacy_marker(stripped, "summary:")
+        if summary_value is not None:
+            summary = summary_value or None
+            continue
+
+        instructions_value = _strip_legacy_marker(stripped, "instructions:")
+        if instructions_value is not None:
+            instructions = instructions_value or None
+            continue
+
+        criteria_value = _strip_legacy_marker(stripped, "acceptance criteria:")
+        if criteria_value is not None:
+            acceptance_criteria = _parse_acceptance_criteria(criteria_value)
+            continue
+
+        intent_lines.append(line)
+
+    intent = "\n".join(intent_lines).strip() or text.strip()
+    return _ProjectedTaskContent(
+        intent=intent,
+        summary=summary,
+        instructions=instructions,
+        acceptance_criteria=acceptance_criteria,
+    )
+
+
+def _strip_legacy_marker(text: str, marker: str) -> str | None:
+    if text.lower().startswith(marker):
+        return text[len(marker) :].strip()
+    return None
+
+
+def _parse_acceptance_criteria(value: str) -> tuple[str, ...]:
+    return tuple(
+        item.strip(" -\t")
+        for item in value.split(";")
+        if item.strip(" -\t")
+    )
 
 
 def _children_by_parent(tasks: list[TaskDomain]) -> dict[str | None, list[TaskDomain]]:

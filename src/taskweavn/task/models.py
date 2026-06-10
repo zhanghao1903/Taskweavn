@@ -78,6 +78,9 @@ class TaskDomain(_FrozenModel):
     order_index: int = Field(default=0, ge=0)
 
     intent: str = Field(min_length=1)
+    summary: str | None = Field(default=None, min_length=1)
+    instructions: str | None = Field(default=None, min_length=1)
+    acceptance_criteria: tuple[str, ...] = ()
     required_capability: str = Field(min_length=1)
     dispatch_constraints: TaskDispatchConstraints | None = None
 
@@ -120,6 +123,9 @@ class TaskNodePatch(_FrozenModel):
 
     title: str | None = Field(default=None, min_length=1)
     intent: str | None = Field(default=None, min_length=1)
+    summary: str | None = Field(default=None, min_length=1)
+    instructions: str | None = Field(default=None, min_length=1)
+    acceptance_criteria: tuple[str, ...] | None = None
     required_capability: str | None = Field(default=None, min_length=1)
     constraints_add: tuple[str, ...] = ()
     constraints_remove: tuple[str, ...] = ()
@@ -138,6 +144,9 @@ class DraftTaskNode(_FrozenModel):
 
     title: str = Field(min_length=1)
     intent: str = Field(min_length=1)
+    summary: str | None = Field(default=None, min_length=1)
+    instructions: str | None = Field(default=None, min_length=1)
+    acceptance_criteria: tuple[str, ...] = ()
     required_capability: str = Field(min_length=1)
     constraints: tuple[str, ...] = ()
     rationale: str | None = None
@@ -160,6 +169,8 @@ class DraftTaskTree(_FrozenModel):
 
     draft_tree_id: str = Field(default_factory=_new_id, min_length=1)
     session_id: str = Field(min_length=1)
+    title: str | None = Field(default=None, min_length=1)
+    summary: str | None = Field(default=None, min_length=1)
     root_nodes: tuple[DraftTaskNode, ...] = Field(min_length=1)
     created_by: str = Field(default="collaborator_agent", min_length=1)
     version: int = Field(default=1, ge=1)

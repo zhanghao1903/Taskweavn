@@ -453,6 +453,8 @@
   z-index: 40;
   display: grid;
   min-width: 180px;
+  max-height: calc(100dvh - 16px);
+  overflow-y: auto;
   border: 1px solid var(--plato-color-placeholder-popover-border);
   border-radius: 16px;
   padding: var(--plato-space-2);
@@ -1156,6 +1158,22 @@
   font-weight: var(--plato-type-card-title-weight);
   line-height: var(--plato-type-card-title-line-height);
   overflow-wrap: anywhere;
+}
+
+.taskDetailSection {
+  display: grid;
+  gap: var(--plato-space-1);
+  min-width: 0;
+}
+
+.taskDetailList {
+  display: grid;
+  gap: var(--plato-space-2);
+  margin: 0;
+  padding-left: var(--plato-space-5);
+  color: var(--plato-color-semantic-text-muted);
+  font-size: var(--plato-type-body-size);
+  line-height: var(--plato-type-body-line-height);
 }
 
 .resultSections,

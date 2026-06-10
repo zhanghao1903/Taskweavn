@@ -43,7 +43,8 @@ def map_task_tree_view(
     view: task_views.TaskTreeView,
     *,
     tree_id: str | None = None,
-    title: str = _DEFAULT_TREE_TITLE,
+    title: str | None = None,
+    summary: str | None = None,
     status: TaskTreeStatus | None = None,
     version: int = 1,
 ) -> ContractTaskTreeView:
@@ -56,7 +57,8 @@ def map_task_tree_view(
     return ContractTaskTreeView(
         id=tree_id or _synthetic_tree_id(view.session_id),
         session_id=view.session_id,
-        title=title,
+        title=title or view.title or _DEFAULT_TREE_TITLE,
+        summary=summary or view.summary or _plan_summary(nodes),
         status=status or derive_task_tree_status(nodes),
         nodes=nodes,
         version=version,
@@ -76,6 +78,9 @@ def map_task_node_card(
         parent_id=view.parent_ref.id if view.parent_ref is not None else None,
         title=view.title,
         summary=view.intent_preview,
+        intent=view.full_intent,
+        instructions=view.instructions,
+        acceptance_criteria=view.acceptance_criteria,
         status=map_task_node_status(view.status, confirmation=view.confirmation),
         execution=map_task_execution_status(view.status),
         depth=view.depth,
@@ -301,6 +306,17 @@ def derive_task_tree_status(nodes: Sequence[TaskNodeCardView]) -> TaskTreeStatus
 
 def _synthetic_tree_id(session_id: str) -> str:
     return _SYNTHETIC_TREE_ID_TEMPLATE.format(session_id=session_id)
+
+
+def _plan_summary(nodes: Sequence[TaskNodeCardView]) -> str | None:
+    if not nodes:
+        return None
+    titles = [node.title for node in nodes[:2]]
+    if len(nodes) == 1:
+        return f"1-task plan covering {titles[0]}."
+    if len(nodes) == 2:
+        return f"2-task plan covering {titles[0]} and {titles[1]}."
+    return f"{len(nodes)}-task plan covering {titles[0]}, {titles[1]}, and {len(nodes) - 2} more."
 
 
 def _map_message_kind(message_type: task_views.TaskMessageViewType) -> MessageKind:

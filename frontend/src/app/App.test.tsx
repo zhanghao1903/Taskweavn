@@ -764,6 +764,51 @@ describe("App", () => {
     expect(await screen.findByText("Session deleted.")).toBeInTheDocument();
   });
 
+  it("keeps the sidebar context menu inside the visible viewport", async () => {
+    const originalInnerWidth = window.innerWidth;
+    const originalInnerHeight = window.innerHeight;
+    Object.defineProperty(window, "innerWidth", {
+      configurable: true,
+      value: 360,
+    });
+    Object.defineProperty(window, "innerHeight", {
+      configurable: true,
+      value: 300,
+    });
+
+    try {
+      renderWithQueryClient(
+        <MainPage adapter={testAdapter({ loadSnapshot: loadImmediateSnapshot })} />,
+      );
+
+      fireEvent.contextMenu(
+        await screen.findByRole("button", { name: "Personal website plan" }),
+        {
+          clientX: 350,
+          clientY: 290,
+        },
+      );
+
+      const menu = screen.getByRole("menu", { name: "Session actions" });
+      const left = Number.parseFloat(menu.style.left);
+      const top = Number.parseFloat(menu.style.top);
+
+      expect(left).toBeGreaterThanOrEqual(8);
+      expect(left).toBeLessThanOrEqual(132);
+      expect(top).toBeGreaterThanOrEqual(8);
+      expect(top).toBeLessThanOrEqual(104);
+    } finally {
+      Object.defineProperty(window, "innerWidth", {
+        configurable: true,
+        value: originalInnerWidth,
+      });
+      Object.defineProperty(window, "innerHeight", {
+        configurable: true,
+        value: originalInnerHeight,
+      });
+    }
+  });
+
   it("renders Audit as a route-ready entry once the Audit Page UI exists", async () => {
     renderWithQueryClient(
       <MainPage adapter={testAdapter({ loadSnapshot: loadImmediateSnapshot })} />,

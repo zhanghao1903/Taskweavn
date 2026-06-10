@@ -28,7 +28,7 @@ from taskweavn.task.stores import (
     VersionConflictError,
 )
 
-_SCHEMA_VERSION = "1"
+_SCHEMA_VERSION = "2"
 
 _SCHEMA_DDL = """
 CREATE TABLE IF NOT EXISTS authoring_schema_meta (
@@ -73,6 +73,8 @@ CREATE TABLE IF NOT EXISTS draft_task_trees (
     session_id TEXT NOT NULL,
     draft_tree_id TEXT NOT NULL,
     source_raw_task_id TEXT,
+    title TEXT,
+    summary TEXT,
     created_by TEXT NOT NULL,
     version INTEGER NOT NULL,
     created_at TEXT NOT NULL,
@@ -93,6 +95,9 @@ CREATE TABLE IF NOT EXISTS draft_task_nodes (
     order_index INTEGER NOT NULL,
     title TEXT NOT NULL,
     intent TEXT NOT NULL,
+    summary TEXT,
+    instructions TEXT,
+    acceptance_criteria_json TEXT NOT NULL DEFAULT '[]',
     required_capability TEXT NOT NULL,
     constraints_json TEXT NOT NULL,
     rationale TEXT,
@@ -160,6 +165,7 @@ class _SqliteAuthoringStore:
         self._conn.execute("PRAGMA foreign_keys=ON")
         self._conn.execute("PRAGMA busy_timeout=5000")
         self._conn.executescript(_SCHEMA_DDL)
+        self._migrate_schema()
         self._conn.execute(
             """
             INSERT INTO authoring_schema_meta(key, value, updated_at)
@@ -171,6 +177,29 @@ class _SqliteAuthoringStore:
             (_SCHEMA_VERSION, _utcnow().isoformat()),
         )
         self._lock = RLock()
+
+    def _migrate_schema(self) -> None:
+        tree_columns = {
+            str(row["name"])
+            for row in self._conn.execute("PRAGMA table_info(draft_task_trees)")
+        }
+        if "title" not in tree_columns:
+            self._conn.execute("ALTER TABLE draft_task_trees ADD COLUMN title TEXT")
+        if "summary" not in tree_columns:
+            self._conn.execute("ALTER TABLE draft_task_trees ADD COLUMN summary TEXT")
+        node_columns = {
+            str(row["name"])
+            for row in self._conn.execute("PRAGMA table_info(draft_task_nodes)")
+        }
+        if "summary" not in node_columns:
+            self._conn.execute("ALTER TABLE draft_task_nodes ADD COLUMN summary TEXT")
+        if "instructions" not in node_columns:
+            self._conn.execute("ALTER TABLE draft_task_nodes ADD COLUMN instructions TEXT")
+        if "acceptance_criteria_json" not in node_columns:
+            self._conn.execute(
+                "ALTER TABLE draft_task_nodes "
+                "ADD COLUMN acceptance_criteria_json TEXT NOT NULL DEFAULT '[]'"
+            )
 
     @contextmanager
     def _write_transaction(self) -> Iterator[None]:
@@ -521,7 +550,14 @@ class SqliteAuthoringStateStore(_SqliteAuthoringStore):
 class SqliteDraftTaskStore(_SqliteAuthoringStore):
     """SQLite-backed DraftTaskStore implementation."""
 
-    def create_tree(self, session_id: str, roots: list[DraftTaskNode]) -> DraftTaskTree:
+    def create_tree(
+        self,
+        session_id: str,
+        roots: list[DraftTaskNode],
+        *,
+        title: str | None = None,
+        summary: str | None = None,
+    ) -> DraftTaskTree:
         if not roots:
             raise ValueError("draft tree requires at least one root")
         draft_tree_id = uuid4().hex
@@ -537,6 +573,8 @@ class SqliteDraftTaskStore(_SqliteAuthoringStore):
         tree = DraftTaskTree(
             session_id=session_id,
             draft_tree_id=draft_tree_id,
+            title=title,
+            summary=summary,
             root_nodes=_sort_nodes(normalized_roots),
             created_by=normalized_roots[0].created_by,
         )
@@ -689,6 +727,17 @@ class SqliteDraftTaskStore(_SqliteAuthoringStore):
                 node,
                 title=patch.title or node.title,
                 intent=patch.intent or node.intent,
+                summary=patch.summary if patch.summary is not None else node.summary,
+                instructions=(
+                    patch.instructions
+                    if patch.instructions is not None
+                    else node.instructions
+                ),
+                acceptance_criteria=(
+                    patch.acceptance_criteria
+                    if patch.acceptance_criteria is not None
+                    else node.acceptance_criteria
+                ),
                 required_capability=patch.required_capability or node.required_capability,
                 constraints=_patched_constraints(node, patch),
                 status=patch.status or node.status,
@@ -866,15 +915,19 @@ class SqliteDraftTaskStore(_SqliteAuthoringStore):
             INSERT INTO draft_task_trees(
                 session_id,
                 draft_tree_id,
+                title,
+                summary,
                 created_by,
                 version,
                 created_at,
                 updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 tree.session_id,
                 tree.draft_tree_id,
+                tree.title,
+                tree.summary,
                 tree.created_by,
                 tree.version,
                 tree.created_at.isoformat(),
@@ -893,6 +946,9 @@ class SqliteDraftTaskStore(_SqliteAuthoringStore):
                 order_index,
                 title,
                 intent,
+                summary,
+                instructions,
+                acceptance_criteria_json,
                 required_capability,
                 constraints_json,
                 rationale,
@@ -901,7 +957,7 @@ class SqliteDraftTaskStore(_SqliteAuthoringStore):
                 created_by,
                 created_at,
                 updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             _node_values(node),
         )
@@ -916,6 +972,9 @@ class SqliteDraftTaskStore(_SqliteAuthoringStore):
                 order_index = ?,
                 title = ?,
                 intent = ?,
+                summary = ?,
+                instructions = ?,
+                acceptance_criteria_json = ?,
                 required_capability = ?,
                 constraints_json = ?,
                 rationale = ?,
@@ -932,6 +991,9 @@ class SqliteDraftTaskStore(_SqliteAuthoringStore):
                 node.order_index,
                 node.title,
                 node.intent,
+                node.summary,
+                node.instructions,
+                _json_dumps(tuple(node.acceptance_criteria)),
                 node.required_capability,
                 _json_dumps(tuple(node.constraints)),
                 node.rationale,
@@ -1020,6 +1082,9 @@ def _node_values(node: DraftTaskNode) -> tuple[Any, ...]:
         node.order_index,
         node.title,
         node.intent,
+        node.summary,
+        node.instructions,
+        _json_dumps(tuple(node.acceptance_criteria)),
         node.required_capability,
         _json_dumps(tuple(node.constraints)),
         node.rationale,
@@ -1067,6 +1132,9 @@ def _node_from_row(row: sqlite3.Row) -> DraftTaskNode:
                 "order_index": row["order_index"],
                 "title": row["title"],
                 "intent": row["intent"],
+                "summary": row["summary"],
+                "instructions": row["instructions"],
+                "acceptance_criteria": _json_load_list(row["acceptance_criteria_json"]),
                 "required_capability": row["required_capability"],
                 "constraints": _json_load_list(row["constraints_json"]),
                 "rationale": row["rationale"],
@@ -1087,6 +1155,8 @@ def _tree_from_row(row: sqlite3.Row, roots: list[DraftTaskNode]) -> DraftTaskTre
             {
                 "session_id": row["session_id"],
                 "draft_tree_id": row["draft_tree_id"],
+                "title": row["title"],
+                "summary": row["summary"],
                 "root_nodes": _sort_nodes(roots),
                 "created_by": row["created_by"],
                 "version": row["version"],
