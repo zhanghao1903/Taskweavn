@@ -1,7 +1,7 @@
 # Plato Public Exposure Plan
 
 > Status: done
-> Last Updated: 2026-06-10
+> Last Updated: 2026-06-11
 > Gap: [Public visual asset gaps](public-visual-asset-gaps.md)
 > Product: [Core product principles](../core-product-principles.md), [MVP PRD](../plato-mvp-prd.md), [Brand and UX direction](../plato-brand-and-ux-direction.md), [Product 1.1 workspace-aware foundation](../plato-1-1-workspace-aware-agent-foundation.md)
 > Architecture: [Architecture overview](../../architecture/overview.md), [UI/backend communication](../../architecture/ui-backend-communication.md), [Context Manager](../../architecture/context-manager.md), [Git/Diff/File Viewer API contract](../../engineering/git-diff-file-viewer-api-contract.md)
@@ -157,6 +157,7 @@ docs/
     overview.md
     trust-and-audit.md
   usage/
+    user-guide.md
     macos-local-release.md
 assets/
   images/
@@ -164,6 +165,7 @@ assets/
     plato-three-planes.svg
     plato-product-flow.svg
     plato-architecture-overview.svg
+  screenshots/
     plato-main-page.png
     plato-audit-page.png
     plato-workspace-inspection.png
@@ -183,8 +185,10 @@ Initial content responsibilities:
 | `docs/product/release-status.md` | What `0.1.0` includes, what is unsigned/non-notarized, and what is not promised yet. |
 | `docs/architecture/overview.md` | Public architecture diagram and short explanation. |
 | `docs/architecture/trust-and-audit.md` | Why Task, Result, File Change, Audit, and workspace inspection exist. |
+| `docs/usage/user-guide.md` | User-language guide for starting work, reviewing plans, confirming risk, and inspecting results. |
 | `docs/usage/macos-local-release.md` | Install/open guidance for unsigned macOS local RC. |
-| `assets/images/` | Approved exported visual assets only. |
+| `assets/images/` | Approved exported diagrams and explanatory images only. |
+| `assets/screenshots/` | Approved sanitized product screenshots only. |
 
 ## 6. Public Narrative Structure
 
@@ -385,13 +389,15 @@ Evidence:
   - `a04a4e6 Refine Plato product planes`.
   - `c6152cf Add generated product plane visuals`.
   - `dca508b Replace product plane visuals with text diagram`.
+  - `c89cbed Add user guide and separate screenshots`.
 - Public docs added: README, product overview, task-first workflow, release
-  status, architecture overview, trust/audit, and macOS local release usage.
+  status, architecture overview, trust/audit, user guide, and macOS local
+  release usage.
 - Public assets added: hero, text three product planes diagram, product flow, architecture
   overview, trust flow, Context Manager, Main Page vs Audit Page, macOS local
   release, public docs map, Open Graph/social preview, sanitized Main Page
   screenshot, sanitized Audit Page screenshot, and sanitized Workspace
-  Inspection screenshot.
+  Inspection screenshot in a dedicated screenshot directory.
 
 The public PR remains draft until review/merge. The private planning artifact
 and public branch now satisfy the plan's first public exposure scope.

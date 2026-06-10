@@ -1,7 +1,7 @@
 # Public Visual Asset Gaps
 
 > Status: active
-> Last Updated: 2026-06-10
+> Last Updated: 2026-06-11
 > Related Plan: [Plato Public Exposure Plan](plato-public-exposure-plan.md)
 > Scope: visual assets needed before Plato product, architecture, and UI content
 > can be published in `zhanghao1903/plato-public`.
@@ -76,9 +76,9 @@ Every public image must satisfy this checklist before it moves to `approved`:
 | PUB-VIS-002A | README and product overview | Text diagram for Inspiration, Control, Trust, and their relationships | `exported` | `plato-public` draft PR #1: `assets/images/plato-three-planes.svg` | Public PR review | Canonical public three-plane diagram; uses text instead of no-text generated imagery. |
 | PUB-VIS-003 | Architecture overview | Authoring / Execution / Projection / Audit architecture diagram | `exported` | `plato-public` draft PR #1: `assets/images/plato-architecture-overview.svg` | Public PR review | Avoids raw private package paths. |
 | PUB-VIS-004 | Trust and audit docs | Result / file change / audit evidence flow diagram | `exported` | `plato-public` draft PR #1: `assets/images/plato-trust-flow.svg` | Public PR review | Explains evidence flow without raw logs. |
-| PUB-VIS-005 | README / product overview | Current Main Page screenshot with sanitized sample data | `exported` | `plato-public` draft PR #1: `assets/images/plato-main-page.png` | Public PR review | Captured from local mock runtime at 1440x900. |
-| PUB-VIS-006 | Trust and audit docs | Current Audit Page screenshot with sanitized evidence detail | `exported` | `plato-public` draft PR #1: `assets/images/plato-audit-page.png` | Public PR review | Captured from local mock runtime at 1440x900. |
-| PUB-VIS-007 | Product 1.1 / workspace docs | Workspace inspection screenshot: changed files, diff, file viewer | `exported` | `plato-public` draft PR #1: `assets/images/plato-workspace-inspection.png` | Public PR review and release-status wording | Captured from temporary local git workspace at 1440x900; public docs explicitly avoid claiming `0.1.0` availability. |
+| PUB-VIS-005 | README / product overview / user guide | Current Main Page screenshot with sanitized sample data | `exported` | `plato-public` draft PR #1: `assets/screenshots/plato-main-page.png` | Public PR review | Captured from local mock runtime at 1440x900 and moved to dedicated screenshot directory. |
+| PUB-VIS-006 | Trust and audit docs / user guide | Current Audit Page screenshot with sanitized evidence detail | `exported` | `plato-public` draft PR #1: `assets/screenshots/plato-audit-page.png` | Public PR review | Captured from local mock runtime at 1440x900 and moved to dedicated screenshot directory. |
+| PUB-VIS-007 | Product 1.1 / workspace docs | Workspace inspection screenshot: changed files, diff, file viewer | `exported` | `plato-public` draft PR #1: `assets/screenshots/plato-workspace-inspection.png` | Public PR review and release-status wording | Captured from temporary local git workspace at 1440x900; public docs explicitly avoid claiming `0.1.0` availability. |
 | PUB-VIS-008 | Usage docs | Unsigned macOS local release install/open visual | `exported` | `plato-public` draft PR #1: `assets/images/plato-macos-local-release.svg` | Public PR review | Explains unsigned/non-notarized local RC flow. |
 | PUB-VIS-009 | README / social preview | Open Graph / repository preview image | `exported` | `plato-public` draft PR #1: `assets/images/plato-og-image.svg` | Public PR review | Public-safe SVG preview asset. |
 | PUB-VIS-010 | Architecture docs | Context governance diagram: task/workspace/events -> Context Manager -> LLM input | `exported` | `plato-public` draft PR #1: `assets/images/plato-context-governance.svg` | Public PR review | Used by public architecture overview. |
