@@ -7,7 +7,7 @@
 
 ## 1. Product Thesis
 
-Plato is the user-facing Task-first intelligent workbench built on the TaskWeavn engine.
+Plato is the user-facing Task-first intelligent workbench.
 
 The user expresses an intention in natural language. The system turns that
 intention into understandable, editable, confirmable, executable, and traceable
@@ -83,7 +83,31 @@ The user should understand:
 - what result was produced,
 - where to continue.
 
-## 4. Guardrail: Main Page Is A Control Plane
+## 4. Product Planes: Inspiration, Control, And Trust
+
+Plato should be explained through three product planes:
+
+| Plane | User question | Product responsibility |
+|---|---|---|
+| Inspiration Plane | What can AI help me do, how should I use it, and what does Plato understand? | Help the user discover AI-assisted work patterns, shape prompts and workflows, clarify context, expose assumptions, and decide whether the goal is ready to plan. |
+| Control Plane | What work will happen, what is running, and what needs me? | Show the plan, task state, confirmations, progress, results, and next actions. |
+| Trust Plane | What happened, why, and what evidence exists? | Preserve results, file changes, audit facts, diagnostics, and traceability. |
+
+These are separate because intelligent work can fail at three different points:
+
+1. the user does not know what AI can help with, how to ask, which workflow to
+   use, or what context changes output quality;
+2. the user loses control while work is being prepared or executed;
+3. the user cannot verify the result after work completes.
+
+Future product work should prioritize the Inspiration Plane. It is the start of
+useful AI-assisted work: helping users recognize where AI is useful, shaping
+better prompts, choosing better workflows, clarifying goals, collecting
+constraints, making assumptions visible, and preparing a Draft TaskTree only
+when the request is ready enough to plan. This area is currently weaker than
+the Control Plane and Trust Plane, and should become the next product emphasis.
+
+## 5. Guardrail: Main Page Is A Control Plane
 
 The Main Page is the user's control plane.
 
@@ -108,7 +132,7 @@ Main Page information should be action-oriented:
 - "3 files changed"
 - "Result ready"
 
-## 5. Guardrail: Audit Page Is A Trust Plane
+## 6. Guardrail: Audit Page Is A Trust Plane
 
 Audit Page is not the primary work surface. It exists to earn trust.
 
@@ -128,7 +152,7 @@ Main Page and Audit Page may share facts, but their priorities differ.
 | Main Page | Control and progress | Simplified, actionable, user-facing |
 | Audit Page | Trust and traceability | Complete, precise, replayable |
 
-## 6. Workflow-First Entry
+## 7. Workflow-First Entry
 
 Users should enter the product through a Workflow, not through a raw Agent or
 tool list.
@@ -153,7 +177,7 @@ Different Workflows may have different:
 - UI emphasis,
 - audit requirements.
 
-## 7. Draft Before Execution
+## 8. Draft Before Execution
 
 For consequential work, the system should prefer draft before execution.
 
@@ -173,7 +197,7 @@ the system makes meaningful changes.
 Some low-risk Workflows may skip or compress this path, but the default product
 direction should favor visibility before action.
 
-## 8. TaskNode Is The Smallest Interaction Anchor
+## 9. TaskNode Is The Smallest Interaction Anchor
 
 User confirmations, extra instructions, follow-up questions, result summaries,
 file changes, and failure recovery should attach to TaskNodes whenever possible.
@@ -183,7 +207,7 @@ This prevents the user experience from dissolving into one long conversation.
 Task-scoped interaction does not require a separate message system. The system
 can store one Session message stream and project Task-scoped views by `task_id`.
 
-## 9. Agent Routing Is Lightweight Orchestration
+## 10. Agent Routing Is Lightweight Orchestration
 
 If users can define Agents, declare their capabilities, and assign a TaskNode to
 a specific Agent, then users already have a practical form of multi-Agent
@@ -209,7 +233,7 @@ It should not initially promise:
 
 The product should keep this capability powerful but restrained.
 
-## 10. User-Facing Complexity Budget
+## 11. User-Facing Complexity Budget
 
 Plato will have real internal complexity. The product should spend that
 complexity carefully.
@@ -233,19 +257,20 @@ Hide complexity when it only reflects implementation:
 Advanced and audit views may expose more detail, but the Main Page should stay
 focused on user intent, progress, and decisions.
 
-## 11. Product Principle Summary
+## 12. Product Principle Summary
 
 1. Task-first, not Chat-first.
 2. Workflow-first entry, not Agent-first entry.
-3. Draft before execution for consequential work.
-4. Task is a visible work contract: Intent, Plan, Execution, and Evidence.
-5. Session content is typed collaboration record, not raw chat.
-6. A Session can continue through explicit Plan Cycles.
-7. Runtime input has one user surface but distinct internal intent routing.
-8. TaskNode is the smallest interaction anchor.
-9. Main Page is a control plane.
-10. Audit Page is a trust plane.
-11. Agent routing is lightweight orchestration.
-12. WorkTree carries power; Workflow hides initial complexity.
-13. Ordinary users should see goals, tasks, status, choices, results, and changes.
-14. Internal system concepts should surface only when they improve control or trust.
+3. Inspiration Plane teaches effective AI use and clarifies intent before planning.
+4. Main Page is a control plane.
+5. Audit Page is a trust plane.
+6. Draft before execution for consequential work.
+7. Task is a visible work contract: Intent, Plan, Execution, and Evidence.
+8. Session content is typed collaboration record, not raw chat.
+9. A Session can continue through explicit Plan Cycles.
+10. Runtime input has one user surface but distinct internal intent routing.
+11. TaskNode is the smallest interaction anchor.
+12. Agent routing is lightweight orchestration.
+13. WorkTree carries power; Workflow hides initial complexity.
+14. Ordinary users should see goals, tasks, status, choices, results, and changes.
+15. Internal system concepts should surface only when they improve control or trust.

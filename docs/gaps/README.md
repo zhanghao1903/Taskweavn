@@ -1,7 +1,7 @@
 # Gap Registry
 
 > Status: active
-> Last Updated: 2026-06-09
+> Last Updated: 2026-06-10
 > Scope: current capability gaps, routing, and planning readiness
 > Related: [Roadmap](../roadmap.md), [Project Plan](../project/roadmap.md), [Architecture](../architecture/), [Plans](../plans/)
 
@@ -22,6 +22,12 @@ It is not a plan directory and it is not a product spec. It answers:
 Gaps are allowed to stay `unplanned` until they are selected for execution.
 Creating a plan for every known gap too early would create stale documents and
 unnecessary coordination load.
+
+Specialized gap registries:
+
+| File | Scope |
+|---|---|
+| [public-visual-asset-gaps.md](../product/public-exposure/public-visual-asset-gaps.md) | Public-facing Plato image, screenshot, diagram, and visual presentation gaps for `zhanghao1903/plato-public`. |
 
 ---
 
