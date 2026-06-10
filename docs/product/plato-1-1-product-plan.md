@@ -2,7 +2,7 @@
 
 > Status: planning baseline
 >
-> Last Updated: 2026-06-07
+> Last Updated: 2026-06-10
 >
 > Scope: Product 1.1 capability direction after the Plato 1.0 closed loop.
 > This document records what is intentionally moved out of Product 1.0 and
@@ -37,6 +37,10 @@ The current Product 1.1 focus is workspace-aware coding collaboration:
 
 See
 [Plato Product 1.1 Focus Memo: Workspace-Aware Agent Foundation](plato-1-1-workspace-aware-agent-foundation.md).
+The first executable Product 1.1 milestone is
+[Product 1.1 Workspace Inspection Milestone](../plans/feature/product-1-1-workspace-inspection-milestone.md),
+with API decisions captured in
+[Git, Diff, And File Viewer API Contract](../engineering/git-diff-file-viewer-api-contract.md).
 
 Before executable Product 1.1 implementation plans, these semantic baselines
 should remain aligned:
@@ -154,6 +158,8 @@ When Product 1.0 is stable enough for the next planning pass, create or update
 feature plans for:
 
 - completion-time `task_after` pipeline;
+- workspace inspection: git status, diff, text file viewer, and file/diff
+  evidence;
 - Result Packaging Agent and cards;
 - routing/assignment foundation;
 - skills integration;

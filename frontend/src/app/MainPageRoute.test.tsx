@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -20,7 +20,9 @@ describe("MainPageRoute", () => {
   it("preserves default fixture data without exposing the state picker", async () => {
     renderWithQueryClient(<MainPageRoute runtimeEnv={{}} />);
 
-    expect(await screen.findByText("Personal Website")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText("Personal Website")).toBeInTheDocument();
+    });
     expect(screen.queryByLabelText("State")).not.toBeInTheDocument();
     expect(screen.getByLabelText("Task workspace")).toBeInTheDocument();
     expect(screen.getByText("Requirement analysis")).toBeInTheDocument();
@@ -42,7 +44,37 @@ describe("MainPageRoute", () => {
     const snapshot = getMainPageMockSnapshot("s3-draft-ready").snapshot;
 
     vi.stubGlobal("fetch", async (input: RequestInfo | URL) => {
-      calls.push(String(input));
+      const requestUrl = String(input);
+      calls.push(requestUrl);
+      if (requestUrl.endsWith("/api/v1/workspaces")) {
+        return jsonResponse({
+          cursor: null,
+          data: {
+            currentWorkspaceId: "workspace-route",
+            workspaces: [
+              {
+                isCurrent: true,
+                label: "Route Workspace",
+                recentSessions: [
+                  {
+                    ...snapshot.session,
+                    workspaceId: "workspace-route",
+                    workspaceLabel: "Route Workspace",
+                  },
+                ],
+                sessionCount: 1,
+                status: "available",
+                updatedAt: snapshot.generatedAt,
+                workspaceId: "workspace-route",
+              },
+            ],
+          },
+          error: null,
+          generatedAt: snapshot.generatedAt,
+          ok: true,
+          requestId: "request-route-workspaces",
+        });
+      }
       return new Response(
         JSON.stringify({
           cursor: snapshot.cursor,
@@ -70,7 +102,9 @@ describe("MainPageRoute", () => {
       />,
     );
 
-    expect(await screen.findByText("Personal Website")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText("Personal Website")).toBeInTheDocument();
+    });
     expect(screen.queryByLabelText("State")).not.toBeInTheDocument();
     expect(calls).toContain(
       "https://plato.example/api/v1/sessions/session-live/snapshot",
@@ -102,9 +136,17 @@ describe("MainPageRoute", () => {
 
     expect(await screen.findByText("No task plan yet")).toBeInTheDocument();
     expect(screen.queryByLabelText("State")).not.toBeInTheDocument();
-    expect(loadSnapshot).toHaveBeenCalledWith("s1-empty", null);
+    expect(loadSnapshot).toHaveBeenCalledWith("s1-empty", null, null);
   });
 });
+
+function jsonResponse(body: unknown) {
+  return new Response(JSON.stringify(body), {
+    headers: {
+      "Content-Type": "application/json",
+    },
+  });
+}
 
 function renderWithQueryClient(children: ReactNode) {
   const queryClient = new QueryClient({

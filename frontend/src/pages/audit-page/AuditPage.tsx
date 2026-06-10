@@ -4,6 +4,7 @@ import type {
   AuditFilterKind,
   AuditPageSnapshot,
   AuditRecordId,
+  WorkspaceId,
 } from "../../shared/api/types";
 import { cx } from "../../shared/utils/cx";
 import type { AuditPageRuntimeState } from "./auditRuntimeEvents";
@@ -40,6 +41,7 @@ export type AuditPageProps = {
   onSelectRecord?: (recordId: AuditRecordId) => void;
   selectedRecordId?: AuditRecordId | null;
   snapshot: AuditPageSnapshot | null;
+  workspaceId?: WorkspaceId | null;
 };
 
 export function AuditPage({
@@ -53,6 +55,7 @@ export function AuditPage({
   onSelectRecord,
   selectedRecordId,
   snapshot,
+  workspaceId,
 }: AuditPageProps) {
   const activeFilter = activeAuditFilter(snapshot);
   const activeRecordId = activeAuditRecordId(snapshot, selectedRecordId);
@@ -135,6 +138,7 @@ export function AuditPage({
                 onClose={onCloseDetail}
                 record={selectedRecord}
                 relatedLogs={snapshot.relatedLogs}
+                workspaceId={workspaceId ?? snapshot.session.workspaceId ?? null}
               />
             </div>
           )}

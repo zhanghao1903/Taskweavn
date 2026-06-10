@@ -115,6 +115,7 @@ from taskweavn.task import (
     TaskExecutionSummaryViewStore,
     TaskExecutionTickResult,
 )
+from taskweavn.workspace_inspection import DefaultWorkspaceInspectionGateway
 
 DEFAULT_PLATO_SIDECAR_PORT = 52789
 
@@ -488,6 +489,11 @@ def build_main_page_workspace_runtime(
             diagnostic_export_gateway=DefaultDiagnosticExportGateway(
                 workspace_root=config.workspace_root,
             ),
+            workspace_inspection_gateway=DefaultWorkspaceInspectionGateway.build(
+                workspace_root=config.workspace_root,
+                workspace_id=config.current_workspace_id or "current",
+                inspection_db_path=layout.workspace_inspection_db,
+            ),
         )
     except Exception:
         session_manager.close()
@@ -552,7 +558,7 @@ def _build_multi_workspace_sidecar_app(
                 else None
             ),
             workspace_registry=(),
-            current_workspace_id=None,
+            current_workspace_id=entry.workspace_id,
             port=0,
         )
         return build_main_page_workspace_runtime(runtime_config, dependencies)

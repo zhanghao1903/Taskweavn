@@ -795,6 +795,12 @@
   line-height: var(--plato-type-body-sm-line-height);
 }
 
+.workspaceEvidenceActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .disclosureList {
   display: grid;
   gap: 8px;

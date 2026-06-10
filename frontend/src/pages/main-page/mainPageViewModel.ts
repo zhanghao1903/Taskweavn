@@ -404,6 +404,7 @@ export function buildMainPageViewModel({
         authoringAsk?.title ??
         (snapshot.taskTree === null ? "Start a new session" : "Plan & Progress"),
       uiNotice,
+      workspaceId: workspaceId ?? snapshot.session.workspaceId ?? null,
     },
   };
 }

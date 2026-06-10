@@ -41,6 +41,10 @@ from taskweavn.server.ui_http_commands import (
     _publish_task_tree_with_optional_dispatch,
     _retry_task_with_optional_dispatch,
 )
+from taskweavn.server.ui_http_inspection import (
+    WorkspaceInspectionGateway,
+    _workspace_inspection_response,
+)
 from taskweavn.server.ui_http_query_params import (
     _bool_query,
     _int_query,
@@ -129,6 +133,7 @@ class PlatoUiHttpTransport:
         settings_readiness_gateway: SettingsReadinessGateway | None = None,
         settings_config_gateway: SettingsConfigGateway | None = None,
         diagnostic_export_gateway: DiagnosticExportGateway | None = None,
+        workspace_inspection_gateway: WorkspaceInspectionGateway | None = None,
     ) -> None:
         self._query_gateway = query_gateway
         self._command_gateway = command_gateway
@@ -142,6 +147,7 @@ class PlatoUiHttpTransport:
         self._settings_readiness_gateway = settings_readiness_gateway
         self._settings_config_gateway = settings_config_gateway
         self._diagnostic_export_gateway = diagnostic_export_gateway
+        self._workspace_inspection_gateway = workspace_inspection_gateway
 
     def handle(self, request: HttpApiRequest) -> HttpApiResponse:
         route = _match_route(request.path)
@@ -245,6 +251,17 @@ class PlatoUiHttpTransport:
                 return _settings_config_response(
                     request,
                     self._settings_config_gateway,
+                )
+            if route_name in {
+                "workspace_inspection_status",
+                "workspace_inspection_diff",
+                "workspace_file_content",
+                "workspace_inspection_evidence",
+            }:
+                return _workspace_inspection_response(
+                    request,
+                    route_name=route_name,
+                    gateway=self._workspace_inspection_gateway,
                 )
             if route_name == "diagnostics_export":
                 if self._diagnostic_export_gateway is None:

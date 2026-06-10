@@ -101,6 +101,11 @@ class WorkspaceLayout:
         return self.meta_dir / "results.sqlite"
 
     @property
+    def workspace_inspection_db(self) -> Path:
+        """Workspace-scoped captured inspection evidence store."""
+        return self.meta_dir / "inspection.sqlite"
+
+    @property
     def shared_dir(self) -> Path:
         return self.root / "shared"
 

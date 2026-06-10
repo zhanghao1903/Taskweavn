@@ -23,6 +23,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from taskweavn import __version__
 from taskweavn.core import Session, SessionManager, WorkspaceLayout
 from taskweavn.core.workspace_layout import WORKSPACE_META_DIR_NAME
+from taskweavn.diagnostics.inspection import collect_inspection_evidence_summary
 from taskweavn.interaction import AgentMessage, SqliteMessageStream
 from taskweavn.observability import LogArchiveManifest
 from taskweavn.observability.redaction import redact_payload
@@ -53,6 +54,7 @@ _SECTION_ORDER = (
     "results",
     "messages",
     "audit",
+    "workspace_inspection",
     "events",
     "ui_events",
     "logs",
@@ -146,6 +148,7 @@ class DiagnosticExportOptions:
     max_messages: int = 50
     max_events: int = 100
     max_ui_events: int = 100
+    max_inspection_evidence: int = 50
     max_log_entries_per_category: int = 40
     max_audit_records: int = 100
     created_at: datetime | None = None
@@ -177,6 +180,7 @@ class DiagnosticBundleExporter:
             max_messages=max(0, options.max_messages),
             max_events=max(0, options.max_events),
             max_ui_events=max(0, options.max_ui_events),
+            max_inspection_evidence=max(0, options.max_inspection_evidence),
             max_log_entries_per_category=max(0, options.max_log_entries_per_category),
             max_audit_records=max(0, options.max_audit_records),
             created_at=options.created_at,
@@ -248,6 +252,11 @@ class DiagnosticBundleExporter:
                     tasks=tasks,
                     summaries=summaries,
                 ),
+            )
+            self._run_collector(
+                writer,
+                "workspace_inspection",
+                lambda: self._collect_workspace_inspection(writer),
             )
             self._run_collector(
                 writer,
@@ -574,6 +583,24 @@ class DiagnosticBundleExporter:
             if message_stream is not None:
                 message_stream.close()
         return tuple(files), tuple(warnings)
+
+    def _collect_workspace_inspection(
+        self,
+        writer: _BundleWriter,
+    ) -> tuple[tuple[str, ...], tuple[str, ...]]:
+        payload, warnings = collect_inspection_evidence_summary(
+            inspection_db_path=self.layout.workspace_inspection_db,
+            max_records=self.options.max_inspection_evidence,
+        )
+        if payload is None:
+            return (), warnings
+        rel_path = writer.write_json(
+            "inspection/evidence.summary.json",
+            kind="workspace_inspection_evidence_summary",
+            source="InspectionEvidenceStore",
+            payload=payload,
+        )
+        return (rel_path,), warnings
 
     def _collect_events(
         self,

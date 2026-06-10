@@ -1180,6 +1180,15 @@
   background: var(--plato-color-semantic-surface);
 }
 
+.resultWorkspaceChanges {
+  display: grid;
+  gap: var(--plato-space-3);
+  border: 1px solid var(--plato-color-line);
+  border-radius: 8px;
+  padding: var(--plato-space-3);
+  background: var(--plato-color-semantic-surface);
+}
+
 .resultSection,
 .fileChangeItem {
   display: grid;
@@ -1205,6 +1214,26 @@
   flex-wrap: wrap;
   gap: var(--plato-space-2);
   margin-top: var(--plato-space-2);
+}
+
+.fileActionRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--plato-space-2);
+}
+
+.fileActionRow a {
+  display: inline-flex;
+  min-height: 30px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--plato-color-semantic-border);
+  border-radius: var(--plato-radius-sm);
+  padding: 0 var(--plato-space-2);
+  color: var(--plato-color-semantic-text-link);
+  font-size: var(--plato-type-body-sm-size);
+  font-weight: 700;
+  text-decoration: none;
 }
 
 .filePath {

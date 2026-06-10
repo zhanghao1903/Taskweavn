@@ -20,6 +20,8 @@ import {
 import { SettingsRoute, type SettingsRouteApi } from "../pages/settings/SettingsRoute";
 import { isSettingsPath } from "../pages/settings/settingsRouteModel";
 import { WorkspaceEntryGate } from "../pages/workspace/WorkspaceEntryGate";
+import { WorkspaceInspectionRoute } from "../pages/workspace-inspection/WorkspaceInspectionRoute";
+import { isWorkspaceInspectionPath } from "../pages/workspace-inspection/workspaceInspectionRouteModel";
 
 export type AppProps = {
   readinessApi?: SettingsReadinessApi;
@@ -28,17 +30,23 @@ export type AppProps = {
   workspaceEntryRuntime?: PlatoWorkspaceEntryRuntime;
 };
 
+type AppLocation = {
+  pathname: string;
+  search: string;
+};
+
 export function App({
   readinessApi,
   runtimeEnv = resolvePlatoRuntimeEnv(),
   settingsApi,
   workspaceEntryRuntime = resolvePlatoWorkspaceEntryRuntime(),
 }: AppProps = {}) {
-  const [pathname, setPathname] = useState(() => globalThis.location.pathname);
+  const [location, setLocation] = useState(currentAppLocation);
+  const { pathname } = location;
 
   useEffect(() => {
     const handleRouteChange = () => {
-      setPathname(globalThis.location.pathname);
+      setLocation(currentAppLocation());
     };
 
     globalThis.addEventListener("popstate", handleRouteChange);
@@ -57,6 +65,8 @@ export function App({
         <AuditPageRoute runtimeEnv={runtimeEnv} />
       ) : isDiagnosticsLogsPath(pathname) ? (
         <DiagnosticsLogsRoute runtimeEnv={runtimeEnv} />
+      ) : isWorkspaceInspectionPath(pathname) ? (
+        <WorkspaceInspectionRoute location={location} runtimeEnv={runtimeEnv} />
       ) : isSettingsPath(pathname) ? (
         <>
           <FirstRunReadinessGate api={readinessApi} runtimeEnv={runtimeEnv}>
@@ -81,4 +91,11 @@ export function App({
       )}
     </AppErrorBoundary>
   );
+}
+
+function currentAppLocation(): AppLocation {
+  return {
+    pathname: globalThis.location.pathname,
+    search: globalThis.location.search,
+  };
 }

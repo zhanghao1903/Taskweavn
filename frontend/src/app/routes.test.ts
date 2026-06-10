@@ -6,6 +6,7 @@ import {
   buildDiagnosticsLogsRoute,
   buildMainSessionFallbackRoute,
   buildMainSessionRoute,
+  buildWorkspaceInspectionRoute,
   routes,
 } from "./routes";
 
@@ -18,6 +19,7 @@ describe("route builders", () => {
     expect(routes.auditTask).toBe(
       "/sessions/:sessionId/tasks/:taskNodeId/audit",
     );
+    expect(routes.workspaceInspection).toBe("/workspaces/:workspaceId/inspection");
   });
 
   it("builds contextual Main Page session routes", () => {
@@ -78,6 +80,22 @@ describe("route builders", () => {
       }),
     ).toBe(
       "/sessions/session-1/diagnostics/logs?category=audit&recordId=record-1&taskNodeId=task-1",
+    );
+  });
+
+  it("builds workspace inspection links with return context", () => {
+    expect(
+      buildWorkspaceInspectionRoute({
+        path: "src/App.tsx",
+        returnSessionId: "session-1",
+        returnTaskNodeId: "task-1",
+        sessionId: "session-1",
+        taskNodeId: "task-1",
+        view: "diff",
+        workspaceId: "workspace/a",
+      }),
+    ).toBe(
+      "/workspaces/workspace%2Fa/inspection?path=src%2FApp.tsx&returnSessionId=session-1&returnTaskNodeId=task-1&sessionId=session-1&taskNodeId=task-1&view=diff",
     );
   });
 });
