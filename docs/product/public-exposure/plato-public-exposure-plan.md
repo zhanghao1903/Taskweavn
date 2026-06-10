@@ -2,8 +2,8 @@
 
 > Status: planned
 > Last Updated: 2026-06-10
-> Gap: [Public visual asset gaps](../../gaps/public-visual-asset-gaps.md)
-> Product: [Core product principles](../../product/core-product-principles.md), [MVP PRD](../../product/plato-mvp-prd.md), [Brand and UX direction](../../product/plato-brand-and-ux-direction.md), [Product 1.1 workspace-aware foundation](../../product/plato-1-1-workspace-aware-agent-foundation.md)
+> Gap: [Public visual asset gaps](public-visual-asset-gaps.md)
+> Product: [Core product principles](../core-product-principles.md), [MVP PRD](../plato-mvp-prd.md), [Brand and UX direction](../plato-brand-and-ux-direction.md), [Product 1.1 workspace-aware foundation](../plato-1-1-workspace-aware-agent-foundation.md)
 > Architecture: [Architecture overview](../../architecture/overview.md), [UI/backend communication](../../architecture/ui-backend-communication.md), [Context Manager](../../architecture/context-manager.md), [Git/Diff/File Viewer API contract](../../engineering/git-diff-file-viewer-api-contract.md)
 > Public Repository Reviewed: `https://github.com/zhanghao1903/plato-public`
 
@@ -262,7 +262,7 @@ Required first visual set:
 | Open Graph image | GitHub/social preview. | Missing. |
 
 All image work is tracked in
-[Public Visual Asset Gaps](../../gaps/public-visual-asset-gaps.md).
+[Public Visual Asset Gaps](public-visual-asset-gaps.md).
 
 ## 9. Execution Slices
 

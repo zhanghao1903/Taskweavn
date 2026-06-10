@@ -27,7 +27,7 @@ Specialized gap registries:
 
 | File | Scope |
 |---|---|
-| [public-visual-asset-gaps.md](public-visual-asset-gaps.md) | Public-facing Plato image, screenshot, diagram, and visual presentation gaps for `zhanghao1903/plato-public`. |
+| [public-visual-asset-gaps.md](../product/public-exposure/public-visual-asset-gaps.md) | Public-facing Plato image, screenshot, diagram, and visual presentation gaps for `zhanghao1903/plato-public`. |
 
 ---
 

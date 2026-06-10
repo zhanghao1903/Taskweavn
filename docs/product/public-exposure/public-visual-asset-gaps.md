@@ -2,7 +2,7 @@
 
 > Status: active
 > Last Updated: 2026-06-10
-> Related Plan: [Plato Public Exposure Plan](../plans/feature/plato-public-exposure-plan.md)
+> Related Plan: [Plato Public Exposure Plan](plato-public-exposure-plan.md)
 > Scope: visual assets needed before Plato product, architecture, and UI content
 > can be published in `zhanghao1903/plato-public`.
 
