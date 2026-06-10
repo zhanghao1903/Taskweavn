@@ -5,6 +5,7 @@ import { Folder, FolderOpen } from "lucide-react";
 import type { WorkspaceCatalogResult } from "../../shared/api/platoApi";
 import type { SessionSummary, WorkspaceId } from "../../shared/api/types";
 import { Button, Panel, Text } from "../../shared/components";
+import { useUiText } from "../../shared/ui-text";
 import { SessionLifecyclePanel } from "./SessionLifecyclePanel";
 import {
   MainPageWorkspaceSwitcher,
@@ -60,6 +61,7 @@ export function MainPageSessionSidebar({
   workspaceCatalog = null,
   workspaceRuntime = null,
 }: MainPageSessionSidebarProps) {
+  const uiText = useUiText();
   const [contextMenu, setContextMenu] =
     useState<SessionContextMenuState | null>(null);
   const workspaceBridge =
@@ -138,7 +140,10 @@ export function MainPageSessionSidebar({
 
   const catalogTree =
     workspaceCatalog === null || !Array.isArray(workspaceCatalog.workspaces) ? null : (
-      <div className={styles.workspaceExplorer} aria-label="Workspaces">
+      <div
+        className={styles.workspaceExplorer}
+        aria-label={uiText.workspace.labels.workspaces}
+      >
         {workspaceCatalog.workspaces.map((workspace) => {
           const isActiveWorkspace =
             activeWorkspaceId === workspace.workspaceId ||
@@ -159,7 +164,7 @@ export function MainPageSessionSidebar({
                 <div className={styles.workspaceTreeCurrentLabel}>
                   <span>
                     <Text as="span" className={styles.workspaceSwitcherEyebrow}>
-                      Workspace
+                      {uiText.workspace.labels.workspace}
                     </Text>
                     <strong>{workspace.label}</strong>
                   </span>
@@ -175,7 +180,9 @@ export function MainPageSessionSidebar({
                     onClick={() => onCreateSession(workspace.workspaceId)}
                     size="sm"
                   >
-                    {isCreatingSession && isActiveWorkspace ? "Creating" : "New"}
+                    {isCreatingSession && isActiveWorkspace
+                      ? uiText.main.states.creatingSession
+                      : uiText.main.actions.newSession}
                   </Button>
                 </div>
               </div>
@@ -203,7 +210,7 @@ export function MainPageSessionSidebar({
                 </div>
               ) : (
                 <Text className={styles.workspaceSwitcherNotice} variant="muted">
-                  No sessions
+                  {uiText.main.labels.noSessions}
                 </Text>
               )}
             </div>
@@ -222,7 +229,7 @@ export function MainPageSessionSidebar({
               size={18}
               aria-hidden="true"
             />
-            <span>Open or add workspace</span>
+            <span>{uiText.workspace.actions.openOrAddWorkspace}</span>
           </button>
         ) : null}
       </div>
@@ -232,7 +239,7 @@ export function MainPageSessionSidebar({
     <Panel
       as="aside"
       className={styles.sidebar}
-      aria-label="Workspace sessions"
+      aria-label={uiText.main.labels.workspaceSessions}
     >
       <div className={styles.workspaceSessionTree}>
         {catalogTree ?? (
@@ -243,7 +250,9 @@ export function MainPageSessionSidebar({
                 onClick={() => onCreateSession()}
                 size="sm"
               >
-                {isCreatingSession ? "Creating" : "New"}
+                {isCreatingSession
+                  ? uiText.main.states.creatingSession
+                  : uiText.main.actions.newSession}
               </Button>
             }
             runtime={workspaceRuntime}
@@ -273,7 +282,7 @@ export function MainPageSessionSidebar({
       </div>
       {contextMenu ? (
         <div
-          aria-label="Session actions"
+          aria-label={uiText.main.labels.sessionActions}
           className={styles.sessionContextMenu}
           onClick={(event) => event.stopPropagation()}
           onContextMenu={(event) => event.preventDefault()}
@@ -291,7 +300,7 @@ export function MainPageSessionSidebar({
             role="menuitem"
             type="button"
           >
-            Open session
+            {uiText.main.actions.openSession}
           </button>
           <button
             disabled={isRenamingSession}
@@ -299,14 +308,14 @@ export function MainPageSessionSidebar({
             role="menuitem"
             type="button"
           >
-            Rename session
+            {uiText.main.actions.renameSession}
           </button>
           <button
             onClick={() => copySessionId(contextMenu.session)}
             role="menuitem"
             type="button"
           >
-            Copy session ID
+            {uiText.main.actions.copySessionId}
           </button>
           <div className={styles.sessionContextMenuDivider} />
           <button
@@ -316,7 +325,7 @@ export function MainPageSessionSidebar({
             role="menuitem"
             type="button"
           >
-            Delete session
+            {uiText.main.actions.deleteSession}
           </button>
         </div>
       ) : null}

@@ -1,6 +1,7 @@
 import { ApiClientError } from "./client";
 import type { ProductRecoveryAction } from "./platoApi";
 import type { ApiError } from "./types";
+import { enUS, type UiTextCatalog } from "../ui-text";
 
 export const PRODUCT_RECOVERY_ACTIONS = [
   "edit_input",
@@ -84,55 +85,20 @@ export function normalizeProductRecoveryActions(
 export function productRecoveryActionLabel(
   action: ProductRecoveryAction,
 ): string {
-  switch (action) {
-    case "edit_input":
-      return "Edit input";
-    case "answer_ask":
-      return "Answer question";
-    case "retry_command":
-      return "Retry command";
-    case "retry_task":
-      return "Retry task";
-    case "refresh_snapshot":
-      return "Refresh session";
-    case "wait_for_events":
-      return "Wait for updates";
-    case "open_audit":
-      return "View audit";
-    case "open_settings":
-      return "Open settings";
-    case "export_diagnostics":
-      return "Export diagnostics";
-    case "none":
-      return "No safe recovery action";
-  }
+  return productRecoveryActionText(action, enUS).label;
 }
 
 export function productRecoveryActionDescription(
   action: ProductRecoveryAction,
 ): string {
-  switch (action) {
-    case "edit_input":
-      return "Change the input and submit again.";
-    case "answer_ask":
-      return "Answer the pending question before continuing.";
-    case "retry_command":
-      return "Run the command again after resolving the issue.";
-    case "retry_task":
-      return "Retry the affected task when retry is available.";
-    case "refresh_snapshot":
-      return "Refresh the session view to get the latest state.";
-    case "wait_for_events":
-      return "Wait for sidecar events before taking another action.";
-    case "open_audit":
-      return "Inspect Audit evidence for the affected session or task.";
-    case "open_settings":
-      return "Open local provider settings.";
-    case "export_diagnostics":
-      return "Export a redacted diagnostic bundle.";
-    case "none":
-      return "No safe product recovery action is available.";
-  }
+  return productRecoveryActionText(action, enUS).description;
+}
+
+export function productRecoveryActionText(
+  action: ProductRecoveryAction,
+  uiText: UiTextCatalog,
+): { description: string; label: string } {
+  return uiText.productError.recovery[action];
 }
 
 function apiErrorFromResponseBody(responseBody: unknown): ApiError | null {

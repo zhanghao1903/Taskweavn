@@ -12,6 +12,7 @@ import type {
   SettingsReadinessReport,
 } from "../../shared/api/platoApi";
 import type { ApiError, QueryResponse } from "../../shared/api/types";
+import { UiTextProvider, type UiLocale } from "../../shared/ui-text";
 import { SettingsRoute, type SettingsRouteApi } from "./SettingsRoute";
 
 describe("SettingsRoute", () => {
@@ -152,9 +153,24 @@ describe("SettingsRoute", () => {
     expect(await screen.findByText("diagnostic-bundle-session-1")).toBeInTheDocument();
     expect(api.exportDiagnosticBundle).toHaveBeenCalledWith("session-1");
   });
+
+  it("renders core Settings chrome in zh-CN", async () => {
+    renderWithQueryClient(
+      <SettingsRoute api={settingsApi()} runtimeEnv={{ VITE_PLATO_API_MODE: "http" }} />,
+      { locale: "zh-CN" },
+    );
+
+    expect(await screen.findByRole("heading", { name: "设置" })).toBeInTheDocument();
+    expect(screen.getByText("已配置")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "保存并检查" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "导出诊断" })).toBeInTheDocument();
+  });
 });
 
-function renderWithQueryClient(children: ReactNode) {
+function renderWithQueryClient(
+  children: ReactNode,
+  options: { locale?: UiLocale } = {},
+) {
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: {
@@ -164,7 +180,9 @@ function renderWithQueryClient(children: ReactNode) {
   });
 
   return render(
-    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>,
+    <UiTextProvider locale={options.locale ?? "en-US"}>
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    </UiTextProvider>,
   );
 }
 

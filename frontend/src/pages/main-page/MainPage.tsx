@@ -5,6 +5,7 @@ import { productRecoveryActionsFromUnknown } from "../../shared/api/productError
 import type { ProductRecoveryAction } from "../../shared/api/platoApi";
 import type { BadgeTone } from "../../shared/components";
 import { Button, Panel, Text } from "../../shared/components";
+import { useUiText } from "../../shared/ui-text";
 import { buildSettingsRoute } from "../settings/settingsRouteModel";
 import { NO_SESSION_AVAILABLE_MESSAGE } from "./httpMainPageAdapter";
 import { MainPageSessionSidebar } from "./MainPageSessionSidebar";
@@ -38,6 +39,7 @@ export function MainPage({
   initialStateId = defaultMainPageStateId,
   workspaceRuntime = null,
 }: MainPageProps = {}) {
+  const uiText = useUiText();
   const {
     actions,
     activeWorkspaceId,
@@ -89,10 +91,10 @@ export function MainPage({
         stateId={stateId}
         onStateChange={actions.changeState}
         showStatePicker={adapter.showStatePicker}
-        statusLabel="Loading"
+        statusLabel={uiText.common.status.loading}
         statusTone="blue"
-        title="Opening session"
-        body="Plato is preparing this workspace."
+        title={uiText.main.states.openingSessionTitle}
+        body={uiText.main.states.openingSessionBody}
       />
     );
   }
@@ -133,8 +135,8 @@ export function MainPage({
             ? {
                 disabled: isCreatingSession,
                 label: isCreatingSession
-                  ? "Creating session"
-                  : "New session",
+                  ? uiText.main.states.creatingSessionFull
+                  : uiText.main.actions.createSession,
                 onClick: actions.createSession,
               }
             : undefined
@@ -142,17 +144,21 @@ export function MainPage({
         stateId={stateId}
         onStateChange={actions.changeState}
         showStatePicker={adapter.showStatePicker}
-        statusLabel={noSessionAvailable ? "No sessions" : "Load error"}
+        statusLabel={
+          noSessionAvailable
+            ? uiText.main.labels.noSessions
+            : uiText.main.states.loadError
+        }
         statusTone={noSessionAvailable ? "neutral" : "danger"}
         title={
           noSessionAvailable
-            ? "Create your first session"
-            : "Unable to open session"
+            ? uiText.main.empty.createFirstSessionTitle
+            : uiText.main.states.unableToOpenSessionTitle
         }
         body={
           noSessionAvailable
-            ? "This workspace has no sessions yet. Create one when you are ready to start."
-            : "Plato could not load this session. Refresh the page or choose another session."
+            ? uiText.main.empty.createFirstSessionBody
+            : uiText.main.states.unableToOpenSessionBody
         }
         recoveryActions={
           noSessionAvailable
@@ -262,6 +268,8 @@ function MainPageNoSessionFrame({
   workspaceCatalog,
   workspaceRuntime = null,
 }: MainPageNoSessionFrameProps) {
+  const uiText = useUiText();
+
   return (
     <main className={`${styles.page} ${styles.pageWithoutDetail}`}>
       <MainPageTopBar
@@ -269,7 +277,7 @@ function MainPageNoSessionFrame({
         contextItems={["Local Project", "Session"]}
         statuses={[
           {
-            label: "No sessions",
+            label: uiText.main.labels.noSessions,
             tone: "neutral",
           },
         ]}
@@ -304,22 +312,23 @@ function MainPageNoSessionFrame({
       <Panel
         as="section"
         className={styles.workspace}
-        aria-label="Task workspace"
+        aria-label={uiText.main.labels.taskWorkspace}
       >
         <div className={styles.emptyState}>
           <Text as="h1" variant="heading">
-            Create your first session
+            {uiText.main.empty.createFirstSessionTitle}
           </Text>
           <Text variant="muted">
-            This workspace has no sessions yet. Create one when you are ready to
-            start.
+            {uiText.main.empty.createFirstSessionBody}
           </Text>
           <Button
             disabled={isCreatingSession}
             onClick={() => onCreateSession(activeWorkspaceId)}
             variant="primary"
           >
-            {isCreatingSession ? "Creating session" : "New session"}
+            {isCreatingSession
+              ? uiText.main.states.creatingSessionFull
+              : uiText.main.actions.createSession}
           </Button>
         </div>
       </Panel>
@@ -328,12 +337,14 @@ function MainPageNoSessionFrame({
 }
 
 function SettingsTopBarButton() {
+  const uiText = useUiText();
+
   return (
     <Button
-      aria-label="Settings"
+      aria-label={uiText.settings.labels.settings}
       onClick={() => navigateApp(buildSettingsRoute())}
       size="icon"
-      title="Settings"
+      title={uiText.settings.labels.settings}
       variant="ghost"
     >
       <SettingsIcon aria-hidden="true" size={18} />
@@ -409,6 +420,8 @@ function MainPageStatusFrame({
   recoveryActions = [],
   title,
 }: MainPageStatusFrameProps) {
+  const uiText = useUiText();
+
   return (
     <main className={styles.page}>
       <MainPageTopBar
@@ -432,7 +445,7 @@ function MainPageStatusFrame({
       <Panel
         as="section"
         className={styles.workspace}
-        aria-label="Task workspace"
+        aria-label={uiText.main.labels.taskWorkspace}
       >
         <div className={styles.emptyState}>
           <Text as="h1" variant="heading">

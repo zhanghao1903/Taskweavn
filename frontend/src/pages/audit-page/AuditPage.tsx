@@ -1,5 +1,6 @@
 import { Button } from "../../shared/components";
 import { mapAuditSnapshotToUiBoundary } from "../../shared/api/apiUiMapping";
+import { useUiText } from "../../shared/ui-text";
 import type {
   AuditFilterKind,
   AuditPageSnapshot,
@@ -57,13 +58,17 @@ export function AuditPage({
   snapshot,
   workspaceId,
 }: AuditPageProps) {
+  const uiText = useUiText();
   const activeFilter = activeAuditFilter(snapshot);
   const activeRecordId = activeAuditRecordId(snapshot, selectedRecordId);
 
   if (isLoading) {
     return (
       <AuditPageFrame snapshot={snapshot}>
-        <Boundary title="Loading audit" message="Reading audit records and evidence." />
+        <Boundary
+          title={uiText.common.status.loading}
+          message={uiText.audit.messages.loadingAudit}
+        />
       </AuditPageFrame>
     );
   }
@@ -74,11 +79,11 @@ export function AuditPage({
         <Boundary
           action={onRetry === undefined ? null : (
             <Button onClick={onRetry} variant="secondary">
-              Retry
+              {uiText.common.actions.retry}
             </Button>
           )}
-          message={errorMessage ?? "Audit snapshot is not available."}
-          title="Audit unavailable"
+          message={errorMessage ?? uiText.audit.messages.snapshotUnavailable}
+          title={uiText.audit.messages.unavailable}
         />
       </AuditPageFrame>
     );
@@ -104,11 +109,11 @@ export function AuditPage({
       {shouldHideContent ? (
         <Boundary
           message={boundary.message}
-          title="Permission limited"
+          title={uiText.audit.messages.permissionLimited}
         />
       ) : (
         <main
-          aria-label="Audit evidence workspace"
+          aria-label={uiText.audit.labels.auditEvidenceWorkspace}
           className={cx(
             styles.content,
             selectedRecord !== null && styles.contentWithDetail,

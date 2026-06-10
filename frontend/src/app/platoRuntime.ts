@@ -33,6 +33,7 @@ export type PlatoRuntimeEnv = {
   VITE_PLATO_DISABLE_EVENTS?: "0" | "1";
   VITE_PLATO_AUDIT_MOCK_SCENARIO?: AuditMockScenarioId;
   VITE_PLATO_RUNTIME_REDUCER_HARNESS?: "off" | "test";
+  VITE_PLATO_UI_LOCALE?: string;
 };
 
 export type PlatoWorkspaceEntryRuntime = {
@@ -62,6 +63,8 @@ export function resolvePlatoRuntimeEnv(
         : env.VITE_PLATO_DISABLE_EVENTS,
     VITE_PLATO_SESSION_ID:
       electronRuntime.sessionId ?? env.VITE_PLATO_SESSION_ID,
+    VITE_PLATO_UI_LOCALE:
+      electronRuntime.uiLocale ?? env.VITE_PLATO_UI_LOCALE,
   };
 }
 

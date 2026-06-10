@@ -22,6 +22,7 @@ import { isSettingsPath } from "../pages/settings/settingsRouteModel";
 import { WorkspaceEntryGate } from "../pages/workspace/WorkspaceEntryGate";
 import { WorkspaceInspectionRoute } from "../pages/workspace-inspection/WorkspaceInspectionRoute";
 import { isWorkspaceInspectionPath } from "../pages/workspace-inspection/workspaceInspectionRouteModel";
+import { resolveUiLocale, UiTextProvider } from "../shared/ui-text";
 
 export type AppProps = {
   readinessApi?: SettingsReadinessApi;
@@ -43,6 +44,10 @@ export function App({
 }: AppProps = {}) {
   const [location, setLocation] = useState(currentAppLocation);
   const { pathname } = location;
+  const uiLocale = resolveUiLocale({
+    electronRuntimeLocale: globalThis.window?.platoRuntimeConfig?.uiLocale,
+    runtimeEnv,
+  });
 
   useEffect(() => {
     const handleRouteChange = () => {
@@ -58,38 +63,40 @@ export function App({
   }, []);
 
   return (
-    <AppErrorBoundary>
-      {workspaceEntryRuntime.isRequired ? (
-        <WorkspaceEntryGate bridge={workspaceEntryRuntime.bridge} />
-      ) : isAuditPath(pathname) ? (
-        <AuditPageRoute runtimeEnv={runtimeEnv} />
-      ) : isDiagnosticsLogsPath(pathname) ? (
-        <DiagnosticsLogsRoute runtimeEnv={runtimeEnv} />
-      ) : isWorkspaceInspectionPath(pathname) ? (
-        <WorkspaceInspectionRoute location={location} runtimeEnv={runtimeEnv} />
-      ) : isSettingsPath(pathname) ? (
-        <>
+    <UiTextProvider locale={uiLocale}>
+      <AppErrorBoundary>
+        {workspaceEntryRuntime.isRequired ? (
+          <WorkspaceEntryGate bridge={workspaceEntryRuntime.bridge} />
+        ) : isAuditPath(pathname) ? (
+          <AuditPageRoute runtimeEnv={runtimeEnv} />
+        ) : isDiagnosticsLogsPath(pathname) ? (
+          <DiagnosticsLogsRoute runtimeEnv={runtimeEnv} />
+        ) : isWorkspaceInspectionPath(pathname) ? (
+          <WorkspaceInspectionRoute location={location} runtimeEnv={runtimeEnv} />
+        ) : isSettingsPath(pathname) ? (
+          <>
+            <FirstRunReadinessGate api={readinessApi} runtimeEnv={runtimeEnv}>
+              <MainPageRoute
+                runtimeEnv={runtimeEnv}
+                workspaceEntryRuntime={workspaceEntryRuntime}
+              />
+            </FirstRunReadinessGate>
+            <SettingsRoute
+              api={settingsApi}
+              presentation="modal"
+              runtimeEnv={runtimeEnv}
+            />
+          </>
+        ) : (
           <FirstRunReadinessGate api={readinessApi} runtimeEnv={runtimeEnv}>
             <MainPageRoute
               runtimeEnv={runtimeEnv}
               workspaceEntryRuntime={workspaceEntryRuntime}
             />
           </FirstRunReadinessGate>
-          <SettingsRoute
-            api={settingsApi}
-            presentation="modal"
-            runtimeEnv={runtimeEnv}
-          />
-        </>
-      ) : (
-        <FirstRunReadinessGate api={readinessApi} runtimeEnv={runtimeEnv}>
-          <MainPageRoute
-            runtimeEnv={runtimeEnv}
-            workspaceEntryRuntime={workspaceEntryRuntime}
-          />
-        </FirstRunReadinessGate>
-      )}
-    </AppErrorBoundary>
+        )}
+      </AppErrorBoundary>
+    </UiTextProvider>
   );
 }
 

@@ -5,6 +5,7 @@ import { useMemo } from "react";
 import { navigateApp } from "../../app/navigation";
 import type { PlatoRuntimeEnv } from "../../app/platoRuntime";
 import { Button } from "../../shared/components";
+import { useUiText } from "../../shared/ui-text";
 import type {
   PlatoApi,
   SettingsReadinessReport,
@@ -27,6 +28,7 @@ export function FirstRunReadinessGate({
   children,
   runtimeEnv = import.meta.env,
 }: FirstRunReadinessGateProps) {
+  const uiText = useUiText();
   const readinessApi = useMemo(
     () => api ?? createSettingsReadinessApi(runtimeEnv),
     [api, runtimeEnv],
@@ -48,8 +50,8 @@ export function FirstRunReadinessGate({
   if (readinessQuery.status === "pending") {
     return (
       <ReadinessShell
-        description="Checking local sidecar readiness."
-        heading="Checking setup"
+        description={uiText.settings.messages.checkingSidecarReadiness}
+        heading={uiText.settings.labels.checkingSetup}
         tone="neutral"
       />
     );
@@ -61,11 +63,11 @@ export function FirstRunReadinessGate({
       <ReadinessShell
         action={
           <Button onClick={() => void readinessQuery.refetch()} variant="secondary">
-            Retry check
+            {uiText.settings.actions.retryCheck}
           </Button>
         }
-        description="The local sidecar did not return a readiness report."
-        heading="Setup check unavailable"
+        description={uiText.settings.messages.noReadinessReport}
+        heading={uiText.settings.labels.setupCheckUnavailable}
         tone="warning"
       />
     );
@@ -98,6 +100,7 @@ function FirstRunReadinessPanel({
   onRetry: () => void;
   readiness: SettingsReadinessReport;
 }) {
+  const uiText = useUiText();
   const missingEnvVars = new Set([
     ...readiness.llm.missingEnvVars,
     ...readiness.blockingIssues.flatMap((issue) => issue.envVars),
@@ -108,14 +111,13 @@ function FirstRunReadinessPanel({
 
   return (
     <main className={styles.page}>
-      <section aria-label="First-run readiness" className={styles.panel}>
+      <section aria-label={uiText.settings.labels.firstRun} className={styles.panel}>
         <div className={styles.headerRow}>
           <div>
-            <span className={styles.eyebrow}>First run</span>
-            <h1>Setup required</h1>
+            <span className={styles.eyebrow}>{uiText.settings.labels.firstRun}</span>
+            <h1>{uiText.settings.labels.setupRequired}</h1>
             <p>
-              Plato needs local LLM configuration before it can run the Main Page
-              workflow.
+              {uiText.settings.messages.setupRequiredBody}
             </p>
           </div>
           <span className={styles.statusBadge}>{readiness.status}</span>
@@ -123,29 +125,36 @@ function FirstRunReadinessPanel({
 
         <dl className={styles.summaryGrid}>
           <div>
-            <dt>Provider</dt>
+            <dt>{uiText.settings.fields.provider}</dt>
             <dd>{readiness.llm.provider}</dd>
           </div>
           <div>
-            <dt>Model</dt>
+            <dt>{uiText.settings.fields.model}</dt>
             <dd>{readiness.llm.model}</dd>
           </div>
           <div>
-            <dt>Logging</dt>
-            <dd>{readiness.logging.enabled ? readiness.logging.level : "disabled"}</dd>
+            <dt>{uiText.settings.fields.logging}</dt>
+            <dd>
+              {readiness.logging.enabled
+                ? readiness.logging.level
+                : uiText.common.status.disabled}
+            </dd>
           </div>
           <div>
-            <dt>Diagnostics</dt>
+            <dt>{uiText.settings.fields.diagnostics}</dt>
             <dd>
               {readiness.diagnostics.bundleExportAvailable
-                ? "bundle export available"
-                : "bundle export unavailable"}
+                ? uiText.settings.labels.diagnosticsAvailable
+                : uiText.settings.labels.diagnosticsUnavailable}
             </dd>
           </div>
         </dl>
 
-        <section className={styles.section} aria-label="Blocking issues">
-          <h2>Blocking issues</h2>
+        <section
+          className={styles.section}
+          aria-label={uiText.settings.labels.blockingIssues}
+        >
+          <h2>{uiText.settings.labels.blockingIssues}</h2>
           <ul className={styles.issueList}>
             {readiness.blockingIssues.map((issue) => (
               <li key={issue.code}>
@@ -157,8 +166,11 @@ function FirstRunReadinessPanel({
         </section>
 
         {missingEnvVars.size > 0 && (
-          <section className={styles.section} aria-label="Missing environment variables">
-            <h2>Missing environment variables</h2>
+          <section
+            className={styles.section}
+            aria-label={uiText.settings.labels.missingEnvironmentVariables}
+          >
+            <h2>{uiText.settings.labels.missingEnvironmentVariables}</h2>
             <div className={styles.codeList}>
               {[...missingEnvVars].map((name) => (
                 <code key={name}>{name}</code>
@@ -168,11 +180,14 @@ function FirstRunReadinessPanel({
         )}
 
         {recommendedActions.length > 0 && (
-          <section className={styles.section} aria-label="Recommended actions">
-            <h2>Recommended actions</h2>
+          <section
+            className={styles.section}
+            aria-label={uiText.settings.labels.recommendedActions}
+          >
+            <h2>{uiText.settings.labels.recommendedActions}</h2>
             <ul className={styles.actionList}>
               {recommendedActions.map((action) => (
-                <li key={action}>{formatRecoveryAction(action)}</li>
+                <li key={action}>{formatRecoveryAction(action, uiText)}</li>
               ))}
             </ul>
           </section>
@@ -190,10 +205,10 @@ function FirstRunReadinessPanel({
             }
             variant="primary"
           >
-            Configure settings
+            {uiText.settings.actions.configureSettings}
           </Button>
           <Button onClick={onRetry} variant="secondary">
-            Retry check
+            {uiText.settings.actions.retryCheck}
           </Button>
         </div>
       </section>
@@ -206,11 +221,12 @@ function ReadinessDegradedBanner({
 }: {
   readiness: SettingsReadinessReport;
 }) {
+  const uiText = useUiText();
   const warning = readiness.warnings[0];
   return (
     <div className={styles.degradedBanner} role="status">
-      <strong>Setup warning</strong>
-      <span>{warning?.message ?? "Local setup is ready with warnings."}</span>
+      <strong>{uiText.settings.labels.setupWarning}</strong>
+      <span>{warning?.message ?? uiText.settings.messages.localSetupReadyWithWarnings}</span>
       <Button
         onClick={() =>
           navigateApp(
@@ -222,7 +238,7 @@ function ReadinessDegradedBanner({
         }
         size="sm"
       >
-        Open Settings
+        {uiText.settings.actions.openSettings}
       </Button>
     </div>
   );
@@ -239,16 +255,17 @@ function ReadinessShell({
   heading: string;
   tone: "neutral" | "warning";
 }) {
+  const uiText = useUiText();
   return (
     <main className={styles.page}>
       <section
-        aria-label="First-run readiness"
+        aria-label={uiText.settings.labels.firstRun}
         className={styles.panel}
         data-tone={tone}
       >
         <div className={styles.headerRow}>
           <div>
-            <span className={styles.eyebrow}>First run</span>
+            <span className={styles.eyebrow}>{uiText.settings.labels.firstRun}</span>
             <h1>{heading}</h1>
             <p>{description}</p>
           </div>

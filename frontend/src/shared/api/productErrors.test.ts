@@ -6,10 +6,12 @@ import {
   apiErrorFromUnknown,
   normalizeProductRecoveryActions,
   productRecoveryActionLabel,
+  productRecoveryActionText,
   productRecoveryActionsFromApiError,
   productRecoveryActionsFromUnknown,
 } from "./productErrors";
 import type { ApiError } from "./types";
+import { zhCN } from "../ui-text";
 
 describe("product error recovery metadata", () => {
   it("keeps only known recovery actions and removes duplicates", () => {
@@ -65,6 +67,13 @@ describe("product error recovery metadata", () => {
     expect(productRecoveryActionLabel("none")).toBe(
       "No safe recovery action",
     );
+  });
+
+  it("maps recovery action ids through the active UI text catalog", () => {
+    expect(productRecoveryActionText("open_audit", zhCN)).toEqual({
+      description: "查看受影响会话或任务的审计证据。",
+      label: "查看审计",
+    });
   });
 });
 

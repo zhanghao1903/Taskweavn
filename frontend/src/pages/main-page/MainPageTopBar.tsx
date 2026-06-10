@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 
 import type { BadgeTone } from "../../shared/components";
 import { Badge } from "../../shared/components";
+import { useUiText } from "../../shared/ui-text";
 import styles from "./MainPage.module.css";
 import { PlatoProductMark } from "./PlatoProductMark";
 
@@ -23,8 +24,9 @@ export function MainPageTopBar({
   statuses,
   trailing = null,
 }: MainPageTopBarProps) {
+  const uiText = useUiText();
   const [
-    workspaceName = "Workspace",
+    workspaceName = uiText.workspace.labels.workspace,
     maybeSessionName,
     legacySessionName,
   ] = contextItems;
@@ -40,13 +42,17 @@ export function MainPageTopBar({
       </div>
 
       <div className={styles.topBarContextBlock}>
-        <span className={styles.topBarLabel}>Workspace</span>
+        <span className={styles.topBarLabel}>
+          {uiText.workspace.labels.workspace}
+        </span>
         <span className={styles.topBarValue}>{workspaceName}</span>
       </div>
 
       <div className={styles.sessionContextBlock}>
         <span className={styles.sessionValue}>
-          {sessionName ? `Session: ${sessionName}` : "No session selected"}
+          {sessionName
+            ? uiText.main.labels.sessionName({ name: sessionName })
+            : uiText.main.labels.noSessionSelected}
         </span>
       </div>
 

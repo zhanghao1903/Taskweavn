@@ -1,5 +1,6 @@
 import { Button, Text } from "../../shared/components";
 import type { ProductRecoveryAction } from "../../shared/api/platoApi";
+import { useUiText } from "../../shared/ui-text";
 import type { MainPageAuditEntryViewModel } from "./mainPageViewModel";
 import { ProductRecoveryActions } from "./ProductRecoveryActions";
 import styles from "./MainPage.module.css";
@@ -27,6 +28,8 @@ export function MainPageWorkspaceHeader({
   title,
   uiNotice,
 }: MainPageWorkspaceHeaderProps) {
+  const uiText = useUiText();
+
   return (
     <div className={styles.sectionHeader}>
       <div>
@@ -50,7 +53,9 @@ export function MainPageWorkspaceHeader({
             disabled={isPublishingTaskTree}
             onClick={onPublishTaskTree}
           >
-            {isPublishingTaskTree ? "Publishing plan" : "Publish plan"}
+            {isPublishingTaskTree
+              ? uiText.main.states.publishingPlan
+              : uiText.main.actions.publishPlan}
           </Button>
         ) : null}
         {auditEntry.isEnabled ? (
