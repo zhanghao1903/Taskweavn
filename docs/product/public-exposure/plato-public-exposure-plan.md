@@ -167,6 +167,8 @@ assets/
     plato-architecture-overview.svg
   screenshots/
     plato-main-page.png
+    plato-authoring-ask.svg
+    plato-execution-ask.svg
     plato-audit-page.png
     plato-workspace-inspection.png
 releases/
@@ -180,8 +182,8 @@ Initial content responsibilities:
 | Public file | Purpose |
 |---|---|
 | `README.md` | Product-first landing page: what Plato is, three-plane model, latest release, screenshots, quick start, status caveats. |
-| `docs/product/overview.md` | User-facing product explanation through Inspiration, Control, and Trust planes, without internal engineering history. |
-| `docs/product/task-first-workflow.md` | Clear path from intent and clarification to TaskTree, execution, and audit. |
+| `docs/product/overview.md` | User-facing product explanation through Inspiration, Control, Trust, and ASK, without internal engineering history. |
+| `docs/product/task-first-workflow.md` | Clear path from intent and Authoring ASK to TaskTree, Execution ASK, execution, and audit. |
 | `docs/product/release-status.md` | What `0.1.0` includes, what is unsigned/non-notarized, and what is not promised yet. |
 | `docs/architecture/overview.md` | Public architecture diagram and short explanation. |
 | `docs/architecture/trust-and-audit.md` | Why Task, Result, File Change, Audit, and workspace inspection exist. |
@@ -390,14 +392,16 @@ Evidence:
   - `c6152cf Add generated product plane visuals`.
   - `dca508b Replace product plane visuals with text diagram`.
   - `c89cbed Add user guide and separate screenshots`.
+  - `efe6185 Document ASK in public product guides`.
 - Public docs added: README, product overview, task-first workflow, release
   status, architecture overview, trust/audit, user guide, and macOS local
   release usage.
 - Public assets added: hero, text three product planes diagram, product flow, architecture
   overview, trust flow, Context Manager, Main Page vs Audit Page, macOS local
   release, public docs map, Open Graph/social preview, sanitized Main Page
-  screenshot, sanitized Audit Page screenshot, and sanitized Workspace
-  Inspection screenshot in a dedicated screenshot directory.
+  screenshot, public-safe Authoring ASK and Execution ASK screenshots,
+  sanitized Audit Page screenshot, and sanitized Workspace Inspection
+  screenshot in a dedicated screenshot directory.
 
 The public PR remains draft until review/merge. The private planning artifact
 and public branch now satisfy the plan's first public exposure scope.
