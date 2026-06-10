@@ -376,7 +376,7 @@ function checkSymlink(appRoot, filePath, linkTarget) {
 
 function checkSpecialFile(filePath, stat, appRoot) {
   const basename = path.basename(filePath);
-  if (basename === "_editable_impl_taskweavn.pth" || filePath.endsWith(".egg-link")) {
+  if (isEditableInstallPointer(basename)) {
     addFailure(
       "editable_install_reference",
       filePath,
@@ -386,6 +386,14 @@ function checkSpecialFile(filePath, stat, appRoot) {
   if (basename === "pyvenv.cfg" && shouldScanText(filePath, stat)) {
     checkPyvenvConfig(filePath, appRoot);
   }
+}
+
+function isEditableInstallPointer(basename) {
+  return (
+    basename.endsWith(".egg-link") ||
+    /^_editable_impl_.+\.pth$/.test(basename) ||
+    /^__editable__.+\.pth$/.test(basename)
+  );
 }
 
 function checkPyvenvConfig(filePath, appRoot) {

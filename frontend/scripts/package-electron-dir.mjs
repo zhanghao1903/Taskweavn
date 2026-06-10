@@ -519,10 +519,19 @@ function createRelativeSymlink(target, linkPath) {
 }
 
 function removeEditableRepoPath(sitePackagesDir) {
-  const editablePath = path.join(sitePackagesDir, "_editable_impl_taskweavn.pth");
-  if (existsSync(editablePath)) {
-    unlinkSync(editablePath);
+  for (const entry of readdirSync(sitePackagesDir)) {
+    if (isEditableInstallPointer(entry)) {
+      unlinkSync(path.join(sitePackagesDir, entry));
+    }
   }
+}
+
+function isEditableInstallPointer(basename) {
+  return (
+    basename.endsWith(".egg-link") ||
+    /^_editable_impl_.+\.pth$/.test(basename) ||
+    /^__editable__.+\.pth$/.test(basename)
+  );
 }
 
 function removeEditableDirectUrlMetadata(sitePackagesDir) {
