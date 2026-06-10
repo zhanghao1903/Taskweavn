@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import http.client
 import json
+import subprocess
 import time
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
@@ -27,6 +28,7 @@ SMOKE_TASK_ID = "diagnostic-export-task"
 SMOKE_ERROR_REF = "provider:rate_limit"
 SMOKE_FRONTEND_ERROR_MESSAGE = "diagnostics.route.render.failed"
 SMOKE_LOG_RECORD_ID = "record-log-frontend-errors.jsonl"
+SMOKE_INSPECTION_FILE_PATH = "diagnostics-summary.md"
 FIRST_RUN_CONFIGURED_ENV = {
     "LLM_PROVIDER": "deepseek",
     "LLM_MODEL": "deepseek-v4-pro",
@@ -53,6 +55,8 @@ class SidecarSmokeFixture:
     task_id: str
     log_record_id: str
     diagnostics_log_href: str
+    workspace_id: str = "current"
+    inspection_file_path: str = SMOKE_INSPECTION_FILE_PATH
 
     @property
     def base_url(self) -> str:
@@ -92,6 +96,7 @@ def build_audit_sidecar_smoke_fixture(
 ) -> SidecarSmokeFixture:
     """Create a deterministic real-sidecar session for frontend integration checks."""
 
+    _seed_workspace_inspection_state(workspace_root)
     app = build_main_page_sidecar_app(
         MainPageSidecarConfig(
             workspace_root=workspace_root,
@@ -197,7 +202,7 @@ def _seed_result_and_file_evidence(
             FileWriteObservation(
                 event_id="file-write-observation-1",
                 action_id="file-write-action-1",
-                path="diagnostics-summary.md",
+                path=SMOKE_INSPECTION_FILE_PATH,
                 bytes_written=42,
                 created=True,
             ),
@@ -251,6 +256,35 @@ def _published_task(task_id: str, *, session_id: str) -> TaskDomain:
         intent=f"Run {task_id}",
         required_capability="general",
         created_by="sidecar-smoke",
+    )
+
+
+def _seed_workspace_inspection_state(workspace_root: Path) -> None:
+    workspace_root.mkdir(parents=True, exist_ok=True)
+    target = workspace_root / SMOKE_INSPECTION_FILE_PATH
+    target.write_text(
+        "# Diagnostics summary\n\nInitial sidecar fixture content.\n",
+        encoding="utf-8",
+    )
+    _git(workspace_root, "init")
+    _git(workspace_root, "config", "user.email", "plato@example.invalid")
+    _git(workspace_root, "config", "user.name", "Plato Test")
+    _git(workspace_root, "add", SMOKE_INSPECTION_FILE_PATH)
+    _git(workspace_root, "commit", "-m", "seed diagnostics summary")
+    target.write_text(
+        "# Diagnostics summary\n\n"
+        "Initial sidecar fixture content.\n"
+        "Workspace inspection seeded change.\n",
+        encoding="utf-8",
+    )
+
+
+def _git(workspace_root: Path, *args: str) -> None:
+    subprocess.run(
+        ["git", *args],
+        cwd=workspace_root,
+        check=True,
+        capture_output=True,
     )
 
 
@@ -396,9 +430,11 @@ def _ready_payload(fixture: SidecarSmokeFixture) -> dict[str, str]:
         "baseUrl": fixture.base_url,
         "diagnosticExportUrl": fixture.diagnostic_export_url,
         "diagnosticsLogUrl": fixture.diagnostics_log_url,
+        "inspectionFilePath": fixture.inspection_file_path,
         "logRecordId": fixture.log_record_id,
         "sessionId": fixture.session_id,
         "taskId": fixture.task_id,
+        "workspaceId": fixture.workspace_id,
     }
 
 

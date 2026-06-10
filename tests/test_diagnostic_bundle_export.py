@@ -21,6 +21,7 @@ from taskweavn.task import SqliteTaskBus, SqliteTaskExecutionSummaryStore
 from taskweavn.task.models import TaskDomain, TaskRef
 from taskweavn.task.result_summary import TaskExecutionSummary
 from taskweavn.tools.fs import FileWriteObservation, WriteFileAction
+from taskweavn.workspace_inspection import DefaultWorkspaceInspectionGateway
 
 NOW = datetime(2026, 6, 5, 12, 0, tzinfo=UTC)
 
@@ -54,6 +55,7 @@ def test_diagnostic_bundle_export_writes_redacted_manifest_and_sections(
         "results",
         "messages",
         "audit",
+        "workspace_inspection",
         "events",
         "ui_events",
         "logs",
@@ -77,6 +79,7 @@ def test_diagnostic_bundle_export_writes_redacted_manifest_and_sections(
         "session/messages.summary.json",
         "audit/summary.json",
         "audit/records.summary.json",
+        "inspection/evidence.summary.json",
         "events/events.summary.jsonl",
         "events/ui-events.summary.jsonl",
         "logs/manifest.json",
@@ -124,6 +127,22 @@ def test_diagnostic_bundle_export_writes_redacted_manifest_and_sections(
         "auditEvidenceId": "evidence-record-result-published-task-1",
     }
 
+    inspection = json.loads(
+        (result.bundle_dir / "inspection/evidence.summary.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert inspection["schemaVersion"] == (
+        "plato.workspace_inspection.diagnostic_summary.v1"
+    )
+    assert inspection["records"][0]["evidenceRef"]["kind"] == "file_snapshot"
+    assert inspection["records"][0]["evidenceRef"]["pathLabel"] == (
+        "workspace://current/secret.txt"
+    )
+    assert inspection["records"][0]["payloadSummary"]["previewLines"][0]["text"] == (
+        "api_key=<redacted>"
+    )
+
 
 def test_diagnostic_bundle_marks_missing_sources_without_failing(tmp_path: Path) -> None:
     layout = WorkspaceLayout(tmp_path / "workspace")
@@ -148,6 +167,7 @@ def test_diagnostic_bundle_marks_missing_sources_without_failing(tmp_path: Path)
     assert section_status["logs"] == "missing"
     assert section_status["config"] == "missing"
     assert section_status["frontend"] == "missing"
+    assert section_status["workspace_inspection"] == "missing"
 
 
 def test_diagnostic_redaction_masks_secrets_paths_and_raw_payloads(tmp_path: Path) -> None:
@@ -208,6 +228,7 @@ def _workspace_with_failed_task(tmp_path: Path) -> tuple[WorkspaceLayout, Sessio
     _write_events(layout, session)
     _write_ui_event(layout, session)
     _write_logs(layout, session)
+    _write_inspection_evidence(layout)
     return layout, session
 
 
@@ -361,4 +382,27 @@ def _write_logs(layout: WorkspaceLayout, session: Session) -> None:
         )
         + "\n",
         encoding="utf-8",
+    )
+
+
+def _write_inspection_evidence(layout: WorkspaceLayout) -> None:
+    (layout.root / "secret.txt").write_text(
+        "api_key=secret-value\n",
+        encoding="utf-8",
+    )
+    gateway = DefaultWorkspaceInspectionGateway.build(
+        workspace_root=layout.root,
+        workspace_id="current",
+        inspection_db_path=layout.workspace_inspection_db,
+    )
+    gateway.capture_evidence(
+        {
+            "kind": "file_snapshot",
+            "reason": "diagnostic_export",
+            "path": "secret.txt",
+            "lineRange": {
+                "startLine": 1,
+                "lineCount": 5,
+            },
+        }
     )

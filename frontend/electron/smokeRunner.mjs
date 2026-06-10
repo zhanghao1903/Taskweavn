@@ -35,6 +35,7 @@ export async function runElectronSmoke({
   });
 
   await smokeAuditEvidence(window, fixture);
+  await smokeWorkspaceInspection(window, fixture);
   await smokeDiagnosticsExport(window, fixture);
   await smokeCommandFailureRecovery(window, { baseUrl, fixture });
 }
@@ -196,6 +197,59 @@ async function smokeAuditEvidence(window, fixture) {
   });
   await waitForText(window, "Evidence payload · FileWriteObservation payload", {
     label: "FileWriteObservation sanitized payload",
+  });
+  await assertBodyDoesNotContain(window, fixture.workspaceDir, "workspace root");
+}
+
+async function smokeWorkspaceInspection(window, fixture) {
+  await navigate(window, "/");
+  await waitForText(window, "Diagnostics smoke", {
+    label: "Main Page before workspace inspection",
+  });
+
+  const auditHref = await evaluate(window, findHrefScript("View audit"));
+  if (typeof auditHref !== "string" || !auditHref.includes("/audit")) {
+    throw new Error(`View audit href was not available: ${String(auditHref)}`);
+  }
+
+  await navigate(window, withAuditFilter(auditHref, "all"));
+  await waitForText(window, "Audit", {
+    label: "Audit heading for workspace inspection",
+  });
+  await clickByText(window, "button", "Audit record File change recorded");
+  await waitForText(window, "Workspace evidence", {
+    label: "Workspace evidence links",
+  });
+  await waitForText(window, fixture.inspectionFilePath, {
+    label: "Workspace evidence file path",
+  });
+
+  await clickByText(window, "a", "View diff");
+  await waitForText(window, "File diff", {
+    label: "Workspace inspection diff heading",
+  });
+  await waitForText(window, fixture.inspectionFilePath, {
+    label: "Workspace inspection diff file path",
+  });
+  await waitForText(window, "+Workspace inspection seeded change.", {
+    label: "Workspace inspection seeded diff line",
+  });
+  await assertBodyDoesNotContain(window, fixture.workspaceDir, "workspace root");
+
+  await navigate(
+    window,
+    workspaceInspectionPath(fixture, {
+      view: "status",
+    }),
+  );
+  await waitForText(window, "Changed files", {
+    label: "Workspace inspection status heading",
+  });
+  await waitForText(window, fixture.inspectionFilePath, {
+    label: "Workspace inspection changed file",
+  });
+  await waitForText(window, "Unstaged", {
+    label: "Workspace inspection unstaged status",
   });
   await assertBodyDoesNotContain(window, fixture.workspaceDir, "workspace root");
 }
@@ -488,10 +542,12 @@ function validateFixture(fixture) {
   const required = [
     "baseUrl",
     "diagnosticsLogUrl",
+    "inspectionFilePath",
     "logRecordId",
     "sessionId",
     "taskId",
     "workspaceDir",
+    "workspaceId",
   ];
   const missing = required.filter((key) => !fixture[key]);
   if (missing.length > 0) {
@@ -503,4 +559,13 @@ function withAuditFilter(href, filter) {
   const url = new URL(href, "http://plato.local");
   url.searchParams.set("filter", filter);
   return `${url.pathname}${url.search}`;
+}
+
+function workspaceInspectionPath(fixture, { view }) {
+  const params = new URLSearchParams();
+  params.set("sessionId", fixture.sessionId);
+  params.set("view", view);
+  return `/workspaces/${encodeURIComponent(
+    fixture.workspaceId,
+  )}/inspection?${params.toString()}`;
 }

@@ -7,8 +7,13 @@ import type {
   CancelAskPayload,
   DeferAskPayload,
 } from "../../shared/api/platoApi";
-import type { TaskNodeId } from "../../shared/api/types";
+import type {
+  FileChangeSummaryView,
+  TaskNodeId,
+  WorkspaceId,
+} from "../../shared/api/types";
 import { Badge, Button, Panel, Text } from "../../shared/components";
+import { buildWorkspaceInspectionRoute } from "../../app/routes";
 import { ConfirmationDetailPanel } from "./interaction/ConfirmationDetailPanel";
 import { ExecutionAskDetailPanel } from "./interaction/ExecutionAskDetailPanel";
 import { confirmationResolutionText } from "./mainPageCopy";
@@ -26,6 +31,7 @@ export type MainPageDetailPanelProps = {
   onStopTask: (taskNodeId: TaskNodeId) => void;
   onShowFileChanges: () => void;
   onShowResult: () => void;
+  workspaceId?: WorkspaceId | null;
 };
 
 type ConfirmationResolvedDetail = Extract<
@@ -47,6 +53,7 @@ export function MainPageDetailPanel({
   onStopTask,
   onShowFileChanges,
   onShowResult,
+  workspaceId,
 }: MainPageDetailPanelProps) {
   if (detail.kind === "note") {
     return null;
@@ -77,6 +84,7 @@ export function MainPageDetailPanel({
         onStopTask={onStopTask}
         onShowFileChanges={onShowFileChanges}
         onShowResult={onShowResult}
+        workspaceId={workspaceId}
       />
     </Panel>
   );
@@ -92,6 +100,7 @@ type DetailContentProps = {
   onStopTask: (taskNodeId: TaskNodeId) => void;
   onShowFileChanges: () => void;
   onShowResult: () => void;
+  workspaceId?: WorkspaceId | null;
 };
 
 function DetailContent({
@@ -104,6 +113,7 @@ function DetailContent({
   onStopTask,
   onShowFileChanges,
   onShowResult,
+  workspaceId,
 }: DetailContentProps) {
   switch (detail.kind) {
     case "executionAsk":
@@ -129,6 +139,7 @@ function DetailContent({
         <ResultSummaryPanel
           detail={detail}
           onShowFileChanges={onShowFileChanges}
+          workspaceId={workspaceId}
         />
       );
     case "fileChanges":
@@ -136,6 +147,7 @@ function DetailContent({
         <FileChangeSummaryPanel
           detail={detail}
           onShowResult={onShowResult}
+          workspaceId={workspaceId}
         />
       );
     case "task":
@@ -196,16 +208,19 @@ function ConfirmationResolvedPanel({
 type ResultSummaryPanelProps = {
   detail: ResultDetail;
   onShowFileChanges: () => void;
+  workspaceId?: WorkspaceId | null;
 };
 
 function ResultSummaryPanel({
   detail,
   onShowFileChanges,
+  workspaceId,
 }: ResultSummaryPanelProps) {
   const [isReaderOpen, setIsReaderOpen] = useState(false);
   const sections = detail.result.sections ?? [];
   const shouldShowReader =
     detail.result.summary.length > 220 || sections.length > 0;
+  const resolvedWorkspaceId = workspaceId ?? "current";
 
   if (isReaderOpen) {
     return (
@@ -276,24 +291,107 @@ function ResultSummaryPanel({
         </div>
       )}
       {detail.fileChangeSummary && (
-        <div className={styles.actionRow}>
-          <Button onClick={onShowFileChanges}>View file changes</Button>
-        </div>
+        <WorkspaceChangesPreview
+          fileChangeSummary={detail.fileChangeSummary}
+          onShowFileChanges={onShowFileChanges}
+          workspaceId={resolvedWorkspaceId}
+        />
       )}
     </Panel>
+  );
+}
+
+function WorkspaceChangesPreview({
+  fileChangeSummary,
+  onShowFileChanges,
+  workspaceId,
+}: {
+  fileChangeSummary: FileChangeSummaryView;
+  onShowFileChanges: () => void;
+  workspaceId: WorkspaceId;
+}) {
+  const fileCount = fileChangeSummary.changedFiles.length;
+
+  return (
+    <section className={styles.resultWorkspaceChanges} aria-label="Workspace changes">
+      <div className={styles.detailTitleRow}>
+        <Text as="strong" variant="label">
+          Workspace changes
+        </Text>
+        <Badge size="sm" tone={fileCount > 0 ? "blue" : "neutral"}>
+          {fileCount === 1 ? "1 file" : `${fileCount} files`}
+        </Badge>
+      </div>
+      <div className={styles.fileChangeList} role="list">
+        {fileChangeSummary.changedFiles.map((file) => {
+          const changePresentation = selectFileChangeTypePresentation(
+            file.changeType,
+          );
+          const taskNodeId =
+            file.ownerTaskNodeId ?? fileChangeSummary.taskNodeId ?? undefined;
+          const routeContext = {
+            path: file.path,
+            returnSessionId: fileChangeSummary.sessionId,
+            returnTaskNodeId: taskNodeId ?? undefined,
+            sessionId: fileChangeSummary.sessionId,
+            taskNodeId: taskNodeId ?? undefined,
+            workspaceId,
+          };
+
+          return (
+            <article
+              className={styles.fileChangeItem}
+              key={file.path}
+              role="listitem"
+            >
+              <div className={styles.detailTitleRow}>
+                <strong className={styles.filePath}>{file.path}</strong>
+                <Badge size="sm" tone={changePresentation.tone}>
+                  {changePresentation.label}
+                </Badge>
+              </div>
+              <div className={styles.fileActionRow}>
+                <a
+                  href={buildWorkspaceInspectionRoute({
+                    ...routeContext,
+                    view: "file",
+                  })}
+                >
+                  Open file
+                </a>
+                <a
+                  href={buildWorkspaceInspectionRoute({
+                    ...routeContext,
+                    view: "diff",
+                  })}
+                >
+                  View diff
+                </a>
+              </div>
+            </article>
+          );
+        })}
+      </div>
+      <div className={styles.actionRow}>
+        <Button onClick={onShowFileChanges}>View file changes</Button>
+      </div>
+    </section>
   );
 }
 
 type FileChangeSummaryPanelProps = {
   detail: FileChangesDetail;
   onShowResult: () => void;
+  workspaceId?: WorkspaceId | null;
 };
 
 function FileChangeSummaryPanel({
   detail,
   onShowResult,
+  workspaceId,
 }: FileChangeSummaryPanelProps) {
   const fileCount = detail.fileChangeSummary.changedFiles.length;
+  const resolvedWorkspaceId = workspaceId ?? "current";
 
   return (
     <Panel className={styles.detailBox} tone="muted">
@@ -317,6 +415,16 @@ function FileChangeSummaryPanel({
           const changePresentation = selectFileChangeTypePresentation(
             file.changeType,
           );
+          const taskNodeId =
+            file.ownerTaskNodeId ?? detail.fileChangeSummary.taskNodeId ?? undefined;
+          const routeContext = {
+            path: file.path,
+            returnSessionId: detail.fileChangeSummary.sessionId,
+            returnTaskNodeId: taskNodeId ?? undefined,
+            sessionId: detail.fileChangeSummary.sessionId,
+            taskNodeId: taskNodeId ?? undefined,
+            workspaceId: resolvedWorkspaceId,
+          };
 
           return (
             <article
@@ -329,6 +437,24 @@ function FileChangeSummaryPanel({
                 <Badge size="sm" tone={changePresentation.tone}>
                   {changePresentation.label}
                 </Badge>
+              </div>
+              <div className={styles.fileActionRow}>
+                <a
+                  href={buildWorkspaceInspectionRoute({
+                    ...routeContext,
+                    view: "file",
+                  })}
+                >
+                  Open file
+                </a>
+                <a
+                  href={buildWorkspaceInspectionRoute({
+                    ...routeContext,
+                    view: "diff",
+                  })}
+                >
+                  View diff
+                </a>
               </div>
             </article>
           );

@@ -243,6 +243,12 @@ export function MainPageWorkbench({
         }
         onShowFileChanges={actions.showFileChanges}
         onShowResult={actions.showResult}
+        workspaceId={
+          viewModel.workspace.workspaceId ??
+          viewModel.sidebar.activeSession.workspaceId ??
+          activeWorkspaceId ??
+          null
+        }
       />
 
       {isActivityOverlayOpen && hasActivity ? (

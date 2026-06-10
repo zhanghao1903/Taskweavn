@@ -37,6 +37,14 @@ def _match_route(path: str) -> _Route | None:
     workspace_route = _match_workspace_route(parts)
     if workspace_route is not None:
         return workspace_route
+    if parts == ("api", "v1", "inspection", "status"):
+        return _Route(name="workspace_inspection_status", method="GET")
+    if parts == ("api", "v1", "inspection", "diff"):
+        return _Route(name="workspace_inspection_diff", method="GET")
+    if parts == ("api", "v1", "inspection", "evidence"):
+        return _Route(name="workspace_inspection_evidence", method="POST")
+    if parts == ("api", "v1", "files", "content"):
+        return _Route(name="workspace_file_content", method="GET")
     if parts == ("api", "v1", "sessions"):
         return _Route(name="sessions", method="*")
     if len(parts) < 4 or parts[:3] != ("api", "v1", "sessions"):
@@ -185,8 +193,6 @@ def _match_workspace_route(parts: tuple[str, ...]) -> _Route | None:
     if len(parts) < 5 or parts[:3] != ("api", "v1", "workspaces"):
         return None
     workspace_id = parts[3]
-    if parts[4] != "sessions":
-        return None
     active_workspace_parts = ("api", "v1", *parts[4:])
     active_workspace_route = _match_route("/" + "/".join(active_workspace_parts))
     if active_workspace_route is None:

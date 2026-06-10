@@ -298,6 +298,7 @@ export function AuditPageRoute({
       selectedRecordId={selectedRecordId}
       liveState={liveState}
       snapshot={snapshot}
+      workspaceId={workspaceOptions?.workspaceId ?? null}
     />
   );
 }

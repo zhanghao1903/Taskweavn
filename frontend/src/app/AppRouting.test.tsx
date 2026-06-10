@@ -1,8 +1,9 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { App } from "./App";
+import { navigateApp } from "./navigation";
 import { AppProviders } from "./providers";
 
 describe("App routing", () => {
@@ -55,6 +56,53 @@ describe("App routing", () => {
 
     expect(await screen.findByRole("heading", { name: "Audit" })).toBeInTheDocument();
     expect(screen.getByText("Action completed")).toBeInTheDocument();
+  });
+
+  it("renders Workspace Inspection routes outside the Main Page", async () => {
+    globalThis.history.pushState(
+      null,
+      "",
+      "/workspaces/ws-a/inspection?view=file&path=src%2FApp.tsx",
+    );
+
+    render(
+      <AppProviders>
+        <App />
+      </AppProviders>,
+    );
+
+    expect(
+      await screen.findByRole("heading", { name: "Inspection unavailable" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Workspace inspection requires the local sidecar."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Plan & Progress")).not.toBeInTheDocument();
+  });
+
+  it("re-renders Workspace Inspection when only query parameters change", async () => {
+    globalThis.history.pushState(
+      null,
+      "",
+      "/workspaces/ws-a/inspection?view=diff&path=src%2FApp.tsx",
+    );
+
+    render(
+      <AppProviders>
+        <App />
+      </AppProviders>,
+    );
+
+    expect(await screen.findByRole("heading", { name: "File diff" })).toBeInTheDocument();
+
+    await act(async () => {
+      navigateApp("/workspaces/ws-a/inspection?view=status");
+    });
+
+    expect(
+      await screen.findByRole("heading", { name: "Changed files" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "File diff" })).not.toBeInTheDocument();
   });
 
   it("re-renders the Main Page after Audit Page Return SPA navigation", async () => {

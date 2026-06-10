@@ -174,6 +174,7 @@ describe("MainPageDetailPanel", () => {
         onShowFileChanges={vi.fn()}
         onShowResult={vi.fn()}
         onStopTask={vi.fn()}
+        workspaceId="ws-a"
       />,
     );
 
@@ -185,6 +186,14 @@ describe("MainPageDetailPanel", () => {
     expect(screen.queryByText("Recursive subtree summary")).not.toBeInTheDocument();
     expect(screen.queryByText(/Owner TaskNode/i)).not.toBeInTheDocument();
     expect(screen.queryByText("task-implementation")).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Open file" })).toHaveAttribute(
+      "href",
+      "/workspaces/ws-a/inspection?path=src%2FApp.tsx&returnSessionId=session-website-plan&returnTaskNodeId=task-implementation&sessionId=session-website-plan&taskNodeId=task-implementation&view=file",
+    );
+    expect(screen.getByRole("link", { name: "View diff" })).toHaveAttribute(
+      "href",
+      expect.stringContaining("view=diff"),
+    );
   });
 
   it("hides generic state notes instead of repeating them in the detail panel", () => {
@@ -260,6 +269,35 @@ describe("MainPageDetailPanel", () => {
     expect(
       screen.getByRole("button", { name: "View full result" }),
     ).toBeInTheDocument();
+  });
+
+  it("shows workspace changes next to the result summary", () => {
+    render(
+      <MainPageDetailPanel
+        detail={resultWithFileChangesDetail}
+        onAnswerAsk={vi.fn()}
+        onCancelAsk={vi.fn()}
+        onConfirmationDecision={vi.fn()}
+        onDeferAsk={vi.fn()}
+        onRetryTask={vi.fn()}
+        onShowFileChanges={vi.fn()}
+        onShowResult={vi.fn()}
+        onStopTask={vi.fn()}
+        workspaceId="ws-a"
+      />,
+    );
+
+    const workspaceChanges = screen.getByLabelText("Workspace changes");
+    expect(within(workspaceChanges).getByText("1 file")).toBeInTheDocument();
+    expect(within(workspaceChanges).getByText("src/App.tsx")).toBeInTheDocument();
+    expect(within(workspaceChanges).getByRole("link", { name: "Open file" })).toHaveAttribute(
+      "href",
+      "/workspaces/ws-a/inspection?path=src%2FApp.tsx&returnSessionId=session-website-plan&returnTaskNodeId=task-implementation&sessionId=session-website-plan&taskNodeId=task-implementation&view=file",
+    );
+    expect(within(workspaceChanges).getByRole("link", { name: "View diff" })).toHaveAttribute(
+      "href",
+      expect.stringContaining("view=diff"),
+    );
   });
 
   it("opens and closes the result reader for full structured content", async () => {
@@ -388,6 +426,11 @@ const resultDetail: Extract<MainPageDetailView, { kind: "result" }> = {
     ],
     updatedAt: "2026-06-05T00:00:00.000Z",
   },
+};
+
+const resultWithFileChangesDetail: Extract<MainPageDetailView, { kind: "result" }> = {
+  ...resultDetail,
+  fileChangeSummary: fileChangesDetail.fileChangeSummary,
 };
 
 const longSummaryResultDetail: Extract<MainPageDetailView, { kind: "result" }> = {

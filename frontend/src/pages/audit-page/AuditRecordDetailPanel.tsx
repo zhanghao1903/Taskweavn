@@ -2,6 +2,7 @@ import { useEffect, useId, useRef } from "react";
 
 import { Button } from "../../shared/components";
 import { navigateApp } from "../../app/navigation";
+import { buildWorkspaceInspectionRoute } from "../../app/routes";
 import type {
   AuditDisclosure,
   AuditRecordDetail,
@@ -9,6 +10,7 @@ import type {
   EvidenceDetail,
   RelatedLogsLink,
   SanitizedRawPayload,
+  WorkspaceId,
 } from "../../shared/api/types";
 import { cx } from "../../shared/utils/cx";
 import { formatAuditTime } from "./auditPageFormat";
@@ -29,12 +31,14 @@ export function DetailPanel({
   onClose,
   record,
   relatedLogs,
+  workspaceId,
 }: {
   detailState: AuditRecordDetailState;
   effectiveConfig: EffectiveConfigSummary | null;
   onClose?: () => void;
   record: AuditRecordDetail;
   relatedLogs: RelatedLogsLink[];
+  workspaceId?: WorkspaceId | null;
 }) {
   const detailRef = useRef<HTMLElement>(null);
   const detailRegionLabelId = useId();
@@ -112,6 +116,7 @@ export function DetailPanel({
           </ul>
         )}
       </section>
+      <WorkspaceEvidenceLinks record={record} workspaceId={workspaceId} />
       <section className={styles.detailSection}>
         <h3 className={styles.detailSectionTitle}>Disclosure</h3>
         <RecordFlags record={record} />
@@ -169,6 +174,82 @@ export function DetailPanel({
       </section>
     </aside>
   );
+}
+
+function WorkspaceEvidenceLinks({
+  record,
+  workspaceId,
+}: {
+  record: AuditRecordDetail;
+  workspaceId?: WorkspaceId | null;
+}) {
+  if (!record.filePath) {
+    return null;
+  }
+
+  const sessionId = sessionIdForRecord(record);
+  const resolvedWorkspaceId = workspaceId ?? "current";
+  const routeContext = {
+    path: record.filePath,
+    returnSessionId: sessionId ?? undefined,
+    returnTaskNodeId: record.taskNodeId ?? undefined,
+    sessionId: sessionId ?? undefined,
+    taskNodeId: record.taskNodeId ?? undefined,
+    workspaceId: resolvedWorkspaceId,
+  };
+
+  return (
+    <section className={styles.detailSection}>
+      <h3 className={styles.detailSectionTitle}>Workspace evidence</h3>
+      <div className={styles.workspaceEvidenceActions}>
+        <Button asChild size="sm" variant="ghost">
+          <a
+            href={buildWorkspaceInspectionRoute({
+              ...routeContext,
+              view: "file",
+            })}
+            onClick={(event) => {
+              event.preventDefault();
+              navigateApp(event.currentTarget.href.replace(globalThis.location.origin, ""));
+            }}
+          >
+            Open file
+          </a>
+        </Button>
+        <Button asChild size="sm" variant="ghost">
+          <a
+            href={buildWorkspaceInspectionRoute({
+              ...routeContext,
+              view: "diff",
+            })}
+            onClick={(event) => {
+              event.preventDefault();
+              navigateApp(event.currentTarget.href.replace(globalThis.location.origin, ""));
+            }}
+          >
+            View diff
+          </a>
+        </Button>
+      </div>
+    </section>
+  );
+}
+
+function sessionIdForRecord(record: AuditRecordDetail): string | null {
+  switch (record.scope.kind) {
+    case "action":
+    case "confirmation":
+    case "file":
+    case "log_evidence":
+    case "result":
+    case "session":
+    case "task":
+      return record.scope.sessionId;
+    case "config":
+      return record.scope.sessionId ?? null;
+    case "workflow":
+      return null;
+  }
 }
 
 function RelatedLogLink({ link }: { link: RelatedLogsLink }) {
