@@ -28,6 +28,10 @@ import type {
   TaskTreeStatus,
   TaskTreeView,
 } from "../../shared/api/types";
+import type {
+  TokenUsageSummaryRequest,
+  TokenUsageSummaryResponse,
+} from "../../shared/api/tokenUsageTypes";
 import {
   deriveLegacyTaskNodeStatusDimensions,
   mapLegacySessionStatusToPlanningState,
@@ -423,6 +427,10 @@ export const mainPageMockAdapter: MainPageAdapter = {
   deferAsk: deferAskMockCommand,
   generateTaskTree: generateTaskTreeMockCommand,
   loadSnapshot: loadMainPageMockSnapshot,
+  async loadTokenUsageSummary(request) {
+    await delay(20);
+    return mockTokenUsageSummary(request);
+  },
   publishTaskTree: publishTaskTreeMockCommand,
   repairAuthoringState: repairAuthoringStateMockCommand,
   async renameSession(payload) {
@@ -500,6 +508,67 @@ function acceptedCommandResponse({
         : [],
       affectedScopes: [],
     },
+  };
+}
+
+function mockTokenUsageSummary(
+  request: TokenUsageSummaryRequest,
+): TokenUsageSummaryResponse {
+  const now = "2026-05-17T10:20:00+08:00";
+  const id =
+    request.taskNodeId ??
+    request.planId ??
+    request.sessionId ??
+    "mock-workspace";
+
+  return {
+    dimension: request.dimension,
+    totals: {
+      dimension: request.dimension,
+      id: "total",
+      label: "Total",
+      workspaceId: "mock-workspace",
+      sessionId: request.sessionId ?? "mock-session",
+      planId: request.planId ?? null,
+      taskNodeId: request.taskNodeId ?? null,
+      callCount: 3,
+      unknownUsageCallCount: 0,
+      inputTokens: 12400,
+      outputTokens: 2100,
+      totalTokens: 14500,
+      reasoningTokens: 640,
+      cachedTokens: 5200,
+      cacheHitTokens: 5200,
+      cacheMissTokens: 7200,
+      cacheHitRatio: 0.4193548387,
+      cacheRateSource: "hit_miss_tokens",
+      firstOccurredAt: "2026-05-17T10:00:00+08:00",
+      lastOccurredAt: now,
+    },
+    rows: [
+      {
+        dimension: request.dimension,
+        id,
+        label: `${request.dimension} ${id}`,
+        workspaceId: "mock-workspace",
+        sessionId: request.sessionId ?? "mock-session",
+        planId: request.planId ?? null,
+        taskNodeId: request.taskNodeId ?? null,
+        callCount: 3,
+        unknownUsageCallCount: 0,
+        inputTokens: 12400,
+        outputTokens: 2100,
+        totalTokens: 14500,
+        reasoningTokens: 640,
+        cachedTokens: 5200,
+        cacheHitTokens: 5200,
+        cacheMissTokens: 7200,
+        cacheHitRatio: 0.4193548387,
+        cacheRateSource: "hit_miss_tokens",
+        firstOccurredAt: "2026-05-17T10:00:00+08:00",
+        lastOccurredAt: now,
+      },
+    ],
   };
 }
 

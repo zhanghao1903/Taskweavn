@@ -7,6 +7,7 @@ import {
   buildMainSessionFallbackRoute,
   buildMainSessionRoute,
   buildWorkspaceInspectionRoute,
+  buildWorkspaceUsageRoute,
   routes,
 } from "./routes";
 
@@ -20,6 +21,7 @@ describe("route builders", () => {
       "/sessions/:sessionId/tasks/:taskNodeId/audit",
     );
     expect(routes.workspaceInspection).toBe("/workspaces/:workspaceId/inspection");
+    expect(routes.workspaceUsage).toBe("/workspaces/:workspaceId/usage");
   });
 
   it("builds contextual Main Page session routes", () => {
@@ -96,6 +98,19 @@ describe("route builders", () => {
       }),
     ).toBe(
       "/workspaces/workspace%2Fa/inspection?path=src%2FApp.tsx&returnSessionId=session-1&returnTaskNodeId=task-1&sessionId=session-1&taskNodeId=task-1&view=diff",
+    );
+  });
+
+  it("builds workspace usage links with optional focus context", () => {
+    expect(
+      buildWorkspaceUsageRoute({
+        planId: "plan/1",
+        sessionId: "session-1",
+        taskNodeId: "task-1",
+        workspaceId: "workspace/a",
+      }),
+    ).toBe(
+      "/workspaces/workspace%2Fa/usage?planId=plan%2F1&sessionId=session-1&taskNodeId=task-1",
     );
   });
 });

@@ -23,6 +23,10 @@ import type {
   UiEventType,
   WorkspaceId,
 } from "./types";
+import type {
+  TokenUsageSummaryRequest,
+  TokenUsageSummaryResponse,
+} from "./tokenUsageTypes";
 import { ApiClient } from "./client";
 import type { ApiClientOptions } from "./client";
 import {
@@ -412,6 +416,10 @@ export type PlatoApi = {
     sessionId: SessionId,
     options?: WorkspaceRouteOptions,
   ): Promise<QueryResponse<DiagnosticBundleExportResult>>;
+  getTokenUsageSummary(
+    request: TokenUsageSummaryRequest,
+    options?: WorkspaceRouteOptions,
+  ): Promise<QueryResponse<TokenUsageSummaryResponse>>;
   renameSession(
     sessionId: SessionId,
     payload: RenameSessionPayload,
@@ -647,6 +655,20 @@ export function createHttpPlatoApi(options: HttpPlatoApiOptions): PlatoApi {
         {},
       );
     },
+    getTokenUsageSummary(request, options) {
+      return client.getJson<QueryResponse<TokenUsageSummaryResponse>>(
+        withQuery(usageBase(options), {
+          dimension: request.dimension,
+          from: request.from,
+          model: request.model,
+          planId: request.planId,
+          provider: request.provider,
+          sessionId: request.sessionId,
+          taskNodeId: request.taskNodeId,
+          to: request.to,
+        }),
+      );
+    },
     renameSession(sessionId, payload, options) {
       return client.patchJson<QueryResponse<SessionLifecycleResult>>(
         sessionBase(sessionId, options),
@@ -832,6 +854,15 @@ function sessionBase(
   options?: WorkspaceRouteOptions,
 ): string {
   return `${sessionsBase(options)}/${segment(sessionId)}`;
+}
+
+function usageBase(options?: WorkspaceRouteOptions): string {
+  const workspaceId = options?.workspaceId ?? null;
+  if (workspaceId) {
+    return `/api/v1/workspaces/${segment(workspaceId)}/usage/token-summary`;
+  }
+
+  return "/api/v1/usage/token-summary";
 }
 
 function auditBasePath(request: {

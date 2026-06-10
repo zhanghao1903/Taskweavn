@@ -9,6 +9,7 @@ import type {
 } from "../../shared/api/platoApi";
 import type {
   FileChangeSummaryView,
+  SessionId,
   TaskNodeId,
   WorkspaceId,
 } from "../../shared/api/types";
@@ -19,6 +20,8 @@ import { ExecutionAskDetailPanel } from "./interaction/ExecutionAskDetailPanel";
 import { confirmationResolutionText } from "./mainPageCopy";
 import { selectFileChangeTypePresentation } from "./mainPageSelectors";
 import type { MainPageDetailView } from "./mainPageViewModel";
+import { MainPageTokenUsageSummaryCard } from "./MainPageTokenUsageSummaryCard";
+import type { LoadTokenUsageSummary } from "./runtime/adapter";
 import styles from "./MainPage.module.css";
 
 export type MainPageDetailPanelProps = {
@@ -31,6 +34,8 @@ export type MainPageDetailPanelProps = {
   onStopTask: (taskNodeId: TaskNodeId) => void;
   onShowFileChanges: () => void;
   onShowResult: () => void;
+  loadTokenUsageSummary?: LoadTokenUsageSummary;
+  sessionId?: SessionId | null;
   workspaceId?: WorkspaceId | null;
 };
 
@@ -53,6 +58,8 @@ export function MainPageDetailPanel({
   onStopTask,
   onShowFileChanges,
   onShowResult,
+  loadTokenUsageSummary,
+  sessionId,
   workspaceId,
 }: MainPageDetailPanelProps) {
   if (detail.kind === "note") {
@@ -84,6 +91,8 @@ export function MainPageDetailPanel({
         onStopTask={onStopTask}
         onShowFileChanges={onShowFileChanges}
         onShowResult={onShowResult}
+        loadTokenUsageSummary={loadTokenUsageSummary}
+        sessionId={sessionId}
         workspaceId={workspaceId}
       />
     </Panel>
@@ -100,6 +109,8 @@ type DetailContentProps = {
   onStopTask: (taskNodeId: TaskNodeId) => void;
   onShowFileChanges: () => void;
   onShowResult: () => void;
+  loadTokenUsageSummary?: LoadTokenUsageSummary;
+  sessionId?: SessionId | null;
   workspaceId?: WorkspaceId | null;
 };
 
@@ -113,6 +124,8 @@ function DetailContent({
   onStopTask,
   onShowFileChanges,
   onShowResult,
+  loadTokenUsageSummary,
+  sessionId,
   workspaceId,
 }: DetailContentProps) {
   switch (detail.kind) {
@@ -154,39 +167,72 @@ function DetailContent({
       return (
         <TaskDetailPanel
           detail={detail}
+          loadTokenUsageSummary={loadTokenUsageSummary}
           onRetryTask={onRetryTask}
           onStopTask={onStopTask}
+          sessionId={sessionId}
+          workspaceId={workspaceId}
         />
       );
     case "plan":
-      return <PlanDetailPanel detail={detail} />;
+      return (
+        <PlanDetailPanel
+          detail={detail}
+          loadTokenUsageSummary={loadTokenUsageSummary}
+          sessionId={sessionId}
+          workspaceId={workspaceId}
+        />
+      );
     case "note":
       return null;
   }
 }
 
-function PlanDetailPanel({ detail }: { detail: PlanDetail }) {
+function PlanDetailPanel({
+  detail,
+  loadTokenUsageSummary,
+  sessionId,
+  workspaceId,
+}: {
+  detail: PlanDetail;
+  loadTokenUsageSummary?: LoadTokenUsageSummary;
+  sessionId?: SessionId | null;
+  workspaceId?: WorkspaceId | null;
+}) {
   const taskCount = detail.taskTree.nodes.length;
 
   return (
-    <Panel
-      aria-label="Plan interaction"
-      className={styles.detailBox}
-      tone="muted"
-    >
-      <div className={styles.detailTitleRow}>
-        <Text as="strong" variant="label">
-          Plan interaction
+    <>
+      {sessionId ? (
+        <MainPageTokenUsageSummaryCard
+          loadTokenUsageSummary={loadTokenUsageSummary}
+          request={{
+            dimension: "plan",
+            planId: detail.taskTree.id,
+            sessionId,
+          }}
+          workspaceId={workspaceId}
+        />
+      ) : null}
+      <Panel
+        aria-label="Plan interaction"
+        className={styles.detailBox}
+        tone="muted"
+      >
+        <div className={styles.detailTitleRow}>
+          <Text as="strong" variant="label">
+            Plan interaction
+          </Text>
+          <Badge size="sm" tone="blue">
+            {taskCount === 1 ? "1 task" : `${taskCount} tasks`}
+          </Badge>
+        </div>
+        <Text variant="muted">
+          Input now refines the whole plan. Select a task to inspect or guide one
+          Task.
         </Text>
-        <Badge size="sm" tone="blue">
-          {taskCount === 1 ? "1 task" : `${taskCount} tasks`}
-        </Badge>
-      </div>
-      <Text variant="muted">
-        Input now refines the whole plan. Select a task to inspect or guide one
-        Task.
-      </Text>
-    </Panel>
+      </Panel>
+    </>
   );
 }
 
@@ -471,12 +517,18 @@ function FileChangeSummaryPanel({
 
 function TaskDetailPanel({
   detail,
+  loadTokenUsageSummary,
   onRetryTask,
   onStopTask,
+  sessionId,
+  workspaceId,
 }: {
   detail: TaskDetail;
+  loadTokenUsageSummary?: LoadTokenUsageSummary;
   onRetryTask: (taskNodeId: TaskNodeId) => void;
   onStopTask: (taskNodeId: TaskNodeId) => void;
+  sessionId?: SessionId | null;
+  workspaceId?: WorkspaceId | null;
 }) {
   const isRunning =
     detail.selectedTask.execution === "running" ||
@@ -498,13 +550,30 @@ function TaskDetailPanel({
     intent !== detail.selectedTask.title;
   const hasStructuredDetails =
     shouldShowIntent || Boolean(instructions) || acceptanceCriteria.length > 0;
+  const shouldShowUsage = Boolean(loadTokenUsageSummary && sessionId);
 
-  if (!showPublishedStopAction && !showRetryAction && !hasStructuredDetails) {
+  if (
+    !shouldShowUsage &&
+    !showPublishedStopAction &&
+    !showRetryAction &&
+    !hasStructuredDetails
+  ) {
     return null;
   }
 
   return (
     <>
+      {sessionId ? (
+        <MainPageTokenUsageSummaryCard
+          loadTokenUsageSummary={loadTokenUsageSummary}
+          request={{
+            dimension: "task",
+            sessionId,
+            taskNodeId: detail.selectedTask.id,
+          }}
+          workspaceId={workspaceId}
+        />
+      ) : null}
       {hasStructuredDetails && (
         <Panel
           aria-label="Task details"

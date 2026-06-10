@@ -106,6 +106,11 @@ class WorkspaceLayout:
         return self.meta_dir / "inspection.sqlite"
 
     @property
+    def workspace_usage_db(self) -> Path:
+        """Workspace-scoped token usage analytics ledger."""
+        return self.meta_dir / "usage.sqlite"
+
+    @property
     def shared_dir(self) -> Path:
         return self.root / "shared"
 

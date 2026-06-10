@@ -22,6 +22,8 @@ import { isSettingsPath } from "../pages/settings/settingsRouteModel";
 import { WorkspaceEntryGate } from "../pages/workspace/WorkspaceEntryGate";
 import { WorkspaceInspectionRoute } from "../pages/workspace-inspection/WorkspaceInspectionRoute";
 import { isWorkspaceInspectionPath } from "../pages/workspace-inspection/workspaceInspectionRouteModel";
+import { WorkspaceUsageRoute } from "../pages/usage/WorkspaceUsageRoute";
+import { isWorkspaceUsagePath } from "../pages/usage/workspaceUsageRouteModel";
 import {
   readUiLocalePreference,
   resolveUiLocale,
@@ -107,6 +109,8 @@ export function App({
           <DiagnosticsLogsRoute runtimeEnv={runtimeEnv} />
         ) : isWorkspaceInspectionPath(pathname) ? (
           <WorkspaceInspectionRoute location={location} runtimeEnv={runtimeEnv} />
+        ) : isWorkspaceUsagePath(pathname) ? (
+          <WorkspaceUsageRoute location={location} runtimeEnv={runtimeEnv} />
         ) : isSettingsPath(pathname) ? (
           <>
             <FirstRunReadinessGate api={readinessApi} runtimeEnv={runtimeEnv}>

@@ -96,6 +96,19 @@ describe("createHttpPlatoApi", () => {
     await api.listWorkspaces();
     await api.listSessions({ workspaceId: "ws/1" });
     await api.getSessionSnapshot("session/1", { workspaceId: "ws/1" });
+    await api.getTokenUsageSummary(
+      {
+        dimension: "task",
+        from: "2026-06-10T00:00:00Z",
+        model: "deepseek-v4-pro",
+        planId: "plan/1",
+        provider: "deepseek",
+        sessionId: "session/1",
+        taskNodeId: "task/1",
+        to: "2026-06-10T01:00:00Z",
+      },
+      { workspaceId: "ws/1" },
+    );
     await api.appendSessionInput(
       {
         commandId: "append-workspace",
@@ -126,6 +139,11 @@ describe("createHttpPlatoApi", () => {
         body: null,
         method: "GET",
         url: "https://plato.test/api/v1/workspaces/ws%2F1/sessions/session%2F1/snapshot",
+      },
+      {
+        body: null,
+        method: "GET",
+        url: "https://plato.test/api/v1/workspaces/ws%2F1/usage/token-summary?dimension=task&from=2026-06-10T00%3A00%3A00Z&model=deepseek-v4-pro&planId=plan%2F1&provider=deepseek&sessionId=session%2F1&taskNodeId=task%2F1&to=2026-06-10T01%3A00%3A00Z",
       },
       {
         body: {

@@ -377,6 +377,50 @@ export const enUS: UiTextCatalog = {
       },
     },
   },
+  usage: {
+    actions: {
+      openUsage: "Usage",
+      return: "Return",
+    },
+    dimensions: {
+      plan: "Plans",
+      session: "Sessions",
+      task: "Tasks",
+      workspace: "Workspace",
+    },
+    dimensionHelp: {
+      plan: "Plan-level usage for the selected session when available.",
+      session: "Session totals across this workspace.",
+      task: "Task-level usage for calls that can be attributed to a Task.",
+      workspace: "All tracked provider calls for this workspace.",
+    },
+    labels: {
+      cacheHitRate: "Cache hit rate",
+      calls: "Calls",
+      inputOutput: "Input / output",
+      reasoningTokens: "Reasoning tokens",
+      tokenUsage: "Token usage",
+      totalTokens: "Total tokens",
+      unknownUsage: "Unknown usage",
+      usage: "Usage",
+      workspaceId: ({ id }) => `workspace ${id}`,
+    },
+    messages: {
+      compactHelp: "Tracked provider usage for this scope.",
+      workspaceUsageHelp:
+        "Compare token usage by Workspace, Session, Plan, and Task. Raw prompts and completions are never shown here.",
+    },
+    states: {
+      cacheUnavailable: "Cache unavailable",
+      noBreakdownRows: "No breakdown rows for this filter.",
+      noUsageTracked: "No token usage tracked yet.",
+      notReported: "Not reported",
+      routeUnavailable: "Usage route unavailable",
+      routeUnavailableBody: "Usage context is unavailable for this route.",
+      sidecarRequired: "Token usage requires the local sidecar.",
+      summaryUnavailable: "Token usage summary is unavailable.",
+    },
+  },
   settings: {
     actions: {
       configureSettings: "Configure settings",

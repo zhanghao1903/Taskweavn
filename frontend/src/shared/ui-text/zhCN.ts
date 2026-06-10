@@ -362,6 +362,50 @@ export const zhCN: UiTextCatalog = {
       },
     },
   },
+  usage: {
+    actions: {
+      openUsage: "用量",
+      return: "返回",
+    },
+    dimensions: {
+      plan: "计划",
+      session: "会话",
+      task: "任务",
+      workspace: "工作区",
+    },
+    dimensionHelp: {
+      plan: "显示可归因到当前会话计划的用量。",
+      session: "显示此工作区内各会话的总用量。",
+      task: "显示可归因到任务的调用用量。",
+      workspace: "显示此工作区内所有已记录的 provider 调用。",
+    },
+    labels: {
+      cacheHitRate: "缓存命中率",
+      calls: "调用数",
+      inputOutput: "输入 / 输出",
+      reasoningTokens: "推理 token",
+      tokenUsage: "Token 用量",
+      totalTokens: "总 token",
+      unknownUsage: "未知用量",
+      usage: "用量",
+      workspaceId: ({ id }) => `workspace ${id}`,
+    },
+    messages: {
+      compactHelp: "此范围内已记录的 provider 用量。",
+      workspaceUsageHelp:
+        "按工作区、会话、计划和任务查看 token 用量。这里不会展示原始 prompt 或 completion。",
+    },
+    states: {
+      cacheUnavailable: "缓存不可用",
+      noBreakdownRows: "当前筛选下没有明细行。",
+      noUsageTracked: "尚未记录 token 用量。",
+      notReported: "未报告",
+      routeUnavailable: "用量路由不可用",
+      routeUnavailableBody: "此路由缺少用量上下文。",
+      sidecarRequired: "Token 用量需要本地 sidecar。",
+      summaryUnavailable: "Token 用量摘要不可用。",
+    },
+  },
   settings: {
     actions: {
       configureSettings: "配置设置",

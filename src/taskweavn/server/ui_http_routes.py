@@ -37,6 +37,8 @@ def _match_route(path: str) -> _Route | None:
     workspace_route = _match_workspace_route(parts)
     if workspace_route is not None:
         return workspace_route
+    if parts == ("api", "v1", "usage", "token-summary"):
+        return _Route(name="usage_token_summary", method="GET")
     if parts == ("api", "v1", "inspection", "status"):
         return _Route(name="workspace_inspection_status", method="GET")
     if parts == ("api", "v1", "inspection", "diff"):

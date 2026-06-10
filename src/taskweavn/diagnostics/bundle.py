@@ -24,6 +24,7 @@ from taskweavn import __version__
 from taskweavn.core import Session, SessionManager, WorkspaceLayout
 from taskweavn.core.workspace_layout import WORKSPACE_META_DIR_NAME
 from taskweavn.diagnostics.inspection import collect_inspection_evidence_summary
+from taskweavn.diagnostics.usage import collect_token_usage_summary
 from taskweavn.interaction import AgentMessage, SqliteMessageStream
 from taskweavn.observability import LogArchiveManifest
 from taskweavn.observability.redaction import redact_payload
@@ -149,6 +150,7 @@ class DiagnosticExportOptions:
     max_events: int = 100
     max_ui_events: int = 100
     max_inspection_evidence: int = 50
+    max_usage_events: int = 50
     max_log_entries_per_category: int = 40
     max_audit_records: int = 100
     created_at: datetime | None = None
@@ -181,6 +183,7 @@ class DiagnosticBundleExporter:
             max_events=max(0, options.max_events),
             max_ui_events=max(0, options.max_ui_events),
             max_inspection_evidence=max(0, options.max_inspection_evidence),
+            max_usage_events=max(0, options.max_usage_events),
             max_log_entries_per_category=max(0, options.max_log_entries_per_category),
             max_audit_records=max(0, options.max_audit_records),
             created_at=options.created_at,
@@ -257,6 +260,11 @@ class DiagnosticBundleExporter:
                 writer,
                 "workspace_inspection",
                 lambda: self._collect_workspace_inspection(writer),
+            )
+            self._run_collector(
+                writer,
+                "usage",
+                lambda: self._collect_usage(writer, session),
             )
             self._run_collector(
                 writer,
@@ -598,6 +606,26 @@ class DiagnosticBundleExporter:
             "inspection/evidence.summary.json",
             kind="workspace_inspection_evidence_summary",
             source="InspectionEvidenceStore",
+            payload=payload,
+        )
+        return (rel_path,), warnings
+
+    def _collect_usage(
+        self,
+        writer: _BundleWriter,
+        session: Session,
+    ) -> tuple[tuple[str, ...], tuple[str, ...]]:
+        payload, warnings = collect_token_usage_summary(
+            usage_db_path=self.layout.workspace_usage_db,
+            session_id=session.id,
+            max_events=self.options.max_usage_events,
+        )
+        if payload is None:
+            return (), warnings
+        rel_path = writer.write_json(
+            "usage/token-summary.json",
+            kind="token_usage_summary",
+            source="TokenUsageStore",
             payload=payload,
         )
         return (rel_path,), warnings

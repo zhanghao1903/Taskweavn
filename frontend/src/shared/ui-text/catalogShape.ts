@@ -267,6 +267,39 @@ export type UiTextCatalog = {
       }
     >;
   };
+  usage: {
+    actions: {
+      openUsage: string;
+      return: string;
+    };
+    dimensions: Record<"task" | "plan" | "session" | "workspace", string>;
+    dimensionHelp: Record<"task" | "plan" | "session" | "workspace", string>;
+    labels: {
+      cacheHitRate: string;
+      calls: string;
+      inputOutput: string;
+      reasoningTokens: string;
+      tokenUsage: string;
+      totalTokens: string;
+      unknownUsage: string;
+      usage: string;
+      workspaceId: UiTextTemplate<{ id: string }>;
+    };
+    messages: {
+      compactHelp: string;
+      workspaceUsageHelp: string;
+    };
+    states: {
+      cacheUnavailable: string;
+      noBreakdownRows: string;
+      noUsageTracked: string;
+      notReported: string;
+      routeUnavailable: string;
+      routeUnavailableBody: string;
+      sidecarRequired: string;
+      summaryUnavailable: string;
+    };
+  };
   settings: {
     actions: {
       configureSettings: string;

@@ -1,8 +1,8 @@
 # Token Usage Analytics
 
-> Status: draft Product 1.1 plan
+> Status: accepted / implemented Product 1.1 plan
 >
-> Last Updated: 2026-06-10
+> Last Updated: 2026-06-11
 >
 > Owner: Backend / Observability / Frontend
 >
@@ -168,12 +168,16 @@ payloads, secrets, or absolute workspace paths.
 
 ### U1. Backend Usage Ledger
 
+Status: implemented.
+
 - Add normalized usage event model and SQLite store.
 - Record usage from LLM response metadata at the provider/client or AgentLoop
   boundary where product dimensions are known.
 - Add focused tests for redaction, null usage, and cache metric normalization.
 
 ### U2. Query API
+
+Status: implemented.
 
 - Add workspace-scoped usage summary endpoint.
 - Support dimensions: `task`, `plan`, `session`, `workspace`.
@@ -182,11 +186,15 @@ payloads, secrets, or absolute workspace paths.
 
 ### U3. Main Page / Task Detail Read Model
 
+Status: implemented.
+
 - Add Task and Plan usage summary to Main Page detail panels.
 - Keep it compact: token total, input/output split, cache hit rate.
 - Do not show provider raw metadata in Main Page.
 
 ### U4. Workspace Usage View
+
+Status: implemented as a simple Product 1.1 surface.
 
 - Add a simple Workspace-level usage surface that can compare Sessions and
   Plans.
@@ -194,10 +202,14 @@ payloads, secrets, or absolute workspace paths.
 
 ### U5. Audit / Diagnostics Links
 
+Status: diagnostics implemented; Audit event-id linkage deferred.
+
 - Let Audit records reference usage event ids or aggregate ids.
 - Include redacted usage summaries in diagnostic bundles.
 
 ### U6. Cache Analytics Hardening
+
+Status: deferred follow-up.
 
 - Correlate provider cache hit metrics with Context Manager render mode and
   stable prefix metadata.
@@ -231,23 +243,26 @@ Display rules:
 - Focused tests cover usage normalization, aggregation, cache rate fallback,
   and workspace path redaction.
 
-## 11. Open Decisions
+## 11. Decisions And Deferred Items
 
-1. Whether `planId` should use the new first-class Plan id or map to the
-   current published task tree id until Plan model implementation lands.
-2. Whether authoring calls should be attributed to a Plan candidate before
-   publish or only to Session until publish.
-3. Whether cache-friendly Context Manager prefix metadata should appear in the
-   first user-facing UI or stay in Audit/Diagnostics only.
-4. Whether Product 1.1 should include model price tables after the token ledger
-   is accepted.
+1. `planId` uses explicit metadata when available; task execution falls back to
+   the current TaskBus root id until first-class Plan identity lands.
+2. Authoring calls without a published/known Plan remain Session/Workspace
+   usage instead of being guessed into a Plan candidate.
+3. Cache-friendly Context Manager prefix metadata stays out of the first
+   user-facing UI; provider-reported cache hit rate is shown with source labels.
+4. Model price tables, budget enforcement, and quota stop policy are deferred
+   until a separate pricing/budget contract is accepted.
 
-## 12. Recommended First Slice
+## 12. Implemented Slice
 
-Start with U1 + U2:
+Implemented Product 1.1 slice:
 
 - durable `llm_usage_events` store;
 - capture normalized usage from real provider calls;
 - workspace/session/task best-effort attribution;
 - workspace-scoped query endpoint;
-- contract tests for Task/Session/Workspace aggregation and cache hit rate.
+- contract tests for Task/Plan/Session/Workspace aggregation and cache hit rate;
+- Main Page compact Task/Plan usage cards;
+- Workspace Usage route with Workspace/Session/Plan/Task breakdown sections;
+- diagnostic bundle redacted usage summary.

@@ -76,6 +76,7 @@ from taskweavn.server.ui_http_settings import (
     SettingsConfigGateway,
     SettingsReadinessGateway,
 )
+from taskweavn.server.ui_http_usage import DefaultTokenUsageSummaryGateway
 from taskweavn.task import (
     DEFAULT_FIXED_ROUTE_AGENT_ID,
     AuthoringCommandIdempotencyStore,
@@ -115,6 +116,7 @@ from taskweavn.task import (
     TaskExecutionSummaryViewStore,
     TaskExecutionTickResult,
 )
+from taskweavn.usage import SqliteTokenUsageStore, UsageRecordingLLM
 from taskweavn.workspace_inspection import DefaultWorkspaceInspectionGateway
 
 DEFAULT_PLATO_SIDECAR_PORT = 52789
@@ -178,6 +180,7 @@ class MainPageWorkspaceRuntime:
     ui_command_idempotency_store: UiCommandResponseIdempotencyStore | None
     event_source: UiEventSource
     result_summary_store: TaskExecutionSummaryStore
+    token_usage_store: SqliteTokenUsageStore
     default_agent: ResidentDefaultAgent | None
     execution_dispatcher: FixedRouteExecutionDispatcher | None
     query_gateway: DefaultUiQueryGateway
@@ -224,6 +227,7 @@ class MainPageWorkspaceRuntime:
             self.authoring_idempotency_store,
             self.ui_command_idempotency_store,
             self.result_summary_store,
+            self.token_usage_store,
             self.ask_store,
             self.draft_store,
             self.raw_task_store,
@@ -301,6 +305,13 @@ def build_main_page_workspace_runtime(
         )
         ask_store = dependencies.ask_store or SqliteAskStore(layout.workspace_asks_db)
         task_bus = SqliteTaskBus(layout.workspace_tasks_db)
+        token_usage_store = SqliteTokenUsageStore(layout.workspace_usage_db)
+        usage_llm = UsageRecordingLLM(
+            dependencies.llm,
+            workspace_id=config.current_workspace_id or "current",
+            sink=token_usage_store,
+            task_plan_resolver=_task_plan_resolver(task_bus),
+        )
         (
             raw_task_store,
             draft_store,
@@ -339,7 +350,7 @@ def build_main_page_workspace_runtime(
         if default_agent is None and config.enable_default_agent:
             default_agent = build_agent_loop_resident_default_agent(
                 layout=layout,
-                llm=dependencies.llm,
+                llm=usage_llm,
                 task_bus=task_bus,
                 ask_store=ask_store,
                 max_steps=config.default_agent_max_steps,
@@ -367,7 +378,7 @@ def build_main_page_workspace_runtime(
             evidence_store=authoring_evidence_store,
         )
         collaborator_service = DefaultCollaboratorAuthoringService(
-            llm=dependencies.llm,
+            llm=usage_llm,
             context_builder=context_builder,
             command_service=authoring_command_service,
             workspace_context_source=workspace_context_source,
@@ -494,6 +505,10 @@ def build_main_page_workspace_runtime(
                 workspace_id=config.current_workspace_id or "current",
                 inspection_db_path=layout.workspace_inspection_db,
             ),
+            token_usage_gateway=DefaultTokenUsageSummaryGateway(
+                store=token_usage_store,
+                workspace_id=config.current_workspace_id or "current",
+            ),
         )
     except Exception:
         session_manager.close()
@@ -514,6 +529,7 @@ def build_main_page_workspace_runtime(
         ui_command_idempotency_store=ui_command_idempotency_store,
         event_source=event_source,
         result_summary_store=result_summary_store,
+        token_usage_store=token_usage_store,
         default_agent=default_agent,
         execution_dispatcher=execution_dispatcher,
         query_gateway=query_gateway,
@@ -624,6 +640,7 @@ def _sidecar_app_from_runtime(
         ui_command_idempotency_store=runtime.ui_command_idempotency_store,
         event_source=runtime.event_source,
         result_summary_store=runtime.result_summary_store,
+        token_usage_store=runtime.token_usage_store,
         default_agent=runtime.default_agent,
         execution_dispatcher=runtime.execution_dispatcher,
         query_gateway=runtime.query_gateway,
@@ -684,6 +701,21 @@ def _task_lifecycle_event_callback(
         )
 
     return emit
+
+
+def _task_plan_resolver(
+    task_bus: SqliteTaskBus,
+) -> Callable[[str | None, str | None], str | None]:
+    def resolve(session_id: str | None, task_node_id: str | None) -> str | None:
+        if session_id is None or task_node_id is None:
+            return None
+        with contextlib.suppress(Exception):
+            task = task_bus.get(session_id, task_node_id)
+            if task is not None:
+                return task.root_id
+        return None
+
+    return resolve
 
 
 def _snapshot_cursor_provider(

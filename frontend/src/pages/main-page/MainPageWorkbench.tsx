@@ -3,6 +3,7 @@ import { useState, type ReactNode } from "react";
 import type { ProductRecoveryAction } from "../../shared/api/platoApi";
 import { Panel } from "../../shared/components";
 import { useUiText } from "../../shared/ui-text";
+import { buildWorkspaceUsageRoute } from "../../app/routes";
 import { ActivityOverlay } from "./ActivityOverlay";
 import { ContextInputPanel } from "./ContextInputPanel";
 import { LatestActivityStrip } from "./LatestActivityStrip";
@@ -15,6 +16,7 @@ import { TaskTreePanel } from "./TaskTreePanel";
 import { AuthoringAskWorkArea } from "./interaction/AuthoringAskWorkArea";
 import type { MainPageViewModel } from "./mainPageViewModel";
 import type { MainPageController } from "./useMainPageController";
+import type { LoadTokenUsageSummary } from "./runtime/adapter";
 import styles from "./MainPage.module.css";
 
 export type MainPageWorkbenchProps = {
@@ -32,6 +34,7 @@ export type MainPageWorkbenchProps = {
   viewModel: MainPageViewModel;
   workspaceCatalog: MainPageController["workspaceCatalog"];
   workspaceRuntime?: MainPageWorkspaceRuntime | null;
+  loadTokenUsageSummary?: LoadTokenUsageSummary;
 };
 
 export function MainPageWorkbench({
@@ -49,6 +52,7 @@ export function MainPageWorkbench({
   viewModel,
   workspaceCatalog,
   workspaceRuntime = null,
+  loadTokenUsageSummary,
 }: MainPageWorkbenchProps) {
   const uiText = useUiText();
   const [isActivityOverlayOpen, setIsActivityOverlayOpen] = useState(false);
@@ -62,6 +66,23 @@ export function MainPageWorkbench({
   const hasVisibleActivity =
     viewModel.mainWorkArea.kind !== "authoringAsk" &&
     viewModel.taskWorkspace.messages.length > 0;
+  const resolvedWorkspaceId =
+    viewModel.workspace.workspaceId ??
+    viewModel.sidebar.activeSession.workspaceId ??
+    activeWorkspaceId ??
+    null;
+  const usageHref =
+    resolvedWorkspaceId === null
+      ? null
+      : buildWorkspaceUsageRoute({
+          workspaceId: resolvedWorkspaceId,
+          sessionId: viewModel.sessionId,
+          taskNodeId: viewModel.taskWorkspace.selectedTaskNodeId ?? undefined,
+          planId:
+            viewModel.taskWorkspace.selectedTaskNodeId === null
+              ? viewModel.taskWorkspace.taskTree?.id
+              : undefined,
+        });
 
   return (
     <main className={pageClassName}>
@@ -113,6 +134,7 @@ export function MainPageWorkbench({
           }
           title={viewModel.workspace.title}
           uiNotice={viewModel.workspace.uiNotice}
+          usageHref={usageHref}
         />
 
         {viewModel.mainWorkArea.kind === "authoringAsk" ? (
@@ -245,12 +267,9 @@ export function MainPageWorkbench({
         }
         onShowFileChanges={actions.showFileChanges}
         onShowResult={actions.showResult}
-        workspaceId={
-          viewModel.workspace.workspaceId ??
-          viewModel.sidebar.activeSession.workspaceId ??
-          activeWorkspaceId ??
-          null
-        }
+        loadTokenUsageSummary={loadTokenUsageSummary}
+        sessionId={viewModel.sessionId}
+        workspaceId={resolvedWorkspaceId}
       />
 
       {isActivityOverlayOpen && hasActivity ? (

@@ -28,6 +28,10 @@ import type {
   UiEvent,
   WorkspaceId,
 } from "../../../shared/api/types";
+import type {
+  TokenUsageSummaryRequest,
+  TokenUsageSummaryResponse,
+} from "../../../shared/api/tokenUsageTypes";
 import type { BadgeTone } from "../../../shared/components";
 
 export type MainPageDetailMode =
@@ -75,6 +79,11 @@ export type LoadMainPageSnapshot = (
   sessionId?: SessionId | null,
   workspaceId?: WorkspaceId | null,
 ) => Promise<MainPageRuntimeSnapshot>;
+
+export type LoadTokenUsageSummary = (
+  request: TokenUsageSummaryRequest,
+  workspaceId?: WorkspaceId | null,
+) => Promise<TokenUsageSummaryResponse>;
 
 export type SessionLifecycleCommand<TPayload = void> = (
   payload: TPayload,
@@ -182,6 +191,7 @@ export type MainPageAdapter = {
   deleteSession: SessionLifecycleCommand<SessionId>;
   generateTaskTree: GenerateTaskTreeCommand;
   loadSnapshot: LoadMainPageSnapshot;
+  loadTokenUsageSummary?: LoadTokenUsageSummary;
   loadWorkspaceCatalog?: () => Promise<WorkspaceCatalogResult>;
   publishTaskTree: PublishTaskTreeCommand;
   repairAuthoringState: RepairAuthoringStateCommand;
