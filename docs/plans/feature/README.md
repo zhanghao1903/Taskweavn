@@ -4,6 +4,7 @@ Feature plans are scoped implementation packets for independent feature sessions
 
 | File | Feature |
 |---|---|
+| [plato-public-exposure-plan.md](plato-public-exposure-plan.md) | Planned public exposure strategy for the `plato-public` repository, including product/architecture docs, visual asset gaps, and release-status boundaries. |
 | [centralized-runtime-configuration.md](centralized-runtime-configuration.md) | Centralized hierarchical runtime configuration with hot updates. |
 | [collaborator-agent-task-authoring.md](collaborator-agent-task-authoring.md) | System Collaborator Agent and Task authoring tools. |
 | [collaborator-workspace-informed-authoring.md](collaborator-workspace-informed-authoring.md) | Planned with accepted technical design: bounded read-only Collaborator authoring loop with workspace read/query/search and shared AgentLoop profile contract. |
