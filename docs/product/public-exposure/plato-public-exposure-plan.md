@@ -162,10 +162,6 @@ assets/
   images/
     plato-hero.svg
     plato-three-planes.svg
-    plato-three-planes-generated.png
-    plato-inspiration-plane.png
-    plato-control-plane.png
-    plato-trust-plane.png
     plato-product-flow.svg
     plato-architecture-overview.svg
     plato-main-page.png
@@ -269,10 +265,7 @@ Required first visual set:
 | Asset | Purpose | Current status |
 |---|---|---|
 | Brand / hero image | README first impression and social preview source. | Exported in public PR #1. |
-| Three product planes diagram | Explain Inspiration -> Control -> Trust. | SVG and AI-generated PNG exported in public PR #1. |
-| Inspiration Plane image | Explain AI-use discovery, prompt/workflow shaping, and intent clarification. | AI-generated PNG exported in public PR #1. |
-| Control Plane image | Explain task review, confirmation, execution control, and progress. | AI-generated PNG exported in public PR #1. |
-| Trust Plane image | Explain audit evidence, file-change traceability, and verification. | AI-generated PNG exported in public PR #1. |
+| Three product planes text diagram | Explain Inspiration, Control, Trust, and their relationships in one readable image. | Canonical SVG exported in public PR #1. |
 | Product flow diagram | Explain intent -> clarification -> TaskTree -> execution -> result/audit. | Exported in public PR #1. |
 | Architecture overview diagram | Explain Authoring / Execution / Projection / Audit. | Exported in public PR #1. |
 | Main Page screenshot | Show the primary control plane with sanitized sample data. | Exported in public PR #1. |
@@ -391,12 +384,12 @@ Evidence:
   - `bd6a80e Complete public visual assets`.
   - `a04a4e6 Refine Plato product planes`.
   - `c6152cf Add generated product plane visuals`.
+  - `dca508b Replace product plane visuals with text diagram`.
 - Public docs added: README, product overview, task-first workflow, release
   status, architecture overview, trust/audit, and macOS local release usage.
-- Public assets added: hero, three product planes, product flow, architecture
+- Public assets added: hero, text three product planes diagram, product flow, architecture
   overview, trust flow, Context Manager, Main Page vs Audit Page, macOS local
-  release, public docs map, Open Graph/social preview, AI-generated
-  Inspiration/Control/Trust plane illustrations, sanitized Main Page
+  release, public docs map, Open Graph/social preview, sanitized Main Page
   screenshot, sanitized Audit Page screenshot, and sanitized Workspace
   Inspection screenshot.
 
