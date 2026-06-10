@@ -37,10 +37,14 @@ from taskweavn.task import (
     TaskExecutionSummaryStore,
 )
 from taskweavn.tools import (
+    AppendFileTool,
     AskUserTool,
     ListDirTool,
+    ReadFileRangeTool,
     ReadFileTool,
+    ReplaceFileRangeTool,
     RunCommandTool,
+    SearchWorkspaceTool,
     Tool,
     Workspace,
     WriteFileTool,
@@ -141,6 +145,26 @@ class _SessionAgentLoopRunner:
         runtime = LocalRuntime()
         tools: list[Tool[Any, Any]] = [
             ReadFileTool(workspace),
+            ReadFileRangeTool(
+                workspace,
+                workspace_id=f"session:{self.session_id}",
+                inspection_db_path=self.layout.workspace_inspection_db,
+            ),
+            SearchWorkspaceTool(
+                workspace,
+                workspace_id=f"session:{self.session_id}",
+                inspection_db_path=self.layout.workspace_inspection_db,
+            ),
+            ReplaceFileRangeTool(
+                workspace,
+                workspace_id=f"session:{self.session_id}",
+                inspection_db_path=self.layout.workspace_inspection_db,
+            ),
+            AppendFileTool(
+                workspace,
+                workspace_id=f"session:{self.session_id}",
+                inspection_db_path=self.layout.workspace_inspection_db,
+            ),
             WriteFileTool(workspace),
             ListDirTool(workspace),
             RunCommandTool(workspace),
@@ -213,7 +237,16 @@ class _TaskBusInterruptChecker:
 
 
 def _allowed_tools(include_ask_user: bool) -> tuple[str, ...]:
-    tools = ("read_file", "write_file", "list_dir", "run_command")
+    tools = (
+        "read_file",
+        "read_file_range",
+        "search_workspace",
+        "replace_file_range",
+        "append_file",
+        "write_file",
+        "list_dir",
+        "run_command",
+    )
     if include_ask_user:
         return (*tools, "ask_user")
     return tools

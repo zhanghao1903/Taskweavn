@@ -1,9 +1,9 @@
 # TaskWeavn Project Plan
 
 > Status: active
-> Last Updated: 2026-06-03
+> Last Updated: 2026-06-11
 > Maintained By: planning session
-> Phase Baseline: implementation completed through Phase 3.8 plus Phase 3C Task Domain and Collaborator Authoring server-core packages
+> Phase Baseline: Product 1.0 local unsigned RC accepted; Product 1.1 workspace-aware foundation has started
 > Related: [Global Roadmap](../roadmap.md), [Gap Registry](../gaps/), [Planning Workflow](../planning_workflow.md), [Architecture](../architecture/), [Phase 3 Release Record](../releases/phase-3-interaction-layer-through-3-8.md), [Collaborator Authoring Release](../releases/collaborator-agent-task-authoring.md), [User Traceability](../user_model/traceability.md)
 
 ---
@@ -149,16 +149,24 @@ Acceptance:
 - Pipeline tasks are normal Tasks with publisher metadata.
 - API and scheduled publishing are idempotent and auditable.
 
-### P3E — Task-first UI
+### P3E — Task-first UI And Product 1.0 Local RC
 
-Status: active implementation; Main Page frontend/backend integration is accepted for Product 1.0, while Task-first UI polish, richer Audit/trust evidence, and QA remain active follow-ups. Audit Page now has a projection-backed backend query path plus first EventStream/log/config source references, AP-012 sanitized payload disclosure first pass, AP-013A runtime event/refetch design, AP-013B frontend event router/hook, AP-013C live refresh/stale/disconnected UI, AP-013D workspace-backed UI event replay source, AP-013E first AgentLoop/EventStream audit event emission, and AP-013F config/log/confirmation source emissions; richer timeline orchestration, broader evidence coverage, and final validation remain incomplete. Priority: P0.
+Status: accepted for Product 1.0 local unsigned RC. Main Page, Settings,
+Audit, Diagnostics, ASK/confirmation, fixed-route execution, result/error
+projection, file summary, packaged Electron smoke, mounted unsigned DMG smoke,
+and manual Finder launch have Product 1.0 closure records. Remaining work in
+this area is Product 1.1+ hardening unless it directly blocks the accepted
+local RC path. Priority: done for Product 1.0; follow-ups are routed through
+the Gap Registry.
 
 | Package | Source Plan | Implementation Goal |
 |---|---|---|
 | Plato MVP product/UX baseline | [Plato MVP PRD](../product/plato-mvp-prd.md), [Main Page UX Flow](../product/plato-main-page-ux-flow.md) | Product scope, user path, screen states, and Main Page behavior. |
 | Figma UI baseline 1.0 | [Figma UI Baseline](../product/plato-figma-ui-baseline.md) | Current visual/layout source for implementation. |
 | Frontend technical design | [Plato Frontend Technical Design](../product/plato-frontend-technical-design.md) | Technology choice, architecture, state/API boundaries, implementation slices. |
-| Main Page frontend runtime integration | [Frontend runtime plan](../plans/feature/main-page-frontend-runtime-integration.md), [release](../releases/main-page-frontend-runtime-integration.md) | Done / accepted for Product 1.0 Main Page frontend/backend integration; browser/Electron smoke, UX polish, Audit detail, and durable event replay remain follow-ups. |
+| Main Page frontend runtime integration | [Frontend runtime plan](../plans/feature/main-page-frontend-runtime-integration.md), [release](../releases/main-page-frontend-runtime-integration.md) | Done / accepted for Product 1.0 Main Page frontend/backend integration. |
+| Workspace inspection foundation | [Product 1.1 workspace inspection milestone](../plans/feature/product-1-1-workspace-inspection-milestone.md), [Git/Diff/File Viewer API contract](../engineering/git-diff-file-viewer-api-contract.md) | Accepted Product 1.1 P0 foundation: workspace git status, changed files, structured diff, text file viewer, inspection evidence, and Main/Audit/Outcome links are in place. |
+| UI system text and localization foundation | [UI system text plan](../plans/feature/product-copy-localization-foundation.md), [contract](../engineering/product-copy-localization-contract.md) | Implemented Product 1.1 foundation: typed UI text registry, `en-US` / `zh-CN` catalogs, and Main/Settings/Audit/Diagnostics/Workspace Inspection chrome migration. |
 | Early UI interaction model | [Task-first UI overview](../plans/task-first-ui-interaction.md) | Superseded as implementation plan; retained as concept seed. |
 | Early UI sub-designs | [UI plan directory](../plans/ui/) | Historical planning archive unless explicitly pulled into new frontend work. |
 | Result packaging cards | [Result packaging plan](../plans/feature/result-packaging-agent-cards.md), [Product 1.1 plan](../product/plato-1-1-product-plan.md) | Product 1.1 capability for richer information-style presentation; not a Product 1.0 blocker. |
@@ -171,29 +179,32 @@ Acceptance:
 - Finished Task Nodes are read-only; pending/running nodes expose only valid actions.
 - Frontend work starts from a clean scaffold and Figma-state stories, not the deprecated experimental frontend.
 
-### P4 — Multi-Agent Task Execution
+### P4 — Multi-Agent Task Execution / Agent Productization
 
-Status: planned. Priority: P1 after P3C/P3D.
-
-Focus:
-
-- Agent templates and capabilities.
-- TaskBus claim/complete/fail lifecycle.
-- Agent assignment constraints and fair dispatch.
-- Shared workspace collaboration.
-- Multi-agent event/message/log replay.
-
-### P5 — Memory, Retrieval, Summarization, Evaluation
-
-Status: planned. Priority: P1/P2 after UI and TaskBus stabilize.
+Status: deferred Product 1.1+ research. Priority: P1 only after workspace,
+runtime input, Plan/TaskNode, and context foundations make multiple execution
+Agents a concrete user need.
 
 Focus:
 
-- In-session RAG over events/messages/tasks/logs.
-- Cross-session RAG with privacy boundaries.
-- Task-aware summarization.
-- Long-running user test suites.
-- Cost/quota-aware context packing.
+- baseline Agent protocol and governance;
+- optional Routing Agent policy;
+- assignment facts and assigned-only claim behavior;
+- Agent Manager health/failure behavior;
+- multi-agent event/message/log replay.
+
+### P5 — Context, Memory, Retrieval, Summarization, And Analytics
+
+Status: planned / selective Product 1.1+. Priority: P1/P2 after the
+workspace-aware coding loop and runtime input modes stabilize.
+
+Focus:
+
+- Task, Plan, Session, and Inquiry Context boundaries;
+- read-only inquiry context over file/diff/result/audit facts;
+- token usage analytics and provider cache-hit visibility;
+- later semantic retrieval and cross-session memory;
+- task-aware summarization and evaluation sets.
 
 ---
 
@@ -209,21 +220,44 @@ Focus:
 
 ---
 
-## 5. Immediate Next Work Queue
+## 5. Product 1.1 Current Work Queue
+
+The source of truth for individual gap status is [Gap Registry](../gaps/).
+This queue records the current sequencing implied by that registry.
 
 Recommended implementation order:
 
-1. [Result and evidence exposure surface](../plans/feature/result-exposure-surface.md): continue from accepted Main Page result/file projection, projection-backed Audit Page routes, first EventStream/log/config source references, AP-012 sanitized payload disclosure first pass, AP-013A runtime event/refetch design, AP-013B frontend event router/hook, AP-013C live refresh/stale/disconnected UI, AP-013D workspace-backed UI event replay source, AP-013E first AgentLoop/EventStream audit event emission, and AP-013F config/log/confirmation source emissions; close richer timeline evidence, broader permission-limited evidence coverage, and recoverable error UX.
-2. [Cooperative task interruption](../plans/feature/cooperative-task-interruption.md): implement stop intent, stopping projection, AgentLoop safe points, Context Manager interruption facts, and terminal failed cancellation outcome before the broader interaction platform work.
-3. Message, ASK, and confirmation UI integration: backend ASK/confirmation closure is accepted; continue with Main Page ASK Dock/answer UI, confirmation UI integration/copy cleanup, event/refetch polish, and frontend QA.
-4. Linear authoring and retry recovery: keep Product 1.0 line-first execution predictable and add minimal retry/recovery on top of durable task/run evidence.
-5. Normal browser/Electron smoke and Product 1.0 QA: validate the accepted Main Page, fixed-route bridge, and cache-aware Context Manager path through the intended local runtime shell.
-6. Product 1.1 planning: completion-time `task_after`, Result Packaging Agent, routing/assignment foundation, Agent protocol/governance, skills integration, MCP integration, and file/multimodal support.
-7. Centralized runtime configuration system.
+1. **Plan / TaskNode model decision closure** — resolve whether Product 1.1
+   adopts the draft `Session -> Plan -> TaskNode[]` model before broad runtime
+   input and result/outcome work creates another compatibility layer.
+2. **[Precision file tools](../plans/feature/precision-file-tools.md)** —
+   backend/tool foundation implemented on `codex/precision-file-tools`:
+   line-range read, workspace search, hash-guarded line-range replace,
+   idempotent append, changed-line evidence capture, Agent/CLI registration,
+   and file-summary projection. Full Audit detail UI, direct renderer write
+   API, and diagnostics precision descriptors remain deferred.
+3. **Runtime input modes and read-only inquiry** — implement routing for
+   guidance, command, ASK answer, confirmation response, and read-only inquiry;
+   define Inquiry Context separately from execution context.
+4. **Token usage analytics U1/U2** — add durable usage events and
+   workspace/session/task aggregation API before UI dashboards, billing, or
+   quota enforcement.
+5. **Localization follow-ups** — visible Settings language selector, persisted
+   locale preference, Electron native menu localization, and bilingual smoke
+   only when Product 1.1 acceptance needs them.
+6. **Result packaging and completion-time `task_after`** — improve result
+   comprehension and post-completion automation after the Plan/TaskNode and
+   input-mode boundaries are clear.
+7. **Skills, MCP, Agent protocol, and routing productization** — keep as
+   research/productization tracks until workspace trust, precision tools, and
+   runtime input are stable.
 
-LLM Provider reliability, configurable logging, the Task-first data model, Collaborator authoring, TaskPublisher, TaskBus execution lifecycle, publish persistence, API publish transport, RawTask/DraftTaskTree authoring persistence, frontend baseline, UI/backend contract baseline, local sidecar API shell, Main Page frontend/backend integration, fixed-route task execution bridge, Context Manager 1.0, Context Manager cache-aware rendering, and Message/ASK/confirmation backend now have accepted Product 1.0 closure records. Remaining Product 1.0 work should focus on Audit/evidence exposure, cooperative interruption, Message/ASK/confirmation frontend integration, minimal retry/recovery, and release QA. Completion-time `task_after`, Result Packaging cards, routing/assignment foundation, Agent protocol/governance, skills integration, MCP integration, and file/multimodal support are Product 1.1 research capabilities.
-
-The source of truth for gap status is [Gap Registry](../gaps/).
+Product 1.0 is accepted as a local unsigned release candidate. Product 1.1
+should improve trust and controllability before expanding automation breadth:
+workspace inspection is accepted; precision tools backend/tool foundation is
+implemented on branch; runtime input modes, inquiry context, Plan/TaskNode
+migration, token usage analytics, and precision evidence surfacing are the next
+actionable tracks.
 
 ---
 
