@@ -1,6 +1,6 @@
 # Plato Public Exposure Plan
 
-> Status: planned
+> Status: accepted
 > Last Updated: 2026-06-10
 > Gap: [Public visual asset gaps](public-visual-asset-gaps.md)
 > Product: [Core product principles](../core-product-principles.md), [MVP PRD](../plato-mvp-prd.md), [Brand and UX direction](../plato-brand-and-ux-direction.md), [Product 1.1 workspace-aware foundation](../plato-1-1-workspace-aware-agent-foundation.md)
@@ -357,6 +357,12 @@ This planning task is complete when:
 - public visual assets and missing screenshots are tracked separately;
 - no public repository content is changed;
 - no private implementation content is exposed.
+
+Current completion status: accepted on 2026-06-10 for the planning artifact.
+This means the private-repo public exposure strategy, public repository target
+structure, content boundaries, visual gap registry, and execution slices are
+ready for follow-up implementation. It does not mean the public repository has
+already received the README/docs/assets described in this plan.
 
 ## 11. Risks And Assumptions
 
