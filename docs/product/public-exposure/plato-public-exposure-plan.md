@@ -42,19 +42,22 @@ The first public message should be:
 
 ```text
 Plato is a task-first intelligent workbench.
-It turns user intent into a visible TaskTree,
-lets the user review and confirm work,
-executes through a local TaskWeavn runtime,
-and keeps results, file changes, and audit evidence inspectable.
+It helps users start from an unclear goal,
+shape that goal into reviewable work,
+control execution,
+and inspect evidence afterward.
 ```
 
 The public story should preserve the product boundary:
 
-| Layer | Public role |
+| Product plane or object | Public role |
 |---|---|
 | Plato | User-facing product and release identity. |
-| TaskWeavn | Engine/runtime identity for developer-facing architecture only. |
+| Inspiration Plane | Intent discovery, clarification, assumptions, and draft readiness. |
+| Control Plane | TaskTree review, task status, confirmations, progress, results, and next actions. |
+| Trust Plane | Results, file changes, audit facts, diagnostics, and traceability. |
 | Workflow, Session, TaskTree, TaskNode, Result, Audit | Stable product objects that users and developers can understand. |
+| Runtime/engine identity | Developer-facing architecture only; do not lead product copy with it. |
 | Agent, TaskBus, Context Manager, EventStream | Architecture objects explained only after the product path is clear. |
 
 ## 3. Reviewed Inputs
@@ -94,6 +97,9 @@ These topics can become public-facing material after concise rewriting and
 review:
 
 - Plato one-line product positioning.
+- Three product planes: Inspiration, Control, and Trust.
+- Inspiration Plane as the future product emphasis for understanding user
+  needs before task planning.
 - Task-first product journey: intent, TaskTree, review, publish, execute,
   result, audit.
 - Main Page as user control plane.
@@ -153,6 +159,7 @@ docs/
 assets/
   images/
     plato-hero.svg
+    plato-three-planes.svg
     plato-product-flow.svg
     plato-architecture-overview.svg
     plato-main-page.png
@@ -169,8 +176,8 @@ Initial content responsibilities:
 | Public file | Purpose |
 |---|---|
 | `README.md` | Product-first landing page: what Plato is, latest release, screenshots, quick start, status caveats. |
-| `docs/product/overview.md` | User-facing product explanation without internal engineering history. |
-| `docs/product/task-first-workflow.md` | Clear path from intent to TaskTree to execution to audit. |
+| `docs/product/overview.md` | User-facing product explanation through Inspiration, Control, and Trust planes, without internal engineering history. |
+| `docs/product/task-first-workflow.md` | Clear path from intent and clarification to TaskTree, execution, and audit. |
 | `docs/product/release-status.md` | What `0.1.0` includes, what is unsigned/non-notarized, and what is not promised yet. |
 | `docs/architecture/overview.md` | Public architecture diagram and short explanation. |
 | `docs/architecture/trust-and-audit.md` | Why Task, Result, File Change, Audit, and workspace inspection exist. |
@@ -183,12 +190,13 @@ The first public README should be ordered for a new visitor:
 
 1. Product identity: Plato, task-first intelligent workbench.
 2. Visual first impression: brand/hero image or clean product screenshot.
-3. User journey: express goal, review TaskTree, confirm, execute, inspect result.
-4. Latest release: `0.1.0` macOS Apple Silicon download and checksum.
-5. Current status: unsigned/non-notarized local RC, bundled Python sidecar.
-6. Architecture preview: TaskWeavn runtime in one simple diagram.
-7. Trust model: result, file changes, Audit, diagnostics, workspace inspection.
-8. What is next: workspace-aware inspection and richer public docs.
+3. Three product planes: Inspiration, Control, and Trust.
+4. User journey: express goal, clarify, review TaskTree, confirm, execute, inspect result.
+5. Latest release: `0.1.0` macOS Apple Silicon download and checksum.
+6. Current status: unsigned/non-notarized local RC, bundled Python sidecar.
+7. Architecture preview: local authoring, execution, projection, and trust boundaries in one simple diagram.
+8. Trust model: result, file changes, Audit, diagnostics, workspace inspection.
+9. What is next: a stronger Inspiration Plane, workspace-aware inspection, and richer public docs.
 
 Avoid leading with:
 
@@ -254,14 +262,15 @@ Required first visual set:
 
 | Asset | Purpose | Current status |
 |---|---|---|
-| Brand / hero image | README first impression and social preview source. | Candidate exists; needs export and approval. |
-| Product flow diagram | Explain intent -> TaskTree -> execution -> result/audit. | Missing. |
-| Architecture overview diagram | Explain Authoring / Execution / Projection / Audit. | Missing. |
-| Main Page screenshot | Show the primary control plane with sanitized sample data. | Missing; historical concept screenshots are not public-ready. |
-| Audit Page screenshot | Show the trust plane and evidence details. | Missing. |
-| Workspace inspection screenshot | Show file/diff inspection when public release/status supports it. | Missing. |
-| Trust/evidence flow diagram | Explain result, file changes, audit, diagnostics. | Missing. |
-| Open Graph image | GitHub/social preview. | Missing. |
+| Brand / hero image | README first impression and social preview source. | Exported in public PR #1. |
+| Three product planes diagram | Explain Inspiration -> Control -> Trust. | Exported in public PR #1. |
+| Product flow diagram | Explain intent -> clarification -> TaskTree -> execution -> result/audit. | Exported in public PR #1. |
+| Architecture overview diagram | Explain Authoring / Execution / Projection / Audit. | Exported in public PR #1. |
+| Main Page screenshot | Show the primary control plane with sanitized sample data. | Exported in public PR #1. |
+| Audit Page screenshot | Show the trust plane and evidence details. | Exported in public PR #1. |
+| Workspace inspection screenshot | Show file/diff inspection when public release/status supports it. | Exported in public PR #1. |
+| Trust/evidence flow diagram | Explain result, file changes, audit, diagnostics. | Exported in public PR #1. |
+| Open Graph image | GitHub/social preview. | Exported in public PR #1. |
 
 All image work is tracked in
 [Public Visual Asset Gaps](public-visual-asset-gaps.md).
@@ -371,12 +380,14 @@ Evidence:
 - Public commits:
   - `8411de0 Add Plato public product docs`.
   - `bd6a80e Complete public visual assets`.
+  - `a04a4e6 Refine Plato product planes`.
 - Public docs added: README, product overview, task-first workflow, release
   status, architecture overview, trust/audit, and macOS local release usage.
-- Public assets added: hero, product flow, architecture overview, trust flow,
-  Context Manager, Main Page vs Audit Page, macOS local release, public docs
-  map, Open Graph/social preview, sanitized Main Page screenshot, sanitized
-  Audit Page screenshot, and sanitized Workspace Inspection screenshot.
+- Public assets added: hero, three product planes, product flow, architecture
+  overview, trust flow, Context Manager, Main Page vs Audit Page, macOS local
+  release, public docs map, Open Graph/social preview, sanitized Main Page
+  screenshot, sanitized Audit Page screenshot, and sanitized Workspace
+  Inspection screenshot.
 
 The public PR remains draft until review/merge. The private planning artifact
 and public branch now satisfy the plan's first public exposure scope.
