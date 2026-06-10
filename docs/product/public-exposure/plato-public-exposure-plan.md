@@ -43,6 +43,7 @@ The first public message should be:
 ```text
 Plato is a task-first intelligent workbench.
 It helps users start from an unclear goal,
+discover how AI can help,
 shape that goal into reviewable work,
 control execution,
 and inspect evidence afterward.
@@ -53,7 +54,7 @@ The public story should preserve the product boundary:
 | Product plane or object | Public role |
 |---|---|
 | Plato | User-facing product and release identity. |
-| Inspiration Plane | Intent discovery, clarification, assumptions, and draft readiness. |
+| Inspiration Plane | AI-use discovery, prompt/workflow guidance, intent clarification, assumptions, and draft readiness. |
 | Control Plane | TaskTree review, task status, confirmations, progress, results, and next actions. |
 | Trust Plane | Results, file changes, audit facts, diagnostics, and traceability. |
 | Workflow, Session, TaskTree, TaskNode, Result, Audit | Stable product objects that users and developers can understand. |
@@ -98,8 +99,9 @@ review:
 
 - Plato one-line product positioning.
 - Three product planes: Inspiration, Control, and Trust.
-- Inspiration Plane as the future product emphasis for understanding user
-  needs before task planning.
+- Inspiration Plane as the future product emphasis for helping users understand
+  what AI can do, how to use AI effectively, and what context is needed before
+  task planning.
 - Task-first product journey: intent, TaskTree, review, publish, execute,
   result, audit.
 - Main Page as user control plane.
@@ -160,6 +162,10 @@ assets/
   images/
     plato-hero.svg
     plato-three-planes.svg
+    plato-three-planes-generated.png
+    plato-inspiration-plane.png
+    plato-control-plane.png
+    plato-trust-plane.png
     plato-product-flow.svg
     plato-architecture-overview.svg
     plato-main-page.png
@@ -175,7 +181,7 @@ Initial content responsibilities:
 
 | Public file | Purpose |
 |---|---|
-| `README.md` | Product-first landing page: what Plato is, latest release, screenshots, quick start, status caveats. |
+| `README.md` | Product-first landing page: what Plato is, three-plane model, latest release, screenshots, quick start, status caveats. |
 | `docs/product/overview.md` | User-facing product explanation through Inspiration, Control, and Trust planes, without internal engineering history. |
 | `docs/product/task-first-workflow.md` | Clear path from intent and clarification to TaskTree, execution, and audit. |
 | `docs/product/release-status.md` | What `0.1.0` includes, what is unsigned/non-notarized, and what is not promised yet. |
@@ -190,13 +196,13 @@ The first public README should be ordered for a new visitor:
 
 1. Product identity: Plato, task-first intelligent workbench.
 2. Visual first impression: brand/hero image or clean product screenshot.
-3. Three product planes: Inspiration, Control, and Trust.
-4. User journey: express goal, clarify, review TaskTree, confirm, execute, inspect result.
+3. Three product planes: Inspiration, Control, and Trust, with Inspiration defined as both AI-use guidance and intent clarification.
+4. User journey: discover AI use, express goal, clarify, review TaskTree, confirm, execute, inspect result.
 5. Latest release: `0.1.0` macOS Apple Silicon download and checksum.
 6. Current status: unsigned/non-notarized local RC, bundled Python sidecar.
 7. Architecture preview: local authoring, execution, projection, and trust boundaries in one simple diagram.
 8. Trust model: result, file changes, Audit, diagnostics, workspace inspection.
-9. What is next: a stronger Inspiration Plane, workspace-aware inspection, and richer public docs.
+9. What is next: a stronger Inspiration Plane for AI-use guidance, workspace-aware inspection, and richer public docs.
 
 Avoid leading with:
 
@@ -263,7 +269,10 @@ Required first visual set:
 | Asset | Purpose | Current status |
 |---|---|---|
 | Brand / hero image | README first impression and social preview source. | Exported in public PR #1. |
-| Three product planes diagram | Explain Inspiration -> Control -> Trust. | Exported in public PR #1. |
+| Three product planes diagram | Explain Inspiration -> Control -> Trust. | SVG and AI-generated PNG exported in public PR #1. |
+| Inspiration Plane image | Explain AI-use discovery, prompt/workflow shaping, and intent clarification. | AI-generated PNG exported in public PR #1. |
+| Control Plane image | Explain task review, confirmation, execution control, and progress. | AI-generated PNG exported in public PR #1. |
+| Trust Plane image | Explain audit evidence, file-change traceability, and verification. | AI-generated PNG exported in public PR #1. |
 | Product flow diagram | Explain intent -> clarification -> TaskTree -> execution -> result/audit. | Exported in public PR #1. |
 | Architecture overview diagram | Explain Authoring / Execution / Projection / Audit. | Exported in public PR #1. |
 | Main Page screenshot | Show the primary control plane with sanitized sample data. | Exported in public PR #1. |
@@ -381,11 +390,13 @@ Evidence:
   - `8411de0 Add Plato public product docs`.
   - `bd6a80e Complete public visual assets`.
   - `a04a4e6 Refine Plato product planes`.
+  - `c6152cf Add generated product plane visuals`.
 - Public docs added: README, product overview, task-first workflow, release
   status, architecture overview, trust/audit, and macOS local release usage.
 - Public assets added: hero, three product planes, product flow, architecture
   overview, trust flow, Context Manager, Main Page vs Audit Page, macOS local
-  release, public docs map, Open Graph/social preview, sanitized Main Page
+  release, public docs map, Open Graph/social preview, AI-generated
+  Inspiration/Control/Trust plane illustrations, sanitized Main Page
   screenshot, sanitized Audit Page screenshot, and sanitized Workspace
   Inspection screenshot.
 

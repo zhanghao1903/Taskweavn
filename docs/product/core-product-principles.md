@@ -89,20 +89,23 @@ Plato should be explained through three product planes:
 
 | Plane | User question | Product responsibility |
 |---|---|---|
-| Inspiration Plane | What am I trying to achieve, and what does Plato understand? | Capture intent, clarify missing context, expose assumptions, and decide whether the goal is ready to plan. |
+| Inspiration Plane | What can AI help me do, how should I use it, and what does Plato understand? | Help the user discover AI-assisted work patterns, shape prompts and workflows, clarify context, expose assumptions, and decide whether the goal is ready to plan. |
 | Control Plane | What work will happen, what is running, and what needs me? | Show the plan, task state, confirmations, progress, results, and next actions. |
 | Trust Plane | What happened, why, and what evidence exists? | Preserve results, file changes, audit facts, diagnostics, and traceability. |
 
 These are separate because intelligent work can fail at three different points:
 
-1. the system misunderstands the user before planning;
+1. the user does not know what AI can help with, how to ask, which workflow to
+   use, or what context changes output quality;
 2. the user loses control while work is being prepared or executed;
 3. the user cannot verify the result after work completes.
 
 Future product work should prioritize the Inspiration Plane. It is the start of
-understanding user needs: clarifying goals, collecting constraints, making
-assumptions visible, and preparing a Draft TaskTree only when the request is
-ready enough to plan.
+useful AI-assisted work: helping users recognize where AI is useful, shaping
+better prompts, choosing better workflows, clarifying goals, collecting
+constraints, making assumptions visible, and preparing a Draft TaskTree only
+when the request is ready enough to plan. This area is currently weaker than
+the Control Plane and Trust Plane, and should become the next product emphasis.
 
 ## 5. Guardrail: Main Page Is A Control Plane
 
@@ -258,7 +261,7 @@ focused on user intent, progress, and decisions.
 
 1. Task-first, not Chat-first.
 2. Workflow-first entry, not Agent-first entry.
-3. Inspiration Plane clarifies intent before planning.
+3. Inspiration Plane teaches effective AI use and clarifies intent before planning.
 4. Main Page is a control plane.
 5. Audit Page is a trust plane.
 6. Draft before execution for consequential work.
