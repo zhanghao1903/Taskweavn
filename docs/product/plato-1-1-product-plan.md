@@ -45,6 +45,10 @@ UI system text polish and bilingual support are tracked in
 [UI System Text And Localization Foundation](../plans/feature/product-copy-localization-foundation.md),
 with implementation boundaries captured in
 [UI System Text And Localization Contract](../engineering/product-copy-localization-contract.md).
+Token usage analytics are tracked in
+[Token Usage Analytics](../plans/feature/token-usage-analytics.md),
+with aggregation/API decisions captured in
+[Token Usage Analytics Contract](../engineering/token-usage-analytics-contract.md).
 
 Before executable Product 1.1 implementation plans, these semantic baselines
 should remain aligned:
@@ -168,6 +172,27 @@ First implementation should start with UI system text registry infrastructure an
 narrow Main Page migration, then move through Settings, Audit, Diagnostics, and
 Workspace Inspection surfaces.
 
+### 3.6 Token Usage Analytics
+
+Goal: make LLM token consumption and provider cache effectiveness visible at
+the product levels users reason about: Task, Plan, Session, and Workspace.
+
+Planning decisions:
+
+- normalized token usage should be stored as product-scoped events, not parsed
+  from raw logs at query time;
+- backend APIs should expose safe usage summaries, never raw prompts,
+  completions, provider payloads, secrets, or absolute paths;
+- first supported dimensions are Task, Plan, Session, and Workspace;
+- provider-reported cache hit/miss tokens are the source of cache hit rate;
+- Context Manager stable-prefix metadata is related observability data but must
+  not be mixed into provider cache-hit percentages;
+- billing/cost calculation and quota enforcement are separate Product 1.1+
+  decisions after the token ledger is accepted.
+
+First implementation should start with the backend usage ledger and
+workspace-scoped summary API before building a broad frontend dashboard.
+
 ## 4. 1.1 Planning Principles
 
 1. Keep Product 1.0 focused on the complete loop.
@@ -199,6 +224,8 @@ feature plans for:
   validation workflow.
 - UI system text and localization foundation: typed registry, `en-US` /
   `zh-CN` catalogs, locale resolution, and staged UI system text migration.
+- Token usage analytics: durable usage ledger, Task/Plan/Session/Workspace
+  aggregation, provider cache-hit visibility, and diagnostics-safe summaries.
 
 Each plan should state whether it extends Authoring Domain, TaskBus execution,
 CapabilityCatalog, UI API contract, Audit Page, or all of them.
