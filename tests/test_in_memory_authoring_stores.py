@@ -96,9 +96,13 @@ def test_draft_store_creates_tree_and_normalizes_roots() -> None:
     tree = store.create_tree(
         "s1",
         [_draft_node("b", order_index=2), _draft_node("a", order_index=1)],
+        title="Release plan",
+        summary="Prepare release artifacts.",
     )
 
     assert tree.session_id == "s1"
+    assert tree.title == "Release plan"
+    assert tree.summary == "Prepare release artifacts."
     assert [node.draft_task_id for node in tree.root_nodes] == ["a", "b"]
     assert {node.draft_tree_id for node in tree.root_nodes} == {tree.draft_tree_id}
     assert store.get_tree("s1", tree.draft_tree_id) == tree
@@ -147,6 +151,9 @@ def test_draft_store_updates_node_and_tree_version() -> None:
         "root",
         TaskNodePatch(
             title="Better title",
+            summary="Short summary.",
+            instructions="Do the careful version.",
+            acceptance_criteria=("Criterion one",),
             constraints_add=("must use tests",),
         ),
         expected_version=1,
@@ -154,6 +161,9 @@ def test_draft_store_updates_node_and_tree_version() -> None:
 
     assert updated.version == 2
     assert updated.title == "Better title"
+    assert updated.summary == "Short summary."
+    assert updated.instructions == "Do the careful version."
+    assert updated.acceptance_criteria == ("Criterion one",)
     assert updated.constraints == ("must use tests",)
     assert store.get_tree("s1", tree.draft_tree_id).version == 2
 

@@ -196,8 +196,12 @@ def test_sqlite_draft_store_creates_tree_and_reopens_roots(tmp_path: Path) -> No
         tree = first.create_tree(
             "s1",
             [_draft_node("b", order_index=2), _draft_node("a", order_index=1)],
+            title="Release plan",
+            summary="Prepare release artifacts.",
         )
 
+        assert tree.title == "Release plan"
+        assert tree.summary == "Prepare release artifacts."
         assert [node.draft_task_id for node in tree.root_nodes] == ["a", "b"]
         assert {node.draft_tree_id for node in tree.root_nodes} == {tree.draft_tree_id}
     finally:
@@ -214,6 +218,90 @@ def test_sqlite_draft_store_creates_tree_and_reopens_roots(tmp_path: Path) -> No
         ]
     finally:
         second.close()
+
+
+def test_sqlite_draft_store_migrates_plan_metadata_columns(tmp_path: Path) -> None:
+    db = tmp_path / "authoring.sqlite"
+    conn = sqlite3.connect(str(db), isolation_level=None)
+    try:
+        conn.execute(
+            """
+            CREATE TABLE draft_task_trees (
+                session_id TEXT NOT NULL,
+                draft_tree_id TEXT NOT NULL,
+                source_raw_task_id TEXT,
+                created_by TEXT NOT NULL,
+                version INTEGER NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                archived_at TEXT,
+                replaced_by_draft_tree_id TEXT,
+                PRIMARY KEY (session_id, draft_tree_id)
+            )
+            """
+        )
+    finally:
+        conn.close()
+
+    store = SqliteDraftTaskStore(db)
+    store.close()
+
+    conn = sqlite3.connect(str(db), isolation_level=None)
+    try:
+        columns = {
+            row[1]
+            for row in conn.execute("PRAGMA table_info(draft_task_trees)").fetchall()
+        }
+    finally:
+        conn.close()
+
+    assert {"title", "summary"}.issubset(columns)
+
+
+def test_sqlite_draft_store_migrates_structured_draft_node_columns(
+    tmp_path: Path,
+) -> None:
+    db = tmp_path / "authoring.sqlite"
+    conn = sqlite3.connect(str(db), isolation_level=None)
+    try:
+        conn.execute(
+            """
+            CREATE TABLE draft_task_nodes (
+                session_id TEXT NOT NULL,
+                draft_tree_id TEXT NOT NULL,
+                draft_task_id TEXT NOT NULL,
+                parent_draft_task_id TEXT,
+                order_index INTEGER NOT NULL,
+                title TEXT NOT NULL,
+                intent TEXT NOT NULL,
+                required_capability TEXT NOT NULL,
+                constraints_json TEXT NOT NULL,
+                rationale TEXT,
+                status TEXT NOT NULL,
+                version INTEGER NOT NULL,
+                created_by TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                PRIMARY KEY (session_id, draft_task_id)
+            )
+            """
+        )
+    finally:
+        conn.close()
+
+    store = SqliteDraftTaskStore(db)
+    store.close()
+
+    conn = sqlite3.connect(str(db), isolation_level=None)
+    try:
+        columns = {
+            row[1]
+            for row in conn.execute("PRAGMA table_info(draft_task_nodes)").fetchall()
+        }
+    finally:
+        conn.close()
+
+    assert {"summary", "instructions", "acceptance_criteria_json"}.issubset(columns)
 
 
 def test_sqlite_draft_store_adds_updates_and_reopens_nodes(tmp_path: Path) -> None:
@@ -233,6 +321,9 @@ def test_sqlite_draft_store_adds_updates_and_reopens_nodes(tmp_path: Path) -> No
             "child",
             TaskNodePatch(
                 title="Better child",
+                summary="Short summary.",
+                instructions="Do the careful version.",
+                acceptance_criteria=("Criterion one",),
                 constraints_add=("must use tests",),
             ),
             expected_version=child.version,
@@ -240,6 +331,9 @@ def test_sqlite_draft_store_adds_updates_and_reopens_nodes(tmp_path: Path) -> No
 
         assert updated.version == 2
         assert updated.title == "Better child"
+        assert updated.summary == "Short summary."
+        assert updated.instructions == "Do the careful version."
+        assert updated.acceptance_criteria == ("Criterion one",)
         assert updated.constraints == ("must use tests",)
     finally:
         first.close()

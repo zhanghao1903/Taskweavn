@@ -98,6 +98,9 @@ class NormalizedTaskNode(_FrozenPublisherModel):
     parent_id: str | None = Field(default=None, min_length=1)
     title: str = Field(min_length=1)
     intent: str = Field(min_length=1)
+    summary: str | None = Field(default=None, min_length=1)
+    instructions: str | None = Field(default=None, min_length=1)
+    acceptance_criteria: tuple[str, ...] = ()
     required_capability: str = Field(min_length=1)
     agent_ref: str | None = Field(default=None, min_length=1)
     children: tuple[NormalizedTaskNode, ...] = ()
@@ -520,6 +523,9 @@ def _tasks_for_request(
                 root_id=root_task_id,
                 order_index=_order_index(tree, node),
                 intent=node.intent,
+                summary=node.summary,
+                instructions=node.instructions,
+                acceptance_criteria=node.acceptance_criteria,
                 required_capability=node.required_capability,
                 dispatch_constraints=_dispatch_constraints(request, tree, node),
                 created_by=request.publisher.label,
@@ -535,6 +541,9 @@ def _task_matches_expected(existing: TaskDomain, expected: TaskDomain) -> bool:
         or existing.root_id != expected.root_id
         or existing.order_index != expected.order_index
         or existing.intent != expected.intent
+        or existing.summary != expected.summary
+        or existing.instructions != expected.instructions
+        or existing.acceptance_criteria != expected.acceptance_criteria
         or existing.required_capability != expected.required_capability
         or existing.created_by != expected.created_by
     ):
@@ -646,6 +655,9 @@ def _normalized_from_draft(
         parent_id=node.parent_draft_task_id,
         title=node.title,
         intent=node.intent,
+        summary=node.summary,
+        instructions=node.instructions,
+        acceptance_criteria=node.acceptance_criteria,
         required_capability=node.required_capability,
         children=tuple(
             _normalized_from_draft(child, children)

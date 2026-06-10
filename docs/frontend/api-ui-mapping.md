@@ -91,7 +91,10 @@ If a task has pending confirmation, Main Page may derive a display state like `w
 | `task_ref` | `taskRef` | Preserve `draft` or `published`. |
 | `parent_ref` | `parentId` via projection mapping | UI needs stable `TaskNodeId`. |
 | `title` | `title` | User-facing. |
-| `intent_preview` | `summary` | Keep concise. |
+| `intent_preview` | `summary` | Card-safe short summary. Must not contain concatenated `Summary:` / `Instructions:` / `Acceptance criteria:` marker text. |
+| `full_intent` | `intent` | Detail Panel only. Cards should not render this field. |
+| `instructions` | `instructions` | Detail Panel only. |
+| `acceptance_criteria` | `acceptanceCriteria` | Detail Panel only. |
 | TaskTree projection order | `displayIndex` | 1-based, session-local user locator. Separate from backend `orderIndex`; use for compact labels such as `Task 3`. Raw Task authoring state does not share this TaskNode index space. |
 | TaskTree focus | local `selectedTarget = "plan"` | Selecting the whole plan is a Main Page local UI focus, not a backend field. Plan guidance reuses the session input command until a dedicated plan-guidance command exists. |
 | `status = draft` | `readiness = draft`, `execution = not_started` | Draft status is readiness. |

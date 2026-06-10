@@ -106,6 +106,16 @@ Recommended TaskNode facts:
 | `depends_on` | Minimal dependency hints between TaskNodes. |
 | `required_capability` | Optional capability hint, not a hard Agent role. |
 
+UI projection rule:
+
+- Task list cards show `title` and short `summary` only.
+- Full `intent`, `instructions`, and `acceptance_criteria` belong in the
+  selected Task detail panel.
+- Collaborator and Gateway code must not concatenate `Summary:`,
+  `Instructions:`, or `Acceptance criteria:` marker text into `intent`.
+  Legacy marker text may be split during projection for compatibility, but new
+  Plan output should remain structured.
+
 ### 4.1 Why Not Parent/Child In The First Version
 
 Parent/child task hierarchy can express grouping, rollup, inherited constraints,

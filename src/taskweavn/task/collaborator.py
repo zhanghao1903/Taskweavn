@@ -346,7 +346,11 @@ class DefaultCollaboratorAuthoringService:
                 operations=(
                     DraftTaskTreeOperation(
                         op="create_tree",
-                        payload={"roots": _proposal_roots(proposal)},
+                        payload={
+                            "title": proposal.title,
+                            "summary": proposal.summary,
+                            "roots": _proposal_roots(proposal),
+                        },
                     ),
                 ),
             )
@@ -736,27 +740,23 @@ def _draft_tree_from_plan_proposal(proposal: PlanProposal) -> DraftTaskTreePropo
         key=lambda item: (item[1].task_index if item[1].task_index is not None else item[0]),
     )
     return DraftTaskTreeProposal(
+        title=proposal.title,
+        summary=proposal.summary,
         roots=tuple(_draft_node_from_plan_task(task) for _, task in ordered),
         assistant_message=proposal.assistant_message,
     )
 
 
 def _draft_node_from_plan_task(task: PlanTaskNodeProposal) -> DraftTaskNodeProposal:
-    intent_parts = [task.intent]
-    if task.summary is not None and task.summary.strip() != task.intent.strip():
-        intent_parts.append(f"Summary: {task.summary}")
-    if task.instructions is not None:
-        intent_parts.append(f"Instructions: {task.instructions}")
-    if task.acceptance_criteria:
-        intent_parts.append(
-            "Acceptance criteria: " + "; ".join(task.acceptance_criteria)
-        )
     constraints = list(task.constraints)
     if task.depends_on:
         constraints.append("Depends on: " + ", ".join(task.depends_on))
     return DraftTaskNodeProposal(
         title=task.title,
-        intent="\n".join(intent_parts),
+        intent=task.intent,
+        summary=task.summary,
+        instructions=task.instructions,
+        acceptance_criteria=task.acceptance_criteria,
         required_capability=task.required_capability,
         constraints=tuple(constraints),
         rationale=task.rationale,
@@ -779,6 +779,8 @@ def _flatten_draft_task_tree_proposal(
     for root in proposal.roots:
         visit(root, ())
     return DraftTaskTreeProposal(
+        title=proposal.title,
+        summary=proposal.summary,
         roots=tuple(flat),
         assistant_message=proposal.assistant_message,
     )
@@ -795,6 +797,9 @@ def _flat_draft_node(
     return DraftTaskNodeProposal(
         title=node.title,
         intent=intent,
+        summary=node.summary,
+        instructions=node.instructions,
+        acceptance_criteria=node.acceptance_criteria,
         required_capability=node.required_capability,
         constraints=node.constraints,
         rationale=node.rationale,
@@ -805,6 +810,9 @@ def _proposal_node(node: Any) -> dict[str, Any]:
     return {
         "title": node.title,
         "intent": node.intent,
+        "summary": node.summary,
+        "instructions": node.instructions,
+        "acceptance_criteria": list(node.acceptance_criteria),
         "required_capability": node.required_capability,
         "constraints": list(node.constraints),
         "rationale": node.rationale,

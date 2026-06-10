@@ -487,6 +487,9 @@ class DraftTaskNodeProposal(_FrozenAuthoringModel):
 
     title: str = Field(min_length=1)
     intent: str = Field(min_length=1)
+    summary: str | None = Field(default=None, min_length=1)
+    instructions: str | None = Field(default=None, min_length=1)
+    acceptance_criteria: tuple[str, ...] = ()
     required_capability: str = Field(min_length=1)
     constraints: tuple[str, ...] = ()
     rationale: str | None = None
@@ -494,6 +497,8 @@ class DraftTaskNodeProposal(_FrozenAuthoringModel):
 
 
 class DraftTaskTreeProposal(_FrozenAuthoringModel):
+    title: str | None = Field(default=None, min_length=1)
+    summary: str | None = Field(default=None, min_length=1)
     roots: tuple[DraftTaskNodeProposal, ...] = Field(min_length=1)
     assistant_message: str = Field(min_length=1)
 

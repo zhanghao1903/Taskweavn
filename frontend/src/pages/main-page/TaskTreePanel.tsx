@@ -39,7 +39,7 @@ export function TaskTreePanel({
   taskTree,
 }: TaskTreePanelProps) {
   if (taskTree) {
-    const planOverview = planOverviewText(taskTree);
+    const planOverview = planOverviewContent(taskTree);
 
     return (
       <div className={styles.taskListPanel}>
@@ -53,13 +53,11 @@ export function TaskTreePanel({
         >
           <span className={styles.planText}>
             <span className={styles.planEyebrow}>Plan overview</span>
-            <strong className={styles.listCardTitle} title={planOverview}>
-              {planOverview}
+            <strong className={styles.listCardTitle} title={planOverview.title}>
+              {planOverview.title}
             </strong>
             <small className={styles.listCardBody}>
-              {taskTree.nodes.length === 1
-                ? "1 task in this plan"
-                : `${taskTree.nodes.length} tasks in this plan`}
+              {planOverview.detail}
             </small>
           </span>
           <Badge tone="blue">{taskTree.status}</Badge>
@@ -147,13 +145,9 @@ function TaskPlanGeneratingState() {
 }
 
 const SKELETON_GROUP_COUNT = 5;
+const DEFAULT_TASK_TREE_TITLE = "Task Tree";
 
 function planOverviewText(taskTree: TaskTreeView): string {
-  const summary = taskTree.summary?.trim();
-  if (summary) {
-    return summary;
-  }
-
   if (taskTree.nodes.length === 0) {
     return "Plan overview is being prepared.";
   }
@@ -162,4 +156,35 @@ function planOverviewText(taskTree: TaskTreeView): string {
   const remainingCount = taskTree.nodes.length - visibleTitles.length;
   const suffix = remainingCount > 0 ? `, and ${remainingCount} more` : "";
   return `${taskTree.nodes.length}-task plan covering ${visibleTitles.join(", ")}${suffix}.`;
+}
+
+function planOverviewContent(taskTree: TaskTreeView): {
+  detail: string;
+  title: string;
+} {
+  const title = taskTree.title?.trim();
+  const summary = taskTree.summary?.trim();
+  const taskCountText =
+    taskTree.nodes.length === 1
+      ? "1 task in this plan"
+      : `${taskTree.nodes.length} tasks in this plan`;
+
+  if (title && title !== DEFAULT_TASK_TREE_TITLE) {
+    return {
+      title,
+      detail: summary && summary !== title ? summary : taskCountText,
+    };
+  }
+
+  if (summary) {
+    return {
+      title: summary,
+      detail: taskCountText,
+    };
+  }
+
+  return {
+    title: planOverviewText(taskTree),
+    detail: taskCountText,
+  };
 }

@@ -793,11 +793,17 @@ def test_generate_task_tree_accepts_flat_plan_proposal() -> None:
     nodes = draft_store.list_nodes("s1", tree.draft_tree_id)
 
     assert result.ok
+    assert tree.title == "Docs plan"
+    assert tree.summary == "Create useful developer documentation."
     assert [node.title for node in nodes] == ["Write docs", "Run examples"]
     assert [node.parent_draft_task_id for node in nodes] == [None, None]
-    assert "Summary: Draft the user-facing docs." in nodes[0].intent
-    assert "Instructions: Keep the scope focused." in nodes[0].intent
-    assert "Acceptance criteria: Docs are clear" in nodes[0].intent
+    assert nodes[0].intent == "Write the core documentation."
+    assert nodes[0].summary == "Draft the user-facing docs."
+    assert nodes[0].instructions == "Keep the scope focused."
+    assert nodes[0].acceptance_criteria == ("Docs are clear",)
+    assert "Summary:" not in nodes[0].intent
+    assert "Instructions:" not in nodes[0].intent
+    assert "Acceptance criteria:" not in nodes[0].intent
     assert nodes[0].constraints == ("Depends on: run-examples",)
 
 

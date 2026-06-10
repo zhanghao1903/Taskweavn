@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { useState } from "react";
 import { CircleStop, RotateCcw } from "lucide-react";
 
@@ -362,45 +363,107 @@ function TaskDetailPanel({
     isRunning &&
     (detail.selectedTask.permissions.canCancel || isStopping);
   const showRetryAction = detail.selectedTask.permissions.canRetry;
+  const intent = detail.selectedTask.intent?.trim();
+  const instructions = detail.selectedTask.instructions?.trim();
+  const acceptanceCriteria = detail.selectedTask.acceptanceCriteria ?? [];
+  const shouldShowIntent =
+    Boolean(intent) &&
+    intent !== detail.selectedTask.summary &&
+    intent !== detail.selectedTask.title;
+  const hasStructuredDetails =
+    shouldShowIntent || Boolean(instructions) || acceptanceCriteria.length > 0;
 
-  if (!showPublishedStopAction && !showRetryAction) {
+  if (!showPublishedStopAction && !showRetryAction && !hasStructuredDetails) {
     return null;
   }
 
   return (
-    <Panel
-      aria-label="Task actions"
-      className={styles.detailBox}
-      data-task-node-id={detail.selectedTask.id}
-      tone="muted"
-    >
+    <>
+      {hasStructuredDetails && (
+        <Panel
+          aria-label="Task details"
+          className={styles.detailBox}
+          data-task-node-id={detail.selectedTask.id}
+          tone="muted"
+        >
+          <Text as="strong" variant="label">
+            Task details
+          </Text>
+          {shouldShowIntent && (
+            <TaskDetailSection title="Intent">{intent}</TaskDetailSection>
+          )}
+          {instructions && (
+            <TaskDetailSection title="Instructions">
+              {instructions}
+            </TaskDetailSection>
+          )}
+          {acceptanceCriteria.length > 0 && (
+            <div className={styles.taskDetailSection}>
+              <Text as="strong" variant="label">
+                Acceptance criteria
+              </Text>
+              <ul className={styles.taskDetailList}>
+                {acceptanceCriteria.map((criterion) => (
+                  <li key={criterion}>{criterion}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </Panel>
+      )}
+      {(showPublishedStopAction || showRetryAction) && (
+        <Panel
+          aria-label="Task actions"
+          className={styles.detailBox}
+          data-task-node-id={detail.selectedTask.id}
+          tone="muted"
+        >
+          <Text as="strong" variant="label">
+            Task actions
+          </Text>
+          {showPublishedStopAction && (
+            <div className={styles.actionRow}>
+              <Button
+                disabled={detail.isStoppingTask || isStopping}
+                onClick={() => onStopTask(detail.selectedTask.id)}
+                variant="danger"
+              >
+                <CircleStop size={14} aria-hidden="true" />
+                {detail.isStoppingTask || isStopping ? "Stopping" : "Stop"}
+              </Button>
+            </div>
+          )}
+          {showRetryAction && (
+            <div className={styles.actionRow}>
+              <Button
+                disabled={detail.isRetryingTask}
+                onClick={() => onRetryTask(detail.selectedTask.id)}
+                variant="primary"
+              >
+                <RotateCcw size={14} aria-hidden="true" />
+                {detail.isRetryingTask ? "Retrying" : "Retry"}
+              </Button>
+            </div>
+          )}
+        </Panel>
+      )}
+    </>
+  );
+}
+
+function TaskDetailSection({
+  children,
+  title,
+}: {
+  children: ReactNode;
+  title: string;
+}) {
+  return (
+    <div className={styles.taskDetailSection}>
       <Text as="strong" variant="label">
-        Task actions
+        {title}
       </Text>
-      {showPublishedStopAction && (
-        <div className={styles.actionRow}>
-          <Button
-            disabled={detail.isStoppingTask || isStopping}
-            onClick={() => onStopTask(detail.selectedTask.id)}
-            variant="danger"
-          >
-            <CircleStop size={14} aria-hidden="true" />
-            {detail.isStoppingTask || isStopping ? "Stopping" : "Stop"}
-          </Button>
-        </div>
-      )}
-      {showRetryAction && (
-        <div className={styles.actionRow}>
-          <Button
-            disabled={detail.isRetryingTask}
-            onClick={() => onRetryTask(detail.selectedTask.id)}
-            variant="primary"
-          >
-            <RotateCcw size={14} aria-hidden="true" />
-            {detail.isRetryingTask ? "Retrying" : "Retry"}
-          </Button>
-        </div>
-      )}
-    </Panel>
+      <Text variant="muted">{children}</Text>
+    </div>
   );
 }
