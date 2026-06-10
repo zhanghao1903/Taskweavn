@@ -30,6 +30,7 @@ export type MainPageProps = {
   adapter?: MainPageAdapter;
   auditRouteAvailable?: boolean;
   initialStateId?: MainPageStateId;
+  initialTaskNodeId?: string | null;
   workspaceRuntime?: MainPageWorkspaceRuntime | null;
 };
 
@@ -37,6 +38,7 @@ export function MainPage({
   adapter = mainPageMockAdapter,
   auditRouteAvailable = true,
   initialStateId = defaultMainPageStateId,
+  initialTaskNodeId = null,
   workspaceRuntime = null,
 }: MainPageProps = {}) {
   const uiText = useUiText();
@@ -83,6 +85,7 @@ export function MainPage({
   } = useMainPageController({
     adapter,
     initialStateId,
+    initialTaskNodeId,
   });
 
   if (isSnapshotPending) {

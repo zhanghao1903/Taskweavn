@@ -79,6 +79,10 @@ export function resolvePlatoWorkspaceEntryRuntime(): PlatoWorkspaceEntryRuntime 
 
 export function createMainPageAdapterFromRuntimeEnv(
   env: PlatoRuntimeEnv = import.meta.env,
+  options: {
+    sessionId?: string | null;
+    workspaceId?: string | null;
+  } = {},
 ): MainPageAdapter | undefined {
   const runtimeEnv = resolvePlatoRuntimeEnv(env);
   if (runtimeEnv.VITE_PLATO_API_MODE !== "http") {
@@ -91,7 +95,7 @@ export function createMainPageAdapterFromRuntimeEnv(
     });
   }
 
-  const sessionId = runtimeEnv.VITE_PLATO_SESSION_ID;
+  const sessionId = options.sessionId ?? runtimeEnv.VITE_PLATO_SESSION_ID;
   const baseUrl = runtimeEnv.VITE_PLATO_API_BASE_URL ?? globalThis.location.origin;
   configureFrontendLogSink(
     sessionId ? createHttpErrorLogSink(baseUrl, sessionId) : null,
@@ -113,7 +117,10 @@ export function createMainPageAdapterFromRuntimeEnv(
     }),
     liveLabel: "Live Session",
     sessionId: sessionId ?? null,
-    workspaceId: globalThis.window?.platoRuntimeConfig?.workspace?.id ?? null,
+    workspaceId:
+      options.workspaceId ??
+      globalThis.window?.platoRuntimeConfig?.workspace?.id ??
+      null,
   });
 }
 

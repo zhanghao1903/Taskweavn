@@ -22,7 +22,13 @@ import { isSettingsPath } from "../pages/settings/settingsRouteModel";
 import { WorkspaceEntryGate } from "../pages/workspace/WorkspaceEntryGate";
 import { WorkspaceInspectionRoute } from "../pages/workspace-inspection/WorkspaceInspectionRoute";
 import { isWorkspaceInspectionPath } from "../pages/workspace-inspection/workspaceInspectionRouteModel";
-import { resolveUiLocale, UiTextProvider } from "../shared/ui-text";
+import {
+  readUiLocalePreference,
+  resolveUiLocale,
+  UI_LOCALE_PREFERENCE_CHANGED_EVENT,
+  UI_LOCALE_PREFERENCE_STORAGE_KEY,
+  UiTextProvider,
+} from "../shared/ui-text";
 
 export type AppProps = {
   readinessApi?: SettingsReadinessApi;
@@ -43,9 +49,13 @@ export function App({
   workspaceEntryRuntime = resolvePlatoWorkspaceEntryRuntime(),
 }: AppProps = {}) {
   const [location, setLocation] = useState(currentAppLocation);
+  const [uiLocalePreference, setUiLocalePreference] = useState(() =>
+    readUiLocalePreference(),
+  );
   const { pathname } = location;
   const uiLocale = resolveUiLocale({
     electronRuntimeLocale: globalThis.window?.platoRuntimeConfig?.uiLocale,
+    persistedLocale: uiLocalePreference,
     runtimeEnv,
   });
 
@@ -59,6 +69,30 @@ export function App({
     return () => {
       globalThis.removeEventListener("popstate", handleRouteChange);
       globalThis.removeEventListener(PLATO_NAVIGATION_EVENT, handleRouteChange);
+    };
+  }, []);
+
+  useEffect(() => {
+    const refreshPreference = () => {
+      setUiLocalePreference(readUiLocalePreference());
+    };
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key === UI_LOCALE_PREFERENCE_STORAGE_KEY) {
+        refreshPreference();
+      }
+    };
+
+    globalThis.addEventListener(
+      UI_LOCALE_PREFERENCE_CHANGED_EVENT,
+      refreshPreference,
+    );
+    globalThis.addEventListener("storage", handleStorage);
+    return () => {
+      globalThis.removeEventListener(
+        UI_LOCALE_PREFERENCE_CHANGED_EVENT,
+        refreshPreference,
+      );
+      globalThis.removeEventListener("storage", handleStorage);
     };
   }, []);
 
@@ -85,6 +119,7 @@ export function App({
               api={settingsApi}
               presentation="modal"
               runtimeEnv={runtimeEnv}
+              workspaceBridge={workspaceEntryRuntime.bridge}
             />
           </>
         ) : (

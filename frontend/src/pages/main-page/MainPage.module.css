@@ -245,6 +245,28 @@
   min-height: 0;
   overflow: auto;
   padding: var(--plato-space-4);
+  scrollbar-color: rgb(92 112 130 / 18%) transparent;
+  scrollbar-width: thin;
+}
+
+.sidebar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.sidebar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sidebar::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: rgb(92 112 130 / 18%);
+  background-clip: padding-box;
+}
+
+.sidebar::-webkit-scrollbar-thumb:hover {
+  background: rgb(92 112 130 / 28%);
+  background-clip: padding-box;
 }
 
 .sidebarHeader,
@@ -310,7 +332,7 @@
   display: grid;
   min-width: 0;
   gap: var(--plato-space-1);
-  padding-left: 30px;
+  padding-left: calc(18px + var(--plato-space-2));
 }
 
 .workspaceExplorer,
@@ -369,9 +391,8 @@
 }
 
 .workspaceTreeCurrentLabel > span {
-  display: grid;
+  display: block;
   min-width: 0;
-  gap: 1px;
 }
 
 .workspaceTreeCurrentActions {
@@ -427,7 +448,7 @@
   margin: 0;
   border: 1px solid var(--plato-color-transparent);
   border-radius: var(--plato-radius-md);
-  padding: var(--plato-space-2) var(--plato-space-3);
+  padding: var(--plato-space-2);
   background: var(--plato-color-transparent);
   color: var(--plato-color-muted);
   font-size: var(--plato-type-nav-size);

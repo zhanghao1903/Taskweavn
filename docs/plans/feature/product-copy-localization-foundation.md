@@ -163,9 +163,12 @@ acceptance pass needs manual switching immediately.
 
 ### C6. Language Preference UX
 
-- Deferred: add a small Settings control for UI language if Product 1.1 acceptance needs
-  manual switching.
-- Persist only the locale preference, not translated text.
+- Implemented: Settings exposes a small "Interface language" selector for
+  `en-US` / `zh-CN`.
+- Implemented: the renderer persists only the locale preference in local
+  storage and reapplies it on App startup; translated text is never persisted.
+- Follow-up: migrate this preference into a future centralized settings backend
+  if Product 1.1 introduces cross-device or workspace-level preferences.
 
 ### C7. Bilingual Acceptance
 
@@ -186,8 +189,9 @@ acceptance pass needs manual switching immediately.
 
 ## 8. Open Decisions
 
-1. Product 1.1 still needs a visible language selector decision before broader
-   UX polish acceptance.
+1. Product 1.1 has a local visible language selector; a future centralized
+   settings backend may take ownership if broader preference management is
+   accepted.
 2. Audit currently uses "审计" in Chinese UI system text while raw evidence and
    generated content remain unchanged.
 3. Remaining backend-owned display values should be audited before any future
@@ -200,7 +204,10 @@ Implemented on 2026-06-10:
 - `frontend/src/shared/ui-text` owns the typed `UiTextCatalog`, `en-US` and
   `zh-CN` catalogs, locale resolution, React provider/hook, and test helper.
 - `App` resolves `VITE_PLATO_UI_LOCALE` / Electron `uiLocale` and provides UI
-  text to all routes.
+  text to all routes, with persisted renderer-local preference applied before
+  Electron/browser fallback.
+- Settings exposes a small UI language selector that writes the persisted
+  renderer-local preference and updates the current app session.
 - Product recovery labels/descriptions render from active locale text while
   legacy helper functions continue returning English defaults.
 - Main Page, Settings/first-run, Diagnostics, Workspace Inspection, and the
@@ -210,7 +217,8 @@ Implemented on 2026-06-10:
 
 ## 10. Remaining Follow-Ups
 
-- Visible Settings language selector and persisted locale preference.
+- Centralized backend-owned language preference, if Product 1.1 expands
+  preference management beyond local renderer storage.
 - Electron native menu localization.
 - Translator extraction/lint tooling for future broad copy work.
 - Sidecar/Electron bilingual smoke once a user-facing selector or launch-time

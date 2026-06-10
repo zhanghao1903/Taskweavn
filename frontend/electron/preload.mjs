@@ -20,9 +20,12 @@ contextBridge.exposeInMainWorld("platoElectron", {
 });
 
 contextBridge.exposeInMainWorld("platoElectronWorkspace", {
-  chooseWorkspace: () => ipcRenderer.invoke("plato:workspace:choose"),
+  chooseWorkspace: (options) =>
+    ipcRenderer.invoke("plato:workspace:choose", options),
+  getGitStatus: () => ipcRenderer.invoke("plato:workspace:git-status"),
   getState: () => ipcRenderer.invoke("plato:workspace:get-state"),
-  useWorkspace: (id) => ipcRenderer.invoke("plato:workspace:use", id),
+  useWorkspace: (id, options) =>
+    ipcRenderer.invoke("plato:workspace:use", id, options),
 });
 
 function parseRuntimeConfig(raw) {

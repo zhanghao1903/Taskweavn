@@ -1,10 +1,19 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { writeWorkspaceGitInitializeOnOpenPreference } from "../../shared/workspace/workspaceGitPreference";
 import { MainPageWorkspaceSwitcher } from "./MainPageWorkspaceSwitcher";
 
 describe("MainPageWorkspaceSwitcher", () => {
+  beforeEach(() => {
+    installTestLocalStorage();
+  });
+
+  afterEach(() => {
+    globalThis.localStorage?.clear();
+  });
+
   it("opens the native workspace picker from Main Page", async () => {
     const user = userEvent.setup();
     const bridge = bridgeFor({
@@ -60,7 +69,45 @@ describe("MainPageWorkspaceSwitcher", () => {
     await user.click(await screen.findByRole("button", { name: /Recent Space/i }));
 
     expect(bridge.getState).toHaveBeenCalledTimes(1);
-    expect(bridge.useWorkspace).toHaveBeenCalledWith("workspace-recent");
+    expect(bridge.useWorkspace).toHaveBeenCalledWith("workspace-recent", undefined);
+  });
+
+  it("passes Git initialization preference when opening or switching workspaces", async () => {
+    const user = userEvent.setup();
+    writeWorkspaceGitInitializeOnOpenPreference(true);
+    const bridge = bridgeFor({
+      getState: vi.fn(async () =>
+        workspaceState({
+          currentWorkspace: workspace("workspace-current", "Current Space"),
+          recentWorkspaces: [workspace("workspace-recent", "Recent Space")],
+          status: "ready",
+        }),
+      ),
+      useWorkspace: vi.fn(async () => ({
+        state: workspaceState({ status: "ready" }),
+        status: "ready" as const,
+      })),
+    });
+
+    render(
+      <MainPageWorkspaceSwitcher
+        runtime={{
+          bridge,
+          currentWorkspace: workspace("workspace-current", "Current Space"),
+          isRequired: false,
+        }}
+      />,
+    );
+
+    await user.click(await screen.findByRole("button", { name: /Recent Space/i }));
+    await user.click(screen.getByRole("button", { name: /Open or add workspace/i }));
+
+    expect(bridge.useWorkspace).toHaveBeenCalledWith("workspace-recent", {
+      initializeGitOnOpen: true,
+    });
+    expect(bridge.chooseWorkspace).toHaveBeenCalledWith({
+      initializeGitOnOpen: true,
+    });
   });
 
   it("uses safe workspace names instead of raw path labels", async () => {
@@ -130,6 +177,10 @@ function bridgeFor(
       state: workspaceState({ status: "starting" }),
       status: "ready" as const,
     })),
+    getGitStatus: vi.fn(async () => ({
+      status: "available" as const,
+      version: "git version 2.45.0",
+    })),
     getState: vi.fn(async () => workspaceState({ status: "ready" })),
     useWorkspace: vi.fn(async () => ({
       state: workspaceState({ status: "starting" }),
@@ -163,4 +214,26 @@ function workspace(
     name,
     pathLabel,
   };
+}
+
+function installTestLocalStorage(): void {
+  const storage = new Map<string, string>();
+  const storageLike = {
+    clear: () => storage.clear(),
+    getItem: (key: string) => storage.get(key) ?? null,
+    key: (index: number) => Array.from(storage.keys())[index] ?? null,
+    get length() {
+      return storage.size;
+    },
+    removeItem: (key: string) => storage.delete(key),
+    setItem: (key: string, value: string) => storage.set(key, value),
+  };
+  Object.defineProperty(globalThis, "localStorage", {
+    configurable: true,
+    value: storageLike,
+  });
+  Object.defineProperty(globalThis.window, "localStorage", {
+    configurable: true,
+    value: storageLike,
+  });
 }

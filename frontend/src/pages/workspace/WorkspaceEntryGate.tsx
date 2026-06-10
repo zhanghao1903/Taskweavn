@@ -2,6 +2,7 @@ import { Clock, FolderOpen } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { Button, Panel, Text } from "../../shared/components";
+import { workspaceGitSelectionOptionsFromPreference } from "../../shared/workspace/workspaceGitPreference";
 import styles from "./WorkspaceEntryGate.module.css";
 
 type WorkspaceEntryBridge = PlatoElectronWorkspaceBridge;
@@ -62,7 +63,9 @@ export function WorkspaceEntryGate({ bridge }: WorkspaceEntryGateProps) {
       setState(unavailableState);
       return;
     }
-    await runSelection(() => workspaceBridge.chooseWorkspace());
+    await runSelection(() =>
+      workspaceBridge.chooseWorkspace(workspaceGitSelectionOptionsFromPreference()),
+    );
   }
 
   async function openRecentWorkspace(id: string) {
@@ -70,7 +73,9 @@ export function WorkspaceEntryGate({ bridge }: WorkspaceEntryGateProps) {
       setState(unavailableState);
       return;
     }
-    await runSelection(() => workspaceBridge.useWorkspace(id));
+    await runSelection(() =>
+      workspaceBridge.useWorkspace(id, workspaceGitSelectionOptionsFromPreference()),
+    );
   }
 
   async function runSelection(

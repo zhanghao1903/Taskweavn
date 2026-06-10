@@ -3,6 +3,7 @@ import type {
   AuditCompleteness,
   AuditFilterKind,
   AuditPageSnapshot,
+  AuditRecordKind,
   AuditVerdict,
 } from "../../shared/api/types";
 import type { AuditPageRuntimeState } from "./auditRuntimeEvents";
@@ -85,15 +86,9 @@ export function auditScopeLabel(
   snapshot: AuditPageSnapshot,
   uiText: UiTextCatalog = enUS,
 ): string {
-  if (snapshot.scope.kind === "task") {
-    return uiText.audit.labels.scope({ kind: "Task" });
-  }
-
-  if (snapshot.scope.kind === "session") {
-    return uiText.audit.labels.scope({ kind: "Session" });
-  }
-
-  return uiText.audit.labels.scope({ kind: snapshot.scope.kind });
+  return uiText.audit.labels.scope({
+    kind: auditScopeKindLabel(snapshot.scope.kind, uiText),
+  });
 }
 
 export function auditSubjectLabel(snapshot: AuditPageSnapshot): string {
@@ -106,22 +101,83 @@ export function auditScopeStatusText(
 ): string {
   if (snapshot.scope.kind === "task") {
     return uiText.audit.scopeStatus({
-      kind: "Task",
+      kind: auditScopeKindLabel(snapshot.scope.kind, uiText),
       status: snapshot.session.status,
     });
   }
 
   if (snapshot.scope.kind === "session") {
     return uiText.audit.scopeStatus({
-      kind: "Session",
+      kind: auditScopeKindLabel(snapshot.scope.kind, uiText),
       status: snapshot.session.status,
     });
   }
 
   return uiText.audit.scopeStatus({
-    kind: snapshot.scope.kind,
+    kind: auditScopeKindLabel(snapshot.scope.kind, uiText),
     status: snapshot.session.status,
   });
+}
+
+export function auditWorkflowLabel(
+  value: string | undefined,
+  uiText: UiTextCatalog = enUS,
+): string {
+  if (value === "Task authoring") {
+    return uiText.audit.labels.taskAuthoring;
+  }
+  if (value === "Task Planning & Execution") {
+    return uiText.audit.labels.taskPlanningExecution;
+  }
+  return value ?? uiText.audit.labels.auditWorkflow;
+}
+
+export function auditRecordKindLabel(
+  value: AuditRecordKind,
+  uiText: UiTextCatalog = enUS,
+): string {
+  return uiText.audit.recordKinds[value] ?? value.replaceAll("_", " ");
+}
+
+export function auditSourceLabel(
+  value: string,
+  uiText: UiTextCatalog = enUS,
+): string {
+  return uiText.audit.sourceLabels[value] ?? value;
+}
+
+export function auditActorLabel(
+  value: string,
+  uiText: UiTextCatalog = enUS,
+): string {
+  return uiText.audit.actors[value] ?? value;
+}
+
+export function auditFlagLabel(
+  value: string,
+  uiText: UiTextCatalog = enUS,
+): string {
+  return uiText.audit.flags[value] ?? value;
+}
+
+export function auditConfidenceLabel(
+  value: string,
+  uiText: UiTextCatalog = enUS,
+): string {
+  return uiText.audit.confidenceLevels[value] ?? value;
+}
+
+function auditScopeKindLabel(
+  value: string,
+  uiText: UiTextCatalog,
+): string {
+  if (value === "task") {
+    return uiText.audit.labels.task;
+  }
+  if (value === "session") {
+    return uiText.audit.labels.session;
+  }
+  return value;
 }
 
 export function auditBoundaryLabel(

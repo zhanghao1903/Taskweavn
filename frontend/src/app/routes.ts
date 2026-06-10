@@ -61,9 +61,11 @@ export function buildMainSessionRoute(params: {
 export function buildMainSessionFallbackRoute(params: {
   sessionId: SessionId;
   taskNodeId?: TaskNodeId;
+  workspaceId?: WorkspaceId;
 }): string {
   return withQuery(`/sessions/${segment(params.sessionId)}`, {
     taskNodeId: params.taskNodeId,
+    workspaceId: params.workspaceId,
   });
 }
 

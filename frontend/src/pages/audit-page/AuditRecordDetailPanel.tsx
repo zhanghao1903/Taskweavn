@@ -13,7 +13,9 @@ import type {
   WorkspaceId,
 } from "../../shared/api/types";
 import { cx } from "../../shared/utils/cx";
+import { useUiText } from "../../shared/ui-text";
 import { formatAuditTime } from "./auditPageFormat";
+import { auditRecordKindLabel, auditSourceLabel } from "./auditPageLabels";
 import styles from "./AuditPage.module.css";
 import { RecordFlags, StatusBadge } from "./AuditPageSections";
 
@@ -43,7 +45,8 @@ export function DetailPanel({
   const detailRef = useRef<HTMLElement>(null);
   const detailRegionLabelId = useId();
   const detailTitleId = useId();
-  const disclosureNotes = detailDisclosureNotes(record);
+  const uiText = useUiText();
+  const disclosureNotes = detailDisclosureNotes(record, uiText);
   const evidenceDetail = detailState.evidenceDetail ?? null;
   const logLinks = record.relatedLogs.length > 0 ? record.relatedLogs : relatedLogs;
 
@@ -60,13 +63,13 @@ export function DetailPanel({
       tabIndex={-1}
     >
       <span className={styles.srOnly} id={detailRegionLabelId}>
-        Audit record detail
+        {uiText.audit.detail.labels.auditRecordDetail}
       </span>
       <div className={styles.detailTopLine}>
         <StatusBadge value={record.verdict ?? "not_available"} />
         {onClose !== undefined && (
           <Button onClick={onClose} variant="secondary">
-            Back to list
+            {uiText.audit.detail.actions.backToList}
           </Button>
         )}
       </div>
@@ -75,37 +78,56 @@ export function DetailPanel({
       </h2>
       <p className={styles.detailBody}>{record.body}</p>
       {detailState.isLoading && (
-        <p className={styles.detailState}>Loading complete record detail.</p>
+        <p className={styles.detailState}>
+          {uiText.audit.detail.messages.loadingCompleteRecordDetail}
+        </p>
       )}
       {detailState.errorMessage !== null && detailState.errorMessage !== undefined && (
         <p className={cx(styles.detailState, styles.detailStateError)}>
-          Record detail could not be loaded: {detailState.errorMessage}
+          {uiText.audit.detail.messages.recordDetailLoadError({
+            message: detailState.errorMessage,
+          })}
         </p>
       )}
       <section className={styles.detailSection}>
-        <h3 className={styles.detailSectionTitle}>What happened</h3>
+        <h3 className={styles.detailSectionTitle}>
+          {uiText.audit.detail.labels.whatHappened}
+        </h3>
         <p className={styles.detailBody}>
-          {record.sourceLabel} recorded a {record.kind.replaceAll("_", " ")} event
-          at {formatAuditTime(record.occurredAt)}.
+          {uiText.audit.detail.messages.recordEventSummary({
+            kind: auditRecordKindLabel(record.kind, uiText),
+            source: auditSourceLabel(record.sourceLabel, uiText),
+            time: formatAuditTime(record.occurredAt),
+          })}
         </p>
       </section>
       <section className={styles.detailSection}>
-        <h3 className={styles.detailSectionTitle}>Why it matters</h3>
+        <h3 className={styles.detailSectionTitle}>
+          {uiText.audit.detail.labels.whyItMatters}
+        </h3>
         <p className={styles.detailBody}>{record.whyItMatters}</p>
       </section>
       <section className={styles.detailSection}>
-        <h3 className={styles.detailSectionTitle}>Evidence</h3>
+        <h3 className={styles.detailSectionTitle}>
+          {uiText.audit.labels.evidence}
+        </h3>
         {detailState.evidenceIsLoading === true && (
-          <p className={styles.detailState}>Loading evidence detail.</p>
+          <p className={styles.detailState}>
+            {uiText.audit.detail.messages.evidenceDetailLoading}
+          </p>
         )}
         {detailState.evidenceErrorMessage !== null &&
           detailState.evidenceErrorMessage !== undefined && (
             <p className={cx(styles.detailState, styles.detailStateError)}>
-              Evidence detail could not be loaded: {detailState.evidenceErrorMessage}
+              {uiText.audit.detail.messages.evidenceDetailLoadError({
+                message: detailState.evidenceErrorMessage,
+              })}
             </p>
           )}
         {record.evidence.length === 0 ? (
-          <p className={styles.detailBody}>No evidence is available for this record.</p>
+          <p className={styles.detailBody}>
+            {uiText.audit.detail.messages.noEvidenceForRecord}
+          </p>
         ) : (
           <ul className={styles.evidenceList}>
             {record.evidence.map((evidence) => (
@@ -118,20 +140,26 @@ export function DetailPanel({
       </section>
       <WorkspaceEvidenceLinks record={record} workspaceId={workspaceId} />
       <section className={styles.detailSection}>
-        <h3 className={styles.detailSectionTitle}>Disclosure</h3>
+        <h3 className={styles.detailSectionTitle}>
+          {uiText.audit.detail.labels.disclosure}
+        </h3>
         <RecordFlags record={record} />
         <dl className={styles.disclosureList}>
           <div>
-            <dt>Raw payload</dt>
+            <dt>{uiText.audit.detail.labels.rawPayload}</dt>
             <dd>
               {record.disclosure.rawPayloadAvailable
-                ? "Available by policy"
-                : "Hidden by default"}
+                ? uiText.audit.detail.messages.availableByPolicy
+                : uiText.audit.detail.messages.hiddenByDefault}
             </dd>
           </div>
           <div>
-            <dt>Evidence visibility</dt>
-            <dd>{record.flags.hidden ? "Limited" : "Visible"}</dd>
+            <dt>{uiText.audit.detail.labels.evidenceVisibility}</dt>
+            <dd>
+              {record.flags.hidden
+                ? uiText.audit.detail.messages.limited
+                : uiText.audit.detail.messages.visible}
+            </dd>
           </div>
           {disclosureNotes.map((note) => (
             <div key={note.label}>
@@ -146,20 +174,22 @@ export function DetailPanel({
         record={record}
       />
       <section className={styles.detailSection}>
-        <h3 className={styles.detailSectionTitle}>Reserved links</h3>
+        <h3 className={styles.detailSectionTitle}>
+          {uiText.audit.detail.labels.reservedLinks}
+        </h3>
         <div className={styles.reservedGrid}>
           <div className={styles.reservedCard}>
-            <strong>Effective configuration</strong>
+            <strong>{uiText.audit.detail.labels.effectiveConfiguration}</strong>
             <span>
               {effectiveConfig === null
-                ? "Configuration summary is not available."
+                ? uiText.audit.detail.messages.configurationSummaryUnavailable
                 : `${effectiveConfig.profileLabel}: ${effectiveConfig.summary}`}
             </span>
           </div>
           <div className={styles.reservedCard}>
-            <strong>Related logs</strong>
+            <strong>{uiText.audit.detail.labels.relatedLogs}</strong>
             {logLinks.length === 0 ? (
-              <span>No related log link is available yet.</span>
+              <span>{uiText.audit.detail.messages.noRelatedLogLink}</span>
             ) : (
               <ul className={styles.reservedList}>
                 {logLinks.map((log) => (
@@ -183,6 +213,8 @@ function WorkspaceEvidenceLinks({
   record: AuditRecordDetail;
   workspaceId?: WorkspaceId | null;
 }) {
+  const uiText = useUiText();
+
   if (!record.filePath) {
     return null;
   }
@@ -200,7 +232,9 @@ function WorkspaceEvidenceLinks({
 
   return (
     <section className={styles.detailSection}>
-      <h3 className={styles.detailSectionTitle}>Workspace evidence</h3>
+      <h3 className={styles.detailSectionTitle}>
+        {uiText.audit.detail.labels.workspaceEvidence}
+      </h3>
       <div className={styles.workspaceEvidenceActions}>
         <Button asChild size="sm" variant="ghost">
           <a
@@ -213,7 +247,7 @@ function WorkspaceEvidenceLinks({
               navigateApp(event.currentTarget.href.replace(globalThis.location.origin, ""));
             }}
           >
-            Open file
+            {uiText.audit.detail.actions.openFile}
           </a>
         </Button>
         <Button asChild size="sm" variant="ghost">
@@ -227,7 +261,7 @@ function WorkspaceEvidenceLinks({
               navigateApp(event.currentTarget.href.replace(globalThis.location.origin, ""));
             }}
           >
-            View diff
+            {uiText.audit.detail.actions.viewDiff}
           </a>
         </Button>
       </div>
@@ -290,6 +324,7 @@ function SanitizedEvidenceSection({
   evidenceDetail: EvidenceDetail | null;
   record: AuditRecordDetail;
 }) {
+  const uiText = useUiText();
   const hasRecordPayload = record.rawPayload !== null;
   const hasEvidencePayload =
     evidenceDetail?.sanitizedPayload !== null &&
@@ -310,36 +345,40 @@ function SanitizedEvidenceSection({
 
   return (
     <section className={styles.detailSection}>
-      <h3 className={styles.detailSectionTitle}>Sanitized evidence</h3>
+      <h3 className={styles.detailSectionTitle}>
+        {uiText.audit.detail.labels.sanitizedEvidence}
+      </h3>
       {!hasDisclosure ? (
         <p className={styles.detailBody}>
-          No sanitized payload is available for this record.
+          {uiText.audit.detail.messages.noSanitizedPayloadForRecord}
         </p>
       ) : (
         <div className={styles.sanitizedEvidenceStack}>
           <DisclosureCard
             disclosure={record.disclosure}
             payload={record.rawPayload}
-            title="Record payload"
+            title={uiText.audit.detail.labels.recordPayload}
           />
           {record.rawPayload !== null && (
             <SanitizedPayloadBlock
               payload={record.rawPayload}
-              title="Sanitized record payload"
+              title={uiText.audit.detail.labels.sanitizedRecordPayload}
             />
           )}
           {evidenceDetail !== null && (
             <DisclosureCard
               disclosure={evidenceDetail.disclosure}
               payload={evidenceDetail.sanitizedPayload}
-              title={`Evidence payload · ${evidenceDetail.label}`}
+              title={uiText.audit.detail.messages.evidencePayloadTitle({
+                label: evidenceDetail.label,
+              })}
             />
           )}
           {evidenceDetail?.sanitizedPayload !== null &&
             evidenceDetail?.sanitizedPayload !== undefined && (
               <SanitizedPayloadBlock
                 payload={evidenceDetail.sanitizedPayload}
-                title="Sanitized evidence payload"
+                title={uiText.audit.detail.labels.sanitizedEvidencePayload}
               />
             )}
         </div>
@@ -357,13 +396,14 @@ function DisclosureCard({
   payload: SanitizedRawPayload | null;
   title: string;
 }) {
-  const notes = disclosureNotes(disclosure);
+  const uiText = useUiText();
+  const notes = disclosureNotes(disclosure, uiText);
 
   return (
     <div className={styles.disclosureCard}>
       <div>
         <strong>{title}</strong>
-        <span>{disclosureStatusLabel(disclosure, payload)}</span>
+        <span>{disclosureStatusLabel(disclosure, payload, uiText)}</span>
       </div>
       {notes.length > 0 && (
         <dl className={styles.disclosureMiniList}>
@@ -408,19 +448,32 @@ function SanitizedPayloadBlock({
 
 function disclosureNotes(
   disclosure: AuditDisclosure,
+  uiText: ReturnType<typeof useUiText>,
 ): Array<{ label: string; value: string }> {
   const notes: Array<{ label: string; value: string }> = [];
   if (disclosure.hiddenReason !== null && disclosure.hiddenReason !== undefined) {
-    notes.push({ label: "Hidden reason", value: disclosure.hiddenReason });
+    notes.push({
+      label: uiText.audit.detail.labels.hiddenReason,
+      value: disclosure.hiddenReason,
+    });
   }
   if (disclosure.partialReason !== null && disclosure.partialReason !== undefined) {
-    notes.push({ label: "Partial reason", value: disclosure.partialReason });
+    notes.push({
+      label: uiText.audit.detail.labels.partialReason,
+      value: disclosure.partialReason,
+    });
   }
   if (disclosure.redactionReason !== null && disclosure.redactionReason !== undefined) {
-    notes.push({ label: "Redaction reason", value: disclosure.redactionReason });
+    notes.push({
+      label: uiText.audit.detail.labels.redactionReason,
+      value: disclosure.redactionReason,
+    });
   }
   if (disclosure.permissionReason !== null && disclosure.permissionReason !== undefined) {
-    notes.push({ label: "Permission reason", value: disclosure.permissionReason });
+    notes.push({
+      label: uiText.audit.detail.labels.permissionReason,
+      value: disclosure.permissionReason,
+    });
   }
   return notes;
 }
@@ -428,24 +481,26 @@ function disclosureNotes(
 function disclosureStatusLabel(
   disclosure: AuditDisclosure,
   payload: SanitizedRawPayload | null,
+  uiText: ReturnType<typeof useUiText>,
 ): string {
   if (payload !== null && disclosure.rawPayloadShown) {
-    return "Sanitized payload shown";
+    return uiText.audit.detail.messages.sanitizedPayloadShown;
   }
   if (disclosure.hiddenReason !== null && disclosure.hiddenReason !== undefined) {
-    return "Hidden by policy";
+    return uiText.audit.detail.messages.hiddenByPolicy;
   }
   if (disclosure.permissionReason !== null && disclosure.permissionReason !== undefined) {
-    return "Hidden by permission";
+    return uiText.audit.detail.messages.hiddenByPermission;
   }
   if (disclosure.rawPayloadAvailable) {
-    return "Payload available, not shown";
+    return uiText.audit.detail.messages.payloadAvailableNotShown;
   }
-  return "No payload available";
+  return uiText.audit.detail.messages.noPayloadAvailable;
 }
 
 function detailDisclosureNotes(
   record: AuditRecordDetail,
+  uiText: ReturnType<typeof useUiText>,
 ): Array<{ label: string; value: string }> {
-  return disclosureNotes(record.disclosure);
+  return disclosureNotes(record.disclosure, uiText);
 }

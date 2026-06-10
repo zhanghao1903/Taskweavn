@@ -67,6 +67,17 @@ try {
       rendererUrl,
       sidecarInfo: smokeFixture,
     });
+  } else if (options.kind === "workspace-git-init") {
+    const smokeFixture = seedWorkspaceGitInitWorkspace();
+    const rendererPort =
+      options.rendererPort ?? (await findAvailablePort("127.0.0.1"));
+    const rendererUrl = `http://127.0.0.1:${rendererPort}/`;
+    viteChild = startVite(rendererPort);
+    await waitForHttp(rendererUrl, 20_000, () => viteChild);
+    electronChild = startDevElectronWorkspaceGitInitSmoke({
+      rendererUrl,
+      sidecarInfo: smokeFixture,
+    });
   } else if (options.launcher) {
     const packageManifest = readPackageManifest(options.packageDir);
     const runtime = validateLauncherPackageManifest(packageManifest);
@@ -174,6 +185,10 @@ function parseArgs(args) {
       kind = "workspace-entry";
       continue;
     }
+    if (arg === "--workspace-git-init") {
+      kind = "workspace-git-init";
+      continue;
+    }
     throw new Error(`unknown option for electron:smoke: ${arg}`);
   }
 
@@ -191,6 +206,9 @@ function parseArgs(args) {
   }
   if (kind === "workspace-entry" && packaged) {
     throw new Error("--workspace-entry currently supports the Electron dev shell");
+  }
+  if (kind === "workspace-git-init" && packaged) {
+    throw new Error("--workspace-git-init currently supports the Electron dev shell");
   }
   if (packagedDefaultWorkspace && !launcher) {
     throw new Error("--packaged-default-workspace requires --launcher");
@@ -214,6 +232,7 @@ function printUsage() {
   npm run electron:smoke -- --launcher --first-run-configured
   npm run electron:smoke -- --packaged --startup-diagnostics
   npm run electron:smoke -- --workspace-entry
+  npm run electron:smoke -- --workspace-git-init
   npm run electron:smoke -- --renderer-port 5174
 
 Starts a seeded sidecar fixture, opens Electron in smoke mode, and verifies
@@ -228,6 +247,7 @@ Options:
   --first-run-unconfigured   Run Settings first-run setup smoke.
   --startup-diagnostics      Run packaged sidecar startup-failure diagnostics smoke.
   --workspace-entry          Run Workspace Picker -> selected workspace smoke.
+  --workspace-git-init       Run Settings preference -> Workspace Picker Git init smoke.
   --launcher                 Use the launcher-backed package directory.
   --packaged                 Launch the unsigned packaged app directory.
   --packaged-default-workspace
@@ -288,6 +308,35 @@ async function seedWorkspaceEntryWorkspace({ kind }) {
     userDataDir,
     workspaceDir,
     workspaceName,
+  };
+}
+
+function seedWorkspaceGitInitWorkspace() {
+  const userDataDir = path.join(runDir, "user-data-workspace-git-init");
+  const workspaceDir = path.join(runDir, "workspace-git-init-project");
+  mkdirSync(userDataDir, { recursive: true });
+  mkdirSync(workspaceDir, { recursive: true });
+  writeFileSync(
+    path.join(workspaceDir, "README.md"),
+    "# Workspace Git initialization smoke\n",
+    "utf8",
+  );
+  writeFileSync(
+    path.join(userDataDir, "workspace-entry.json"),
+    `${JSON.stringify(
+      {
+        currentPath: null,
+        recentPaths: [workspaceDir],
+      },
+      null,
+      2,
+    )}\n`,
+    "utf8",
+  );
+  return {
+    userDataDir,
+    workspaceDir,
+    workspaceName: path.basename(workspaceDir),
   };
 }
 
@@ -441,6 +490,33 @@ function startDevElectronWorkspaceEntrySmoke({ rendererUrl, sidecarInfo }) {
     PLATO_ELECTRON_SMOKE: "1",
     PLATO_ELECTRON_SMOKE_FIXTURE: JSON.stringify(sidecarInfo),
     PLATO_ELECTRON_SMOKE_KIND: "workspace-entry",
+    PLATO_ELECTRON_USER_DATA_DIR: sidecarInfo.userDataDir,
+  };
+  delete env.PLATO_ELECTRON_SIDECAR_BASE_URL;
+  delete env.PLATO_ELECTRON_WORKSPACE;
+
+  return spawn(electronBin, [path.join(frontendRoot, "electron", "main.mjs")], {
+    cwd: frontendRoot,
+    env,
+    stdio: "inherit",
+  });
+}
+
+function startDevElectronWorkspaceGitInitSmoke({ rendererUrl, sidecarInfo }) {
+  console.log(`[plato-electron-smoke] renderer=${rendererUrl}`);
+  console.log(`[plato-electron-smoke] workspace=${sidecarInfo.workspaceName}`);
+  console.log("[plato-electron-smoke] kind=workspace-git-init");
+  console.log("[plato-electron-smoke] mode=dev");
+
+  const env = {
+    ...process.env,
+    PLATO_ELECTRON_DISABLE_EVENTS: "1",
+    PLATO_ELECTRON_RENDERER_URL: rendererUrl,
+    PLATO_ELECTRON_REPO_ROOT: repoRoot,
+    PLATO_ELECTRON_REQUIRE_WORKSPACE_SELECTION: "1",
+    PLATO_ELECTRON_SMOKE: "1",
+    PLATO_ELECTRON_SMOKE_FIXTURE: JSON.stringify(sidecarInfo),
+    PLATO_ELECTRON_SMOKE_KIND: "workspace-git-init",
     PLATO_ELECTRON_USER_DATA_DIR: sidecarInfo.userDataDir,
   };
   delete env.PLATO_ELECTRON_SIDECAR_BASE_URL;

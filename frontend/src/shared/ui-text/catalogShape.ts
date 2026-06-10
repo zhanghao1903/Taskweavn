@@ -18,21 +18,94 @@ export type UiTextCatalog = {
       return: string;
       viewAudit: string;
     };
+    detail: {
+      actions: {
+        backToList: string;
+        openFile: string;
+        viewDiff: string;
+      };
+      labels: {
+        auditRecordDetail: string;
+        disclosure: string;
+        effectiveConfiguration: string;
+        evidenceVisibility: string;
+        hiddenReason: string;
+        partialReason: string;
+        permissionReason: string;
+        rawPayload: string;
+        recordPayload: string;
+        redactionReason: string;
+        relatedLogs: string;
+        reservedLinks: string;
+        sanitizedEvidence: string;
+        sanitizedEvidencePayload: string;
+        sanitizedRecordPayload: string;
+        whatHappened: string;
+        whyItMatters: string;
+        workspaceEvidence: string;
+      };
+      messages: {
+        availableByPolicy: string;
+        configurationSummaryUnavailable: string;
+        evidenceDetailLoadError: UiTextTemplate<{ message: string }>;
+        evidenceDetailLoading: string;
+        evidencePayloadTitle: UiTextTemplate<{ label: string }>;
+        hiddenByDefault: string;
+        hiddenByPermission: string;
+        hiddenByPolicy: string;
+        limited: string;
+        loadingCompleteRecordDetail: string;
+        noEvidenceForRecord: string;
+        noPayloadAvailable: string;
+        noRelatedLogLink: string;
+        noSanitizedPayloadForRecord: string;
+        payloadAvailableNotShown: string;
+        recordDetailLoadError: UiTextTemplate<{ message: string }>;
+        recordEventSummary: UiTextTemplate<{
+          kind: string;
+          source: string;
+          time: string;
+        }>;
+        sanitizedPayloadShown: string;
+        visible: string;
+      };
+    };
     empty: {
       noEvidence: string;
     };
     labels: {
       audit: string;
       auditEvidenceWorkspace: string;
+      auditOverview: string;
+      auditRecordFilters: string;
+      auditRecords: string;
+      auditVerdictNotice: string;
       auditWorkflow: string;
+      code: string;
+      cursor: string;
+      confidence: UiTextTemplate<{ value: string }>;
+      evidenceRefCount: UiTextTemplate<{ count: number }>;
+      evidenceTimeline: string;
+      filterCountsHelp: string;
       evidence: string;
       filter: string;
+      keyIssue: string;
       noMutations: string;
       project: string;
+      productSubtitle: string;
       readOnly: string;
+      recordCount: UiTextTemplate<{ count: number }>;
+      recordFilters: string;
+      resyncSuggested: string;
+      retryable: string;
       scope: UiTextTemplate<{ kind: string }>;
       sessionName: UiTextTemplate<{ name: string }>;
+      session: string;
+      task: string;
+      taskAuthoring: string;
+      taskPlanningExecution: string;
       trustPlane: string;
+      visibleRecords: string;
     };
     boundary: Record<string, string>;
     completeness: Record<AuditCompleteness, string>;
@@ -46,6 +119,9 @@ export type UiTextCatalog = {
       staleTitle: string;
     };
     messages: {
+      auditRecordEmptyBody: string;
+      auditRecordEmptyTitle: string;
+      evidenceTimelineHelp: string;
       loadingAudit: string;
       permissionLimited: string;
       readOnlyTrustPlane: string;
@@ -53,6 +129,11 @@ export type UiTextCatalog = {
       unavailable: string;
     };
     scopeStatus: UiTextTemplate<{ kind: string; status: string }>;
+    actors: Record<string, string>;
+    confidenceLevels: Record<string, string>;
+    flags: Record<string, string>;
+    recordKinds: Record<string, string>;
+    sourceLabels: Record<string, string>;
     verdict: Record<AuditVerdict, string>;
     verdictNotice: Partial<Record<AuditVerdict, string>>;
   };
@@ -204,6 +285,9 @@ export type UiTextCatalog = {
       bundle: string;
       defaultProfile: string;
       diagnostics: string;
+      gitAvailability: string;
+      initializeGitForOpenedWorkspaces: string;
+      interfaceLanguage: string;
       logging: string;
       loggingProfile: string;
       model: string;
@@ -221,6 +305,9 @@ export type UiTextCatalog = {
       editable: string;
       firstRun: string;
       firstRunReady: string;
+      gitAvailable: string;
+      gitFailed: string;
+      gitMissing: string;
       localSetup: string;
       missing: string;
       missingEnvironmentVariables: string;
@@ -238,6 +325,7 @@ export type UiTextCatalog = {
       settingsUnavailable: string;
       sidecarRequired: string;
       warnings: string;
+      workspaceGit: string;
       zipPath: string;
     };
     messages: {
@@ -245,8 +333,13 @@ export type UiTextCatalog = {
       apiKeyRequired: UiTextTemplate<{ hint: string }>;
       checkingReadiness: string;
       checkingSidecarReadiness: string;
+      checkingGitAvailability: string;
       diagnosticExportFailed: string;
       diagnosticExportHelp: string;
+      gitAvailable: UiTextTemplate<{ version: string }>;
+      gitFailedHelp: string;
+      gitMissingHelp: string;
+      initializeGitForOpenedWorkspacesHelp: string;
       loadingSettings: string;
       loadingSettingsHelp: string;
       localSetupReadyWithWarnings: string;
@@ -260,7 +353,9 @@ export type UiTextCatalog = {
       settingsDescription: string;
       settingsUnavailableHelp: string;
       setupRequiredBody: string;
+      workspaceGitDesktopUnavailable: string;
     };
+    localeOptions: Record<UiLocale, string>;
     recovery: Record<ProductRecoveryAction, string>;
   };
   workspace: {

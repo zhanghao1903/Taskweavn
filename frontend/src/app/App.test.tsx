@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { App } from "./App";
 import { AppErrorBoundary } from "./AppErrorBoundary";
@@ -30,10 +30,16 @@ import {
   getMainPageMockSnapshot,
   listMainPageStateOptions,
 } from "../pages/main-page/mockPlatoApi";
+import { writeUiLocalePreference } from "../shared/ui-text";
 
 describe("App", () => {
+  beforeEach(() => {
+    installTestLocalStorage();
+  });
+
   afterEach(() => {
     globalThis.history.pushState(null, "", "/");
+    globalThis.localStorage?.clear();
   });
 
   it("renders the Plato main page shell", async () => {
@@ -54,12 +60,26 @@ describe("App", () => {
     expect(screen.getByText("Requirement analysis")).toBeInTheDocument();
   });
 
+  it("uses the persisted UI language preference on startup", async () => {
+    writeUiLocalePreference("zh-CN");
+
+    render(
+      <AppProviders>
+        <App />
+      </AppProviders>,
+    );
+
+    expect(await screen.findByLabelText("任务工作区")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "设置" })).toBeInTheDocument();
+  });
+
   it("renders Workspace Picker before Settings or Main Page when workspace entry is required", async () => {
     const readinessApi = {
       getSettingsReadiness: vi.fn(async () => settingsReadinessResponse()),
     };
     const workspaceBridge = {
       chooseWorkspace: vi.fn(),
+      getGitStatus: vi.fn(),
       getState: vi.fn(async () => ({
         currentWorkspace: null,
         error: null,
@@ -1136,4 +1156,21 @@ function resyncRequiredEvent(sessionId: string): UiEvent {
     },
     createdAt: "2026-05-17T10:22:00+08:00",
   };
+}
+
+function installTestLocalStorage(): void {
+  const storage = new Map<string, string>();
+  Object.defineProperty(globalThis, "localStorage", {
+    configurable: true,
+    value: {
+      clear: () => storage.clear(),
+      getItem: (key: string) => storage.get(key) ?? null,
+      key: (index: number) => Array.from(storage.keys())[index] ?? null,
+      get length() {
+        return storage.size;
+      },
+      removeItem: (key: string) => storage.delete(key),
+      setItem: (key: string, value: string) => storage.set(key, value),
+    },
+  });
 }

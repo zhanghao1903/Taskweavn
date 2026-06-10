@@ -1,4 +1,6 @@
 import { setTimeout as delay } from "node:timers/promises";
+import { existsSync, readFileSync } from "node:fs";
+import path from "node:path";
 
 const DEFAULT_TIMEOUT_MS = 15_000;
 
@@ -8,6 +10,12 @@ export async function runElectronSmoke({
   kind = "configured",
   window,
 }) {
+  if (kind === "workspace-git-init") {
+    validateWorkspaceGitInitFixture(fixture);
+    await smokeWorkspaceGitInit(window, fixture);
+    return;
+  }
+
   validateFixture(fixture);
 
   if (kind === "first-run") {
@@ -56,6 +64,49 @@ async function smokeWorkspaceEntry(window, fixture) {
     label: "Main Page after workspace selection",
     timeoutMs: 30_000,
   });
+  await assertBodyDoesNotContain(window, fixture.workspaceDir, "workspace root");
+}
+
+async function smokeWorkspaceGitInit(window, fixture) {
+  await waitForText(window, "Open a workspace", {
+    label: "Workspace Picker heading",
+  });
+  await waitForText(window, fixture.workspaceName, {
+    label: "Workspace Picker recent workspace",
+  });
+  await evaluate(
+    window,
+    "localStorage.setItem('plato.workspaceGit.initializeOnOpen', '1')",
+  );
+  await clickByText(window, "button", fixture.workspaceName);
+  await waitForText(window, "Starting the local Python sidecar.", {
+    label: "Workspace Git init sidecar startup",
+    timeoutMs: 20_000,
+  });
+  await waitForFile(
+    path.join(fixture.workspaceDir, ".git", "info", "exclude"),
+    {
+      label: "Git exclude after workspace initialization",
+      timeoutMs: 10_000,
+    },
+  );
+
+  const exclude = readFileSync(
+    path.join(fixture.workspaceDir, ".git", "info", "exclude"),
+    "utf8",
+  );
+  if (!exclude.split(/\r?\n/u).map((line) => line.trim()).includes(".plato/")) {
+    throw new Error("Workspace Git init did not add .plato/ to .git/info/exclude");
+  }
+
+  const gitignorePath = path.join(fixture.workspaceDir, ".gitignore");
+  if (existsSync(gitignorePath)) {
+    const gitignore = readFileSync(gitignorePath, "utf8");
+    if (gitignore.includes(".plato")) {
+      throw new Error("Workspace Git init wrote .plato to project .gitignore");
+    }
+  }
+
   await assertBodyDoesNotContain(window, fixture.workspaceDir, "workspace root");
 }
 
@@ -339,6 +390,17 @@ async function waitForText(window, text, { label, timeoutMs = DEFAULT_TIMEOUT_MS
   );
 }
 
+async function waitForFile(filePath, { label, timeoutMs = DEFAULT_TIMEOUT_MS }) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (existsSync(filePath)) {
+      return;
+    }
+    await delay(100);
+  }
+  throw new Error(`Timed out waiting for ${label}: ${filePath}`);
+}
+
 async function waitForAccessibleText(
   window,
   text,
@@ -552,6 +614,16 @@ function validateFixture(fixture) {
   const missing = required.filter((key) => !fixture[key]);
   if (missing.length > 0) {
     throw new Error(`Electron smoke fixture is missing: ${missing.join(", ")}`);
+  }
+}
+
+function validateWorkspaceGitInitFixture(fixture) {
+  const required = ["workspaceDir", "workspaceName"];
+  const missing = required.filter((key) => !fixture[key]);
+  if (missing.length > 0) {
+    throw new Error(
+      `Electron workspace Git smoke fixture is missing: ${missing.join(", ")}`,
+    );
   }
 }
 

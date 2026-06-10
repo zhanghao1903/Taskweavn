@@ -192,11 +192,13 @@ export type MainPageController = {
 export type UseMainPageControllerOptions = {
   adapter: MainPageAdapter;
   initialStateId: MainPageStateId;
+  initialTaskNodeId?: TaskNodeId | null;
 };
 
 export function useMainPageController({
   adapter,
   initialStateId,
+  initialTaskNodeId = null,
 }: UseMainPageControllerOptions): MainPageController {
   const [stateId, setStateId] = useState<MainPageStateId>(initialStateId);
   const [selectedTaskNodeId, setSelectedTaskNodeId] =
@@ -269,6 +271,7 @@ export function useMainPageController({
   });
   const snapshotData = snapshotQuery.data;
   const snapshotDataRef = useRef(snapshotData);
+  const initialTaskNodeIdRef = useRef<TaskNodeId | null>(initialTaskNodeId);
   const lastEventCursorRef = useRef<string | null>(null);
   const lastResyncEventKeyRef = useRef<string | null>(null);
   snapshotDataRef.current = snapshotData;
@@ -913,7 +916,16 @@ export function useMainPageController({
       return;
     }
 
-    setSelectedTaskNodeId(currentSnapshot.metadata.initialSelectedTaskNodeId);
+    const routeTaskNodeId = initialTaskNodeIdRef.current;
+    const nextSelectedTaskNodeId =
+      routeTaskNodeId !== null &&
+      currentSnapshot.snapshot.taskTree?.nodes.some(
+        (node) => node.id === routeTaskNodeId,
+      )
+        ? routeTaskNodeId
+        : currentSnapshot.metadata.initialSelectedTaskNodeId;
+    initialTaskNodeIdRef.current = null;
+    setSelectedTaskNodeId(nextSelectedTaskNodeId);
     setSelectionTarget("auto");
     setDetailOverride("auto");
     setAuthoringAskError(null);

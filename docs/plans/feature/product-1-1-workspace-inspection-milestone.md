@@ -55,6 +55,8 @@ In scope:
 - workspace-scoped inspection APIs under the accepted multi-workspace route
   model;
 - safe git status and diff read model;
+- optional desktop Git initialization readiness as a follow-up to reduce
+  `not_git` friction for new plain-folder workspaces;
 - text file content reads by bounded line range;
 - large file, binary file, missing file, and non-git workspace fallbacks;
 - path normalization and `.plato` protection;
@@ -286,6 +288,33 @@ Acceptance:
   workspace inspection in fast non-GUI regression tests;
 - packaged smoke can run the same path once release readiness needs it.
 
+### WIP-5. Desktop Git Initialization Preference
+
+Status: implemented.
+
+Related plan:
+[Workspace Git Initialization On Open](workspace-git-initialization-on-open.md).
+
+Deliver:
+
+- Settings Git availability status;
+- Settings checkbox for "Initialize Git for opened workspaces";
+- Electron bridge option for workspace open/switch;
+- Electron main Git preparation before sidecar startup;
+- `.plato/` written to `.git/info/exclude` instead of project `.gitignore`;
+- focused Electron and frontend tests.
+
+Acceptance:
+
+- Git-unavailable environments show a safe unavailable state and disable the
+  checkbox;
+- option off preserves current `not_git` behavior;
+- option on initializes plain folders and makes `.plato/` locally excluded;
+- existing Git repositories are not reinitialized and do not duplicate the
+  exclude entry.
+- repeatable dev-shell smoke is available through
+  `npm run electron:smoke:workspace-git`.
+
 ## 9. Test Plan
 
 Backend:
@@ -345,6 +374,9 @@ Remaining follow-ups after acceptance:
    response unless a concrete UI or diagnostic need appears.
 2. Live inspection is captured only through explicit evidence capture requests.
    Opening a viewer route does not create durable evidence.
+3. Desktop Git initialization preference is implemented for Electron dev shell.
+   Packaged/installer smoke can reuse the same path once release readiness
+   needs it.
 
 ## 11. Acceptance Criteria
 

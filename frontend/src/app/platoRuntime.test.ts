@@ -48,6 +48,7 @@ describe("Plato runtime wiring", () => {
   it("resolves Electron workspace entry runtime when selection is required", () => {
     const bridge = {
       chooseWorkspace: vi.fn(),
+      getGitStatus: vi.fn(),
       getState: vi.fn(),
       useWorkspace: vi.fn(),
     };
@@ -97,6 +98,24 @@ describe("Plato runtime wiring", () => {
 
     expect(adapter).toBeDefined();
     expect(adapter?.appendSessionInput).toBeTypeOf("function");
+  });
+
+  it("lets Main Page routes override the HTTP session and workspace", () => {
+    const adapter = createMainPageAdapterFromRuntimeEnv(
+      {
+        VITE_PLATO_API_BASE_URL: "https://plato.example",
+        VITE_PLATO_API_MODE: "http",
+        VITE_PLATO_SESSION_ID: "session-env",
+      },
+      {
+        sessionId: "session-route",
+        workspaceId: "workspace-route",
+      },
+    );
+
+    expect(adapter).toBeDefined();
+    expect(adapter?.sessionId).toBe("session-route");
+    expect(adapter?.workspaceId).toBe("workspace-route");
   });
 
   it("creates a mock Audit API by default", async () => {

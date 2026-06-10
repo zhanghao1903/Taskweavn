@@ -57,6 +57,21 @@ describe("useMainPageController", () => {
     );
   });
 
+  it("uses a route task target once when the initial snapshot contains it", async () => {
+    const { result } = renderMainPageController({
+      initialStateId: "s3-draft-ready",
+      initialTaskNodeId: "task-visual-direction",
+    });
+
+    await waitFor(() => {
+      expect(result.current.snapshotData?.metadata.id).toBe("s3-draft-ready");
+    });
+
+    await waitFor(() => {
+      expect(result.current.selectedTaskNodeId).toBe("task-visual-direction");
+    });
+  });
+
   it("resets local coordination state when switching fixture states", async () => {
     const { result } = renderMainPageController({
       initialStateId: "s3-draft-ready",
@@ -898,15 +913,18 @@ describe("useMainPageController", () => {
 function renderMainPageController({
   adapter = testAdapter(),
   initialStateId = "s3-draft-ready",
+  initialTaskNodeId = null,
 }: {
   adapter?: MainPageAdapter;
   initialStateId?: MainPageStateId;
+  initialTaskNodeId?: string | null;
 }) {
   return renderHook(
     () =>
       useMainPageController({
         adapter,
         initialStateId,
+        initialTaskNodeId,
       }),
     {
       wrapper: ({ children }: { children: ReactNode }) => (

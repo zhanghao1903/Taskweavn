@@ -1,9 +1,9 @@
 # Workspace Entry Contract
 
-> Status: accepted for W1 and W2
-> Last Updated: 2026-06-08
+> Status: accepted for W1 and W2; implemented W3 Git initialization extension
+> Last Updated: 2026-06-10
 > Related Plan: [Workspace Entry And Root Semantics](../plans/feature/workspace-entry-root-semantics.md)
-> Scope: Electron desktop workspace selection, safe renderer bridge, runtime handoff, and W2 workspace-root execution semantics.
+> Scope: Electron desktop workspace selection, safe renderer bridge, runtime handoff, W2 workspace-root execution semantics, and draft W3 Git initialization preference.
 
 ---
 
@@ -27,6 +27,7 @@ project cwd; session-private metadata lives under `.plato`.
 | Python sidecar lifecycle | Electron main | Start or restart the sidecar only after a workspace is selected. |
 | Renderer runtime config | Electron preload | Expose safe workspace summaries and sidecar runtime facts. |
 | HTTP sidecar API | Python sidecar | No workspace selection HTTP API in W1. |
+| Optional Git initialization | Electron main | W3: initialize Git only when the Settings desktop preference is enabled. |
 
 ---
 
@@ -53,14 +54,34 @@ type WorkspaceEntryState = {
 type WorkspaceSelectionResult =
   | { status: "cancelled"; state: WorkspaceEntryState }
   | { status: "ready"; state: WorkspaceEntryState };
+
+type WorkspaceGitStatus = {
+  status: "available" | "missing" | "failed";
+  version?: string;
+};
+
+type WorkspaceSelectionOptions = {
+  initializeGitOnOpen?: boolean;
+};
 ```
 
 Required methods:
 
 ```ts
 window.platoElectronWorkspace.getState(): Promise<WorkspaceEntryState>
-window.platoElectronWorkspace.chooseWorkspace(): Promise<WorkspaceSelectionResult>
-window.platoElectronWorkspace.useWorkspace(id: string): Promise<WorkspaceSelectionResult>
+window.platoElectronWorkspace.chooseWorkspace(
+  options?: WorkspaceSelectionOptions,
+): Promise<WorkspaceSelectionResult>
+window.platoElectronWorkspace.useWorkspace(
+  id: string,
+  options?: WorkspaceSelectionOptions,
+): Promise<WorkspaceSelectionResult>
+```
+
+Draft W3 method:
+
+```ts
+window.platoElectronWorkspace.getGitStatus(): Promise<WorkspaceGitStatus>
 ```
 
 Optional future method:
@@ -123,6 +144,10 @@ Electron starts
      else:
        load renderer in workspace picker mode
   -> after selected workspace is known:
+       if initializeGitOnOpen option is true:
+         verify Git availability
+         initialize Git if the folder is not a repository
+         ensure .plato/ is present in .git/info/exclude
        start Python sidecar with --workspace <selected path>
        inject HTTP runtime config
 ```
@@ -161,3 +186,48 @@ Normal tool protection includes filesystem tool path rejection, hidden root
 directory listing for `.plato`, and direct `.plato` shell command/cwd
 rejection. This is not a full OS sandbox; shell hardening remains future
 defense-in-depth work.
+
+---
+
+## 8. W3 Git Initialization Boundary
+
+Related plan: [Workspace Git Initialization On Open](../plans/feature/workspace-git-initialization-on-open.md).
+
+W3 adds an explicit Settings-controlled desktop preference:
+
+```text
+Initialize Git for opened workspaces
+```
+
+Rules:
+
+- The preference is off by default.
+- Renderer stores only the boolean preference and passes it to
+  `chooseWorkspace` / `useWorkspace`.
+- Electron main owns raw workspace paths and Git preparation.
+- Python sidecar inspection APIs remain read-only and never auto-initialize
+  Git in response to status/diff/file viewer requests.
+- Git commands must use fixed executable calls and argument arrays, not shell
+  string concatenation.
+- If Git is unavailable, Settings disables the preference and shows a safe
+  status.
+- If Git preparation fails while the preference is enabled, workspace selection
+  returns a safe failed state and the sidecar is not started for that selection.
+
+Preparation flow:
+
+```text
+select workspace path
+  -> if initializeGitOnOpen=false:
+       remember workspace and start sidecar
+  -> run git --version
+  -> run git -C <workspace> rev-parse --is-inside-work-tree
+  -> if not a repository:
+       run git -C <workspace> init
+  -> run git -C <workspace> rev-parse --git-path info/exclude
+  -> append .plato/ when absent
+  -> remember workspace and start sidecar
+```
+
+The `.plato/` exclusion must be written to `.git/info/exclude`, not to
+`.gitignore`, so Plato local metadata does not modify project-tracked files.

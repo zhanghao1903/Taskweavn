@@ -10,6 +10,11 @@ import {
   startupDiagnosticsDataUrl,
 } from "./startupDiagnostics.mjs";
 import {
+  getWorkspaceGitStatus,
+  prepareWorkspaceGit,
+  safeWorkspaceGitPreparationMessage,
+} from "./workspaceGit.mjs";
+import {
   buildWorkspaceEntryState,
   findWorkspacePathById,
   readWorkspaceEntryStore,
@@ -275,13 +280,15 @@ async function showWorkspaceEntry() {
 }
 
 function registerWorkspaceEntryIpc() {
+  ipcMain.handle("plato:workspace:git-status", async () => getWorkspaceGitStatus());
+
   ipcMain.handle("plato:workspace:get-state", async () =>
     workspaceEntryState(
       currentWorkspaceRoot === null ? "needs_selection" : "ready",
     )
   );
 
-  ipcMain.handle("plato:workspace:choose", async () => {
+  ipcMain.handle("plato:workspace:choose", async (_event, options) => {
     const result = await dialog.showOpenDialog(mainWindow, {
       buttonLabel: "Open Workspace",
       message: "Choose the folder Plato should use as its workspace.",
@@ -295,10 +302,13 @@ function registerWorkspaceEntryIpc() {
       };
     }
 
-    return await selectWorkspace(result.filePaths[0]);
+    return await selectWorkspace(
+      result.filePaths[0],
+      normalizeWorkspaceSelectionOptions(options),
+    );
   });
 
-  ipcMain.handle("plato:workspace:use", async (_event, id) => {
+  ipcMain.handle("plato:workspace:use", async (_event, id, options) => {
     if (typeof id !== "string" || id.length === 0) {
       return {
         state: await workspaceEntryState("failed", "Unknown workspace."),
@@ -312,11 +322,28 @@ function registerWorkspaceEntryIpc() {
         status: "cancelled",
       };
     }
-    return await selectWorkspace(workspacePath);
+    return await selectWorkspace(
+      workspacePath,
+      normalizeWorkspaceSelectionOptions(options),
+    );
   });
 }
 
-async function selectWorkspace(workspacePath) {
+async function selectWorkspace(workspacePath, options = {}) {
+  if (options.initializeGitOnOpen === true) {
+    try {
+      await prepareWorkspaceGit(workspacePath);
+    } catch (error) {
+      return {
+        state: await workspaceEntryState(
+          "failed",
+          safeWorkspaceGitPreparationMessage(error),
+        ),
+        status: "cancelled",
+      };
+    }
+  }
+
   currentWorkspaceRoot = workspacePath;
   await rememberWorkspace(app.getPath("userData"), workspacePath);
   void startSidecarForWorkspace(workspacePath).catch((error) => {
@@ -335,6 +362,15 @@ async function selectWorkspace(workspacePath) {
   return {
     state: await workspaceEntryState("starting"),
     status: "ready",
+  };
+}
+
+function normalizeWorkspaceSelectionOptions(options) {
+  return {
+    initializeGitOnOpen:
+      typeof options === "object" &&
+      options !== null &&
+      options.initializeGitOnOpen === true,
   };
 }
 

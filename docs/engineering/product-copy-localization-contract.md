@@ -210,9 +210,12 @@ The first implementation slice should add:
 - catalog parity tests;
 - a narrow Main Page migration.
 
+The Settings language selector follow-up may persist a locale preference as a
+local renderer preference before a centralized settings backend exists. It must
+persist only the locale code, never translated text or user/generated content.
+
 It should not add:
 
-- full Settings language selector;
 - backend localization;
 - generated task translation;
 - LLM prompt translation;

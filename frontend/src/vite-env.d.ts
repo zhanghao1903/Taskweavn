@@ -51,10 +51,25 @@ type PlatoWorkspaceSelectionResult =
       readonly status: "ready";
     };
 
+type PlatoWorkspaceGitStatus = {
+  readonly status: "available" | "missing" | "failed";
+  readonly version?: string;
+};
+
+type PlatoWorkspaceSelectionOptions = {
+  readonly initializeGitOnOpen?: boolean;
+};
+
 type PlatoElectronWorkspaceBridge = {
-  readonly chooseWorkspace: () => Promise<PlatoWorkspaceSelectionResult>;
+  readonly chooseWorkspace: (
+    options?: PlatoWorkspaceSelectionOptions,
+  ) => Promise<PlatoWorkspaceSelectionResult>;
+  readonly getGitStatus: () => Promise<PlatoWorkspaceGitStatus>;
   readonly getState: () => Promise<PlatoWorkspaceEntryState>;
-  readonly useWorkspace: (id: string) => Promise<PlatoWorkspaceSelectionResult>;
+  readonly useWorkspace: (
+    id: string,
+    options?: PlatoWorkspaceSelectionOptions,
+  ) => Promise<PlatoWorkspaceSelectionResult>;
 };
 
 interface Window {

@@ -17,6 +17,7 @@ import type {
   QueryResponse,
   UiEvent,
 } from "../../shared/api/types";
+import { UiTextProvider, type UiLocale } from "../../shared/ui-text";
 
 describe("AuditPageRoute", () => {
   afterEach(() => {
@@ -46,7 +47,7 @@ describe("AuditPageRoute", () => {
   it("parses task audit routes with selected record detail", () => {
     const route = parseAuditLocation(
       "/sessions/session-website-plan/tasks/task-implementation/audit",
-      "?entry=from_task&filter=actions&recordId=record-action-1",
+      "?entry=from_task&filter=actions&recordId=record-action-1&returnFocus=task&returnSessionId=session-return&returnTaskNodeId=task-return&workspaceId=workspace-return",
     );
 
     expect(route).toEqual({
@@ -59,7 +60,11 @@ describe("AuditPageRoute", () => {
         sessionId: "session-website-plan",
         taskNodeId: "task-implementation",
       },
+      returnFocus: "task",
+      returnSessionId: "session-return",
+      returnTaskNodeId: "task-return",
       routeKind: "task",
+      workspaceId: "workspace-return",
     });
   });
 
@@ -81,6 +86,29 @@ describe("AuditPageRoute", () => {
     expect(screen.getAllByText("Audit records ready").length).toBeGreaterThan(0);
     expect(screen.getByLabelText("Audit records")).toBeInTheDocument();
     expect(screen.getByText("Action completed")).toBeInTheDocument();
+  });
+
+  it("renders Audit shell system text in zh-CN", async () => {
+    renderWithQueryClient(
+      <AuditPageRoute
+        api={createAuditMockApi("a3-records-ready")}
+        location={{
+          pathname: "/sessions/session-website-plan/tasks/task-implementation/audit",
+          search: "",
+        }}
+      />,
+      { locale: "zh-CN" },
+    );
+
+    expect(await screen.findByRole("heading", { name: "审计" })).toBeInTheDocument();
+    expect(screen.getByText("审计概览")).toBeInTheDocument();
+    expect(screen.getByText("记录筛选")).toBeInTheDocument();
+    expect(screen.getByText("证据时间线")).toBeInTheDocument();
+    expect(screen.getAllByText("可见记录").length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/置信度：/).length).toBeGreaterThan(0);
+    expect(document.body).not.toHaveTextContent("Audit Overview");
+    expect(document.body).not.toHaveTextContent("Record Filters");
+    expect(document.body).not.toHaveTextContent("visible records");
   });
 
   it("passes route request fields to the audit API", async () => {
@@ -312,6 +340,34 @@ describe("AuditPageRoute", () => {
       recordId: "record-action-1",
       sessionId: "session-website-plan",
     });
+  });
+
+  it("preserves Audit return query when selecting a record", async () => {
+    const user = userEvent.setup();
+
+    globalThis.history.pushState(
+      null,
+      "",
+      "/sessions/session-website-plan/tasks/task-implementation/audit?entry=from_task&returnFocus=task&returnSessionId=session-return&returnTaskNodeId=task-return&workspaceId=workspace-return",
+    );
+    renderWithQueryClient(<AuditPageRoute api={createAuditMockApi("a3-records-ready")} />);
+
+    await user.click(
+      await screen.findByRole("button", { name: "Audit record Action completed" }),
+    );
+
+    await waitFor(() => {
+      expect(globalThis.location.search).toBe(
+        "?entry=from_task&filter=all&recordId=record-action-1&returnFocus=task&returnSessionId=session-return&returnTaskNodeId=task-return&workspaceId=workspace-return",
+      );
+    });
+
+    await user.click(screen.getByRole("button", { name: "Return" }));
+
+    expect(globalThis.location.pathname).toBe("/sessions/session-return");
+    expect(globalThis.location.search).toBe(
+      "?taskNodeId=task-return&workspaceId=workspace-return",
+    );
   });
 
   it("requests and renders sanitized record and evidence payload disclosure", async () => {
@@ -946,7 +1002,10 @@ describe("AuditPageRoute", () => {
   });
 });
 
-function renderWithQueryClient(children: ReactNode) {
+function renderWithQueryClient(
+  children: ReactNode,
+  options: { locale?: UiLocale } = {},
+) {
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: {
@@ -956,7 +1015,9 @@ function renderWithQueryClient(children: ReactNode) {
   });
 
   return render(
-    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>,
+    <UiTextProvider locale={options.locale ?? "en-US"}>
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    </UiTextProvider>,
   );
 }
 

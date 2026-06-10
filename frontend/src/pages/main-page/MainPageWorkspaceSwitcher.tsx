@@ -3,6 +3,7 @@ import { useEffect, useState, type ReactNode } from "react";
 
 import { Text } from "../../shared/components";
 import { useUiText, type UiTextCatalog } from "../../shared/ui-text";
+import { workspaceGitSelectionOptionsFromPreference } from "../../shared/workspace/workspaceGitPreference";
 import styles from "./MainPage.module.css";
 
 export type MainPageWorkspaceRuntime = {
@@ -59,11 +60,15 @@ export function MainPageWorkspaceSwitcher({
   }, [bridge, uiText]);
 
   async function chooseWorkspace() {
-    await runWorkspaceAction(() => bridge?.chooseWorkspace());
+    await runWorkspaceAction(() =>
+      bridge?.chooseWorkspace(workspaceGitSelectionOptionsFromPreference()),
+    );
   }
 
   async function switchWorkspace(id: string) {
-    await runWorkspaceAction(() => bridge?.useWorkspace(id));
+    await runWorkspaceAction(() =>
+      bridge?.useWorkspace(id, workspaceGitSelectionOptionsFromPreference()),
+    );
   }
 
   async function runWorkspaceAction(
@@ -106,9 +111,6 @@ export function MainPageWorkspaceSwitcher({
           <Folder className={styles.workspaceSwitcherIcon} size={18} aria-hidden="true" />
           <div className={styles.workspaceTreeCurrentLabel}>
             <span>
-              <Text as="span" className={styles.workspaceSwitcherEyebrow}>
-                {uiText.workspace.labels.workspace}
-              </Text>
               <strong>
                 {currentWorkspace?.name ?? uiText.workspace.labels.workspace}
               </strong>

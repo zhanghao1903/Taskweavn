@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiClientError } from "../../shared/api/client";
 import type {
@@ -12,12 +12,22 @@ import type {
   SettingsReadinessReport,
 } from "../../shared/api/platoApi";
 import type { ApiError, QueryResponse } from "../../shared/api/types";
-import { UiTextProvider, type UiLocale } from "../../shared/ui-text";
+import {
+  UI_LOCALE_PREFERENCE_STORAGE_KEY,
+  UiTextProvider,
+  type UiLocale,
+} from "../../shared/ui-text";
+import { WORKSPACE_GIT_INITIALIZE_ON_OPEN_STORAGE_KEY as WORKSPACE_GIT_STORAGE_KEY } from "../../shared/workspace/workspaceGitPreference";
 import { SettingsRoute, type SettingsRouteApi } from "./SettingsRoute";
 
 describe("SettingsRoute", () => {
+  beforeEach(() => {
+    installTestLocalStorage();
+  });
+
   afterEach(() => {
     globalThis.history.pushState(null, "", "/");
+    globalThis.localStorage?.clear();
   });
 
   it("loads safe config without exposing stored secret values", async () => {
@@ -162,8 +172,101 @@ describe("SettingsRoute", () => {
 
     expect(await screen.findByRole("heading", { name: "设置" })).toBeInTheDocument();
     expect(screen.getByText("已配置")).toBeInTheDocument();
+    expect(screen.getByLabelText("服务商")).toBeInTheDocument();
+    expect(screen.getByLabelText("API 密钥")).toBeInTheDocument();
+    expect(screen.getByLabelText("界面语言")).toBeInTheDocument();
+    expect(screen.getByLabelText("工作区 Git")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "保存并检查" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "导出诊断" })).toBeInTheDocument();
+    expect(document.body).not.toHaveTextContent("Interface language");
+  });
+
+  it("keeps a selected logging profile visible even when it is not in the profile list", async () => {
+    renderWithQueryClient(
+      <SettingsRoute
+        api={settingsApi({
+          config: settingsConfig({
+            apiKeyConfigured: true,
+            loggingProfiles: ["normal"],
+            selectedProfile: "full-debug",
+          }),
+        })}
+        runtimeEnv={{ VITE_PLATO_API_MODE: "http" }}
+      />,
+    );
+
+    expect(await screen.findByLabelText("Logging profile")).toHaveValue("full-debug");
+    expect(screen.getByRole("option", { name: "full-debug" })).toBeInTheDocument();
+  });
+
+  it("persists the UI language preference from Settings", async () => {
+    const user = userEvent.setup();
+
+    renderWithQueryClient(
+      <SettingsRoute api={settingsApi()} runtimeEnv={{ VITE_PLATO_API_MODE: "http" }} />,
+    );
+
+    await screen.findByDisplayValue("deepseek-v4-pro");
+    await user.selectOptions(
+      screen.getByLabelText("Interface language"),
+      "zh-CN",
+    );
+
+    expect(
+      globalThis.localStorage.getItem(UI_LOCALE_PREFERENCE_STORAGE_KEY),
+    ).toBe("zh-CN");
+    expect(screen.getByLabelText("Interface language")).toHaveValue("zh-CN");
+  });
+
+  it("shows Git availability and persists workspace Git initialization preference", async () => {
+    const user = userEvent.setup();
+    const workspaceBridge = workspaceBridgeFor({
+      getGitStatus: vi.fn(async () => ({
+        status: "available" as const,
+        version: "git version 2.45.0",
+      })),
+    });
+
+    renderWithQueryClient(
+      <SettingsRoute
+        api={settingsApi()}
+        runtimeEnv={{ VITE_PLATO_API_MODE: "http" }}
+        workspaceBridge={workspaceBridge}
+      />,
+    );
+
+    expect(
+      await screen.findByText("Git available: git version 2.45.0"),
+    ).toBeInTheDocument();
+
+    const checkbox = screen.getByRole("checkbox", {
+      name: "Initialize Git for opened workspaces",
+    });
+    await user.click(checkbox);
+
+    expect(checkbox).toBeChecked();
+    expect(globalThis.localStorage.getItem(WORKSPACE_GIT_STORAGE_KEY)).toBe("1");
+  });
+
+  it("disables workspace Git initialization when Git is unavailable", async () => {
+    const workspaceBridge = workspaceBridgeFor({
+      getGitStatus: vi.fn(async () => ({ status: "missing" as const })),
+    });
+
+    renderWithQueryClient(
+      <SettingsRoute
+        api={settingsApi()}
+        runtimeEnv={{ VITE_PLATO_API_MODE: "http" }}
+        workspaceBridge={workspaceBridge}
+      />,
+    );
+
+    expect(await screen.findByText("Git not found")).toBeInTheDocument();
+    expect(
+      screen.getByRole("checkbox", {
+        name: "Initialize Git for opened workspaces",
+      }),
+    ).toBeDisabled();
   });
 });
 
@@ -240,8 +343,12 @@ function okResponse<T>(data: T): QueryResponse<T> {
 
 function settingsConfig({
   apiKeyConfigured,
+  loggingProfiles = ["normal"],
+  selectedProfile = "normal",
 }: {
   apiKeyConfigured: boolean;
+  loggingProfiles?: string[];
+  selectedProfile?: string | null;
 }): SettingsConfigSummary {
   return {
     diagnostics: {
@@ -276,14 +383,13 @@ function settingsConfig({
       defaultProfile: "normal",
       enabled: true,
       level: "INFO",
-      profiles: [
-        {
-          description: "Record normal summaries.",
-          id: "normal",
-        },
-      ],
-      selectedProfile: "normal",
-      selectedProfileKnown: true,
+      profiles: loggingProfiles.map((profile) => ({
+        description: `Record ${profile} summaries.`,
+        id: profile,
+      })),
+      selectedProfile,
+      selectedProfileKnown:
+        selectedProfile === null ? true : loggingProfiles.includes(selectedProfile),
       selectedProfileSource: "stored",
     },
     schemaVersion: "plato.settings_config.v1",
@@ -367,4 +473,51 @@ function diagnosticExport(): DiagnosticBundleExportResult {
     zipPath: "/tmp/bundle.zip",
     zipPathLabel: "workspace://current/.plato/diagnostics/bundle.zip",
   };
+}
+
+function workspaceBridgeFor(
+  overrides: Partial<PlatoElectronWorkspaceBridge> = {},
+): PlatoElectronWorkspaceBridge {
+  return {
+    chooseWorkspace: vi.fn(async () => ({
+      state: workspaceEntryState(),
+      status: "ready" as const,
+    })),
+    getGitStatus: vi.fn(async () => ({
+      status: "available" as const,
+      version: "git version 2.45.0",
+    })),
+    getState: vi.fn(async () => workspaceEntryState()),
+    useWorkspace: vi.fn(async () => ({
+      state: workspaceEntryState(),
+      status: "ready" as const,
+    })),
+    ...overrides,
+  };
+}
+
+function workspaceEntryState(): PlatoWorkspaceEntryState {
+  return {
+    currentWorkspace: null,
+    error: null,
+    recentWorkspaces: [],
+    status: "ready",
+  };
+}
+
+function installTestLocalStorage(): void {
+  const storage = new Map<string, string>();
+  Object.defineProperty(globalThis, "localStorage", {
+    configurable: true,
+    value: {
+      clear: () => storage.clear(),
+      getItem: (key: string) => storage.get(key) ?? null,
+      key: (index: number) => Array.from(storage.keys())[index] ?? null,
+      get length() {
+        return storage.size;
+      },
+      removeItem: (key: string) => storage.delete(key),
+      setItem: (key: string, value: string) => storage.set(key, value),
+    },
+  });
 }

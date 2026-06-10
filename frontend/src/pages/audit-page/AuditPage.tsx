@@ -40,6 +40,7 @@ export type AuditPageProps = {
   onRetry?: () => void;
   onSelectFilter?: (filter: AuditFilterKind) => void;
   onSelectRecord?: (recordId: AuditRecordId) => void;
+  returnRoute?: string | null;
   selectedRecordId?: AuditRecordId | null;
   snapshot: AuditPageSnapshot | null;
   workspaceId?: WorkspaceId | null;
@@ -54,6 +55,7 @@ export function AuditPage({
   onRetry,
   onSelectFilter,
   onSelectRecord,
+  returnRoute = null,
   selectedRecordId,
   snapshot,
   workspaceId,
@@ -64,7 +66,7 @@ export function AuditPage({
 
   if (isLoading) {
     return (
-      <AuditPageFrame snapshot={snapshot}>
+      <AuditPageFrame returnRoute={returnRoute} snapshot={snapshot}>
         <Boundary
           title={uiText.common.status.loading}
           message={uiText.audit.messages.loadingAudit}
@@ -75,7 +77,7 @@ export function AuditPage({
 
   if (errorMessage !== null || snapshot === null) {
     return (
-      <AuditPageFrame snapshot={snapshot}>
+      <AuditPageFrame returnRoute={returnRoute} snapshot={snapshot}>
         <Boundary
           action={onRetry === undefined ? null : (
             <Button onClick={onRetry} variant="secondary">
@@ -95,7 +97,7 @@ export function AuditPage({
     boundary.kind === "permission_denied" || !snapshot.permissions.canViewAudit;
 
   return (
-    <AuditPageFrame snapshot={snapshot}>
+    <AuditPageFrame returnRoute={returnRoute} snapshot={snapshot}>
       <AuditHeader boundary={boundary} snapshot={snapshot} />
 
       <LiveStatusNotice liveState={liveState} />
