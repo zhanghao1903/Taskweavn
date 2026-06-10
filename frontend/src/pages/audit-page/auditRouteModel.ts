@@ -10,6 +10,7 @@ import type {
   WorkspaceId,
 } from "../../shared/api/types";
 import {
+  buildMainSessionFallbackRoute,
   buildAuditSessionRoute,
   buildAuditTaskRoute,
   type AuditRouteQuery,
@@ -17,6 +18,9 @@ import {
 
 export type ParsedAuditRoute = {
   request: AuditSnapshotRequest;
+  returnFocus?: AuditRouteQuery["returnFocus"];
+  returnSessionId?: SessionId;
+  returnTaskNodeId?: TaskNodeId;
   routeKind: "session" | "task";
   workspaceId?: WorkspaceId;
 };
@@ -60,6 +64,7 @@ export function parseAuditLocation(
 
     return {
       request: buildAuditSnapshotRequest(search, sessionId, taskNodeId),
+      ...parseReturnQuery(search),
       routeKind: "task",
       workspaceId: parseWorkspaceId(search),
     };
@@ -74,6 +79,7 @@ export function parseAuditLocation(
 
     return {
       request: buildAuditSnapshotRequest(search, sessionId),
+      ...parseReturnQuery(search),
       routeKind: "session",
       workspaceId: parseWorkspaceId(search),
     };
@@ -93,6 +99,9 @@ export function buildAuditLocation(
     entry: route.request.entry,
     filter: query.filter,
     recordId: query.recordId ?? undefined,
+    returnFocus: route.returnFocus,
+    returnSessionId: route.returnSessionId,
+    returnTaskNodeId: route.returnTaskNodeId,
     workspaceId: route.workspaceId,
   };
 
@@ -105,6 +114,14 @@ export function buildAuditLocation(
   }
 
   return buildAuditSessionRoute(route.request.sessionId, routeQuery);
+}
+
+export function buildAuditReturnLocation(route: ParsedAuditRoute): string {
+  return buildMainSessionFallbackRoute({
+    sessionId: route.returnSessionId ?? route.request.sessionId,
+    taskNodeId: route.returnTaskNodeId ?? route.request.taskNodeId,
+    workspaceId: route.workspaceId,
+  });
 }
 
 function buildAuditSnapshotRequest(
@@ -156,12 +173,61 @@ function parseRecordId(value: string | null): AuditRecordId | undefined {
   return value as AuditRecordId;
 }
 
-function parseWorkspaceId(search: string): WorkspaceId | undefined {
-  const value = new URLSearchParams(search).get("workspaceId");
+function parseReturnQuery(search: string): Pick<
+  ParsedAuditRoute,
+  "returnFocus" | "returnSessionId" | "returnTaskNodeId"
+> {
+  const params = new URLSearchParams(search);
+  const returnFocus = parseReturnFocus(params.get("returnFocus"));
+  const returnSessionId = parseNonEmpty(params.get("returnSessionId")) as
+    | SessionId
+    | undefined;
+  const returnTaskNodeId = parseNonEmpty(params.get("returnTaskNodeId")) as
+    | TaskNodeId
+    | undefined;
+  const result: Pick<
+    ParsedAuditRoute,
+    "returnFocus" | "returnSessionId" | "returnTaskNodeId"
+  > = {};
+
+  if (returnFocus !== undefined) {
+    result.returnFocus = returnFocus;
+  }
+  if (returnSessionId !== undefined) {
+    result.returnSessionId = returnSessionId;
+  }
+  if (returnTaskNodeId !== undefined) {
+    result.returnTaskNodeId = returnTaskNodeId;
+  }
+  return result;
+}
+
+function parseReturnFocus(
+  value: string | null,
+): AuditRouteQuery["returnFocus"] | undefined {
+  if (
+    value === "session" ||
+    value === "task" ||
+    value === "confirmation" ||
+    value === "result" ||
+    value === "file_change"
+  ) {
+    return value;
+  }
+  return undefined;
+}
+
+function parseNonEmpty(value: string | null): string | undefined {
   if (value === null || value.trim() === "") {
     return undefined;
   }
-  return value as WorkspaceId;
+  return value;
+}
+
+function parseWorkspaceId(search: string): WorkspaceId | undefined {
+  return parseNonEmpty(new URLSearchParams(search).get("workspaceId")) as
+    | WorkspaceId
+    | undefined;
 }
 
 function decodeSegment(value: string): string | null {

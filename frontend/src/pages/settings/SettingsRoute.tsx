@@ -16,7 +16,14 @@ import type {
 import { createHttpPlatoApi } from "../../shared/api/platoApi";
 import type { ApiError, QueryResponse, SessionId } from "../../shared/api/types";
 import { Button } from "../../shared/components";
-import { useUiText, type UiTextCatalog } from "../../shared/ui-text";
+import {
+  SUPPORTED_UI_LOCALES,
+  useUiLocale,
+  useUiText,
+  writeUiLocalePreference,
+  type UiLocale,
+  type UiTextCatalog,
+} from "../../shared/ui-text";
 import { formatRecoveryAction, settingsProviderLabel } from "./settingsCopy";
 import type { SettingsRouteContext } from "./settingsRouteModel";
 import { parseSettingsRouteLocation } from "./settingsRouteModel";
@@ -25,10 +32,12 @@ import {
   fieldErrorFor,
   fieldErrorsFromApiError,
   formStateFromConfig,
+  loggingProfileOptions,
   providerOptions,
   type SettingsFieldError,
   type SettingsFormState,
 } from "./settingsViewModel";
+import { WorkspaceGitSettingsPanel } from "./WorkspaceGitSettingsPanel";
 import styles from "./SettingsRoute.module.css";
 
 export type SettingsRouteApi = Pick<
@@ -45,6 +54,7 @@ export type SettingsRouteProps = {
   location?: Pick<Location, "pathname" | "search">;
   presentation?: "modal" | "page";
   runtimeEnv?: PlatoRuntimeEnv;
+  workspaceBridge?: PlatoElectronWorkspaceBridge | null;
 };
 
 type SaveState =
@@ -60,8 +70,10 @@ export function SettingsRoute({
   location,
   presentation = "page",
   runtimeEnv = import.meta.env,
+  workspaceBridge,
 }: SettingsRouteProps = {}) {
   const uiText = useUiText();
+  const activeUiLocale = useUiLocale();
   const routeLocation = location ?? globalThis.location;
   const routeContext = useMemo(
     () =>
@@ -79,6 +91,8 @@ export function SettingsRoute({
     runtimeEnv.VITE_PLATO_API_BASE_URL ?? globalThis.location.origin;
   const queryClient = useQueryClient();
   const [form, setForm] = useState<SettingsFormState | null>(null);
+  const [selectedUiLocale, setSelectedUiLocale] =
+    useState<UiLocale>(activeUiLocale);
   const [saveState, setSaveState] = useState<SaveState>({ kind: "idle" });
   const [lastReadiness, setLastReadiness] =
     useState<SettingsReadinessReport | null>(null);
@@ -118,6 +132,10 @@ export function SettingsRoute({
       setForm(formStateFromConfig(config));
     }
   }, [config, form]);
+
+  useEffect(() => {
+    setSelectedUiLocale(activeUiLocale);
+  }, [activeUiLocale]);
 
   if (settingsApi === null) {
     return (
@@ -344,15 +362,35 @@ export function SettingsRoute({
               value={form.selectedProfile}
             >
               <option value="">{uiText.settings.fields.defaultProfile}</option>
-              {config.logging.profiles.map((profile) => (
+              {loggingProfileOptions(config).map((profile) => (
                 <option key={profile.id} value={profile.id}>
-                  {profile.id}
+                  {profile.label}
                 </option>
               ))}
             </select>
             <FieldError errors={fieldErrors} path="logging.selectedProfile" />
           </label>
+          <label className={`${styles.field} ${styles.wideField}`}>
+            <span>{uiText.settings.fields.interfaceLanguage}</span>
+            <select
+              aria-label={uiText.settings.fields.interfaceLanguage}
+              name="interfaceLanguage"
+              onChange={(event) => {
+                const nextLocale = event.target.value as UiLocale;
+                setSelectedUiLocale(nextLocale);
+                writeUiLocalePreference(nextLocale);
+              }}
+              value={selectedUiLocale}
+            >
+              {SUPPORTED_UI_LOCALES.map((locale) => (
+                <option key={locale} value={locale}>
+                  {uiText.settings.localeOptions[locale]}
+                </option>
+              ))}
+            </select>
+          </label>
         </div>
+        <WorkspaceGitSettingsPanel bridge={workspaceBridge} />
         <SaveStatus state={saveState} />
         <ReadinessIssues readiness={readiness} />
         <div className={styles.footerActions}>

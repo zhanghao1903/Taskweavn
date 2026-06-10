@@ -14,6 +14,7 @@ export type ResolveUiLocaleInput = {
   readonly electronRuntimeLocale?: string | null;
   readonly explicitLocale?: string | null;
   readonly navigatorLanguages?: readonly string[];
+  readonly persistedLocale?: string | null;
   readonly runtimeEnv?: UiLocaleRuntimeEnv | null;
 };
 
@@ -37,6 +38,7 @@ export function resolveUiLocale(input: ResolveUiLocaleInput = {}): UiLocale {
   const candidates = [
     input.explicitLocale,
     input.runtimeEnv?.VITE_PLATO_UI_LOCALE,
+    input.persistedLocale,
     input.electronRuntimeLocale,
     ...navigatorLanguageCandidates(input.navigatorLanguages),
   ];

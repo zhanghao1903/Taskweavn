@@ -12,6 +12,11 @@ export type SettingsFormState = {
   selectedProfile: string;
 };
 
+export type LoggingProfileOption = {
+  id: string;
+  label: string;
+};
+
 export type SettingsFieldError = {
   message: string;
   path: string;
@@ -52,6 +57,32 @@ export function providerOptions(config: SettingsConfigSummary | null) {
     ...option,
     label: option.label || settingsProviderLabel(option.id),
   }));
+}
+
+export function loggingProfileOptions(
+  config: SettingsConfigSummary,
+): LoggingProfileOption[] {
+  const options = config.logging.profiles.map((profile) => ({
+    id: profile.id,
+    label: profile.id,
+  }));
+  const selectedProfile = config.logging.selectedProfile;
+  const defaultProfile = config.logging.defaultProfile;
+
+  for (const profileId of [selectedProfile, defaultProfile]) {
+    if (
+      typeof profileId === "string" &&
+      profileId.length > 0 &&
+      !options.some((option) => option.id === profileId)
+    ) {
+      options.push({
+        id: profileId,
+        label: profileId,
+      });
+    }
+  }
+
+  return options;
 }
 
 export function apiKeyHint(

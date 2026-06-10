@@ -6,6 +6,7 @@ import type { WorkspaceCatalogResult } from "../../shared/api/platoApi";
 import type { SessionSummary, WorkspaceId } from "../../shared/api/types";
 import { Button, Panel, Text } from "../../shared/components";
 import { useUiText } from "../../shared/ui-text";
+import { workspaceGitSelectionOptionsFromPreference } from "../../shared/workspace/workspaceGitPreference";
 import { SessionLifecyclePanel } from "./SessionLifecyclePanel";
 import {
   MainPageWorkspaceSwitcher,
@@ -163,9 +164,6 @@ export function MainPageSessionSidebar({
                 />
                 <div className={styles.workspaceTreeCurrentLabel}>
                   <span>
-                    <Text as="span" className={styles.workspaceSwitcherEyebrow}>
-                      {uiText.workspace.labels.workspace}
-                    </Text>
                     <strong>{workspace.label}</strong>
                   </span>
                   {workspace.status !== "available" ? (
@@ -220,7 +218,9 @@ export function MainPageSessionSidebar({
           <button
             className={styles.workspaceTreeRow}
             onClick={() => {
-              void workspaceBridge.chooseWorkspace();
+              void workspaceBridge.chooseWorkspace(
+                workspaceGitSelectionOptionsFromPreference(),
+              );
             }}
             type="button"
           >

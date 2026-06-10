@@ -6,9 +6,11 @@ import { enUS } from "./enUS";
 import {
   getUiText,
   normalizeUiLocale,
+  readUiLocalePreference,
   resolveUiLocale,
   UiTextProvider,
   useUiText,
+  writeUiLocalePreference,
 } from "./index";
 import { zhCN } from "./zhCN";
 
@@ -44,6 +46,13 @@ describe("UI system text catalog", () => {
     ).toBe("en-US");
     expect(
       resolveUiLocale({
+        persistedLocale: "zh-CN",
+        electronRuntimeLocale: "en-US",
+        navigatorLanguages: ["en-US"],
+      }),
+    ).toBe("zh-CN");
+    expect(
+      resolveUiLocale({
         electronRuntimeLocale: "zh-Hans",
         navigatorLanguages: ["en-US"],
       }),
@@ -54,6 +63,18 @@ describe("UI system text catalog", () => {
         navigatorLanguages: ["zh-CN"],
       }),
     ).toBe("en-US");
+  });
+
+  it("stores and reads a persisted UI locale preference", () => {
+    const storage = new Map<string, string>();
+    const storageLike = {
+      getItem: (key: string) => storage.get(key) ?? null,
+      setItem: (key: string, value: string) => storage.set(key, value),
+    };
+
+    writeUiLocalePreference("zh-CN", storageLike, null);
+
+    expect(readUiLocalePreference(storageLike)).toBe("zh-CN");
   });
 
   it("returns catalog text for each supported locale", () => {

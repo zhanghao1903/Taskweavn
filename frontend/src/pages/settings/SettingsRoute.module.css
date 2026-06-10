@@ -140,6 +140,7 @@
 .formGrid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
   gap: 16px;
 }
 
@@ -147,6 +148,10 @@
   display: grid;
   min-width: 0;
   gap: 6px;
+}
+
+.wideField {
+  grid-column: 1 / -1;
 }
 
 .field span {
@@ -159,6 +164,7 @@
 
 .field input,
 .field select {
+  box-sizing: border-box;
   min-height: 40px;
   min-width: 0;
   width: 100%;
@@ -183,6 +189,80 @@
   color: var(--plato-color-semantic-text-disabled);
   cursor: not-allowed;
   opacity: 0.7;
+}
+
+.settingsSubsection {
+  display: grid;
+  gap: 10px;
+  border: 1px solid var(--plato-color-semantic-border);
+  border-radius: 6px;
+  padding: 12px;
+  background: var(--plato-color-semantic-surface-muted);
+}
+
+.settingsSubsection h2 {
+  margin: 0;
+  color: var(--plato-color-semantic-text-secondary);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 17px;
+  text-transform: uppercase;
+}
+
+.inlineStatusList {
+  display: grid;
+  gap: 8px;
+  margin: 8px 0 0;
+}
+
+.inlineStatusList div {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.inlineStatusList dt {
+  color: var(--plato-color-semantic-text-secondary);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 17px;
+}
+
+.inlineStatusList dd {
+  margin: 0;
+  color: var(--plato-color-semantic-text-primary);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 18px;
+}
+
+.checkboxField {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  color: var(--plato-color-semantic-text-primary);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 18px;
+}
+
+.checkboxField input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+}
+
+.checkboxField input:focus-visible {
+  outline: none;
+  box-shadow: var(--plato-shadow-focus);
+}
+
+.checkboxField input:disabled,
+.checkboxField input:disabled + span {
+  color: var(--plato-color-semantic-text-disabled);
+  cursor: not-allowed;
 }
 
 .field small,

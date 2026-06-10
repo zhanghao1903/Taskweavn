@@ -19,12 +19,18 @@ import { formatAuditTime } from "./auditPageFormat";
 import {
   auditBoundaryLabel,
   auditCompletenessLabel,
+  auditConfidenceLabel,
   auditFilterLabel,
   auditLiveStatusCopy,
   auditOverviewMetricFilterItems,
+  auditActorLabel,
+  auditFlagLabel,
+  auditRecordKindLabel,
   auditScopeLabel,
   auditScopeStatusText,
+  auditSourceLabel,
   auditSubjectLabel,
+  auditWorkflowLabel,
   auditVerdictClassKey,
   auditVerdictLabel,
   auditVerdictNoticeTitle,
@@ -41,21 +47,30 @@ const verdictBadgeClassNames: Record<AuditVerdictClassKey, string> = {
 
 export function AuditPageFrame({
   children,
+  returnRoute,
   snapshot,
 }: {
   children: ReactNode;
+  returnRoute?: string | null;
   snapshot: AuditPageSnapshot | null;
 }) {
   return (
     <div className={styles.page}>
-      <AuditPageChrome snapshot={snapshot} />
+      <AuditPageChrome returnRoute={returnRoute} snapshot={snapshot} />
       <div className={styles.shell}>{children}</div>
     </div>
   );
 }
 
-function AuditPageChrome({ snapshot }: { snapshot: AuditPageSnapshot | null }) {
+function AuditPageChrome({
+  returnRoute,
+  snapshot,
+}: {
+  returnRoute?: string | null;
+  snapshot: AuditPageSnapshot | null;
+}) {
   const uiText = useUiText();
+  const resolvedReturnRoute = returnRoute ?? snapshot?.entryContext.sourceRoute ?? null;
 
   return (
     <div className={styles.topBar}>
@@ -64,7 +79,7 @@ function AuditPageChrome({ snapshot }: { snapshot: AuditPageSnapshot | null }) {
         <div className={styles.brandCopy}>
           <span className={styles.brandName}>Plato</span>
           <span className={styles.brandSubtitle}>
-            Task-first Intelligent Workbench
+            {uiText.audit.labels.productSubtitle}
           </span>
         </div>
       </div>
@@ -75,7 +90,7 @@ function AuditPageChrome({ snapshot }: { snapshot: AuditPageSnapshot | null }) {
         </span>
       </div>
       <span className={styles.workflowPill}>
-        {snapshot?.workflow?.name ?? uiText.audit.labels.auditWorkflow}
+        {auditWorkflowLabel(snapshot?.workflow?.name, uiText)}
       </span>
       <div className={styles.sessionContextBlock}>
         <span className={styles.sessionValue}>
@@ -88,10 +103,10 @@ function AuditPageChrome({ snapshot }: { snapshot: AuditPageSnapshot | null }) {
         <span className={styles.badge}>{uiText.audit.labels.readOnly}</span>
         <span className={styles.badge}>{uiText.audit.labels.trustPlane}</span>
         <Button
-          disabled={snapshot === null}
+          disabled={resolvedReturnRoute === null}
           onClick={() => {
-            if (snapshot !== null) {
-              navigateApp(snapshot.entryContext.sourceRoute);
+            if (resolvedReturnRoute !== null) {
+              navigateApp(resolvedReturnRoute);
             }
           }}
           variant="secondary"
@@ -157,10 +172,15 @@ export function Overview({
     snapshot.overview.verdict !== "not_available";
 
   return (
-    <section aria-label="Audit overview" className={cx(styles.panel, styles.overview)}>
+    <section
+      aria-label={uiText.audit.labels.auditOverview}
+      className={cx(styles.panel, styles.overview)}
+    >
       <div className={styles.overviewPrimary}>
         <div className={styles.overviewHeadingRow}>
-          <h2 className={styles.overviewTitle}>Audit Overview</h2>
+          <h2 className={styles.overviewTitle}>
+            {uiText.audit.labels.auditOverview}
+          </h2>
           <div className={styles.overviewBadgeCluster}>
             <StatusBadge value={snapshot.overview.verdict} />
             <CompletenessBadge value={snapshot.overview.completeness} />
@@ -169,7 +189,7 @@ export function Overview({
         <p className={styles.overviewCopy}>{snapshot.overview.summary}</p>
         {snapshot.overview.keyIssue !== null && (
           <p className={styles.overviewIssue}>
-            Key issue: {snapshot.overview.keyIssue}
+            {uiText.audit.labels.keyIssue}: {snapshot.overview.keyIssue}
           </p>
         )}
         {(shouldShowBoundaryNotice || shouldShowVerdictNotice) && (
@@ -181,15 +201,21 @@ export function Overview({
                   <span>{boundary.message}</span>
                   {boundary.code !== undefined && (
                     <span className={styles.overviewNoticeCode}>
-                      Code: {boundary.code}
+                      {uiText.audit.labels.code}: {boundary.code}
                     </span>
                   )}
                 </div>
                 <div className={styles.overviewNoticeActions}>
                   {boundary.shouldResync && (
-                    <span className={styles.badge}>Resync suggested</span>
+                    <span className={styles.badge}>
+                      {uiText.audit.labels.resyncSuggested}
+                    </span>
                   )}
-                  {boundary.retryable && <span className={styles.badge}>Retryable</span>}
+                  {boundary.retryable && (
+                    <span className={styles.badge}>
+                      {uiText.audit.labels.retryable}
+                    </span>
+                  )}
                   {boundary.retryable && onRetry !== undefined && (
                     <Button onClick={onRetry} variant="secondary">
                       {boundary.shouldResync
@@ -221,7 +247,9 @@ export function Overview({
             <strong className={styles.metricValue}>
               {snapshot.overview.recordCounts[item.filter] ?? 0}
             </strong>
-            <span className={styles.metricNote}>visible records</span>
+            <span className={styles.metricNote}>
+              {uiText.audit.labels.visibleRecords}
+            </span>
           </div>
         ))}
       </div>
@@ -241,7 +269,7 @@ export function VerdictNotice({ snapshot }: { snapshot: AuditPageSnapshot }) {
 
   return (
     <section
-      aria-label="Audit verdict notice"
+      aria-label={uiText.audit.labels.auditVerdictNotice}
       className={cx(styles.panel, styles.verdictNotice)}
       role="note"
     >
@@ -259,6 +287,8 @@ export function LiveStatusNotice({
 }: {
   liveState?: AuditPageRuntimeState;
 }) {
+  const uiText = useUiText();
+
   if (
     liveState === undefined ||
     liveState.status === "connected" ||
@@ -267,7 +297,6 @@ export function LiveStatusNotice({
     return null;
   }
 
-  const uiText = useUiText();
   const copy = auditLiveStatusCopy(liveState, uiText);
 
   return (
@@ -287,7 +316,7 @@ export function LiveStatusNotice({
       </div>
       {liveState.eventCursor !== null && (
         <span className={styles.liveStatusMeta}>
-          Cursor: {liveState.eventCursor}
+          {uiText.audit.labels.cursor}: {liveState.eventCursor}
         </span>
       )}
     </section>
@@ -306,9 +335,12 @@ export function FilterRail({
   const uiText = useUiText();
 
   return (
-    <aside aria-label="Audit record filters" className={cx(styles.panel, styles.filterRail)}>
-      <h2 className={styles.sectionTitle}>Record Filters</h2>
-      <p className={styles.sectionHint}>Counts stay visible across scopes.</p>
+    <aside
+      aria-label={uiText.audit.labels.auditRecordFilters}
+      className={cx(styles.panel, styles.filterRail)}
+    >
+      <h2 className={styles.sectionTitle}>{uiText.audit.labels.recordFilters}</h2>
+      <p className={styles.sectionHint}>{uiText.audit.labels.filterCountsHelp}</p>
       <div className={styles.filterList}>
         {filters.map((filter) => (
           <button
@@ -342,29 +374,35 @@ export function Timeline({
 
   return (
     <section
-      aria-label="Audit records"
+      aria-label={uiText.audit.labels.auditRecords}
       aria-live="polite"
       className={cx(styles.panel, styles.timeline)}
     >
       <div className={styles.timelineHeader}>
         <div>
-          <h2 className={styles.sectionTitle}>Evidence Timeline</h2>
-          <p className={styles.sectionHint}>User-readable records from events and messages.</p>
+          <h2 className={styles.sectionTitle}>
+            {uiText.audit.labels.evidenceTimeline}
+          </h2>
+          <p className={styles.sectionHint}>
+            {uiText.audit.messages.evidenceTimelineHelp}
+          </p>
         </div>
-        <span className={styles.timelineMeta}>{records.length} records</span>
+        <span className={styles.timelineMeta}>
+          {uiText.audit.labels.recordCount({ count: records.length })}
+        </span>
       </div>
       {records.length === 0 ? (
         <div className={styles.emptyList} role="status">
           <div>
-            <strong>No audit records yet</strong>
-            <p>Audit evidence will appear here as the session produces records.</p>
+            <strong>{uiText.audit.messages.auditRecordEmptyTitle}</strong>
+            <p>{uiText.audit.messages.auditRecordEmptyBody}</p>
           </div>
         </div>
       ) : (
         <div className={styles.recordList}>
           {records.map((record) => (
             <button
-              aria-label={`Audit record ${record.title}`}
+              aria-label={`${uiText.audit.labels.audit} record ${record.title}`}
               aria-current={record.id === activeRecordId}
               className={styles.recordCard}
               key={record.id}
@@ -373,7 +411,9 @@ export function Timeline({
             >
               <div className={styles.recordTopLine}>
                 <div className={styles.recordBadgeCluster}>
-                  <span className={styles.badge}>{record.kind.replaceAll("_", " ")}</span>
+                  <span className={styles.badge}>
+                    {auditRecordKindLabel(record.kind, uiText)}
+                  </span>
                   <StatusBadge value={record.verdict ?? "not_available"} />
                 </div>
                 <span className={styles.recordTime}>{formatAuditTime(record.occurredAt)}</span>
@@ -381,14 +421,22 @@ export function Timeline({
               <h3 className={styles.recordTitle}>{record.title}</h3>
               <p className={styles.recordSummary}>{record.summary}</p>
               <p className={styles.recordRefs}>
-                {record.sourceLabel} ·{" "}
+                {auditSourceLabel(record.sourceLabel, uiText)} ·{" "}
                 {auditFilterLabel(record.filterKind, undefined, uiText)} ·{" "}
-                {record.actor}
+                {auditActorLabel(record.actor, uiText)}
               </p>
               <div className={styles.recordFooter}>
-                <span>Confidence: {record.confidence}</span>
-                <span>{record.evidenceRefs.length} evidence refs</span>
-                <span>{record.completeness}</span>
+                <span>
+                  {uiText.audit.labels.confidence({
+                    value: auditConfidenceLabel(record.confidence, uiText),
+                  })}
+                </span>
+                <span>
+                  {uiText.audit.labels.evidenceRefCount({
+                    count: record.evidenceRefs.length,
+                  })}
+                </span>
+                <span>{auditCompletenessLabel(record.completeness, uiText)}</span>
               </div>
               <RecordFlags record={record} />
             </button>
@@ -417,11 +465,21 @@ export function BoundaryBanner({
       <div>
         <strong>{auditBoundaryLabel(boundary, uiText)}</strong>
         <p>{boundary.message}</p>
-        {boundary.code !== undefined && <small>Code: {boundary.code}</small>}
+        {boundary.code !== undefined && (
+          <small>
+            {uiText.audit.labels.code}: {boundary.code}
+          </small>
+        )}
       </div>
       <div className={styles.boundaryActions}>
-        {boundary.shouldResync && <span className={styles.badge}>Resync suggested</span>}
-        {boundary.retryable && <span className={styles.badge}>Retryable</span>}
+        {boundary.shouldResync && (
+          <span className={styles.badge}>
+            {uiText.audit.labels.resyncSuggested}
+          </span>
+        )}
+        {boundary.retryable && (
+          <span className={styles.badge}>{uiText.audit.labels.retryable}</span>
+        )}
         {boundary.retryable && onRetry !== undefined && (
           <Button onClick={onRetry} variant="secondary">
             {boundary.shouldResync
@@ -435,6 +493,7 @@ export function BoundaryBanner({
 }
 
 export function RecordFlags({ record }: { record: AuditRecord }) {
+  const uiText = useUiText();
   const flags: string[] = [];
   if (record.flags.partial) {
     flags.push("Partial");
@@ -457,7 +516,7 @@ export function RecordFlags({ record }: { record: AuditRecord }) {
     <div className={styles.recordFlags}>
       {flags.map((flag) => (
         <span className={styles.badge} key={flag}>
-          {flag}
+          {auditFlagLabel(flag.toLowerCase(), uiText)}
         </span>
       ))}
     </div>

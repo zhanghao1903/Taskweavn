@@ -668,8 +668,8 @@ The registry itself should stay small and easy to review.
 
 ## 16. Deferred Work
 
-- visible Settings language selector;
-- persisted locale preference;
+- centralized backend-owned language preference, if broader settings ownership
+  is accepted;
 - Electron native menu localization;
 - Settings/first-run migration;
 - Audit/Diagnostics/Workspace Inspection migration;
@@ -709,7 +709,8 @@ Resolved for the implemented foundation:
    helpers now act only as small adapters where still useful.
 2. `auditPageLabels.ts` remains the Audit code-to-label adapter, now with active
    catalog support and English defaults for compatibility.
-3. The first language selector is deferred; current switching is through runtime
-   override / Electron runtime `uiLocale`.
+3. A small Settings language selector now writes a renderer-local persisted
+   locale preference; runtime override / Electron runtime `uiLocale` remain
+   supported inputs.
 4. Exact English assertions were migrated only where touched by this slice;
    broader test assertion cleanup is deferred.

@@ -128,4 +128,29 @@ describe("App routing", () => {
     expect(screen.queryByRole("heading", { name: "Audit" })).not.toBeInTheDocument();
     expect(globalThis.location.pathname).not.toContain("/audit");
   });
+
+  it("keeps Audit return workspace and task target during SPA navigation", async () => {
+    const user = userEvent.setup();
+    globalThis.history.pushState(
+      null,
+      "",
+      "/sessions/session-website-plan/tasks/task-implementation/audit?returnFocus=task&returnSessionId=session-return&returnTaskNodeId=task-return&workspaceId=workspace-return",
+    );
+
+    render(
+      <AppProviders>
+        <App />
+      </AppProviders>,
+    );
+
+    expect(await screen.findByRole("heading", { name: "Audit" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Return" }));
+
+    expect(globalThis.location.pathname).toBe("/sessions/session-return");
+    expect(globalThis.location.search).toBe(
+      "?taskNodeId=task-return&workspaceId=workspace-return",
+    );
+    expect(await screen.findByText("Plan & Progress")).toBeInTheDocument();
+  });
 });

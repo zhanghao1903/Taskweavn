@@ -13,6 +13,7 @@ import {
 } from "../../app/platoRuntime";
 import { AuditPage } from "./AuditPage";
 import {
+  buildAuditReturnLocation,
   buildAuditLocation,
   parseAuditLocation,
 } from "./auditRouteModel";
@@ -88,6 +89,10 @@ export function AuditPageRoute({
             recordId: selectedRecordId ?? undefined,
           },
     [activeFilter, parsedRoute, selectedRecordId],
+  );
+  const returnRoute = useMemo(
+    () => (parsedRoute === null ? null : buildAuditReturnLocation(parsedRoute)),
+    [parsedRoute],
   );
 
   const snapshotQuery = useQuery({
@@ -295,6 +300,7 @@ export function AuditPageRoute({
       onSelectFilter={handleSelectFilter}
       onSelectRecord={handleSelectRecord}
       onRetry={() => void snapshotQuery.refetch()}
+      returnRoute={returnRoute}
       selectedRecordId={selectedRecordId}
       liveState={liveState}
       snapshot={snapshot}

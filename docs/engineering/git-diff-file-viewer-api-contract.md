@@ -203,6 +203,9 @@ Notes:
 - The API preserves `staged`, `unstaged`, and summary counts so later Git
   controls can be added without changing the read model.
 - `not_git` is a valid workspace state, not a sidecar failure.
+- Workspace Inspection APIs remain read-only. Optional desktop Git
+  initialization is owned by the Electron Workspace Entry flow, not by status,
+  diff, file content, or evidence capture routes.
 
 ## 5. Per-File Diff
 

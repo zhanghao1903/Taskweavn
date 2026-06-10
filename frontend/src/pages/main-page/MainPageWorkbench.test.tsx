@@ -1,9 +1,10 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { MainPageSnapshot, TaskNodeId } from "../../shared/api/types";
 import type { WorkspaceCatalogResult } from "../../shared/api/platoApi";
+import { writeWorkspaceGitInitializeOnOpenPreference } from "../../shared/workspace/workspaceGitPreference";
 import styles from "./MainPage.module.css";
 import { MainPageWorkbench } from "./MainPageWorkbench";
 import type { MainPageViewModel } from "./mainPageViewModel";
@@ -14,6 +15,14 @@ import type { MainPageWorkspaceRuntime } from "./MainPageWorkspaceSwitcher";
 import type { MainPageController } from "./useMainPageController";
 
 describe("MainPageWorkbench layout", () => {
+  beforeEach(() => {
+    installTestLocalStorage();
+  });
+
+  afterEach(() => {
+    globalThis.localStorage?.clear();
+  });
+
   it("expands the workspace when generic notes hide the detail panel", () => {
     const viewModel = buildViewModel("s1-empty");
 
@@ -135,6 +144,7 @@ describe("MainPageWorkbench layout", () => {
 
   it("keeps the add workspace entry visible in catalog mode", async () => {
     const user = userEvent.setup();
+    writeWorkspaceGitInitializeOnOpenPreference(true);
     const chooseWorkspace = vi.fn(async (): Promise<PlatoWorkspaceSelectionResult> => ({
       state: {
         currentWorkspace: workspaceEntry("workspace-local", "Local Project"),
@@ -169,6 +179,7 @@ describe("MainPageWorkbench layout", () => {
       workspaceRuntime: {
         bridge: {
           chooseWorkspace,
+          getGitStatus: vi.fn(),
           getState: vi.fn(),
           useWorkspace: vi.fn(),
         },
@@ -182,7 +193,9 @@ describe("MainPageWorkbench layout", () => {
 
     await user.click(screen.getByRole("button", { name: "Open or add workspace" }));
 
-    expect(chooseWorkspace).toHaveBeenCalledTimes(1);
+    expect(chooseWorkspace).toHaveBeenCalledWith({
+      initializeGitOnOpen: true,
+    });
   });
 });
 
@@ -241,6 +254,28 @@ function workspaceEntry(
     name,
     pathLabel: "workspace://current",
   };
+}
+
+function installTestLocalStorage(): void {
+  const storage = new Map<string, string>();
+  const storageLike = {
+    clear: () => storage.clear(),
+    getItem: (key: string) => storage.get(key) ?? null,
+    key: (index: number) => Array.from(storage.keys())[index] ?? null,
+    get length() {
+      return storage.size;
+    },
+    removeItem: (key: string) => storage.delete(key),
+    setItem: (key: string, value: string) => storage.set(key, value),
+  };
+  Object.defineProperty(globalThis, "localStorage", {
+    configurable: true,
+    value: storageLike,
+  });
+  Object.defineProperty(globalThis.window, "localStorage", {
+    configurable: true,
+    value: storageLike,
+  });
 }
 
 function buildViewModel(
