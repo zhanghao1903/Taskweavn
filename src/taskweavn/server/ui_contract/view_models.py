@@ -114,6 +114,9 @@ class TaskNodeCardView(UiContractModel):
     parent_id: str | None = None
     title: str = Field(min_length=1)
     summary: str = Field(min_length=1)
+    intent: str | None = Field(default=None, min_length=1)
+    instructions: str | None = Field(default=None, min_length=1)
+    acceptance_criteria: tuple[str, ...] = ()
     status: TaskNodeStatus
     execution: ExecutionStatus = "unknown"
     depth: int = Field(default=0, ge=0)

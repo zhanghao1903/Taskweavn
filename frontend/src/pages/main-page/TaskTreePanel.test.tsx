@@ -79,8 +79,7 @@ describe("TaskTreePanel", () => {
     const planButton = screen.getByRole("button", {
       name: [
         "Plan overview",
-        "4-task plan covering Requirement analysis,",
-        "Information architecture, and 2 more.",
+        "Personal website project plan",
         "4 tasks in this plan",
         "draft",
       ].join(" "),
@@ -93,7 +92,7 @@ describe("TaskTreePanel", () => {
     expect(onSelectTaskPlan).toHaveBeenCalledTimes(1);
   });
 
-  it("prefers an explicit plan summary when present", () => {
+  it("uses explicit plan title with summary detail when present", () => {
     const { snapshot } = getMainPageMockSnapshot("s3-draft-ready");
 
     render(
@@ -111,10 +110,13 @@ describe("TaskTreePanel", () => {
     );
 
     expect(
+      screen.getByText("Personal website project plan"),
+    ).toBeInTheDocument();
+    expect(
       screen.getByText("A concise website plan from content to implementation."),
     ).toBeInTheDocument();
     expect(
-      screen.queryByText("Personal website project plan"),
+      screen.queryByText(/4-task plan covering/),
     ).not.toBeInTheDocument();
   });
 

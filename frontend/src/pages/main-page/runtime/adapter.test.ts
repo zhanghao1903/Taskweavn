@@ -22,7 +22,12 @@ describe("MainPage runtime adapter helpers", () => {
         { runtimeKind: "http", sessionId: "session-live" },
         "s3-draft-ready",
       ),
-    ).toEqual(["main-page", "snapshot", "session-live"]);
+    ).toEqual([
+      "main-page",
+      "snapshot",
+      "current-workspace",
+      "session-live",
+    ]);
   });
 
   it("keeps HTTP local-state identity stable across fixture-like state ids", () => {
@@ -34,14 +39,13 @@ describe("MainPage runtime adapter helpers", () => {
         "s3-draft-ready",
         snapshot,
       ),
-    ).toBe("session:session-live");
+    ).toBe("workspace:current:session:session-live");
     expect(
       mainPageSnapshotIdentity(
         { runtimeKind: "http", sessionId: "session-live" },
         "s7-confirmation",
         snapshot,
       ),
-    ).toBe("session:session-live");
+    ).toBe("workspace:current:session:session-live");
   });
 });
-

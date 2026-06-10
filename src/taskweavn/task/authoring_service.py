@@ -293,7 +293,12 @@ class DefaultAuthoringCommandService:
         if operation.op == "create_tree":
             root_payloads = _required_sequence(operation.payload, "roots")
             roots = _root_nodes_from_payload(command.session_id, operation.payload)
-            tree = self._draft_store.create_tree(command.session_id, roots)
+            tree = self._draft_store.create_tree(
+                command.session_id,
+                roots,
+                title=_require_str(operation.payload, "title", required=False) or None,
+                summary=_require_str(operation.payload, "summary", required=False) or None,
+            )
             refs = [TaskRef.draft(node.draft_task_id) for node in tree.root_nodes]
             for root_payload, root_node in zip(root_payloads, tree.root_nodes, strict=True):
                 refs.extend(
@@ -677,6 +682,9 @@ def _draft_node_from_payload(
         ),
         title=_require_str(payload, "title"),
         intent=_require_str(payload, "intent"),
+        summary=payload.get("summary"),
+        instructions=payload.get("instructions"),
+        acceptance_criteria=_tuple_payload(payload, "acceptance_criteria"),
         required_capability=_require_str(payload, "required_capability"),
         constraints=_tuple_payload(payload, "constraints"),
         rationale=payload.get("rationale"),

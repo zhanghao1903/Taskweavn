@@ -265,6 +265,9 @@ export type TaskNodeCardView = {
   parentId: TaskNodeId | null;
   title: string;
   summary: string;
+  intent?: string | null;
+  instructions?: string | null;
+  acceptanceCriteria?: string[];
   status: TaskNodeStatus;
   readiness?: TaskNodeReadiness;
   execution?: ExecutionStatus;

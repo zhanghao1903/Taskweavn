@@ -249,7 +249,15 @@ type TaskNodeCardView = {
   taskRef?: TaskRef | null;
   parentId: TaskNodeId | null;
   title: string;
+  // Card-safe short summary. Must not contain concatenated
+  // "Summary:" / "Instructions:" / "Acceptance criteria:" marker text.
   summary: string;
+  // Full Task intent for the Detail Panel. Cards should not render this field.
+  intent?: string | null;
+  // Execution guidance for the Detail Panel.
+  instructions?: string | null;
+  // Detail-only acceptance criteria.
+  acceptanceCriteria: string[];
   depth: number;
   orderIndex: number;
   displayIndex: number;
@@ -265,6 +273,12 @@ type TaskNodeCardView = {
   version: number;
 };
 ```
+
+`summary` 是列表卡片展示字段，必须保持短、可扫描。`intent`、
+`instructions`、`acceptanceCriteria` 是 Detail Panel 的结构化内容，
+用于展示完整任务说明。Gateway 必须把旧数据中拼接到 `intent` 的
+`Summary:`、`Instructions:`、`Acceptance criteria:` 标记拆回结构化字段；
+前端不应在卡片中显示这些 marker。
 
 ### 5.5 ExecutionRollupView
 

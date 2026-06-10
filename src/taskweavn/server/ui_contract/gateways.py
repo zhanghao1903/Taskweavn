@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
-from typing import Literal
+from collections.abc import Callable, Sequence
+from typing import Literal, cast
 
 from taskweavn.core.session import Session
 from taskweavn.interaction import AskStatus
@@ -198,7 +198,7 @@ class DefaultUiQueryGateway:
                     cursor=None,
                 )
 
-            source_tree = self._task_projection.list_task_tree(session.id)
+            source_tree = _list_main_page_plan_tree(self._task_projection, session.id)
             task_tree = _map_optional_task_tree(
                 source_tree,
                 authoring_state_store=self._authoring_state_store,
@@ -309,7 +309,7 @@ class DefaultUiQueryGateway:
                     error=not_found("session not found", session_id=session_id),
                 )
             task_tree = _map_optional_task_tree(
-                self._task_projection.list_task_tree(session.id),
+                _list_main_page_plan_tree(self._task_projection, session.id),
                 authoring_state_store=self._authoring_state_store,
             )
             result = self._ask_projection.list_asks(
@@ -811,6 +811,19 @@ def _map_optional_task_tree(
         if active.active_state == "draft_tree" and active.active_draft_tree_id is not None:
             tree_id = active.active_draft_tree_id
     return map_task_tree_view(source, tree_id=tree_id)
+
+
+def _list_main_page_plan_tree(
+    task_projection: TaskProjectionService,
+    session_id: str,
+) -> CoreTaskTreeView:
+    plan_tree = cast(
+        Callable[[str], CoreTaskTreeView] | None,
+        getattr(task_projection, "list_plan_tree", None),
+    )
+    if plan_tree is not None:
+        return plan_tree(session_id)
+    return task_projection.list_task_tree(session_id)
 
 
 def _is_draft_tree(source: CoreTaskTreeView) -> bool:

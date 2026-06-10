@@ -2,7 +2,7 @@
 
 > Status: product semantic baseline
 >
-> Last Updated: 2026-06-07
+> Last Updated: 2026-06-09
 >
 > Scope: user-facing meaning of Plan cycles inside a Session, especially what
 > happens after a Plan has executed. This is not an implementation plan, API
@@ -13,7 +13,8 @@
 > [Plato Session Content Model](plato-session-content-model.md),
 > [Plato Runtime Input Model](plato-runtime-input-model.md),
 > [Plato Outcome Review Model](plato-outcome-review-model.md),
-> [Workflow, Session, And Task UX Model](workflow-session-task-ux-model.md)
+> [Workflow, Session, And Task UX Model](workflow-session-task-ux-model.md),
+> [Plan / TaskNode Model Technical Design](../plans/feature/plan-tasknode-model-technical-design.zh-CN.md)
 
 ## 1. Core Definition
 
@@ -21,11 +22,33 @@ A Plan Cycle is one round of authoring, executing, reviewing, and accepting
 work inside a Session.
 
 ```text
-Authoring -> Plan Ready -> Execution -> Outcome Review -> Acceptance
+Authoring -> Plan Ready -> Execution -> Finalization -> Outcome Review -> Acceptance
 ```
 
 A Session may contain more than one Plan Cycle, but only one Plan should be
 active at a time.
+
+The central object inside a Plan Cycle is `Plan`.
+
+Collaborator produces a Plan, not a loose TaskTree list. In Product 1.1, the
+Plan owns a flat ordered TaskNode list, the Plan-level goal, the Plan-level
+context policy, and the Plan-level outcome. This gives the Session a clear loop
+boundary:
+
+```text
+Session
+  -> Plan 1
+      -> TaskNode list
+      -> Plan finalization
+      -> Outcome Review
+  -> Plan 2
+      -> TaskNode list
+      -> ...
+```
+
+Plan is therefore a context-management object as much as a planning object. It
+is the unit that tells Collaborator, execution Agents, reviewer Agents, audit,
+and the UI what work is in scope for the current round.
 
 ## 2. Why Plan Cycle Exists
 
@@ -52,6 +75,7 @@ Recommended lifecycle:
 Session created
   -> Plan Cycle 1 authoring
   -> Plan Cycle 1 execution
+  -> Plan Cycle 1 finalization
   -> Plan Cycle 1 outcome review
   -> accepted / closed / recovered / follow-up requested
   -> optional Plan Cycle 2 authoring
@@ -61,13 +85,52 @@ Plan Cycle should make it clear when the user is:
 
 - shaping a plan;
 - supervising execution;
+- waiting for Plan-level synthesis, validation, or summary work;
 - reviewing outcome;
 - starting another round.
 
+## 3.1 Plan Lifecycle
+
+Recommended Plan lifecycle:
+
+```text
+draft
+  -> reviewing
+  -> approved
+  -> running
+  -> finalizing
+  -> awaiting_acceptance
+  -> accepted / follow_up_needed / failed / archived
+```
+
+Task completion and Plan completion are not the same thing.
+
+```text
+all required TaskNodes terminal
+  -> Plan finalization
+  -> Plan outcome review
+  -> user acceptance or follow-up decision
+```
+
+The `finalizing` phase may involve other LLM or Agent work:
+
+- summarizing Plan outcome;
+- verifying whether the original Plan objective was satisfied;
+- aggregating file changes across TaskNodes;
+- producing result cards or result summaries;
+- identifying unresolved questions, warnings, and follow-up work;
+- preparing compressed context for the next Plan.
+
+These jobs are part of Plan finalization. They are not raw chat, and they are
+not automatically user-visible TaskNodes unless the product intentionally
+exposes them as work contracts.
+
 ## 4. Plan Execution Completed
 
-When all required Tasks in a Plan reach terminal states, the Session should
-enter Outcome Review.
+When all required TaskNodes in a Plan reach terminal states, the Session should
+enter Plan finalization first. Outcome Review starts after the Plan has produced
+or explicitly skipped the minimum required Plan-level summary and evidence
+rollups.
 
 Outcome Review answers:
 
@@ -110,7 +173,7 @@ After execution completes, the Main Page should expose an Outcome area.
 
 It should include:
 
-- Session result summary;
+- Plan result summary;
 - Task completion summary;
 - failed/skipped/warning list;
 - file change summary;
@@ -119,13 +182,22 @@ It should include:
 - read-only question affordance;
 - close or accept action.
 
-TaskTree remains visible, but its meaning changes:
+Plan & Progress remains visible, but its meaning changes:
 
 ```text
 before execution: proposed contract
 during execution: control surface
 after execution: result map and evidence index
 ```
+
+Plan remains visible as the current work program. The user should be able to
+tell:
+
+- which Plan is active or under review;
+- whether the Plan is waiting for acceptance;
+- whether the Plan needs follow-up work;
+- whether the next user input will ask a question, revise this Plan, or start a
+  new Plan.
 
 ## 7. Continuing A Session
 
@@ -150,7 +222,7 @@ The product should avoid silently mixing unrelated work into the same Session.
 Product invariant:
 
 ```text
-one Session may have many Plan Cycles
+one Session may have many Plans
 one Session should have at most one active Plan
 previous Plans are history, baseline, and evidence
 ```
@@ -170,7 +242,7 @@ Follow-up authoring means:
 
 ```text
 user accepted or reviewed an outcome
-  -> user requests additional related work
+  -> user requests additional related work, recovery, or extension
   -> Collaborator generates a new Plan using prior outcome context
 ```
 
@@ -199,13 +271,15 @@ Execution Context is not enough.
 | Context kind | Primary user object | Used by | Purpose |
 |---|---|---|---|
 | Execution Context | Task | Execution Agent | Complete current Task. |
-| Authoring Context | Session / Plan Cycle | Collaborator / Authoring Agent | Generate or revise a Plan. |
+| Plan Context | Plan | Collaborator / Authoring Agent / reviewer Agent | Generate, revise, finalize, or continue a Plan. |
+| Authoring Context | Session / Plan | Collaborator / Authoring Agent | Generate or revise a Plan. |
 | Inquiry Context | Session / Plan / Task | Read-only answer path | Answer without mutating work. |
 
 Authoring Context should include:
 
 - current Session goal;
-- prior Plan summary;
+- active Plan goal and status;
+- current or prior Plan summary;
 - execution outcome summary;
 - accepted/rejected status;
 - completed, failed, skipped, and warning summaries;
@@ -235,6 +309,8 @@ Product 1.1 should add:
 - continue from result;
 - follow-up Plan Cycle authoring;
 - Plan history;
+- Plan finalization jobs;
+- Plan-level context compression;
 - authoring context;
 - Plan revision semantics.
 
@@ -254,7 +330,8 @@ Low-confidence classification should not create a follow-up Plan silently.
 
 ## 13. Product Invariants
 
-1. Plan execution completed means Outcome Review, not automatic Session death.
+1. Plan execution completed means Finalization and Outcome Review, not automatic
+   Session death.
 2. A Session can continue only through explicit user intent.
 3. The current Session should have at most one active Plan.
 4. Prior Plans become history, baseline, and evidence.
@@ -262,3 +339,8 @@ Low-confidence classification should not create a follow-up Plan silently.
 6. Read-only questions after acceptance should not create a new Plan.
 7. Collaborator follow-up authoring requires governed authoring context.
 8. Raw chat must not be the only source for follow-up planning.
+9. Collaborator produces a Plan, not a loose TaskTree list.
+10. Product 1.1 Plan owns one flat TaskNode list and the Plan-level
+    finalization workflow.
+11. TaskNode terminal states are necessary but not always sufficient for Plan
+    completion.

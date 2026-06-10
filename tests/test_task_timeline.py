@@ -30,8 +30,21 @@ class _DraftStore:
     def __init__(self, nodes: list[DraftTaskNode]) -> None:
         self.nodes = {node.draft_task_id: node for node in nodes}
 
-    def create_tree(self, session_id: str, roots: list[DraftTaskNode]) -> DraftTaskTree:
-        return DraftTaskTree(session_id=session_id, draft_tree_id="tree1", root_nodes=tuple(roots))
+    def create_tree(
+        self,
+        session_id: str,
+        roots: list[DraftTaskNode],
+        *,
+        title: str | None = None,
+        summary: str | None = None,
+    ) -> DraftTaskTree:
+        return DraftTaskTree(
+            session_id=session_id,
+            draft_tree_id="tree1",
+            title=title,
+            summary=summary,
+            root_nodes=tuple(roots),
+        )
 
     def get_tree(self, session_id: str, draft_tree_id: str) -> DraftTaskTree:
         roots = tuple(node for node in self.nodes.values() if node.session_id == session_id)

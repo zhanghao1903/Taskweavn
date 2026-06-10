@@ -57,6 +57,14 @@ describe("MainPageDetailPanel", () => {
       "Choose the right technical stack and deployment approach for the content site";
     const summary =
       "Compare framework, hosting, build, routing, and operational tradeoffs before implementation begins.";
+    const intent =
+      "Select the platform stack before page implementation begins.";
+    const instructions =
+      "Evaluate React, routing, static hosting, deployment rollback, and local developer setup.";
+    const acceptanceCriteria = [
+      "A final framework decision is documented.",
+      "A deployment target is selected.",
+    ];
 
     render(
       <MainPageDetailPanel
@@ -69,7 +77,13 @@ describe("MainPageDetailPanel", () => {
           isRetryingTask: false,
           isStoppingTask: false,
           kind: "task",
-          selectedTask: taskNode({ summary, title }),
+          selectedTask: taskNode({
+            acceptanceCriteria,
+            instructions,
+            intent,
+            summary,
+            title,
+          }),
         }}
         onAnswerAsk={vi.fn()}
         onCancelAsk={vi.fn()}
@@ -84,7 +98,13 @@ describe("MainPageDetailPanel", () => {
 
     expect(screen.getByRole("heading", { name: title })).toBeInTheDocument();
     expect(screen.getByText(summary)).toBeInTheDocument();
-    expect(screen.queryByText("Task details")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Task details")).toBeInTheDocument();
+    expect(screen.getByText("Intent")).toBeInTheDocument();
+    expect(screen.getByText(intent)).toBeInTheDocument();
+    expect(screen.getByText("Instructions")).toBeInTheDocument();
+    expect(screen.getByText(instructions)).toBeInTheDocument();
+    expect(screen.getByText("Acceptance criteria")).toBeInTheDocument();
+    expect(screen.getByText(acceptanceCriteria[0])).toBeInTheDocument();
     expect(screen.queryByRole("region", { name: "Task actions" })).not.toBeInTheDocument();
     expect(screen.queryByText("TaskNode")).not.toBeInTheDocument();
     expect(

@@ -476,11 +476,16 @@ describe("useMainPageController", () => {
       sessionId: "session-new",
     }));
     const loadSnapshot = vi.fn<LoadMainPageSnapshot>(loadImmediateSnapshot);
+    const loadWorkspaceCatalog = vi.fn(async () => ({
+      currentWorkspaceId: "workspace-1",
+      workspaces: [],
+    }));
 
     const { result } = renderMainPageController({
       adapter: testAdapter({
         createSession,
         loadSnapshot,
+        loadWorkspaceCatalog,
         runtimeKind: "http",
         sessionId: "session-website-plan",
       }),
@@ -489,6 +494,9 @@ describe("useMainPageController", () => {
 
     await waitFor(() => {
       expect(result.current.snapshotData?.metadata.id).toBe("s3-draft-ready");
+    });
+    await waitFor(() => {
+      expect(loadWorkspaceCatalog).toHaveBeenCalledTimes(1);
     });
 
     act(() => {
@@ -502,18 +510,24 @@ describe("useMainPageController", () => {
     });
 
     await waitFor(() => {
-      expect(createSession).toHaveBeenCalledWith({ name: "New session" }, null);
+      expect(createSession).toHaveBeenCalledWith(
+        { name: "New session" },
+        "workspace-1",
+      );
     });
     await waitFor(() => {
       expect(loadSnapshot).toHaveBeenCalledWith(
         "s3-draft-ready",
         "session-new",
-        null,
+        "workspace-1",
       );
     });
 
     expect(result.current.activeSessionId).toBe("session-new");
     expect(result.current.sessionDialog.mode).toBe("idle");
+    await waitFor(() => {
+      expect(loadWorkspaceCatalog).toHaveBeenCalledTimes(2);
+    });
   });
 
   it("cancels and validates session create before calling the adapter", async () => {
@@ -605,8 +619,13 @@ describe("useMainPageController", () => {
         name: "Renamed session",
       },
     }));
+    const loadWorkspaceCatalog = vi.fn(async () => ({
+      currentWorkspaceId: "workspace-1",
+      workspaces: [],
+    }));
     const { result } = renderMainPageController({
       adapter: testAdapter({
+        loadWorkspaceCatalog,
         renameSession,
       }),
       initialStateId: "s3-draft-ready",
@@ -616,6 +635,9 @@ describe("useMainPageController", () => {
       expect(result.current.snapshotData?.snapshot.session.name).toBe(
         "Personal website plan",
       );
+    });
+    await waitFor(() => {
+      expect(loadWorkspaceCatalog).toHaveBeenCalledTimes(1);
     });
 
     const activeSession = result.current.snapshotData?.snapshot.session;
@@ -650,9 +672,12 @@ describe("useMainPageController", () => {
       expect(renameSession).toHaveBeenCalledWith({
         name: "Renamed session",
         sessionId: "session-website-plan",
-      }, null);
+      }, "workspace-1");
     });
     expect(result.current.sessionDialog.mode).toBe("idle");
+    await waitFor(() => {
+      expect(loadWorkspaceCatalog).toHaveBeenCalledTimes(2);
+    });
   });
 
   it("keeps the rename flow open on command errors", async () => {
@@ -700,9 +725,14 @@ describe("useMainPageController", () => {
       deletedSessionId: "session-website-plan",
       nextSessionId: "session-next",
     }));
+    const loadWorkspaceCatalog = vi.fn(async () => ({
+      currentWorkspaceId: "workspace-1",
+      workspaces: [],
+    }));
     const { result } = renderMainPageController({
       adapter: testAdapter({
         deleteSession,
+        loadWorkspaceCatalog,
       }),
       initialStateId: "s3-draft-ready",
     });
@@ -711,6 +741,9 @@ describe("useMainPageController", () => {
       expect(result.current.snapshotData?.snapshot.session.id).toBe(
         "session-website-plan",
       );
+    });
+    await waitFor(() => {
+      expect(loadWorkspaceCatalog).toHaveBeenCalledTimes(1);
     });
 
     const activeSession = result.current.snapshotData?.snapshot.session;
@@ -736,10 +769,16 @@ describe("useMainPageController", () => {
     });
 
     await waitFor(() => {
-      expect(deleteSession).toHaveBeenCalledWith("session-website-plan", null);
+      expect(deleteSession).toHaveBeenCalledWith(
+        "session-website-plan",
+        "workspace-1",
+      );
     });
     expect(result.current.activeSessionId).toBe("session-next");
     expect(result.current.sessionDialog.mode).toBe("idle");
+    await waitFor(() => {
+      expect(loadWorkspaceCatalog).toHaveBeenCalledTimes(2);
+    });
   });
 
   it("keeps the delete confirmation open during pending and error states", async () => {

@@ -42,7 +42,29 @@ describe("MainPageRoute", () => {
     const snapshot = getMainPageMockSnapshot("s3-draft-ready").snapshot;
 
     vi.stubGlobal("fetch", async (input: RequestInfo | URL) => {
-      calls.push(String(input));
+      const url = String(input);
+      calls.push(url);
+      if (url === "https://plato.example/api/v1/workspaces") {
+        return new Response(
+          JSON.stringify({
+            cursor: null,
+            data: {
+              currentWorkspaceId: null,
+              workspaces: [],
+            },
+            error: null,
+            generatedAt: snapshot.generatedAt,
+            ok: true,
+            requestId: "request-route-workspaces",
+          }),
+          {
+            headers: {
+              "Content-Type": "application/json",
+            },
+          },
+        );
+      }
+
       return new Response(
         JSON.stringify({
           cursor: snapshot.cursor,
@@ -102,7 +124,7 @@ describe("MainPageRoute", () => {
 
     expect(await screen.findByText("No task plan yet")).toBeInTheDocument();
     expect(screen.queryByLabelText("State")).not.toBeInTheDocument();
-    expect(loadSnapshot).toHaveBeenCalledWith("s1-empty", null);
+    expect(loadSnapshot).toHaveBeenCalledWith("s1-empty", null, null);
   });
 });
 

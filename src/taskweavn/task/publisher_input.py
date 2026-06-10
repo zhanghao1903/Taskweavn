@@ -224,6 +224,9 @@ def _normalize_node(
         parent_id=parent_id,
         title=_required_str(payload, ("title",), path),
         intent=_required_str(payload, ("intent",), path),
+        summary=_optional_str(payload, "summary"),
+        instructions=_optional_str(payload, "instructions"),
+        acceptance_criteria=_optional_str_tuple(payload, "acceptance_criteria", path),
         required_capability=capability,
         agent_ref=_optional_str(payload, "agent_ref") or _optional_str(payload, "agent"),
         children=tuple(
@@ -299,6 +302,9 @@ def _normalize_flat_node(
         parent_id=parent_id,
         title=_required_str(payload, ("title",), ("tasks", node_id)),
         intent=_required_str(payload, ("intent",), ("tasks", node_id)),
+        summary=_optional_str(payload, "summary"),
+        instructions=_optional_str(payload, "instructions"),
+        acceptance_criteria=_optional_str_tuple(payload, "acceptance_criteria", ("tasks", node_id)),
         required_capability=_required_str(
             payload,
             ("required_capability", "capability"),
@@ -345,6 +351,26 @@ def _optional_str(payload: Mapping[str, Any], key: str) -> str | None:
     if isinstance(value, str) and value.strip():
         return value
     return None
+
+
+def _optional_str_tuple(
+    payload: Mapping[str, Any],
+    key: str,
+    path: tuple[str, ...],
+) -> tuple[str, ...]:
+    value = payload.get(key, ())
+    if value is None:
+        return ()
+    if not isinstance(value, Sequence) or isinstance(value, (str, bytes)):
+        raise TaskTreeInputError(f"{'.'.join((*path, key))} must be a list")
+    result: list[str] = []
+    for index, item in enumerate(value):
+        if not isinstance(item, str) or not item.strip():
+            raise TaskTreeInputError(
+                f"{'.'.join((*path, key, str(index)))} must be a non-empty string"
+            )
+        result.append(item.strip())
+    return tuple(result)
 
 
 def _metadata(payload: Mapping[str, Any], path: tuple[str, ...]) -> dict[str, Any]:

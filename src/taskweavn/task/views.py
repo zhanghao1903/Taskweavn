@@ -170,6 +170,9 @@ class TaskCardView(_FrozenView):
 
     title: str = Field(min_length=1)
     intent_preview: str = Field(min_length=1)
+    full_intent: str | None = Field(default=None, min_length=1)
+    instructions: str | None = Field(default=None, min_length=1)
+    acceptance_criteria: tuple[str, ...] = ()
     status: TaskViewStatus
     depth: int = Field(default=0, ge=0)
     order_index: int = Field(default=0, ge=0)
@@ -199,6 +202,8 @@ class TaskCardView(_FrozenView):
 
 class TaskTreeView(_FrozenView):
     session_id: str = Field(min_length=1)
+    title: str | None = Field(default=None, min_length=1)
+    summary: str | None = Field(default=None, min_length=1)
     nodes: tuple[TaskCardView, ...] = Field(default_factory=tuple)
     generated_at: datetime = Field(default_factory=_utcnow)
 
@@ -216,6 +221,9 @@ class TaskTreeView(_FrozenView):
 class TaskDetailView(_FrozenView):
     card: TaskCardView
     full_intent: str = Field(min_length=1)
+    summary: str | None = Field(default=None, min_length=1)
+    instructions: str | None = Field(default=None, min_length=1)
+    acceptance_criteria: tuple[str, ...] = ()
     constraints: tuple[str, ...] = ()
     messages: tuple[SessionMessageView, ...] = ()
     confirmations: tuple[ConfirmationActionView, ...] = ()

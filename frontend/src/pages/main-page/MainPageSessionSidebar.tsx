@@ -38,6 +38,10 @@ type SessionContextMenuState = {
   y: number;
 };
 
+const CONTEXT_MENU_VIEWPORT_GAP = 8;
+const SESSION_CONTEXT_MENU_WIDTH = 220;
+const SESSION_CONTEXT_MENU_HEIGHT = 188;
+
 export function MainPageSessionSidebar({
   activeSession,
   activeWorkspaceId = null,
@@ -93,10 +97,11 @@ export function MainPageSessionSidebar({
   ) {
     event.preventDefault();
     event.stopPropagation();
+    const position = fitContextMenuToViewport(event.clientX, event.clientY);
     setContextMenu({
       session,
-      x: event.clientX,
-      y: event.clientY,
+      x: position.x,
+      y: position.y,
     });
   }
 
@@ -132,7 +137,7 @@ export function MainPageSessionSidebar({
   }
 
   const catalogTree =
-    workspaceCatalog === null ? null : (
+    workspaceCatalog === null || !Array.isArray(workspaceCatalog.workspaces) ? null : (
       <div className={styles.workspaceExplorer} aria-label="Workspaces">
         {workspaceCatalog.workspaces.map((workspace) => {
           const isActiveWorkspace =
@@ -326,4 +331,22 @@ export function MainPageSessionSidebar({
       />
     </Panel>
   );
+}
+
+function fitContextMenuToViewport(clientX: number, clientY: number) {
+  const viewportWidth = globalThis.window?.innerWidth ?? 0;
+  const viewportHeight = globalThis.window?.innerHeight ?? 0;
+  const maxX = Math.max(
+    CONTEXT_MENU_VIEWPORT_GAP,
+    viewportWidth - SESSION_CONTEXT_MENU_WIDTH - CONTEXT_MENU_VIEWPORT_GAP,
+  );
+  const maxY = Math.max(
+    CONTEXT_MENU_VIEWPORT_GAP,
+    viewportHeight - SESSION_CONTEXT_MENU_HEIGHT - CONTEXT_MENU_VIEWPORT_GAP,
+  );
+
+  return {
+    x: Math.max(CONTEXT_MENU_VIEWPORT_GAP, Math.min(clientX, maxX)),
+    y: Math.max(CONTEXT_MENU_VIEWPORT_GAP, Math.min(clientY, maxY)),
+  };
 }

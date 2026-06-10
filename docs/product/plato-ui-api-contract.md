@@ -523,7 +523,12 @@ type TaskNodeCardView = {
   taskRef?: TaskRef;
   parentId: TaskNodeId | null;
   title: string;
+  // Card-safe short summary. No concatenated Summary:/Instructions: markers.
   summary: string;
+  // Detail-only structured content.
+  intent?: string | null;
+  instructions?: string | null;
+  acceptanceCriteria: string[];
   status: TaskNodeStatus;
   depth: number;
   orderIndex: number;
@@ -533,6 +538,12 @@ type TaskNodeCardView = {
   version: number;
 };
 ```
+
+`summary` 是列表卡片专用短摘要；`intent`、`instructions`、
+`acceptanceCriteria` 是 Detail Panel 专用结构化字段。后端 projection
+必须优先使用结构化字段；遇到旧数据中拼接的 `Summary:`、`Instructions:`、
+`Acceptance criteria:` 文本时，可以在 projection 层拆分，但不应继续把
+这些 marker 暴露到卡片。
 
 ```ts
 type TaskNodeBadges = {

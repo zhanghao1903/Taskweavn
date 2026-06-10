@@ -283,6 +283,13 @@ export function useMainPageController({
     : null;
   const refetchSnapshot = snapshotQuery.refetch;
 
+  function refetchWorkspaceCatalog() {
+    if (adapter.loadWorkspaceCatalog === undefined) {
+      return;
+    }
+    void workspaceCatalogQuery.refetch();
+  }
+
   function setConfirmationCommandError(
     message: string | null,
     recoveryActions: ProductRecoveryAction[] = [],
@@ -850,6 +857,7 @@ export function useMainPageController({
       setActiveSessionId(nextSessionId);
       setUiNotice(`Created session ${result.session?.name ?? nextSessionId}.`);
       setSessionDialog({ mode: "idle" });
+      refetchWorkspaceCatalog();
     },
   });
 
@@ -873,6 +881,7 @@ export function useMainPageController({
     onSuccess: (result) => {
       setUiNotice(`Renamed session to ${result.session?.name ?? "new name"}.`);
       setSessionDialog({ mode: "idle" });
+      refetchWorkspaceCatalog();
       void refetchSnapshot();
     },
   });
@@ -893,6 +902,7 @@ export function useMainPageController({
       setActiveSessionId(nextSessionId);
       setUiNotice("Session deleted.");
       setSessionDialog({ mode: "idle" });
+      refetchWorkspaceCatalog();
     },
   });
 
