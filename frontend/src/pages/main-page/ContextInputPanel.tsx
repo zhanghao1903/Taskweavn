@@ -3,6 +3,7 @@ import type { FormEvent } from "react";
 
 import type { ProductRecoveryAction } from "../../shared/api/platoApi";
 import { Button, Panel, Text } from "../../shared/components";
+import { useUiText } from "../../shared/ui-text";
 import { ProductRecoveryActions } from "./ProductRecoveryActions";
 import type { MainPageInputViewModel } from "./mainPageViewModel";
 import styles from "./MainPage.module.css";
@@ -26,6 +27,7 @@ export function ContextInputPanel({
   onSubmit,
   recoveryActions,
 }: ContextInputPanelProps) {
+  const uiText = useUiText();
   const scopeLabel = splitWritingScopeLabel(input.scope.label);
   const helperText = error ?? null;
   const scopeDescription = helperText ?? input.scope.description;
@@ -57,7 +59,7 @@ export function ContextInputPanel({
               className={styles.contextInputScopePrefix}
               variant="label"
             >
-              Writing to
+              {uiText.main.input.writingToPrefix}
             </Text>
             <Text
               as="strong"
@@ -81,7 +83,7 @@ export function ContextInputPanel({
       </div>
       <div className={styles.contextInputField}>
         <input
-          aria-label="Context message"
+          aria-label={uiText.main.input.contextMessageAriaLabel}
           disabled={input.disabled}
           onChange={(event) => onDraftChange(event.currentTarget.value)}
           placeholder={inputPlaceholder}
@@ -90,7 +92,7 @@ export function ContextInputPanel({
         <Button
           disabled={!draft.trim() || input.disabled}
           type="submit"
-          aria-label="Send message"
+          aria-label={uiText.main.input.sendMessageAriaLabel}
           size="icon"
           variant="primary"
         >

@@ -1,6 +1,7 @@
 import type { FormEvent } from "react";
 
 import { Button, Text } from "../../shared/components";
+import { useUiText } from "../../shared/ui-text";
 import type { MainPageController } from "./useMainPageController";
 import styles from "./MainPage.module.css";
 
@@ -23,6 +24,8 @@ export function SessionLifecyclePanel({
   onChangeDraft,
   onSubmit,
 }: SessionLifecyclePanelProps) {
+  const uiText = useUiText();
+
   if (dialog.mode === "idle") {
     return null;
   }
@@ -40,21 +43,22 @@ export function SessionLifecyclePanel({
   if (dialog.mode === "delete") {
     return (
       <div
-        aria-label="Delete session"
+        aria-label={uiText.main.actions.deleteSession}
         aria-modal="true"
         className={styles.sessionLifecycleOverlay}
         role="dialog"
       >
         <section
-          aria-label="Delete session confirmation"
+          aria-label={uiText.main.sessionDialog.deleteConfirmationAriaLabel}
           className={styles.sessionLifecyclePanel}
         >
           <Text as="h3" variant="subheading">
-            Delete session?
+            {uiText.main.sessionDialog.deleteTitle}
           </Text>
           <Text variant="muted">
-            Delete session "{dialog.session.name}"? Plato will archive this
-            session and switch to the next available one.
+            {uiText.main.sessionDialog.deleteConfirmationBody({
+              name: dialog.session.name,
+            })}
           </Text>
           {dialog.error ? <Text variant="muted">{dialog.error}</Text> : null}
           <div className={styles.sessionLifecycleActions}>
@@ -64,7 +68,9 @@ export function SessionLifecyclePanel({
               size="sm"
               variant="danger"
             >
-              {isPending ? "Deleting" : "Delete session"}
+              {isPending
+                ? uiText.main.sessionDialog.deleting
+                : uiText.main.actions.deleteSession}
             </Button>
             <Button
               disabled={isPending}
@@ -72,7 +78,7 @@ export function SessionLifecyclePanel({
               size="sm"
               variant="ghost"
             >
-              Cancel
+              {uiText.common.actions.cancel}
             </Button>
           </div>
         </section>
@@ -80,15 +86,22 @@ export function SessionLifecyclePanel({
     );
   }
 
-  const title = dialog.mode === "create" ? "Create session" : "Rename session";
+  const title =
+    dialog.mode === "create"
+      ? uiText.main.sessionDialog.createTitle
+      : uiText.main.sessionDialog.renameTitle;
   const submitLabel =
     dialog.mode === "create"
       ? isPending
-        ? "Creating"
-        : "Create session"
+        ? uiText.main.states.creatingSession
+        : uiText.main.sessionDialog.createTitle
       : isPending
-        ? "Renaming"
-        : "Rename session";
+        ? uiText.main.sessionDialog.renaming
+        : uiText.main.sessionDialog.renameTitle;
+  const formLabel =
+    dialog.mode === "create"
+      ? uiText.main.sessionDialog.createFormAriaLabel
+      : uiText.main.sessionDialog.renameFormAriaLabel;
 
   return (
     <div
@@ -98,7 +111,7 @@ export function SessionLifecyclePanel({
       role="dialog"
     >
       <form
-        aria-label={`${title} form`}
+        aria-label={formLabel}
         className={styles.sessionLifecyclePanel}
         onSubmit={handleSubmit}
       >
@@ -106,9 +119,9 @@ export function SessionLifecyclePanel({
           {title}
         </Text>
         <label className={styles.sessionLifecycleField}>
-          <span>Session name</span>
+          <span>{uiText.main.sessionDialog.sessionName}</span>
           <input
-            aria-label="Session name"
+            aria-label={uiText.main.sessionDialog.sessionName}
             disabled={isPending}
             onChange={(event) => onChangeDraft(event.currentTarget.value)}
             value={dialog.draftName}
@@ -125,7 +138,7 @@ export function SessionLifecyclePanel({
             size="sm"
             variant="ghost"
           >
-            Cancel
+            {uiText.common.actions.cancel}
           </Button>
         </div>
       </form>

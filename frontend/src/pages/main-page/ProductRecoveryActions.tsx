@@ -1,9 +1,7 @@
 import type { ProductRecoveryAction } from "../../shared/api/platoApi";
-import {
-  productRecoveryActionDescription,
-  productRecoveryActionLabel,
-} from "../../shared/api/productErrors";
+import { productRecoveryActionText } from "../../shared/api/productErrors";
 import { Badge } from "../../shared/components";
+import { useUiText } from "../../shared/ui-text";
 import styles from "./ProductRecoveryActions.module.css";
 
 export type ProductRecoveryActionsProps = {
@@ -13,26 +11,34 @@ export type ProductRecoveryActionsProps = {
 
 export function ProductRecoveryActions({
   actions,
-  ariaLabel = "Suggested recovery actions",
+  ariaLabel,
 }: ProductRecoveryActionsProps) {
+  const uiText = useUiText();
+
   if (actions.length === 0) {
     return null;
   }
 
   return (
-    <div aria-label={ariaLabel} className={styles.root}>
-      {actions.map((action, index) => (
-        <Badge
-          className={styles.action}
-          data-recovery-action={action}
-          key={`${action}-${index}`}
-          size="sm"
-          title={productRecoveryActionDescription(action)}
-          tone={action === "none" ? "neutral" : "blue"}
-        >
-          {productRecoveryActionLabel(action)}
-        </Badge>
-      ))}
+    <div
+      aria-label={ariaLabel ?? uiText.productError.recoveryAriaLabel}
+      className={styles.root}
+    >
+      {actions.map((action, index) => {
+        const actionText = productRecoveryActionText(action, uiText);
+        return (
+          <Badge
+            className={styles.action}
+            data-recovery-action={action}
+            key={`${action}-${index}`}
+            size="sm"
+            title={actionText.description}
+            tone={action === "none" ? "neutral" : "blue"}
+          >
+            {actionText.label}
+          </Badge>
+        );
+      })}
     </div>
   );
 }

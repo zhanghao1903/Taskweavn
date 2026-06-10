@@ -5,6 +5,7 @@ import type {
   TaskTreeView,
 } from "../../shared/api/types";
 import { Badge, Button, Panel, Text } from "../../shared/components";
+import { useUiText, type UiTextCatalog } from "../../shared/ui-text";
 import { TaskNodeCard } from "./TaskNodeCard";
 import type { MainPageAuthoringDiagnosticViewModel } from "./mainPageViewModel";
 import styles from "./MainPage.module.css";
@@ -38,8 +39,10 @@ export function TaskTreePanel({
   selectedTaskNodeId,
   taskTree,
 }: TaskTreePanelProps) {
+  const uiText = useUiText();
+
   if (taskTree) {
-    const planOverview = planOverviewContent(taskTree);
+    const planOverview = planOverviewContent(taskTree, uiText);
 
     return (
       <div className={styles.taskListPanel}>
@@ -52,7 +55,9 @@ export function TaskTreePanel({
           type="button"
         >
           <span className={styles.planText}>
-            <span className={styles.planEyebrow}>Plan overview</span>
+            <span className={styles.planEyebrow}>
+              {uiText.main.plan.overviewLabel}
+            </span>
             <strong className={styles.listCardTitle} title={planOverview.title}>
               {planOverview.title}
             </strong>
@@ -65,17 +70,19 @@ export function TaskTreePanel({
         {authoringDiagnostic ? (
           <div className={styles.authoringDiagnosticBanner} role="status">
             <span className={styles.authoringDiagnosticText}>
-              <strong>Authoring state needs repair</strong>
+              <strong>{uiText.main.repair.authoringStateNeedsRepair}</strong>
               <small>{authoringDiagnostic.message}</small>
             </span>
             <Button
-              aria-label="Repair authoring state"
+              aria-label={uiText.main.actions.repairAuthoringState}
               disabled={isRepairingAuthoringState || !onRepairAuthoringState}
               onClick={onRepairAuthoringState}
               size="sm"
               variant="secondary"
             >
-              {isRepairingAuthoringState ? "Repairing" : "Repair"}
+              {isRepairingAuthoringState
+                ? uiText.main.repair.repairing
+                : uiText.main.actions.repairAuthoringState}
             </Button>
           </div>
         ) : null}
@@ -102,14 +109,14 @@ export function TaskTreePanel({
       tone="surface"
     >
       {isGeneratingTaskPlan ? (
-        <TaskPlanGeneratingState />
+        <TaskPlanGeneratingState uiText={uiText} />
       ) : (
         <div className={styles.emptyState}>
           <Text as="h3" variant="subheading">
-            No task plan yet
+            {uiText.main.empty.noPlanTitle}
           </Text>
           <Text variant="muted">
-            Describe a goal. Plato will draft a task plan for review.
+            {uiText.main.empty.noPlanBody}
           </Text>
         </div>
       )}
@@ -117,19 +124,19 @@ export function TaskTreePanel({
   );
 }
 
-function TaskPlanGeneratingState() {
+function TaskPlanGeneratingState({ uiText }: { uiText: UiTextCatalog }) {
   return (
     <div
-      aria-label="Generating task plan"
+      aria-label={uiText.main.plan.generatingTitle}
       className={styles.generatingTaskPlan}
       role="status"
     >
       <div className={styles.generatingTaskPlanHeader}>
         <Text as="h3" variant="subheading">
-          Generating task plan
+          {uiText.main.plan.generatingTitle}
         </Text>
         <Text variant="muted">
-          Plato is understanding your goal and shaping the first task plan.
+          {uiText.main.plan.generatingBody}
         </Text>
       </div>
       <div aria-hidden="true" className={styles.generatingSkeleton}>
@@ -147,27 +154,35 @@ function TaskPlanGeneratingState() {
 const SKELETON_GROUP_COUNT = 5;
 const DEFAULT_TASK_TREE_TITLE = "Task Tree";
 
-function planOverviewText(taskTree: TaskTreeView): string {
+function planOverviewText(
+  taskTree: TaskTreeView,
+  uiText: UiTextCatalog,
+): string {
   if (taskTree.nodes.length === 0) {
-    return "Plan overview is being prepared.";
+    return uiText.main.plan.overviewPrepared;
   }
 
   const visibleTitles = taskTree.nodes.slice(0, 2).map((node) => node.title);
   const remainingCount = taskTree.nodes.length - visibleTitles.length;
-  const suffix = remainingCount > 0 ? `, and ${remainingCount} more` : "";
-  return `${taskTree.nodes.length}-task plan covering ${visibleTitles.join(", ")}${suffix}.`;
+  return uiText.main.plan.overviewSummary({
+    count: taskTree.nodes.length,
+    remainingCount,
+    titles: visibleTitles.join(", "),
+  });
 }
 
-function planOverviewContent(taskTree: TaskTreeView): {
+function planOverviewContent(
+  taskTree: TaskTreeView,
+  uiText: UiTextCatalog,
+): {
   detail: string;
   title: string;
 } {
   const title = taskTree.title?.trim();
   const summary = taskTree.summary?.trim();
-  const taskCountText =
-    taskTree.nodes.length === 1
-      ? "1 task in this plan"
-      : `${taskTree.nodes.length} tasks in this plan`;
+  const taskCountText = uiText.main.plan.taskCount({
+    count: taskTree.nodes.length,
+  });
 
   if (title && title !== DEFAULT_TASK_TREE_TITLE) {
     return {
@@ -184,7 +199,7 @@ function planOverviewContent(taskTree: TaskTreeView): {
   }
 
   return {
-    title: planOverviewText(taskTree),
+    title: planOverviewText(taskTree, uiText),
     detail: taskCountText,
   };
 }

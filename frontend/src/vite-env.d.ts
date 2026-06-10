@@ -7,6 +7,7 @@ interface ImportMetaEnv {
   readonly VITE_PLATO_SESSION_ID?: string;
   readonly VITE_PLATO_DISABLE_EVENTS?: "0" | "1";
   readonly VITE_PLATO_RUNTIME_REDUCER_HARNESS?: "off" | "test";
+  readonly VITE_PLATO_UI_LOCALE?: string;
 }
 
 interface ImportMeta {
@@ -20,6 +21,7 @@ type PlatoElectronRuntimeConfig = {
   readonly disableEvents?: boolean;
   readonly sessionId?: string | null;
   readonly startupId?: string;
+  readonly uiLocale?: string | null;
   readonly workspace?: PlatoWorkspaceEntrySummary | null;
   readonly workspaceEntryRequired?: boolean;
 };

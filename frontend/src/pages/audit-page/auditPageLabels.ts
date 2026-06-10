@@ -6,6 +6,7 @@ import type {
   AuditVerdict,
 } from "../../shared/api/types";
 import type { AuditPageRuntimeState } from "./auditRuntimeEvents";
+import { enUS, type UiTextCatalog } from "../../shared/ui-text";
 
 export type AuditVerdictClassKey =
   | "failed"
@@ -23,48 +24,54 @@ export const auditOverviewMetricFilters: Array<{
   { filter: "results", label: "Results" },
 ];
 
-const auditFilterLabels: Record<AuditFilterKind, string> = {
-  actions: "Actions",
-  all: "All records",
-  config: "Config",
-  confirmations: "Confirmations",
-  files: "Files",
-  logs: "Logs",
-  results: "Results",
-  risks: "Risks",
-  system: "System",
-};
+const metricFilterKinds: AuditFilterKind[] = [
+  "confirmations",
+  "risks",
+  "files",
+  "results",
+];
+
+export function auditOverviewMetricFilterItems(
+  uiText: UiTextCatalog = enUS,
+): Array<{ filter: AuditFilterKind; label: string }> {
+  return metricFilterKinds.map((filter) => ({
+    filter,
+    label: auditFilterLabel(filter, undefined, uiText),
+  }));
+}
 
 export function auditFilterLabel(
   filter: AuditFilterKind,
   fallback?: string,
+  uiText: UiTextCatalog = enUS,
 ): string {
-  return auditFilterLabels[filter] ?? fallback ?? filter;
+  return uiText.audit.filters[filter] ?? fallback ?? filter;
 }
 
 export function auditLiveStatusCopy(
   liveState: AuditPageRuntimeState,
+  uiText: UiTextCatalog = enUS,
 ): { message: string; title: string } {
   switch (liveState.status) {
     case "refreshing":
       return {
         message:
-          liveState.message ?? "Live audit stream is applying new records.",
-        title: "Updating audit evidence",
+          liveState.message ?? uiText.audit.liveStatus.refreshingMessage,
+        title: uiText.audit.liveStatus.refreshingTitle,
       };
     case "stale":
       return {
         message:
           liveState.message ??
-          "Refreshing from source; current evidence remains readable.",
-        title: "Audit snapshot may be stale",
+          uiText.audit.liveStatus.staleMessage,
+        title: uiText.audit.liveStatus.staleTitle,
       };
     case "disconnected":
       return {
         message:
           liveState.message ??
-          "Manual refresh still works; this page may not update automatically.",
-        title: "Live audit updates unavailable",
+          uiText.audit.liveStatus.disconnectedMessage,
+        title: uiText.audit.liveStatus.disconnectedTitle,
       };
     case "connected":
       return {
@@ -74,71 +81,61 @@ export function auditLiveStatusCopy(
   }
 }
 
-export function auditScopeLabel(snapshot: AuditPageSnapshot): string {
+export function auditScopeLabel(
+  snapshot: AuditPageSnapshot,
+  uiText: UiTextCatalog = enUS,
+): string {
   if (snapshot.scope.kind === "task") {
-    return "Scope: Task";
+    return uiText.audit.labels.scope({ kind: "Task" });
   }
 
   if (snapshot.scope.kind === "session") {
-    return "Scope: Session";
+    return uiText.audit.labels.scope({ kind: "Session" });
   }
 
-  return `Scope: ${snapshot.scope.kind}`;
+  return uiText.audit.labels.scope({ kind: snapshot.scope.kind });
 }
 
 export function auditSubjectLabel(snapshot: AuditPageSnapshot): string {
   return snapshot.selectedTask?.title ?? snapshot.session.name;
 }
 
-export function auditScopeStatusText(snapshot: AuditPageSnapshot): string {
+export function auditScopeStatusText(
+  snapshot: AuditPageSnapshot,
+  uiText: UiTextCatalog = enUS,
+): string {
   if (snapshot.scope.kind === "task") {
-    return `Task audit · ${snapshot.session.status}`;
+    return uiText.audit.scopeStatus({
+      kind: "Task",
+      status: snapshot.session.status,
+    });
   }
 
   if (snapshot.scope.kind === "session") {
-    return `Session audit · ${snapshot.session.status}`;
+    return uiText.audit.scopeStatus({
+      kind: "Session",
+      status: snapshot.session.status,
+    });
   }
 
-  return `${snapshot.scope.kind} audit · ${snapshot.session.status}`;
+  return uiText.audit.scopeStatus({
+    kind: snapshot.scope.kind,
+    status: snapshot.session.status,
+  });
 }
 
-export function auditBoundaryLabel(boundary: ApiUiBoundaryState): string {
-  switch (boundary.kind) {
-    case "backend_busy":
-      return "Backend busy";
-    case "empty":
-      return "Empty";
-    case "fatal_error":
-      return "Fatal error";
-    case "hidden_evidence":
-      return "Hidden evidence";
-    case "loading":
-      return "Loading";
-    case "partial":
-      return "Partial evidence";
-    case "permission_denied":
-      return "Permission denied";
-    case "ready":
-      return "Ready";
-    case "recoverable_error":
-      return "Recoverable error";
-    case "stale_resync":
-      return "Stale snapshot";
-  }
+export function auditBoundaryLabel(
+  boundary: ApiUiBoundaryState,
+  uiText: UiTextCatalog = enUS,
+): string {
+  return uiText.audit.boundary[boundary.kind] ?? boundary.kind;
 }
 
-export function auditVerdictNoticeTitle(value: AuditVerdict): string {
-  switch (value) {
-    case "failed":
-      return "Audit found a blocking issue.";
-    case "inconclusive":
-      return "Audit cannot establish confidence yet.";
-    case "warning":
-      return "Audit found a non-blocking concern.";
-    case "not_available":
-    case "passed":
-      return "";
-  }
+export function auditVerdictNoticeTitle(
+  value: AuditVerdict,
+  uiText: UiTextCatalog = enUS,
+): string {
+  return uiText.audit.verdictNotice[value] ?? "";
 }
 
 export function auditVerdictClassKey(
@@ -158,34 +155,16 @@ export function auditVerdictClassKey(
   }
 }
 
-export function auditVerdictLabel(value: AuditVerdict): string {
-  switch (value) {
-    case "failed":
-      return "Verdict: Failed";
-    case "inconclusive":
-      return "Verdict: Inconclusive";
-    case "not_available":
-      return "Verdict: Not available";
-    case "passed":
-      return "Verdict: Passed";
-    case "warning":
-      return "Verdict: Warning";
-  }
+export function auditVerdictLabel(
+  value: AuditVerdict,
+  uiText: UiTextCatalog = enUS,
+): string {
+  return uiText.audit.verdict[value];
 }
 
-export function auditCompletenessLabel(value: AuditCompleteness): string {
-  switch (value) {
-    case "complete":
-      return "Complete";
-    case "failed":
-      return "Failed";
-    case "hidden":
-      return "Hidden";
-    case "not_started":
-      return "Not started";
-    case "partial":
-      return "Partial";
-    case "running":
-      return "Running";
-  }
+export function auditCompletenessLabel(
+  value: AuditCompleteness,
+  uiText: UiTextCatalog = enUS,
+): string {
+  return uiText.audit.completeness[value];
 }

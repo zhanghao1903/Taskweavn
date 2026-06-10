@@ -16,6 +16,7 @@ import type {
 import { createHttpPlatoApi } from "../../shared/api/platoApi";
 import type { ApiError, QueryResponse, SessionId } from "../../shared/api/types";
 import { Button } from "../../shared/components";
+import { useUiText, type UiTextCatalog } from "../../shared/ui-text";
 import { formatRecoveryAction, settingsProviderLabel } from "./settingsCopy";
 import type { SettingsRouteContext } from "./settingsRouteModel";
 import { parseSettingsRouteLocation } from "./settingsRouteModel";
@@ -60,6 +61,7 @@ export function SettingsRoute({
   presentation = "page",
   runtimeEnv = import.meta.env,
 }: SettingsRouteProps = {}) {
+  const uiText = useUiText();
   const routeLocation = location ?? globalThis.location;
   const routeContext = useMemo(
     () =>
@@ -120,13 +122,13 @@ export function SettingsRoute({
   if (settingsApi === null) {
     return (
       <SettingsShell
-        heading="Settings unavailable"
+        heading={uiText.settings.labels.settingsUnavailable}
         presentation={presentation}
         routeContext={routeContext}
-        status="Sidecar required"
+        status={uiText.settings.labels.sidecarRequired}
       >
         <p className={styles.helperText}>
-          Start Plato in local sidecar HTTP mode to edit Product 1.0 settings.
+          {uiText.settings.messages.settingsUnavailableHelp}
         </p>
       </SettingsShell>
     );
@@ -135,12 +137,14 @@ export function SettingsRoute({
   if (configQuery.status === "pending" || form === null) {
     return (
       <SettingsShell
-        heading="Loading settings"
+        heading={uiText.settings.messages.loadingSettings}
         presentation={presentation}
         routeContext={routeContext}
-        status="Checking"
+        status={uiText.settings.labels.checkingSetup}
       >
-        <p className={styles.helperText}>Loading local sidecar settings.</p>
+        <p className={styles.helperText}>
+          {uiText.settings.messages.loadingSettingsHelp}
+        </p>
       </SettingsShell>
     );
   }
@@ -148,20 +152,20 @@ export function SettingsRoute({
   if (configQuery.status === "error" || config === null) {
     return (
       <SettingsShell
-        heading="Settings unavailable"
+        heading={uiText.settings.labels.settingsUnavailable}
         presentation={presentation}
         routeContext={routeContext}
-        status="Retry available"
+        status={uiText.common.actions.retry}
       >
         <p className={styles.helperText}>
-          The local sidecar did not return the settings config contract.
+          {uiText.settings.messages.settingsContractUnavailable}
         </p>
         <div className={styles.footerActions}>
           <Button onClick={() => void configQuery.refetch()} variant="primary">
-            Retry load
+            {uiText.settings.actions.retryLoad}
           </Button>
           <Button onClick={() => navigateApp(routeContext.returnTo)}>
-            Return
+            {uiText.settings.actions.return}
           </Button>
         </div>
       </SettingsShell>
@@ -212,7 +216,7 @@ export function SettingsRoute({
       setSaveState({
         error: apiError,
         kind: "error",
-        message: apiError?.message ?? "Settings save failed.",
+        message: apiError?.message ?? uiText.settings.messages.saveFailed,
       });
     }
   }
@@ -232,7 +236,7 @@ export function SettingsRoute({
       setSaveState({
         error: null,
         kind: "error",
-        message: "Readiness recheck failed.",
+        message: uiText.settings.messages.readinessRecheckFailed,
       });
     }
   }
@@ -255,16 +259,16 @@ export function SettingsRoute({
     <SettingsShell
       heading={
         routeContext.source === "first-run"
-          ? "Complete first-run setup"
-          : "Settings"
+          ? uiText.settings.labels.completeFirstRunSetup
+          : uiText.settings.labels.settings
       }
       presentation={presentation}
       routeContext={routeContext}
-      status={statusLabel(readiness, saveState)}
+      status={statusLabel(readiness, saveState, uiText)}
     >
       <SettingsSummary config={config} readiness={readiness} />
       <form
-        aria-label="Settings setup form"
+        aria-label={uiText.settings.labels.settingsSetupForm}
         className={styles.form}
         onSubmit={(event) => {
           event.preventDefault();
@@ -273,9 +277,9 @@ export function SettingsRoute({
       >
         <div className={styles.formGrid}>
           <label className={styles.field}>
-            <span>Provider</span>
+            <span>{uiText.settings.fields.provider}</span>
             <select
-              aria-label="Provider"
+              aria-label={uiText.settings.fields.provider}
               disabled={saveState.kind === "saving" || saveState.kind === "rechecking"}
               name="provider"
               onChange={(event) =>
@@ -294,9 +298,9 @@ export function SettingsRoute({
             </select>
           </label>
           <label className={styles.field}>
-            <span>Model</span>
+            <span>{uiText.settings.fields.model}</span>
             <input
-              aria-label="Model"
+              aria-label={uiText.settings.fields.model}
               disabled={saveState.kind === "saving" || saveState.kind === "rechecking"}
               name="model"
               onChange={(event) => setForm({ ...form, model: event.target.value })}
@@ -307,9 +311,9 @@ export function SettingsRoute({
             <FieldError errors={fieldErrors} path="llm.model" />
           </label>
           <label className={styles.field}>
-            <span>API key</span>
+            <span>{uiText.settings.fields.apiKey}</span>
             <input
-              aria-label="API key"
+              aria-label={uiText.settings.fields.apiKey}
               autoComplete="off"
               disabled={saveState.kind === "saving" || saveState.kind === "rechecking"}
               name="apiKey"
@@ -319,15 +323,19 @@ export function SettingsRoute({
             />
             <small>
               {config.llm.apiKeyConfigured
-                ? `Configured via ${config.llm.apiKeySource}; leave empty to keep it.`
-                : `Required: ${apiKeyHint(form.provider, config)}.`}
+                ? uiText.settings.messages.apiKeyConfigured({
+                    source: config.llm.apiKeySource,
+                  })
+                : uiText.settings.messages.apiKeyRequired({
+                    hint: apiKeyHint(form.provider, config),
+                  })}
             </small>
             <FieldError errors={fieldErrors} path="llm.apiKey" />
           </label>
           <label className={styles.field}>
-            <span>Logging profile</span>
+            <span>{uiText.settings.fields.loggingProfile}</span>
             <select
-              aria-label="Logging profile"
+              aria-label={uiText.settings.fields.loggingProfile}
               disabled={saveState.kind === "saving" || saveState.kind === "rechecking"}
               name="loggingProfile"
               onChange={(event) =>
@@ -335,7 +343,7 @@ export function SettingsRoute({
               }
               value={form.selectedProfile}
             >
-              <option value="">Default profile</option>
+              <option value="">{uiText.settings.fields.defaultProfile}</option>
               {config.logging.profiles.map((profile) => (
                 <option key={profile.id} value={profile.id}>
                   {profile.id}
@@ -353,20 +361,24 @@ export function SettingsRoute({
             type="submit"
             variant="primary"
           >
-            {saveState.kind === "saving" ? "Saving" : "Save and check"}
+            {saveState.kind === "saving"
+              ? uiText.settings.messages.saving
+              : uiText.settings.actions.saveAndCheck}
           </Button>
           <Button
             disabled={saveState.kind === "saving" || saveState.kind === "rechecking"}
             onClick={() => void recheckReadiness()}
           >
-            {saveState.kind === "rechecking" ? "Checking" : "Retry check"}
+            {saveState.kind === "rechecking"
+              ? uiText.settings.messages.checkingReadiness
+              : uiText.settings.actions.retryCheck}
           </Button>
           <Button
             disabled={!canContinue}
             onClick={() => navigateApp(routeContext.returnTo)}
             variant={canContinue ? "primary" : "secondary"}
           >
-            Continue to Main Page
+            {uiText.settings.actions.continueToMainPage}
           </Button>
         </div>
       </form>
@@ -393,11 +405,12 @@ function SettingsShell({
   routeContext: SettingsRouteContext;
   status: string;
 }) {
+  const uiText = useUiText();
   const isModal = presentation === "modal";
   const headingId = "settings-route-heading";
   const content = (
     <section
-      aria-label={isModal ? undefined : "Settings"}
+      aria-label={isModal ? undefined : uiText.settings.labels.settings}
       aria-labelledby={isModal ? headingId : undefined}
       aria-modal={isModal ? true : undefined}
       className={`${styles.panel} ${isModal ? styles.modalPanel : ""}`}
@@ -406,19 +419,21 @@ function SettingsShell({
       <div className={styles.headerRow}>
         <div>
           <span className={styles.eyebrow}>
-            {routeContext.source === "first-run" ? "First run" : "Local setup"}
+            {routeContext.source === "first-run"
+              ? uiText.settings.labels.firstRun
+              : uiText.settings.labels.localSetup}
           </span>
           <h1 id={headingId}>{heading}</h1>
-          <p>Configure the local LLM setup used by Product 1.0 workflows.</p>
+          <p>{uiText.settings.messages.settingsDescription}</p>
         </div>
         <div className={styles.headerActions}>
           <span className={styles.statusBadge}>{status}</span>
           {isModal ? (
             <Button
-              aria-label="Close settings"
+              aria-label={uiText.settings.actions.closeSettings}
               onClick={() => navigateApp(routeContext.returnTo)}
               size="icon"
-              title="Close settings"
+              title={uiText.settings.actions.closeSettings}
               variant="ghost"
             >
               <X aria-hidden="true" size={18} />
@@ -448,23 +463,29 @@ function SettingsSummary({
   config: SettingsConfigSummary;
   readiness: SettingsReadinessReport | null;
 }) {
+  const uiText = useUiText();
+
   return (
     <dl className={styles.summaryGrid}>
       <div>
-        <dt>Provider</dt>
+        <dt>{uiText.settings.fields.provider}</dt>
         <dd>{settingsProviderLabel(config.llm.provider)}</dd>
       </div>
       <div>
-        <dt>Model</dt>
+        <dt>{uiText.settings.fields.model}</dt>
         <dd>{config.llm.model}</dd>
       </div>
       <div>
-        <dt>API key</dt>
-        <dd>{config.llm.apiKeyConfigured ? "configured" : "missing"}</dd>
+        <dt>{uiText.settings.fields.apiKey}</dt>
+        <dd>
+          {config.llm.apiKeyConfigured
+            ? uiText.settings.labels.configured
+            : uiText.settings.labels.missing}
+        </dd>
       </div>
       <div>
-        <dt>Readiness</dt>
-        <dd>{readiness?.status ?? "not checked"}</dd>
+        <dt>{uiText.settings.fields.readiness}</dt>
+        <dd>{readiness?.status ?? uiText.settings.labels.notChecked}</dd>
       </div>
     </dl>
   );
@@ -489,6 +510,8 @@ function FieldError({
 }
 
 function SaveStatus({ state }: { state: SaveState }) {
+  const uiText = useUiText();
+
   if (state.kind === "idle") {
     return null;
   }
@@ -501,10 +524,10 @@ function SaveStatus({ state }: { state: SaveState }) {
   }
   const message =
     state.kind === "saving"
-      ? "Saving settings."
+      ? uiText.settings.messages.saving
       : state.kind === "rechecking"
-        ? "Checking readiness."
-        : "Settings saved.";
+        ? uiText.settings.messages.checkingReadiness
+        : uiText.settings.messages.saved;
   return <div className={styles.infoBanner}>{message}</div>;
 }
 
@@ -513,6 +536,8 @@ function ReadinessIssues({
 }: {
   readiness: SettingsReadinessReport | null;
 }) {
+  const uiText = useUiText();
+
   if (readiness === null) {
     return null;
   }
@@ -521,15 +546,27 @@ function ReadinessIssues({
     : readiness.blockingIssues;
   if (issues.length === 0) {
     return (
-      <section className={styles.issueSection} aria-label="Readiness result">
-        <h2>Readiness result</h2>
-        <p className={styles.helperText}>First-run setup is ready.</p>
+      <section
+        className={styles.issueSection}
+        aria-label={uiText.settings.labels.readinessResult}
+      >
+        <h2>{uiText.settings.labels.readinessResult}</h2>
+        <p className={styles.helperText}>
+          {uiText.settings.labels.firstRunReady}
+        </p>
       </section>
     );
   }
   return (
-    <section className={styles.issueSection} aria-label="Readiness issues">
-      <h2>{readiness.firstRun.ready ? "Warnings" : "Blocking issues"}</h2>
+    <section
+      className={styles.issueSection}
+      aria-label={uiText.settings.labels.readinessIssues}
+    >
+      <h2>
+        {readiness.firstRun.ready
+          ? uiText.settings.labels.warnings
+          : uiText.settings.labels.blockingIssues}
+      </h2>
       <ul className={styles.issueList}>
         {issues.map((issue) => (
           <li key={issue.code}>
@@ -539,7 +576,7 @@ function ReadinessIssues({
               <span>
                 {issue.recoveryActions
                   .filter((action) => action !== "none")
-                  .map(formatRecoveryAction)
+                  .map((action) => formatRecoveryAction(action, uiText))
                   .join(" ")}
               </span>
             )}
@@ -561,22 +598,27 @@ function DiagnosticsPanel({
   sessionId: SessionId | null;
   state: DiagnosticExportState;
 }) {
+  const uiText = useUiText();
   const disabled = !diagnosticsAvailable || sessionId === null || state.kind === "exporting";
   return (
-    <section className={styles.diagnosticsPanel} aria-label="Setup diagnostics">
+    <section
+      className={styles.diagnosticsPanel}
+      aria-label={uiText.settings.fields.diagnostics}
+    >
       <div>
-        <h2>Diagnostics</h2>
+        <h2>{uiText.settings.fields.diagnostics}</h2>
         <p>
-          Export a redacted local bundle when setup still fails and a session is
-          available.
+          {uiText.settings.messages.diagnosticExportHelp}
         </p>
       </div>
       <Button disabled={disabled} onClick={onExport}>
-        {state.kind === "exporting" ? "Exporting" : "Export diagnostics"}
+        {state.kind === "exporting"
+          ? uiText.settings.actions.exportingDiagnostics
+          : uiText.settings.actions.exportDiagnostics}
       </Button>
       {sessionId === null && (
         <p className={styles.helperText}>
-          No session is available for diagnostics export yet.
+          {uiText.settings.messages.noDiagnosticSession}
         </p>
       )}
       <DiagnosticExportStatus state={state} />
@@ -585,10 +627,12 @@ function DiagnosticsPanel({
 }
 
 function DiagnosticExportStatus({ state }: { state: DiagnosticExportState }) {
+  const uiText = useUiText();
+
   if (state.kind === "error") {
     return (
       <div className={styles.errorBanner} role="alert">
-        Diagnostic export failed.
+        {uiText.settings.messages.diagnosticExportFailed}
       </div>
     );
   }
@@ -598,12 +642,12 @@ function DiagnosticExportStatus({ state }: { state: DiagnosticExportState }) {
   return (
     <dl className={styles.exportResult}>
       <div>
-        <dt>Bundle</dt>
+        <dt>{uiText.settings.fields.bundle}</dt>
         <dd>{state.result.bundleId}</dd>
       </div>
       <div>
-        <dt>Zip path</dt>
-        <dd>{state.result.zipPathLabel ?? "Not created"}</dd>
+        <dt>{uiText.settings.labels.zipPath}</dt>
+        <dd>{state.result.zipPathLabel ?? uiText.settings.labels.notCreated}</dd>
       </div>
     </dl>
   );
@@ -679,15 +723,16 @@ function cacheSettingsResults(
 function statusLabel(
   readiness: SettingsReadinessReport | null,
   saveState: SaveState,
+  uiText: UiTextCatalog,
 ): string {
   if (saveState.kind === "saving") {
-    return "Saving";
+    return uiText.settings.messages.saving;
   }
   if (saveState.kind === "rechecking") {
-    return "Checking";
+    return uiText.settings.messages.checkingReadiness;
   }
   if (readiness !== null) {
     return readiness.status;
   }
-  return "Editable";
+  return uiText.settings.labels.editable;
 }

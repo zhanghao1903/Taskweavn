@@ -7,6 +7,7 @@ import {
   buildWorkspaceInspectionRoute,
 } from "../../app/routes";
 import { Badge, Button, Panel, Text } from "../../shared/components";
+import { useUiText, type UiTextCatalog } from "../../shared/ui-text";
 import type {
   WorkspaceChangedFile,
   WorkspaceDiffResponse,
@@ -41,6 +42,7 @@ export function WorkspaceInspectionRoute({
   location,
   runtimeEnv = import.meta.env,
 }: WorkspaceInspectionRouteProps = {}) {
+  const uiText = useUiText();
   const resolvedLocation = location ?? globalThis.location;
   const context = useMemo(
     () =>
@@ -62,13 +64,16 @@ export function WorkspaceInspectionRoute({
 
     async function load() {
       if (context === null) {
-        setState({ kind: "error", message: "Inspection route is unavailable." });
+        setState({
+          kind: "error",
+          message: uiText.workspaceInspection.states.inspectionRouteUnavailable,
+        });
         return;
       }
       if (inspectionApi === null) {
         setState({
           kind: "error",
-          message: "Workspace inspection requires the local sidecar.",
+          message: uiText.workspaceInspection.states.requiresSidecar,
         });
         return;
       }
@@ -80,7 +85,10 @@ export function WorkspaceInspectionRoute({
             workspaceId: context.workspaceId,
           });
           if (!response.ok || response.data === null) {
-            throw new Error(response.error?.message ?? "Status unavailable.");
+            throw new Error(
+              response.error?.message ??
+                uiText.workspaceInspection.states.statusUnavailable,
+            );
           }
           if (!cancelled) {
             setState({ kind: "status", status: response.data });
@@ -90,14 +98,21 @@ export function WorkspaceInspectionRoute({
 
         if (context.mode === "diff") {
           if (context.path === null) {
-            throw new Error("A file path is required for diff inspection.");
+            throw new Error(uiText.workspaceInspection.states.diffUnavailable({
+              reason: "missing path",
+            }));
           }
           const response = await inspectionApi.getDiff({
             path: context.path,
             workspaceId: context.workspaceId,
           });
           if (!response.ok || response.data === null) {
-            throw new Error(response.error?.message ?? "Diff unavailable.");
+            throw new Error(
+              response.error?.message ??
+                uiText.workspaceInspection.states.diffUnavailable({
+                  reason: "unknown",
+                }),
+            );
           }
           if (!cancelled) {
             setState({ kind: "diff", diff: response.data });
@@ -111,7 +126,12 @@ export function WorkspaceInspectionRoute({
           workspaceId: context.workspaceId,
         });
         if (!response.ok || response.data === null) {
-          throw new Error(response.error?.message ?? "File unavailable.");
+          throw new Error(
+            response.error?.message ??
+              uiText.workspaceInspection.states.fileUnavailable({
+                reason: "unknown",
+              }),
+          );
         }
         if (!cancelled) {
           setState({ kind: "file", file: response.data });
@@ -123,7 +143,7 @@ export function WorkspaceInspectionRoute({
             message:
               error instanceof Error
                 ? error.message
-                : "Workspace inspection failed.",
+                : uiText.workspaceInspection.states.inspectionFailed,
           });
         }
       }
@@ -133,19 +153,19 @@ export function WorkspaceInspectionRoute({
     return () => {
       cancelled = true;
     };
-  }, [context, inspectionApi, reloadNonce]);
+  }, [context, inspectionApi, reloadNonce, uiText]);
 
   if (context === null) {
     return (
       <InspectionShell
         context={null}
-        title="Workspace inspection"
+        title={uiText.workspaceInspection.labels.workspaceInspection}
       >
         <EmptyState
-          actionLabel="Return"
-          message="Inspection context is unavailable for this route."
+          actionLabel={uiText.workspaceInspection.actions.return}
+          message={uiText.workspaceInspection.states.inspectionRouteUnavailableBody}
           onAction={() => navigateApp("/")}
-          title="Inspection route unavailable"
+          title={uiText.workspaceInspection.states.inspectionRouteUnavailable}
         />
       </InspectionShell>
     );
@@ -154,17 +174,20 @@ export function WorkspaceInspectionRoute({
   return (
     <InspectionShell
       context={context}
-      title={titleForContext(context)}
+      title={titleForContext(context, uiText)}
     >
       <InspectionTabs context={context} />
       {state.kind === "loading" ? (
-        <EmptyState message="Loading workspace inspection data." title="Loading" />
+        <EmptyState
+          message={uiText.workspaceInspection.states.loading}
+          title={uiText.common.status.loading}
+        />
       ) : state.kind === "error" ? (
         <EmptyState
-          actionLabel="Retry"
+          actionLabel={uiText.common.actions.retry}
           message={state.message}
           onAction={() => setReloadNonce((value) => value + 1)}
-          title="Inspection unavailable"
+          title={uiText.workspaceInspection.states.inspectionUnavailable}
         />
       ) : state.kind === "status" ? (
         <StatusView context={context} status={state.status} />
@@ -186,6 +209,7 @@ function InspectionShell({
   context: WorkspaceInspectionRouteContext | null;
   title: string;
 }) {
+  const uiText = useUiText();
   const returnPath =
     context?.returnSessionId || context?.sessionId
       ? buildMainSessionFallbackRoute({
@@ -196,14 +220,19 @@ function InspectionShell({
 
   return (
     <main className={styles.page}>
-      <section className={styles.shell} aria-label="Workspace inspection">
+      <section
+        className={styles.shell}
+        aria-label={uiText.workspaceInspection.labels.workspaceInspection}
+      >
         <header className={styles.header}>
           <div>
-            <Text variant="eyebrow">Workspace inspection</Text>
+            <Text variant="eyebrow">
+              {uiText.workspaceInspection.labels.workspaceInspection}
+            </Text>
             <h1>{title}</h1>
             <p>
               {context === null
-                ? "Read-only workspace inspection."
+                ? uiText.workspaceInspection.states.readOnly
                 : context.path ?? context.evidenceId ?? context.workspaceId}
             </p>
           </div>
@@ -211,7 +240,9 @@ function InspectionShell({
             {context !== null ? (
               <Badge tone="blue">workspace {context.workspaceId}</Badge>
             ) : null}
-            <Button onClick={() => navigateApp(returnPath)}>Return</Button>
+            <Button onClick={() => navigateApp(returnPath)}>
+              {uiText.workspaceInspection.actions.return}
+            </Button>
           </div>
         </header>
         {children}
@@ -221,10 +252,14 @@ function InspectionShell({
 }
 
 function InspectionTabs({ context }: { context: WorkspaceInspectionRouteContext }) {
+  const uiText = useUiText();
   const filePath = context.path ?? undefined;
 
   return (
-    <nav className={styles.tabs} aria-label="Inspection views">
+    <nav
+      className={styles.tabs}
+      aria-label={uiText.workspaceInspection.labels.inspectionViews}
+    >
       <a
         aria-current={context.mode === "status" ? "page" : undefined}
         href={buildWorkspaceInspectionRoute({
@@ -236,7 +271,7 @@ function InspectionTabs({ context }: { context: WorkspaceInspectionRouteContext 
           workspaceId: context.workspaceId,
         })}
       >
-        Changed files
+        {uiText.workspaceInspection.labels.changedFiles}
       </a>
       {filePath ? (
         <>
@@ -252,7 +287,7 @@ function InspectionTabs({ context }: { context: WorkspaceInspectionRouteContext 
               workspaceId: context.workspaceId,
             })}
           >
-            File
+            {uiText.workspaceInspection.labels.file}
           </a>
           <a
             aria-current={context.mode === "diff" ? "page" : undefined}
@@ -266,7 +301,7 @@ function InspectionTabs({ context }: { context: WorkspaceInspectionRouteContext 
               workspaceId: context.workspaceId,
             })}
           >
-            Diff
+            {uiText.workspaceInspection.labels.diff}
           </a>
         </>
       ) : null}
@@ -281,25 +316,43 @@ function StatusView({
   context: WorkspaceInspectionRouteContext;
   status: WorkspaceGitStatusResponse;
 }) {
+  const uiText = useUiText();
   const files = status.files;
 
   return (
     <Panel className={styles.panel}>
       <div className={styles.summaryRow}>
         <div>
-          <Text variant="eyebrow">Repository</Text>
+          <Text variant="eyebrow">
+            {uiText.workspaceInspection.labels.repository}
+          </Text>
           <h2>{status.repository.status.replaceAll("_", " ")}</h2>
         </div>
         <div className={styles.metricGroup}>
-          <Metric label="Changed" value={status.summary.changedFileCount} />
-          <Metric label="Staged" value={status.summary.stagedFileCount} />
-          <Metric label="Unstaged" value={status.summary.unstagedFileCount} />
-          <Metric label="Untracked" value={status.summary.untrackedFileCount} />
+          <Metric
+            label={uiText.workspaceInspection.labels.changed}
+            value={status.summary.changedFileCount}
+          />
+          <Metric
+            label={uiText.workspaceInspection.labels.staged}
+            value={status.summary.stagedFileCount}
+          />
+          <Metric
+            label={uiText.workspaceInspection.labels.unstaged}
+            value={status.summary.unstagedFileCount}
+          />
+          <Metric
+            label={uiText.workspaceInspection.labels.untracked}
+            value={status.summary.untrackedFileCount}
+          />
         </div>
       </div>
       <WarningList warnings={status.warnings} />
       {files.length === 0 ? (
-        <EmptyState message="No changed files in this workspace." title="Clean" />
+        <EmptyState
+          message={uiText.workspaceInspection.states.cleanBody}
+          title={uiText.workspaceInspection.labels.clean}
+        />
       ) : (
         <div className={styles.fileList} role="list">
           {files.map((file) => (
@@ -318,6 +371,7 @@ function ChangedFileRow({
   context: WorkspaceInspectionRouteContext;
   file: WorkspaceChangedFile;
 }) {
+  const uiText = useUiText();
   const baseRoute = {
     path: file.relativePath,
     returnSessionId: context.returnSessionId ?? context.sessionId ?? undefined,
@@ -333,15 +387,15 @@ function ChangedFileRow({
         <strong>{file.relativePath}</strong>
         <div className={styles.fileMeta}>
           <span>{file.changeKind.replaceAll("_", " ")}</span>
-          <span>{stageLabel(file)}</span>
+          <span>{stageLabel(file, uiText)}</span>
         </div>
       </div>
       <div className={styles.rowActions}>
         <a href={buildWorkspaceInspectionRoute({ ...baseRoute, view: "file" })}>
-          Open file
+          {uiText.workspaceInspection.actions.openFile}
         </a>
         <a href={buildWorkspaceInspectionRoute({ ...baseRoute, view: "diff" })}>
-          View diff
+          {uiText.workspaceInspection.actions.viewDiff}
         </a>
       </div>
     </article>
@@ -349,14 +403,16 @@ function ChangedFileRow({
 }
 
 function FileView({ file }: { file: WorkspaceFileContentResponse }) {
+  const uiText = useUiText();
+
   if (file.unavailableReason !== undefined || file.file.fileKind !== "text") {
     return (
       <Panel className={styles.panel}>
         <EmptyState
-          message={`File cannot be rendered as text: ${
-            file.unavailableReason ?? file.file.fileKind
-          }.`}
-          title="File unavailable"
+          message={uiText.workspaceInspection.states.fileUnavailable({
+            reason: file.unavailableReason ?? file.file.fileKind,
+          })}
+          title={uiText.workspaceInspection.states.fileUnavailableTitle}
         />
         <WarningList warnings={file.warnings} />
       </Panel>
@@ -367,15 +423,20 @@ function FileView({ file }: { file: WorkspaceFileContentResponse }) {
     <Panel className={styles.panel}>
       <div className={styles.summaryRow}>
         <div>
-          <Text variant="eyebrow">File</Text>
+          <Text variant="eyebrow">{uiText.workspaceInspection.labels.file}</Text>
           <h2>{file.file.relativePath}</h2>
         </div>
         <Badge tone={file.range.truncated ? "warning" : "success"}>
-          {file.source === "captured_evidence" ? "captured" : "live"}
+          {file.source === "captured_evidence"
+            ? uiText.workspaceInspection.labels.captured
+            : uiText.workspaceInspection.labels.live}
         </Badge>
       </div>
       <WarningList warnings={file.warnings} />
-      <pre className={styles.codeBlock} aria-label="File content">
+      <pre
+        className={styles.codeBlock}
+        aria-label={uiText.workspaceInspection.labels.fileContent}
+      >
         {file.content.lines.map((line) => (
           <span className={styles.codeLine} key={line.lineNumber}>
             <span className={styles.lineNumber}>{line.lineNumber}</span>
@@ -388,12 +449,16 @@ function FileView({ file }: { file: WorkspaceFileContentResponse }) {
 }
 
 function DiffView({ diff }: { diff: WorkspaceDiffResponse }) {
+  const uiText = useUiText();
+
   if (!diff.isAvailable) {
     return (
       <Panel className={styles.panel}>
         <EmptyState
-          message={`Diff is unavailable: ${diff.unavailableReason ?? "unknown"}.`}
-          title="Diff unavailable"
+          message={uiText.workspaceInspection.states.diffUnavailable({
+            reason: diff.unavailableReason ?? "unknown",
+          })}
+          title={uiText.workspaceInspection.states.diffUnavailableTitle}
         />
         <WarningList warnings={diff.warnings} />
       </Panel>
@@ -404,13 +469,17 @@ function DiffView({ diff }: { diff: WorkspaceDiffResponse }) {
     <Panel className={styles.panel}>
       <div className={styles.summaryRow}>
         <div>
-          <Text variant="eyebrow">Diff</Text>
+          <Text variant="eyebrow">{uiText.workspaceInspection.labels.diff}</Text>
           <h2>{diff.file.relativePath}</h2>
         </div>
         <div className={styles.badgeGroup}>
           <Badge tone="success">+{diff.stats.additions}</Badge>
           <Badge tone="warning">-{diff.stats.deletions}</Badge>
-          {diff.stats.truncated ? <Badge tone="warning">truncated</Badge> : null}
+          {diff.stats.truncated ? (
+            <Badge tone="warning">
+              {uiText.workspaceInspection.labels.truncated}
+            </Badge>
+          ) : null}
         </div>
       </div>
       <WarningList warnings={diff.warnings} />
@@ -488,27 +557,30 @@ function Metric({ label, value }: { label: string; value: number }) {
   );
 }
 
-function titleForContext(context: WorkspaceInspectionRouteContext): string {
+function titleForContext(
+  context: WorkspaceInspectionRouteContext,
+  uiText: UiTextCatalog,
+): string {
   if (context.mode === "status") {
-    return "Changed files";
+    return uiText.workspaceInspection.labels.changedFiles;
   }
   if (context.mode === "diff") {
-    return "File diff";
+    return uiText.workspaceInspection.labels.fileDiff;
   }
-  return "File viewer";
+  return uiText.workspaceInspection.labels.fileViewer;
 }
 
-function stageLabel(file: WorkspaceChangedFile): string {
+function stageLabel(file: WorkspaceChangedFile, uiText: UiTextCatalog): string {
   if (file.changeKind === "untracked") {
-    return "Untracked";
+    return uiText.workspaceInspection.labels.untracked;
   }
   if (file.staged && file.unstaged) {
-    return "Mixed";
+    return uiText.workspaceInspection.labels.mixed;
   }
   if (file.staged) {
-    return "Staged";
+    return uiText.workspaceInspection.labels.staged;
   }
-  return "Unstaged";
+  return uiText.workspaceInspection.labels.unstaged;
 }
 
 function linePrefix(kind: "context" | "add" | "delete"): string {

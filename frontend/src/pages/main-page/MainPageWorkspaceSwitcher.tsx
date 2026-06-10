@@ -2,6 +2,7 @@ import { Clock, Folder, FolderOpen } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 
 import { Text } from "../../shared/components";
+import { useUiText, type UiTextCatalog } from "../../shared/ui-text";
 import styles from "./MainPage.module.css";
 
 export type MainPageWorkspaceRuntime = {
@@ -16,18 +17,12 @@ export type MainPageWorkspaceSwitcherProps = {
   runtime?: MainPageWorkspaceRuntime | null;
 };
 
-const unavailableState: PlatoWorkspaceEntryState = {
-  currentWorkspace: null,
-  error: "Workspace switching is only available in the Plato desktop app.",
-  recentWorkspaces: [],
-  status: "failed",
-};
-
 export function MainPageWorkspaceSwitcher({
   actions = null,
   children = null,
   runtime = null,
 }: MainPageWorkspaceSwitcherProps) {
+  const uiText = useUiText();
   const bridge = runtime?.bridge ?? globalThis.window?.platoElectronWorkspace ?? null;
   const runtimeWorkspace =
     runtime?.currentWorkspace ?? globalThis.window?.platoRuntimeConfig?.workspace ?? null;
@@ -54,14 +49,14 @@ export function MainPageWorkspaceSwitcher({
       })
       .catch(() => {
         if (isMounted) {
-          setState(unavailableState);
+          setState(unavailableState(uiText));
         }
       });
 
     return () => {
       isMounted = false;
     };
-  }, [bridge]);
+  }, [bridge, uiText]);
 
   async function chooseWorkspace() {
     await runWorkspaceAction(() => bridge?.chooseWorkspace());
@@ -76,7 +71,7 @@ export function MainPageWorkspaceSwitcher({
   ) {
     const resultPromise = action();
     if (!resultPromise) {
-      setState(unavailableState);
+      setState(unavailableState(uiText));
       return;
     }
 
@@ -93,7 +88,7 @@ export function MainPageWorkspaceSwitcher({
     } catch {
       setState({
         currentWorkspace,
-        error: "Could not open that workspace.",
+        error: uiText.main.states.workspaceSwitchFailed,
         recentWorkspaces,
         status: "failed",
       });
@@ -102,16 +97,21 @@ export function MainPageWorkspaceSwitcher({
   }
 
   return (
-    <div className={styles.workspaceExplorer} aria-label="Workspaces">
+    <div
+      className={styles.workspaceExplorer}
+      aria-label={uiText.workspace.labels.workspaces}
+    >
       <div className={styles.workspaceTreeGroup}>
         <div className={styles.workspaceTreeCurrent} aria-current="true">
           <Folder className={styles.workspaceSwitcherIcon} size={18} aria-hidden="true" />
           <div className={styles.workspaceTreeCurrentLabel}>
             <span>
               <Text as="span" className={styles.workspaceSwitcherEyebrow}>
-                Workspace
+                {uiText.workspace.labels.workspace}
               </Text>
-              <strong>{currentWorkspace?.name ?? "Workspace"}</strong>
+              <strong>
+                {currentWorkspace?.name ?? uiText.workspace.labels.workspace}
+              </strong>
             </span>
           </div>
           {actions ? (
@@ -123,7 +123,7 @@ export function MainPageWorkspaceSwitcher({
 
       {isBusy ? (
         <Text as="div" className={styles.workspaceSwitcherNotice} variant="muted">
-          Switching workspace.
+          {uiText.main.states.workspaceSwitching}
         </Text>
       ) : null}
 
@@ -153,8 +153,17 @@ export function MainPageWorkspaceSwitcher({
         type="button"
       >
         <FolderOpen className={styles.workspaceSwitcherIcon} size={18} aria-hidden="true" />
-        <span>Open or add workspace</span>
+        <span>{uiText.workspace.actions.openOrAddWorkspace}</span>
       </button>
     </div>
   );
+}
+
+function unavailableState(uiText: UiTextCatalog): PlatoWorkspaceEntryState {
+  return {
+    currentWorkspace: null,
+    error: uiText.main.states.workspaceSwitchUnavailable,
+    recentWorkspaces: [],
+    status: "failed",
+  };
 }

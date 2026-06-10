@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
+import { renderWithUiText } from "../../shared/ui-text/testing";
 import { getMainPageMockSnapshot } from "./mockPlatoApi";
 import { TaskTreePanel } from "./TaskTreePanel";
 
@@ -28,6 +29,27 @@ describe("TaskTreePanel", () => {
     ).toBeInTheDocument();
     expect(screen.queryByText(/task structure/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/No TaskTree yet/i)).not.toBeInTheDocument();
+  });
+
+  it("renders empty task plan copy in zh-CN when the UI locale changes", () => {
+    renderWithUiText(
+      <TaskTreePanel
+        onRetryTask={vi.fn()}
+        onSelectTaskPlan={vi.fn()}
+        onSelectTask={vi.fn()}
+        onStopTask={vi.fn()}
+        selectedTaskNodeId={null}
+        taskTree={null}
+      />,
+      { locale: "zh-CN" },
+    );
+
+    expect(
+      screen.getByRole("heading", { name: "还没有任务计划" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("描述一个目标。Plato 会先为你起草任务计划。"),
+    ).toBeInTheDocument();
   });
 
   it("shows an understanding transition while the first task plan is generating", () => {

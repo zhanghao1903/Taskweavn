@@ -13,6 +13,7 @@ import type {
   PlatoApi,
 } from "../../shared/api/platoApi";
 import { createHttpPlatoApi } from "../../shared/api/platoApi";
+import { useUiText } from "../../shared/ui-text";
 import type { DiagnosticsLogsRouteLocation } from "./diagnosticsRouteModel";
 import { parseDiagnosticsLogsLocation } from "./diagnosticsRouteModel";
 import styles from "./DiagnosticsLogsRoute.module.css";
@@ -28,6 +29,7 @@ export function DiagnosticsLogsRoute({
   location,
   runtimeEnv = import.meta.env,
 }: DiagnosticsLogsRouteProps = {}) {
+  const uiText = useUiText();
   const resolvedLocation = location ?? globalThis.location;
   const context = useMemo(
     () => parseDiagnosticsLogsLocation(resolvedLocation.pathname, resolvedLocation.search),
@@ -45,9 +47,11 @@ export function DiagnosticsLogsRoute({
     return (
       <main className={styles.page}>
         <section className={styles.panel}>
-          <h1>Diagnostics</h1>
-          <p>Diagnostic context is unavailable for this route.</p>
-          <Button onClick={() => navigateApp("/")}>Return</Button>
+          <h1>{uiText.diagnostics.labels.diagnostics}</h1>
+          <p>{uiText.diagnostics.messages.contextUnavailable}</p>
+          <Button onClick={() => navigateApp("/")}>
+            {uiText.settings.actions.return}
+          </Button>
         </section>
       </main>
     );
@@ -87,30 +91,30 @@ export function DiagnosticsLogsRoute({
   return (
     <main className={styles.page}>
       <section
-        aria-label="Diagnostics log handoff"
+        aria-label={uiText.diagnostics.labels.diagnostics}
         className={styles.panel}
       >
         <div className={styles.headerRow}>
           <div>
-            <h1>Diagnostics</h1>
-            <p>Session log references are ready for local export.</p>
+            <h1>{uiText.diagnostics.labels.diagnostics}</h1>
+            <p>{uiText.diagnostics.messages.handoffReady}</p>
           </div>
-          <span className={styles.badge}>Read-only</span>
+          <span className={styles.badge}>{uiText.diagnostics.labels.readOnly}</span>
         </div>
         <dl className={styles.contextGrid}>
           <div>
-            <dt>Session</dt>
+            <dt>{uiText.diagnostics.labels.session}</dt>
             <dd>{context.sessionId}</dd>
           </div>
           {context.taskNodeId !== null && (
             <div>
-              <dt>Task</dt>
+              <dt>{uiText.diagnostics.labels.task}</dt>
               <dd>{context.taskNodeId}</dd>
             </div>
           )}
           {context.recordId !== null && (
             <div>
-              <dt>Audit record</dt>
+              <dt>{uiText.diagnostics.labels.auditRecord}</dt>
               <dd>{context.recordId}</dd>
             </div>
           )}
@@ -120,9 +124,9 @@ export function DiagnosticsLogsRoute({
         </pre>
         <div className={styles.exportPanel}>
           <div>
-            <h2>Export bundle</h2>
+            <h2>{uiText.diagnostics.labels.exportBundle}</h2>
             <p>
-              Create a redacted local bundle for this session without exposing raw logs in the UI.
+              {uiText.diagnostics.messages.exportBody}
             </p>
           </div>
           <Button
@@ -130,11 +134,13 @@ export function DiagnosticsLogsRoute({
             onClick={exportDiagnostics}
             variant="primary"
           >
-            {isExporting ? "Exporting" : "Export diagnostics"}
+            {isExporting
+              ? uiText.settings.actions.exportingDiagnostics
+              : uiText.diagnostics.actions.exportBundle}
           </Button>
           {!exportAvailable && (
             <p className={styles.helperText}>
-              Start Plato with the local sidecar to export diagnostics from the UI.
+              {uiText.diagnostics.messages.sidecarRequired}
             </p>
           )}
           <DiagnosticExportStatus state={exportState} />
@@ -151,10 +157,10 @@ export function DiagnosticsLogsRoute({
             }
             variant="secondary"
           >
-            Return to session
+            {uiText.diagnostics.actions.returnToSession}
           </Button>
           <Button onClick={() => navigateApp(auditHref)}>
-            Return to audit
+            {uiText.diagnostics.actions.returnToAudit}
           </Button>
         </div>
       </section>
@@ -172,10 +178,12 @@ type DiagnosticExportState =
     };
 
 function DiagnosticExportStatus({ state }: { state: DiagnosticExportState }) {
+  const uiText = useUiText();
+
   if (state.kind === "error") {
     return (
       <div className={styles.errorState} role="alert">
-        Diagnostic export failed. Retry or use the CLI command.
+        {uiText.diagnostics.messages.exportFailed}
       </div>
     );
   }
@@ -185,7 +193,8 @@ function DiagnosticExportStatus({ state }: { state: DiagnosticExportState }) {
   }
 
   const result = state.result;
-  const zipPath = result.zipPathLabel ?? result.zipPath ?? "Not created";
+  const zipPath =
+    result.zipPathLabel ?? result.zipPath ?? uiText.settings.labels.notCreated;
   const warningCount =
     result.warnings.length +
     result.sections.reduce(
@@ -194,35 +203,44 @@ function DiagnosticExportStatus({ state }: { state: DiagnosticExportState }) {
     );
 
   return (
-    <section className={styles.exportResult} aria-label="Diagnostic export result">
+    <section
+      className={styles.exportResult}
+      aria-label={uiText.diagnostics.labels.diagnosticExportResult}
+    >
       <div className={styles.resultHeader}>
-        <h2>Bundle ready</h2>
-        <span>{result.fileCount} files</span>
+        <h2>{uiText.diagnostics.labels.bundleReady}</h2>
+        <span>
+          {uiText.diagnostics.messages.fileCount({ count: result.fileCount })}
+        </span>
       </div>
       <dl className={styles.resultGrid}>
         <div>
-          <dt>Bundle</dt>
+          <dt>{uiText.diagnostics.labels.bundle}</dt>
           <dd>{result.bundleId}</dd>
         </div>
         <div>
-          <dt>Zip path</dt>
+          <dt>{uiText.diagnostics.labels.zipPath}</dt>
           <dd>{zipPath}</dd>
         </div>
         <div>
-          <dt>Manifest</dt>
+          <dt>{uiText.diagnostics.labels.manifest}</dt>
           <dd>{result.manifestPathLabel}</dd>
         </div>
         <div>
-          <dt>Redaction</dt>
+          <dt>{uiText.diagnostics.labels.redaction}</dt>
           <dd>{result.redactionProfile}</dd>
         </div>
       </dl>
       <p className={styles.helperText}>
-        Included sections: {result.includedSections.join(", ") || "none"}.
+        {uiText.diagnostics.messages.includedSections({
+          sections:
+            result.includedSections.join(", ") ||
+            uiText.diagnostics.messages.noSections,
+        })}
       </p>
       {warningCount > 0 && (
         <p className={styles.warningText}>
-          {warningCount === 1 ? "1 warning" : `${warningCount} warnings`} recorded in the manifest.
+          {uiText.diagnostics.messages.warningCount({ count: warningCount })}
         </p>
       )}
     </section>

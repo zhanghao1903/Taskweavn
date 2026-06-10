@@ -12,6 +12,7 @@ import type {
   AuditVerdict,
 } from "../../shared/api/types";
 import { cx } from "../../shared/utils/cx";
+import { useUiText } from "../../shared/ui-text";
 import { PlatoProductMark } from "../main-page/PlatoProductMark";
 import type { AuditPageRuntimeState } from "./auditRuntimeEvents";
 import { formatAuditTime } from "./auditPageFormat";
@@ -20,7 +21,7 @@ import {
   auditCompletenessLabel,
   auditFilterLabel,
   auditLiveStatusCopy,
-  auditOverviewMetricFilters,
+  auditOverviewMetricFilterItems,
   auditScopeLabel,
   auditScopeStatusText,
   auditSubjectLabel,
@@ -54,32 +55,38 @@ export function AuditPageFrame({
 }
 
 function AuditPageChrome({ snapshot }: { snapshot: AuditPageSnapshot | null }) {
+  const uiText = useUiText();
+
   return (
     <div className={styles.topBar}>
       <div className={styles.brandBlock}>
         <PlatoProductMark className={styles.brandMark} />
         <div className={styles.brandCopy}>
           <span className={styles.brandName}>Plato</span>
-          <span className={styles.brandSubtitle}>Task-first Intelligent Workbench</span>
+          <span className={styles.brandSubtitle}>
+            Task-first Intelligent Workbench
+          </span>
         </div>
       </div>
       <div className={styles.topBarContextBlock}>
-        <span className={styles.topBarLabel}>Project</span>
+        <span className={styles.topBarLabel}>{uiText.audit.labels.project}</span>
         <span className={styles.topBarValue}>
-          {snapshot?.project?.name ?? "Project"}
+          {snapshot?.project?.name ?? uiText.audit.labels.project}
         </span>
       </div>
       <span className={styles.workflowPill}>
-        {snapshot?.workflow?.name ?? "Audit workflow"}
+        {snapshot?.workflow?.name ?? uiText.audit.labels.auditWorkflow}
       </span>
       <div className={styles.sessionContextBlock}>
         <span className={styles.sessionValue}>
-          Session: {snapshot?.session.name ?? "Audit"}
+          {uiText.audit.labels.sessionName({
+            name: snapshot?.session.name ?? uiText.audit.labels.audit,
+          })}
         </span>
       </div>
       <div className={styles.topBarActions}>
-        <span className={styles.badge}>Read-only</span>
-        <span className={styles.badge}>Trust plane</span>
+        <span className={styles.badge}>{uiText.audit.labels.readOnly}</span>
+        <span className={styles.badge}>{uiText.audit.labels.trustPlane}</span>
         <Button
           disabled={snapshot === null}
           onClick={() => {
@@ -89,7 +96,7 @@ function AuditPageChrome({ snapshot }: { snapshot: AuditPageSnapshot | null }) {
           }}
           variant="secondary"
         >
-          Return
+          {uiText.audit.actions.return}
         </Button>
       </div>
     </div>
@@ -103,27 +110,32 @@ export function AuditHeader({
   boundary: ApiUiBoundaryState;
   snapshot: AuditPageSnapshot;
 }) {
+  const uiText = useUiText();
+
   return (
     <header className={styles.header}>
       <div className={styles.headerSubjectCluster}>
         <div className={styles.titleRow}>
-          <h1 className={styles.title}>Audit</h1>
-          <span className={styles.badge}>{auditScopeLabel(snapshot)}</span>
+          <h1 className={styles.title}>{uiText.audit.labels.audit}</h1>
+          <span className={styles.badge}>
+            {auditScopeLabel(snapshot, uiText)}
+          </span>
         </div>
         <div className={styles.headerSubjectMeta}>
           <p className={styles.subject}>{auditSubjectLabel(snapshot)}</p>
           <p className={styles.status}>
-            {auditScopeStatusText(snapshot)} · Filter: {auditFilterLabel(snapshot.request.filter)}
+            {auditScopeStatusText(snapshot, uiText)} ·{" "}
+            {uiText.audit.labels.filter}:{" "}
+            {auditFilterLabel(snapshot.request.filter, undefined, uiText)}
           </p>
         </div>
       </div>
       <div className={styles.headerStatus}>
-        <span className={styles.badge}>{auditBoundaryLabel(boundary)}</span>
-        <span className={styles.badge}>No mutations</span>
+        <span className={styles.badge}>{auditBoundaryLabel(boundary, uiText)}</span>
+        <span className={styles.badge}>{uiText.audit.labels.noMutations}</span>
       </div>
       <p className={styles.note}>
-        Audit is a read-only trust plane. It explains what happened without
-        changing the Task or session.
+        {uiText.audit.messages.readOnlyTrustPlane}
       </p>
     </header>
   );
@@ -138,6 +150,7 @@ export function Overview({
   onRetry?: () => void;
   snapshot: AuditPageSnapshot;
 }) {
+  const uiText = useUiText();
   const shouldShowBoundaryNotice = boundary.kind !== "ready";
   const shouldShowVerdictNotice =
     snapshot.overview.verdict !== "passed" &&
@@ -164,7 +177,7 @@ export function Overview({
             {shouldShowBoundaryNotice && (
               <div className={styles.overviewNotice} role="status">
                 <div className={styles.overviewNoticeMain}>
-                  <strong>{auditBoundaryLabel(boundary)}</strong>
+                  <strong>{auditBoundaryLabel(boundary, uiText)}</strong>
                   <span>{boundary.message}</span>
                   {boundary.code !== undefined && (
                     <span className={styles.overviewNoticeCode}>
@@ -179,7 +192,9 @@ export function Overview({
                   {boundary.retryable && <span className={styles.badge}>Retryable</span>}
                   {boundary.retryable && onRetry !== undefined && (
                     <Button onClick={onRetry} variant="secondary">
-                      {boundary.shouldResync ? "Refresh audit" : "Retry"}
+                      {boundary.shouldResync
+                        ? uiText.audit.actions.refreshAudit
+                        : uiText.common.actions.retry}
                     </Button>
                   )}
                 </div>
@@ -189,7 +204,9 @@ export function Overview({
               <div className={styles.overviewNotice} role="note">
                 <StatusBadge value={snapshot.overview.verdict} />
                 <div className={styles.overviewNoticeMain}>
-                  <strong>{auditVerdictNoticeTitle(snapshot.overview.verdict)}</strong>
+                  <strong>
+                    {auditVerdictNoticeTitle(snapshot.overview.verdict, uiText)}
+                  </strong>
                   <span>{snapshot.overview.keyIssue ?? snapshot.overview.summary}</span>
                 </div>
               </div>
@@ -198,7 +215,7 @@ export function Overview({
         )}
       </div>
       <div className={styles.overviewMetrics}>
-        {auditOverviewMetricFilters.map((item) => (
+        {auditOverviewMetricFilterItems(uiText).map((item) => (
           <div className={styles.metric} key={item.filter}>
             <span className={styles.metricLabel}>{item.label}</span>
             <strong className={styles.metricValue}>
@@ -213,6 +230,8 @@ export function Overview({
 }
 
 export function VerdictNotice({ snapshot }: { snapshot: AuditPageSnapshot }) {
+  const uiText = useUiText();
+
   if (
     snapshot.overview.verdict === "passed" ||
     snapshot.overview.verdict === "not_available"
@@ -228,7 +247,7 @@ export function VerdictNotice({ snapshot }: { snapshot: AuditPageSnapshot }) {
     >
       <StatusBadge value={snapshot.overview.verdict} />
       <div>
-        <strong>{auditVerdictNoticeTitle(snapshot.overview.verdict)}</strong>
+        <strong>{auditVerdictNoticeTitle(snapshot.overview.verdict, uiText)}</strong>
         <p>{snapshot.overview.keyIssue ?? snapshot.overview.summary}</p>
       </div>
     </section>
@@ -248,7 +267,8 @@ export function LiveStatusNotice({
     return null;
   }
 
-  const copy = auditLiveStatusCopy(liveState);
+  const uiText = useUiText();
+  const copy = auditLiveStatusCopy(liveState, uiText);
 
   return (
     <section
@@ -283,6 +303,8 @@ export function FilterRail({
   filters: AuditPageSnapshot["filters"];
   onSelectFilter?: (filter: AuditFilterKind) => void;
 }) {
+  const uiText = useUiText();
+
   return (
     <aside aria-label="Audit record filters" className={cx(styles.panel, styles.filterRail)}>
       <h2 className={styles.sectionTitle}>Record Filters</h2>
@@ -298,7 +320,7 @@ export function FilterRail({
             onClick={() => onSelectFilter?.(filter.kind)}
             type="button"
           >
-            <span>{auditFilterLabel(filter.kind, filter.label)}</span>
+            <span>{auditFilterLabel(filter.kind, filter.label, uiText)}</span>
             <span className={styles.filterCount}>{filter.count}</span>
           </button>
         ))}
@@ -316,6 +338,8 @@ export function Timeline({
   onSelectRecord?: (recordId: AuditRecordId) => void;
   records: AuditRecord[];
 }) {
+  const uiText = useUiText();
+
   return (
     <section
       aria-label="Audit records"
@@ -357,7 +381,8 @@ export function Timeline({
               <h3 className={styles.recordTitle}>{record.title}</h3>
               <p className={styles.recordSummary}>{record.summary}</p>
               <p className={styles.recordRefs}>
-                {record.sourceLabel} · {auditFilterLabel(record.filterKind)} ·{" "}
+                {record.sourceLabel} ·{" "}
+                {auditFilterLabel(record.filterKind, undefined, uiText)} ·{" "}
                 {record.actor}
               </p>
               <div className={styles.recordFooter}>
@@ -381,6 +406,8 @@ export function BoundaryBanner({
   boundary: ApiUiBoundaryState;
   onRetry?: () => void;
 }) {
+  const uiText = useUiText();
+
   return (
     <section
       aria-live="polite"
@@ -388,7 +415,7 @@ export function BoundaryBanner({
       role="status"
     >
       <div>
-        <strong>{auditBoundaryLabel(boundary)}</strong>
+        <strong>{auditBoundaryLabel(boundary, uiText)}</strong>
         <p>{boundary.message}</p>
         {boundary.code !== undefined && <small>Code: {boundary.code}</small>}
       </div>
@@ -397,7 +424,9 @@ export function BoundaryBanner({
         {boundary.retryable && <span className={styles.badge}>Retryable</span>}
         {boundary.retryable && onRetry !== undefined && (
           <Button onClick={onRetry} variant="secondary">
-            {boundary.shouldResync ? "Refresh audit" : "Retry"}
+            {boundary.shouldResync
+              ? uiText.audit.actions.refreshAudit
+              : uiText.common.actions.retry}
           </Button>
         )}
       </div>
@@ -460,6 +489,7 @@ export function Boundary({
 }
 
 export function StatusBadge({ value }: { value: AuditVerdict }) {
+  const uiText = useUiText();
   const classKey = auditVerdictClassKey(value);
   return (
     <span
@@ -468,11 +498,16 @@ export function StatusBadge({ value }: { value: AuditVerdict }) {
         classKey === null ? null : verdictBadgeClassNames[classKey],
       )}
     >
-      {auditVerdictLabel(value)}
+      {auditVerdictLabel(value, uiText)}
     </span>
   );
 }
 
 function CompletenessBadge({ value }: { value: AuditCompleteness }) {
-  return <span className={styles.badge}>{auditCompletenessLabel(value)}</span>;
+  const uiText = useUiText();
+  return (
+    <span className={styles.badge}>
+      {auditCompletenessLabel(value, uiText)}
+    </span>
+  );
 }

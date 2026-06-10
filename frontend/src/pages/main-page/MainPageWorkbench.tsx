@@ -2,6 +2,7 @@ import { useState, type ReactNode } from "react";
 
 import type { ProductRecoveryAction } from "../../shared/api/platoApi";
 import { Panel } from "../../shared/components";
+import { useUiText } from "../../shared/ui-text";
 import { ActivityOverlay } from "./ActivityOverlay";
 import { ContextInputPanel } from "./ContextInputPanel";
 import { LatestActivityStrip } from "./LatestActivityStrip";
@@ -49,6 +50,7 @@ export function MainPageWorkbench({
   workspaceCatalog,
   workspaceRuntime = null,
 }: MainPageWorkbenchProps) {
+  const uiText = useUiText();
   const [isActivityOverlayOpen, setIsActivityOverlayOpen] = useState(false);
   const hidesDetailPanel = viewModel.detail.kind === "note";
   const pageClassName = hidesDetailPanel
@@ -92,7 +94,7 @@ export function MainPageWorkbench({
       <Panel
         as="section"
         className={styles.workspace}
-        aria-label="Task workspace"
+        aria-label={uiText.main.labels.taskWorkspace}
       >
         <MainPageWorkspaceHeader
           auditEntry={viewModel.workspace.auditEntry}
