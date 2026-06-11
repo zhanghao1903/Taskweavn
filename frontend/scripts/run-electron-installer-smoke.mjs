@@ -126,7 +126,7 @@ function printUsage() {
   console.log(`Usage:
   npm run electron:smoke:installer
   npm run electron:smoke:installer -- --skip-package
-  npm run electron:smoke:installer -- --installer ./dist-electron-installer/Plato-0.1.0-macos-arm64.dmg
+  npm run electron:smoke:installer -- --installer ./dist-electron-installer/Plato-<version>-macos-arm64.dmg
 
 Builds or reuses a local DMG installer candidate, mounts it read-only, and runs
 configured, first-run, and startup diagnostics smoke through the mounted

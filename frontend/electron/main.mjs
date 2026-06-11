@@ -1,4 +1,5 @@
 import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
+import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -29,7 +30,7 @@ const repoRoot = path.resolve(frontendRoot, "..");
 const preloadPath = path.join(electronDir, "preload.mjs");
 
 const startupId = createStartupId();
-const appVersion = process.env.npm_package_version ?? "0.1.0";
+const appVersion = resolveAppVersion();
 let mainWindow = null;
 let sidecarRuntime = null;
 let lastStartupDiagnostics = null;
@@ -45,6 +46,23 @@ if (process.env.PLATO_ELECTRON_SMOKE === "1") {
 }
 
 ipcMain.handle("plato:get-startup-diagnostics", () => lastStartupDiagnostics);
+
+function resolveAppVersion() {
+  const explicitVersion =
+    process.env.PLATO_ELECTRON_APP_VERSION ?? process.env.npm_package_version;
+  if (explicitVersion) {
+    return explicitVersion;
+  }
+
+  try {
+    const packageJson = JSON.parse(
+      readFileSync(path.join(frontendRoot, "package.json"), "utf8"),
+    );
+    return packageJson.platoReleaseVersion ?? packageJson.version ?? "0.1.0";
+  } catch {
+    return "0.1.0";
+  }
+}
 
 app.whenReady().then(async () => {
   app.on("web-contents-created", (_event, contents) => {

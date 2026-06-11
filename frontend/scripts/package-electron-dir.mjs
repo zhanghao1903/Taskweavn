@@ -17,6 +17,12 @@ import { execFileSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import {
+  normalizeReleaseVersion,
+  toDarwinBundleVersion,
+  toPackageVersion,
+} from "./release-version.mjs";
+
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const frontendRoot = path.resolve(scriptDir, "..");
 const repoRoot = path.resolve(frontendRoot, "..");
@@ -27,6 +33,12 @@ const electronDistDir = path.join(frontendRoot, "node_modules", "electron", "dis
 const pythonEnvSourceDir = path.join(repoRoot, ".venv");
 const appName = "Plato";
 const bundleIdentifier = "com.taskweavn.plato";
+const frontendPackageJson = JSON.parse(
+  readFileSync(path.join(frontendRoot, "package.json"), "utf8"),
+);
+const defaultReleaseVersion = normalizeReleaseVersion(
+  process.env.PLATO_ELECTRON_RELEASE_VERSION ?? frontendPackageJson.version,
+);
 
 const options = parseArgs(process.argv.slice(2));
 
@@ -46,17 +58,20 @@ try {
     recursive: true,
     verbatimSymlinks: true,
   });
-  preparePlatformBundle(target);
+  preparePlatformBundle(target, options);
   copyAppPayload(target.appResourceDir, options);
 
   const manifest = {
     appName,
     appResourceDir: target.appResourceDir,
     appRoot: target.appRoot,
+    bundleVersion: options.bundleVersion,
     bundleIdentifier,
     createdAt: new Date().toISOString(),
     executablePath: target.executablePath,
+    packageVersion: options.packageVersion,
     platform: process.platform,
+    releaseVersion: options.releaseVersion,
     renderer: "dist/index.html",
     sidecarLauncherPath: options.withLauncher
       ? path.join(target.appResourceDir, "sidecar", "plato-sidecar-launcher.mjs")
@@ -81,6 +96,7 @@ try {
 
 function parseArgs(args) {
   let outputDir = path.join(frontendRoot, "dist-electron");
+  let releaseVersion = defaultReleaseVersion;
   let withLauncher = false;
 
   for (let index = 0; index < args.length; index += 1) {
@@ -98,6 +114,15 @@ function parseArgs(args) {
       index += 1;
       continue;
     }
+    if (arg === "--release-version") {
+      const value = args[index + 1];
+      if (!value) {
+        throw new Error("--release-version requires a version");
+      }
+      releaseVersion = normalizeReleaseVersion(value);
+      index += 1;
+      continue;
+    }
     if (arg === "--with-launcher") {
       withLauncher = true;
       continue;
@@ -105,7 +130,14 @@ function parseArgs(args) {
     throw new Error(`unknown option for electron:package:dir: ${arg}`);
   }
 
-  return { outputDir, withLauncher };
+  const packageVersion = toPackageVersion(releaseVersion);
+  return {
+    bundleVersion: toDarwinBundleVersion(packageVersion),
+    outputDir,
+    packageVersion,
+    releaseVersion,
+    withLauncher,
+  };
 }
 
 function printUsage() {
@@ -113,15 +145,17 @@ function printUsage() {
   npm run electron:package:dir
   npm run electron:package:dir -- --output-dir ./dist-electron
   npm run electron:package:dir -- --output-dir ./dist-electron-launcher --with-launcher
+  npm run electron:package:dir -- --release-version 1.1-beta
 
 Builds an unsigned local Electron app directory from the current renderer dist.
 Signing, notarization, and installers are out of scope. Launcher packages copy
 a package-local Python runtime candidate for deterministic smoke only.
 
 Options:
-  --output-dir <path>    Package output root. Defaults to frontend/dist-electron.
-  --with-launcher        Include the release-local sidecar launcher contract.
-  --help                 Show this help.`);
+  --output-dir <path>       Package output root. Defaults to frontend/dist-electron.
+  --release-version <ver>   Public release version, for example 1.1-beta.
+  --with-launcher           Include the release-local sidecar launcher contract.
+  --help                    Show this help.`);
 }
 
 function resolvePackageTarget(outputDir) {
@@ -152,7 +186,7 @@ function resolvePackageTarget(outputDir) {
   };
 }
 
-function preparePlatformBundle(target) {
+function preparePlatformBundle(target, options) {
   if (process.platform !== "darwin") {
     chmodSync(target.executablePath, 0o755);
     return;
@@ -174,7 +208,16 @@ function preparePlatformBundle(target) {
       /(<key>CFBundleName<\/key>\s*<string>)Electron(<\/string>)/,
       `$1${appName}$2`,
     );
-  writeFileSync(infoPlistPath, updated, "utf8");
+  const versioned = replaceOrInsertPlistString(
+    replaceOrInsertPlistString(
+      updated,
+      "CFBundleShortVersionString",
+      options.bundleVersion,
+    ),
+    "CFBundleVersion",
+    options.bundleVersion,
+  );
+  writeFileSync(infoPlistPath, versioned, "utf8");
 }
 
 function copyAppPayload(appResourceDir, options) {
@@ -193,9 +236,10 @@ function copyAppPayload(appResourceDir, options) {
       {
         main: "electron/main.mjs",
         name: "@taskweavn/plato-packaged",
+        platoReleaseVersion: options.releaseVersion,
         private: true,
         type: "module",
-        version: "0.1.0",
+        version: options.packageVersion,
       },
       null,
       2,
@@ -572,4 +616,15 @@ function rewritePackagedIndexHtml(indexHtmlPath) {
     .replaceAll('src="/assets/', 'src="./assets/')
     .replaceAll('href="/assets/', 'href="./assets/');
   writeFileSync(indexHtmlPath, updated, "utf8");
+}
+
+function replaceOrInsertPlistString(text, key, value) {
+  const pattern = new RegExp(`(<key>${key}</key>\\s*<string>)([^<]*)(</string>)`);
+  if (pattern.test(text)) {
+    return text.replace(pattern, `$1${value}$3`);
+  }
+  return text.replace(
+    /\s*<\/dict>/,
+    `\n\t<key>${key}</key>\n\t<string>${value}</string>\n</dict>`,
+  );
 }

@@ -11,14 +11,21 @@ import {
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import {
+  normalizeReleaseVersion,
+  toDarwinBundleVersion,
+  toPackageVersion,
+} from "./release-version.mjs";
+
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const frontendRoot = path.resolve(scriptDir, "..");
 const defaultPackageDir = path.join(frontendRoot, "dist-electron-launcher");
 const defaultOutputDir = path.join(frontendRoot, "dist-electron-installer");
 const npmBin = process.platform === "win32" ? "npm.cmd" : "npm";
-const appVersion = JSON.parse(
+const frontendPackageJson = JSON.parse(
   readFileSync(path.join(frontendRoot, "package.json"), "utf8"),
-).version;
+);
+const defaultReleaseVersion = normalizeReleaseVersion(frontendPackageJson.version);
 
 const options = parseArgs(process.argv.slice(2));
 
@@ -29,7 +36,11 @@ try {
   const signing = resolveSigningOptions(options);
 
   if (!options.skipPackage) {
-    runCommand(npmBin, ["run", "electron:package:launcher-dir"], {
+    const packageArgs = ["run", "electron:package:launcher-dir"];
+    if (options.releaseVersion !== null) {
+      packageArgs.push("--", "--release-version", options.releaseVersion);
+    }
+    runCommand(npmBin, packageArgs, {
       label: "electron:package:launcher-dir",
     });
   }
@@ -51,12 +62,21 @@ try {
   if (!existsSync(sourceAppRoot)) {
     throw new Error(`Packaged app not found: ${sourceAppRoot}`);
   }
+  const releaseVersion = resolveInstallerReleaseVersion(packageManifest, options);
+  const packageVersion = resolveInstallerPackageVersion(
+    packageManifest,
+    releaseVersion,
+  );
+  const bundleVersion = resolveInstallerBundleVersion(
+    packageManifest,
+    packageVersion,
+  );
 
   const stagingRoot = path.join(options.outputDir, "staging", "Plato");
   const stagedAppRoot = path.join(stagingRoot, "Plato.app");
   const dmgPath = path.join(
     options.outputDir,
-    `Plato-${appVersion}-macos-${process.arch}.dmg`,
+    `Plato-${releaseVersion}-macos-${process.arch}.dmg`,
   );
   rmSync(stagingRoot, { force: true, recursive: true });
   mkdirSync(stagingRoot, { recursive: true });
@@ -82,12 +102,15 @@ try {
 
   const installerManifest = {
     appName: packageManifest.appName ?? "Plato",
-    appVersion,
+    appVersion: releaseVersion,
+    bundleVersion,
     createdAt: new Date().toISOString(),
     dmgPath,
     notarized: signing.notarize,
     packageDir: options.packageDir,
     packageManifestPath,
+    packageVersion,
+    releaseVersion,
     runtimeKind: readRuntimeKind(packageManifest),
     signed: signing.sign,
     signingIdentity: signing.sign ? signing.identity : null,
@@ -114,6 +137,10 @@ function parseArgs(args) {
   let notarize = process.env.PLATO_ELECTRON_NOTARIZE === "1";
   let outputDir = defaultOutputDir;
   let packageDir = defaultPackageDir;
+  let releaseVersion =
+    process.env.PLATO_ELECTRON_RELEASE_VERSION === undefined
+      ? null
+      : normalizeReleaseVersion(process.env.PLATO_ELECTRON_RELEASE_VERSION);
   let sign = process.env.PLATO_ELECTRON_SIGN === "1";
   let skipPackage = false;
 
@@ -146,6 +173,15 @@ function parseArgs(args) {
       index += 1;
       continue;
     }
+    if (arg === "--release-version") {
+      const value = args[index + 1];
+      if (!value) {
+        throw new Error("--release-version requires a version");
+      }
+      releaseVersion = normalizeReleaseVersion(value);
+      index += 1;
+      continue;
+    }
     if (arg === "--sign") {
       sign = true;
       continue;
@@ -161,6 +197,7 @@ function parseArgs(args) {
     notarize,
     outputDir: path.resolve(outputDir),
     packageDir: path.resolve(packageDir),
+    releaseVersion,
     sign,
     skipPackage,
   };
@@ -169,6 +206,7 @@ function parseArgs(args) {
 function printUsage() {
   console.log(`Usage:
   npm run electron:package:installer
+  npm run electron:package:installer -- --release-version 1.1-beta
   npm run electron:package:installer -- --skip-package
   npm run electron:package:installer -- --sign
   npm run electron:package:installer -- --sign --notarize
@@ -181,10 +219,54 @@ requires either PLATO_ELECTRON_NOTARY_KEYCHAIN_PROFILE or Apple ID credentials.
 Options:
   --package-dir <path>   Launcher package root. Defaults to dist-electron-launcher.
   --output-dir <path>    Installer output root. Defaults to dist-electron-installer.
+  --release-version <v>  Public release version used for package metadata and DMG name.
   --skip-package         Reuse the existing launcher package directory.
   --sign                 Codesign the staged app and DMG.
   --notarize             Submit and staple the DMG after signing.
   --help                 Show this help.`);
+}
+
+function resolveInstallerReleaseVersion(packageManifest, options) {
+  const manifestReleaseVersion =
+    typeof packageManifest.releaseVersion === "string"
+      ? normalizeReleaseVersion(packageManifest.releaseVersion)
+      : null;
+  if (
+    options.releaseVersion !== null &&
+    manifestReleaseVersion !== null &&
+    options.releaseVersion !== manifestReleaseVersion
+  ) {
+    throw new Error(
+      `--release-version ${options.releaseVersion} does not match package manifest releaseVersion ${manifestReleaseVersion}`,
+    );
+  }
+  return options.releaseVersion ?? manifestReleaseVersion ?? defaultReleaseVersion;
+}
+
+function resolveInstallerPackageVersion(packageManifest, releaseVersion) {
+  const expectedPackageVersion = toPackageVersion(releaseVersion);
+  if (
+    typeof packageManifest.packageVersion === "string" &&
+    packageManifest.packageVersion !== expectedPackageVersion
+  ) {
+    throw new Error(
+      `package manifest packageVersion ${packageManifest.packageVersion} does not match releaseVersion ${releaseVersion}`,
+    );
+  }
+  return expectedPackageVersion;
+}
+
+function resolveInstallerBundleVersion(packageManifest, packageVersion) {
+  const expectedBundleVersion = toDarwinBundleVersion(packageVersion);
+  if (
+    typeof packageManifest.bundleVersion === "string" &&
+    packageManifest.bundleVersion !== expectedBundleVersion
+  ) {
+    throw new Error(
+      `package manifest bundleVersion ${packageManifest.bundleVersion} does not match packageVersion ${packageVersion}`,
+    );
+  }
+  return expectedBundleVersion;
 }
 
 function resolveSigningOptions({ notarize, sign }) {
