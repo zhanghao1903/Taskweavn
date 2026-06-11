@@ -24,6 +24,7 @@ import type {
   QueryResponse,
   UiEvent,
 } from "../../shared/api/types";
+import type { TokenUsageSummaryResponse } from "../../shared/api/tokenUsageTypes";
 import { productRecoveryActionsFromUnknown } from "../../shared/api/productErrors";
 import {
   createHttpMainPageAdapter,
@@ -380,6 +381,11 @@ describe("HTTP MainPage adapter bridge", () => {
     await adapter.loadWorkspaceCatalog?.();
     await adapter.loadSnapshot("s1-empty");
     await adapter.createSession({ name: "New session" });
+    await adapter.loadTokenUsageSummary?.({
+      dimension: "task",
+      sessionId: snapshot.session.id,
+      taskNodeId: "task-1",
+    });
     const unsubscribe = adapter.subscribeSessionEvents(
       snapshot.session.id,
       "cursor-1",
@@ -393,6 +399,14 @@ describe("HTTP MainPage adapter bridge", () => {
     });
     expect(api.createSession).toHaveBeenCalledWith(
       { name: "New session" },
+      { workspaceId: "workspace-1" },
+    );
+    expect(api.getTokenUsageSummary).toHaveBeenCalledWith(
+      {
+        dimension: "task",
+        sessionId: snapshot.session.id,
+        taskNodeId: "task-1",
+      },
       { workspaceId: "workspace-1" },
     );
     expect(api.subscribeSessionEvents).toHaveBeenCalledWith(
@@ -422,6 +436,7 @@ function stubPlatoApi(snapshot: MainPageSnapshot) {
       lifecycleResponse({ sessionId: snapshot.session.id }),
     ),
     deleteSession: vi.fn(async () => lifecycleResponse({ nextSessionId: null })),
+    getTokenUsageSummary: vi.fn(async () => tokenUsageResponse()),
     appendSessionInput: vi.fn(async () => response),
     generateTaskTree: vi.fn(async () => response),
     updateTaskNode: vi.fn(async () => response),
@@ -437,6 +452,41 @@ function stubPlatoApi(snapshot: MainPageSnapshot) {
     cancelAsk: vi.fn(async () => response),
     subscribeSessionEvents: vi.fn(() => () => undefined),
   } satisfies HttpMainPageApi;
+}
+
+function tokenUsageResponse(): QueryResponse<TokenUsageSummaryResponse> {
+  return {
+    requestId: "request-token-usage",
+    ok: true,
+    data: {
+      dimension: "task",
+      totals: {
+        dimension: "task",
+        id: "total",
+        label: "Total",
+        workspaceId: "workspace-1",
+        sessionId: "session-1",
+        planId: null,
+        taskNodeId: "task-1",
+        callCount: 1,
+        unknownUsageCallCount: 0,
+        inputTokens: 100,
+        outputTokens: 50,
+        totalTokens: 150,
+        reasoningTokens: null,
+        cachedTokens: null,
+        cacheHitTokens: null,
+        cacheMissTokens: null,
+        cacheHitRatio: null,
+        cacheRateSource: "unavailable",
+        firstOccurredAt: "2026-06-10T00:00:00Z",
+        lastOccurredAt: "2026-06-10T00:00:00Z",
+      },
+      rows: [],
+    },
+    error: null,
+    generatedAt: "2026-06-10T00:00:00Z",
+  };
 }
 
 function lifecycleResponse<

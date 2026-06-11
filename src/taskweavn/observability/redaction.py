@@ -39,7 +39,24 @@ def redact_payload(value: Any) -> Any:
 
 def _should_redact(key: str) -> bool:
     normalized = key.lower()
+    if _is_usage_counter_key(normalized):
+        return False
     return any(marker in normalized for marker in DEFAULT_REDACT_KEYS)
+
+
+def _is_usage_counter_key(normalized: str) -> bool:
+    compact = normalized.replace("_", "").replace("-", "")
+    return compact in {
+        "cachedtokens",
+        "cachehittokens",
+        "cachemisstokens",
+        "inputtokens",
+        "outputtokens",
+        "reasoningtokens",
+        "totaltokens",
+        "tokencount",
+        "tokensused",
+    }
 
 
 __all__ = ["DEFAULT_REDACT_KEYS", "redact_payload"]

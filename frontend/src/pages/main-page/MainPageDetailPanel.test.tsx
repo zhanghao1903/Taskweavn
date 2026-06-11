@@ -1,5 +1,7 @@
 import { render, screen, within } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import userEvent from "@testing-library/user-event";
+import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import type { TaskNodeCardView } from "../../shared/api/types";
@@ -113,6 +115,80 @@ describe("MainPageDetailPanel", () => {
     expect(
       screen.queryByText(/Completed TaskNodes are read-only/i),
     ).not.toBeInTheDocument();
+  });
+
+  it("shows token usage for the selected task when a usage loader is available", async () => {
+    const loadTokenUsageSummary = vi.fn(async () => ({
+      dimension: "task" as const,
+      totals: {
+        dimension: "task" as const,
+        id: "total",
+        label: "Total",
+        workspaceId: "workspace-a",
+        sessionId: "session-1",
+        planId: "plan-1",
+        taskNodeId: "task-technical-stack",
+        callCount: 2,
+        unknownUsageCallCount: 1,
+        inputTokens: 1000,
+        outputTokens: 250,
+        totalTokens: 1250,
+        reasoningTokens: null,
+        cachedTokens: 400,
+        cacheHitTokens: 400,
+        cacheMissTokens: 600,
+        cacheHitRatio: 0.4,
+        cacheRateSource: "hit_miss_tokens" as const,
+        firstOccurredAt: "2026-06-10T00:00:00Z",
+        lastOccurredAt: "2026-06-10T00:01:00Z",
+      },
+      rows: [],
+    }));
+
+    renderWithQueryClient(
+      <MainPageDetailPanel
+        detail={{
+          header: {
+            body: "Compare framework options.",
+            eyebrow: "Task",
+            title: "Choose stack",
+          },
+          isRetryingTask: false,
+          isStoppingTask: false,
+          kind: "task",
+          selectedTask: taskNode({
+            id: "task-technical-stack",
+            summary: "Compare framework options.",
+            title: "Choose stack",
+          }),
+        }}
+        loadTokenUsageSummary={loadTokenUsageSummary}
+        onAnswerAsk={vi.fn()}
+        onCancelAsk={vi.fn()}
+        onConfirmationDecision={vi.fn()}
+        onDeferAsk={vi.fn()}
+        onRetryTask={vi.fn()}
+        onShowFileChanges={vi.fn()}
+        onShowResult={vi.fn()}
+        onStopTask={vi.fn()}
+        sessionId="session-1"
+        workspaceId="workspace-a"
+      />,
+    );
+
+    expect(await screen.findByLabelText("Token usage")).toBeInTheDocument();
+    expect(await screen.findByText("1,250")).toBeInTheDocument();
+    expect(screen.getByText("1,000 / 250")).toBeInTheDocument();
+    expect(screen.getByText("40.0%")).toBeInTheDocument();
+    expect(screen.getByText("1")).toBeInTheDocument();
+    expect(loadTokenUsageSummary).toHaveBeenCalledWith(
+      {
+        dimension: "task",
+        sessionId: "session-1",
+        taskNodeId: "task-technical-stack",
+      },
+      "workspace-a",
+    );
   });
 
   it("hides stop for published selected tasks that are not running", () => {
@@ -476,4 +552,17 @@ function taskNode(
     version: 1,
     ...overrides,
   };
+}
+
+function renderWithQueryClient(children: ReactNode) {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: {
+        retry: false,
+      },
+    },
+  });
+  return render(
+    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>,
+  );
 }

@@ -69,6 +69,10 @@ from taskweavn.server.ui_http_settings import (
     _settings_readiness_response,
 )
 from taskweavn.server.ui_http_sse import _sse_response
+from taskweavn.server.ui_http_usage import (
+    TokenUsageSummaryGateway,
+    _usage_token_summary_response,
+)
 from taskweavn.task import ExecutionTriggerGateway
 
 
@@ -134,6 +138,7 @@ class PlatoUiHttpTransport:
         settings_config_gateway: SettingsConfigGateway | None = None,
         diagnostic_export_gateway: DiagnosticExportGateway | None = None,
         workspace_inspection_gateway: WorkspaceInspectionGateway | None = None,
+        token_usage_gateway: TokenUsageSummaryGateway | None = None,
     ) -> None:
         self._query_gateway = query_gateway
         self._command_gateway = command_gateway
@@ -148,6 +153,7 @@ class PlatoUiHttpTransport:
         self._settings_config_gateway = settings_config_gateway
         self._diagnostic_export_gateway = diagnostic_export_gateway
         self._workspace_inspection_gateway = workspace_inspection_gateway
+        self._token_usage_gateway = token_usage_gateway
 
     def handle(self, request: HttpApiRequest) -> HttpApiResponse:
         route = _match_route(request.path)
@@ -222,6 +228,9 @@ class PlatoUiHttpTransport:
                             "diagnostics_export_url_template": (
                                 "/api/v1/sessions/{sessionId}/diagnostics/export"
                             ),
+                            "token_usage_summary_url_template": (
+                                "/api/v1/usage/token-summary?dimension={dimension}"
+                            ),
                         },
                         "error": None,
                     }
@@ -251,6 +260,11 @@ class PlatoUiHttpTransport:
                 return _settings_config_response(
                     request,
                     self._settings_config_gateway,
+                )
+            if route_name == "usage_token_summary":
+                return _usage_token_summary_response(
+                    request,
+                    self._token_usage_gateway,
                 )
             if route_name in {
                 "workspace_inspection_status",

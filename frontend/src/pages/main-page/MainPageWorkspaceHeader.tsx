@@ -15,6 +15,7 @@ export type MainPageWorkspaceHeaderProps = {
   taskTreeCommandRecoveryActions: ProductRecoveryAction[];
   title: string;
   uiNotice: string | null;
+  usageHref?: string | null;
 };
 
 export function MainPageWorkspaceHeader({
@@ -27,6 +28,7 @@ export function MainPageWorkspaceHeader({
   taskTreeCommandRecoveryActions,
   title,
   uiNotice,
+  usageHref = null,
 }: MainPageWorkspaceHeaderProps) {
   const uiText = useUiText();
 
@@ -56,6 +58,11 @@ export function MainPageWorkspaceHeader({
             {isPublishingTaskTree
               ? uiText.main.states.publishingPlan
               : uiText.main.actions.publishPlan}
+          </Button>
+        ) : null}
+        {usageHref ? (
+          <Button asChild>
+            <a href={usageHref}>{uiText.usage.actions.openUsage}</a>
           </Button>
         ) : null}
         {auditEntry.isEnabled ? (

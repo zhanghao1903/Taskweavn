@@ -1,8 +1,8 @@
 # Token Usage Analytics Contract
 
-> Status: draft Product 1.1 contract
+> Status: accepted / implemented Product 1.1 contract
 >
-> Last Updated: 2026-06-10
+> Last Updated: 2026-06-11
 >
 > Related plan:
 > [Token Usage Analytics](../plans/feature/token-usage-analytics.md)
@@ -14,6 +14,26 @@ Task, Plan, Session, and Workspace, including provider-reported cache
 effectiveness.
 
 The contract is product-facing observability, not raw LLM logging.
+
+## 1.1 Implementation Status
+
+Product 1.1 implementation is accepted for the local sidecar/runtime path:
+
+- normalized usage events are recorded at the session-bound LLM boundary;
+- events are persisted in workspace-local `.plato/usage.sqlite`;
+- `/api/v1/usage/token-summary` and
+  `/api/v1/workspaces/{workspaceId}/usage/token-summary` return contract-shaped
+  summaries;
+- Main Page exposes compact Task/Plan usage cards and a Workspace Usage view;
+- diagnostic bundles include a redacted `usage/token-summary.json` summary.
+
+Deferred follow-ups:
+
+- billing or dollar-cost calculation;
+- quota/budget enforcement;
+- first-class Plan attribution before a plan is published;
+- deeper correlation between provider cache hits and Context Manager
+  stable-prefix metadata.
 
 ## 2. Core Types
 
@@ -160,6 +180,7 @@ single misleading metric.
 Workspace-scoped Product 1.1 endpoints:
 
 ```http
+GET /api/v1/usage/token-summary?dimension=workspace
 GET /api/v1/workspaces/{workspaceId}/usage/token-summary?dimension=workspace
 GET /api/v1/workspaces/{workspaceId}/usage/token-summary?dimension=session
 GET /api/v1/workspaces/{workspaceId}/usage/token-summary?dimension=plan&sessionId={sessionId}
@@ -228,6 +249,14 @@ Plan/Session/Workspace usage views may show:
 - cache hit rate;
 - last activity time.
 
+Implemented surfaces:
+
+- compact Task and Plan usage cards in the Main Page detail panel;
+- Main Page `Usage` action linking to
+  `/workspaces/{workspaceId}/usage?sessionId={sessionId}`;
+- Workspace Usage page showing Workspace, Session, Plan, and Task summary
+  sections.
+
 Copy rules:
 
 - use `Not reported` for missing provider usage;
@@ -295,7 +324,8 @@ First implementation should add:
 - SQLite usage store;
 - usage recorder at the LLM call boundary with product attribution;
 - workspace-scoped summary API;
-- backend contract tests.
+- Main Page compact usage cards and Workspace Usage view;
+- backend and frontend contract tests.
 
 It should not add:
 

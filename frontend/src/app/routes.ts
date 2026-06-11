@@ -18,6 +18,7 @@ export const routes = {
   diagnosticsLogs: "/sessions/:sessionId/diagnostics/logs",
   settings: "/settings",
   workspaceInspection: "/workspaces/:workspaceId/inspection",
+  workspaceUsage: "/workspaces/:workspaceId/usage",
 } as const;
 
 export type AppRoute = (typeof routes)[keyof typeof routes];
@@ -40,6 +41,12 @@ export type WorkspaceInspectionRouteQuery = {
   sessionId?: SessionId;
   taskNodeId?: TaskNodeId;
   view?: "status" | "file" | "diff";
+};
+
+export type WorkspaceUsageRouteQuery = {
+  sessionId?: SessionId;
+  planId?: string;
+  taskNodeId?: TaskNodeId;
 };
 
 export function buildMainSessionRoute(params: {
@@ -111,6 +118,16 @@ export function buildWorkspaceInspectionRoute(params: {
     sessionId: params.sessionId,
     taskNodeId: params.taskNodeId,
     view: params.view,
+  });
+}
+
+export function buildWorkspaceUsageRoute(params: {
+  workspaceId: WorkspaceId;
+} & WorkspaceUsageRouteQuery): string {
+  return withQuery(`/workspaces/${segment(params.workspaceId)}/usage`, {
+    planId: params.planId,
+    sessionId: params.sessionId,
+    taskNodeId: params.taskNodeId,
   });
 }
 
