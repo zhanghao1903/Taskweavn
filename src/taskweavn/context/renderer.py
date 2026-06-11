@@ -416,6 +416,7 @@ class DeterministicContextRenderer(ContextRenderer):
             "- active_skills: "
             + _join_or_none(tuple(skill.name for skill in context.guidance.active_skills))
         )
+        sections.extend(_active_skill_detail_lines(context))
         sections.append(
             f"- output_requirements: {_join_or_none(context.guidance.output_requirements)}"
         )
@@ -452,6 +453,7 @@ class DeterministicContextRenderer(ContextRenderer):
                 f"- project_rules: {_join_or_none(context.guidance.project_rules)}",
                 "- active_skills: "
                 + _join_or_none(tuple(skill.name for skill in context.guidance.active_skills)),
+                *_active_skill_detail_lines(context),
                 f"- output_requirements: {_join_or_none(context.guidance.output_requirements)}",
                 "",
                 "## ASK Facts",
@@ -647,6 +649,24 @@ def _indent(text: str, *, spaces: int = 2) -> str:
 
 def _join_or_none(values: tuple[str, ...]) -> str:
     return ", ".join(values) if values else "none"
+
+
+def _active_skill_detail_lines(context: TaskExecutionContextV0) -> list[str]:
+    if not context.guidance.active_skills:
+        return []
+    lines: list[str] = []
+    for skill in context.guidance.active_skills:
+        source_ref = skill.source_ref or "none"
+        lines.append(f"  - skill: {skill.name} source={source_ref}")
+        lines.append(f"    summary: {skill.description}")
+        if skill.instruction_excerpt:
+            lines.append("    instructions:")
+            lines.append(_indent(skill.instruction_excerpt, spaces=6))
+        if skill.resource_refs:
+            lines.append("    resources: " + ", ".join(skill.resource_refs))
+        if skill.truncated:
+            lines.append("    truncated: true")
+    return lines
 
 
 def _ask_fact_lines(context: TaskExecutionContextV0) -> list[str]:

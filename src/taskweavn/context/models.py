@@ -199,6 +199,11 @@ class SkillSummary(ContextModel):
     name: str = Field(min_length=1)
     description: str = Field(min_length=1)
     source_ref: str | None = None
+    activation_id: str | None = Field(default=None, min_length=1)
+    content_hash: str | None = Field(default=None, min_length=1)
+    instruction_excerpt: str | None = Field(default=None, min_length=1)
+    resource_refs: tuple[str, ...] = ()
+    truncated: bool = False
 
 
 class ExecutionGuidance(ContextModel):
@@ -239,6 +244,25 @@ class ContextExclusion(ContextModel):
     reason: str = Field(min_length=1)
 
 
+class ContextSkillPermissionOutcome(ContextModel):
+    kind: str = Field(min_length=1)
+    skill_id: str = Field(min_length=1)
+    tool: str | None = None
+    reason: str = Field(min_length=1)
+
+
+class ContextSkillTrace(ContextModel):
+    activation_id: str = Field(min_length=1)
+    skill_id: str = Field(min_length=1)
+    name: str = Field(min_length=1)
+    source_ref: str = Field(min_length=1)
+    content_hash: str = Field(min_length=1)
+    activation_reason: str = Field(min_length=1)
+    segment_hash: str = Field(min_length=1)
+    truncated: bool = False
+    truncation_reason: str | None = None
+
+
 class ContextMessageSegment(ContextModel):
     kind: ContextSegmentKind
     message_start_index: int = Field(ge=0)
@@ -264,6 +288,13 @@ class ContextTrace(ContextModel):
     delta_reason: str | None = None
     checkpoint_reason: str | None = None
     cache_policy_version: str | None = None
+    active_skill_ids: tuple[str, ...] = ()
+    active_skill_hashes: tuple[str, ...] = ()
+    skill_activation_ids: tuple[str, ...] = ()
+    skill_context_segment_hashes: tuple[str, ...] = ()
+    skill_permission_outcomes: tuple[ContextSkillPermissionOutcome, ...] = ()
+    skill_traces: tuple[ContextSkillTrace, ...] = ()
+    skill_truncation_count: int = Field(default=0, ge=0)
     created_at: datetime = Field(default_factory=utcnow)
 
 

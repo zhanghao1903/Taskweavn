@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass, field
 from typing import Any
 
 from taskweavn.context.models import (
     ContextBuildRequest,
     ContextBuildResult,
+    ContextSkillPermissionOutcome,
+    ContextSkillTrace,
     ContextSnapshot,
     ContextTrace,
     ContextTraceRef,
@@ -29,6 +32,8 @@ from taskweavn.context.sources import (
     merge_facts,
 )
 from taskweavn.context.store import ContextStore, InMemoryContextStore
+from taskweavn.skills.context_source import SkillContextSource, merge_guidance
+from taskweavn.skills.models import SkillContextSegment
 
 
 @dataclass
@@ -43,6 +48,7 @@ class SessionContextManager:
     )
     control_source: ControlContextSource = field(default_factory=ControlContextSource)
     guidance_source: GuidanceContextSource = field(default_factory=GuidanceContextSource)
+    skill_source: SkillContextSource | None = None
     policy: DeterministicContextPolicy = field(default_factory=DeterministicContextPolicy)
     renderer: DeterministicContextRenderer = field(default_factory=DeterministicContextRenderer)
     store: ContextStore = field(default_factory=InMemoryContextStore)
@@ -70,6 +76,31 @@ class SessionContextManager:
             else self.ask_source.collect(request)
         )
         facts = merge_facts(event_facts, workspace_facts, ask_facts)
+        controls = self.control_source.collect(request)
+        guidance = self.guidance_source.collect(request)
+        skill_segments: tuple[SkillContextSegment, ...] = ()
+        skill_permission_outcomes: tuple[ContextSkillPermissionOutcome, ...] = ()
+        skill_segment_hashes: tuple[str, ...] = ()
+        if self.skill_source is not None:
+            skill_result = self.skill_source.collect(
+                request,
+                controls=controls,
+                required_capability=task.required_capability,
+            )
+            skill_segments = skill_result.segments
+            skill_segment_hashes = tuple(_skill_segment_hash(segment) for segment in skill_segments)
+            guidance = merge_guidance(guidance, skill_result.guidance)
+            if skill_result.permission_merge is not None:
+                controls = skill_result.permission_merge.controls
+                skill_permission_outcomes = tuple(
+                    ContextSkillPermissionOutcome(
+                        kind=outcome.kind,
+                        skill_id=outcome.skill_id,
+                        tool=outcome.tool,
+                        reason=outcome.reason,
+                    )
+                    for outcome in skill_result.permission_merge.outcomes
+                )
         snapshot_id = new_context_id("ctx")
         trace_id = new_context_id("trace")
         trace_ref = ContextTraceRef(snapshot_id=snapshot_id, trace_id=trace_id)
@@ -85,8 +116,8 @@ class SessionContextManager:
             ),
             execution=self.task_source.execution_state(task, request),
             facts=facts,
-            controls=self.control_source.collect(request),
-            guidance=self.guidance_source.collect(request),
+            controls=controls,
+            guidance=guidance,
             trace=trace_ref,
         )
         rendered = self._render_context(
@@ -118,6 +149,26 @@ class SessionContextManager:
             checkpoint_reason=(
                 request.render_reason if rendered.render_mode == "checkpoint_context" else None
             ),
+            active_skill_ids=tuple(segment.skill_id for segment in skill_segments),
+            active_skill_hashes=tuple(segment.content_hash for segment in skill_segments),
+            skill_activation_ids=tuple(segment.activation_id for segment in skill_segments),
+            skill_context_segment_hashes=skill_segment_hashes,
+            skill_permission_outcomes=skill_permission_outcomes,
+            skill_traces=tuple(
+                ContextSkillTrace(
+                    activation_id=segment.activation_id,
+                    skill_id=segment.skill_id,
+                    name=segment.name,
+                    source_ref=segment.source_ref,
+                    content_hash=segment.content_hash,
+                    activation_reason=segment.activation_reason,
+                    segment_hash=segment_hash,
+                    truncated=segment.truncated,
+                    truncation_reason=segment.truncation_reason,
+                )
+                for segment, segment_hash in zip(skill_segments, skill_segment_hashes, strict=True)
+            ),
+            skill_truncation_count=sum(1 for segment in skill_segments if segment.truncated),
         )
         snapshot = ContextSnapshot(
             snapshot_id=snapshot_id,
@@ -199,3 +250,8 @@ def _appended_context_message_count(
     if rendered_messages[: len(prior_messages)] != prior_messages:
         return 0
     return len(rendered_messages) - len(prior_messages)
+
+
+def _skill_segment_hash(segment: SkillContextSegment) -> str:
+    payload = segment.model_dump_json()
+    return "sha256:" + hashlib.sha256(payload.encode("utf-8")).hexdigest()
