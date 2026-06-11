@@ -80,6 +80,7 @@ function parseArgs(args) {
     host: "127.0.0.1",
     port: null,
     workspace: null,
+    workspaceRegistryJson: null,
   };
 
   for (let index = 0; index < args.length; index += 1) {
@@ -96,6 +97,11 @@ function parseArgs(args) {
     }
     if (arg === "--port") {
       result.port = requireValue(args, index, arg);
+      index += 1;
+      continue;
+    }
+    if (arg === "--workspace-registry-json") {
+      result.workspaceRegistryJson = requireValue(args, index, arg);
       index += 1;
       continue;
     }
@@ -146,7 +152,7 @@ function resolveManifestPath(value, manifestDir) {
   return path.isAbsolute(value) ? value : path.resolve(manifestDir, value);
 }
 
-function buildFixtureArgs({ host, port, workspace }) {
+function buildFixtureArgs({ host, port, workspace, workspaceRegistryJson }) {
   const args = [
     "-m",
     "tests.fixtures.sidecar_smoke",
@@ -159,6 +165,9 @@ function buildFixtureArgs({ host, port, workspace }) {
     "--port",
     String(port),
   ];
+  if (workspaceRegistryJson !== null) {
+    args.push("--workspace-registry-json", workspaceRegistryJson);
+  }
   const firstRun = process.env.PLATO_SIDECAR_LAUNCHER_FIRST_RUN;
   if (firstRun === "configured") {
     args.push("--first-run-configured");

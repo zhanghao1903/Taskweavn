@@ -52,6 +52,15 @@ describe("Electron Python sidecar lifecycle", () => {
   it("starts the sidecar through a release-local launcher without a repo root", async () => {
     const child = createFakeChild();
     const spawnProcess = vi.fn(() => child);
+    const workspaceRegistry = [
+      {
+        workspaceId: "current",
+        rootPath: "/workspace/taskweavn/plato-workspace",
+        label: "plato-workspace",
+        isCurrent: true,
+        lastOpenedAt: null,
+      },
+    ];
 
     const runtime = await startPythonSidecar({
       appVersion: "0.1.0-test",
@@ -69,6 +78,7 @@ describe("Electron Python sidecar lifecycle", () => {
       spawnProcess,
       startupId: "startup-launcher-test",
       validateLauncher: false,
+      workspaceRegistry,
       workspaceRoot: "/workspace/taskweavn/plato-workspace",
     });
 
@@ -79,6 +89,7 @@ describe("Electron Python sidecar lifecycle", () => {
         ...buildLauncherSidecarArgs({
           host: "127.0.0.1",
           port: 53228,
+          workspaceRegistry,
           workspaceRoot: "/workspace/taskweavn/plato-workspace",
         }),
       ],

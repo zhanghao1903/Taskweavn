@@ -162,7 +162,7 @@ async function smokeSettingsFirstRun(window, fixture) {
   await waitForText(window, "Complete first-run setup", {
     label: "Settings first-run modal",
   });
-  await waitForControlValue(window, "Provider", "litellm", {
+  await waitForControlValue(window, "Provider", "deepseek", {
     label: "first-run provider default",
   });
 

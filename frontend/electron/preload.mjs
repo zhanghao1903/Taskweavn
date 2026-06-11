@@ -11,6 +11,7 @@ contextBridge.exposeInMainWorld("platoRuntimeConfig", {
   disableEvents: runtimeConfig.disableEvents,
   sessionId: runtimeConfig.sessionId ?? null,
   startupId: runtimeConfig.startupId,
+  uiLocale: runtimeConfig.uiLocale,
   workspace: runtimeConfig.workspace ?? null,
   workspaceEntryRequired: runtimeConfig.workspaceEntryRequired,
 });
@@ -59,6 +60,8 @@ function sanitizeRuntimeConfig(config) {
         : undefined,
     startupId:
       typeof config.startupId === "string" ? config.startupId : undefined,
+    uiLocale:
+      typeof config.uiLocale === "string" ? config.uiLocale : undefined,
     workspace:
       config.workspace && typeof config.workspace === "object"
         ? sanitizeWorkspaceSummary(config.workspace)

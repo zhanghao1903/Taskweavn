@@ -14,6 +14,8 @@ import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 
+import { summarizeWorkspace } from "../electron/workspaceEntry.mjs";
+
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const frontendRoot = path.resolve(scriptDir, "..");
 const repoRoot = path.resolve(frontendRoot, "..");
@@ -21,6 +23,7 @@ const runDir = mkdtempSync(path.join(tmpdir(), "taskweavn-electron-smoke-"));
 const npmBin = process.platform === "win32" ? "npm.cmd" : "npm";
 const finderLikePath =
   process.platform === "darwin" ? "/usr/bin:/bin:/usr/sbin:/sbin" : process.env.PATH;
+const smokeUiLocale = "en-US";
 const electronBin =
   process.platform === "win32"
     ? path.join(frontendRoot, "node_modules", ".bin", "electron.cmd")
@@ -378,6 +381,7 @@ async function seedLauncherWorkspace({ kind, packagedDefaultWorkspace }, runtime
     ...sidecarInfo,
     userDataDir,
     workspaceDir,
+    workspaceId: summarizeWorkspace(workspaceDir, workspaceDir).id,
   };
 }
 
@@ -469,6 +473,7 @@ function startDevElectronSmoke({ kind, rendererUrl, sidecarInfo }) {
       PLATO_ELECTRON_SMOKE: "1",
       PLATO_ELECTRON_SMOKE_FIXTURE: JSON.stringify(sidecarInfo),
       PLATO_ELECTRON_SMOKE_KIND: kind,
+      PLATO_ELECTRON_UI_LOCALE: smokeUiLocale,
       PLATO_ELECTRON_WORKSPACE: sidecarInfo.workspaceDir,
     },
     stdio: "inherit",
@@ -490,6 +495,7 @@ function startDevElectronWorkspaceEntrySmoke({ rendererUrl, sidecarInfo }) {
     PLATO_ELECTRON_SMOKE: "1",
     PLATO_ELECTRON_SMOKE_FIXTURE: JSON.stringify(sidecarInfo),
     PLATO_ELECTRON_SMOKE_KIND: "workspace-entry",
+    PLATO_ELECTRON_UI_LOCALE: smokeUiLocale,
     PLATO_ELECTRON_USER_DATA_DIR: sidecarInfo.userDataDir,
   };
   delete env.PLATO_ELECTRON_SIDECAR_BASE_URL;
@@ -517,6 +523,7 @@ function startDevElectronWorkspaceGitInitSmoke({ rendererUrl, sidecarInfo }) {
     PLATO_ELECTRON_SMOKE: "1",
     PLATO_ELECTRON_SMOKE_FIXTURE: JSON.stringify(sidecarInfo),
     PLATO_ELECTRON_SMOKE_KIND: "workspace-git-init",
+    PLATO_ELECTRON_UI_LOCALE: smokeUiLocale,
     PLATO_ELECTRON_USER_DATA_DIR: sidecarInfo.userDataDir,
   };
   delete env.PLATO_ELECTRON_SIDECAR_BASE_URL;
@@ -548,6 +555,7 @@ function startPackagedElectronSmoke({ kind, packageManifest, sidecarInfo }) {
       PLATO_ELECTRON_SMOKE: "1",
       PLATO_ELECTRON_SMOKE_FIXTURE: JSON.stringify(sidecarInfo),
       PLATO_ELECTRON_SMOKE_KIND: kind,
+      PLATO_ELECTRON_UI_LOCALE: smokeUiLocale,
       PLATO_ELECTRON_WORKSPACE: sidecarInfo.workspaceDir,
     },
     stdio: "inherit",
@@ -592,6 +600,7 @@ function startPackagedStartupDiagnosticsSmoke({ fixture, packageManifest }) {
     PLATO_ELECTRON_SMOKE: "1",
     PLATO_ELECTRON_SMOKE_FIXTURE: JSON.stringify(fixture),
     PLATO_ELECTRON_SMOKE_KIND: "startup-diagnostics",
+    PLATO_ELECTRON_UI_LOCALE: smokeUiLocale,
     PLATO_ELECTRON_WORKSPACE: fixture.workspaceDir,
   };
   delete env.PLATO_ELECTRON_SIDECAR_BASE_URL;
@@ -652,6 +661,7 @@ function launcherElectronEnv({
           ? "first-run"
           : "configured"
         : "startup-diagnostics",
+    PLATO_ELECTRON_UI_LOCALE: smokeUiLocale,
     PLATO_SIDECAR_LAUNCHER_FIRST_RUN: firstRun,
     PLATO_SIDECAR_LAUNCHER_MODE: "fixture",
     PLATO_SIDECAR_LAUNCHER_RUNTIME_MANIFEST:

@@ -18,6 +18,7 @@ from taskweavn.server import (
     MainPageSidecarApp,
     MainPageSidecarConfig,
     MainPageSidecarDependencies,
+    WorkspaceRegistryEntry,
     build_main_page_sidecar_app,
 )
 from taskweavn.server.settings_config import DefaultSettingsConfigGateway
@@ -93,6 +94,7 @@ def build_audit_sidecar_smoke_fixture(
     host: str = "127.0.0.1",
     port: int = 0,
     settings_readiness_env: Mapping[str, str] | None = None,
+    workspace_registry: tuple[WorkspaceRegistryEntry, ...] = (),
 ) -> SidecarSmokeFixture:
     """Create a deterministic real-sidecar session for frontend integration checks."""
 
@@ -104,6 +106,7 @@ def build_audit_sidecar_smoke_fixture(
             port=port,
             enable_default_agent=False,
             enable_execution_dispatcher=False,
+            workspace_registry=workspace_registry,
         ),
         MainPageSidecarDependencies(
             llm=_StubLLM(),
@@ -351,6 +354,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=0)
     parser.add_argument(
+        "--workspace-registry-json",
+        help="JSON workspace registry passed by the packaged Electron launcher.",
+    )
+    parser.add_argument(
         "--serve-existing",
         action="store_true",
         help="Serve an already seeded workspace without creating another session.",
@@ -365,6 +372,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         host=args.host,
         port=args.port,
         settings_readiness_env=_settings_readiness_env_from_args(args),
+        workspace_registry=_parse_workspace_registry_json(args.workspace_registry_json),
     )
     try:
         ready_payload = _ready_payload(fixture)
@@ -396,6 +404,9 @@ def _serve_existing_workspace(args: argparse.Namespace) -> int:
             port=args.port,
             enable_default_agent=False,
             enable_execution_dispatcher=False,
+            workspace_registry=_parse_workspace_registry_json(
+                args.workspace_registry_json
+            ),
         ),
         MainPageSidecarDependencies(
             llm=_StubLLM(),
@@ -446,6 +457,57 @@ def _settings_readiness_env_from_args(
     if args.first_run_configured:
         return FIRST_RUN_CONFIGURED_ENV
     return None
+
+
+def _parse_workspace_registry_json(
+    raw: str | None,
+) -> tuple[WorkspaceRegistryEntry, ...]:
+    if raw is None or raw.strip() == "":
+        return ()
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise argparse.ArgumentTypeError(
+            "workspace registry must be valid JSON"
+        ) from exc
+    if not isinstance(payload, list):
+        raise argparse.ArgumentTypeError("workspace registry must be a JSON array")
+
+    entries: list[WorkspaceRegistryEntry] = []
+    for index, item in enumerate(payload):
+        if not isinstance(item, dict):
+            raise argparse.ArgumentTypeError(
+                f"workspace registry entry {index} must be an object"
+            )
+        workspace_id = item.get("workspaceId")
+        root_path = item.get("rootPath")
+        label = item.get("label")
+        if not isinstance(workspace_id, str) or not workspace_id:
+            raise argparse.ArgumentTypeError(
+                f"workspace registry entry {index} missing workspaceId"
+            )
+        if not isinstance(root_path, str) or not root_path:
+            raise argparse.ArgumentTypeError(
+                f"workspace registry entry {index} missing rootPath"
+            )
+        if not isinstance(label, str) or not label:
+            raise argparse.ArgumentTypeError(
+                f"workspace registry entry {index} missing label"
+            )
+        entries.append(
+            WorkspaceRegistryEntry(
+                workspace_id=workspace_id,
+                root_path=Path(root_path),
+                label=label,
+                is_current=item.get("isCurrent") is True,
+                last_opened_at=(
+                    item.get("lastOpenedAt")
+                    if isinstance(item.get("lastOpenedAt"), str)
+                    else None
+                ),
+            )
+        )
+    return tuple(entries)
 
 
 if __name__ == "__main__":

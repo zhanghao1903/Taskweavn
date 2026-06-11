@@ -161,7 +161,13 @@ async function loadRenderer(window) {
 }
 
 function setRendererRuntimeConfig(config) {
-  process.env.PLATO_ELECTRON_RUNTIME_CONFIG = JSON.stringify(config);
+  const uiLocale = process.env.PLATO_ELECTRON_UI_LOCALE;
+  process.env.PLATO_ELECTRON_RUNTIME_CONFIG = JSON.stringify({
+    ...config,
+    ...(typeof uiLocale === "string" && uiLocale.length > 0
+      ? { uiLocale }
+      : {}),
+  });
 }
 
 async function resolveInitialWorkspaceRoot() {
