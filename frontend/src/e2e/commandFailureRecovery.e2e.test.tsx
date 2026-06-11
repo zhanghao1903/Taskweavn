@@ -11,6 +11,7 @@ const requiredEnv = {
   baseUrl: process.env.PLATO_E2E_SIDECAR_BASE_URL,
   sessionId: process.env.PLATO_E2E_SESSION_ID,
   taskId: process.env.PLATO_E2E_TASK_ID,
+  workspaceId: process.env.PLATO_E2E_WORKSPACE_ID,
 };
 
 const describeSidecarE2E = Object.values(requiredEnv).every(Boolean)
@@ -50,6 +51,7 @@ describeSidecarE2E("Main Page command failure recovery real sidecar E2E", () => 
       ...createHttpMainPageAdapter({
         api,
         sessionId,
+        workspaceId: requiredEnv.workspaceId ?? null,
       }),
       async loadSnapshot() {
         return {
@@ -80,7 +82,9 @@ describeSidecarE2E("Main Page command failure recovery real sidecar E2E", () => 
       },
       { timeout: 10_000 },
     );
-    expect(screen.getAllByText(`Run ${requiredEnv.taskId}`).length).toBeGreaterThan(0);
+    expect(
+      await screen.findAllByText(`Run ${taskId}`, {}, { timeout: 10_000 }),
+    ).not.toHaveLength(0);
 
     const retryButton = await screen.findByRole("button", { name: "Retry" });
     fireEvent.click(retryButton);
