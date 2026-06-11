@@ -313,6 +313,11 @@ export type UiTextCatalog = {
       return: string;
       saveAndCheck: string;
     };
+    tabs: {
+      configuration: string;
+      dataManagement: string;
+      usageInformation: string;
+    };
     fields: {
       apiKey: string;
       bundle: string;
@@ -393,11 +398,35 @@ export type UiTextCatalog = {
   };
   workspace: {
     actions: {
+      archiveWorkspace: string;
+      cancelDelete: string;
+      confirmDeletePlatoData: string;
+      deletePlatoData: string;
+      openWorkspaceMenu: string;
       openOrAddWorkspace: string;
+      restoreWorkspace: string;
+      workspaceManagement: string;
     };
     labels: {
+      activeWorkspaces: string;
+      archived: string;
+      archivedWorkspaces: string;
+      dataManagement: string;
+      deletePlatoData: string;
       workspace: string;
+      workspaceManagement: string;
       workspaces: string;
+    };
+    messages: {
+      archiveHelp: string;
+      bridgeUnavailable: string;
+      deletePlatoDataConfirmation: UiTextTemplate<{ name: string }>;
+      deletePlatoDataHelp: string;
+      lifecycleActionFailed: string;
+      loadingWorkspaces: string;
+      noArchivedWorkspaces: string;
+      noWorkspaceData: string;
+      restoreHelp: string;
     };
   };
   workspaceInspection: {

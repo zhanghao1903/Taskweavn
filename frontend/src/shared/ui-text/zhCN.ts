@@ -517,14 +517,45 @@ export const zhCN: UiTextCatalog = {
       retry_task: "重试受影响的任务。",
       wait_for_events: "等待 sidecar 事件后再重试。",
     },
+    tabs: {
+      configuration: "配置",
+      dataManagement: "数据管理",
+      usageInformation: "使用信息",
+    },
   },
   workspace: {
     actions: {
+      archiveWorkspace: "归档工作区",
+      cancelDelete: "取消",
+      confirmDeletePlatoData: "删除 Plato 数据",
+      deletePlatoData: "删除 Plato 数据",
+      openWorkspaceMenu: "打开工作区操作",
       openOrAddWorkspace: "打开或添加工作区",
+      restoreWorkspace: "恢复工作区",
+      workspaceManagement: "工作区管理",
     },
     labels: {
+      activeWorkspaces: "活跃工作区",
+      archived: "已归档",
+      archivedWorkspaces: "已归档工作区",
+      dataManagement: "数据管理",
+      deletePlatoData: "删除 Plato 数据",
       workspace: "工作区",
+      workspaceManagement: "工作区管理",
       workspaces: "工作区",
+    },
+    messages: {
+      archiveHelp: "归档会从主页面隐藏工作区，但不会删除文件。",
+      bridgeUnavailable: "工作区管理仅在 Plato 桌面应用中可用。",
+      deletePlatoDataConfirmation: ({ name }) =>
+        `删除 ${name} 的 Plato 数据？项目文件和工作区文件夹会保留。`,
+      deletePlatoDataHelp:
+        "删除 Plato 产生的 .plato 数据和历史元数据目录，不会删除项目文件。",
+      lifecycleActionFailed: "工作区操作失败。",
+      loadingWorkspaces: "正在加载工作区。",
+      noArchivedWorkspaces: "暂无已归档工作区。",
+      noWorkspaceData: "暂无工作区数据。",
+      restoreHelp: "恢复后，该工作区会重新显示。",
     },
   },
   workspaceInspection: {

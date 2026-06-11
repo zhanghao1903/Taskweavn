@@ -1,8 +1,10 @@
 export type SettingsRouteSource = "first-run" | "settings";
+export type SettingsTab = "configuration" | "data" | "usage";
 
 export type SettingsRouteContext = {
   returnTo: string;
   source: SettingsRouteSource;
+  tab: SettingsTab;
 };
 
 export function isSettingsPath(pathname: string): boolean {
@@ -12,10 +14,14 @@ export function isSettingsPath(pathname: string): boolean {
 export function buildSettingsRoute({
   returnTo = "/",
   source = "settings",
+  tab = "configuration",
 }: Partial<SettingsRouteContext> = {}): string {
   const params = new URLSearchParams();
   if (source !== "settings") {
     params.set("source", source);
+  }
+  if (tab !== "configuration") {
+    params.set("tab", tab);
   }
   const safeReturnTo = sanitizeReturnTo(returnTo);
   if (safeReturnTo !== "/") {
@@ -42,6 +48,7 @@ export function parseSettingsRouteLocation(
   return {
     returnTo: sanitizeReturnTo(params.get("returnTo") ?? "/"),
     source,
+    tab: source === "first-run" ? "configuration" : parseSettingsTab(params.get("tab")),
   };
 }
 
@@ -54,4 +61,8 @@ export function sanitizeReturnTo(value: string): string {
     return "/";
   }
   return trimmed;
+}
+
+function parseSettingsTab(raw: string | null): SettingsTab {
+  return raw === "data" || raw === "usage" ? raw : "configuration";
 }

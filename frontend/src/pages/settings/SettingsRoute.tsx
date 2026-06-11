@@ -25,8 +25,10 @@ import {
   type UiTextCatalog,
 } from "../../shared/ui-text";
 import { formatRecoveryAction, settingsProviderLabel } from "./settingsCopy";
-import type { SettingsRouteContext } from "./settingsRouteModel";
-import { parseSettingsRouteLocation } from "./settingsRouteModel";
+import { SettingsDataManagementTab } from "./SettingsDataManagementTab";
+import { SettingsUsageInformationTab } from "./SettingsUsageInformationTab";
+import type { SettingsRouteContext, SettingsTab } from "./settingsRouteModel";
+import { buildSettingsRoute, parseSettingsRouteLocation } from "./settingsRouteModel";
 import {
   apiKeyHint,
   fieldErrorFor,
@@ -44,6 +46,7 @@ export type SettingsRouteApi = Pick<
   PlatoApi,
   | "exportDiagnosticBundle"
   | "getSettingsConfig"
+  | "getTokenUsageSummary"
   | "listSessions"
   | "recheckSettingsReadiness"
   | "updateSettingsConfig"
@@ -80,6 +83,7 @@ export function SettingsRoute({
       parseSettingsRouteLocation(routeLocation.pathname, routeLocation.search) ?? {
         returnTo: "/",
         source: "settings" as const,
+        tab: "configuration" as const,
       },
     [routeLocation.pathname, routeLocation.search],
   );
@@ -137,9 +141,24 @@ export function SettingsRoute({
     setSelectedUiLocale(activeUiLocale);
   }, [activeUiLocale]);
 
+  if (routeContext.tab === "data") {
+    return (
+      <SettingsShell
+        activeTab={routeContext.tab}
+        heading={uiText.settings.labels.settings}
+        presentation={presentation}
+        routeContext={routeContext}
+        status={uiText.settings.tabs.dataManagement}
+      >
+        <SettingsDataManagementTab workspaceBridge={workspaceBridge} />
+      </SettingsShell>
+    );
+  }
+
   if (settingsApi === null) {
     return (
       <SettingsShell
+        activeTab={routeContext.tab}
         heading={uiText.settings.labels.settingsUnavailable}
         presentation={presentation}
         routeContext={routeContext}
@@ -155,6 +174,7 @@ export function SettingsRoute({
   if (configQuery.status === "pending" || form === null) {
     return (
       <SettingsShell
+        activeTab={routeContext.tab}
         heading={uiText.settings.messages.loadingSettings}
         presentation={presentation}
         routeContext={routeContext}
@@ -170,6 +190,7 @@ export function SettingsRoute({
   if (configQuery.status === "error" || config === null) {
     return (
       <SettingsShell
+        activeTab={routeContext.tab}
         heading={uiText.settings.labels.settingsUnavailable}
         presentation={presentation}
         routeContext={routeContext}
@@ -275,6 +296,7 @@ export function SettingsRoute({
 
   return (
     <SettingsShell
+      activeTab={routeContext.tab}
       heading={
         routeContext.source === "first-run"
           ? uiText.settings.labels.completeFirstRunSetup
@@ -284,159 +306,193 @@ export function SettingsRoute({
       routeContext={routeContext}
       status={statusLabel(readiness, saveState, uiText)}
     >
-      <SettingsSummary config={config} readiness={readiness} />
-      <form
-        aria-label={uiText.settings.labels.settingsSetupForm}
-        className={styles.form}
-        onSubmit={(event) => {
-          event.preventDefault();
-          void saveAndCheck();
-        }}
-      >
-        <div className={styles.formGrid}>
-          <label className={styles.field}>
-            <span>{uiText.settings.fields.provider}</span>
-            <select
-              aria-label={uiText.settings.fields.provider}
-              disabled={saveState.kind === "saving" || saveState.kind === "rechecking"}
-              name="provider"
-              onChange={(event) =>
-                setForm({
-                  ...form,
-                  provider: event.target.value as SettingsFormState["provider"],
-                })
-              }
-              value={form.provider}
-            >
-              {providerOptions(config).map((option) => (
-                <option key={option.id} value={option.id}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className={styles.field}>
-            <span>{uiText.settings.fields.model}</span>
-            <input
-              aria-label={uiText.settings.fields.model}
-              disabled={saveState.kind === "saving" || saveState.kind === "rechecking"}
-              name="model"
-              onChange={(event) => setForm({ ...form, model: event.target.value })}
-              required
-              type="text"
-              value={form.model}
-            />
-            <FieldError errors={fieldErrors} path="llm.model" />
-          </label>
-          <label className={styles.field}>
-            <span>{uiText.settings.fields.apiKey}</span>
-            <input
-              aria-label={uiText.settings.fields.apiKey}
-              autoComplete="off"
-              disabled={saveState.kind === "saving" || saveState.kind === "rechecking"}
-              name="apiKey"
-              onChange={(event) => setForm({ ...form, apiKey: event.target.value })}
-              type="password"
-              value={form.apiKey}
-            />
-            <small>
-              {config.llm.apiKeyConfigured
-                ? uiText.settings.messages.apiKeyConfigured({
-                    source: config.llm.apiKeySource,
-                  })
-                : uiText.settings.messages.apiKeyRequired({
-                    hint: apiKeyHint(form.provider, config),
-                  })}
-            </small>
-            <FieldError errors={fieldErrors} path="llm.apiKey" />
-          </label>
-          <label className={styles.field}>
-            <span>{uiText.settings.fields.loggingProfile}</span>
-            <select
-              aria-label={uiText.settings.fields.loggingProfile}
-              disabled={saveState.kind === "saving" || saveState.kind === "rechecking"}
-              name="loggingProfile"
-              onChange={(event) =>
-                setForm({ ...form, selectedProfile: event.target.value })
-              }
-              value={form.selectedProfile}
-            >
-              <option value="">{uiText.settings.fields.defaultProfile}</option>
-              {loggingProfileOptions(config).map((profile) => (
-                <option key={profile.id} value={profile.id}>
-                  {profile.label}
-                </option>
-              ))}
-            </select>
-            <FieldError errors={fieldErrors} path="logging.selectedProfile" />
-          </label>
-          <label className={`${styles.field} ${styles.wideField}`}>
-            <span>{uiText.settings.fields.interfaceLanguage}</span>
-            <select
-              aria-label={uiText.settings.fields.interfaceLanguage}
-              name="interfaceLanguage"
-              onChange={(event) => {
-                const nextLocale = event.target.value as UiLocale;
-                setSelectedUiLocale(nextLocale);
-                writeUiLocalePreference(nextLocale);
-              }}
-              value={selectedUiLocale}
-            >
-              {SUPPORTED_UI_LOCALES.map((locale) => (
-                <option key={locale} value={locale}>
-                  {uiText.settings.localeOptions[locale]}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-        <WorkspaceGitSettingsPanel bridge={workspaceBridge} />
-        <SaveStatus state={saveState} />
-        <ReadinessIssues readiness={readiness} />
-        <div className={styles.footerActions}>
-          <Button
-            disabled={saveState.kind === "saving" || saveState.kind === "rechecking"}
-            type="submit"
-            variant="primary"
+      {routeContext.tab === "usage" ? (
+        <SettingsUsageInformationTab
+          api={settingsApi}
+          workspaceBridge={workspaceBridge}
+        />
+      ) : (
+        <>
+          <SettingsSummary config={config} readiness={readiness} />
+          <form
+            aria-label={uiText.settings.labels.settingsSetupForm}
+            className={styles.form}
+            onSubmit={(event) => {
+              event.preventDefault();
+              void saveAndCheck();
+            }}
           >
-            {saveState.kind === "saving"
-              ? uiText.settings.messages.saving
-              : uiText.settings.actions.saveAndCheck}
-          </Button>
-          <Button
-            disabled={saveState.kind === "saving" || saveState.kind === "rechecking"}
-            onClick={() => void recheckReadiness()}
-          >
-            {saveState.kind === "rechecking"
-              ? uiText.settings.messages.checkingReadiness
-              : uiText.settings.actions.retryCheck}
-          </Button>
-          <Button
-            disabled={!canContinue}
-            onClick={() => navigateApp(routeContext.returnTo)}
-            variant={canContinue ? "primary" : "secondary"}
-          >
-            {uiText.settings.actions.continueToMainPage}
-          </Button>
-        </div>
-      </form>
-      <DiagnosticsPanel
-        diagnosticsAvailable={config.diagnostics.httpExportRouteAvailable}
-        onExport={() => void exportDiagnostics()}
-        sessionId={diagnosticSessionId}
-        state={diagnosticExportState}
-      />
+            <div className={styles.formGrid}>
+              <label className={styles.field}>
+                <span>{uiText.settings.fields.provider}</span>
+                <select
+                  aria-label={uiText.settings.fields.provider}
+                  disabled={
+                    saveState.kind === "saving" ||
+                    saveState.kind === "rechecking"
+                  }
+                  name="provider"
+                  onChange={(event) =>
+                    setForm({
+                      ...form,
+                      provider: event.target
+                        .value as SettingsFormState["provider"],
+                    })
+                  }
+                  value={form.provider}
+                >
+                  {providerOptions(config).map((option) => (
+                    <option key={option.id} value={option.id}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className={styles.field}>
+                <span>{uiText.settings.fields.model}</span>
+                <input
+                  aria-label={uiText.settings.fields.model}
+                  disabled={
+                    saveState.kind === "saving" ||
+                    saveState.kind === "rechecking"
+                  }
+                  name="model"
+                  onChange={(event) =>
+                    setForm({ ...form, model: event.target.value })
+                  }
+                  required
+                  type="text"
+                  value={form.model}
+                />
+                <FieldError errors={fieldErrors} path="llm.model" />
+              </label>
+              <label className={styles.field}>
+                <span>{uiText.settings.fields.apiKey}</span>
+                <input
+                  aria-label={uiText.settings.fields.apiKey}
+                  autoComplete="off"
+                  disabled={
+                    saveState.kind === "saving" ||
+                    saveState.kind === "rechecking"
+                  }
+                  name="apiKey"
+                  onChange={(event) =>
+                    setForm({ ...form, apiKey: event.target.value })
+                  }
+                  type="password"
+                  value={form.apiKey}
+                />
+                <small>
+                  {config.llm.apiKeyConfigured
+                    ? uiText.settings.messages.apiKeyConfigured({
+                        source: config.llm.apiKeySource,
+                      })
+                    : uiText.settings.messages.apiKeyRequired({
+                        hint: apiKeyHint(form.provider, config),
+                      })}
+                </small>
+                <FieldError errors={fieldErrors} path="llm.apiKey" />
+              </label>
+              <label className={styles.field}>
+                <span>{uiText.settings.fields.loggingProfile}</span>
+                <select
+                  aria-label={uiText.settings.fields.loggingProfile}
+                  disabled={
+                    saveState.kind === "saving" ||
+                    saveState.kind === "rechecking"
+                  }
+                  name="loggingProfile"
+                  onChange={(event) =>
+                    setForm({ ...form, selectedProfile: event.target.value })
+                  }
+                  value={form.selectedProfile}
+                >
+                  <option value="">{uiText.settings.fields.defaultProfile}</option>
+                  {loggingProfileOptions(config).map((profile) => (
+                    <option key={profile.id} value={profile.id}>
+                      {profile.label}
+                    </option>
+                  ))}
+                </select>
+                <FieldError errors={fieldErrors} path="logging.selectedProfile" />
+              </label>
+              <label className={`${styles.field} ${styles.wideField}`}>
+                <span>{uiText.settings.fields.interfaceLanguage}</span>
+                <select
+                  aria-label={uiText.settings.fields.interfaceLanguage}
+                  name="interfaceLanguage"
+                  onChange={(event) => {
+                    const nextLocale = event.target.value as UiLocale;
+                    setSelectedUiLocale(nextLocale);
+                    writeUiLocalePreference(nextLocale);
+                  }}
+                  value={selectedUiLocale}
+                >
+                  {SUPPORTED_UI_LOCALES.map((locale) => (
+                    <option key={locale} value={locale}>
+                      {uiText.settings.localeOptions[locale]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <WorkspaceGitSettingsPanel bridge={workspaceBridge} />
+            <SaveStatus state={saveState} />
+            <ReadinessIssues readiness={readiness} />
+            <div className={styles.footerActions}>
+              <Button
+                disabled={
+                  saveState.kind === "saving" ||
+                  saveState.kind === "rechecking"
+                }
+                type="submit"
+                variant="primary"
+              >
+                {saveState.kind === "saving"
+                  ? uiText.settings.messages.saving
+                  : uiText.settings.actions.saveAndCheck}
+              </Button>
+              <Button
+                disabled={
+                  saveState.kind === "saving" ||
+                  saveState.kind === "rechecking"
+                }
+                onClick={() => void recheckReadiness()}
+              >
+                {saveState.kind === "rechecking"
+                  ? uiText.settings.messages.checkingReadiness
+                  : uiText.settings.actions.retryCheck}
+              </Button>
+              <Button
+                disabled={!canContinue}
+                onClick={() => navigateApp(routeContext.returnTo)}
+                variant={canContinue ? "primary" : "secondary"}
+              >
+                {uiText.settings.actions.continueToMainPage}
+              </Button>
+            </div>
+          </form>
+          <DiagnosticsPanel
+            diagnosticsAvailable={config.diagnostics.httpExportRouteAvailable}
+            onExport={() => void exportDiagnostics()}
+            sessionId={diagnosticSessionId}
+            state={diagnosticExportState}
+          />
+        </>
+      )}
     </SettingsShell>
   );
 }
 
 function SettingsShell({
+  activeTab,
   children,
   heading,
   presentation,
   routeContext,
   status,
 }: {
+  activeTab: SettingsTab;
   children: ReactNode;
   heading: string;
   presentation: "modal" | "page";
@@ -479,6 +535,7 @@ function SettingsShell({
           ) : null}
         </div>
       </div>
+      <SettingsTabs activeTab={activeTab} routeContext={routeContext} />
       {children}
     </section>
   );
@@ -491,6 +548,43 @@ function SettingsShell({
     <main className={styles.page}>
       {content}
     </main>
+  );
+}
+
+function SettingsTabs({
+  activeTab,
+  routeContext,
+}: {
+  activeTab: SettingsTab;
+  routeContext: SettingsRouteContext;
+}) {
+  const uiText = useUiText();
+  if (routeContext.source === "first-run") {
+    return null;
+  }
+  const tabs: Array<{ id: SettingsTab; label: string }> = [
+    { id: "configuration", label: uiText.settings.tabs.configuration },
+    { id: "data", label: uiText.settings.tabs.dataManagement },
+    { id: "usage", label: uiText.settings.tabs.usageInformation },
+  ];
+
+  return (
+    <nav className={styles.tabRow} aria-label={uiText.settings.labels.settings}>
+      {tabs.map((tab) => (
+        <a
+          aria-current={activeTab === tab.id ? "page" : undefined}
+          className={
+            activeTab === tab.id
+              ? `${styles.tabLink} ${styles.tabLinkActive}`
+              : styles.tabLink
+          }
+          href={buildSettingsRoute({ ...routeContext, tab: tab.id })}
+          key={tab.id}
+        >
+          {tab.label}
+        </a>
+      ))}
+    </nav>
   );
 }
 
