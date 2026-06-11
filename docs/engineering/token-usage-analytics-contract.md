@@ -252,10 +252,16 @@ Plan/Session/Workspace usage views may show:
 Implemented surfaces:
 
 - compact Task and Plan usage cards in the Main Page detail panel;
-- Main Page `Usage` action linking to
-  `/workspaces/{workspaceId}/usage?sessionId={sessionId}`;
 - Workspace Usage page showing Workspace, Session, Plan, and Task summary
   sections.
+
+Product 1.1 IA update:
+
+- Settings -> Usage Information is the primary user entry for browsing token
+  usage.
+- Main Page must not expose a first-level Usage action/button.
+- The deep route `/workspaces/{workspaceId}/usage` may remain for direct links,
+  tests, and future diagnostics handoff.
 
 Copy rules:
 

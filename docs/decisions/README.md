@@ -44,3 +44,4 @@ Each ADR should include:
 | [ADR-0015](ADR-0015-main-page-activity-overlay-message-history.md) | accepted | Replace the Main Page persistent message column with Latest Activity, Activity Overlay, and Result Artifact/Reader surfaces. |
 | [ADR-0016](ADR-0016-collaborator-workspace-aware-authoring.md) | accepted | Give Collaborator a bounded read-only authoring loop with workspace read/query/search, without workspace writes or unrestricted execution tools. |
 | [ADR-0017](ADR-0017-session-and-workspace-context-management-foundation.md) | accepted foundation | Define Workspace, Session, and Task context layers as a future contract without implementation. |
+| [ADR-0018](ADR-0018-workspace-archive-and-delete-semantics.md) | accepted | Use two user-facing workspace lifecycle actions: Archive workspace and Delete Plato data; put restore and usage management inside Settings tabs. |
