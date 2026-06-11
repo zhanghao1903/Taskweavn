@@ -1,6 +1,6 @@
 # Token Usage Analytics
 
-> Status: accepted / implemented Product 1.1 plan
+> Status: completed Product 1.1 token usage analytics slice
 >
 > Last Updated: 2026-06-11
 >

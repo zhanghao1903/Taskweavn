@@ -396,8 +396,8 @@ This milestone is accepted when:
 
 After Workspace Inspection:
 
-1. Precision file tools: line-range read, replace, append, and changed-line
-   evidence.
+1. Precision file tools: completed Product 1.1 line-range read, replace,
+   append, search, and changed-line evidence scope.
 2. Runtime input modes: read-only question, guidance, command, ASK answer, and
    confirmation response routing.
 3. Inquiry context: answer questions over file/diff/result/audit without

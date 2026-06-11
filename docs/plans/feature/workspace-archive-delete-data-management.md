@@ -1,6 +1,6 @@
 # Feature Plan: Workspace Archive, Delete, And Settings Data Management
 
-> Status: accepted / implemented initial slice
+> Status: completed Product 1.1 workspace archive/delete data management slice
 > Last Updated: 2026-06-11
 > Owner: Desktop / Frontend / Local Runtime
 > Decision: [ADR-0018 Workspace Archive And Delete Semantics](../../decisions/ADR-0018-workspace-archive-and-delete-semantics.md)
@@ -177,7 +177,7 @@ navigation entry.
 
 ### A1. Plan, Decision, And Technical Design
 
-Status: this document.
+Status: completed.
 
 - Accept two user-facing lifecycle actions.
 - Define Settings tab IA.
@@ -187,6 +187,8 @@ Status: this document.
 ### A2. Settings Tab Shell
 
 Goal: split Settings into three tabs without changing existing setup behavior.
+
+Status: completed.
 
 Acceptance:
 
@@ -199,6 +201,8 @@ Acceptance:
 ### A2.5 Workspace Management Entry
 
 Goal: make workspace management discoverable as a first-level action.
+
+Status: completed.
 
 Acceptance:
 
@@ -213,6 +217,8 @@ Acceptance:
 
 Goal: add reversible workspace hiding.
 
+Status: completed.
+
 Acceptance:
 
 - Workspace rows can be archived from the row context menu and from Settings
@@ -226,6 +232,8 @@ Acceptance:
 ### A4. Delete Plato Data
 
 Goal: clean product-owned local metadata.
+
+Status: completed.
 
 Acceptance:
 
@@ -244,6 +252,8 @@ Acceptance:
 
 Goal: make Settings the primary token usage entry.
 
+Status: completed.
+
 Acceptance:
 
 - Usage Information tab loads existing token usage summaries.
@@ -255,6 +265,8 @@ Acceptance:
 ### A6. Acceptance / E2E
 
 Goal: cover the desktop lifecycle paths.
+
+Status: completed for the Product 1.1 local acceptance path.
 
 Acceptance:
 
@@ -279,17 +291,21 @@ Acceptance:
 
 ---
 
-## 7. Open Implementation Questions
+## 7. Closure Decisions And Follow-Ups
 
-1. Should delete use OS Trash by default and fall back to permanent delete only
-   after a second confirmation?
-2. Should archived workspace summaries show last session count by reading
-   `.plato`, or should they only show safe app-registry metadata?
-3. Should Settings remember the last selected tab across restarts?
-4. Should current workspace archive immediately switch to the next visible
-   workspace or return to Workspace Picker?
-5. Should the first-level Workspace Management entry live in the sidebar footer,
-   top bar, or Settings gear menu once visual design is accepted?
+Closed for this slice:
 
-The technical design proposes defaults for these questions, but implementation
-should keep them easy to adjust after acceptance.
+1. Delete Plato Data removes product-owned metadata directly after explicit
+   confirmation; it does not delete user project files or `.git`.
+2. Archived workspace summaries use app-registry metadata and do not require
+   reading archived `.plato` stores for normal rendering.
+3. Settings tab navigation stays in-app and does not refresh the renderer.
+4. Archiving the current workspace updates the visible workspace list without
+   requiring an application restart.
+5. Workspace Management remains a first-level sidebar entry, while workspace
+   row context menus provide fast Archive and Delete Plato Data actions.
+
+Future follow-up:
+
+- Add richer Electron smoke coverage if release-readiness expands beyond the
+  current local acceptance path.

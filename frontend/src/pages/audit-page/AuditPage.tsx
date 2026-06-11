@@ -1,3 +1,5 @@
+import { useCallback, useState } from "react";
+
 import { Button } from "../../shared/components";
 import { mapAuditSnapshotToUiBoundary } from "../../shared/api/apiUiMapping";
 import { useUiText } from "../../shared/ui-text";
@@ -61,8 +63,12 @@ export function AuditPage({
   workspaceId,
 }: AuditPageProps) {
   const uiText = useUiText();
+  const [timelineScrollTop, setTimelineScrollTop] = useState(0);
   const activeFilter = activeAuditFilter(snapshot);
   const activeRecordId = activeAuditRecordId(snapshot, selectedRecordId);
+  const handleTimelineScrollPositionChange = useCallback((scrollTop: number) => {
+    setTimelineScrollTop(scrollTop);
+  }, []);
 
   if (isLoading) {
     return (
@@ -129,15 +135,19 @@ export function AuditPage({
           {selectedRecord === null ? (
             <Timeline
               activeRecordId={activeRecordId}
+              onScrollPositionChange={handleTimelineScrollPositionChange}
               onSelectRecord={onSelectRecord}
               records={snapshot.records}
+              restoreScrollTop={timelineScrollTop}
             />
           ) : (
             <div className={styles.recordDetailGrid}>
               <Timeline
                 activeRecordId={activeRecordId}
+                onScrollPositionChange={handleTimelineScrollPositionChange}
                 onSelectRecord={onSelectRecord}
                 records={snapshot.records}
+                restoreScrollTop={timelineScrollTop}
               />
               <DetailPanel
                 detailState={detailState}

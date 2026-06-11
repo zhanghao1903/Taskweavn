@@ -1,6 +1,6 @@
 # Precision File Tools
 
-> Status: implemented on `codex/precision-file-tools` for Product 1.1 Stage 2 backend/tool foundation
+> Status: completed for Product 1.1 precision file tools scope
 >
 > Last Updated: 2026-06-11
 >
@@ -146,7 +146,7 @@ Acceptance:
 
 ### PFT-1. Backend Contract And Models
 
-Status: implemented on `codex/precision-file-tools`.
+Status: completed.
 
 Deliver:
 
@@ -162,7 +162,7 @@ Acceptance:
 
 ### PFT-2. Read-Only Precision Providers
 
-Status: implemented on `codex/precision-file-tools`.
+Status: completed.
 
 Deliver:
 
@@ -177,7 +177,7 @@ Acceptance:
 
 ### PFT-3. Mutating Providers
 
-Status: implemented on `codex/precision-file-tools`.
+Status: completed.
 
 Deliver:
 
@@ -194,7 +194,7 @@ Acceptance:
 
 ### PFT-4. Agent Tool Adapters
 
-Status: implemented on `codex/precision-file-tools`.
+Status: completed.
 
 Deliver:
 
@@ -209,7 +209,7 @@ Acceptance:
 
 ### PFT-5. Projection And Audit Wiring
 
-Status: partially implemented on `codex/precision-file-tools`.
+Status: completed for Product 1.1 precision file tools closure.
 
 Deliver:
 
@@ -222,21 +222,25 @@ Acceptance:
 
 - Main Page and Audit can explain what changed without trusting Agent prose.
 
-Current scope:
+Closure scope:
 
 - File summary projection from precision mutation observations is implemented.
 - Precision operations capture durable inspection evidence refs.
-- Full Audit Page evidence-detail wiring remains a later UI/API integration
-  task.
+- Full Audit Page evidence-detail expansion remains a future Audit hardening
+  enhancement, not a blocker for this completed slice.
 
 ### PFT-6. Product Smoke
 
-Status: targeted backend/tool smoke implemented; full sidecar/Electron smoke deferred.
+Status: completed for targeted backend/tool acceptance.
 
 Deliver:
 
 - real workspace smoke with deterministic read/search/replace/append;
 - sidecar/Electron path when UI evidence links are affected.
+
+Closure note: deterministic backend/tool coverage is complete for this slice.
+Broader sidecar/Electron evidence-link smoke can be added as a future
+acceptance-hardening task when Audit evidence detail expansion resumes.
 
 Acceptance:
 

@@ -26,9 +26,13 @@ contextBridge.exposeInMainWorld("platoElectronWorkspace", {
     ipcRenderer.invoke("plato:workspace:choose", options),
   deleteWorkspaceData: (id, options) =>
     ipcRenderer.invoke("plato:workspace:delete-data", id, options),
+  getGitPreference: () =>
+    ipcRenderer.invoke("plato:workspace:get-git-preference"),
   getGitStatus: () => ipcRenderer.invoke("plato:workspace:git-status"),
   getState: () => ipcRenderer.invoke("plato:workspace:get-state"),
   restoreWorkspace: (id) => ipcRenderer.invoke("plato:workspace:restore", id),
+  setGitPreference: (value) =>
+    ipcRenderer.invoke("plato:workspace:set-git-preference", value),
   useWorkspace: (id, options) =>
     ipcRenderer.invoke("plato:workspace:use", id, options),
 });

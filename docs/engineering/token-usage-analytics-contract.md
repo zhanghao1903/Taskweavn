@@ -1,6 +1,6 @@
 # Token Usage Analytics Contract
 
-> Status: accepted / implemented Product 1.1 contract
+> Status: completed Product 1.1 token usage analytics contract
 >
 > Last Updated: 2026-06-11
 >
@@ -17,14 +17,15 @@ The contract is product-facing observability, not raw LLM logging.
 
 ## 1.1 Implementation Status
 
-Product 1.1 implementation is accepted for the local sidecar/runtime path:
+Product 1.1 implementation is complete for the local sidecar/runtime path:
 
 - normalized usage events are recorded at the session-bound LLM boundary;
 - events are persisted in workspace-local `.plato/usage.sqlite`;
 - `/api/v1/usage/token-summary` and
   `/api/v1/workspaces/{workspaceId}/usage/token-summary` return contract-shaped
   summaries;
-- Main Page exposes compact Task/Plan usage cards and a Workspace Usage view;
+- Settings exposes Usage Information as the primary usage browsing entry;
+- Main Page exposes a compact contextual Task/Plan usage row;
 - diagnostic bundles include a redacted `usage/token-summary.json` summary.
 
 Deferred follow-ups:
@@ -322,15 +323,16 @@ Required focused tests:
 - return unavailable cache rate when denominator is missing;
 - reject or ignore unknown workspace ids without leaking paths.
 
-## 11. Implementation Boundary
+## 11. Completed Implementation Boundary
 
-First implementation should add:
+The completed Product 1.1 slice includes:
 
 - normalized event model;
 - SQLite usage store;
 - usage recorder at the LLM call boundary with product attribution;
 - workspace-scoped summary API;
-- Main Page compact usage cards and Workspace Usage view;
+- Settings Usage Information as the primary usage browsing entry;
+- Main Page compact contextual usage row;
 - backend and frontend contract tests.
 
 It should not add:

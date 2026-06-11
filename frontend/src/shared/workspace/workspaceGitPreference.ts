@@ -8,14 +8,27 @@ type StorageLike = Pick<Storage, "getItem" | "setItem">;
 export function readWorkspaceGitInitializeOnOpenPreference(
   storage: StorageLike | null | undefined = safeLocalStorage(),
 ): boolean {
+  return readStoredWorkspaceGitInitializeOnOpenPreference(storage) === true;
+}
+
+export function readStoredWorkspaceGitInitializeOnOpenPreference(
+  storage: StorageLike | null | undefined = safeLocalStorage(),
+): boolean | null {
   if (storage === null || storage === undefined) {
-    return false;
+    return null;
   }
 
   try {
-    return storage.getItem(WORKSPACE_GIT_INITIALIZE_ON_OPEN_STORAGE_KEY) === "1";
+    const stored = storage.getItem(WORKSPACE_GIT_INITIALIZE_ON_OPEN_STORAGE_KEY);
+    if (stored === "1") {
+      return true;
+    }
+    if (stored === "0") {
+      return false;
+    }
+    return null;
   } catch {
-    return false;
+    return null;
   }
 }
 

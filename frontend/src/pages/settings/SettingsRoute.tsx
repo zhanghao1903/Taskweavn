@@ -570,20 +570,29 @@ function SettingsTabs({
 
   return (
     <nav className={styles.tabRow} aria-label={uiText.settings.labels.settings}>
-      {tabs.map((tab) => (
-        <a
-          aria-current={activeTab === tab.id ? "page" : undefined}
-          className={
-            activeTab === tab.id
-              ? `${styles.tabLink} ${styles.tabLinkActive}`
-              : styles.tabLink
-          }
-          href={buildSettingsRoute({ ...routeContext, tab: tab.id })}
-          key={tab.id}
-        >
-          {tab.label}
-        </a>
-      ))}
+      {tabs.map((tab) => {
+        const href = buildSettingsRoute({ ...routeContext, tab: tab.id });
+        return (
+          <a
+            aria-current={activeTab === tab.id ? "page" : undefined}
+            className={
+              activeTab === tab.id
+                ? `${styles.tabLink} ${styles.tabLinkActive}`
+                : styles.tabLink
+            }
+            href={href}
+            key={tab.id}
+            onClick={(event) => {
+              event.preventDefault();
+              if (activeTab !== tab.id) {
+                navigateApp(href);
+              }
+            }}
+          >
+            {tab.label}
+          </a>
+        );
+      })}
     </nav>
   );
 }

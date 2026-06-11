@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
@@ -176,11 +176,13 @@ describe("MainPageDetailPanel", () => {
       />,
     );
 
-    expect(await screen.findByLabelText("Token usage")).toBeInTheDocument();
-    expect(await screen.findByText("1,250")).toBeInTheDocument();
-    expect(screen.getByText("1,000 / 250")).toBeInTheDocument();
-    expect(screen.getByText("40.0%")).toBeInTheDocument();
-    expect(screen.getByText("1")).toBeInTheDocument();
+    const usageLine = await screen.findByLabelText("Token usage");
+    expect(usageLine).toHaveTextContent("Token usage");
+    await waitFor(() => {
+      expect(usageLine).toHaveTextContent("1,250");
+    });
+    expect(screen.queryByText("1,000 / 250")).not.toBeInTheDocument();
+    expect(screen.queryByText("40.0%")).not.toBeInTheDocument();
     expect(loadTokenUsageSummary).toHaveBeenCalledWith(
       {
         dimension: "task",
