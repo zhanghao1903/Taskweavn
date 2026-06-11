@@ -1,8 +1,10 @@
 # Plato Product 1.1 Real Local QA Report - 2026-06-11
 
-> Status: phase complete - Electron app evidence pass
-> Branch: `codex/product-1.1-qa-hardening`
+> Status: phase complete - Electron app evidence pass; first defect fix merged; closure defect fix in PR #70
+> QA branch: `codex/product-1.1-qa-hardening`
+> Closure branch: `codex/product-1.1-qa-report-closure`
 > Baseline commit: `616bc1b`
+> Merged main commit: `7bdec9a`
 > Scope: Product 1.0 core loop and Product 1.1 feature hardening
 > Environment policy: use the real local runtime, Electron app shell, and configured LLM provider; do not use mock mode or browser-only UI as acceptance evidence.
 
@@ -52,7 +54,7 @@ Electron-owned sidecar:
 | Area | Requirement | Evidence | Status |
 |---|---|---|---|
 | 1.0 startup | Open Plato from a real local app/runtime path. | Electron app launch with Electron-owned sidecar `52257`. | Pass |
-| 1.0 first-run/settings | Missing config shows setup path; configured path reaches Main Page. | Existing Electron smoke coverage retained; this pass used configured real environment. | Partial |
+| 1.0 first-run/settings | Missing config shows setup path; configured path reaches Main Page. | `npm run electron:smoke:first-run` rerun after fix; first-run setup returned to Main Page. | Pass |
 | 1.0 session loop | Create/select session, enter goal, generate/review TaskTree. | `02`, `03`, `04` Electron screenshots; real LLM Draft ready. | Pass |
 | 1.0 task control | Select TaskNode, publish/execute, stop running task. | `05`, `06`, `07` Electron screenshots. | Pass |
 | 1.0 confirmation/ASK | Authoring ASK and Execution ASK are understandable and scoped. | `03` Authoring ASK and `06` Execution ASK screenshots. | Pass |
@@ -102,12 +104,31 @@ docs/product/qa-screenshots/2026-06-11-product-1-1-electron-app/
 - Electron validation: Electron-owned sidecar returned `ok: true` catalog for
   workspace `05cc0db4f9ae1924` without raw absolute paths.
 
+### F-002: Electron first-run setup used an unavailable workspace scope
+
+- Severity: P1
+- Issue: <https://github.com/zhanghao1903/Taskweavn/issues/69>
+- Affected path: Electron first-run setup -> Continue to Main Page
+- Real local before-fix behavior: `npm run electron:smoke:first-run` timed out
+  after the settings save/recheck succeeded because the renderer requested
+  `GET /api/v1/workspaces/<electron-display-workspace>/sessions` and the
+  sidecar returned `workspace is unavailable`.
+- Fix: Main Page runtime creation no longer treats Electron's display workspace
+  summary id as the default API workspace scope. Explicit route `workspaceId`
+  values still opt into scoped workspace APIs; otherwise Main Page lets the
+  sidecar/session catalog resolve the active workspace.
+- Electron validation: `npm run electron:smoke:first-run` passed after the fix
+  and loaded `Diagnostics smoke` plus `Run diagnostic-export-task`.
+
 ## GitHub Issues And Fix PRs
 
 | Type | Link | Status |
 |---|---|---|
-| Issue | <https://github.com/zhanghao1903/Taskweavn/issues/66> | Filed |
-| Fix PR | <https://github.com/zhanghao1903/Taskweavn/pull/67> | Open |
+| Issue | <https://github.com/zhanghao1903/Taskweavn/issues/66> | Closed by PR #67 on 2026-06-11 |
+| Fix PR | <https://github.com/zhanghao1903/Taskweavn/pull/67> | Merged on 2026-06-11 |
+| CI | <https://github.com/zhanghao1903/Taskweavn/actions/runs/27352009609/job/80816123401> | `Sidecar E2E Acceptance` passed in 51s |
+| Issue | <https://github.com/zhanghao1903/Taskweavn/issues/69> | Filed during closure audit |
+| Fix PR | <https://github.com/zhanghao1903/Taskweavn/pull/70> | Open; fixes issue #69 |
 
 ## UX Improvement List
 
@@ -124,13 +145,24 @@ docs/product/qa-screenshots/2026-06-11-product-1-1-electron-app/
 
 ## Remaining Gaps
 
-- Full first-run configuration flow was not rerun in this real Electron/LLM
-  pass; existing Electron smoke coverage remains the regression reference.
 - Full task completion and resulting precision mutation evidence were stopped
   intentionally after Execution ASK recovery to control LLM cost.
 - Diagnostics export reported `usage` as included, but workspace inspection
   evidence store was missing in the sidecar export descriptor. This should be
   tracked as a future diagnostics integration gap.
+
+## Closure Assessment
+
+Product 1.1 QA hardening is accepted as phase-complete for the currently
+implemented 1.1 surface:
+
+- the first confirmed P1 defect was filed, fixed, merged, and verified by CI;
+- the first-run closure defect was filed and has a verified fix in PR #70;
+- Electron screenshots cover the real app states used by the QA pass;
+- Product 1.1 token usage, workspace inspection, and precision file tool layers
+  have direct test or app evidence;
+- remaining items are product/UX follow-ups or broader integration coverage
+  gaps, not untriaged regressions in the checked release path.
 
 ## Evidence Log
 
@@ -145,3 +177,7 @@ docs/product/qa-screenshots/2026-06-11-product-1-1-electron-app/
 | 2026-06-11 | Authoring ASK | Electron screenshot `03-electron-authoring-ask.png` | Pass |
 | 2026-06-11 | Execution ASK | Electron screenshot `06-electron-execution-ask.png` | Pass |
 | 2026-06-11 | Audit Page | Electron screenshot `11-electron-audit.png` | Pass |
+| 2026-06-11 | PR fix closure | PR #67 merged into `main` at `7bdec9a`; issue #66 closed | Pass |
+| 2026-06-11 | GitHub CI | `Sidecar E2E Acceptance` run `27352009609` / job `80816123401` | Pass |
+| 2026-06-11 | Electron first-run regression | `npm run electron:smoke:first-run` exposed issue #69 before fix | Fail before fix |
+| 2026-06-11 | Electron first-run validation | `npm run electron:smoke:first-run` after runtime workspace-scope fix | Pass |

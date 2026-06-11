@@ -118,6 +118,29 @@ describe("Plato runtime wiring", () => {
     expect(adapter?.workspaceId).toBe("workspace-route");
   });
 
+  it("does not scope Main Page API calls to the Electron display workspace by default", () => {
+    vi.stubGlobal("window", {
+      platoRuntimeConfig: {
+        apiBaseUrl: "http://127.0.0.1:53226",
+        apiMode: "http",
+        workspace: {
+          id: "electron-display-workspace",
+          isCurrent: true,
+          label: "Project",
+          name: "Project",
+          pathLabel: "Project",
+        },
+      },
+    });
+
+    const adapter = createMainPageAdapterFromRuntimeEnv({
+      VITE_PLATO_API_MODE: "mock",
+    });
+
+    expect(adapter).toBeDefined();
+    expect(adapter?.workspaceId).toBeNull();
+  });
+
   it("creates a mock Audit API by default", async () => {
     const api = createAuditApiFromRuntimeEnv({
       VITE_PLATO_AUDIT_MOCK_SCENARIO: "a11-permission-denied",
