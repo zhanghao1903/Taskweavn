@@ -16,12 +16,16 @@ import {
   safeWorkspaceGitPreparationMessage,
 } from "./workspaceGit.mjs";
 import {
+  archiveWorkspaceById,
   buildWorkspaceEntryState,
   findWorkspacePathById,
+  removeWorkspaceById,
   readWorkspaceEntryStore,
   rememberWorkspace,
+  restoreWorkspaceById,
   summarizeWorkspace,
 } from "./workspaceEntry.mjs";
+import { resolveWorkspaceDataTargets } from "./workspaceData.mjs";
 import { resolveElectronWorkspaceRoot } from "./workspacePaths.mjs";
 
 const electronDir = path.dirname(fileURLToPath(import.meta.url));
@@ -351,6 +355,54 @@ function registerWorkspaceEntryIpc() {
       normalizeWorkspaceSelectionOptions(options),
     );
   });
+
+  ipcMain.handle("plato:workspace:archive", async (_event, id) => {
+    if (typeof id !== "string" || id.length === 0) {
+      return await workspaceLifecycleResult("failed", "Unknown workspace.");
+    }
+    const result = await archiveWorkspaceById(app.getPath("userData"), id);
+    if (result.workspacePath === null) {
+      return await workspaceLifecycleResult("failed", "Workspace not found.");
+    }
+    await applyWorkspaceStoreState(result.state);
+    return await workspaceLifecycleResult("ok");
+  });
+
+  ipcMain.handle("plato:workspace:restore", async (_event, id) => {
+    if (typeof id !== "string" || id.length === 0) {
+      return await workspaceLifecycleResult("failed", "Unknown workspace.");
+    }
+    const result = await restoreWorkspaceById(app.getPath("userData"), id);
+    if (result.workspacePath === null) {
+      return await workspaceLifecycleResult("failed", "Workspace not found.");
+    }
+    await applyWorkspaceStoreState(result.state);
+    return await workspaceLifecycleResult("ok");
+  });
+
+  ipcMain.handle("plato:workspace:delete-data", async (_event, id) => {
+    if (typeof id !== "string" || id.length === 0) {
+      return await workspaceLifecycleResult("failed", "Unknown workspace.");
+    }
+    const workspacePath = await findWorkspacePathById(app.getPath("userData"), id, {
+      includeArchived: true,
+    });
+    if (workspacePath === null) {
+      return await workspaceLifecycleResult("failed", "Workspace not found.");
+    }
+
+    try {
+      await deletePlatoDataForWorkspace(workspacePath);
+      const result = await removeWorkspaceById(app.getPath("userData"), id);
+      await applyWorkspaceStoreState(result.state);
+      return await workspaceLifecycleResult("ok");
+    } catch {
+      return await workspaceLifecycleResult(
+        "failed",
+        "Plato data could not be deleted safely.",
+      );
+    }
+  });
 }
 
 async function selectWorkspace(workspacePath, options = {}) {
@@ -387,6 +439,42 @@ async function selectWorkspace(workspacePath, options = {}) {
     state: await workspaceEntryState("starting"),
     status: "ready",
   };
+}
+
+async function applyWorkspaceStoreState(state) {
+  if (state.currentPath === null) {
+    sidecarRuntime?.stop();
+    sidecarRuntime = null;
+    currentWorkspaceRoot = null;
+    await showWorkspaceEntry();
+    return;
+  }
+  await startSidecarForWorkspace(state.currentPath);
+}
+
+async function workspaceLifecycleResult(status, error = null) {
+  return {
+    error,
+    state: await workspaceEntryState(
+      error === null ? (currentWorkspaceRoot === null ? "needs_selection" : "ready") : "failed",
+      error,
+    ),
+    status,
+  };
+}
+
+async function deletePlatoDataForWorkspace(workspacePath) {
+  if (
+    currentWorkspaceRoot !== null &&
+    path.resolve(currentWorkspaceRoot) === path.resolve(workspacePath)
+  ) {
+    sidecarRuntime?.stop();
+    sidecarRuntime = null;
+  }
+  const targets = await resolveWorkspaceDataTargets(workspacePath);
+  for (const target of targets) {
+    await shell.trashItem(target);
+  }
 }
 
 function normalizeWorkspaceSelectionOptions(options) {

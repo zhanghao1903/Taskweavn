@@ -30,11 +30,13 @@ type PlatoWorkspaceEntrySummary = {
   readonly id: string;
   readonly isCurrent: boolean;
   readonly label: string;
+  readonly lifecycleStatus?: "active" | "archived";
   readonly name: string;
   readonly pathLabel: string;
 };
 
 type PlatoWorkspaceEntryState = {
+  readonly archivedWorkspaces?: readonly PlatoWorkspaceEntrySummary[];
   readonly currentWorkspace: PlatoWorkspaceEntrySummary | null;
   readonly error: string | null;
   readonly recentWorkspaces: readonly PlatoWorkspaceEntrySummary[];
@@ -60,12 +62,38 @@ type PlatoWorkspaceSelectionOptions = {
   readonly initializeGitOnOpen?: boolean;
 };
 
+type PlatoWorkspaceLifecycleResult =
+  | {
+      readonly error?: string | null;
+      readonly state: PlatoWorkspaceEntryState;
+      readonly status: "ok";
+    }
+  | {
+      readonly error?: string | null;
+      readonly state: PlatoWorkspaceEntryState;
+      readonly status: "cancelled" | "failed";
+    };
+
+type PlatoWorkspaceDeleteDataOptions = {
+  readonly useTrash?: boolean;
+};
+
 type PlatoElectronWorkspaceBridge = {
+  readonly archiveWorkspace?: (
+    id: string,
+  ) => Promise<PlatoWorkspaceLifecycleResult>;
   readonly chooseWorkspace: (
     options?: PlatoWorkspaceSelectionOptions,
   ) => Promise<PlatoWorkspaceSelectionResult>;
+  readonly deleteWorkspaceData?: (
+    id: string,
+    options?: PlatoWorkspaceDeleteDataOptions,
+  ) => Promise<PlatoWorkspaceLifecycleResult>;
   readonly getGitStatus: () => Promise<PlatoWorkspaceGitStatus>;
   readonly getState: () => Promise<PlatoWorkspaceEntryState>;
+  readonly restoreWorkspace?: (
+    id: string,
+  ) => Promise<PlatoWorkspaceLifecycleResult>;
   readonly useWorkspace: (
     id: string,
     options?: PlatoWorkspaceSelectionOptions,

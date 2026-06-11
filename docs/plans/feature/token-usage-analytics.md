@@ -266,3 +266,23 @@ Implemented Product 1.1 slice:
 - Main Page compact Task/Plan usage cards;
 - Workspace Usage route with Workspace/Session/Plan/Task breakdown sections;
 - diagnostic bundle redacted usage summary.
+
+## 13. Product 1.1 IA Update
+
+Workspace Usage remains an implemented analytics surface, but the primary
+product entry moves into Settings:
+
+```text
+Settings -> Usage Information
+```
+
+Main Page should not expose a first-level token usage statistics button. The
+existing deep route may remain for direct links, tests, and future diagnostics
+handoff:
+
+```text
+/workspaces/{workspaceId}/usage
+```
+
+Contextual Task/Plan usage facts may stay inside Main Page detail panels if
+they do not create a separate first-level Usage navigation surface.

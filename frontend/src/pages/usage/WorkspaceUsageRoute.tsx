@@ -26,6 +26,7 @@ import styles from "./WorkspaceUsageRoute.module.css";
 export type WorkspaceUsageRouteProps = {
   api?: WorkspaceUsageApi | null;
   location?: WorkspaceUsageRouteLocation;
+  presentation?: "page" | "embedded";
   runtimeEnv?: PlatoRuntimeEnv;
 };
 
@@ -34,6 +35,7 @@ export type WorkspaceUsageApi = Pick<PlatoApi, "getTokenUsageSummary">;
 export function WorkspaceUsageRoute({
   api,
   location,
+  presentation = "page",
   runtimeEnv = import.meta.env,
 }: WorkspaceUsageRouteProps = {}) {
   const uiText = useUiText();
@@ -53,7 +55,7 @@ export function WorkspaceUsageRoute({
 
   if (context === null) {
     return (
-      <UsageShell context={null}>
+      <UsageShell context={null} presentation={presentation}>
         <Panel className={styles.section}>
           <Text as="h2" variant="heading">
             {uiText.usage.states.routeUnavailable}
@@ -68,7 +70,7 @@ export function WorkspaceUsageRoute({
   }
 
   return (
-    <UsageShell context={context}>
+    <UsageShell context={context} presentation={presentation}>
       <UsageDimensionSection
         api={usageApi}
         context={context}
@@ -96,9 +98,11 @@ export function WorkspaceUsageRoute({
 function UsageShell({
   children,
   context,
+  presentation,
 }: {
   children: ReactNode;
   context: WorkspaceUsageRouteContext | null;
+  presentation: "page" | "embedded";
 }) {
   const uiText = useUiText();
   const returnPath =
@@ -110,9 +114,11 @@ function UsageShell({
         })
       : "/";
 
-  return (
-    <main className={styles.page}>
-      <section className={styles.shell} aria-label={uiText.usage.labels.usage}>
+  const shell = (
+    <section
+      className={presentation === "embedded" ? styles.embeddedShell : styles.shell}
+      aria-label={uiText.usage.labels.usage}
+    >
         <header className={styles.header}>
           <div>
             <Text variant="eyebrow">{uiText.usage.labels.usage}</Text>
@@ -125,13 +131,24 @@ function UsageShell({
                 {uiText.usage.labels.workspaceId({ id: context.workspaceId })}
               </Badge>
             ) : null}
-            <Button onClick={() => navigateApp(returnPath)}>
-              {uiText.usage.actions.return}
-            </Button>
+            {presentation === "page" ? (
+              <Button onClick={() => navigateApp(returnPath)}>
+                {uiText.usage.actions.return}
+              </Button>
+            ) : null}
           </div>
         </header>
         {children}
-      </section>
+    </section>
+  );
+
+  if (presentation === "embedded") {
+    return shell;
+  }
+
+  return (
+    <main className={styles.page}>
+      {shell}
     </main>
   );
 }

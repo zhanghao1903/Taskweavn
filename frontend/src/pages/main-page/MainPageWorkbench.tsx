@@ -3,7 +3,6 @@ import { useState, type ReactNode } from "react";
 import type { ProductRecoveryAction } from "../../shared/api/platoApi";
 import { Panel } from "../../shared/components";
 import { useUiText } from "../../shared/ui-text";
-import { buildWorkspaceUsageRoute } from "../../app/routes";
 import { ActivityOverlay } from "./ActivityOverlay";
 import { ContextInputPanel } from "./ContextInputPanel";
 import { LatestActivityStrip } from "./LatestActivityStrip";
@@ -71,18 +70,6 @@ export function MainPageWorkbench({
     viewModel.sidebar.activeSession.workspaceId ??
     activeWorkspaceId ??
     null;
-  const usageHref =
-    resolvedWorkspaceId === null
-      ? null
-      : buildWorkspaceUsageRoute({
-          workspaceId: resolvedWorkspaceId,
-          sessionId: viewModel.sessionId,
-          taskNodeId: viewModel.taskWorkspace.selectedTaskNodeId ?? undefined,
-          planId:
-            viewModel.taskWorkspace.selectedTaskNodeId === null
-              ? viewModel.taskWorkspace.taskTree?.id
-              : undefined,
-        });
 
   return (
     <main className={pageClassName}>
@@ -134,7 +121,6 @@ export function MainPageWorkbench({
           }
           title={viewModel.workspace.title}
           uiNotice={viewModel.workspace.uiNotice}
-          usageHref={usageHref}
         />
 
         {viewModel.mainWorkArea.kind === "authoringAsk" ? (
