@@ -414,7 +414,7 @@ full user-facing Skill Inspector.
 
 | Object | Owner | Persistence |
 |---|---|---|
-| `SkillDescriptor` | SkillRegistry | derived from filesystem/package scan; cached by hash. |
+| `SkillDescriptor` | SkillRegistry | derived from filesystem/package scan; cacheable by hash. |
 | `SkillActivation` | Skill activation store | durable per session/task/agent run. |
 | `SkillContextSegment` | Context Manager | stored in context snapshot/trace. |
 | Loaded resource excerpt | Context Manager / evidence store | bounded excerpt with source ref/hash. |

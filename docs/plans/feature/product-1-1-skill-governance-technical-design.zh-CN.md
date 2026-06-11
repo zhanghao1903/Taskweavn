@@ -341,7 +341,9 @@ Product 1.1 v0 使用 workspace-local SQLite，建议路径：
 
 ### 6.1 Registry Cache
 
-Registry cache 是加速和 diagnostics 用的缓存，不是权威数据源。
+Registry cache 是加速和 diagnostics 用的缓存，不是权威数据源。当前实现采用
+configured-root scan 直接生成 `SkillRegistrySnapshot`，registry cache store 暂不
+作为 Product 1.1 backend foundation 的完成条件。
 
 ```sql
 CREATE TABLE IF NOT EXISTS skill_registry_cache (
@@ -474,7 +476,7 @@ SkillRegistryConfig(
    - `templates/`.
 9. Apply trust policy.
 10. Sort descriptors deterministically by `source_scope`, `name`, `source_ref`.
-11. Save registry cache snapshot.
+11. Optionally save registry cache snapshot in a later optimization slice.
 
 ### 7.3 Frontmatter Parser
 
@@ -964,7 +966,7 @@ Verified on 2026-06-11:
 |---|---|
 | Descriptor | missing `name`, missing `description`, invalid scope, disabled skill. |
 | Scanner | configured root only, deterministic order, hash changes, resource refs. |
-| Registry cache | save/load cache, stale hash warning. |
+| Registry cache | deferred optimization: save/load cache and stale hash warning. |
 | Activation | create active, block, complete, expire, query by session/task/run. |
 | Restart | persisted activation survives new store instance. |
 | Context source | metadata-only before activation, active skill after activation. |
