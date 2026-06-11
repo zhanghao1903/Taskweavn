@@ -15,6 +15,11 @@ import type {
 } from "../shared/api/platoApi";
 import type { SettingsRouteApi } from "../pages/settings/SettingsRoute";
 import type {
+  TokenUsageSummary,
+  TokenUsageSummaryResponse,
+  UsageAggregationDimension,
+} from "../shared/api/tokenUsageTypes";
+import type {
   AppendSessionInputCommand,
   AppendTaskInputCommand,
   GenerateTaskTreeCommand,
@@ -1017,6 +1022,13 @@ function appSettingsApi(): SettingsRouteApi {
       ok: true,
       requestId: "settings-config",
     })),
+    getTokenUsageSummary: vi.fn(async (request) => ({
+      data: tokenUsageSummary(request.dimension),
+      error: null,
+      generatedAt: "2026-06-06T09:00:00Z",
+      ok: true,
+      requestId: "settings-usage",
+    })),
     listSessions: vi.fn(async () => ({
       data: { sessions: [] },
       error: null,
@@ -1032,6 +1044,35 @@ function appSettingsApi(): SettingsRouteApi {
       ok: true,
       requestId: "settings-update",
     })),
+  };
+}
+
+function tokenUsageSummary(
+  dimension: UsageAggregationDimension,
+): TokenUsageSummaryResponse {
+  const totals: TokenUsageSummary = {
+    cacheHitRatio: null,
+    cacheHitTokens: null,
+    cacheMissTokens: null,
+    cacheRateSource: "unavailable",
+    cachedTokens: null,
+    callCount: 0,
+    dimension,
+    firstOccurredAt: null,
+    id: `${dimension}-total`,
+    inputTokens: null,
+    label: `${dimension} usage`,
+    lastOccurredAt: null,
+    outputTokens: null,
+    reasoningTokens: null,
+    totalTokens: null,
+    unknownUsageCallCount: 0,
+    workspaceId: "workspace-test",
+  };
+  return {
+    dimension,
+    rows: [],
+    totals,
   };
 }
 

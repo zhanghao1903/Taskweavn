@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -20,7 +20,10 @@ describe("MainPageWorkbench layout", () => {
   });
 
   afterEach(() => {
+    globalThis.history.pushState(null, "", "/");
     globalThis.localStorage?.clear();
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   });
 
   it("expands the workspace when generic notes hide the detail panel", () => {
@@ -197,6 +200,73 @@ describe("MainPageWorkbench layout", () => {
       initializeGitOnOpen: true,
     });
   });
+
+  it("opens workspace management from the sidebar first-level entry", async () => {
+    const user = userEvent.setup();
+    const viewModel = buildViewModel("s1-empty");
+
+    renderWorkbench(viewModel, buildActions(), {
+      activeWorkspaceId: "workspace-local",
+      workspaceCatalog: {
+        currentWorkspaceId: "workspace-local",
+        workspaces: [
+          workspaceCatalogEntry("workspace-local", "Local Project", []),
+        ],
+      },
+      workspaceRuntime: {
+        bridge: workspaceBridge(),
+        currentWorkspace: workspaceEntry("workspace-local", "Local Project"),
+        isRequired: true,
+      },
+    });
+
+    await user.click(
+      screen.getByRole("button", { name: "Workspace Management" }),
+    );
+
+    expect(globalThis.location.pathname).toBe("/settings");
+    expect(globalThis.location.search).toContain("tab=data");
+  });
+
+  it("opens workspace archive and delete actions from a workspace line", async () => {
+    const user = userEvent.setup();
+    const archiveWorkspace = vi.fn(async () => workspaceLifecycleResult());
+    const deleteWorkspaceData = vi.fn(async () => workspaceLifecycleResult());
+    vi.stubGlobal("confirm", vi.fn(() => true));
+    const viewModel = buildViewModel("s1-empty");
+
+    renderWorkbench(viewModel, buildActions(), {
+      activeWorkspaceId: "workspace-local",
+      workspaceCatalog: {
+        currentWorkspaceId: "workspace-local",
+        workspaces: [
+          workspaceCatalogEntry("workspace-local", "Local Project", []),
+        ],
+      },
+      workspaceRuntime: {
+        bridge: workspaceBridge({
+          archiveWorkspace,
+          deleteWorkspaceData,
+        }),
+        currentWorkspace: workspaceEntry("workspace-local", "Local Project"),
+        isRequired: true,
+      },
+    });
+
+    fireEvent.contextMenu(screen.getByText("Local Project").closest("div")!);
+    await user.click(screen.getByRole("menuitem", { name: "Archive workspace" }));
+    expect(archiveWorkspace).toHaveBeenCalledWith("workspace-local");
+
+    await user.click(
+      screen.getByRole("button", { name: "Open workspace actions" }),
+    );
+    await user.click(screen.getByRole("menuitem", { name: "Delete Plato data" }));
+
+    expect(globalThis.confirm).toHaveBeenCalledWith(
+      "Delete Plato data for Local Project? Project files and the workspace folder are kept.",
+    );
+    expect(deleteWorkspaceData).toHaveBeenCalledWith("workspace-local");
+  });
 });
 
 function renderWorkbench(
@@ -253,6 +323,31 @@ function workspaceEntry(
     label: name,
     name,
     pathLabel: "workspace://current",
+  };
+}
+
+function workspaceBridge(
+  overrides: Partial<PlatoElectronWorkspaceBridge> = {},
+): PlatoElectronWorkspaceBridge {
+  return {
+    chooseWorkspace: vi.fn(),
+    getGitStatus: vi.fn(),
+    getState: vi.fn(),
+    useWorkspace: vi.fn(),
+    ...overrides,
+  };
+}
+
+function workspaceLifecycleResult(): PlatoWorkspaceLifecycleResult {
+  return {
+    state: {
+      archivedWorkspaces: [],
+      currentWorkspace: workspaceEntry("workspace-local", "Local Project"),
+      error: null,
+      recentWorkspaces: [],
+      status: "ready",
+    },
+    status: "ok",
   };
 }
 

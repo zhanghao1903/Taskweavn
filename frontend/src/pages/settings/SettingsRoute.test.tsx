@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -11,6 +11,11 @@ import type {
   SettingsConfigUpdateResult,
   SettingsReadinessReport,
 } from "../../shared/api/platoApi";
+import type {
+  TokenUsageSummary,
+  TokenUsageSummaryResponse,
+  UsageAggregationDimension,
+} from "../../shared/api/tokenUsageTypes";
 import type { ApiError, QueryResponse } from "../../shared/api/types";
 import {
   UI_LOCALE_PREFERENCE_STORAGE_KEY,
@@ -28,6 +33,7 @@ describe("SettingsRoute", () => {
   afterEach(() => {
     globalThis.history.pushState(null, "", "/");
     globalThis.localStorage?.clear();
+    vi.restoreAllMocks();
   });
 
   it("loads safe config without exposing stored secret values", async () => {
@@ -268,6 +274,66 @@ describe("SettingsRoute", () => {
       }),
     ).toBeDisabled();
   });
+
+  it("manages workspace archive, restore, and Plato data deletion in the data tab", async () => {
+    const user = userEvent.setup();
+    const activeWorkspace = workspaceEntry("workspace-active", "Active Project");
+    const archivedWorkspace = {
+      ...workspaceEntry("workspace-archived", "Archived Project"),
+      lifecycleStatus: "archived" as const,
+    };
+    const dataState: PlatoWorkspaceEntryState = {
+      archivedWorkspaces: [archivedWorkspace],
+      currentWorkspace: activeWorkspace,
+      error: null,
+      recentWorkspaces: [],
+      status: "ready",
+    };
+    const archiveWorkspace = vi.fn(async () => ({
+      state: dataState,
+      status: "ok" as const,
+    }));
+    const deleteWorkspaceData = vi.fn(async () => ({
+      state: dataState,
+      status: "ok" as const,
+    }));
+    const restoreWorkspace = vi.fn(async () => ({
+      state: dataState,
+      status: "ok" as const,
+    }));
+    const api = settingsApi();
+
+    renderWithQueryClient(
+      <SettingsRoute
+        api={api}
+        location={{ pathname: "/settings", search: "?tab=data" }}
+        runtimeEnv={{ VITE_PLATO_API_MODE: "http" }}
+        workspaceBridge={workspaceBridgeFor({
+          archiveWorkspace,
+          deleteWorkspaceData,
+          getState: vi.fn(async () => dataState),
+          restoreWorkspace,
+        })}
+      />,
+    );
+
+    expect((await screen.findAllByText("Active Project")).length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Archived Project").length).toBeGreaterThan(0);
+
+    await user.click(screen.getByRole("button", { name: "Archive workspace" }));
+    expect(archiveWorkspace).toHaveBeenCalledWith("workspace-active");
+
+    await user.click(screen.getByRole("button", { name: "Restore workspace" }));
+    expect(restoreWorkspace).toHaveBeenCalledWith("workspace-archived");
+
+    await user.click(screen.getAllByRole("button", { name: "Delete Plato data" })[0]);
+    const dialog = screen.getByRole("alertdialog");
+    await user.click(
+      within(dialog).getByRole("button", { name: "Delete Plato data" }),
+    );
+
+    expect(deleteWorkspaceData).toHaveBeenCalledWith("workspace-active");
+  });
 });
 
 function renderWithQueryClient(
@@ -301,6 +367,9 @@ function settingsApi({
   return {
     exportDiagnosticBundle: vi.fn(async () => okResponse(diagnosticExport())),
     getSettingsConfig: vi.fn(async () => okResponse(config)),
+    getTokenUsageSummary: vi.fn(async (request) =>
+      okResponse(tokenUsageSummary(request.dimension)),
+    ),
     listSessions: vi.fn(async () =>
       okResponse({
         sessions: [
@@ -498,10 +567,53 @@ function workspaceBridgeFor(
 
 function workspaceEntryState(): PlatoWorkspaceEntryState {
   return {
+    archivedWorkspaces: [],
     currentWorkspace: null,
     error: null,
     recentWorkspaces: [],
     status: "ready",
+  };
+}
+
+function workspaceEntry(
+  id: string,
+  name: string,
+): PlatoWorkspaceEntrySummary {
+  return {
+    id,
+    isCurrent: id === "workspace-active",
+    label: name,
+    name,
+    pathLabel: name,
+  };
+}
+
+function tokenUsageSummary(
+  dimension: UsageAggregationDimension,
+): TokenUsageSummaryResponse {
+  const totals: TokenUsageSummary = {
+    cacheHitRatio: 0.4,
+    cacheHitTokens: 20,
+    cacheMissTokens: 30,
+    cacheRateSource: "hit_miss_tokens",
+    cachedTokens: 20,
+    callCount: 1,
+    dimension,
+    firstOccurredAt: "2026-06-06T09:00:00Z",
+    id: `${dimension}-total`,
+    inputTokens: 40,
+    label: `${dimension} usage`,
+    lastOccurredAt: "2026-06-06T09:00:00Z",
+    outputTokens: 10,
+    reasoningTokens: null,
+    totalTokens: 50,
+    unknownUsageCallCount: 0,
+    workspaceId: "workspace-1",
+  };
+  return {
+    dimension,
+    rows: [totals],
+    totals,
   };
 }
 
