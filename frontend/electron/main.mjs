@@ -24,6 +24,7 @@ import {
   rememberWorkspace,
   restoreWorkspaceById,
   summarizeWorkspace,
+  workspaceArchiveRequiresRuntimeSwitch,
 } from "./workspaceEntry.mjs";
 import { resolveWorkspaceDataTargets } from "./workspaceData.mjs";
 import { resolveElectronWorkspaceRoot } from "./workspacePaths.mjs";
@@ -364,7 +365,14 @@ function registerWorkspaceEntryIpc() {
     if (result.workspacePath === null) {
       return await workspaceLifecycleResult("failed", "Workspace not found.");
     }
-    await applyWorkspaceStoreState(result.state);
+    if (
+      workspaceArchiveRequiresRuntimeSwitch(
+        currentWorkspaceRoot,
+        result.workspacePath,
+      )
+    ) {
+      await applyWorkspaceStoreState(result.state);
+    }
     return await workspaceLifecycleResult("ok");
   });
 

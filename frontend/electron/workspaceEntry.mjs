@@ -148,6 +148,19 @@ export async function removeWorkspaceById(userDataPath, id) {
   return { state: nextState, workspacePath: target.path };
 }
 
+export function workspaceArchiveRequiresRuntimeSwitch(
+  currentWorkspaceRoot,
+  archivedWorkspacePath,
+) {
+  if (currentWorkspaceRoot === null || archivedWorkspacePath === null) {
+    return false;
+  }
+  return (
+    normalizeWorkspacePath(currentWorkspaceRoot) ===
+    normalizeWorkspacePath(archivedWorkspacePath)
+  );
+}
+
 export async function buildWorkspaceEntryState({
   currentPath = null,
   error = null,

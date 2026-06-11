@@ -12,6 +12,7 @@ import {
   rememberWorkspace,
   restoreWorkspaceById,
   summarizeWorkspace,
+  workspaceArchiveRequiresRuntimeSwitch,
   workspaceEntryStorePath,
 } from "./workspaceEntry.mjs";
 
@@ -143,6 +144,17 @@ describe("workspace entry store", () => {
     });
     expect(state.recentWorkspaces).toEqual([]);
     expect(state.archivedWorkspaces).toEqual([]);
+  });
+
+  it("requires a runtime switch only when archiving the current workspace", async () => {
+    const userDataPath = await tempDir();
+    const current = path.join(userDataPath, "Current");
+    const other = path.join(userDataPath, "Other");
+
+    expect(workspaceArchiveRequiresRuntimeSwitch(current, current)).toBe(true);
+    expect(workspaceArchiveRequiresRuntimeSwitch(current, other)).toBe(false);
+    expect(workspaceArchiveRequiresRuntimeSwitch(null, other)).toBe(false);
+    expect(workspaceArchiveRequiresRuntimeSwitch(current, null)).toBe(false);
   });
 });
 

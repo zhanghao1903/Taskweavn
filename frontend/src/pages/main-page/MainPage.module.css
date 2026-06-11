@@ -351,7 +351,7 @@
   gap: var(--plato-space-2);
   border: 1px solid var(--plato-color-transparent);
   border-radius: var(--plato-radius-md);
-  padding: var(--plato-space-2);
+  padding: var(--plato-space-2) var(--plato-space-1);
   background: var(--plato-color-transparent);
   color: var(--plato-color-ink);
   font-size: var(--plato-type-nav-size);
