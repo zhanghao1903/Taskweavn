@@ -12,6 +12,11 @@
   gap: var(--plato-space-4);
 }
 
+.embeddedShell {
+  display: grid;
+  gap: var(--plato-space-4);
+}
+
 .header {
   display: flex;
   align-items: flex-start;

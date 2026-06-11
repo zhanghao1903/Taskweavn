@@ -1,6 +1,6 @@
 # Workspace Archive, Delete, And Settings Data Management Technical Design
 
-> Status: draft technical design / implementation blocked until accepted
+> Status: accepted / implemented initial slice
 > Last Updated: 2026-06-11
 > Plan: [Workspace Archive, Delete, And Settings Data Management](workspace-archive-delete-data-management.md)
 > Decision: [ADR-0018](../../decisions/ADR-0018-workspace-archive-and-delete-semantics.md)

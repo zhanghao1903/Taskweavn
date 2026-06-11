@@ -1,6 +1,6 @@
 # Feature Plan: Workspace Archive, Delete, And Settings Data Management
 
-> Status: draft plan / pending implementation acceptance
+> Status: accepted / implemented initial slice
 > Last Updated: 2026-06-11
 > Owner: Desktop / Frontend / Local Runtime
 > Decision: [ADR-0018 Workspace Archive And Delete Semantics](../../decisions/ADR-0018-workspace-archive-and-delete-semantics.md)

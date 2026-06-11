@@ -97,6 +97,42 @@
   white-space: nowrap;
 }
 
+.tabRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 20px;
+  border-bottom: 1px solid var(--plato-color-semantic-border);
+}
+
+.tabLink {
+  display: inline-flex;
+  min-height: 34px;
+  align-items: center;
+  border: 1px solid transparent;
+  border-bottom: 0;
+  border-radius: 6px 6px 0 0;
+  padding: 0 12px;
+  color: var(--plato-color-semantic-text-secondary);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 18px;
+  text-decoration: none;
+}
+
+.tabLink:hover,
+.tabLink:focus-visible {
+  background: var(--plato-color-status-execution-pending-bg);
+  color: var(--plato-color-status-execution-pending-text);
+  outline: none;
+}
+
+.tabLinkActive {
+  border-color: var(--plato-color-semantic-border);
+  background: var(--plato-color-semantic-surface);
+  color: var(--plato-color-semantic-text-primary);
+}
+
 .summaryGrid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));

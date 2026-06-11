@@ -535,14 +535,46 @@ export const enUS: UiTextCatalog = {
       retry_task: "Retry the affected Task.",
       wait_for_events: "Wait for sidecar events before retrying.",
     },
+    tabs: {
+      configuration: "Configuration",
+      dataManagement: "Data Management",
+      usageInformation: "Usage Information",
+    },
   },
   workspace: {
     actions: {
+      archiveWorkspace: "Archive workspace",
+      cancelDelete: "Cancel",
+      confirmDeletePlatoData: "Delete Plato data",
+      deletePlatoData: "Delete Plato data",
+      openWorkspaceMenu: "Open workspace actions",
       openOrAddWorkspace: "Open or add workspace",
+      restoreWorkspace: "Restore workspace",
+      workspaceManagement: "Workspace Management",
     },
     labels: {
+      activeWorkspaces: "Active workspaces",
+      archived: "Archived",
+      archivedWorkspaces: "Archived workspaces",
+      dataManagement: "Data Management",
+      deletePlatoData: "Delete Plato data",
       workspace: "Workspace",
+      workspaceManagement: "Workspace Management",
       workspaces: "Workspaces",
+    },
+    messages: {
+      archiveHelp: "Archive hides a workspace from Main Page without deleting files.",
+      bridgeUnavailable:
+        "Workspace management is available in the Plato desktop app.",
+      deletePlatoDataConfirmation: ({ name }) =>
+        `Delete Plato data for ${name}? Project files and the workspace folder are kept.`,
+      deletePlatoDataHelp:
+        "Deletes Plato-owned .plato data and legacy metadata roots. Project files are not deleted.",
+      lifecycleActionFailed: "Workspace action failed.",
+      loadingWorkspaces: "Loading workspaces.",
+      noArchivedWorkspaces: "No archived workspaces.",
+      noWorkspaceData: "No workspace data is available.",
+      restoreHelp: "Restore makes an archived workspace visible again.",
     },
   },
   workspaceInspection: {

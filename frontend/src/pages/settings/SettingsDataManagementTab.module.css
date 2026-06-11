@@ -1,0 +1,79 @@
+.sectionStack {
+  display: grid;
+  gap: 16px;
+}
+
+.section {
+  border-top: 1px solid var(--plato-color-semantic-border);
+  display: grid;
+  gap: 12px;
+  padding-top: 16px;
+}
+
+.sectionHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.sectionHeader h2 {
+  margin: 0;
+  color: var(--plato-color-semantic-text-primary);
+  font-size: 15px;
+}
+
+.sectionHeader p,
+.empty,
+.meta,
+.error {
+  margin: 0;
+  color: var(--plato-color-semantic-text-secondary);
+  font-size: 13px;
+}
+
+.workspaceList {
+  display: grid;
+  gap: 8px;
+}
+
+.workspaceRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid var(--plato-color-semantic-border);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.68);
+  padding: 10px 12px;
+}
+
+.workspaceName {
+  display: block;
+  overflow: hidden;
+  color: var(--plato-color-semantic-text-primary);
+  font-size: 14px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rowActions,
+.confirmActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.confirmPanel {
+  display: grid;
+  grid-column: 1 / -1;
+  gap: 10px;
+  border-top: 1px solid var(--plato-color-semantic-border);
+  padding-top: 10px;
+}
+
+.error {
+  color: var(--plato-color-danger-text);
+}

@@ -1,12 +1,14 @@
 import type { MouseEvent } from "react";
 import { useEffect, useState } from "react";
-import { Folder, FolderOpen } from "lucide-react";
+import { Folder, FolderOpen, MoreHorizontal } from "lucide-react";
 
+import { navigateApp } from "../../app/navigation";
 import type { WorkspaceCatalogResult } from "../../shared/api/platoApi";
 import type { SessionSummary, WorkspaceId } from "../../shared/api/types";
 import { Button, Panel, Text } from "../../shared/components";
 import { useUiText } from "../../shared/ui-text";
 import { workspaceGitSelectionOptionsFromPreference } from "../../shared/workspace/workspaceGitPreference";
+import { buildSettingsRoute } from "../settings/settingsRouteModel";
 import { SessionLifecyclePanel } from "./SessionLifecyclePanel";
 import {
   MainPageWorkspaceSwitcher,
@@ -40,6 +42,14 @@ type SessionContextMenuState = {
   y: number;
 };
 
+type WorkspaceCatalogEntry = WorkspaceCatalogResult["workspaces"][number];
+
+type WorkspaceContextMenuState = {
+  workspace: WorkspaceCatalogEntry;
+  x: number;
+  y: number;
+};
+
 const CONTEXT_MENU_VIEWPORT_GAP = 8;
 const SESSION_CONTEXT_MENU_WIDTH = 220;
 const SESSION_CONTEXT_MENU_HEIGHT = 188;
@@ -65,16 +75,19 @@ export function MainPageSessionSidebar({
   const uiText = useUiText();
   const [contextMenu, setContextMenu] =
     useState<SessionContextMenuState | null>(null);
+  const [workspaceContextMenu, setWorkspaceContextMenu] =
+    useState<WorkspaceContextMenuState | null>(null);
   const workspaceBridge =
     workspaceRuntime?.bridge ?? globalThis.window?.platoElectronWorkspace ?? null;
 
   useEffect(() => {
-    if (contextMenu === null) {
+    if (contextMenu === null && workspaceContextMenu === null) {
       return undefined;
     }
 
     function closeContextMenu() {
       setContextMenu(null);
+      setWorkspaceContextMenu(null);
     }
 
     function handleKeyDown(event: KeyboardEvent) {
@@ -92,20 +105,59 @@ export function MainPageSessionSidebar({
       window.removeEventListener("contextmenu", closeContextMenu);
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [contextMenu]);
+  }, [contextMenu, workspaceContextMenu]);
 
   function openContextMenu(
-    event: MouseEvent<HTMLButtonElement>,
+    event: MouseEvent<HTMLElement>,
     session: SessionSummary,
   ) {
     event.preventDefault();
     event.stopPropagation();
     const position = fitContextMenuToViewport(event.clientX, event.clientY);
+    setWorkspaceContextMenu(null);
     setContextMenu({
       session,
       x: position.x,
       y: position.y,
     });
+  }
+
+  function openWorkspaceContextMenu(
+    event: MouseEvent<HTMLElement>,
+    workspace: WorkspaceCatalogEntry,
+  ) {
+    event.preventDefault();
+    event.stopPropagation();
+    const position = fitContextMenuToViewport(event.clientX, event.clientY);
+    setContextMenu(null);
+    setWorkspaceContextMenu({
+      workspace,
+      x: position.x,
+      y: position.y,
+    });
+  }
+
+  function openWorkspaceManagement() {
+    const returnTo = `${globalThis.location.pathname}${globalThis.location.search}`;
+    navigateApp(buildSettingsRoute({ returnTo, tab: "data" }));
+  }
+
+  async function archiveWorkspace(workspace: WorkspaceCatalogEntry) {
+    setWorkspaceContextMenu(null);
+    await workspaceBridge?.archiveWorkspace?.(workspace.workspaceId);
+  }
+
+  async function deleteWorkspaceData(workspace: WorkspaceCatalogEntry) {
+    setWorkspaceContextMenu(null);
+    const confirmed = globalThis.confirm?.(
+      uiText.workspace.messages.deletePlatoDataConfirmation({
+        name: workspace.label,
+      }),
+    );
+    if (confirmed === false) {
+      return;
+    }
+    await workspaceBridge?.deleteWorkspaceData?.(workspace.workspaceId);
   }
 
   function selectFromContextMenu(session: SessionSummary) {
@@ -156,7 +208,13 @@ export function MainPageSessionSidebar({
 
           return (
             <div className={styles.workspaceTreeGroup} key={workspace.workspaceId}>
-              <div className={workspaceClassName} aria-current={isActiveWorkspace}>
+              <div
+                className={workspaceClassName}
+                aria-current={isActiveWorkspace}
+                onContextMenu={(event) =>
+                  openWorkspaceContextMenu(event, workspace)
+                }
+              >
                 <Folder
                   className={styles.workspaceSwitcherIcon}
                   size={18}
@@ -181,6 +239,18 @@ export function MainPageSessionSidebar({
                     {isCreatingSession && isActiveWorkspace
                       ? uiText.main.states.creatingSession
                       : uiText.main.actions.newSession}
+                  </Button>
+                  <Button
+                    aria-label={uiText.workspace.actions.openWorkspaceMenu}
+                    disabled={workspaceBridge === null}
+                    onClick={(event) =>
+                      openWorkspaceContextMenu(event, workspace)
+                    }
+                    size="icon"
+                    title={uiText.workspace.actions.openWorkspaceMenu}
+                    variant="ghost"
+                  >
+                    <MoreHorizontal aria-hidden="true" size={14} />
                   </Button>
                 </div>
               </div>
@@ -232,6 +302,18 @@ export function MainPageSessionSidebar({
             <span>{uiText.workspace.actions.openOrAddWorkspace}</span>
           </button>
         ) : null}
+        <button
+          className={styles.workspaceTreeRow}
+          onClick={openWorkspaceManagement}
+          type="button"
+        >
+          <FolderOpen
+            className={styles.workspaceSwitcherIcon}
+            size={18}
+            aria-hidden="true"
+          />
+          <span>{uiText.workspace.actions.workspaceManagement}</span>
+        </button>
       </div>
     );
 
@@ -326,6 +408,40 @@ export function MainPageSessionSidebar({
             type="button"
           >
             {uiText.main.actions.deleteSession}
+          </button>
+        </div>
+      ) : null}
+      {workspaceContextMenu ? (
+        <div
+          aria-label={uiText.workspace.actions.openWorkspaceMenu}
+          className={styles.sessionContextMenu}
+          onClick={(event) => event.stopPropagation()}
+          onContextMenu={(event) => event.preventDefault()}
+          role="menu"
+          style={{
+            left: workspaceContextMenu.x,
+            top: workspaceContextMenu.y,
+          }}
+        >
+          <button
+            disabled={workspaceBridge?.archiveWorkspace === undefined}
+            onClick={() => void archiveWorkspace(workspaceContextMenu.workspace)}
+            role="menuitem"
+            type="button"
+          >
+            {uiText.workspace.actions.archiveWorkspace}
+          </button>
+          <div className={styles.sessionContextMenuDivider} />
+          <button
+            className={styles.dangerMenuItem}
+            disabled={workspaceBridge?.deleteWorkspaceData === undefined}
+            onClick={() =>
+              void deleteWorkspaceData(workspaceContextMenu.workspace)
+            }
+            role="menuitem"
+            type="button"
+          >
+            {uiText.workspace.actions.deletePlatoData}
           </button>
         </div>
       ) : null}
