@@ -19,6 +19,50 @@ from taskweavn.server import (
 )
 
 
+def test_single_workspace_catalog_uses_safe_current_workspace(
+    tmp_path: Path,
+) -> None:
+    workspace = tmp_path / "current-workspace"
+    _seed_session(workspace, session_id="current-session", name="Current session")
+
+    app = build_main_page_sidecar_app(
+        MainPageSidecarConfig(
+            workspace_root=workspace,
+            port=0,
+            current_workspace_id="current",
+        ),
+        MainPageSidecarDependencies(llm=_StubLLM()),
+    )
+    try:
+        response = _request(app, "GET", "/api/v1/workspaces")
+    finally:
+        app.close()
+
+    assert response.status == 200
+    assert response.json["ok"] is True
+    assert response.json["data"]["currentWorkspaceId"] == "current"
+    assert str(workspace) not in response.text
+    workspaces = response.json["data"]["workspaces"]
+    assert len(workspaces) == 1
+    assert workspaces[0]["workspaceId"] == "current"
+    assert workspaces[0]["label"] == "current-workspace"
+    assert workspaces[0]["status"] == "available"
+    assert workspaces[0]["isCurrent"] is True
+    assert workspaces[0]["sessionCount"] == 1
+    assert workspaces[0]["updatedAt"]
+    assert workspaces[0]["recentSessions"] == [
+        {
+            "id": "current-session",
+            "workspaceId": "current",
+            "workspaceLabel": "current-workspace",
+            "name": "Current session",
+            "createdAt": workspaces[0]["recentSessions"][0]["createdAt"],
+            "updatedAt": workspaces[0]["recentSessions"][0]["updatedAt"],
+            "status": "active",
+        }
+    ]
+
+
 def test_multi_workspace_catalog_omits_raw_paths_and_marks_missing(
     tmp_path: Path,
 ) -> None:

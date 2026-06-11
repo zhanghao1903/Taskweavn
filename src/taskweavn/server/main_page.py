@@ -548,11 +548,45 @@ def build_main_page_sidecar_app(
         return _build_multi_workspace_sidecar_app(config, dependencies)
 
     runtime = build_main_page_workspace_runtime(config, dependencies)
+    current_workspace_id = config.current_workspace_id or "current"
+    entry = WorkspaceRegistryEntry(
+        workspace_id=current_workspace_id,
+        root_path=config.workspace_root,
+        label=config.workspace_root.name or "Current Workspace",
+        is_current=True,
+    )
+
+    def runtime_factory(
+        registry_entry: WorkspaceRegistryEntry,
+    ) -> MainPageWorkspaceRuntime:
+        del registry_entry
+        return runtime
+
+    registry = WorkspaceRuntimeRegistry(
+        entries=(entry,),
+        current_workspace_id=current_workspace_id,
+        runtime_factory=cast(
+            Callable[[WorkspaceRegistryEntry], WorkspaceRuntime],
+            runtime_factory,
+        ),
+    )
+    current_runtime = cast(
+        MainPageWorkspaceRuntime,
+        registry.get_runtime(current_workspace_id),
+    )
+    transport = MultiWorkspacePlatoUiHttpTransport(
+        registry=registry,
+        auth=None if config.auth_token is None else SidecarAuth(config.auth_token),
+    )
     server = LocalSidecarServer(
-        runtime.transport,
+        transport,
         config=LocalSidecarConfig(host=config.host, port=config.port),
     )
-    return _sidecar_app_from_runtime(runtime, server)
+    return _sidecar_app_from_runtime(
+        replace(current_runtime, transport=transport),
+        server,
+        close_callback=registry.close_all,
+    )
 
 
 def _build_multi_workspace_sidecar_app(
