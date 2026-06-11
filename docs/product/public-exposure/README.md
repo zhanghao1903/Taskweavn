@@ -1,7 +1,7 @@
 # Plato Public Exposure
 
 > Status: active planning area
-> Last Updated: 2026-06-10
+> Last Updated: 2026-06-11
 > Scope: product, architecture, release, and visual planning for public-facing
 > Plato material in `zhanghao1903/plato-public`.
 
@@ -13,6 +13,7 @@ expanded.
 | File | Purpose |
 |---|---|
 | [plato-public-exposure-plan.md](plato-public-exposure-plan.md) | Public repository exposure strategy, including product narrative, architecture boundaries, information architecture, execution slices, risks, and assumptions. |
+| [plato-public-repository-optimization-plan.md](plato-public-repository-optimization-plan.md) | Implementation-ready optimization plan for making `zhanghao1903/plato-public` more user-friendly, recruiter-friendly, and release-ready. |
 | [public-visual-asset-gaps.md](public-visual-asset-gaps.md) | Image, screenshot, diagram, and visual presentation gap tracker for public Plato materials. |
 
 Do not copy private implementation docs, screenshots, logs, workspaces, or

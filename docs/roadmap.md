@@ -1,7 +1,7 @@
 # TaskWeavn Roadmap
 
 > Status: active
-> Last Updated: 2026-06-05
+> Last Updated: 2026-06-11
 > Maintained By: planning session
 > Related: [Project Plan](project/roadmap.md), [Gap Registry](gaps/), [Planning Workflow](planning_workflow.md), [Architecture](architecture/), [Architecture Decisions](decisions/), [Release Records](releases/), [User Traceability](user_model/traceability.md)
 
@@ -57,8 +57,9 @@ TaskWeavn has moved past the original "single ReAct agent with tools" shape. The
 | AgentLoop autonomy integration and minimum CLI surface | Done | Phase 3.6. |
 | LLMRiskAssessor and CompositeAssessor | Done | Phase 3.7. |
 | Derived Session.status | Done | Phase 3.8; stored status is a hint except `archived`. |
-| Task-first architecture plans | In progress | Task domain/UI ViewModel separation, Collaborator authoring, and TaskPublisher server-core packages are done; publish-time pipeline expansion is done. Completion-time `task_after` orchestration is moved to Product 1.1. |
+| Task-first architecture and Product 1.0 loop | Accepted local RC | Authoring, publishing, fixed-route execution, ASK/confirmation, Main Page, Audit, result/error/file summaries, diagnostics, and local Electron packaging have Product 1.0 closure records. |
 | Reliability and observability plans | Accepted baseline | LLM provider/retry/thinking and configurable logging are done; centralized runtime config remains a follow-up control-plane plan. |
+| Product 1.1 workspace-aware foundation | Started | Workspace Inspection and UI system text/localization foundation are accepted/implemented. Precision tools, runtime input modes, Plan/TaskNode migration, and token analytics remain next tracks. |
 
 The project is now re-baselined around **Task-first interaction**:
 
@@ -209,9 +210,14 @@ Exit criteria:
 - Tasks can specify required or preferred Agent templates without bypassing capability checks.
 - Publish operations are auditable and idempotent where required.
 
-### Phase 3E — Task-first UI System
+### Phase 3E — Task-first UI System And Product 1.0 Local RC
 
-Status: active implementation; Main Page frontend/backend integration is accepted for Product 1.0, while Task-first UI polish, richer Audit/trust evidence, and QA remain active follow-ups. Audit Page now has a projection-backed backend query path plus first EventStream/log/config source references, AP-012 sanitized payload disclosure first pass, AP-013A runtime event/refetch design, AP-013B frontend event router/hook, AP-013C live refresh/stale/disconnected UI, AP-013D workspace-backed UI event replay source, AP-013E first AgentLoop/EventStream audit event emission, and AP-013F config/log/confirmation source emissions; richer timeline orchestration, broader evidence coverage, and final validation remain incomplete.
+Status: accepted for Product 1.0 local unsigned RC. Main Page, Settings,
+Audit, Diagnostics, ASK/confirmation, fixed-route execution, result/error
+projection, file summary, packaged Electron smoke, mounted unsigned DMG smoke,
+and manual Finder launch have Product 1.0 closure records. Remaining work in
+this area is Product 1.1+ hardening unless it directly blocks the accepted
+local RC path.
 
 Why now: CLI has reached its usefulness ceiling. The product value is in Task topology, Task cards, confirmations, and real-time message streams.
 
@@ -228,8 +234,9 @@ Work packages:
 | Result Packaging Agent and card-based result presentation | [Result packaging plan](plans/feature/result-packaging-agent-cards.md), [Product 1.1 plan](product/plato-1-1-product-plan.md) | Product 1.1 / P1 |
 | Clean frontend scaffold and Figma-state stories | [Plato Frontend Technical Design](product/plato-frontend-technical-design.md) | P0 |
 | UI/backend contract baseline | [Contract baseline plan](plans/feature/ui-backend-contract-baseline.md), [Plato UI API Contract](product/plato-ui-api-contract.md) | Done |
-| Main Page frontend runtime integration | [Frontend runtime plan](plans/feature/main-page-frontend-runtime-integration.md), [release](releases/main-page-frontend-runtime-integration.md) | Done / accepted for Product 1.0 Main Page frontend/backend integration; browser/Electron smoke, UX polish, Audit detail, and durable event replay remain follow-ups |
-| API-backed prototype | Follow-up after real browser/Electron smoke | P0 |
+| Main Page frontend runtime integration | [Frontend runtime plan](plans/feature/main-page-frontend-runtime-integration.md), [release](releases/main-page-frontend-runtime-integration.md) | Done / accepted for Product 1.0 Main Page frontend/backend integration |
+| Workspace inspection foundation | [Product 1.1 workspace inspection milestone](plans/feature/product-1-1-workspace-inspection-milestone.md), [Git/Diff/File Viewer API contract](engineering/git-diff-file-viewer-api-contract.md) | Accepted Product 1.1 P0 foundation |
+| UI system text and localization foundation | [UI system text plan](plans/feature/product-copy-localization-foundation.md), [contract](engineering/product-copy-localization-contract.md) | Implemented Product 1.1 foundation |
 
 Exit criteria:
 
@@ -239,34 +246,37 @@ Exit criteria:
 - Session message stream and Task projections stay consistent over the same message source.
 - Frontend components are built from Figma UI baseline 1.0 through stories/fixtures, not from the deprecated experimental frontend.
 
-### Phase 4 — Multi-Agent Task Execution
+### Phase 4 — Multi-Agent Task Execution / Agent Productization
 
-Status: planned.
+Status: deferred Product 1.1+ research.
 
-Why later: the Interaction Layer has multi-agent pre-wiring, but full multi-agent execution should wait until Task authoring, publishing, logging, and UI projection are stable.
+Why later: the Interaction Layer has multi-agent pre-wiring, but full
+multi-agent execution should wait until workspace trust, runtime input modes,
+Plan/TaskNode semantics, and context boundaries are stable.
 
 Scope:
 
-- Agent templates and capabilities.
-- TaskBus claim/complete/fail lifecycle.
-- Agent assignment constraints.
-- Cross-session/shared workspace collaboration.
+- Agent protocol and governance.
+- Optional Routing Agent policy.
+- Assignment facts and assigned-only claim behavior.
+- Agent Manager health/failure behavior.
 - Parallel execution policies.
 - Stronger audit and replay views.
 
-### Phase 5 — Memory, RAG, Summarization, And Evaluation
+### Phase 5 — Context, Memory, Retrieval, Summarization, And Analytics
 
-Status: planned / postponed from original Phase 3.11-3.13.
+Status: planned / selective Product 1.1+.
 
 Scope:
 
-- In-session retrieval over EventStream/MessageStream.
-- Cross-session retrieval with privacy boundaries.
-- Conversation and Task summarization.
-- Long-running evaluation sets.
-- Cost/quota-aware context packing.
+- Task, Plan, Session, and Inquiry Context boundaries.
+- Read-only inquiry context over file/diff/result/audit facts.
+- Token usage analytics and provider cache-hit visibility.
+- Later semantic retrieval and cross-session memory.
+- Task-aware summarization and evaluation sets.
 
-These remain valuable, but they should not be the next immediate build target because Task-first interaction and reliability are now more foundational.
+These remain valuable, but they should not displace the Product 1.1
+workspace-aware foundation.
 
 ---
 
@@ -282,17 +292,40 @@ These remain valuable, but they should not be the next immediate build target be
 
 ---
 
-## 7. Near-Term Execution Order
+## 7. Product 1.1 Current Execution Order
 
-Recommended order for upcoming implementation sessions:
+For exact gap state, see [Gap Registry](gaps/). The current sequencing is:
 
-1. **[Result and evidence exposure surface](plans/feature/result-exposure-surface.md)** — continue from accepted Main Page result/file projection, projection-backed Audit Page routes, first EventStream/log/config source references, AP-012 sanitized payload disclosure first pass, AP-013A runtime event/refetch design, AP-013B frontend event router/hook, AP-013C live refresh/stale/disconnected UI, AP-013D workspace-backed UI event replay source, AP-013E first AgentLoop/EventStream audit event emission, and AP-013F config/log/confirmation source emissions; close richer timeline evidence, broader permission-limited evidence coverage, and recoverable error UX.
-2. **Linear authoring and retry recovery** — keep Product 1.0 line-first execution predictable and add minimal retry/recovery on top of durable task/run evidence.
-3. **Normal browser/Electron smoke and Product 1.0 QA** — validate the accepted Main Page, fixed-route bridge, cache-aware Context Manager path, cooperative interruption path, and Message/ASK/confirmation UI surfaces through the intended local runtime shell.
-4. **Product 1.1 research and planning** — completion-time `task_after`, Result Packaging cards, routing/assignment foundation, Agent protocol/governance, skills integration, MCP integration, and file/multimodal support.
-5. **Centralized runtime configuration** — shared control plane for logging/autonomy/audit/LLM/Task/UI behavior once the Task-facing server model is concrete enough to avoid overfitting.
+1. **Plan / TaskNode model decision closure** — resolve the draft
+   `Session -> Plan -> TaskNode[]` model before broader runtime input and
+   outcome review work create another compatibility layer.
+2. **[Precision file tools](plans/feature/precision-file-tools.md)** —
+   backend/tool foundation implemented on `codex/precision-file-tools`:
+   line-range read, workspace search, hash-guarded line-range replace,
+   idempotent append, changed-line evidence capture, Agent/CLI registration,
+   and file-summary projection. Full Audit detail UI, direct renderer write
+   API, and diagnostics precision descriptors remain deferred.
+3. **Runtime input modes and read-only inquiry** — route guidance, command,
+   ASK answer, confirmation response, and read-only inquiry through distinct
+   product semantics and context boundaries.
+4. **Token usage analytics U1/U2** — durable usage ledger plus
+   workspace/session/task aggregation API before dashboards, billing, or quota.
+5. **Localization follow-ups** — Settings language selector, persisted locale
+   preference, Electron native menu localization, and bilingual smoke when the
+   acceptance path requires them.
+6. **Result packaging and completion-time `task_after`** — improve result
+   comprehension and post-completion automation after Plan/TaskNode and input
+   boundaries are clear.
+7. **Skills, MCP, Agent protocol, and routing productization** — keep as
+   research/productization tracks until workspace trust, precision tools, and
+   runtime input are stable.
 
-LLM Provider reliability, configurable logging, Task domain/UI separation, Collaborator authoring, TaskPublisher, TaskBus execution lifecycle, publish persistence, API publish transport, RawTask/DraftTaskTree authoring persistence, frontend baseline, UI/backend contract baseline, local sidecar API shell, Main Page frontend/backend integration, fixed-route task execution bridge, Context Manager 1.0, Context Manager cache-aware rendering, cooperative task interruption, and Message/ASK/confirmation backend now have accepted Product 1.0 closure records. ASK domain unification, authoring batch answer, and Message/ASK/confirmation frontend integration are done on branch and become accepted after their PR merges. Remaining Product 1.0 work should focus on Audit/evidence exposure, minimal retry/recovery, final browser/Electron smoke, and release QA. Completion-time `task_after`, Result Packaging cards, routing/assignment foundation, Agent protocol/governance, skills integration, MCP integration, and file/multimodal support are Product 1.1 research capabilities.
+Product 1.0 is accepted as a local unsigned release candidate. Product 1.1
+should improve trust and controllability before expanding automation breadth:
+workspace inspection is accepted; precision tools backend/tool foundation is
+implemented on branch; runtime input modes, inquiry context, Plan/TaskNode
+migration, token usage analytics, and precision evidence surfacing are the next
+actionable tracks.
 
 For status and routing of each gap, see [Gap Registry](gaps/).
 

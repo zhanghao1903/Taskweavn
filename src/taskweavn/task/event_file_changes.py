@@ -10,6 +10,7 @@ from taskweavn.core import SqliteEventStream, WorkspaceLayout
 from taskweavn.task.models import TaskRef
 from taskweavn.task.views import TaskFileChangeSummary
 from taskweavn.tools.fs import FileWriteObservation
+from taskweavn.tools.precision_fs import PrecisionFileMutationObservation
 from taskweavn.types.base import BaseEvent
 from taskweavn.types.code_action import CodeExecutionObservation, FileChange
 
@@ -47,6 +48,8 @@ def _changes_from_event(
 ) -> list[TaskFileChangeSummary]:
     if isinstance(event, FileWriteObservation):
         return [_summary_from_file_write(event, task_id=task_id)]
+    if isinstance(event, PrecisionFileMutationObservation):
+        return [_summary_from_precision_file_mutation(event, task_id=task_id)]
     if isinstance(event, CodeExecutionObservation):
         return [
             _summary_from_code_file_change(
@@ -78,6 +81,33 @@ def _summary_from_file_write(
         path=event.path,
         change_type=change_type,
         summary=f"{verb} {event.path} ({event.bytes_written} bytes written).",
+        recorded_at=event.timestamp,
+    )
+
+
+def _summary_from_precision_file_mutation(
+    event: PrecisionFileMutationObservation,
+    *,
+    task_id: str,
+) -> TaskFileChangeSummary:
+    ranges = ", ".join(
+        f"{item['startLine']}-{item['endLine']}"
+        for item in event.changed_line_ranges
+        if "startLine" in item and "endLine" in item
+    )
+    range_summary = f" lines {ranges}" if ranges else ""
+    evidence_id = event.evidence_ref.get("evidenceId")
+    evidence_summary = f"; evidence {evidence_id}" if isinstance(evidence_id, str) else ""
+    replay_summary = " replayed" if event.replayed else ""
+    return TaskFileChangeSummary(
+        change_id=f"{event.event_id}:{event.operation_id}:{event.path}",
+        owner_task_ref=TaskRef.published(task_id),
+        path=event.path,
+        change_type="modified",
+        summary=(
+            f"Modified {event.path}{range_summary} "
+            f"({event.bytes_written} bytes written{evidence_summary}{replay_summary})."
+        ),
         recorded_at=event.timestamp,
     )
 

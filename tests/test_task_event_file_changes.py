@@ -8,6 +8,7 @@ from typing import Any
 from taskweavn.core import SqliteEventStream, WorkspaceLayout
 from taskweavn.task import EventStreamFileChangeStore, TaskRef
 from taskweavn.tools.fs import FileWriteObservation, WriteFileAction
+from taskweavn.tools.precision_fs import PrecisionFileMutationObservation
 from taskweavn.types.code_action import CodeExecutionObservation, FileChange
 
 NOW = datetime(2026, 5, 27, 12, 0, tzinfo=UTC)
@@ -94,6 +95,43 @@ def test_event_stream_file_change_store_projects_code_execution_file_facts(
     )
     assert changes[1].summary == (
         "Created extra.py (undeclared code execution change; size delta 8 bytes)."
+    )
+
+
+def test_event_stream_file_change_store_projects_precision_file_mutations(
+    tmp_path: Any,
+) -> None:
+    layout = WorkspaceLayout(tmp_path)
+    observation = PrecisionFileMutationObservation(
+        action_id="replace-action",
+        event_id="replace-obs",
+        timestamp=NOW,
+        operation_id="op-1",
+        path="src/App.tsx",
+        path_label="workspace://session:s1/src/App.tsx",
+        change_type="modified",
+        changed_line_ranges=[{"startLine": 4, "endLine": 6}],
+        before_hash={"algorithm": "sha256", "value": "before"},
+        after_hash={"algorithm": "sha256", "value": "after"},
+        bytes_written=42,
+        evidence_ref={
+            "evidenceId": "inspection-1",
+            "kind": "line_replace_snapshot",
+            "workspaceId": "session:s1",
+        },
+    )
+    with SqliteEventStream(layout.session_events_db("session-1")) as stream:
+        stream.append(observation, task_id="task-1")
+
+    changes = EventStreamFileChangeStore(layout).list_for_task("session-1", "task-1")
+
+    assert len(changes) == 1
+    assert changes[0].owner_task_ref == TaskRef.published("task-1")
+    assert changes[0].path == "src/App.tsx"
+    assert changes[0].change_type == "modified"
+    assert changes[0].summary == (
+        "Modified src/App.tsx lines 4-6 "
+        "(42 bytes written; evidence inspection-1)."
     )
 
 
