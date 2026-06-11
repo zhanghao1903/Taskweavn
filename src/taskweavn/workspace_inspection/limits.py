@@ -19,6 +19,12 @@ class WorkspaceInspectionLimits:
     diff_default_payload_bytes: int = 256 * 1024
     diff_hard_payload_bytes: int = 512 * 1024
     evidence_payload_bytes: int = 128 * 1024
+    precision_search_default_max_files: int = 50
+    precision_search_hard_max_files: int = 200
+    precision_search_default_max_matches: int = 200
+    precision_search_hard_max_matches: int = 1000
+    precision_write_max_replacement_bytes: int = 256 * 1024
+    precision_write_max_append_bytes: int = 128 * 1024
 
     def status_limit(self, requested: int | None) -> int:
         value = self.status_default_max_files if requested is None else requested
@@ -35,3 +41,11 @@ class WorkspaceInspectionLimits:
     def diff_payload_limit(self, requested: int | None) -> int:
         value = self.diff_default_payload_bytes if requested is None else requested
         return max(1, min(value, self.diff_hard_payload_bytes))
+
+    def search_file_limit(self, requested: int | None) -> int:
+        value = self.precision_search_default_max_files if requested is None else requested
+        return max(0, min(value, self.precision_search_hard_max_files))
+
+    def search_match_limit(self, requested: int | None) -> int:
+        value = self.precision_search_default_max_matches if requested is None else requested
+        return max(0, min(value, self.precision_search_hard_max_matches))

@@ -26,6 +26,7 @@ from taskweavn.interaction import (
     AUTONOMY_PRESETS,
     AgentMessage,
     AutonomyGate,
+    AutonomyPresetName,
     BaselineOnlyAssessor,
     CompositeAssessor,
     InProcessMessageBus,
@@ -54,6 +55,12 @@ from taskweavn.server import (
 from taskweavn.tools.base import Tool
 from taskweavn.tools.code_action_tool import CodeActionTool
 from taskweavn.tools.fs import ListDirTool, ReadFileTool, WriteFileTool
+from taskweavn.tools.precision_fs import (
+    AppendFileTool,
+    ReadFileRangeTool,
+    ReplaceFileRangeTool,
+    SearchWorkspaceTool,
+)
 from taskweavn.tools.shell import RunCommandTool
 from taskweavn.tools.workspace import Workspace
 
@@ -594,6 +601,10 @@ def run(
             str(exc),
             param_hint="--logging-profile/--logging-config/--log-level",
         ) from exc
+    validated_autonomy = _validate_autonomy_options(
+        autonomy=autonomy,
+        risk_assessor=risk_assessor,
+    )
 
     workspace.mkdir(parents=True, exist_ok=True)
     ws = Workspace(workspace)
@@ -603,8 +614,29 @@ def run(
     )
 
     runtime = LocalRuntime()
+    inspection_db_path = workspace / ".plato" / "inspection.sqlite"
     tools: list[Tool[Any, Any]] = [
         ReadFileTool(ws),
+        ReadFileRangeTool(
+            ws,
+            workspace_id=f"session:{resolved_session_id}",
+            inspection_db_path=inspection_db_path,
+        ),
+        SearchWorkspaceTool(
+            ws,
+            workspace_id=f"session:{resolved_session_id}",
+            inspection_db_path=inspection_db_path,
+        ),
+        ReplaceFileRangeTool(
+            ws,
+            workspace_id=f"session:{resolved_session_id}",
+            inspection_db_path=inspection_db_path,
+        ),
+        AppendFileTool(
+            ws,
+            workspace_id=f"session:{resolved_session_id}",
+            inspection_db_path=inspection_db_path,
+        ),
         WriteFileTool(ws),
         ListDirTool(ws),
         RunCommandTool(ws),
@@ -656,14 +688,8 @@ def run(
     gate: AutonomyGate | None = None
     coord: WaitCoordinator | None = None
     responder_thread: threading.Thread | None = None
-    if autonomy is not None:
-        if autonomy not in AUTONOMY_PRESETS:
-            valid = ", ".join(sorted(AUTONOMY_PRESETS))
-            raise typer.BadParameter(
-                f"unknown autonomy preset {autonomy!r}; valid: {valid}",
-                param_hint="--autonomy",
-            )
-        behavior = AUTONOMY_PRESETS[autonomy]
+    if validated_autonomy is not None:
+        behavior = AUTONOMY_PRESETS[validated_autonomy]
         msgs_path = messages_db or (log_dir / "messages.sqlite")
         msgs_path.parent.mkdir(parents=True, exist_ok=True)
         stream = SqliteMessageStream(msgs_path)
@@ -703,6 +729,28 @@ def run(
     typer.echo(f"[final_answer] {result.final_answer}")
     if not result.finished:
         raise typer.Exit(code=1)
+
+
+def _validate_autonomy_options(
+    *,
+    autonomy: str | None,
+    risk_assessor: str,
+) -> AutonomyPresetName | None:
+    if autonomy is not None and autonomy not in AUTONOMY_PRESETS:
+        valid = ", ".join(sorted(AUTONOMY_PRESETS))
+        raise typer.BadParameter(
+            f"unknown autonomy preset {autonomy!r}; valid: {valid}",
+            param_hint="--autonomy",
+        )
+    if risk_assessor not in {"baseline", "llm", "composite"}:
+        raise typer.BadParameter(
+            (
+                f"unknown risk assessor {risk_assessor!r}; "
+                "valid: baseline, llm, composite"
+            ),
+            param_hint="--risk-assessor",
+        )
+    return autonomy
 
 
 def _build_risk_assessor(name: str, llm: LLMClient) -> RiskAssessor:
