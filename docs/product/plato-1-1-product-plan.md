@@ -95,6 +95,21 @@ Research questions:
 - How should skill availability and limitations appear on a TaskNode?
 - Which skill metadata is required for feasibility assessment and assignment?
 
+The first accepted planning artifact is
+[Product 1.1 Skill Governance Plan](../plans/feature/product-1-1-skill-governance.md).
+It narrows the first slice to SkillRegistry, SkillActivation,
+SkillContextSource, context budget, permission merge, and trace/audit
+visibility before any public skill marketplace or authoring UI.
+
+Status update: the backend governance foundation is implemented on
+`codex/skill-work`. It includes configured-root skill discovery, durable
+activation storage, permission merge, Context Manager integration, trace
+metadata, rendered active-skill guidance, diagnostics-safe skill summary export,
+and an internal
+`precision-file-editing` proof. User-facing skill selection, public marketplace,
+custom skill authoring UI, MCP skill bundles, and broad routing productization
+remain deferred.
+
 ### 3.2 MCP Integration
 
 Goal: connect TaskWeavn / Plato to external tools and data sources through MCP
@@ -215,7 +230,10 @@ feature plans for:
   evidence;
 - Result Packaging Agent and cards;
 - routing/assignment foundation;
-- skills integration;
+- skills integration:
+  [Skill Governance Plan](../plans/feature/product-1-1-skill-governance.md)
+  backend foundation is implemented; UI/debug exposure and broader routing are
+  deferred;
 - MCP integration;
 - file and multimodal support;
 - runtime input model implementation;
