@@ -1,10 +1,10 @@
 # Plato Product 1.1 Real Local QA Report - 2026-06-11
 
-> Status: phase complete - Electron app evidence pass; first defect fix merged; closure defect fix in PR #70
+> Status: phase complete - Electron app evidence pass; defect fixes merged
 > QA branch: `codex/product-1.1-qa-hardening`
 > Closure branch: `codex/product-1.1-qa-report-closure`
 > Baseline commit: `616bc1b`
-> Merged main commit: `7bdec9a`
+> Merged main commit: `08cd72b`
 > Scope: Product 1.0 core loop and Product 1.1 feature hardening
 > Environment policy: use the real local runtime, Electron app shell, and configured LLM provider; do not use mock mode or browser-only UI as acceptance evidence.
 
@@ -127,8 +127,9 @@ docs/product/qa-screenshots/2026-06-11-product-1-1-electron-app/
 | Issue | <https://github.com/zhanghao1903/Taskweavn/issues/66> | Closed by PR #67 on 2026-06-11 |
 | Fix PR | <https://github.com/zhanghao1903/Taskweavn/pull/67> | Merged on 2026-06-11 |
 | CI | <https://github.com/zhanghao1903/Taskweavn/actions/runs/27352009609/job/80816123401> | `Sidecar E2E Acceptance` passed in 51s |
-| Issue | <https://github.com/zhanghao1903/Taskweavn/issues/69> | Filed during closure audit |
-| Fix PR | <https://github.com/zhanghao1903/Taskweavn/pull/70> | Open; fixes issue #69 |
+| Issue | <https://github.com/zhanghao1903/Taskweavn/issues/69> | Closed by PR #70 on 2026-06-11 |
+| Fix PR | <https://github.com/zhanghao1903/Taskweavn/pull/70> | Merged on 2026-06-11 |
+| CI | <https://github.com/zhanghao1903/Taskweavn/actions/runs/27353597629/job/80821850433> | `Sidecar E2E Acceptance` passed in 53s |
 
 ## UX Improvement List
 
@@ -156,8 +157,7 @@ docs/product/qa-screenshots/2026-06-11-product-1-1-electron-app/
 Product 1.1 QA hardening is accepted as phase-complete for the currently
 implemented 1.1 surface:
 
-- the first confirmed P1 defect was filed, fixed, merged, and verified by CI;
-- the first-run closure defect was filed and has a verified fix in PR #70;
+- confirmed P1 defects were filed, fixed, merged, and verified by CI;
 - Electron screenshots cover the real app states used by the QA pass;
 - Product 1.1 token usage, workspace inspection, and precision file tool layers
   have direct test or app evidence;
@@ -181,3 +181,5 @@ implemented 1.1 surface:
 | 2026-06-11 | GitHub CI | `Sidecar E2E Acceptance` run `27352009609` / job `80816123401` | Pass |
 | 2026-06-11 | Electron first-run regression | `npm run electron:smoke:first-run` exposed issue #69 before fix | Fail before fix |
 | 2026-06-11 | Electron first-run validation | `npm run electron:smoke:first-run` after runtime workspace-scope fix | Pass |
+| 2026-06-11 | PR #70 fix closure | PR #70 merged into `main` at `08cd72b`; issue #69 closed | Pass |
+| 2026-06-11 | GitHub CI | `Sidecar E2E Acceptance` run `27353597629` / job `80821850433` | Pass |
