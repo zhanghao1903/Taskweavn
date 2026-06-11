@@ -96,7 +96,28 @@ Renderer receives only safe workspace summaries and action results.
 
 ---
 
-## Settings Information Architecture
+## Workspace Management Entry And Settings IA
+
+Workspace management must have a first-level product entry from the Main Page
+or workspace sidebar. The entry opens the Settings modal directly on:
+
+```text
+Settings -> Data Management
+```
+
+This keeps workspace lifecycle management discoverable without creating a
+separate management page or a third lifecycle verb.
+
+Workspace rows also expose a context menu:
+
+```text
+Archive workspace
+Delete Plato data
+```
+
+The context menu is a fast path for the selected workspace line. It must have an
+accessible equivalent, such as a row "more" button or the full Settings -> Data
+Management tab, so right-click is not the only way to perform the action.
 
 Settings becomes a tabbed modal with three top-level tabs:
 
@@ -112,8 +133,10 @@ Settings becomes a tabbed modal with three top-level tabs:
 3. **Usage Information**
    - token usage summaries and cache hit-rate visibility.
 
-Workspace restore belongs in Data Management because it is a lifecycle/data
-visibility operation, not part of the Main Page working surface.
+Workspace restore belongs in Data Management because it needs a list of archived
+workspaces. Main Page should not show archived workspaces in the normal work
+surface, but it should provide a first-level management entry that opens the
+restore surface.
 
 Token Usage belongs in Usage Information. Main Page must not keep a first-level
 Workspace Usage navigation button. Deep links and contextual detail metrics may
@@ -131,8 +154,11 @@ Positive:
 - Delete explicitly manages files Plato created and avoids hidden metadata
   garbage in a workspace.
 - The raw path and file-deletion boundary remains in Electron main.
-- Settings becomes the single management surface for configuration, data, and
-  usage.
+- Settings remains the canonical management surface for configuration, data,
+  and usage, while Workspace Management has a first-level entry point into that
+  surface.
+- Workspace row context menus support direct archive/delete actions without
+  forcing users through the full Settings tab for common cleanup.
 
 Tradeoffs:
 
@@ -149,7 +175,8 @@ Tradeoffs:
 
 ## Deferred Decisions
 
-- Whether to add an Archived Workspaces count/badge outside Settings.
+- Whether the Workspace Management entry should show an archived-workspace
+  count/badge outside Settings.
 - Whether to support permanent deletion when OS Trash is unavailable.
 - Whether future cloud/sync workspaces need separate archive semantics.
 - Whether to add a Plato-owned marker around `.git/info/exclude` lines for

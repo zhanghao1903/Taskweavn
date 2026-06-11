@@ -37,9 +37,11 @@ There is no separate "remove workspace" user action.
 3. Let users delete Plato-owned metadata from a workspace while preserving user
    project files.
 4. Keep raw absolute paths out of renderer diagnostics and normal UI.
-5. Move workspace lifecycle management into Settings -> Data Management.
-6. Move token usage browsing into Settings -> Usage Information.
-7. Remove the Main Page first-level Token Usage / Workspace Usage button.
+5. Provide a first-level Workspace Management entry that opens Settings -> Data
+   Management.
+6. Expose workspace row context-menu actions for archive and delete.
+7. Move token usage browsing into Settings -> Usage Information.
+8. Remove the Main Page first-level Token Usage / Workspace Usage button.
 
 ---
 
@@ -97,7 +99,29 @@ user project files
 
 ---
 
-## 4. Settings IA
+## 4. Workspace Management Entry And Settings IA
+
+Workspace management gets a first-level entry from Main Page or the workspace
+sidebar:
+
+```text
+Workspace Management -> /settings?tab=data
+```
+
+The entry is not a separate page. It is a direct route into the Settings Data
+Management tab so workspace cleanup and restore remain in one management
+surface.
+
+Workspace rows also expose a context menu with fast actions:
+
+```text
+Archive workspace
+Delete Plato data
+```
+
+The context menu must have a keyboard-accessible equivalent through a row
+actions button or the Data Management tab. Right-click must not be the only way
+to archive or delete.
 
 Settings remains a large modal route, but becomes a tabbed surface.
 
@@ -172,13 +196,27 @@ Acceptance:
 - Locale catalogs cover tab names and empty states.
 - First-run setup behavior is unchanged.
 
+### A2.5 Workspace Management Entry
+
+Goal: make workspace management discoverable as a first-level action.
+
+Acceptance:
+
+- Main Page/sidebar exposes a Workspace Management entry.
+- The entry opens `/settings?tab=data`.
+- The entry is available even when no workspace row context menu has been
+  opened.
+- Browser/mock mode either opens the mock Settings tab or shows a safe
+  unavailable state.
+
 ### A3. Workspace Archive / Restore
 
 Goal: add reversible workspace hiding.
 
 Acceptance:
 
-- Workspace rows can be archived from Settings Data Management.
+- Workspace rows can be archived from the row context menu and from Settings
+  Data Management.
 - Archived workspaces disappear from Main Page sidebar/catalog after reload.
 - Archived workspaces appear in Settings Data Management.
 - Restore makes the workspace visible again.
@@ -191,7 +229,8 @@ Goal: clean product-owned local metadata.
 
 Acceptance:
 
-- Delete action is available from Settings Data Management.
+- Delete action is available from the row context menu and from Settings Data
+  Management.
 - Confirmation text names `.plato`/Plato data and explicitly says project files
   are not deleted.
 - Current workspace delete stops/restarts sidecar or returns to workspace
@@ -236,6 +275,7 @@ Acceptance:
 - Permanent deletion policy when OS Trash is unavailable.
 - Full billing, budget, or quota enforcement for token usage.
 - A separate top-level Usage page outside Settings.
+- A separate standalone Workspace Management page outside Settings.
 
 ---
 
@@ -248,6 +288,8 @@ Acceptance:
 3. Should Settings remember the last selected tab across restarts?
 4. Should current workspace archive immediately switch to the next visible
    workspace or return to Workspace Picker?
+5. Should the first-level Workspace Management entry live in the sidebar footer,
+   top bar, or Settings gear menu once visual design is accepted?
 
 The technical design proposes defaults for these questions, but implementation
 should keep them easy to adjust after acceptance.

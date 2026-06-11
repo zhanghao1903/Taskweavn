@@ -41,6 +41,10 @@ Settings
   Usage Information
 ```
 
+Workspace Management also has a first-level entry from Main Page/sidebar that
+opens `Settings -> Data Management`. Workspace rows provide a context menu for
+fast archive/delete actions.
+
 ---
 
 ## 2. App-Level Workspace Registry
@@ -156,7 +160,7 @@ Rules:
 ## 4. Archive Flow
 
 ```text
-Settings -> Data Management
+Workspace row context menu OR Settings -> Data Management
   -> user chooses Archive workspace
   -> renderer calls archiveWorkspace(workspaceId)
   -> Electron main marks record archived
@@ -214,7 +218,7 @@ const PLATO_DATA_DIRS = [".plato", ".taskweavn", ".code-agent"];
 Flow:
 
 ```text
-Settings -> Data Management
+Workspace row context menu OR Settings -> Data Management
   -> user chooses Delete Plato data
   -> renderer shows confirmation copy
   -> Electron main validates id and path
@@ -262,7 +266,7 @@ Git local exclude:
 
 ---
 
-## 7. Settings Tab Architecture
+## 7. Workspace Management Entry And Settings Tab Architecture
 
 Current Settings route remains:
 
@@ -276,6 +280,12 @@ Add tab query parameter:
 /settings?tab=configuration
 /settings?tab=data
 /settings?tab=usage
+```
+
+First-level workspace management entry:
+
+```text
+Workspace Management -> /settings?tab=data
 ```
 
 Fallback:
@@ -295,10 +305,58 @@ SettingsRoute
       workspace lifecycle bridge state
     UsageInformationTab
       token usage summaries
+
+MainPageWorkspaceSidebar
+  WorkspaceManagementEntry
+    navigates to /settings?tab=data
+  WorkspaceRow
+    WorkspaceRowContextMenu
+      Archive workspace
+      Delete Plato data
 ```
 
 Do not place cards inside cards. The tab body should use section bands or
 unframed panels inside the existing Settings modal.
+
+### Workspace Management Entry
+
+The first implementation should add a restrained first-level entry in the Main
+Page workspace area. It should not compete with individual workspace rows.
+
+Behavior:
+
+- opens `/settings?tab=data`;
+- remains available when no workspace row is selected;
+- uses localized label text;
+- does not expose absolute paths;
+- in browser/mock mode, opens the same Settings tab when available or shows a
+  safe unavailable state.
+
+Placement is a visual design choice for implementation. Acceptable first slice
+placements include the workspace sidebar footer or a workspace-area toolbar
+action.
+
+### Workspace Row Context Menu
+
+Each visible workspace row should expose a context menu. The menu is scoped to
+that row's workspace id and never accepts renderer-provided paths.
+
+Menu items:
+
+| Item | Visible for | Action |
+|---|---|---|
+| `Archive workspace` | active workspace rows | `archiveWorkspace(id)` |
+| `Delete Plato data` | active workspace rows | confirmation -> `deleteWorkspaceData(id)` |
+
+Archived workspace rows are not visible in Main Page; restore stays in Settings
+Data Management.
+
+Accessibility:
+
+- provide a keyboard-accessible row actions button or equivalent menu trigger;
+- support Escape/dismiss behavior;
+- disable actions while archive/delete is pending;
+- keep focus stable after the action resolves or the renderer reloads.
 
 ### Configuration Tab
 
@@ -384,6 +442,8 @@ settings.tabs.usageInformation
 workspace.actions.archiveWorkspace
 workspace.actions.restoreWorkspace
 workspace.actions.deletePlatoData
+workspace.actions.workspaceManagement
+workspace.actions.openWorkspaceMenu
 workspace.states.archived
 workspace.states.noArchivedWorkspaces
 workspace.messages.deletePlatoDataExplanation
@@ -413,6 +473,11 @@ Both `en-US` and `zh-CN` catalogs are required in the implementation slice.
 - Configuration tab preserves existing setup behavior.
 - Data Management tab shows active and archived workspace sections.
 - Archive/restore/delete call bridge methods.
+- Workspace Management entry opens `/settings?tab=data`.
+- Workspace row context menu exposes Archive workspace and Delete Plato data for
+  active rows.
+- Context menu actions call the Electron workspace bridge with workspace ids,
+  not paths.
 - Bridge unavailable state is safe.
 - Usage Information tab loads token usage summaries.
 - Main Page no longer renders a first-level Usage button.
@@ -421,7 +486,8 @@ Both `en-US` and `zh-CN` catalogs are required in the implementation slice.
 
 - Electron smoke with seeded workspaces:
   1. archive secondary workspace;
-  2. verify Main Page no longer shows it;
+  2. verify Main Page no longer shows it and the Workspace Management entry can
+     open Settings Data Management;
   3. restore from Settings;
   4. delete Plato data for a disposable workspace;
   5. verify project file remains and `.plato` is gone.
@@ -433,11 +499,12 @@ Both `en-US` and `zh-CN` catalogs are required in the implementation slice.
 Recommended order:
 
 1. Settings tab shell and route-state tests.
-2. Workspace registry V2 and archive/restore IPC.
-3. Data Management tab UI.
-4. Delete Plato data IPC and safety tests.
-5. Usage Information tab relocation and Main Page entry removal.
-6. Electron smoke for archive/restore/delete.
+2. Workspace Management first-level entry and Settings tab routing.
+3. Workspace registry V2 and archive/restore IPC.
+4. Workspace row context menu and Data Management tab UI.
+5. Delete Plato data IPC and safety tests.
+6. Usage Information tab relocation and Main Page entry removal.
+7. Electron smoke for archive/restore/delete.
 
 Each slice should preserve first-run Settings behavior and existing workspace
 switching behavior.
