@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { useUiText, type UiTextCatalog } from "../../shared/ui-text";
 import {
   readWorkspaceGitInitializeOnOpenPreference,
+  readStoredWorkspaceGitInitializeOnOpenPreference,
   writeWorkspaceGitInitializeOnOpenPreference,
 } from "../../shared/workspace/workspaceGitPreference";
 import styles from "./SettingsRoute.module.css";
@@ -10,6 +11,11 @@ import styles from "./SettingsRoute.module.css";
 type WorkspaceGitStatusState =
   | { status: "checking" | "desktop_unavailable" }
   | PlatoWorkspaceGitStatus;
+
+type WorkspaceGitPreferenceState = {
+  loaded: boolean;
+  value: boolean | null;
+};
 
 export type WorkspaceGitSettingsPanelProps = {
   bridge?: PlatoElectronWorkspaceBridge | null;
@@ -26,18 +32,29 @@ export function WorkspaceGitSettingsPanel({
   const [status, setStatus] = useState<WorkspaceGitStatusState>({
     status: workspaceBridge === null ? "desktop_unavailable" : "checking",
   });
+  const [preference, setPreference] = useState<WorkspaceGitPreferenceState>(() => ({
+    loaded: workspaceBridge?.getGitPreference === undefined,
+    value: readStoredWorkspaceGitInitializeOnOpenPreference(),
+  }));
   const [initializeOnOpen, setInitializeOnOpen] = useState(() =>
     readWorkspaceGitInitializeOnOpenPreference(),
+  );
+  const persistInitializeOnOpen = useCallback(
+    (enabled: boolean) => {
+      setInitializeOnOpen(enabled);
+      setPreference({ loaded: true, value: enabled });
+      writeWorkspaceGitInitializeOnOpenPreference(enabled);
+      void workspaceBridge?.setGitPreference?.({
+        initializeGitOnOpen: enabled,
+      });
+    },
+    [workspaceBridge],
   );
 
   useEffect(() => {
     let isMounted = true;
     if (workspaceBridge === null) {
       setStatus({ status: "desktop_unavailable" });
-      if (initializeOnOpen) {
-        setInitializeOnOpen(false);
-        writeWorkspaceGitInitializeOnOpenPreference(false);
-      }
       return () => {
         isMounted = false;
       };
@@ -60,19 +77,59 @@ export function WorkspaceGitSettingsPanel({
     return () => {
       isMounted = false;
     };
-  }, [initializeOnOpen, workspaceBridge]);
+  }, [workspaceBridge]);
+
+  useEffect(() => {
+    let isMounted = true;
+    const readPreference = workspaceBridge?.getGitPreference;
+    if (readPreference === undefined) {
+      setPreference((current) => ({ ...current, loaded: true }));
+      return () => {
+        isMounted = false;
+      };
+    }
+
+    setPreference((current) => ({ ...current, loaded: false }));
+    void readPreference()
+      .then((nextPreference) => {
+        if (!isMounted) {
+          return;
+        }
+        const nextValue =
+          typeof nextPreference.initializeGitOnOpen === "boolean"
+            ? nextPreference.initializeGitOnOpen
+            : null;
+        setPreference({ loaded: true, value: nextValue });
+        if (nextValue !== null) {
+          setInitializeOnOpen(nextValue);
+          writeWorkspaceGitInitializeOnOpenPreference(nextValue);
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          setPreference((current) => ({ ...current, loaded: true }));
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [workspaceBridge]);
 
   useEffect(() => {
     if (
-      initializeOnOpen &&
-      (status.status === "missing" ||
-        status.status === "failed" ||
-        status.status === "desktop_unavailable")
+      status.status === "available" &&
+      preference.loaded &&
+      preference.value === null
     ) {
-      setInitializeOnOpen(false);
-      writeWorkspaceGitInitializeOnOpenPreference(false);
+      persistInitializeOnOpen(true);
     }
-  }, [initializeOnOpen, status.status]);
+  }, [
+    persistInitializeOnOpen,
+    preference.loaded,
+    preference.value,
+    status.status,
+  ]);
 
   const isUnavailable =
     status.status === "missing" ||
@@ -99,11 +156,9 @@ export function WorkspaceGitSettingsPanel({
       <label className={styles.checkboxField}>
         <input
           checked={initializeOnOpen}
-          disabled={isUnavailable || status.status === "checking"}
+          disabled={isUnavailable || status.status === "checking" || !preference.loaded}
           onChange={(event) => {
-            const nextValue = event.target.checked;
-            setInitializeOnOpen(nextValue);
-            writeWorkspaceGitInitializeOnOpenPreference(nextValue);
+            persistInitializeOnOpen(event.target.checked);
           }}
           type="checkbox"
         />

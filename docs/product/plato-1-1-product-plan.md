@@ -45,7 +45,7 @@ UI system text polish and bilingual support are tracked in
 [UI System Text And Localization Foundation](../plans/feature/product-copy-localization-foundation.md),
 with implementation boundaries captured in
 [UI System Text And Localization Contract](../engineering/product-copy-localization-contract.md).
-Token usage analytics are tracked in
+Completed token usage analytics baseline is tracked in
 [Token Usage Analytics](../plans/feature/token-usage-analytics.md),
 with aggregation/API decisions captured in
 [Token Usage Analytics Contract](../engineering/token-usage-analytics-contract.md).
@@ -202,11 +202,16 @@ Planning decisions:
 - provider-reported cache hit/miss tokens are the source of cache hit rate;
 - Context Manager stable-prefix metadata is related observability data but must
   not be mixed into provider cache-hit percentages;
-- billing/cost calculation and quota enforcement are separate Product 1.1+
-  decisions after the token ledger is accepted.
+- billing/cost calculation, quota enforcement, and advanced cache analytics are
+  separate Product 1.1+ decisions after the completed token ledger baseline.
 
-First implementation should start with the backend usage ledger and
-workspace-scoped summary API before building a broad frontend dashboard.
+Completed baseline:
+
+- backend usage ledger and workspace-scoped summary API;
+- Task/Plan/Session/Workspace aggregation;
+- Settings Usage Information entry;
+- Main Page contextual usage row;
+- diagnostics-safe usage summaries.
 
 ## 4. 1.1 Planning Principles
 
@@ -242,8 +247,10 @@ feature plans for:
   validation workflow.
 - UI system text and localization foundation: typed registry, `en-US` /
   `zh-CN` catalogs, locale resolution, and staged UI system text migration.
-- Token usage analytics: durable usage ledger, Task/Plan/Session/Workspace
-  aggregation, provider cache-hit visibility, and diagnostics-safe summaries.
+- Token usage analytics (completed Product 1.1 slice): durable usage ledger,
+  Task/Plan/Session/Workspace aggregation, provider cache-hit visibility,
+  Settings Usage Information entry, Main Page contextual usage row, and
+  diagnostics-safe summaries.
 
 Each plan should state whether it extends Authoring Domain, TaskBus execution,
 CapabilityCatalog, UI API contract, Audit Page, or all of them.

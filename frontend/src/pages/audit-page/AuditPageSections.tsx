@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useLayoutEffect, useRef, type ReactNode } from "react";
 
 import { Button } from "../../shared/components";
 import type { ApiUiBoundaryState } from "../../shared/api/apiUiMapping";
@@ -363,20 +363,40 @@ export function FilterRail({
 
 export function Timeline({
   activeRecordId,
+  onScrollPositionChange,
   onSelectRecord,
   records,
+  restoreScrollTop,
 }: {
   activeRecordId: AuditRecordId | null;
+  onScrollPositionChange?: (scrollTop: number) => void;
   onSelectRecord?: (recordId: AuditRecordId) => void;
   records: AuditRecord[];
+  restoreScrollTop?: number;
 }) {
+  const timelineRef = useRef<HTMLElement>(null);
   const uiText = useUiText();
+
+  useLayoutEffect(() => {
+    const timeline = timelineRef.current;
+    if (timeline === null || restoreScrollTop === undefined) {
+      return;
+    }
+
+    timeline.scrollTop = restoreScrollTop;
+  }, [activeRecordId, records.length, restoreScrollTop]);
+
+  const handleSelectRecord = (recordId: AuditRecordId) => {
+    onScrollPositionChange?.(timelineRef.current?.scrollTop ?? 0);
+    onSelectRecord?.(recordId);
+  };
 
   return (
     <section
       aria-label={uiText.audit.labels.auditRecords}
       aria-live="polite"
       className={cx(styles.panel, styles.timeline)}
+      ref={timelineRef}
     >
       <div className={styles.timelineHeader}>
         <div>
@@ -406,7 +426,7 @@ export function Timeline({
               aria-current={record.id === activeRecordId}
               className={styles.recordCard}
               key={record.id}
-              onClick={() => onSelectRecord?.(record.id)}
+              onClick={() => handleSelectRecord(record.id)}
               type="button"
             >
               <div className={styles.recordTopLine}>

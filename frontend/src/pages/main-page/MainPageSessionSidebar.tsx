@@ -1,6 +1,6 @@
 import type { MouseEvent } from "react";
 import { useEffect, useState } from "react";
-import { Folder, FolderOpen, MoreHorizontal } from "lucide-react";
+import { Folder, FolderOpen } from "lucide-react";
 
 import { navigateApp } from "../../app/navigation";
 import type { WorkspaceCatalogResult } from "../../shared/api/platoApi";
@@ -77,6 +77,9 @@ export function MainPageSessionSidebar({
     useState<SessionContextMenuState | null>(null);
   const [workspaceContextMenu, setWorkspaceContextMenu] =
     useState<WorkspaceContextMenuState | null>(null);
+  const [hiddenWorkspaceIds, setHiddenWorkspaceIds] = useState<Set<string>>(
+    () => new Set(),
+  );
   const workspaceBridge =
     workspaceRuntime?.bridge ?? globalThis.window?.platoElectronWorkspace ?? null;
 
@@ -144,7 +147,14 @@ export function MainPageSessionSidebar({
 
   async function archiveWorkspace(workspace: WorkspaceCatalogEntry) {
     setWorkspaceContextMenu(null);
-    await workspaceBridge?.archiveWorkspace?.(workspace.workspaceId);
+    const result = await workspaceBridge?.archiveWorkspace?.(workspace.workspaceId);
+    if (result?.status === "ok") {
+      setHiddenWorkspaceIds((current) => {
+        const next = new Set(current);
+        next.add(workspace.workspaceId);
+        return next;
+      });
+    }
   }
 
   async function deleteWorkspaceData(workspace: WorkspaceCatalogEntry) {
@@ -197,93 +207,83 @@ export function MainPageSessionSidebar({
         className={styles.workspaceExplorer}
         aria-label={uiText.workspace.labels.workspaces}
       >
-        {workspaceCatalog.workspaces.map((workspace) => {
-          const isActiveWorkspace =
-            activeWorkspaceId === workspace.workspaceId ||
-            (activeWorkspaceId === null && workspace.isCurrent);
-          const workspaceClassName = isActiveWorkspace
-            ? styles.workspaceTreeCurrent
-            : styles.workspaceTreeRow;
-          const canCreateSession = workspace.status === "available";
+        {workspaceCatalog.workspaces
+          .filter((workspace) => !hiddenWorkspaceIds.has(workspace.workspaceId))
+          .map((workspace) => {
+            const isActiveWorkspace =
+              activeWorkspaceId === workspace.workspaceId ||
+              (activeWorkspaceId === null && workspace.isCurrent);
+            const workspaceClassName = isActiveWorkspace
+              ? styles.workspaceTreeCurrent
+              : styles.workspaceTreeRow;
+            const canCreateSession = workspace.status === "available";
 
-          return (
-            <div className={styles.workspaceTreeGroup} key={workspace.workspaceId}>
-              <div
-                className={workspaceClassName}
-                aria-current={isActiveWorkspace}
-                onContextMenu={(event) =>
-                  openWorkspaceContextMenu(event, workspace)
-                }
-              >
-                <Folder
-                  className={styles.workspaceSwitcherIcon}
-                  size={18}
-                  aria-hidden="true"
-                />
-                <div className={styles.workspaceTreeCurrentLabel}>
-                  <span>
-                    <strong>{workspace.label}</strong>
-                  </span>
-                  {workspace.status !== "available" ? (
-                    <Text as="span" variant="muted">
-                      {workspace.status}
-                    </Text>
-                  ) : null}
-                </div>
-                <div className={styles.workspaceTreeCurrentActions}>
-                  <Button
-                    disabled={isCreatingSession || !canCreateSession}
-                    onClick={() => onCreateSession(workspace.workspaceId)}
-                    size="sm"
-                  >
-                    {isCreatingSession && isActiveWorkspace
-                      ? uiText.main.states.creatingSession
-                      : uiText.main.actions.newSession}
-                  </Button>
-                  <Button
-                    aria-label={uiText.workspace.actions.openWorkspaceMenu}
-                    disabled={workspaceBridge === null}
-                    onClick={(event) =>
-                      openWorkspaceContextMenu(event, workspace)
-                    }
-                    size="icon"
-                    title={uiText.workspace.actions.openWorkspaceMenu}
-                    variant="ghost"
-                  >
-                    <MoreHorizontal aria-hidden="true" size={14} />
-                  </Button>
-                </div>
-              </div>
-
-              {workspace.recentSessions.length > 0 ? (
-                <div className={styles.sessionTreeList}>
-                  {workspace.recentSessions.map((session) => (
-                    <button
-                      className={
-                        isActiveSession(session)
-                          ? styles.activeNavItem
-                          : styles.navItem
-                      }
-                      key={`${workspace.workspaceId}:${session.id}`}
-                      onContextMenu={(event) => openContextMenu(event, session)}
-                      onDoubleClick={() => renameFromContextMenu(session)}
-                      onClick={() =>
-                        onSelectSession(session, activeSession?.id ?? session.id)
-                      }
-                      type="button"
+            return (
+              <div className={styles.workspaceTreeGroup} key={workspace.workspaceId}>
+                <div
+                  className={workspaceClassName}
+                  aria-current={isActiveWorkspace}
+                  onContextMenu={(event) =>
+                    openWorkspaceContextMenu(event, workspace)
+                  }
+                >
+                  <Folder
+                    className={styles.workspaceSwitcherIcon}
+                    size={18}
+                    aria-hidden="true"
+                  />
+                  <div className={styles.workspaceTreeCurrentLabel}>
+                    <span>
+                      <strong>{workspace.label}</strong>
+                    </span>
+                    {workspace.status !== "available" ? (
+                      <Text as="span" variant="muted">
+                        {workspace.status}
+                      </Text>
+                    ) : null}
+                  </div>
+                  <div className={styles.workspaceTreeCurrentActions}>
+                    <Button
+                      disabled={isCreatingSession || !canCreateSession}
+                      onClick={() => onCreateSession(workspace.workspaceId)}
+                      size="sm"
                     >
-                      {session.name}
-                    </button>
-                  ))}
+                      {isCreatingSession && isActiveWorkspace
+                        ? uiText.main.states.creatingSession
+                        : uiText.main.actions.newSession}
+                    </Button>
+                  </div>
                 </div>
-              ) : (
-                <Text className={styles.workspaceSwitcherNotice} variant="muted">
-                  {uiText.main.labels.noSessions}
-                </Text>
-              )}
-            </div>
-          );
-        })}
+
+                {workspace.recentSessions.length > 0 ? (
+                  <div className={styles.sessionTreeList}>
+                    {workspace.recentSessions.map((session) => (
+                      <button
+                        className={
+                          isActiveSession(session)
+                            ? styles.activeNavItem
+                            : styles.navItem
+                        }
+                        key={`${workspace.workspaceId}:${session.id}`}
+                        onContextMenu={(event) => openContextMenu(event, session)}
+                        onDoubleClick={() => renameFromContextMenu(session)}
+                        onClick={() =>
+                          onSelectSession(session, activeSession?.id ?? session.id)
+                        }
+                        type="button"
+                      >
+                        {session.name}
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <Text className={styles.workspaceSwitcherNotice} variant="muted">
+                    {uiText.main.labels.noSessions}
+                  </Text>
+                )}
+              </div>
+            );
+          })}
         {workspaceBridge ? (
           <button
             className={styles.workspaceTreeRow}

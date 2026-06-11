@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { PLATO_NAVIGATION_EVENT } from "../../app/navigation";
 import { ApiClientError } from "../../shared/api/client";
 import type {
   DiagnosticBundleExportResult,
@@ -224,13 +225,15 @@ describe("SettingsRoute", () => {
     expect(screen.getByLabelText("Interface language")).toHaveValue("zh-CN");
   });
 
-  it("shows Git availability and persists workspace Git initialization preference", async () => {
-    const user = userEvent.setup();
+  it("defaults workspace Git initialization on when Git is available", async () => {
+    const setGitPreference = vi.fn(async (value: PlatoWorkspaceGitPreference) => value);
     const workspaceBridge = workspaceBridgeFor({
+      getGitPreference: vi.fn(async () => ({ initializeGitOnOpen: null })),
       getGitStatus: vi.fn(async () => ({
         status: "available" as const,
         version: "git version 2.45.0",
       })),
+      setGitPreference,
     });
 
     renderWithQueryClient(
@@ -248,10 +251,46 @@ describe("SettingsRoute", () => {
     const checkbox = screen.getByRole("checkbox", {
       name: "Initialize Git for opened workspaces",
     });
+    await waitFor(() => {
+      expect(checkbox).toBeChecked();
+    });
+    expect(globalThis.localStorage.getItem(WORKSPACE_GIT_STORAGE_KEY)).toBe("1");
+    expect(setGitPreference).toHaveBeenCalledWith({ initializeGitOnOpen: true });
+  });
+
+  it("persists an explicit workspace Git initialization opt-out", async () => {
+    const user = userEvent.setup();
+    const setGitPreference = vi.fn(async (value: PlatoWorkspaceGitPreference) => value);
+    const workspaceBridge = workspaceBridgeFor({
+      getGitPreference: vi.fn(async () => ({ initializeGitOnOpen: false })),
+      getGitStatus: vi.fn(async () => ({
+        status: "available" as const,
+        version: "git version 2.45.0",
+      })),
+      setGitPreference,
+    });
+
+    renderWithQueryClient(
+      <SettingsRoute
+        api={settingsApi()}
+        runtimeEnv={{ VITE_PLATO_API_MODE: "http" }}
+        workspaceBridge={workspaceBridge}
+      />,
+    );
+
+    expect(
+      await screen.findByText("Git available: git version 2.45.0"),
+    ).toBeInTheDocument();
+
+    const checkbox = screen.getByRole("checkbox", {
+      name: "Initialize Git for opened workspaces",
+    });
+    expect(checkbox).not.toBeChecked();
     await user.click(checkbox);
 
     expect(checkbox).toBeChecked();
     expect(globalThis.localStorage.getItem(WORKSPACE_GIT_STORAGE_KEY)).toBe("1");
+    expect(setGitPreference).toHaveBeenCalledWith({ initializeGitOnOpen: true });
   });
 
   it("disables workspace Git initialization when Git is unavailable", async () => {
@@ -333,6 +372,30 @@ describe("SettingsRoute", () => {
     );
 
     expect(deleteWorkspaceData).toHaveBeenCalledWith("workspace-active");
+  });
+
+  it("switches Settings tabs through client navigation", async () => {
+    const user = userEvent.setup();
+    const handleNavigation = vi.fn();
+    globalThis.history.pushState(null, "", "/settings");
+    globalThis.addEventListener(PLATO_NAVIGATION_EVENT, handleNavigation);
+
+    try {
+      renderWithQueryClient(
+        <SettingsRoute
+          api={settingsApi()}
+          runtimeEnv={{ VITE_PLATO_API_MODE: "http" }}
+        />,
+      );
+
+      await user.click(await screen.findByRole("link", { name: "Data Management" }));
+
+      expect(globalThis.location.pathname).toBe("/settings");
+      expect(globalThis.location.search).toBe("?tab=data");
+      expect(handleNavigation).toHaveBeenCalledTimes(1);
+    } finally {
+      globalThis.removeEventListener(PLATO_NAVIGATION_EVENT, handleNavigation);
+    }
   });
 });
 

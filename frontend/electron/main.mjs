@@ -20,10 +20,13 @@ import {
   buildWorkspaceEntryState,
   findWorkspacePathById,
   removeWorkspaceById,
+  readWorkspaceGitInitializeOnOpenPreference,
   readWorkspaceEntryStore,
   rememberWorkspace,
   restoreWorkspaceById,
   summarizeWorkspace,
+  writeWorkspaceGitInitializeOnOpenPreference,
+  workspaceArchiveRequiresRuntimeSwitch,
 } from "./workspaceEntry.mjs";
 import { resolveWorkspaceDataTargets } from "./workspaceData.mjs";
 import { resolveElectronWorkspaceRoot } from "./workspacePaths.mjs";
@@ -310,6 +313,24 @@ async function showWorkspaceEntry() {
 function registerWorkspaceEntryIpc() {
   ipcMain.handle("plato:workspace:git-status", async () => getWorkspaceGitStatus());
 
+  ipcMain.handle("plato:workspace:get-git-preference", async () => ({
+    initializeGitOnOpen: await readWorkspaceGitInitializeOnOpenPreference(
+      app.getPath("userData"),
+    ),
+  }));
+
+  ipcMain.handle("plato:workspace:set-git-preference", async (_event, value) => {
+    const enabled =
+      typeof value === "object" &&
+      value !== null &&
+      value.initializeGitOnOpen === true;
+    await writeWorkspaceGitInitializeOnOpenPreference(
+      app.getPath("userData"),
+      enabled,
+    );
+    return { initializeGitOnOpen: enabled };
+  });
+
   ipcMain.handle("plato:workspace:get-state", async () =>
     workspaceEntryState(
       currentWorkspaceRoot === null ? "needs_selection" : "ready",
@@ -364,7 +385,14 @@ function registerWorkspaceEntryIpc() {
     if (result.workspacePath === null) {
       return await workspaceLifecycleResult("failed", "Workspace not found.");
     }
-    await applyWorkspaceStoreState(result.state);
+    if (
+      workspaceArchiveRequiresRuntimeSwitch(
+        currentWorkspaceRoot,
+        result.workspacePath,
+      )
+    ) {
+      await applyWorkspaceStoreState(result.state);
+    }
     return await workspaceLifecycleResult("ok");
   });
 
@@ -406,7 +434,12 @@ function registerWorkspaceEntryIpc() {
 }
 
 async function selectWorkspace(workspacePath, options = {}) {
-  if (options.initializeGitOnOpen === true) {
+  const initializeGitOnOpen =
+    options.initializeGitOnOpen ??
+    ((await readWorkspaceGitInitializeOnOpenPreference(app.getPath("userData"))) ===
+      true);
+
+  if (initializeGitOnOpen) {
     try {
       await prepareWorkspaceGit(workspacePath);
     } catch (error) {
@@ -478,11 +511,14 @@ async function deletePlatoDataForWorkspace(workspacePath) {
 }
 
 function normalizeWorkspaceSelectionOptions(options) {
+  const hasInitializeGitOnOpen =
+    typeof options === "object" &&
+    options !== null &&
+    typeof options.initializeGitOnOpen === "boolean";
   return {
-    initializeGitOnOpen:
-      typeof options === "object" &&
-      options !== null &&
-      options.initializeGitOnOpen === true,
+    initializeGitOnOpen: hasInitializeGitOnOpen
+      ? options.initializeGitOnOpen === true
+      : null,
   };
 }
 

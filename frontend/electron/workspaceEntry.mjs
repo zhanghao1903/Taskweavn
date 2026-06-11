@@ -3,7 +3,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 const STORE_FILENAME = "workspace-entry.json";
-const STORE_SCHEMA_VERSION = 2;
+const STORE_SCHEMA_VERSION = 3;
 const MAX_RECENT_WORKSPACES = 8;
 
 export function workspaceEntryStorePath(userDataPath) {
@@ -53,6 +53,7 @@ export async function rememberWorkspace(userDataPath, workspacePath) {
   ];
   return await writeWorkspaceEntryStore(userDataPath, {
     currentPath: normalizedPath,
+    preferences: previous.preferences,
     workspaces,
   });
 }
@@ -96,6 +97,7 @@ export async function archiveWorkspaceById(userDataPath, id) {
       : state.currentPath;
   const nextState = await writeWorkspaceEntryStore(userDataPath, {
     currentPath,
+    preferences: state.preferences,
     workspaces,
   });
   return { state: nextState, workspacePath: target.path };
@@ -120,6 +122,7 @@ export async function restoreWorkspaceById(userDataPath, id) {
   ];
   const nextState = await writeWorkspaceEntryStore(userDataPath, {
     currentPath: state.currentPath ?? target.path,
+    preferences: state.preferences,
     workspaces,
   });
   return { state: nextState, workspacePath: target.path };
@@ -143,9 +146,43 @@ export async function removeWorkspaceById(userDataPath, id) {
       : state.currentPath;
   const nextState = await writeWorkspaceEntryStore(userDataPath, {
     currentPath,
+    preferences: state.preferences,
     workspaces,
   });
   return { state: nextState, workspacePath: target.path };
+}
+
+export async function readWorkspaceGitInitializeOnOpenPreference(userDataPath) {
+  const state = await readWorkspaceEntryStore(userDataPath);
+  return state.preferences.initializeGitOnOpen;
+}
+
+export async function writeWorkspaceGitInitializeOnOpenPreference(
+  userDataPath,
+  enabled,
+) {
+  const state = await readWorkspaceEntryStore(userDataPath);
+  return await writeWorkspaceEntryStore(userDataPath, {
+    currentPath: state.currentPath,
+    preferences: {
+      ...state.preferences,
+      initializeGitOnOpen: enabled === true,
+    },
+    workspaces: state.workspaces,
+  });
+}
+
+export function workspaceArchiveRequiresRuntimeSwitch(
+  currentWorkspaceRoot,
+  archivedWorkspacePath,
+) {
+  if (currentWorkspaceRoot === null || archivedWorkspacePath === null) {
+    return false;
+  }
+  return (
+    normalizeWorkspacePath(currentWorkspaceRoot) ===
+    normalizeWorkspacePath(archivedWorkspacePath)
+  );
 }
 
 export async function buildWorkspaceEntryState({
@@ -223,9 +260,19 @@ function normalizeStoredState(raw) {
 
   return {
     currentPath: safeCurrentPath,
+    preferences: normalizePreferences(raw?.preferences),
     recentPaths: activePaths.slice(0, MAX_RECENT_WORKSPACES),
     schemaVersion: STORE_SCHEMA_VERSION,
     workspaces,
+  };
+}
+
+function normalizePreferences(raw) {
+  return {
+    initializeGitOnOpen:
+      typeof raw?.initializeGitOnOpen === "boolean"
+        ? raw.initializeGitOnOpen
+        : null,
   };
 }
 

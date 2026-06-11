@@ -58,6 +58,10 @@ type PlatoWorkspaceGitStatus = {
   readonly version?: string;
 };
 
+type PlatoWorkspaceGitPreference = {
+  readonly initializeGitOnOpen: boolean | null;
+};
+
 type PlatoWorkspaceSelectionOptions = {
   readonly initializeGitOnOpen?: boolean;
 };
@@ -90,10 +94,14 @@ type PlatoElectronWorkspaceBridge = {
     options?: PlatoWorkspaceDeleteDataOptions,
   ) => Promise<PlatoWorkspaceLifecycleResult>;
   readonly getGitStatus: () => Promise<PlatoWorkspaceGitStatus>;
+  readonly getGitPreference?: () => Promise<PlatoWorkspaceGitPreference>;
   readonly getState: () => Promise<PlatoWorkspaceEntryState>;
   readonly restoreWorkspace?: (
     id: string,
   ) => Promise<PlatoWorkspaceLifecycleResult>;
+  readonly setGitPreference?: (
+    value: PlatoWorkspaceGitPreference,
+  ) => Promise<PlatoWorkspaceGitPreference>;
   readonly useWorkspace: (
     id: string,
     options?: PlatoWorkspaceSelectionOptions,

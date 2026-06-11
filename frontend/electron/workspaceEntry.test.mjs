@@ -8,10 +8,13 @@ import {
   buildWorkspaceEntryState,
   findWorkspacePathById,
   removeWorkspaceById,
+  readWorkspaceGitInitializeOnOpenPreference,
   readWorkspaceEntryStore,
   rememberWorkspace,
   restoreWorkspaceById,
   summarizeWorkspace,
+  writeWorkspaceGitInitializeOnOpenPreference,
+  workspaceArchiveRequiresRuntimeSwitch,
   workspaceEntryStorePath,
 } from "./workspaceEntry.mjs";
 
@@ -30,8 +33,11 @@ describe("workspace entry store", () => {
 
     await expect(readWorkspaceEntryStore(userDataPath)).resolves.toEqual({
       currentPath: null,
+      preferences: {
+        initializeGitOnOpen: null,
+      },
       recentPaths: [],
-      schemaVersion: 2,
+      schemaVersion: 3,
       workspaces: [],
     });
   });
@@ -48,8 +54,9 @@ describe("workspace entry store", () => {
       await readFile(workspaceEntryStorePath(userDataPath), "utf8"),
     );
     expect(raw.currentPath).toBe(second);
+    expect(raw.preferences).toEqual({ initializeGitOnOpen: null });
     expect(raw.recentPaths).toEqual([second, first]);
-    expect(raw.schemaVersion).toBe(2);
+    expect(raw.schemaVersion).toBe(3);
     expect(raw.workspaces).toEqual([
       expect.objectContaining({ archived: false, path: second }),
       expect.objectContaining({ archived: false, path: first }),
@@ -81,8 +88,11 @@ describe("workspace entry store", () => {
 
     await expect(readWorkspaceEntryStore(userDataPath)).resolves.toMatchObject({
       currentPath: first,
+      preferences: {
+        initializeGitOnOpen: null,
+      },
       recentPaths: [first, second],
-      schemaVersion: 2,
+      schemaVersion: 3,
       workspaces: [
         expect.objectContaining({ archived: false, path: first }),
         expect.objectContaining({ archived: false, path: second }),
@@ -143,6 +153,39 @@ describe("workspace entry store", () => {
     });
     expect(state.recentWorkspaces).toEqual([]);
     expect(state.archivedWorkspaces).toEqual([]);
+  });
+
+  it("requires a runtime switch only when archiving the current workspace", async () => {
+    const userDataPath = await tempDir();
+    const current = path.join(userDataPath, "Current");
+    const other = path.join(userDataPath, "Other");
+
+    expect(workspaceArchiveRequiresRuntimeSwitch(current, current)).toBe(true);
+    expect(workspaceArchiveRequiresRuntimeSwitch(current, other)).toBe(false);
+    expect(workspaceArchiveRequiresRuntimeSwitch(null, other)).toBe(false);
+    expect(workspaceArchiveRequiresRuntimeSwitch(current, null)).toBe(false);
+  });
+
+  it("persists workspace Git initialization preference in user data", async () => {
+    const userDataPath = await tempDir();
+    const workspacePath = path.join(userDataPath, "Project");
+
+    await expect(
+      readWorkspaceGitInitializeOnOpenPreference(userDataPath),
+    ).resolves.toBeNull();
+
+    await writeWorkspaceGitInitializeOnOpenPreference(userDataPath, true);
+    await rememberWorkspace(userDataPath, workspacePath);
+
+    await expect(
+      readWorkspaceGitInitializeOnOpenPreference(userDataPath),
+    ).resolves.toBe(true);
+
+    await writeWorkspaceGitInitializeOnOpenPreference(userDataPath, false);
+
+    await expect(
+      readWorkspaceGitInitializeOnOpenPreference(userDataPath),
+    ).resolves.toBe(false);
   });
 });
 

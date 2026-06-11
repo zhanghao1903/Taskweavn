@@ -1,6 +1,6 @@
 # Precision File Tools Technical Design
 
-> Status: implemented backend/tool foundation on `codex/precision-file-tools`
+> Status: completed for Product 1.1 precision file tools scope
 >
 > Last Updated: 2026-06-11
 >

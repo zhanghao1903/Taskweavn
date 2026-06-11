@@ -202,7 +202,7 @@ Focus:
 
 - Task, Plan, Session, and Inquiry Context boundaries;
 - read-only inquiry context over file/diff/result/audit facts;
-- token usage analytics and provider cache-hit visibility;
+- advanced usage analytics beyond the completed Product 1.1 token ledger;
 - later semantic retrieval and cross-session memory;
 - task-aware summarization and evaluation sets.
 
@@ -231,33 +231,36 @@ Recommended implementation order:
    adopts the draft `Session -> Plan -> TaskNode[]` model before broad runtime
    input and result/outcome work creates another compatibility layer.
 2. **[Precision file tools](../plans/feature/precision-file-tools.md)** —
-   backend/tool foundation implemented on `codex/precision-file-tools`:
+   Product 1.1 precision file tools slice completed:
    line-range read, workspace search, hash-guarded line-range replace,
    idempotent append, changed-line evidence capture, Agent/CLI registration,
    and file-summary projection. Full Audit detail UI, direct renderer write
-   API, and diagnostics precision descriptors remain deferred.
+   API, and diagnostics precision descriptors are future hardening items.
 3. **Runtime input modes and read-only inquiry** — implement routing for
    guidance, command, ASK answer, confirmation response, and read-only inquiry;
    define Inquiry Context separately from execution context.
-4. **Token usage analytics U1/U2** — add durable usage events and
-   workspace/session/task aggregation API before UI dashboards, billing, or
-   quota enforcement.
-5. **Localization follow-ups** — visible Settings language selector, persisted
+4. **Token usage analytics** — completed durable usage events,
+   workspace/session/task aggregation API, Settings Usage Information entry,
+   Main Page contextual usage row, and diagnostics-safe summaries.
+5. **Workspace archive/delete data management** — completed Settings Data
+   Management restore flow, workspace row Archive/Delete Plato Data actions,
+   and product-owned metadata cleanup semantics.
+6. **Localization follow-ups** — visible Settings language selector, persisted
    locale preference, Electron native menu localization, and bilingual smoke
    only when Product 1.1 acceptance needs them.
-6. **Result packaging and completion-time `task_after`** — improve result
+7. **Result packaging and completion-time `task_after`** — improve result
    comprehension and post-completion automation after the Plan/TaskNode and
    input-mode boundaries are clear.
-7. **Skills, MCP, Agent protocol, and routing productization** — keep as
+8. **Skills, MCP, Agent protocol, and routing productization** — keep as
    research/productization tracks until workspace trust, precision tools, and
    runtime input are stable.
 
 Product 1.0 is accepted as a local unsigned release candidate. Product 1.1
 should improve trust and controllability before expanding automation breadth:
-workspace inspection is accepted; precision tools backend/tool foundation is
-implemented on branch; runtime input modes, inquiry context, Plan/TaskNode
-migration, token usage analytics, and precision evidence surfacing are the next
-actionable tracks.
+workspace inspection, precision file tools, token usage analytics, and
+workspace archive/delete data management are completed; runtime input modes,
+inquiry context, Plan/TaskNode migration, result packaging, and protocol
+productization are the next actionable tracks.
 
 ---
 

@@ -211,6 +211,7 @@ describe("MainPageWorkbench layout", () => {
         currentWorkspaceId: "workspace-local",
         workspaces: [
           workspaceCatalogEntry("workspace-local", "Local Project", []),
+          workspaceCatalogEntry("workspace-other", "Other Project", []),
         ],
       },
       workspaceRuntime: {
@@ -241,6 +242,7 @@ describe("MainPageWorkbench layout", () => {
         currentWorkspaceId: "workspace-local",
         workspaces: [
           workspaceCatalogEntry("workspace-local", "Local Project", []),
+          workspaceCatalogEntry("workspace-other", "Other Project", []),
         ],
       },
       workspaceRuntime: {
@@ -253,13 +255,18 @@ describe("MainPageWorkbench layout", () => {
       },
     });
 
-    fireEvent.contextMenu(screen.getByText("Local Project").closest("div")!);
-    await user.click(screen.getByRole("menuitem", { name: "Archive workspace" }));
-    expect(archiveWorkspace).toHaveBeenCalledWith("workspace-local");
+    expect(
+      screen.queryByRole("button", { name: "Open workspace actions" }),
+    ).not.toBeInTheDocument();
 
-    await user.click(
-      screen.getByRole("button", { name: "Open workspace actions" }),
-    );
+    const otherWorkspaceLine = screen.getByText("Other Project").closest("div")!;
+    fireEvent.contextMenu(otherWorkspaceLine);
+    await user.click(screen.getByRole("menuitem", { name: "Archive workspace" }));
+    expect(archiveWorkspace).toHaveBeenCalledWith("workspace-other");
+    expect(screen.queryByText("Other Project")).not.toBeInTheDocument();
+
+    const localWorkspaceLine = screen.getByText("Local Project").closest("div")!;
+    fireEvent.contextMenu(localWorkspaceLine);
     await user.click(screen.getByRole("menuitem", { name: "Delete Plato data" }));
 
     expect(globalThis.confirm).toHaveBeenCalledWith(

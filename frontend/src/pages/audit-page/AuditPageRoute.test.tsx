@@ -342,6 +342,38 @@ describe("AuditPageRoute", () => {
     });
   });
 
+  it("keeps the timeline scroll position when selecting a record", async () => {
+    const user = userEvent.setup();
+
+    globalThis.history.pushState(
+      null,
+      "",
+      "/sessions/session-website-plan/tasks/task-implementation/audit?recordId=record-action-1",
+    );
+    renderWithQueryClient(<AuditPageRoute api={createAuditMockApi("a3-records-ready")} />);
+
+    const records = await screen.findByLabelText("Audit records");
+    records.scrollTop = 180;
+
+    await user.click(
+      await screen.findByRole("button", {
+        name: "Audit record User approved limited edits",
+      }),
+    );
+
+    await waitFor(() => {
+      expect(globalThis.location.search).toBe("?filter=all&recordId=record-confirmation-1");
+    });
+    const updatedRecords = screen.getByLabelText("Audit records");
+    const selectedRecord = screen.getByRole("button", {
+      name: "Audit record User approved limited edits",
+    });
+
+    expect(updatedRecords.scrollTop).toBe(180);
+    expect(selectedRecord).toHaveAttribute("aria-current", "true");
+    expect(screen.getByText("User approved limited edits detail body.")).toBeInTheDocument();
+  });
+
   it("preserves Audit return query when selecting a record", async () => {
     const user = userEvent.setup();
 

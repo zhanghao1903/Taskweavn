@@ -1,6 +1,6 @@
 # Workspace Archive, Delete, And Settings Data Management Technical Design
 
-> Status: accepted / implemented initial slice
+> Status: completed Product 1.1 workspace archive/delete data management slice
 > Last Updated: 2026-06-11
 > Plan: [Workspace Archive, Delete, And Settings Data Management](workspace-archive-delete-data-management.md)
 > Decision: [ADR-0018](../../decisions/ADR-0018-workspace-archive-and-delete-semantics.md)
@@ -422,8 +422,12 @@ important product change is navigation:
 
 When archive/delete changes the visible workspace set:
 
-- if current workspace remains active, restart sidecar or refresh registry using
-  the existing startup path;
+- if the archived workspace is not current, update the Electron registry and
+  renderer-visible list without restarting the sidecar or reloading the
+  renderer;
+- if current workspace remains active but the sidecar registry needs a broader
+  reconciliation, restart sidecar or refresh registry using the existing startup
+  path;
 - if current workspace is no longer active, stop sidecar and select fallback;
 - if no active workspace remains, show workspace entry state.
 
