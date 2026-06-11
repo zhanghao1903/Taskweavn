@@ -904,8 +904,8 @@ Acceptance:
 
 ### SG-TD-5. Trace And Diagnostics
 
-Status: implemented for ContextTrace metadata. Broader diagnostics/Audit UI
-projection remains deferred.
+Status: implemented for ContextTrace metadata and diagnostics-safe summary
+projection. Broader Audit/UI projection remains deferred.
 
 Files:
 
@@ -945,9 +945,11 @@ Implemented files:
 - `src/taskweavn/skills/policy.py`
 - `src/taskweavn/skills/context_source.py`
 - `src/taskweavn/skills/__init__.py`
+- `src/taskweavn/diagnostics/skills.py`
 - `src/taskweavn/context/models.py`
 - `src/taskweavn/context/manager.py`
 - `src/taskweavn/context/renderer.py`
+- `src/taskweavn/diagnostics/bundle.py`
 - `tests/test_skill_governance.py`
 
 Verified on 2026-06-11:

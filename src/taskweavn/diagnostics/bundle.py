@@ -24,6 +24,7 @@ from taskweavn import __version__
 from taskweavn.core import Session, SessionManager, WorkspaceLayout
 from taskweavn.core.workspace_layout import WORKSPACE_META_DIR_NAME
 from taskweavn.diagnostics.inspection import collect_inspection_evidence_summary
+from taskweavn.diagnostics.skills import collect_skill_governance_summary
 from taskweavn.diagnostics.usage import collect_token_usage_summary
 from taskweavn.interaction import AgentMessage, SqliteMessageStream
 from taskweavn.observability import LogArchiveManifest
@@ -56,6 +57,7 @@ _SECTION_ORDER = (
     "messages",
     "audit",
     "workspace_inspection",
+    "skill_governance",
     "events",
     "ui_events",
     "logs",
@@ -265,6 +267,11 @@ class DiagnosticBundleExporter:
                 writer,
                 "usage",
                 lambda: self._collect_usage(writer, session),
+            )
+            self._run_collector(
+                writer,
+                "skill_governance",
+                lambda: self._collect_skill_governance(writer, session),
             )
             self._run_collector(
                 writer,
@@ -627,6 +634,25 @@ class DiagnosticBundleExporter:
             kind="token_usage_summary",
             source="TokenUsageStore",
             payload=payload,
+        )
+        return (rel_path,), warnings
+
+    def _collect_skill_governance(
+        self,
+        writer: _BundleWriter,
+        session: Session,
+    ) -> tuple[tuple[str, ...], tuple[str, ...]]:
+        summary, warnings = collect_skill_governance_summary(
+            context_db_path=self.layout.session_context_db(session.id),
+            session_id=session.id,
+        )
+        if summary is None:
+            return (), warnings
+        rel_path = writer.write_json(
+            "context/skills.summary.json",
+            kind="skill_governance_summary",
+            source="ContextTrace",
+            payload=summary,
         )
         return (rel_path,), warnings
 

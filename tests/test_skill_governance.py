@@ -9,8 +9,11 @@ from taskweavn.context import (
     ControlContextSource,
     InMemoryContextStore,
     SessionContextManager,
+    SqliteContextStore,
     TaskContextSource,
 )
+from taskweavn.core import SessionManager, WorkspaceLayout
+from taskweavn.diagnostics import DiagnosticBundleExporter, DiagnosticExportOptions
 from taskweavn.skills import (
     InMemorySkillActivationStore,
     SkillActivation,
@@ -209,10 +212,67 @@ def test_skill_context_source_blocks_activation_when_runtime_denies_required_too
     )
 
 
-def _task(*, required_capability: str = "general") -> TaskDomain:
+def test_diagnostic_bundle_exports_skill_governance_summary(tmp_path: Path) -> None:
+    layout = WorkspaceLayout(tmp_path / "workspace")
+    layout.bootstrap()
+    with SessionManager(layout) as session_manager:
+        session = session_manager.create("Skill diagnostics")
+
+    descriptor = precision_file_editing_descriptor()
+    registry = SkillRegistry.from_descriptors((descriptor,))
+    activation_store = InMemorySkillActivationStore()
+    bus = InMemoryTaskBus(
+        [_task(session_id=session.id, required_capability="precision_file_tools")]
+    )
+    with SqliteContextStore(layout.session_context_db(session.id)) as context_store:
+        manager = SessionContextManager(
+            task_source=TaskContextSource(bus),
+            control_source=ControlContextSource(
+                allowed_tools=(
+                    "read_file_range",
+                    "search_workspace",
+                    "replace_file_range",
+                    "append_file",
+                )
+            ),
+            skill_source=SkillContextSource(registry, activation_store),
+            store=context_store,
+        )
+        manager.build(
+            ContextBuildRequest(
+                session_id=session.id,
+                task_id="task-1",
+                agent_run_id="run-1",
+                render_mode="start_context",
+            )
+        )
+
+    result = DiagnosticBundleExporter(
+        DiagnosticExportOptions(
+            workspace_root=layout.root,
+            session_id=session.id,
+            output_dir=tmp_path / "diagnostics",
+            create_zip=False,
+        )
+    ).export()
+
+    summary_path = result.bundle_dir / "context/skills.summary.json"
+    assert summary_path.exists()
+    summary_text = summary_path.read_text(encoding="utf-8")
+    assert "Prefer line-scoped file operations" not in summary_text
+    assert "precision-file-editing" in summary_text
+    assert "approval_required_by_skill" in summary_text
+    assert "plato.skill_governance.diagnostic_summary.v1" in summary_text
+
+
+def _task(
+    *,
+    session_id: str = "session-1",
+    required_capability: str = "general",
+) -> TaskDomain:
     return TaskDomain(
         task_id="task-1",
-        session_id="session-1",
+        session_id=session_id,
         root_id="task-1",
         intent="Edit files precisely.",
         required_capability=required_capability,

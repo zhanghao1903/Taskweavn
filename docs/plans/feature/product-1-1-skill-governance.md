@@ -509,7 +509,7 @@ Acceptance:
 
 ### SG-5. Trace / Audit / Diagnostics
 
-Status: partially implemented. Context trace metadata is implemented; UI/Audit
+Status: implemented for context trace and diagnostic summary. Audit/UI
 projection remains deferred.
 
 Deliver:
@@ -561,7 +561,8 @@ Current backend foundation evidence:
 
 - `tests/test_skill_governance.py` covers configured-root registry scanning,
   SQLite activation restart recovery, permission merge, Context Manager skill
-  activation, trace metadata, and blocked activation.
+  activation, trace metadata, blocked activation, and diagnostics-safe skill
+  summary export.
 - `tests/test_context_manager.py` continues to cover existing Context Manager
   behavior after skill integration.
 - Targeted checks run on 2026-06-11:

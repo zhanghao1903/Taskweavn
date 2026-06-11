@@ -104,7 +104,8 @@ visibility before any public skill marketplace or authoring UI.
 Status update: the backend governance foundation is implemented on
 `codex/skill-work`. It includes configured-root skill discovery, durable
 activation storage, permission merge, Context Manager integration, trace
-metadata, rendered active-skill guidance, and an internal
+metadata, rendered active-skill guidance, diagnostics-safe skill summary export,
+and an internal
 `precision-file-editing` proof. User-facing skill selection, public marketplace,
 custom skill authoring UI, MCP skill bundles, and broad routing productization
 remain deferred.
