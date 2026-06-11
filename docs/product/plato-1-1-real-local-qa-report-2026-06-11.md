@@ -1,6 +1,6 @@
 # Plato Product 1.1 Real Local QA Report - 2026-06-11
 
-> Status: phase complete - Electron app evidence pass; first defect fix merged; closure defect fix pending PR
+> Status: phase complete - Electron app evidence pass; first defect fix merged; closure defect fix in PR #70
 > QA branch: `codex/product-1.1-qa-hardening`
 > Closure branch: `codex/product-1.1-qa-report-closure`
 > Baseline commit: `616bc1b`
@@ -128,7 +128,7 @@ docs/product/qa-screenshots/2026-06-11-product-1-1-electron-app/
 | Fix PR | <https://github.com/zhanghao1903/Taskweavn/pull/67> | Merged on 2026-06-11 |
 | CI | <https://github.com/zhanghao1903/Taskweavn/actions/runs/27352009609/job/80816123401> | `Sidecar E2E Acceptance` passed in 51s |
 | Issue | <https://github.com/zhanghao1903/Taskweavn/issues/69> | Filed during closure audit |
-| Fix branch | `codex/product-1.1-qa-report-closure` | Fix implemented; PR pending |
+| Fix PR | <https://github.com/zhanghao1903/Taskweavn/pull/70> | Open; fixes issue #69 |
 
 ## UX Improvement List
 
@@ -157,7 +157,7 @@ Product 1.1 QA hardening is accepted as phase-complete for the currently
 implemented 1.1 surface:
 
 - the first confirmed P1 defect was filed, fixed, merged, and verified by CI;
-- the first-run closure defect was filed and has a verified fix pending PR;
+- the first-run closure defect was filed and has a verified fix in PR #70;
 - Electron screenshots cover the real app states used by the QA pass;
 - Product 1.1 token usage, workspace inspection, and precision file tool layers
   have direct test or app evidence;
