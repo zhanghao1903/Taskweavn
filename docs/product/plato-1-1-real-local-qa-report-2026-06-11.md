@@ -107,7 +107,7 @@ docs/product/qa-screenshots/2026-06-11-product-1-1-electron-app/
 | Type | Link | Status |
 |---|---|---|
 | Issue | <https://github.com/zhanghao1903/Taskweavn/issues/66> | Filed |
-| Fix PR | Pending branch push / PR creation | Pending |
+| Fix PR | <https://github.com/zhanghao1903/Taskweavn/pull/67> | Open |
 
 ## UX Improvement List
 
