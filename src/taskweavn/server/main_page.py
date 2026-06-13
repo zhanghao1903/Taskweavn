@@ -90,6 +90,7 @@ from taskweavn.task import (
     DefaultAuthoringContextBuilder,
     DefaultCollaboratorApiAdapter,
     DefaultCollaboratorAuthoringService,
+    DefaultPlanPublisher,
     DefaultTaskAskCommandService,
     DefaultTaskCommandService,
     DefaultTaskProjectionService,
@@ -105,11 +106,13 @@ from taskweavn.task import (
     InMemoryDraftTaskStore,
     InMemoryRawTaskStore,
     LocalCollaboratorWorkspaceContextSource,
+    PlanTaskNodeLifecycleSync,
     RawTaskStore,
     ResidentDefaultAgent,
     SqliteAuthoringCommandIdempotencyStore,
     SqliteAuthoringStateStore,
     SqliteDraftTaskStore,
+    SqlitePlanStore,
     SqliteRawTaskStore,
     SqliteTaskBus,
     SqliteTaskExecutionSummaryStore,
@@ -178,6 +181,8 @@ class MainPageWorkspaceRuntime:
     message_bus: InProcessMessageBus
     ask_store: AskStore
     task_bus: SqliteTaskBus
+    plan_store: SqlitePlanStore
+    plan_lifecycle_sync: PlanTaskNodeLifecycleSync
     raw_task_store: RawTaskStore
     draft_store: DraftTaskStore
     authoring_state_store: AuthoringStateStore | None
@@ -208,7 +213,8 @@ class MainPageWorkspaceRuntime:
             result_summary_store=self.result_summary_store,
             message_bus=self.message_bus,
             on_task_lifecycle_committed=_task_lifecycle_event_callback(
-                ui_event_store(self.event_source)
+                ui_event_store(self.event_source),
+                plan_lifecycle_sync=self.plan_lifecycle_sync,
             ),
         )
         return executor.tick()
@@ -234,6 +240,7 @@ class MainPageWorkspaceRuntime:
             self.result_summary_store,
             self.token_usage_store,
             self.ask_store,
+            self.plan_store,
             self.draft_store,
             self.raw_task_store,
         ):
@@ -331,12 +338,19 @@ def build_main_page_workspace_runtime(
             task_bus=task_bus,
             draft_store=draft_store,
         )
+        plan_store = SqlitePlanStore(layout.workspace_authoring_db)
+        plan_lifecycle_sync = PlanTaskNodeLifecycleSync(plan_store)
+        plan_publisher = DefaultPlanPublisher(
+            plan_store=plan_store,
+            task_publisher=task_publisher,
+        )
         authoring_command_service = DefaultAuthoringCommandService(
             raw_task_store=raw_task_store,
             draft_store=draft_store,
             message_bus=message_bus,
             task_publisher=task_publisher,
             authoring_state_store=authoring_state_store,
+            plan_store=plan_store,
             idempotency_store=authoring_idempotency_store,
         )
         capability_catalog = dependencies.capability_catalog or _default_capability_catalog()
@@ -351,6 +365,7 @@ def build_main_page_workspace_runtime(
             task_bus=task_bus,
             session_manager=session_manager,
             event_store=event_store,
+            plan_lifecycle_sync=plan_lifecycle_sync,
         )
         default_agent = dependencies.default_agent
         if default_agent is None and config.enable_default_agent:
@@ -370,7 +385,10 @@ def build_main_page_workspace_runtime(
             enabled=config.enable_execution_dispatcher,
             result_summary_store=result_summary_store,
             message_bus=message_bus,
-            on_task_lifecycle_committed=_task_lifecycle_event_callback(event_store),
+            on_task_lifecycle_committed=_task_lifecycle_event_callback(
+                event_store,
+                plan_lifecycle_sync=plan_lifecycle_sync,
+            ),
         )
         context_builder = DefaultAuthoringContextBuilder(
             raw_task_store=raw_task_store,
@@ -440,6 +458,7 @@ def build_main_page_workspace_runtime(
             raw_task_store=raw_task_store,
             ask_projection=DefaultAskProjectionService(ask_store),
             snapshot_cursor_provider=_snapshot_cursor_provider(event_source),
+            plan_store=plan_store,
         )
         core_command_gateway = DefaultUiCommandGateway(
             collaborator=collaborator,
@@ -452,6 +471,8 @@ def build_main_page_workspace_runtime(
             raw_task_store=raw_task_store,
             ask_commands=ask_commands,
             task_projection=task_projection,
+            plan_store=plan_store,
+            plan_publisher=plan_publisher,
         )
         command_gateway: UiCommandGateway = AuditEventCommandGateway(
             inner=core_command_gateway,
@@ -464,7 +485,10 @@ def build_main_page_workspace_runtime(
             ask_store=ask_store,
             task_bus=task_bus,
             execution_trigger_gateway=execution_dispatcher,
-            on_task_lifecycle_committed=_task_lifecycle_event_callback(event_store),
+            on_task_lifecycle_committed=_task_lifecycle_event_callback(
+                event_store,
+                plan_lifecycle_sync=plan_lifecycle_sync,
+            ),
         )
         ui_command_idempotency_store = (
             dependencies.ui_command_idempotency_store
@@ -532,6 +556,8 @@ def build_main_page_workspace_runtime(
         message_bus=message_bus,
         ask_store=ask_store,
         task_bus=task_bus,
+        plan_store=plan_store,
+        plan_lifecycle_sync=plan_lifecycle_sync,
         raw_task_store=raw_task_store,
         draft_store=draft_store,
         authoring_state_store=authoring_state_store,
@@ -677,6 +703,8 @@ def _sidecar_app_from_runtime(
         message_bus=runtime.message_bus,
         ask_store=runtime.ask_store,
         task_bus=runtime.task_bus,
+        plan_store=runtime.plan_store,
+        plan_lifecycle_sync=runtime.plan_lifecycle_sync,
         raw_task_store=runtime.raw_task_store,
         draft_store=runtime.draft_store,
         authoring_state_store=runtime.authoring_state_store,
@@ -747,8 +775,13 @@ def _default_capability_catalog() -> StaticCapabilityCatalog:
 
 def _task_lifecycle_event_callback(
     event_store: UiEventStore | None,
+    *,
+    plan_lifecycle_sync: PlanTaskNodeLifecycleSync | None = None,
 ) -> Callable[[TaskDomain], None]:
     def emit(task: TaskDomain) -> None:
+        if plan_lifecycle_sync is not None:
+            with contextlib.suppress(Exception):
+                plan_lifecycle_sync.sync_task(task)
         emit_task_lifecycle_task_node_changed(
             event_store,
             session_id=task.session_id,
@@ -786,6 +819,7 @@ def _recover_interrupted_running_tasks(
     task_bus: SqliteTaskBus,
     session_manager: SessionManager,
     event_store: UiEventStore | None,
+    plan_lifecycle_sync: PlanTaskNodeLifecycleSync | None = None,
 ) -> None:
     sessions = session_manager.list()
     main_page_trace(
@@ -801,6 +835,9 @@ def _recover_interrupted_running_tasks(
             session_id=session.id,
         )
         for task in recovered_tasks:
+            if plan_lifecycle_sync is not None:
+                with contextlib.suppress(Exception):
+                    plan_lifecycle_sync.sync_task(task)
             emit_task_lifecycle_task_node_changed(
                 event_store,
                 session_id=task.session_id,

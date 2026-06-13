@@ -19,6 +19,7 @@ from taskweavn.server.ui_contract.refs import AffectedObjectRef, AffectedScope, 
 from taskweavn.task.commands import CommandResult as CoreCommandResult
 from taskweavn.task.commands import TaskGuidanceMode
 from taskweavn.task.models import TaskNodePatch, TaskRef
+from taskweavn.task.plan_publisher import PublishPlanResult
 
 
 def _child_idempotency_key(idempotency_key: str | None, suffix: str) -> str | None:
@@ -93,6 +94,18 @@ def _merge_prompt_task_tree_results(
             (*raw_result.emitted_message_ids, *tree_result.emitted_message_ids)
         ),
         published_task_ids=tree_result.published_task_ids,
+    )
+
+
+def _plan_publish_command_result(result: PublishPlanResult) -> CoreCommandResult:
+    return CoreCommandResult(
+        command_id=result.command_id,
+        status="rejected" if result.skipped else "accepted",
+        message=result.reason or "plan published",
+        affected_task_refs=tuple(
+            TaskRef.published(task_id) for task_id in result.published_task_ids
+        ),
+        published_task_ids=result.published_task_ids,
     )
 
 

@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Literal
+from typing import Any, Literal, cast
 
 from taskweavn.core.session import Session
 from taskweavn.server.ui_contract.audit_detail_projection import (
@@ -113,6 +113,7 @@ class _AuditProjectionBundle:
     source_tree: CoreTaskTreeView
     task_tree: TaskTreeView | None
     selected_task: TaskNodeCardView | None
+    record_task_node_id: str | None
     records: tuple[AuditRecord, ...]
 
 
@@ -159,6 +160,53 @@ def _audit_records_from_projection(
     records.extend(config_audit_records(session, config_provider, task_node_id=task_node_id))
     records.extend(log_audit_records(session, log_provider, task_node_id=task_node_id))
     return _sort_audit_records(records)
+
+
+def _normalize_audit_record_task_identity(
+    records: Sequence[AuditRecord],
+    *,
+    task_node_ids_by_legacy_id: dict[str, str],
+) -> tuple[AuditRecord, ...]:
+    if not task_node_ids_by_legacy_id:
+        return tuple(records)
+    return tuple(
+        _normalize_audit_record(record, task_node_ids_by_legacy_id)
+        for record in records
+    )
+
+
+def _normalize_audit_record(
+    record: AuditRecord,
+    task_node_ids_by_legacy_id: dict[str, str],
+) -> AuditRecord:
+    task_node_id = _normalized_task_node_id(
+        record.task_node_id,
+        task_node_ids_by_legacy_id,
+    )
+    scope = _normalized_audit_scope(record.scope, task_node_ids_by_legacy_id)
+    if task_node_id == record.task_node_id and scope == record.scope:
+        return record
+    return record.model_copy(update={"task_node_id": task_node_id, "scope": scope})
+
+
+def _normalized_audit_scope(
+    scope: object,
+    task_node_ids_by_legacy_id: dict[str, str],
+) -> object:
+    existing = getattr(scope, "task_node_id", None)
+    normalized = _normalized_task_node_id(existing, task_node_ids_by_legacy_id)
+    if normalized == existing:
+        return scope
+    return cast(Any, scope).model_copy(update={"task_node_id": normalized})
+
+
+def _normalized_task_node_id(
+    task_node_id: str | None,
+    task_node_ids_by_legacy_id: dict[str, str],
+) -> str | None:
+    if task_node_id is None:
+        return None
+    return task_node_ids_by_legacy_id.get(task_node_id, task_node_id)
 
 
 def _sort_audit_records(records: Iterable[AuditRecord]) -> tuple[AuditRecord, ...]:

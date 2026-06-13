@@ -100,6 +100,7 @@ type ObjectRef = {
   kind:
     | "raw_task"
     | "raw_task_ask"
+    | "plan"
     | "draft_task"
     | "draft_tree"
     | "draft_subtree"
@@ -165,6 +166,9 @@ type MainPageSnapshot = {
   sessions: SessionSummary[];
   session: SessionSummary;
   planning: PlanningView;
+  activePlan: PlanView | null;
+  // Deprecated compatibility field for legacy Main Page components.
+  // During migration, this equals activePlan.taskTreeProjection when available.
   taskTree: TaskTreeView | null;
   messages: SessionMessageView[];
   pendingConfirmations: ConfirmationActionView[];
@@ -200,6 +204,10 @@ If backend stores contain both pending RawTask asks and a TaskTree, the gateway
 must project stale authoring asks out of the active control surface. UI
 components should not implement their own domain priority rules.
 
+New Product 1.1 surfaces should treat `activePlan` as canonical. Existing
+components can continue reading `taskTree` until the Main Page work area is
+migrated to `PlanView`.
+
 ### 5.2 PlanningView
 
 ```ts
@@ -226,7 +234,53 @@ type PlanningAskView = {
 controls on the Main Page once `taskTree` exists. If shown at all, they belong
 to history/audit/recovery affordances.
 
-### 5.3 TaskTreeView
+### 5.3 PlanView
+
+```ts
+type PlanUiStatus =
+  | "draft"
+  | "reviewing"
+  | "ready_to_publish"
+  | "published"
+  | "running"
+  | "finalizing"
+  | "ready_for_review"
+  | "accepted"
+  | "follow_up_needed"
+  | "failed"
+  | "cancelled"
+  | "unknown";
+
+type PlanView = {
+  id: PlanId;
+  sessionId: SessionId;
+  title: string;
+  summary: string;
+  objective: string;
+  status: PlanUiStatus;
+  taskCount: number;
+  taskNodeIds: TaskNodeId[];
+  taskNodes: TaskNodeCardView[];
+  executionRollup: ExecutionRollupView;
+  finalization: PlanFinalizationView;
+  outcome: PlanOutcomeView | null;
+  permissions: PlanPermissions;
+  taskTreeProjection?: TaskTreeView | null;
+  sourceKind:
+    | "plan_store"
+    | "legacy_draft_tree"
+    | "legacy_published_task_tree"
+    | "synthetic";
+  sourceRef?: ObjectRef | null;
+  version: number;
+};
+```
+
+`PlanView` is the canonical Product 1.1 Main Page work contract. During PTC-2
+it may be synthetic and derived from the existing `TaskTreeView`; PTC-3 owns
+full legacy projection and flattening.
+
+### 5.4 TaskTreeView
 
 ```ts
 type TaskTreeView = {
@@ -241,13 +295,18 @@ type TaskTreeView = {
 };
 ```
 
-### 5.4 TaskNodeCardView
+`TaskTreeView` is deprecated compatibility data. Do not add new Product 1.1
+behavior that depends on it directly when `activePlan` is available.
+
+### 5.5 TaskNodeCardView
 
 ```ts
 type TaskNodeCardView = {
   id: TaskNodeId;
+  planId?: PlanId | null;
   taskRef?: TaskRef | null;
   parentId: TaskNodeId | null;
+  taskIndex?: string | null;
   title: string;
   // Card-safe short summary. Must not contain concatenated
   // "Summary:" / "Instructions:" / "Acceptance criteria:" marker text.
@@ -274,13 +333,17 @@ type TaskNodeCardView = {
 };
 ```
 
+`planId` and `taskIndex` are required for `activePlan.taskNodes`. They remain
+optional on legacy `taskTree.nodes` until the Main Page fully migrates off the
+TaskTree compatibility field.
+
 `summary` 是列表卡片展示字段，必须保持短、可扫描。`intent`、
 `instructions`、`acceptanceCriteria` 是 Detail Panel 的结构化内容，
 用于展示完整任务说明。Gateway 必须把旧数据中拼接到 `intent` 的
 `Summary:`、`Instructions:`、`Acceptance criteria:` 标记拆回结构化字段；
 前端不应在卡片中显示这些 marker。
 
-### 5.5 ExecutionRollupView
+### 5.6 ExecutionRollupView
 
 ```ts
 type ExecutionRollupView = {
@@ -294,7 +357,55 @@ type ExecutionRollupView = {
 };
 ```
 
-### 5.6 TaskNodePermissions
+### 5.7 Plan Finalization, Outcome, And Permissions
+
+```ts
+type PlanFinalizationView = {
+  status:
+    | "not_started"
+    | "pending"
+    | "running"
+    | "skipped"
+    | "done"
+    | "failed";
+  required: boolean;
+  summaryRef?: string | null;
+  fileRollupRef?: string | null;
+  contextSummaryRef?: string | null;
+  warnings: string[];
+};
+
+type PlanOutcomeView = {
+  status:
+    | "succeeded"
+    | "succeeded_with_warnings"
+    | "partially_completed"
+    | "failed"
+    | "cancelled";
+  summary: string;
+  completedTaskCount: number;
+  failedTaskCount: number;
+  skippedTaskCount: number;
+  resultRef?: string | null;
+  fileChangeSummaryRef?: string | null;
+  auditSummaryRef?: string | null;
+};
+
+type PlanPermissions = {
+  canEdit: boolean;
+  canPublish: boolean;
+  canAppendGuidance: boolean;
+  canCreateTaskNode: boolean;
+  canDeleteTaskNode: boolean;
+  canRequestExecution: boolean;
+  readonlyReason?: string | null;
+};
+```
+
+PTC-2 exposes these fields with conservative defaults. PTC-7 owns real Plan
+finalization and outcome review behavior.
+
+### 5.8 TaskNodePermissions
 
 ```ts
 type TaskNodePermissions = {
@@ -309,7 +420,7 @@ type TaskNodePermissions = {
 
 Permissions must come from projection or API mapping. The component should not infer permissions from status alone.
 
-### 5.7 SessionMessageView
+### 5.9 SessionMessageView
 
 ```ts
 type SessionMessageView = {
@@ -328,7 +439,7 @@ type SessionMessageView = {
 
 Internal ids should not be primary message copy. They may appear in dev/debug affordances or Audit Page detail.
 
-### 5.8 ConfirmationActionView
+### 5.10 ConfirmationActionView
 
 ```ts
 type ConfirmationActionView = {
@@ -350,7 +461,7 @@ type ConfirmationActionView = {
 
 `localStatus` is optional and must never be persisted as backend truth.
 
-### 5.9 InputView
+### 5.11 InputView
 
 Input mode can be computed locally from snapshot plus selection, but it must be explicit before submitting a command.
 

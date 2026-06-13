@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import Field, model_validator
 
 from taskweavn.server.ui_contract.base import UiContractModel, utcnow
+from taskweavn.server.ui_contract.plan_projection import DefaultPlanProjectionService
 from taskweavn.server.ui_contract.view_models import (
     AskRequestView,
     AuditEntryContext,
@@ -26,6 +27,7 @@ from taskweavn.server.ui_contract.view_models import (
     FileChangeSummaryView,
     MainPageReturnTarget,
     PlanningView,
+    PlanView,
     ProjectSummary,
     RelatedLogsLink,
     ResultCardView,
@@ -44,6 +46,7 @@ class MainPageSnapshot(UiContractModel):
     sessions: tuple[SessionSummary, ...] = Field(min_length=1)
     session: SessionSummary
     planning: PlanningView | None = None
+    active_plan: PlanView | None = None
     task_tree: TaskTreeView | None = None
     messages: tuple[SessionMessageView, ...] = ()
     pending_confirmations: tuple[ConfirmationActionView, ...] = ()
@@ -54,6 +57,32 @@ class MainPageSnapshot(UiContractModel):
     audit_links: tuple[AuditLinkView, ...] = ()
     cursor: str | None = None
     generated_at: datetime = Field(default_factory=utcnow)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _populate_active_plan(
+        cls,
+        values: Any,
+    ) -> Any:
+        if not isinstance(values, dict):
+            return values
+        if values.get("active_plan") is not None or values.get("activePlan") is not None:
+            return values
+        task_tree_value = values.get("task_tree", values.get("taskTree"))
+        if task_tree_value is None:
+            return values
+        task_tree = (
+            task_tree_value
+            if isinstance(task_tree_value, TaskTreeView)
+            else TaskTreeView.model_validate(task_tree_value)
+        )
+        active_plan = DefaultPlanProjectionService().project_legacy_task_tree(task_tree)
+        task_tree_key = "task_tree" if "task_tree" in values else "taskTree"
+        return {
+            **values,
+            "active_plan": active_plan,
+            task_tree_key: active_plan.task_tree_projection,
+        }
 
 
 class AuditPageSnapshot(UiContractModel):

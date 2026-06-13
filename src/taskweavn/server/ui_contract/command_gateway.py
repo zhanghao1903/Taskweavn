@@ -10,6 +10,7 @@ from taskweavn.server.ui_contract.command_mapping import (
     _command_response,
     _guidance_mode,
     _merge_prompt_task_tree_results,
+    _plan_publish_command_result,
     _synthetic_task_tree_id,
     _task_node_patch,
     _TaskTreeIdentityError,
@@ -48,6 +49,9 @@ from taskweavn.task.collaborator_api import (
 from taskweavn.task.commands import CommandResult as CoreCommandResult
 from taskweavn.task.commands import TaskCommandService
 from taskweavn.task.models import TaskRef
+from taskweavn.task.plan_models import Plan
+from taskweavn.task.plan_publisher import PlanPublisher, PublishPlanCommand
+from taskweavn.task.plan_stores import PlanStore
 from taskweavn.task.projection import TaskProjectionService
 from taskweavn.task.stores import AuthoringStateStore, RawTaskStore
 
@@ -65,6 +69,8 @@ class DefaultUiCommandGateway:
         raw_task_store: RawTaskStore | None = None,
         ask_commands: TaskAskCommandService | None = None,
         task_projection: TaskProjectionService | None = None,
+        plan_store: PlanStore | None = None,
+        plan_publisher: PlanPublisher | None = None,
     ) -> None:
         self._collaborator = collaborator
         self._task_commands = task_commands
@@ -73,6 +79,8 @@ class DefaultUiCommandGateway:
         self._raw_task_store = raw_task_store
         self._ask_commands = ask_commands
         self._task_projection = task_projection
+        self._plan_store = plan_store
+        self._plan_publisher = plan_publisher
 
     def append_session_input(
         self,
@@ -249,6 +257,10 @@ class DefaultUiCommandGateway:
         request: CommandRequest[PublishTaskTreePayload],
     ) -> CommandResponse:
         try:
+            plan_response = self._publish_active_plan_if_available(request)
+            if plan_response is not None:
+                return plan_response
+
             draft_tree_id = self._resolve_publish_draft_tree_id(request)
             tree_ref = ObjectRef(kind="draft_tree", id=draft_tree_id)
             result = self._collaborator.publish_task_tree(
@@ -284,6 +296,68 @@ class DefaultUiCommandGateway:
             return _command_bad_request_response(request, str(exc), **exc.details)
         except Exception as exc:
             return _command_exception_response(request, exc)
+
+    def _publish_active_plan_if_available(
+        self,
+        request: CommandRequest[PublishTaskTreePayload],
+    ) -> CommandResponse | None:
+        plan = self._active_durable_plan(request.session_id)
+        if plan is None or self._plan_publisher is None:
+            return None
+
+        result = self._plan_publisher.publish_plan(
+            PublishPlanCommand(
+                command_id=request.command_id,
+                session_id=request.session_id,
+                plan_id=plan.plan_id,
+                expected_plan_version=request.expected_version,
+                idempotency_key=request.idempotency_key or request.command_id,
+            )
+        )
+        if (
+            result.accepted
+            and plan.source_draft_tree_id is not None
+            and self._authoring_state_store is not None
+        ):
+            self._authoring_state_store.mark_published(
+                request.session_id,
+                plan.source_draft_tree_id,
+            )
+        plan_ref = ObjectRef(kind="plan", id=plan.plan_id)
+        object_refs: tuple[ObjectRef, ...] = (plan_ref,)
+        if plan.source_draft_tree_id is not None:
+            object_refs = (
+                ObjectRef(kind="draft_tree", id=plan.source_draft_tree_id),
+                plan_ref,
+            )
+        return _command_response(
+            request,
+            _plan_publish_command_result(result),
+            object_refs=object_refs,
+            affected_objects=(
+                AffectedObjectRef(
+                    ref=plan_ref,
+                    impact="changed",
+                    reason="Durable Plan publish was requested.",
+                ),
+            ),
+            suggested_queries=("session.snapshot", "task.tree"),
+            affected_scopes=(
+                AffectedScope(kind="session"),
+                AffectedScope(kind="task_tree"),
+            ),
+        )
+
+    def _active_durable_plan(self, session_id: str) -> Plan | None:
+        if self._plan_store is None:
+            return None
+        if self._authoring_state_store is not None:
+            active = self._authoring_state_store.get_active(session_id)
+            if active.active_plan_id is not None:
+                plan = self._plan_store.get_plan(session_id, active.active_plan_id)
+                if plan is not None:
+                    return plan
+        return self._plan_store.get_active_plan(session_id)
 
     def retry_task(
         self,

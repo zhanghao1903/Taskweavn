@@ -400,6 +400,7 @@ def test_plan_proposal_rejects_hierarchy_and_role_fields() -> None:
                         "title": "Parent",
                         "intent": "Do parent work",
                         "required_capability": "writing",
+                        "parent_client_task_id": "root",
                         "children": [],
                         "node_type": "summary",
                         "execution_role": "aggregate_only",
@@ -411,6 +412,7 @@ def test_plan_proposal_rejects_hierarchy_and_role_fields() -> None:
 
     message = str(exc_info.value)
     assert "children" in message
+    assert "parent_client_task_id" in message
     assert "node_type" in message
     assert "execution_role" in message
     assert "children_policy" in message
@@ -439,6 +441,100 @@ def test_plan_proposal_requires_unique_task_indexes_and_client_ids() -> None:
                 "title": "Release plan",
                 "assistant_message": "Drafted a flat plan.",
                 "tasks": [duplicated_task, {**duplicated_task, "task_index": 2}],
+            }
+        )
+
+
+def test_plan_proposal_validates_dependencies_and_ordering() -> None:
+    proposal = PlanProposal(
+        title="Release plan",
+        assistant_message="Drafted a flat plan.",
+        tasks=(
+            PlanTaskNodeProposal(
+                client_task_id="run-checks",
+                task_index=2,
+                title="Run checks",
+                intent="Run regression tests",
+                required_capability="testing",
+                depends_on=("1",),
+            ),
+            PlanTaskNodeProposal(
+                client_task_id="write-notes",
+                task_index=1,
+                title="Write notes",
+                intent="Prepare release notes",
+                required_capability="writing",
+            ),
+        ),
+    )
+
+    assert [task.client_task_id for task in proposal.ordered_tasks()] == [
+        "write-notes",
+        "run-checks",
+    ]
+
+
+def test_plan_proposal_rejects_unknown_dependencies() -> None:
+    with pytest.raises(ValidationError, match="unknown task"):
+        PlanProposal.model_validate(
+            {
+                "title": "Release plan",
+                "assistant_message": "Drafted a flat plan.",
+                "tasks": [
+                    {
+                        "client_task_id": "write-notes",
+                        "task_index": 1,
+                        "title": "Write notes",
+                        "intent": "Prepare release notes",
+                        "required_capability": "writing",
+                        "depends_on": ["missing-task"],
+                    }
+                ],
+            }
+        )
+
+
+def test_plan_proposal_rejects_dependency_cycles() -> None:
+    with pytest.raises(ValidationError, match="cycles"):
+        PlanProposal.model_validate(
+            {
+                "title": "Release plan",
+                "assistant_message": "Drafted a flat plan.",
+                "tasks": [
+                    {
+                        "client_task_id": "a",
+                        "task_index": 1,
+                        "title": "Task A",
+                        "intent": "Do A",
+                        "required_capability": "writing",
+                        "depends_on": ["b"],
+                    },
+                    {
+                        "client_task_id": "b",
+                        "task_index": 2,
+                        "title": "Task B",
+                        "intent": "Do B",
+                        "required_capability": "testing",
+                        "depends_on": ["a"],
+                    },
+                ],
+            }
+        )
+    with pytest.raises(ValidationError, match="depend on itself"):
+        PlanProposal.model_validate(
+            {
+                "title": "Release plan",
+                "assistant_message": "Drafted a flat plan.",
+                "tasks": [
+                    {
+                        "client_task_id": "a",
+                        "task_index": 1,
+                        "title": "Task A",
+                        "intent": "Do A",
+                        "required_capability": "writing",
+                        "depends_on": ["1"],
+                    }
+                ],
             }
         )
 

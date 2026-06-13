@@ -531,7 +531,12 @@ def test_sqlite_authoring_state_tracks_active_draft_tree_across_reopen(
     try:
         raw_store.create(_raw_task())
         tree = draft_store.create_tree("s1", [_draft_node("root")])
-        state_store.set_active_draft_tree("s1", "raw1", tree.draft_tree_id)
+        state_store.set_active_draft_tree(
+            "s1",
+            "raw1",
+            tree.draft_tree_id,
+            active_plan_id="plan1",
+        )
     finally:
         raw_store.close()
         draft_store.close()
@@ -544,8 +549,62 @@ def test_sqlite_authoring_state_tracks_active_draft_tree_across_reopen(
         assert active.active_state == "draft_tree"
         assert active.active_raw_task_id == "raw1"
         assert active.active_draft_tree_id == tree.draft_tree_id
+        assert active.active_plan_id == "plan1"
     finally:
         reopened.close()
+
+
+def test_sqlite_authoring_state_migrates_active_plan_id_column(
+    tmp_path: Path,
+) -> None:
+    db = tmp_path / "authoring.sqlite"
+    conn = sqlite3.connect(db)
+    try:
+        conn.executescript(
+            """
+            CREATE TABLE authoring_active_sessions (
+                session_id TEXT PRIMARY KEY,
+                active_raw_task_id TEXT,
+                active_draft_tree_id TEXT,
+                active_state TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+            INSERT INTO authoring_active_sessions(
+                session_id,
+                active_raw_task_id,
+                active_draft_tree_id,
+                active_state,
+                updated_at
+            ) VALUES (
+                's1',
+                'raw1',
+                NULL,
+                'raw_task',
+                '2026-05-20T12:00:00+00:00'
+            );
+            """
+        )
+    finally:
+        conn.close()
+
+    store = SqliteAuthoringStateStore(db)
+    try:
+        active = store.get_active("s1")
+
+        assert active.active_state == "raw_task"
+        assert active.active_plan_id is None
+    finally:
+        store.close()
+    conn = sqlite3.connect(db)
+    try:
+        columns = {
+            str(row[1])
+            for row in conn.execute("PRAGMA table_info(authoring_active_sessions)")
+        }
+
+        assert "active_plan_id" in columns
+    finally:
+        conn.close()
 
 
 def test_sqlite_authoring_state_replaces_active_draft_tree_without_deleting_old_tree(
@@ -587,7 +646,12 @@ def test_sqlite_authoring_state_marks_active_draft_tree_published(
     try:
         raw_store.create(_raw_task())
         tree = draft_store.create_tree("s1", [_draft_node("root")])
-        state_store.set_active_draft_tree("s1", "raw1", tree.draft_tree_id)
+        state_store.set_active_draft_tree(
+            "s1",
+            "raw1",
+            tree.draft_tree_id,
+            active_plan_id="plan1",
+        )
         state_store.mark_published("s1", tree.draft_tree_id)
 
         active = state_store.get_active("s1")
@@ -595,6 +659,7 @@ def test_sqlite_authoring_state_marks_active_draft_tree_published(
         assert active.active_state == "published"
         assert active.active_raw_task_id == "raw1"
         assert active.active_draft_tree_id == tree.draft_tree_id
+        assert active.active_plan_id == "plan1"
     finally:
         raw_store.close()
         draft_store.close()
@@ -611,7 +676,12 @@ def test_sqlite_authoring_state_cancels_active_flow_without_deleting_refs(
     try:
         raw_store.create(_raw_task())
         tree = draft_store.create_tree("s1", [_draft_node("root")])
-        state_store.set_active_draft_tree("s1", "raw1", tree.draft_tree_id)
+        state_store.set_active_draft_tree(
+            "s1",
+            "raw1",
+            tree.draft_tree_id,
+            active_plan_id="plan1",
+        )
         state_store.cancel_active("s1")
     finally:
         raw_store.close()
@@ -625,6 +695,7 @@ def test_sqlite_authoring_state_cancels_active_flow_without_deleting_refs(
         assert active.active_state == "cancelled"
         assert active.active_raw_task_id == "raw1"
         assert active.active_draft_tree_id == tree.draft_tree_id
+        assert active.active_plan_id == "plan1"
     finally:
         reopened.close()
 

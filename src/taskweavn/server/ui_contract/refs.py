@@ -12,6 +12,7 @@ from taskweavn.task.models import TaskRef
 ObjectRefKind = Literal[
     "raw_task",
     "raw_task_ask",
+    "plan",
     "draft_task",
     "draft_tree",
     "draft_subtree",

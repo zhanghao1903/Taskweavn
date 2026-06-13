@@ -22,10 +22,27 @@ describe("backend-generated UI contract fixtures", () => {
     expect(snapshot.session.status).toBe("draft_ready");
     expect(snapshot.taskTree?.nodes[0]).toMatchObject({
       id: "draft-1",
+      planId: "plan:legacy:session-1",
+      taskIndex: "1",
       taskRef: {
         id: "draft-1",
         kind: "draft",
       },
+    });
+    expect(snapshot.activePlan).toMatchObject({
+      id: "plan:legacy:session-1",
+      status: "draft",
+      taskNodeIds: ["draft-1"],
+    });
+    expect(snapshot.activePlan?.taskNodes[0]).toMatchObject({
+      id: "draft-1",
+      planId: "plan:legacy:session-1",
+      taskIndex: "1",
+    });
+    expect(snapshot.activePlan?.taskTreeProjection?.nodes[0]).toMatchObject({
+      id: "draft-1",
+      planId: "plan:legacy:session-1",
+      taskIndex: "1",
     });
     expect(snapshot.pendingConfirmations[0].defaultOptionValue).toBe("yes");
   });

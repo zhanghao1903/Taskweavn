@@ -39,6 +39,8 @@ from taskweavn.task.authoring_idempotency import (
     InMemoryAuthoringCommandIdempotencyStore,
 )
 from taskweavn.task.models import DraftTaskNode, TaskNodePatch, TaskRef
+from taskweavn.task.plan_from_draft import build_plan_from_draft_tree
+from taskweavn.task.plan_stores import PlanStore
 from taskweavn.task.publisher import TaskPublisher, TaskPublishResult
 from taskweavn.task.stores import (
     AuthoringStateStore,
@@ -84,6 +86,7 @@ class DefaultAuthoringCommandService:
         task_publisher: TaskPublisher | None = None,
         draft_validator: DraftTaskTreeValidator | None = None,
         authoring_state_store: AuthoringStateStore | None = None,
+        plan_store: PlanStore | None = None,
         idempotency_store: AuthoringCommandIdempotencyStore | None = None,
     ) -> None:
         self._raw_task_store = raw_task_store
@@ -92,6 +95,7 @@ class DefaultAuthoringCommandService:
         self._task_publisher = task_publisher
         self._draft_validator = draft_validator
         self._authoring_state_store = authoring_state_store
+        self._plan_store = plan_store
         self._idempotency_store = (
             idempotency_store or InMemoryAuthoringCommandIdempotencyStore()
         )
@@ -309,11 +313,17 @@ class DefaultAuthoringCommandService:
                         root_payload,
                     )
                 )
+            active_plan_id = self._create_plan_from_draft_tree(
+                command.session_id,
+                tree.draft_tree_id,
+                source_raw_task_id=command.raw_task_id,
+            )
             if self._authoring_state_store is not None:
                 self._authoring_state_store.set_active_draft_tree(
                     command.session_id,
                     command.raw_task_id,
                     tree.draft_tree_id,
+                    active_plan_id=active_plan_id,
                 )
             return _CommandOutput(command_id=command.command_id, object_refs=tuple(refs))
 
@@ -377,6 +387,25 @@ class DefaultAuthoringCommandService:
                 ),
             )
         raise ValueError(f"unsupported DraftTaskTree operation {operation.op!r}")
+
+    def _create_plan_from_draft_tree(
+        self,
+        session_id: str,
+        draft_tree_id: str,
+        *,
+        source_raw_task_id: str | None,
+    ) -> str | None:
+        if self._plan_store is None:
+            return None
+        tree = self._draft_store.get_tree(session_id, draft_tree_id)
+        nodes = self._draft_store.list_nodes(session_id, draft_tree_id)
+        plan, task_nodes = build_plan_from_draft_tree(
+            tree,
+            nodes,
+            source_raw_task_id=source_raw_task_id,
+        )
+        created = self._plan_store.create_plan(plan, task_nodes)
+        return created.plan_id
 
     def _add_descendants(
         self,

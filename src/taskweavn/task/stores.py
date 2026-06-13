@@ -52,15 +52,20 @@ class ActiveAuthoringState(BaseModel):
     session_id: str = Field(min_length=1)
     active_raw_task_id: str | None = Field(default=None, min_length=1)
     active_draft_tree_id: str | None = Field(default=None, min_length=1)
+    active_plan_id: str | None = Field(default=None, min_length=1)
     active_state: AuthoringActiveState = "none"
     updated_at: datetime = Field(default_factory=_utcnow)
 
     @model_validator(mode="after")
     def _validate_state_pointers(self) -> ActiveAuthoringState:
         if self.active_state == "none" and (
-            self.active_raw_task_id is not None or self.active_draft_tree_id is not None
+            self.active_raw_task_id is not None
+            or self.active_draft_tree_id is not None
+            or self.active_plan_id is not None
         ):
-            raise ValueError("none active state cannot reference RawTask or DraftTaskTree")
+            raise ValueError(
+                "none active state cannot reference RawTask, DraftTaskTree, or Plan"
+            )
         if self.active_state == "raw_task" and self.active_raw_task_id is None:
             raise ValueError("raw_task active state requires active_raw_task_id")
         if self.active_state in {"draft_tree", "published"} and (
@@ -85,6 +90,8 @@ class AuthoringStateStore(Protocol):
         session_id: str,
         raw_task_id: str | None,
         draft_tree_id: str,
+        *,
+        active_plan_id: str | None = None,
     ) -> None: ...
 
     def mark_published(self, session_id: str, draft_tree_id: str) -> None: ...
