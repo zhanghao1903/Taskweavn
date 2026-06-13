@@ -6,9 +6,9 @@ import argparse
 import json
 import os
 import time
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 _STARTUP_TIMING_STARTED_AT = time.perf_counter()
 
@@ -42,7 +42,6 @@ def _parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
 def _serve(args: argparse.Namespace) -> int:
     import_started_at = time.perf_counter()
     _mark_startup_timing("python_sidecar_import_begin")
-    from taskweavn.llm.client import LazyLLMClient
     from taskweavn.server.main_page import (
         MainPageSidecarConfig,
         MainPageSidecarDependencies,
@@ -63,11 +62,6 @@ def _serve(args: argparse.Namespace) -> int:
         "python_sidecar_build_begin",
         workspaceRegistryCount=len(workspace_registry),
     )
-    settings_store = FileSettingsConfigStore(args.workspace)
-
-    def effective_llm_env() -> dict[str, str]:
-        return settings_store.effective_env(os.environ)
-
     sidecar = build_main_page_sidecar_app(
         MainPageSidecarConfig(
             workspace_root=args.workspace,
@@ -76,7 +70,10 @@ def _serve(args: argparse.Namespace) -> int:
             workspace_registry=workspace_registry,
         ),
         MainPageSidecarDependencies(
-            llm=LazyLLMClient(env_provider=effective_llm_env),
+            llm_factory=_settings_backed_llm_factory(
+                default_model="deepseek-v4-pro",
+                settings_store_factory=FileSettingsConfigStore,
+            ),
         ),
     )
     try:
@@ -90,6 +87,24 @@ def _serve(args: argparse.Namespace) -> int:
     finally:
         _mark_startup_timing("python_sidecar_shutdown")
         sidecar.close()
+
+
+def _settings_backed_llm_factory(
+    *,
+    default_model: str,
+    settings_store_factory: Callable[[Path], Any],
+) -> Callable[[Path], Any]:
+    def factory(workspace_root: Path) -> Any:
+        from taskweavn.llm.client import LazyLLMClient
+
+        settings_store = settings_store_factory(workspace_root)
+
+        def effective_llm_env() -> dict[str, str]:
+            return cast(dict[str, str], settings_store.effective_env(os.environ))
+
+        return LazyLLMClient(default_model=default_model, env_provider=effective_llm_env)
+
+    return factory
 
 
 def _parse_workspace_registry_json(

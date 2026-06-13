@@ -9,6 +9,7 @@ import sys
 import threading
 import time
 import uuid
+from collections.abc import Callable
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -52,6 +53,7 @@ from taskweavn.server import (
     WorkspaceRegistryEntry,
     build_main_page_sidecar_app,
 )
+from taskweavn.server.settings_config import FileSettingsConfigStore
 from taskweavn.tools.base import Tool
 from taskweavn.tools.code_action_tool import CodeActionTool
 from taskweavn.tools.fs import ListDirTool, ReadFileTool, WriteFileTool
@@ -137,7 +139,6 @@ def plato_sidecar(
 ) -> None:
     """Start the local Plato Main Page backend sidecar."""
 
-    llm = LazyLLMClient() if model is None else LLMClient(model=model)
     workspace_registry = _parse_workspace_registry_json(workspace_registry_json)
     sidecar = build_main_page_sidecar_app(
         MainPageSidecarConfig(
@@ -146,7 +147,13 @@ def plato_sidecar(
             port=port,
             workspace_registry=workspace_registry,
         ),
-        MainPageSidecarDependencies(llm=llm),
+        (
+            MainPageSidecarDependencies(
+                llm_factory=_settings_backed_llm_factory(default_model="deepseek-v4-pro")
+            )
+            if model is None
+            else MainPageSidecarDependencies(llm=LLMClient(model=model))
+        ),
     )
     try:
         sidecar.start_in_thread()
@@ -161,6 +168,21 @@ def plato_sidecar(
         typer.echo("\n[plato-sidecar] stopping")
     finally:
         sidecar.close()
+
+
+def _settings_backed_llm_factory(
+    *,
+    default_model: str,
+) -> Callable[[Path], LazyLLMClient]:
+    def factory(workspace_root: Path) -> LazyLLMClient:
+        settings_store = FileSettingsConfigStore(workspace_root)
+
+        def effective_llm_env() -> dict[str, str]:
+            return settings_store.effective_env(os.environ)
+
+        return LazyLLMClient(default_model=default_model, env_provider=effective_llm_env)
+
+    return factory
 
 
 def _parse_workspace_registry_json(raw: str | None) -> tuple[WorkspaceRegistryEntry, ...]:

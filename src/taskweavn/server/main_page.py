@@ -147,7 +147,8 @@ class MainPageSidecarConfig:
 class MainPageSidecarDependencies:
     """Injectable dependencies for tests and future packaging assembly."""
 
-    llm: CollaboratorLLM
+    llm: CollaboratorLLM | None = None
+    llm_factory: Callable[[Path], CollaboratorLLM] | None = None
     capability_catalog: CapabilityCatalog | None = None
     event_source: UiEventSource | None = None
     raw_task_store: RawTaskStore | None = None
@@ -287,6 +288,7 @@ def build_main_page_workspace_runtime(
     layout = WorkspaceLayout(config.workspace_root)
     session_manager = SessionManager(layout)
     try:
+        llm = _workspace_llm(config.workspace_root, dependencies)
         session = resolve_configured_session(session_manager, config.session_id)
         logging_initializer = configure_sidecar_logging(
             workspace_root=config.workspace_root,
@@ -307,7 +309,7 @@ def build_main_page_workspace_runtime(
         task_bus = SqliteTaskBus(layout.workspace_tasks_db)
         token_usage_store = SqliteTokenUsageStore(layout.workspace_usage_db)
         usage_llm = UsageRecordingLLM(
-            dependencies.llm,
+            llm,
             workspace_id=config.current_workspace_id or "current",
             sink=token_usage_store,
             task_plan_resolver=_task_plan_resolver(task_bus),
@@ -683,6 +685,17 @@ def _sidecar_app_from_runtime(
         server=server,
         _close_callback=close_callback,
     )
+
+
+def _workspace_llm(
+    workspace_root: Path,
+    dependencies: MainPageSidecarDependencies,
+) -> CollaboratorLLM:
+    if dependencies.llm_factory is not None:
+        return dependencies.llm_factory(workspace_root)
+    if dependencies.llm is None:
+        raise ValueError("MainPageSidecarDependencies requires llm or llm_factory")
+    return dependencies.llm
 
 
 def _authoring_stores(
