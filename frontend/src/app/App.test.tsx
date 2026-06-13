@@ -115,6 +115,37 @@ describe("App", () => {
     expect(screen.queryByLabelText("Task workspace")).not.toBeInTheDocument();
   });
 
+  it("renders the Electron startup shell while the sidecar is starting", () => {
+    const readinessApi = {
+      getSettingsReadiness: vi.fn(async () => settingsReadinessResponse()),
+    };
+
+    render(
+      <AppProviders>
+        <App
+          readinessApi={readinessApi}
+          runtimeEnv={{ VITE_PLATO_API_MODE: "http" }}
+          startupRuntime={{
+            status: "starting_sidecar",
+            workspace: {
+              id: "workspace-starting",
+              isCurrent: true,
+              label: "Project",
+              name: "Project",
+              pathLabel: "Project",
+            },
+          }}
+        />
+      </AppProviders>,
+    );
+
+    expect(screen.getByRole("heading", { name: "Starting Plato" })).toBeInTheDocument();
+    expect(screen.getByText("Preparing local workspace runtime.")).toBeInTheDocument();
+    expect(screen.getByText("Project")).toBeInTheDocument();
+    expect(readinessApi.getSettingsReadiness).not.toHaveBeenCalled();
+    expect(screen.queryByLabelText("Task workspace")).not.toBeInTheDocument();
+  });
+
   it("renders the diagnostics log handoff route", () => {
     globalThis.history.pushState(
       null,

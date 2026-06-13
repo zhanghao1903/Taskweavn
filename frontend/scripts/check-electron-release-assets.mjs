@@ -98,6 +98,7 @@ try {
 }
 
 function parseArgs(args) {
+  let allowSmokeAssets = false;
   let json = false;
   let packageDir = defaultPackageDir;
 
@@ -109,6 +110,10 @@ function parseArgs(args) {
     }
     if (arg === "--json") {
       json = true;
+      continue;
+    }
+    if (arg === "--allow-smoke-assets") {
+      allowSmokeAssets = true;
       continue;
     }
     if (arg === "--package-dir") {
@@ -124,6 +129,7 @@ function parseArgs(args) {
   }
 
   return {
+    allowSmokeAssets,
     json,
     packageDir: path.resolve(packageDir),
   };
@@ -133,6 +139,7 @@ function printUsage() {
   console.log(`Usage:
   npm run electron:check:release-assets
   npm run electron:check:release-assets -- --package-dir ./dist-electron-launcher
+  npm run electron:check:release-assets -- --allow-smoke-assets
   npm run electron:check:release-assets -- --json
 
 Checks the launcher-backed Electron app directory before signing. The command
@@ -141,6 +148,7 @@ inventory, runtime write-location boundaries, and manifest redaction rules.
 
 Options:
   --package-dir <path>  Package output root. Defaults to dist-electron-launcher.
+  --allow-smoke-assets  Permit smoke runner files for test-only packages.
   --json                Print only the machine-readable JSON summary.
   --help                Show this help.`);
 }
@@ -222,6 +230,13 @@ function checkRuntimeManifest(manifestPath, appRoot) {
   }
 
   const runtimeDir = path.dirname(manifestPath);
+  if (runtimeManifest.mode !== "sidecar") {
+    addFailure(
+      "runtime_mode_invalid",
+      manifestPath,
+      `unsupported runtime mode: ${String(runtimeManifest.mode)}`,
+    );
+  }
   const allowedRuntimeKinds = new Set([
     "self-contained-python-env-candidate",
     "bundled-python",
@@ -490,6 +505,7 @@ function walk(root, visit) {
     }
 
     visit(current, stat, null);
+    checkProhibitedReleaseAsset(current, stat, root);
     if (!stat.isDirectory()) {
       continue;
     }
@@ -498,6 +514,97 @@ function walk(root, visit) {
       stack.push(path.join(current, entry));
     }
   }
+}
+
+function checkProhibitedReleaseAsset(filePath, stat, appRoot) {
+  if (options.allowSmokeAssets) {
+    return;
+  }
+  const relative = path.relative(appRoot, filePath);
+  const segments = relative.split(path.sep);
+  const basename = path.basename(filePath);
+  if (segments.includes("electron")) {
+    if (basename.startsWith("smokeRunner.") || isTestAssetName(basename)) {
+      addFailure(
+        "prohibited_test_asset",
+        filePath,
+        "release package must not include Electron test or smoke assets",
+      );
+    }
+  }
+  if (segments.includes("python-src") && segments.some(isTestDirectoryName)) {
+    addFailure(
+      "prohibited_test_asset",
+      filePath,
+      "release package must not include repository test assets",
+    );
+  }
+  if (segments.includes("site-packages")) {
+    const sitePackagesIndex = segments.indexOf("site-packages");
+    const packageSegment = segments[sitePackagesIndex + 1] ?? "";
+    if (
+      isRuntimeDevToolName(packageSegment) ||
+      isRuntimeTestFileName(basename) ||
+      segments.slice(sitePackagesIndex + 1).some(isTestDirectoryName)
+    ) {
+      addFailure(
+        "prohibited_third_party_test_asset",
+        filePath,
+        "release package must not include obvious third-party test/dev assets",
+      );
+    }
+  }
+}
+
+function isTestAssetName(basename) {
+  return /\.test\.[cm]?[jt]sx?$/.test(basename) || /\.spec\.[cm]?[jt]sx?$/.test(basename);
+}
+
+function isTestDirectoryName(name) {
+  return new Set([
+    "__tests__",
+    "_experimental",
+    "_tests",
+    "benchmarks",
+    "example_config_yaml",
+    "idle_test",
+    "test",
+    "test-key",
+    "testdata",
+    "test_prompts",
+    "tests",
+    "testing",
+  ]).has(name);
+}
+
+function isRuntimeTestFileName(name) {
+  return (
+    /^test_.+\.pyi?$/.test(name) ||
+    /^_test/.test(name) ||
+    /^_xxtest/.test(name) ||
+    /_test(\.|$)/.test(name) ||
+    /Test(\.|$)/.test(name) ||
+    /_test\.pyi?$/.test(name) ||
+    /_testing\.pyi?$/.test(name) ||
+    name === "conftest.py" ||
+    name === "pytest_plugin.py" ||
+    name === "testing.py" ||
+    name === "testing_refleaks.py" ||
+    name === "testclient.py" ||
+    name === "tests.py"
+  );
+}
+
+function isRuntimeDevToolName(name) {
+  return (
+    name === "pytest" ||
+    name === "_pytest" ||
+    name === "pytest_asyncio" ||
+    name === "mypy" ||
+    name === "mypyc" ||
+    /^pytest(_|-)/.test(name) ||
+    /^mypy[c]?-.+\.dist-info$/.test(name)
+  );
 }
 
 function readlink(filePath) {

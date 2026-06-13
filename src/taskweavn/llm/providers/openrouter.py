@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from typing import Any
 
-import litellm
-
 from taskweavn.llm.contracts import (
     ChatRequest,
     ChatResponse,
@@ -16,6 +14,16 @@ from taskweavn.llm.contracts import (
 from taskweavn.llm.logging import log_llm_request, log_llm_response
 from taskweavn.llm.providers._openai_compat import parse_openai_compatible_response
 from taskweavn.llm.retry import BaseLLMProvider
+
+
+class _LazyLiteLLMModule:
+    def completion(self, *args: Any, **kwargs: Any) -> Any:
+        import litellm as real_litellm
+
+        return real_litellm.completion(*args, **kwargs)
+
+
+litellm = _LazyLiteLLMModule()
 
 
 class OpenRouterProvider(BaseLLMProvider):

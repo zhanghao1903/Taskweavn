@@ -50,6 +50,7 @@ frontend/dist/
 frontend/dist-electron/
 frontend/dist-electron-installer/
 frontend/dist-electron-launcher/
+frontend/assets/icons/plato.iconset/
 frontend/*.tsbuildinfo
 frontend/vite.config.d.ts
 

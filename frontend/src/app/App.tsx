@@ -5,10 +5,13 @@ import { MainPageRoute } from "./MainPageRoute";
 import { PLATO_NAVIGATION_EVENT } from "./navigation";
 import {
   resolvePlatoRuntimeEnv,
+  resolvePlatoStartupRuntime,
   resolvePlatoWorkspaceEntryRuntime,
+  type PlatoStartupRuntime,
   type PlatoWorkspaceEntryRuntime,
   type PlatoRuntimeEnv,
 } from "./platoRuntime";
+import { StartupShell } from "./StartupShell";
 import { AuditPageRoute } from "../pages/audit-page/AuditPageRoute";
 import { isAuditPath } from "../pages/audit-page/auditRouteModel";
 import { DiagnosticsLogsRoute } from "../pages/diagnostics/DiagnosticsLogsRoute";
@@ -36,6 +39,7 @@ export type AppProps = {
   readinessApi?: SettingsReadinessApi;
   runtimeEnv?: PlatoRuntimeEnv;
   settingsApi?: SettingsRouteApi;
+  startupRuntime?: PlatoStartupRuntime;
   workspaceEntryRuntime?: PlatoWorkspaceEntryRuntime;
 };
 
@@ -48,6 +52,7 @@ export function App({
   readinessApi,
   runtimeEnv = resolvePlatoRuntimeEnv(),
   settingsApi,
+  startupRuntime = resolvePlatoStartupRuntime(),
   workspaceEntryRuntime = resolvePlatoWorkspaceEntryRuntime(),
 }: AppProps = {}) {
   const [location, setLocation] = useState(currentAppLocation);
@@ -98,10 +103,32 @@ export function App({
     };
   }, []);
 
+  useEffect(() => {
+    if (startupRuntime.status === "starting_sidecar") {
+      markRendererStartupTiming("renderer_startup_shell_ready", {
+        hasWorkspace: startupRuntime.workspace !== null,
+      });
+      return;
+    }
+    markRendererStartupTiming("renderer_app_ready", {
+      apiMode: runtimeEnv.VITE_PLATO_API_MODE ?? "mock",
+      routeKind: routeKindForPathname(pathname),
+      workspaceEntryRequired: workspaceEntryRuntime.isRequired,
+    });
+  }, [
+    pathname,
+    runtimeEnv.VITE_PLATO_API_MODE,
+    startupRuntime.status,
+    startupRuntime.workspace,
+    workspaceEntryRuntime.isRequired,
+  ]);
+
   return (
     <UiTextProvider locale={uiLocale}>
       <AppErrorBoundary>
-        {workspaceEntryRuntime.isRequired ? (
+        {startupRuntime.status === "starting_sidecar" ? (
+          <StartupShell workspaceName={startupRuntime.workspace?.name} />
+        ) : workspaceEntryRuntime.isRequired ? (
           <WorkspaceEntryGate bridge={workspaceEntryRuntime.bridge} />
         ) : isAuditPath(pathname) ? (
           <AuditPageRoute runtimeEnv={runtimeEnv} />
@@ -144,4 +171,30 @@ function currentAppLocation(): AppLocation {
     pathname: globalThis.location.pathname,
     search: globalThis.location.search,
   };
+}
+
+function markRendererStartupTiming(
+  event: string,
+  attributes: Record<string, string | number | boolean | null>,
+) {
+  globalThis.window?.platoStartupTiming?.mark(event, attributes);
+}
+
+function routeKindForPathname(pathname: string): string {
+  if (isAuditPath(pathname)) {
+    return "audit";
+  }
+  if (isDiagnosticsLogsPath(pathname)) {
+    return "diagnostics";
+  }
+  if (isWorkspaceInspectionPath(pathname)) {
+    return "workspace-inspection";
+  }
+  if (isWorkspaceUsagePath(pathname)) {
+    return "usage";
+  }
+  if (isSettingsPath(pathname)) {
+    return "settings";
+  }
+  return "main";
 }

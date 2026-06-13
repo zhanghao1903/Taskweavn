@@ -18,7 +18,6 @@ from taskweavn.context import (
     TaskContextSource,
 )
 from taskweavn.core import (
-    AgentLoop,
     LoopInterruptIntent,
     LoopResult,
     SqliteEventStream,
@@ -140,6 +139,8 @@ class _SessionAgentLoopRunner:
     context_builder: _SessionContextBuilder | None = None
 
     def run(self, task: str, *, task_id: str | None = None) -> LoopResult:
+        from taskweavn.core.loop import AgentLoop
+
         self.layout.bootstrap_session(self.session_id)
         workspace = Workspace(self.layout.session_project_dir(self.session_id))
         runtime = LocalRuntime()

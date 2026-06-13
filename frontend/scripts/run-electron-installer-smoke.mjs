@@ -1,10 +1,13 @@
 #!/usr/bin/env node
 import { spawn, spawnSync } from "node:child_process";
 import {
+  cpSync,
   existsSync,
+  mkdirSync,
   mkdtempSync,
   readFileSync,
   rmSync,
+  writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -32,7 +35,7 @@ try {
   }
 
   if (!options.skipPackage) {
-    await runCommand(npmBin, ["run", "electron:package:installer"], {
+    await runCommand(npmBin, ["run", "electron:package:installer", "--", "--include-smoke"], {
       label: "electron:package:installer",
     });
   }
@@ -45,23 +48,37 @@ try {
 
   attachDmg(dmgPath, mountPoint);
   mounted = true;
+  const smokePackageDir = prepareMountedInstallerSmokePackage({
+    installerManifest,
+    mountPoint,
+  });
 
   await runSmoke({
     args: [
       "--launcher",
       "--package-dir",
-      mountPoint,
+      smokePackageDir,
       "--first-run-configured",
       "--packaged-default-workspace",
     ],
     label: "configured installer smoke with packaged default workspace",
   });
   await runSmoke({
-    args: ["--launcher", "--package-dir", mountPoint, "--first-run-unconfigured"],
+    args: [
+      "--launcher",
+      "--package-dir",
+      smokePackageDir,
+      "--first-run-unconfigured",
+    ],
     label: "first-run installer smoke",
   });
   await runSmoke({
-    args: ["--launcher", "--package-dir", mountPoint, "--startup-diagnostics"],
+    args: [
+      "--launcher",
+      "--package-dir",
+      smokePackageDir,
+      "--startup-diagnostics",
+    ],
     label: "startup diagnostics installer smoke",
   });
 } catch (error) {
@@ -130,7 +147,8 @@ function printUsage() {
 
 Builds or reuses a local DMG installer candidate, mounts it read-only, and runs
 configured, first-run, and startup diagnostics smoke through the mounted
-launcher-backed bundled Python app.
+launcher-backed bundled Python app. The DMG built by this command includes
+smoke-only files and is not a public release artifact.
 
 Options:
   --installer <path>   DMG path. Defaults to installer-manifest.json dmgPath.
@@ -162,6 +180,34 @@ function attachDmg(dmgPath, targetMountPoint) {
     ],
     { label: "hdiutil attach" },
   );
+}
+
+function prepareMountedInstallerSmokePackage({ installerManifest, mountPoint }) {
+  const sourceManifestPath = installerManifest.packageManifestPath;
+  if (typeof sourceManifestPath !== "string" || !existsSync(sourceManifestPath)) {
+    throw new Error(
+      `Package manifest not found for installer smoke: ${String(sourceManifestPath)}`,
+    );
+  }
+  const packageManifest = JSON.parse(readFileSync(sourceManifestPath, "utf8"));
+  const appName = packageManifest.appName ?? installerManifest.appName ?? "Plato";
+  const mountedAppRoot = path.join(mountPoint, `${appName}.app`);
+  if (!existsSync(mountedAppRoot)) {
+    throw new Error(`Mounted installer app not found: ${mountedAppRoot}`);
+  }
+
+  const smokePackageDir = path.join(runDir, "mounted-package");
+  mkdirSync(smokePackageDir, { recursive: true });
+  cpSync(mountedAppRoot, path.join(smokePackageDir, `${appName}.app`), {
+    recursive: true,
+    verbatimSymlinks: true,
+  });
+  writeFileSync(
+    path.join(smokePackageDir, "package-manifest.json"),
+    `${JSON.stringify(packageManifest, null, 2)}\n`,
+    "utf8",
+  );
+  return smokePackageDir;
 }
 
 async function detachDmg(targetMountPoint) {

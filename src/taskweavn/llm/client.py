@@ -12,10 +12,6 @@ import json
 from collections.abc import Sequence
 from typing import Any
 
-from openhands.sdk import LLM
-from openhands.sdk.llm import LLMResponse, Message
-from openhands.sdk.tool import ToolDefinition
-
 from taskweavn.llm.config import (
     DEFAULT_LLM_REQUEST_TIMEOUT_SECONDS,
     load_client_config_from_env,
@@ -29,7 +25,29 @@ from taskweavn.llm.contracts import (
     ThinkingConfig,
     ToolCall,
 )
-from taskweavn.llm.providers.litellm import LiteLLMProvider
+
+
+class _LazyOpenHandsLLM:
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        self._args = args
+        self._kwargs = kwargs
+        self._instance: Any | None = None
+
+    def completion(self, *args: Any, **kwargs: Any) -> Any:
+        return self._resolve().completion(*args, **kwargs)
+
+    def get_token_count(self, *args: Any, **kwargs: Any) -> int:
+        return self._resolve().get_token_count(*args, **kwargs)
+
+    def _resolve(self) -> Any:
+        if self._instance is None:
+            from openhands.sdk import LLM as OpenHandsLLM
+
+            self._instance = OpenHandsLLM(*self._args, **self._kwargs)
+        return self._instance
+
+
+LLM = _LazyOpenHandsLLM
 
 
 class LLMClient:
@@ -50,14 +68,18 @@ class LLMClient:
             raise ValueError("request_timeout_seconds must be positive or None")
         self._model = model
         self._api_key = api_key
-        self._provider = provider or LiteLLMProvider(
-            api_key=api_key,
-            retry_policy=retry_policy,
-        )
+        if provider is None:
+            from taskweavn.llm.providers.litellm import LiteLLMProvider
+
+            provider = LiteLLMProvider(
+                api_key=api_key,
+                retry_policy=retry_policy,
+            )
+        self._provider = provider
         self._thinking = thinking
         self._provider_routing = provider_routing
         self._request_timeout_seconds = request_timeout_seconds
-        self._llm = LLM(model=model, api_key=api_key)
+        self._llm: Any = LLM(model=model, api_key=api_key)
 
     @classmethod
     def from_env(cls, default_model: str = "deepseek-v4-pro") -> LLMClient:
@@ -84,13 +106,13 @@ class LLMClient:
 
     def complete(
         self,
-        messages: list[Message],
-        tools: Sequence[ToolDefinition[Any, Any]] | None = None,
-    ) -> LLMResponse:
+        messages: list[Any],
+        tools: Sequence[Any] | None = None,
+    ) -> Any:
         """Send a chat completion request via openhands-sdk and return its response."""
         return self._llm.completion(messages=messages, tools=tools)
 
-    def count_tokens(self, messages: list[Message]) -> int:
+    def count_tokens(self, messages: list[Any]) -> int:
         """Rough token count for a message list — used by the Phase 3 budget."""
         return self._llm.get_token_count(messages)
 
@@ -123,6 +145,56 @@ class LLMClient:
             metadata=metadata or {},
         )
         return self._provider.chat(request)
+
+class LazyLLMClient:
+    """Delay provider setup until the first model request.
+
+    The Plato sidecar can start before first-run settings are complete. Keeping
+    provider validation lazy lets the UI open and report missing configuration
+    instead of failing the local runtime before a user can fix it.
+    """
+
+    def __init__(self, default_model: str = "deepseek-v4-pro") -> None:
+        self._default_model = default_model
+        self._client: LLMClient | None = None
+
+    @property
+    def model(self) -> str:
+        import os
+
+        return os.environ.get("LLM_MODEL", self._default_model)
+
+    @property
+    def request_timeout_seconds(self) -> float | None:
+        if self._client is None:
+            return DEFAULT_LLM_REQUEST_TIMEOUT_SECONDS
+        return self._client.request_timeout_seconds
+
+    def chat(
+        self,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]] | None = None,
+        *,
+        metadata: dict[str, Any] | None = None,
+        **kwargs: Any,
+    ) -> ChatResponse:
+        return self._resolve().chat(
+            messages=messages,
+            tools=tools,
+            metadata=metadata,
+            **kwargs,
+        )
+
+    def complete(self, *args: Any, **kwargs: Any) -> Any:
+        return self._resolve().complete(*args, **kwargs)
+
+    def count_tokens(self, *args: Any, **kwargs: Any) -> Any:
+        return self._resolve().count_tokens(*args, **kwargs)
+
+    def _resolve(self) -> LLMClient:
+        if self._client is None:
+            self._client = LLMClient.from_env(self._default_model)
+        return self._client
 
 
 def tool_schema_from_action(
@@ -176,6 +248,7 @@ def parse_tool_arguments(raw_arguments: str) -> dict[str, Any]:
 
 __all__ = [
     "ChatResponse",
+    "LazyLLMClient",
     "LLMClient",
     "ToolCall",
     "parse_tool_arguments",

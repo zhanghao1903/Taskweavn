@@ -1,7 +1,7 @@
 import { contextBridge, ipcRenderer } from "electron";
 
 const runtimeConfig = parseRuntimeConfig(
-  process.env.PLATO_ELECTRON_RUNTIME_CONFIG,
+  readRuntimeConfig(),
 );
 
 contextBridge.exposeInMainWorld("platoRuntimeConfig", {
@@ -11,6 +11,7 @@ contextBridge.exposeInMainWorld("platoRuntimeConfig", {
   disableEvents: runtimeConfig.disableEvents,
   sessionId: runtimeConfig.sessionId ?? null,
   startupId: runtimeConfig.startupId,
+  startupStatus: runtimeConfig.startupStatus,
   uiLocale: runtimeConfig.uiLocale,
   workspace: runtimeConfig.workspace ?? null,
   workspaceEntryRequired: runtimeConfig.workspaceEntryRequired,
@@ -18,6 +19,11 @@ contextBridge.exposeInMainWorld("platoRuntimeConfig", {
 
 contextBridge.exposeInMainWorld("platoElectron", {
   getStartupDiagnostics: () => ipcRenderer.invoke("plato:get-startup-diagnostics"),
+});
+
+contextBridge.exposeInMainWorld("platoStartupTiming", {
+  mark: (event, attributes) =>
+    ipcRenderer.send("plato:startup-timing", event, attributes ?? {}),
 });
 
 contextBridge.exposeInMainWorld("platoElectronWorkspace", {
@@ -42,6 +48,10 @@ function parseRuntimeConfig(raw) {
     return {};
   }
 
+  if (typeof raw === "object") {
+    return sanitizeRuntimeConfig(raw);
+  }
+
   try {
     const parsed = JSON.parse(raw);
     if (!parsed || typeof parsed !== "object") {
@@ -50,6 +60,14 @@ function parseRuntimeConfig(raw) {
     return sanitizeRuntimeConfig(parsed);
   } catch {
     return {};
+  }
+}
+
+function readRuntimeConfig() {
+  try {
+    return ipcRenderer.sendSync("plato:get-runtime-config-sync");
+  } catch {
+    return process.env.PLATO_ELECTRON_RUNTIME_CONFIG;
   }
 }
 
@@ -68,6 +86,10 @@ function sanitizeRuntimeConfig(config) {
         : undefined,
     startupId:
       typeof config.startupId === "string" ? config.startupId : undefined,
+    startupStatus:
+      config.startupStatus === "starting_sidecar"
+        ? config.startupStatus
+        : undefined,
     uiLocale:
       typeof config.uiLocale === "string" ? config.uiLocale : undefined,
     workspace:

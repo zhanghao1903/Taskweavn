@@ -8,6 +8,7 @@ import {
   buildStartupDiagnostics,
   createStartupLogBuffer,
 } from "./startupDiagnostics.mjs";
+import { markStartupTiming } from "./startupTiming.mjs";
 
 const DEFAULT_HOST = "127.0.0.1";
 const DEFAULT_TIMEOUT_MS = 20_000;
@@ -48,7 +49,17 @@ export async function startPythonSidecar({
   const resolvedLauncherPath = launcherPath === null ? null : path.resolve(launcherPath);
   const resolvedRepoRoot =
     repoRoot === undefined || repoRoot === null ? null : path.resolve(repoRoot);
+  const launchMode = resolvedLauncherPath === null ? "repo" : "launcher";
+  markStartupTiming("electron_sidecar_process_start_begin", {
+    startupId,
+    launchMode,
+  });
   const port = await findPort(host);
+  markStartupTiming("electron_sidecar_port_selected", {
+    startupId,
+    launchMode,
+    port,
+  });
   const baseUrl = `http://${host}:${port}`;
   const healthUrl = `${baseUrl}/api/v1/health`;
   const redactionPaths = [
@@ -59,6 +70,7 @@ export async function startPythonSidecar({
   ].filter(Boolean);
   const stdout = createStartupLogBuffer({ redactionPaths });
   const stderr = createStartupLogBuffer({ redactionPaths });
+  const stdoutStartupTiming = createStartupTimingForwarder();
   const launch = buildLaunchCommand({
     appVersion,
     env,
@@ -77,16 +89,34 @@ export async function startPythonSidecar({
   let spawnError = null;
 
   if (launch.diagnostics !== null) {
+    markStartupTiming("electron_sidecar_launch_invalid", {
+      startupId,
+      launchMode,
+    });
     throw new SidecarStartupError(launch.diagnostics.message, launch.diagnostics);
   }
 
+  markStartupTiming("electron_sidecar_spawn_begin", {
+    startupId,
+    launchMode,
+    port,
+  });
   const child = spawnProcess(launch.command, launch.args, {
     cwd: launch.cwd,
     env: launch.env,
     stdio: ["ignore", "pipe", "pipe"],
   });
+  markStartupTiming("electron_sidecar_spawned", {
+    startupId,
+    launchMode,
+    pid: child.pid ?? null,
+    port,
+  });
 
-  child.stdout?.on("data", (chunk) => stdout.append(chunk));
+  child.stdout?.on("data", (chunk) => {
+    stdout.append(chunk);
+    stdoutStartupTiming.append(chunk);
+  });
   child.stderr?.on("data", (chunk) => stderr.append(chunk));
   child.once("error", (error) => {
     spawnError = error;
@@ -105,7 +135,19 @@ export async function startPythonSidecar({
       getExited: () => exited,
       getSpawnError: () => spawnError,
     });
+    markStartupTiming("electron_sidecar_health_ready", {
+      startupId,
+      launchMode,
+      pid: child.pid ?? null,
+      port,
+    });
   } catch (error) {
+    markStartupTiming("electron_sidecar_health_failed", {
+      startupId,
+      launchMode,
+      pid: child.pid ?? null,
+      port,
+    });
     const diagnostics = buildStartupDiagnostics({
       appVersion,
       baseUrl,
@@ -205,6 +247,7 @@ function buildLaunchCommand({
   workspaceRoot,
 }) {
   if (launcherPath !== null) {
+    const startupEnv = buildStartupProcessEnv(env, startupId);
     if (validateLauncher) {
       try {
         accessSync(launcherPath, constants.X_OK);
@@ -239,6 +282,7 @@ function buildLaunchCommand({
         ...env,
         ...launcherEnv,
         ELECTRON_RUN_AS_NODE: "1",
+        ...startupEnv,
       },
     };
   }
@@ -262,7 +306,34 @@ function buildLaunchCommand({
     command: "uv",
     cwd: repoRoot,
     diagnostics: null,
-    env,
+    env: {
+      ...env,
+      ...buildStartupProcessEnv(env, startupId),
+    },
+  };
+}
+
+function buildStartupProcessEnv(env, startupId) {
+  return {
+    PLATO_STARTUP_ID: startupId,
+    PLATO_STARTUP_PARENT_EPOCH_MS:
+      env.PLATO_STARTUP_PARENT_EPOCH_MS ?? String(Date.now()),
+  };
+}
+
+function createStartupTimingForwarder() {
+  let pending = "";
+  return {
+    append(chunk) {
+      pending += Buffer.isBuffer(chunk) ? chunk.toString("utf8") : String(chunk);
+      const lines = pending.split(/\r?\n/);
+      pending = lines.pop() ?? "";
+      for (const line of lines) {
+        if (line.startsWith("[plato-startup-timing] ")) {
+          console.log(line);
+        }
+      }
+    },
   };
 }
 

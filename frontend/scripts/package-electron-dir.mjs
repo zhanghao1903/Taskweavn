@@ -32,6 +32,8 @@ const rendererDistDir = path.join(frontendRoot, "dist");
 const electronDistDir = path.join(frontendRoot, "node_modules", "electron", "dist");
 const pythonEnvSourceDir = path.join(repoRoot, ".venv");
 const appName = "Plato";
+const appIconName = "plato.icns";
+const appIconSourcePath = path.join(frontendRoot, "assets", "icons", appIconName);
 const bundleIdentifier = "com.taskweavn.plato";
 const frontendPackageJson = JSON.parse(
   readFileSync(path.join(frontendRoot, "package.json"), "utf8"),
@@ -73,6 +75,7 @@ try {
     platform: process.platform,
     releaseVersion: options.releaseVersion,
     renderer: "dist/index.html",
+    smokeAssetsIncluded: options.includeSmoke,
     sidecarLauncherPath: options.withLauncher
       ? path.join(target.appResourceDir, "sidecar", "plato-sidecar-launcher.mjs")
       : null,
@@ -95,6 +98,7 @@ try {
 }
 
 function parseArgs(args) {
+  let includeSmoke = false;
   let outputDir = path.join(frontendRoot, "dist-electron");
   let releaseVersion = defaultReleaseVersion;
   let withLauncher = false;
@@ -127,12 +131,17 @@ function parseArgs(args) {
       withLauncher = true;
       continue;
     }
+    if (arg === "--include-smoke") {
+      includeSmoke = true;
+      continue;
+    }
     throw new Error(`unknown option for electron:package:dir: ${arg}`);
   }
 
   const packageVersion = toPackageVersion(releaseVersion);
   return {
     bundleVersion: toDarwinBundleVersion(packageVersion),
+    includeSmoke,
     outputDir,
     packageVersion,
     releaseVersion,
@@ -146,6 +155,7 @@ function printUsage() {
   npm run electron:package:dir -- --output-dir ./dist-electron
   npm run electron:package:dir -- --output-dir ./dist-electron-launcher --with-launcher
   npm run electron:package:dir -- --release-version 1.1-beta
+  npm run electron:package:dir -- --include-smoke
 
 Builds an unsigned local Electron app directory from the current renderer dist.
 Signing, notarization, and installers are out of scope. Launcher packages copy
@@ -155,6 +165,7 @@ Options:
   --output-dir <path>       Package output root. Defaults to frontend/dist-electron.
   --release-version <ver>   Public release version, for example 1.1-beta.
   --with-launcher           Include the release-local sidecar launcher contract.
+  --include-smoke           Include packaged smoke runner files for test-only builds.
   --help                    Show this help.`);
 }
 
@@ -193,6 +204,13 @@ function preparePlatformBundle(target, options) {
   }
 
   chmodSync(target.executablePath, 0o755);
+  if (!existsSync(appIconSourcePath)) {
+    throw new Error(`Plato app icon not found: ${appIconSourcePath}. Run npm run electron:generate:icon.`);
+  }
+  cpSync(
+    appIconSourcePath,
+    path.join(target.appRoot, "Contents", "Resources", appIconName),
+  );
   const infoPlistPath = path.join(target.appRoot, "Contents", "Info.plist");
   const original = readFileSync(infoPlistPath, "utf8");
   const updated = original
@@ -210,7 +228,7 @@ function preparePlatformBundle(target, options) {
     );
   const versioned = replaceOrInsertPlistString(
     replaceOrInsertPlistString(
-      updated,
+      replaceOrInsertPlistString(updated, "CFBundleIconFile", appIconName),
       "CFBundleShortVersionString",
       options.bundleVersion,
     ),
@@ -229,6 +247,7 @@ function copyAppPayload(appResourceDir, options) {
   rewritePackagedIndexHtml(path.join(appResourceDir, "dist", "index.html"));
   cpSync(electronDir, path.join(appResourceDir, "electron"), {
     recursive: true,
+    filter: (source) => shouldCopyElectronFile(source, options),
   });
   writeFileSync(
     path.join(appResourceDir, "package.json"),
@@ -236,6 +255,7 @@ function copyAppPayload(appResourceDir, options) {
       {
         main: "electron/main.mjs",
         name: "@taskweavn/plato-packaged",
+        platoIncludeSmokeAssets: options.includeSmoke,
         platoReleaseVersion: options.releaseVersion,
         private: true,
         type: "module",
@@ -275,7 +295,7 @@ function buildLauncherRuntimeManifest() {
   const sitePackages = resolveVenvSitePackages(pythonEnvSourceDir);
   return {
     createdAt: new Date().toISOString(),
-    mode: "fixture",
+    mode: "sidecar",
     pythonExecutable:
       process.platform === "win32"
         ? path.join("python-env", "Scripts", "python.exe")
@@ -370,6 +390,9 @@ function copyBundledNativeDependencies({ dependencyRoots, sourceLibDir, targetLi
       if (sourcePath === null) {
         continue;
       }
+      if (isRuntimeTestFile(sourcePath)) {
+        continue;
+      }
 
       const targetPath = path.join(targetLibDir, path.basename(sourcePath));
       if (copied.has(targetPath)) {
@@ -386,15 +409,6 @@ function copyBundledNativeDependencies({ dependencyRoots, sourceLibDir, targetLi
 function copyRuntimeSourceAssets(targetDir) {
   mkdirSync(targetDir, { recursive: true });
   cpSync(path.join(repoRoot, "src"), path.join(targetDir, "src"), {
-    recursive: true,
-    filter: shouldCopyRuntimeFile,
-  });
-  mkdirSync(path.join(targetDir, "tests"), { recursive: true });
-  cpSync(
-    path.join(repoRoot, "tests", "__init__.py"),
-    path.join(targetDir, "tests", "__init__.py"),
-  );
-  cpSync(path.join(repoRoot, "tests", "fixtures"), path.join(targetDir, "tests", "fixtures"), {
     recursive: true,
     filter: shouldCopyRuntimeFile,
   });
@@ -592,10 +606,101 @@ function removeEditableDirectUrlMetadata(sitePackagesDir) {
 
 function shouldCopyRuntimeFile(source) {
   const basename = path.basename(source);
+  if (isRuntimeTestDirectory(source)) {
+    return false;
+  }
+  if (isRuntimeDevToolDirectory(source)) {
+    return false;
+  }
   if (basename === "__pycache__" || basename === ".pytest_cache") {
     return false;
   }
+  if (isRuntimeTestFile(source)) {
+    return false;
+  }
   return !basename.endsWith(".pyc") && !basename.endsWith(".pyo");
+}
+
+function shouldCopyElectronFile(source, options) {
+  const basename = path.basename(source);
+  if (isTestAssetName(basename)) {
+    return false;
+  }
+  if (!options.includeSmoke && basename.startsWith("smokeRunner.")) {
+    return false;
+  }
+  return true;
+}
+
+function isTestAssetName(basename) {
+  return /\.test\.[cm]?[jt]sx?$/.test(basename) || /\.spec\.[cm]?[jt]sx?$/.test(basename);
+}
+
+function isRuntimeTestDirectory(source) {
+  let stat;
+  try {
+    stat = lstatSync(source);
+  } catch {
+    return false;
+  }
+  if (!stat.isDirectory()) {
+    return false;
+  }
+  return new Set([
+    "__tests__",
+    "_experimental",
+    "_tests",
+    "benchmarks",
+    "example_config_yaml",
+    "idle_test",
+    "test",
+    "test-key",
+    "testdata",
+    "test_prompts",
+    "tests",
+    "testing",
+  ]).has(path.basename(source));
+}
+
+function isRuntimeDevToolDirectory(source) {
+  let stat;
+  try {
+    stat = lstatSync(source);
+  } catch {
+    return false;
+  }
+  if (!stat.isDirectory()) {
+    return false;
+  }
+  const basename = path.basename(source);
+  return (
+    basename === "pytest" ||
+    basename === "_pytest" ||
+    basename === "pytest_asyncio" ||
+    basename === "mypy" ||
+    basename === "mypyc" ||
+    /^pytest(_|-)/.test(basename) ||
+    /^mypy[c]?-.+\.dist-info$/.test(basename)
+  );
+}
+
+function isRuntimeTestFile(source) {
+  const basename = path.basename(source);
+  return (
+    /^test_.+\.pyi?$/.test(basename) ||
+    /^_test/.test(basename) ||
+    /^_xxtest/.test(basename) ||
+    /_test(\.|$)/.test(basename) ||
+    /Test(\.|$)/.test(basename) ||
+    /_test\.pyi?$/.test(basename) ||
+    /_testing\.pyi?$/.test(basename) ||
+    basename === "conftest.py" ||
+    basename === "pytest_plugin.py" ||
+    basename === "testing.py" ||
+    basename === "testing_refleaks.py" ||
+    basename === "testclient.py" ||
+    basename === "tests.py"
+  );
 }
 
 function shouldCopyPythonStdlibFile(source) {
