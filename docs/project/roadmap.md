@@ -227,24 +227,24 @@ This queue records the current sequencing implied by that registry.
 
 Recommended implementation order:
 
-1. **Plan / TaskNode model decision closure** — resolve whether Product 1.1
-   adopts the draft `Session -> Plan -> TaskNode[]` model before broad runtime
-   input and result/outcome work creates another compatibility layer.
-2. **[Precision file tools](../plans/feature/precision-file-tools.md)** —
-   Product 1.1 precision file tools slice completed:
-   line-range read, workspace search, hash-guarded line-range replace,
-   idempotent append, changed-line evidence capture, Agent/CLI registration,
-   and file-summary projection. Full Audit detail UI, direct renderer write
-   API, and diagnostics precision descriptors are future hardening items.
-3. **Runtime input modes and read-only inquiry** — implement routing for
-   guidance, command, ASK answer, confirmation response, and read-only inquiry;
-   define Inquiry Context separately from execution context.
-4. **Token usage analytics** — completed durable usage events,
-   workspace/session/task aggregation API, Settings Usage Information entry,
-   Main Page contextual usage row, and diagnostics-safe summaries.
-5. **Workspace archive/delete data management** — completed Settings Data
-   Management restore flow, workspace row Archive/Delete Plato Data actions,
-   and product-owned metadata cleanup semantics.
+1. **[Plan / TaskNode contract migration](../plans/feature/plan-tasknode-contract-migration.md)** —
+   accept the draft model, add `PlanView` / `activePlan` contracts,
+   projection-only legacy compatibility, Plan proposal schema, durable stores,
+   and PublishPlan handoff.
+2. **[Session Conversation / Activity timeline](../plans/feature/session-conversation-activity-timeline.md)** —
+   expose typed history for user input, Router interpretation, guidance,
+   Plan/Task changes, ASK/confirmation, result, file, and recovery notes.
+3. **[Runtime Input Router contract](../plans/feature/runtime-input-router-contract.md)** —
+   implement routing for guidance, command, ASK answer, confirmation response,
+   read-only inquiry, and execution request with one primary dispatch and
+   activity projection.
+4. **[Read-only inquiry context](../plans/feature/read-only-inquiry-context.md)** —
+   answer selected file/diff/result/audit/status questions with evidence refs
+   and no Plan, TaskBus, or workspace mutation.
+5. **[Contract revision command skills](../plans/feature/contract-revision-command-skills.md)** —
+   add command-backed guidance, Plan/TaskNode patch/create/delete,
+   ASK/confirmation resolve, and workspace-changing request handoff into
+   TaskBus.
 6. **Localization follow-ups** — visible Settings language selector, persisted
    locale preference, Electron native menu localization, and bilingual smoke
    only when Product 1.1 acceptance needs them.
@@ -257,9 +257,10 @@ Recommended implementation order:
 
 Product 1.0 is accepted as a local unsigned release candidate. Product 1.1
 should improve trust and controllability before expanding automation breadth:
-workspace inspection, precision file tools, token usage analytics, and
-workspace archive/delete data management are completed; runtime input modes,
-inquiry context, Plan/TaskNode migration, result packaging, and protocol
+workspace inspection, precision file tools, token usage analytics, workspace
+archive/delete data management, and UI system text foundation are completed;
+Plan/TaskNode migration, Conversation / Activity, Runtime Input Router,
+read-only inquiry, contract revision commands, result packaging, and protocol
 productization are the next actionable tracks.
 
 ---

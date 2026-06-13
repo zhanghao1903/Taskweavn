@@ -18,14 +18,15 @@ For any non-trivial feature plan or code implementation, read:
 
 1. [reference.md](reference.md) — core substrate implementation reference; use overview and release docs for later Product 1.0 facts.
 2. [overview.md](overview.md) — Task-first multi-agent architecture overview.
-3. [task.md](task.md) — Task domain model and lifecycle.
-4. [authoring-domain.md](authoring-domain.md) — RawTask, feasibility, DraftTaskTree, and publish boundary.
-5. [authoring-command-protocol.md](authoring-command-protocol.md) — command-first mutation boundary for RawTask and DraftTaskTree authoring.
-6. [task-domain-ui-model-separation.md](task-domain-ui-model-separation.md) — backend facts, UI ViewModels, local UI state, replayable interactions.
-7. [ui-backend-communication.md](ui-backend-communication.md) — Query / Command / Event boundary and HTTP/SSE direction.
-8. [tool-capability-layer.md](tool-capability-layer.md) — tool pool, capability catalog, and capability-first planning boundary.
-9. [workspace-communication-protocol.md](workspace-communication-protocol.md) — system/workspace communication protocol and tool adapter direction.
-10. [context-manager.md](context-manager.md) — execution context governance and Product 1.0 TaskExecutionContext v0.
+3. [contract-revision-and-execution-loops.md](contract-revision-and-execution-loops.md) — core boundary between contract revision and workspace execution.
+4. [task.md](task.md) — Task domain model and lifecycle.
+5. [authoring-domain.md](authoring-domain.md) — RawTask, feasibility, DraftTaskTree, and publish boundary.
+6. [authoring-command-protocol.md](authoring-command-protocol.md) — command-first mutation boundary for RawTask and DraftTaskTree authoring.
+7. [task-domain-ui-model-separation.md](task-domain-ui-model-separation.md) — backend facts, UI ViewModels, local UI state, replayable interactions.
+8. [ui-backend-communication.md](ui-backend-communication.md) — Query / Command / Event boundary and HTTP/SSE direction.
+9. [tool-capability-layer.md](tool-capability-layer.md) — tool pool, capability catalog, and capability-first planning boundary.
+10. [workspace-communication-protocol.md](workspace-communication-protocol.md) — system/workspace communication protocol and tool adapter direction.
+11. [context-manager.md](context-manager.md) — execution context governance and Product 1.0 TaskExecutionContext v0.
 
 Feature-specific work should then read the relevant area documents below.
 
@@ -36,6 +37,7 @@ Feature-specific work should then read the relevant area documents below.
 | Area | Canonical Docs | Notes |
 |---|---|---|
 | Core agent loop and implemented substrate | [reference.md](reference.md), [interaction-layer.md](interaction-layer.md) | Action/Observation, EventStream, MessageStream, autonomy gate, wait coordination, loop integration. |
+| Contract revision and execution boundary | [contract-revision-and-execution-loops.md](contract-revision-and-execution-loops.md) | Interaction Router, product-state commands, TaskBus execution, and future feature classification rule. |
 | Task domain and TaskBus | [task.md](task.md), [bus.md](bus.md), [bus-v2.md](bus-v2.md) | Task lifecycle, TaskBus authority, Routing Agent assignment, cooperative interruption, publish/dispatch direction. |
 | Authoring domain | [authoring-domain.md](authoring-domain.md), [authoring-command-protocol.md](authoring-command-protocol.md), [collaborator-agent-task-authoring.md](collaborator-agent-task-authoring.md) | RawTask, feasibility, DraftTaskTree, Collaborator, Authoring Commands, publish boundary. |
 | UI/backend boundary | [ui-backend-communication.md](ui-backend-communication.md), [task-domain-ui-model-separation.md](task-domain-ui-model-separation.md) | ViewModel projection, Query/Command/Event, frontend/backend contract direction. |

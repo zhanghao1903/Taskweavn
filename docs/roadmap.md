@@ -59,7 +59,7 @@ TaskWeavn has moved past the original "single ReAct agent with tools" shape. The
 | Derived Session.status | Done | Phase 3.8; stored status is a hint except `archived`. |
 | Task-first architecture and Product 1.0 loop | Accepted local RC | Authoring, publishing, fixed-route execution, ASK/confirmation, Main Page, Audit, result/error/file summaries, diagnostics, and local Electron packaging have Product 1.0 closure records. |
 | Reliability and observability plans | Accepted baseline | LLM provider/retry/thinking and configurable logging are done; centralized runtime config remains a follow-up control-plane plan. |
-| Product 1.1 workspace-aware foundation | Started | Workspace Inspection and UI system text/localization foundation are accepted/implemented. Precision tools, runtime input modes, Plan/TaskNode migration, and token analytics remain next tracks. |
+| Product 1.1 workspace-aware foundation | Started | Workspace Inspection, precision tools, token analytics, workspace lifecycle, and UI system text foundation are complete. Next tracks are Plan/TaskNode contract migration, Session Conversation / Activity, Runtime Input Router, read-only inquiry, and contract revision commands. |
 
 The project is now re-baselined around **Task-first interaction**:
 
@@ -296,24 +296,23 @@ workspace-aware foundation.
 
 For exact gap state, see [Gap Registry](gaps/). The current sequencing is:
 
-1. **Plan / TaskNode model decision closure** — resolve the draft
-   `Session -> Plan -> TaskNode[]` model before broader runtime input and
-   outcome review work create another compatibility layer.
-2. **[Precision file tools](plans/feature/precision-file-tools.md)** —
-   Product 1.1 precision file tools slice completed:
-   line-range read, workspace search, hash-guarded line-range replace,
-   idempotent append, changed-line evidence capture, Agent/CLI registration,
-   and file-summary projection. Full Audit detail UI, direct renderer write
-   API, and diagnostics precision descriptors are future hardening items.
-3. **Runtime input modes and read-only inquiry** — route guidance, command,
-   ASK answer, confirmation response, and read-only inquiry through distinct
-   product semantics and context boundaries.
-4. **Token usage analytics** — completed durable usage ledger,
-   workspace/session/task aggregation API, Settings Usage Information entry,
-   Main Page contextual usage row, and diagnostics-safe summaries.
-5. **Workspace archive/delete data management** — completed Settings Data
-   Management restore flow, workspace row Archive/Delete Plato Data actions,
-   and product-owned metadata cleanup semantics.
+1. **[Plan / TaskNode contract migration](plans/feature/plan-tasknode-contract-migration.md)** —
+   accept the draft model, add `PlanView` / `activePlan` contracts, projection-only
+   legacy compatibility, Plan proposal schema, durable stores, and PublishPlan
+   handoff.
+2. **[Session Conversation / Activity timeline](plans/feature/session-conversation-activity-timeline.md)** —
+   expose typed history for user input, Router interpretation, guidance,
+   Plan/Task changes, ASK/confirmation, result, file, and recovery notes.
+3. **[Runtime Input Router contract](plans/feature/runtime-input-router-contract.md)** —
+   route one natural-language input surface through question, guidance,
+   command, ASK answer, confirmation response, or execution request with one
+   primary dispatch and activity projection.
+4. **[Read-only inquiry context](plans/feature/read-only-inquiry-context.md)** —
+   answer selected file/diff/result/audit/status questions with evidence refs
+   and no Plan, TaskBus, or workspace mutation.
+5. **[Contract revision command skills](plans/feature/contract-revision-command-skills.md)** —
+   add command-backed guidance, Plan/TaskNode patch/create/delete, ASK/
+   confirmation resolve, and workspace-changing request handoff into TaskBus.
 6. **Localization follow-ups** — Settings language selector, persisted locale
    preference, Electron native menu localization, and bilingual smoke when the
    acceptance path requires them.
@@ -326,9 +325,10 @@ For exact gap state, see [Gap Registry](gaps/). The current sequencing is:
 
 Product 1.0 is accepted as a local unsigned release candidate. Product 1.1
 should improve trust and controllability before expanding automation breadth:
-workspace inspection, precision file tools, token usage analytics, and
-workspace archive/delete data management are completed; runtime input modes,
-inquiry context, Plan/TaskNode migration, result packaging, and protocol
+workspace inspection, precision file tools, token usage analytics, workspace
+archive/delete data management, and UI system text foundation are completed;
+Plan/TaskNode migration, Conversation / Activity, Runtime Input Router,
+read-only inquiry, contract revision commands, result packaging, and protocol
 productization are the next actionable tracks.
 
 For status and routing of each gap, see [Gap Registry](gaps/).

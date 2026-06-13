@@ -18,6 +18,7 @@ also do not replace architecture facts or project scheduling.
 |---|---|
 | [public-exposure/](public-exposure/) | Public-facing Plato exposure planning: product/architecture disclosure strategy, public repository information architecture, and visual asset gap tracking. |
 | [core-product-principles.md](core-product-principles.md) | Product-level principles: Task-first, Workflow-first entry, Draft before execution, Main Page vs Audit Page. |
+| [plato-contract-loop-model.md](plato-contract-loop-model.md) | Product semantic baseline for Contract Revision Loop and Contract Execution Loop: how natural-language input revises the work contract or enters TaskBus execution. |
 | [plato-task-semantics.md](plato-task-semantics.md) | Core Task semantics: Task as user-visible work contract, and the Intent / Plan / Execution / Evidence layers that UI must make perceptible. |
 | [plato-session-content-model.md](plato-session-content-model.md) | Session content model: typed collaboration record, Session / Plan / Task scopes, Activity boundaries, and raw chat exclusion. |
 | [plato-runtime-input-model.md](plato-runtime-input-model.md) | Runtime input model: one natural language input surface with internal question / guidance / command / ASK / confirmation routing. |
