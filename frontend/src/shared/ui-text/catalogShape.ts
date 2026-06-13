@@ -184,6 +184,78 @@ export type UiTextCatalog = {
     };
   };
   main: {
+    activity: {
+      actions: {
+        backToActivity: string;
+        close: string;
+        openFiles: string;
+        openPlan: string;
+        openResult: string;
+        openTask: string;
+        retry: string;
+        viewFullResult: string;
+      };
+      descriptions: {
+        focusedOnTask: UiTextTemplate<{ title: string }>;
+        loadError: string;
+        loading: string;
+        noMatchingWithTask: string;
+        noMatchingWithoutTask: string;
+        sessionUpdates: string;
+      };
+      filters: {
+        all: string;
+        currentTask: string;
+        errors: string;
+        results: string;
+      };
+      labels: {
+        activity: string;
+        activityCount: UiTextTemplate<{ count: number }>;
+        allActivity: string;
+        currentTask: string;
+        disclosure: string;
+        effect: string;
+        evidence: string;
+        filterControls: string;
+        fullResult: string;
+        loadingActivity: string;
+        noMatchingActivity: string;
+        scopePlan: string;
+        scopeSession: string;
+        scopeTask: string;
+        sessionActivity: string;
+        source: string;
+        taskUpdates: string;
+      };
+      kinds: {
+        answer: string;
+        askAnswered: string;
+        askAsked: string;
+        confirmationRequested: string;
+        confirmationResolved: string;
+        executionUpdate: string;
+        fileSummary: string;
+        guidanceRecorded: string;
+        planUpdated: string;
+        recoveryNote: string;
+        resultReady: string;
+        routerInterpretation: string;
+        taskChanged: string;
+        taskCreated: string;
+        taskRemoved: string;
+        userInput: string;
+      };
+      sideEffects: {
+        authorizationEffect: string;
+        contextEffect: string;
+        evidenceEffect: string;
+        executionRequest: string;
+        noEffect: string;
+        resumeEffect: string;
+        stateEffect: string;
+      };
+    };
     actions: {
       createSession: string;
       copySessionId: string;

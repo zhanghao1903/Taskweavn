@@ -43,6 +43,7 @@ from taskweavn.server.ui_contract.view_models import (
     ProjectSummary,
     RelatedLogsLink,
     SanitizedRawPayload,
+    SessionActivityTimelineResult,
     WorkflowSummary,
 )
 from taskweavn.task.models import TaskRef
@@ -205,6 +206,15 @@ class UiQueryGateway(Protocol):
         *,
         request_id: str | None = None,
     ) -> QueryResponse[AskRequestView]: ...
+
+    def list_session_activity(
+        self,
+        session_id: str,
+        *,
+        limit: int = 50,
+        cursor: str | None = None,
+        request_id: str | None = None,
+    ) -> QueryResponse[SessionActivityTimelineResult]: ...
 
     def get_audit_snapshot(
         self,

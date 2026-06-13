@@ -148,7 +148,8 @@
 }
 
 .itemHeader,
-.itemMeta {
+.itemMeta,
+.relatedRefs {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -163,6 +164,10 @@
   color: var(--plato-color-dim);
   font-size: var(--plato-type-caption-size);
   line-height: var(--plato-type-caption-line-height);
+}
+
+.relatedRefs {
+  min-width: 0;
 }
 
 .reader {

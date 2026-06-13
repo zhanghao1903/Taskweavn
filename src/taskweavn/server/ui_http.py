@@ -34,6 +34,7 @@ from taskweavn.server.ui_contract import (
     UpdateTaskNodePayload,
 )
 from taskweavn.server.ui_events import ResyncOnlyEventSource, UiEventSource
+from taskweavn.server.ui_http_activity import _session_activity_response
 from taskweavn.server.ui_http_commands import (
     _answer_ask_with_resume_dispatch,
     _command_response,
@@ -219,6 +220,9 @@ class PlatoUiHttpTransport:
                             "snapshot_url_template": (
                                 "/api/v1/sessions/{sessionId}/snapshot"
                             ),
+                            "activity_url_template": (
+                                "/api/v1/sessions/{sessionId}/activity"
+                            ),
                             "events_url_template": (
                                 "/api/v1/sessions/{sessionId}/events"
                             ),
@@ -341,6 +345,12 @@ class PlatoUiHttpTransport:
                     **_snapshot_response_summary(snapshot_response),
                 )
                 return _contract_response(snapshot_response)
+            if route_name == "session_activity":
+                return _session_activity_response(
+                    request,
+                    session_id=route.session_id,
+                    query_gateway=self._query_gateway,
+                )
             if route_name == "audit_snapshot":
                 query = _request_query(request)
                 return _contract_response(

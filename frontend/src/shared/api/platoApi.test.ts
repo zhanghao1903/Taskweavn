@@ -15,6 +15,7 @@ import type {
   CommandRequest,
   CommandResponse,
   MainPageSnapshot,
+  SessionActivityTimelineResult,
   UiEvent,
 } from "./types";
 import type { FetchFn } from "./client";
@@ -46,6 +47,44 @@ describe("createHttpPlatoApi", () => {
     });
     expect(fetcher).toHaveBeenCalledWith(
       "https://plato.test/api/v1/sessions/session%201/snapshot",
+      expect.objectContaining({
+        method: "GET",
+      }),
+    );
+  });
+
+  it("loads session activity through the documented endpoint", async () => {
+    const fetcher = vi.fn<FetchFn>(async () =>
+      jsonResponse({
+        cursor: "2",
+        data: {
+          generatedAt: "2026-06-14T00:00:00Z",
+          items: [],
+          nextCursor: "2",
+          sessionId: "session-1",
+          totalCount: 0,
+        } satisfies SessionActivityTimelineResult,
+        error: null,
+        generatedAt: "2026-06-14T00:00:00Z",
+        ok: true,
+        requestId: "activity-query",
+      }),
+    );
+    const api = createHttpPlatoApi({
+      baseUrl: "https://plato.test/",
+      fetcher,
+    });
+
+    await expect(
+      api.getSessionActivity({ sessionId: "session 1", limit: 10, cursor: "2" }),
+    ).resolves.toMatchObject({
+      data: {
+        sessionId: "session-1",
+      },
+      ok: true,
+    });
+    expect(fetcher).toHaveBeenCalledWith(
+      "https://plato.test/api/v1/sessions/session%201/activity?cursor=2&limit=10",
       expect.objectContaining({
         method: "GET",
       }),

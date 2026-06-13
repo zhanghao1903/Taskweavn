@@ -2,7 +2,10 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
-import type { SessionMessageView, TaskNodeCardView } from "../../shared/api/types";
+import type {
+  SessionActivityItemView,
+  TaskNodeCardView,
+} from "../../shared/api/types";
 import { ActivityOverlay } from "./ActivityOverlay";
 import styles from "./ActivityOverlay.module.css";
 
@@ -12,17 +15,15 @@ describe("ActivityOverlay", () => {
 
     render(
       <ActivityOverlay
-        allMessages={[
-          message({ id: "session-message", title: "Session update", taskNodeId: null }),
-          message({
-            id: "task-message",
-            taskNodeId: "task-implementation",
-            title: "Task update",
+        items={[
+          activityItem({
+            id: "session-activity",
+            scopeKind: "session",
+            taskNodeId: null,
+            title: "Session update",
           }),
-        ]}
-        currentMessages={[
-          message({
-            id: "task-message",
+          activityItem({
+            id: "task-activity",
             taskNodeId: "task-implementation",
             title: "Task update",
           }),
@@ -47,32 +48,31 @@ describe("ActivityOverlay", () => {
     expect(within(overlay).getByText("Session update")).toBeInTheDocument();
   });
 
-  it("uses fixed-height, kind-colored message cards", () => {
+  it("uses fixed-height, kind-colored activity cards", () => {
     render(
       <ActivityOverlay
-        allMessages={[
-          message({
-            id: "info-message",
-            kind: "informational",
+        items={[
+          activityItem({
+            id: "info-activity",
+            kind: "execution_update",
             title: "Task update",
           }),
-          message({
-            id: "action-message",
-            kind: "actionable",
+          activityItem({
+            id: "action-activity",
+            kind: "confirmation_requested",
             title: "Needs confirmation",
           }),
-          message({
-            id: "result-message",
-            kind: "response",
-            title: "Task completed",
+          activityItem({
+            id: "result-activity",
+            kind: "answer",
+            title: "Answer recorded",
           }),
-          message({
-            id: "error-message",
-            kind: "error",
+          activityItem({
+            id: "error-activity",
+            kind: "recovery_note",
             title: "Action needs retry",
           }),
         ]}
-        currentMessages={[]}
         onClose={vi.fn()}
         selectedTask={undefined}
       />,
@@ -84,7 +84,7 @@ describe("ActivityOverlay", () => {
     expect(screen.getByText("Needs confirmation").closest("li")).toHaveClass(
       styles.activityItemActionable,
     );
-    expect(screen.getByText("Task completed").closest("li")).toHaveClass(
+    expect(screen.getByText("Answer recorded").closest("li")).toHaveClass(
       styles.activityItemResponse,
     );
     expect(screen.getByText("Action needs retry").closest("li")).toHaveClass(
@@ -97,21 +97,21 @@ describe("ActivityOverlay", () => {
 
     render(
       <ActivityOverlay
-        allMessages={[
-          message({
+        items={[
+          activityItem({
             body: "Result summary is ready.",
-            id: "result-message",
+            id: "result-activity",
+            kind: "result_ready",
             title: "Result summary generated",
           }),
-          message({
+          activityItem({
             body: "The action did not complete.",
-            id: "error-message",
-            kind: "error",
+            id: "error-activity",
+            kind: "recovery_note",
             title: "Action needs retry",
           }),
-          message({ id: "other-message", title: "General update" }),
+          activityItem({ id: "other-activity", title: "General update" }),
         ]}
-        currentMessages={[]}
         onClose={vi.fn()}
         selectedTask={undefined}
       />,
@@ -133,8 +133,7 @@ describe("ActivityOverlay", () => {
 
     render(
       <ActivityOverlay
-        allMessages={[message({ id: "general-update", title: "General update" })]}
-        currentMessages={[]}
+        items={[activityItem({ id: "general-update", title: "General update" })]}
         onClose={vi.fn()}
         selectedTask={undefined}
       />,
@@ -162,8 +161,14 @@ describe("ActivityOverlay", () => {
   it("uses selected-task empty copy when focused activity is empty", () => {
     render(
       <ActivityOverlay
-        allMessages={[message({ id: "session-update", title: "Session update" })]}
-        currentMessages={[]}
+        items={[
+          activityItem({
+            id: "session-update",
+            scopeKind: "session",
+            taskNodeId: null,
+            title: "Session update",
+          }),
+        ]}
         onClose={vi.fn()}
         selectedTask={taskNode}
       />,
@@ -183,15 +188,15 @@ describe("ActivityOverlay", () => {
 
     render(
       <ActivityOverlay
-        allMessages={[
-          message({
+        items={[
+          activityItem({
             body:
               "The completed result includes a long summary, implementation notes, and follow-up checks for review.",
-            id: "result-message",
+            id: "result-activity",
+            kind: "result_ready",
             title: "Result summary generated",
           }),
         ]}
-        currentMessages={[]}
         onClose={vi.fn()}
         selectedTask={undefined}
       />,
@@ -212,14 +217,80 @@ describe("ActivityOverlay", () => {
     expect(screen.getByText("Result summary generated")).toBeInTheDocument();
   });
 
+  it("exposes related ref actions for task, result, and files", async () => {
+    const user = userEvent.setup();
+    const onOpenFiles = vi.fn();
+    const onOpenResult = vi.fn();
+    const onOpenTask = vi.fn();
+
+    render(
+      <ActivityOverlay
+        items={[
+          activityItem({
+            kind: "file_summary",
+            relatedRefs: [
+              relatedRef("task", "task-implementation"),
+              relatedRef("result", "task-implementation"),
+              relatedRef("file", "src/app.ts"),
+            ],
+            taskNodeId: "task-implementation",
+            title: "Files changed",
+          }),
+        ]}
+        onClose={vi.fn()}
+        onOpenFiles={onOpenFiles}
+        onOpenResult={onOpenResult}
+        onOpenTask={onOpenTask}
+        selectedTask={undefined}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Open task" }));
+    await user.click(screen.getByRole("button", { name: "Open result" }));
+    await user.click(screen.getByRole("button", { name: "Open files" }));
+
+    expect(onOpenTask).toHaveBeenCalledWith("task-implementation");
+    expect(onOpenResult).toHaveBeenCalledWith("task-implementation");
+    expect(onOpenFiles).toHaveBeenCalledWith("task-implementation");
+  });
+
+  it("shows loading and error states with retry", async () => {
+    const user = userEvent.setup();
+    const onRetry = vi.fn();
+
+    const { rerender } = render(
+      <ActivityOverlay
+        isLoading
+        items={[]}
+        onClose={vi.fn()}
+        selectedTask={undefined}
+      />,
+    );
+
+    expect(screen.getByText("Loading activity")).toBeInTheDocument();
+
+    rerender(
+      <ActivityOverlay
+        errorMessage="Network failed"
+        items={[]}
+        onClose={vi.fn()}
+        onRetry={onRetry}
+        selectedTask={undefined}
+      />,
+    );
+
+    expect(screen.getByText("Network failed")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Retry" }));
+    expect(onRetry).toHaveBeenCalledTimes(1);
+  });
+
   it("notifies when the overlay closes", async () => {
     const user = userEvent.setup();
     const onClose = vi.fn();
 
     render(
       <ActivityOverlay
-        allMessages={[message()]}
-        currentMessages={[message()]}
+        items={[activityItem()]}
         onClose={onClose}
         selectedTask={taskNode}
       />,
@@ -231,18 +302,36 @@ describe("ActivityOverlay", () => {
   });
 });
 
-function message(
-  overrides: Partial<SessionMessageView> = {},
-): SessionMessageView {
+function activityItem(
+  overrides: Partial<SessionActivityItemView> = {},
+): SessionActivityItemView {
   return {
     body: "Plato produced a first task breakdown for review.",
-    createdAt: "2026-05-27T09:00:00Z",
-    id: "message-draft-ready",
-    kind: "informational",
+    disclosureLevel: "public",
+    id: "activity-draft-ready",
+    kind: "execution_update",
+    occurredAt: "2026-05-27T09:00:00Z",
+    planId: "plan-website",
+    relatedRefs: [],
+    scopeKind: "task",
     sessionId: "session-website-plan",
-    taskNodeId: null,
+    sideEffect: "no_effect",
+    sourceId: "message-draft-ready",
+    sourceKind: "message_stream",
+    taskNodeId: "task-implementation",
     title: "Draft task tree ready",
     ...overrides,
+  };
+}
+
+function relatedRef(
+  kind: SessionActivityItemView["relatedRefs"][number]["kind"],
+  id: string,
+): SessionActivityItemView["relatedRefs"][number] {
+  return {
+    id,
+    kind,
+    label: id,
   };
 }
 
@@ -259,21 +348,19 @@ const taskNode: TaskNodeCardView = {
     unreadMessageCount: 0,
   },
   depth: 0,
-  displayIndex: 2,
-  execution: "running",
+  displayIndex: 1,
   orderIndex: 1,
   parentId: null,
   permissions: {
     canAppendGuidance: true,
-    canCancel: true,
-    canEdit: false,
-    canPublish: false,
+    canCancel: false,
+    canEdit: true,
+    canPublish: true,
     canResolveConfirmation: false,
-    canRetry: false,
+    canRetry: true,
   },
-  readiness: "published",
-  status: "running",
-  summary: "Build the first app shell.",
+  status: "draft",
+  summary: "Build the first backend integration.",
   title: "Initial implementation",
   version: 1,
 };

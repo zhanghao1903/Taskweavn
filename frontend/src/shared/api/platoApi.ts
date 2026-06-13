@@ -16,6 +16,7 @@ import type {
   EventCursor,
   MainPageSnapshot,
   QueryResponse,
+  SessionActivityTimelineResult,
   SessionId,
   SessionSummary,
   TaskNodeId,
@@ -53,6 +54,12 @@ export type SessionLifecycleResult = {
 
 export type SessionListResult = {
   sessions: SessionSummary[];
+};
+
+export type SessionActivityRequest = {
+  sessionId: SessionId;
+  limit?: number;
+  cursor?: EventCursor | null;
 };
 
 export type WorkspaceRouteOptions = {
@@ -396,6 +403,10 @@ export type PlatoApi = {
     sessionId: SessionId,
     options?: WorkspaceRouteOptions,
   ): Promise<QueryResponse<MainPageSnapshot>>;
+  getSessionActivity(
+    request: SessionActivityRequest,
+    options?: WorkspaceRouteOptions,
+  ): Promise<QueryResponse<SessionActivityTimelineResult>>;
   getAuditSnapshot(
     request: AuditSnapshotRequest,
     options?: WorkspaceRouteOptions,
@@ -593,6 +604,14 @@ export function createHttpPlatoApi(options: HttpPlatoApiOptions): PlatoApi {
     getSessionSnapshot(sessionId, options) {
       return client.getJson<QueryResponse<MainPageSnapshot>>(
         `${sessionBase(sessionId, options)}/snapshot`,
+      );
+    },
+    getSessionActivity(request, options) {
+      return client.getJson<QueryResponse<SessionActivityTimelineResult>>(
+        withQuery(`${sessionBase(request.sessionId, options)}/activity`, {
+          cursor: request.cursor ?? undefined,
+          limit: numberQuery(request.limit),
+        }),
       );
     },
     getAuditSnapshot(request, options) {

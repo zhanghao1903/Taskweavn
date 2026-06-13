@@ -225,6 +225,7 @@ export function MainPage({
       activeWorkspaceId={activeWorkspaceId}
       workspaceCatalog={workspaceCatalog}
       workspaceRuntime={workspaceRuntime}
+      loadSessionActivity={adapter.loadSessionActivity}
       loadTokenUsageSummary={adapter.loadTokenUsageSummary}
     />
   );

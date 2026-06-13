@@ -1,7 +1,7 @@
 # TaskWeavn Project Plan
 
 > Status: active
-> Last Updated: 2026-06-11
+> Last Updated: 2026-06-14
 > Maintained By: planning session
 > Phase Baseline: Product 1.0 local unsigned RC accepted; Product 1.1 workspace-aware foundation has started
 > Related: [Global Roadmap](../roadmap.md), [Gap Registry](../gaps/), [Planning Workflow](../planning_workflow.md), [Architecture](../architecture/), [Phase 3 Release Record](../releases/phase-3-interaction-layer-through-3-8.md), [Collaborator Authoring Release](../releases/collaborator-agent-task-authoring.md), [User Traceability](../user_model/traceability.md)
@@ -225,41 +225,47 @@ Focus:
 The source of truth for individual gap status is [Gap Registry](../gaps/).
 This queue records the current sequencing implied by that registry.
 
+Completed foundation:
+
+- **[Plan / TaskNode contract migration](../plans/feature/plan-tasknode-contract-migration.md)** —
+  accepted after PR #74. Product 1.1 now has durable Plan/TaskNode storage,
+  active Plan identity, publish handoff, stored Plan query preference,
+  execution lifecycle sync, result/file/detail reads, and Audit identity
+  normalization. Legacy DraftTaskTree compatibility remains until Router and
+  frontend migration no longer need it.
+- **[Session Conversation / Activity timeline](../plans/feature/session-conversation-activity-timeline.md)** —
+  typed Activity view models, HTTP query, backend projection, frontend
+  API/types, contract fixtures, and Main Page Activity drawer are in place.
+  Router-written activity records remain with the Runtime Input Router track.
+
 Recommended implementation order:
 
-1. **[Plan / TaskNode contract migration](../plans/feature/plan-tasknode-contract-migration.md)** —
-   accept the draft model, add `PlanView` / `activePlan` contracts,
-   projection-only legacy compatibility, Plan proposal schema, durable stores,
-   and PublishPlan handoff.
-2. **[Session Conversation / Activity timeline](../plans/feature/session-conversation-activity-timeline.md)** —
-   expose typed history for user input, Router interpretation, guidance,
-   Plan/Task changes, ASK/confirmation, result, file, and recovery notes.
-3. **[Runtime Input Router contract](../plans/feature/runtime-input-router-contract.md)** —
+1. **[Runtime Input Router contract](../plans/feature/runtime-input-router-contract.md)** —
    implement routing for guidance, command, ASK answer, confirmation response,
    read-only inquiry, and execution request with one primary dispatch and
    activity projection.
-4. **[Read-only inquiry context](../plans/feature/read-only-inquiry-context.md)** —
+2. **[Read-only inquiry context](../plans/feature/read-only-inquiry-context.md)** —
    answer selected file/diff/result/audit/status questions with evidence refs
    and no Plan, TaskBus, or workspace mutation.
-5. **[Contract revision command skills](../plans/feature/contract-revision-command-skills.md)** —
+3. **[Contract revision command skills](../plans/feature/contract-revision-command-skills.md)** —
    add command-backed guidance, Plan/TaskNode patch/create/delete,
    ASK/confirmation resolve, and workspace-changing request handoff into
    TaskBus.
-6. **Localization follow-ups** — visible Settings language selector, persisted
+4. **Localization follow-ups** — visible Settings language selector, persisted
    locale preference, Electron native menu localization, and bilingual smoke
    only when Product 1.1 acceptance needs them.
-7. **Result packaging and completion-time `task_after`** — improve result
+5. **Result packaging and completion-time `task_after`** — improve result
    comprehension and post-completion automation after the Plan/TaskNode and
    input-mode boundaries are clear.
-8. **Skills, MCP, Agent protocol, and routing productization** — keep as
+6. **Skills, MCP, Agent protocol, and routing productization** — keep as
    research/productization tracks until workspace trust, precision tools, and
    runtime input are stable.
 
 Product 1.0 is accepted as a local unsigned release candidate. Product 1.1
 should improve trust and controllability before expanding automation breadth:
 workspace inspection, precision file tools, token usage analytics, workspace
-archive/delete data management, and UI system text foundation are completed;
-Plan/TaskNode migration, Conversation / Activity, Runtime Input Router,
+archive/delete data management, UI system text foundation, Plan/TaskNode
+migration, and Conversation / Activity Timeline are completed; Runtime Input Router,
 read-only inquiry, contract revision commands, result packaging, and protocol
 productization are the next actionable tracks.
 

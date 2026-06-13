@@ -1,7 +1,7 @@
 # UI ViewModel Contract
 
 > Status: draft
-> Last Updated: 2026-06-06
+> Last Updated: 2026-06-14
 > Scope: Frontend-facing ViewModels for Plato Main Page and Audit Page.
 > Related: `docs/engineering/audit-page-contract.md`, `docs/ux/screen-state-spec.md`, `docs/ux/ask-ui-spec.md`, `docs/ux/confirmation-ui-spec.md`, `docs/frontend/event-reducer-contract.md`, `docs/frontend/api-ui-mapping.md`, `docs/architecture/task-domain-ui-model-separation.md`, `docs/product/plato-ui-api-contract.md`
 
@@ -105,6 +105,7 @@ type ObjectRef = {
     | "draft_tree"
     | "draft_subtree"
     | "published_task"
+    | "ask"
     | "message"
     | "command";
   id: string;
@@ -439,7 +440,88 @@ type SessionMessageView = {
 
 Internal ids should not be primary message copy. They may appear in dev/debug affordances or Audit Page detail.
 
-### 5.10 ConfirmationActionView
+### 5.10 SessionActivityTimelineResult
+
+```ts
+type SessionActivityTimelineResult = {
+  sessionId: SessionId;
+  items: SessionActivityItemView[];
+  nextCursor?: EventCursor | null;
+  totalCount: number;
+  generatedAt: string;
+};
+
+type SessionActivityItemView = {
+  id: string;
+  sessionId: SessionId;
+  kind:
+    | "user_input"
+    | "answer"
+    | "guidance_recorded"
+    | "plan_updated"
+    | "task_created"
+    | "task_changed"
+    | "task_removed"
+    | "ask_asked"
+    | "ask_answered"
+    | "confirmation_requested"
+    | "confirmation_resolved"
+    | "execution_update"
+    | "result_ready"
+    | "file_summary"
+    | "recovery_note"
+    | "router_interpretation";
+  title: string;
+  body: string;
+  occurredAt: string;
+  scopeKind: "session" | "plan" | "task";
+  planId?: string | null;
+  taskNodeId?: TaskNodeId | null;
+  sideEffect:
+    | "no_effect"
+    | "context_effect"
+    | "state_effect"
+    | "authorization_effect"
+    | "resume_effect"
+    | "execution_request"
+    | "evidence_effect";
+  relatedRefs: SessionActivityRefView[];
+  sourceKind:
+    | "message_stream"
+    | "plan_projection"
+    | "task_projection"
+    | "ask_projection"
+    | "confirmation_projection"
+    | "result_projection"
+    | "file_projection"
+    | "router"
+    | "system";
+  sourceId?: string | null;
+  disclosureLevel: "public" | "partial" | "hidden";
+};
+
+type SessionActivityRefView = {
+  kind:
+    | "session"
+    | "plan"
+    | "task"
+    | "ask"
+    | "confirmation"
+    | "message"
+    | "result"
+    | "file"
+    | "audit"
+    | "diagnostic";
+  id: string;
+  label: string;
+  href?: string | null;
+  objectRef?: ObjectRef | null;
+};
+```
+
+Activity is a readonly projection for user-visible session conversation and work events. Frontend components must treat it as a display/query surface, not as command state. It must not surface raw prompts, provider payloads, tool arguments, SQLite rows, secrets, or raw absolute workspace paths.
+
+### 5.11 ConfirmationActionView
 
 ```ts
 type ConfirmationActionView = {
@@ -461,7 +543,7 @@ type ConfirmationActionView = {
 
 `localStatus` is optional and must never be persisted as backend truth.
 
-### 5.11 InputView
+### 5.12 InputView
 
 Input mode can be computed locally from snapshot plus selection, but it must be explicit before submitting a command.
 

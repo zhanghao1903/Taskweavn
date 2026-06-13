@@ -69,6 +69,58 @@ ExecutionStatus = Literal[
 MessageKind = Literal["informational", "actionable", "response", "error"]
 AskAnswerType = Literal["free_text", "single_choice", "multi_choice", "boolean"]
 AskRequestStatus = Literal["pending", "answered", "deferred", "cancelled", "expired"]
+SessionActivityItemKind = Literal[
+    "user_input",
+    "answer",
+    "guidance_recorded",
+    "plan_updated",
+    "task_created",
+    "task_changed",
+    "task_removed",
+    "ask_asked",
+    "ask_answered",
+    "confirmation_requested",
+    "confirmation_resolved",
+    "execution_update",
+    "result_ready",
+    "file_summary",
+    "recovery_note",
+    "router_interpretation",
+]
+SessionActivityScopeKind = Literal["session", "plan", "task"]
+SessionActivitySideEffect = Literal[
+    "no_effect",
+    "context_effect",
+    "state_effect",
+    "authorization_effect",
+    "resume_effect",
+    "execution_request",
+    "evidence_effect",
+]
+SessionActivityRefKind = Literal[
+    "session",
+    "plan",
+    "task",
+    "ask",
+    "confirmation",
+    "message",
+    "result",
+    "file",
+    "audit",
+    "diagnostic",
+]
+SessionActivitySourceKind = Literal[
+    "message_stream",
+    "plan_projection",
+    "task_projection",
+    "ask_projection",
+    "confirmation_projection",
+    "result_projection",
+    "file_projection",
+    "router",
+    "system",
+]
+SessionActivityDisclosureLevel = Literal["public", "partial", "hidden"]
 
 
 class ProjectSummary(UiContractModel):
@@ -277,6 +329,47 @@ class SessionMessageView(UiContractModel):
     created_at: datetime = Field(default_factory=utcnow)
     related_confirmation_id: str | None = None
     related_command_id: str | None = None
+
+
+class SessionActivityRefView(UiContractModel):
+    kind: SessionActivityRefKind
+    id: str = Field(min_length=1)
+    label: str = Field(min_length=1)
+    href: str | None = Field(default=None, min_length=1)
+    object_ref: ObjectRef | None = None
+
+
+class SessionActivityItemView(UiContractModel):
+    id: str = Field(min_length=1)
+    session_id: str = Field(min_length=1)
+    kind: SessionActivityItemKind
+    title: str = Field(min_length=1)
+    body: str = Field(min_length=1)
+    occurred_at: datetime = Field(default_factory=utcnow)
+    scope_kind: SessionActivityScopeKind
+    plan_id: str | None = Field(default=None, min_length=1)
+    task_node_id: str | None = Field(default=None, min_length=1)
+    side_effect: SessionActivitySideEffect = "no_effect"
+    related_refs: tuple[SessionActivityRefView, ...] = ()
+    source_kind: SessionActivitySourceKind
+    source_id: str | None = Field(default=None, min_length=1)
+    disclosure_level: SessionActivityDisclosureLevel = "public"
+
+    @model_validator(mode="after")
+    def _validate_scope_identity(self) -> SessionActivityItemView:
+        if self.scope_kind == "task" and self.task_node_id is None:
+            raise ValueError("task-scoped Activity item requires task_node_id")
+        if self.scope_kind == "plan" and self.plan_id is None:
+            raise ValueError("plan-scoped Activity item requires plan_id")
+        return self
+
+
+class SessionActivityTimelineResult(UiContractModel):
+    session_id: str = Field(min_length=1)
+    items: tuple[SessionActivityItemView, ...] = ()
+    next_cursor: str | None = None
+    total_count: int = Field(default=0, ge=0)
+    generated_at: datetime = Field(default_factory=utcnow)
 
 
 class ConfirmationOptionView(UiContractModel):

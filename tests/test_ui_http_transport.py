@@ -41,6 +41,7 @@ from taskweavn.server.ui_contract import (
     MainPageSnapshot,
     ProjectSummary,
     QueryResponse,
+    SessionActivityTimelineResult,
     SessionSummary,
     UiEvent,
     WorkflowSummary,
@@ -68,6 +69,9 @@ def test_root_route_returns_sidecar_api_hint() -> None:
     )
     assert body["data"]["snapshot_url_template"] == (
         "/api/v1/sessions/{sessionId}/snapshot"
+    )
+    assert body["data"]["activity_url_template"] == (
+        "/api/v1/sessions/{sessionId}/activity"
     )
 
 
@@ -302,6 +306,25 @@ def test_snapshot_route_continues_when_recovery_fails() -> None:
     assert recovery.calls == ["session 1"]
     assert query.snapshot_calls == ["session 1"]
     assert body["ok"] is True
+
+
+def test_session_activity_route_decodes_params_and_returns_contract_json() -> None:
+    query = _QueryGateway()
+    transport = _transport(query=query)
+
+    response = transport.handle(
+        HttpApiRequest(
+            method="GET",
+            path="/api/v1/sessions/session%201/activity?limit=2&cursor=4",
+        )
+    )
+    body = _dict_body(response.body)
+
+    assert response.status_code == 200
+    assert query.activity_calls == [("session 1", 2, "4")]
+    assert body["ok"] is True
+    assert body["data"]["sessionId"] == "session 1"
+    assert body["data"]["totalCount"] == 0
 
 
 def test_audit_routes_decode_params_and_return_contract_json() -> None:
@@ -1048,6 +1071,7 @@ def test_client_error_log_route_rejects_empty_body() -> None:
 @dataclass
 class _QueryGateway:
     snapshot_calls: list[str] = field(default_factory=list)
+    activity_calls: list[tuple[str, int, str | None]] = field(default_factory=list)
     ask_calls: list[tuple[Any, ...]] = field(default_factory=list)
     audit_calls: list[tuple[Any, ...]] = field(default_factory=list)
 
@@ -1083,6 +1107,27 @@ class _QueryGateway:
             ok=True,
             data=snapshot,
             cursor=snapshot.cursor,
+        )
+
+    def list_session_activity(
+        self,
+        session_id: str,
+        *,
+        limit: int = 50,
+        cursor: str | None = None,
+        request_id: str | None = None,
+    ) -> QueryResponse[SessionActivityTimelineResult]:
+        self.activity_calls.append((session_id, limit, cursor))
+        timeline = SessionActivityTimelineResult(
+            session_id=session_id,
+            total_count=0,
+            generated_at=NOW,
+        )
+        return QueryResponse[SessionActivityTimelineResult](
+            request_id=request_id or "request-session-activity",
+            ok=True,
+            data=timeline,
+            cursor=timeline.next_cursor,
         )
 
     def list_asks(
