@@ -1,8 +1,8 @@
 # Plan / TaskNode 模型升级：中文详细技术方案
 
-> Status: draft technical design
+> Status: accepted technical design
 > Type: product model / authoring domain / execution domain / UI contract migration
-> Last Updated: 2026-06-09
+> Last Updated: 2026-06-13
 > Product Baseline:
 > [Plato Task Semantics](../../product/plato-task-semantics.md),
 > [Plato Plan Cycle Semantics](../../product/plato-plan-cycle-semantics.md),
@@ -39,6 +39,16 @@ Session
 7. 旧数据中的 `DraftTaskTree` / `TaskTreeView` 兼容投影为 Plan。
 
 本文档保留 `TaskNode` 作为领域/contract 名称。Product 1.1 第一版中的 `TaskNode` 是 Plan 下的扁平任务项；UI 可以简称为 `Task`，但第一版不支持父子 TaskNode。
+
+### 0.1 PTC-1 Accepted Decisions
+
+Product 1.1 第一版采用以下收敛决策：
+
+1. Session 同一时刻只暴露一个 `activePlan`。历史 Plan 管理和比较不进入第一版实现。
+2. 第一阶段采用 projection-only 迁移：legacy `DraftTaskTree` / published task projection 可以生成 synthetic `PlanView`，不先做数据库 backfill。
+3. 第一版只支持扁平 `Plan -> TaskNode[]`。旧树形数据在后续 PTC-3 projection slice 中按 preorder flatten。
+4. Plan finalization 是 Plan lifecycle 的一部分，不建模为隐藏父 TaskNode。
+5. `taskTree` 是 deprecated compatibility 字段。迁移期 `activePlan.taskTreeProjection` 与 `taskTree` 表达同一 legacy projection，直到前端完全切到 Plan contract。
 
 ---
 
@@ -951,9 +961,20 @@ Synthetic Plan fields：
 
 ### P11.4 Plan store and TaskNode store
 
+Status: implemented as PTC-5 store foundation.
+
 - 新增 SQLite tables。
 - Store protocol + implementation。
 - Reopen / migration / version conflict tests。
+
+Implementation note:
+
+- 第一版新增 `Plan` / `PlanTaskNode` 存储模型、`PlanStore` /
+  `PlanTaskNodeStore` protocol 和 `SqlitePlanStore`。
+- SQLite 实现只添加 `plans` / `plan_task_nodes` / `plan_schema_meta`，
+  不修改 legacy `draft_task_trees` / `draft_task_nodes` 读路径。
+- `authoring_active_sessions.active_plan_id` 迁移和 UI gateway 切到
+  durable Plan read path 留到后续 slice。
 
 ### P11.5 Authoring command integration
 
@@ -963,9 +984,23 @@ Synthetic Plan fields：
 
 ### P11.6 PublishPlanCommand
 
+Status: implemented as backend Plan publish adapter.
+
 - Plan -> PublishedTask mapping。
 - Legacy PublishDraftTaskTree 兼容。
 - 顺序执行为默认策略。
+
+Implementation note:
+
+- 新增 `PublishPlanCommand` / `PublishPlanResult` /
+  `PlanTaskPublishMapping` 和 `DefaultPlanPublisher`。
+- `DefaultPlanPublisher` 复用既有 `TaskPublisher`，将 Plan 的扁平
+  TaskNode list 转换为 `NormalizedTaskTree`，不替换 legacy
+  `PublishDraftTaskTreeCommand`。
+- 发布成功后回写 TaskNode `published_ref`、`readiness=published`、
+  `execution=pending`，并把 Plan 状态置为 `published`。
+- 已有完整 published lineage 时按幂等 replay 处理，不重复创建 Task；
+  部分 lineage 被拒绝。
 
 ### P11.7 Plan finalization and outcome review
 
@@ -1012,6 +1047,10 @@ Synthetic Plan fields：
 
 - each TaskNode publishes one PublishedTask。
 - order_index is preserved。
+- UI publish gateway chooses `DefaultPlanPublisher` when a durable active Plan
+  exists。
+- UI publish gateway falls back to legacy DraftTaskTree publish when no durable
+  active Plan exists。
 - legacy publish command still works。
 - dependencies are preserved when present。
 

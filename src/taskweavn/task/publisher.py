@@ -28,6 +28,7 @@ PublisherKind = Literal[
     "agent",
 ]
 PublishSourceKind = Literal[
+    "plan",
     "draft_tree",
     "custom_tree",
     "pipeline",

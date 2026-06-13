@@ -2,6 +2,7 @@ export type ProjectId = string;
 export type WorkflowId = string;
 export type WorkspaceId = string;
 export type SessionId = string;
+export type PlanId = string;
 export type TaskTreeId = string;
 export type TaskNodeId = string;
 export type MessageId = string;
@@ -22,6 +23,7 @@ export type ObjectRef = {
   kind:
     | "raw_task"
     | "raw_task_ask"
+    | "plan"
     | "draft_task"
     | "draft_tree"
     | "draft_subtree"
@@ -234,6 +236,20 @@ export type TaskTreeStatus =
   | "completed"
   | "failed";
 
+export type PlanUiStatus =
+  | "draft"
+  | "reviewing"
+  | "ready_to_publish"
+  | "published"
+  | "running"
+  | "finalizing"
+  | "ready_for_review"
+  | "accepted"
+  | "follow_up_needed"
+  | "failed"
+  | "cancelled"
+  | "unknown";
+
 export type TaskNodeStatus =
   | "draft"
   | "queued"
@@ -261,8 +277,10 @@ export type TaskNodePermissions = {
 
 export type TaskNodeCardView = {
   id: TaskNodeId;
+  planId?: PlanId | null;
   taskRef?: TaskRef;
   parentId: TaskNodeId | null;
+  taskIndex?: string | null;
   title: string;
   summary: string;
   intent?: string | null;
@@ -309,6 +327,71 @@ export type TaskTreeView = {
   nodes: TaskNodeCardView[];
   version: number;
   generatedAt?: string;
+};
+
+export type PlanFinalizationView = {
+  status:
+    | "not_started"
+    | "pending"
+    | "running"
+    | "skipped"
+    | "done"
+    | "failed";
+  required: boolean;
+  summaryRef?: string | null;
+  fileRollupRef?: string | null;
+  contextSummaryRef?: string | null;
+  warnings: string[];
+};
+
+export type PlanOutcomeView = {
+  status:
+    | "succeeded"
+    | "succeeded_with_warnings"
+    | "partially_completed"
+    | "failed"
+    | "cancelled";
+  summary: string;
+  completedTaskCount: number;
+  failedTaskCount: number;
+  skippedTaskCount: number;
+  resultRef?: string | null;
+  fileChangeSummaryRef?: string | null;
+  auditSummaryRef?: string | null;
+};
+
+export type PlanPermissions = {
+  canEdit: boolean;
+  canPublish: boolean;
+  canAppendGuidance: boolean;
+  canCreateTaskNode: boolean;
+  canDeleteTaskNode: boolean;
+  canRequestExecution: boolean;
+  readonlyReason?: string | null;
+};
+
+export type PlanView = {
+  id: PlanId;
+  sessionId: SessionId;
+  title: string;
+  summary: string;
+  objective: string;
+  status: PlanUiStatus;
+  taskCount: number;
+  taskNodeIds: TaskNodeId[];
+  taskNodes: TaskNodeCardView[];
+  executionRollup: ExecutionRollupView;
+  finalization: PlanFinalizationView;
+  outcome: PlanOutcomeView | null;
+  permissions: PlanPermissions;
+  taskTreeProjection?: TaskTreeView | null;
+  sourceKind:
+    | "plan_store"
+    | "legacy_draft_tree"
+    | "legacy_published_task_tree"
+    | "synthetic";
+  sourceRef?: ObjectRef | null;
+  version: number;
 };
 
 export type MessageKind = "informational" | "actionable" | "response" | "error";
@@ -863,6 +946,7 @@ export type MainPageSnapshot = {
   sessions: SessionSummary[];
   session: SessionSummary;
   planning?: PlanningView;
+  activePlan?: PlanView | null;
   taskTree: TaskTreeView | null;
   messages: SessionMessageView[];
   pendingConfirmations: ConfirmationActionView[];

@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import Any
 
 from taskweavn.interaction import AgentMessage
 from taskweavn.task import (
+    ActiveAuthoringState,
     ActorRef,
     AuthoringCommandBatch,
     AuthoringCommandService,
@@ -19,11 +21,14 @@ from taskweavn.task import (
     InMemoryRawTaskStore,
     MutateDraftTaskTreeCommand,
     MutateRawTaskCommand,
+    Plan,
+    PlanTaskNode,
     PublishDraftTaskTreeCommand,
     RawTask,
     RawTaskOperation,
     StaticCapabilityCatalog,
     TaskPublishResult,
+    TaskRef,
 )
 
 
@@ -61,6 +66,126 @@ class _Publisher:
         raise NotImplementedError
 
 
+class _PlanStore:
+    def __init__(self) -> None:
+        self.created_plans: list[Plan] = []
+        self.created_nodes: list[PlanTaskNode] = []
+
+    def create_plan(
+        self,
+        plan: Plan,
+        task_nodes: Sequence[PlanTaskNode] = (),
+    ) -> Plan:
+        saved = plan.model_copy(
+            update={"task_node_ids": tuple(node.task_node_id for node in task_nodes)}
+        )
+        self.created_plans.append(saved)
+        self.created_nodes.extend(task_nodes)
+        return saved
+
+    def get_plan(self, session_id: str, plan_id: str) -> Plan | None:
+        return next(
+            (
+                plan
+                for plan in self.created_plans
+                if plan.session_id == session_id and plan.plan_id == plan_id
+            ),
+            None,
+        )
+
+    def list_plans(self, session_id: str) -> list[Plan]:
+        return [plan for plan in self.created_plans if plan.session_id == session_id]
+
+    def get_active_plan(self, session_id: str) -> Plan | None:
+        plans = self.list_plans(session_id)
+        return plans[-1] if plans else None
+
+    def save_plan(self, plan: Plan, *, expected_version: int) -> Plan:
+        raise NotImplementedError
+
+    def get_task_node(self, session_id: str, task_node_id: str) -> PlanTaskNode | None:
+        return next(
+            (
+                node
+                for node in self.created_nodes
+                if node.session_id == session_id and node.task_node_id == task_node_id
+            ),
+            None,
+        )
+
+    def list_task_nodes(self, session_id: str, plan_id: str) -> list[PlanTaskNode]:
+        return [
+            node
+            for node in self.created_nodes
+            if node.session_id == session_id and node.plan_id == plan_id
+        ]
+
+    def add_task_node(
+        self,
+        node: PlanTaskNode,
+        *,
+        expected_plan_version: int | None = None,
+    ) -> PlanTaskNode:
+        raise NotImplementedError
+
+    def save_task_node(
+        self,
+        node: PlanTaskNode,
+        *,
+        expected_version: int,
+    ) -> PlanTaskNode:
+        raise NotImplementedError
+
+
+class _AuthoringStateStore:
+    def __init__(self) -> None:
+        self.active = ActiveAuthoringState(session_id="s1", active_state="none")
+
+    def get_active(self, session_id: str) -> ActiveAuthoringState:
+        return self.active
+
+    def set_active_raw_task(self, session_id: str, raw_task_id: str) -> None:
+        self.active = ActiveAuthoringState(
+            session_id=session_id,
+            active_raw_task_id=raw_task_id,
+            active_state="raw_task",
+        )
+
+    def set_active_draft_tree(
+        self,
+        session_id: str,
+        raw_task_id: str | None,
+        draft_tree_id: str,
+        *,
+        active_plan_id: str | None = None,
+    ) -> None:
+        self.active = ActiveAuthoringState(
+            session_id=session_id,
+            active_raw_task_id=raw_task_id,
+            active_draft_tree_id=draft_tree_id,
+            active_plan_id=active_plan_id,
+            active_state="draft_tree",
+        )
+
+    def mark_published(self, session_id: str, draft_tree_id: str) -> None:
+        self.active = ActiveAuthoringState(
+            session_id=session_id,
+            active_raw_task_id=self.active.active_raw_task_id,
+            active_draft_tree_id=draft_tree_id,
+            active_plan_id=self.active.active_plan_id,
+            active_state="published",
+        )
+
+    def cancel_active(self, session_id: str) -> None:
+        self.active = ActiveAuthoringState(
+            session_id=session_id,
+            active_raw_task_id=self.active.active_raw_task_id,
+            active_draft_tree_id=self.active.active_draft_tree_id,
+            active_plan_id=self.active.active_plan_id,
+            active_state="cancelled",
+        )
+
+
 def _actor() -> ActorRef:
     return ActorRef(actor_id="collaborator", kind="collaborator")
 
@@ -73,6 +198,8 @@ def _service(
     publisher: _Publisher | None = None,
     validator: DraftTaskTreeValidator | None = None,
     idempotency_store: InMemoryAuthoringCommandIdempotencyStore | None = None,
+    authoring_state_store: _AuthoringStateStore | None = None,
+    plan_store: _PlanStore | None = None,
 ) -> DefaultAuthoringCommandService:
     return DefaultAuthoringCommandService(
         raw_task_store=raw_store or InMemoryRawTaskStore(),
@@ -80,6 +207,8 @@ def _service(
         message_bus=bus,  # type: ignore[arg-type]
         task_publisher=publisher,
         draft_validator=validator,
+        authoring_state_store=authoring_state_store,
+        plan_store=plan_store,
         idempotency_store=idempotency_store,
     )
 
@@ -330,6 +459,69 @@ def test_submit_creates_draft_tree_with_children() -> None:
     assert child is not None
     assert child.parent_draft_task_id == "root"
     assert len(draft_store.list_nodes("s1", tree.draft_tree_id)) == 2
+
+
+def test_submit_creates_durable_plan_from_draft_tree_and_records_active_identity() -> None:
+    draft_store = InMemoryDraftTaskStore()
+    plan_store = _PlanStore()
+    state_store = _AuthoringStateStore()
+    service = _service(
+        draft_store=draft_store,
+        authoring_state_store=state_store,
+        plan_store=plan_store,
+    )
+    command = MutateDraftTaskTreeCommand(
+        command_id="draft-create",
+        session_id="s1",
+        raw_task_id="raw1",
+        actor=_actor(),
+        operations=(
+            DraftTaskTreeOperation(
+                op="create_tree",
+                payload={
+                    "title": "Website plan",
+                    "summary": "Build a website.",
+                    "roots": [
+                        {
+                            "draft_task_id": "root",
+                            "title": "Root",
+                            "intent": "Build app",
+                            "required_capability": "general",
+                            "children": [
+                                {
+                                    "draft_task_id": "child",
+                                    "title": "Child",
+                                    "intent": "Write tests",
+                                    "summary": "Test app",
+                                    "required_capability": "testing",
+                                }
+                            ],
+                        }
+                    ],
+                },
+            ),
+        ),
+    )
+
+    result = service.submit(
+        AuthoringCommandBatch(session_id="s1", actor=_actor(), commands=(command,))
+    )
+
+    assert result.ok
+    assert len(plan_store.created_plans) == 1
+    plan = plan_store.created_plans[0]
+    assert plan.title == "Website plan"
+    assert plan.source_raw_task_id == "raw1"
+    assert plan.source_draft_tree_id == state_store.active.active_draft_tree_id
+    assert state_store.active.active_plan_id == plan.plan_id
+    assert state_store.active.active_state == "draft_tree"
+    assert plan.task_node_ids == ("root", "child")
+    assert [(node.task_node_id, node.task_index) for node in plan_store.created_nodes] == [
+        ("root", "1"),
+        ("child", "1.1"),
+    ]
+    assert plan_store.created_nodes[0].draft_ref == TaskRef.draft("root")
+    assert plan_store.created_nodes[1].summary == "Test app"
 
 
 def test_submit_patches_draft_node_and_publishes_option_effect() -> None:

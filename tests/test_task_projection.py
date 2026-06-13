@@ -169,6 +169,8 @@ class _AuthoringStateStore:
         session_id: str,
         raw_task_id: str | None,
         draft_tree_id: str,
+        *,
+        active_plan_id: str | None = None,
     ) -> None:
         raise NotImplementedError
 
@@ -180,6 +182,7 @@ class _AuthoringStateStore:
             session_id=session_id,
             active_raw_task_id=self._state.active_raw_task_id,
             active_draft_tree_id=self._state.active_draft_tree_id,
+            active_plan_id=self._state.active_plan_id,
             active_state="cancelled",
         )
 

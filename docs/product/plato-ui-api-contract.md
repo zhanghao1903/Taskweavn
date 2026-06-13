@@ -314,6 +314,7 @@ type ObjectRef = {
   kind:
     | "raw_task"
     | "raw_task_ask"
+    | "plan"
     | "draft_task"
     | "draft_tree"
     | "draft_subtree"
@@ -412,6 +413,12 @@ type MainPageSnapshot = {
   workflow: WorkflowSummary;
   sessions: SessionSummary[];
   session: SessionSummary;
+  activePlan: PlanView | null;
+  /**
+   * Deprecated compatibility field.
+   * During migration this equals activePlan.taskTreeProjection when a Plan is
+   * available from legacy projection.
+   */
   taskTree: TaskTreeView | null;
   messages: SessionMessageView[];
   pendingConfirmations: ConfirmationActionView[];
@@ -422,6 +429,9 @@ type MainPageSnapshot = {
   generatedAt: string;
 };
 ```
+
+Product 1.1 新代码应优先读取 `activePlan`。`taskTree` 只保留给旧 Main Page
+组件和旧命令路径兼容；它不是新的产品级工作对象。
 
 Snapshot 不包含：
 
@@ -483,7 +493,56 @@ type SessionSummary = {
 
 `workspaceLabel` 面向用户展示，例如 `Isolated session workspace`。不要把真实本地路径默认暴露给普通用户。
 
-### 7.5 TaskTreeView
+### 7.5 PlanView
+
+```ts
+type PlanUiStatus =
+  | "draft"
+  | "reviewing"
+  | "ready_to_publish"
+  | "published"
+  | "running"
+  | "finalizing"
+  | "ready_for_review"
+  | "accepted"
+  | "follow_up_needed"
+  | "failed"
+  | "cancelled"
+  | "unknown";
+
+type PlanView = {
+  id: PlanId;
+  sessionId: SessionId;
+  title: string;
+  summary: string;
+  objective: string;
+  status: PlanUiStatus;
+  taskCount: number;
+  taskNodeIds: TaskNodeId[];
+  taskNodes: TaskNodeCardView[];
+  executionRollup: ExecutionRollupView;
+  finalization: PlanFinalizationView;
+  outcome: PlanOutcomeView | null;
+  permissions: PlanPermissions;
+  /**
+   * Deprecated compatibility projection for legacy Main Page components.
+   */
+  taskTreeProjection?: TaskTreeView | null;
+  sourceKind:
+    | "plan_store"
+    | "legacy_draft_tree"
+    | "legacy_published_task_tree"
+    | "synthetic";
+  sourceRef?: ObjectRef | null;
+  version: number;
+};
+```
+
+`PlanView` 是 Product 1.1 的 canonical work contract。PTC-2 只要求它能
+安全表达 active Plan；PTC-3 才负责完整 legacy DraftTaskTree / published
+task projection-only migration。
+
+### 7.6 TaskTreeView
 
 ```ts
 type TaskTreeView = {
@@ -497,7 +556,9 @@ type TaskTreeView = {
 };
 ```
 
-第一版 `nodes` 返回 flat preorder。前端通过 `parentId` 还原树形和缩进。
+`TaskTreeView` 是 deprecated compatibility projection。第一版 `nodes`
+返回 legacy preorder。PTC-3 会把 legacy tree 作为 synthetic Plan 投影时
+flatten 成 Product 1.1 的扁平 TaskNode list。
 
 `summary` 是面向用户的计划概况，不是 TaskTree 的内部类型名。Main Page 的
 `Plan overview` 行优先展示 `summary`；缺失时前端只能用 TaskNode 标题生成临时概况。
@@ -506,7 +567,7 @@ type TaskTreeView = {
 
 `TaskTreeView.id` 是 UI projection/cache/debug id，不是普通用户可见字段。产品 UI 默认展示 `title`、状态和节点内容，不展示该 id。第一版允许 synthetic id；如果 command 需要真实 draft tree id，必须由 Gateway 解析，不能把 synthetic projection id 当成 domain primary key。
 
-### 7.6 TaskNodeCardView
+### 7.7 TaskNodeCardView
 
 ```ts
 type TaskNodeStatus =
@@ -520,8 +581,10 @@ type TaskNodeStatus =
 
 type TaskNodeCardView = {
   id: TaskNodeId;
+  planId?: PlanId | null;
   taskRef?: TaskRef;
   parentId: TaskNodeId | null;
+  taskIndex?: string | null;
   title: string;
   // Card-safe short summary. No concatenated Summary:/Instructions: markers.
   summary: string;
@@ -538,6 +601,10 @@ type TaskNodeCardView = {
   version: number;
 };
 ```
+
+`planId` 和 `taskIndex` 是 Product 1.1 字段。兼容期里旧 `taskTree` 调用方
+可以暂时缺省；`activePlan.taskNodes` 必须提供稳定的 `planId` 和用户可见
+`taskIndex`。
 
 `summary` 是列表卡片专用短摘要；`intent`、`instructions`、
 `acceptanceCriteria` 是 Detail Panel 专用结构化字段。后端 projection
@@ -565,7 +632,7 @@ type TaskNodePermissions = {
 
 MVP 可以先只返回 `id/title/summary/status/parentId`，但 Gateway 层应按上述目标组织。
 
-### 7.7 TaskNodeDetailView
+### 7.8 TaskNodeDetailView
 
 选中 TaskNode 后，Detail Panel 可按需查询 detail。
 
@@ -583,7 +650,7 @@ type TaskNodeDetailView = {
 };
 ```
 
-### 7.8 SessionMessageView
+### 7.9 SessionMessageView
 
 ```ts
 type MessageKind = "informational" | "actionable" | "response" | "error";
@@ -608,7 +675,7 @@ type SessionMessageView = {
 - 有 Task 归属的消息同时出现在 Session Stream 和 Task projection；
 - actionable message 可以关联 `ConfirmationActionView`。
 
-### 7.9 ConfirmationActionView
+### 7.10 ConfirmationActionView
 
 ```ts
 type ConfirmationActionView = {

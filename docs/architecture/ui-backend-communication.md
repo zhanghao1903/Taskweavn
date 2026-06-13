@@ -284,6 +284,7 @@ class ObjectRef(BaseModel):
     kind: Literal[
         "raw_task",
         "raw_task_ask",
+        "plan",
         "draft_task",
         "draft_tree",
         "draft_subtree",

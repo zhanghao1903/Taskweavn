@@ -734,15 +734,10 @@ def _draft_tree_proposal_from_payload(payload: object) -> DraftTaskTreeProposal:
 
 
 def _draft_tree_from_plan_proposal(proposal: PlanProposal) -> DraftTaskTreeProposal:
-    indexed = tuple(enumerate(proposal.tasks, start=1))
-    ordered = sorted(
-        indexed,
-        key=lambda item: (item[1].task_index if item[1].task_index is not None else item[0]),
-    )
     return DraftTaskTreeProposal(
         title=proposal.title,
         summary=proposal.summary,
-        roots=tuple(_draft_node_from_plan_task(task) for _, task in ordered),
+        roots=tuple(_draft_node_from_plan_task(task) for task in proposal.ordered_tasks()),
         assistant_message=proposal.assistant_message,
     )
 

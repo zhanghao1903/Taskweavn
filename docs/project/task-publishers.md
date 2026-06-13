@@ -131,6 +131,10 @@ publish` instead of creating duplicate Tasks.
 - `source_ref`
 - `source_node_id`
 
+Product 1.1 Plan publishing uses `source_type="plan"` and preserves
+`plan_id`, `task_node_id`, and `task_index` in source metadata while reusing the
+same TaskPublisher / TaskBus path as legacy DraftTaskTree publishing.
+
 ---
 
 ## 4. Scheduler Publisher

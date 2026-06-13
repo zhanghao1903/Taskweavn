@@ -29,11 +29,11 @@ from taskweavn.server.ui_contract.audit_projection import (
     _effective_config,
     _evidence_detail,
     _filter_audit_records,
+    _normalize_audit_record_task_identity,
     _page_audit_records,
     _related_logs,
     _require_audit_record,
     _require_evidence_ref,
-    _selected_task,
 )
 from taskweavn.server.ui_contract.command_gateway import DefaultUiCommandGateway
 from taskweavn.server.ui_contract.envelopes import (
@@ -73,6 +73,17 @@ from taskweavn.server.ui_contract.mapping import (
     map_session_message_view,
     map_task_tree_view,
 )
+from taskweavn.server.ui_contract.plan_projection import (
+    DefaultPlanProjectionService,
+    PlanProjectionService,
+)
+from taskweavn.server.ui_contract.plan_read_helpers import (
+    active_plan_read_context,
+    active_stored_plan,
+    audit_task_read_context,
+    file_change_summary_from_plan_nodes,
+    result_from_plan_nodes,
+)
 from taskweavn.server.ui_contract.snapshots import AuditPageSnapshot, MainPageSnapshot
 from taskweavn.server.ui_contract.view_models import (
     AskListResult,
@@ -99,6 +110,7 @@ from taskweavn.server.ui_contract.view_models import (
     WorkflowSummary,
 )
 from taskweavn.task.authoring import RawTask
+from taskweavn.task.plan_stores import PlanStore
 from taskweavn.task.projection import TaskProjectionService
 from taskweavn.task.stores import AuthoringStateStore, RawTaskStore
 from taskweavn.task.timeline import TaskInteractionTimelineService
@@ -159,6 +171,8 @@ class DefaultUiQueryGateway:
         raw_task_store: RawTaskStore | None = None,
         ask_projection: AskProjectionService | None = None,
         snapshot_cursor_provider: SnapshotCursorProvider | None = None,
+        plan_projection: PlanProjectionService | None = None,
+        plan_store: PlanStore | None = None,
     ) -> None:
         self._session_reader = session_reader
         self._task_projection = task_projection
@@ -180,6 +194,8 @@ class DefaultUiQueryGateway:
         self._raw_task_store = raw_task_store
         self._ask_projection = ask_projection
         self._snapshot_cursor_provider = snapshot_cursor_provider
+        self._plan_projection = plan_projection or DefaultPlanProjectionService()
+        self._plan_store = plan_store
 
     def get_session_snapshot(
         self,
@@ -203,6 +219,18 @@ class DefaultUiQueryGateway:
                 source_tree,
                 authoring_state_store=self._authoring_state_store,
             )
+            stored_plan = active_stored_plan(
+                session.id,
+                plan_store=self._plan_store,
+                authoring_state_store=self._authoring_state_store,
+            )
+            plan_context = active_plan_read_context(
+                task_tree,
+                stored_plan=stored_plan,
+                plan_projection=self._plan_projection,
+            )
+            active_plan = plan_context.active_plan
+            task_tree = plan_context.task_tree
             messages = _merge_messages(
                 _messages_from_tree(source_tree),
                 self._session_messages(session.id),
@@ -211,12 +239,28 @@ class DefaultUiQueryGateway:
             planning = self._planning(session.id, task_tree=task_tree)
             pending_asks = self._pending_asks(session.id)
             active_ask = self._active_ask(session.id, task_tree=task_tree)
-            result = _result_from_tree(
+            result = (
+                result_from_plan_nodes(
+                    plan_context.stored_plan_nodes,
+                    session_id=session.id,
+                    task_projection=self._task_projection,
+                )
+                if plan_context.stored_plan_nodes is not None
+                else None
+            ) or _result_from_tree(
                 source_tree,
                 session_id=session.id,
                 task_projection=self._task_projection,
             )
-            file_change_summary = _file_change_summary_from_tree(
+            file_change_summary = (
+                file_change_summary_from_plan_nodes(
+                    plan_context.stored_plan_nodes,
+                    session_id=session.id,
+                    task_projection=self._task_projection,
+                )
+                if plan_context.stored_plan_nodes is not None
+                else None
+            ) or _file_change_summary_from_tree(
                 source_tree,
                 session_id=session.id,
                 task_projection=self._task_projection,
@@ -252,6 +296,7 @@ class DefaultUiQueryGateway:
                 ),
                 session=session_summary,
                 planning=planning,
+                active_plan=active_plan,
                 task_tree=task_tree,
                 messages=messages,
                 pending_confirmations=confirmations,
@@ -412,7 +457,7 @@ class DefaultUiQueryGateway:
             )
             related_logs = _related_logs(
                 bundle.session,
-                task_node_id=task_node_id,
+                task_node_id=bundle.record_task_node_id,
                 record_id=record_id,
                 log_provider=self._audit_log_provider,
             )
@@ -684,7 +729,19 @@ class DefaultUiQueryGateway:
             source_tree,
             authoring_state_store=self._authoring_state_store,
         )
-        selected_task = _selected_task(task_tree, task_node_id)
+        stored_plan = active_stored_plan(
+            session.id,
+            plan_store=self._plan_store,
+            authoring_state_store=self._authoring_state_store,
+        )
+        audit_context = audit_task_read_context(
+            task_node_id=task_node_id,
+            legacy_task_tree=task_tree,
+            stored_plan=stored_plan,
+            plan_projection=self._plan_projection,
+        )
+        task_tree = audit_context.task_tree
+        selected_task = audit_context.selected_task
         if task_node_id is not None and selected_task is None:
             raise LookupError("task not found")
 
@@ -706,6 +763,22 @@ class DefaultUiQueryGateway:
                 messages=messages,
             ),
         )
+        records = _audit_records_from_projection(
+            source_tree,
+            session_id=session.id,
+            task_node_id=audit_context.record_source_task_node_id,
+            messages=messages,
+            task_projection=self._task_projection,
+            task_timeline_service=self._task_timeline_service,
+            event_provider=self._audit_event_provider,
+            config_provider=self._audit_config_provider,
+            log_provider=self._audit_log_provider,
+            session=session,
+        )
+        records = _normalize_audit_record_task_identity(
+            records,
+            task_node_ids_by_legacy_id=audit_context.task_node_ids_by_legacy_id,
+        )
         return _AuditProjectionBundle(
             session=session,
             session_summary=session_summary,
@@ -714,18 +787,8 @@ class DefaultUiQueryGateway:
             source_tree=source_tree,
             task_tree=task_tree,
             selected_task=selected_task,
-            records=_audit_records_from_projection(
-                source_tree,
-                session_id=session.id,
-                task_node_id=task_node_id,
-                messages=messages,
-                task_projection=self._task_projection,
-                task_timeline_service=self._task_timeline_service,
-                event_provider=self._audit_event_provider,
-                config_provider=self._audit_config_provider,
-                log_provider=self._audit_log_provider,
-                session=session,
-            ),
+            record_task_node_id=audit_context.record_task_node_id,
+            records=records,
         )
 
     def _audit_links(self, session_id: str) -> tuple[AuditLinkView, ...]:

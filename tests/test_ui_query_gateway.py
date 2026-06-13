@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -10,9 +11,13 @@ from taskweavn.interaction import AgentMessage, AskQuestion, AskRequest, InMemor
 from taskweavn.observability.models import LogArchiveManifest
 from taskweavn.server.ui_contract import (
     AuditConfigProvider,
+    AuditDisclosure,
     AuditEventProvider,
     AuditLogProvider,
+    AuditRecord,
     DefaultUiQueryGateway,
+    EvidenceRef,
+    PayloadDisclosureResult,
     SessionMessageProvider,
     UiQueryGateway,
     WorkspaceAuditConfigProvider,
@@ -26,6 +31,8 @@ from taskweavn.task import (
     ConfirmationOptionView,
     FeasibilityReport,
     InMemoryRawTaskStore,
+    Plan,
+    PlanTaskNode,
     RawTask,
     RawTaskAnswerOption,
     RawTaskAsk,
@@ -134,6 +141,8 @@ class _AuthoringStateStore:
         session_id: str,
         raw_task_id: str | None,
         draft_tree_id: str,
+        *,
+        active_plan_id: str | None = None,
     ) -> None:
         raise NotImplementedError
 
@@ -145,8 +154,76 @@ class _AuthoringStateStore:
             session_id=session_id,
             active_raw_task_id=self._state.active_raw_task_id,
             active_draft_tree_id=self._state.active_draft_tree_id,
+            active_plan_id=self._state.active_plan_id,
             active_state="cancelled",
         )
+
+
+class _PlanStore:
+    def __init__(
+        self,
+        *,
+        active_plan: Plan | None = None,
+        task_nodes: Sequence[PlanTaskNode] = (),
+    ) -> None:
+        self._active_plan = active_plan
+        self._plans = (
+            {(active_plan.session_id, active_plan.plan_id): active_plan}
+            if active_plan is not None
+            else {}
+        )
+        self._task_nodes = {
+            (node.session_id, node.plan_id): list(task_nodes) for node in task_nodes
+        }
+
+    def create_plan(
+        self,
+        plan: Plan,
+        task_nodes: Sequence[PlanTaskNode] = (),
+    ) -> Plan:
+        raise NotImplementedError
+
+    def get_plan(self, session_id: str, plan_id: str) -> Plan | None:
+        return self._plans.get((session_id, plan_id))
+
+    def list_plans(self, session_id: str) -> list[Plan]:
+        return [plan for plan in self._plans.values() if plan.session_id == session_id]
+
+    def get_active_plan(self, session_id: str) -> Plan | None:
+        if self._active_plan is not None and self._active_plan.session_id == session_id:
+            return self._active_plan
+        return None
+
+    def save_plan(self, plan: Plan, *, expected_version: int) -> Plan:
+        raise NotImplementedError
+
+    def get_task_node(self, session_id: str, task_node_id: str) -> PlanTaskNode | None:
+        for nodes in self._task_nodes.values():
+            for node in nodes:
+                if node.session_id == session_id and node.task_node_id == task_node_id:
+                    return node
+        return None
+
+    def list_task_nodes(self, session_id: str, plan_id: str) -> list[PlanTaskNode]:
+        if (session_id, plan_id) not in self._plans:
+            raise LookupError(f"Plan {plan_id!r} not found")
+        return list(self._task_nodes.get((session_id, plan_id), []))
+
+    def add_task_node(
+        self,
+        node: PlanTaskNode,
+        *,
+        expected_plan_version: int | None = None,
+    ) -> PlanTaskNode:
+        raise NotImplementedError
+
+    def save_task_node(
+        self,
+        node: PlanTaskNode,
+        *,
+        expected_version: int,
+    ) -> PlanTaskNode:
+        raise NotImplementedError
 
 
 def _session(
@@ -303,10 +380,68 @@ def test_get_session_snapshot_maps_project_workflow_tree_messages_and_confirmati
     assert response.data.project.id == "local"
     assert response.data.workflow.id == "task_authoring"
     assert response.data.session.status == "waiting_user"
+    assert response.data.active_plan is not None
+    assert response.data.active_plan.id == "plan:legacy:session-1"
+    assert response.data.active_plan.source_kind == "legacy_published_task_tree"
+    assert response.data.active_plan.task_node_ids == ("root",)
+    assert response.data.active_plan.task_nodes[0].task_index == "1"
     assert response.data.task_tree is not None
+    assert response.data.task_tree == response.data.active_plan.task_tree_projection
+    assert response.data.task_tree.nodes[0].plan_id == "plan:legacy:session-1"
     assert response.data.task_tree.nodes[0].status == "waiting_user"
     assert response.data.messages[0].id == "message-1"
     assert response.data.pending_confirmations[0].default_option_value == "yes"
+
+
+def test_get_session_snapshot_prefers_active_stored_plan_over_legacy_projection() -> None:
+    tree = TaskTreeView(session_id="session-1", nodes=(_draft_card("draft-legacy"),))
+    plan = Plan(
+        plan_id="plan-stored",
+        session_id="session-1",
+        source_draft_tree_id="draft-tree-1",
+        title="Stored plan",
+        objective="Use durable plan facts.",
+        summary="Stored durable plan summary.",
+        status="approved",
+    )
+    plan_node = PlanTaskNode(
+        task_node_id="node-stored",
+        plan_id=plan.plan_id,
+        session_id="session-1",
+        task_index="1",
+        title="Stored task",
+        intent="Use stored PlanTaskNode.",
+        summary="Stored task summary.",
+        readiness="approved",
+        draft_ref=TaskRef.draft("draft-stored"),
+    )
+    gateway = DefaultUiQueryGateway(
+        session_reader=_SessionReader([_session()]),
+        task_projection=_Projection(tree),
+        authoring_state_store=_AuthoringStateStore(
+            ActiveAuthoringState(
+                session_id="session-1",
+                active_draft_tree_id="draft-tree-1",
+                active_plan_id=plan.plan_id,
+                active_state="draft_tree",
+            )
+        ),
+        plan_store=_PlanStore(active_plan=plan, task_nodes=(plan_node,)),
+    )
+
+    response = gateway.get_session_snapshot("session-1")
+
+    assert response.ok is True
+    assert response.data is not None
+    assert response.data.active_plan is not None
+    assert response.data.active_plan.id == "plan-stored"
+    assert response.data.active_plan.source_kind == "plan_store"
+    assert response.data.active_plan.status == "ready_to_publish"
+    assert response.data.active_plan.task_node_ids == ("node-stored",)
+    assert response.data.task_tree is response.data.active_plan.task_tree_projection
+    assert response.data.task_tree is not None
+    assert response.data.task_tree.id == "draft-tree-1"
+    assert response.data.task_tree.nodes[0].id == "node-stored"
 
 
 def test_get_session_snapshot_uses_latest_ui_event_cursor_when_available() -> None:
@@ -664,6 +799,57 @@ def test_get_session_snapshot_projects_result_card_for_terminal_task() -> None:
     assert response.data.result.summary == "Built the requested site."
 
 
+def test_get_session_snapshot_routes_result_through_stored_plan_task_node() -> None:
+    card = _card("published-task", status="done", result_ref="result:published-task")
+    summary = TaskSummaryView(
+        task_ref=TaskRef.published("published-task"),
+        summary="Built the durable plan task.",
+    )
+    plan = Plan(
+        plan_id="plan-stored",
+        session_id="session-1",
+        title="Stored plan",
+        objective="Use durable plan facts.",
+        summary="Stored durable plan summary.",
+        status="running",
+    )
+    plan_node = PlanTaskNode(
+        task_node_id="node-stored",
+        plan_id=plan.plan_id,
+        session_id="session-1",
+        task_index="1",
+        title="Stored task",
+        intent="Use stored PlanTaskNode.",
+        summary="Stored task summary.",
+        readiness="published",
+        execution="done",
+        published_ref=TaskRef.published("published-task"),
+        result_ref="result:published-task",
+    )
+    gateway = DefaultUiQueryGateway(
+        session_reader=_SessionReader([_session()]),
+        task_projection=_Projection(
+            TaskTreeView(session_id="session-1"),
+            details={
+                "published-task": TaskDetailView(
+                    card=card,
+                    full_intent=card.intent_preview,
+                    result_summary=summary,
+                )
+            },
+        ),
+        plan_store=_PlanStore(active_plan=plan, task_nodes=(plan_node,)),
+    )
+
+    response = gateway.get_session_snapshot("session-1")
+
+    assert response.ok is True
+    assert response.data is not None
+    assert response.data.result is not None
+    assert response.data.result.task_node_id == "node-stored"
+    assert response.data.result.summary == "Built the durable plan task."
+
+
 def test_get_session_snapshot_projects_file_change_summary_from_task_detail() -> None:
     card = _card(
         status="done",
@@ -700,6 +886,65 @@ def test_get_session_snapshot_projects_file_change_summary_from_task_detail() ->
     assert response.data.file_change_summary.task_node_id == "root"
     assert response.data.file_change_summary.recursive is True
     assert response.data.file_change_summary.summary == "1 file changed."
+    assert response.data.file_change_summary.changed_files[0].path == "src/App.tsx"
+
+
+def test_get_session_snapshot_routes_file_changes_through_stored_plan_task_node() -> None:
+    card = _card("published-task", status="done")
+    change = TaskFileChangeSummary(
+        change_id="change-1",
+        owner_task_ref=TaskRef.published("published-task"),
+        path="src/App.tsx",
+        change_type="modified",
+        summary="Modified src/App.tsx (12 bytes written).",
+        recorded_at=NOW,
+    )
+    plan = Plan(
+        plan_id="plan-stored",
+        session_id="session-1",
+        title="Stored plan",
+        objective="Use durable plan facts.",
+        summary="Stored durable plan summary.",
+        status="running",
+    )
+    plan_node = PlanTaskNode(
+        task_node_id="node-stored",
+        plan_id=plan.plan_id,
+        session_id="session-1",
+        task_index="1",
+        title="Stored task",
+        intent="Use stored PlanTaskNode.",
+        summary="Stored task summary.",
+        readiness="published",
+        execution="done",
+        published_ref=TaskRef.published("published-task"),
+        file_summary_ref="files:published-task",
+    )
+    gateway = DefaultUiQueryGateway(
+        session_reader=_SessionReader([_session()]),
+        task_projection=_Projection(
+            TaskTreeView(session_id="session-1"),
+            details={
+                "published-task": TaskDetailView(
+                    card=card,
+                    full_intent=card.intent_preview,
+                    file_changes=(change,),
+                )
+            },
+        ),
+        plan_store=_PlanStore(active_plan=plan, task_nodes=(plan_node,)),
+    )
+
+    response = gateway.get_session_snapshot("session-1")
+
+    assert response.ok is True
+    assert response.data is not None
+    assert response.data.file_change_summary is not None
+    assert response.data.file_change_summary.task_node_id == "node-stored"
+    assert response.data.file_change_summary.recursive is True
+    assert response.data.file_change_summary.changed_files[0].owner_task_node_id == (
+        "node-stored"
+    )
     assert response.data.file_change_summary.changed_files[0].path == "src/App.tsx"
 
 
@@ -832,6 +1077,240 @@ def test_get_audit_snapshot_projects_task_scope_records_and_detail() -> None:
     assert response.data.overview.record_counts["confirmations"] == 1
     assert response.data.overview.record_counts["files"] == 1
     assert response.data.page_state.kind == "partial"
+
+
+def test_get_audit_snapshot_routes_selected_task_through_stored_plan_task_node() -> None:
+    card = _card(
+        "published-task",
+        status="done",
+        badges=TaskCardBadges(direct_file_change_count=1, subtree_file_change_count=1),
+    )
+    change = TaskFileChangeSummary(
+        change_id="change-1",
+        owner_task_ref=TaskRef.published("published-task"),
+        path="src/App.tsx",
+        change_type="modified",
+        summary="Modified src/App.tsx.",
+        recorded_at=NOW,
+    )
+    plan = Plan(
+        plan_id="plan-stored",
+        session_id="session-1",
+        title="Stored plan",
+        objective="Use durable plan facts.",
+        summary="Stored durable plan summary.",
+        status="running",
+    )
+    plan_node = PlanTaskNode(
+        task_node_id="node-stored",
+        plan_id=plan.plan_id,
+        session_id="session-1",
+        task_index="1",
+        title="Stored task",
+        intent="Use stored PlanTaskNode.",
+        summary="Stored task summary.",
+        readiness="published",
+        execution="done",
+        published_ref=TaskRef.published("published-task"),
+        file_summary_ref="files:published-task",
+    )
+    gateway = DefaultUiQueryGateway(
+        session_reader=_SessionReader([_session()]),
+        task_projection=_Projection(
+            TaskTreeView(session_id="session-1", nodes=(card,)),
+            details={
+                "published-task": TaskDetailView(
+                    card=card,
+                    full_intent=card.intent_preview,
+                    file_changes=(change,),
+                )
+            },
+        ),
+        plan_store=_PlanStore(active_plan=plan, task_nodes=(plan_node,)),
+    )
+
+    response = gateway.get_audit_snapshot(
+        "session-1",
+        task_node_id="node-stored",
+        filter_kind="files",
+        record_id="record-file-change-1",
+        include_detail=True,
+    )
+
+    assert response.ok is True
+    assert response.data is not None
+    assert response.data.scope.kind == "task"
+    assert response.data.scope.task_node_id == "node-stored"
+    assert response.data.entry_context.task_node_id == "node-stored"
+    assert response.data.return_target.task_node_id == "node-stored"
+    assert response.data.selected_task is not None
+    assert response.data.selected_task.id == "node-stored"
+    assert response.data.selected_task.task_ref == TaskRef.published("published-task")
+    assert [record.id for record in response.data.records] == ["record-file-change-1"]
+    assert response.data.records[0].task_node_id == "node-stored"
+    assert response.data.records[0].task_ref == TaskRef.published("published-task")
+    assert response.data.records[0].scope.kind == "file"
+    assert response.data.records[0].scope.task_node_id == "node-stored"
+    assert response.data.selected_record is not None
+    assert response.data.selected_record.id == "record-file-change-1"
+    assert response.data.selected_record.task_node_id == "node-stored"
+    assert response.data.selected_record.task_ref == TaskRef.published("published-task")
+    assert response.data.related_logs[0].filters["taskNodeId"] == "node-stored"
+
+
+def test_audit_non_snapshot_queries_use_stored_plan_task_node_identity() -> None:
+    card = _card(
+        "published-task",
+        status="done",
+        badges=TaskCardBadges(direct_file_change_count=1, subtree_file_change_count=1),
+    )
+    change = TaskFileChangeSummary(
+        change_id="change-1",
+        owner_task_ref=TaskRef.published("published-task"),
+        path="src/App.tsx",
+        change_type="modified",
+        summary="Modified src/App.tsx.",
+        recorded_at=NOW,
+    )
+    plan = Plan(
+        plan_id="plan-stored",
+        session_id="session-1",
+        title="Stored plan",
+        objective="Use durable plan facts.",
+        summary="Stored durable plan summary.",
+        status="running",
+    )
+    plan_node = PlanTaskNode(
+        task_node_id="node-stored",
+        plan_id=plan.plan_id,
+        session_id="session-1",
+        task_index="1",
+        title="Stored task",
+        intent="Use stored PlanTaskNode.",
+        summary="Stored task summary.",
+        readiness="published",
+        execution="done",
+        published_ref=TaskRef.published("published-task"),
+        file_summary_ref="files:published-task",
+    )
+
+    class _DisclosureSpy:
+        def __init__(self) -> None:
+            self.evidence_record_task_node_id: str | None = None
+
+        def build_record_payload(
+            self,
+            record: AuditRecord,
+            *,
+            session: Session,
+            include_sanitized_payload: bool,
+        ) -> PayloadDisclosureResult:
+            del session, include_sanitized_payload
+            return PayloadDisclosureResult(disclosure=AuditDisclosure())
+
+        def build_evidence_payload(
+            self,
+            record: AuditRecord,
+            evidence_ref: EvidenceRef,
+            *,
+            session: Session,
+            include_sanitized_payload: bool,
+        ) -> PayloadDisclosureResult:
+            del evidence_ref, session, include_sanitized_payload
+            self.evidence_record_task_node_id = record.task_node_id
+            return PayloadDisclosureResult(disclosure=AuditDisclosure())
+
+    disclosure_spy = _DisclosureSpy()
+    gateway = DefaultUiQueryGateway(
+        session_reader=_SessionReader([_session()]),
+        task_projection=_Projection(
+            TaskTreeView(session_id="session-1", nodes=(card,)),
+            details={
+                "published-task": TaskDetailView(
+                    card=card,
+                    full_intent=card.intent_preview,
+                    file_changes=(change,),
+                )
+            },
+        ),
+        audit_payload_disclosure_service=disclosure_spy,
+        plan_store=_PlanStore(active_plan=plan, task_nodes=(plan_node,)),
+    )
+
+    listed = gateway.list_audit_records(
+        "session-1",
+        task_node_id="node-stored",
+        filter_kind="files",
+    )
+    detail = gateway.get_audit_record_detail(
+        "session-1",
+        "record-file-change-1",
+        include_evidence=True,
+    )
+    evidence = gateway.get_evidence_detail(
+        "session-1",
+        "evidence-record-file-change-1",
+        include_sanitized_payload=True,
+    )
+
+    assert listed.ok is True
+    assert listed.data is not None
+    assert listed.data.records[0].task_node_id == "node-stored"
+    assert listed.data.records[0].task_ref == TaskRef.published("published-task")
+    assert listed.data.records[0].scope.kind == "file"
+    assert listed.data.records[0].scope.task_node_id == "node-stored"
+    assert detail.ok is True
+    assert detail.data is not None
+    assert detail.data.task_node_id == "node-stored"
+    assert detail.data.task_ref == TaskRef.published("published-task")
+    assert detail.data.related_logs[0].filters["taskNodeId"] == "node-stored"
+    assert evidence.ok is True
+    assert evidence.data is not None
+    assert evidence.data.id == "evidence-record-file-change-1"
+    assert disclosure_spy.evidence_record_task_node_id == "node-stored"
+
+
+def test_get_audit_snapshot_falls_back_to_legacy_task_selection() -> None:
+    card = _card("legacy-task", status="done")
+    plan = Plan(
+        plan_id="plan-stored",
+        session_id="session-1",
+        title="Stored plan",
+        objective="Use durable plan facts.",
+        summary="Stored durable plan summary.",
+        status="running",
+    )
+    plan_node = PlanTaskNode(
+        task_node_id="node-stored",
+        plan_id=plan.plan_id,
+        session_id="session-1",
+        task_index="1",
+        title="Stored task",
+        intent="Use stored PlanTaskNode.",
+        summary="Stored task summary.",
+        readiness="published",
+        execution="done",
+        published_ref=TaskRef.published("published-task"),
+    )
+    gateway = DefaultUiQueryGateway(
+        session_reader=_SessionReader([_session()]),
+        task_projection=_Projection(TaskTreeView(session_id="session-1", nodes=(card,))),
+        plan_store=_PlanStore(active_plan=plan, task_nodes=(plan_node,)),
+    )
+
+    response = gateway.get_audit_snapshot(
+        "session-1",
+        task_node_id="legacy-task",
+        filter_kind="actions",
+    )
+
+    assert response.ok is True
+    assert response.data is not None
+    assert response.data.selected_task is not None
+    assert response.data.selected_task.id == "legacy-task"
+    assert [record.id for record in response.data.records] == [
+        "record-task-published-legacy-task"
+    ]
 
 
 def test_audit_records_query_filters_kind_and_paginates_in_api_order() -> None:

@@ -28,7 +28,7 @@ from taskweavn.task.stores import (
     VersionConflictError,
 )
 
-_SCHEMA_VERSION = "2"
+_SCHEMA_VERSION = "3"
 
 _SCHEMA_DDL = """
 CREATE TABLE IF NOT EXISTS authoring_schema_meta (
@@ -41,6 +41,7 @@ CREATE TABLE IF NOT EXISTS authoring_active_sessions (
     session_id TEXT PRIMARY KEY,
     active_raw_task_id TEXT,
     active_draft_tree_id TEXT,
+    active_plan_id TEXT,
     active_state TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );
@@ -179,6 +180,14 @@ class _SqliteAuthoringStore:
         self._lock = RLock()
 
     def _migrate_schema(self) -> None:
+        active_columns = {
+            str(row["name"])
+            for row in self._conn.execute("PRAGMA table_info(authoring_active_sessions)")
+        }
+        if "active_plan_id" not in active_columns:
+            self._conn.execute(
+                "ALTER TABLE authoring_active_sessions ADD COLUMN active_plan_id TEXT"
+            )
         tree_columns = {
             str(row["name"])
             for row in self._conn.execute("PRAGMA table_info(draft_task_trees)")
@@ -443,6 +452,8 @@ class SqliteAuthoringStateStore(_SqliteAuthoringStore):
         session_id: str,
         raw_task_id: str | None,
         draft_tree_id: str,
+        *,
+        active_plan_id: str | None = None,
     ) -> None:
         with self._lock:
             if raw_task_id is not None and not self._raw_task_exists(
@@ -457,6 +468,7 @@ class SqliteAuthoringStateStore(_SqliteAuthoringStore):
                     session_id=session_id,
                     active_raw_task_id=raw_task_id,
                     active_draft_tree_id=draft_tree_id,
+                    active_plan_id=active_plan_id,
                     active_state="draft_tree",
                     updated_at=_utcnow(),
                 )
@@ -476,6 +488,7 @@ class SqliteAuthoringStateStore(_SqliteAuthoringStore):
                     session_id=session_id,
                     active_raw_task_id=active.active_raw_task_id,
                     active_draft_tree_id=draft_tree_id,
+                    active_plan_id=active.active_plan_id,
                     active_state="published",
                     updated_at=_utcnow(),
                 )
@@ -492,6 +505,7 @@ class SqliteAuthoringStateStore(_SqliteAuthoringStore):
                     session_id=session_id,
                     active_raw_task_id=active.active_raw_task_id,
                     active_draft_tree_id=active.active_draft_tree_id,
+                    active_plan_id=active.active_plan_id,
                     active_state="cancelled",
                     updated_at=_utcnow(),
                 )
@@ -506,12 +520,14 @@ class SqliteAuthoringStateStore(_SqliteAuthoringStore):
                         session_id,
                         active_raw_task_id,
                         active_draft_tree_id,
+                        active_plan_id,
                         active_state,
                         updated_at
-                    ) VALUES (?, ?, ?, ?, ?)
+                    ) VALUES (?, ?, ?, ?, ?, ?)
                     ON CONFLICT(session_id) DO UPDATE SET
                         active_raw_task_id = excluded.active_raw_task_id,
                         active_draft_tree_id = excluded.active_draft_tree_id,
+                        active_plan_id = excluded.active_plan_id,
                         active_state = excluded.active_state,
                         updated_at = excluded.updated_at
                     """,
@@ -519,6 +535,7 @@ class SqliteAuthoringStateStore(_SqliteAuthoringStore):
                         state.session_id,
                         state.active_raw_task_id,
                         state.active_draft_tree_id,
+                        state.active_plan_id,
                         state.active_state,
                         state.updated_at.isoformat(),
                     ),
@@ -1191,6 +1208,7 @@ def _active_state_from_row(row: sqlite3.Row) -> ActiveAuthoringState:
                 "session_id": row["session_id"],
                 "active_raw_task_id": row["active_raw_task_id"],
                 "active_draft_tree_id": row["active_draft_tree_id"],
+                "active_plan_id": row["active_plan_id"],
                 "active_state": row["active_state"],
                 "updated_at": row["updated_at"],
             }

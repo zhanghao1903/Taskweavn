@@ -193,6 +193,34 @@ from taskweavn.task.pipeline import (
     PipelineTaskLoader,
     PipelineTaskSpec,
 )
+from taskweavn.task.plan_from_draft import build_plan_from_draft_tree
+from taskweavn.task.plan_lifecycle import PlanTaskNodeLifecycleSync
+from taskweavn.task.plan_models import (
+    Plan,
+    PlanContextPolicy,
+    PlanFinalizationState,
+    PlanFinalizationStatus,
+    PlanOutcome,
+    PlanOutcomeStatus,
+    PlanStatus,
+    PlanSuggestedNextAction,
+    PlanSuggestedNextActionKind,
+    PlanTaskNode,
+    PlanTaskNodeExecutionStatus,
+    PlanTaskNodeReadiness,
+)
+from taskweavn.task.plan_publisher import (
+    DefaultPlanPublisher,
+    PlanPublisher,
+    PlanTaskPublishMapping,
+    PublishPlanCommand,
+    PublishPlanResult,
+)
+from taskweavn.task.plan_stores import (
+    PlanStore,
+    PlanStoreError,
+    PlanTaskNodeStore,
+)
 from taskweavn.task.projection import (
     DefaultTaskProjectionService,
     FileChangeStore,
@@ -276,6 +304,7 @@ from taskweavn.task.sqlite_authoring import (
     SqliteRawTaskStore,
 )
 from taskweavn.task.sqlite_bus import SqliteTaskBus
+from taskweavn.task.sqlite_plan_store import SqlitePlanStore
 from taskweavn.task.sqlite_publish import (
     PublishStoreError,
     SqlitePublishIdempotencyStore,
@@ -412,6 +441,7 @@ __all__ = [
     "DefaultApiTaskPublisher",
     "DefaultCollaboratorAuthoringService",
     "DefaultPipelineTaskLoader",
+    "DefaultPlanPublisher",
     "DefaultTaskInteractionTimelineService",
     "DefaultTaskAskCommandService",
     "DefaultTaskPublisher",
@@ -462,8 +492,26 @@ __all__ = [
     "LocalCollaboratorWorkspaceContextSource",
     "NormalizedTaskNode",
     "NormalizedTaskTree",
+    "Plan",
+    "PlanContextPolicy",
+    "PlanFinalizationState",
+    "PlanFinalizationStatus",
+    "PlanOutcome",
+    "PlanOutcomeStatus",
     "PlanProposal",
+    "PlanPublisher",
+    "PlanStatus",
+    "PlanStore",
+    "PlanStoreError",
+    "PlanSuggestedNextAction",
+    "PlanSuggestedNextActionKind",
+    "PlanTaskNode",
+    "PlanTaskNodeExecutionStatus",
+    "PlanTaskNodeLifecycleSync",
+    "PlanTaskPublishMapping",
     "PlanTaskNodeProposal",
+    "PlanTaskNodeReadiness",
+    "PlanTaskNodeStore",
     "IdempotencyPolicy",
     "IdempotencyPolicyMode",
     "PipelineConfig",
@@ -478,6 +526,8 @@ __all__ = [
     "MutateRawTaskCommand",
     "PublishDraftTaskTreeCommand",
     "PublishOptions",
+    "PublishPlanCommand",
+    "PublishPlanResult",
     "PublishPreview",
     "PublishRequest",
     "PublishResult",
@@ -519,6 +569,7 @@ __all__ = [
     "SqliteAuthoringCommandIdempotencyStore",
     "SqliteAuthoringStateStore",
     "SqliteDraftTaskStore",
+    "SqlitePlanStore",
     "SqliteRawTaskStore",
     "SqliteScheduledPublishStore",
     "SqliteTaskExecutionSummaryStore",
@@ -582,6 +633,7 @@ __all__ = [
     "VersionConflictError",
     "build_agent_loop_error_summary",
     "build_agent_loop_result_summary",
+    "build_plan_from_draft_tree",
     "build_execution_completed_summary",
     "build_execution_exception_summary",
     "build_external_error_ref_summary",

@@ -33,6 +33,20 @@ PlanningState = Literal[
     "unknown",
 ]
 TaskTreeStatus = Literal["draft", "published", "running", "completed", "failed"]
+PlanUiStatus = Literal[
+    "draft",
+    "reviewing",
+    "ready_to_publish",
+    "published",
+    "running",
+    "finalizing",
+    "ready_for_review",
+    "accepted",
+    "follow_up_needed",
+    "failed",
+    "cancelled",
+    "unknown",
+]
 TaskNodeStatus = Literal[
     "draft",
     "queued",
@@ -110,8 +124,10 @@ class TaskNodePermissions(UiContractModel):
 
 class TaskNodeCardView(UiContractModel):
     id: str = Field(min_length=1)
+    plan_id: str | None = Field(default=None, min_length=1)
     task_ref: TaskRef | None = None
     parent_id: str | None = None
+    task_index: str | None = Field(default=None, min_length=1)
     title: str = Field(min_length=1)
     summary: str = Field(min_length=1)
     intent: str | None = Field(default=None, min_length=1)
@@ -152,6 +168,101 @@ class TaskTreeView(UiContractModel):
         ids = [node.id for node in self.nodes]
         if len(ids) != len(set(ids)):
             raise ValueError("TaskTreeView nodes must have unique ids")
+        return self
+
+
+class ExecutionRollupView(UiContractModel):
+    total: int = Field(default=0, ge=0)
+    not_started: int = Field(default=0, ge=0)
+    pending: int = Field(default=0, ge=0)
+    running: int = Field(default=0, ge=0)
+    done: int = Field(default=0, ge=0)
+    failed: int = Field(default=0, ge=0)
+    cancelled: int = Field(default=0, ge=0)
+    unknown: int = Field(default=0, ge=0)
+    blocked_by_confirmation: int = Field(default=0, ge=0)
+
+
+class PlanFinalizationView(UiContractModel):
+    status: Literal[
+        "not_started",
+        "pending",
+        "running",
+        "skipped",
+        "done",
+        "failed",
+    ] = "not_started"
+    required: bool = False
+    summary_ref: str | None = Field(default=None, min_length=1)
+    file_rollup_ref: str | None = Field(default=None, min_length=1)
+    context_summary_ref: str | None = Field(default=None, min_length=1)
+    warnings: tuple[str, ...] = ()
+
+
+class PlanOutcomeView(UiContractModel):
+    status: Literal[
+        "succeeded",
+        "succeeded_with_warnings",
+        "partially_completed",
+        "failed",
+        "cancelled",
+    ]
+    summary: str = Field(min_length=1)
+    completed_task_count: int = Field(default=0, ge=0)
+    failed_task_count: int = Field(default=0, ge=0)
+    skipped_task_count: int = Field(default=0, ge=0)
+    result_ref: str | None = Field(default=None, min_length=1)
+    file_change_summary_ref: str | None = Field(default=None, min_length=1)
+    audit_summary_ref: str | None = Field(default=None, min_length=1)
+
+
+class PlanPermissions(UiContractModel):
+    can_edit: bool = False
+    can_publish: bool = False
+    can_append_guidance: bool = False
+    can_create_task_node: bool = False
+    can_delete_task_node: bool = False
+    can_request_execution: bool = False
+    readonly_reason: str | None = Field(default=None, min_length=1)
+
+
+class PlanView(UiContractModel):
+    id: str = Field(min_length=1)
+    session_id: str = Field(min_length=1)
+    title: str = Field(min_length=1)
+    summary: str = Field(min_length=1)
+    objective: str = Field(min_length=1)
+    status: PlanUiStatus = "unknown"
+    task_count: int = Field(default=0, ge=0)
+    task_node_ids: tuple[str, ...] = ()
+    task_nodes: tuple[TaskNodeCardView, ...] = ()
+    execution_rollup: ExecutionRollupView = Field(default_factory=ExecutionRollupView)
+    finalization: PlanFinalizationView = Field(default_factory=PlanFinalizationView)
+    outcome: PlanOutcomeView | None = None
+    permissions: PlanPermissions = Field(default_factory=PlanPermissions)
+    task_tree_projection: TaskTreeView | None = None
+    source_kind: Literal[
+        "plan_store",
+        "legacy_draft_tree",
+        "legacy_published_task_tree",
+        "synthetic",
+    ] = "synthetic"
+    source_ref: ObjectRef | None = None
+    version: int = Field(default=1, ge=1)
+
+    @model_validator(mode="after")
+    def _validate_task_identity(self) -> PlanView:
+        ids = tuple(node.id for node in self.task_nodes)
+        if self.task_nodes and self.task_node_ids and ids != self.task_node_ids:
+            raise ValueError("PlanView task_nodes must match task_node_ids order")
+        if self.task_nodes and self.task_count != len(self.task_nodes):
+            raise ValueError("PlanView task_count must match task_nodes length")
+        if not self.task_nodes and self.task_node_ids and self.task_count != len(
+            self.task_node_ids
+        ):
+            raise ValueError("PlanView task_count must match task_node_ids length")
+        if len(self.task_node_ids) != len(set(self.task_node_ids)):
+            raise ValueError("PlanView task_node_ids must be unique")
         return self
 
 

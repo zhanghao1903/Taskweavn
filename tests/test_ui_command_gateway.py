@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 
 from taskweavn.server.ui_contract import (
@@ -28,6 +29,10 @@ from taskweavn.task import (
     ActiveAuthoringState,
     FeasibilityReport,
     InMemoryRawTaskStore,
+    Plan,
+    PlanTaskNode,
+    PublishPlanCommand,
+    PublishPlanResult,
     RawTask,
     RawTaskAnswer,
     RawTaskAnswerOption,
@@ -448,6 +453,8 @@ class _AuthoringStateStore:
         session_id: str,
         raw_task_id: str | None,
         draft_tree_id: str,
+        *,
+        active_plan_id: str | None = None,
     ) -> None:
         raise NotImplementedError
 
@@ -459,7 +466,82 @@ class _AuthoringStateStore:
             session_id=session_id,
             active_raw_task_id=self.state.active_raw_task_id,
             active_draft_tree_id=self.state.active_draft_tree_id,
+            active_plan_id=self.state.active_plan_id,
             active_state="cancelled",
+        )
+
+
+@dataclass
+class _PlanStore:
+    active_plan: Plan | None = None
+
+    def create_plan(
+        self,
+        plan: Plan,
+        task_nodes: Sequence[PlanTaskNode] = (),
+    ) -> Plan:
+        raise NotImplementedError
+
+    def get_plan(self, session_id: str, plan_id: str) -> Plan | None:
+        raise NotImplementedError
+
+    def list_plans(self, session_id: str) -> list[Plan]:
+        raise NotImplementedError
+
+    def get_active_plan(self, session_id: str) -> Plan | None:
+        if self.active_plan is None or self.active_plan.session_id != session_id:
+            return None
+        return self.active_plan
+
+    def save_plan(self, plan: Plan, *, expected_version: int) -> Plan:
+        raise NotImplementedError
+
+    def get_task_node(self, session_id: str, task_node_id: str) -> PlanTaskNode | None:
+        raise NotImplementedError
+
+    def list_task_nodes(self, session_id: str, plan_id: str) -> list[PlanTaskNode]:
+        raise NotImplementedError
+
+    def add_task_node(
+        self,
+        node: PlanTaskNode,
+        *,
+        expected_plan_version: int | None = None,
+    ) -> PlanTaskNode:
+        raise NotImplementedError
+
+    def save_task_node(
+        self,
+        node: PlanTaskNode,
+        *,
+        expected_version: int,
+    ) -> PlanTaskNode:
+        raise NotImplementedError
+
+
+@dataclass
+class _PlanPublisher:
+    result: PublishPlanResult = field(
+        default_factory=lambda: PublishPlanResult(
+            command_id="plan-publish",
+            request_id="plan-publish",
+            session_id="session-1",
+            plan_id="plan-1",
+            published_task_ids=("published-plan-task",),
+            root_task_ids=("published-plan-task",),
+        )
+    )
+    calls: list[PublishPlanCommand] = field(default_factory=list)
+
+    def publish_plan(self, command: PublishPlanCommand) -> PublishPlanResult:
+        self.calls.append(command)
+        return self.result.model_copy(
+            update={
+                "command_id": command.command_id,
+                "request_id": command.command_id,
+                "session_id": command.session_id,
+                "plan_id": command.plan_id,
+            }
         )
 
 
@@ -472,6 +554,8 @@ def _gateway(
     authoring_state_store: _AuthoringStateStore | None = None,
     raw_task_store: InMemoryRawTaskStore | None = None,
     task_projection: _TaskProjection | None = None,
+    plan_store: _PlanStore | None = None,
+    plan_publisher: _PlanPublisher | None = None,
 ) -> DefaultUiCommandGateway:
     return DefaultUiCommandGateway(
         collaborator=collaborator or _Collaborator(),
@@ -482,6 +566,8 @@ def _gateway(
         raw_task_store=raw_task_store,
         ask_commands=ask_commands,
         task_projection=task_projection,
+        plan_store=plan_store,
+        plan_publisher=plan_publisher,
     )
 
 
@@ -989,6 +1075,157 @@ def test_publish_task_tree_wraps_draft_tree_and_published_task_refs() -> None:
     )["objectRefs"]
     assert response.result.debug_refs["idempotencyKey"] == "publish-key"
     assert collaborator.calls[0][1]["start_immediately"] is False
+
+
+def test_publish_task_tree_routes_active_durable_plan_to_plan_publisher() -> None:
+    collaborator = _Collaborator()
+    state_store = _AuthoringStateStore(
+        ActiveAuthoringState(
+            session_id="session-1",
+            active_raw_task_id="raw-1",
+            active_draft_tree_id="tree-active",
+            active_state="draft_tree",
+        )
+    )
+    plan = Plan(
+        plan_id="plan-1",
+        session_id="session-1",
+        title="Plan",
+        objective="Publish the active Plan.",
+        summary="Flat TaskNode plan.",
+        version=3,
+    )
+    plan_store = _PlanStore(active_plan=plan)
+    plan_publisher = _PlanPublisher()
+    gateway = _gateway(
+        collaborator=collaborator,
+        authoring_state_store=state_store,
+        plan_store=plan_store,
+        plan_publisher=plan_publisher,
+    )
+    request = CommandRequest[PublishTaskTreePayload](
+        command_id="publish-plan",
+        session_id="session-1",
+        expected_version=3,
+        idempotency_key="publish-key",
+        payload=PublishTaskTreePayload(
+            task_tree_id="session:session-1:task-tree",
+            start_immediately=True,
+        ),
+    )
+
+    response = gateway.publish_task_tree(request)
+
+    assert response.ok is True
+    assert response.result is not None
+    assert response.result.published_task_ids == ("published-plan-task",)
+    assert {"kind": "plan", "id": "plan-1"} in response.result.model_dump(
+        mode="json"
+    )["objectRefs"]
+    assert collaborator.calls == []
+    assert state_store.published == []
+    assert len(plan_publisher.calls) == 1
+    command = plan_publisher.calls[0]
+    assert command.command_id == "publish-plan"
+    assert command.session_id == "session-1"
+    assert command.plan_id == "plan-1"
+    assert command.expected_plan_version == 3
+    assert command.idempotency_key == "publish-key"
+
+
+def test_publish_task_tree_plan_publish_uses_command_id_as_idempotency_fallback() -> None:
+    collaborator = _Collaborator()
+    plan_store = _PlanStore(
+        active_plan=Plan(
+            plan_id="plan-1",
+            session_id="session-1",
+            title="Plan",
+            objective="Publish the active Plan.",
+            summary="Flat TaskNode plan.",
+        )
+    )
+    plan_publisher = _PlanPublisher()
+    gateway = _gateway(
+        collaborator=collaborator,
+        plan_store=plan_store,
+        plan_publisher=plan_publisher,
+    )
+    request = CommandRequest[PublishTaskTreePayload](
+        command_id="publish-plan-without-key",
+        session_id="session-1",
+        payload=PublishTaskTreePayload(),
+    )
+
+    response = gateway.publish_task_tree(request)
+
+    assert response.ok is True
+    assert collaborator.calls == []
+    assert plan_publisher.calls[0].idempotency_key == "publish-plan-without-key"
+
+
+def test_publish_task_tree_falls_back_to_legacy_without_active_durable_plan() -> None:
+    collaborator = _Collaborator()
+    plan_store = _PlanStore(active_plan=None)
+    plan_publisher = _PlanPublisher()
+    gateway = _gateway(
+        collaborator=collaborator,
+        plan_store=plan_store,
+        plan_publisher=plan_publisher,
+    )
+    request = CommandRequest[PublishTaskTreePayload](
+        command_id="publish-legacy",
+        session_id="session-1",
+        payload=PublishTaskTreePayload(task_tree_id="tree-legacy"),
+    )
+
+    response = gateway.publish_task_tree(request)
+
+    assert response.ok is True
+    assert collaborator.calls[0][0] == "publish_task_tree"
+    assert collaborator.calls[0][1]["draft_tree_id"] == "tree-legacy"
+    assert plan_publisher.calls == []
+
+
+def test_publish_task_tree_does_not_fallback_when_active_plan_publish_rejects() -> None:
+    collaborator = _Collaborator()
+    plan_store = _PlanStore(
+        active_plan=Plan(
+            plan_id="plan-1",
+            session_id="session-1",
+            title="Plan",
+            objective="Publish the active Plan.",
+            summary="Flat TaskNode plan.",
+        )
+    )
+    plan_publisher = _PlanPublisher(
+        PublishPlanResult(
+            command_id="plan-publish",
+            request_id="plan-publish",
+            session_id="session-1",
+            plan_id="plan-1",
+            skipped=True,
+            reason="plan has no TaskNodes",
+        )
+    )
+    gateway = _gateway(
+        collaborator=collaborator,
+        plan_store=plan_store,
+        plan_publisher=plan_publisher,
+    )
+    request = CommandRequest[PublishTaskTreePayload](
+        command_id="publish-empty-plan",
+        session_id="session-1",
+        payload=PublishTaskTreePayload(task_tree_id="tree-legacy"),
+    )
+
+    response = gateway.publish_task_tree(request)
+
+    assert response.ok is False
+    assert response.error is not None
+    assert response.error.code == "command_rejected"
+    assert response.error.message == "plan has no TaskNodes"
+    assert collaborator.calls == []
+    assert len(plan_publisher.calls) == 1
 
 
 def test_publish_task_tree_rejects_synthetic_id_without_active_state_store() -> None:

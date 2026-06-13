@@ -544,7 +544,78 @@ class PlanProposal(_FrozenAuthoringModel):
         ]
         if len(client_ids) != len(set(client_ids)):
             raise ValueError("PlanProposal client_task_id values must be unique")
+        _validate_plan_dependencies(self.tasks)
         return self
+
+    def ordered_tasks(self) -> tuple[PlanTaskNodeProposal, ...]:
+        """Return tasks in stable Plan order.
+
+        Explicit task_index values control order. Tasks without task_index keep
+        their original proposal order after indexed tasks with lower sort keys.
+        """
+
+        indexed = tuple(enumerate(self.tasks, start=1))
+        return tuple(
+            task
+            for _, task in sorted(
+                indexed,
+                key=lambda item: (
+                    item[1].task_index if item[1].task_index is not None else item[0],
+                    item[0],
+                ),
+            )
+        )
+
+
+def _validate_plan_dependencies(tasks: tuple[PlanTaskNodeProposal, ...]) -> None:
+    ref_to_index: dict[str, int] = {}
+    task_refs_by_index: list[set[str]] = []
+    for index, task in enumerate(tasks):
+        refs: set[str] = set()
+        if task.client_task_id is not None:
+            refs.add(task.client_task_id)
+        if task.task_index is not None:
+            refs.add(str(task.task_index))
+        task_refs_by_index.append(refs)
+        for ref in refs:
+            ref_to_index[ref] = index
+
+    edges: dict[int, set[int]] = {index: set() for index in range(len(tasks))}
+    for index, task in enumerate(tasks):
+        for dependency_ref in task.depends_on:
+            dependency_index = ref_to_index.get(dependency_ref)
+            if dependency_index is None:
+                raise ValueError(
+                    "PlanProposal depends_on references unknown task "
+                    f"{dependency_ref!r}"
+                )
+            if dependency_ref in task_refs_by_index[index]:
+                raise ValueError(
+                    "PlanProposal task must not depend on itself: "
+                    f"{dependency_ref!r}"
+                )
+            edges[index].add(dependency_index)
+
+    _reject_plan_dependency_cycles(edges)
+
+
+def _reject_plan_dependency_cycles(edges: dict[int, set[int]]) -> None:
+    visiting: set[int] = set()
+    visited: set[int] = set()
+
+    def visit(index: int) -> None:
+        if index in visited:
+            return
+        if index in visiting:
+            raise ValueError("PlanProposal depends_on must not contain cycles")
+        visiting.add(index)
+        for dependency_index in edges[index]:
+            visit(dependency_index)
+        visiting.remove(index)
+        visited.add(index)
+
+    for index in edges:
+        visit(index)
 
 
 class DraftTaskPatchProposal(_FrozenAuthoringModel):
