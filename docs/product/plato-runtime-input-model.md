@@ -26,6 +26,12 @@ one user input
   -> question / guidance / command / ASK answer / confirmation response
 ```
 
+This input surface enters the Contract Revision Loop. It may revise Session,
+Plan, TaskNode, guidance, ASK, or confirmation state. It must not directly
+write the workspace. Workspace-changing requests must become executable work
+and enter the Contract Execution Loop through TaskBus. See
+[Plato Contract Loop Product Model](plato-contract-loop-model.md).
+
 The UI may provide a secondary override menu, but the default path should be
 `Auto`.
 
@@ -147,6 +153,22 @@ Examples:
 If the interpretation has side effects, the user should be able to confirm,
 cancel, or change interpretation.
 
+Every routed input should also create or update a typed Conversation / Activity
+record unless policy intentionally keeps the internal step invisible.
+
+The activity record should capture:
+
+- original user-visible input;
+- interpreted intent;
+- affected scope: Session, Plan, or Task;
+- side-effect class: no effect, context effect, state effect, authorization
+  effect, resume effect, or execution request;
+- linked Plan, Task, ASK, confirmation, result, file, audit, or diagnostic refs
+  when available.
+
+This keeps the Router from becoming a black box while avoiding raw prompt or
+tool transcript exposure.
+
 ## 9. Side Effect Policy
 
 Input effects should be explicit:
@@ -211,3 +233,5 @@ Early Product 1.1 does not need:
 6. Questions must support read-only answers.
 7. Guidance must affect context without silently rewriting Plan or Task.
 8. ASK and confirmation remain separate lifecycles.
+9. Runtime input outcomes must be visible as typed Conversation / Activity
+   records when they affect user understanding or product state.

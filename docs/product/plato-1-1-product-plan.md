@@ -53,6 +53,7 @@ with aggregation/API decisions captured in
 Before executable Product 1.1 implementation plans, these semantic baselines
 should remain aligned:
 
+- [Plato Contract Loop Product Model](plato-contract-loop-model.md);
 - [Plato Task Semantics](plato-task-semantics.md);
 - [Plato Session Content Model](plato-session-content-model.md);
 - [Plato Runtime Input Model](plato-runtime-input-model.md);
@@ -60,8 +61,9 @@ should remain aligned:
 - [Plato Outcome Review Model](plato-outcome-review-model.md).
 
 These documents define what users believe Tasks, Session content, runtime
-input, post-execution continuation, and outcome review mean. Implementation
-plans should not invent conflicting meanings in API, frontend, or backend code.
+input, post-execution continuation, outcome review, and contract revision /
+execution boundaries mean. Implementation plans should not invent conflicting
+meanings in API, frontend, or backend code.
 
 ## 2. Moved Out Of 1.0
 
@@ -233,6 +235,11 @@ feature plans for:
 - completion-time `task_after` pipeline;
 - workspace inspection: git status, diff, text file viewer, and file/diff
   evidence;
+- Plan / TaskNode contract migration;
+- Session Conversation / Activity timeline;
+- Runtime Input Router contract;
+- Read-only Inquiry Context;
+- Contract Revision command skills;
 - Result Packaging Agent and cards;
 - routing/assignment foundation;
 - skills integration:
@@ -241,7 +248,6 @@ feature plans for:
   deferred;
 - MCP integration;
 - file and multimodal support;
-- runtime input model implementation;
 - authoring context and Plan Cycle continuation;
 - Agent protocol, special Agent protocols, and custom Agent creation /
   validation workflow.

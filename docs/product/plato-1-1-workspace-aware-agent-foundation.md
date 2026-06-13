@@ -135,6 +135,12 @@ Product 1.1 should not treat every user message as chat. The same text input
 surface may route to different modes, but the backend and UI must preserve the
 distinction.
 
+These modes enter the Contract Revision Loop. Read-only inquiry, guidance,
+Plan/TaskNode edits, ASK answers, and confirmation responses revise or inspect
+the product contract. Workspace-changing requests must become executable work
+and enter the Contract Execution Loop through TaskBus. See
+[Plato Contract Loop Product Model](plato-contract-loop-model.md).
+
 ### 2.5 Read-Only Inquiry
 
 Product 1.1 should support a mode where the user asks a question without

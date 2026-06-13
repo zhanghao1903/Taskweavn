@@ -55,7 +55,7 @@ Audit = evidence trace behind the contracts
 Session content is not:
 
 - raw LLM output;
-- a full chat transcript;
+- a raw chat transcript;
 - a replacement for Task status;
 - a replacement for Audit records;
 - a dump of tool calls or logs;
@@ -135,6 +135,7 @@ degrading into raw chat.
 | Result summary | User-readable outcome. | Task / Session | Summarizes terminal facts. |
 | File summary | User-readable workspace change summary. | Task / Session | Summarizes evidence. |
 | Recovery note | Failure, stop, retry, or recovery explanation. | Task / Session | Explains recovery path. |
+| Activity interpretation | User-readable explanation of how an input was routed and what consequence it had. | Session / Plan / Task | Explains the Router outcome; state authority belongs to underlying facts. |
 
 Plan-level content may be produced by Collaborator, reviewer, summarizer, audit,
 or context-management agents. It should still be projected into typed content
@@ -162,6 +163,20 @@ canonical fact wins.
 
 ## 8. Display Boundaries
 
+### 8.0 Work View, Conversation, And Audit
+
+Session has three related but distinct user surfaces:
+
+| Surface | User question | Primary content |
+|---|---|---|
+| Work view | What is Plato doing, what is the plan, and what can I control now? | Plan, Task, result, file summary, current actions. |
+| Conversation / Activity | What did I tell Plato, how did it interpret that, and what consequence did it have? | User inputs, answers, guidance, Plan/Task changes, ASK, confirmation, result/recovery notes. |
+| Audit | Why is this trustworthy, and what evidence exists? | Event, tool, evidence, log, config, diagnostic refs. |
+
+The Main Page should stay work-first. A Latest Activity summary can expose the
+most recent activity, while a Conversation / Activity drawer or secondary view
+can expose the full typed history.
+
 ### 8.1 Main Page Activity
 
 Main Page Activity is the user-readable session narrative.
@@ -169,6 +184,8 @@ Main Page Activity is the user-readable session narrative.
 It should show:
 
 - user intent;
+- interpreted input effect;
+- affected scope;
 - plan ready / plan revised;
 - task started / paused / completed / failed;
 - ASK required;
@@ -243,9 +260,14 @@ The UI should project typed views from MessageStream and other facts:
 ```text
 MessageStream + Plan facts + Task facts + ASK facts + confirmation facts + result facts
   -> Activity Stream
+  -> Conversation / Activity timeline
   -> Task Detail Activity
   -> Plan Activity
 ```
+
+Conversation / Activity is therefore a projection, not a table dump. It should
+preserve user-readable chat history while making each item explicit about
+scope, effect, and related product facts.
 
 ## 10. Relationship To Plan Cycles
 
@@ -277,7 +299,8 @@ without relying on raw chat:
 ## 11. Product Invariants
 
 1. Session content is typed and scoped.
-2. Session content is not raw chat.
+2. Session content is not raw chat, but it can project a typed conversation
+   history.
 3. Task remains the work contract and state authority.
 4. Plan is the scoped work program and context-management boundary.
 5. Activity explains what happened in user-readable form.
@@ -288,3 +311,5 @@ without relying on raw chat:
    changes context, changes state, or reports evidence.
 9. Plan-level summary, validation, integration, and context-compression content
    belongs to Plan scope, not raw Session chat.
+10. Every routed runtime input should have a user-readable activity
+    interpretation unless it is fully internal and invisible by policy.

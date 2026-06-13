@@ -45,3 +45,4 @@ Each ADR should include:
 | [ADR-0016](ADR-0016-collaborator-workspace-aware-authoring.md) | accepted | Give Collaborator a bounded read-only authoring loop with workspace read/query/search, without workspace writes or unrestricted execution tools. |
 | [ADR-0017](ADR-0017-session-and-workspace-context-management-foundation.md) | accepted foundation | Define Workspace, Session, and Task context layers as a future contract without implementation. |
 | [ADR-0018](ADR-0018-workspace-archive-and-delete-semantics.md) | accepted | Use two user-facing workspace lifecycle actions: Archive workspace and Delete Plato data; put restore and usage management inside Settings tabs. |
+| [ADR-0019](ADR-0019-session-conversation-activity-boundary.md) | accepted | Model chat history as a typed Session Conversation / Activity timeline, not as the primary control surface or raw transcript. |

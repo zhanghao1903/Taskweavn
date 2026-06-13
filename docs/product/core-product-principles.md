@@ -31,6 +31,20 @@ A Session may contain multiple Plan Cycles over time. Each Plan Cycle is one
 round of authoring, execution, outcome review, and acceptance. See
 [Plato Plan Cycle Semantics](plato-plan-cycle-semantics.md).
 
+Natural-language input is governed by two loops:
+
+```text
+Contract Revision Loop
+  revises what Plato understands and what work contract exists
+
+Contract Execution Loop
+  executes the accepted contract and may change the workspace
+```
+
+This is the product answer to "who is the user talking to?" The user talks to
+the Plato Session, not directly to Collaborator, an Execution Agent, or a file
+tool. See [Plato Contract Loop Product Model](plato-contract-loop-model.md).
+
 ```text
 Natural language goal
   -> Workflow
@@ -63,6 +77,16 @@ objects: tasks, status, options, results, and changes.
 ## 3. Design Direction
 
 The product should feel understandable before it feels powerful.
+
+Runtime input should follow:
+
+```text
+Natural input, explicit consequence.
+```
+
+The user can type naturally, but Plato should make clear whether the input was
+treated as an answer, guidance, a Plan/Task change, an execution request, an ASK
+answer, or a confirmation response.
 
 The user should not need to know:
 

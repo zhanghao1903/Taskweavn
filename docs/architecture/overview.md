@@ -27,6 +27,21 @@ Execution Domain
   executes confirmed PublishedTasks and projects results back to the UI
 ```
 
+Product 1.1+ work uses a stricter loop boundary:
+
+```text
+Contract Revision Loop
+  understands user input and revises Session / Plan / TaskNode contract facts
+
+Contract Execution Loop
+  executes accepted PublishedTasks and may change the workspace
+```
+
+See [Contract Revision And Execution Loops](contract-revision-and-execution-loops.md).
+This boundary is the architecture answer to natural-language input: user chat
+does not directly write the workspace, and Collaborator is not the universal
+owner of runtime input.
+
 The current Product 1.0 path is:
 
 ```text
@@ -148,7 +163,9 @@ routing, or assignment visibility become real product needs.
 
 ## 5. Communication Boundaries
 
-TaskWeavn distinguishes three mutation worlds.
+TaskWeavn distinguishes three mutation worlds. Product-state changes belong to
+the Contract Revision Loop; workspace changes belong to the Contract Execution
+Loop.
 
 | Mutation Target | Boundary | Notes |
 |---|---|---|
