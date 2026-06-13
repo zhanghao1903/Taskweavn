@@ -386,6 +386,10 @@ class DefaultCollaboratorAuthoringService:
                     "instruction": instruction,
                     "context": _context_payload(context),
                 },
+                metadata={
+                    "task_id": selected_task_ref.id,
+                    "task_node_id": selected_task_ref.id,
+                },
                 parse_response=_json_from_response,
             )
             proposal = DraftTaskPatchProposal.model_validate(
@@ -425,6 +429,7 @@ class DefaultCollaboratorAuthoringService:
         request_purpose: str,
         payload: dict[str, Any],
         parse_response: Callable[[str], dict[str, Any]],
+        metadata: dict[str, Any] | None = None,
     ) -> CollaboratorAuthoringLoopResult:
         request = CollaboratorAuthoringProfileRequest(
             session_id=session_id,
@@ -433,6 +438,7 @@ class DefaultCollaboratorAuthoringService:
             request_purpose=request_purpose,
             task=task,
             payload=payload,
+            metadata=metadata or {},
         )
         return self._profile_runner.run(
             request=request,

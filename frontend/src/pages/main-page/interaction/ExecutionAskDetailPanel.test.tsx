@@ -230,6 +230,21 @@ describe("ExecutionAskDetailPanel", () => {
     expect(screen.getByRole("button", { name: "Answer" })).toBeDisabled();
   });
 
+  it("marks the answer button as busy while an answer is submitting", () => {
+    render(
+      <ExecutionAskDetailPanel
+        detail={executionAskDetail({ isAnsweringAsk: true })}
+        onAnswer={vi.fn()}
+        onCancel={vi.fn()}
+        onDefer={vi.fn()}
+      />,
+    );
+
+    const answerButton = screen.getByRole("button", { name: "Answering" });
+    expect(answerButton).toBeDisabled();
+    expect(answerButton).toHaveAttribute("aria-busy", "true");
+  });
+
   it("blocks stale ASK ids when the selected task does not match", () => {
     const onAnswer = vi.fn();
     const detail = executionAskDetail();

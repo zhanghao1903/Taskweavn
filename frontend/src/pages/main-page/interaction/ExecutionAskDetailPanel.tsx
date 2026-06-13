@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { LoaderCircle } from "lucide-react";
 
 import type {
   AnswerAskPayload,
@@ -208,8 +209,25 @@ export function ExecutionAskDetailPanel({
       ) : null}
 
       <div className={styles.actionRow}>
-        <Button disabled={!canAnswer} onClick={handleAnswer} variant="primary">
-          {detail.isAnsweringAsk ? "Answering" : "Answer"}
+        <Button
+          aria-busy={detail.isAnsweringAsk ? true : undefined}
+          className={detail.isAnsweringAsk ? styles.submitButtonPending : undefined}
+          disabled={!canAnswer}
+          onClick={handleAnswer}
+          variant="primary"
+        >
+          {detail.isAnsweringAsk ? (
+            <>
+              <LoaderCircle
+                aria-hidden="true"
+                className={styles.pendingSpinner}
+                size={16}
+              />
+              Answering
+            </>
+          ) : (
+            "Answer"
+          )}
         </Button>
         <Button
           disabled={isPending || isStale}

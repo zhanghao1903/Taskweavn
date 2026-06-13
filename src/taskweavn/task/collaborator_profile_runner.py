@@ -137,6 +137,7 @@ class CollaboratorAuthoringProfileRunner:
             "step": step,
             "terminal_tool_name": self._profile.terminal_tool_name,
         }
+        metadata.update(request.metadata)
         log_context = LogContext(
             session_id=request.session_id,
             agent_id=self._actor_id,

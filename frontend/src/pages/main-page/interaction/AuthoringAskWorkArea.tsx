@@ -1,5 +1,6 @@
 import type { FormEvent } from "react";
 import { useEffect, useMemo, useState } from "react";
+import { LoaderCircle } from "lucide-react";
 
 import type { AnswerAuthoringAskItemPayload } from "../../../shared/api/platoApi";
 import type {
@@ -139,8 +140,25 @@ export function AuthoringAskWorkArea({
             </div>
           ) : null}
         </div>
-        <Button disabled={!canSubmit} type="submit" variant="primary">
-          {view.isSubmitting ? "Submitting" : "Submit all answers"}
+        <Button
+          aria-busy={view.isSubmitting ? true : undefined}
+          className={view.isSubmitting ? styles.submitButtonPending : undefined}
+          disabled={!canSubmit}
+          type="submit"
+          variant="primary"
+        >
+          {view.isSubmitting ? (
+            <>
+              <LoaderCircle
+                aria-hidden="true"
+                className={styles.pendingSpinner}
+                size={16}
+              />
+              Submitting
+            </>
+          ) : (
+            "Submit all answers"
+          )}
         </Button>
       </footer>
     </form>

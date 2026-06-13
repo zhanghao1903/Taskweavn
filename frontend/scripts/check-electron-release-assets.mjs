@@ -542,6 +542,9 @@ function checkProhibitedReleaseAsset(filePath, stat, appRoot) {
   if (segments.includes("site-packages")) {
     const sitePackagesIndex = segments.indexOf("site-packages");
     const packageSegment = segments[sitePackagesIndex + 1] ?? "";
+    if (isAllowedThirdPartyRuntimeFile(filePath)) {
+      return;
+    }
     if (
       isRuntimeDevToolName(packageSegment) ||
       isRuntimeTestFileName(basename) ||
@@ -592,6 +595,14 @@ function isRuntimeTestFileName(name) {
     name === "testing_refleaks.py" ||
     name === "testclient.py" ||
     name === "tests.py"
+  );
+}
+
+function isAllowedThirdPartyRuntimeFile(filePath) {
+  const normalized = filePath.split(path.sep).join("/");
+  return (
+    normalized.endsWith("/site-packages/anyio/_core/_testing.py") ||
+    normalized.endsWith("/site-packages/anyio/abc/_testing.py")
   );
 }
 

@@ -79,3 +79,18 @@
 .error {
   color: var(--plato-color-danger-text);
 }
+
+.submitButtonPending:disabled {
+  cursor: wait;
+  opacity: 1;
+}
+
+.pendingSpinner {
+  animation: platoExecutionAskSpin 0.85s linear infinite;
+}
+
+@keyframes platoExecutionAskSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}

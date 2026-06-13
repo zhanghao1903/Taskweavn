@@ -101,7 +101,9 @@ describe("AuthoringAskWorkArea", () => {
     );
 
     expect(screen.getByRole("button", { name: "Portfolio" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Submitting" })).toBeDisabled();
+    const submit = screen.getByRole("button", { name: "Submitting" });
+    expect(submit).toBeDisabled();
+    expect(submit).toHaveAttribute("aria-busy", "true");
   });
 });
 

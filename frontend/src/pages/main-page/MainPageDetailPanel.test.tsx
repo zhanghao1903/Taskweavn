@@ -117,22 +117,22 @@ describe("MainPageDetailPanel", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("shows token usage for the selected task when a usage loader is available", async () => {
+  it("shows session token usage for draft selected tasks when a usage loader is available", async () => {
     const loadTokenUsageSummary = vi.fn(async () => ({
-      dimension: "task" as const,
+      dimension: "session" as const,
       totals: {
-        dimension: "task" as const,
+        dimension: "session" as const,
         id: "total",
         label: "Total",
         workspaceId: "workspace-a",
         sessionId: "session-1",
-        planId: "plan-1",
-        taskNodeId: "task-technical-stack",
+        planId: null,
+        taskNodeId: null,
         callCount: 2,
         unknownUsageCallCount: 1,
         inputTokens: 1000,
         outputTokens: 250,
-        totalTokens: 1250,
+        totalTokens: null,
         reasoningTokens: null,
         cachedTokens: 400,
         cacheHitTokens: 400,
@@ -183,6 +183,82 @@ describe("MainPageDetailPanel", () => {
     });
     expect(screen.queryByText("1,000 / 250")).not.toBeInTheDocument();
     expect(screen.queryByText("40.0%")).not.toBeInTheDocument();
+    expect(loadTokenUsageSummary).toHaveBeenCalledWith(
+      {
+        dimension: "session",
+        sessionId: "session-1",
+      },
+      "workspace-a",
+    );
+  });
+
+  it("shows task token usage for published selected tasks when a usage loader is available", async () => {
+    const loadTokenUsageSummary = vi.fn(async () => ({
+      dimension: "task" as const,
+      totals: {
+        dimension: "task" as const,
+        id: "total",
+        label: "Total",
+        workspaceId: "workspace-a",
+        sessionId: "session-1",
+        planId: "plan-1",
+        taskNodeId: "task-technical-stack",
+        callCount: 1,
+        unknownUsageCallCount: 0,
+        inputTokens: 700,
+        outputTokens: 300,
+        totalTokens: 1000,
+        reasoningTokens: null,
+        cachedTokens: null,
+        cacheHitTokens: null,
+        cacheMissTokens: null,
+        cacheHitRatio: null,
+        cacheRateSource: "unavailable" as const,
+        firstOccurredAt: "2026-06-10T00:00:00Z",
+        lastOccurredAt: "2026-06-10T00:01:00Z",
+      },
+      rows: [],
+    }));
+
+    renderWithQueryClient(
+      <MainPageDetailPanel
+        detail={{
+          header: {
+            body: "Compare framework options.",
+            eyebrow: "Task",
+            title: "Choose stack",
+          },
+          isRetryingTask: false,
+          isStoppingTask: false,
+          kind: "task",
+          selectedTask: taskNode({
+            id: "task-technical-stack",
+            summary: "Compare framework options.",
+            taskRef: {
+              id: "task-technical-stack",
+              kind: "published",
+            },
+            title: "Choose stack",
+          }),
+        }}
+        loadTokenUsageSummary={loadTokenUsageSummary}
+        onAnswerAsk={vi.fn()}
+        onCancelAsk={vi.fn()}
+        onConfirmationDecision={vi.fn()}
+        onDeferAsk={vi.fn()}
+        onRetryTask={vi.fn()}
+        onShowFileChanges={vi.fn()}
+        onShowResult={vi.fn()}
+        onStopTask={vi.fn()}
+        sessionId="session-1"
+        workspaceId="workspace-a"
+      />,
+    );
+
+    const usageLine = await screen.findByLabelText("Token usage");
+    await waitFor(() => {
+      expect(usageLine).toHaveTextContent("1,000");
+    });
     expect(loadTokenUsageSummary).toHaveBeenCalledWith(
       {
         dimension: "task",

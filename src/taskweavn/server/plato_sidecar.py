@@ -49,6 +49,7 @@ def _serve(args: argparse.Namespace) -> int:
         WorkspaceRegistryEntry,
         build_main_page_sidecar_app,
     )
+    from taskweavn.server.settings_config import FileSettingsConfigStore
 
     _mark_startup_timing(
         "python_sidecar_import_ready",
@@ -62,6 +63,11 @@ def _serve(args: argparse.Namespace) -> int:
         "python_sidecar_build_begin",
         workspaceRegistryCount=len(workspace_registry),
     )
+    settings_store = FileSettingsConfigStore(args.workspace)
+
+    def effective_llm_env() -> dict[str, str]:
+        return settings_store.effective_env(os.environ)
+
     sidecar = build_main_page_sidecar_app(
         MainPageSidecarConfig(
             workspace_root=args.workspace,
@@ -69,7 +75,9 @@ def _serve(args: argparse.Namespace) -> int:
             port=args.port,
             workspace_registry=workspace_registry,
         ),
-        MainPageSidecarDependencies(llm=LazyLLMClient()),
+        MainPageSidecarDependencies(
+            llm=LazyLLMClient(env_provider=effective_llm_env),
+        ),
     )
     try:
         sidecar.start_in_thread()

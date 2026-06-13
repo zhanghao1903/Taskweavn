@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from collections.abc import Mapping
 from dataclasses import dataclass
 
 from taskweavn.llm.contracts import (
@@ -29,31 +30,42 @@ DEFAULT_LLM_REQUEST_TIMEOUT_SECONDS = 180.0
 DEFAULT_LLM_PROVIDER = "deepseek"
 
 
-def load_client_config_from_env(default_model: str) -> LLMClientConfig:
+def load_client_config_from_env(
+    default_model: str,
+    env: Mapping[str, str] | None = None,
+) -> LLMClientConfig:
     """Resolve provider config from environment variables."""
-    provider_name = os.environ.get("LLM_PROVIDER", DEFAULT_LLM_PROVIDER).strip().lower()
-    model = os.environ.get("LLM_MODEL", default_model)
-    thinking = _thinking_from_env()
-    routing = _openrouter_routing_from_env() if provider_name == "openrouter" else None
-    request_timeout_seconds = _request_timeout_from_env()
+    source_env = os.environ if env is None else env
+    provider_name = source_env.get("LLM_PROVIDER", DEFAULT_LLM_PROVIDER).strip().lower()
+    model = source_env.get("LLM_MODEL", default_model)
+    thinking = _thinking_from_env(source_env)
+    routing = (
+        _openrouter_routing_from_env(source_env)
+        if provider_name == "openrouter"
+        else None
+    )
+    request_timeout_seconds = _request_timeout_from_env(source_env)
     provider: LLMProvider
 
     if provider_name == "deepseek":
         from taskweavn.llm.providers.deepseek import DeepSeekProvider
 
-        api_key = os.environ.get("DEEPSEEK_API_KEY") or os.environ.get("LLM_API_KEY")
+        api_key = source_env.get("DEEPSEEK_API_KEY") or source_env.get("LLM_API_KEY")
         if not api_key:
             raise RuntimeError(
                 "DEEPSEEK_API_KEY or LLM_API_KEY is required for LLM_PROVIDER=deepseek."
             )
         provider = DeepSeekProvider(
             api_key=api_key,
-            base_url=os.environ.get("DEEPSEEK_BASE_URL", "https://api.deepseek.com"),
+            base_url=source_env.get(
+                "DEEPSEEK_BASE_URL",
+                "https://api.deepseek.com",
+            ),
         )
     elif provider_name == "openrouter":
         from taskweavn.llm.providers.openrouter import OpenRouterProvider
 
-        api_key = os.environ.get("OPENROUTER_API_KEY") or os.environ.get("LLM_API_KEY")
+        api_key = source_env.get("OPENROUTER_API_KEY") or source_env.get("LLM_API_KEY")
         if not api_key:
             raise RuntimeError(
                 "OPENROUTER_API_KEY or LLM_API_KEY is required for LLM_PROVIDER=openrouter."
@@ -62,7 +74,7 @@ def load_client_config_from_env(default_model: str) -> LLMClientConfig:
     elif provider_name == "litellm":
         from taskweavn.llm.providers.litellm import LiteLLMProvider
 
-        api_key = os.environ.get("LLM_API_KEY")
+        api_key = source_env.get("LLM_API_KEY")
         if not api_key:
             raise RuntimeError(
                 "LLM_API_KEY is not set; export it before using LLMClient.from_env()."
@@ -114,18 +126,18 @@ def build_provider(
     raise RuntimeError(f"unknown LLM provider: {provider_name!r}")
 
 
-def _thinking_from_env() -> ThinkingConfig | None:
-    raw = os.environ.get("LLM_THINKING_ENABLED")
+def _thinking_from_env(env: Mapping[str, str]) -> ThinkingConfig | None:
+    raw = env.get("LLM_THINKING_ENABLED")
     if raw is None:
         return None
     return ThinkingConfig(
         enabled=_parse_bool(raw),
-        effort=os.environ.get("LLM_THINKING_EFFORT", "high"),
+        effort=env.get("LLM_THINKING_EFFORT", "high"),
     )
 
 
-def _request_timeout_from_env() -> float | None:
-    raw = os.environ.get("LLM_REQUEST_TIMEOUT_SECONDS")
+def _request_timeout_from_env(env: Mapping[str, str]) -> float | None:
+    raw = env.get("LLM_REQUEST_TIMEOUT_SECONDS")
     if raw is None:
         return DEFAULT_LLM_REQUEST_TIMEOUT_SECONDS
 
@@ -141,22 +153,22 @@ def _request_timeout_from_env() -> float | None:
     return timeout
 
 
-def _openrouter_routing_from_env() -> ProviderRoutingConfig | None:
-    order = _split_csv(os.environ.get("OPENROUTER_PROVIDER_ORDER"))
-    only = _split_csv(os.environ.get("OPENROUTER_PROVIDER_ONLY"))
-    ignore = _split_csv(os.environ.get("OPENROUTER_PROVIDER_IGNORE"))
-    allow_fallbacks = _parse_bool(os.environ.get("OPENROUTER_ALLOW_FALLBACKS", "false"))
+def _openrouter_routing_from_env(env: Mapping[str, str]) -> ProviderRoutingConfig | None:
+    order = _split_csv(env.get("OPENROUTER_PROVIDER_ORDER"))
+    only = _split_csv(env.get("OPENROUTER_PROVIDER_ONLY"))
+    ignore = _split_csv(env.get("OPENROUTER_PROVIDER_IGNORE"))
+    allow_fallbacks = _parse_bool(env.get("OPENROUTER_ALLOW_FALLBACKS", "false"))
     require_parameters = _parse_bool(
-        os.environ.get("OPENROUTER_REQUIRE_PARAMETERS", "true")
+        env.get("OPENROUTER_REQUIRE_PARAMETERS", "true")
     )
-    data_collection = os.environ.get("OPENROUTER_DATA_COLLECTION")
+    data_collection = env.get("OPENROUTER_DATA_COLLECTION")
     if (
         not order
         and not only
         and not ignore
         and data_collection is None
-        and "OPENROUTER_ALLOW_FALLBACKS" not in os.environ
-        and "OPENROUTER_REQUIRE_PARAMETERS" not in os.environ
+        and "OPENROUTER_ALLOW_FALLBACKS" not in env
+        and "OPENROUTER_REQUIRE_PARAMETERS" not in env
     ):
         return None
     return ProviderRoutingConfig(
@@ -166,7 +178,7 @@ def _openrouter_routing_from_env() -> ProviderRoutingConfig | None:
         allow_fallbacks=allow_fallbacks,
         require_parameters=require_parameters,
         data_collection=data_collection,
-        zdr=_parse_optional_bool(os.environ.get("OPENROUTER_ZDR")),
+        zdr=_parse_optional_bool(env.get("OPENROUTER_ZDR")),
     )
 
 

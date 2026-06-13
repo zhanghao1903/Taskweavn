@@ -13,6 +13,7 @@ import type {
   TaskNodeId,
   WorkspaceId,
 } from "../../shared/api/types";
+import type { TokenUsageSummaryRequest } from "../../shared/api/tokenUsageTypes";
 import { Badge, Button, Panel, Text } from "../../shared/components";
 import { buildWorkspaceInspectionRoute } from "../../app/routes";
 import { ConfirmationDetailPanel } from "./interaction/ConfirmationDetailPanel";
@@ -566,11 +567,7 @@ function TaskDetailPanel({
       {sessionId ? (
         <MainPageTokenUsageSummaryCard
           loadTokenUsageSummary={loadTokenUsageSummary}
-          request={{
-            dimension: "task",
-            sessionId,
-            taskNodeId: detail.selectedTask.id,
-          }}
+          request={tokenUsageRequestForTaskDetail(detail, sessionId)}
           workspaceId={workspaceId}
         />
       ) : null}
@@ -644,6 +641,24 @@ function TaskDetailPanel({
       )}
     </>
   );
+}
+
+function tokenUsageRequestForTaskDetail(
+  detail: TaskDetail,
+  sessionId: SessionId,
+): TokenUsageSummaryRequest {
+  if (detail.selectedTask.taskRef?.kind === "draft") {
+    return {
+      dimension: "session",
+      sessionId,
+    };
+  }
+
+  return {
+    dimension: "task",
+    sessionId,
+    taskNodeId: detail.selectedTask.id,
+  };
 }
 
 function TaskDetailSection({

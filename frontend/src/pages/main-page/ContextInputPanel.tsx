@@ -1,4 +1,4 @@
-import { SendHorizontal } from "lucide-react";
+import { LoaderCircle, SendHorizontal } from "lucide-react";
 import type { FormEvent } from "react";
 
 import type { ProductRecoveryAction } from "../../shared/api/platoApi";
@@ -13,6 +13,7 @@ export type ContextInputPanelProps = {
   error: string | null;
   input: MainPageInputViewModel;
   isFloating?: boolean;
+  isSubmitting?: boolean;
   onDraftChange: (draft: string) => void;
   onSubmit: () => void;
   recoveryActions: ProductRecoveryAction[];
@@ -23,18 +24,24 @@ export function ContextInputPanel({
   error,
   input,
   isFloating = false,
+  isSubmitting = false,
   onDraftChange,
   onSubmit,
   recoveryActions,
 }: ContextInputPanelProps) {
   const uiText = useUiText();
   const scopeLabel = splitWritingScopeLabel(input.scope.label);
-  const helperText = error ?? null;
-  const scopeDescription = helperText ?? input.scope.description;
   const inputPlaceholder =
     input.disabled && input.disabledReason
       ? input.disabledReason
       : input.scope.placeholder;
+  const className = [
+    styles.contextInput,
+    isFloating ? styles.floatingContextInput : null,
+    error ? styles.contextInputWithError : null,
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   function handleSubmit(event: FormEvent<HTMLElement>) {
     event.preventDefault();
@@ -44,13 +51,21 @@ export function ContextInputPanel({
   return (
     <Panel
       as="form"
-      className={
-        isFloating
-          ? `${styles.contextInput} ${styles.floatingContextInput}`
-          : styles.contextInput
-      }
+      className={className}
       onSubmit={handleSubmit}
     >
+      {error ? (
+        <div
+          aria-live="polite"
+          className={styles.contextInputError}
+          role="alert"
+        >
+          <Text as="span" variant="body">
+            {error}
+          </Text>
+          <ProductRecoveryActions actions={recoveryActions} />
+        </div>
+      ) : null}
       <div className={styles.contextInputScope}>
         {scopeLabel ? (
           <>
@@ -74,12 +89,9 @@ export function ContextInputPanel({
             {input.scope.label}
           </Text>
         )}
-        {helperText ? (
-          <Text variant="muted">{helperText}</Text>
-        ) : scopeDescription && !scopeLabel ? (
-          <Text variant="muted">{scopeDescription}</Text>
+        {input.scope.description && !scopeLabel ? (
+          <Text variant="muted">{input.scope.description}</Text>
         ) : null}
-        {error ? <ProductRecoveryActions actions={recoveryActions} /> : null}
       </div>
       <div className={styles.contextInputField}>
         <input
@@ -90,13 +102,23 @@ export function ContextInputPanel({
           value={draft}
         />
         <Button
-          disabled={!draft.trim() || input.disabled}
+          disabled={!draft.trim() || input.disabled || isSubmitting}
           type="submit"
+          aria-busy={isSubmitting ? true : undefined}
           aria-label={uiText.main.input.sendMessageAriaLabel}
+          className={isSubmitting ? styles.contextInputSubmitPending : undefined}
           size="icon"
           variant="primary"
         >
-          <SendHorizontal size={18} aria-hidden="true" />
+          {isSubmitting ? (
+            <LoaderCircle
+              className={styles.contextInputSubmitSpinner}
+              size={18}
+              aria-hidden="true"
+            />
+          ) : (
+            <SendHorizontal size={18} aria-hidden="true" />
+          )}
         </Button>
       </div>
     </Panel>

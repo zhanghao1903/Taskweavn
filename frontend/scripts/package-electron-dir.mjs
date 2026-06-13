@@ -606,6 +606,9 @@ function removeEditableDirectUrlMetadata(sitePackagesDir) {
 
 function shouldCopyRuntimeFile(source) {
   const basename = path.basename(source);
+  if (isRequiredThirdPartyRuntimeFile(source)) {
+    return true;
+  }
   if (isRuntimeTestDirectory(source)) {
     return false;
   }
@@ -700,6 +703,14 @@ function isRuntimeTestFile(source) {
     basename === "testing_refleaks.py" ||
     basename === "testclient.py" ||
     basename === "tests.py"
+  );
+}
+
+function isRequiredThirdPartyRuntimeFile(source) {
+  const normalized = source.split(path.sep).join("/");
+  return (
+    normalized.endsWith("/site-packages/anyio/_core/_testing.py") ||
+    normalized.endsWith("/site-packages/anyio/abc/_testing.py")
   );
 }
 

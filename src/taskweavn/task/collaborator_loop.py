@@ -110,6 +110,7 @@ class CollaboratorAuthoringProfileRequest(_FrozenCollaboratorLoopModel):
     request_purpose: str = Field(min_length=1)
     task: str = Field(min_length=1)
     payload: dict[str, Any] = Field(default_factory=dict)
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class CollaboratorAuthoringLoopResult(_FrozenCollaboratorLoopModel):

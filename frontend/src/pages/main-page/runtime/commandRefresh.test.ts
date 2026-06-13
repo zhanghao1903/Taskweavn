@@ -64,6 +64,36 @@ describe("command response handling", () => {
     });
   });
 
+  it("maps missing LLM API key rejections to settings recovery", () => {
+    expect(
+      handleCommandResponse(
+        {
+          ...acceptedCommandResponse({
+            emittedMessageIds: [],
+            waitForEvents: false,
+          }),
+          ok: false,
+          result: null,
+          error: {
+            code: "command_rejected",
+            details: {
+              recoveryActions: ["refresh_snapshot"],
+            },
+            message:
+              "session message rejected: raw_task proposal failed: DEEPSEEK_API_KEY or LLM_API_KEY is required for LLM_PROVIDER=deepseek.",
+            retryable: false,
+          },
+        },
+        "fallback rejected",
+      ),
+    ).toEqual({
+      errorMessage:
+        "LLM API key is missing. Open Settings and configure DEEPSEEK_API_KEY or LLM_API_KEY before sending a task.",
+      recoveryActions: ["open_settings", "refresh_snapshot"],
+      shouldRefetch: true,
+    });
+  });
+
   it("does not refetch rejected commands without refresh hints", () => {
     expect(
       handleCommandResponse(

@@ -9,8 +9,8 @@ capabilities directly.
 from __future__ import annotations
 
 import json
-from collections.abc import Sequence
-from typing import Any
+from collections.abc import Callable, Mapping, Sequence
+from typing import Any, cast
 
 from taskweavn.llm.config import (
     DEFAULT_LLM_REQUEST_TIMEOUT_SECONDS,
@@ -37,7 +37,7 @@ class _LazyOpenHandsLLM:
         return self._resolve().completion(*args, **kwargs)
 
     def get_token_count(self, *args: Any, **kwargs: Any) -> int:
-        return self._resolve().get_token_count(*args, **kwargs)
+        return cast(int, self._resolve().get_token_count(*args, **kwargs))
 
     def _resolve(self) -> Any:
         if self._instance is None:
@@ -48,6 +48,9 @@ class _LazyOpenHandsLLM:
 
 
 LLM = _LazyOpenHandsLLM
+
+
+LLMEnvProvider = Callable[[], Mapping[str, str]]
 
 
 class LLMClient:
@@ -82,9 +85,14 @@ class LLMClient:
         self._llm: Any = LLM(model=model, api_key=api_key)
 
     @classmethod
-    def from_env(cls, default_model: str = "deepseek-v4-pro") -> LLMClient:
+    def from_env(
+        cls,
+        default_model: str = "deepseek-v4-pro",
+        *,
+        env: Mapping[str, str] | None = None,
+    ) -> LLMClient:
         """Build a client from environment variables."""
-        config = load_client_config_from_env(default_model)
+        config = load_client_config_from_env(default_model, env=env)
         return cls(
             model=config.model,
             api_key=config.api_key,
@@ -114,7 +122,7 @@ class LLMClient:
 
     def count_tokens(self, messages: list[Any]) -> int:
         """Rough token count for a message list — used by the Phase 3 budget."""
-        return self._llm.get_token_count(messages)
+        return cast(int, self._llm.get_token_count(messages))
 
     def chat(
         self,
@@ -154,15 +162,22 @@ class LazyLLMClient:
     instead of failing the local runtime before a user can fix it.
     """
 
-    def __init__(self, default_model: str = "deepseek-v4-pro") -> None:
+    def __init__(
+        self,
+        default_model: str = "deepseek-v4-pro",
+        *,
+        env_provider: LLMEnvProvider | None = None,
+    ) -> None:
         self._default_model = default_model
+        self._env_provider = env_provider
         self._client: LLMClient | None = None
 
     @property
     def model(self) -> str:
         import os
 
-        return os.environ.get("LLM_MODEL", self._default_model)
+        env = self._env_provider() if self._env_provider is not None else os.environ
+        return env.get("LLM_MODEL", self._default_model)
 
     @property
     def request_timeout_seconds(self) -> float | None:
@@ -193,7 +208,8 @@ class LazyLLMClient:
 
     def _resolve(self) -> LLMClient:
         if self._client is None:
-            self._client = LLMClient.from_env(self._default_model)
+            env = self._env_provider() if self._env_provider is not None else None
+            self._client = LLMClient.from_env(self._default_model, env=env)
         return self._client
 
 

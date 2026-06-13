@@ -294,6 +294,7 @@ function renderWorkbench(
       inputRecoveryActions={[]}
       isCreatingSession={false}
       isDeletingSession={false}
+      isInputSubmitting={false}
       isRepairingAuthoringState={false}
       isRenamingSession={false}
       sessionDialog={{ mode: "idle" }}

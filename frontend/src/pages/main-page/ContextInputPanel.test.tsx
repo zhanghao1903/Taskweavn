@@ -65,8 +65,29 @@ describe("ContextInputPanel", () => {
     );
 
     expect(screen.getByText("Input submission was rejected.")).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Input submission was rejected.",
+    );
     expect(screen.getByText("Edit input")).toBeInTheDocument();
     expect(screen.getByText("Retry command")).toBeInTheDocument();
+  });
+
+  it("marks the submit button as busy while the message is being submitted", () => {
+    render(
+      <ContextInputPanel
+        draft="Plan a smaller version"
+        error={null}
+        input={inputView()}
+        isSubmitting
+        onDraftChange={vi.fn()}
+        onSubmit={vi.fn()}
+        recoveryActions={[]}
+      />,
+    );
+
+    const submit = screen.getByRole("button", { name: "Send message" });
+    expect(submit).toBeDisabled();
+    expect(submit).toHaveAttribute("aria-busy", "true");
   });
 });
 
