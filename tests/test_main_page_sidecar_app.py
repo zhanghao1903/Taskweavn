@@ -131,6 +131,60 @@ def test_main_page_sidecar_app_saves_settings_config_and_refreshes_readiness(
     ).read_text(encoding="utf-8")
 
 
+def test_main_page_sidecar_app_saves_settings_config_to_global_root(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    for key in (
+        "LLM_PROVIDER",
+        "LLM_MODEL",
+        "LLM_API_KEY",
+        "DEEPSEEK_API_KEY",
+        "OPENROUTER_API_KEY",
+    ):
+        monkeypatch.delenv(key, raising=False)
+    workspace_root = tmp_path / "workspace"
+    global_settings_root = tmp_path / "plato-user-data"
+    secret = "sk-global-settings-secret"
+
+    app = build_main_page_sidecar_app(
+        MainPageSidecarConfig(
+            workspace_root=workspace_root,
+            global_settings_root=global_settings_root,
+            port=0,
+        ),
+        MainPageSidecarDependencies(llm=_StubLLM()),
+    )
+    try:
+        saved = _request(
+            app,
+            "PATCH",
+            "/api/v1/settings/config",
+            body={
+                "llm": {
+                    "provider": "deepseek",
+                    "model": "deepseek-v4-pro",
+                    "apiKey": secret,
+                }
+            },
+        )
+        readiness = _request(app, "GET", "/api/v1/settings/readiness")
+    finally:
+        app.close()
+
+    global_config = global_settings_root / "settings" / "config.json"
+    global_secret = global_settings_root / "settings" / "secrets.json"
+    workspace_settings_dir = workspace_root / ".plato" / "settings"
+    assert saved.status == 200
+    assert saved.json["data"]["config"]["llm"]["apiKeySource"] == "stored"
+    assert readiness.json["data"]["status"] == "ready"
+    assert global_config.is_file()
+    assert global_secret.is_file()
+    assert secret not in global_config.read_text(encoding="utf-8")
+    assert secret in global_secret.read_text(encoding="utf-8")
+    assert not workspace_settings_dir.exists()
+
+
 def test_audit_sidecar_smoke_fixture_can_force_first_run_unconfigured(
     tmp_path: Any,
 ) -> None:

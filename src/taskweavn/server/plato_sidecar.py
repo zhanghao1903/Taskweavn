@@ -6,9 +6,9 @@ import argparse
 import json
 import os
 import time
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 _STARTUP_TIMING_STARTED_AT = time.perf_counter()
 
@@ -18,6 +18,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = _parse_args(argv)
     _mark_startup_timing(
         "python_entry_args_parsed",
+        hasGlobalSettingsRoot=args.global_settings_root is not None,
         host=args.host,
         hasWorkspaceRegistry=args.workspace_registry_json is not None,
         port=args.port,
@@ -36,20 +37,27 @@ def _parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
         "--workspace-registry-json",
         help="JSON workspace registry passed by the packaged Electron launcher.",
     )
+    parser.add_argument(
+        "--global-settings-root",
+        type=Path,
+        help=(
+            "Plato-level settings root. When provided, Settings config is shared "
+            "across workspaces."
+        ),
+    )
     return parser.parse_args(argv)
 
 
 def _serve(args: argparse.Namespace) -> int:
     import_started_at = time.perf_counter()
     _mark_startup_timing("python_sidecar_import_begin")
-    from taskweavn.llm.client import LazyLLMClient
     from taskweavn.server.main_page import (
         MainPageSidecarConfig,
         MainPageSidecarDependencies,
         WorkspaceRegistryEntry,
         build_main_page_sidecar_app,
     )
-    from taskweavn.server.settings_config import FileSettingsConfigStore
+    from taskweavn.server.settings_config import file_settings_config_store_for
 
     _mark_startup_timing(
         "python_sidecar_import_ready",
@@ -63,20 +71,20 @@ def _serve(args: argparse.Namespace) -> int:
         "python_sidecar_build_begin",
         workspaceRegistryCount=len(workspace_registry),
     )
-    settings_store = FileSettingsConfigStore(args.workspace)
-
-    def effective_llm_env() -> dict[str, str]:
-        return settings_store.effective_env(os.environ)
-
     sidecar = build_main_page_sidecar_app(
         MainPageSidecarConfig(
             workspace_root=args.workspace,
             host=args.host,
             port=args.port,
             workspace_registry=workspace_registry,
+            global_settings_root=args.global_settings_root,
         ),
         MainPageSidecarDependencies(
-            llm=LazyLLMClient(env_provider=effective_llm_env),
+            llm_factory=_settings_backed_llm_factory(
+                default_model="deepseek-v4-pro",
+                global_settings_root=args.global_settings_root,
+                settings_store_factory=file_settings_config_store_for,
+            ),
         ),
     )
     try:
@@ -90,6 +98,28 @@ def _serve(args: argparse.Namespace) -> int:
     finally:
         _mark_startup_timing("python_sidecar_shutdown")
         sidecar.close()
+
+
+def _settings_backed_llm_factory(
+    *,
+    default_model: str,
+    global_settings_root: Path | None,
+    settings_store_factory: Callable[..., Any],
+) -> Callable[[Path], Any]:
+    def factory(workspace_root: Path) -> Any:
+        from taskweavn.llm.client import LazyLLMClient
+
+        settings_store = settings_store_factory(
+            workspace_root=workspace_root,
+            global_settings_root=global_settings_root,
+        )
+
+        def effective_llm_env() -> dict[str, str]:
+            return cast(dict[str, str], settings_store.effective_env(os.environ))
+
+        return LazyLLMClient(default_model=default_model, env_provider=effective_llm_env)
+
+    return factory
 
 
 def _parse_workspace_registry_json(

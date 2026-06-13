@@ -453,7 +453,7 @@ export const enUS: UiTextCatalog = {
       checkingSetup: "Checking setup",
       completeFirstRunSetup: "Complete first-run setup",
       configured: "configured",
-      degradedReady: "Local setup is ready with warnings.",
+      degradedReady: "Global setup is ready with warnings.",
       diagnosticsAvailable: "bundle export available",
       diagnosticsUnavailable: "bundle export unavailable",
       editable: "Editable",
@@ -462,7 +462,7 @@ export const enUS: UiTextCatalog = {
       gitAvailable: "Git available",
       gitFailed: "Git check failed",
       gitMissing: "Git not found",
-      localSetup: "Local setup",
+      localSetup: "Global setup",
       missing: "missing",
       missingEnvironmentVariables: "Missing environment variables",
       noDiagnosticSession: "No session is available for diagnostics export yet.",
@@ -500,7 +500,7 @@ export const enUS: UiTextCatalog = {
         "When enabled, Plato runs git init for plain folders you open or switch to and adds .plato/ to the repository's local exclude file.",
       loadingSettings: "Loading settings",
       loadingSettingsHelp: "Loading local sidecar settings.",
-      localSetupReadyWithWarnings: "Local setup is ready with warnings.",
+      localSetupReadyWithWarnings: "Global setup is ready with warnings.",
       noReadinessReport:
         "The local sidecar did not return a readiness report.",
       noDiagnosticSession: "No session is available for diagnostics export yet.",
@@ -511,7 +511,7 @@ export const enUS: UiTextCatalog = {
       settingsContractUnavailable:
         "The local sidecar did not return the settings config contract.",
       settingsDescription:
-        "Configure the local LLM setup used by Product 1.0 workflows.",
+        "Configure Plato's global local LLM setup. It applies across workspaces.",
       settingsUnavailableHelp:
         "Start Plato in local sidecar HTTP mode to edit Product 1.0 settings.",
       setupRequiredBody:

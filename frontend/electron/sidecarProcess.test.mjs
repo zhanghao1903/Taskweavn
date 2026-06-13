@@ -20,6 +20,7 @@ describe("Electron Python sidecar lifecycle", () => {
       electronVersion: "42.0.0-test",
       fetchHealth: vi.fn(async () => true),
       findPort: vi.fn(async () => 53226),
+      globalSettingsRoot: "/Users/test/Library/Application Support/Plato",
       repoRoot: "/workspace/taskweavn",
       spawnProcess,
       startupId: "startup-test",
@@ -29,6 +30,7 @@ describe("Electron Python sidecar lifecycle", () => {
     expect(spawnProcess).toHaveBeenCalledWith(
       "uv",
       buildSidecarArgs({
+        globalSettingsRoot: "/Users/test/Library/Application Support/Plato",
         host: "127.0.0.1",
         port: 53226,
         workspaceRoot: "/workspace/taskweavn/plato-workspace",
@@ -73,6 +75,7 @@ describe("Electron Python sidecar lifecycle", () => {
       launcherEnv: {
         PLATO_SIDECAR_LAUNCHER_MODE: "sidecar",
       },
+      globalSettingsRoot: "/Users/test/Library/Application Support/Plato",
       launcherNodePath: "/app/Contents/MacOS/Electron",
       launcherPath: "/app/sidecar/plato-sidecar-launcher.mjs",
       spawnProcess,
@@ -87,6 +90,7 @@ describe("Electron Python sidecar lifecycle", () => {
       [
         "/app/sidecar/plato-sidecar-launcher.mjs",
         ...buildLauncherSidecarArgs({
+          globalSettingsRoot: "/Users/test/Library/Application Support/Plato",
           host: "127.0.0.1",
           port: 53228,
           workspaceRegistry,

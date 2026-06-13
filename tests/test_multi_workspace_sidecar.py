@@ -195,6 +195,62 @@ def test_workspace_scoped_command_writes_to_routed_workspace(
     assert "Only workspace B" in snapshot_b.text
 
 
+def test_workspace_scoped_command_uses_routed_workspace_llm_factory(
+    tmp_path: Path,
+) -> None:
+    workspace_a = tmp_path / "workspace-a"
+    workspace_b = tmp_path / "workspace-b"
+    _seed_session(workspace_a, session_id="shared-session", name="A shared")
+    _seed_session(workspace_b, session_id="shared-session", name="B shared")
+    llms: dict[Path, _StubLLM] = {}
+
+    def llm_factory(workspace_root: Path) -> _StubLLM:
+        llm = _StubLLM()
+        llms[workspace_root] = llm
+        return llm
+
+    app = build_main_page_sidecar_app(
+        MainPageSidecarConfig(
+            workspace_root=workspace_a,
+            port=0,
+            workspace_registry=(
+                WorkspaceRegistryEntry(
+                    workspace_id="ws-a",
+                    root_path=workspace_a,
+                    label="Workspace A",
+                    is_current=True,
+                ),
+                WorkspaceRegistryEntry(
+                    workspace_id="ws-b",
+                    root_path=workspace_b,
+                    label="Workspace B",
+                ),
+            ),
+        ),
+        MainPageSidecarDependencies(llm_factory=llm_factory),
+    )
+    try:
+        command = _request(
+            app,
+            "POST",
+            "/api/v1/workspaces/ws-b/sessions/shared-session/input",
+            body={
+                "commandId": "append-ws-b",
+                "sessionId": "shared-session",
+                "payload": {
+                    "content": "Only workspace B should create a raw task.",
+                    "mode": "global_guidance",
+                },
+            },
+        )
+    finally:
+        app.close()
+
+    assert command.status == 200
+    assert llms[workspace_a].calls == 0
+    assert llms[workspace_b].calls == 1
+
+
 def test_unknown_workspace_returns_safe_error(
     tmp_path: Path,
 ) -> None:
@@ -305,6 +361,9 @@ def _request(
 
 
 class _StubLLM:
+    def __init__(self) -> None:
+        self.calls = 0
+
     def chat(
         self,
         messages: list[dict[str, Any]],
@@ -313,6 +372,7 @@ class _StubLLM:
         metadata: dict[str, Any] | None = None,
     ) -> object:
         del messages, tools, metadata
+        self.calls += 1
         return _LLMResponse(
             """
             {

@@ -95,6 +95,7 @@ child.once("exit", (code, signal) => {
 
 function parseArgs(args) {
   const result = {
+    globalSettingsRoot: null,
     host: "127.0.0.1",
     port: null,
     workspace: null,
@@ -120,6 +121,11 @@ function parseArgs(args) {
     }
     if (arg === "--workspace-registry-json") {
       result.workspaceRegistryJson = requireValue(args, index, arg);
+      index += 1;
+      continue;
+    }
+    if (arg === "--global-settings-root") {
+      result.globalSettingsRoot = requireValue(args, index, arg);
       index += 1;
       continue;
     }
@@ -170,7 +176,13 @@ function resolveManifestPath(value, manifestDir) {
   return path.isAbsolute(value) ? value : path.resolve(manifestDir, value);
 }
 
-function buildSidecarArgs({ host, port, workspace, workspaceRegistryJson }) {
+function buildSidecarArgs({
+  globalSettingsRoot,
+  host,
+  port,
+  workspace,
+  workspaceRegistryJson,
+}) {
   const args = [
     "-m",
     "taskweavn.server.plato_sidecar",
@@ -183,6 +195,9 @@ function buildSidecarArgs({ host, port, workspace, workspaceRegistryJson }) {
   ];
   if (workspaceRegistryJson !== null) {
     args.push("--workspace-registry-json", workspaceRegistryJson);
+  }
+  if (globalSettingsRoot !== null) {
+    args.push("--global-settings-root", globalSettingsRoot);
   }
   return args;
 }

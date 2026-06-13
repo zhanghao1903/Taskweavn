@@ -371,6 +371,7 @@ async function resolveSidecarRuntime(workspaceRoot) {
   return await startPythonSidecar({
     appVersion,
     electronVersion: process.versions.electron ?? "unknown",
+    globalSettingsRoot: resolveGlobalSettingsRoot(),
     launcherPath: sidecarLauncherPath,
     repoRoot:
       sidecarLauncherPath === null
@@ -381,6 +382,14 @@ async function resolveSidecarRuntime(workspaceRoot) {
     workspaceRegistry,
     workspaceRoot: resolvedWorkspaceRoot,
   });
+}
+
+function resolveGlobalSettingsRoot() {
+  const explicitRoot = process.env.PLATO_ELECTRON_GLOBAL_SETTINGS_ROOT;
+  if (explicitRoot && explicitRoot.trim()) {
+    return explicitRoot;
+  }
+  return app.getPath("userData");
 }
 
 async function showWorkspaceEntry() {
