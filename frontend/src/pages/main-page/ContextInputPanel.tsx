@@ -1,4 +1,4 @@
-import { SendHorizontal } from "lucide-react";
+import { LoaderCircle, SendHorizontal } from "lucide-react";
 import type { FormEvent } from "react";
 
 import type { ProductRecoveryAction } from "../../shared/api/platoApi";
@@ -13,6 +13,7 @@ export type ContextInputPanelProps = {
   error: string | null;
   input: MainPageInputViewModel;
   isFloating?: boolean;
+  isSubmitting?: boolean;
   onDraftChange: (draft: string) => void;
   onSubmit: () => void;
   recoveryActions: ProductRecoveryAction[];
@@ -23,6 +24,7 @@ export function ContextInputPanel({
   error,
   input,
   isFloating = false,
+  isSubmitting = false,
   onDraftChange,
   onSubmit,
   recoveryActions,
@@ -100,13 +102,23 @@ export function ContextInputPanel({
           value={draft}
         />
         <Button
-          disabled={!draft.trim() || input.disabled}
+          disabled={!draft.trim() || input.disabled || isSubmitting}
           type="submit"
+          aria-busy={isSubmitting ? true : undefined}
           aria-label={uiText.main.input.sendMessageAriaLabel}
+          className={isSubmitting ? styles.contextInputSubmitPending : undefined}
           size="icon"
           variant="primary"
         >
-          <SendHorizontal size={18} aria-hidden="true" />
+          {isSubmitting ? (
+            <LoaderCircle
+              className={styles.contextInputSubmitSpinner}
+              size={18}
+              aria-hidden="true"
+            />
+          ) : (
+            <SendHorizontal size={18} aria-hidden="true" />
+          )}
         </Button>
       </div>
     </Panel>

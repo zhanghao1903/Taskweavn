@@ -26,6 +26,7 @@ export type MainPageWorkbenchProps = {
   inputRecoveryActions: ProductRecoveryAction[];
   isCreatingSession: boolean;
   isDeletingSession: boolean;
+  isInputSubmitting: boolean;
   isRepairingAuthoringState: boolean;
   isRenamingSession: boolean;
   sessionDialog: MainPageController["sessionDialog"];
@@ -44,6 +45,7 @@ export function MainPageWorkbench({
   inputRecoveryActions,
   isCreatingSession,
   isDeletingSession,
+  isInputSubmitting,
   isRepairingAuthoringState,
   isRenamingSession,
   sessionDialog,
@@ -271,6 +273,7 @@ export function MainPageWorkbench({
         draft={inputDraft}
         error={inputError}
         input={viewModel.input}
+        isSubmitting={isInputSubmitting}
         recoveryActions={inputRecoveryActions}
         onDraftChange={actions.changeInputDraft}
         onSubmit={() =>

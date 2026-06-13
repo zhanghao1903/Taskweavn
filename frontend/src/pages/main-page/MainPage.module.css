@@ -1468,6 +1468,21 @@
   opacity: 0.55;
 }
 
+.contextInput button.contextInputSubmitPending:disabled {
+  cursor: wait;
+  opacity: 1;
+}
+
+.contextInputSubmitSpinner {
+  animation: platoContextInputSpin 0.85s linear infinite;
+}
+
+@keyframes platoContextInputSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 @media (max-width: 1199px) {
   .page {
     --plato-page-min-width: 0;

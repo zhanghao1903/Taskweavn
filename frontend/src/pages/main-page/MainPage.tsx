@@ -216,6 +216,7 @@ export function MainPage({
       inputRecoveryActions={inputRecoveryActions}
       isCreatingSession={isCreatingSession}
       isDeletingSession={isDeletingSession}
+      isInputSubmitting={isInputSubmitting}
       isRepairingAuthoringState={isRepairingAuthoringState}
       isRenamingSession={isRenamingSession}
       sessionDialog={sessionDialog}

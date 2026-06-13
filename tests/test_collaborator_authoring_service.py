@@ -860,20 +860,18 @@ def test_refine_task_node_maps_patch_without_rebuilding_tree() -> None:
             )
         ],
     )
-    service, _, draft_store = _service(
-        _StubLLM(
-            [
-                """
-                {
-                  "assistant_message": "Updated selected node",
-                  "patch": {"title": "New title"},
-                  "affected_scope": "selected_node"
-                }
-                """
-            ]
-        ),
-        draft_store=draft_store,
+    llm = _StubLLM(
+        [
+            """
+            {
+              "assistant_message": "Updated selected node",
+              "patch": {"title": "New title"},
+              "affected_scope": "selected_node"
+            }
+            """
+        ]
     )
+    service, _, draft_store = _service(llm, draft_store=draft_store)
 
     result = service.refine_task_node(
         session_id="s1",
@@ -887,6 +885,9 @@ def test_refine_task_node_maps_patch_without_rebuilding_tree() -> None:
     assert updated.title == "New title"
     assert len(draft_store.list_trees("s1")) == 1
     assert draft_store.list_trees("s1")[0].draft_tree_id == tree.draft_tree_id
+    assert llm.metadata_calls[0] is not None
+    assert llm.metadata_calls[0]["task_id"] == "root"
+    assert llm.metadata_calls[0]["task_node_id"] == "root"
 
 
 def test_refine_task_node_rejects_invalid_proposal_without_mutating() -> None:

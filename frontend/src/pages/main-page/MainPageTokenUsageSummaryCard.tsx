@@ -78,7 +78,7 @@ function TokenUsagePanel({
       ? uiText.common.status.loading
       : state === "error"
         ? uiText.usage.states.summaryUnavailable
-        : formatUsageTokens(summary?.totalTokens ?? null, uiText);
+        : formatUsageTokens(reportedTokenTotal(summary), uiText);
   return (
     <div
       aria-label={uiText.usage.labels.tokenUsage}
@@ -89,6 +89,19 @@ function TokenUsagePanel({
       <strong className={styles.tokenUsageValue}>{totalTokens}</strong>
     </div>
   );
+}
+
+function reportedTokenTotal(summary?: TokenUsageSummary): number | null {
+  if (!summary) {
+    return null;
+  }
+  if (summary.totalTokens !== null) {
+    return summary.totalTokens;
+  }
+  if (summary.inputTokens !== null && summary.outputTokens !== null) {
+    return summary.inputTokens + summary.outputTokens;
+  }
+  return summary.inputTokens ?? summary.outputTokens;
 }
 
 function formatUsageTokens(
