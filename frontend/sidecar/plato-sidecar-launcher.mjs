@@ -2,8 +2,10 @@
 import { spawn } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
+import { performance } from "node:perf_hooks";
 import { fileURLToPath } from "node:url";
 
+const launcherStartedAt = performance.now();
 const launcherDir = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_RUNTIME_MANIFEST = path.join(
   launcherDir,
@@ -18,8 +20,10 @@ const FAILURE_EXIT_CODES = {
 
 const options = parseArgs(process.argv.slice(2));
 const forcedFailure = process.env.PLATO_SIDECAR_LAUNCHER_FAILURE;
+markStartupTiming("launcher_args_parsed");
 
 if (forcedFailure) {
+  markStartupTiming("launcher_forced_failure", { category: forcedFailure });
   fail(forcedFailure, `forced launcher failure: ${forcedFailure}`);
 }
 
@@ -27,16 +31,16 @@ const manifestPath =
   process.env.PLATO_SIDECAR_LAUNCHER_RUNTIME_MANIFEST ?? DEFAULT_RUNTIME_MANIFEST;
 const { manifest, manifestDir } = readRuntimeManifest(manifestPath);
 const mode =
-  process.env.PLATO_SIDECAR_LAUNCHER_MODE ?? manifest.mode ?? "fixture";
-const runtimeKind = manifest.runtimeKind ?? "repo-local-python-fixture";
+  process.env.PLATO_SIDECAR_LAUNCHER_MODE ?? manifest.mode ?? "sidecar";
+const runtimeKind = manifest.runtimeKind ?? "bundled-python";
+markStartupTiming("launcher_manifest_ready", { mode, runtimeKind });
 
-if (mode !== "fixture") {
+if (mode !== "sidecar") {
   fail("runtime_unsupported", `unsupported launcher mode: ${mode}`);
 }
 if (
   ![
     "bundled-python",
-    "repo-local-python-fixture",
     "self-contained-python-env-candidate",
   ].includes(runtimeKind)
 ) {
@@ -45,13 +49,20 @@ if (
 
 const pythonExecutable = resolveManifestPath(manifest.pythonExecutable, manifestDir);
 if (typeof pythonExecutable !== "string" || !existsSync(pythonExecutable)) {
+  markStartupTiming("launcher_runtime_missing", { mode, runtimeKind });
   fail("runtime_missing", "packaged Python runtime is unavailable");
 }
 
-const child = spawn(pythonExecutable, buildFixtureArgs(options), {
+markStartupTiming("launcher_python_spawn_begin", { mode, runtimeKind });
+const child = spawn(pythonExecutable, buildSidecarArgs(options), {
   cwd: launcherDir,
   env: buildRuntimeEnv(manifest),
   stdio: ["ignore", "inherit", "inherit"],
+});
+markStartupTiming("launcher_python_spawned", {
+  mode,
+  pid: child.pid ?? null,
+  runtimeKind,
 });
 
 for (const signal of ["SIGINT", "SIGTERM"]) {
@@ -63,11 +74,18 @@ for (const signal of ["SIGINT", "SIGTERM"]) {
 }
 
 child.once("error", (error) => {
+  markStartupTiming("launcher_python_spawn_error", { mode, runtimeKind });
   console.error(`runtime_failed: ${error.message}`);
   process.exit(1);
 });
 
 child.once("exit", (code, signal) => {
+  markStartupTiming("launcher_python_exit", {
+    code: code ?? null,
+    hasSignal: signal !== null,
+    mode,
+    runtimeKind,
+  });
   if (signal !== null) {
     process.kill(process.pid, signal);
     return;
@@ -152,12 +170,10 @@ function resolveManifestPath(value, manifestDir) {
   return path.isAbsolute(value) ? value : path.resolve(manifestDir, value);
 }
 
-function buildFixtureArgs({ host, port, workspace, workspaceRegistryJson }) {
+function buildSidecarArgs({ host, port, workspace, workspaceRegistryJson }) {
   const args = [
     "-m",
-    "tests.fixtures.sidecar_smoke",
-    "--serve-existing",
-    "--keep-alive",
+    "taskweavn.server.plato_sidecar",
     "--workspace",
     workspace,
     "--host",
@@ -167,12 +183,6 @@ function buildFixtureArgs({ host, port, workspace, workspaceRegistryJson }) {
   ];
   if (workspaceRegistryJson !== null) {
     args.push("--workspace-registry-json", workspaceRegistryJson);
-  }
-  const firstRun = process.env.PLATO_SIDECAR_LAUNCHER_FIRST_RUN;
-  if (firstRun === "configured") {
-    args.push("--first-run-configured");
-  } else if (firstRun === "unconfigured") {
-    args.push("--first-run-unconfigured");
   }
   return args;
 }
@@ -196,7 +206,58 @@ function buildRuntimeEnv(manifest) {
       delete env[key];
     }
   }
+  applyFirstRunSmokeEnv(env);
   return env;
+}
+
+function applyFirstRunSmokeEnv(env) {
+  const firstRun = process.env.PLATO_SIDECAR_LAUNCHER_FIRST_RUN;
+  if (firstRun === "configured") {
+    env.LLM_PROVIDER = "deepseek";
+    env.LLM_MODEL = "deepseek-v4-pro";
+    env["DEEPSEEK_" + "API_KEY"] = "test-sidecar-readiness-key";
+    return;
+  }
+  if (firstRun === "unconfigured") {
+    delete env["LLM_" + "API_KEY"];
+    delete env["DEEPSEEK_" + "API_KEY"];
+    delete env["OPENROUTER_" + "API_KEY"];
+  }
+}
+
+function markStartupTiming(event, attributes = {}) {
+  const payload = {
+    schemaVersion: "plato.startup_timing.v1",
+    event,
+    source: "sidecar-launcher",
+    startupId: process.env.PLATO_STARTUP_ID ?? null,
+    pid: process.pid,
+    timestamp: new Date().toISOString(),
+    elapsedMs: Math.round((performance.now() - launcherStartedAt) * 100) / 100,
+    ...sanitizeAttributes(attributes),
+  };
+  console.log(`[plato-startup-timing] ${JSON.stringify(payload)}`);
+}
+
+function sanitizeAttributes(attributes) {
+  const sanitized = {};
+  for (const [key, value] of Object.entries(attributes)) {
+    if (!/^[A-Za-z0-9_.:-]{1,64}$/.test(key)) {
+      continue;
+    }
+    if (typeof value === "string") {
+      sanitized[key] = value.length > 160 ? `${value.slice(0, 157)}...` : value;
+      continue;
+    }
+    if (typeof value === "number" && Number.isFinite(value)) {
+      sanitized[key] = Math.round(value * 100) / 100;
+      continue;
+    }
+    if (typeof value === "boolean" || value === null) {
+      sanitized[key] = value;
+    }
+  }
+  return sanitized;
 }
 
 function fail(category, message) {

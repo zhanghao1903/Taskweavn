@@ -64,9 +64,16 @@ try {
   const signing = resolveSigningOptions(options);
 
   if (!options.skipPackage) {
-    const packageArgs = ["run", "electron:package:launcher-dir"];
+    const forwardedPackageArgs = [];
     if (options.releaseVersion !== null) {
-      packageArgs.push("--", "--release-version", options.releaseVersion);
+      forwardedPackageArgs.push("--release-version", options.releaseVersion);
+    }
+    if (options.includeSmoke) {
+      forwardedPackageArgs.push("--include-smoke");
+    }
+    const packageArgs = ["run", "electron:package:launcher-dir"];
+    if (forwardedPackageArgs.length > 0) {
+      packageArgs.push("--", ...forwardedPackageArgs);
     }
     runCommand(npmBin, packageArgs, {
       label: "electron:package:launcher-dir",
@@ -80,6 +87,7 @@ try {
       "--",
       "--package-dir",
       options.packageDir,
+      ...(options.includeSmoke ? ["--allow-smoke-assets"] : []),
     ],
     { label: "electron:check:release-assets" },
   );
@@ -142,6 +150,7 @@ try {
     packageVersion,
     releaseVersion,
     runtimeKind: readRuntimeKind(packageManifest),
+    smokeAssetsIncluded: options.includeSmoke,
     signed: signing.sign,
     signingIdentity: signing.sign ? signing.identity : null,
     stagingRoot,
@@ -173,6 +182,7 @@ function parseArgs(args) {
       ? null
       : normalizeReleaseVersion(process.env.PLATO_ELECTRON_RELEASE_VERSION);
   let sign = process.env.PLATO_ELECTRON_SIGN === "1";
+  let includeSmoke = false;
   let skipPackage = false;
 
   for (let index = 0; index < args.length; index += 1) {
@@ -217,6 +227,10 @@ function parseArgs(args) {
       sign = true;
       continue;
     }
+    if (arg === "--include-smoke") {
+      includeSmoke = true;
+      continue;
+    }
     if (arg === "--skip-package") {
       skipPackage = true;
       continue;
@@ -225,6 +239,7 @@ function parseArgs(args) {
   }
 
   return {
+    includeSmoke,
     notarize,
     outputDir: path.resolve(outputDir),
     packageDir: path.resolve(packageDir),
@@ -239,6 +254,7 @@ function printUsage() {
   npm run electron:package:installer
   npm run electron:package:installer -- --release-version 1.1-beta
   npm run electron:package:installer -- --skip-package
+  npm run electron:package:installer -- --include-smoke
   npm run electron:package:installer -- --sign
   npm run electron:package:installer -- --sign --notarize
 
@@ -251,6 +267,7 @@ Options:
   --package-dir <path>   Launcher package root. Defaults to dist-electron-launcher.
   --output-dir <path>    Installer output root. Defaults to dist-electron-installer.
   --release-version <v>  Public release version used for package metadata and DMG name.
+  --include-smoke        Include packaged smoke runner files for test-only DMGs.
   --skip-package         Reuse the existing launcher package directory.
   --sign                 Codesign the staged app and DMG.
   --notarize             Submit and staple the DMG after signing.

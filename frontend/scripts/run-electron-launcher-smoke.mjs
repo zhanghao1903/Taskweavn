@@ -12,7 +12,7 @@ const options = parseArgs(process.argv.slice(2));
 
 try {
   if (!options.skipPackage) {
-    await runCommand(npmBin, ["run", "electron:package:launcher-dir"], {
+    await runCommand(npmBin, ["run", "electron:package:launcher-dir", "--", "--include-smoke"], {
       label: "electron:package:launcher-dir",
     });
   }
@@ -59,7 +59,8 @@ function printUsage() {
 
 Builds an unsigned launcher-backed local app directory, then runs configured,
 first-run, and startup diagnostics Product 1.0 smoke paths through the packaged
-sidecar launcher.
+sidecar launcher. The package built by this command includes smoke-only files
+and is not a public release artifact.
 
 Options:
   --skip-package    Reuse the existing dist-electron-launcher package directory.

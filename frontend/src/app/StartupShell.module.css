@@ -1,0 +1,107 @@
+.shell {
+  align-items: center;
+  background:
+    linear-gradient(135deg, rgba(238, 245, 248, 0.96), rgba(247, 250, 252, 0.98)),
+    #eef5f8;
+  box-sizing: border-box;
+  color: #172033;
+  display: flex;
+  min-height: 100vh;
+  padding: 48px;
+}
+
+.panel {
+  margin: 0 auto;
+  max-width: 520px;
+  width: min(100%, 520px);
+}
+
+.brandRow {
+  align-items: center;
+  display: flex;
+  gap: 18px;
+  min-height: 72px;
+}
+
+.mark {
+  display: block;
+  flex: 0 0 auto;
+  height: 64px;
+  width: 64px;
+}
+
+.eyebrow {
+  color: #5f6c82;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0;
+  margin: 0 0 4px;
+  text-transform: uppercase;
+}
+
+.brandRow h1 {
+  font-size: 30px;
+  line-height: 1.15;
+  margin: 0;
+}
+
+.message {
+  color: #4d5b70;
+  font-size: 15px;
+  line-height: 1.55;
+  margin: 22px 0 0;
+}
+
+.workspace {
+  color: #728096;
+  font-size: 13px;
+  line-height: 1.4;
+  margin: 8px 0 0;
+  overflow-wrap: anywhere;
+}
+
+.progressTrack {
+  background: #d9e5ec;
+  border-radius: 999px;
+  height: 4px;
+  margin-top: 28px;
+  overflow: hidden;
+  width: 100%;
+}
+
+.progressBar {
+  animation: startup-progress 1.25s ease-in-out infinite;
+  background: linear-gradient(90deg, #12b6cb, #6567f6, #2bbf8f);
+  border-radius: inherit;
+  height: 100%;
+  width: 38%;
+}
+
+@keyframes startup-progress {
+  0% {
+    transform: translateX(-110%);
+  }
+
+  100% {
+    transform: translateX(270%);
+  }
+}
+
+@media (max-width: 720px) {
+  .shell {
+    padding: 28px;
+  }
+
+  .brandRow {
+    gap: 14px;
+  }
+
+  .mark {
+    height: 56px;
+    width: 56px;
+  }
+
+  .brandRow h1 {
+    font-size: 25px;
+  }
+}

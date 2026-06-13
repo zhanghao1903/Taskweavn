@@ -24,6 +24,7 @@ const npmBin = process.platform === "win32" ? "npm.cmd" : "npm";
 const finderLikePath =
   process.platform === "darwin" ? "/usr/bin:/bin:/usr/sbin:/sbin" : process.env.PATH;
 const smokeUiLocale = "en-US";
+const smokeRunnerPath = path.join(frontendRoot, "electron", "smokeRunner.mjs");
 const electronBin =
   process.platform === "win32"
     ? path.join(frontendRoot, "node_modules", ".bin", "electron.cmd")
@@ -83,8 +84,8 @@ try {
     });
   } else if (options.launcher) {
     const packageManifest = readPackageManifest(options.packageDir);
-    const runtime = validateLauncherPackageManifest(packageManifest);
-    const smokeFixture = await seedLauncherWorkspace(options, runtime);
+    validateLauncherPackageManifest(packageManifest);
+    const smokeFixture = await seedLauncherWorkspace(options);
     electronChild = startPackagedLauncherElectronSmoke({
       kind: options.kind,
       packageManifest,
@@ -343,7 +344,7 @@ function seedWorkspaceGitInitWorkspace() {
   };
 }
 
-async function seedLauncherWorkspace({ kind, packagedDefaultWorkspace }, runtime) {
+async function seedLauncherWorkspace({ kind, packagedDefaultWorkspace }) {
   const userDataDir = path.join(runDir, "user-data");
   const workspaceDir = packagedDefaultWorkspace
     ? path.join(userDataDir, "workspace")
@@ -353,8 +354,10 @@ async function seedLauncherWorkspace({ kind, packagedDefaultWorkspace }, runtime
   const firstRunFlag =
     kind === "first-run" ? "--first-run-unconfigured" : "--first-run-configured";
   seedChild = spawn(
-    runtime.pythonExecutable,
+    "uv",
     [
+      "run",
+      "python",
       "-m",
       "tests.fixtures.sidecar_smoke",
       "--workspace",
@@ -364,8 +367,8 @@ async function seedLauncherWorkspace({ kind, packagedDefaultWorkspace }, runtime
       firstRunFlag,
     ],
     {
-      cwd: runtime.runtimeDir,
-      env: buildPackageRuntimePythonEnv(runtime),
+      cwd: repoRoot,
+      env: process.env,
       stdio: ["ignore", "pipe", "pipe"],
     },
   );
@@ -473,6 +476,7 @@ function startDevElectronSmoke({ kind, rendererUrl, sidecarInfo }) {
       PLATO_ELECTRON_SMOKE: "1",
       PLATO_ELECTRON_SMOKE_FIXTURE: JSON.stringify(sidecarInfo),
       PLATO_ELECTRON_SMOKE_KIND: kind,
+      PLATO_ELECTRON_SMOKE_RUNNER_PATH: smokeRunnerPath,
       PLATO_ELECTRON_UI_LOCALE: smokeUiLocale,
       PLATO_ELECTRON_WORKSPACE: sidecarInfo.workspaceDir,
     },
@@ -600,6 +604,7 @@ function startPackagedStartupDiagnosticsSmoke({ fixture, packageManifest }) {
     PLATO_ELECTRON_SMOKE: "1",
     PLATO_ELECTRON_SMOKE_FIXTURE: JSON.stringify(fixture),
     PLATO_ELECTRON_SMOKE_KIND: "startup-diagnostics",
+    PLATO_ELECTRON_SMOKE_RUNNER_PATH: smokeRunnerPath,
     PLATO_ELECTRON_UI_LOCALE: smokeUiLocale,
     PLATO_ELECTRON_WORKSPACE: fixture.workspaceDir,
   };
@@ -663,9 +668,9 @@ function launcherElectronEnv({
           ? "first-run"
           : "configured"
         : "startup-diagnostics",
+    PLATO_ELECTRON_SMOKE_RUNNER_PATH: smokeRunnerPath,
     PLATO_ELECTRON_UI_LOCALE: smokeUiLocale,
     PLATO_SIDECAR_LAUNCHER_FIRST_RUN: firstRun,
-    PLATO_SIDECAR_LAUNCHER_MODE: "fixture",
     PLATO_SIDECAR_LAUNCHER_RUNTIME_MANIFEST:
       packageManifest.sidecarRuntimeManifestPath,
   };
@@ -766,6 +771,11 @@ function readPackagedLauncherRuntime(packageManifest) {
   }
 
   const runtimeManifest = JSON.parse(manifestText);
+  if (runtimeManifest.mode !== "sidecar") {
+    throw new Error(
+      `Launcher runtime mode must be sidecar, got ${String(runtimeManifest.mode)}`,
+    );
+  }
   if (
     ![
       "bundled-python",
@@ -852,15 +862,6 @@ function isSameOrInside(filePath, directory) {
     relativePath === "" ||
     (!relativePath.startsWith("..") && !path.isAbsolute(relativePath))
   );
-}
-
-function buildPackageRuntimePythonEnv(runtime) {
-  const env = { ...process.env };
-  deleteRuntimeEnvLeakKeys(env);
-  env.PYTHONDONTWRITEBYTECODE = "1";
-  env.PYTHONNOUSERSITE = "1";
-  env.PYTHONPATH = runtime.pythonPathEntries.join(path.delimiter);
-  return env;
 }
 
 function deleteRuntimeEnvLeakKeys(env) {

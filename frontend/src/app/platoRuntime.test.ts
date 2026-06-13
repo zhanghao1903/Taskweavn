@@ -6,6 +6,7 @@ import {
   createMainPageAdapterFromRuntimeEnv,
   createMainPageRuntimeReducerHarnessFromEnv,
   resolvePlatoRuntimeEnv,
+  resolvePlatoStartupRuntime,
   resolvePlatoWorkspaceEntryRuntime,
 } from "./platoRuntime";
 
@@ -76,6 +77,32 @@ describe("Plato runtime wiring", () => {
         pathLabel: "Project",
       },
       isRequired: true,
+    });
+  });
+
+  it("resolves Electron startup runtime while the sidecar is starting", () => {
+    vi.stubGlobal("window", {
+      platoRuntimeConfig: {
+        startupStatus: "starting_sidecar",
+        workspace: {
+          id: "workspace-starting",
+          isCurrent: true,
+          label: "Project",
+          name: "Project",
+          pathLabel: "Project",
+        },
+      },
+    });
+
+    expect(resolvePlatoStartupRuntime()).toEqual({
+      status: "starting_sidecar",
+      workspace: {
+        id: "workspace-starting",
+        isCurrent: true,
+        label: "Project",
+        name: "Project",
+        pathLabel: "Project",
+      },
     });
   });
 

@@ -56,7 +56,7 @@ async function smokeWorkspaceEntry(window, fixture) {
     label: "Workspace Picker recent workspace",
   });
   await clickByText(window, "button", fixture.workspaceName);
-  await waitForText(window, "Starting the local Python sidecar.", {
+  await waitForText(window, "Starting Plato", {
     label: "Workspace-selected sidecar startup",
     timeoutMs: 20_000,
   });
@@ -79,7 +79,7 @@ async function smokeWorkspaceGitInit(window, fixture) {
     "localStorage.setItem('plato.workspaceGit.initializeOnOpen', '1')",
   );
   await clickByText(window, "button", fixture.workspaceName);
-  await waitForText(window, "Starting the local Python sidecar.", {
+  await waitForText(window, "Starting Plato", {
     label: "Workspace Git init sidecar startup",
     timeoutMs: 20_000,
   });

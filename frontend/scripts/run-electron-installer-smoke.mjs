@@ -35,7 +35,7 @@ try {
   }
 
   if (!options.skipPackage) {
-    await runCommand(npmBin, ["run", "electron:package:installer"], {
+    await runCommand(npmBin, ["run", "electron:package:installer", "--", "--include-smoke"], {
       label: "electron:package:installer",
     });
   }
@@ -147,7 +147,8 @@ function printUsage() {
 
 Builds or reuses a local DMG installer candidate, mounts it read-only, and runs
 configured, first-run, and startup diagnostics smoke through the mounted
-launcher-backed bundled Python app.
+launcher-backed bundled Python app. The DMG built by this command includes
+smoke-only files and is not a public release artifact.
 
 Options:
   --installer <path>   DMG path. Defaults to installer-manifest.json dmgPath.

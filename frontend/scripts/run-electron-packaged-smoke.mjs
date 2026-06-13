@@ -12,7 +12,7 @@ const options = parseArgs(process.argv.slice(2));
 
 try {
   if (!options.skipPackage) {
-    await runCommand(npmBin, ["run", "electron:package:dir"], {
+    await runCommand(npmBin, ["run", "electron:package:dir", "--", "--include-smoke"], {
       label: "electron:package:dir",
     });
   }
@@ -59,7 +59,8 @@ function printUsage() {
 
 Builds an unsigned local app directory, then runs configured, first-run, and
 startup diagnostics Product 1.0 smoke paths against the packaged app without
-Vite.
+Vite. The package built by this command includes smoke-only files and is not a
+public release artifact.
 
 Options:
   --skip-package    Reuse the existing dist-electron package directory.

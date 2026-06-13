@@ -42,6 +42,11 @@ export type PlatoWorkspaceEntryRuntime = {
   isRequired: boolean;
 };
 
+export type PlatoStartupRuntime = {
+  status: "starting_sidecar" | null;
+  workspace: PlatoWorkspaceEntrySummary | null;
+};
+
 const runtimeLogger = createFrontendLogger("runtime");
 
 export function resolvePlatoRuntimeEnv(
@@ -74,6 +79,17 @@ export function resolvePlatoWorkspaceEntryRuntime(): PlatoWorkspaceEntryRuntime 
     bridge: globalThis.window?.platoElectronWorkspace ?? null,
     currentWorkspace: electronRuntime?.workspace ?? null,
     isRequired: electronRuntime?.workspaceEntryRequired === true,
+  };
+}
+
+export function resolvePlatoStartupRuntime(): PlatoStartupRuntime {
+  const electronRuntime = globalThis.window?.platoRuntimeConfig;
+  return {
+    status:
+      electronRuntime?.startupStatus === "starting_sidecar"
+        ? "starting_sidecar"
+        : null,
+    workspace: electronRuntime?.workspace ?? null,
   };
 }
 

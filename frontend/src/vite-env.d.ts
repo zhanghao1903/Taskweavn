@@ -21,6 +21,7 @@ type PlatoElectronRuntimeConfig = {
   readonly disableEvents?: boolean;
   readonly sessionId?: string | null;
   readonly startupId?: string;
+  readonly startupStatus?: "starting_sidecar";
   readonly uiLocale?: string | null;
   readonly workspace?: PlatoWorkspaceEntrySummary | null;
   readonly workspaceEntryRequired?: boolean;
@@ -108,7 +109,15 @@ type PlatoElectronWorkspaceBridge = {
   ) => Promise<PlatoWorkspaceSelectionResult>;
 };
 
+type PlatoStartupTimingBridge = {
+  readonly mark: (
+    event: string,
+    attributes?: Record<string, string | number | boolean | null>,
+  ) => void;
+};
+
 interface Window {
   readonly platoElectronWorkspace?: PlatoElectronWorkspaceBridge;
   readonly platoRuntimeConfig?: PlatoElectronRuntimeConfig;
+  readonly platoStartupTiming?: PlatoStartupTimingBridge;
 }

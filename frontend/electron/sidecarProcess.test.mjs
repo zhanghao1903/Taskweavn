@@ -71,7 +71,7 @@ describe("Electron Python sidecar lifecycle", () => {
         PATH: "/usr/bin:/bin:/usr/sbin:/sbin",
       },
       launcherEnv: {
-        PLATO_SIDECAR_LAUNCHER_MODE: "fixture",
+        PLATO_SIDECAR_LAUNCHER_MODE: "sidecar",
       },
       launcherNodePath: "/app/Contents/MacOS/Electron",
       launcherPath: "/app/sidecar/plato-sidecar-launcher.mjs",
@@ -98,7 +98,8 @@ describe("Electron Python sidecar lifecycle", () => {
         env: expect.objectContaining({
           ELECTRON_RUN_AS_NODE: "1",
           PATH: "/usr/bin:/bin:/usr/sbin:/sbin",
-          PLATO_SIDECAR_LAUNCHER_MODE: "fixture",
+          PLATO_SIDECAR_LAUNCHER_MODE: "sidecar",
+          PLATO_STARTUP_ID: "startup-launcher-test",
         }),
         stdio: ["ignore", "pipe", "pipe"],
       }),

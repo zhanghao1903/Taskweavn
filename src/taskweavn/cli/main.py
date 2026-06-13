@@ -35,7 +35,7 @@ from taskweavn.interaction import (
     SqliteMessageStream,
     WaitCoordinator,
 )
-from taskweavn.llm.client import LLMClient
+from taskweavn.llm.client import LazyLLMClient, LLMClient
 from taskweavn.memory import ThoughtConfig, build_store
 from taskweavn.observability import (
     LogArchiveManifest,
@@ -137,7 +137,7 @@ def plato_sidecar(
 ) -> None:
     """Start the local Plato Main Page backend sidecar."""
 
-    llm = LLMClient.from_env() if model is None else LLMClient(model=model)
+    llm = LazyLLMClient() if model is None else LLMClient(model=model)
     workspace_registry = _parse_workspace_registry_json(workspace_registry_json)
     sidecar = build_main_page_sidecar_app(
         MainPageSidecarConfig(

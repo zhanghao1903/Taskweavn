@@ -11,9 +11,6 @@ from taskweavn.llm.contracts import (
     RetryPolicy,
     ThinkingConfig,
 )
-from taskweavn.llm.providers.deepseek import DeepSeekProvider
-from taskweavn.llm.providers.litellm import LiteLLMProvider
-from taskweavn.llm.providers.openrouter import OpenRouterProvider
 
 
 @dataclass(frozen=True)
@@ -42,6 +39,8 @@ def load_client_config_from_env(default_model: str) -> LLMClientConfig:
     provider: LLMProvider
 
     if provider_name == "deepseek":
+        from taskweavn.llm.providers.deepseek import DeepSeekProvider
+
         api_key = os.environ.get("DEEPSEEK_API_KEY") or os.environ.get("LLM_API_KEY")
         if not api_key:
             raise RuntimeError(
@@ -52,6 +51,8 @@ def load_client_config_from_env(default_model: str) -> LLMClientConfig:
             base_url=os.environ.get("DEEPSEEK_BASE_URL", "https://api.deepseek.com"),
         )
     elif provider_name == "openrouter":
+        from taskweavn.llm.providers.openrouter import OpenRouterProvider
+
         api_key = os.environ.get("OPENROUTER_API_KEY") or os.environ.get("LLM_API_KEY")
         if not api_key:
             raise RuntimeError(
@@ -59,6 +60,8 @@ def load_client_config_from_env(default_model: str) -> LLMClientConfig:
             )
         provider = OpenRouterProvider(api_key=api_key, provider_routing=routing)
     elif provider_name == "litellm":
+        from taskweavn.llm.providers.litellm import LiteLLMProvider
+
         api_key = os.environ.get("LLM_API_KEY")
         if not api_key:
             raise RuntimeError(
@@ -87,16 +90,22 @@ def build_provider(
     api_key: str | None,
     retry_policy: RetryPolicy | None = None,
     provider_routing: ProviderRoutingConfig | None = None,
-) -> LiteLLMProvider | DeepSeekProvider | OpenRouterProvider:
+) -> LLMProvider:
     """Build a provider explicitly, mostly for tests and advanced config."""
     normalized = provider_name.strip().lower()
     if normalized == "litellm":
+        from taskweavn.llm.providers.litellm import LiteLLMProvider
+
         return LiteLLMProvider(api_key=api_key, retry_policy=retry_policy)
     if normalized == "deepseek":
+        from taskweavn.llm.providers.deepseek import DeepSeekProvider
+
         if api_key is None:
             raise RuntimeError("api_key is required for deepseek provider")
         return DeepSeekProvider(api_key=api_key, retry_policy=retry_policy)
     if normalized == "openrouter":
+        from taskweavn.llm.providers.openrouter import OpenRouterProvider
+
         return OpenRouterProvider(
             api_key=api_key,
             retry_policy=retry_policy,
