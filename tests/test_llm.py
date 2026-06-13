@@ -13,6 +13,7 @@ import pytest
 
 from taskweavn.llm import (
     ChatResponse,
+    LazyLLMClient,
     LLMClient,
     parse_tool_arguments,
     tool_schema_from_action,
@@ -88,6 +89,55 @@ def test_from_env_uses_model_override(
         model="anthropic/claude-haiku-4-5", api_key="sk-env"
     )
     assert client.request_timeout_seconds == 180.0
+
+
+@patch("taskweavn.llm.client.LLM")
+def test_from_env_uses_explicit_env_mapping(
+    mock_llm_cls: MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _clear_provider_env(monkeypatch)
+
+    client = LLMClient.from_env(
+        env={
+            "LLM_PROVIDER": "deepseek",
+            "DEEPSEEK_API_KEY": "sk-workspace",
+            "LLM_MODEL": "deepseek-chat",
+        }
+    )
+
+    mock_llm_cls.assert_called_once_with(
+        model="deepseek-chat",
+        api_key="sk-workspace",
+    )
+    assert client.model == "deepseek-chat"
+
+
+@patch("taskweavn.llm.client.LLM")
+def test_lazy_client_uses_env_provider(
+    mock_llm_cls: MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _clear_provider_env(monkeypatch)
+    fake_llm = MagicMock()
+    sentinel: Any = object()
+    fake_llm.completion.return_value = sentinel
+    mock_llm_cls.return_value = fake_llm
+
+    client = LazyLLMClient(
+        env_provider=lambda: {
+            "LLM_PROVIDER": "deepseek",
+            "DEEPSEEK_API_KEY": "sk-workspace",
+            "LLM_MODEL": "deepseek-chat",
+        }
+    )
+
+    assert client.model == "deepseek-chat"
+    assert client.complete(messages=[], tools=None) is sentinel
+    mock_llm_cls.assert_called_once_with(
+        model="deepseek-chat",
+        api_key="sk-workspace",
+    )
 
 
 @patch("taskweavn.llm.client.LLM")

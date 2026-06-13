@@ -65,6 +65,9 @@ describe("ContextInputPanel", () => {
     );
 
     expect(screen.getByText("Input submission was rejected.")).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Input submission was rejected.",
+    );
     expect(screen.getByText("Edit input")).toBeInTheDocument();
     expect(screen.getByText("Retry command")).toBeInTheDocument();
   });

@@ -1345,6 +1345,11 @@
   border-radius: var(--plato-input-radius);
 }
 
+.contextInputWithError {
+  grid-template-rows: auto var(--plato-inputbar-height);
+  height: auto;
+}
+
 .floatingContextInput {
   position: static;
   width: min(760px, 100%);
@@ -1356,6 +1361,26 @@
     minmax(360px, 1fr);
   justify-self: center;
   align-self: center;
+}
+
+.contextInputError {
+  display: flex;
+  grid-column: 1 / -1;
+  grid-row: 1;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--plato-space-3);
+  border: 1px solid var(--plato-color-danger-text);
+  border-radius: calc(var(--plato-input-radius) - 2px);
+  padding: var(--plato-space-2) var(--plato-space-3);
+  background: var(--plato-color-danger-bg);
+  color: var(--plato-color-danger-text);
+}
+
+.contextInputError span {
+  min-width: 0;
+  line-height: var(--plato-type-body-sm-line-height);
 }
 
 .contextInputScope {
