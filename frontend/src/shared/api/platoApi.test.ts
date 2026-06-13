@@ -917,6 +917,25 @@ function settingsConfigSummary({
       ],
       providerSource: "stored",
     },
+    webSearch: {
+      apiKeyConfigured: false,
+      apiKeyEnvVar: "TAVILY_API_KEY",
+      apiKeySource: "none",
+      enabled: false,
+      maxResults: 5,
+      mode: "basic",
+      provider: "tavily",
+      providerOptions: [
+        {
+          id: "tavily",
+          label: "Tavily",
+          preferredApiKeyEnvVar: "TAVILY_API_KEY",
+          requiredApiKeyEnvVars: ["TAVILY_API_KEY"],
+        },
+      ],
+      providerSource: "default",
+      status: "disabled",
+    },
     logging: {
       defaultProfile: "normal",
       enabled: true,

@@ -1,6 +1,7 @@
 import type {
   SettingsConfigSummary,
   SettingsProvider,
+  SettingsWebSearchProvider,
 } from "../../shared/api/platoApi";
 import type { ApiError } from "../../shared/api/types";
 import { settingsProviderLabel } from "./settingsCopy";
@@ -10,6 +11,10 @@ export type SettingsFormState = {
   model: string;
   provider: SettingsProvider;
   selectedProfile: string;
+  webSearchApiKey: string;
+  webSearchEnabled: boolean;
+  webSearchMaxResults: number;
+  webSearchProvider: SettingsWebSearchProvider;
 };
 
 export type LoggingProfileOption = {
@@ -36,6 +41,10 @@ export function formStateFromConfig(
     model: config.llm.model,
     provider: normalizeSettingsProvider(config.llm.provider),
     selectedProfile: config.logging.selectedProfile ?? "",
+    webSearchApiKey: "",
+    webSearchEnabled: config.webSearch.enabled,
+    webSearchMaxResults: normalizeWebSearchMaxResults(config.webSearch.maxResults),
+    webSearchProvider: normalizeWebSearchProvider(config.webSearch.provider),
   };
 }
 
@@ -56,6 +65,23 @@ export function providerOptions(config: SettingsConfigSummary | null) {
   return options.map((option) => ({
     ...option,
     label: option.label || settingsProviderLabel(option.id),
+  }));
+}
+
+export function webSearchProviderOptions(config: SettingsConfigSummary | null) {
+  const options = config?.webSearch.providerOptions.length
+    ? config.webSearch.providerOptions
+    : [
+        {
+          id: "tavily" as const,
+          label: "Tavily",
+          preferredApiKeyEnvVar: "TAVILY_API_KEY",
+          requiredApiKeyEnvVars: ["TAVILY_API_KEY"],
+        },
+      ];
+  return options.map((option) => ({
+    ...option,
+    label: option.label || webSearchProviderLabel(option.id),
   }));
 }
 
@@ -97,6 +123,23 @@ export function apiKeyHint(
   return (envVars ?? requiredApiKeyEnvVars(provider)).join(" or ");
 }
 
+export function webSearchApiKeyHint(
+  provider: SettingsWebSearchProvider,
+  config: SettingsConfigSummary | null,
+): string {
+  const matched = webSearchProviderOptions(config).find(
+    (option) => option.id === provider,
+  );
+  return (matched?.requiredApiKeyEnvVars ?? ["TAVILY_API_KEY"]).join(" or ");
+}
+
+export function normalizeWebSearchMaxResults(value: number): number {
+  if (!Number.isFinite(value)) {
+    return 5;
+  }
+  return Math.min(10, Math.max(1, Math.trunc(value)));
+}
+
 export function fieldErrorsFromApiError(
   error: ApiError | null | undefined,
 ): SettingsFieldError[] {
@@ -126,6 +169,17 @@ export function fieldErrorFor(
 
 function isSettingsProvider(value: string): value is SettingsProvider {
   return fallbackProviders.includes(value as SettingsProvider);
+}
+
+function normalizeWebSearchProvider(value: string): SettingsWebSearchProvider {
+  return value === "tavily" ? "tavily" : "tavily";
+}
+
+function webSearchProviderLabel(provider: SettingsWebSearchProvider): string {
+  if (provider === "tavily") {
+    return "Tavily";
+  }
+  return provider;
 }
 
 function preferredApiKeyEnvVar(provider: SettingsProvider): string {

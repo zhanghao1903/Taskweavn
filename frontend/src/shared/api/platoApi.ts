@@ -319,12 +319,23 @@ export type SettingsReadinessReport = {
 
 export type SettingsProvider = "litellm" | "deepseek" | "openrouter";
 
+export type SettingsWebSearchProvider = "tavily";
+
 export type SettingsConfigSource = "default" | "env" | "stored";
 
 export type SettingsApiKeySource = "none" | "env" | "stored";
 
+export type SettingsWebSearchStatus = "disabled" | "missing_key" | "ready";
+
 export type SettingsConfigProviderOption = {
   id: SettingsProvider;
+  label: string;
+  requiredApiKeyEnvVars: string[];
+  preferredApiKeyEnvVar: string;
+};
+
+export type SettingsConfigWebSearchProviderOption = {
+  id: SettingsWebSearchProvider;
   label: string;
   requiredApiKeyEnvVars: string[];
   preferredApiKeyEnvVar: string;
@@ -343,6 +354,18 @@ export type SettingsConfigSummary = {
     apiKeyConfigured: boolean;
     apiKeySource: SettingsApiKeySource;
     apiKeyEnvVar: string;
+  };
+  webSearch: {
+    enabled: boolean;
+    provider: string;
+    providerSource: SettingsConfigSource;
+    providerOptions: SettingsConfigWebSearchProviderOption[];
+    mode: string;
+    maxResults: number;
+    apiKeyConfigured: boolean;
+    apiKeySource: SettingsApiKeySource;
+    apiKeyEnvVar: string;
+    status: SettingsWebSearchStatus;
   };
   logging: {
     enabled: boolean;
@@ -367,6 +390,13 @@ export type UpdateSettingsConfigPayload = {
   };
   logging?: {
     selectedProfile?: string | null;
+  };
+  webSearch?: {
+    enabled: boolean;
+    provider: SettingsWebSearchProvider;
+    mode: "basic";
+    maxResults: number;
+    apiKey?: string;
   };
 };
 

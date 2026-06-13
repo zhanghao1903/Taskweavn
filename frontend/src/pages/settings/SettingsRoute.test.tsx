@@ -96,6 +96,12 @@ describe("SettingsRoute", () => {
         logging: {
           selectedProfile: "normal",
         },
+        webSearch: {
+          enabled: false,
+          maxResults: 5,
+          mode: "basic",
+          provider: "tavily",
+        },
       });
     });
     expect(api.recheckSettingsReadiness).toHaveBeenCalledTimes(1);
@@ -181,6 +187,7 @@ describe("SettingsRoute", () => {
     expect(screen.getByText("已配置")).toBeInTheDocument();
     expect(screen.getByLabelText("服务商")).toBeInTheDocument();
     expect(screen.getByLabelText("API 密钥")).toBeInTheDocument();
+    expect(screen.getByLabelText("网页搜索 API 密钥")).toBeInTheDocument();
     expect(screen.getByLabelText("界面语言")).toBeInTheDocument();
     expect(screen.getByLabelText("工作区 Git")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "保存并检查" })).toBeInTheDocument();
@@ -223,6 +230,40 @@ describe("SettingsRoute", () => {
       globalThis.localStorage.getItem(UI_LOCALE_PREFERENCE_STORAGE_KEY),
     ).toBe("zh-CN");
     expect(screen.getByLabelText("Interface language")).toHaveValue("zh-CN");
+  });
+
+  it("saves global Web Search configuration without keeping the secret visible", async () => {
+    const user = userEvent.setup();
+    const api = settingsApi({
+      config: settingsConfig({
+        apiKeyConfigured: true,
+        webSearchApiKeyConfigured: false,
+      }),
+    });
+
+    renderWithQueryClient(
+      <SettingsRoute api={api} runtimeEnv={{ VITE_PLATO_API_MODE: "http" }} />,
+    );
+
+    await user.click(await screen.findByRole("checkbox", { name: "Web Search" }));
+    await user.selectOptions(screen.getByLabelText("Result limit"), "4");
+    await user.type(screen.getByLabelText("Web Search API key"), "tvly-route-secret");
+    await user.click(screen.getByRole("button", { name: "Save and check" }));
+
+    await waitFor(() => {
+      expect(api.updateSettingsConfig).toHaveBeenCalledWith(
+        expect.objectContaining({
+          webSearch: {
+            apiKey: "tvly-route-secret",
+            enabled: true,
+            maxResults: 4,
+            mode: "basic",
+            provider: "tavily",
+          },
+        }),
+      );
+    });
+    expect(document.body).not.toHaveTextContent("tvly-route-secret");
   });
 
   it("defaults workspace Git initialization on when Git is available", async () => {
@@ -477,10 +518,14 @@ function settingsConfig({
   apiKeyConfigured,
   loggingProfiles = ["normal"],
   selectedProfile = "normal",
+  webSearchApiKeyConfigured = false,
+  webSearchEnabled = false,
 }: {
   apiKeyConfigured: boolean;
   loggingProfiles?: string[];
   selectedProfile?: string | null;
+  webSearchApiKeyConfigured?: boolean;
+  webSearchEnabled?: boolean;
 }): SettingsConfigSummary {
   return {
     diagnostics: {
@@ -510,6 +555,29 @@ function settingsConfig({
         },
       ],
       providerSource: "stored",
+    },
+    webSearch: {
+      apiKeyConfigured: webSearchApiKeyConfigured,
+      apiKeyEnvVar: "TAVILY_API_KEY",
+      apiKeySource: webSearchApiKeyConfigured ? "stored" : "none",
+      enabled: webSearchEnabled,
+      maxResults: 5,
+      mode: "basic",
+      provider: "tavily",
+      providerOptions: [
+        {
+          id: "tavily",
+          label: "Tavily",
+          preferredApiKeyEnvVar: "TAVILY_API_KEY",
+          requiredApiKeyEnvVars: ["TAVILY_API_KEY"],
+        },
+      ],
+      providerSource: webSearchEnabled ? "stored" : "default",
+      status: webSearchEnabled
+        ? webSearchApiKeyConfigured
+          ? "ready"
+          : "missing_key"
+        : "disabled",
     },
     logging: {
       defaultProfile: "normal",

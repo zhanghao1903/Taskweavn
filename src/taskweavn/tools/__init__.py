@@ -34,6 +34,11 @@ from taskweavn.tools.shell import (
     RunCommandAction,
     RunCommandTool,
 )
+from taskweavn.tools.web_search import (
+    WebSearchAction,
+    WebSearchObservation,
+    WebSearchTool,
+)
 from taskweavn.tools.workspace import (
     PathOutsideWorkspaceError,
     PathProtectedWorkspaceError,
@@ -68,6 +73,9 @@ __all__ = [
     "SearchWorkspaceAction",
     "SearchWorkspaceTool",
     "Tool",
+    "WebSearchAction",
+    "WebSearchObservation",
+    "WebSearchTool",
     "Workspace",
     "WorkspaceSearchObservation",
     "WriteFileAction",

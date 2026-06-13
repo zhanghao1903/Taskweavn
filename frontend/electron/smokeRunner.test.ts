@@ -152,7 +152,7 @@ function renderWorkspaceEntryPage(workspaceName: string, workspaceDir: string) {
     writeFileSync(path.join(excludeDir, "exclude"), ".plato/\n", "utf8");
     document.body.insertAdjacentHTML(
       "beforeend",
-      "<p>Starting the local Python sidecar.</p>",
+      "<p>Starting Plato local Python sidecar.</p>",
     );
   });
 }
