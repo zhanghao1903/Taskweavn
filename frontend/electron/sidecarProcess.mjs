@@ -28,6 +28,7 @@ export async function startPythonSidecar({
   env = process.env,
   fetchHealth = defaultFetchHealth,
   findPort = findAvailablePort,
+  globalSettingsRoot = null,
   healthPollIntervalMs = DEFAULT_POLL_INTERVAL_MS,
   host = DEFAULT_HOST,
   launcherEnv = {},
@@ -47,6 +48,8 @@ export async function startPythonSidecar({
     rootPath: path.resolve(entry.rootPath),
   }));
   const resolvedLauncherPath = launcherPath === null ? null : path.resolve(launcherPath);
+  const resolvedGlobalSettingsRoot =
+    globalSettingsRoot === null ? null : path.resolve(globalSettingsRoot);
   const resolvedRepoRoot =
     repoRoot === undefined || repoRoot === null ? null : path.resolve(repoRoot);
   const launchMode = resolvedLauncherPath === null ? "repo" : "launcher";
@@ -65,6 +68,7 @@ export async function startPythonSidecar({
   const redactionPaths = [
     resolvedWorkspaceRoot,
     ...resolvedWorkspaceRegistry.map((entry) => entry.rootPath),
+    resolvedGlobalSettingsRoot,
     resolvedRepoRoot,
     resolvedLauncherPath === null ? null : path.dirname(resolvedLauncherPath),
   ].filter(Boolean);
@@ -74,6 +78,7 @@ export async function startPythonSidecar({
   const launch = buildLaunchCommand({
     appVersion,
     env,
+    globalSettingsRoot: resolvedGlobalSettingsRoot,
     host,
     launcherEnv,
     launcherNodePath,
@@ -194,7 +199,13 @@ export async function startPythonSidecar({
   };
 }
 
-export function buildSidecarArgs({ host, port, workspaceRegistry = [], workspaceRoot }) {
+export function buildSidecarArgs({
+  globalSettingsRoot = null,
+  host,
+  port,
+  workspaceRegistry = [],
+  workspaceRoot,
+}) {
   const args = [
     "run",
     "taskweavn",
@@ -209,10 +220,14 @@ export function buildSidecarArgs({ host, port, workspaceRegistry = [], workspace
   if (workspaceRegistry.length > 0) {
     args.push("--workspace-registry-json", JSON.stringify(workspaceRegistry));
   }
+  if (globalSettingsRoot !== null) {
+    args.push("--global-settings-root", globalSettingsRoot);
+  }
   return args;
 }
 
 export function buildLauncherSidecarArgs({
+  globalSettingsRoot = null,
   host,
   port,
   workspaceRegistry = [],
@@ -229,12 +244,16 @@ export function buildLauncherSidecarArgs({
   if (workspaceRegistry.length > 0) {
     args.push("--workspace-registry-json", JSON.stringify(workspaceRegistry));
   }
+  if (globalSettingsRoot !== null) {
+    args.push("--global-settings-root", globalSettingsRoot);
+  }
   return args;
 }
 
 function buildLaunchCommand({
   appVersion,
   env,
+  globalSettingsRoot,
   host,
   launcherEnv,
   launcherNodePath,
@@ -269,6 +288,7 @@ function buildLaunchCommand({
       args: [
         launcherPath,
         ...buildLauncherSidecarArgs({
+          globalSettingsRoot,
           host,
           port,
           workspaceRegistry,
@@ -302,7 +322,13 @@ function buildLaunchCommand({
   }
 
   return {
-    args: buildSidecarArgs({ host, port, workspaceRegistry, workspaceRoot }),
+    args: buildSidecarArgs({
+      globalSettingsRoot,
+      host,
+      port,
+      workspaceRegistry,
+      workspaceRoot,
+    }),
     command: "uv",
     cwd: repoRoot,
     diagnostics: null,

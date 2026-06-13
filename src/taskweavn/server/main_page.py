@@ -45,7 +45,10 @@ from taskweavn.server.multi_workspace import (
     WorkspaceRuntime,
     WorkspaceRuntimeRegistry,
 )
-from taskweavn.server.settings_config import DefaultSettingsConfigGateway
+from taskweavn.server.settings_config import (
+    DefaultSettingsConfigGateway,
+    file_settings_config_store_for,
+)
 from taskweavn.server.sidecar import (
     LocalSidecarConfig,
     LocalSidecarServer,
@@ -141,6 +144,7 @@ class MainPageSidecarConfig:
     logging_profile: str | None = None
     workspace_registry: tuple[WorkspaceRegistryEntry, ...] = ()
     current_workspace_id: str | None = None
+    global_settings_root: Path | None = None
 
 
 @dataclass(frozen=True)
@@ -473,6 +477,10 @@ def build_main_page_workspace_runtime(
                 logging_enabled=config.enable_session_logging,
                 logging_level=config.logging_level,
                 selected_logging_profile=config.logging_profile,
+                store=file_settings_config_store_for(
+                    workspace_root=config.workspace_root,
+                    global_settings_root=config.global_settings_root,
+                ),
             )
         )
         transport = PlatoUiHttpTransport(

@@ -18,6 +18,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = _parse_args(argv)
     _mark_startup_timing(
         "python_entry_args_parsed",
+        hasGlobalSettingsRoot=args.global_settings_root is not None,
         host=args.host,
         hasWorkspaceRegistry=args.workspace_registry_json is not None,
         port=args.port,
@@ -36,6 +37,14 @@ def _parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
         "--workspace-registry-json",
         help="JSON workspace registry passed by the packaged Electron launcher.",
     )
+    parser.add_argument(
+        "--global-settings-root",
+        type=Path,
+        help=(
+            "Plato-level settings root. When provided, Settings config is shared "
+            "across workspaces."
+        ),
+    )
     return parser.parse_args(argv)
 
 
@@ -48,7 +57,7 @@ def _serve(args: argparse.Namespace) -> int:
         WorkspaceRegistryEntry,
         build_main_page_sidecar_app,
     )
-    from taskweavn.server.settings_config import FileSettingsConfigStore
+    from taskweavn.server.settings_config import file_settings_config_store_for
 
     _mark_startup_timing(
         "python_sidecar_import_ready",
@@ -68,11 +77,13 @@ def _serve(args: argparse.Namespace) -> int:
             host=args.host,
             port=args.port,
             workspace_registry=workspace_registry,
+            global_settings_root=args.global_settings_root,
         ),
         MainPageSidecarDependencies(
             llm_factory=_settings_backed_llm_factory(
                 default_model="deepseek-v4-pro",
-                settings_store_factory=FileSettingsConfigStore,
+                global_settings_root=args.global_settings_root,
+                settings_store_factory=file_settings_config_store_for,
             ),
         ),
     )
@@ -92,12 +103,16 @@ def _serve(args: argparse.Namespace) -> int:
 def _settings_backed_llm_factory(
     *,
     default_model: str,
-    settings_store_factory: Callable[[Path], Any],
+    global_settings_root: Path | None,
+    settings_store_factory: Callable[..., Any],
 ) -> Callable[[Path], Any]:
     def factory(workspace_root: Path) -> Any:
         from taskweavn.llm.client import LazyLLMClient
 
-        settings_store = settings_store_factory(workspace_root)
+        settings_store = settings_store_factory(
+            workspace_root=workspace_root,
+            global_settings_root=global_settings_root,
+        )
 
         def effective_llm_env() -> dict[str, str]:
             return cast(dict[str, str], settings_store.effective_env(os.environ))

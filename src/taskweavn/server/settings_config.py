@@ -183,9 +183,12 @@ class FileSettingsConfigStore:
     """
 
     workspace_root: Path
+    settings_dir_override: Path | None = None
 
     @property
     def settings_dir(self) -> Path:
+        if self.settings_dir_override is not None:
+            return self.settings_dir_override
         return WorkspaceLayout(self.workspace_root).meta_dir / "settings"
 
     @property
@@ -246,6 +249,26 @@ class FileSettingsConfigStore:
         if secret is not None and secret[0] == provider:
             env[_preferred_api_key_env_var(provider)] = secret[1]
         return env
+
+
+def file_settings_config_store_for(
+    *,
+    workspace_root: Path,
+    global_settings_root: Path | None = None,
+) -> FileSettingsConfigStore:
+    """Resolve the active settings store for a workspace runtime.
+
+    Electron passes its userData directory as the global root so the Settings UI
+    edits one Plato-level configuration across all workspaces. CLI callers that
+    omit the global root keep the historical workspace-local store.
+    """
+
+    if global_settings_root is None:
+        return FileSettingsConfigStore(workspace_root=workspace_root)
+    return FileSettingsConfigStore(
+        workspace_root=workspace_root,
+        settings_dir_override=global_settings_root / "settings",
+    )
 
 
 @dataclass(frozen=True)
