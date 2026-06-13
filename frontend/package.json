@@ -9,6 +9,7 @@
     "dev:sidecar:first-run": "node scripts/run-sidecar-dev.mjs --first-run-unconfigured",
     "electron:check:release-assets": "node scripts/check-electron-release-assets.mjs",
     "electron:dev": "node scripts/run-electron-dev.mjs",
+    "electron:generate:icon": "node scripts/generate-electron-icon.mjs",
     "electron:package:dir": "npm run build && node scripts/package-electron-dir.mjs",
     "electron:package:installer": "node scripts/package-electron-installer.mjs",
     "electron:package:launcher-dir": "npm run build && node scripts/package-electron-dir.mjs --output-dir ./dist-electron-launcher --with-launcher",

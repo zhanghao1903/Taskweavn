@@ -32,6 +32,8 @@ const rendererDistDir = path.join(frontendRoot, "dist");
 const electronDistDir = path.join(frontendRoot, "node_modules", "electron", "dist");
 const pythonEnvSourceDir = path.join(repoRoot, ".venv");
 const appName = "Plato";
+const appIconName = "plato.icns";
+const appIconSourcePath = path.join(frontendRoot, "assets", "icons", appIconName);
 const bundleIdentifier = "com.taskweavn.plato";
 const frontendPackageJson = JSON.parse(
   readFileSync(path.join(frontendRoot, "package.json"), "utf8"),
@@ -193,6 +195,13 @@ function preparePlatformBundle(target, options) {
   }
 
   chmodSync(target.executablePath, 0o755);
+  if (!existsSync(appIconSourcePath)) {
+    throw new Error(`Plato app icon not found: ${appIconSourcePath}. Run npm run electron:generate:icon.`);
+  }
+  cpSync(
+    appIconSourcePath,
+    path.join(target.appRoot, "Contents", "Resources", appIconName),
+  );
   const infoPlistPath = path.join(target.appRoot, "Contents", "Info.plist");
   const original = readFileSync(infoPlistPath, "utf8");
   const updated = original
@@ -210,7 +219,7 @@ function preparePlatformBundle(target, options) {
     );
   const versioned = replaceOrInsertPlistString(
     replaceOrInsertPlistString(
-      updated,
+      replaceOrInsertPlistString(updated, "CFBundleIconFile", appIconName),
       "CFBundleShortVersionString",
       options.bundleVersion,
     ),

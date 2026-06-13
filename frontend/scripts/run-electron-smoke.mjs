@@ -653,6 +653,8 @@ function launcherElectronEnv({
     PATH: finderLikePath,
     PLATO_ELECTRON_DISABLE_EVENTS: "1",
     PLATO_ELECTRON_SIDECAR_LAUNCHER_PATH: packageManifest.sidecarLauncherPath,
+    PLATO_ELECTRON_SIDECAR_TIMEOUT_MS:
+      process.env.PLATO_ELECTRON_SIDECAR_TIMEOUT_MS ?? "120000",
     PLATO_ELECTRON_SMOKE: "1",
     PLATO_ELECTRON_SMOKE_FIXTURE: JSON.stringify(sidecarInfo),
     PLATO_ELECTRON_SMOKE_KIND:
