@@ -1,0 +1,114 @@
+{
+  "requestId": "route-question",
+  "ok": true,
+  "data": {
+    "sessionId": "session-1",
+    "decision": {
+      "id": "rir-question",
+      "intent": "question",
+      "scope": {
+        "kind": "session",
+        "planId": null,
+        "taskNodeId": null
+      },
+      "confidence": "medium",
+      "sideEffect": "no_effect",
+      "dispatchTarget": "read_only_inquiry",
+      "explanation": "Input was answered through Read-Only Inquiry Context.",
+      "relatedRefs": [
+        {
+          "kind": "session",
+          "id": "session:session-1:status",
+          "label": "Session Session",
+          "href": null,
+          "objectRef": null
+        }
+      ]
+    },
+    "outcome": {
+      "status": "answered",
+      "userMessage": "Session 'Session' is running.",
+      "recoveryActions": []
+    },
+    "activity": {
+      "id": "activity:inquiry:route-question",
+      "sessionId": "session-1",
+      "kind": "answer",
+      "title": "Session status",
+      "body": "Session 'Session' is running.",
+      "occurredAt": "2026-06-14T00:00:00Z",
+      "scopeKind": "session",
+      "planId": null,
+      "taskNodeId": null,
+      "sideEffect": "no_effect",
+      "relatedRefs": [
+        {
+          "kind": "session",
+          "id": "session:session-1:status",
+          "label": "Session Session",
+          "href": null,
+          "objectRef": null
+        }
+      ],
+      "sourceKind": "router",
+      "sourceId": "route-question",
+      "disclosureLevel": "public"
+    },
+    "commandResponse": null,
+    "inquiryResult": {
+      "inquiryId": "route-question",
+      "sessionId": "session-1",
+      "scope": {
+        "kind": "session",
+        "planId": null,
+        "taskNodeId": null
+      },
+      "status": "answered",
+      "answer": {
+        "title": "Session status",
+        "body": "Session 'Session' is running.",
+        "confidence": "medium"
+      },
+      "evidenceRefs": [
+        {
+          "kind": "session_status",
+          "refId": "session:session-1:status",
+          "parentRefId": null,
+          "label": "Session Session",
+          "disclosure": "public",
+          "truncated": false
+        }
+      ],
+      "warnings": [],
+      "activity": {
+        "id": "activity:inquiry:route-question",
+        "sessionId": "session-1",
+        "kind": "answer",
+        "title": "Session status",
+        "body": "Session 'Session' is running.",
+        "occurredAt": "2026-06-14T00:00:00Z",
+        "scopeKind": "session",
+        "planId": null,
+        "taskNodeId": null,
+        "sideEffect": "no_effect",
+        "relatedRefs": [
+          {
+            "kind": "session",
+            "id": "session:session-1:status",
+            "label": "Session Session",
+            "href": null,
+            "objectRef": null
+          }
+        ],
+        "sourceKind": "router",
+        "sourceId": "route-question",
+        "disclosureLevel": "public"
+      },
+      "generatedAt": "2026-06-14T00:00:00Z"
+    },
+    "generatedAt": "2026-06-14T00:00:00Z"
+  },
+  "error": null,
+  "cursor": null,
+  "generatedAt": "2026-06-14T00:00:00Z"
+}

@@ -7,6 +7,7 @@ import type {
   AppendTaskInputPayload,
   CancelAskPayload,
   DeferAskPayload,
+  DiagnosticBundleExportResult,
   GenerateTaskTreePayload,
   PublishTaskTreePayload,
   RepairAuthoringStatePayload,
@@ -22,6 +23,8 @@ import type {
   CommandResponse,
   MainPageSnapshot,
   QueryResponse,
+  RuntimeInputRouteRequest,
+  RuntimeInputRouteResult,
   SessionActivityTimelineResult,
   UiEvent,
 } from "../../shared/api/types";
@@ -209,6 +212,15 @@ describe("HTTP MainPage adapter bridge", () => {
         reason: "user requested stop",
       },
     };
+    const routeRequest: RuntimeInputRouteRequest = {
+      commandId: "route-question",
+      sessionId: snapshot.session.id,
+      content: "What is this task doing?",
+      mode: "ask",
+      selection: {
+        scopeKind: "session",
+      },
+    };
     const eventHandler = vi.fn<(event: UiEvent) => void>();
 
     await adapter.appendSessionInput(sessionRequest);
@@ -228,6 +240,7 @@ describe("HTTP MainPage adapter bridge", () => {
       sessionId: snapshot.session.id,
     });
     await adapter.deleteSession(snapshot.session.id);
+    await adapter.exportDiagnosticBundle?.(snapshot.session.id);
     await adapter.resolveConfirmation(
       snapshot.session.id,
       "confirmation-1",
@@ -239,6 +252,7 @@ describe("HTTP MainPage adapter bridge", () => {
       "raw-task-1",
       answerAuthoringAskBatchRequest,
     );
+    await adapter.routeRuntimeInput?.(routeRequest);
     await adapter.deferAsk(snapshot.session.id, "ask-1", deferAskRequest);
     await adapter.cancelAsk(snapshot.session.id, "ask-1", cancelAskRequest);
     const unsubscribe = adapter.subscribeSessionEvents(
@@ -297,6 +311,10 @@ describe("HTTP MainPage adapter bridge", () => {
       snapshot.session.id,
       undefined,
     );
+    expect(api.exportDiagnosticBundle).toHaveBeenCalledWith(
+      snapshot.session.id,
+      undefined,
+    );
     expect(api.resolveConfirmation).toHaveBeenCalledWith(
       snapshot.session.id,
       "confirmation-1",
@@ -313,6 +331,10 @@ describe("HTTP MainPage adapter bridge", () => {
       snapshot.session.id,
       "raw-task-1",
       answerAuthoringAskBatchRequest,
+      undefined,
+    );
+    expect(api.routeRuntimeInput).toHaveBeenCalledWith(
+      routeRequest,
       undefined,
     );
     expect(api.deferAsk).toHaveBeenCalledWith(
@@ -391,6 +413,7 @@ describe("HTTP MainPage adapter bridge", () => {
       limit: 25,
       sessionId: snapshot.session.id,
     });
+    await adapter.exportDiagnosticBundle?.(snapshot.session.id);
     const unsubscribe = adapter.subscribeSessionEvents(
       snapshot.session.id,
       "cursor-1",
@@ -419,6 +442,10 @@ describe("HTTP MainPage adapter bridge", () => {
         limit: 25,
         sessionId: snapshot.session.id,
       },
+      { workspaceId: "workspace-1" },
+    );
+    expect(api.exportDiagnosticBundle).toHaveBeenCalledWith(
+      snapshot.session.id,
       { workspaceId: "workspace-1" },
     );
     expect(api.subscribeSessionEvents).toHaveBeenCalledWith(
@@ -452,6 +479,7 @@ function stubPlatoApi(snapshot: MainPageSnapshot) {
     getSessionActivity: vi.fn(async () =>
       sessionActivityResponse(snapshot.session.id),
     ),
+    exportDiagnosticBundle: vi.fn(async () => diagnosticExportResponse()),
     appendSessionInput: vi.fn(async () => response),
     generateTaskTree: vi.fn(async () => response),
     updateTaskNode: vi.fn(async () => response),
@@ -465,8 +493,51 @@ function stubPlatoApi(snapshot: MainPageSnapshot) {
     answerAuthoringAskBatch: vi.fn(async () => response),
     deferAsk: vi.fn(async () => response),
     cancelAsk: vi.fn(async () => response),
+    routeRuntimeInput: vi.fn(async (request) =>
+      routeRuntimeInputResponse(request.sessionId),
+    ),
     subscribeSessionEvents: vi.fn(() => () => undefined),
   } satisfies HttpMainPageApi;
+}
+
+function routeRuntimeInputResponse(
+  sessionId: string,
+): QueryResponse<RuntimeInputRouteResult> {
+  const now = "2026-06-14T00:00:00Z";
+
+  return {
+    requestId: "request-route-question",
+    ok: true,
+    data: {
+      sessionId,
+      decision: {
+        id: "decision-route-question",
+        intent: "question",
+        scope: {
+          kind: "session",
+          planId: null,
+          taskNodeId: null,
+        },
+        confidence: "high",
+        sideEffect: "no_effect",
+        dispatchTarget: "read_only_inquiry",
+        explanation: "Question route.",
+        relatedRefs: [],
+      },
+      outcome: {
+        status: "answered",
+        userMessage: "Answered.",
+        recoveryActions: [],
+      },
+      activity: null,
+      commandResponse: null,
+      inquiryResult: null,
+      generatedAt: now,
+    },
+    error: null,
+    cursor: null,
+    generatedAt: now,
+  };
 }
 
 function sessionActivityResponse(
@@ -518,6 +589,31 @@ function tokenUsageResponse(): QueryResponse<TokenUsageSummaryResponse> {
     },
     error: null,
     generatedAt: "2026-06-10T00:00:00Z",
+  };
+}
+
+function diagnosticExportResponse(): QueryResponse<DiagnosticBundleExportResult> {
+  return {
+    requestId: "request-diagnostic-export",
+    ok: true,
+    data: {
+      bundleDir: "workspace://current/.plato/diagnostics/bundle",
+      bundleDirLabel: "workspace://current/.plato/diagnostics/bundle",
+      bundleId: "diagnostic-bundle-session-1",
+      createdAt: "2026-06-14T00:00:00Z",
+      fileCount: 3,
+      includedSections: ["manifest", "logs"],
+      manifestPath: "workspace://current/.plato/diagnostics/manifest.json",
+      manifestPathLabel: "workspace://current/.plato/diagnostics/manifest.json",
+      redactionProfile: "product-default",
+      schemaVersion: "plato.diagnostics_export.v1",
+      sections: [],
+      warnings: [],
+      zipPath: "workspace://current/.plato/diagnostics/bundle.zip",
+      zipPathLabel: "workspace://current/.plato/diagnostics/bundle.zip",
+    },
+    error: null,
+    generatedAt: "2026-06-14T00:00:00Z",
   };
 }
 

@@ -15,7 +15,10 @@ import type {
   EvidenceId,
   EventCursor,
   MainPageSnapshot,
+  ProductRecoveryAction,
   QueryResponse,
+  RuntimeInputRouteRequest,
+  RuntimeInputRouteResult,
   SessionActivityTimelineResult,
   SessionId,
   SessionSummary,
@@ -24,6 +27,7 @@ import type {
   UiEventType,
   WorkspaceId,
 } from "./types";
+export type { ProductRecoveryAction } from "./types";
 import type {
   TokenUsageSummaryRequest,
   TokenUsageSummaryResponse,
@@ -227,18 +231,6 @@ export type DiagnosticBundleExportResult = {
   fileCount: number;
 };
 
-export type ProductRecoveryAction =
-  | "edit_input"
-  | "answer_ask"
-  | "retry_command"
-  | "retry_task"
-  | "refresh_snapshot"
-  | "wait_for_events"
-  | "open_audit"
-  | "open_settings"
-  | "export_diagnostics"
-  | "none";
-
 export type SettingsReadinessStatus =
   | "ready"
   | "needs_configuration"
@@ -407,6 +399,10 @@ export type PlatoApi = {
     request: SessionActivityRequest,
     options?: WorkspaceRouteOptions,
   ): Promise<QueryResponse<SessionActivityTimelineResult>>;
+  routeRuntimeInput(
+    request: RuntimeInputRouteRequest,
+    options?: WorkspaceRouteOptions,
+  ): Promise<QueryResponse<RuntimeInputRouteResult>>;
   getAuditSnapshot(
     request: AuditSnapshotRequest,
     options?: WorkspaceRouteOptions,
@@ -612,6 +608,12 @@ export function createHttpPlatoApi(options: HttpPlatoApiOptions): PlatoApi {
           cursor: request.cursor ?? undefined,
           limit: numberQuery(request.limit),
         }),
+      );
+    },
+    routeRuntimeInput(request, options) {
+      return client.postJson<QueryResponse<RuntimeInputRouteResult>>(
+        `${sessionBase(request.sessionId, options)}/runtime-input/route`,
+        request,
       );
     },
     getAuditSnapshot(request, options) {

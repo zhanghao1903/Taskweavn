@@ -1,32 +1,49 @@
 import type {
   SessionActivityItemKind,
   SessionActivityItemView,
+  SessionActivitySourceKind,
   SessionMessageView,
 } from "../../shared/api/types";
+
+const readOnlyInquiryActivityTitle = "Read-only question answered";
 
 export function activityItemsFromMessages(
   messages: readonly SessionMessageView[],
 ): SessionActivityItemView[] {
   return messages.map((message) => {
     const kind = activityKindFromMessage(message);
+    const isReadOnlyInquiry = message.title === readOnlyInquiryActivityTitle;
+    const sourceId =
+      isReadOnlyInquiry && message.relatedCommandId
+        ? message.relatedCommandId
+        : message.id;
+    const sourceKind: SessionActivitySourceKind = isReadOnlyInquiry
+      ? "router"
+      : "message_stream";
+
     return {
       body: message.body,
       disclosureLevel: "public",
-      id: `activity:message:${message.id}`,
+      id: isReadOnlyInquiry
+        ? `activity:inquiry:${sourceId}`
+        : `activity:message:${message.id}`,
       kind,
       occurredAt: message.createdAt,
       planId: null,
-      relatedRefs: [
-        {
-          id: message.id,
-          kind: "message",
-          label: message.title,
-          objectRef: {
-            id: message.id,
-            kind: "message",
-          },
-        },
-      ],
+      relatedRefs:
+        message.activityRelatedRefs && message.activityRelatedRefs.length > 0
+          ? message.activityRelatedRefs
+          : [
+              {
+                id: message.id,
+                kind: "message",
+                label: message.title,
+                objectRef: {
+                  id: message.id,
+                  kind: "message",
+                },
+              },
+            ],
       scopeKind: message.taskNodeId === null ? "session" : "task",
       sessionId: message.sessionId,
       sideEffect:
@@ -37,8 +54,8 @@ export function activityItemsFromMessages(
             : kind === "recovery_note"
               ? "state_effect"
               : "no_effect",
-      sourceId: message.id,
-      sourceKind: "message_stream",
+      sourceId,
+      sourceKind,
       taskNodeId: message.taskNodeId,
       title: message.title,
     };
@@ -48,6 +65,9 @@ export function activityItemsFromMessages(
 function activityKindFromMessage(
   message: SessionMessageView,
 ): SessionActivityItemKind {
+  if (message.title === readOnlyInquiryActivityTitle) {
+    return "answer";
+  }
   if (message.kind === "response") {
     return "answer";
   }

@@ -165,6 +165,8 @@ type WorkspaceGitStatusResponse = {
     stagedFileCount: number;
     unstagedFileCount: number;
     untrackedFileCount: number;
+    localToolingFileCount?: number;
+    suppressedLocalNoiseFileCount?: number;
     hasMore: boolean;
   };
   files: WorkspaceChangedFile[];
@@ -187,6 +189,7 @@ type WorkspaceChangedFile = WorkspacePathRef & {
   unstaged: boolean;
   oldPathLabel?: string;
   oldRelativePath?: string;
+  displayCategory?: "project" | "local_tooling";
   binary: boolean | null;
   relatedTaskRefs: {
     sessionId: string;
@@ -203,6 +206,14 @@ Notes:
 - The API preserves `staged`, `unstaged`, and summary counts so later Git
   controls can be added without changing the read model.
 - `not_git` is a valid workspace state, not a sidecar failure.
+- `displayCategory="local_tooling"` marks IDE/editor project metadata such as
+  `.idea/` and `.vscode/` so the UI can fold it without hiding it.
+- `suppressedLocalNoiseFileCount` counts known local system noise files that
+  are intentionally omitted from the inspection list, such as `.DS_Store`,
+  `Thumbs.db`, and `Desktop.ini`.
+- Normal project dotfiles such as `.gitignore`, `.editorconfig`,
+  `.env.example`, and `.github/` remain project files and must not be excluded
+  only because their path starts with `.`.
 - Workspace Inspection APIs remain read-only. Optional desktop Git
   initialization is owned by the Electron Workspace Entry flow, not by status,
   diff, file content, or evidence capture routes.
@@ -225,6 +236,10 @@ Query parameters:
 Historical git refs, branch compare, commit range compare, and raw revspec
 input are intentionally out of scope for Product 1.1 P0. Stable historical
 views must be rendered from captured evidence by `evidenceId`.
+
+When `path` points at an untracked text file and `base=head`, the provider may
+return a synthetic read-only "new file" diff with added lines. This must not
+run `git add`, mutate the Git index, or write workspace files.
 
 Response:
 

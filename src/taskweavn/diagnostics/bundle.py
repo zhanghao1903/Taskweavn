@@ -1470,7 +1470,11 @@ def _preview(value: str, length: int) -> str:
 
 
 def _bundle_id(session_id: str, created_at: datetime) -> str:
-    timestamp = created_at.astimezone(UTC).strftime("%Y%m%dT%H%M%SZ")
+    normalized = created_at.astimezone(UTC)
+    timestamp = normalized.strftime("%Y%m%dT%H%M%S")
+    if normalized.microsecond:
+        timestamp = f"{timestamp}{normalized.microsecond:06d}"
+    timestamp = f"{timestamp}Z"
     return f"diagnostic-bundle-{_safe_token(session_id)}-{timestamp}"
 
 

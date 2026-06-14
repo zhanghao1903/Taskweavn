@@ -6,6 +6,8 @@ import type {
   AuditFilterKind,
   AuditRecordDetail,
   AuditRecordId,
+  EvidenceId,
+  EvidenceRef,
 } from "../../shared/api/types";
 import {
   createAuditApiFromRuntimeEnv,
@@ -62,6 +64,9 @@ export function AuditPageRoute({
   const [selectedRecordId, setSelectedRecordId] = useState<AuditRecordId | null>(
     () => parsedRoute?.request.recordId ?? null,
   );
+  const [selectedEvidenceId, setSelectedEvidenceId] = useState<EvidenceId | null>(
+    () => parsedRoute?.evidenceId ?? null,
+  );
   const [liveState, setLiveState] = useState<AuditPageRuntimeState>({
     eventCursor: null,
     message: null,
@@ -111,6 +116,7 @@ export function AuditPageRoute({
 
     setActiveFilter(parsedRoute.request.filter ?? "all");
     setSelectedRecordId(parsedRoute.request.recordId ?? null);
+    setSelectedEvidenceId(parsedRoute.evidenceId ?? null);
   }, [parsedRoute]);
 
   const rawSnapshot = snapshotQuery.data?.ok === true ? snapshotQuery.data.data : null;
@@ -161,10 +167,10 @@ export function AuditPageRoute({
     detailQuery.data?.ok === true ? detailQuery.data.data : null,
     selectedRecordId,
   );
-  const selectedEvidenceRef =
-    selectedRecordDetail?.evidence[0] ??
-    selectedRecordDetail?.evidenceRefs[0] ??
-    null;
+  const selectedEvidenceRef = selectEvidenceRef(
+    selectedRecordDetail,
+    selectedEvidenceId,
+  );
   const shouldLoadEvidenceDetail =
     rawSnapshot !== null &&
     selectedRecordDetail !== null &&
@@ -217,7 +223,11 @@ export function AuditPageRoute({
     [activeFilter, rawSnapshot, selectedRecordDetail, selectedRecordId],
   );
   const updateBrowserLocation = useCallback(
-    (filter: AuditFilterKind, recordId: AuditRecordId | null) => {
+    (
+      filter: AuditFilterKind,
+      recordId: AuditRecordId | null,
+      evidenceId: EvidenceId | null = selectedEvidenceId,
+    ) => {
       if (parsedRoute === null || location !== undefined) {
         return;
       }
@@ -226,12 +236,13 @@ export function AuditPageRoute({
         null,
         "",
         buildAuditLocation(parsedRoute, {
+          evidenceId: recordId === null ? null : evidenceId,
           filter,
           recordId,
         }),
       );
     },
-    [location, parsedRoute],
+    [location, parsedRoute, selectedEvidenceId],
   );
 
   const handleSelectFilter = useCallback(
@@ -241,18 +252,22 @@ export function AuditPageRoute({
         selectedRecordSurvivesFilter(rawSnapshot.records, filter, selectedRecordId)
           ? selectedRecordId
           : null;
+      const nextSelectedEvidenceId =
+        nextSelectedRecordId === selectedRecordId ? selectedEvidenceId : null;
 
-      updateBrowserLocation(filter, nextSelectedRecordId);
+      updateBrowserLocation(filter, nextSelectedRecordId, nextSelectedEvidenceId);
       setActiveFilter(filter);
       setSelectedRecordId(nextSelectedRecordId);
+      setSelectedEvidenceId(nextSelectedEvidenceId);
     },
-    [rawSnapshot, selectedRecordId, updateBrowserLocation],
+    [rawSnapshot, selectedEvidenceId, selectedRecordId, updateBrowserLocation],
   );
 
   const handleSelectRecord = useCallback(
     (recordId: AuditRecordId) => {
-      updateBrowserLocation(activeFilter, recordId);
+      updateBrowserLocation(activeFilter, recordId, null);
       setSelectedRecordId(recordId);
+      setSelectedEvidenceId(null);
     },
     [activeFilter, updateBrowserLocation],
   );
@@ -260,6 +275,7 @@ export function AuditPageRoute({
   const handleCloseDetail = useCallback(() => {
     updateBrowserLocation(activeFilter, null);
     setSelectedRecordId(null);
+    setSelectedEvidenceId(null);
   }, [activeFilter, updateBrowserLocation]);
 
   if (parsedRoute === null) {
@@ -327,4 +343,23 @@ function resolveDetailResponse(
   }
 
   return null;
+}
+
+function selectEvidenceRef(
+  selectedRecordDetail: AuditRecordDetail | null,
+  selectedEvidenceId: EvidenceId | null,
+): EvidenceRef | null {
+  if (selectedRecordDetail === null) {
+    return null;
+  }
+
+  const refs: EvidenceRef[] = [
+    ...selectedRecordDetail.evidence,
+    ...selectedRecordDetail.evidenceRefs,
+  ];
+  if (selectedEvidenceId !== null) {
+    return refs.find((ref) => ref.id === selectedEvidenceId) ?? null;
+  }
+
+  return refs[0] ?? null;
 }

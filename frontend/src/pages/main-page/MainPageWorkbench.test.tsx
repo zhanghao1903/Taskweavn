@@ -7,7 +7,10 @@ import type {
   SessionActivityItemView,
   TaskNodeId,
 } from "../../shared/api/types";
-import type { WorkspaceCatalogResult } from "../../shared/api/platoApi";
+import type {
+  DiagnosticBundleExportResult,
+  WorkspaceCatalogResult,
+} from "../../shared/api/platoApi";
 import { writeWorkspaceGitInitializeOnOpenPreference } from "../../shared/workspace/workspaceGitPreference";
 import styles from "./MainPage.module.css";
 import { MainPageWorkbench } from "./MainPageWorkbench";
@@ -16,7 +19,10 @@ import { buildMainPageViewModel } from "./mainPageViewModel";
 import type { MainPageStateId } from "./mockPlatoApi";
 import { getMainPageMockSnapshot } from "./mockPlatoApi";
 import type { MainPageWorkspaceRuntime } from "./MainPageWorkspaceSwitcher";
-import type { LoadSessionActivity } from "./runtime/adapter";
+import type {
+  ExportDiagnosticBundle,
+  LoadSessionActivity,
+} from "./runtime/adapter";
 import type { MainPageController } from "./useMainPageController";
 
 describe("MainPageWorkbench layout", () => {
@@ -142,6 +148,98 @@ describe("MainPageWorkbench layout", () => {
       sessionId: "session-website-plan",
     });
     expect(await screen.findAllByText("Plan updated")).toHaveLength(2);
+  });
+
+  it("shows transient read-only answer activity in the activity strip and overlay", async () => {
+    const user = userEvent.setup();
+    const readOnlyAnswerActivity = activityItem({
+      body: "The selected task is still a draft. No state changed.",
+      id: "activity:inquiry:route-read-only-answer",
+      kind: "answer",
+      sourceKind: "router",
+      taskNodeId: "task-visual-direction",
+      title: "Read-only answer",
+    });
+    const loadSessionActivity = vi.fn<LoadSessionActivity>(async () => ({
+      generatedAt: "2026-06-14T00:00:00.000Z",
+      items: [readOnlyAnswerActivity],
+      sessionId: "session-website-plan",
+      totalCount: 1,
+    }));
+    const viewModel = buildViewModel("s3-draft-ready", {
+      selectedTaskNodeId: "task-visual-direction",
+    });
+
+    renderWorkbench(viewModel, buildActions(), {
+      loadSessionActivity,
+      runtimeActivityItems: [readOnlyAnswerActivity],
+    });
+
+    expect(screen.getByText("Read-only answer")).toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole("button", { name: /Open task updates/i }),
+    );
+
+    expect(loadSessionActivity).toHaveBeenCalledTimes(1);
+    expect(await screen.findAllByText("Read-only answer")).toHaveLength(2);
+    expect(
+      screen.getByText("The selected task is still a draft. No state changed."),
+    ).toBeInTheDocument();
+  });
+
+  it("exports a redacted diagnostic bundle from diagnostic activity refs", async () => {
+    const user = userEvent.setup();
+    const diagnosticActivity = activityItem({
+      body: "Diagnostic bundle export is available for this session.",
+      id: "activity:inquiry:diagnostic",
+      kind: "answer",
+      relatedRefs: [
+        {
+          href: null,
+          id: "diagnostic:bundle_export",
+          kind: "diagnostic",
+          label: "Diagnostic bundle export",
+        },
+      ],
+      sourceKind: "router",
+      taskNodeId: "task-visual-direction",
+      title: "Diagnostic support",
+    });
+    const exportDiagnosticBundle = vi.fn<ExportDiagnosticBundle>(
+      async () => diagnosticExport(),
+    );
+    const loadSessionActivity = vi.fn<LoadSessionActivity>(async () => ({
+      generatedAt: "2026-06-14T00:00:00.000Z",
+      items: [diagnosticActivity],
+      sessionId: "session-website-plan",
+      totalCount: 1,
+    }));
+    const viewModel = buildViewModel("s3-draft-ready", {
+      selectedTaskNodeId: "task-visual-direction",
+    });
+
+    renderWorkbench(viewModel, buildActions(), {
+      activeWorkspaceId: "workspace-local",
+      exportDiagnosticBundle,
+      loadSessionActivity,
+      runtimeActivityItems: [diagnosticActivity],
+    });
+
+    await user.click(
+      screen.getByRole("button", { name: /Open task updates/i }),
+    );
+    await user.click(
+      await screen.findByRole("button", { name: "Export diagnostics" }),
+    );
+
+    expect(exportDiagnosticBundle).toHaveBeenCalledWith(
+      "session-website-plan",
+      "workspace-local",
+    );
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Bundle ready: diagnostic-bundle-session-website-plan",
+    );
   });
 
   it("wires dirty authoring repair from the diagnostic banner", async () => {
@@ -320,7 +418,9 @@ function renderWorkbench(
   actions: MainPageController["actions"] = buildActions(),
   options: {
     activeWorkspaceId?: MainPageController["activeWorkspaceId"];
+    exportDiagnosticBundle?: ExportDiagnosticBundle;
     loadSessionActivity?: LoadSessionActivity;
+    runtimeActivityItems?: readonly SessionActivityItemView[];
     workspaceCatalog?: WorkspaceCatalogResult | null;
     workspaceRuntime?: MainPageWorkspaceRuntime | null;
   } = {},
@@ -339,6 +439,8 @@ function renderWorkbench(
       isRenamingSession={false}
       sessionDialog={{ mode: "idle" }}
       viewModel={viewModel}
+      runtimeActivityItems={options.runtimeActivityItems}
+      exportDiagnosticBundle={options.exportDiagnosticBundle}
       loadSessionActivity={options.loadSessionActivity}
       workspaceCatalog={options.workspaceCatalog ?? null}
       workspaceRuntime={options.workspaceRuntime ?? null}
@@ -365,6 +467,25 @@ function activityItem(
     taskNodeId: "task-visual-direction",
     title: "Activity loaded",
     ...overrides,
+  };
+}
+
+function diagnosticExport(): DiagnosticBundleExportResult {
+  return {
+    bundleDir: "workspace://current/.plato/diagnostics/bundle",
+    bundleDirLabel: "workspace://current/.plato/diagnostics/bundle",
+    bundleId: "diagnostic-bundle-session-website-plan",
+    createdAt: "2026-06-14T00:00:00.000Z",
+    fileCount: 3,
+    includedSections: ["manifest", "logs"],
+    manifestPath: "workspace://current/.plato/diagnostics/manifest.json",
+    manifestPathLabel: "workspace://current/.plato/diagnostics/manifest.json",
+    redactionProfile: "product-default",
+    schemaVersion: "plato.diagnostics_export.v1",
+    sections: [],
+    warnings: [],
+    zipPath: "workspace://current/.plato/diagnostics/bundle.zip",
+    zipPathLabel: "workspace://current/.plato/diagnostics/bundle.zip",
   };
 }
 

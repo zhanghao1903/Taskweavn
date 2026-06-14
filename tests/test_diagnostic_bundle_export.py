@@ -170,6 +170,38 @@ def test_diagnostic_bundle_marks_missing_sources_without_failing(tmp_path: Path)
     assert section_status["workspace_inspection"] == "missing"
 
 
+def test_diagnostic_bundle_allows_repeated_export_in_same_second(
+    tmp_path: Path,
+) -> None:
+    layout = WorkspaceLayout(tmp_path / "workspace")
+    with SessionManager(layout) as manager:
+        session = manager.create("Repeat export")
+
+    output_dir = tmp_path / "diagnostics"
+    first = DiagnosticBundleExporter(
+        DiagnosticExportOptions(
+            workspace_root=layout.root,
+            session_id=session.id,
+            output_dir=output_dir,
+            create_zip=False,
+            created_at=datetime(2026, 6, 5, 12, 0, 0, 100, tzinfo=UTC),
+        )
+    ).export()
+    second = DiagnosticBundleExporter(
+        DiagnosticExportOptions(
+            workspace_root=layout.root,
+            session_id=session.id,
+            output_dir=output_dir,
+            create_zip=False,
+            created_at=datetime(2026, 6, 5, 12, 0, 0, 200, tzinfo=UTC),
+        )
+    ).export()
+
+    assert first.bundle_id != second.bundle_id
+    assert first.bundle_dir.exists()
+    assert second.bundle_dir.exists()
+
+
 def test_diagnostic_redaction_masks_secrets_paths_and_raw_payloads(tmp_path: Path) -> None:
     payload = {
         "api_key": "secret-value",

@@ -81,6 +81,7 @@ export function MainPage({
     taskTreeCommandError,
     taskTreeCommandRecoveryActions,
     uiNotice,
+    runtimeActivityItems,
     workspaceCatalog,
   } = useMainPageController({
     adapter,
@@ -222,9 +223,11 @@ export function MainPage({
       sessionDialog={sessionDialog}
       topBarTrailing={topBarTrailing}
       viewModel={viewModel}
+      runtimeActivityItems={runtimeActivityItems}
       activeWorkspaceId={activeWorkspaceId}
       workspaceCatalog={workspaceCatalog}
       workspaceRuntime={workspaceRuntime}
+      exportDiagnosticBundle={adapter.exportDiagnosticBundle}
       loadSessionActivity={adapter.loadSessionActivity}
       loadTokenUsageSummary={adapter.loadTokenUsageSummary}
     />

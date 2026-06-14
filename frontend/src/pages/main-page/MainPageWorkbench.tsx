@@ -1,10 +1,17 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 
 import type { ProductRecoveryAction } from "../../shared/api/platoApi";
-import type { SessionActivityItemView } from "../../shared/api/types";
+import type {
+  SessionActivityItemView,
+  SessionActivityRefView,
+  SessionMessageView,
+} from "../../shared/api/types";
 import { Panel } from "../../shared/components";
 import { useUiText } from "../../shared/ui-text";
-import { ActivityOverlay } from "./ActivityOverlay";
+import {
+  ActivityOverlay,
+  type ActivityOverlayStatusMessage,
+} from "./ActivityOverlay";
 import { ContextInputPanel } from "./ContextInputPanel";
 import { LatestActivityStrip } from "./LatestActivityStrip";
 import { MainPageDetailPanel } from "./MainPageDetailPanel";
@@ -18,6 +25,7 @@ import { activityItemsFromMessages } from "./mainPageActivityProjection";
 import type { MainPageViewModel } from "./mainPageViewModel";
 import type { MainPageController } from "./useMainPageController";
 import type {
+  ExportDiagnosticBundle,
   LoadSessionActivity,
   LoadTokenUsageSummary,
 } from "./runtime/adapter";
@@ -37,8 +45,10 @@ export type MainPageWorkbenchProps = {
   sessionDialog: MainPageController["sessionDialog"];
   topBarTrailing?: ReactNode;
   viewModel: MainPageViewModel;
+  runtimeActivityItems?: readonly SessionActivityItemView[];
   workspaceCatalog: MainPageController["workspaceCatalog"];
   workspaceRuntime?: MainPageWorkspaceRuntime | null;
+  exportDiagnosticBundle?: ExportDiagnosticBundle;
   loadSessionActivity?: LoadSessionActivity;
   loadTokenUsageSummary?: LoadTokenUsageSummary;
 };
@@ -57,8 +67,10 @@ export function MainPageWorkbench({
   sessionDialog,
   topBarTrailing = null,
   viewModel,
+  runtimeActivityItems = [],
   workspaceCatalog,
   workspaceRuntime = null,
+  exportDiagnosticBundle,
   loadSessionActivity,
   loadTokenUsageSummary,
 }: MainPageWorkbenchProps) {
@@ -70,6 +82,10 @@ export function MainPageWorkbench({
   const [activityError, setActivityError] = useState<string | null>(null);
   const [activityLoadKey, setActivityLoadKey] = useState(0);
   const [isActivityLoading, setIsActivityLoading] = useState(false);
+  const [activityStatusMessage, setActivityStatusMessage] =
+    useState<ActivityOverlayStatusMessage | null>(null);
+  const [isExportingActivityDiagnostic, setIsExportingActivityDiagnostic] =
+    useState(false);
   const hidesDetailPanel = viewModel.detail.kind === "note";
   const pageClassName = hidesDetailPanel
     ? `${styles.page} ${styles.pageWithoutDetail}`
@@ -77,10 +93,25 @@ export function MainPageWorkbench({
   const hasActivity =
     viewModel.mainWorkArea.kind !== "authoringAsk" &&
     (viewModel.taskWorkspace.allMessages.length > 0 ||
+      runtimeActivityItems.length > 0 ||
       loadSessionActivity !== undefined);
+  const transientMessages = useMemo(
+    () => runtimeActivityItems.map(messageFromActivityItem),
+    [runtimeActivityItems],
+  );
+  const visibleTransientMessages = useMemo(
+    () =>
+      transientMessages.filter((message) =>
+        viewModel.taskWorkspace.selectedTask
+          ? message.taskNodeId === viewModel.taskWorkspace.selectedTask.id
+          : true,
+      ),
+    [transientMessages, viewModel.taskWorkspace.selectedTask],
+  );
   const hasVisibleActivity =
     viewModel.mainWorkArea.kind !== "authoringAsk" &&
-    viewModel.taskWorkspace.messages.length > 0;
+    (viewModel.taskWorkspace.messages.length > 0 ||
+      visibleTransientMessages.length > 0);
   const resolvedWorkspaceId =
     viewModel.workspace.workspaceId ??
     viewModel.sidebar.activeSession.workspaceId ??
@@ -91,7 +122,17 @@ export function MainPageWorkbench({
     [viewModel.taskWorkspace.allMessages],
   );
   const overlayActivityItems =
-    loadSessionActivity === undefined ? fallbackActivityItems : activityItems;
+    loadSessionActivity === undefined
+      ? mergeActivityItems(runtimeActivityItems, fallbackActivityItems)
+      : mergeActivityItems(runtimeActivityItems, activityItems);
+  const latestActivityMessages = [
+    ...viewModel.taskWorkspace.messages,
+    ...visibleTransientMessages,
+  ];
+  const totalActivityCount =
+    viewModel.taskWorkspace.totalMessageCount + transientMessages.length;
+  const visibleActivityCount =
+    viewModel.taskWorkspace.visibleMessageCount + visibleTransientMessages.length;
 
   useEffect(() => {
     if (!isActivityOverlayOpen || loadSessionActivity === undefined) {
@@ -157,6 +198,42 @@ export function MainPageWorkbench({
     }
     actions.showFileChanges();
     setIsActivityOverlayOpen(false);
+  }
+
+  function showActivityAudit(ref: SessionActivityRefView) {
+    const href = ref.href ?? viewModel.workspace.auditEntry.href;
+    window.location.assign(href);
+    setIsActivityOverlayOpen(false);
+  }
+
+  async function exportActivityDiagnostic() {
+    if (exportDiagnosticBundle === undefined || isExportingActivityDiagnostic) {
+      return;
+    }
+
+    setActivityStatusMessage({
+      body: uiText.settings.actions.exportingDiagnostics,
+      tone: "info",
+    });
+    setIsExportingActivityDiagnostic(true);
+
+    try {
+      const result = await exportDiagnosticBundle(
+        viewModel.sessionId,
+        resolvedWorkspaceId,
+      );
+      setActivityStatusMessage({
+        body: `${uiText.diagnostics.labels.bundleReady}: ${result.bundleId}`,
+        tone: "info",
+      });
+    } catch {
+      setActivityStatusMessage({
+        body: uiText.settings.messages.diagnosticExportFailed,
+        tone: "danger",
+      });
+    } finally {
+      setIsExportingActivityDiagnostic(false);
+    }
   }
 
   return (
@@ -229,7 +306,7 @@ export function MainPageWorkbench({
                 hasVisibleActivity ? (
                   <LatestActivityStrip
                     isMessageScoped={viewModel.taskWorkspace.isMessageScoped}
-                    messages={viewModel.taskWorkspace.messages}
+                    messages={latestActivityMessages}
                     onOpenActivity={
                       hasActivity
                         ? () => setIsActivityOverlayOpen(true)
@@ -237,10 +314,10 @@ export function MainPageWorkbench({
                     }
                     selectedTask={viewModel.taskWorkspace.selectedTask}
                     totalMessageCount={
-                      viewModel.taskWorkspace.totalMessageCount
+                      totalActivityCount
                     }
                     visibleMessageCount={
-                      viewModel.taskWorkspace.visibleMessageCount
+                      visibleActivityCount
                     }
                   />
                 ) : null
@@ -352,6 +429,18 @@ export function MainPageWorkbench({
           isLoading={isActivityLoading}
           items={overlayActivityItems}
           onClose={() => setIsActivityOverlayOpen(false)}
+          onOpenAudit={
+            viewModel.workspace.auditEntry.isEnabled
+              ? showActivityAudit
+              : undefined
+          }
+          onOpenDiagnostic={
+            exportDiagnosticBundle === undefined
+              ? undefined
+              : () => {
+                  void exportActivityDiagnostic();
+                }
+          }
           onOpenFiles={showActivityFiles}
           onOpenPlan={() => {
             actions.selectTaskPlan();
@@ -364,6 +453,7 @@ export function MainPageWorkbench({
           }}
           onRetry={() => setActivityLoadKey((key) => key + 1)}
           selectedTask={viewModel.taskWorkspace.selectedTask}
+          statusMessage={activityStatusMessage}
         />
       ) : null}
 
@@ -385,4 +475,55 @@ export function MainPageWorkbench({
       />
     </main>
   );
+}
+
+function mergeActivityItems(
+  transientItems: readonly SessionActivityItemView[],
+  sourceItems: readonly SessionActivityItemView[],
+): SessionActivityItemView[] {
+  const byId = new Set<string>();
+  const merged: SessionActivityItemView[] = [];
+
+  for (const item of [...transientItems, ...sourceItems]) {
+    if (byId.has(item.id)) {
+      continue;
+    }
+    byId.add(item.id);
+    merged.push(item);
+  }
+
+  return merged;
+}
+
+function messageFromActivityItem(
+  item: SessionActivityItemView,
+): SessionMessageView {
+  return {
+    id: `activity-message:${item.id}`,
+    sessionId: item.sessionId,
+    taskNodeId: item.taskNodeId ?? null,
+    kind: messageKindFromActivity(item),
+    title: item.title,
+    body: item.body,
+    createdAt: item.occurredAt,
+  };
+}
+
+function messageKindFromActivity(
+  item: SessionActivityItemView,
+): SessionMessageView["kind"] {
+  if (item.kind === "answer" || item.kind === "result_ready") {
+    return "response";
+  }
+  if (item.kind === "recovery_note") {
+    return "error";
+  }
+  if (
+    item.kind === "ask_asked" ||
+    item.kind === "confirmation_requested" ||
+    item.sideEffect !== "no_effect"
+  ) {
+    return "actionable";
+  }
+  return "informational";
 }

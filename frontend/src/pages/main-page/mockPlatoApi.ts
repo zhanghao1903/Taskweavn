@@ -20,7 +20,9 @@ import type {
   ConfirmationId,
   ConfirmationActionView,
   FileChangeSummaryView,
+  QueryResponse,
   ResultCardView,
+  RuntimeInputRouteResult,
   SessionId,
   SessionStatus,
   SessionSummary,
@@ -59,6 +61,7 @@ import type {
   PublishTaskTreeCommand,
   RepairAuthoringStateCommand,
   ResolveConfirmationCommand,
+  RouteRuntimeInputCommand,
   StopTaskCommand,
   SubscribeSessionEvents,
   UpdateTaskNodeCommand,
@@ -397,6 +400,90 @@ export async function stopTaskMockCommand(
   });
 }
 
+export const routeRuntimeInputMockCommand: RouteRuntimeInputCommand = async (
+  request,
+) => {
+  await delay(30);
+
+  const now = "2026-05-17T10:21:00+08:00";
+  const answerBody = `This is a read-only answer for "${request.content}". No plan, task, or workspace state was changed.`;
+  const result: RuntimeInputRouteResult = {
+    sessionId: request.sessionId,
+    decision: {
+      id: `decision-${request.commandId}`,
+      intent: "question",
+      scope: {
+        kind: request.selection.scopeKind,
+        planId: request.selection.planId ?? null,
+        taskNodeId: request.selection.taskNodeId ?? null,
+      },
+      confidence: "high",
+      sideEffect: "no_effect",
+      dispatchTarget: "read_only_inquiry",
+      explanation: "Mock runtime input treated this input as a question.",
+      relatedRefs: [],
+    },
+    outcome: {
+      status: "answered",
+      userMessage: answerBody,
+      recoveryActions: [],
+    },
+    activity: {
+      id: `activity-${request.commandId}`,
+      sessionId: request.sessionId,
+      kind: "answer",
+      title: "Read-only answer",
+      body: answerBody,
+      occurredAt: now,
+      scopeKind: request.selection.scopeKind,
+      planId: request.selection.planId ?? null,
+      taskNodeId: request.selection.taskNodeId ?? null,
+      sideEffect: "no_effect",
+      relatedRefs: [],
+      sourceKind: "router",
+      disclosureLevel: "public",
+    },
+    commandResponse: null,
+    inquiryResult: {
+      inquiryId: request.commandId,
+      sessionId: request.sessionId,
+      scope: {
+        kind: request.selection.scopeKind,
+        planId: request.selection.planId ?? null,
+        taskNodeId: request.selection.taskNodeId ?? null,
+      },
+      status: "answered",
+      answer: {
+        title: "Read-only answer",
+        body: answerBody,
+        confidence: "high",
+      },
+      evidenceRefs: [
+        {
+          kind: "session_status",
+          refId: `session:${request.sessionId}:status`,
+          label: "Mock session status",
+          disclosure: "public",
+          truncated: false,
+        },
+      ],
+      warnings: [],
+      activity: null,
+      generatedAt: now,
+    },
+    generatedAt: now,
+  };
+
+  return {
+    requestId: `request-${request.commandId}`,
+    ok: true,
+    data: result,
+    error: null,
+    cursor: null,
+    generatedAt: now,
+  } satisfies QueryResponse<RuntimeInputRouteResult>;
+};
+
 export const subscribeSessionEventsMock: SubscribeSessionEvents = () => () => {
   // The default mock stream is intentionally quiet. Tests inject events.
 };
@@ -445,6 +532,7 @@ export const mainPageMockAdapter: MainPageAdapter = {
   },
   retryTask: retryTaskMockCommand,
   resolveConfirmation: resolveConfirmationMockCommand,
+  routeRuntimeInput: routeRuntimeInputMockCommand,
   runtimeKind: "mock",
   sessionId: null,
   showStatePicker: true,

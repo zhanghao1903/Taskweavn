@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import http.client
 import json
 import subprocess
@@ -55,13 +56,15 @@ class SidecarSmokeFixture:
     session_id: str
     task_id: str
     log_record_id: str
+    log_evidence_id: str
     diagnostics_log_href: str
     workspace_id: str = "current"
     inspection_file_path: str = SMOKE_INSPECTION_FILE_PATH
+    read_only_inquiry_llm_enabled: bool = False
 
     @property
     def base_url(self) -> str:
-        return self.app.base_url
+        return str(self.app.base_url)
 
     @property
     def diagnostic_export_path(self) -> str:
@@ -74,6 +77,10 @@ class SidecarSmokeFixture:
     @property
     def diagnostics_log_url(self) -> str:
         return f"{self.base_url}{self.diagnostics_log_href}"
+
+    @property
+    def result_id(self) -> str:
+        return f"result:published:{self.task_id}"
 
     def request(
         self,
@@ -95,6 +102,8 @@ def build_audit_sidecar_smoke_fixture(
     port: int = 0,
     settings_readiness_env: Mapping[str, str] | None = None,
     workspace_registry: tuple[WorkspaceRegistryEntry, ...] = (),
+    llm: object | None = None,
+    enable_read_only_inquiry_llm: bool = False,
 ) -> SidecarSmokeFixture:
     """Create a deterministic real-sidecar session for frontend integration checks."""
 
@@ -107,9 +116,15 @@ def build_audit_sidecar_smoke_fixture(
             enable_default_agent=False,
             enable_execution_dispatcher=False,
             workspace_registry=workspace_registry,
+            enable_read_only_inquiry_llm=enable_read_only_inquiry_llm,
         ),
         MainPageSidecarDependencies(
-            llm=_StubLLM(),
+            llm=llm
+            or (
+                _ReadOnlyInquirySmokeLLM()
+                if enable_read_only_inquiry_llm
+                else _StubLLM()
+            ),
             settings_config_gateway=(
                 None
                 if settings_readiness_env is None
@@ -134,13 +149,18 @@ def build_audit_sidecar_smoke_fixture(
         _seed_result_and_file_evidence(app, session_id, task)
         app.task_bus.fail(session_id, SMOKE_TASK_ID, error_ref=SMOKE_ERROR_REF)
         _write_frontend_error_log(app, session_id)
-        diagnostics_log_href = _require_related_log_href(app, session_id)
+        diagnostics_log_href, log_evidence_id = _require_related_log_context(
+            app,
+            session_id,
+        )
         return SidecarSmokeFixture(
             app=app,
             session_id=session_id,
             task_id=SMOKE_TASK_ID,
             log_record_id=SMOKE_LOG_RECORD_ID,
+            log_evidence_id=log_evidence_id,
             diagnostics_log_href=diagnostics_log_href,
+            read_only_inquiry_llm_enabled=enable_read_only_inquiry_llm,
         )
     except Exception:
         app.close()
@@ -231,7 +251,10 @@ def _write_frontend_error_log(app: MainPageSidecarApp, session_id: str) -> None:
         raise AssertionError(f"frontend error log write failed: {response.text}")
 
 
-def _require_related_log_href(app: MainPageSidecarApp, session_id: str) -> str:
+def _require_related_log_context(
+    app: MainPageSidecarApp,
+    session_id: str,
+) -> tuple[str, str]:
     response = request_sidecar(
         app,
         "GET",
@@ -248,7 +271,13 @@ def _require_related_log_href(app: MainPageSidecarApp, session_id: str) -> str:
     href = links[0]["href"]
     if not links[0]["enabled"]:
         raise AssertionError(f"related diagnostics link disabled: {links[0]}")
-    return cast(str, href)
+    evidence_refs = response.json["data"].get("evidenceRefs") or response.json[
+        "data"
+    ].get("evidence")
+    if not evidence_refs:
+        raise AssertionError("audit record did not expose evidence refs")
+    evidence_id = evidence_refs[0]["id"]
+    return cast(str, href), cast(str, evidence_id)
 
 
 def _published_task(task_id: str, *, session_id: str) -> TaskDomain:
@@ -314,6 +343,39 @@ class _StubLLM:
         )
 
 
+class _ReadOnlyInquirySmokeLLM:
+    def chat(
+        self,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]] | None = None,
+        *,
+        metadata: dict[str, Any] | None = None,
+        **kwargs: Any,
+    ) -> _LLMResponse:
+        del tools, metadata, kwargs
+        evidence_refs: list[str] = []
+        if len(messages) > 1:
+            with contextlib.suppress(Exception):
+                payload = json.loads(str(messages[1]["content"]))
+                evidence_refs = [
+                    ref["refId"]
+                    for ref in payload.get("evidenceRefs", [])
+                    if isinstance(ref, dict) and isinstance(ref.get("refId"), str)
+                ]
+        return _LLMResponse(
+            json.dumps(
+                {
+                    "status": "answered",
+                    "body": (
+                        "LLM rendered a read-only answer from cited safe evidence only."
+                    ),
+                    "confidence": "high",
+                    "citedRefIds": evidence_refs[:12],
+                }
+            )
+        )
+
+
 @dataclass(frozen=True)
 class _LLMResponse:
     content: str
@@ -362,6 +424,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         action="store_true",
         help="Serve an already seeded workspace without creating another session.",
     )
+    parser.add_argument(
+        "--enable-read-only-inquiry-llm",
+        action="store_true",
+        help="Enable guarded LLM-rendered Read-Only Inquiry answers in the fixture.",
+    )
     args = parser.parse_args(argv)
 
     if args.serve_existing:
@@ -373,6 +440,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         port=args.port,
         settings_readiness_env=_settings_readiness_env_from_args(args),
         workspace_registry=_parse_workspace_registry_json(args.workspace_registry_json),
+        enable_read_only_inquiry_llm=args.enable_read_only_inquiry_llm,
     )
     try:
         ready_payload = _ready_payload(fixture)
@@ -407,9 +475,14 @@ def _serve_existing_workspace(args: argparse.Namespace) -> int:
             workspace_registry=_parse_workspace_registry_json(
                 args.workspace_registry_json
             ),
+            enable_read_only_inquiry_llm=args.enable_read_only_inquiry_llm,
         ),
         MainPageSidecarDependencies(
-            llm=_StubLLM(),
+            llm=(
+                _ReadOnlyInquirySmokeLLM()
+                if args.enable_read_only_inquiry_llm
+                else _StubLLM()
+            ),
             settings_config_gateway=DefaultSettingsConfigGateway(
                 workspace_root=args.workspace,
                 env=_settings_readiness_env_from_args(args) or {},
@@ -436,13 +509,15 @@ def _serve_existing_workspace(args: argparse.Namespace) -> int:
     return 0
 
 
-def _ready_payload(fixture: SidecarSmokeFixture) -> dict[str, str]:
+def _ready_payload(fixture: SidecarSmokeFixture) -> dict[str, object]:
     return {
         "baseUrl": fixture.base_url,
         "diagnosticExportUrl": fixture.diagnostic_export_url,
         "diagnosticsLogUrl": fixture.diagnostics_log_url,
         "inspectionFilePath": fixture.inspection_file_path,
+        "logEvidenceId": fixture.log_evidence_id,
         "logRecordId": fixture.log_record_id,
+        "readOnlyInquiryLlmEnabled": fixture.read_only_inquiry_llm_enabled,
         "sessionId": fixture.session_id,
         "taskId": fixture.task_id,
         "workspaceId": fixture.workspace_id,

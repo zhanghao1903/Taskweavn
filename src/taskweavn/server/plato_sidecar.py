@@ -45,6 +45,28 @@ def _parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
             "across workspaces."
         ),
     )
+    parser.set_defaults(
+        enable_read_only_inquiry_llm=_env_bool(
+            "PLATO_ENABLE_READ_ONLY_INQUIRY_LLM",
+            default=True,
+        )
+    )
+    parser.add_argument(
+        "--enable-read-only-inquiry-llm",
+        dest="enable_read_only_inquiry_llm",
+        action="store_true",
+        help=(
+            "Enable guarded LLM-rendered Read-Only Inquiry answers. "
+            "This is the default unless PLATO_ENABLE_READ_ONLY_INQUIRY_LLM=0 "
+            "or --disable-read-only-inquiry-llm is provided."
+        ),
+    )
+    parser.add_argument(
+        "--disable-read-only-inquiry-llm",
+        dest="enable_read_only_inquiry_llm",
+        action="store_false",
+        help="Disable guarded LLM-rendered Read-Only Inquiry answers.",
+    )
     return parser.parse_args(argv)
 
 
@@ -78,6 +100,7 @@ def _serve(args: argparse.Namespace) -> int:
             port=args.port,
             workspace_registry=workspace_registry,
             global_settings_root=args.global_settings_root,
+            enable_read_only_inquiry_llm=args.enable_read_only_inquiry_llm,
         ),
         MainPageSidecarDependencies(
             llm_factory=_settings_backed_llm_factory(
@@ -98,6 +121,18 @@ def _serve(args: argparse.Namespace) -> int:
     finally:
         _mark_startup_timing("python_sidecar_shutdown")
         sidecar.close()
+
+
+def _env_bool(name: str, *, default: bool) -> bool:
+    raw_value = os.environ.get(name)
+    if raw_value is None:
+        return default
+    normalized = raw_value.strip().lower()
+    if normalized in {"1", "true", "yes", "on"}:
+        return True
+    if normalized in {"0", "false", "no", "off"}:
+        return False
+    return default
 
 
 def _settings_backed_llm_factory(

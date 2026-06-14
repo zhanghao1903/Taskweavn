@@ -17,6 +17,7 @@ export async function runElectronSmoke({
   }
 
   validateFixture(fixture);
+  const appReloadUrl = await evaluate(window, "location.href");
 
   if (kind === "first-run") {
     await smokeSettingsFirstRun(window, fixture);
@@ -45,6 +46,7 @@ export async function runElectronSmoke({
   await smokeAuditEvidence(window, fixture);
   await smokeWorkspaceInspection(window, fixture);
   await smokeDiagnosticsExport(window, fixture);
+  await smokeReadOnlyInquiryActivity(window, { appReloadUrl, baseUrl, fixture });
   await smokeCommandFailureRecovery(window, { baseUrl, fixture });
 }
 
@@ -332,6 +334,121 @@ async function smokeDiagnosticsExport(window, fixture) {
   await assertBodyDoesNotContain(window, fixture.workspaceDir, "workspace root");
 }
 
+async function smokeReadOnlyInquiryActivity(
+  window,
+  { appReloadUrl, baseUrl, fixture },
+) {
+  await navigate(window, "/");
+  await waitForText(window, "Diagnostics smoke", {
+    label: "Main Page before read-only inquiry Activity",
+  });
+
+  const commandId = `route-electron-read-only-inquiry-${Date.now()}`;
+  const routeUrl = `${baseUrl.replace(/\/$/, "")}/api/v1/workspaces/${encodeURIComponent(
+    fixture.workspaceId,
+  )}/sessions/${encodeURIComponent(fixture.sessionId)}/runtime-input/route`;
+  const routeResponse = await evaluate(
+    window,
+    `fetch(${JSON.stringify(routeUrl)}, {
+      body: JSON.stringify({
+        commandId: ${JSON.stringify(commandId)},
+        content: "What support diagnostics should I inspect for this audit evidence?",
+        inquiryRefs: [
+          {
+            id: ${JSON.stringify(fixture.logRecordId)},
+            kind: "audit_record",
+            label: "Frontend error log record"
+          },
+          {
+            evidenceId: ${JSON.stringify(fixture.logEvidenceId)},
+            kind: "audit_evidence",
+            label: "Frontend error log evidence"
+          },
+          {
+            id: "diagnostic:bundle_export",
+            kind: "diagnostic",
+            label: "Diagnostic bundle export"
+          }
+        ],
+        mode: "ask",
+        selection: {
+          scopeKind: "task",
+          taskNodeId: ${JSON.stringify(fixture.taskId)}
+        },
+        sessionId: ${JSON.stringify(fixture.sessionId)}
+      }),
+      headers: { "Content-Type": "application/json" },
+      method: "POST"
+    }).then((response) => response.json())`,
+  );
+  if (
+    routeResponse?.ok !== true ||
+    routeResponse?.data?.decision?.sideEffect !== "no_effect" ||
+    routeResponse?.data?.outcome?.status !== "answered"
+  ) {
+    throw new Error(
+      `Read-only inquiry route did not answer with no_effect: ${JSON.stringify(
+        routeResponse,
+      )}`,
+    );
+  }
+  const expectedAnswerText =
+    fixture.readOnlyInquiryLlmEnabled === true
+      ? "LLM rendered a read-only answer from cited safe evidence only."
+      : "Diagnostic support 'Diagnostic bundle export'";
+  if (
+    fixture.readOnlyInquiryLlmEnabled === true &&
+    routeResponse?.data?.inquiryResult?.answer?.body !== expectedAnswerText
+  ) {
+    throw new Error(
+      `Read-only inquiry LLM smoke did not return the guarded answer: ${JSON.stringify(
+        routeResponse,
+      )}`,
+    );
+  }
+
+  await load(
+    window,
+    `/sessions/${encodeURIComponent(
+      fixture.sessionId,
+    )}?taskNodeId=${encodeURIComponent(
+      fixture.taskId,
+    )}&workspaceId=${encodeURIComponent(fixture.workspaceId)}`,
+    { appReloadUrl },
+  );
+  await waitForText(window, "Diagnostics smoke", {
+    label: "Main Page after read-only inquiry Activity persistence",
+  });
+  await waitForText(window, "Read-only question answered", {
+    label: "Main Page read-only inquiry Activity strip",
+  });
+  await clickByText(window, "button", "Activity");
+  await clickByText(window, "button", "All activity", { optional: true });
+  await waitForText(window, expectedAnswerText, {
+    label: "Read-only inquiry diagnostic support Activity",
+  });
+
+  await clickByText(window, "button", "Export diagnostics");
+  await waitForText(window, "Bundle ready", {
+    label: "Read-only inquiry diagnostic Activity export success",
+    timeoutMs: 20_000,
+  });
+  await assertBodyDoesNotContain(window, fixture.workspaceDir, "workspace root");
+
+  const auditHref = await evaluate(window, findHrefScript("Open audit"));
+  if (typeof auditHref !== "string" || !auditHref.includes("/audit")) {
+    throw new Error(`Read-only inquiry Audit href was not available: ${String(auditHref)}`);
+  }
+  await navigate(window, auditHref);
+  await waitForText(window, "Audit", {
+    label: "Read-only inquiry Audit evidence navigation",
+  });
+  await waitForText(window, "Evidence payload · frontend-errors.jsonl", {
+    label: "Read-only inquiry Audit evidence focus",
+  });
+  await assertBodyDoesNotContain(window, fixture.workspaceDir, "workspace root");
+}
+
 async function smokeCommandFailureRecovery(window, { baseUrl, fixture }) {
   await navigate(window, "/");
   await waitForText(window, "Diagnostics smoke", {
@@ -516,6 +633,24 @@ async function navigate(window, path) {
   );
 }
 
+async function load(window, path, { appReloadUrl = null } = {}) {
+  await evaluate(
+    window,
+    `(() => {
+      if (navigator.userAgent.includes("jsdom")) {
+        history.pushState(null, "", ${JSON.stringify(path)});
+        dispatchEvent(new Event("plato:navigation"));
+        return;
+      }
+      if (location.protocol === "file:") {
+        location.assign(${JSON.stringify(appReloadUrl)});
+        return;
+      }
+      location.assign(${JSON.stringify(path)});
+    })()`,
+  );
+}
+
 async function waitFor(window, label, predicateScript, timeoutMs) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
@@ -605,6 +740,7 @@ function validateFixture(fixture) {
     "baseUrl",
     "diagnosticsLogUrl",
     "inspectionFilePath",
+    "logEvidenceId",
     "logRecordId",
     "sessionId",
     "taskId",

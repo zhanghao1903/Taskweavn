@@ -63,12 +63,13 @@ describe("route builders", () => {
     expect(
       buildAuditTaskRoute("session-1", "task-1", {
         entry: "from_confirmation",
+        evidenceId: "evidence-1",
         filter: "confirmations",
         returnFocus: "confirmation",
         returnTaskNodeId: "task-1",
       }),
     ).toBe(
-      "/sessions/session-1/tasks/task-1/audit?entry=from_confirmation&filter=confirmations&returnFocus=confirmation&returnTaskNodeId=task-1",
+      "/sessions/session-1/tasks/task-1/audit?entry=from_confirmation&evidenceId=evidence-1&filter=confirmations&returnFocus=confirmation&returnTaskNodeId=task-1",
     );
   });
 

@@ -215,6 +215,7 @@ function InspectionShell({
       ? buildMainSessionFallbackRoute({
           sessionId: context.returnSessionId ?? context.sessionId ?? "",
           taskNodeId: context.returnTaskNodeId ?? context.taskNodeId ?? undefined,
+          workspaceId: context.workspaceId,
         })
       : "/";
 
@@ -318,6 +319,11 @@ function StatusView({
 }) {
   const uiText = useUiText();
   const files = status.files;
+  const projectFiles = files.filter((file) => file.displayCategory !== "local_tooling");
+  const localToolFiles = files.filter(
+    (file) => file.displayCategory === "local_tooling",
+  );
+  const suppressedLocalNoise = status.summary.suppressedLocalNoiseFileCount ?? 0;
 
   return (
     <Panel className={styles.panel}>
@@ -348,17 +354,41 @@ function StatusView({
         </div>
       </div>
       <WarningList warnings={status.warnings} />
+      {suppressedLocalNoise > 0 ? (
+        <p className={styles.localNoiseNote}>
+          {uiText.workspaceInspection.states.localNoiseSuppressed({
+            count: suppressedLocalNoise,
+          })}
+        </p>
+      ) : null}
       {files.length === 0 ? (
         <EmptyState
           message={uiText.workspaceInspection.states.cleanBody}
           title={uiText.workspaceInspection.labels.clean}
         />
       ) : (
-        <div className={styles.fileList} role="list">
-          {files.map((file) => (
-            <ChangedFileRow context={context} file={file} key={file.pathLabel} />
-          ))}
-        </div>
+        <>
+          {projectFiles.length > 0 ? (
+            <div className={styles.fileList} role="list">
+              {projectFiles.map((file) => (
+                <ChangedFileRow context={context} file={file} key={file.pathLabel} />
+              ))}
+            </div>
+          ) : null}
+          {localToolFiles.length > 0 ? (
+            <details className={styles.localToolGroup}>
+              <summary>
+                <span>{uiText.workspaceInspection.labels.localToolFiles}</span>
+                <Badge tone="blue">{localToolFiles.length}</Badge>
+              </summary>
+              <div className={styles.fileList} role="list">
+                {localToolFiles.map((file) => (
+                  <ChangedFileRow context={context} file={file} key={file.pathLabel} />
+                ))}
+              </div>
+            </details>
+          ) : null}
+        </>
       )}
     </Panel>
   );

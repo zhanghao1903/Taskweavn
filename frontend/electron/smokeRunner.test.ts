@@ -11,6 +11,7 @@ const fixture = {
   diagnosticsLogUrl:
     "http://127.0.0.1:53100/sessions/session-1/diagnostics/logs?category=audit&recordId=record-log.jsonl",
   inspectionFilePath: "diagnostics-summary.md",
+  logEvidenceId: "evidence-log-jsonl",
   logRecordId: "record-log.jsonl",
   sessionId: "session-1",
   taskId: "task-1",
@@ -20,17 +21,39 @@ const fixture = {
 
 const navigations: string[] = [];
 const tempDirs: string[] = [];
+let routeInquiryAnswered = false;
+let routeInquiryAnswerText = "Diagnostic support 'Diagnostic bundle export'";
 
 describe("runElectronSmoke", () => {
   const originalFetch = globalThis.fetch;
 
   beforeEach(() => {
     installTestLocalStorage();
-    globalThis.fetch = vi.fn(async () =>
-      new Response(JSON.stringify({ ok: true }), {
+    routeInquiryAnswered = false;
+    routeInquiryAnswerText = "Diagnostic support 'Diagnostic bundle export'";
+    globalThis.fetch = vi.fn(async (input) => {
+      if (String(input).includes("/runtime-input/route")) {
+        routeInquiryAnswered = true;
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            data: {
+              decision: { sideEffect: "no_effect" },
+              inquiryResult: {
+                answer: { body: routeInquiryAnswerText },
+                evidenceRefs: [],
+                status: "answered",
+              },
+              outcome: { status: "answered" },
+            },
+          }),
+          { headers: { "Content-Type": "application/json" } },
+        );
+      }
+      return new Response(JSON.stringify({ ok: true }), {
         headers: { "Content-Type": "application/json" },
-      }),
-    );
+      });
+    });
     globalThis.history.pushState(null, "", "/");
     navigations.length = 0;
     renderMainPage();
@@ -62,6 +85,23 @@ describe("runElectronSmoke", () => {
       `${fixture.baseUrl}/api/v1/sessions/session-1/tasks/task-1/retry`,
       expect.objectContaining({ method: "POST" }),
     );
+    expect(document.body).not.toHaveTextContent(fixture.workspaceDir);
+  });
+
+  it("covers opt-in LLM read-only inquiry Activity replay", async () => {
+    routeInquiryAnswerText =
+      "LLM rendered a read-only answer from cited safe evidence only.";
+
+    await runElectronSmoke({
+      baseUrl: fixture.baseUrl,
+      fixture: {
+        ...fixture,
+        readOnlyInquiryLlmEnabled: true,
+      },
+      kind: "configured",
+      window: fakeBrowserWindow(),
+    });
+
     expect(document.body).not.toHaveTextContent(fixture.workspaceDir);
   });
 
@@ -101,20 +141,24 @@ function handleNavigation() {
   const path = `${globalThis.location.pathname}${globalThis.location.search}`;
   navigations.push(path);
 
-  if (path === "/") {
-    renderMainPage();
-    return;
-  }
-  if (path.includes("/audit")) {
-    renderAuditPage();
-    return;
-  }
   if (path.includes("/inspection") && path.includes("view=status")) {
     renderWorkspaceStatus();
     return;
   }
   if (path.includes("/diagnostics/logs")) {
     renderDiagnosticsPage();
+    return;
+  }
+  if (path.includes("/audit")) {
+    if (path.includes("evidenceId=evidence-log-jsonl")) {
+      renderAuditEvidenceFocusPage();
+      return;
+    }
+    renderAuditPage();
+    return;
+  }
+  if (path === "/" || path.includes("/sessions/")) {
+    renderMainPage();
   }
 }
 
@@ -137,6 +181,35 @@ function renderMainPage() {
       `,
     );
   });
+  if (routeInquiryAnswered) {
+    document.body.insertAdjacentHTML(
+      "beforeend",
+      `
+        <p>Read-only question answered</p>
+        <button type="button">Activity</button>
+      `,
+    );
+    getButton("Activity").addEventListener("click", () => {
+      document.body.insertAdjacentHTML(
+        "beforeend",
+        `
+          <p>${routeInquiryAnswerText}</p>
+          <button type="button">Export diagnostics</button>
+          <a href="/sessions/session-1/audit?recordId=record-log.jsonl&evidenceId=evidence-log-jsonl">Open audit</a>
+        `,
+      );
+      getButton("Export diagnostics").addEventListener("click", () => {
+        document.body.insertAdjacentHTML("beforeend", "<p>Bundle ready</p>");
+      });
+      const auditLink = document.querySelector<HTMLAnchorElement>(
+        'a[href*="evidenceId=evidence-log-jsonl"]',
+      );
+      auditLink?.addEventListener("click", (event) => {
+        event.preventDefault();
+        renderAuditEvidenceFocusPage();
+      });
+    });
+  }
 }
 
 function renderWorkspaceEntryPage(workspaceName: string, workspaceDir: string) {
@@ -152,7 +225,7 @@ function renderWorkspaceEntryPage(workspaceName: string, workspaceDir: string) {
     writeFileSync(path.join(excludeDir, "exclude"), ".plato/\n", "utf8");
     document.body.insertAdjacentHTML(
       "beforeend",
-      "<p>Starting the local Python sidecar.</p>",
+      "<p>Starting Plato</p>",
     );
   });
 }
@@ -220,6 +293,15 @@ function renderWorkspaceStatus() {
       <h1>Changed files</h1>
       <p>diagnostics-summary.md</p>
       <p>Unstaged</p>
+    </main>
+  `;
+}
+
+function renderAuditEvidenceFocusPage() {
+  document.body.innerHTML = `
+    <main>
+      <h1>Audit</h1>
+      <p>Evidence payload · frontend-errors.jsonl</p>
     </main>
   `;
 }

@@ -45,6 +45,17 @@ from taskweavn.server.multi_workspace import (
     WorkspaceRuntime,
     WorkspaceRuntimeRegistry,
 )
+from taskweavn.server.read_only_inquiry import DefaultReadOnlyInquiryService
+from taskweavn.server.read_only_inquiry_answer_provider import (
+    GuardedLLMReadOnlyInquiryAnswerProvider,
+)
+from taskweavn.server.read_only_inquiry_diagnostics import (
+    DefaultDiagnosticSupportContextProvider,
+)
+from taskweavn.server.runtime_input_activity import (
+    MessageBusRuntimeInputActivityPublisher,
+)
+from taskweavn.server.runtime_input_router import DefaultRuntimeInputRouter
 from taskweavn.server.settings_config import (
     DefaultSettingsConfigGateway,
     file_settings_config_store_for,
@@ -148,6 +159,7 @@ class MainPageSidecarConfig:
     workspace_registry: tuple[WorkspaceRegistryEntry, ...] = ()
     current_workspace_id: str | None = None
     global_settings_root: Path | None = None
+    enable_read_only_inquiry_llm: bool = True
 
 
 @dataclass(frozen=True)
@@ -507,6 +519,22 @@ def build_main_page_workspace_runtime(
                 ),
             )
         )
+        workspace_inspection_gateway = DefaultWorkspaceInspectionGateway.build(
+            workspace_root=config.workspace_root,
+            workspace_id=config.current_workspace_id or "current",
+            inspection_db_path=layout.workspace_inspection_db,
+        )
+        diagnostic_support_provider = DefaultDiagnosticSupportContextProvider()
+        read_only_inquiry_service = (
+            DefaultReadOnlyInquiryService(
+                query_gateway,
+                workspace_inspection_gateway=workspace_inspection_gateway,
+                diagnostic_support_provider=diagnostic_support_provider,
+                answer_provider=GuardedLLMReadOnlyInquiryAnswerProvider(usage_llm),
+            )
+            if config.enable_read_only_inquiry_llm
+            else None
+        )
         transport = PlatoUiHttpTransport(
             query_gateway=query_gateway,
             command_gateway=command_gateway,
@@ -534,14 +562,21 @@ def build_main_page_workspace_runtime(
             diagnostic_export_gateway=DefaultDiagnosticExportGateway(
                 workspace_root=config.workspace_root,
             ),
-            workspace_inspection_gateway=DefaultWorkspaceInspectionGateway.build(
-                workspace_root=config.workspace_root,
-                workspace_id=config.current_workspace_id or "current",
-                inspection_db_path=layout.workspace_inspection_db,
-            ),
+            workspace_inspection_gateway=workspace_inspection_gateway,
             token_usage_gateway=DefaultTokenUsageSummaryGateway(
                 store=token_usage_store,
                 workspace_id=config.current_workspace_id or "current",
+            ),
+            runtime_input_router=DefaultRuntimeInputRouter(
+                query_gateway=query_gateway,
+                command_gateway=command_gateway,
+                execution_trigger_gateway=execution_dispatcher,
+                read_only_inquiry_service=read_only_inquiry_service,
+                workspace_inspection_gateway=workspace_inspection_gateway,
+                diagnostic_support_provider=diagnostic_support_provider,
+                activity_publisher=MessageBusRuntimeInputActivityPublisher(
+                    message_bus
+                ),
             ),
         )
     except Exception:

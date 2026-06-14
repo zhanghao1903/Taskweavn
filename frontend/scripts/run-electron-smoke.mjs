@@ -133,6 +133,7 @@ function parseArgs(args) {
   let packagedDefaultWorkspace = false;
   let packageDir = path.join(frontendRoot, "dist-electron");
   let packageDirExplicit = false;
+  let readOnlyInquiryLlm = false;
   let rendererPort = null;
 
   for (let index = 0; index < args.length; index += 1) {
@@ -193,6 +194,10 @@ function parseArgs(args) {
       kind = "workspace-git-init";
       continue;
     }
+    if (arg === "--read-only-inquiry-llm") {
+      readOnlyInquiryLlm = true;
+      continue;
+    }
     throw new Error(`unknown option for electron:smoke: ${arg}`);
   }
 
@@ -217,6 +222,19 @@ function parseArgs(args) {
   if (packagedDefaultWorkspace && !launcher) {
     throw new Error("--packaged-default-workspace requires --launcher");
   }
+  if (readOnlyInquiryLlm && launcher) {
+    throw new Error("--read-only-inquiry-llm requires a seeded sidecar fixture, not --launcher");
+  }
+  if (
+    readOnlyInquiryLlm &&
+    ["first-run", "startup-diagnostics", "workspace-entry", "workspace-git-init"].includes(
+      kind,
+    )
+  ) {
+    throw new Error(
+      "--read-only-inquiry-llm currently supports the configured seeded sidecar smoke only",
+    );
+  }
 
   return {
     kind,
@@ -224,6 +242,7 @@ function parseArgs(args) {
     packageDir,
     packaged,
     packagedDefaultWorkspace,
+    readOnlyInquiryLlm,
     rendererPort,
   };
 }
@@ -252,6 +271,7 @@ Options:
   --startup-diagnostics      Run packaged sidecar startup-failure diagnostics smoke.
   --workspace-entry          Run Workspace Picker -> selected workspace smoke.
   --workspace-git-init       Run Settings preference -> Workspace Picker Git init smoke.
+  --read-only-inquiry-llm    Enable guarded LLM-rendered Read-Only Inquiry fixture answers.
   --launcher                 Use the launcher-backed package directory.
   --packaged                 Launch the unsigned packaged app directory.
   --packaged-default-workspace
@@ -397,7 +417,7 @@ function createStartupDiagnosticsFixture() {
   };
 }
 
-function startSidecarFixture({ kind }) {
+function startSidecarFixture({ kind, readOnlyInquiryLlm }) {
   const workspaceDir = path.join(runDir, "workspace");
   const readyFile = path.join(runDir, "sidecar-ready.json");
   const firstRunFlag =
@@ -415,6 +435,7 @@ function startSidecarFixture({ kind }) {
       "--ready-file",
       readyFile,
       firstRunFlag,
+      ...(readOnlyInquiryLlm ? ["--enable-read-only-inquiry-llm"] : []),
     ],
     {
       cwd: repoRoot,
@@ -670,12 +691,19 @@ function launcherElectronEnv({
         : "startup-diagnostics",
     PLATO_ELECTRON_SMOKE_RUNNER_PATH: smokeRunnerPath,
     PLATO_ELECTRON_UI_LOCALE: smokeUiLocale,
+    // Keep launcher release smoke provider-independent. The dedicated
+    // read-only inquiry LLM smokes cover provider-rendered answers with a
+    // seeded fake provider.
+    PLATO_ENABLE_READ_ONLY_INQUIRY_LLM: "0",
     PLATO_SIDECAR_LAUNCHER_FIRST_RUN: firstRun,
     PLATO_SIDECAR_LAUNCHER_RUNTIME_MANIFEST:
       packageManifest.sidecarRuntimeManifestPath,
   };
   if (explicitWorkspace) {
     env.PLATO_ELECTRON_WORKSPACE = sidecarInfo.workspaceDir;
+    if (typeof sidecarInfo.userDataDir === "string") {
+      env.PLATO_ELECTRON_USER_DATA_DIR = sidecarInfo.userDataDir;
+    }
   } else {
     env.PLATO_ELECTRON_ALLOW_DEFAULT_WORKSPACE = "1";
     env.PLATO_ELECTRON_USER_DATA_DIR = sidecarInfo.userDataDir;

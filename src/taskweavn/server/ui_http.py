@@ -11,6 +11,7 @@ from taskweavn.server.diagnostics_export import (
     DiagnosticExportFailure,
     DiagnosticExportSessionNotFound,
 )
+from taskweavn.server.runtime_input_router import RuntimeInputRouter
 from taskweavn.server.transport import HttpApiRequest, HttpApiResponse
 from taskweavn.server.ui_command_idempotency import UiCommandResponseIdempotencyStore
 from taskweavn.server.ui_contract import (
@@ -62,6 +63,7 @@ from taskweavn.server.ui_http_responses import (
     _request_id_hint,
 )
 from taskweavn.server.ui_http_routes import _match_route
+from taskweavn.server.ui_http_runtime_input import _runtime_input_route_response
 from taskweavn.server.ui_http_settings import (
     SettingsConfigGateway,
     SettingsReadinessGateway,
@@ -140,6 +142,7 @@ class PlatoUiHttpTransport:
         diagnostic_export_gateway: DiagnosticExportGateway | None = None,
         workspace_inspection_gateway: WorkspaceInspectionGateway | None = None,
         token_usage_gateway: TokenUsageSummaryGateway | None = None,
+        runtime_input_router: RuntimeInputRouter | None = None,
     ) -> None:
         self._query_gateway = query_gateway
         self._command_gateway = command_gateway
@@ -155,6 +158,7 @@ class PlatoUiHttpTransport:
         self._diagnostic_export_gateway = diagnostic_export_gateway
         self._workspace_inspection_gateway = workspace_inspection_gateway
         self._token_usage_gateway = token_usage_gateway
+        self._runtime_input_router = runtime_input_router
 
     def handle(self, request: HttpApiRequest) -> HttpApiResponse:
         route = _match_route(request.path)
@@ -222,6 +226,9 @@ class PlatoUiHttpTransport:
                             ),
                             "activity_url_template": (
                                 "/api/v1/sessions/{sessionId}/activity"
+                            ),
+                            "runtime_input_route_url_template": (
+                                "/api/v1/sessions/{sessionId}/runtime-input/route"
                             ),
                             "events_url_template": (
                                 "/api/v1/sessions/{sessionId}/events"
@@ -350,6 +357,13 @@ class PlatoUiHttpTransport:
                     request,
                     session_id=route.session_id,
                     query_gateway=self._query_gateway,
+                )
+            if route_name == "runtime_input_route":
+                return _runtime_input_route_response(
+                    request,
+                    session_id=route.session_id,
+                    workspace_id=route.workspace_id or None,
+                    router=self._runtime_input_router,
                 )
             if route_name == "audit_snapshot":
                 query = _request_query(request)

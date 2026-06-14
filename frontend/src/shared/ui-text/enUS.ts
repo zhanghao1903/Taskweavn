@@ -258,6 +258,8 @@ export const enUS: UiTextCatalog = {
       actions: {
         backToActivity: "Back to activity",
         close: "Close",
+        openAudit: "Open audit",
+        openDiagnostic: "Open diagnostic",
         openFiles: "Open files",
         openPlan: "Open plan",
         openResult: "Open result",
@@ -669,6 +671,7 @@ export const enUS: UiTextCatalog = {
       gitStatus: "Git status",
       inspectionViews: "Inspection views",
       live: "live",
+      localToolFiles: "Local tool files",
       mixed: "Mixed",
       repository: "Repository",
       staged: "Staged",
@@ -690,6 +693,8 @@ export const enUS: UiTextCatalog = {
       inspectionRouteUnavailableBody:
         "Inspection context is unavailable for this route.",
       loading: "Loading workspace inspection",
+      localNoiseSuppressed: ({ count }) =>
+        `${count} local system file${count === 1 ? "" : "s"} hidden from the inspection list.`,
       readOnly: "Read-only workspace inspection.",
       requiresSidecar: "Workspace inspection requires the local sidecar.",
       statusUnavailable: "Status unavailable.",

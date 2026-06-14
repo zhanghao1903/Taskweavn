@@ -10,6 +10,8 @@ from taskweavn.server.ui_contract import (
     CommandResponse,
     MainPageSnapshot,
     QueryResponse,
+    ReadOnlyInquiryResult,
+    RuntimeInputRouteResult,
     UiEvent,
 )
 
@@ -38,6 +40,30 @@ def test_ui_event_fixture_is_canonical_contract_json() -> None:
     event = UiEvent.model_validate(payload)
 
     assert event.model_dump(mode="json") == payload
+
+
+def test_runtime_input_route_fixture_is_canonical_contract_json() -> None:
+    payload = _load_json("runtime_input_route_result.unsupported_question.json")
+
+    response = QueryResponse[RuntimeInputRouteResult].model_validate(payload)
+
+    assert response.model_dump(mode="json") == payload
+
+
+def test_read_only_inquiry_result_fixture_is_canonical_contract_json() -> None:
+    payload = _load_json("read_only_inquiry_result.answered_session.json")
+
+    response = QueryResponse[ReadOnlyInquiryResult].model_validate(payload)
+
+    assert response.model_dump(mode="json") == payload
+
+
+def test_runtime_input_answered_question_fixture_is_canonical_contract_json() -> None:
+    payload = _load_json("runtime_input_route_result.answered_question.json")
+
+    response = QueryResponse[RuntimeInputRouteResult].model_validate(payload)
+
+    assert response.model_dump(mode="json") == payload
 
 
 def _load_json(name: str) -> dict[str, object]:

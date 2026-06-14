@@ -3,15 +3,25 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type { CommandResponse, UiEvent } from "../../shared/api/types";
 import type {
+  CommandResponse,
+  QueryResponse,
+  RuntimeInputRouteRequest,
+  RuntimeInputRouteResult,
+  UiEvent,
+} from "../../shared/api/types";
+import type {
+  AppendSessionInputCommand,
+  AppendTaskInputCommand,
   AnswerAuthoringAskBatchCommand,
   AnswerAskCommand,
   CancelAskCommand,
   DeferAskCommand,
+  GenerateTaskTreeCommand,
   LoadMainPageSnapshot,
   MainPageAdapter,
   RepairAuthoringStateCommand,
+  RouteRuntimeInputCommand,
   RetryTaskCommand,
   StopTaskCommand,
   SubscribeSessionEvents,
@@ -110,6 +120,91 @@ describe("useMainPageController", () => {
     expect(result.current.inputDraft).toBe("");
     expect(result.current.inputError).toBe(null);
     expect(result.current.taskTreeCommandError).toBe(null);
+  });
+
+  it("routes read-only questions through Runtime Input Router without mutating input commands", async () => {
+    const routeRuntimeInput = vi.fn<RouteRuntimeInputCommand>(
+      async (request) => answeredRuntimeInputResponse(request),
+    );
+    const appendSessionInput = vi.fn<AppendSessionInputCommand>(
+      async (request) =>
+        acceptedCommandResponse({
+          commandId: request.commandId,
+          sessionId: request.sessionId,
+        }),
+    );
+    const appendTaskInput = vi.fn<AppendTaskInputCommand>(
+      async (sessionId, taskNodeId, request) =>
+        acceptedCommandResponse({
+          commandId: request.commandId,
+          sessionId,
+          taskNodeId,
+        }),
+    );
+    const generateTaskTree = vi.fn<GenerateTaskTreeCommand>(
+      async (request) =>
+        acceptedCommandResponse({
+          commandId: request.commandId,
+          sessionId: request.sessionId,
+        }),
+    );
+
+    const { result } = renderMainPageController({
+      adapter: testAdapter({
+        appendSessionInput,
+        appendTaskInput,
+        generateTaskTree,
+        routeRuntimeInput,
+      }),
+      initialStateId: "s3-draft-ready",
+    });
+
+    await waitFor(() => {
+      expect(result.current.snapshotData?.metadata.id).toBe("s3-draft-ready");
+    });
+
+    act(() => {
+      result.current.actions.changeInputDraft("What is this task doing?");
+    });
+    act(() => {
+      result.current.actions.submitInput({
+        mode: "append_task_input",
+        sessionId: "session-website-plan",
+        target: "task",
+        taskNodeId: "task-visual-direction",
+      });
+    });
+
+    await waitFor(() => {
+      expect(routeRuntimeInput).toHaveBeenCalledWith(
+        expect.objectContaining({
+          content: "What is this task doing?",
+          mode: "ask",
+          selection: expect.objectContaining({
+            scopeKind: "task",
+            taskNodeId: "task-visual-direction",
+          }),
+          sessionId: "session-website-plan",
+        }),
+        null,
+      );
+    });
+
+    expect(appendSessionInput).not.toHaveBeenCalled();
+    expect(appendTaskInput).not.toHaveBeenCalled();
+    expect(generateTaskTree).not.toHaveBeenCalled();
+    await waitFor(() => {
+      expect(result.current.uiNotice).toContain("Read-only answer");
+    });
+    expect(result.current.runtimeActivityItems).toHaveLength(1);
+    expect(result.current.runtimeActivityItems[0]).toMatchObject({
+      kind: "answer",
+      sideEffect: "no_effect",
+      sourceKind: "router",
+      taskNodeId: "task-visual-direction",
+    });
+    expect(result.current.inputDraft).toBe("");
+    expect(result.current.inputError).toBe(null);
   });
 
   it("submits a manual retry command for the selected failed task", async () => {
@@ -1046,5 +1141,85 @@ function rejectedCommandResponse({
       affectedTaskRefs: [],
       affectedScopes: [],
     },
+  };
+}
+
+function answeredRuntimeInputResponse(
+  request: RuntimeInputRouteRequest,
+): QueryResponse<RuntimeInputRouteResult> {
+  const now = "2026-06-14T00:00:00Z";
+
+  return {
+    requestId: `request-${request.commandId}`,
+    ok: true,
+    data: {
+      sessionId: request.sessionId,
+      decision: {
+        id: `decision-${request.commandId}`,
+        intent: "question",
+        scope: {
+          kind: request.selection.scopeKind,
+          planId: request.selection.planId ?? null,
+          taskNodeId: request.selection.taskNodeId ?? null,
+        },
+        confidence: "high",
+        sideEffect: "no_effect",
+        dispatchTarget: "read_only_inquiry",
+        explanation: "The input was routed as a read-only question.",
+        relatedRefs: [],
+      },
+      outcome: {
+        status: "answered",
+        userMessage: "Read-only answer ready.",
+        recoveryActions: [],
+      },
+      activity: {
+        id: `activity-${request.commandId}`,
+        sessionId: request.sessionId,
+        kind: "answer",
+        title: "Read-only answer",
+        body: "The task is still a draft. No state changed.",
+        occurredAt: now,
+        scopeKind: request.selection.scopeKind,
+        planId: request.selection.planId ?? null,
+        taskNodeId: request.selection.taskNodeId ?? null,
+        sideEffect: "no_effect",
+        relatedRefs: [],
+        sourceKind: "router",
+        disclosureLevel: "public",
+      },
+      commandResponse: null,
+      inquiryResult: {
+        inquiryId: request.commandId,
+        sessionId: request.sessionId,
+        scope: {
+          kind: request.selection.scopeKind,
+          planId: request.selection.planId ?? null,
+          taskNodeId: request.selection.taskNodeId ?? null,
+        },
+        status: "answered",
+        answer: {
+          title: "Read-only answer",
+          body: "The task is still a draft. No state changed.",
+          confidence: "high",
+        },
+        evidenceRefs: [
+          {
+            kind: "task_status",
+            refId: "task:task-visual-direction:status",
+            label: "Task status",
+            disclosure: "public",
+            truncated: false,
+          },
+        ],
+        warnings: [],
+        activity: null,
+        generatedAt: now,
+      },
+      generatedAt: now,
+    },
+    error: null,
+    cursor: null,
+    generatedAt: now,
   };
 }

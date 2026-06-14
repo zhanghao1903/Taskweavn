@@ -41,6 +41,11 @@ from taskweavn.server.ui_contract import (
     MainPageSnapshot,
     ProjectSummary,
     QueryResponse,
+    RuntimeInputDecisionScope,
+    RuntimeInputOutcome,
+    RuntimeInputRouteDecision,
+    RuntimeInputRouteRequest,
+    RuntimeInputRouteResult,
     SessionActivityTimelineResult,
     SessionSummary,
     UiEvent,
@@ -84,6 +89,117 @@ def test_health_route_returns_sidecar_identity() -> None:
     assert response.status_code == 200
     assert body["ok"] is True
     assert body["data"] == {"name": "Plato Sidecar", "version": "0.1.0"}
+
+
+def test_runtime_input_route_returns_router_result() -> None:
+    router = _RuntimeInputRouter()
+    transport = _transport(runtime_input_router=router)
+
+    response = transport.handle(
+        HttpApiRequest(
+            method="POST",
+            path="/api/v1/sessions/session-1/runtime-input/route",
+            body={
+                "commandId": "route-question",
+                "sessionId": "session-1",
+                "content": "What is this task doing?",
+                "mode": "ask",
+                "selection": {
+                    "scopeKind": "session",
+                },
+            },
+        )
+    )
+    body = _dict_body(response.body)
+
+    assert response.status_code == 200
+    assert body["ok"] is True
+    assert body["data"]["outcome"]["status"] == "answered"
+    assert body["data"]["decision"]["dispatchTarget"] == "read_only_inquiry"
+    assert router.calls[0].command_id == "route-question"
+
+
+def test_workspace_runtime_input_route_injects_workspace_id() -> None:
+    router = _RuntimeInputRouter()
+    transport = _transport(runtime_input_router=router)
+
+    response = transport.handle(
+        HttpApiRequest(
+            method="POST",
+            path=(
+                "/api/v1/workspaces/workspace%201/sessions/session-1"
+                "/runtime-input/route"
+            ),
+            body={
+                "commandId": "route-question",
+                "sessionId": "session-1",
+                "content": "What is this task doing?",
+                "selection": {
+                    "scopeKind": "session",
+                },
+            },
+        )
+    )
+
+    assert response.status_code == 200
+    assert router.calls[0].workspace_id == "workspace 1"
+
+
+def test_workspace_runtime_input_route_rejects_workspace_mismatch() -> None:
+    router = _RuntimeInputRouter()
+    transport = _transport(runtime_input_router=router)
+
+    response = transport.handle(
+        HttpApiRequest(
+            method="POST",
+            path=(
+                "/api/v1/workspaces/path-workspace/sessions/session-1"
+                "/runtime-input/route"
+            ),
+            body={
+                "commandId": "route-question",
+                "sessionId": "session-1",
+                "workspaceId": "body-workspace",
+                "content": "What is this task doing?",
+                "selection": {
+                    "scopeKind": "session",
+                },
+            },
+        )
+    )
+    body = _dict_body(response.body)
+
+    assert response.status_code == 400
+    assert body["error"]["code"] == "bad_request"
+    assert body["error"]["details"] == {
+        "body_workspace_id": "body-workspace",
+        "path_workspace_id": "path-workspace",
+    }
+    assert router.calls == []
+
+
+def test_runtime_input_route_requires_router() -> None:
+    transport = _transport()
+
+    response = transport.handle(
+        HttpApiRequest(
+            method="POST",
+            path="/api/v1/sessions/session-1/runtime-input/route",
+            body={
+                "commandId": "route-question",
+                "sessionId": "session-1",
+                "content": "What is this task doing?",
+                "selection": {
+                    "scopeKind": "session",
+                },
+            },
+        )
+    )
+    body = _dict_body(response.body)
+
+    assert response.status_code == 503
+    assert body["error"]["code"] == "internal_error"
+    assert body["error"]["details"]["route"] == "runtime_input_route"
 
 
 def test_settings_readiness_route_returns_gateway_payload() -> None:
@@ -1540,6 +1656,36 @@ class _ExecutionTriggerGateway:
 
 
 @dataclass
+class _RuntimeInputRouter:
+    calls: list[RuntimeInputRouteRequest] = field(default_factory=list)
+
+    def route(
+        self,
+        request: RuntimeInputRouteRequest,
+    ) -> QueryResponse[RuntimeInputRouteResult]:
+        self.calls.append(request)
+        return QueryResponse[RuntimeInputRouteResult](
+            request_id=request.command_id,
+            ok=True,
+            data=RuntimeInputRouteResult(
+                session_id=request.session_id,
+                decision=RuntimeInputRouteDecision(
+                    intent="question",
+                    scope=RuntimeInputDecisionScope(kind="session"),
+                    confidence="high",
+                    side_effect="no_effect",
+                    dispatch_target="read_only_inquiry",
+                    explanation="Question route.",
+                ),
+                outcome=RuntimeInputOutcome(
+                    status="answered",
+                    user_message="Answered without side effects.",
+                ),
+            ),
+        )
+
+
+@dataclass
 class _SnapshotRecoveryGateway:
     raises: Exception | None = None
     calls: list[str] = field(default_factory=list)
@@ -1650,6 +1796,7 @@ def _transport(
     settings_readiness_gateway: _SettingsReadinessGateway | None = None,
     settings_config_gateway: _SettingsConfigGateway | None = None,
     diagnostic_export_gateway: _DiagnosticExportGateway | None = None,
+    runtime_input_router: _RuntimeInputRouter | None = None,
 ) -> PlatoUiHttpTransport:
     return PlatoUiHttpTransport(
         query_gateway=query or _QueryGateway(),
@@ -1664,6 +1811,7 @@ def _transport(
         settings_readiness_gateway=settings_readiness_gateway,
         settings_config_gateway=settings_config_gateway,
         diagnostic_export_gateway=diagnostic_export_gateway,
+        runtime_input_router=runtime_input_router,
     )
 
 
