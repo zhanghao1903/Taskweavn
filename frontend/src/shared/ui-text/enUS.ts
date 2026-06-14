@@ -519,6 +519,16 @@ export const enUS: UiTextCatalog = {
       model: "Model",
       provider: "Provider",
       readiness: "Readiness",
+      webFetch: "Web Page Fetch",
+      webFetchMaxCharsPerUrl: "Fetch chars per URL",
+      webFetchMaxTotalChars: "Fetch total chars",
+      webFetchMaxUrls: "Fetch URL limit",
+      webSearch: "Web Search",
+      webSearchApiKey: "Web Search API key",
+      webSearchMaxResults: "Result limit",
+      webSearchMode: "Search mode",
+      webSearchProvider: "Search provider",
+      webSearchStatus: "Web search status",
     },
     labels: {
       blockingIssues: "Blocking issues",
@@ -550,6 +560,7 @@ export const enUS: UiTextCatalog = {
       settingsSetupForm: "Settings setup form",
       settingsUnavailable: "Settings unavailable",
       sidecarRequired: "Sidecar required",
+      webSearchReady: "web search ready",
       warnings: "Warnings",
       workspaceGit: "Workspace Git",
       zipPath: "Zip path",
@@ -588,6 +599,13 @@ export const enUS: UiTextCatalog = {
         "Start Plato in local sidecar HTTP mode to edit Product 1.0 settings.",
       setupRequiredBody:
         "Plato needs local LLM configuration before it can run the Main Page workflow.",
+      webSearchApiKeyConfigured: ({ source }) =>
+        `Configured via ${source}; leave empty to keep it.`,
+      webSearchApiKeyRequired: ({ hint }) => `Required when enabled: ${hint}.`,
+      webFetchDescription:
+        "Allows execution Agents to extract bounded text from selected public source URLs.",
+      webSearchDescription:
+        "Allows execution Agents to search current public sources as external evidence.",
       workspaceGitDesktopUnavailable:
         "Workspace Git initialization is available in the Plato desktop app.",
     },

@@ -403,6 +403,16 @@ export type UiTextCatalog = {
       model: string;
       provider: string;
       readiness: string;
+      webFetch: string;
+      webFetchMaxCharsPerUrl: string;
+      webFetchMaxTotalChars: string;
+      webFetchMaxUrls: string;
+      webSearch: string;
+      webSearchApiKey: string;
+      webSearchMaxResults: string;
+      webSearchMode: string;
+      webSearchProvider: string;
+      webSearchStatus: string;
     };
     labels: {
       blockingIssues: string;
@@ -434,6 +444,7 @@ export type UiTextCatalog = {
       settingsSetupForm: string;
       settingsUnavailable: string;
       sidecarRequired: string;
+      webSearchReady: string;
       warnings: string;
       workspaceGit: string;
       zipPath: string;
@@ -463,6 +474,10 @@ export type UiTextCatalog = {
       settingsDescription: string;
       settingsUnavailableHelp: string;
       setupRequiredBody: string;
+      webSearchApiKeyConfigured: UiTextTemplate<{ source: string }>;
+      webSearchApiKeyRequired: UiTextTemplate<{ hint: string }>;
+      webFetchDescription: string;
+      webSearchDescription: string;
       workspaceGitDesktopUnavailable: string;
     };
     localeOptions: Record<UiLocale, string>;

@@ -25,6 +25,7 @@ from taskweavn.context.models import (
 from taskweavn.context.policy import estimate_tokens
 from taskweavn.core.event_stream import EventStream
 from taskweavn.tools.fs import FileContentObservation
+from taskweavn.tools.web_search import WebSearchObservation
 from taskweavn.types.base import BaseAction, BaseEvent, BaseObservation
 
 if TYPE_CHECKING:
@@ -212,6 +213,18 @@ def _event_summary(event: BaseEvent) -> EventSummary:
 
 
 def _tool_result_summary(observation: BaseObservation) -> ToolResultSummary:
+    if isinstance(observation, WebSearchObservation):
+        summary = _web_search_result_summary(observation)
+        return ToolResultSummary(
+            observation_id=observation.event_id,
+            action_id=observation.action_id,
+            kind=observation.kind or type(observation).__name__,
+            success=observation.success,
+            summary=summary,
+            raw_ref=f"event:{observation.event_id}",
+            token_estimate=estimate_tokens(summary),
+            observed_at=observation.timestamp,
+        )
     payload = observation.to_dict()
     summary = _summarize_payload(payload)
     return ToolResultSummary(
@@ -223,6 +236,29 @@ def _tool_result_summary(observation: BaseObservation) -> ToolResultSummary:
         raw_ref=f"event:{observation.event_id}",
         token_estimate=estimate_tokens(summary),
         observed_at=observation.timestamp,
+    )
+
+
+def _web_search_result_summary(observation: WebSearchObservation) -> str:
+    urls = [
+        str(result.get("url"))
+        for result in observation.results
+        if isinstance(result, dict) and isinstance(result.get("url"), str)
+    ][:5]
+    return json.dumps(
+        {
+            "kind": observation.kind or type(observation).__name__,
+            "provider": observation.provider,
+            "query": observation.query,
+            "resultCount": observation.summary.get("resultCount"),
+            "retrievedAt": observation.summary.get("retrievedAt"),
+            "truncated": observation.summary.get("truncated"),
+            "urls": urls,
+            "externalEvidence": True,
+            "canActAsInstruction": False,
+        },
+        ensure_ascii=False,
+        sort_keys=True,
     )
 
 
