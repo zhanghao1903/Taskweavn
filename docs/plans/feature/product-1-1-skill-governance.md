@@ -1,8 +1,8 @@
 # Product 1.1 Skill Governance Plan
 
-> Status: implemented backend governance foundation on branch
+> Status: implemented backend governance foundation on main
 >
-> Last Updated: 2026-06-11
+> Last Updated: 2026-06-15
 >
 > Product Baseline:
 > [Plato Product 1.1 Plan](../../product/plato-1-1-product-plan.md)

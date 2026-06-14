@@ -1,8 +1,8 @@
 # Feature Plan: Execution Web Search Capability
 
-> Status: planned
+> Status: implemented
 >
-> Last Updated: 2026-06-14
+> Last Updated: 2026-06-15
 >
 > Owner: Product / Agents / Backend / Trust / Frontend
 >
@@ -79,6 +79,23 @@ DeepSeek, OpenRouter, OpenAI-compatible, and future providers.
 7. Render web search results into execution context as non-instructional
    evidence.
 8. Add tests with a mock provider so deterministic CI does not use real network.
+
+## 3.1 Implementation Status
+
+Product 1.1 execution web search is implemented in the current `main` branch:
+
+- provider-neutral request/result models and Tavily basic search support are in
+  place;
+- global Settings exposes Web Search enablement, provider status, and
+  write-only Tavily secret storage without blocking LLM first-run readiness;
+- `web_search` is registered for execution only when enabled and configured;
+- Context, Audit, and diagnostics receive bounded external-evidence
+  descriptors rather than raw provider payloads or secrets;
+- deterministic tests use mock providers and do not require network access.
+
+Remaining work is follow-up hardening: advanced search mode, hosted-provider
+adapters, per-session retrieval budgets, broader citation UI, and optional
+manual Tavily smoke when a real key is available.
 
 ## 4. Non-Goals
 
@@ -315,4 +332,3 @@ Acceptance:
    entirely?
 4. Should hosted OpenAI / Claude search be model-provider-specific future work,
    or remain outside Plato until the client-tool path is stable?
-

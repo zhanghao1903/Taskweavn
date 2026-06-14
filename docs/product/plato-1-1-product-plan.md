@@ -2,7 +2,7 @@
 
 > Status: planning baseline
 >
-> Last Updated: 2026-06-10
+> Last Updated: 2026-06-15
 >
 > Scope: Product 1.1 capability direction after the Plato 1.0 closed loop.
 > This document records what is intentionally moved out of Product 1.0 and
@@ -103,8 +103,8 @@ It narrows the first slice to SkillRegistry, SkillActivation,
 SkillContextSource, context budget, permission merge, and trace/audit
 visibility before any public skill marketplace or authoring UI.
 
-Status update: the backend governance foundation is implemented on
-`codex/skill-work`. It includes configured-root skill discovery, durable
+Status update: the backend governance foundation is implemented on `main`. It
+includes configured-root skill discovery, durable
 activation storage, permission merge, Context Manager integration, trace
 metadata, rendered active-skill guidance, diagnostics-safe skill summary export,
 and an internal
@@ -185,9 +185,19 @@ Planning decisions:
 - LLM system/developer prompts and LLM outputs are outside this registry and
   require separate governance if their language policy becomes a product need.
 
-First implementation should start with UI system text registry infrastructure and a
-narrow Main Page migration, then move through Settings, Audit, Diagnostics, and
-Workspace Inspection surfaces.
+Completed baseline:
+
+- typed renderer copy registry with `en-US` and `zh-CN` locale dictionaries;
+- local preference persistence for interface language;
+- localized Main Page, Settings, Audit, Diagnostic, and Workspace Inspection
+  surfaces for the Product 1.1 baseline;
+- a contract that keeps backend API values stable while renderer-owned UI labels
+  are localized at the display boundary.
+
+Deferred follow-ups include Electron native menu copy, translator extraction and
+lint automation, backend-owned preference storage if centralized runtime
+configuration is accepted, and optional bilingual smoke coverage for release
+readiness.
 
 ### 3.6 Token Usage Analytics
 
@@ -214,6 +224,27 @@ Completed baseline:
 - Settings Usage Information entry;
 - Main Page contextual usage row;
 - diagnostics-safe usage summaries.
+
+### 3.7 Execution Web Retrieval
+
+Goal: let execution Agents use controlled external evidence when the task
+requires current public information.
+
+Completed baseline:
+
+- Tavily-backed `web_search` with global Settings enablement and write-only key
+  storage;
+- selected-URL `web_fetch` behind a separate fetch toggle and URL safety
+  policy;
+- gated execution tool registration, Context/Audit/diagnostics descriptors,
+  and offline-first mock-provider tests.
+
+Deferred follow-ups:
+
+- advanced search modes and provider-hosted search adapters;
+- per-session retrieval budgets;
+- broader citation/result UI;
+- browser automation, dynamic rendering, crawl, PDF/OCR, and media extraction.
 
 ## 4. 1.1 Planning Principles
 
@@ -257,6 +288,10 @@ feature plans for:
   Task/Plan/Session/Workspace aggregation, provider cache-hit visibility,
   Settings Usage Information entry, Main Page contextual usage row, and
   diagnostics-safe summaries.
+- Execution web search/fetch (completed Product 1.1 local backend slice):
+  controlled Tavily-backed search and selected URL extraction, Settings
+  enablement, gated tools, external-evidence context/audit/diagnostics
+  descriptors, and offline-first tests.
 
 Each plan should state whether it extends Authoring Domain, TaskBus execution,
 CapabilityCatalog, UI API contract, Audit Page, or all of them.

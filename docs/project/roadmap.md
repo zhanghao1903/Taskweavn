@@ -1,7 +1,7 @@
 # TaskWeavn Project Plan
 
 > Status: active
-> Last Updated: 2026-06-14
+> Last Updated: 2026-06-15
 > Maintained By: planning session
 > Phase Baseline: Product 1.0 local unsigned RC accepted; Product 1.1 workspace-aware foundation has started
 > Related: [Global Roadmap](../roadmap.md), [Gap Registry](../gaps/), [Planning Workflow](../planning_workflow.md), [Architecture](../architecture/), [Phase 3 Release Record](../releases/phase-3-interaction-layer-through-3-8.md), [Collaborator Authoring Release](../releases/collaborator-agent-task-authoring.md), [User Traceability](../user_model/traceability.md)
@@ -237,6 +237,22 @@ Completed foundation:
   typed Activity view models, HTTP query, backend projection, frontend
   API/types, contract fixtures, and Main Page Activity drawer are in place.
   Router-written activity records remain with the Runtime Input Router track.
+- **[Execution Web Search / Fetch](../plans/feature/execution-web-search-capability.md)** —
+  controlled external evidence retrieval is implemented for Product 1.1:
+  Tavily-backed `web_search`, selected-URL `web_fetch`, global Settings
+  enablement, write-only key storage, URL safety policy, gated execution tool
+  registration, Context/Audit/diagnostics descriptors, and offline-first tests
+  are in place.
+- **[UI system text and localization](../plans/feature/product-copy-localization-foundation.md)** —
+  typed `en-US` / `zh-CN` catalogs, deterministic locale resolution, Settings
+  language selector with renderer-local persistence, Main/Settings/Audit/
+  Diagnostics/Workspace Inspection chrome migration, and product-error recovery
+  labels are in place.
+- **[Skill Governance backend foundation](../plans/feature/product-1-1-skill-governance.md)** —
+  `SkillRegistry`, `SkillActivation`, `SkillContextSource`, budget policy,
+  permission merge, trace metadata, diagnostics-safe summary export, and the
+  internal `precision-file-editing` proof are now on `main`. UI/debug exposure
+  and broader routing remain future tracks.
 
 Recommended implementation order is governed by the
 [Runtime Input And Contract Revision Program](../plans/feature/runtime-input-and-contract-revision-program.md)
@@ -283,9 +299,10 @@ Audit/diagnostic linkage.
    add command-backed guidance, Plan/TaskNode patch/create/delete,
    ASK/confirmation resolve, and workspace-changing request handoff into
    TaskBus.
-4. **Localization follow-ups** — visible Settings language selector, persisted
-   locale preference, Electron native menu localization, and bilingual smoke
-   only when Product 1.1 acceptance needs them.
+4. **Localization follow-ups** — Electron native menu localization,
+   translator extraction/lint tooling, backend-owned language preference if
+   centralized configuration accepts it, and bilingual smoke only when Product
+   1.1 acceptance needs it.
 5. **Result packaging and completion-time `task_after`** — improve result
    comprehension and post-completion automation after the Plan/TaskNode and
    input-mode boundaries are clear.
@@ -296,10 +313,11 @@ Audit/diagnostic linkage.
 Product 1.0 is accepted as a local unsigned release candidate. Product 1.1
 should improve trust and controllability before expanding automation breadth:
 workspace inspection, precision file tools, token usage analytics, workspace
-archive/delete data management, UI system text foundation, Plan/TaskNode
-migration, and Conversation / Activity Timeline are completed; Runtime Input Router,
-read-only inquiry, contract revision commands, result packaging, and protocol
-productization are the next actionable tracks.
+archive/delete data management, UI system text foundation, execution web
+search/fetch, Skill Governance backend foundation, Plan/TaskNode migration, and
+Conversation / Activity Timeline are completed; Runtime Input Router, contract
+revision commands, result packaging, and protocol productization are the next
+actionable tracks.
 
 ---
 

@@ -1,8 +1,8 @@
 # Execution Web Search Capability Technical Design
 
-> Status: planned
+> Status: implemented
 >
-> Last Updated: 2026-06-14
+> Last Updated: 2026-06-15
 >
 > Related Plan:
 > [Execution Web Search Capability](execution-web-search-capability.md)
@@ -665,4 +665,3 @@ can actually decide whether `web_search` is available.
 - Crawl4AI / Firecrawl page extraction provider.
 - Playwright browser automation for explicitly interactive web tasks.
 - Source citation rendering in result/artifact cards.
-

@@ -1,8 +1,8 @@
 # Product 1.1 Skill Governance Technical Design
 
-> Status: implemented backend foundation on branch
+> Status: implemented backend foundation on main
 >
-> Last Updated: 2026-06-11
+> Last Updated: 2026-06-15
 >
 > Feature Plan:
 > [Product 1.1 Skill Governance Plan](product-1-1-skill-governance.md)
@@ -975,18 +975,17 @@ Verified on 2026-06-11:
 | Trace | ids/hashes/reason/resource refs/outcomes stored. |
 | Internal proof | precision-file-editing activates and renders predictably. |
 
-## 19. Open Decisions Before Code
+## 19. Resolved And Deferred Decisions
 
-1. Is `skill_governance.sqlite` acceptable as a separate store, or should skill
-   tables live in an existing workspace runtime database?
-2. Should v0 parse only `SKILL.md` frontmatter, or also support Codex-style
-   `agents/openai.yaml` metadata?
-3. Should `SkillContextSegment` be stored directly in `ContextTrace`, or only
-   referenced by segment hashes?
-4. Should skill activation be persisted at `candidate` time or only after
-   policy check?
-5. Is the first internal proof `precision-file-editing`, or should it be a
-   read-only workspace inspection skill?
+1. `skill_governance.sqlite` is accepted for the backend foundation as a
+   separate local store.
+2. v0 parses `SKILL.md` frontmatter and does not add broader Codex-style
+   metadata support.
+3. Skill trace metadata is projected through `ContextTrace` and diagnostics-safe
+   summaries without raw prompt payloads.
+4. The first internal proof is `internal:precision-file-editing`.
+5. UI/debug exposure, public skill installation, marketplace behavior, and
+   broader Router/productization remain deferred.
 
 ## 20. Recommended Next Task Prompt
 
@@ -994,17 +993,16 @@ Verified on 2026-06-11:
 Use the product-workflow-gate skill first.
 
 Task:
-Implement Skill Governance diagnostics projection.
+Plan the first Skill Governance UI/debug exposure slice.
 
 Scope:
-- Project ContextTrace skill metadata into diagnostics-safe summaries.
-- Expose active skill id/hash/reason/outcomes without raw prompt payloads.
-- Add tests that diagnostics include skill activation metadata and permission
-  outcomes.
+- Define where active skills appear for technical users.
+- Keep skill selection/marketplace out of scope.
+- Preserve the existing diagnostics-safe boundary.
 
 Do not:
-- Add frontend UI.
 - Add public skill marketplace or user-authored skill install flow.
-- Scan .agents/skills by default.
 - Execute skill scripts directly.
+- Expand Router skill selection.
+- Expose raw skill prompt/body payloads in diagnostics.
 ```
