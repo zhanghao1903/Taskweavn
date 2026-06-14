@@ -1,8 +1,8 @@
 # UI System Text And Localization Contract
 
-> Status: draft Product 1.1 contract
+> Status: implemented Product 1.1 contract
 >
-> Last Updated: 2026-06-10
+> Last Updated: 2026-06-15
 >
 > Related plan:
 > [UI System Text And Localization Foundation](../plans/feature/product-copy-localization-foundation.md)
@@ -15,6 +15,27 @@ LLM input/output contracts.
 
 The goal is a small, typed UI system text registry that can be adopted slice by
 slice.
+
+## 1.1 Implementation Status
+
+Product 1.1 UI system text and localization foundation is implemented for the
+local renderer path:
+
+- `en-US` and `zh-CN` catalogs share typed key coverage;
+- locale resolution supports runtime override, persisted renderer-local
+  preference, Electron runtime config, browser/OS fallback, and `en-US`
+  default;
+- Settings exposes a visible interface-language selector and persists only the
+  locale code;
+- Main Page, Settings/first-run, stable Audit labels, Diagnostics chrome,
+  Workspace Inspection chrome, and product-error recovery labels use the
+  renderer-owned catalog boundary;
+- backend APIs continue returning stable codes and facts rather than localized
+  UI prose.
+
+Deferred follow-ups remain Electron native menu localization, translator
+extraction/lint tooling, backend-owned preference storage if centralized
+runtime configuration accepts it, and LLM prompt/content language governance.
 
 ## 2. Locale Contract
 
@@ -201,20 +222,21 @@ When moving existing UI system text into the registry:
 
 ## 11. First Implementation Boundary
 
-The first implementation slice should add:
+The first implementation slice is closed. It added:
 
 - `UiLocale`;
 - locale resolver;
 - typed catalogs for `en-US` and `zh-CN`;
 - copy lookup/helper;
 - catalog parity tests;
-- a narrow Main Page migration.
+- Main Page, Settings/first-run, stable Audit labels, Diagnostics chrome,
+  Workspace Inspection chrome, and product-error recovery label migration.
 
-The Settings language selector follow-up may persist a locale preference as a
-local renderer preference before a centralized settings backend exists. It must
-persist only the locale code, never translated text or user/generated content.
+The Settings language selector persists a locale preference as a local renderer
+preference before a centralized settings backend exists. It persists only the
+locale code, never translated text or user/generated content.
 
-It should not add:
+The implemented boundary intentionally does not add:
 
 - backend localization;
 - generated task translation;
