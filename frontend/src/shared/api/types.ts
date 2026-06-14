@@ -28,6 +28,7 @@ export type ObjectRef = {
     | "draft_tree"
     | "draft_subtree"
     | "published_task"
+    | "ask"
     | "message"
     | "command";
   id: string;
@@ -407,6 +408,93 @@ export type SessionMessageView = {
   createdAt: string;
   relatedConfirmationId?: ConfirmationId | null;
   relatedCommandId?: CommandId | null;
+};
+
+export type SessionActivityItemKind =
+  | "user_input"
+  | "answer"
+  | "guidance_recorded"
+  | "plan_updated"
+  | "task_created"
+  | "task_changed"
+  | "task_removed"
+  | "ask_asked"
+  | "ask_answered"
+  | "confirmation_requested"
+  | "confirmation_resolved"
+  | "execution_update"
+  | "result_ready"
+  | "file_summary"
+  | "recovery_note"
+  | "router_interpretation";
+
+export type SessionActivityScopeKind = "session" | "plan" | "task";
+
+export type SessionActivitySideEffect =
+  | "no_effect"
+  | "context_effect"
+  | "state_effect"
+  | "authorization_effect"
+  | "resume_effect"
+  | "execution_request"
+  | "evidence_effect";
+
+export type SessionActivityRefKind =
+  | "session"
+  | "plan"
+  | "task"
+  | "ask"
+  | "confirmation"
+  | "message"
+  | "result"
+  | "file"
+  | "audit"
+  | "diagnostic";
+
+export type SessionActivitySourceKind =
+  | "message_stream"
+  | "plan_projection"
+  | "task_projection"
+  | "ask_projection"
+  | "confirmation_projection"
+  | "result_projection"
+  | "file_projection"
+  | "router"
+  | "system";
+
+export type SessionActivityDisclosureLevel = "public" | "partial" | "hidden";
+
+export type SessionActivityRefView = {
+  kind: SessionActivityRefKind;
+  id: string;
+  label: string;
+  href?: string | null;
+  objectRef?: ObjectRef | null;
+};
+
+export type SessionActivityItemView = {
+  id: string;
+  sessionId: SessionId;
+  kind: SessionActivityItemKind;
+  title: string;
+  body: string;
+  occurredAt: string;
+  scopeKind: SessionActivityScopeKind;
+  planId?: PlanId | null;
+  taskNodeId?: TaskNodeId | null;
+  sideEffect: SessionActivitySideEffect;
+  relatedRefs: SessionActivityRefView[];
+  sourceKind: SessionActivitySourceKind;
+  sourceId?: string | null;
+  disclosureLevel: SessionActivityDisclosureLevel;
+};
+
+export type SessionActivityTimelineResult = {
+  sessionId: SessionId;
+  items: SessionActivityItemView[];
+  nextCursor?: EventCursor | null;
+  totalCount: number;
+  generatedAt: string;
 };
 
 export type ConfirmationOptionView = {

@@ -1,12 +1,14 @@
 import { describe, expect, it } from "vitest";
 
 import commandResponseFixture from "../../../../tests/fixtures/ui_contract/command_response.accepted.json";
+import activityTimelineFixture from "../../../../tests/fixtures/ui_contract/session_activity_timeline.json";
 import snapshotResponseFixture from "../../../../tests/fixtures/ui_contract/main_page_snapshot.min.json";
 import uiEventFixture from "../../../../tests/fixtures/ui_contract/ui_event.message_appended.json";
 import type {
   CommandResponse,
   MainPageSnapshot,
   QueryResponse,
+  SessionActivityTimelineResult,
   UiEvent,
 } from "./types";
 
@@ -65,6 +67,22 @@ describe("backend-generated UI contract fixtures", () => {
     });
   });
 
+  it("loads the SessionActivityTimeline fixture through frontend types", () => {
+    const response: unknown = activityTimelineFixture;
+    expectSessionActivityTimelineResponse(response);
+
+    expect(response.ok).toBe(true);
+    expect(response.error).toBeNull();
+    expect(response.data?.items.map((item) => item.kind)).toEqual([
+      "user_input",
+      "plan_updated",
+    ]);
+    expect(response.data?.items[0].relatedRefs[0].objectRef).toEqual({
+      kind: "message",
+      id: "message-1",
+    });
+  });
+
   it("loads the UiEvent fixture through frontend types", () => {
     const event: unknown = uiEventFixture;
     expectUiEvent(event);
@@ -102,6 +120,19 @@ function expectCommandResponse(value: unknown): asserts value is CommandResponse
     expect.objectContaining({
       commandId: "command-1",
       status: "accepted",
+    }),
+  );
+}
+
+function expectSessionActivityTimelineResponse(
+  value: unknown,
+): asserts value is QueryResponse<SessionActivityTimelineResult> {
+  expectRecord(value);
+  expect(value.ok).toBe(true);
+  expect(value.data).toEqual(
+    expect.objectContaining({
+      sessionId: "session-1",
+      totalCount: 2,
     }),
   );
 }

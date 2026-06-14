@@ -2,7 +2,11 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { MainPageSnapshot, TaskNodeId } from "../../shared/api/types";
+import type {
+  MainPageSnapshot,
+  SessionActivityItemView,
+  TaskNodeId,
+} from "../../shared/api/types";
 import type { WorkspaceCatalogResult } from "../../shared/api/platoApi";
 import { writeWorkspaceGitInitializeOnOpenPreference } from "../../shared/workspace/workspaceGitPreference";
 import styles from "./MainPage.module.css";
@@ -12,6 +16,7 @@ import { buildMainPageViewModel } from "./mainPageViewModel";
 import type { MainPageStateId } from "./mockPlatoApi";
 import { getMainPageMockSnapshot } from "./mockPlatoApi";
 import type { MainPageWorkspaceRuntime } from "./MainPageWorkspaceSwitcher";
+import type { LoadSessionActivity } from "./runtime/adapter";
 import type { MainPageController } from "./useMainPageController";
 
 describe("MainPageWorkbench layout", () => {
@@ -103,6 +108,40 @@ describe("MainPageWorkbench layout", () => {
       latestActivity.compareDocumentPosition(firstTaskCard!) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
+  });
+
+  it("loads typed activity when the activity overlay opens", async () => {
+    const user = userEvent.setup();
+    const loadSessionActivity = vi.fn<LoadSessionActivity>(async () => ({
+      generatedAt: "2026-06-14T00:00:00.000Z",
+      items: [
+        activityItem({
+          id: "activity-plan-updated",
+          kind: "plan_updated",
+          taskNodeId: "task-visual-direction",
+          title: "Plan updated",
+        }),
+      ],
+      sessionId: "session-website-plan",
+      totalCount: 1,
+    }));
+    const viewModel = buildViewModel("s3-draft-ready", {
+      selectedTaskNodeId: "task-visual-direction",
+    });
+
+    renderWorkbench(viewModel, buildActions(), {
+      loadSessionActivity,
+    });
+
+    await user.click(
+      screen.getByRole("button", { name: /Open task updates/i }),
+    );
+
+    expect(loadSessionActivity.mock.calls[0]?.[0]).toEqual({
+      limit: 100,
+      sessionId: "session-website-plan",
+    });
+    expect(await screen.findAllByText("Plan updated")).toHaveLength(2);
   });
 
   it("wires dirty authoring repair from the diagnostic banner", async () => {
@@ -281,6 +320,7 @@ function renderWorkbench(
   actions: MainPageController["actions"] = buildActions(),
   options: {
     activeWorkspaceId?: MainPageController["activeWorkspaceId"];
+    loadSessionActivity?: LoadSessionActivity;
     workspaceCatalog?: WorkspaceCatalogResult | null;
     workspaceRuntime?: MainPageWorkspaceRuntime | null;
   } = {},
@@ -299,10 +339,33 @@ function renderWorkbench(
       isRenamingSession={false}
       sessionDialog={{ mode: "idle" }}
       viewModel={viewModel}
+      loadSessionActivity={options.loadSessionActivity}
       workspaceCatalog={options.workspaceCatalog ?? null}
       workspaceRuntime={options.workspaceRuntime ?? null}
     />,
   );
+}
+
+function activityItem(
+  overrides: Partial<SessionActivityItemView> = {},
+): SessionActivityItemView {
+  return {
+    body: "Typed activity loaded from the session activity projection.",
+    disclosureLevel: "public",
+    id: "activity-1",
+    kind: "execution_update",
+    occurredAt: "2026-06-14T00:00:00.000Z",
+    planId: "plan-website",
+    relatedRefs: [],
+    scopeKind: "task",
+    sessionId: "session-website-plan",
+    sideEffect: "no_effect",
+    sourceId: "source-1",
+    sourceKind: "task_projection",
+    taskNodeId: "task-visual-direction",
+    title: "Activity loaded",
+    ...overrides,
+  };
 }
 
 function workspaceCatalogEntry(

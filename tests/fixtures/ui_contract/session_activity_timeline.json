@@ -1,0 +1,69 @@
+{
+  "requestId": "activity-session-1",
+  "ok": true,
+  "data": {
+    "sessionId": "session-1",
+    "items": [
+      {
+        "id": "activity:message:message-1",
+        "sessionId": "session-1",
+        "kind": "user_input",
+        "title": "User message",
+        "body": "Build a docs site",
+        "occurredAt": "2026-06-14T00:00:00Z",
+        "scopeKind": "session",
+        "planId": null,
+        "taskNodeId": null,
+        "sideEffect": "context_effect",
+        "relatedRefs": [
+          {
+            "kind": "message",
+            "id": "message-1",
+            "label": "User message",
+            "href": null,
+            "objectRef": {
+              "kind": "message",
+              "id": "message-1"
+            }
+          }
+        ],
+        "sourceKind": "message_stream",
+        "sourceId": "message-1",
+        "disclosureLevel": "public"
+      },
+      {
+        "id": "activity:plan:plan-1:draft:1",
+        "sessionId": "session-1",
+        "kind": "plan_updated",
+        "title": "Plan updated",
+        "body": "Docs plan: Draft the documentation structure.",
+        "occurredAt": "2026-06-14T00:00:00Z",
+        "scopeKind": "plan",
+        "planId": "plan-1",
+        "taskNodeId": null,
+        "sideEffect": "state_effect",
+        "relatedRefs": [
+          {
+            "kind": "plan",
+            "id": "plan-1",
+            "label": "Docs plan",
+            "href": null,
+            "objectRef": {
+              "kind": "plan",
+              "id": "plan-1"
+            }
+          }
+        ],
+        "sourceKind": "plan_projection",
+        "sourceId": "plan-1",
+        "disclosureLevel": "public"
+      }
+    ],
+    "nextCursor": null,
+    "totalCount": 2,
+    "generatedAt": "2026-06-14T00:00:00Z"
+  },
+  "error": null,
+  "cursor": null,
+  "generatedAt": "2026-06-14T00:00:00Z"
+}

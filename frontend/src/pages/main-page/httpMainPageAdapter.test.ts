@@ -22,6 +22,7 @@ import type {
   CommandResponse,
   MainPageSnapshot,
   QueryResponse,
+  SessionActivityTimelineResult,
   UiEvent,
 } from "../../shared/api/types";
 import type { TokenUsageSummaryResponse } from "../../shared/api/tokenUsageTypes";
@@ -386,6 +387,10 @@ describe("HTTP MainPage adapter bridge", () => {
       sessionId: snapshot.session.id,
       taskNodeId: "task-1",
     });
+    await adapter.loadSessionActivity?.({
+      limit: 25,
+      sessionId: snapshot.session.id,
+    });
     const unsubscribe = adapter.subscribeSessionEvents(
       snapshot.session.id,
       "cursor-1",
@@ -406,6 +411,13 @@ describe("HTTP MainPage adapter bridge", () => {
         dimension: "task",
         sessionId: snapshot.session.id,
         taskNodeId: "task-1",
+      },
+      { workspaceId: "workspace-1" },
+    );
+    expect(api.getSessionActivity).toHaveBeenCalledWith(
+      {
+        limit: 25,
+        sessionId: snapshot.session.id,
       },
       { workspaceId: "workspace-1" },
     );
@@ -437,6 +449,9 @@ function stubPlatoApi(snapshot: MainPageSnapshot) {
     ),
     deleteSession: vi.fn(async () => lifecycleResponse({ nextSessionId: null })),
     getTokenUsageSummary: vi.fn(async () => tokenUsageResponse()),
+    getSessionActivity: vi.fn(async () =>
+      sessionActivityResponse(snapshot.session.id),
+    ),
     appendSessionInput: vi.fn(async () => response),
     generateTaskTree: vi.fn(async () => response),
     updateTaskNode: vi.fn(async () => response),
@@ -452,6 +467,23 @@ function stubPlatoApi(snapshot: MainPageSnapshot) {
     cancelAsk: vi.fn(async () => response),
     subscribeSessionEvents: vi.fn(() => () => undefined),
   } satisfies HttpMainPageApi;
+}
+
+function sessionActivityResponse(
+  sessionId: string,
+): QueryResponse<SessionActivityTimelineResult> {
+  return {
+    requestId: "request-session-activity",
+    ok: true,
+    data: {
+      generatedAt: "2026-06-14T00:00:00Z",
+      items: [],
+      sessionId,
+      totalCount: 0,
+    },
+    error: null,
+    generatedAt: "2026-06-14T00:00:00Z",
+  };
 }
 
 function tokenUsageResponse(): QueryResponse<TokenUsageSummaryResponse> {

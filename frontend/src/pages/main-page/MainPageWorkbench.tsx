@@ -1,6 +1,7 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 
 import type { ProductRecoveryAction } from "../../shared/api/platoApi";
+import type { SessionActivityItemView } from "../../shared/api/types";
 import { Panel } from "../../shared/components";
 import { useUiText } from "../../shared/ui-text";
 import { ActivityOverlay } from "./ActivityOverlay";
@@ -13,9 +14,13 @@ import type { MainPageWorkspaceRuntime } from "./MainPageWorkspaceSwitcher";
 import { MainPageWorkspaceHeader } from "./MainPageWorkspaceHeader";
 import { TaskTreePanel } from "./TaskTreePanel";
 import { AuthoringAskWorkArea } from "./interaction/AuthoringAskWorkArea";
+import { activityItemsFromMessages } from "./mainPageActivityProjection";
 import type { MainPageViewModel } from "./mainPageViewModel";
 import type { MainPageController } from "./useMainPageController";
-import type { LoadTokenUsageSummary } from "./runtime/adapter";
+import type {
+  LoadSessionActivity,
+  LoadTokenUsageSummary,
+} from "./runtime/adapter";
 import styles from "./MainPage.module.css";
 
 export type MainPageWorkbenchProps = {
@@ -34,6 +39,7 @@ export type MainPageWorkbenchProps = {
   viewModel: MainPageViewModel;
   workspaceCatalog: MainPageController["workspaceCatalog"];
   workspaceRuntime?: MainPageWorkspaceRuntime | null;
+  loadSessionActivity?: LoadSessionActivity;
   loadTokenUsageSummary?: LoadTokenUsageSummary;
 };
 
@@ -53,17 +59,25 @@ export function MainPageWorkbench({
   viewModel,
   workspaceCatalog,
   workspaceRuntime = null,
+  loadSessionActivity,
   loadTokenUsageSummary,
 }: MainPageWorkbenchProps) {
   const uiText = useUiText();
   const [isActivityOverlayOpen, setIsActivityOverlayOpen] = useState(false);
+  const [activityItems, setActivityItems] = useState<
+    SessionActivityItemView[]
+  >([]);
+  const [activityError, setActivityError] = useState<string | null>(null);
+  const [activityLoadKey, setActivityLoadKey] = useState(0);
+  const [isActivityLoading, setIsActivityLoading] = useState(false);
   const hidesDetailPanel = viewModel.detail.kind === "note";
   const pageClassName = hidesDetailPanel
     ? `${styles.page} ${styles.pageWithoutDetail}`
     : styles.page;
   const hasActivity =
     viewModel.mainWorkArea.kind !== "authoringAsk" &&
-    viewModel.taskWorkspace.allMessages.length > 0;
+    (viewModel.taskWorkspace.allMessages.length > 0 ||
+      loadSessionActivity !== undefined);
   const hasVisibleActivity =
     viewModel.mainWorkArea.kind !== "authoringAsk" &&
     viewModel.taskWorkspace.messages.length > 0;
@@ -72,6 +86,78 @@ export function MainPageWorkbench({
     viewModel.sidebar.activeSession.workspaceId ??
     activeWorkspaceId ??
     null;
+  const fallbackActivityItems = useMemo(
+    () => activityItemsFromMessages(viewModel.taskWorkspace.allMessages),
+    [viewModel.taskWorkspace.allMessages],
+  );
+  const overlayActivityItems =
+    loadSessionActivity === undefined ? fallbackActivityItems : activityItems;
+
+  useEffect(() => {
+    if (!isActivityOverlayOpen || loadSessionActivity === undefined) {
+      return;
+    }
+
+    let isCancelled = false;
+    setIsActivityLoading(true);
+    setActivityError(null);
+
+    void loadSessionActivity(
+      {
+        limit: 100,
+        sessionId: viewModel.sessionId,
+      },
+      resolvedWorkspaceId,
+    )
+      .then((timeline) => {
+        if (isCancelled) {
+          return;
+        }
+        setActivityItems(timeline.items);
+      })
+      .catch((error: unknown) => {
+        if (isCancelled) {
+          return;
+        }
+        setActivityError(
+          error instanceof Error
+            ? error.message
+            : uiText.main.activity.descriptions.loadError,
+        );
+      })
+      .finally(() => {
+        if (!isCancelled) {
+          setIsActivityLoading(false);
+        }
+      });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [
+    activityLoadKey,
+    isActivityOverlayOpen,
+    loadSessionActivity,
+    resolvedWorkspaceId,
+    uiText.main.activity.descriptions.loadError,
+    viewModel.sessionId,
+  ]);
+
+  function showActivityResult(taskNodeId: string | null) {
+    if (taskNodeId !== null) {
+      actions.selectTask(taskNodeId);
+    }
+    actions.showResult();
+    setIsActivityOverlayOpen(false);
+  }
+
+  function showActivityFiles(taskNodeId: string | null) {
+    if (taskNodeId !== null) {
+      actions.selectTask(taskNodeId);
+    }
+    actions.showFileChanges();
+    setIsActivityOverlayOpen(false);
+  }
 
   return (
     <main className={pageClassName}>
@@ -262,9 +348,21 @@ export function MainPageWorkbench({
 
       {isActivityOverlayOpen && hasActivity ? (
         <ActivityOverlay
-          allMessages={viewModel.taskWorkspace.allMessages}
-          currentMessages={viewModel.taskWorkspace.messages}
+          errorMessage={activityError}
+          isLoading={isActivityLoading}
+          items={overlayActivityItems}
           onClose={() => setIsActivityOverlayOpen(false)}
+          onOpenFiles={showActivityFiles}
+          onOpenPlan={() => {
+            actions.selectTaskPlan();
+            setIsActivityOverlayOpen(false);
+          }}
+          onOpenResult={showActivityResult}
+          onOpenTask={(taskNodeId) => {
+            actions.selectTask(taskNodeId);
+            setIsActivityOverlayOpen(false);
+          }}
+          onRetry={() => setActivityLoadKey((key) => key + 1)}
           selectedTask={viewModel.taskWorkspace.selectedTask}
         />
       ) : null}

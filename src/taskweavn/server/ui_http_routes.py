@@ -55,6 +55,8 @@ def _match_route(path: str) -> _Route | None:
     suffix = parts[4:]
     if suffix == ("snapshot",):
         return _Route(name="snapshot", method="GET", session_id=session_id)
+    if suffix == ("activity",):
+        return _Route(name="session_activity", method="GET", session_id=session_id)
     if suffix == ("audit",):
         return _Route(name="audit_snapshot", method="GET", session_id=session_id)
     if suffix == ("audit", "records"):

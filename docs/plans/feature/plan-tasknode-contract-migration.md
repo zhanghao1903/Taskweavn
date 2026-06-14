@@ -1,8 +1,8 @@
 # Feature Plan: Plan / TaskNode Contract Migration
 
-> Status: in_progress
+> Status: accepted
 >
-> Last Updated: 2026-06-13
+> Last Updated: 2026-06-14
 >
 > Owner: Product Model / Backend / Frontend
 >
@@ -20,25 +20,40 @@ storage and projection. Product 1.1 needs a first-class `Plan -> TaskNode[]`
 contract so runtime input, activity, inquiry, outcome review, and contract
 revision commands have stable targets.
 
-Current gap:
+Product 1.1 Plan / TaskNode migration foundation is accepted after PR #74.
+The legacy DraftTaskTree path remains as compatibility data, but new Product
+1.1 contract work can target durable `Plan` / `PlanTaskNode` identities.
+
+Closed foundation:
 
 - Plan / TaskNode technical design is accepted.
-- UI API contract now exposes `activePlan` and compatibility
-  `taskTreeProjection`.
-- Backend UI contract can derive a synthetic `PlanView` from the existing
-  `taskTree` compatibility projection.
-- Backend now has an explicit projection-only service from legacy TaskTree
-  projection to synthetic `PlanView`.
-- Collaborator still produces legacy task tree shapes.
-- Plan proposal schema exists and validates Product 1.1 flat TaskNode
-  proposals before converting them into the legacy DraftTaskTree compatibility
-  path.
-- Durable Plan / TaskNode store interfaces and SQLite implementation now exist.
-- Backend Plan publishing adapter now exists and preserves legacy
-  DraftTaskTree publish compatibility.
-- UI/API publish gateway wiring now routes active durable Plans through
+- UI API contract exposes `activePlan`, `PlanView`, `TaskNodeCardView`, and
+  compatibility `taskTreeProjection`.
+- Backend can derive synthetic `PlanView` from legacy TaskTree projection.
+- Plan proposal schema validates Product 1.1 flat TaskNode proposals and
+  rejects deferred hierarchy fields.
+- Durable Plan / TaskNode store interfaces and SQLite implementation exist.
+- Authoring output creates durable Plans from draft output and records active
+  Plan identity.
+- Backend Plan publishing adapter maps TaskNodes to existing PublishedTask /
+  TaskBus boundaries while preserving legacy publish compatibility.
+- UI/API publish gateway routes durable active Plans through
   `DefaultPlanPublisher` and falls back to legacy DraftTaskTree publish for old
-  sessions. Read/query paths still use legacy projection compatibility.
+  sessions.
+- Main Page query projection prefers stored Plan data when available, while
+  keeping legacy TaskTree compatibility for old sessions and current frontend
+  components.
+- Execution lifecycle sync updates durable PlanTaskNode rows from TaskBus
+  facts.
+- Result, file-change, task-detail, and Audit identity reads use PlanTaskNode
+  identity where possible, with legacy provenance retained.
+
+Remaining follow-ups are not migration blockers:
+
+- remove legacy DraftTaskTree compatibility only after frontend/router paths no
+  longer need it;
+- add Contract Revision commands for Plan/TaskNode patch/create/delete;
+- define Outcome Review and follow-up Plan cycle scopes.
 
 ---
 
@@ -205,6 +220,48 @@ Notes:
 - Main Page sidecar runtime now wires `SqlitePlanStore` and
   `DefaultPlanPublisher` per workspace.
 
+### PTC-7. Durable Plan Creation And Active Identity
+
+Status: complete.
+
+- Create durable Plans from authoring output.
+- Record `active_plan_id` in active authoring state.
+- Keep legacy DraftTaskTree reads for old sessions.
+
+Acceptance:
+
+- new authoring output has stable durable Plan identity;
+- old sessions continue to read through compatibility projection.
+
+### PTC-8. Stored Plan Query And Execution Sync
+
+Status: complete.
+
+- Prefer stored Plan reads in Main Page projection when available.
+- Sync TaskBus execution lifecycle facts back into PlanTaskNode rows.
+- Keep legacy projection fallback for old sessions.
+
+Acceptance:
+
+- active Plan status and TaskNode execution state survive restart and align with
+  TaskBus facts.
+
+### PTC-9. Plan-Aware Detail And Audit Identity
+
+Status: complete.
+
+- Route result, file-change, selected task detail, and Audit selected-task reads
+  through PlanTaskNode identity when a stored Plan exists.
+- Normalize legacy Audit record task ids back to PlanTaskNode ids while keeping
+  legacy task refs as provenance.
+- Extract Plan/Audit read migration helpers out of `DefaultUiQueryGateway` to
+  prevent the gateway hotspot from growing further.
+
+Acceptance:
+
+- stored Plan sessions expose PlanTaskNode-facing identity across snapshot,
+  list-audit-records, record detail, and evidence detail queries.
+
 ---
 
 ## 4. Non-Goals
@@ -219,7 +276,7 @@ Notes:
 
 ## 5. Dependencies
 
-This plan should land before:
+This accepted foundation has landed before:
 
 - Runtime Input Router;
 - Contract Revision Command Skills;

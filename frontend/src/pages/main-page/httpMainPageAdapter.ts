@@ -26,6 +26,7 @@ export type HttpMainPageApi = Pick<
   | "deferAsk"
   | "deleteSession"
   | "generateTaskTree"
+  | "getSessionActivity"
   | "getSessionSnapshot"
   | "getTokenUsageSummary"
   | "listWorkspaces"
@@ -210,6 +211,13 @@ export function createHttpMainPageAdapter({
     },
     async loadTokenUsageSummary(request, nextWorkspaceId) {
       const response = await api.getTokenUsageSummary(
+        request,
+        workspaceOptions(nextWorkspaceId),
+      );
+      return unwrapLifecycle(response);
+    },
+    async loadSessionActivity(request, nextWorkspaceId) {
+      const response = await api.getSessionActivity(
         request,
         workspaceOptions(nextWorkspaceId),
       );

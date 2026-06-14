@@ -444,6 +444,69 @@ def test_get_session_snapshot_prefers_active_stored_plan_over_legacy_projection(
     assert response.data.task_tree.nodes[0].id == "node-stored"
 
 
+def test_list_session_activity_projects_stored_plan_and_messages() -> None:
+    message = AgentMessage(
+        message_id="message-1",
+        session_id="session-1",
+        agent_id="user",
+        message_type="informational",
+        content="Build a documentation site.",
+        created_at=NOW,
+    )
+    tree = TaskTreeView(session_id="session-1", nodes=(_draft_card("draft-legacy"),))
+    plan = Plan(
+        plan_id="plan-stored",
+        session_id="session-1",
+        source_draft_tree_id="draft-tree-1",
+        title="Stored plan",
+        objective="Use durable plan facts.",
+        summary="Stored durable plan summary.",
+        status="draft",
+    )
+    plan_node = PlanTaskNode(
+        task_node_id="node-stored",
+        plan_id=plan.plan_id,
+        session_id="session-1",
+        task_index="1",
+        title="Stored task",
+        intent="Use stored PlanTaskNode.",
+        summary="Stored task summary.",
+        readiness="draft",
+        draft_ref=TaskRef.draft("draft-stored"),
+    )
+    gateway = DefaultUiQueryGateway(
+        session_reader=_SessionReader([_session()]),
+        task_projection=_Projection(tree),
+        session_message_provider=_SessionMessageProvider([message]),
+        authoring_state_store=_AuthoringStateStore(
+            ActiveAuthoringState(
+                session_id="session-1",
+                active_draft_tree_id="draft-tree-1",
+                active_plan_id=plan.plan_id,
+                active_state="draft_tree",
+            )
+        ),
+        plan_store=_PlanStore(active_plan=plan, task_nodes=(plan_node,)),
+    )
+
+    response = gateway.list_session_activity("session-1", limit=10)
+
+    assert response.ok is True
+    assert response.data is not None
+    assert response.data.session_id == "session-1"
+    assert response.data.total_count == 3
+    assert {item.kind for item in response.data.items} == {
+        "plan_updated",
+        "task_created",
+        "user_input",
+    }
+    task_item = next(item for item in response.data.items if item.kind == "task_created")
+    assert task_item.plan_id == "plan-stored"
+    assert task_item.task_node_id == "node-stored"
+    assert task_item.related_refs[0].object_ref is not None
+    assert task_item.related_refs[0].object_ref.kind == "draft_task"
+
+
 def test_get_session_snapshot_uses_latest_ui_event_cursor_when_available() -> None:
     tree = TaskTreeView(session_id="session-1", nodes=(_card(),))
     gateway = DefaultUiQueryGateway(

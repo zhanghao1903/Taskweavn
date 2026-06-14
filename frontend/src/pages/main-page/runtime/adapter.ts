@@ -12,6 +12,7 @@ import type {
   RenameSessionPayload,
   ResolveConfirmationPayload,
   RetryTaskPayload,
+  SessionActivityRequest,
   SessionLifecycleResult,
   StopTaskPayload,
   UpdateTaskNodePayload,
@@ -23,6 +24,7 @@ import type {
   AskId,
   ConfirmationId,
   MainPageSnapshot,
+  SessionActivityTimelineResult,
   SessionId,
   TaskNodeId,
   UiEvent,
@@ -84,6 +86,11 @@ export type LoadTokenUsageSummary = (
   request: TokenUsageSummaryRequest,
   workspaceId?: WorkspaceId | null,
 ) => Promise<TokenUsageSummaryResponse>;
+
+export type LoadSessionActivity = (
+  request: SessionActivityRequest,
+  workspaceId?: WorkspaceId | null,
+) => Promise<SessionActivityTimelineResult>;
 
 export type SessionLifecycleCommand<TPayload = void> = (
   payload: TPayload,
@@ -191,6 +198,7 @@ export type MainPageAdapter = {
   deleteSession: SessionLifecycleCommand<SessionId>;
   generateTaskTree: GenerateTaskTreeCommand;
   loadSnapshot: LoadMainPageSnapshot;
+  loadSessionActivity?: LoadSessionActivity;
   loadTokenUsageSummary?: LoadTokenUsageSummary;
   loadWorkspaceCatalog?: () => Promise<WorkspaceCatalogResult>;
   publishTaskTree: PublishTaskTreeCommand;

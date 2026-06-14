@@ -1,51 +1,63 @@
 import { useMemo, useState } from "react";
 
 import type {
-  SessionMessageView,
+  SessionActivityItemKind,
+  SessionActivityItemView,
+  SessionActivitySideEffect,
   TaskNodeCardView,
 } from "../../shared/api/types";
+import type { BadgeTone } from "../../shared/components";
 import { Badge, Button, Text } from "../../shared/components";
+import { useUiText } from "../../shared/ui-text";
 import { cx } from "../../shared/utils/cx";
-import { selectMessageKindPresentation } from "./mainPageSelectors";
 import styles from "./ActivityOverlay.module.css";
 
 type ActivityFilter = "currentTask" | "all" | "results" | "errors";
 
 export type ActivityOverlayProps = {
-  allMessages: SessionMessageView[];
-  currentMessages: SessionMessageView[];
+  errorMessage?: string | null;
+  isLoading?: boolean;
+  items: readonly SessionActivityItemView[];
   onClose: () => void;
+  onOpenFiles?: (taskNodeId: string | null) => void;
+  onOpenPlan?: () => void;
+  onOpenResult?: (taskNodeId: string | null) => void;
+  onOpenTask?: (taskNodeId: string) => void;
+  onRetry?: () => void;
   selectedTask: TaskNodeCardView | undefined;
 };
 
-const filterLabels: Record<ActivityFilter, string> = {
-  all: "All",
-  currentTask: "Current task",
-  errors: "Errors",
-  results: "Results",
-};
-
 export function ActivityOverlay({
-  allMessages,
-  currentMessages,
+  errorMessage = null,
+  isLoading = false,
+  items,
   onClose,
+  onOpenFiles,
+  onOpenPlan,
+  onOpenResult,
+  onOpenTask,
+  onRetry,
   selectedTask,
 }: ActivityOverlayProps) {
+  const uiText = useUiText();
   const [activeFilter, setActiveFilter] = useState<ActivityFilter>(
     selectedTask ? "currentTask" : "all",
   );
-  const [readerMessage, setReaderMessage] =
-    useState<SessionMessageView | null>(null);
-  const messages = useMemo(
-    () =>
-      selectOverlayMessages({
-        activeFilter,
-        allMessages,
-        currentMessages,
-      }),
-    [activeFilter, allMessages, currentMessages],
+  const [readerItem, setReaderItem] = useState<SessionActivityItemView | null>(
+    null,
   );
-  const overlayTitle = selectedTask ? "Task updates" : "Session activity";
+  const visibleItems = useMemo(
+    () =>
+      selectOverlayItems({
+        activeFilter,
+        items,
+        selectedTaskNodeId: selectedTask?.id ?? null,
+      }),
+    [activeFilter, items, selectedTask?.id],
+  );
+  const overlayTitle = selectedTask
+    ? uiText.main.activity.labels.taskUpdates
+    : uiText.main.activity.labels.sessionActivity;
 
   return (
     <aside
@@ -56,21 +68,26 @@ export function ActivityOverlay({
       <div className={styles.header}>
         <div>
           <Text as="span" variant="eyebrow">
-            Activity
+            {uiText.main.activity.labels.activity}
           </Text>
           <h2>{overlayTitle}</h2>
           <p className={styles.headerDescription}>
             {selectedTask
-              ? `Focused on ${selectedTask.title}.`
-              : "All session updates."}
+              ? uiText.main.activity.descriptions.focusedOnTask({
+                  title: selectedTask.title,
+                })
+              : uiText.main.activity.descriptions.sessionUpdates}
           </p>
         </div>
         <Button onClick={onClose} size="sm" variant="secondary">
-          Close
+          {uiText.main.activity.actions.close}
         </Button>
       </div>
 
-      <div aria-label="Activity filters" className={styles.filters}>
+      <div
+        aria-label={uiText.main.activity.labels.filterControls}
+        className={styles.filters}
+      >
         {(["currentTask", "all", "results", "errors"] as const).map(
           (filter) => (
             <button
@@ -83,33 +100,48 @@ export function ActivityOverlay({
               onClick={() => setActiveFilter(filter)}
               type="button"
             >
-              {filterLabels[filter]}
+              {uiText.main.activity.filters[filter]}
             </button>
           ),
         )}
       </div>
 
-      {readerMessage ? (
+      {readerItem ? (
         <ResultReader
-          message={readerMessage}
-          onBack={() => setReaderMessage(null)}
+          item={readerItem}
+          onBack={() => setReaderItem(null)}
         />
-      ) : messages.length === 0 ? (
+      ) : errorMessage ? (
+        <ActivityBoundary
+          body={errorMessage}
+          onRetry={onRetry}
+          title={uiText.main.activity.descriptions.loadError}
+        />
+      ) : isLoading ? (
+        <ActivityBoundary
+          body={uiText.main.activity.descriptions.loading}
+          title={uiText.main.activity.labels.loadingActivity}
+        />
+      ) : visibleItems.length === 0 ? (
         <div className={styles.emptyState}>
-          <strong>No matching activity</strong>
+          <strong>{uiText.main.activity.labels.noMatchingActivity}</strong>
           <p>
             {selectedTask
-              ? "Try another filter or return to the selected task."
-              : "Try another filter or close this view."}
+              ? uiText.main.activity.descriptions.noMatchingWithTask
+              : uiText.main.activity.descriptions.noMatchingWithoutTask}
           </p>
         </div>
       ) : (
         <ol className={styles.timeline}>
-          {messages.map((message) => (
+          {visibleItems.map((item) => (
             <ActivityItem
-              key={message.id}
-              message={message}
-              onOpenReader={() => setReaderMessage(message)}
+              item={item}
+              key={item.id}
+              onOpenFiles={onOpenFiles}
+              onOpenPlan={onOpenPlan}
+              onOpenReader={() => setReaderItem(item)}
+              onOpenResult={onOpenResult}
+              onOpenTask={onOpenTask}
             />
           ))}
         </ol>
@@ -119,120 +151,340 @@ export function ActivityOverlay({
 }
 
 function ActivityItem({
-  message,
+  item,
+  onOpenFiles,
+  onOpenPlan,
   onOpenReader,
+  onOpenResult,
+  onOpenTask,
 }: {
-  message: SessionMessageView;
+  item: SessionActivityItemView;
+  onOpenFiles?: (taskNodeId: string | null) => void;
+  onOpenPlan?: () => void;
   onOpenReader: () => void;
+  onOpenResult?: (taskNodeId: string | null) => void;
+  onOpenTask?: (taskNodeId: string) => void;
 }) {
-  const kindPresentation = selectMessageKindPresentation(message.kind);
-  const scopeLabel = message.taskNodeId ? "Task" : "Session";
-  const isResult = isResultActivity(message);
+  const uiText = useUiText();
+  const kind = activityKindPresentation(item.kind, uiText);
+  const scopeLabel = activityScopeLabel(item, uiText);
+  const isResult = item.kind === "result_ready";
 
   return (
-    <li className={cx(styles.activityItem, activityItemKindClass(message.kind))}>
+    <li className={cx(styles.activityItem, activityItemKindClass(item.kind))}>
       <div className={styles.itemHeader}>
-        <Badge size="sm" tone={kindPresentation.tone}>
-          {kindPresentation.label}
+        <Badge size="sm" tone={kind.tone}>
+          {kind.label}
         </Badge>
-        <time dateTime={message.createdAt}>
-          {formatActivityTime(message.createdAt)}
+        <time dateTime={item.occurredAt}>
+          {formatActivityTime(item.occurredAt)}
         </time>
       </div>
-      <strong title={message.title}>{message.title}</strong>
-      <p>{message.body}</p>
+      <strong title={item.title}>{item.title}</strong>
+      <p>{item.body}</p>
       <div className={styles.itemMeta}>
-        <Badge size="sm" tone={message.taskNodeId ? "blue" : "neutral"}>
+        <Badge size="sm" tone={item.scopeKind === "task" ? "blue" : "neutral"}>
           {scopeLabel}
         </Badge>
-        {isResult && (
+        <Badge size="sm" tone="neutral">
+          {activitySideEffectLabel(item.sideEffect, uiText)}
+        </Badge>
+        {isResult ? (
           <Button onClick={onOpenReader} size="sm" variant="ghost">
-            View full result
+            {uiText.main.activity.actions.viewFullResult}
           </Button>
-        )}
+        ) : null}
       </div>
+      <RelatedRefs
+        item={item}
+        onOpenFiles={onOpenFiles}
+        onOpenPlan={onOpenPlan}
+        onOpenResult={onOpenResult}
+        onOpenTask={onOpenTask}
+      />
     </li>
   );
 }
 
-function activityItemKindClass(kind: SessionMessageView["kind"]) {
-  switch (kind) {
-    case "actionable":
-      return styles.activityItemActionable;
-    case "error":
-      return styles.activityItemError;
-    case "response":
-      return styles.activityItemResponse;
-    case "informational":
-    default:
-      return styles.activityItemInformational;
+function RelatedRefs({
+  item,
+  onOpenFiles,
+  onOpenPlan,
+  onOpenResult,
+  onOpenTask,
+}: {
+  item: SessionActivityItemView;
+  onOpenFiles?: (taskNodeId: string | null) => void;
+  onOpenPlan?: () => void;
+  onOpenResult?: (taskNodeId: string | null) => void;
+  onOpenTask?: (taskNodeId: string) => void;
+}) {
+  const uiText = useUiText();
+  const controls = relatedControls({
+    item,
+    onOpenFiles,
+    onOpenPlan,
+    onOpenResult,
+    onOpenTask,
+    uiText,
+  });
+
+  if (controls.length === 0) {
+    return null;
   }
+
+  return (
+    <div
+      aria-label={uiText.main.activity.labels.evidence}
+      className={styles.relatedRefs}
+    >
+      {controls.map((control) => (
+        <Button
+          key={control.key}
+          onClick={control.onClick}
+          size="sm"
+          variant="ghost"
+        >
+          {control.label}
+        </Button>
+      ))}
+    </div>
+  );
+}
+
+function relatedControls({
+  item,
+  onOpenFiles,
+  onOpenPlan,
+  onOpenResult,
+  onOpenTask,
+  uiText,
+}: {
+  item: SessionActivityItemView;
+  onOpenFiles?: (taskNodeId: string | null) => void;
+  onOpenPlan?: () => void;
+  onOpenResult?: (taskNodeId: string | null) => void;
+  onOpenTask?: (taskNodeId: string) => void;
+  uiText: ReturnType<typeof useUiText>;
+}) {
+  const controls: Array<{ key: string; label: string; onClick: () => void }> = [];
+  const hasRef = (kind: SessionActivityItemView["relatedRefs"][number]["kind"]) =>
+    item.relatedRefs.some((ref) => ref.kind === kind);
+
+  if (hasRef("plan") && onOpenPlan) {
+    controls.push({
+      key: "plan",
+      label: uiText.main.activity.actions.openPlan,
+      onClick: onOpenPlan,
+    });
+  }
+  if (hasRef("task") && item.taskNodeId && onOpenTask) {
+    controls.push({
+      key: "task",
+      label: uiText.main.activity.actions.openTask,
+      onClick: () => onOpenTask(item.taskNodeId as string),
+    });
+  }
+  if (hasRef("result") && onOpenResult) {
+    controls.push({
+      key: "result",
+      label: uiText.main.activity.actions.openResult,
+      onClick: () => onOpenResult(item.taskNodeId ?? null),
+    });
+  }
+  if (hasRef("file") && onOpenFiles) {
+    controls.push({
+      key: "files",
+      label: uiText.main.activity.actions.openFiles,
+      onClick: () => onOpenFiles(item.taskNodeId ?? null),
+    });
+  }
+
+  return controls;
 }
 
 function ResultReader({
-  message,
+  item,
   onBack,
 }: {
-  message: SessionMessageView;
+  item: SessionActivityItemView;
   onBack: () => void;
 }) {
+  const uiText = useUiText();
+
   return (
-    <section aria-label="Full result" className={styles.reader}>
+    <section
+      aria-label={uiText.main.activity.labels.fullResult}
+      className={styles.reader}
+    >
       <div className={styles.readerHeader}>
         <div>
           <Text as="span" variant="eyebrow">
-            Full result
+            {uiText.main.activity.labels.fullResult}
           </Text>
-          <h3>{message.title}</h3>
+          <h3>{item.title}</h3>
         </div>
         <Button onClick={onBack} size="sm" variant="secondary">
-          Back to activity
+          {uiText.main.activity.actions.backToActivity}
         </Button>
       </div>
       <article className={styles.readerBody}>
         <Badge size="sm" tone="blue">
-          Result
+          {uiText.main.activity.kinds.resultReady}
         </Badge>
-        <p>{message.body}</p>
+        <p>{item.body}</p>
       </article>
     </section>
   );
 }
 
-function selectOverlayMessages({
+function ActivityBoundary({
+  body,
+  onRetry,
+  title,
+}: {
+  body: string;
+  onRetry?: () => void;
+  title: string;
+}) {
+  const uiText = useUiText();
+
+  return (
+    <div className={styles.emptyState}>
+      <strong>{title}</strong>
+      <p>{body}</p>
+      {onRetry ? (
+        <Button onClick={onRetry} size="sm" variant="secondary">
+          {uiText.main.activity.actions.retry}
+        </Button>
+      ) : null}
+    </div>
+  );
+}
+
+function selectOverlayItems({
   activeFilter,
-  allMessages,
-  currentMessages,
+  items,
+  selectedTaskNodeId,
 }: {
   activeFilter: ActivityFilter;
-  allMessages: SessionMessageView[];
-  currentMessages: SessionMessageView[];
+  items: readonly SessionActivityItemView[];
+  selectedTaskNodeId: string | null;
 }) {
-  const source = activeFilter === "currentTask" ? currentMessages : allMessages;
+  const source =
+    activeFilter === "currentTask" && selectedTaskNodeId !== null
+      ? items.filter((item) => item.taskNodeId === selectedTaskNodeId)
+      : items;
   const filtered =
     activeFilter === "errors"
-      ? allMessages.filter((message) => message.kind === "error")
+      ? items.filter((item) => item.kind === "recovery_note")
       : activeFilter === "results"
-        ? allMessages.filter(isResultActivity)
+        ? items.filter(
+            (item) =>
+              item.kind === "result_ready" || item.kind === "file_summary",
+          )
         : source;
 
   return filtered
     .slice()
     .sort(
       (left, right) =>
-        Date.parse(right.createdAt) - Date.parse(left.createdAt),
+        Date.parse(right.occurredAt) - Date.parse(left.occurredAt),
     );
 }
 
-function isResultActivity(message: SessionMessageView) {
-  const searchable = `${message.title} ${message.body}`.toLowerCase();
+function activityItemKindClass(kind: SessionActivityItemKind) {
+  switch (kind) {
+    case "ask_asked":
+    case "confirmation_requested":
+      return styles.activityItemActionable;
+    case "recovery_note":
+      return styles.activityItemError;
+    case "answer":
+    case "result_ready":
+      return styles.activityItemResponse;
+    default:
+      return styles.activityItemInformational;
+  }
+}
 
-  return (
-    message.kind === "response" ||
-    searchable.includes("result") ||
-    searchable.includes("summary") ||
-    searchable.includes("completed")
-  );
+function activityKindPresentation(
+  kind: SessionActivityItemKind,
+  uiText: ReturnType<typeof useUiText>,
+): { label: string; tone: BadgeTone } {
+  const labels = uiText.main.activity.kinds;
+  switch (kind) {
+    case "answer":
+      return { label: labels.answer, tone: "success" };
+    case "ask_answered":
+      return { label: labels.askAnswered, tone: "success" };
+    case "ask_asked":
+      return { label: labels.askAsked, tone: "warning" };
+    case "confirmation_requested":
+      return { label: labels.confirmationRequested, tone: "warning" };
+    case "confirmation_resolved":
+      return { label: labels.confirmationResolved, tone: "success" };
+    case "file_summary":
+      return { label: labels.fileSummary, tone: "blue" };
+    case "guidance_recorded":
+      return { label: labels.guidanceRecorded, tone: "blue" };
+    case "plan_updated":
+      return { label: labels.planUpdated, tone: "blue" };
+    case "recovery_note":
+      return { label: labels.recoveryNote, tone: "danger" };
+    case "result_ready":
+      return { label: labels.resultReady, tone: "success" };
+    case "router_interpretation":
+      return { label: labels.routerInterpretation, tone: "blue" };
+    case "task_changed":
+      return { label: labels.taskChanged, tone: "blue" };
+    case "task_created":
+      return { label: labels.taskCreated, tone: "blue" };
+    case "task_removed":
+      return { label: labels.taskRemoved, tone: "warning" };
+    case "user_input":
+      return { label: labels.userInput, tone: "neutral" };
+    case "execution_update":
+    default:
+      return { label: labels.executionUpdate, tone: "neutral" };
+  }
+}
+
+function activityScopeLabel(
+  item: SessionActivityItemView,
+  uiText: ReturnType<typeof useUiText>,
+) {
+  if (item.scopeKind === "task") {
+    return uiText.main.activity.labels.scopeTask;
+  }
+  if (item.scopeKind === "plan") {
+    return uiText.main.activity.labels.scopePlan;
+  }
+  return uiText.main.activity.labels.scopeSession;
+}
+
+function activitySideEffectLabel(
+  sideEffect: SessionActivitySideEffect,
+  uiText: ReturnType<typeof useUiText>,
+) {
+  const labels = uiText.main.activity.sideEffects;
+  switch (sideEffect) {
+    case "authorization_effect":
+      return labels.authorizationEffect;
+    case "context_effect":
+      return labels.contextEffect;
+    case "evidence_effect":
+      return labels.evidenceEffect;
+    case "execution_request":
+      return labels.executionRequest;
+    case "resume_effect":
+      return labels.resumeEffect;
+    case "state_effect":
+      return labels.stateEffect;
+    case "no_effect":
+    default:
+      return labels.noEffect;
+  }
 }
 
 function formatActivityTime(value: string) {
@@ -242,7 +494,7 @@ function formatActivityTime(value: string) {
     return value;
   }
 
-  return new Intl.DateTimeFormat("en", {
+  return new Intl.DateTimeFormat(undefined, {
     hour: "2-digit",
     minute: "2-digit",
     month: "short",
