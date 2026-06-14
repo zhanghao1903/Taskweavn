@@ -12,6 +12,10 @@ export type SettingsFormState = {
   provider: SettingsProvider;
   selectedProfile: string;
   webSearchApiKey: string;
+  webFetchEnabled: boolean;
+  webFetchMaxCharsPerUrl: number;
+  webFetchMaxTotalChars: number;
+  webFetchMaxUrls: number;
   webSearchEnabled: boolean;
   webSearchMaxResults: number;
   webSearchProvider: SettingsWebSearchProvider;
@@ -42,6 +46,14 @@ export function formStateFromConfig(
     provider: normalizeSettingsProvider(config.llm.provider),
     selectedProfile: config.logging.selectedProfile ?? "",
     webSearchApiKey: "",
+    webFetchEnabled: config.webSearch.fetchEnabled,
+    webFetchMaxCharsPerUrl: normalizeWebFetchMaxCharsPerUrl(
+      config.webSearch.fetchMaxCharsPerUrl,
+    ),
+    webFetchMaxTotalChars: normalizeWebFetchMaxTotalChars(
+      config.webSearch.fetchMaxTotalChars,
+    ),
+    webFetchMaxUrls: normalizeWebFetchMaxUrls(config.webSearch.fetchMaxUrls),
     webSearchEnabled: config.webSearch.enabled,
     webSearchMaxResults: normalizeWebSearchMaxResults(config.webSearch.maxResults),
     webSearchProvider: normalizeWebSearchProvider(config.webSearch.provider),
@@ -138,6 +150,27 @@ export function normalizeWebSearchMaxResults(value: number): number {
     return 5;
   }
   return Math.min(10, Math.max(1, Math.trunc(value)));
+}
+
+export function normalizeWebFetchMaxUrls(value: number): number {
+  if (!Number.isFinite(value)) {
+    return 3;
+  }
+  return Math.min(5, Math.max(1, Math.trunc(value)));
+}
+
+export function normalizeWebFetchMaxCharsPerUrl(value: number): number {
+  if (!Number.isFinite(value)) {
+    return 12000;
+  }
+  return Math.min(20000, Math.max(1000, Math.trunc(value)));
+}
+
+export function normalizeWebFetchMaxTotalChars(value: number): number {
+  if (!Number.isFinite(value)) {
+    return 24000;
+  }
+  return Math.min(40000, Math.max(1000, Math.trunc(value)));
 }
 
 export function fieldErrorsFromApiError(

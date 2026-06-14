@@ -98,6 +98,10 @@ describe("SettingsRoute", () => {
         },
         webSearch: {
           enabled: false,
+          fetchEnabled: false,
+          fetchMaxCharsPerUrl: 12000,
+          fetchMaxTotalChars: 24000,
+          fetchMaxUrls: 3,
           maxResults: 5,
           mode: "basic",
           provider: "tavily",
@@ -246,7 +250,9 @@ describe("SettingsRoute", () => {
     );
 
     await user.click(await screen.findByRole("checkbox", { name: "Web Search" }));
+    await user.click(screen.getByRole("checkbox", { name: "Web Page Fetch" }));
     await user.selectOptions(screen.getByLabelText("Result limit"), "4");
+    await user.selectOptions(screen.getByLabelText("Fetch URL limit"), "2");
     await user.type(screen.getByLabelText("Web Search API key"), "tvly-route-secret");
     await user.click(screen.getByRole("button", { name: "Save and check" }));
 
@@ -256,6 +262,10 @@ describe("SettingsRoute", () => {
           webSearch: {
             apiKey: "tvly-route-secret",
             enabled: true,
+            fetchEnabled: true,
+            fetchMaxCharsPerUrl: 12000,
+            fetchMaxTotalChars: 24000,
+            fetchMaxUrls: 2,
             maxResults: 4,
             mode: "basic",
             provider: "tavily",
@@ -561,6 +571,11 @@ function settingsConfig({
       apiKeyEnvVar: "TAVILY_API_KEY",
       apiKeySource: webSearchApiKeyConfigured ? "stored" : "none",
       enabled: webSearchEnabled,
+      fetchEnabled: false,
+      fetchMaxCharsPerUrl: 12000,
+      fetchMaxTotalChars: 24000,
+      fetchMaxUrls: 3,
+      fetchStatus: "disabled",
       maxResults: 5,
       mode: "basic",
       provider: "tavily",

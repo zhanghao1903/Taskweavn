@@ -447,6 +447,10 @@ export const enUS: UiTextCatalog = {
       model: "Model",
       provider: "Provider",
       readiness: "Readiness",
+      webFetch: "Web Page Fetch",
+      webFetchMaxCharsPerUrl: "Fetch chars per URL",
+      webFetchMaxTotalChars: "Fetch total chars",
+      webFetchMaxUrls: "Fetch URL limit",
       webSearch: "Web Search",
       webSearchApiKey: "Web Search API key",
       webSearchMaxResults: "Result limit",
@@ -526,6 +530,8 @@ export const enUS: UiTextCatalog = {
       webSearchApiKeyConfigured: ({ source }) =>
         `Configured via ${source}; leave empty to keep it.`,
       webSearchApiKeyRequired: ({ hint }) => `Required when enabled: ${hint}.`,
+      webFetchDescription:
+        "Allows execution Agents to extract bounded text from selected public source URLs.",
       webSearchDescription:
         "Allows execution Agents to search current public sources as external evidence.",
       workspaceGitDesktopUnavailable:

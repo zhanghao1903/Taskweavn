@@ -36,6 +36,9 @@ import {
   fieldErrorsFromApiError,
   formStateFromConfig,
   loggingProfileOptions,
+  normalizeWebFetchMaxCharsPerUrl,
+  normalizeWebFetchMaxTotalChars,
+  normalizeWebFetchMaxUrls,
   normalizeWebSearchMaxResults,
   providerOptions,
   webSearchApiKeyHint,
@@ -246,6 +249,10 @@ export function SettingsRoute({
             ? { apiKey: form.webSearchApiKey.trim() }
             : {}),
           enabled: form.webSearchEnabled,
+          fetchEnabled: form.webFetchEnabled,
+          fetchMaxCharsPerUrl: form.webFetchMaxCharsPerUrl,
+          fetchMaxTotalChars: form.webFetchMaxTotalChars,
+          fetchMaxUrls: form.webFetchMaxUrls,
           maxResults: form.webSearchMaxResults,
           mode: "basic",
           provider: form.webSearchProvider,
@@ -477,12 +484,36 @@ export function SettingsRoute({
                     saveState.kind === "rechecking"
                   }
                   onChange={(event) =>
-                    setForm({ ...form, webSearchEnabled: event.target.checked })
+                    setForm({
+                      ...form,
+                      webFetchEnabled: event.target.checked
+                        ? form.webFetchEnabled
+                        : false,
+                      webSearchEnabled: event.target.checked,
+                    })
                   }
                   type="checkbox"
                 />
                 <span>{uiText.settings.fields.webSearch}</span>
               </label>
+              <label className={styles.checkboxField}>
+                <input
+                  checked={form.webFetchEnabled}
+                  disabled={
+                    !form.webSearchEnabled ||
+                    saveState.kind === "saving" ||
+                    saveState.kind === "rechecking"
+                  }
+                  onChange={(event) =>
+                    setForm({ ...form, webFetchEnabled: event.target.checked })
+                  }
+                  type="checkbox"
+                />
+                <span>{uiText.settings.fields.webFetch}</span>
+              </label>
+              <p className={styles.helperText}>
+                {uiText.settings.messages.webFetchDescription}
+              </p>
               <div className={styles.formGrid}>
                 <label className={styles.field}>
                   <span>{uiText.settings.fields.webSearchProvider}</span>
@@ -543,6 +574,84 @@ export function SettingsRoute({
                     type="text"
                     value="basic"
                   />
+                </label>
+                <label className={styles.field}>
+                  <span>{uiText.settings.fields.webFetchMaxUrls}</span>
+                  <select
+                    aria-label={uiText.settings.fields.webFetchMaxUrls}
+                    disabled={
+                      !form.webFetchEnabled ||
+                      saveState.kind === "saving" ||
+                      saveState.kind === "rechecking"
+                    }
+                    onChange={(event) =>
+                      setForm({
+                        ...form,
+                        webFetchMaxUrls: normalizeWebFetchMaxUrls(
+                          Number(event.target.value),
+                        ),
+                      })
+                    }
+                    value={form.webFetchMaxUrls}
+                  >
+                    {[1, 2, 3, 4, 5].map((count) => (
+                      <option key={count} value={count}>
+                        {count}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className={styles.field}>
+                  <span>{uiText.settings.fields.webFetchMaxCharsPerUrl}</span>
+                  <select
+                    aria-label={uiText.settings.fields.webFetchMaxCharsPerUrl}
+                    disabled={
+                      !form.webFetchEnabled ||
+                      saveState.kind === "saving" ||
+                      saveState.kind === "rechecking"
+                    }
+                    onChange={(event) =>
+                      setForm({
+                        ...form,
+                        webFetchMaxCharsPerUrl: normalizeWebFetchMaxCharsPerUrl(
+                          Number(event.target.value),
+                        ),
+                      })
+                    }
+                    value={form.webFetchMaxCharsPerUrl}
+                  >
+                    {[6000, 12000, 20000].map((count) => (
+                      <option key={count} value={count}>
+                        {count}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className={styles.field}>
+                  <span>{uiText.settings.fields.webFetchMaxTotalChars}</span>
+                  <select
+                    aria-label={uiText.settings.fields.webFetchMaxTotalChars}
+                    disabled={
+                      !form.webFetchEnabled ||
+                      saveState.kind === "saving" ||
+                      saveState.kind === "rechecking"
+                    }
+                    onChange={(event) =>
+                      setForm({
+                        ...form,
+                        webFetchMaxTotalChars: normalizeWebFetchMaxTotalChars(
+                          Number(event.target.value),
+                        ),
+                      })
+                    }
+                    value={form.webFetchMaxTotalChars}
+                  >
+                    {[12000, 24000, 40000].map((count) => (
+                      <option key={count} value={count}>
+                        {count}
+                      </option>
+                    ))}
+                  </select>
                 </label>
                 <label className={styles.field}>
                   <span>{uiText.settings.fields.webSearchApiKey}</span>

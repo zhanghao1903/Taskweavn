@@ -33,6 +33,11 @@ def test_settings_config_summary_returns_safe_defaults(tmp_path: Path) -> None:
     assert summary["webSearch"]["providerSource"] == "default"
     assert summary["webSearch"]["mode"] == "basic"
     assert summary["webSearch"]["maxResults"] == 5
+    assert summary["webSearch"]["fetchEnabled"] is False
+    assert summary["webSearch"]["fetchMaxUrls"] == 3
+    assert summary["webSearch"]["fetchMaxCharsPerUrl"] == 12000
+    assert summary["webSearch"]["fetchMaxTotalChars"] == 24000
+    assert summary["webSearch"]["fetchStatus"] == "disabled"
     assert summary["webSearch"]["apiKeyConfigured"] is False
     assert summary["webSearch"]["apiKeySource"] == "none"
     assert summary["webSearch"]["apiKeyEnvVar"] == "TAVILY_API_KEY"
@@ -101,6 +106,10 @@ def test_settings_config_updates_web_search_without_echoing_secret(
                 "provider": "tavily",
                 "mode": "basic",
                 "maxResults": 4,
+                "fetchEnabled": True,
+                "fetchMaxUrls": 2,
+                "fetchMaxCharsPerUrl": 6000,
+                "fetchMaxTotalChars": 12000,
                 "apiKey": web_secret,
             }
         }
@@ -114,8 +123,15 @@ def test_settings_config_updates_web_search_without_echoing_secret(
     assert result["config"]["webSearch"]["apiKeyConfigured"] is True
     assert result["config"]["webSearch"]["apiKeySource"] == "stored"
     assert result["config"]["webSearch"]["status"] == "ready"
+    assert result["config"]["webSearch"]["fetchEnabled"] is True
+    assert result["config"]["webSearch"]["fetchMaxUrls"] == 2
+    assert result["config"]["webSearch"]["fetchMaxCharsPerUrl"] == 6000
+    assert result["config"]["webSearch"]["fetchMaxTotalChars"] == 12000
+    assert result["config"]["webSearch"]["fetchStatus"] == "ready"
     assert effective_env["TAVILY_API_KEY"] == web_secret
     assert effective_env["PLATO_WEB_SEARCH_ENABLED"] == "1"
+    assert effective_env["PLATO_WEB_FETCH_ENABLED"] == "1"
+    assert effective_env["PLATO_WEB_FETCH_MAX_URLS"] == "2"
     assert effective_env["PLATO_WEB_SEARCH_PROVIDER"] == "tavily"
     assert web_secret not in serialized
     assert web_secret not in store.config_path.read_text(encoding="utf-8")

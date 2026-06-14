@@ -33,6 +33,7 @@ SettingsConfigSource = Literal["default", "env", "stored"]
 SettingsApiKeySource = Literal["none", "env", "stored"]
 SettingsWebSearchProvider = Literal["tavily"]
 SettingsWebSearchStatus = Literal["disabled", "missing_key", "ready"]
+SettingsWebFetchStatus = Literal["disabled", "missing_key", "ready"]
 
 SUPPORTED_SETTINGS_PROVIDERS: tuple[SettingsProvider, ...] = (
     "litellm",
@@ -98,6 +99,11 @@ class SettingsConfigWebSearch(UiContractModel):
     provider_options: tuple[SettingsConfigWebSearchProviderOption, ...]
     mode: str
     max_results: int
+    fetch_enabled: bool
+    fetch_max_urls: int
+    fetch_max_chars_per_url: int
+    fetch_max_total_chars: int
+    fetch_status: SettingsWebFetchStatus
     api_key_configured: bool
     api_key_source: SettingsApiKeySource
     api_key_env_var: str
@@ -138,6 +144,10 @@ class UpdateSettingsConfigWebSearchPayload(UiContractModel):
     provider: str = Field(default="tavily", min_length=1)
     mode: Literal["basic"] = "basic"
     max_results: int = Field(default=5, ge=1, le=10)
+    fetch_enabled: bool = False
+    fetch_max_urls: int = Field(default=3, ge=1, le=5)
+    fetch_max_chars_per_url: int = Field(default=12000, ge=1000, le=20000)
+    fetch_max_total_chars: int = Field(default=24000, ge=1000, le=40000)
     api_key: str | None = None
 
 
@@ -154,6 +164,11 @@ class EffectiveWebSearchSettings:
     provider_source: SettingsConfigSource
     mode: str
     max_results: int
+    fetch_enabled: bool
+    fetch_max_urls: int
+    fetch_max_chars_per_url: int
+    fetch_max_total_chars: int
+    fetch_status: SettingsWebFetchStatus
     api_key: str | None
     api_key_source: SettingsApiKeySource
     api_key_env_var: str
@@ -346,6 +361,15 @@ class FileSettingsConfigStore:
         )
         if web_search.enabled:
             env["PLATO_WEB_SEARCH_ENABLED"] = "1"
+        if web_search.fetch_enabled:
+            env["PLATO_WEB_FETCH_ENABLED"] = "1"
+            env["PLATO_WEB_FETCH_MAX_URLS"] = str(web_search.fetch_max_urls)
+            env["PLATO_WEB_FETCH_MAX_CHARS_PER_URL"] = str(
+                web_search.fetch_max_chars_per_url
+            )
+            env["PLATO_WEB_FETCH_MAX_TOTAL_CHARS"] = str(
+                web_search.fetch_max_total_chars
+            )
         if web_search.provider:
             env["PLATO_WEB_SEARCH_PROVIDER"] = web_search.provider
         if web_search.api_key is not None:
@@ -516,6 +540,11 @@ def build_settings_config_summary(
             provider_options=_web_search_provider_options(),
             mode=web_search_settings.mode,
             max_results=web_search_settings.max_results,
+            fetch_enabled=web_search_settings.fetch_enabled,
+            fetch_max_urls=web_search_settings.fetch_max_urls,
+            fetch_max_chars_per_url=web_search_settings.fetch_max_chars_per_url,
+            fetch_max_total_chars=web_search_settings.fetch_max_total_chars,
+            fetch_status=web_search_settings.fetch_status,
             api_key_configured=web_search_settings.api_key_source != "none",
             api_key_source=web_search_settings.api_key_source,
             api_key_env_var=web_search_settings.api_key_env_var,
@@ -604,6 +633,40 @@ def effective_web_search_settings(
         mode = "basic"
     raw_max_results = stored_mapping.get("maxResults")
     max_results = _bounded_int(raw_max_results, default=5, minimum=1, maximum=10)
+    env_fetch_enabled = _env_flag(base_env.get("PLATO_WEB_FETCH_ENABLED"))
+    stored_fetch_enabled = stored_mapping.get("fetchEnabled")
+    fetch_enabled = (
+        env_fetch_enabled
+        if env_fetch_enabled is not None
+        else bool(stored_fetch_enabled)
+        if isinstance(stored_fetch_enabled, bool)
+        else False
+    )
+    fetch_enabled = bool(enabled and fetch_enabled)
+    fetch_max_urls = _bounded_int(
+        base_env.get("PLATO_WEB_FETCH_MAX_URLS", stored_mapping.get("fetchMaxUrls")),
+        default=3,
+        minimum=1,
+        maximum=5,
+    )
+    fetch_max_chars_per_url = _bounded_int(
+        base_env.get(
+            "PLATO_WEB_FETCH_MAX_CHARS_PER_URL",
+            stored_mapping.get("fetchMaxCharsPerUrl"),
+        ),
+        default=12000,
+        minimum=1000,
+        maximum=20000,
+    )
+    fetch_max_total_chars = _bounded_int(
+        base_env.get(
+            "PLATO_WEB_FETCH_MAX_TOTAL_CHARS",
+            stored_mapping.get("fetchMaxTotalChars"),
+        ),
+        default=24000,
+        minimum=1000,
+        maximum=40000,
+    )
     api_key_source, api_key_env_var, api_key = _web_search_api_key_source(
         provider,
         base_env=base_env,
@@ -617,12 +680,24 @@ def effective_web_search_settings(
         status = "missing_key"
     else:
         status = "ready"
+    fetch_status: SettingsWebFetchStatus
+    if not fetch_enabled:
+        fetch_status = "disabled"
+    elif api_key_source == "none":
+        fetch_status = "missing_key"
+    else:
+        fetch_status = "ready"
     return EffectiveWebSearchSettings(
         enabled=enabled,
         provider=provider,
         provider_source=provider_source,
         mode=mode,
         max_results=max_results,
+        fetch_enabled=fetch_enabled,
+        fetch_max_urls=fetch_max_urls,
+        fetch_max_chars_per_url=fetch_max_chars_per_url,
+        fetch_max_total_chars=fetch_max_total_chars,
+        fetch_status=fetch_status,
         api_key=api_key,
         api_key_source=api_key_source,
         api_key_env_var=api_key_env_var,
@@ -719,6 +794,12 @@ def _updated_config_data(
             "provider": parsed.web_search.provider.strip().lower(),
             "mode": parsed.web_search.mode,
             "maxResults": parsed.web_search.max_results,
+            "fetchEnabled": bool(
+                parsed.web_search.enabled and parsed.web_search.fetch_enabled
+            ),
+            "fetchMaxUrls": parsed.web_search.fetch_max_urls,
+            "fetchMaxCharsPerUrl": parsed.web_search.fetch_max_chars_per_url,
+            "fetchMaxTotalChars": parsed.web_search.fetch_max_total_chars,
         }
     updated["updatedAt"] = _timestamp(now)
     return updated
@@ -978,6 +1059,12 @@ def _bounded_int(value: object, *, default: int, minimum: int, maximum: int) -> 
         return default
     if isinstance(value, int):
         return min(maximum, max(minimum, value))
+    if isinstance(value, str):
+        try:
+            parsed = int(value.strip())
+        except ValueError:
+            return default
+        return min(maximum, max(minimum, parsed))
     return default
 
 
@@ -1043,6 +1130,7 @@ __all__ = [
     "SettingsConfigValidationError",
     "SettingsConfigWebSearch",
     "SettingsConfigWebSearchProviderOption",
+    "SettingsWebFetchStatus",
     "UpdateSettingsConfigPayload",
     "effective_web_search_settings",
     "build_settings_config_summary",

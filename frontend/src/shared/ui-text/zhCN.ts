@@ -432,6 +432,10 @@ export const zhCN: UiTextCatalog = {
       model: "模型",
       provider: "服务商",
       readiness: "就绪状态",
+      webFetch: "网页正文读取",
+      webFetchMaxCharsPerUrl: "单个 URL 字数上限",
+      webFetchMaxTotalChars: "总字数上限",
+      webFetchMaxUrls: "URL 数量上限",
       webSearch: "网页搜索",
       webSearchApiKey: "网页搜索 API 密钥",
       webSearchMaxResults: "结果数量",
@@ -508,6 +512,8 @@ export const zhCN: UiTextCatalog = {
       webSearchApiKeyConfigured: ({ source }) =>
         `已通过 ${source} 配置；留空可保持不变。`,
       webSearchApiKeyRequired: ({ hint }) => `开启时必填：${hint}。`,
+      webFetchDescription:
+        "允许执行 Agent 从选定的公开来源 URL 中读取有界正文。",
       webSearchDescription:
         "允许执行 Agent 搜索当前公开来源，并作为外部证据记录。",
       workspaceGitDesktopUnavailable:

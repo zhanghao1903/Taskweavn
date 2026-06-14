@@ -362,6 +362,11 @@ export type SettingsConfigSummary = {
     providerOptions: SettingsConfigWebSearchProviderOption[];
     mode: string;
     maxResults: number;
+    fetchEnabled: boolean;
+    fetchMaxUrls: number;
+    fetchMaxCharsPerUrl: number;
+    fetchMaxTotalChars: number;
+    fetchStatus: SettingsWebSearchStatus;
     apiKeyConfigured: boolean;
     apiKeySource: SettingsApiKeySource;
     apiKeyEnvVar: string;
@@ -396,6 +401,10 @@ export type UpdateSettingsConfigPayload = {
     provider: SettingsWebSearchProvider;
     mode: "basic";
     maxResults: number;
+    fetchEnabled?: boolean;
+    fetchMaxUrls?: number;
+    fetchMaxCharsPerUrl?: number;
+    fetchMaxTotalChars?: number;
     apiKey?: string;
   };
 };

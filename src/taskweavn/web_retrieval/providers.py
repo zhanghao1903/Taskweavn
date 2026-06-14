@@ -4,7 +4,12 @@ from __future__ import annotations
 
 from typing import Protocol
 
-from taskweavn.web_retrieval.models import WebSearchRequest, WebSearchResponse
+from taskweavn.web_retrieval.models import (
+    WebFetchRequest,
+    WebFetchResponse,
+    WebSearchRequest,
+    WebSearchResponse,
+)
 
 
 class WebSearchProvider(Protocol):
@@ -13,6 +18,14 @@ class WebSearchProvider(Protocol):
     provider: str
 
     def search(self, request: WebSearchRequest) -> WebSearchResponse: ...
+
+
+class WebFetchProvider(Protocol):
+    """Provider-neutral page extraction contract used by execution tools."""
+
+    provider: str
+
+    def fetch(self, request: WebFetchRequest) -> WebFetchResponse: ...
 
 
 class WebSearchConfigError(RuntimeError):

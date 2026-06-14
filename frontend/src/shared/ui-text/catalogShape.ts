@@ -331,6 +331,10 @@ export type UiTextCatalog = {
       model: string;
       provider: string;
       readiness: string;
+      webFetch: string;
+      webFetchMaxCharsPerUrl: string;
+      webFetchMaxTotalChars: string;
+      webFetchMaxUrls: string;
       webSearch: string;
       webSearchApiKey: string;
       webSearchMaxResults: string;
@@ -400,6 +404,7 @@ export type UiTextCatalog = {
       setupRequiredBody: string;
       webSearchApiKeyConfigured: UiTextTemplate<{ source: string }>;
       webSearchApiKeyRequired: UiTextTemplate<{ hint: string }>;
+      webFetchDescription: string;
       webSearchDescription: string;
       workspaceGitDesktopUnavailable: string;
     };

@@ -39,6 +39,11 @@ from taskweavn.tools.web_search import (
     WebSearchObservation,
     WebSearchTool,
 )
+from taskweavn.tools.web_fetch import (
+    WebFetchAction,
+    WebFetchObservation,
+    WebFetchTool,
+)
 from taskweavn.tools.workspace import (
     PathOutsideWorkspaceError,
     PathProtectedWorkspaceError,
@@ -73,6 +78,9 @@ __all__ = [
     "SearchWorkspaceAction",
     "SearchWorkspaceTool",
     "Tool",
+    "WebFetchAction",
+    "WebFetchObservation",
+    "WebFetchTool",
     "WebSearchAction",
     "WebSearchObservation",
     "WebSearchTool",
