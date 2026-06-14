@@ -506,6 +506,16 @@ export const zhCN: UiTextCatalog = {
       model: "模型",
       provider: "服务商",
       readiness: "就绪状态",
+      webFetch: "网页正文读取",
+      webFetchMaxCharsPerUrl: "单个 URL 字数上限",
+      webFetchMaxTotalChars: "总字数上限",
+      webFetchMaxUrls: "URL 数量上限",
+      webSearch: "网页搜索",
+      webSearchApiKey: "网页搜索 API 密钥",
+      webSearchMaxResults: "结果数量",
+      webSearchMode: "搜索模式",
+      webSearchProvider: "搜索服务商",
+      webSearchStatus: "网页搜索状态",
     },
     labels: {
       blockingIssues: "阻塞问题",
@@ -537,6 +547,7 @@ export const zhCN: UiTextCatalog = {
       settingsSetupForm: "设置配置表单",
       settingsUnavailable: "设置不可用",
       sidecarRequired: "需要 sidecar",
+      webSearchReady: "网页搜索已就绪",
       warnings: "警告",
       workspaceGit: "工作区 Git",
       zipPath: "Zip 路径",
@@ -572,6 +583,13 @@ export const zhCN: UiTextCatalog = {
         "请以本地 sidecar HTTP 模式启动 Plato 后再编辑 Product 1.0 设置。",
       setupRequiredBody:
         "Plato 需要本地 LLM 配置后才能运行主页面工作流。",
+      webSearchApiKeyConfigured: ({ source }) =>
+        `已通过 ${source} 配置；留空可保持不变。`,
+      webSearchApiKeyRequired: ({ hint }) => `开启时必填：${hint}。`,
+      webFetchDescription:
+        "允许执行 Agent 从选定的公开来源 URL 中读取有界正文。",
+      webSearchDescription:
+        "允许执行 Agent 搜索当前公开来源，并作为外部证据记录。",
       workspaceGitDesktopUnavailable:
         "工作区 Git 初始化仅在 Plato 桌面应用中可用。",
     },

@@ -369,6 +369,20 @@ def build_main_page_workspace_runtime(
         result_summary_store = dependencies.result_summary_store or SqliteTaskExecutionSummaryStore(
             layout.workspace_results_db
         )
+        settings_store = file_settings_config_store_for(
+            workspace_root=config.workspace_root,
+            global_settings_root=config.global_settings_root,
+        )
+        settings_config_gateway = (
+            dependencies.settings_config_gateway
+            or DefaultSettingsConfigGateway(
+                workspace_root=config.workspace_root,
+                logging_enabled=config.enable_session_logging,
+                logging_level=config.logging_level,
+                selected_logging_profile=config.logging_profile,
+                store=settings_store,
+            )
+        )
         event_source = dependencies.event_source or SqliteUiEventSource(
             layout.workspace_ui_events_db
         )
@@ -389,6 +403,7 @@ def build_main_page_workspace_runtime(
                 max_steps=config.default_agent_max_steps,
                 result_summary_store=result_summary_store,
                 ui_event_store=event_store,
+                settings_store=settings_store,
             )
         execution_dispatcher = FixedRouteExecutionDispatcher(
             task_bus=task_bus,
