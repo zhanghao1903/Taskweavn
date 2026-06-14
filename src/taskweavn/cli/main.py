@@ -147,6 +147,18 @@ def plato_sidecar(
             ),
         ),
     ] = None,
+    enable_read_only_inquiry_llm: Annotated[
+        bool,
+        typer.Option(
+            "--enable-read-only-inquiry-llm/--disable-read-only-inquiry-llm",
+            envvar="PLATO_ENABLE_READ_ONLY_INQUIRY_LLM",
+            help=(
+                "Enable guarded LLM-rendered Read-Only Inquiry answers. "
+                "Defaults enabled; set PLATO_ENABLE_READ_ONLY_INQUIRY_LLM=0 "
+                "or pass --disable-read-only-inquiry-llm to force deterministic answers."
+            ),
+        ),
+    ] = True,
 ) -> None:
     """Start the local Plato Main Page backend sidecar."""
 
@@ -158,6 +170,7 @@ def plato_sidecar(
             port=port,
             workspace_registry=workspace_registry,
             global_settings_root=global_settings_root,
+            enable_read_only_inquiry_llm=enable_read_only_inquiry_llm,
         ),
         (
             MainPageSidecarDependencies(
@@ -287,6 +300,18 @@ def plato_dev(
             help="LLM model identifier for Collaborator authoring. Defaults to env.",
         ),
     ] = None,
+    enable_read_only_inquiry_llm: Annotated[
+        bool,
+        typer.Option(
+            "--enable-read-only-inquiry-llm/--disable-read-only-inquiry-llm",
+            envvar="PLATO_ENABLE_READ_ONLY_INQUIRY_LLM",
+            help=(
+                "Enable guarded LLM-rendered Read-Only Inquiry answers. "
+                "Defaults enabled; set PLATO_ENABLE_READ_ONLY_INQUIRY_LLM=0 "
+                "or pass --disable-read-only-inquiry-llm to force deterministic answers."
+            ),
+        ),
+    ] = True,
 ) -> None:
     """Start Plato backend sidecar and frontend dev server together."""
 
@@ -307,6 +332,7 @@ def plato_dev(
             workspace_root=workspace,
             host=sidecar_host,
             port=sidecar_port,
+            enable_read_only_inquiry_llm=enable_read_only_inquiry_llm,
         ),
         MainPageSidecarDependencies(llm=llm),
     )

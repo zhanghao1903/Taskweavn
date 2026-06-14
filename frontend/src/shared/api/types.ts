@@ -14,6 +14,18 @@ export type AuditRecordId = string;
 export type EvidenceId = string;
 export type EventCursor = string;
 
+export type ProductRecoveryAction =
+  | "edit_input"
+  | "answer_ask"
+  | "retry_command"
+  | "retry_task"
+  | "refresh_snapshot"
+  | "wait_for_events"
+  | "open_audit"
+  | "open_settings"
+  | "export_diagnostics"
+  | "none";
+
 export type TaskRef = {
   kind: "draft" | "published";
   id: string;
@@ -408,6 +420,7 @@ export type SessionMessageView = {
   createdAt: string;
   relatedConfirmationId?: ConfirmationId | null;
   relatedCommandId?: CommandId | null;
+  activityRelatedRefs?: SessionActivityRefView[];
 };
 
 export type SessionActivityItemKind =
@@ -494,6 +507,204 @@ export type SessionActivityTimelineResult = {
   items: SessionActivityItemView[];
   nextCursor?: EventCursor | null;
   totalCount: number;
+  generatedAt: string;
+};
+
+export type RuntimeInputMode = "auto" | "ask" | "guide" | "change";
+
+export type RuntimeInputIntent =
+  | "question"
+  | "guidance"
+  | "command"
+  | "ask_answer"
+  | "confirmation_response"
+  | "execution_request"
+  | "clarification"
+  | "unsupported";
+
+export type RuntimeInputConfidence = "high" | "medium" | "low";
+
+export type RuntimeInputDispatchTarget =
+  | "read_only_inquiry"
+  | "record_guidance"
+  | "resolve_ask"
+  | "resolve_confirmation"
+  | "existing_command"
+  | "execution_handoff"
+  | "clarification"
+  | "unsupported";
+
+export type RuntimeInputOutcomeStatus =
+  | "dispatched"
+  | "answered"
+  | "needs_clarification"
+  | "unsupported"
+  | "rejected";
+
+export type RuntimeInputScopeKind = "session" | "plan" | "task";
+
+export type ReadOnlyInquiryScopeKind = RuntimeInputScopeKind;
+
+export type ReadOnlyInquiryConfidence = RuntimeInputConfidence;
+
+export type ReadOnlyInquiryStatus =
+  | "answered"
+  | "needs_clarification"
+  | "unsupported"
+  | "rejected";
+
+export type ReadOnlyInquiryRefKind =
+  | "task"
+  | "plan"
+  | "result"
+  | "file"
+  | "diff"
+  | "audit_record"
+  | "audit_evidence"
+  | "diagnostic"
+  | "activity";
+
+export type ReadOnlyInquiryEvidenceKind =
+  | "workspace_status"
+  | "file_snapshot"
+  | "diff_snapshot"
+  | "result_summary"
+  | "file_change_summary"
+  | "audit_record"
+  | "audit_evidence"
+  | "diagnostic_summary"
+  | "activity_item"
+  | "session_status"
+  | "task_status"
+  | "plan_status";
+
+export type ReadOnlyInquiryDisclosure = "public" | "partial" | "hidden";
+
+export type ReadOnlyInquiryWarningCode =
+  | "inquiry.context_empty"
+  | "inquiry.context_partial"
+  | "inquiry.context_truncated"
+  | "inquiry.evidence_hidden"
+  | "inquiry.provider_unavailable"
+  | "inquiry.unsupported_question"
+  | "inquiry.no_mutation_boundary";
+
+export type ReadOnlyInquiryScope = {
+  kind: ReadOnlyInquiryScopeKind;
+  planId?: PlanId | null;
+  taskNodeId?: TaskNodeId | null;
+};
+
+export type ReadOnlyInquiryRef = {
+  kind: ReadOnlyInquiryRefKind;
+  id?: string | null;
+  path?: string | null;
+  evidenceId?: EvidenceId | null;
+  label: string;
+};
+
+export type ReadOnlyInquiryLimits = {
+  maxEvidenceItems?: number | null;
+  maxContextBytes?: number | null;
+  maxAnswerChars?: number | null;
+};
+
+export type ReadOnlyInquiryRequest = {
+  inquiryId: string;
+  sessionId: SessionId;
+  workspaceId?: WorkspaceId | null;
+  question: string;
+  scope: ReadOnlyInquiryScope;
+  refs?: ReadOnlyInquiryRef[];
+  limits?: ReadOnlyInquiryLimits;
+};
+
+export type ReadOnlyInquiryAnswer = {
+  title?: string | null;
+  body: string;
+  confidence: ReadOnlyInquiryConfidence;
+};
+
+export type ReadOnlyInquiryEvidenceRef = {
+  kind: ReadOnlyInquiryEvidenceKind;
+  refId: string;
+  parentRefId?: string | null;
+  label: string;
+  disclosure: ReadOnlyInquiryDisclosure;
+  truncated: boolean;
+};
+
+export type ReadOnlyInquiryWarning = {
+  code: ReadOnlyInquiryWarningCode;
+  message: string;
+  ref?: ReadOnlyInquiryRef | null;
+};
+
+export type ReadOnlyInquiryResult = {
+  inquiryId: string;
+  sessionId: SessionId;
+  scope: ReadOnlyInquiryScope;
+  status: ReadOnlyInquiryStatus;
+  answer?: ReadOnlyInquiryAnswer | null;
+  evidenceRefs: ReadOnlyInquiryEvidenceRef[];
+  warnings: ReadOnlyInquiryWarning[];
+  activity?: SessionActivityItemView | null;
+  generatedAt: string;
+};
+
+export type RuntimeInputSelection = {
+  scopeKind: RuntimeInputScopeKind;
+  planId?: PlanId | null;
+  taskNodeId?: TaskNodeId | null;
+  refs?: ObjectRef[];
+};
+
+export type RuntimeInputClientState = {
+  activeAskId?: AskId | null;
+  activeConfirmationId?: ConfirmationId | null;
+};
+
+export type RuntimeInputRouteRequest = {
+  commandId: CommandId;
+  sessionId: SessionId;
+  workspaceId?: WorkspaceId | null;
+  content: string;
+  mode?: RuntimeInputMode;
+  selection: RuntimeInputSelection;
+  inquiryRefs?: ReadOnlyInquiryRef[];
+  clientState?: RuntimeInputClientState;
+};
+
+export type RuntimeInputDecisionScope = {
+  kind: RuntimeInputScopeKind;
+  planId?: PlanId | null;
+  taskNodeId?: TaskNodeId | null;
+};
+
+export type RuntimeInputRouteDecision = {
+  id: string;
+  intent: RuntimeInputIntent;
+  scope: RuntimeInputDecisionScope;
+  confidence: RuntimeInputConfidence;
+  sideEffect: SessionActivitySideEffect;
+  dispatchTarget: RuntimeInputDispatchTarget;
+  explanation: string;
+  relatedRefs: SessionActivityRefView[];
+};
+
+export type RuntimeInputOutcome = {
+  status: RuntimeInputOutcomeStatus;
+  userMessage: string;
+  recoveryActions: ProductRecoveryAction[];
+};
+
+export type RuntimeInputRouteResult = {
+  sessionId: SessionId;
+  decision: RuntimeInputRouteDecision;
+  outcome: RuntimeInputOutcome;
+  activity?: SessionActivityItemView | null;
+  commandResponse?: CommandResponse | null;
+  inquiryResult?: ReadOnlyInquiryResult | null;
   generatedAt: string;
 };
 

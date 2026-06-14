@@ -6,6 +6,7 @@ import type {
   CancelAskPayload,
   DeferAskPayload,
   CreateSessionPayload,
+  DiagnosticBundleExportResult,
   GenerateTaskTreePayload,
   PublishTaskTreePayload,
   RepairAuthoringStatePayload,
@@ -26,6 +27,9 @@ import type {
   MainPageSnapshot,
   SessionActivityTimelineResult,
   SessionId,
+  QueryResponse,
+  RuntimeInputRouteRequest,
+  RuntimeInputRouteResult,
   TaskNodeId,
   UiEvent,
   WorkspaceId,
@@ -92,6 +96,11 @@ export type LoadSessionActivity = (
   workspaceId?: WorkspaceId | null,
 ) => Promise<SessionActivityTimelineResult>;
 
+export type ExportDiagnosticBundle = (
+  sessionId: SessionId,
+  workspaceId?: WorkspaceId | null,
+) => Promise<DiagnosticBundleExportResult>;
+
 export type SessionLifecycleCommand<TPayload = void> = (
   payload: TPayload,
   workspaceId?: WorkspaceId | null,
@@ -149,6 +158,11 @@ export type GenerateTaskTreeCommand = (
   workspaceId?: WorkspaceId | null,
 ) => Promise<CommandResponse>;
 
+export type RouteRuntimeInputCommand = (
+  request: RuntimeInputRouteRequest,
+  workspaceId?: WorkspaceId | null,
+) => Promise<QueryResponse<RuntimeInputRouteResult>>;
+
 export type UpdateTaskNodeCommand = (
   sessionId: SessionId,
   taskNodeId: TaskNodeId,
@@ -196,6 +210,7 @@ export type MainPageAdapter = {
   createSession: SessionLifecycleCommand<CreateSessionPayload>;
   deferAsk: DeferAskCommand;
   deleteSession: SessionLifecycleCommand<SessionId>;
+  exportDiagnosticBundle?: ExportDiagnosticBundle;
   generateTaskTree: GenerateTaskTreeCommand;
   loadSnapshot: LoadMainPageSnapshot;
   loadSessionActivity?: LoadSessionActivity;
@@ -206,6 +221,7 @@ export type MainPageAdapter = {
   renameSession: SessionLifecycleCommand<
     RenameSessionPayload & { sessionId: SessionId }
   >;
+  routeRuntimeInput?: RouteRuntimeInputCommand;
   retryTask: RetryTaskCommand;
   resolveConfirmation: ResolveConfirmationCommand;
   runtimeKind: MainPageRuntimeKind;

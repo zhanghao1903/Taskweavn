@@ -44,12 +44,16 @@ class ControlledGitCliInspectionProvider:
         )
         branch = self._branch_name()
         head_sha = self._head_sha()
-        files = tuple(_parse_status_files(output, self.workspace_id))
+        parsed_status = _parse_status_files(output, self.workspace_id)
+        files = tuple(parsed_status.files)
         visible_files = files[:status_limit]
         has_more = len(files) > status_limit
         staged_count = sum(1 for item in files if item["staged"])
         unstaged_count = sum(1 for item in files if item["unstaged"])
         untracked_count = sum(1 for item in files if item["changeKind"] == "untracked")
+        local_tooling_count = sum(
+            1 for item in files if item.get("displayCategory") == "local_tooling"
+        )
         warnings = []
         if has_more:
             warnings.append(
@@ -77,6 +81,8 @@ class ControlledGitCliInspectionProvider:
                 "stagedFileCount": staged_count,
                 "unstagedFileCount": unstaged_count,
                 "untrackedFileCount": untracked_count,
+                "localToolingFileCount": local_tooling_count,
+                "suppressedLocalNoiseFileCount": parsed_status.suppressed_local_noise,
                 "hasMore": has_more,
             },
             "files": list(visible_files),
@@ -125,6 +131,18 @@ class ControlledGitCliInspectionProvider:
                 unavailable_reason="binary",
                 binary=True,
             )
+        status_files = self.status()["files"]
+        change_kind = _status_kind_for_path(status_files, path_ref.relative_path)
+        if not text.strip() and base == "head" and change_kind == "untracked":
+            return _untracked_file_diff(
+                self.workspace_id,
+                generated_at,
+                path_ref,
+                max_bytes=limit,
+                max_readable_bytes=self.limits.readable_text_file_bytes,
+                line_limit=self.limits.file_hard_line_count,
+                single_line_bytes=self.limits.single_line_bytes,
+            )
         if not text.strip():
             return _unavailable_diff(
                 self.workspace_id,
@@ -152,7 +170,7 @@ class ControlledGitCliInspectionProvider:
             "generatedAt": generated_at,
             "file": {
                 **path_ref.to_contract(),
-                "changeKind": _status_kind_for_path(self.status()["files"], path_ref.relative_path),
+                "changeKind": change_kind,
                 "binary": False,
             },
             "base": base,
@@ -387,8 +405,15 @@ class ControlledGitCliInspectionProvider:
         return completed.stdout
 
 
-def _parse_status_files(output: str, workspace_id: str) -> list[dict[str, Any]]:
+@dataclass(frozen=True)
+class ParsedStatusFiles:
+    files: tuple[dict[str, Any], ...]
+    suppressed_local_noise: int
+
+
+def _parse_status_files(output: str, workspace_id: str) -> ParsedStatusFiles:
     files: list[dict[str, Any]] = []
+    suppressed_local_noise = 0
     for line in output.splitlines():
         if len(line) < 4:
             continue
@@ -400,6 +425,10 @@ def _parse_status_files(output: str, workspace_id: str) -> list[dict[str, Any]]:
             old_relative_path, raw_path = raw_path.split(" -> ", 1)
         relative_path = _unquote_git_path(raw_path)
         if relative_path.split("/", 1)[0] in PROTECTED_WORKSPACE_METADATA_DIR_NAMES:
+            continue
+        display_category = _display_category_for_path(relative_path)
+        if display_category == "system_noise":
+            suppressed_local_noise += 1
             continue
         path_label = f"workspace://{workspace_id}/{relative_path}"
         staged = x_status not in (" ", "?")
@@ -413,12 +442,26 @@ def _parse_status_files(output: str, workspace_id: str) -> list[dict[str, Any]]:
             "binary": None,
             "relatedTaskRefs": [],
         }
+        if display_category != "project":
+            item["displayCategory"] = display_category
         if old_relative_path:
             old_path = _unquote_git_path(old_relative_path)
             item["oldRelativePath"] = old_path
             item["oldPathLabel"] = f"workspace://{workspace_id}/{old_path}"
         files.append(item)
-    return files
+    return ParsedStatusFiles(
+        files=tuple(files),
+        suppressed_local_noise=suppressed_local_noise,
+    )
+
+
+def _display_category_for_path(relative_path: str) -> str:
+    name = relative_path.rsplit("/", 1)[-1]
+    if name in {".DS_Store", "Thumbs.db", "Desktop.ini"}:
+        return "system_noise"
+    if relative_path.startswith((".idea/", ".vscode/")):
+        return "local_tooling"
+    return "project"
 
 
 def _change_kind(x_status: str, y_status: str) -> str:
@@ -524,6 +567,127 @@ def _looks_binary_diff(text: str) -> bool:
 
 def _looks_binary_bytes(data: bytes) -> bool:
     return b"\0" in data[:4096]
+
+
+def _untracked_file_diff(
+    workspace_id: str,
+    generated_at: str,
+    path_ref: WorkspacePathRef,
+    *,
+    max_bytes: int,
+    max_readable_bytes: int,
+    line_limit: int,
+    single_line_bytes: int,
+) -> dict[str, Any]:
+    target = path_ref.resolved_path
+    if not target.exists() or target.is_dir():
+        return _unavailable_diff(
+            workspace_id,
+            generated_at,
+            path_ref,
+            unavailable_reason="file_missing",
+        )
+    size = target.stat().st_size
+    if size > max_readable_bytes:
+        return _unavailable_diff(
+            workspace_id,
+            generated_at,
+            path_ref,
+            unavailable_reason="too_large",
+            warnings=[
+                _warning(
+                    "workspace.inspection_truncated",
+                    "Untracked file is too large for diff display.",
+                    path_label=path_ref.path_label,
+                )
+            ],
+        )
+    data = target.read_bytes()
+    if _looks_binary_bytes(data):
+        return _unavailable_diff(
+            workspace_id,
+            generated_at,
+            path_ref,
+            unavailable_reason="binary",
+            binary=True,
+        )
+    try:
+        text = data.decode("utf-8")
+    except UnicodeDecodeError:
+        return _unavailable_diff(
+            workspace_id,
+            generated_at,
+            path_ref,
+            unavailable_reason="binary",
+            binary=True,
+        )
+
+    lines: list[dict[str, Any]] = []
+    payload_bytes = 0
+    truncated = False
+    all_lines = text.splitlines()
+    for index, line in enumerate(all_lines[:line_limit], start=1):
+        safe_line, line_truncated = _truncate_text_bytes(line, single_line_bytes)
+        encoded_length = len(safe_line.encode("utf-8"))
+        if payload_bytes + encoded_length > max_bytes:
+            truncated = True
+            break
+        payload_bytes += encoded_length
+        truncated = truncated or line_truncated
+        lines.append(
+            {
+                "kind": "add",
+                "oldLine": None,
+                "newLine": index,
+                "text": safe_line,
+            }
+        )
+    if len(all_lines) > line_limit:
+        truncated = True
+
+    warnings = []
+    if truncated:
+        warnings.append(
+            _warning(
+                "workspace.inspection_truncated",
+                "Untracked file diff was truncated.",
+                path_label=path_ref.path_label,
+            )
+        )
+    hunks = []
+    if lines:
+        hunks.append(
+            {
+                "hunkId": "hunk-1",
+                "oldStart": 0,
+                "oldLines": 0,
+                "newStart": 1,
+                "newLines": len(lines),
+                "header": "new file",
+                "lines": lines,
+            }
+        )
+    return {
+        "schemaVersion": "plato.workspace_inspection.diff.v1",
+        "workspaceId": workspace_id,
+        "generatedAt": generated_at,
+        "file": {
+            **path_ref.to_contract(),
+            "changeKind": "untracked",
+            "binary": False,
+        },
+        "base": "head",
+        "isAvailable": True,
+        "hunks": hunks,
+        "stats": {
+            "additions": len(lines),
+            "deletions": 0,
+            "hunkCount": len(hunks),
+            "truncated": truncated,
+        },
+        "contentHash": _content_hash(data),
+        "warnings": warnings,
+    }
 
 
 def _truncate_text_bytes(value: str, limit: int) -> tuple[str, bool]:

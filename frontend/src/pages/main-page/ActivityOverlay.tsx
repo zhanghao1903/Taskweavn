@@ -3,6 +3,7 @@ import { useMemo, useState } from "react";
 import type {
   SessionActivityItemKind,
   SessionActivityItemView,
+  SessionActivityRefView,
   SessionActivitySideEffect,
   TaskNodeCardView,
 } from "../../shared/api/types";
@@ -14,17 +15,25 @@ import styles from "./ActivityOverlay.module.css";
 
 type ActivityFilter = "currentTask" | "all" | "results" | "errors";
 
+export type ActivityOverlayStatusMessage = {
+  body: string;
+  tone: "danger" | "info";
+};
+
 export type ActivityOverlayProps = {
   errorMessage?: string | null;
   isLoading?: boolean;
   items: readonly SessionActivityItemView[];
   onClose: () => void;
+  onOpenAudit?: (ref: SessionActivityRefView) => void;
+  onOpenDiagnostic?: (ref: SessionActivityRefView) => void;
   onOpenFiles?: (taskNodeId: string | null) => void;
   onOpenPlan?: () => void;
   onOpenResult?: (taskNodeId: string | null) => void;
   onOpenTask?: (taskNodeId: string) => void;
   onRetry?: () => void;
   selectedTask: TaskNodeCardView | undefined;
+  statusMessage?: ActivityOverlayStatusMessage | null;
 };
 
 export function ActivityOverlay({
@@ -32,12 +41,15 @@ export function ActivityOverlay({
   isLoading = false,
   items,
   onClose,
+  onOpenAudit,
+  onOpenDiagnostic,
   onOpenFiles,
   onOpenPlan,
   onOpenResult,
   onOpenTask,
   onRetry,
   selectedTask,
+  statusMessage = null,
 }: ActivityOverlayProps) {
   const uiText = useUiText();
   const [activeFilter, setActiveFilter] = useState<ActivityFilter>(
@@ -106,6 +118,22 @@ export function ActivityOverlay({
         )}
       </div>
 
+      <div className={styles.statusRegion}>
+        {statusMessage ? (
+          <div
+            className={cx(
+              styles.statusBanner,
+              statusMessage.tone === "danger"
+                ? styles.statusBannerDanger
+                : styles.statusBannerInfo,
+            )}
+            role={statusMessage.tone === "danger" ? "alert" : "status"}
+          >
+            {statusMessage.body}
+          </div>
+        ) : null}
+      </div>
+
       {readerItem ? (
         <ResultReader
           item={readerItem}
@@ -137,6 +165,8 @@ export function ActivityOverlay({
             <ActivityItem
               item={item}
               key={item.id}
+              onOpenAudit={onOpenAudit}
+              onOpenDiagnostic={onOpenDiagnostic}
               onOpenFiles={onOpenFiles}
               onOpenPlan={onOpenPlan}
               onOpenReader={() => setReaderItem(item)}
@@ -152,6 +182,8 @@ export function ActivityOverlay({
 
 function ActivityItem({
   item,
+  onOpenAudit,
+  onOpenDiagnostic,
   onOpenFiles,
   onOpenPlan,
   onOpenReader,
@@ -159,6 +191,8 @@ function ActivityItem({
   onOpenTask,
 }: {
   item: SessionActivityItemView;
+  onOpenAudit?: (ref: SessionActivityRefView) => void;
+  onOpenDiagnostic?: (ref: SessionActivityRefView) => void;
   onOpenFiles?: (taskNodeId: string | null) => void;
   onOpenPlan?: () => void;
   onOpenReader: () => void;
@@ -180,40 +214,50 @@ function ActivityItem({
           {formatActivityTime(item.occurredAt)}
         </time>
       </div>
-      <strong title={item.title}>{item.title}</strong>
-      <p>{item.body}</p>
-      <div className={styles.itemMeta}>
-        <Badge size="sm" tone={item.scopeKind === "task" ? "blue" : "neutral"}>
-          {scopeLabel}
-        </Badge>
-        <Badge size="sm" tone="neutral">
-          {activitySideEffectLabel(item.sideEffect, uiText)}
-        </Badge>
-        {isResult ? (
-          <Button onClick={onOpenReader} size="sm" variant="ghost">
-            {uiText.main.activity.actions.viewFullResult}
-          </Button>
-        ) : null}
+      <strong className={styles.itemTitle} title={item.title}>
+        {item.title}
+      </strong>
+      <p className={styles.itemBody}>{item.body}</p>
+      <div className={styles.itemFooter}>
+        <div className={styles.itemMeta}>
+          <Badge size="sm" tone={item.scopeKind === "task" ? "blue" : "neutral"}>
+            {scopeLabel}
+          </Badge>
+          <Badge size="sm" tone="neutral">
+            {activitySideEffectLabel(item.sideEffect, uiText)}
+          </Badge>
+          {isResult ? (
+            <Button onClick={onOpenReader} size="sm" variant="ghost">
+              {uiText.main.activity.actions.viewFullResult}
+            </Button>
+          ) : null}
+        </div>
+        <RelatedRefs
+          item={item}
+          onOpenAudit={onOpenAudit}
+          onOpenDiagnostic={onOpenDiagnostic}
+          onOpenFiles={onOpenFiles}
+          onOpenPlan={onOpenPlan}
+          onOpenResult={onOpenResult}
+          onOpenTask={onOpenTask}
+        />
       </div>
-      <RelatedRefs
-        item={item}
-        onOpenFiles={onOpenFiles}
-        onOpenPlan={onOpenPlan}
-        onOpenResult={onOpenResult}
-        onOpenTask={onOpenTask}
-      />
     </li>
   );
 }
 
 function RelatedRefs({
   item,
+  onOpenAudit,
+  onOpenDiagnostic,
   onOpenFiles,
   onOpenPlan,
   onOpenResult,
   onOpenTask,
 }: {
   item: SessionActivityItemView;
+  onOpenAudit?: (ref: SessionActivityRefView) => void;
+  onOpenDiagnostic?: (ref: SessionActivityRefView) => void;
   onOpenFiles?: (taskNodeId: string | null) => void;
   onOpenPlan?: () => void;
   onOpenResult?: (taskNodeId: string | null) => void;
@@ -222,6 +266,8 @@ function RelatedRefs({
   const uiText = useUiText();
   const controls = relatedControls({
     item,
+    onOpenAudit,
+    onOpenDiagnostic,
     onOpenFiles,
     onOpenPlan,
     onOpenResult,
@@ -239,14 +285,20 @@ function RelatedRefs({
       className={styles.relatedRefs}
     >
       {controls.map((control) => (
-        <Button
-          key={control.key}
-          onClick={control.onClick}
-          size="sm"
-          variant="ghost"
-        >
-          {control.label}
-        </Button>
+        control.href ? (
+          <Button asChild key={control.key} size="sm" variant="ghost">
+            <a href={control.href}>{control.label}</a>
+          </Button>
+        ) : (
+          <Button
+            key={control.key}
+            onClick={control.onClick}
+            size="sm"
+            variant="ghost"
+          >
+            {control.label}
+          </Button>
+        )
       ))}
     </div>
   );
@@ -254,6 +306,8 @@ function RelatedRefs({
 
 function relatedControls({
   item,
+  onOpenAudit,
+  onOpenDiagnostic,
   onOpenFiles,
   onOpenPlan,
   onOpenResult,
@@ -261,15 +315,25 @@ function relatedControls({
   uiText,
 }: {
   item: SessionActivityItemView;
+  onOpenAudit?: (ref: SessionActivityRefView) => void;
+  onOpenDiagnostic?: (ref: SessionActivityRefView) => void;
   onOpenFiles?: (taskNodeId: string | null) => void;
   onOpenPlan?: () => void;
   onOpenResult?: (taskNodeId: string | null) => void;
   onOpenTask?: (taskNodeId: string) => void;
   uiText: ReturnType<typeof useUiText>;
 }) {
-  const controls: Array<{ key: string; label: string; onClick: () => void }> = [];
+  const controls: Array<{
+    key: string;
+    label: string;
+    href?: string | null;
+    onClick?: () => void;
+  }> = [];
   const hasRef = (kind: SessionActivityItemView["relatedRefs"][number]["kind"]) =>
     item.relatedRefs.some((ref) => ref.kind === kind);
+  const firstRef = (
+    kind: SessionActivityItemView["relatedRefs"][number]["kind"],
+  ) => item.relatedRefs.find((ref) => ref.kind === kind);
 
   if (hasRef("plan") && onOpenPlan) {
     controls.push({
@@ -292,11 +356,49 @@ function relatedControls({
       onClick: () => onOpenResult(item.taskNodeId ?? null),
     });
   }
-  if (hasRef("file") && onOpenFiles) {
+  const fileRef = firstRef("file");
+  if (fileRef?.href) {
+    controls.push({
+      href: fileRef.href,
+      key: "files",
+      label: uiText.main.activity.actions.openFiles,
+    });
+  } else if (hasRef("file") && onOpenFiles) {
     controls.push({
       key: "files",
       label: uiText.main.activity.actions.openFiles,
       onClick: () => onOpenFiles(item.taskNodeId ?? null),
+    });
+  }
+  const auditRef =
+    item.relatedRefs.find(
+      (ref) => ref.kind === "audit" && ref.href?.includes("evidenceId="),
+    ) ?? firstRef("audit");
+  if (auditRef?.href) {
+    controls.push({
+      href: auditRef.href,
+      key: "audit",
+      label: uiText.main.activity.actions.openAudit,
+    });
+  } else if (auditRef && onOpenAudit) {
+    controls.push({
+      key: "audit",
+      label: uiText.main.activity.actions.openAudit,
+      onClick: () => onOpenAudit(auditRef),
+    });
+  }
+  const diagnosticRef = firstRef("diagnostic");
+  if (diagnosticRef?.href) {
+    controls.push({
+      href: diagnosticRef.href,
+      key: "diagnostic",
+      label: uiText.main.activity.actions.openDiagnostic,
+    });
+  } else if (diagnosticRef && onOpenDiagnostic) {
+    controls.push({
+      key: "diagnostic",
+      label: uiText.settings.actions.exportDiagnostics,
+      onClick: () => onOpenDiagnostic(diagnosticRef),
     });
   }
 

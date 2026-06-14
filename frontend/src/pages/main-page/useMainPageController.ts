@@ -9,10 +9,15 @@ import type {
 import type {
   ConfirmationActionView,
   AskId,
+  MainPageSnapshot,
+  RuntimeInputRouteRequest,
+  RuntimeInputRouteResult,
+  SessionActivityItemView,
   SessionSummary,
   TaskNodeId,
   WorkspaceId,
 } from "../../shared/api/types";
+import { productRecoveryActionsFromApiError } from "../../shared/api/productErrors";
 import {
   summarizeCommandResponse,
   summarizeMainPageSnapshot,
@@ -161,6 +166,7 @@ export type MainPageController = {
   taskTreeCommandError: string | null;
   taskTreeCommandRecoveryActions: ProductRecoveryAction[];
   uiNotice: string | null;
+  runtimeActivityItems: SessionActivityItemView[];
   workspaceCatalog: WorkspaceCatalogResult | null;
   actions: {
     cancelSessionDialog: () => void;
@@ -235,6 +241,9 @@ export function useMainPageController({
     setTaskTreeCommandRecoveryActions,
   ] = useState<ProductRecoveryAction[]>([]);
   const [uiNotice, setUiNotice] = useState<string | null>(null);
+  const [runtimeActivityItems, setRuntimeActivityItems] = useState<
+    SessionActivityItemView[]
+  >([]);
   const [sessionDialog, setSessionDialog] = useState<SessionLifecycleDialog>({
     mode: "idle",
   });
@@ -356,6 +365,10 @@ export function useMainPageController({
     }
     setActiveWorkspaceId(workspaceCatalog.currentWorkspaceId);
   }, [activeWorkspaceId, workspaceCatalog]);
+
+  useEffect(() => {
+    setRuntimeActivityItems([]);
+  }, [activeSessionId, activeWorkspaceId]);
 
   useEffect(() => {
     if (!snapshotQuery.isError) {
@@ -673,6 +686,92 @@ export function useMainPageController({
       if (result.shouldRefetch) {
         void refetchSnapshot();
       }
+    },
+  });
+
+  const runtimeInputMutation = useMutation({
+    mutationFn: async ({
+      content,
+      sessionId,
+      target,
+      taskNodeId,
+    }: {
+      content: string;
+      sessionId: string;
+      target: InputTarget;
+      taskNodeId: TaskNodeId | null;
+    }) => {
+      if (adapter.routeRuntimeInput === undefined) {
+        throw new Error("Runtime input router is unavailable.");
+      }
+
+      return adapter.routeRuntimeInput(
+        buildRuntimeInputRouteRequest({
+          content,
+          sessionId,
+          snapshot: snapshotDataRef.current?.snapshot ?? null,
+          target,
+          taskNodeId,
+        }),
+        activeWorkspaceId,
+      );
+    },
+    onError: () => {
+      setInputCommandError("Question routing failed. Please retry.");
+    },
+    onSuccess: (response) => {
+      if (!response.ok || response.data === null) {
+        setInputCommandError(
+          response.error?.message ?? "Question could not be answered.",
+          productRecoveryActionsFromApiError(response.error),
+        );
+        return;
+      }
+
+      const routeResult = response.data;
+      if (routeResult.commandResponse !== null && routeResult.commandResponse !== undefined) {
+        const commandResult = handleCommandResponse(
+          routeResult.commandResponse,
+          "Runtime input command was rejected.",
+        );
+
+        if (commandResult.errorMessage) {
+          setInputCommandError(
+            commandResult.errorMessage,
+            commandResult.recoveryActions,
+          );
+          return;
+        }
+
+        setInputCommandError(null);
+        setInputDraft("");
+        setUiNotice(routeResult.outcome.userMessage);
+        if (commandResult.shouldRefetch) {
+          void refetchSnapshot();
+        }
+        return;
+      }
+
+      if (
+        routeResult.outcome.status === "answered" ||
+        routeResult.outcome.status === "dispatched"
+      ) {
+        const runtimeActivity = runtimeInputActivity(routeResult);
+        if (runtimeActivity !== null) {
+          setRuntimeActivityItems((items) =>
+            prependRuntimeActivityItem(items, runtimeActivity),
+          );
+        }
+        setInputCommandError(null);
+        setInputDraft("");
+        setUiNotice(runtimeInputNotice(routeResult));
+        return;
+      }
+
+      setInputCommandError(
+        routeResult.outcome.userMessage,
+        routeResult.outcome.recoveryActions,
+      );
     },
   });
 
@@ -1236,6 +1335,19 @@ export function useMainPageController({
 
     setInputCommandError(null);
     setUiNotice(null);
+    if (
+      adapter.routeRuntimeInput !== undefined &&
+      shouldRouteReadOnlyQuestion(content)
+    ) {
+      runtimeInputMutation.mutate({
+        content,
+        sessionId,
+        target,
+        taskNodeId,
+      });
+      return;
+    }
+
     inputMutation.mutate({
       content,
       mode,
@@ -1390,7 +1502,7 @@ export function useMainPageController({
     isAnsweringAsk: answerAskMutation.isPending,
     isCancellingAsk: cancelAskMutation.isPending,
     isDeferringAsk: deferAskMutation.isPending,
-    isInputSubmitting: inputMutation.isPending,
+    isInputSubmitting: inputMutation.isPending || runtimeInputMutation.isPending,
     isPublishingTaskTree: publishTaskTreeMutation.isPending,
     isRepairingAuthoringState: repairAuthoringStateMutation.isPending,
     isRenamingSession: renameSessionMutation.isPending,
@@ -1408,6 +1520,7 @@ export function useMainPageController({
     taskTreeCommandError,
     taskTreeCommandRecoveryActions,
     uiNotice,
+    runtimeActivityItems,
     workspaceCatalog,
     actions: {
       answerAuthoringAskBatch: handleAnswerAuthoringAskBatch,
@@ -1435,4 +1548,125 @@ export function useMainPageController({
       publishTaskTree: handlePublishTaskTree,
     },
   };
+}
+
+function shouldRouteReadOnlyQuestion(content: string): boolean {
+  const trimmed = content.trim();
+  if (!trimmed) {
+    return false;
+  }
+
+  if (trimmed.includes("?") || trimmed.includes("？")) {
+    return true;
+  }
+
+  const lower = trimmed.toLowerCase();
+  const englishQuestionPrefixes = [
+    "what ",
+    "why ",
+    "how ",
+    "where ",
+    "when ",
+    "who ",
+    "which ",
+    "can ",
+    "could ",
+    "should ",
+    "is ",
+    "are ",
+    "do ",
+    "does ",
+    "did ",
+  ];
+  if (englishQuestionPrefixes.some((prefix) => lower.startsWith(prefix))) {
+    return true;
+  }
+
+  return [
+    "什么",
+    "为什么",
+    "为何",
+    "如何",
+    "怎么",
+    "是否",
+    "吗",
+    "哪",
+    "能不能",
+  ].some((marker) => trimmed.includes(marker));
+}
+
+function buildRuntimeInputRouteRequest({
+  content,
+  sessionId,
+  snapshot,
+  target,
+  taskNodeId,
+}: {
+  content: string;
+  sessionId: string;
+  snapshot: MainPageSnapshot | null;
+  target: InputTarget;
+  taskNodeId: TaskNodeId | null;
+}): RuntimeInputRouteRequest {
+  const activePlan = snapshot?.activePlan ?? null;
+  const scopeKind =
+    target === "task" && taskNodeId !== null
+      ? "task"
+      : target === "plan" && activePlan !== null
+        ? "plan"
+        : "session";
+
+  return {
+    commandId: `route-input-${Date.now()}`,
+    sessionId,
+    content,
+    mode: "ask",
+    selection: {
+      scopeKind,
+      planId: scopeKind === "session" ? null : activePlan?.id ?? null,
+      taskNodeId: scopeKind === "task" ? taskNodeId : null,
+      refs: [],
+    },
+    clientState: {
+      activeAskId: snapshot?.activeAsk?.id ?? null,
+      activeConfirmationId: snapshot?.pendingConfirmations[0]?.id ?? null,
+    },
+  };
+}
+
+function runtimeInputNotice(result: RuntimeInputRouteResult): string {
+  const answer = result.inquiryResult?.answer;
+  const message =
+    answer === null || answer === undefined
+      ? result.outcome.userMessage
+      : answer.title
+        ? `${answer.title}: ${answer.body}`
+        : answer.body;
+
+  return compactNotice(message);
+}
+
+function runtimeInputActivity(
+  result: RuntimeInputRouteResult,
+): SessionActivityItemView | null {
+  return result.activity ?? result.inquiryResult?.activity ?? null;
+}
+
+function prependRuntimeActivityItem(
+  items: SessionActivityItemView[],
+  item: SessionActivityItemView,
+): SessionActivityItemView[] {
+  return [item, ...items.filter((candidate) => candidate.id !== item.id)].slice(
+    0,
+    20,
+  );
+}
+
+function compactNotice(message: string): string {
+  const maxLength = 360;
+  if (message.length <= maxLength) {
+    return message;
+  }
+
+  return `${message.slice(0, maxLength - 3)}...`;
 }

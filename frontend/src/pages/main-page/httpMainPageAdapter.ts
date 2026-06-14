@@ -25,6 +25,7 @@ export type HttpMainPageApi = Pick<
   | "createSession"
   | "deferAsk"
   | "deleteSession"
+  | "exportDiagnosticBundle"
   | "generateTaskTree"
   | "getSessionActivity"
   | "getSessionSnapshot"
@@ -36,6 +37,7 @@ export type HttpMainPageApi = Pick<
   | "renameSession"
   | "resolveConfirmation"
   | "retryTask"
+  | "routeRuntimeInput"
   | "stopTask"
   | "subscribeSessionEvents"
   | "updateTaskNode"
@@ -181,6 +183,13 @@ export function createHttpMainPageAdapter({
       );
       return unwrapLifecycle(response);
     },
+    async exportDiagnosticBundle(nextSessionId, nextWorkspaceId) {
+      const response = await api.exportDiagnosticBundle(
+        nextSessionId,
+        workspaceOptions(nextWorkspaceId),
+      );
+      return unwrapLifecycle(response);
+    },
     cancelAsk(nextSessionId, askId, request, nextWorkspaceId) {
       return api.cancelAsk(
         nextSessionId,
@@ -222,6 +231,9 @@ export function createHttpMainPageAdapter({
         workspaceOptions(nextWorkspaceId),
       );
       return unwrapLifecycle(response);
+    },
+    routeRuntimeInput(request, nextWorkspaceId) {
+      return api.routeRuntimeInput(request, workspaceOptions(nextWorkspaceId));
     },
     publishTaskTree(request, nextWorkspaceId) {
       return api.publishTaskTree(request, workspaceOptions(nextWorkspaceId));

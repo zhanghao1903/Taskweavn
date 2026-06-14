@@ -184,7 +184,20 @@ class MultiWorkspacePlatoUiHttpTransport:
                 runtime = self._registry.get_runtime(route.workspace_id)
             except WorkspaceUnavailableError as exc:
                 return _workspace_unavailable_response(request, exc.workspace_id)
-            return runtime.transport.handle(_active_workspace_request(request))
+            workspace_context_response = _validate_workspace_context(
+                request,
+                route_name=route.name,
+                workspace_id=route.workspace_id,
+            )
+            if workspace_context_response is not None:
+                return workspace_context_response
+            return runtime.transport.handle(
+                _active_workspace_request(
+                    request,
+                    route_name=route.name,
+                    workspace_id=route.workspace_id,
+                )
+            )
 
         current_runtime = self._registry.get_runtime(self._registry.current_workspace_id)
         return current_runtime.transport.handle(request)
@@ -206,8 +219,43 @@ class MultiWorkspacePlatoUiHttpTransport:
         )
 
 
-def _active_workspace_request(request: HttpApiRequest) -> HttpApiRequest:
-    return request.model_copy(update={"path": _active_workspace_path(request.path)})
+def _active_workspace_request(
+    request: HttpApiRequest,
+    *,
+    route_name: str,
+    workspace_id: str,
+) -> HttpApiRequest:
+    body = request.body
+    if route_name == "runtime_input_route" and isinstance(body, dict):
+        body = {**body, "workspaceId": workspace_id}
+    return request.model_copy(
+        update={"path": _active_workspace_path(request.path), "body": body}
+    )
+
+
+def _validate_workspace_context(
+    request: HttpApiRequest,
+    *,
+    route_name: str,
+    workspace_id: str,
+) -> HttpApiResponse | None:
+    if route_name != "runtime_input_route" or not isinstance(request.body, dict):
+        return None
+    body_workspace_id = request.body.get("workspaceId", request.body.get("workspace_id"))
+    if body_workspace_id is None or body_workspace_id == workspace_id:
+        return None
+    return _error_response(
+        400,
+        ApiError(
+            code="bad_request",
+            message="body workspaceId must match path workspaceId",
+            details={
+                "body_workspace_id": body_workspace_id,
+                "path_workspace_id": workspace_id,
+            },
+        ),
+        request_id=_request_id_hint(request),
+    )
 
 
 def _active_workspace_path(path: str) -> str:

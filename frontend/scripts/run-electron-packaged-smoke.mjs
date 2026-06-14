@@ -17,18 +17,26 @@ try {
     });
   }
 
-  await runSmoke({
-    args: ["--packaged", "--first-run-configured"],
-    label: "configured packaged smoke",
-  });
-  await runSmoke({
-    args: ["--packaged", "--first-run-unconfigured"],
-    label: "first-run packaged smoke",
-  });
-  await runSmoke({
-    args: ["--packaged", "--startup-diagnostics"],
-    label: "startup diagnostics packaged smoke",
-  });
+  if (options.readOnlyInquiryLlmOnly) {
+    await runSmoke({
+      args: ["--packaged", "--first-run-configured", "--read-only-inquiry-llm"],
+      label: "read-only inquiry LLM packaged smoke",
+    });
+    process.exitCode = 0;
+  } else {
+    await runSmoke({
+      args: ["--packaged", "--first-run-configured"],
+      label: "configured packaged smoke",
+    });
+    await runSmoke({
+      args: ["--packaged", "--first-run-unconfigured"],
+      label: "first-run packaged smoke",
+    });
+    await runSmoke({
+      args: ["--packaged", "--startup-diagnostics"],
+      label: "startup diagnostics packaged smoke",
+    });
+  }
 } catch (error) {
   console.error(error instanceof Error ? error.message : String(error));
   process.exitCode = 1;
@@ -36,6 +44,7 @@ try {
 
 function parseArgs(args) {
   let skipPackage = false;
+  let readOnlyInquiryLlmOnly = false;
 
   for (const arg of args) {
     if (arg === "--help" || arg === "-h") {
@@ -46,16 +55,21 @@ function parseArgs(args) {
       skipPackage = true;
       continue;
     }
+    if (arg === "--read-only-inquiry-llm-only") {
+      readOnlyInquiryLlmOnly = true;
+      continue;
+    }
     throw new Error(`unknown option for electron:smoke:packaged: ${arg}`);
   }
 
-  return { skipPackage };
+  return { readOnlyInquiryLlmOnly, skipPackage };
 }
 
 function printUsage() {
   console.log(`Usage:
   npm run electron:smoke:packaged
   npm run electron:smoke:packaged -- --skip-package
+  npm run electron:smoke:packaged-read-only-inquiry-llm
 
 Builds an unsigned local app directory, then runs configured, first-run, and
 startup diagnostics Product 1.0 smoke paths against the packaged app without
@@ -63,6 +77,8 @@ Vite. The package built by this command includes smoke-only files and is not a
 public release artifact.
 
 Options:
+  --read-only-inquiry-llm-only
+                    Run only the packaged guarded Read-Only Inquiry LLM smoke.
   --skip-package    Reuse the existing dist-electron package directory.
   --help            Show this help.`);
 }

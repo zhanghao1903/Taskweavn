@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
+from taskweavn.server.runtime_input_activity import READ_ONLY_INQUIRY_ACTIVITY_TITLE
 from taskweavn.server.ui_contract.refs import ObjectRef
 from taskweavn.server.ui_contract.view_models import (
     AskRequestView,
@@ -15,6 +16,7 @@ from taskweavn.server.ui_contract.view_models import (
     SessionActivityItemView,
     SessionActivityRefView,
     SessionActivitySideEffect,
+    SessionActivitySourceKind,
     SessionActivityTimelineResult,
     SessionMessageView,
     TaskNodeCardView,
@@ -76,8 +78,20 @@ def _message_items(
 def _message_item(message: SessionMessageView) -> SessionActivityItemView:
     kind = _message_activity_kind(message)
     side_effect = _message_side_effect(kind)
+    activity_id = f"activity:message:{message.id}"
+    source_kind: SessionActivitySourceKind = "message_stream"
+    source_id = message.id
+    if message.title == READ_ONLY_INQUIRY_ACTIVITY_TITLE:
+        source_kind = "router"
+        source_id = message.related_command_id or message.id
+        activity_id = f"activity:inquiry:{source_id}"
+    related_refs = (
+        message.activity_related_refs
+        if message.activity_related_refs
+        else (_message_ref(message),)
+    )
     return SessionActivityItemView(
-        id=f"activity:message:{message.id}",
+        id=activity_id,
         session_id=message.session_id,
         kind=kind,
         title=message.title,
@@ -86,13 +100,15 @@ def _message_item(message: SessionMessageView) -> SessionActivityItemView:
         scope_kind="task" if message.task_node_id is not None else "session",
         task_node_id=message.task_node_id,
         side_effect=side_effect,
-        related_refs=(_message_ref(message),),
-        source_kind="message_stream",
-        source_id=message.id,
+        related_refs=related_refs,
+        source_kind=source_kind,
+        source_id=source_id,
     )
 
 
 def _message_activity_kind(message: SessionMessageView) -> SessionActivityItemKind:
+    if message.title == READ_ONLY_INQUIRY_ACTIVITY_TITLE:
+        return "answer"
     if message.kind == "response":
         return "answer"
     if message.kind == "actionable":

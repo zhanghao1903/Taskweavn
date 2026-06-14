@@ -188,6 +188,8 @@ export type UiTextCatalog = {
       actions: {
         backToActivity: string;
         close: string;
+        openAudit: string;
+        openDiagnostic: string;
         openFiles: string;
         openPlan: string;
         openResult: string;
@@ -536,6 +538,7 @@ export type UiTextCatalog = {
       gitStatus: string;
       inspectionViews: string;
       live: string;
+      localToolFiles: string;
       mixed: string;
       repository: string;
       staged: string;
@@ -555,6 +558,7 @@ export type UiTextCatalog = {
       inspectionRouteUnavailable: string;
       inspectionRouteUnavailableBody: string;
       loading: string;
+      localNoiseSuppressed: UiTextTemplate<{ count: number }>;
       readOnly: string;
       requiresSidecar: string;
       statusUnavailable: string;

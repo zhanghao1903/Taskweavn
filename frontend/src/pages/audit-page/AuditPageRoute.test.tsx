@@ -47,10 +47,11 @@ describe("AuditPageRoute", () => {
   it("parses task audit routes with selected record detail", () => {
     const route = parseAuditLocation(
       "/sessions/session-website-plan/tasks/task-implementation/audit",
-      "?entry=from_task&filter=actions&recordId=record-action-1&returnFocus=task&returnSessionId=session-return&returnTaskNodeId=task-return&workspaceId=workspace-return",
+      "?entry=from_task&filter=actions&recordId=record-action-1&evidenceId=evidence-action-2&returnFocus=task&returnSessionId=session-return&returnTaskNodeId=task-return&workspaceId=workspace-return",
     );
 
     expect(route).toEqual({
+      evidenceId: "evidence-action-2",
       request: {
         entry: "from_task",
         filter: "actions",
@@ -137,6 +138,84 @@ describe("AuditPageRoute", () => {
       sessionId: "session-website-plan",
       taskNodeId: "task-implementation",
     });
+  });
+
+  it("loads the route-selected Audit evidence under the selected record", async () => {
+    const baseApi = createAuditMockApi("a3-records-ready");
+    const api: AuditApi = {
+      ...baseApi,
+      getAuditRecordDetail: vi.fn(async (request) => {
+        const response = await baseApi.getAuditRecordDetail(request);
+        if (!response.ok || response.data === null) {
+          return response;
+        }
+
+        const baseEvidence = response.data.evidence[0] ?? response.data.evidenceRefs[0];
+        if (baseEvidence === undefined) {
+          return response;
+        }
+        const defaultEvidence = {
+          ...baseEvidence,
+          id: "evidence-record-action-default",
+          label: "Default execution observation",
+        };
+        const selectedEvidence = {
+          ...baseEvidence,
+          id: "evidence-record-action-target",
+          label: "Target execution observation",
+          summary: "Target evidence summary.",
+        };
+
+        return {
+          ...response,
+          data: {
+            ...response.data,
+            evidence: [defaultEvidence, selectedEvidence],
+            evidenceRefs: [defaultEvidence, selectedEvidence],
+          },
+        };
+      }),
+      getEvidenceDetail: vi.fn(baseApi.getEvidenceDetail),
+    };
+
+    renderWithQueryClient(
+      <AuditPageRoute
+        api={api}
+        location={{
+          pathname: "/sessions/session-website-plan/tasks/task-implementation/audit",
+          search: "?recordId=record-action-1&evidenceId=evidence-record-action-target",
+        }}
+      />,
+    );
+
+    expect(await screen.findByLabelText("Audit record detail")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(api.getEvidenceDetail).toHaveBeenCalledWith({
+        evidenceId: "evidence-record-action-target",
+        includeSanitizedPayload: true,
+        sessionId: "session-website-plan",
+      });
+    });
+  });
+
+  it("clears stale evidence focus when selecting another Audit record", async () => {
+    const user = userEvent.setup();
+
+    globalThis.history.pushState(
+      null,
+      "",
+      "/sessions/session-website-plan/tasks/task-implementation/audit?recordId=record-action-1&evidenceId=evidence-record-action-1",
+    );
+    renderWithQueryClient(<AuditPageRoute api={createAuditMockApi("a3-records-ready")} />);
+
+    await user.click(
+      await screen.findByRole("button", {
+        name: "Audit record User approved limited edits",
+      }),
+    );
+
+    expect(globalThis.location.search).toContain("recordId=record-confirmation-1");
+    expect(globalThis.location.search).not.toContain("evidenceId=");
   });
 
   it("renders the AP-005B shell with scope, return action, and detail panel", async () => {

@@ -2,7 +2,7 @@
   grid-area: detail;
   z-index: 12;
   display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr);
+  grid-template-rows: auto auto auto minmax(0, 1fr);
   min-width: 0;
   min-height: 0;
   margin-bottom: calc(
@@ -58,6 +58,32 @@
   margin: var(--plato-space-4) 0;
 }
 
+.statusRegion {
+  min-height: 0;
+}
+
+.statusBanner {
+  margin: 0 0 var(--plato-space-3);
+  border: 1px solid var(--plato-color-line);
+  border-radius: var(--plato-radius-md);
+  padding: var(--plato-space-2) var(--plato-space-3);
+  font-size: var(--plato-type-body-size);
+  line-height: var(--plato-type-body-line-height);
+  overflow-wrap: anywhere;
+}
+
+.statusBannerInfo {
+  border-color: var(--plato-color-cave-blue);
+  background: var(--plato-color-clear-blue);
+  color: var(--plato-color-reason-blue);
+}
+
+.statusBannerDanger {
+  border-color: var(--plato-color-danger-text);
+  background: var(--plato-color-danger-bg);
+  color: var(--plato-color-danger-text);
+}
+
 .filter,
 .activeFilter {
   border: 1px solid var(--plato-color-line);
@@ -100,7 +126,7 @@
   min-height: 0;
   min-width: 0;
   grid-template-rows: auto auto minmax(0, 1fr) auto;
-  gap: var(--plato-space-2);
+  gap: var(--plato-space-1);
   overflow: hidden;
   border: 1px solid var(--plato-color-line);
   border-left: 3px solid var(--plato-color-reason-blue);
@@ -129,19 +155,21 @@
   background: var(--plato-color-danger-bg);
 }
 
-.activityItem strong {
+.itemTitle {
+  display: -webkit-box;
   min-width: 0;
   overflow: hidden;
   color: var(--plato-color-ink);
   font-size: var(--plato-type-card-title-size);
   font-weight: var(--plato-type-card-title-weight);
   line-height: var(--plato-type-card-title-line-height);
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
-.activityItem p {
+.itemBody {
   display: -webkit-box;
+  min-height: 0;
   overflow: hidden;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
@@ -151,23 +179,48 @@
 .itemMeta,
 .relatedRefs {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
   gap: var(--plato-space-2);
 }
 
 .itemHeader {
+  min-width: 0;
   justify-content: space-between;
 }
 
+.itemHeader > :first-child {
+  min-width: 0;
+}
+
 .itemHeader time {
+  flex: 0 0 auto;
   color: var(--plato-color-dim);
   font-size: var(--plato-type-caption-size);
   line-height: var(--plato-type-caption-line-height);
 }
 
-.relatedRefs {
+.itemFooter {
+  display: flex;
   min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--plato-space-1);
+}
+
+.itemMeta {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.relatedRefs {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.relatedRefs > * {
+  flex: 0 0 auto;
 }
 
 .reader {

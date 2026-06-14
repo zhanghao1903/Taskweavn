@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 from collections.abc import Iterable, Sequence
-from typing import Literal
+from typing import Any, Literal
+
+from pydantic import ValidationError
 
 from taskweavn.interaction import AgentMessage
 from taskweavn.server.ui_contract.view_models import (
@@ -24,6 +26,9 @@ from taskweavn.server.ui_contract.view_models import (
     TaskNodePermissions,
     TaskNodeStatus,
     TaskTreeStatus,
+)
+from taskweavn.server.ui_contract.view_models import (
+    SessionActivityRefView as ContractSessionActivityRefView,
 )
 from taskweavn.server.ui_contract.view_models import (
     SessionMessageView as ContractSessionMessageView,
@@ -153,6 +158,7 @@ def map_agent_message_view(message: AgentMessage) -> ContractSessionMessageView:
             message.parent_message_id if message.message_type == "response" else None
         ),
         related_command_id=message.related_action_id,
+        activity_related_refs=_activity_related_refs_from_context(message.context),
     )
 
 
@@ -368,6 +374,23 @@ def _agent_message_title(message: AgentMessage, kind: MessageKind) -> str:
     if message.agent_id == "system":
         return "System message"
     return "Agent message"
+
+
+def _activity_related_refs_from_context(
+    context: dict[str, Any],
+) -> tuple[ContractSessionActivityRefView, ...]:
+    raw_refs = context.get("activity_related_refs")
+    if not isinstance(raw_refs, list):
+        return ()
+    refs: list[ContractSessionActivityRefView] = []
+    for raw_ref in raw_refs:
+        if not isinstance(raw_ref, dict):
+            continue
+        try:
+            refs.append(ContractSessionActivityRefView.model_validate(raw_ref))
+        except ValidationError:
+            continue
+    return tuple(refs)
 
 
 def _default_option_value(

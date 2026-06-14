@@ -46,6 +46,7 @@ export type WorkspaceChangedFile = WorkspacePathRef & {
   unstaged: boolean;
   oldPathLabel?: string;
   oldRelativePath?: string;
+  displayCategory?: "project" | "local_tooling";
   binary: boolean | null;
   relatedTaskRefs: {
     sessionId: string;
@@ -70,6 +71,8 @@ export type WorkspaceGitStatusResponse = {
     stagedFileCount: number;
     unstagedFileCount: number;
     untrackedFileCount: number;
+    localToolingFileCount?: number;
+    suppressedLocalNoiseFileCount?: number;
     hasMore: boolean;
   };
   files: WorkspaceChangedFile[];

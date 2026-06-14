@@ -238,15 +238,47 @@ Completed foundation:
   API/types, contract fixtures, and Main Page Activity drawer are in place.
   Router-written activity records remain with the Runtime Input Router track.
 
-Recommended implementation order:
+Recommended implementation order is governed by the
+[Runtime Input And Contract Revision Program](../plans/feature/runtime-input-and-contract-revision-program.md)
+for runtime input, read-only inquiry, contract revision commands, Activity, and
+Audit/diagnostic linkage.
 
 1. **[Runtime Input Router contract](../plans/feature/runtime-input-router-contract.md)** —
-   implement routing for guidance, command, ASK answer, confirmation response,
-   read-only inquiry, and execution request with one primary dispatch and
-   activity projection.
+   RIR-0 is accepted and RIR-1/RIR-2 deterministic foundation is implemented:
+   additive request/response contract, `RouteDecision`, HTTP route,
+   deterministic active ASK/confirmation and selected-task stop/retry routing,
+   non-mutating unsupported outcomes, and activity metadata. The question route
+   now reaches the Read-only Inquiry backend foundation when session context is
+   available. Continue with command-backed guidance and durable Router Activity
+   writes before making Main Page input Router-first by default.
 2. **[Read-only inquiry context](../plans/feature/read-only-inquiry-context.md)** —
-   answer selected file/diff/result/audit/status questions with evidence refs
-   and no Plan, TaskBus, or workspace mutation.
+   foundation is implemented: contract models, frontend transport
+   types/fixtures, deterministic status answers, result/file-summary refs,
+   explicit Activity/Audit ref summaries, Workspace Inspection file/diff
+   summaries, safe planning diagnostic refs, Router `inquiryResult`, transient
+   Main Page notice plus Activity strip/overlay display, durable
+   answered-question Activity replay through MessageStream with safe evidence
+   refs preserved, workspace-scoped file/diff/audit hrefs, read-only diagnostic
+   bundle support descriptor, explicit Inquiry refs including result refs,
+   Activity ref actions, focused no-mutation tests, real sidecar no-mutation
+   acceptance, and configured Electron smoke. Audit evidence
+   `recordId + evidenceId` focused route wiring is also implemented with
+   focused backend/frontend tests, real sidecar acceptance, and desktop shell
+   coverage; Main Page Activity diagnostic refs can invoke the redacted
+   diagnostic export action. Guarded LLM provider/seam tests, default sidecar
+   LLM runtime wiring with explicit fallback controls, LLM sidecar no-mutation
+   acceptance, and
+   `npm run electron:smoke:read-only-inquiry-llm` for the configured desktop
+   shell path plus `npm run electron:smoke:packaged-read-only-inquiry-llm` for
+   the unsigned package-dir path are in place. The guarded LLM answer provider
+   is now enabled by default in sidecar assembly with explicit deterministic
+   fallback controls. `npm run electron:smoke:launcher` verifies the
+   launcher-backed local runtime with provider-independent read-only inquiry
+   fallback. Read-Only Inquiry is accepted for the Product 1.1 local runtime.
+   Follow-ups are non-blocking: richer diagnostic bundle section descriptors if
+   needed, Router Activity/Conversation persistence for non-answer outcomes,
+   localization polish, optional result/detail deep links, and signed installer
+   no-mutation hardening.
 3. **[Contract revision command skills](../plans/feature/contract-revision-command-skills.md)** —
    add command-backed guidance, Plan/TaskNode patch/create/delete,
    ASK/confirmation resolve, and workspace-changing request handoff into

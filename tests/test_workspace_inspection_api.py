@@ -67,6 +67,58 @@ def test_workspace_inspection_status_diff_and_file_are_workspace_scoped(
     assert ".plato" not in status_a.text
 
 
+def test_workspace_inspection_untracked_diff_and_local_noise_filtering(
+    tmp_path: Path,
+) -> None:
+    workspace = tmp_path / "workspace"
+    _seed_git_workspace(workspace, "alpha")
+    (workspace / ".DS_Store").write_bytes(b"local system noise")
+    (workspace / ".gitignore").write_text("*.log\n", encoding="utf-8")
+    (workspace / ".idea").mkdir()
+    (workspace / ".idea" / "modules.xml").write_text("<project />\n", encoding="utf-8")
+    (workspace / "chapter1_outline.md").write_text(
+        "# Chapter 1\n\n- Biology outline\n",
+        encoding="utf-8",
+    )
+
+    app = _single_workspace_app(workspace)
+    try:
+        status = _request(app, "GET", "/api/v1/inspection/status")
+        diff = _request(
+            app,
+            "GET",
+            "/api/v1/inspection/diff?"
+            + urlencode({"path": "chapter1_outline.md"}),
+        )
+    finally:
+        app.close()
+
+    assert status.status == 200
+    files = status.json["data"]["files"]
+    paths = {item["relativePath"]: item for item in files}
+    assert ".DS_Store" not in paths
+    assert paths[".gitignore"].get("displayCategory") is None
+    assert paths[".idea/modules.xml"]["displayCategory"] == "local_tooling"
+    assert paths["chapter1_outline.md"]["changeKind"] == "untracked"
+    assert status.json["data"]["summary"]["changedFileCount"] == 3
+    assert status.json["data"]["summary"]["localToolingFileCount"] == 1
+    assert status.json["data"]["summary"]["suppressedLocalNoiseFileCount"] == 1
+
+    assert diff.status == 200
+    assert diff.json["data"]["isAvailable"] is True
+    assert diff.json["data"]["file"]["changeKind"] == "untracked"
+    assert diff.json["data"]["stats"]["additions"] == 3
+    assert diff.json["data"]["stats"]["deletions"] == 0
+    assert diff.json["data"]["hunks"][0]["header"] == "new file"
+    assert diff.json["data"]["hunks"][0]["lines"][0] == {
+        "kind": "add",
+        "oldLine": None,
+        "newLine": 1,
+        "text": "# Chapter 1",
+    }
+    assert str(workspace) not in status.text + diff.text
+
+
 def test_workspace_inspection_non_git_status_is_safe(tmp_path: Path) -> None:
     workspace = tmp_path / "workspace"
     workspace.mkdir()

@@ -318,6 +318,14 @@ class PlanView(UiContractModel):
         return self
 
 
+class SessionActivityRefView(UiContractModel):
+    kind: SessionActivityRefKind
+    id: str = Field(min_length=1)
+    label: str = Field(min_length=1)
+    href: str | None = Field(default=None, min_length=1)
+    object_ref: ObjectRef | None = None
+
+
 class SessionMessageView(UiContractModel):
     id: str = Field(min_length=1)
     session_id: str = Field(min_length=1)
@@ -329,14 +337,7 @@ class SessionMessageView(UiContractModel):
     created_at: datetime = Field(default_factory=utcnow)
     related_confirmation_id: str | None = None
     related_command_id: str | None = None
-
-
-class SessionActivityRefView(UiContractModel):
-    kind: SessionActivityRefKind
-    id: str = Field(min_length=1)
-    label: str = Field(min_length=1)
-    href: str | None = Field(default=None, min_length=1)
-    object_ref: ObjectRef | None = None
+    activity_related_refs: tuple[SessionActivityRefView, ...] = ()
 
 
 class SessionActivityItemView(UiContractModel):

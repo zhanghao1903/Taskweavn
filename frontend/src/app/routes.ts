@@ -2,6 +2,7 @@ import type {
   AuditEntryKind,
   AuditFilterKind,
   AuditRecordId,
+  EvidenceId,
   ProjectId,
   SessionId,
   TaskNodeId,
@@ -25,6 +26,7 @@ export type AppRoute = (typeof routes)[keyof typeof routes];
 
 export type AuditRouteQuery = {
   entry?: AuditEntryKind;
+  evidenceId?: EvidenceId;
   filter?: AuditFilterKind;
   recordId?: AuditRecordId;
   returnFocus?: "session" | "task" | "confirmation" | "result" | "file_change";

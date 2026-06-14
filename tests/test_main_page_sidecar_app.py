@@ -45,6 +45,94 @@ def test_main_page_sidecar_config_uses_stable_dev_port_by_default(
     assert config.port == DEFAULT_PLATO_SIDECAR_PORT
 
 
+def test_main_page_sidecar_uses_guarded_llm_inquiry_provider_by_default(
+    tmp_path: Any,
+) -> None:
+    llm = _AgentLoopLLM("{}")
+    app = build_main_page_sidecar_app(
+        MainPageSidecarConfig(
+            workspace_root=tmp_path,
+            port=0,
+        ),
+        MainPageSidecarDependencies(llm=llm),
+    )
+    try:
+        session_id = _create_session(app)
+        llm.final_answer = json.dumps(
+            {
+                "status": "answered",
+                "body": "The LLM provider rendered this read-only answer.",
+                "confidence": "high",
+                "citedRefIds": [f"session:{session_id}:status"],
+            }
+        )
+
+        response = _request(
+            app,
+            "POST",
+            f"/api/v1/sessions/{session_id}/runtime-input/route",
+            body={
+                "commandId": "route-llm-inquiry",
+                "sessionId": session_id,
+                "content": "What is this session doing?",
+                "mode": "ask",
+                "selection": {"scopeKind": "session"},
+            },
+        )
+    finally:
+        app.close()
+
+    assert response.status == 200
+    assert response.json["ok"] is True
+    assert response.json["data"]["outcome"]["status"] == "answered"
+    assert response.json["data"]["outcome"]["userMessage"] == (
+        "The LLM provider rendered this read-only answer."
+    )
+    assert response.json["data"]["inquiryResult"]["answer"]["body"] == (
+        "The LLM provider rendered this read-only answer."
+    )
+    assert llm.calls[-1]["tools"] is None
+    assert llm.calls[-1]["metadata"]["feature"] == "read_only_inquiry"
+
+
+def test_main_page_sidecar_can_disable_guarded_llm_inquiry_provider(
+    tmp_path: Any,
+) -> None:
+    llm = _AgentLoopLLM("{}")
+    app = build_main_page_sidecar_app(
+        MainPageSidecarConfig(
+            workspace_root=tmp_path,
+            port=0,
+            enable_read_only_inquiry_llm=False,
+        ),
+        MainPageSidecarDependencies(llm=llm),
+    )
+    try:
+        session_id = _create_session(app)
+        response = _request(
+            app,
+            "POST",
+            f"/api/v1/sessions/{session_id}/runtime-input/route",
+            body={
+                "commandId": "route-deterministic-inquiry",
+                "sessionId": session_id,
+                "content": "What is this session doing?",
+                "mode": "ask",
+                "selection": {"scopeKind": "session"},
+            },
+        )
+    finally:
+        app.close()
+
+    assert response.status == 200
+    assert response.json["ok"] is True
+    assert response.json["data"]["outcome"]["status"] == "answered"
+    assert response.json["data"]["inquiryResult"]["answer"]["body"] == (
+        "Session 'Demo session' is new."
+    )
+    assert llm.calls == []
+
+
 def test_main_page_sidecar_app_exposes_settings_readiness_without_secret(
     tmp_path: Any,
     monkeypatch: pytest.MonkeyPatch,

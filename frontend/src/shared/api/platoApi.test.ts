@@ -15,6 +15,7 @@ import type {
   CommandRequest,
   CommandResponse,
   MainPageSnapshot,
+  RuntimeInputRouteResult,
   SessionActivityTimelineResult,
   UiEvent,
 } from "./types";
@@ -89,6 +90,183 @@ describe("createHttpPlatoApi", () => {
         method: "GET",
       }),
     );
+  });
+
+  it("routes runtime input through the documented endpoint", async () => {
+    const fetcher = vi.fn<FetchFn>(async () =>
+      jsonResponse({
+        data: {
+          activity: {
+            body: "The selected task stop command was dispatched.",
+            disclosureLevel: "public",
+            id: "activity:rir-1",
+            kind: "router_interpretation",
+            occurredAt: "2026-06-14T00:00:00Z",
+            relatedRefs: [],
+            scopeKind: "task",
+            sessionId: "session/1",
+            sideEffect: "state_effect",
+            sourceId: "rir-1",
+            sourceKind: "router",
+            taskNodeId: "task/1",
+            title: "Runtime command routed",
+          },
+          commandResponse: acceptedCommandResponse("runtime-route"),
+          decision: {
+            confidence: "high",
+            dispatchTarget: "existing_command",
+            explanation: "Input matched the deterministic stop-task command.",
+            id: "rir-1",
+            intent: "command",
+            relatedRefs: [],
+            scope: {
+              kind: "task",
+              taskNodeId: "task/1",
+            },
+            sideEffect: "state_effect",
+          },
+          generatedAt: "2026-06-14T00:00:00Z",
+          outcome: {
+            recoveryActions: [],
+            status: "dispatched",
+            userMessage: "The selected task stop command was dispatched.",
+          },
+          sessionId: "session/1",
+        } satisfies RuntimeInputRouteResult,
+        error: null,
+        generatedAt: "2026-06-14T00:00:00Z",
+        ok: true,
+        requestId: "runtime-route",
+      }),
+    );
+    const api = createHttpPlatoApi({
+      baseUrl: "https://plato.test/",
+      fetcher,
+    });
+    const request = {
+      commandId: "runtime-route",
+      sessionId: "session/1",
+      content: "stop",
+      selection: {
+        scopeKind: "task",
+        taskNodeId: "task/1",
+      },
+    } as const;
+
+    await expect(
+      api.routeRuntimeInput(request, { workspaceId: "workspace/1" }),
+    ).resolves.toMatchObject({
+      data: {
+        decision: {
+          intent: "command",
+        },
+      },
+      ok: true,
+    });
+    expect(fetcher).toHaveBeenCalledWith(
+      "https://plato.test/api/v1/workspaces/workspace%2F1/sessions/session%2F1/runtime-input/route",
+      expect.objectContaining({
+        body: JSON.stringify(request),
+        method: "POST",
+      }),
+    );
+  });
+
+  it("routes read-only inquiry results through the documented endpoint", async () => {
+    const fetcher = vi.fn<FetchFn>(async () =>
+      jsonResponse({
+        data: {
+          activity: {
+            body: "Session 'Session' is running.",
+            disclosureLevel: "public",
+            id: "activity:inquiry:route-question",
+            kind: "answer",
+            occurredAt: "2026-06-14T00:00:00Z",
+            relatedRefs: [],
+            scopeKind: "session",
+            sessionId: "session/1",
+            sideEffect: "no_effect",
+            sourceId: "route-question",
+            sourceKind: "router",
+            title: "Session status",
+          },
+          commandResponse: null,
+          decision: {
+            confidence: "medium",
+            dispatchTarget: "read_only_inquiry",
+            explanation: "Input was answered through Read-Only Inquiry Context.",
+            id: "rir-question",
+            intent: "question",
+            relatedRefs: [],
+            scope: {
+              kind: "session",
+            },
+            sideEffect: "no_effect",
+          },
+          generatedAt: "2026-06-14T00:00:00Z",
+          inquiryResult: {
+            activity: null,
+            answer: {
+              body: "Session 'Session' is running.",
+              confidence: "medium",
+              title: "Session status",
+            },
+            evidenceRefs: [
+              {
+                disclosure: "public",
+                kind: "session_status",
+                label: "Session Session",
+                refId: "session:session/1:status",
+                truncated: false,
+              },
+            ],
+            generatedAt: "2026-06-14T00:00:00Z",
+            inquiryId: "route-question",
+            scope: {
+              kind: "session",
+            },
+            sessionId: "session/1",
+            status: "answered",
+            warnings: [],
+          },
+          outcome: {
+            recoveryActions: [],
+            status: "answered",
+            userMessage: "Session 'Session' is running.",
+          },
+          sessionId: "session/1",
+        } satisfies RuntimeInputRouteResult,
+        error: null,
+        generatedAt: "2026-06-14T00:00:00Z",
+        ok: true,
+        requestId: "route-question",
+      }),
+    );
+    const api = createHttpPlatoApi({
+      baseUrl: "https://plato.test/",
+      fetcher,
+    });
+
+    await expect(
+      api.routeRuntimeInput({
+        commandId: "route-question",
+        sessionId: "session/1",
+        content: "What is the session status?",
+        selection: {
+          scopeKind: "session",
+        },
+      }),
+    ).resolves.toMatchObject({
+      data: {
+        inquiryResult: {
+          status: "answered",
+        },
+        outcome: {
+          status: "answered",
+        },
+      },
+      ok: true,
+    });
   });
 
   it("loads workspace catalog and workspace-scoped resources", async () => {

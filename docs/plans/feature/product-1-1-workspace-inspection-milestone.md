@@ -195,6 +195,17 @@ per-file `staged` and `unstaged` booleans. The UI may show lightweight
 `Staged`, `Unstaged`, `Mixed`, and `Untracked` labels, but must not expose
 stage/unstage commands in this milestone.
 
+Decision: Product 1.1 P0 treats untracked text-file diff as a read-only
+synthetic "new file" view. The provider must not run `git add -N`, mutate the
+Git index, or write workspace files to make this possible.
+
+Decision: Product 1.1 P0 filters local noise conservatively. Known system
+noise such as `.DS_Store`, `Thumbs.db`, and `Desktop.ini` is suppressed from
+the inspection list and counted in summary metadata. IDE/editor folders such as
+`.idea/` and `.vscode/` are marked as local tooling so the UI can fold them.
+Normal project dotfiles remain visible and are not excluded just because their
+path starts with `.`.
+
 Decision: Product 1.1 P0 does not support arbitrary historical git refs,
 branch compare, commit range compare, or raw revspec input. Stable historical
 views come from captured evidence by `evidenceId`; live inspection reads the

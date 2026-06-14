@@ -92,6 +92,43 @@ describe("ActivityOverlay", () => {
     );
   });
 
+  it("keeps long activity content inside planned card slots", () => {
+    render(
+      <ActivityOverlay
+        items={[
+          activityItem({
+            body:
+              "A long activity body should use the body slot instead of adding arbitrary rows inside the fixed-height activity card. It may contain several sentences from execution output.",
+            relatedRefs: [
+              relatedRef("task", "task-implementation"),
+              relatedRef("file", "chapter1_outline.md", {
+                href: "/workspaces/ws-1/inspection?path=chapter1_outline.md&view=file",
+              }),
+            ],
+            title:
+              "A long task activity title should be constrained by the title slot and not push the footer out of the card",
+          }),
+        ]}
+        onClose={vi.fn()}
+        onOpenTask={vi.fn()}
+        selectedTask={undefined}
+      />,
+    );
+
+    const item = screen.getByRole("listitem");
+    expect(within(item).getByText(/A long task activity title/)).toHaveClass(
+      styles.itemTitle,
+    );
+    expect(within(item).getByText(/A long activity body/)).toHaveClass(
+      styles.itemBody,
+    );
+    const footer = item.querySelector(`.${styles.itemFooter}`);
+    expect(footer).not.toBeNull();
+    expect(within(footer as HTMLElement).getByLabelText("Evidence")).toHaveClass(
+      styles.relatedRefs,
+    );
+  });
+
   it("filters result and error activity", async () => {
     const user = userEvent.setup();
 
@@ -217,8 +254,10 @@ describe("ActivityOverlay", () => {
     expect(screen.getByText("Result summary generated")).toBeInTheDocument();
   });
 
-  it("exposes related ref actions for task, result, and files", async () => {
+  it("exposes related ref actions for task, result, files, audit, and diagnostics", async () => {
     const user = userEvent.setup();
+    const onOpenAudit = vi.fn();
+    const onOpenDiagnostic = vi.fn();
     const onOpenFiles = vi.fn();
     const onOpenResult = vi.fn();
     const onOpenTask = vi.fn();
@@ -232,12 +271,16 @@ describe("ActivityOverlay", () => {
               relatedRef("task", "task-implementation"),
               relatedRef("result", "task-implementation"),
               relatedRef("file", "src/app.ts"),
+              relatedRef("audit", "record-1"),
+              relatedRef("diagnostic", "diagnostic:dirty_authoring_state"),
             ],
             taskNodeId: "task-implementation",
             title: "Files changed",
           }),
         ]}
         onClose={vi.fn()}
+        onOpenAudit={onOpenAudit}
+        onOpenDiagnostic={onOpenDiagnostic}
         onOpenFiles={onOpenFiles}
         onOpenResult={onOpenResult}
         onOpenTask={onOpenTask}
@@ -248,10 +291,86 @@ describe("ActivityOverlay", () => {
     await user.click(screen.getByRole("button", { name: "Open task" }));
     await user.click(screen.getByRole("button", { name: "Open result" }));
     await user.click(screen.getByRole("button", { name: "Open files" }));
+    await user.click(screen.getByRole("button", { name: "Open audit" }));
+    await user.click(screen.getByRole("button", { name: "Export diagnostics" }));
 
     expect(onOpenTask).toHaveBeenCalledWith("task-implementation");
     expect(onOpenResult).toHaveBeenCalledWith("task-implementation");
     expect(onOpenFiles).toHaveBeenCalledWith("task-implementation");
+    expect(onOpenAudit).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "record-1", kind: "audit" }),
+    );
+    expect(onOpenDiagnostic).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: "diagnostic:dirty_authoring_state",
+        kind: "diagnostic",
+      }),
+    );
+  });
+
+  it("renders related ref hrefs as direct inspection links", () => {
+    const onOpenFiles = vi.fn();
+    const onOpenAudit = vi.fn();
+
+    render(
+      <ActivityOverlay
+        items={[
+          activityItem({
+            relatedRefs: [
+              relatedRef("file", "app.txt", {
+                href: "/workspaces/workspace-1/inspection?path=app.txt&view=file",
+              }),
+              relatedRef("audit", "record-1", {
+                href: "/sessions/session-1/audit?recordId=record-1",
+              }),
+            ],
+            title: "Read-only answer",
+          }),
+        ]}
+        onClose={vi.fn()}
+        onOpenAudit={onOpenAudit}
+        onOpenFiles={onOpenFiles}
+        selectedTask={undefined}
+      />,
+    );
+
+    expect(screen.getByRole("link", { name: "Open files" })).toHaveAttribute(
+      "href",
+      "/workspaces/workspace-1/inspection?path=app.txt&view=file",
+    );
+    expect(screen.getByRole("link", { name: "Open audit" })).toHaveAttribute(
+      "href",
+      "/sessions/session-1/audit?recordId=record-1",
+    );
+    expect(onOpenFiles).not.toHaveBeenCalled();
+    expect(onOpenAudit).not.toHaveBeenCalled();
+  });
+
+  it("prefers Audit evidence focus links over parent Audit record links", () => {
+    render(
+      <ActivityOverlay
+        items={[
+          activityItem({
+            relatedRefs: [
+              relatedRef("audit", "record-1", {
+                href: "/sessions/session-1/audit?recordId=record-1",
+              }),
+              relatedRef("audit", "evidence-record-1", {
+                href: "/sessions/session-1/audit?recordId=record-1&evidenceId=evidence-record-1",
+              }),
+            ],
+            title: "Read-only answer",
+          }),
+        ]}
+        onClose={vi.fn()}
+        selectedTask={undefined}
+      />,
+    );
+
+    expect(screen.getByRole("link", { name: "Open audit" })).toHaveAttribute(
+      "href",
+      "/sessions/session-1/audit?recordId=record-1&evidenceId=evidence-record-1",
+    );
   });
 
   it("shows loading and error states with retry", async () => {
@@ -327,11 +446,13 @@ function activityItem(
 function relatedRef(
   kind: SessionActivityItemView["relatedRefs"][number]["kind"],
   id: string,
+  overrides: Partial<SessionActivityItemView["relatedRefs"][number]> = {},
 ): SessionActivityItemView["relatedRefs"][number] {
   return {
     id,
     kind,
     label: id,
+    ...overrides,
   };
 }
 

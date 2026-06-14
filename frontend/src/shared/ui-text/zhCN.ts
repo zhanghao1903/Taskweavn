@@ -248,6 +248,8 @@ export const zhCN: UiTextCatalog = {
       actions: {
         backToActivity: "返回活动",
         close: "关闭",
+        openAudit: "打开审计",
+        openDiagnostic: "打开诊断",
         openFiles: "打开文件",
         openPlan: "打开计划",
         openResult: "打开结果",
@@ -668,6 +670,7 @@ export const zhCN: UiTextCatalog = {
       gitStatus: "Git 状态",
       inspectionViews: "检查视图",
       live: "实时",
+      localToolFiles: "本地工具文件",
       mixed: "混合",
       repository: "仓库",
       staged: "已暂存",
@@ -687,6 +690,8 @@ export const zhCN: UiTextCatalog = {
       inspectionRouteUnavailable: "检查路由不可用",
       inspectionRouteUnavailableBody: "此路由缺少检查上下文。",
       loading: "正在加载工作区检查结果",
+      localNoiseSuppressed: ({ count }) =>
+        `已隐藏 ${count} 个本地系统文件，不在检查列表中显示。`,
       readOnly: "只读工作区检查。",
       requiresSidecar: "工作区检查需要本地 sidecar。",
       statusUnavailable: "状态不可用。",

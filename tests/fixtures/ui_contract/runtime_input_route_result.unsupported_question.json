@@ -1,0 +1,66 @@
+{
+  "requestId": "route-question",
+  "ok": true,
+  "data": {
+    "sessionId": "session-1",
+    "decision": {
+      "id": "rir-question-1",
+      "intent": "question",
+      "scope": {
+        "kind": "session",
+        "planId": null,
+        "taskNodeId": null
+      },
+      "confidence": "low",
+      "sideEffect": "no_effect",
+      "dispatchTarget": "read_only_inquiry",
+      "explanation": "Question input requires Read-Only Inquiry Context.",
+      "relatedRefs": [
+        {
+          "kind": "session",
+          "id": "session-1",
+          "label": "Session",
+          "href": null,
+          "objectRef": null
+        }
+      ]
+    },
+    "outcome": {
+      "status": "unsupported",
+      "userMessage": "Answer-only workspace inquiry is not available yet. No product or workspace state changed.",
+      "recoveryActions": [
+        "edit_input"
+      ]
+    },
+    "activity": {
+      "id": "activity:rir-question-1",
+      "sessionId": "session-1",
+      "kind": "router_interpretation",
+      "title": "Runtime input routed",
+      "body": "Answer-only workspace inquiry is not available yet. No product or workspace state changed.",
+      "occurredAt": "2026-06-14T00:00:00Z",
+      "scopeKind": "session",
+      "planId": null,
+      "taskNodeId": null,
+      "sideEffect": "no_effect",
+      "relatedRefs": [
+        {
+          "kind": "session",
+          "id": "session-1",
+          "label": "Session",
+          "href": null,
+          "objectRef": null
+        }
+      ],
+      "sourceKind": "router",
+      "sourceId": "rir-question-1",
+      "disclosureLevel": "public"
+    },
+    "commandResponse": null,
+    "inquiryResult": null,
+    "generatedAt": "2026-06-14T00:00:00Z"
+  },
+  "error": null,
+  "cursor": null,
+  "generatedAt": "2026-06-14T00:00:00Z"
+}

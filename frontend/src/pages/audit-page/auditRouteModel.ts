@@ -5,6 +5,7 @@ import type {
   AuditEntryKind,
   AuditFilterKind,
   AuditRecordId,
+  EvidenceId,
   SessionId,
   TaskNodeId,
   WorkspaceId,
@@ -17,6 +18,7 @@ import {
 } from "../../app/routes";
 
 export type ParsedAuditRoute = {
+  evidenceId?: EvidenceId;
   request: AuditSnapshotRequest;
   returnFocus?: AuditRouteQuery["returnFocus"];
   returnSessionId?: SessionId;
@@ -62,7 +64,9 @@ export function parseAuditLocation(
       return null;
     }
 
+    const evidenceId = parseEvidenceId(search);
     return {
+      ...(evidenceId === undefined ? {} : { evidenceId }),
       request: buildAuditSnapshotRequest(search, sessionId, taskNodeId),
       ...parseReturnQuery(search),
       routeKind: "task",
@@ -77,7 +81,9 @@ export function parseAuditLocation(
       return null;
     }
 
+    const evidenceId = parseEvidenceId(search);
     return {
+      ...(evidenceId === undefined ? {} : { evidenceId }),
       request: buildAuditSnapshotRequest(search, sessionId),
       ...parseReturnQuery(search),
       routeKind: "session",
@@ -91,12 +97,14 @@ export function parseAuditLocation(
 export function buildAuditLocation(
   route: ParsedAuditRoute,
   query: {
+    evidenceId?: EvidenceId | null;
     filter: AuditFilterKind;
     recordId: AuditRecordId | null;
   },
 ): string {
   const routeQuery: AuditRouteQuery = {
     entry: route.request.entry,
+    evidenceId: query.evidenceId ?? undefined,
     filter: query.filter,
     recordId: query.recordId ?? undefined,
     returnFocus: route.returnFocus,
@@ -171,6 +179,12 @@ function parseRecordId(value: string | null): AuditRecordId | undefined {
   }
 
   return value as AuditRecordId;
+}
+
+function parseEvidenceId(search: string): EvidenceId | undefined {
+  return parseNonEmpty(new URLSearchParams(search).get("evidenceId")) as
+    | EvidenceId
+    | undefined;
 }
 
 function parseReturnQuery(search: string): Pick<

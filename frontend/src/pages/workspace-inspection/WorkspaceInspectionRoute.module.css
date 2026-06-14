@@ -118,6 +118,31 @@
   gap: var(--plato-space-2);
 }
 
+.localNoiseNote {
+  margin: 0;
+  color: var(--plato-color-semantic-text-secondary);
+  font-size: 12px;
+}
+
+.localToolGroup {
+  display: grid;
+  gap: var(--plato-space-2);
+}
+
+.localToolGroup summary {
+  display: inline-flex;
+  width: fit-content;
+  cursor: pointer;
+  align-items: center;
+  gap: var(--plato-space-2);
+  color: var(--plato-color-semantic-text-secondary);
+  font-weight: 700;
+}
+
+.localToolGroup[open] summary {
+  margin-bottom: var(--plato-space-2);
+}
+
 .fileRow {
   display: flex;
   min-width: 0;
