@@ -293,6 +293,31 @@ function renderWorkspaceStatus() {
       <h1>Changed files</h1>
       <p>diagnostics-summary.md</p>
       <p>Unstaged</p>
+      <a href="/workspaces/workspace-1/inspection?path=diagnostics-summary.md&view=file">Open file</a>
+      <a href="/workspaces/workspace-1/inspection?path=diagnostics-summary.md&view=diff">View diff</a>
+    </main>
+  `;
+  document
+    .querySelector<HTMLAnchorElement>('a[href*="view=file"]')
+    ?.addEventListener("click", (event) => {
+      event.preventDefault();
+      renderWorkspaceFile();
+    });
+  document
+    .querySelector<HTMLAnchorElement>('a[href*="view=diff"]')
+    ?.addEventListener("click", (event) => {
+      event.preventDefault();
+      renderWorkspaceDiff();
+    });
+}
+
+function renderWorkspaceFile() {
+  document.body.innerHTML = `
+    <main>
+      <h1>File viewer</h1>
+      <h2>diagnostics-summary.md</h2>
+      <pre>Initial sidecar fixture content.
+Workspace inspection seeded change.</pre>
     </main>
   `;
 }
