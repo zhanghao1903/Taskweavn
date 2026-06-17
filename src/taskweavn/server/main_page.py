@@ -65,6 +65,10 @@ from taskweavn.server.sidecar import (
     LocalSidecarServer,
     SidecarTransport,
 )
+from taskweavn.server.task_stop_recovery import (
+    CompositeSnapshotRecoveryService,
+    DefaultTaskStopRecoveryService,
+)
 from taskweavn.server.task_timeline import WorkspaceTaskInteractionTimelineService
 from taskweavn.server.ui_command_idempotency import (
     SqliteUiCommandResponseIdempotencyStore,
@@ -517,6 +521,13 @@ def build_main_page_workspace_runtime(
                 plan_lifecycle_sync=plan_lifecycle_sync,
             ),
         )
+        task_stop_recovery = DefaultTaskStopRecoveryService(
+            task_bus=task_bus,
+            on_task_lifecycle_committed=_task_lifecycle_event_callback(
+                event_store,
+                plan_lifecycle_sync=plan_lifecycle_sync,
+            ),
+        )
         ui_command_idempotency_store = (
             dependencies.ui_command_idempotency_store
             or SqliteUiCommandResponseIdempotencyStore(layout.workspace_ui_commands_db)
@@ -569,7 +580,10 @@ def build_main_page_workspace_runtime(
             ),
             command_idempotency_store=ui_command_idempotency_store,
             execution_trigger_gateway=execution_dispatcher,
-            snapshot_recovery_gateway=ask_recovery,
+            snapshot_recovery_gateway=CompositeSnapshotRecoveryService(
+                ask_recovery,
+                task_stop_recovery,
+            ),
             settings_readiness_gateway=(
                 dependencies.settings_readiness_gateway or settings_config_gateway
             ),
