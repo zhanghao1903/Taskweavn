@@ -111,6 +111,11 @@ class WorkspaceLayout:
         return self.meta_dir / "usage.sqlite"
 
     @property
+    def workspace_contract_revision_db(self) -> Path:
+        """Workspace-scoped Contract Revision command and guidance store."""
+        return self.meta_dir / "contract_revision.sqlite"
+
+    @property
     def shared_dir(self) -> Path:
         return self.root / "shared"
 

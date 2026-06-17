@@ -5,6 +5,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Protocol
 
+from taskweavn.contract_revision.models import (
+    ContractCommandRequest,
+    ContractCommandResult,
+)
+from taskweavn.contract_revision.service import ContractRevisionCommandService
 from taskweavn.server.read_only_inquiry import (
     DefaultReadOnlyInquiryService,
     DiagnosticSupportContextProvider,
@@ -123,6 +128,7 @@ class DefaultRuntimeInputRouter:
     workspace_inspection_gateway: WorkspaceInspectionContextProvider | None = None
     diagnostic_support_provider: DiagnosticSupportContextProvider | None = None
     activity_publisher: RuntimeInputActivityPublisher | None = None
+    contract_revision_service: ContractRevisionCommandService | None = None
 
     def route(
         self,
@@ -154,17 +160,7 @@ class DefaultRuntimeInputRouter:
         if request.mode == "ask" or _looks_like_question(normalized):
             return self._answer_read_only_inquiry(request)
         if request.mode == "guide":
-            return self._unsupported(
-                request,
-                intent="guidance",
-                dispatch_target="record_guidance",
-                side_effect="context_effect",
-                explanation="Guidance routing is deferred to command-backed guidance.",
-                user_message=(
-                    "Guidance routing is not available through Runtime Input yet. "
-                    "No product or workspace state changed."
-                ),
-            )
+            return self._record_guidance(request)
         if request.mode == "change" or _looks_like_workspace_change(normalized):
             return self._unsupported(
                 request,
@@ -187,6 +183,68 @@ class DefaultRuntimeInputRouter:
                 "I could not route this input safely yet. "
                 "No product or workspace state changed."
             ),
+        )
+
+    def _record_guidance(
+        self,
+        request: RuntimeInputRouteRequest,
+    ) -> QueryResponse[RuntimeInputRouteResult]:
+        if self.contract_revision_service is None:
+            return self._unsupported(
+                request,
+                intent="guidance",
+                dispatch_target="record_guidance",
+                side_effect="context_effect",
+                explanation="Guidance routing is unavailable without command service.",
+                user_message=(
+                    "Guidance routing is not available through Runtime Input yet. "
+                    "No product or workspace state changed."
+                ),
+            )
+        decision = self._decision(
+            request,
+            intent="guidance",
+            dispatch_target="record_guidance",
+            side_effect="context_effect",
+            explanation="Input recorded guidance as typed contract context.",
+            related_refs=_selection_refs(request),
+        )
+        command_result = self.contract_revision_service.execute(
+            ContractCommandRequest(
+                command_id=request.command_id,
+                idempotency_key=request.command_id,
+                command_kind="record_guidance",
+                workspace_id=request.workspace_id or "current",
+                session_id=request.session_id,
+                scope_kind=request.selection.scope_kind,
+                plan_id=request.selection.plan_id,
+                task_node_id=request.selection.task_node_id,
+                source="runtime_input",
+                router_decision_id=decision.id,
+                payload={
+                    "guidanceText": request.content,
+                    "guidanceKind": "instruction",
+                },
+            )
+        )
+        accepted = command_result.status in {"accepted", "noop"}
+        outcome = RuntimeInputOutcome(
+            status="dispatched" if accepted else "rejected",
+            user_message=(
+                "Guidance was recorded for this scope."
+                if accepted
+                else "Guidance could not be recorded. No workspace files changed."
+            ),
+            recovery_actions=() if accepted else ("edit_input",),
+        )
+        return self._result(
+            request,
+            decision,
+            outcome,
+            activity=_activity_from_contract_result(request, decision, command_result)
+            if command_result.activity is not None
+            else None,
+            activity_kind="guidance_recorded" if accepted else "recovery_note",
         )
 
     def _active_ask(self, request: RuntimeInputRouteRequest) -> AskRequestView | None:
@@ -250,6 +308,53 @@ class DefaultRuntimeInputRouter:
         request: RuntimeInputRouteRequest,
         ask: AskRequestView,
     ) -> QueryResponse[RuntimeInputRouteResult]:
+        decision = self._decision(
+            request,
+            intent="ask_answer",
+            dispatch_target="resolve_ask",
+            side_effect="resume_effect",
+            explanation="Input answered the active ASK.",
+            related_refs=(_ref("ask", ask.id, "Active ASK"),),
+        )
+        if self.contract_revision_service is not None:
+            command_result = self.contract_revision_service.execute(
+                ContractCommandRequest(
+                    command_id=request.command_id,
+                    idempotency_key=request.command_id,
+                    command_kind="resolve_ask",
+                    workspace_id=request.workspace_id or "current",
+                    session_id=request.session_id,
+                    scope_kind="ask",
+                    ask_id=ask.id,
+                    source="runtime_input",
+                    router_decision_id=decision.id,
+                    payload={"text": request.content},
+                )
+            )
+            accepted = command_result.status in {"accepted", "noop"}
+            return self._result(
+                request,
+                decision,
+                RuntimeInputOutcome(
+                    status="dispatched" if accepted else "rejected",
+                    user_message=(
+                        "The active ASK answer was recorded."
+                        if accepted
+                        else "The active ASK answer was rejected by the command handler."
+                    ),
+                    recovery_actions=() if accepted else ("answer_ask",),
+                ),
+                command_response=command_result.command_response,
+                activity=_activity_from_contract_result(
+                    request,
+                    decision,
+                    command_result,
+                )
+                if command_result.activity is not None
+                else None,
+                activity_kind="ask_answered" if accepted else "recovery_note",
+            )
+
         command_response = _answer_ask_with_resume_dispatch(
             self.command_gateway,
             self.execution_trigger_gateway,
@@ -261,14 +366,6 @@ class DefaultRuntimeInputRouter:
             ),
         )
         accepted = command_response.ok and command_response.result is not None
-        decision = self._decision(
-            request,
-            intent="ask_answer",
-            dispatch_target="resolve_ask",
-            side_effect="resume_effect",
-            explanation="Input answered the active ASK.",
-            related_refs=(_ref("ask", ask.id, "Active ASK"),),
-        )
         return self._result(
             request,
             decision,
@@ -291,15 +388,6 @@ class DefaultRuntimeInputRouter:
         confirmation: ConfirmationActionView,
         value: str,
     ) -> QueryResponse[RuntimeInputRouteResult]:
-        command_response = self.command_gateway.resolve_confirmation(
-            confirmation.id,
-            CommandRequest[ResolveConfirmationPayload](
-                command_id=request.command_id,
-                session_id=request.session_id,
-                payload=ResolveConfirmationPayload(value=value, note=request.content),
-            ),
-        )
-        accepted = command_response.ok and command_response.result is not None
         decision = self._decision(
             request,
             intent="confirmation_response",
@@ -310,6 +398,54 @@ class DefaultRuntimeInputRouter:
                 _ref("confirmation", confirmation.id, "Active confirmation"),
             ),
         )
+        if self.contract_revision_service is not None:
+            command_result = self.contract_revision_service.execute(
+                ContractCommandRequest(
+                    command_id=request.command_id,
+                    idempotency_key=request.command_id,
+                    command_kind="resolve_confirmation",
+                    workspace_id=request.workspace_id or "current",
+                    session_id=request.session_id,
+                    scope_kind="confirmation",
+                    confirmation_id=confirmation.id,
+                    source="runtime_input",
+                    router_decision_id=decision.id,
+                    payload={"value": value, "note": request.content},
+                )
+            )
+            accepted = command_result.status in {"accepted", "noop"}
+            return self._result(
+                request,
+                decision,
+                RuntimeInputOutcome(
+                    status="dispatched" if accepted else "rejected",
+                    user_message=(
+                        "The active confirmation response was recorded."
+                        if accepted
+                        else "The active confirmation response was rejected."
+                    ),
+                    recovery_actions=() if accepted else ("retry_command",),
+                ),
+                command_response=command_result.command_response,
+                activity=_activity_from_contract_result(
+                    request,
+                    decision,
+                    command_result,
+                )
+                if command_result.activity is not None
+                else None,
+                activity_kind="confirmation_resolved" if accepted else "recovery_note",
+            )
+
+        command_response = self.command_gateway.resolve_confirmation(
+            confirmation.id,
+            CommandRequest[ResolveConfirmationPayload](
+                command_id=request.command_id,
+                session_id=request.session_id,
+                payload=ResolveConfirmationPayload(value=value, note=request.content),
+            ),
+        )
+        accepted = command_response.ok and command_response.result is not None
         return self._result(
             request,
             decision,
@@ -761,6 +897,49 @@ def _ref(kind: SessionActivityRefKind, ref_id: str, label: str) -> SessionActivi
     )
 
 
+def _activity_from_contract_result(
+    request: RuntimeInputRouteRequest,
+    decision: RuntimeInputRouteDecision,
+    command_result: ContractCommandResult,
+) -> SessionActivityItemView:
+    assert command_result.activity is not None
+    return SessionActivityItemView(
+        id=f"activity:{decision.id}",
+        session_id=request.session_id,
+        kind=_contract_activity_kind(command_result),
+        title=command_result.activity.title,
+        body=command_result.activity.body,
+        scope_kind=decision.scope.kind,
+        plan_id=decision.scope.plan_id,
+        task_node_id=decision.scope.task_node_id,
+        side_effect=command_result.side_effect,
+        related_refs=command_result.activity.related_refs,
+        source_kind="router",
+        source_id=decision.id,
+        disclosure_level=command_result.activity.disclosure_level,
+    )
+
+
+def _contract_activity_kind(
+    command_result: ContractCommandResult,
+) -> SessionActivityItemKind:
+    if command_result.status not in {"accepted", "noop"}:
+        return "recovery_note"
+    if command_result.command_kind == "record_guidance":
+        return "guidance_recorded"
+    if command_result.command_kind == "resolve_ask":
+        return "ask_answered"
+    if command_result.command_kind == "resolve_confirmation":
+        return "confirmation_resolved"
+    if command_result.command_kind == "create_task_node":
+        return "task_created"
+    if command_result.command_kind == "delete_task_node":
+        return "task_removed"
+    if command_result.command_kind == "patch_task_node":
+        return "task_changed"
+    return "router_interpretation"
+
+
 def _activity_title(decision: RuntimeInputRouteDecision) -> str:
     if decision.intent == "ask_answer":
         return "ASK answered"
@@ -772,6 +951,8 @@ def _activity_title(decision: RuntimeInputRouteDecision) -> str:
         return "Runtime input needs clarification"
     if decision.intent == "question":
         return "Read-only question answered"
+    if decision.intent == "guidance":
+        return "Guidance recorded"
     return "Runtime input routed"
 
 

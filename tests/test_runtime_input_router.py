@@ -5,6 +5,13 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
 
+from taskweavn.contract_revision import (
+    ContractRevisionCommandService,
+    InMemoryContractCommandIdempotencyStore,
+    InMemoryGuidanceFactStore,
+    MessageBusContractRevisionActivityPublisher,
+    UiGatewayContractInteractionCommandHandler,
+)
 from taskweavn.interaction import InProcessMessageBus, SqliteMessageStream
 from taskweavn.server import HttpApiRequest, PlatoUiHttpTransport
 from taskweavn.server.runtime_input_activity import (
@@ -102,6 +109,79 @@ def test_router_passes_workspace_id_to_read_only_inquiry() -> None:
 
     assert response.ok is True
     assert inquiry.requests[0].workspace_id == "workspace-1"
+
+
+def test_router_records_guidance_through_contract_revision_service() -> None:
+    query = _QueryGateway()
+    commands = _CommandGateway()
+    guidance_store = InMemoryGuidanceFactStore()
+    service = ContractRevisionCommandService(
+        idempotency_store=InMemoryContractCommandIdempotencyStore(),
+        guidance_store=guidance_store,
+        workspace_id="workspace-1",
+    )
+    router = _router(query, commands, contract_revision_service=service)
+
+    response = router.route(
+        _request(
+            content="Keep the implementation small.",
+            mode="guide",
+            workspace_id="workspace-1",
+            selection=RuntimeInputSelection(scope_kind="session"),
+        )
+    )
+
+    assert response.ok is True
+    assert response.data is not None
+    assert response.data.decision.intent == "guidance"
+    assert response.data.decision.dispatch_target == "record_guidance"
+    assert response.data.decision.side_effect == "context_effect"
+    assert response.data.outcome.status == "dispatched"
+    assert response.data.activity is not None
+    assert response.data.activity.kind == "guidance_recorded"
+    facts = guidance_store.list_for_scope(session_id="session-1")
+    assert len(facts) == 1
+    assert facts[0].guidance_text == "Keep the implementation small."
+
+
+def test_router_guidance_activity_persists_to_message_stream(tmp_path: Path) -> None:
+    query = _QueryGateway()
+    commands = _CommandGateway()
+    guidance_store = InMemoryGuidanceFactStore()
+    message_stream = SqliteMessageStream(tmp_path / "messages.sqlite")
+    message_bus = InProcessMessageBus(message_stream)
+    service = ContractRevisionCommandService(
+        idempotency_store=InMemoryContractCommandIdempotencyStore(),
+        guidance_store=guidance_store,
+        workspace_id="workspace-1",
+        activity_publisher=MessageBusContractRevisionActivityPublisher(message_bus),
+    )
+    router = _router(query, commands, contract_revision_service=service)
+    try:
+        response = router.route(
+            _request(
+                content="Prefer concise diffs.",
+                mode="guide",
+                workspace_id="workspace-1",
+                selection=RuntimeInputSelection(scope_kind="session"),
+            )
+        )
+        assert response.ok is True
+
+        messages = tuple(message_stream.list_for_session("session-1"))
+        views = tuple(map_agent_message_view(message) for message in messages)
+        timeline = DefaultSessionActivityProjectionService().project(
+            session_id="session-1",
+            messages=views,
+        )
+    finally:
+        message_bus.close()
+        message_stream.close()
+
+    assert len(timeline.items) == 1
+    assert timeline.items[0].kind == "guidance_recorded"
+    assert timeline.items[0].side_effect == "context_effect"
+    assert timeline.items[0].body == "Guidance recorded: Prefer concise diffs."
 
 
 def test_router_passes_explicit_inquiry_refs_to_read_only_inquiry() -> None:
@@ -240,6 +320,33 @@ def test_router_active_ask_answer_dispatches_existing_command() -> None:
     assert commands.calls == [("answer_ask", "ask-1", "Use Vercel.")]
 
 
+def test_router_active_ask_answer_dispatches_through_contract_revision_service() -> None:
+    query = _QueryGateway(active_ask_id="ask-1")
+    commands = _CommandGateway()
+    service = _contract_revision_service(commands)
+    router = _router(query, commands, contract_revision_service=service)
+
+    response = router.route(
+        _request(
+            command_id="route-ask",
+            content="Use Vercel.",
+            selection=RuntimeInputSelection(scope_kind="session"),
+            active_ask_id="ask-1",
+        )
+    )
+
+    assert response.ok is True
+    assert response.data is not None
+    assert response.data.decision.intent == "ask_answer"
+    assert response.data.decision.dispatch_target == "resolve_ask"
+    assert response.data.decision.side_effect == "resume_effect"
+    assert response.data.outcome.status == "dispatched"
+    assert response.data.activity is not None
+    assert response.data.activity.kind == "ask_answered"
+    assert response.data.command_response is not None
+    assert commands.calls == [("answer_ask", "ask-1", "Use Vercel.")]
+
+
 def test_router_confirmation_requires_clear_response() -> None:
     query = _QueryGateway(active_confirmation_id="confirm-1")
     commands = _CommandGateway()
@@ -282,6 +389,33 @@ def test_router_confirmation_response_dispatches_existing_command() -> None:
     assert response.data.outcome.status == "dispatched"
     assert response.data.activity is not None
     assert response.data.activity.kind == "confirmation_resolved"
+    assert commands.calls == [("resolve_confirmation", "confirm-1", "confirmed")]
+
+
+def test_router_confirmation_response_dispatches_through_contract_revision_service() -> None:
+    query = _QueryGateway(active_confirmation_id="confirm-1")
+    commands = _CommandGateway()
+    service = _contract_revision_service(commands)
+    router = _router(query, commands, contract_revision_service=service)
+
+    response = router.route(
+        _request(
+            command_id="route-confirm",
+            content="yes",
+            selection=RuntimeInputSelection(scope_kind="task", task_node_id="task-1"),
+            active_confirmation_id="confirm-1",
+        )
+    )
+
+    assert response.ok is True
+    assert response.data is not None
+    assert response.data.decision.intent == "confirmation_response"
+    assert response.data.decision.dispatch_target == "resolve_confirmation"
+    assert response.data.decision.side_effect == "authorization_effect"
+    assert response.data.outcome.status == "dispatched"
+    assert response.data.activity is not None
+    assert response.data.activity.kind == "confirmation_resolved"
+    assert response.data.command_response is not None
     assert commands.calls == [("resolve_confirmation", "confirm-1", "confirmed")]
 
 
@@ -418,12 +552,27 @@ def _router(
     *,
     read_only_inquiry_service: Any | None = None,
     activity_publisher: Any | None = None,
+    contract_revision_service: Any | None = None,
 ) -> DefaultRuntimeInputRouter:
     return DefaultRuntimeInputRouter(
         query_gateway=cast(Any, query),
         command_gateway=cast(Any, commands),
         read_only_inquiry_service=read_only_inquiry_service,
         activity_publisher=activity_publisher,
+        contract_revision_service=contract_revision_service,
+    )
+
+
+def _contract_revision_service(
+    commands: _CommandGateway,
+) -> ContractRevisionCommandService:
+    return ContractRevisionCommandService(
+        idempotency_store=InMemoryContractCommandIdempotencyStore(),
+        guidance_store=InMemoryGuidanceFactStore(),
+        workspace_id="workspace-1",
+        interaction_handler=UiGatewayContractInteractionCommandHandler(
+            cast(Any, commands)
+        ),
     )
 
 

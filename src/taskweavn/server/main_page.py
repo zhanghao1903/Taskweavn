@@ -9,6 +9,16 @@ from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import cast
 
+from taskweavn.contract_revision import (
+    ContractCommandIdempotencyStore,
+    ContractRevisionCommandService,
+    GuidanceFactStore,
+    MessageBusContractRevisionActivityPublisher,
+    SqliteContractCommandIdempotencyStore,
+    SqliteGuidanceFactStore,
+    UiGatewayContractInteractionCommandHandler,
+    UiGatewayContractTaskNodeCommandHandler,
+)
 from taskweavn.core import (
     Session,
     SessionManager,
@@ -180,6 +190,7 @@ class MainPageSidecarDependencies:
     settings_config_gateway: SettingsConfigGateway | None = None
     default_agent: ResidentDefaultAgent | None = None
     ask_store: AskStore | None = None
+    guidance_store: GuidanceFactStore | None = None
 
 
 @dataclass
@@ -200,6 +211,8 @@ class MainPageWorkspaceRuntime:
     authoring_state_store: AuthoringStateStore | None
     authoring_idempotency_store: AuthoringCommandIdempotencyStore | None
     ui_command_idempotency_store: UiCommandResponseIdempotencyStore | None
+    contract_revision_idempotency_store: ContractCommandIdempotencyStore | None
+    guidance_store: GuidanceFactStore | None
     event_source: UiEventSource
     result_summary_store: TaskExecutionSummaryStore
     token_usage_store: SqliteTokenUsageStore
@@ -249,6 +262,8 @@ class MainPageWorkspaceRuntime:
             self.authoring_state_store,
             self.authoring_idempotency_store,
             self.ui_command_idempotency_store,
+            self.contract_revision_idempotency_store,
+            self.guidance_store,
             self.result_summary_store,
             self.token_usage_store,
             self.ask_store,
@@ -329,6 +344,12 @@ def build_main_page_workspace_runtime(
             ),
         )
         ask_store = dependencies.ask_store or SqliteAskStore(layout.workspace_asks_db)
+        guidance_store = dependencies.guidance_store or SqliteGuidanceFactStore(
+            layout.workspace_contract_revision_db
+        )
+        contract_revision_idempotency_store = SqliteContractCommandIdempotencyStore(
+            layout.workspace_contract_revision_db
+        )
         task_bus = SqliteTaskBus(layout.workspace_tasks_db)
         token_usage_store = SqliteTokenUsageStore(layout.workspace_usage_db)
         usage_llm = UsageRecordingLLM(
@@ -404,6 +425,7 @@ def build_main_page_workspace_runtime(
                 result_summary_store=result_summary_store,
                 ui_event_store=event_store,
                 settings_store=settings_store,
+                contract_guidance_store=guidance_store,
             )
         execution_dispatcher = FixedRouteExecutionDispatcher(
             task_bus=task_bus,
@@ -550,6 +572,22 @@ def build_main_page_workspace_runtime(
             if config.enable_read_only_inquiry_llm
             else None
         )
+        contract_revision_service = ContractRevisionCommandService(
+            idempotency_store=contract_revision_idempotency_store,
+            guidance_store=guidance_store,
+            workspace_id=config.current_workspace_id or "current",
+            plan_store=plan_store,
+            interaction_handler=UiGatewayContractInteractionCommandHandler(
+                command_gateway,
+                execution_trigger_gateway=execution_dispatcher,
+            ),
+            task_node_handler=UiGatewayContractTaskNodeCommandHandler(
+                command_gateway
+            ),
+            activity_publisher=MessageBusContractRevisionActivityPublisher(
+                message_bus
+            ),
+        )
         transport = PlatoUiHttpTransport(
             query_gateway=query_gateway,
             command_gateway=command_gateway,
@@ -592,6 +630,7 @@ def build_main_page_workspace_runtime(
                 activity_publisher=MessageBusRuntimeInputActivityPublisher(
                     message_bus
                 ),
+                contract_revision_service=contract_revision_service,
             ),
         )
     except Exception:
@@ -613,6 +652,8 @@ def build_main_page_workspace_runtime(
         authoring_state_store=authoring_state_store,
         authoring_idempotency_store=authoring_idempotency_store,
         ui_command_idempotency_store=ui_command_idempotency_store,
+        contract_revision_idempotency_store=contract_revision_idempotency_store,
+        guidance_store=guidance_store,
         event_source=event_source,
         result_summary_store=result_summary_store,
         token_usage_store=token_usage_store,
@@ -760,6 +801,10 @@ def _sidecar_app_from_runtime(
         authoring_state_store=runtime.authoring_state_store,
         authoring_idempotency_store=runtime.authoring_idempotency_store,
         ui_command_idempotency_store=runtime.ui_command_idempotency_store,
+        contract_revision_idempotency_store=(
+            runtime.contract_revision_idempotency_store
+        ),
+        guidance_store=runtime.guidance_store,
         event_source=runtime.event_source,
         result_summary_store=runtime.result_summary_store,
         token_usage_store=runtime.token_usage_store,
