@@ -23,6 +23,9 @@ from taskweavn.contract_revision.models import (
     ContractCommandRequest,
     ContractCommandResult,
     ContractCommandStatus,
+    CreateExecutionTaskPayload,
+    CreateTaskNodePayload,
+    DeleteTaskNodePayload,
     GuidanceFact,
     PatchTaskNodePayload,
     RecordGuidancePayload,
@@ -96,6 +99,12 @@ class ContractRevisionCommandService:
             result = self._resolve_confirmation(request)
         elif request.command_kind == "patch_task_node":
             result = self._patch_task_node(request)
+        elif request.command_kind == "create_task_node":
+            result = self._create_task_node(request)
+        elif request.command_kind == "delete_task_node":
+            result = self._delete_task_node(request)
+        elif request.command_kind == "create_execution_task":
+            result = self._create_execution_task(request)
         else:
             result = _result(
                 request,
@@ -273,31 +282,83 @@ class ContractRevisionCommandService:
         outcome = self.task_node_handler.patch_task_node(request, payload)
         return self._task_node_result(request, outcome)
 
+    def _create_task_node(
+        self,
+        request: ContractCommandRequest,
+    ) -> ContractCommandResult:
+        if self.task_node_handler is None:
+            return _unsupported_task_node_result(request)
+        try:
+            payload = CreateTaskNodePayload.model_validate(request.payload)
+        except ValidationError:
+            return _invalid_task_node_payload_result(request)
+        outcome = self.task_node_handler.create_task_node(request, payload)
+        return self._task_node_result(request, outcome)
+
+    def _delete_task_node(
+        self,
+        request: ContractCommandRequest,
+    ) -> ContractCommandResult:
+        if self.task_node_handler is None:
+            return _unsupported_task_node_result(request)
+        try:
+            payload = DeleteTaskNodePayload.model_validate(request.payload)
+        except ValidationError:
+            return _invalid_task_node_payload_result(request)
+        outcome = self.task_node_handler.delete_task_node(request, payload)
+        return self._task_node_result(request, outcome)
+
+    def _create_execution_task(
+        self,
+        request: ContractCommandRequest,
+    ) -> ContractCommandResult:
+        if self.task_node_handler is None:
+            return _unsupported_task_node_result(request)
+        try:
+            payload = CreateExecutionTaskPayload.model_validate(request.payload)
+        except ValidationError:
+            return _invalid_task_node_payload_result(request)
+        outcome = self.task_node_handler.create_execution_task(request, payload)
+        return self._task_node_result(request, outcome)
+
     def _task_node_result(
         self,
         request: ContractCommandRequest,
         outcome: ContractTaskNodeCommandOutcome,
     ) -> ContractCommandResult:
-        refs = _task_node_refs(request)
-        if not outcome.accepted:
-            reason_code = outcome.reason_code or "command_rejected"
+        plan_id = outcome.plan_id or request.plan_id
+        task_node_id = (
+            outcome.task_node.task_node_id
+            if outcome.task_node is not None
+            else request.task_node_id
+        )
+        refs = _task_node_refs(plan_id=plan_id, task_node_id=task_node_id)
+        if not outcome.accepted or outcome.status != "accepted":
+            result_status: ContractCommandStatus = outcome.status
+            if not outcome.accepted and result_status == "accepted":
+                result_status = "rejected"
+            reason_code = outcome.reason_code
+            if result_status != "noop":
+                reason_code = reason_code or "command_rejected"
             return _result(
                 request,
-                status="rejected",
+                status=result_status,
                 side_effect="no_effect",
                 refs=refs,
                 reason_code=reason_code,
                 message_key="contractRevision.taskNodePatchRejected",
                 diagnostics=_diagnostics(
                     request,
-                    status="rejected",
+                    status=result_status,
                     side_effect="no_effect",
                     reason_code=reason_code,
                 ),
                 command_response=outcome.command_response,
+                plan_id=plan_id,
+                task_node_id=task_node_id,
             )
         activity = ContractCommandActivityDescriptor(
-            title="Task changed",
+            title=_task_node_activity_title(request),
             body=outcome.message,
             related_refs=refs,
         )
@@ -308,12 +369,12 @@ class ContractRevisionCommandService:
             side_effect="state_effect",
             scope_kind=request.scope_kind,
             session_id=request.session_id,
-            plan_id=request.plan_id,
-            task_node_id=request.task_node_id,
-            target_ref=ObjectRef(kind="published_task", id=request.task_node_id)
-            if request.task_node_id is not None
+            plan_id=plan_id,
+            task_node_id=task_node_id,
+            target_ref=ObjectRef(kind="published_task", id=task_node_id)
+            if task_node_id is not None
             else None,
-            summary="Patched TaskNode through Contract Revision command.",
+            summary=f"{_task_node_activity_title(request)} through Contract Revision command.",
         )
         return _result(
             request,
@@ -327,8 +388,13 @@ class ContractRevisionCommandService:
                 status="accepted",
                 side_effect="state_effect",
             ),
-            message_key="contractRevision.taskNodePatched",
+            message_key=_task_node_message_key(request),
             command_response=outcome.command_response,
+            new_version=(
+                outcome.task_node.version if outcome.task_node is not None else None
+            ),
+            plan_id=plan_id,
+            task_node_id=task_node_id,
         )
 
     def _record_guidance(self, request: ContractCommandRequest) -> ContractCommandResult:
@@ -511,16 +577,84 @@ def _interaction_refs(
 
 
 def _task_node_refs(
-    request: ContractCommandRequest,
+    *,
+    plan_id: str | None,
+    task_node_id: str | None,
 ) -> tuple[SessionActivityRefView, ...]:
-    if request.task_node_id is None:
-        return ()
-    return (
-        SessionActivityRefView(
-            kind="task",
-            id=request.task_node_id,
-            label="Task",
-            object_ref=ObjectRef(kind="published_task", id=request.task_node_id),
+    refs: list[SessionActivityRefView] = []
+    if plan_id is not None:
+        refs.append(
+            SessionActivityRefView(
+                kind="plan",
+                id=plan_id,
+                label="Plan",
+                object_ref=ObjectRef(kind="plan", id=plan_id),
+            )
+        )
+    if task_node_id is not None:
+        refs.append(
+            SessionActivityRefView(
+                kind="task",
+                id=task_node_id,
+                label="Task",
+                object_ref=ObjectRef(kind="published_task", id=task_node_id),
+            )
+        )
+    return tuple(refs)
+
+
+def _task_node_activity_title(request: ContractCommandRequest) -> str:
+    if request.command_kind == "create_task_node":
+        return "Task created"
+    if request.command_kind == "delete_task_node":
+        return "Task removed"
+    if request.command_kind == "create_execution_task":
+        return "Execution work created"
+    return "Task changed"
+
+
+def _task_node_message_key(request: ContractCommandRequest) -> str:
+    if request.command_kind == "create_task_node":
+        return "contractRevision.taskNodeCreated"
+    if request.command_kind == "delete_task_node":
+        return "contractRevision.taskNodeDeleted"
+    if request.command_kind == "create_execution_task":
+        return "contractRevision.executionTaskCreated"
+    return "contractRevision.taskNodePatched"
+
+
+def _unsupported_task_node_result(
+    request: ContractCommandRequest,
+) -> ContractCommandResult:
+    return _result(
+        request,
+        status="unsupported",
+        side_effect="no_effect",
+        reason_code="unsupported_command",
+        message_key="contractRevision.unsupportedTaskNodeCommand",
+        diagnostics=_diagnostics(
+            request,
+            status="unsupported",
+            side_effect="no_effect",
+            reason_code="unsupported_command",
+        ),
+    )
+
+
+def _invalid_task_node_payload_result(
+    request: ContractCommandRequest,
+) -> ContractCommandResult:
+    return _result(
+        request,
+        status="rejected",
+        side_effect="no_effect",
+        reason_code="invalid_payload",
+        message_key="contractRevision.invalidTaskNodePayload",
+        diagnostics=_diagnostics(
+            request,
+            status="rejected",
+            side_effect="no_effect",
+            reason_code="invalid_payload",
         ),
     )
 
@@ -568,6 +702,8 @@ def _result(
     *,
     status: ContractCommandStatus,
     side_effect: SessionActivitySideEffect,
+    plan_id: str | None = None,
+    task_node_id: str | None = None,
     refs: tuple[SessionActivityRefView, ...] = (),
     activity: ContractCommandActivityDescriptor | None = None,
     audit: ContractCommandAuditDescriptor | None = None,
@@ -586,8 +722,8 @@ def _result(
         side_effect=side_effect,
         scope_kind=request.scope_kind,
         session_id=request.session_id,
-        plan_id=request.plan_id,
-        task_node_id=request.task_node_id,
+        plan_id=request.plan_id if plan_id is None else plan_id,
+        task_node_id=request.task_node_id if task_node_id is None else task_node_id,
         ask_id=request.ask_id,
         confirmation_id=request.confirmation_id,
         refs=refs,

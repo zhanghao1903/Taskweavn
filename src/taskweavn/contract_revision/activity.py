@@ -62,6 +62,8 @@ def _activity_kind(result: ContractCommandResult) -> str:
         return "confirmation_resolved"
     if result.command_kind == "create_task_node":
         return "task_created"
+    if result.command_kind == "create_execution_task":
+        return "task_created"
     if result.command_kind == "delete_task_node":
         return "task_removed"
     if result.command_kind == "patch_task_node":

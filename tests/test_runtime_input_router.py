@@ -7,6 +7,7 @@ from typing import Any, cast
 
 from taskweavn.contract_revision import (
     ContractRevisionCommandService,
+    ContractTaskNodeCommandOutcome,
     InMemoryContractCommandIdempotencyStore,
     InMemoryGuidanceFactStore,
     MessageBusContractRevisionActivityPublisher,
@@ -45,6 +46,7 @@ from taskweavn.server.ui_contract.session_activity_projection import (
     DefaultSessionActivityProjectionService,
 )
 from taskweavn.server.ui_contract.view_models import SessionActivityItemView
+from taskweavn.task.plan_models import PlanTaskNode
 
 NOW = datetime(2026, 6, 14, 10, 0, tzinfo=UTC)
 
@@ -484,6 +486,48 @@ def test_router_defers_publish_and_workspace_changing_requests() -> None:
     assert commands.calls == []
 
 
+def test_router_change_mode_dispatches_execution_task_command() -> None:
+    query = _QueryGateway()
+    commands = _CommandGateway()
+    task_node_handler = _TaskNodeCommandHandler()
+    service = ContractRevisionCommandService(
+        idempotency_store=InMemoryContractCommandIdempotencyStore(),
+        guidance_store=InMemoryGuidanceFactStore(),
+        workspace_id="workspace-1",
+        task_node_handler=task_node_handler,
+    )
+    router = _router(query, commands, contract_revision_service=service)
+
+    response = router.route(
+        _request(
+            content="Edit README with the release notes.",
+            mode="change",
+            workspace_id="workspace-1",
+            selection=RuntimeInputSelection(scope_kind="session"),
+        )
+    )
+
+    assert response.ok is True
+    assert response.data is not None
+    assert response.data.decision.intent == "execution_request"
+    assert response.data.decision.dispatch_target == "execution_handoff"
+    assert response.data.decision.side_effect == "state_effect"
+    assert response.data.outcome.status == "dispatched"
+    assert response.data.activity is not None
+    assert response.data.activity.kind == "task_created"
+    assert response.data.activity.title == "Execution work created"
+    assert response.data.command_response is None
+    assert commands.calls == []
+    assert task_node_handler.calls == [
+        (
+            "create_execution_task",
+            "session",
+            None,
+            "Edit README with the release notes.",
+        )
+    ]
+
+
 def test_runtime_input_http_route_returns_contract_json() -> None:
     query = _QueryGateway()
     commands = _CommandGateway()
@@ -586,6 +630,63 @@ class _ActivityPublisher:
         activity: SessionActivityItemView,
     ) -> None:
         self.calls.append((request.command_id, activity.id))
+
+
+@dataclass
+class _TaskNodeCommandHandler:
+    calls: list[tuple[str, str, str | None, str]] = field(default_factory=list)
+
+    def patch_task_node(
+        self,
+        request: Any,
+        payload: Any,
+    ) -> ContractTaskNodeCommandOutcome:
+        raise AssertionError("patch_task_node should not be called")
+
+    def create_task_node(
+        self,
+        request: Any,
+        payload: Any,
+    ) -> ContractTaskNodeCommandOutcome:
+        raise AssertionError("create_task_node should not be called")
+
+    def delete_task_node(
+        self,
+        request: Any,
+        payload: Any,
+    ) -> ContractTaskNodeCommandOutcome:
+        raise AssertionError("delete_task_node should not be called")
+
+    def create_execution_task(
+        self,
+        request: Any,
+        payload: Any,
+    ) -> ContractTaskNodeCommandOutcome:
+        self.calls.append(
+            (
+                "create_execution_task",
+                request.scope_kind,
+                request.plan_id,
+                payload.intent,
+            )
+        )
+        node = PlanTaskNode(
+            task_node_id="task-exec-1",
+            plan_id="plan-1",
+            session_id=request.session_id,
+            task_index="1",
+            order_index=0,
+            title="Execution task",
+            intent=payload.intent,
+            summary=payload.intent,
+            readiness="approved",
+        )
+        return ContractTaskNodeCommandOutcome(
+            accepted=True,
+            message="Execution TaskNode was created.",
+            plan_id="plan-1",
+            task_node=node,
+        )
 
 
 @dataclass

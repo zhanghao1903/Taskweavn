@@ -125,6 +125,32 @@ class PatchTaskNodePayload(ContractRevisionModel):
         return self
 
 
+class CreateTaskNodePayload(ContractRevisionModel):
+    title: str = Field(min_length=1)
+    intent: str = Field(min_length=1)
+    summary: str | None = Field(default=None, min_length=1)
+    instructions: str = ""
+    required_capability: str | None = Field(default="general", min_length=1)
+    constraints: tuple[str, ...] = ()
+    acceptance_criteria: tuple[str, ...] = ()
+    depends_on: tuple[str, ...] = ()
+    after_task_node_id: str | None = Field(default=None, min_length=1)
+
+
+class CreateExecutionTaskPayload(ContractRevisionModel):
+    intent: str = Field(min_length=1)
+    title: str | None = Field(default=None, min_length=1)
+    summary: str | None = Field(default=None, min_length=1)
+    instructions: str = ""
+    required_capability: str | None = Field(default="general", min_length=1)
+    constraints: tuple[str, ...] = ()
+    acceptance_criteria: tuple[str, ...] = ()
+
+
+class DeleteTaskNodePayload(ContractRevisionModel):
+    reason: str | None = Field(default=None, min_length=1)
+
+
 class ContractCommandRequest(ContractRevisionModel):
     command_id: str = Field(default_factory=lambda: new_contract_id("ccmd"), min_length=1)
     idempotency_key: str = Field(min_length=1)
@@ -276,6 +302,9 @@ __all__ = [
     "ContractCommandSource",
     "ContractCommandStatus",
     "ContractRevisionModel",
+    "CreateExecutionTaskPayload",
+    "CreateTaskNodePayload",
+    "DeleteTaskNodePayload",
     "GuidanceFact",
     "GuidanceKind",
     "PatchTaskNodePayload",

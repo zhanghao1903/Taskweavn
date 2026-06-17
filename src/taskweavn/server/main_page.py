@@ -582,7 +582,8 @@ def build_main_page_workspace_runtime(
                 execution_trigger_gateway=execution_dispatcher,
             ),
             task_node_handler=UiGatewayContractTaskNodeCommandHandler(
-                command_gateway
+                command_gateway,
+                plan_store=plan_store,
             ),
             activity_publisher=MessageBusContractRevisionActivityPublisher(
                 message_bus

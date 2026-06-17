@@ -162,6 +162,12 @@ def _runtime_input_activity_kind(
         return "ask_answered"
     if title == "confirmation resolved":
         return "confirmation_resolved"
+    if title in {"task created", "execution work created"}:
+        return "task_created"
+    if title == "task changed":
+        return "task_changed"
+    if title == "task removed":
+        return "task_removed"
     return None
 
 

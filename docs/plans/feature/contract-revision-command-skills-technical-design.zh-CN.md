@@ -1,7 +1,7 @@
 # Contract Revision Command Skills 中文详细技术方案
 
-> Status: CRS-A、CRS-B、CRS-C 已实现；CRS-D 已实现 `patch_task_node`；
-> TaskNode create/delete 与 execution handoff 仍为 planned
+> Status: 中文技术方案已更新；CRS-A 至 CRS-E 已在分支实现；
+> targeted unit/router/sidecar tests 已通过，仍需 PR 收敛和外部 CI 验证
 >
 > Last Updated: 2026-06-18
 >
@@ -39,15 +39,23 @@ Runtime Input Router 负责判断用户输入的意图；Contract Revision Comma
 Skills 负责所有产品状态副作用。Router 不直接修改 Plan、TaskNode、ASK、
 confirmation、TaskBus 或 workspace 文件。
 
-本方案第一阶段目标：
+本方案覆盖 P0 的完整技术目标：
 
 1. 定义统一的 command request envelope 和 command result shape。
-2. 定义命令级 idempotency、version guard、conflict 和 rejected 语义。
-3. 实现 `record_guidance` 的技术边界，使用户指导成为 typed context fact。
-4. 为后续 Plan/TaskNode patch/create/delete、ASK/confirmation routed
-   resolution、execution request handoff 留出一致的扩展口。
-5. 确保每个 accepted command 都有 durable Activity、Audit ref 和 diagnostics
+2. 定义命令级 idempotency、version guard、conflict、noop、rejected 和
+   unsupported 语义。
+3. 让 `record_guidance` 把用户指导保存为 typed context fact，而不是隐藏在
+   chat/message 中。
+4. 让 `resolve_ask`、`resolve_confirmation` 复用现有 ASK / confirmation
+   domain lifecycle，使运行时提问和显式 UI 操作具备同一语义。
+5. 让 `patch_task_node`、`create_task_node`、`delete_task_node` 通过
+   PlanStore / PlanTaskNode 的版本化合同写入产品状态。
+6. 让 `create_execution_task` 把 workspace-changing 输入转换为 executable
+   contract work，但不直接运行 shell、file tools、browser、search 或 fetch。
+7. 确保每个 accepted command 都有 durable Activity、Audit ref 和 diagnostics
    descriptor。
+8. 给 Runtime Input Router 提供清晰的 side-effect boundary：Router 只判定和分发，
+   Command Skills 才能改变产品状态。
 
 ## 2. 非目标
 
@@ -68,14 +76,14 @@ confirmation、TaskBus 或 workspace 文件。
 | 现有模块 | 当前职责 | 本方案用法 |
 |---|---|---|
 | `taskweavn.server.ui_contract.runtime_input` | Runtime Input Router request/result/decision 合同。 | command skills 接收 `routerDecisionId`，并返回 Router 可投影的 result refs。 |
-| `taskweavn.server.runtime_input_router` | deterministic Router foundation。 | 增加 command skill service 依赖，先接 `record_guidance`。 |
+| `taskweavn.server.runtime_input_router` | deterministic Router foundation。 | 增加 command skill service 依赖，接入 guidance、ASK/confirmation resolution、TaskNode mutation 和 execution handoff。 |
 | `taskweavn.server.ui_contract.commands` | UI command payloads。 | 不直接承载所有 Contract Revision domain model；必要时只加 UI adapter payload。 |
 | `taskweavn.server.ui_contract.command_gateway` | UI command gateway 编排。 | 继续承载显式 UI 命令；Router-dispatched contract commands 应经新 service，再按需调用现有 gateway/domain service。 |
 | `taskweavn.server.ui_command_idempotency` | HTTP UI command response 级 idempotency。 | 可复用思想，但 command skills 需要领域命令级 idempotency，避免只缓存 HTTP response。 |
 | `taskweavn.server.runtime_input_activity` | Router answer Activity 持久化 seam。 | 扩展为 Router command outcome Activity publisher，或新增专用 publisher。 |
-| `taskweavn.server.ui_contract.session_activity_projection` | typed Activity projection。 | 增加 `guidance_recorded`、`ask_answered`、`confirmation_resolved` 等 Router command facts 的投影来源。 |
+| `taskweavn.server.ui_contract.session_activity_projection` | typed Activity projection。 | 增加 `guidance_recorded`、`ask_answered`、`confirmation_resolved`、`task_changed`、`task_created`、`task_removed` 等 Router command facts 的投影来源。 |
 | `taskweavn.task.plan_models` | durable Plan / PlanTaskNode。 | Plan/TaskNode command 的 canonical model。 |
-| `taskweavn.task.plan_stores` / `sqlite_plan_store` | durable Plan store。 | 后续 patch/create/delete 命令的存储边界。 |
+| `taskweavn.task.plan_stores` / `sqlite_plan_store` | durable Plan store。 | TaskNode patch/create/delete 和 execution handoff 的存储边界。 |
 | `taskweavn.interaction` / ASK stores | ASK domain。 | `resolve_ask` 只委托现有 ASK command lifecycle。 |
 | `taskweavn.context` | Context Manager。 | `record_guidance` 写入 typed guidance 后，由 ContextSource 按 scope 和 budget 进入上下文。 |
 
@@ -88,7 +96,7 @@ confirmation、TaskBus 或 workspace 文件。
 
 ## 4. 建议模块边界
 
-建议新增后端包：
+后端包边界：
 
 ```text
 src/taskweavn/contract_revision/
@@ -107,7 +115,27 @@ src/taskweavn/contract_revision/
   diagnostics.py
 ```
 
-第一阶段只需要实现：
+当前设计不把所有逻辑塞进 `server/runtime_input_router.py` 或
+`server/ui_contract/command_gateway.py`。Router 是 dispatcher，UI command
+gateway 是显式 UI command facade；Contract Revision Command Skills 是独立的
+产品领域能力层，供 Router 和显式 UI 命令复用。
+
+模块责任划分如下：
+
+| 模块 | 责任 | 当前状态 |
+|---|---|---|
+| `models.py` | command envelope/result/payload/descriptor 数据合同。 | 已实现 |
+| `service.py` | command dispatch、idempotency、result assembly、Activity publish 编排。 | 已实现并扩展中 |
+| `idempotency_store.py` / `sqlite_idempotency_store.py` | command 级 replay/conflict guard。 | 已实现 |
+| `guidance_store.py` / `sqlite_guidance_store.py` | typed guidance fact canonical store。 | 已实现 |
+| `guidance_commands.py` | guidance validation / persistence helper。 | 已实现 |
+| `interaction_commands.py` | ASK / confirmation routed resolution adapter。 | 已实现 |
+| `tasknode_commands.py` | TaskNode patch/create/delete 和 execution handoff adapter。 | 已实现，targeted tests 已覆盖 |
+| `activity.py` | command result 到 durable Activity fact 的投影。 | 已实现并扩展中 |
+| `diagnostics.py` | redacted diagnostic descriptor。 | 可继续拆分；当前主要在 service helpers 内 |
+| `execution_handoff.py` | 可选独立模块，用于后续从 TaskNode 创建扩展到 publish/execute handoff。 | planned |
+
+最小 P0 实现包：
 
 ```text
 models.py
@@ -117,14 +145,14 @@ sqlite_idempotency_store.py
 guidance_store.py
 sqlite_guidance_store.py
 guidance_commands.py
+interaction_commands.py
+tasknode_commands.py
 activity.py
 diagnostics.py
 ```
 
-不建议把所有逻辑塞进 `server/runtime_input_router.py` 或
-`server/ui_contract/command_gateway.py`。Router 是 dispatcher，UI command
-gateway 是 UI command facade；Contract Revision Command Skills 应该是一个
-产品领域能力层，供 Router 和显式 UI 命令复用。
+其中 `diagnostics.py` 可以先以内聚 helper 形式存在于 `service.py`，但模型和导出
+字段必须保持本文定义的 redaction 规则。
 
 ### 4.1 架构总览
 
@@ -736,300 +764,859 @@ Router active interaction route
 - answer shape 不匹配时返回 `rejected` 或 clarification。
 - active interaction state 由 backend authoritative projection 决定，不能只信 clientState。
 
-## 13. Plan / TaskNode Mutation Commands
+## 13. Command Skill API Surface
 
-CRS-D 需要等 CRS-A/CRS-B 稳定后再做。
+P0 command set 固定为七个内部命令：
 
-### 13.1 `patch_task_node`
+| Command | Scope | Side effect | Canonical owner | 当前状态 |
+|---|---|---|---|---|
+| `record_guidance` | session / plan / task | `context_effect` | GuidanceFactStore | implemented |
+| `resolve_ask` | ask | `resume_effect` | ASK domain | implemented |
+| `resolve_confirmation` | confirmation | `authorization_effect` | confirmation domain | implemented |
+| `patch_task_node` | task | `state_effect` | PlanStore / existing UI command gateway | implemented |
+| `create_task_node` | plan | `state_effect` | PlanStore | implemented |
+| `delete_task_node` | task | `state_effect` or `noop` | PlanStore tombstone | implemented |
+| `create_execution_task` | session / plan | `state_effect` first, later `execution_request` | PlanStore, then publish/TaskBus path | implemented |
 
-允许第一批字段：
+设计要求：
 
-- `title`
-- `intent`
-- `summary`
-- `instructions`
-- `constraints`
-- `acceptance_criteria`
-- editable order metadata
+1. Router 不直接写任何 canonical store。
+2. Command Service 是所有 Runtime Input product-state side effect 的唯一入口。
+3. 每个 command 必须解析 typed payload，不能把 raw `dict` 透传到 store。
+4. 每个 command 必须经过 command-level idempotency store。
+5. 每个 accepted command 必须返回 refs、Activity descriptor、Audit descriptor 和
+   diagnostics descriptor。
+6. 每个 rejected/conflict/unsupported command 必须返回稳定 `reasonCode` 和
+   `messageKey`。
 
-Validation：
+### 13.1 Payload Contracts
 
-- Plan/TaskNode 属于当前 session。
-- `expected_version` 匹配。
-- Plan 状态允许编辑。
-- running/done/cancelled TaskNode 默认不允许直接改，除非进入确认或 follow-up path。
-- high-impact changes 返回 `needs_confirmation`。
+#### `record_guidance`
 
-### 13.2 `create_task_node`
+```python
+class RecordGuidancePayload(ContractRevisionModel):
+    guidance_text: str
+    guidance_kind: GuidanceKind = "instruction"
+    applies_to_future_tasks: bool = False
+    expires_at: datetime | None = None
+```
 
-用途：
+约束：
 
-- 用户提出 follow-up work；
-- Router 将 workspace-changing request 转成 executable contract；
-- recovery 建议创建补救任务。
+- text trim 后不能为空；
+- text 进入 canonical GuidanceFact，但 diagnostics 只保留 preview / truncated 标记；
+- `expires_at` 是合同字段，P0 可以先不执行自动归档。
 
-必须保证：
+#### `resolve_ask`
 
-- insertion position deterministic；
-- idempotent replay 不产生重复 TaskNode；
-- Activity/Audit 能解释为什么新增。
+```python
+class ResolveAskPayload(ContractRevisionModel):
+    selected_option_ids: tuple[str, ...] = ()
+    text: str | None = None
+```
 
-### 13.3 `delete_task_node`
+约束：
 
-第一版建议 archive/tombstone，不做物理删除。
+- option 和 text 至少提供一个；
+- command handler 只做 adapter，具体 ASK answer lifecycle 仍由 ASK domain 决定；
+- repeated answer 必须 replay，不允许 double resume。
+
+#### `resolve_confirmation`
+
+```python
+class ResolveConfirmationContractPayload(ContractRevisionModel):
+    value: str
+    note: str | None = None
+```
+
+约束：
+
+- `value` 必须映射到 existing confirmation domain 支持的 accept/reject/cancel 等语义；
+- 不在 Contract Revision 层重写 confirmation 状态机。
+
+#### `patch_task_node`
+
+```python
+class PatchTaskNodePayload(ContractRevisionModel):
+    title: str | None = None
+    summary: str | None = None
+    intent: str | None = None
+    full_intent: str | None = None
+    constraints: tuple[str, ...] | None = None
+    update_mode: Literal["node_fields", "replace_children", "replace_subtree"]
+    preserve_root_id: bool = True
+```
+
+约束：
+
+- 至少有一个字段被修改；
+- `intent` 和 `full_intent` 不能同时提供；
+- P0 默认通过现有 `update_task_node` gateway 执行，以复用已有 version guard 和
+  UI command response shape。
+
+#### `create_task_node`
+
+```python
+class CreateTaskNodePayload(ContractRevisionModel):
+    title: str
+    intent: str
+    summary: str | None = None
+    instructions: str = ""
+    required_capability: str | None = "general"
+    constraints: tuple[str, ...] = ()
+    acceptance_criteria: tuple[str, ...] = ()
+    depends_on: tuple[str, ...] = ()
+    after_task_node_id: str | None = None
+```
+
+约束：
+
+- 只能写入 editable Plan；
+- `after_task_node_id` 不存在时插入末尾；
+- `after_task_node_id` 存在但找不到时返回 `rejected/invalid_payload`；
+- replay 不能重复创建 TaskNode。
+
+#### `delete_task_node`
+
+```python
+class DeleteTaskNodePayload(ContractRevisionModel):
+    reason: str | None = None
+```
+
+约束：
+
+- P0 不做物理删除；
+- 没有 execution evidence 的节点可以 tombstone；
+- 已 published、已执行、已有 result/error/file/audit ref 的节点拒绝删除；
+- 已 tombstone 的重复请求返回 `noop`。
+
+#### `create_execution_task`
+
+```python
+class CreateExecutionTaskPayload(ContractRevisionModel):
+    intent: str
+    title: str | None = None
+    summary: str | None = None
+    instructions: str = ""
+    required_capability: str | None = "general"
+    constraints: tuple[str, ...] = ()
+    acceptance_criteria: tuple[str, ...] = ()
+```
+
+约束：
+
+- 将 workspace-changing input 转换为 executable TaskNode；
+- 不直接触发 workspace mutation；
+- 如果存在 editable active Plan，则追加 approved TaskNode；
+- 如果没有 editable active Plan，且 request 未指定不可编辑目标 Plan，则创建一个
+  approved single-task Plan；
+- 如果 request 指定了 non-editable Plan，返回 `rejected/invalid_plan_state`。
+
+## 14. Plan / TaskNode Mutation Commands
+
+### 14.1 Editable Plan Policy
+
+P0 只允许以下 Plan status 被 command skills 修改：
+
+```text
+draft
+reviewing
+approved
+```
+
+不可编辑状态：
+
+```text
+published
+running
+completed
+cancelled
+failed
+unknown future status
+```
 
 规则：
 
-- 未执行 TaskNode 可 archive。
-- 已有 execution evidence 的 TaskNode 只能 hide/archive，不能删除证据。
-- destructive change 需要 confirmation。
+1. 显式 `plan_id` 优先；如果 target Plan 不存在，返回
+   `rejected/target_not_found`。
+2. 显式 `plan_id` 对应 Plan 不可编辑时，返回
+   `rejected/invalid_plan_state`。
+3. 未提供 `plan_id` 时，`create_task_node` 查找 active editable Plan；没有则拒绝。
+4. 未提供 `plan_id` 时，`create_execution_task` 可以创建新的 approved Plan。
+5. 所有 PlanStore 写入都必须使用 expected version 或 store 自身 version guard。
 
-## 14. Execution Request Handoff
+### 14.2 `patch_task_node` Flow
 
-`create_execution_task` 的职责是把用户的 workspace-changing input 变成可执行
-contract work，而不是直接执行。
+```text
+ContractCommandRequest(patch_task_node)
+  -> ContractRevisionCommandService._patch_task_node
+  -> PatchTaskNodePayload validation
+  -> ContractTaskNodeCommandHandler.patch_task_node
+  -> UiCommandGateway.update_task_node
+  -> existing TaskNode version / state validation
+  -> CommandResponse
+  -> ContractCommandResult(state_effect)
+  -> Activity task_changed
+```
+
+为什么先复用 UI command gateway：
+
+- 现有 gateway 已经掌握 TaskRef resolution；
+- 现有 gateway 已经有 TaskNode expected version guard；
+- 可以避免同一字段更新在两个 domain handler 中分叉；
+- Contract Revision 层只负责统一 envelope、Activity/Audit 和 routed input 入口。
+
+后续可拆分条件：
+
+- `patch_task_node` 需要支持更复杂的 subtree mutation；
+- explicit UI command 和 routed command 都能迁移到同一个 domain-level
+  TaskNodeCommandService；
+- 现有 gateway 变成 adapter，而不是 command owner。
+
+### 14.3 `create_task_node` Flow
+
+```text
+ContractCommandRequest(create_task_node)
+  -> validate payload
+  -> resolve editable target Plan
+  -> list existing PlanTaskNode
+  -> compute task_index and order_index
+  -> PlanStore.add_task_node(expected_plan_version)
+  -> ContractCommandResult(state_effect, refs: plan/task)
+  -> Activity task_created
+```
+
+Task index 规则：
+
+- 从已有 `task_index` 集合中找最小可用正整数；
+- 使用字符串存储，保持和现有 PlanTaskNode model 兼容；
+- 不复用已取消节点的 `task_index`，除非后续产品明确允许。
+
+Order index 规则：
+
+- 未指定 `after_task_node_id`：`max(order_index) + 1`；
+- 空 Plan：`0`；
+- 指定 `after_task_node_id`：目标节点 `order_index + 1`；
+- 如果产生相同 `order_index`，由后续排序归一化或 PlanStore 规则处理；
+- P0 不做批量 reorder，避免隐式改动其他节点。
+
+Readiness / execution 初始值：
+
+| Command | readiness | execution |
+|---|---|---|
+| `create_task_node` | `draft` | model default |
+| `create_execution_task` | `approved` | model default |
+
+### 14.4 `delete_task_node` Tombstone Flow
+
+```text
+ContractCommandRequest(delete_task_node)
+  -> validate task target
+  -> get PlanTaskNode
+  -> if already cancelled: noop
+  -> check execution evidence
+  -> PlanStore.save_task_node(readiness=cancelled, execution=cancelled)
+  -> ContractCommandResult(state_effect)
+  -> Activity task_removed
+```
+
+删除不是物理删除。P0 tombstone 写入：
+
+```text
+readiness = cancelled
+execution = cancelled
+```
+
+拒绝删除条件：
+
+| 条件 | reasonCode |
+|---|---|
+| TaskNode 不存在 | `target_not_found` |
+| TaskNode 已 published 或有 `published_ref` | `task_already_published` |
+| `execution` 不是 `not_started` / `unknown` | `task_has_execution_evidence` |
+| 有 `result_ref` / `error_ref` / `file_summary_ref` / `audit_ref` | `task_has_execution_evidence` |
+| expected version 不匹配 | `version_conflict` |
+
+用户体验规则：
+
+- Activity 应显示为“Task removed”，但详情可以解释为取消/移除出当前计划；
+- Audit 需要保留 target Task ref；
+- Main Page 计划列表是否隐藏 cancelled 节点由 projection 层决定，不由 command
+  层物理删除。
+
+### 14.5 Version Guard
+
+所有 mutation command 都必须遵守：
+
+1. 修改已有 TaskNode 时使用 `expected_version` 或当前 node version。
+2. 向 Plan 添加节点时使用 `expected_plan_version`，避免并发插入覆盖。
+3. `VersionConflictError` 必须投影为 `conflict/version_conflict`，不应投影成普通
+   rejected。
+4. Router 不能自动重试有副作用的 mutation；UI 应提示用户刷新或重新提交。
+
+当前实现要求：
+
+- `_failure_from_exception(VersionConflictError)` 返回 `status="conflict"` 和
+  `reason_code="version_conflict"`；
+- 已 tombstone Task 的重复删除返回 `status="noop"`，不生成新的 state effect。
+
+## 15. Execution Request Handoff
+
+`create_execution_task` 是解决 Runtime Input `mode=change` 的关键命令。它的目标是
+把“用户希望 Plato 修改 workspace”的自然语言输入变成可审计、可发布、可执行的
+contract work。
+
+### 15.1 Boundary
 
 禁止：
 
-- 直接调用 shell。
-- 直接调用 file tools。
-- 直接调用 web search/fetch。
-- 绕过 Plan/TaskNode 和 TaskBus。
+- 直接调用 shell；
+- 直接调用 precision file tools；
+- 直接调用 browser automation；
+- 直接调用 web search / web fetch；
+- 绕过 Plan/TaskNode 直接写 workspace；
+- 在 Router 中隐式执行任务。
 
 允许：
 
 ```text
 workspace-changing input
-  -> create executable TaskNode
-  -> optional confirmation
-  -> publish/execute accepted path
+  -> Runtime Input Router classifies mode=change
+  -> ContractRevisionCommandService(create_execution_task)
+  -> create approved executable TaskNode
+  -> Activity task_created
+  -> user reviews / publishes / executes through existing path
   -> TaskBus owns workspace mutation
 ```
 
-Result side effect：
+### 15.2 Plan Resolution
 
-- 如果只创建 TaskNode：`state_effect`
-- 如果已经进入 accepted execution path：`execution_request`
+| Input state | Behavior |
+|---|---|
+| request has editable `plan_id` | append approved TaskNode to that Plan |
+| request has non-editable `plan_id` | reject `invalid_plan_state` |
+| no `plan_id`, editable active Plan exists | append approved TaskNode to active Plan |
+| no `plan_id`, no active editable Plan | create approved single-task Plan |
+| no `plan_id`, active Plan exists but non-editable | create new approved single-task Plan only if product policy allows; otherwise reject |
 
-## 15. 错误和冲突语义
+P0 建议保守策略：
+
+- 显式目标不可编辑时必须拒绝；
+- 没有显式目标时允许创建新 Plan，因为用户表达的是新的 workspace-changing request；
+- 新 Plan 的 `created_by` 标记为 `runtime_input_router`。
+
+### 15.3 TaskNode Creation Rules
+
+新 TaskNode：
+
+- `title` 来自 payload title；没有 title 时，从 intent 截断生成；
+- `intent` 保存完整用户目标；
+- `summary` 默认等于 intent；
+- `required_capability` 默认 `general`；
+- `acceptance_criteria` 为空时给出最小 criteria：
+  `Complete the requested workspace change.`；
+- `readiness=approved`，表示可进入后续 publish/execute path；
+- 不自动设置 `published_ref`；
+- 不自动设置 running/done；
+- 不创建文件、diff 或 result。
+
+### 15.4 Side Effect Semantics
+
+P0 `create_execution_task` 的实际 side effect 是 `state_effect`，因为它只修改
+Plan/TaskNode contract。
+
+只有当后续实现把命令推进到 accepted publish/execute path，并且 TaskBus 已经接受
+执行请求时，才允许返回：
+
+```text
+side_effect = execution_request
+```
+
+这能防止 UI 误以为“任务已经执行”，也避免用户输入一发送就修改 workspace。
+
+### 15.5 Router Integration
+
+Runtime Input Router 映射：
+
+| Router condition | Command |
+|---|---|
+| `mode == "guide"` | `record_guidance` |
+| active pending ASK | `resolve_ask` |
+| active pending confirmation | `resolve_confirmation` |
+| stop phrase | existing stop selected task command |
+| retry phrase | existing retry selected task command |
+| `mode == "ask"` or question-like | read-only inquiry |
+| `mode == "change"` or workspace-change-like | `create_execution_task` |
+| unknown | unsupported/no mutation |
+
+`mode=change` result：
+
+- accepted: `RuntimeInputOutcome.status="dispatched"`；
+- rejected: `RuntimeInputOutcome.status="rejected"`；
+- user message 必须明确“没有直接修改 workspace 文件”；
+- Activity kind 为 `task_created`；
+- refs 至少包含 Plan/Task ref。
+
+## 16. Activity / Audit / Diagnostics Evidence
+
+### 16.1 Activity Mapping
+
+| Command | Activity kind | Title | Side effect |
+|---|---|---|---|
+| `record_guidance` | `guidance_recorded` | Guidance recorded | `context_effect` |
+| `resolve_ask` | `ask_answered` | ASK answered | `resume_effect` |
+| `resolve_confirmation` | `confirmation_resolved` | Confirmation resolved | `authorization_effect` |
+| `patch_task_node` | `task_changed` | Task changed | `state_effect` |
+| `create_task_node` | `task_created` | Task created | `state_effect` |
+| `delete_task_node` | `task_removed` | Task removed | `state_effect` / `no_effect` on noop |
+| `create_execution_task` | `task_created` | Execution work created | `state_effect` |
+
+Activity 持久化规则：
+
+1. Activity item 可以从 command result descriptor 生成。
+2. Activity 必须包含 `source_kind="router"` 或显式 UI source。
+3. Activity source id 优先使用 Router decision id，其次 command id。
+4. Activity related refs 必须可聚焦到 Plan/Task/ASK/confirmation。
+5. Activity 不是 canonical state；reload 时如果和 PlanStore 不一致，以 PlanStore 为准。
+
+### 16.2 Audit Descriptor
+
+每个 accepted command 生成：
+
+```python
+ContractCommandAuditDescriptor(
+    command_id=...,
+    command_kind=...,
+    status="accepted",
+    side_effect=...,
+    scope_kind=...,
+    session_id=...,
+    plan_id=...,
+    task_node_id=...,
+    target_ref=...,
+    summary=...,
+)
+```
+
+Plan/TaskNode command 后续应扩展 `safe_before_after`：
+
+```python
+class ContractFieldChangeSummary(ContractRevisionModel):
+    field: str
+    before_preview: str | None
+    after_preview: str | None
+    redacted: bool = False
+```
+
+P0 如果暂未存完整 before/after，也必须至少记录：
+
+- command id；
+- command kind；
+- affected plan/task id；
+- status；
+- side effect；
+- stable reason code；
+- safe summary。
+
+### 16.3 Diagnostics Redaction
+
+Diagnostics 可以包含：
+
+- command kind；
+- status；
+- side effect；
+- scope kind；
+- reason code；
+- router decision id；
+- guidance preview；
+- truncated flag；
+- affected object ids。
+
+Diagnostics 禁止包含：
+
+- secrets / API keys；
+- provider raw payload；
+- raw prompt chain；
+- raw EventStream rows；
+- SQLite rows；
+- absolute workspace paths；
+- shell/tool args；
+- unbounded user-authored content。
+
+## 17. 错误和冲突语义
 
 | 场景 | Result status | reasonCode | 是否副作用 |
 |---|---|---|---:|
-| 目标 session/Plan/Task 不存在 | `rejected` | `target_not_found` | no |
+| 目标 session/Plan/Task/ASK/confirmation 不存在 | `rejected` | `target_not_found` | no |
 | version 不匹配 | `conflict` | `version_conflict` | no |
 | idempotency key 冲突 | `conflict` | `idempotency_conflict` | no |
+| idempotency command 未完成 | `conflict` | `incomplete_idempotent_command` | no |
 | payload 不合法 | `rejected` | `invalid_payload` | no |
 | Plan 状态不允许 | `rejected` | `invalid_plan_state` | no |
+| Task 已发布 | `rejected` | `task_already_published` | no |
+| Task 已有执行证据 | `rejected` | `task_has_execution_evidence` | no |
 | 需要用户确认 | `needs_confirmation` | `confirmation_required` | authorization only |
 | 能力尚未实现 | `unsupported` | `unsupported_command` | no |
 | replay 已完成命令 | original status | original reason | no new effect |
+| 重复删除已 tombstone Task | `noop` | none or `already_cancelled` | no new effect |
 
-UI 文案应使用稳定 `messageKey`，而不是后端硬编码长句。
+UI 文案规则：
 
-## 16. 观测性、迁移和回滚
+- 后端返回稳定 `messageKey`，前端用系统文案渲染；
+- 后端 `message` 可以作为 fallback，但不应成为唯一文案来源；
+- conflict 文案应提示刷新/重试；
+- rejected 文案应说明没有修改产品状态或 workspace 文件；
+- execution handoff 文案必须说明只是创建执行任务，不是已经执行。
 
-### 16.1 观测性
+## 18. 数据迁移、兼容和回滚
 
-第一阶段需要能回答三个问题：
+### 18.1 数据迁移
 
-1. 用户输入被 Router 判定为什么意图？
-2. command 是否真正产生了产品状态副作用？
-3. 后续 Agent 行为为什么受到了这条 guidance / ASK / confirmation 影响？
-
-建议新增或复用以下可观测点：
-
-| 位置 | 记录内容 | 注意事项 |
-|---|---|---|
-| Router decision | intent、target、confidence、sideEffect、reasonCodes | 不记录 raw prompt chain。 |
-| Command Service | commandKind、status、reasonCode、idempotency replay/conflict | 不记录 secrets、workspace absolute path。 |
-| Guidance Store | guidanceId、scope、kind、createdAt、archivedAt | diagnostics 只导出 preview/hash。 |
-| Activity | user-visible title/body、refs、sourceKind/sourceId | Activity 不是 canonical state。 |
-| Context Trace | candidate count、included count、truncated count | guidance text 需要按预算截断。 |
-
-### 16.2 数据迁移
-
-CRS-A/CRS-B 新增两类持久化数据：
+新增持久化：
 
 1. `contract_revision_command_records`：命令级 idempotency 记录。
 2. `guidance_facts`：用户指导事实。
 
+复用持久化：
+
+1. Plan / TaskNode store：TaskNode patch/create/delete/execution task。
+2. ASK store：ASK resolution。
+3. Confirmation domain store：confirmation resolution。
+4. MessageStream / Activity projection：durable Activity facts。
+
 迁移策略：
 
-- 使用 workspace-local SQLite lazy migration，随 workspace runtime 初始化建表。
-- 不修改现有 Plan、TaskNode、ASK、confirmation 表。
-- 不回填历史 chat/message 为 guidance fact，避免误判历史语义。
-- 旧 session 没有 guidance facts 时，ContextSource 返回空集合，不影响现有执行。
-- schema 变更必须 additive；如果后续需要删除字段，先做 reader 兼容再做清理。
+- workspace-local SQLite lazy migration；
+- additive schema only；
+- 不回填历史 chat/message 为 guidance；
+- 不迁移历史 TaskNode 为 command records；
+- 旧 workspace 打开时自动建表；
+- 新表不可用时 Router 返回 structured unsupported/rejected，而不是静默失败。
 
-### 16.3 兼容性
+### 18.2 兼容性
 
 兼容要求：
 
-- 没有 `ContractRevisionCommandService` 注入时，Router 必须返回结构化 unsupported，
-  且不产生任何副作用。
-- 旧 workspace 打开后应自动拥有新表，不需要用户迁移配置。
-- 旧 Activity projection 仍能展示原有 message/task/result 活动。
-- explicit UI command 路径继续可用，不能被 routed command 替代破坏。
-- packaged Electron 和 `npm run electron:dev` 使用同一后端语义。
+- 没有注入 `ContractRevisionCommandService` 时，Router 必须 no mutation；
+- explicit UI answer 和 routed answer 保持同一 domain behavior；
+- old Activity projection 仍能展示原有 message/task/result；
+- packaged Electron 和 `npm run electron:dev` 必须用同一 command semantics；
+- 当前 schema 不要求用户删除旧 workspace 配置；
+- 所有新 route 都必须有 unsupported fallback。
 
-### 16.4 回滚方案
+### 18.3 回滚
 
-如果 CRS-A/CRS-B 发布后出现问题：
+回滚开关：
 
-1. 通过 feature flag 或依赖注入关闭 `contract_revision_service`。
-2. Router `mode=guide` 回到 unsupported/no mutation 路径。
-3. 已写入的 `guidance_facts` 保留，但 ContextSource 可临时不纳入上下文。
-4. Activity 中已发布的 `guidance_recorded` 保留为历史事实。
-5. 不删除 SQLite 表，避免破坏用户审计链。
+1. 禁用 `contract_revision_service` 注入。
+2. `mode=guide` 和 `mode=change` 回到 unsupported/no mutation。
+3. ASK/confirmation 继续走 explicit UI path。
+4. 已写入 guidance facts 保留，但 ContextSource 可暂停纳入上下文。
+5. 已创建 TaskNode/Plan 保留，不反向删除。
+6. Activity 保留为历史事实。
 
-回滚后的用户影响：
+回滚不删除 SQLite 表，避免破坏审计链和未来恢复。
 
-- 新的 guidance 不再被记录为 typed context。
-- 已创建 Plan/TaskNode/ASK/confirmation canonical state 不被反向修改。
-- 用户可继续通过原 explicit UI 路径完成 ASK / confirmation / plan 操作。
+## 19. 测试方案
 
-## 17. 测试方案
+### 19.1 Unit Tests
 
-### 17.1 Unit Tests
-
-建议新增：
+建议覆盖文件：
 
 ```text
 tests/test_contract_revision_models.py
 tests/test_contract_revision_idempotency.py
 tests/test_contract_revision_guidance_store.py
 tests/test_contract_revision_record_guidance.py
+tests/test_contract_revision_tasknode_commands.py
 ```
 
-覆盖：
+覆盖点：
 
 - request/result model validation；
-- invalid scope rejection；
-- payload parsing；
+- unknown extra field forbidden；
+- invalid payload rejected；
 - idempotent replay；
 - idempotency conflict；
-- guidance fact create/list/get；
-- guidance text truncation metadata；
-- no raw path/secret in diagnostics descriptor。
+- incomplete idempotent command conflict；
+- diagnostics redaction；
+- guidance create/list/get；
+- Plan/Task scope validation；
+- `patch_task_node` delegates to existing UI gateway；
+- `create_task_node` appends to editable Plan；
+- `create_task_node` rejects missing/non-editable Plan；
+- `delete_task_node` tombstones unexecuted TaskNode；
+- `delete_task_node` returns noop for already cancelled TaskNode；
+- `delete_task_node` rejects published/executed/evidence-bearing TaskNode；
+- `create_execution_task` appends approved TaskNode to editable Plan；
+- `create_execution_task` creates approved single-task Plan when no active editable Plan；
+- version conflict maps to `conflict/version_conflict`。
 
-### 17.2 Integration Tests
+### 19.2 Router Integration Tests
 
-建议新增：
+建议覆盖文件：
 
 ```text
+tests/test_runtime_input_router.py
 tests/test_runtime_input_guidance_route.py
+tests/test_runtime_input_execution_handoff.py
 tests/test_session_activity_guidance_projection.py
-tests/test_contract_revision_context_source.py
+tests/test_session_activity_contract_commands.py
 ```
 
-覆盖：
+覆盖点：
 
-- `mode=guide` 从 Router dispatch 到 `record_guidance`；
-- Activity reload 后可见；
-- Context Manager 能纳入 session/plan/task guidance；
-- unsupported path 在 service 缺失时仍 no mutation；
-- duplicate Router command 不创建重复 guidance。
+- `mode=guide` -> `record_guidance`；
+- `mode=change` -> `create_execution_task`；
+- active ASK -> `resolve_ask`；
+- active confirmation -> `resolve_confirmation`；
+- service 缺失时 structured unsupported/no mutation；
+- rejected command 生成 recovery note，而不是 misleading success；
+- accepted command 生成正确 Activity kind；
+- Activity reload 后仍可见；
+- Router result refs 与 command result refs 一致。
 
-### 17.3 Sidecar / Electron Smoke
+### 19.3 Store / Projection Tests
 
-P0 acceptance 前需要：
+覆盖点：
 
-- Electron dev shell：提交 guidance 后按钮/Activity 有反馈；
-- packaged sidecar：guidance survives reload；
-- ASK routed answer 和 explicit UI answer parity；
-- confirmation routed answer 和 explicit UI answer parity；
-- unsupported workspace-changing request no mutation；
-- diagnostics export 不泄露 raw guidance store rows。
+- guidance facts survive reload；
+- command idempotency records survive reload；
+- session Activity projection 能识别：
+  - `guidance_recorded`
+  - `ask_answered`
+  - `confirmation_resolved`
+  - `task_changed`
+  - `task_created`
+  - `task_removed`
+- cancelled TaskNode projection 不误报 running/done；
+- Task refs 能打开 Details / Audit。
 
-## 18. 实施顺序
+### 19.4 Sidecar / Electron Smoke
+
+P0 验收前必须使用 Electron，而不是只看 web page：
+
+1. `npm run electron:dev`：
+   - guide 输入提交后按钮有反馈；
+   - Activity 出现 guidance；
+   - change 输入只创建 Task/Plan，不直接改文件；
+   - ASK answer 可以恢复执行；
+   - confirmation answer 可以进入正确路径。
+2. packaged Electron：
+   - sidecar 启动后 command service 注入；
+   - guidance/TaskNode/ASK/confirmation survive reload；
+   - no module/import missing；
+   - diagnostics 不泄露 secrets/path。
+3. installer smoke：
+   - 安装后打开真实 app；
+   - 创建 workspace；
+   - 配置 LLM；
+   - 发起 plan；
+   - 触发 ASK；
+   - 触发 mode=guide；
+   - 触发 mode=change；
+   - 查看 Activity/Audit。
+
+### 19.5 Regression Tests
+
+必须保留：
+
+- existing task command tests；
+- existing ASK service tests；
+- existing UI contract mapping tests；
+- main page sidecar app tests；
+- multi-workspace sidecar tests；
+- plato sidecar entry tests。
+
+建议命令：
+
+```text
+uv run ruff check src/taskweavn/contract_revision src/taskweavn/server/runtime_input_router.py
+uv run mypy src/taskweavn/contract_revision src/taskweavn/server/runtime_input_router.py
+uv run pytest \
+  tests/test_contract_revision_commands.py \
+  tests/test_runtime_input_router.py \
+  tests/test_task_commands.py \
+  tests/test_task_ask_service.py \
+  tests/test_ui_contract_mapping.py \
+  tests/test_main_page_sidecar_app.py \
+  tests/test_multi_workspace_sidecar.py \
+  tests/test_plato_sidecar_entry.py
+```
+
+## 20. 实施顺序和状态
 
 ### CRS-A. Command Protocol
 
 Status: implemented.
 
-1. 新增 `taskweavn.contract_revision.models`。
-2. 新增 command status / kind / scope / source literals。
-3. 新增 request/result descriptors。
-4. 新增 command idempotency store interface 和 SQLite 实现。
-5. 补 unit tests。
+Deliverables：
 
-### CRS-B. `record_guidance`
+1. `ContractCommandRequest`。
+2. `ContractCommandResult`。
+3. command kind/status/scope/source literals。
+4. Activity/Audit/Diagnostics descriptors。
+5. command idempotency store。
+
+验收：
+
+- accepted/rejected/conflict/noop/unsupported 均可表达；
+- replay 不重复写 side effect；
+- result 足够让 Router/UI 无需解析 prose。
+
+### CRS-B. Guidance Command
 
 Status: implemented.
 
-1. 新增 `GuidanceFact` 和 `GuidanceFactStore`。
-2. 新增 SQLite guidance store。
-3. 新增 `ContractRevisionCommandService.execute_record_guidance`。
-4. 新增 Activity publisher。
-5. 新增 diagnostics descriptor。
-6. 接入 Runtime Input Router `mode=guide`。
-7. 接入 Activity projection。
-8. 补 Context Manager source。
+Deliverables：
+
+1. `GuidanceFact`。
+2. SQLite guidance store。
+3. `record_guidance` command。
+4. Router `mode=guide` integration。
+5. Activity `guidance_recorded`。
+6. Context Manager inclusion metadata。
+
+验收：
+
+- session/plan/task guidance 可记录；
+- reload 后 Activity 可见；
+- Context Manager 可按 scope 获取；
+- diagnostics redacted。
 
 ### CRS-C. ASK / Confirmation Routed Resolution
 
 Status: implemented.
 
-1. 封装现有 ASK answer command。
-2. 封装现有 confirmation resolve command。
-3. 统一 idempotency 和 Activity descriptors。
-4. 验证 explicit UI 和 routed input parity。
+Deliverables：
+
+1. `resolve_ask` adapter。
+2. `resolve_confirmation` adapter。
+3. active interaction Router path。
+4. Activity `ask_answered` / `confirmation_resolved`。
+
+验收：
+
+- routed path 和 explicit UI path 共用 domain handler；
+- repeated answer 不 double resume；
+- invalid state structured rejected。
 
 ### CRS-D. Plan / TaskNode Mutation
 
-Status: partially implemented. 当前只实现 `patch_task_node`，并复用现有
-`update_task_node` 的 version guard 与 Plan/Task 状态校验；`create_task_node`
-和 `delete_task_node` 保持 planned。
+Status: implemented; targeted tests passing.
 
-1. 实现 `patch_task_node`。
-2. 实现 `create_task_node`。
-3. 实现 archive/tombstone 语义的 `delete_task_node`。
-4. 加 version guard、Plan-state guard、confirmation handoff。
+Deliverables：
+
+1. `patch_task_node`。
+2. `create_task_node`。
+3. `delete_task_node` tombstone。
+4. version guard。
+5. Plan-state guard。
+6. Activity `task_changed` / `task_created` / `task_removed`。
+
+待收敛：
+
+- `order_index` 插入后是否需要归一化；
+- cancelled TaskNode 在 Main Page projection 中如何展示或隐藏；
+- destructive delete 是否需要二次 confirmation。
 
 ### CRS-E. Execution Request Handoff
 
-1. 实现 `create_execution_task`。
-2. 只创建/更新 executable contract work。
-3. 通过 accepted publish/execute path 进入 TaskBus。
+Status: implemented; product acceptance and external CI pending.
+
+Deliverables：
+
+1. Router `mode=change` -> `create_execution_task`。
+2. editable Plan append approved TaskNode。
+3. no active editable Plan 时创建 approved single-task Plan。
+4. Activity `task_created` / title `Execution work created`。
+5. no workspace mutation guarantee。
+
+待收敛：
+
+- no-plan 创建新 Plan 的 UX 是否需要 confirmation；
+- active non-editable Plan 且无 explicit `plan_id` 时，创建新 Plan 还是 reject；
+- created approved TaskNode 是否自动进入 publish affordance；
+- 后续 publish/execute handoff 是否返回 `execution_request`。
 
 ### CRS-F. Trust Closure
 
-1. Router decision -> command result -> Activity -> Audit -> diagnostics refs 对齐。
-2. Electron/sidecar smoke 覆盖 P0 routes。
-3. Product 1.1 Open Work 更新状态。
+Status: partially implemented.
 
-## 19. 验收标准
+Deliverables：
 
-CRS-A/CRS-B 完成条件：
+1. Router decision ref。
+2. command result refs。
+3. Activity durable projection。
+4. Audit descriptor。
+5. diagnostics redaction。
+6. Activity/Audit/File/Task focus links。
 
-1. `record_guidance` 可以记录 session/plan/task 级 guidance。
-2. 同一 idempotency key replay 不产生重复 guidance/Activity。
-3. conflict/rejected/unsupported 都是结构化结果。
-4. Guidance reload 后在 Activity 中可见。
-5. Context Manager 可以按 scope 获取 guidance。
-6. Router `mode=guide` 不再返回 unsupported，而是 command-backed context effect。
-7. Audit/diagnostics descriptor 不暴露 raw internals。
-8. 没有 workspace 文件写入、shell 执行、web fetch/search 调用。
+待收敛：
 
-CRS-C 完成条件：
+- Audit page 是否展示 command descriptor；
+- diagnostics export 是否包含 command records；
+- Activity projection 不应只依赖 title 字符串推断 kind，后续应使用 stable metadata。
 
-1. Runtime Input Router 的 active ASK answer 通过
-   `ContractRevisionCommandService(resolve_ask)` 分发。
-2. Runtime Input Router 的 active confirmation response 通过
-   `ContractRevisionCommandService(resolve_confirmation)` 分发。
-3. 两条 routed path 都委托现有 ASK / confirmation domain handler，不重写
-   canonical lifecycle。
-4. repeated command 由 Contract Revision idempotency store replay，不 double
-   resume。
+## 21. Product 1.1 P0 验收标准
 
-CRS-D 当前完成条件：
+P0 milestone：
 
-1. `patch_task_node` 通过 Contract Revision command envelope 进入现有
-   `update_task_node` handler。
-2. `patch_task_node` 复用现有 expected version、TaskRef resolution 和
-   draft/published status guard。
-3. `create_task_node`、`delete_task_node`、`create_execution_task` 保持
-   structured unsupported / planned，不能临时绕过 Plan/TaskBus 规则。
+```text
+Runtime Input Router
+  + Contract Revision Command Skills
+  + durable Activity / Audit evidence
+```
+
+完成标准：
+
+1. `record_guidance`、`resolve_ask`、`resolve_confirmation`、
+   `patch_task_node`、`create_task_node`、`delete_task_node`、
+   `create_execution_task` 都走统一 command envelope。
+2. Router 所有 product-state mutation 都经 `ContractRevisionCommandService`。
+3. Runtime Input `mode=guide` 可产生 typed context effect。
+4. Runtime Input active ASK/confirmation answer 可恢复对应 lifecycle。
+5. Runtime Input `mode=change` 只创建 executable contract work，不直接改 workspace。
+6. 每个 accepted command 有 Activity。
+7. 每个 accepted command 有 Audit/diagnostics descriptor。
+8. idempotency replay 不产生重复 side effect。
+9. version conflict 不产生部分写入。
+10. invalid/unsupported/rejected path 都 no mutation。
+11. Electron dev 和 packaged app 表现一致。
+12. Product 1.1 Open Work 文档状态同步更新。
+
+## 22. 发布和回归风险
+
+风险：
+
+| 风险 | 影响 | 缓解 |
+|---|---|---|
+| Router 误判 workspace-changing input | 用户以为系统卡死或误执行 | `mode=change` 只创建 TaskNode，不直接执行 |
+| TaskNode create/delete 与 Plan projection 不一致 | UI 状态错乱 | 以 PlanStore 为 canonical，补 projection tests |
+| idempotency 未覆盖所有命令 | 重复 Activity 或重复 Task | command service 必须统一 idempotency |
+| Activity kind 依赖 title 推断 | 本地化或文案变化导致投影错 | 后续改为 stable metadata |
+| no-plan 自动创建 Plan 过于激进 | workspace 左侧出现用户不理解的新 session/plan | 可引入 confirmation 或设置入口 |
+| delete tombstone 展示不清 | 用户以为物理删除 | UI copy 使用“取消/移出计划”，Audit 保留 |
+| execution handoff 被误解为已执行 | 用户预期文件已修改 | side effect 先用 `state_effect`，文案说明未改文件 |
+
+发布前必须确认：
+
+- no secrets in diagnostics；
+- no direct workspace writes in command skills；
+- no smoke/test code packaged into public DMG；
+- Electron app 使用真实 sidecar 路径；
+- public docs 中 user-facing 语言不暴露 internal Taskweavn 名称。
+
+## 23. 开放问题
+
+1. `mode=change` 在无 active Plan 时是否一定创建新 approved Plan，还是先问用户确认？
+2. `delete_task_node` 对 published 但未执行的 Task 是否允许 archive/hide，而不是 reject？
+3. `create_task_node` 插入中间时，是否需要同步重排后续 `order_index`？
+4. `create_execution_task` 是否应该创建 `draft` TaskNode，让用户明确发布后再执行？
+5. Audit descriptor 是否需要独立 durable table，还是先跟 Activity/MessageStream 绑定？
+6. Activity projection 是否应立即从 title inference 改为 metadata-driven？
+7. 后续 web search / web fetch 能力是否通过 TaskNode required capability 表达，还是通过
+   execution Agent tool registry 表达？
 
 Product 1.1 P0 完成条件仍以
 [Product 1.1 Open Work](../../product/plato-1-1-open-work.md) 为准。

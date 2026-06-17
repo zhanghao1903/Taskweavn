@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Literal, Protocol
 
 from taskweavn.contract_revision.models import (
     ContractCommandRequest,
@@ -162,17 +162,7 @@ class DefaultRuntimeInputRouter:
         if request.mode == "guide":
             return self._record_guidance(request)
         if request.mode == "change" or _looks_like_workspace_change(normalized):
-            return self._unsupported(
-                request,
-                intent="execution_request",
-                dispatch_target="execution_handoff",
-                side_effect="execution_request",
-                explanation="Workspace-changing requests require execution handoff.",
-                user_message=(
-                    "Workspace-changing input must go through a task execution "
-                    "handoff. No product or workspace state changed."
-                ),
-            )
+            return self._create_execution_task(request)
         return self._unsupported(
             request,
             intent="unsupported",
@@ -245,6 +235,70 @@ class DefaultRuntimeInputRouter:
             if command_result.activity is not None
             else None,
             activity_kind="guidance_recorded" if accepted else "recovery_note",
+        )
+
+    def _create_execution_task(
+        self,
+        request: RuntimeInputRouteRequest,
+    ) -> QueryResponse[RuntimeInputRouteResult]:
+        if self.contract_revision_service is None:
+            return self._unsupported(
+                request,
+                intent="execution_request",
+                dispatch_target="execution_handoff",
+                side_effect="state_effect",
+                explanation="Execution handoff is unavailable without command service.",
+                user_message=(
+                    "Workspace-changing input must go through a task execution "
+                    "handoff. No product or workspace state changed."
+                ),
+            )
+        plan_id = request.selection.plan_id
+        scope_kind: Literal["plan", "session"] = (
+            "plan" if plan_id is not None else "session"
+        )
+        decision = self._decision(
+            request,
+            intent="execution_request",
+            dispatch_target="execution_handoff",
+            side_effect="state_effect",
+            explanation="Input created executable contract work without touching workspace files.",
+            related_refs=_selection_refs(request),
+        )
+        command_result = self.contract_revision_service.execute(
+            ContractCommandRequest(
+                command_id=request.command_id,
+                idempotency_key=request.command_id,
+                command_kind="create_execution_task",
+                workspace_id=request.workspace_id or "current",
+                session_id=request.session_id,
+                scope_kind=scope_kind,
+                plan_id=plan_id,
+                source="runtime_input",
+                router_decision_id=decision.id,
+                payload={"intent": request.content},
+            )
+        )
+        accepted = command_result.status in {"accepted", "noop"}
+        return self._result(
+            request,
+            decision,
+            RuntimeInputOutcome(
+                status="dispatched" if accepted else "rejected",
+                user_message=(
+                    "Execution work was added to the task plan."
+                    if accepted
+                    else (
+                        "Execution work could not be created. "
+                        "No workspace files changed."
+                    )
+                ),
+                recovery_actions=() if accepted else ("edit_input",),
+            ),
+            activity=_activity_from_contract_result(request, decision, command_result)
+            if command_result.activity is not None
+            else None,
+            activity_kind="task_created" if accepted else "recovery_note",
         )
 
     def _active_ask(self, request: RuntimeInputRouteRequest) -> AskRequestView | None:
@@ -937,6 +991,8 @@ def _contract_activity_kind(
         return "task_removed"
     if command_result.command_kind == "patch_task_node":
         return "task_changed"
+    if command_result.command_kind == "create_execution_task":
+        return "task_created"
     return "router_interpretation"
 
 

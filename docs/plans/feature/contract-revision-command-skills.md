@@ -1,7 +1,7 @@
 # Feature Plan: Contract Revision Command Skills
 
-> Status: implemented for CRS-A, CRS-B, CRS-C, and CRS-D `patch_task_node`;
-> planned for TaskNode create/delete and execution handoff
+> Status: implemented for CRS-A through CRS-E in branch;
+> targeted unit/router/sidecar tests pass; PR closure and external CI pending
 >
 > Last Updated: 2026-06-18
 >
@@ -432,9 +432,10 @@ Acceptance:
 
 ### CRS-D. Plan/TaskNode Mutation Commands
 
-Status: partially implemented. `patch_task_node` is implemented by delegating to
-the existing versioned `update_task_node` command handler. `create_task_node`
-and `delete_task_node` remain planned.
+Status: implemented. `patch_task_node` delegates to the existing versioned
+`update_task_node` command handler. `create_task_node` and `delete_task_node`
+write through PlanStore with editable-Plan guards, version conflict handling,
+idempotency, and tombstone semantics.
 
 Deliver:
 
@@ -452,7 +453,9 @@ Acceptance:
 
 ### CRS-E. Execution Request Handoff
 
-Status: planned.
+Status: implemented. Runtime Input `mode=change` dispatches to
+`create_execution_task`, which creates executable contract work without
+touching workspace files. External Electron smoke and CI remain release gates.
 
 Deliver:
 
@@ -489,7 +492,7 @@ Acceptance:
 
 ### CRS-G. Tests And Acceptance
 
-Status: planned.
+Status: targeted validation passing; external CI pending.
 
 Test matrix:
 
