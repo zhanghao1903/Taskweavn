@@ -2,7 +2,7 @@
 
 > Status: planning baseline
 >
-> Last Updated: 2026-06-15
+> Last Updated: 2026-06-18
 >
 > Scope: Product 1.1 capability direction after the Plato 1.0 closed loop.
 > This document records what is intentionally moved out of Product 1.0 and
@@ -26,7 +26,12 @@ closed loop.
 
 ## 1.1 Focus Memo And Semantic Prerequisites
 
-The current Product 1.1 focus is workspace-aware coding collaboration:
+The current Product 1.1 focus has two connected directions:
+
+1. workspace-aware local collaboration;
+2. service-capable execution through an Execution Plane / Task API boundary.
+
+The workspace-aware collaboration track includes:
 
 - git and diff support;
 - text file viewing;
@@ -35,8 +40,15 @@ The current Product 1.1 focus is workspace-aware coding collaboration:
 - read-only inquiry;
 - skills contract after workspace and input foundations are stable.
 
+The service-capable execution track keeps Plato as the first client, but
+separates execution mechanics from Plato-only Session UX so future external
+applications can publish typed tasks and receive results/evidence through a
+stable Task API.
+
 See
 [Plato Product 1.1 Focus Memo: Workspace-Aware Agent Foundation](plato-1-1-workspace-aware-agent-foundation.md).
+The cross-cutting Product 1.1 technical baseline is
+[Plato Product 1.1 Technical Design](plato-1-1-technical-design.zh-CN.md).
 The first executable Product 1.1 milestone is
 [Product 1.1 Workspace Inspection Milestone](../plans/feature/product-1-1-workspace-inspection-milestone.md),
 with API decisions captured in
@@ -64,6 +76,66 @@ These documents define what users believe Tasks, Session content, runtime
 input, post-execution continuation, outcome review, and contract revision /
 execution boundaries mean. Implementation plans should not invent conflicting
 meanings in API, frontend, or backend code.
+
+## 1.2 Product 1.1 Release Shape
+
+Product 1.1 is not a second MVP and should not reopen the whole product. It is
+the first hardening and expansion release after the Product 1.0 local closed
+loop.
+
+The release theme is:
+
+```text
+Workspace-aware, service-capable task execution.
+```
+
+Product 1.1 should make Plato better at real local work in four ways:
+
+1. **See the work**: users can inspect workspace state, changed files, diffs,
+   task activity, result/error summaries, and evidence references.
+2. **Steer the work**: users can ask questions, provide guidance, answer ASK /
+   confirmation prompts, and issue explicit commands without learning separate
+   primary input boxes.
+3. **Trust the work**: task results, file changes, execution events, token
+   usage, and audit/evidence links are durable and restart-safe enough for
+   early technical users.
+4. **Reuse the execution substrate**: execution can later serve Plato and
+   external applications through a Task API boundary without leaking Plato-only
+   Session UI semantics.
+
+The Product 1.1 release candidate should still be a local-first product. It is
+not required to become a hosted SaaS, remote worker platform, ecommerce CRM, or
+public skill marketplace.
+
+### Product 1.1 Must / Should / Could
+
+| Level | Capability | Decision |
+|---|---|---|
+| Must | Runtime Input Router command closure | One input surface can route question / guidance / command / ASK / confirmation safely. |
+| Must | Workspace evidence foundation | Git/diff/file viewing and precision file tools are inspectable and linked from Task results where relevant. |
+| Must | Plan/TaskNode contract stability | Plan, TaskNode, status, result, file summary, Activity, and Audit identity stay coherent across restart and retry. |
+| Must | Execution Plane EP0-EP3 | Additive Task API boundary, embedded service, local sidecar shell, idempotent publish/query, and local ExecutionEnv registry. |
+| Should | Outcome Review hardening | Completed Plan can be accepted, reviewed, or continued into a follow-up Plan without confusing Session semantics. |
+| Should | Skills governance productization | Backend skill governance exists; 1.1 should add only the minimum debug/UI exposure needed for real use. |
+| Should | Result packaging cards | Improve result readability for structured outputs after result summary and evidence refs are stable. |
+| Could | MCP / computer-use proof | Run one low-risk vertical proof behind strict permission/evidence gates. |
+| Could | Remote execution environment preview | Only after embedded Task API and local ExecutionEnv are stable. |
+
+### Product 1.1 Non-Goals
+
+The following are explicitly not Product 1.1 release blockers:
+
+- public SaaS account, auth, billing, or multi-tenant infrastructure;
+- full remote worker fleet management;
+- public skill marketplace or custom skill authoring UI;
+- broad MCP catalog;
+- WeChat-first or ecommerce-first vertical product;
+- full computer-use automation for credentialed desktop apps;
+- final high-fidelity UI redesign;
+- complete audit/evidence coverage for every internal event.
+
+These may remain architecture directions or later vertical proofs, but Product
+1.1 should not depend on them.
 
 ## 2. Moved Out Of 1.0
 
@@ -246,6 +318,32 @@ Deferred follow-ups:
 - broader citation/result UI;
 - browser automation, dynamic rendering, crawl, PDF/OCR, and media extraction.
 
+### 3.8 Execution Plane As Service / Task API
+
+Goal: make the execution substrate reusable by Plato and later external
+applications without turning Plato's Session UI into the only way to run work.
+
+Planning decisions:
+
+- Product 1.1 should treat Execution Plane as a logical service boundary first;
+- Plato remains the first in-process client;
+- external apps should later publish typed `TaskRequest` objects through a Task
+  API rather than depending on Plato Session / Plan / TaskNode internals;
+- Execution Plane owns task intake, idempotency, execution lifecycle,
+  environment capability matching, result/error/evidence refs, and future
+  claim/lease/heartbeat;
+- vertical business semantics, such as ecommerce outreach or CRM records, stay
+  in workflow packages, hooks, or external apps, not in Execution Plane core;
+- Audit remains a read-side trust surface and should not block execution unless
+  a future policy explicitly requires it.
+
+Current planning artifacts:
+
+- [ADR-0020: Execution Plane As Service / Task API Boundary](../decisions/ADR-0020-execution-plane-as-service-task-api-boundary.md);
+- [TaskBus Service And Multi-Execution-Env Architecture Memo](../architecture/taskbus-service-multi-execution-env.md);
+- [Execution Plane Service And Task API Plan](../plans/feature/execution-plane-service-task-api.md);
+- [Execution Plane Service And Task API Technical Design](../plans/feature/execution-plane-service-task-api-technical-design.zh-CN.md).
+
 ## 4. 1.1 Planning Principles
 
 1. Keep Product 1.0 focused on the complete loop.
@@ -258,7 +356,46 @@ Deferred follow-ups:
 5. Update Gap Registry before turning any 1.1 research topic into an executable
    plan.
 
-## 5. Downstream Planning
+## 5. Product 1.1 Milestones
+
+Product 1.1 work should be sequenced as small, independently reviewable
+milestones. A milestone may contain multiple feature plans, but it should have
+one user-visible or architecture-visible acceptance boundary.
+
+| Milestone | Goal | Primary Owner | Status |
+|---|---|---|---|
+| M1 Workspace Trust | Git/diff/file viewing, precision file tools, safe file summaries, and workspace evidence refs. | Workspace / Evidence Plane | mostly implemented; hardening remains |
+| M2 Runtime Input Control | Unified input routing for question, guidance, command, ASK, and confirmation. | Product Plane | in progress |
+| M3 Plan/TaskNode Stability | Plan/TaskNode contract migration, Activity timeline, result/error/file projection, restart-safe state. | Product + Execution projection | mostly implemented |
+| M4 Execution Plane Boundary | Embedded Task API service, local sidecar routes, ExecutionEnv registry, idempotency, result/error/evidence refs. | Execution Plane | foundation in progress |
+| M5 Outcome Review | Completion review, accept/continue/revise actions, follow-up Plan start. | Product Plane | planned |
+| M6 Skills And External Tools | Skill governance UI/debug exposure, MCP/computer-use policy proof if justified. | Context + Tool Plane | deferred until M1-M4 are stable |
+
+Milestone ordering is not strictly linear, but M1-M4 are the product foundation.
+M5-M6 should not expand scope if M1-M4 have unresolved user-path regressions.
+
+## 6. Release Candidate Acceptance
+
+Product 1.1 is ready for a local release candidate when:
+
+1. a user can create or reopen a workspace, create a Plan, execute Tasks, inspect
+   result/error/file summary, ask a read-only question, provide guidance, and
+   review outcome without losing state after restart;
+2. the Main Page, Activity, Audit entry, Settings, and Diagnostics surfaces
+   agree on Task/Plan/Session identities;
+3. workspace file changes are supported by deterministic evidence, not only
+   Agent prose;
+4. Runtime Input Router produces explicit outcomes for supported, unsupported,
+   ambiguous, and permission-limited user input;
+5. Execution Plane EP0-EP3 can publish/query a local task through the embedded
+   Task API path without changing the existing Plato user loop;
+6. token usage, skill activation summaries, and diagnostics exports stay safe:
+   no raw prompts, secrets, absolute-path leaks beyond allowed local paths, or
+   raw external payloads;
+7. focused backend/frontend tests plus one local Electron/browser smoke cover
+   the accepted path.
+
+## 7. Downstream Planning
 
 When Product 1.0 is stable enough for the next planning pass, create or update
 feature plans for:
@@ -292,6 +429,9 @@ feature plans for:
   controlled Tavily-backed search and selected URL extraction, Settings
   enablement, gated tools, external-evidence context/audit/diagnostics
   descriptors, and offline-first tests.
+- Execution Plane Service / Task API: logical service boundary, embedded
+  TaskApiService, local sidecar Task API shell, ExecutionEnv registry, and
+  future external task publish path.
 
 Each plan should state whether it extends Authoring Domain, TaskBus execution,
 CapabilityCatalog, UI API contract, Audit Page, or all of them.

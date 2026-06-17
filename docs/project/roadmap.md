@@ -1,7 +1,7 @@
 # TaskWeavn Project Plan
 
 > Status: active
-> Last Updated: 2026-06-15
+> Last Updated: 2026-06-18
 > Maintained By: planning session
 > Phase Baseline: Product 1.0 local unsigned RC accepted; Product 1.1 workspace-aware foundation has started
 > Related: [Global Roadmap](../roadmap.md), [Gap Registry](../gaps/), [Planning Workflow](../planning_workflow.md), [Architecture](../architecture/), [Phase 3 Release Record](../releases/phase-3-interaction-layer-through-3-8.md), [Collaborator Authoring Release](../releases/collaborator-agent-task-authoring.md), [User Traceability](../user_model/traceability.md)
@@ -253,6 +253,12 @@ Completed foundation:
   permission merge, trace metadata, diagnostics-safe summary export, and the
   internal `precision-file-editing` proof are now on `main`. UI/debug exposure
   and broader routing remain future tracks.
+- **[Execution Plane Service / Task API planning](../plans/feature/execution-plane-service-task-api.md)** —
+  Product 1.1 now has an accepted direction and executable plan package for
+  treating Execution Plane as a service-capable boundary. EP0-EP3 should remain
+  additive: service DTOs, embedded TaskApiService, Plato compatibility path,
+  and local sidecar Task API shell without changing Product 1.0 Main Page
+  behavior.
 
 Recommended implementation order is governed by the
 [Runtime Input And Contract Revision Program](../plans/feature/runtime-input-and-contract-revision-program.md)
@@ -299,14 +305,18 @@ Audit/diagnostic linkage.
    add command-backed guidance, Plan/TaskNode patch/create/delete,
    ASK/confirmation resolve, and workspace-changing request handoff into
    TaskBus.
-4. **Localization follow-ups** — Electron native menu localization,
+4. **[Execution Plane Service / Task API](../plans/feature/execution-plane-service-task-api.md)** —
+   implement EP0-EP3 after Runtime Input command paths are stable enough to
+   avoid conflating product-state mutation with task execution. Keep the first
+   slices embedded/local and preserve current Main Page behavior.
+5. **Localization follow-ups** — Electron native menu localization,
    translator extraction/lint tooling, backend-owned language preference if
    centralized configuration accepts it, and bilingual smoke only when Product
    1.1 acceptance needs it.
-5. **Result packaging and completion-time `task_after`** — improve result
+6. **Result packaging and completion-time `task_after`** — improve result
    comprehension and post-completion automation after the Plan/TaskNode and
    input-mode boundaries are clear.
-6. **Skills, MCP, Agent protocol, and routing productization** — keep as
+7. **Skills, MCP, Agent protocol, and routing productization** — keep as
    research/productization tracks until workspace trust, precision tools, and
    runtime input are stable.
 
@@ -316,8 +326,8 @@ workspace inspection, precision file tools, token usage analytics, workspace
 archive/delete data management, UI system text foundation, execution web
 search/fetch, Skill Governance backend foundation, Plan/TaskNode migration, and
 Conversation / Activity Timeline are completed; Runtime Input Router, contract
-revision commands, result packaging, and protocol productization are the next
-actionable tracks.
+revision commands, Execution Plane Service / Task API, result packaging, and
+protocol productization are the next actionable tracks.
 
 ---
 

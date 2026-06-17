@@ -18,6 +18,7 @@ class _Route:
     ask_id: str = ""
     record_id: str = ""
     evidence_id: str = ""
+    execution_id: str = ""
 
 
 def _match_route(path: str) -> _Route | None:
@@ -34,6 +35,9 @@ def _match_route(path: str) -> _Route | None:
         return _Route(name="settings_config", method="*")
     if parts == ("api", "v1", "workspaces"):
         return _Route(name="workspaces", method="GET")
+    execution_plane_route = _match_execution_plane_route(parts)
+    if execution_plane_route is not None:
+        return execution_plane_route
     workspace_route = _match_workspace_route(parts)
     if workspace_route is not None:
         return workspace_route
@@ -191,6 +195,58 @@ def _match_route(path: str) -> _Route | None:
             method="POST",
             session_id=session_id,
             ask_id=suffix[1],
+        )
+    return None
+
+
+def _match_execution_plane_route(parts: tuple[str, ...]) -> _Route | None:
+    if parts == ("api", "v1", "tasks"):
+        return _Route(name="execution_plane_publish", method="POST")
+    if len(parts) < 4 or parts[:3] != ("api", "v1", "tasks"):
+        return None
+    execution_id = parts[3]
+    suffix = parts[4:]
+    if suffix == ():
+        return _Route(
+            name="execution_plane_get",
+            method="GET",
+            execution_id=execution_id,
+        )
+    if suffix == ("cancel",):
+        return _Route(
+            name="execution_plane_cancel",
+            method="POST",
+            execution_id=execution_id,
+        )
+    if suffix == ("retry",):
+        return _Route(
+            name="execution_plane_retry",
+            method="POST",
+            execution_id=execution_id,
+        )
+    if suffix == ("events",):
+        return _Route(
+            name="execution_plane_events",
+            method="GET",
+            execution_id=execution_id,
+        )
+    if suffix == ("result",):
+        return _Route(
+            name="execution_plane_result",
+            method="GET",
+            execution_id=execution_id,
+        )
+    if suffix == ("error",):
+        return _Route(
+            name="execution_plane_error",
+            method="GET",
+            execution_id=execution_id,
+        )
+    if suffix == ("evidence",):
+        return _Route(
+            name="execution_plane_evidence",
+            method="GET",
+            execution_id=execution_id,
         )
     return None
 

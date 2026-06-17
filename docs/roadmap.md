@@ -1,7 +1,7 @@
 # TaskWeavn Roadmap
 
 > Status: active
-> Last Updated: 2026-06-11
+> Last Updated: 2026-06-18
 > Maintained By: planning session
 > Related: [Project Plan](project/roadmap.md), [Gap Registry](gaps/), [Planning Workflow](planning_workflow.md), [Architecture](architecture/), [Architecture Decisions](decisions/), [Release Records](releases/), [User Traceability](user_model/traceability.md)
 
@@ -59,7 +59,7 @@ TaskWeavn has moved past the original "single ReAct agent with tools" shape. The
 | Derived Session.status | Done | Phase 3.8; stored status is a hint except `archived`. |
 | Task-first architecture and Product 1.0 loop | Accepted local RC | Authoring, publishing, fixed-route execution, ASK/confirmation, Main Page, Audit, result/error/file summaries, diagnostics, and local Electron packaging have Product 1.0 closure records. |
 | Reliability and observability plans | Accepted baseline | LLM provider/retry/thinking and configurable logging are done; centralized runtime config remains a follow-up control-plane plan. |
-| Product 1.1 workspace-aware foundation | Started | Workspace Inspection, precision tools, token analytics, workspace lifecycle, and UI system text foundation are complete. Next tracks are Plan/TaskNode contract migration, Session Conversation / Activity, Runtime Input Router, read-only inquiry, and contract revision commands. |
+| Product 1.1 workspace-aware and service-capable foundation | Started | Workspace Inspection, precision tools, token analytics, workspace lifecycle, UI system text foundation, Plan/TaskNode migration, Session Conversation / Activity, read-only inquiry, and Skill Governance backend foundation are in place. Next tracks are Runtime Input Router command closure, contract revision commands, Execution Plane Service / Task API, result packaging, and protocol productization. |
 
 The project is now re-baselined around **Task-first interaction**:
 
@@ -313,23 +313,28 @@ For exact gap state, see [Gap Registry](gaps/). The current sequencing is:
 5. **[Contract revision command skills](plans/feature/contract-revision-command-skills.md)** —
    add command-backed guidance, Plan/TaskNode patch/create/delete, ASK/
    confirmation resolve, and workspace-changing request handoff into TaskBus.
-6. **Localization follow-ups** — Settings language selector, persisted locale
+6. **[Execution Plane Service / Task API](plans/feature/execution-plane-service-task-api.md)** —
+   introduce a service-compatible execution boundary for Plato and future
+   external apps: DTOs, embedded TaskApiService, compatibility mapping, local
+   sidecar Task API shell, and local ExecutionEnv registry.
+7. **Localization follow-ups** — Settings language selector, persisted locale
    preference, Electron native menu localization, and bilingual smoke when the
    acceptance path requires them.
-7. **Result packaging and completion-time `task_after`** — improve result
+8. **Result packaging and completion-time `task_after`** — improve result
    comprehension and post-completion automation after Plan/TaskNode and input
    boundaries are clear.
-8. **Skills, MCP, Agent protocol, and routing productization** — keep as
+9. **Skills, MCP, Agent protocol, and routing productization** — keep as
    research/productization tracks until workspace trust, precision tools, and
    runtime input are stable.
 
 Product 1.0 is accepted as a local unsigned release candidate. Product 1.1
 should improve trust and controllability before expanding automation breadth:
 workspace inspection, precision file tools, token usage analytics, workspace
-archive/delete data management, and UI system text foundation are completed;
-Plan/TaskNode migration, Conversation / Activity, Runtime Input Router,
-read-only inquiry, contract revision commands, result packaging, and protocol
-productization are the next actionable tracks.
+archive/delete data management, UI system text foundation, Plan/TaskNode
+migration, Conversation / Activity, read-only inquiry, and Skill Governance
+backend foundation are in place; Runtime Input Router command closure,
+contract revision commands, Execution Plane Service / Task API, result
+packaging, and protocol productization are the next actionable tracks.
 
 For status and routing of each gap, see [Gap Registry](gaps/).
 
