@@ -22,6 +22,9 @@ describe("Main Page mock scenarios", () => {
       "s12-backend-busy",
       "s13-command-failed",
       "s14-execution-ask",
+      "s15-read-only-answer",
+      "s16-direct-task",
+      "s17-conversation-visual-samples",
     ]);
   });
 
@@ -95,6 +98,53 @@ describe("Main Page mock scenarios", () => {
       id: "ask-deployment-target",
       status: "pending",
     });
+  });
+
+  it("projects the three input route outcomes in mock mode", () => {
+    const { snapshot: readOnlySnapshot } =
+      getMainPageMockScenarioSnapshot("s15-read-only-answer");
+    const { snapshot: directTaskSnapshot } =
+      getMainPageMockScenarioSnapshot("s16-direct-task");
+    const { snapshot: planRequiredSnapshot } =
+      getMainPageMockScenarioSnapshot("s3-draft-ready");
+
+    expect(readOnlySnapshot.taskTree).toBeNull();
+    expect(readOnlySnapshot.messages).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "response",
+          title: "Answer provided",
+        }),
+      ]),
+    );
+    expect(directTaskSnapshot.taskTree?.nodes).toHaveLength(1);
+    expect(directTaskSnapshot.taskTree?.nodes[0]).toMatchObject({
+      id: "task-direct-readme",
+      status: "running",
+    });
+    expect(planRequiredSnapshot.taskTree?.nodes.length).toBeGreaterThan(1);
+  });
+
+  it("keeps a visual sample for conversation message distinctions", () => {
+    const { snapshot } =
+      getMainPageMockScenarioSnapshot("s17-conversation-visual-samples");
+
+    expect(snapshot.taskTree).toBeNull();
+    expect(snapshot.messages).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          body: expect.stringContaining("editorial"),
+          title: "User message",
+        }),
+        expect.objectContaining({
+          title: "User answer",
+        }),
+        expect.objectContaining({
+          body: "Retry requested.",
+          title: "User message",
+        }),
+      ]),
+    );
   });
 
   it("keeps explicit Audit entry routes for result and file-change scenarios", () => {

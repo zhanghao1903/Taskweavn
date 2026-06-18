@@ -22,6 +22,8 @@ also do not replace architecture facts or project scheduling.
 | [plato-task-semantics.md](plato-task-semantics.md) | Core Task semantics: Task as user-visible work contract, and the Intent / Plan / Execution / Evidence layers that UI must make perceptible. |
 | [plato-session-content-model.md](plato-session-content-model.md) | Session content model: typed collaboration record, Session / Plan / Task scopes, Activity boundaries, and raw chat exclusion. |
 | [plato-runtime-input-model.md](plato-runtime-input-model.md) | Runtime input model: one natural language input surface with internal question / guidance / command / ASK / confirmation routing. |
+| [plato-conversation-and-direct-task-prd.md](plato-conversation-and-direct-task-prd.md) | PRD for Session-level natural-language conversation, scoped messages, and Direct Task routing for small executable requests without forcing a full visible Plan. |
+| [plato-conversation-and-direct-task-ux-flow.md](plato-conversation-and-direct-task-ux-flow.md) | UX flow for read-only answer, Direct Task, and Plan-required entry states in the Session conversation / Plan workbench. |
 | [plato-plan-cycle-semantics.md](plato-plan-cycle-semantics.md) | Plan Cycle semantics: one round of authoring, execution, outcome review, acceptance, and follow-up planning inside a Session. |
 | [plato-outcome-review-model.md](plato-outcome-review-model.md) | Outcome Review model: acceptance workspace information structure after Plan execution, including result, task outcome map, workspace changes, risks, and next actions. |
 | [canonical-status-model.md](canonical-status-model.md) | Canonical product status dimensions for planning, readiness, execution, confirmation, permissions/actions, and audit verdicts. |

@@ -24,11 +24,27 @@ describe("MainPageRoute", () => {
       expect(screen.getByText("Personal Website")).toBeInTheDocument();
     });
     expect(screen.queryByLabelText("State")).not.toBeInTheDocument();
-    expect(screen.getByLabelText("Task workspace")).toBeInTheDocument();
+    expect(screen.getByLabelText("Conversation")).toBeInTheDocument();
+    expect(screen.getByLabelText("Plan & Progress workspace")).toBeInTheDocument();
     expect(screen.getByText("Requirement analysis")).toBeInTheDocument();
   });
 
-  it("opens the Settings route from the Main Page top bar", async () => {
+  it("accepts a mock state URL parameter for manual fixture inspection", async () => {
+    globalThis.history.pushState(
+      null,
+      "",
+      "/?stateId=s15-read-only-answer",
+    );
+
+    renderWithQueryClient(<MainPageRoute runtimeEnv={{}} />);
+
+    expect(await screen.findByText("Answer provided")).toBeInTheDocument();
+    expect(screen.getByLabelText("Conversation")).toBeInTheDocument();
+    expect(screen.queryByText("Requirement analysis")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("State")).not.toBeInTheDocument();
+  });
+
+  it("opens the Settings route from the Main Page utility control", async () => {
     const user = userEvent.setup();
     renderWithQueryClient(<MainPageRoute runtimeEnv={{}} />);
 
@@ -134,7 +150,8 @@ describe("MainPageRoute", () => {
       />,
     );
 
-    expect(await screen.findByText("No task plan yet")).toBeInTheDocument();
+    expect(await screen.findByText("No conversation yet")).toBeInTheDocument();
+    expect(screen.getByLabelText("Conversation")).toBeInTheDocument();
     expect(screen.queryByLabelText("State")).not.toBeInTheDocument();
     expect(loadSnapshot).toHaveBeenCalledWith("s1-empty", null, null);
   });

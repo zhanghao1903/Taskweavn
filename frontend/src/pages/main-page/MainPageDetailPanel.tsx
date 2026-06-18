@@ -14,7 +14,13 @@ import type {
   WorkspaceId,
 } from "../../shared/api/types";
 import type { TokenUsageSummaryRequest } from "../../shared/api/tokenUsageTypes";
-import { Badge, Button, Panel, Text } from "../../shared/components";
+import {
+  Badge,
+  Button,
+  MarkdownContent,
+  Panel,
+  Text,
+} from "../../shared/components";
 import { buildWorkspaceInspectionRoute } from "../../app/routes";
 import { ConfirmationDetailPanel } from "./interaction/ConfirmationDetailPanel";
 import { ExecutionAskDetailPanel } from "./interaction/ExecutionAskDetailPanel";
@@ -284,7 +290,7 @@ function ResultSummaryPanel({
             {sections.length > 0 ? `${sections.length} sections` : "Summary"}
           </Badge>
         </div>
-        <Text variant="muted">{detail.result.summary}</Text>
+        <MarkdownContent source={detail.result.summary} variant="detail" />
         {sections.length > 0 && (
           <div className={styles.resultSections}>
             {sections.map((section) => (
@@ -295,7 +301,7 @@ function ResultSummaryPanel({
                     {section.kind ?? "text"}
                   </Badge>
                 </div>
-                <p>{section.body}</p>
+                <MarkdownContent source={section.body} variant="detail" />
               </article>
             ))}
           </div>
@@ -322,9 +328,12 @@ function ResultSummaryPanel({
           {sections.length > 0 ? "Detailed" : "Summary"}
         </Badge>
       </div>
-      <Text className={styles.resultSummaryPreview} variant="muted">
-        {detail.result.summary}
-      </Text>
+      <MarkdownContent
+        className={styles.resultSummaryPreview}
+        maxLines={4}
+        source={detail.result.summary}
+        variant="detail"
+      />
       {shouldShowReader && (
         <div className={styles.resultReaderPrompt}>
           <Text variant="muted">

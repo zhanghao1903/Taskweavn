@@ -1,0 +1,116 @@
+.root {
+  min-width: 0;
+  color: var(--plato-color-semantic-text-secondary);
+  font-size: var(--plato-type-body-size);
+  line-height: var(--plato-type-body-line-height);
+  overflow-wrap: anywhere;
+}
+
+.activity {
+  font-size: var(--plato-type-body-sm-size);
+  line-height: var(--plato-type-body-sm-line-height);
+}
+
+.conversation,
+.detail {
+  font-size: var(--plato-type-body-size);
+  line-height: var(--plato-type-body-line-height);
+}
+
+.preview {
+  max-height: calc(1em * var(--plato-markdown-max-lines, 4) * 1.5);
+  overflow: hidden;
+}
+
+.root > * {
+  margin-block: 0;
+}
+
+.root > * + * {
+  margin-block-start: var(--plato-space-2);
+}
+
+.root h3,
+.root h4,
+.root h5,
+.root h6 {
+  color: var(--plato-color-semantic-text-primary);
+  font-size: var(--plato-type-body-size);
+  font-weight: var(--plato-type-body-strong-weight);
+  line-height: var(--plato-type-body-line-height);
+}
+
+.root p {
+  color: inherit;
+}
+
+.root ul,
+.root ol {
+  display: grid;
+  gap: var(--plato-space-1);
+  padding-inline-start: var(--plato-space-5);
+}
+
+.root blockquote {
+  border-inline-start: 3px solid var(--plato-color-semantic-border);
+  padding-inline-start: var(--plato-space-3);
+  color: var(--plato-color-semantic-text-muted);
+}
+
+.root code {
+  border: 1px solid var(--plato-color-line);
+  border-radius: var(--plato-radius-sm);
+  padding: 0 var(--plato-space-1);
+  background: var(--plato-color-semantic-surface-muted);
+  color: var(--plato-color-semantic-text-primary);
+  font-family: var(--plato-font-mono);
+  font-size: 0.92em;
+}
+
+.root pre {
+  overflow: auto;
+  border: 1px solid var(--plato-color-line);
+  border-radius: var(--plato-radius-md);
+  padding: var(--plato-space-3);
+  background: var(--plato-color-semantic-surface-muted);
+}
+
+.root pre code {
+  display: block;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  white-space: pre;
+}
+
+.root a {
+  color: var(--plato-color-reason-blue);
+  font-weight: var(--plato-type-body-strong-weight);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.tableScroll {
+  overflow-x: auto;
+}
+
+.root table {
+  width: 100%;
+  min-width: 360px;
+  border-collapse: collapse;
+  font-size: var(--plato-type-body-sm-size);
+}
+
+.root th,
+.root td {
+  border: 1px solid var(--plato-color-line);
+  padding: var(--plato-space-2);
+  text-align: start;
+  vertical-align: top;
+}
+
+.root th {
+  background: var(--plato-color-semantic-surface-muted);
+  color: var(--plato-color-semantic-text-primary);
+  font-weight: var(--plato-type-body-strong-weight);
+}

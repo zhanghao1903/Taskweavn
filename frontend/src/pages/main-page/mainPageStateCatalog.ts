@@ -6,6 +6,7 @@ export type MainPageStateLifecycle =
   | "planning"
   | "task_focus"
   | "execution"
+  | "answer"
   | "review"
   | "recovery";
 
@@ -148,6 +149,39 @@ export const mainPageStateCatalog = [
       "Keep the task plan visible and answer the blocking question in the Details panel.",
     primarySurfaces: ["Task plan", "Task question", "Latest activity"],
     expectedUserAction: "Answer, defer, or cancel the active question.",
+  },
+  {
+    id: "s15-read-only-answer",
+    label: "S15 Read-only Answer",
+    lifecycle: "answer",
+    userSituation:
+      "The user asked a small question that can be answered without starting work.",
+    pageFocus:
+      "Show the question and response in the Conversation layer without adding a task.",
+    primarySurfaces: ["Conversation", "Session context", "Context input"],
+    expectedUserAction: "Ask a follow-up or start a new piece of work.",
+  },
+  {
+    id: "s16-direct-task",
+    label: "S16 Direct Task",
+    lifecycle: "execution",
+    userSituation:
+      "The user asked for a small change that can run as one direct task.",
+    pageFocus:
+      "Show that the request became a task without requiring full plan review.",
+    primarySurfaces: ["Conversation", "Single task progress", "Details"],
+    expectedUserAction: "Monitor progress or append guidance to the direct task.",
+  },
+  {
+    id: "s17-conversation-visual-samples",
+    label: "S17 Conversation Visual Samples",
+    lifecycle: "answer",
+    userSituation:
+      "Conversation needs to show typed input, answers, and explicit user actions together.",
+    pageFocus:
+      "Validate that user-authored conversation items are visually distinct while system responses stay lightweight.",
+    primarySurfaces: ["Conversation", "Session context", "Context input"],
+    expectedUserAction: "Review the conversation or continue with a follow-up.",
   },
 ] as const satisfies readonly MainPageStateCatalogEntry[];
 

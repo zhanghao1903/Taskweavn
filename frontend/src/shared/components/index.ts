@@ -10,6 +10,11 @@ export type {
   ChoiceOption,
   ChoiceOptionTone,
 } from "./choice/ChoiceGroup";
+export { MarkdownContent } from "./markdown/MarkdownContent";
+export type {
+  MarkdownContentProps,
+  MarkdownContentVariant,
+} from "./markdown/MarkdownContent";
 export { Panel } from "./panel/Panel";
 export type { PanelProps, PanelTone } from "./panel/Panel";
 export { Text } from "./text/Text";

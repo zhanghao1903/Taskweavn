@@ -54,12 +54,13 @@ describe("App", () => {
       </AppProviders>,
     );
 
-    expect(screen.getByRole("banner")).toHaveTextContent("Plato");
+    expect(screen.getByText("Plato")).toBeInTheDocument();
     expect(screen.queryByText(/Task-first Intelligent/i)).not.toBeInTheDocument();
     expect(screen.queryByText("Workbench")).not.toBeInTheDocument();
     expect(await screen.findByText("Personal Website")).toBeInTheDocument();
     expect(screen.queryByLabelText("State")).not.toBeInTheDocument();
-    expect(screen.getByLabelText("Task workspace")).toBeInTheDocument();
+    expect(screen.getByLabelText("Conversation")).toBeInTheDocument();
+    expect(screen.getByLabelText("Plan & Progress workspace")).toBeInTheDocument();
     expect(screen.getByLabelText("Context message")).toBeInTheDocument();
     expect(screen.queryByText("Message")).not.toBeInTheDocument();
     expect(screen.getByText("Requirement analysis")).toBeInTheDocument();
@@ -74,7 +75,7 @@ describe("App", () => {
       </AppProviders>,
     );
 
-    expect(await screen.findByLabelText("任务工作区")).toBeInTheDocument();
+    expect(await screen.findByLabelText("工作区会话")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "设置" })).toBeInTheDocument();
   });
 
@@ -112,7 +113,7 @@ describe("App", () => {
       await screen.findByRole("heading", { name: "Open a workspace" }),
     ).toBeInTheDocument();
     expect(readinessApi.getSettingsReadiness).not.toHaveBeenCalled();
-    expect(screen.queryByLabelText("Task workspace")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Conversation")).not.toBeInTheDocument();
   });
 
   it("renders the Electron startup shell while the sidecar is starting", () => {
@@ -143,7 +144,7 @@ describe("App", () => {
     expect(screen.getByText("Preparing local workspace runtime.")).toBeInTheDocument();
     expect(screen.getByText("Project")).toBeInTheDocument();
     expect(readinessApi.getSettingsReadiness).not.toHaveBeenCalled();
-    expect(screen.queryByLabelText("Task workspace")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Conversation")).not.toBeInTheDocument();
   });
 
   it("renders the diagnostics log handoff route", () => {
@@ -292,12 +293,13 @@ describe("App", () => {
     const user = userEvent.setup();
 
     renderFixtureMainPageWithStatePicker("s6-running");
-    expect(await screen.findByText("Implementation started")).toBeInTheDocument();
+    expect((await screen.findAllByText("Implementation started")).length).toBeGreaterThan(0);
 
     await user.click(screen.getByRole("button", { name: /Visual direction/i }));
 
-    expect(screen.queryByText("Implementation started")).not.toBeInTheDocument();
-    expect(screen.getByLabelText("Latest activity")).toHaveTextContent("Draft task plan ready");
+    const latestActivity = screen.getByLabelText("Latest activity");
+    expect(latestActivity).not.toHaveTextContent("Implementation started");
+    expect(latestActivity).toHaveTextContent("Draft task plan ready");
     expect(
       screen.getByRole("button", { name: /Open task updates \(Activity 1\/2\)/ }),
     ).toBeInTheDocument();

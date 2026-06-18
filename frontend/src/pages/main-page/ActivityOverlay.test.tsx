@@ -119,14 +119,34 @@ describe("ActivityOverlay", () => {
     expect(within(item).getByText(/A long task activity title/)).toHaveClass(
       styles.itemTitle,
     );
-    expect(within(item).getByText(/A long activity body/)).toHaveClass(
-      styles.itemBody,
-    );
+    expect(within(item).getByText(/A long activity body/).closest("div"))
+      .toHaveClass(styles.itemBody);
     const footer = item.querySelector(`.${styles.itemFooter}`);
     expect(footer).not.toBeNull();
     expect(within(footer as HTMLElement).getByLabelText("Evidence")).toHaveClass(
       styles.relatedRefs,
     );
+  });
+
+  it("renders activity preview markdown through the shared renderer", () => {
+    render(
+      <ActivityOverlay
+        items={[
+          activityItem({
+            body: "**Why:** keep users informed\n\n- show next step",
+            id: "markdown-activity",
+            title: "Markdown activity",
+          }),
+        ]}
+        onClose={vi.fn()}
+        selectedTask={undefined}
+      />,
+    );
+
+    const item = screen.getByText("Markdown activity").closest("li") as HTMLElement;
+    expect(item).not.toBeNull();
+    expect(within(item).getByText("Why:").tagName).toBe("STRONG");
+    expect(within(item).getByText("show next step")).toBeInTheDocument();
   });
 
   it("filters result and error activity", async () => {
@@ -252,6 +272,33 @@ describe("ActivityOverlay", () => {
 
     expect(screen.queryByLabelText("Full result")).not.toBeInTheDocument();
     expect(screen.getByText("Result summary generated")).toBeInTheDocument();
+  });
+
+  it("renders result reader markdown through the shared renderer", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <ActivityOverlay
+        items={[
+          activityItem({
+            body: "## Result\n\n- **Done:** markdown rendered",
+            id: "markdown-result",
+            kind: "result_ready",
+            title: "Markdown result",
+          }),
+        ]}
+        onClose={vi.fn()}
+        selectedTask={undefined}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "View full result" }));
+
+    const reader = screen.getByLabelText("Full result");
+    expect(
+      within(reader).getByRole("heading", { name: "Result" }),
+    ).toBeInTheDocument();
+    expect(within(reader).getByText("Done:").tagName).toBe("STRONG");
   });
 
   it("exposes related ref actions for task, result, files, audit, and diagnostics", async () => {

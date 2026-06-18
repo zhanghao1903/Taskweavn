@@ -1,4 +1,4 @@
-import type { MouseEvent } from "react";
+import type { MouseEvent, ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { Folder, FolderOpen } from "lucide-react";
 
@@ -14,12 +14,14 @@ import {
   MainPageWorkspaceSwitcher,
   type MainPageWorkspaceRuntime,
 } from "./MainPageWorkspaceSwitcher";
+import { PlatoProductMark } from "./PlatoProductMark";
 import type { MainPageController } from "./useMainPageController";
 import styles from "./MainPage.module.css";
 
 export type MainPageSessionSidebarProps = {
   activeSession: SessionSummary | null;
   activeWorkspaceId?: WorkspaceId | null;
+  brandLabel?: string;
   isCreatingSession: boolean;
   isDeletingSession: boolean;
   isRenamingSession: boolean;
@@ -32,6 +34,7 @@ export type MainPageSessionSidebarProps = {
   onSubmitSessionDialog: () => void;
   sessionDialog: MainPageController["sessionDialog"];
   sessions: SessionSummary[];
+  utilitySlot?: ReactNode;
   workspaceCatalog?: WorkspaceCatalogResult | null;
   workspaceRuntime?: MainPageWorkspaceRuntime | null;
 };
@@ -57,6 +60,7 @@ const SESSION_CONTEXT_MENU_HEIGHT = 188;
 export function MainPageSessionSidebar({
   activeSession,
   activeWorkspaceId = null,
+  brandLabel = "Plato",
   isCreatingSession,
   isDeletingSession,
   isRenamingSession,
@@ -69,6 +73,7 @@ export function MainPageSessionSidebar({
   onSubmitSessionDialog,
   sessionDialog,
   sessions,
+  utilitySlot = null,
   workspaceCatalog = null,
   workspaceRuntime = null,
 }: MainPageSessionSidebarProps) {
@@ -323,6 +328,12 @@ export function MainPageSessionSidebar({
       className={styles.sidebar}
       aria-label={uiText.main.labels.workspaceSessions}
     >
+      <div className={styles.railBrandBlock} aria-label={brandLabel}>
+        <PlatoProductMark className={styles.railBrandMark} />
+        <div className={styles.railBrandCopy}>
+          <div className={styles.railBrandName}>Plato</div>
+        </div>
+      </div>
       <div className={styles.workspaceSessionTree}>
         {catalogTree ?? (
           <MainPageWorkspaceSwitcher
@@ -454,6 +465,9 @@ export function MainPageSessionSidebar({
         onChangeDraft={onChangeSessionDialogDraft}
         onSubmit={onSubmitSessionDialog}
       />
+      {utilitySlot ? (
+        <div className={styles.railUtilitySlot}>{utilitySlot}</div>
+      ) : null}
     </Panel>
   );
 }
