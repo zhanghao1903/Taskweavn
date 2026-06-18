@@ -42,6 +42,45 @@ def test_projection_maps_pending_asks_and_prioritizes_waiting_task_active_ask() 
     assert result.active_ask.task_ref == TaskRef.published("task-1")
 
 
+def test_projection_matches_plan_node_id_to_published_task_ref() -> None:
+    store = InMemoryAskStore(
+        [
+            _ask(
+                "ask-waiting",
+                task_id="published-task-1",
+                created_at=NOW + timedelta(seconds=1),
+            ),
+        ]
+    )
+    service = DefaultAskProjectionService(store)
+    tree = TaskTreeView(
+        id="tree-1",
+        session_id="s1",
+        title="Task Tree",
+        status="running",
+        nodes=(
+            _node(
+                "plan-node-1",
+                execution="waiting_for_user",
+                status="waiting_user",
+                task_ref=TaskRef.published("published-task-1"),
+            ),
+        ),
+    )
+
+    result = service.list_asks(
+        "s1",
+        statuses=("pending",),
+        task_id="plan-node-1",
+        task_tree=tree,
+    )
+
+    assert [ask.id for ask in result.asks] == ["ask-waiting"]
+    assert result.active_ask is not None
+    assert result.active_ask.id == "ask-waiting"
+    assert result.active_ask.task_node_id == "published-task-1"
+
+
 def test_projection_get_ask_returns_view() -> None:
     store = InMemoryAskStore([_ask("ask-1", task_id="task-1")])
     service = DefaultAskProjectionService(store)
@@ -118,10 +157,12 @@ def _node(
     *,
     execution: str,
     status: str,
+    task_ref: TaskRef | None = None,
 ) -> TaskNodeCardView:
+    resolved_task_ref = task_ref or TaskRef.published(task_id)
     return TaskNodeCardView(
         id=task_id,
-        task_ref=TaskRef.published(task_id),
+        task_ref=resolved_task_ref,
         title=f"Task {task_id}",
         summary=f"Do {task_id}.",
         status=status,  # type: ignore[arg-type]

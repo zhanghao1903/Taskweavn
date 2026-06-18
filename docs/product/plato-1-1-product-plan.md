@@ -49,6 +49,10 @@ Completed token usage analytics baseline is tracked in
 [Token Usage Analytics](../plans/feature/token-usage-analytics.md),
 with aggregation/API decisions captured in
 [Token Usage Analytics Contract](../engineering/token-usage-analytics-contract.md).
+Remaining Product 1.1 work is tracked in
+[Product 1.1 Open Work](plato-1-1-open-work.md), with the current P0 narrowed
+to Runtime Input Router, Contract Revision Command Skills, and durable
+Activity/Audit evidence.
 
 Before executable Product 1.1 implementation plans, these semantic baselines
 should remain aligned:

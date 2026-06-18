@@ -26,6 +26,7 @@ from taskweavn.context.sources import (
     AskContextSource,
     ControlContextSource,
     EventStreamContextSource,
+    ExecutionGuidanceSource,
     GuidanceContextSource,
     TaskContextSource,
     WorkspaceEvidenceContextSource,
@@ -47,7 +48,7 @@ class SessionContextManager:
         default_factory=WorkspaceEvidenceContextSource
     )
     control_source: ControlContextSource = field(default_factory=ControlContextSource)
-    guidance_source: GuidanceContextSource = field(default_factory=GuidanceContextSource)
+    guidance_source: ExecutionGuidanceSource = field(default_factory=GuidanceContextSource)
     skill_source: SkillContextSource | None = None
     policy: DeterministicContextPolicy = field(default_factory=DeterministicContextPolicy)
     renderer: DeterministicContextRenderer = field(default_factory=DeterministicContextRenderer)

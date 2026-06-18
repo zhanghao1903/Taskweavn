@@ -245,6 +245,76 @@ describe("ExecutionAskDetailPanel", () => {
     expect(answerButton).toHaveAttribute("aria-busy", "true");
   });
 
+  it("allows editing when a plan node selection matches the ASK task ref", async () => {
+    const user = userEvent.setup();
+    const onAnswer = vi.fn();
+    const detail = executionAskDetail();
+
+    render(
+      <ExecutionAskDetailPanel
+        detail={executionAskDetail({
+          ask: {
+            ...detail.ask,
+            answerType: "free_text",
+            allowFreeText: true,
+            allowNoOptionWithText: true,
+            suggestedOptions: [],
+            taskNodeId: "published-task-1",
+            taskRef: {
+              kind: "published",
+              id: "published-task-1",
+            },
+            questions: [
+              {
+                id: "name",
+                question: "Your name?",
+                inputHint: "Name shown on the homepage",
+                required: true,
+              },
+              {
+                id: "intro",
+                question: "Introduction?",
+                inputHint: "Short introduction",
+                required: true,
+              },
+            ],
+          },
+          selectedTask: {
+            ...detail.selectedTask!,
+            id: "plan-node-1",
+            taskRef: {
+              kind: "published",
+              id: "published-task-1",
+            },
+          },
+        })}
+        onAnswer={onAnswer}
+        onCancel={vi.fn()}
+        onDefer={vi.fn()}
+      />,
+    );
+
+    const nameInput = screen.getByLabelText(/Your name/);
+    const introInput = screen.getByLabelText(/Introduction/);
+    expect(nameInput).toBeEnabled();
+    expect(introInput).toBeEnabled();
+    expect(screen.queryByText(/question no longer matches/)).not.toBeInTheDocument();
+
+    await user.type(nameInput, "Zhang Hao");
+    await user.type(introInput, "Product builder.");
+    await user.click(screen.getByRole("button", { name: "Answer" }));
+
+    expect(onAnswer).toHaveBeenCalledWith({
+      selectedOptionIds: [],
+      text:
+        "Batch ASK answers:\n\n" +
+        "1. Your name?\n" +
+        "Answer: Zhang Hao\n\n" +
+        "2. Introduction?\n" +
+        "Answer: Product builder.",
+    });
+  });
+
   it("blocks stale ASK ids when the selected task does not match", () => {
     const onAnswer = vi.fn();
     const detail = executionAskDetail();
@@ -255,6 +325,10 @@ describe("ExecutionAskDetailPanel", () => {
           selectedTask: {
             ...detail.selectedTask!,
             id: "task-other",
+            taskRef: {
+              kind: "published",
+              id: "task-other",
+            },
           },
         })}
         onAnswer={onAnswer}

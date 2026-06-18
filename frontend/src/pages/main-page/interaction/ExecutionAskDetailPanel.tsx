@@ -291,10 +291,22 @@ function pendingActionFor(
 }
 
 function isStaleAsk(detail: ExecutionAskDetail): boolean {
-  return Boolean(
-    detail.selectedTask &&
-      detail.ask.taskNodeId &&
-      detail.selectedTask.id !== detail.ask.taskNodeId,
+  if (!detail.selectedTask || !detail.ask.taskNodeId) {
+    return false;
+  }
+
+  return !selectedTaskMatchesAsk(detail.selectedTask, detail.ask);
+}
+
+function selectedTaskMatchesAsk(
+  selectedTask: NonNullable<ExecutionAskDetail["selectedTask"]>,
+  ask: AskRequestView,
+): boolean {
+  return (
+    selectedTask.id === ask.taskNodeId ||
+    selectedTask.taskRef?.id === ask.taskNodeId ||
+    ask.taskRef?.id === selectedTask.id ||
+    (ask.taskRef?.id !== undefined && ask.taskRef.id === selectedTask.taskRef?.id)
   );
 }
 
