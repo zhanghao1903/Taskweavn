@@ -92,7 +92,10 @@ def test_router_question_returns_read_only_inquiry_answer() -> None:
     assert response.data.activity.kind == "answer"
     assert response.data.activity.side_effect == "no_effect"
     assert commands.calls == []
-    assert publisher.calls == [("route-1", "activity:inquiry:route-1")]
+    assert publisher.calls == [
+        ("conversation", "route-1", "question"),
+        ("activity", "route-1", "activity:inquiry:route-1", "answered"),
+    ]
 
 
 def test_router_passes_workspace_id_to_read_only_inquiry() -> None:
@@ -244,20 +247,34 @@ def test_router_read_only_answer_is_durable_activity(
 
     assert response.ok is True
     assert duplicate.ok is True
-    assert len(stream) == 1
+    assert len(stream) == 3
     messages = tuple(
         map_agent_message_view(message)
         for message in stream.list_for_session(request.session_id)
     )
-    assert messages[0].title == READ_ONLY_INQUIRY_ACTIVITY_TITLE
-    assert messages[0].activity_related_refs[0].kind == "session"
-    assert messages[0].activity_related_refs[0].id == "session:session-1:status"
+    assert [message.title for message in messages] == [
+        "User input",
+        "Router interpretation",
+        READ_ONLY_INQUIRY_ACTIVITY_TITLE,
+    ]
+    assert messages[0].conversation_render is not None
+    assert messages[0].conversation_render.render_kind == "text"
+    assert messages[1].conversation_render is not None
+    assert messages[1].conversation_render.render_kind == "router_trace"
+    assert messages[1].conversation_render.router_trace is not None
+    assert messages[1].conversation_render.router_trace.intent == "question"
+    assert messages[2].activity_related_refs[0].kind == "session"
+    assert messages[2].activity_related_refs[0].id == "session:session-1:status"
     timeline = DefaultSessionActivityProjectionService().project(
         session_id=request.session_id,
         messages=messages,
     )
-    assert timeline.total_count == 1
-    item = timeline.items[0]
+    assert timeline.total_count == 3
+    item = next(
+        candidate
+        for candidate in timeline.items
+        if candidate.id == "activity:inquiry:route-1"
+    )
     assert item.id == "activity:inquiry:route-1"
     assert item.kind == "answer"
     assert item.side_effect == "no_effect"
@@ -267,6 +284,91 @@ def test_router_read_only_answer_is_durable_activity(
     assert item.related_refs[0].kind == "session"
     assert item.related_refs[0].id == "session:session-1:status"
     assert commands.calls == []
+
+    bus.close()
+    stream.close()
+
+
+def test_router_clarification_is_durable_question_card(
+    tmp_path: Path,
+) -> None:
+    stream = SqliteMessageStream(tmp_path / "messages.sqlite")
+    bus = InProcessMessageBus(stream)
+    query = _QueryGateway(active_confirmation_id="confirm-1")
+    commands = _CommandGateway()
+    router = _router(
+        query,
+        commands,
+        activity_publisher=MessageBusRuntimeInputActivityPublisher(bus),
+    )
+    request = _request(
+        command_id="route-confirm-clarify",
+        content="maybe later",
+        selection=RuntimeInputSelection(scope_kind="task", task_node_id="task-1"),
+        active_confirmation_id="confirm-1",
+    )
+
+    response = router.route(request)
+
+    assert response.ok is True
+    assert response.data is not None
+    assert response.data.outcome.status == "needs_clarification"
+    messages = tuple(
+        map_agent_message_view(message)
+        for message in stream.list_for_session(request.session_id)
+    )
+    question = next(message for message in messages if message.title == "Router question")
+    assert question.conversation_render is not None
+    assert question.conversation_render.render_kind == "question_card"
+    assert question.conversation_render.question_card is not None
+    assert question.conversation_render.question_card.card_kind == "confirmation"
+    assert question.conversation_render.question_card.status == "pending"
+    assert [option.id for option in question.conversation_render.question_card.options] == [
+        "yes",
+        "no",
+    ]
+    assert commands.calls == []
+
+    bus.close()
+    stream.close()
+
+
+def test_router_ask_answer_is_durable_conversation_answer(
+    tmp_path: Path,
+) -> None:
+    stream = SqliteMessageStream(tmp_path / "messages.sqlite")
+    bus = InProcessMessageBus(stream)
+    query = _QueryGateway(active_ask_id="ask-1")
+    commands = _CommandGateway()
+    router = _router(
+        query,
+        commands,
+        activity_publisher=MessageBusRuntimeInputActivityPublisher(bus),
+    )
+    request = _request(
+        command_id="route-ask-answer",
+        content="Use Vercel.",
+        selection=RuntimeInputSelection(scope_kind="session"),
+        active_ask_id="ask-1",
+    )
+
+    response = router.route(request)
+
+    assert response.ok is True
+    assert response.data is not None
+    assert response.data.outcome.status == "dispatched"
+    messages = tuple(
+        map_agent_message_view(message)
+        for message in stream.list_for_session(request.session_id)
+    )
+    user_answer = messages[0]
+    assert user_answer.title == "User input"
+    assert user_answer.body == "Use Vercel."
+    assert user_answer.conversation_render is not None
+    assert user_answer.conversation_render.text is not None
+    assert user_answer.conversation_render.text.body == "Use Vercel."
+    assert any(message.title == "ASK answered" for message in messages)
+    assert commands.calls == [("answer_ask", "ask-1", "Use Vercel.")]
 
     bus.close()
     stream.close()
@@ -622,7 +724,27 @@ def _contract_revision_service(
 
 @dataclass
 class _ActivityPublisher:
-    calls: list[tuple[str, str]] = field(default_factory=list)
+    calls: list[tuple[Any, ...]] = field(default_factory=list)
+
+    def publish_router_conversation(
+        self,
+        request: RuntimeInputRouteRequest,
+        decision: Any,
+        outcome: Any,
+    ) -> None:
+        del outcome
+        self.calls.append(("conversation", request.command_id, decision.intent))
+
+    def publish_router_activity(
+        self,
+        request: RuntimeInputRouteRequest,
+        activity: SessionActivityItemView,
+        *,
+        outcome_status: str | None = None,
+    ) -> None:
+        self.calls.append(
+            ("activity", request.command_id, activity.id, outcome_status)
+        )
 
     def publish_read_only_answer(
         self,

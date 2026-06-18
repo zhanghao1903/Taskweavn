@@ -15,6 +15,9 @@ from taskweavn.server.ui_contract.view_models import (
     ConfirmationOptionView as ContractConfirmationOptionView,
 )
 from taskweavn.server.ui_contract.view_models import (
+    ConversationRenderView as ContractConversationRenderView,
+)
+from taskweavn.server.ui_contract.view_models import (
     ExecutionStatus,
     FileChangeItemView,
     FileChangeSummaryView,
@@ -159,6 +162,7 @@ def map_agent_message_view(message: AgentMessage) -> ContractSessionMessageView:
         ),
         related_command_id=message.related_action_id,
         activity_related_refs=_activity_related_refs_from_context(message.context),
+        conversation_render=_conversation_render_from_context(message.context),
     )
 
 
@@ -391,6 +395,18 @@ def _activity_related_refs_from_context(
         except ValidationError:
             continue
     return tuple(refs)
+
+
+def _conversation_render_from_context(
+    context: dict[str, Any],
+) -> ContractConversationRenderView | None:
+    raw_render = context.get("conversation_render")
+    if not isinstance(raw_render, dict):
+        return None
+    try:
+        return ContractConversationRenderView.model_validate(raw_render)
+    except ValidationError:
+        return None
 
 
 def _default_option_value(

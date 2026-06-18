@@ -168,6 +168,14 @@ def _runtime_input_activity_kind(
         return "task_changed"
     if title == "task removed":
         return "task_removed"
+    if title in {
+        "router interpretation",
+        "runtime input routed",
+        "runtime input needs clarification",
+        "runtime input unsupported",
+        "runtime command routed",
+    }:
+        return "router_interpretation"
     return None
 
 

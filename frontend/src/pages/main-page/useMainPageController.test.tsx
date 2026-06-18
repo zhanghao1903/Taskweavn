@@ -207,6 +207,66 @@ describe("useMainPageController", () => {
     expect(result.current.inputError).toBe(null);
   });
 
+  it("routes task guidance through Runtime Input Router by default", async () => {
+    const routeRuntimeInput = vi.fn<RouteRuntimeInputCommand>(
+      async (request) => dispatchedRuntimeInputResponse(request),
+    );
+    const appendTaskInput = vi.fn<AppendTaskInputCommand>(
+      async (sessionId, taskNodeId, request) =>
+        acceptedCommandResponse({
+          commandId: request.commandId,
+          sessionId,
+          taskNodeId,
+        }),
+    );
+
+    const { result } = renderMainPageController({
+      adapter: testAdapter({
+        appendTaskInput,
+        routeRuntimeInput,
+      }),
+      initialStateId: "s3-draft-ready",
+    });
+
+    await waitFor(() => {
+      expect(result.current.snapshotData?.metadata.id).toBe("s3-draft-ready");
+    });
+
+    act(() => {
+      result.current.actions.changeInputDraft("Keep this implementation small.");
+    });
+    act(() => {
+      result.current.actions.submitInput({
+        mode: "append_task_input",
+        sessionId: "session-website-plan",
+        target: "task",
+        taskNodeId: "task-visual-direction",
+      });
+    });
+
+    await waitFor(() => {
+      expect(routeRuntimeInput).toHaveBeenCalledWith(
+        expect.objectContaining({
+          content: "Keep this implementation small.",
+          mode: "guide",
+          selection: expect.objectContaining({
+            scopeKind: "task",
+            taskNodeId: "task-visual-direction",
+          }),
+          sessionId: "session-website-plan",
+        }),
+        null,
+      );
+    });
+
+    expect(appendTaskInput).not.toHaveBeenCalled();
+    await waitFor(() => {
+      expect(result.current.uiNotice).toBe("Guidance was recorded.");
+    });
+    expect(result.current.inputDraft).toBe("");
+    expect(result.current.inputError).toBe(null);
+  });
+
   it("submits a manual retry command for the selected failed task", async () => {
     const retryTask = vi.fn<RetryTaskCommand>(async (sessionId, taskNodeId, request) =>
       acceptedCommandResponse({
@@ -1216,6 +1276,60 @@ function answeredRuntimeInputResponse(
         activity: null,
         generatedAt: now,
       },
+      generatedAt: now,
+    },
+    error: null,
+    cursor: null,
+    generatedAt: now,
+  };
+}
+
+function dispatchedRuntimeInputResponse(
+  request: RuntimeInputRouteRequest,
+): QueryResponse<RuntimeInputRouteResult> {
+  const now = "2026-06-14T00:00:00Z";
+
+  return {
+    requestId: `request-${request.commandId}`,
+    ok: true,
+    data: {
+      sessionId: request.sessionId,
+      decision: {
+        id: `decision-${request.commandId}`,
+        intent: "guidance",
+        scope: {
+          kind: request.selection.scopeKind,
+          planId: request.selection.planId ?? null,
+          taskNodeId: request.selection.taskNodeId ?? null,
+        },
+        confidence: "high",
+        sideEffect: "context_effect",
+        dispatchTarget: "record_guidance",
+        explanation: "Input recorded guidance as typed contract context.",
+        relatedRefs: [],
+      },
+      outcome: {
+        status: "dispatched",
+        userMessage: "Guidance was recorded.",
+        recoveryActions: [],
+      },
+      activity: {
+        id: `activity-${request.commandId}`,
+        sessionId: request.sessionId,
+        kind: "guidance_recorded",
+        title: "Guidance recorded",
+        body: "Guidance was recorded.",
+        occurredAt: now,
+        scopeKind: request.selection.scopeKind,
+        planId: request.selection.planId ?? null,
+        taskNodeId: request.selection.taskNodeId ?? null,
+        sideEffect: "context_effect",
+        relatedRefs: [],
+        sourceKind: "router",
+        disclosureLevel: "public",
+      },
+      commandResponse: null,
+      inquiryResult: null,
       generatedAt: now,
     },
     error: null,

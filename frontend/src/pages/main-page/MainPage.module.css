@@ -1334,6 +1334,119 @@
   color: var(--plato-color-ink);
 }
 
+.routerTraceCard,
+.conversationQuestionCard {
+  display: grid;
+  max-width: min(100%, 760px);
+  gap: var(--plato-space-3);
+  border: 1px solid var(--plato-color-line);
+  border-radius: 8px;
+  padding: var(--plato-space-3);
+  background: var(--plato-color-panel);
+}
+
+.routerTraceCard p,
+.conversationQuestionCard p {
+  margin: 0;
+  color: var(--plato-color-ink);
+  font-size: var(--plato-type-body-size);
+  line-height: var(--plato-type-body-line-height);
+}
+
+.routerTraceCard dl {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
+  gap: var(--plato-space-2);
+  margin: 0;
+}
+
+.routerTraceCard dl div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.routerTraceCard dt {
+  color: var(--plato-color-muted);
+  font-size: var(--plato-type-caption-size);
+  line-height: var(--plato-type-caption-line-height);
+}
+
+.routerTraceCard dd {
+  margin: 0;
+  color: var(--plato-color-ink);
+  font-size: var(--plato-type-body-size);
+  line-height: var(--plato-type-body-line-height);
+  overflow-wrap: anywhere;
+}
+
+.conversationQuestionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--plato-space-3);
+}
+
+.conversationQuestionHeader strong {
+  min-width: 0;
+  color: var(--plato-color-ink);
+  overflow-wrap: anywhere;
+}
+
+.conversationQuestionInputs {
+  display: grid;
+  gap: var(--plato-space-2);
+}
+
+.conversationQuestionInputs label {
+  display: grid;
+  gap: var(--plato-space-1);
+  color: var(--plato-color-muted);
+  font-size: var(--plato-type-caption-size);
+  line-height: var(--plato-type-caption-line-height);
+}
+
+.conversationQuestionInputs textarea {
+  width: 100%;
+  min-height: 72px;
+  resize: vertical;
+  border: 1px solid var(--plato-color-line);
+  border-radius: 8px;
+  padding: var(--plato-space-2);
+  background: var(--plato-color-surface);
+  color: var(--plato-color-muted);
+  font: inherit;
+}
+
+.conversationQuestionOptions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: var(--plato-space-2);
+}
+
+.conversationQuestionOptions button {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  border: 1px solid var(--plato-color-line);
+  border-radius: 8px;
+  padding: var(--plato-space-2);
+  background: var(--plato-color-surface);
+  color: var(--plato-color-ink);
+  text-align: left;
+}
+
+.conversationQuestionOptions button:disabled {
+  cursor: default;
+  opacity: 0.82;
+}
+
+.conversationQuestionOptions small {
+  color: var(--plato-color-muted);
+  font-size: var(--plato-type-caption-size);
+  line-height: var(--plato-type-caption-line-height);
+}
+
 .latestActivityStrip {
   display: grid;
   grid-template-columns: var(--plato-space-2) minmax(0, 1fr) auto;

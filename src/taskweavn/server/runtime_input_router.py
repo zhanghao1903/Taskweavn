@@ -235,6 +235,7 @@ class DefaultRuntimeInputRouter:
             if command_result.activity is not None
             else None,
             activity_kind="guidance_recorded" if accepted else "recovery_note",
+            publish_activity=not accepted,
         )
 
     def _create_execution_task(
@@ -299,6 +300,7 @@ class DefaultRuntimeInputRouter:
             if command_result.activity is not None
             else None,
             activity_kind="task_created" if accepted else "recovery_note",
+            publish_activity=not accepted,
         )
 
     def _active_ask(self, request: RuntimeInputRouteRequest) -> AskRequestView | None:
@@ -407,6 +409,7 @@ class DefaultRuntimeInputRouter:
                 if command_result.activity is not None
                 else None,
                 activity_kind="ask_answered" if accepted else "recovery_note",
+                publish_activity=not accepted,
             )
 
         command_response = _answer_ask_with_resume_dispatch(
@@ -489,6 +492,7 @@ class DefaultRuntimeInputRouter:
                 if command_result.activity is not None
                 else None,
                 activity_kind="confirmation_resolved" if accepted else "recovery_note",
+                publish_activity=not accepted,
             )
 
         command_response = self.command_gateway.resolve_confirmation(
@@ -724,12 +728,6 @@ class DefaultRuntimeInputRouter:
                 else "router_interpretation"
             ),
         )
-        if (
-            inquiry_result.status == "answered"
-            and activity.side_effect == "no_effect"
-            and self.activity_publisher is not None
-        ):
-            self.activity_publisher.publish_read_only_answer(request, activity)
         return self._result(
             request,
             decision,
@@ -807,12 +805,26 @@ class DefaultRuntimeInputRouter:
         inquiry_result: ReadOnlyInquiryResult | None = None,
         activity: SessionActivityItemView | None = None,
         activity_kind: SessionActivityItemKind = "router_interpretation",
+        publish_activity: bool = True,
+        publish_conversation: bool = True,
     ) -> QueryResponse[RuntimeInputRouteResult]:
         projected_activity = activity or self._activity(
             request,
             decision,
             outcome,
             activity_kind=activity_kind,
+        )
+        self._publish_runtime_conversation(
+            request,
+            decision,
+            outcome,
+            enabled=publish_conversation,
+        )
+        self._publish_runtime_activity(
+            request,
+            projected_activity,
+            outcome,
+            enabled=publish_activity,
         )
         return QueryResponse[RuntimeInputRouteResult](
             request_id=request.command_id,
@@ -826,6 +838,38 @@ class DefaultRuntimeInputRouter:
                 inquiry_result=inquiry_result,
             ),
         )
+
+    def _publish_runtime_conversation(
+        self,
+        request: RuntimeInputRouteRequest,
+        decision: RuntimeInputRouteDecision,
+        outcome: RuntimeInputOutcome,
+        *,
+        enabled: bool,
+    ) -> None:
+        if not enabled or self.activity_publisher is None:
+            return
+        publish = getattr(
+            self.activity_publisher,
+            "publish_router_conversation",
+            None,
+        )
+        if callable(publish):
+            publish(request, decision, outcome)
+
+    def _publish_runtime_activity(
+        self,
+        request: RuntimeInputRouteRequest,
+        activity: SessionActivityItemView,
+        outcome: RuntimeInputOutcome,
+        *,
+        enabled: bool,
+    ) -> None:
+        if not enabled or self.activity_publisher is None:
+            return
+        publish = getattr(self.activity_publisher, "publish_router_activity", None)
+        if callable(publish):
+            publish(request, activity, outcome_status=outcome.status)
 
     def _activity(
         self,

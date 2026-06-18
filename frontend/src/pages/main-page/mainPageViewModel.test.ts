@@ -202,6 +202,28 @@ describe("buildMainPageViewModel", () => {
     });
   });
 
+  it("keeps the main input available for Router-first handling when guidance is read-only", () => {
+    const viewModel = buildViewModel("s3-draft-ready", {
+      runtimeInputRouterAvailable: true,
+      selectedTaskNodeId: "task-requirements",
+    });
+
+    expect(viewModel.input.disabled).toBe(false);
+    expect(viewModel.input.disabledReason).toBeNull();
+    expect(viewModel.input.mode).toBe("append_task_input");
+  });
+
+  it("keeps submission state disabled even when the Runtime Input Router is available", () => {
+    const viewModel = buildViewModel("s3-draft-ready", {
+      inputDisabled: true,
+      runtimeInputRouterAvailable: true,
+      selectedTaskNodeId: "task-requirements",
+    });
+
+    expect(viewModel.input.disabled).toBe(true);
+    expect(viewModel.input.disabledReason).toBe("Input command is submitting.");
+  });
+
   it("uses TaskNode permission dimensions for selected task input availability", () => {
     const viewModel = buildViewModel("s3-draft-ready", {
       selectedTaskNodeId: "task-requirements",
@@ -313,6 +335,7 @@ function buildViewModel(
     detailOverride?: DetailOverride;
     eventConnectionStatus?: EventConnectionStatus;
     inputDisabled?: boolean;
+    runtimeInputRouterAvailable?: boolean;
     selectionTarget?: MainPageSelectionTarget;
     selectedTaskNodeId?: TaskNodeId | null;
     snapshot?: MainPageSnapshot;
@@ -341,6 +364,7 @@ function buildViewModel(
     isStoppingTask: false,
     isResolvingConfirmation: false,
     metadata,
+    runtimeInputRouterAvailable: overrides.runtimeInputRouterAvailable,
     selectionTarget: overrides.selectionTarget,
     selectedTaskNodeId: overrides.selectedTaskNodeId ?? null,
     snapshot: overrides.snapshot ?? snapshot,
