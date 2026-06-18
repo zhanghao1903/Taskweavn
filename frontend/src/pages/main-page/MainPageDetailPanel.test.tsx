@@ -425,6 +425,48 @@ describe("MainPageDetailPanel", () => {
     ).toBeInTheDocument();
   });
 
+  it("renders result summary markdown through the shared renderer", async () => {
+    const user = userEvent.setup();
+    const detail: Extract<MainPageDetailView, { kind: "result" }> = {
+      ...resultDetail,
+      result: {
+        ...resultDetail.result,
+        summary: "## Done\n\n- **Verified:** build passed",
+        sections: [
+          {
+            body: "`npm run build` completed.",
+            kind: "text",
+            title: "Verification",
+          },
+        ],
+      },
+    };
+
+    render(
+      <MainPageDetailPanel
+        detail={detail}
+        onAnswerAsk={vi.fn()}
+        onCancelAsk={vi.fn()}
+        onConfirmationDecision={vi.fn()}
+        onDeferAsk={vi.fn()}
+        onRetryTask={vi.fn()}
+        onShowFileChanges={vi.fn()}
+        onShowResult={vi.fn()}
+        onStopTask={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole("heading", { name: "Done" })).toBeInTheDocument();
+    expect(screen.getByText("Verified:").tagName).toBe("STRONG");
+
+    await user.click(
+      screen.getByRole("button", { name: "View full result" }),
+    );
+
+    const reader = screen.getByLabelText("Full result");
+    expect(within(reader).getByText("npm run build").tagName).toBe("CODE");
+  });
+
   it("shows workspace changes next to the result summary", () => {
     render(
       <MainPageDetailPanel

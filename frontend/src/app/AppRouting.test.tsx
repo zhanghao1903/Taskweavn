@@ -20,7 +20,9 @@ describe("App routing", () => {
       </AppProviders>,
     );
 
-    expect(await screen.findByText("Plan & Progress")).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: "Plan & Progress" }),
+    ).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "View audit" })).toHaveAttribute(
       "href",
       expect.stringContaining("/audit"),
@@ -77,7 +79,9 @@ describe("App routing", () => {
     expect(
       screen.getByText("Workspace inspection requires the local sidecar."),
     ).toBeInTheDocument();
-    expect(screen.queryByText("Plan & Progress")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "Plan & Progress" }),
+    ).not.toBeInTheDocument();
   });
 
   it("re-renders Workspace Inspection when only query parameters change", async () => {
@@ -123,7 +127,9 @@ describe("App routing", () => {
 
     await user.click(screen.getByRole("button", { name: "Return" }));
 
-    expect(await screen.findByText("Plan & Progress")).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: "Plan & Progress" }),
+    ).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "View audit" })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Audit" })).not.toBeInTheDocument();
     expect(globalThis.location.pathname).not.toContain("/audit");
@@ -151,6 +157,8 @@ describe("App routing", () => {
     expect(globalThis.location.search).toBe(
       "?taskNodeId=task-return&workspaceId=workspace-return",
     );
-    expect(await screen.findByText("Plan & Progress")).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: "Plan & Progress" }),
+    ).toBeInTheDocument();
   });
 });

@@ -1,14 +1,22 @@
 import { useMemo } from "react";
 
 import { MainPage } from "../pages/main-page/MainPage";
-import type { MainPageStateId } from "../pages/main-page/mockPlatoApi";
+import {
+  listMainPageStateOptions,
+  type MainPageStateId,
+} from "../pages/main-page/mockPlatoApi";
 import type { MainPageAdapter } from "../pages/main-page/runtime/adapter";
 import type { SessionId, TaskNodeId, WorkspaceId } from "../shared/api/types";
 import {
   createMainPageAdapterFromRuntimeEnv,
+  resolvePlatoRuntimeEnv,
   type PlatoRuntimeEnv,
   type PlatoWorkspaceEntryRuntime,
 } from "./platoRuntime";
+
+const mainPageStateIds = new Set(
+  listMainPageStateOptions().map((option) => option.id),
+);
 
 export type MainPageRouteProps = {
   adapter?: MainPageAdapter;
@@ -29,6 +37,9 @@ export function MainPageRoute({
     globalThis.location.pathname,
     globalThis.location.search,
   );
+  const runtimeMode = resolvePlatoRuntimeEnv(runtimeEnv).VITE_PLATO_API_MODE;
+  const routeInitialStateId =
+    adapter === undefined && runtimeMode === "http" ? undefined : routeContext.stateId;
   const runtimeAdapter = useMemo(
     () =>
       adapter ??
@@ -43,7 +54,7 @@ export function MainPageRoute({
     <MainPage
       adapter={runtimeAdapter}
       auditRouteAvailable={auditRouteAvailable}
-      initialStateId={initialStateId}
+      initialStateId={initialStateId ?? routeInitialStateId}
       initialTaskNodeId={routeContext.taskNodeId}
       workspaceRuntime={workspaceEntryRuntime}
     />
@@ -52,6 +63,7 @@ export function MainPageRoute({
 
 type MainPageRouteContext = {
   sessionId?: SessionId | null;
+  stateId?: MainPageStateId;
   taskNodeId?: TaskNodeId | null;
   workspaceId?: WorkspaceId | null;
 };
@@ -61,6 +73,7 @@ function parseMainPageRoute(pathname: string, search: string): MainPageRouteCont
   const sessionId = parseSessionId(pathname);
   return {
     sessionId,
+    stateId: parseStateId(params.get("stateId") ?? params.get("state")),
     taskNodeId: parseNonEmpty(params.get("taskNodeId")) as TaskNodeId | undefined,
     workspaceId: parseNonEmpty(params.get("workspaceId")) as WorkspaceId | undefined,
   };
@@ -91,4 +104,14 @@ function parseNonEmpty(value: string | null): string | undefined {
     return undefined;
   }
   return value;
+}
+
+function parseStateId(value: string | null): MainPageStateId | undefined {
+  const parsed = parseNonEmpty(value);
+  if (parsed === undefined) {
+    return undefined;
+  }
+  return mainPageStateIds.has(parsed as MainPageStateId)
+    ? (parsed as MainPageStateId)
+    : undefined;
 }
