@@ -17,6 +17,14 @@ from taskweavn.types.code_action import (
     FileChange,
     TrackingConfig,
 )
+from taskweavn.types.confirmation import (
+    RequestConfirmationAction,
+    RequestConfirmationObservation,
+)
+from taskweavn.types.computer_use import (
+    ComputerUseAction,
+    ComputerUseObservation,
+)
 from taskweavn.types.common import (
     AgentErrorObservation,
     AgentFinishAction,
@@ -37,8 +45,12 @@ __all__ = [
     "BaseObservation",
     "CodeAction",
     "CodeExecutionObservation",
+    "ComputerUseAction",
+    "ComputerUseObservation",
     "ErrorObservation",
     "FileChange",
     "ObservationRegistry",
+    "RequestConfirmationAction",
+    "RequestConfirmationObservation",
     "TrackingConfig",
 ]

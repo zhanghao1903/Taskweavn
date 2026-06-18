@@ -93,8 +93,8 @@ def test_task_domain_carries_dispatch_constraints() -> None:
     assert task.dispatch_constraints is constraints
 
 
-def test_task_domain_waiting_for_user_requires_active_ask_linkage() -> None:
-    with pytest.raises(ValidationError, match="waiting_for_ask_id"):
+def test_task_domain_waiting_for_user_requires_active_user_wait_linkage() -> None:
+    with pytest.raises(ValidationError, match="exactly one active ASK or confirmation"):
         TaskDomain(
             task_id="root",
             session_id="s1",
@@ -106,8 +106,39 @@ def test_task_domain_waiting_for_user_requires_active_ask_linkage() -> None:
         )
 
 
-def test_task_domain_rejects_stale_active_ask_linkage() -> None:
-    with pytest.raises(ValidationError, match="active ASK linkage"):
+def test_task_domain_waiting_for_user_accepts_confirmation_linkage() -> None:
+    task = TaskDomain(
+        task_id="root",
+        session_id="s1",
+        root_id="root",
+        intent="Prepare release notes",
+        required_capability="writing",
+        created_by="user",
+        status="waiting_for_user",
+        waiting_for_confirmation_id="confirmation-1",
+    )
+
+    assert task.waiting_for_confirmation_id == "confirmation-1"
+    assert task.waiting_for_ask_id is None
+
+
+def test_task_domain_waiting_for_user_rejects_multiple_linkages() -> None:
+    with pytest.raises(ValidationError, match="exactly one active ASK or confirmation"):
+        TaskDomain(
+            task_id="root",
+            session_id="s1",
+            root_id="root",
+            intent="Prepare release notes",
+            required_capability="writing",
+            created_by="user",
+            status="waiting_for_user",
+            waiting_for_ask_id="ask-1",
+            waiting_for_confirmation_id="confirmation-1",
+        )
+
+
+def test_task_domain_rejects_stale_active_user_wait_linkage() -> None:
+    with pytest.raises(ValidationError, match="active user-wait linkage"):
         TaskDomain(
             task_id="root",
             session_id="s1",

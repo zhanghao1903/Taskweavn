@@ -291,7 +291,10 @@ class FixedRouteTaskExecutor:
                     status="waiting_for_user",
                     session_id=self._config.session_id,
                     claimed_task_id=claimed.task_id,
-                    skipped_reason=waiting_task.waiting_for_ask_id,
+                    skipped_reason=(
+                        waiting_task.waiting_for_ask_id
+                        or waiting_task.waiting_for_confirmation_id
+                    ),
                 )
             error_ref = _ensure_error_ref_readable(
                 self._result_summary_store,

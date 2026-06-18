@@ -12,6 +12,7 @@ import {
   ActivityOverlay,
   type ActivityOverlayStatusMessage,
 } from "./ActivityOverlay";
+import { ConfirmationDock } from "./ConfirmationDock";
 import { ContextInputPanel } from "./ContextInputPanel";
 import { LatestActivityStrip } from "./LatestActivityStrip";
 import { MainPageDetailPanel } from "./MainPageDetailPanel";
@@ -456,6 +457,19 @@ export function MainPageWorkbench({
           statusMessage={activityStatusMessage}
         />
       ) : null}
+
+      <ConfirmationDock
+        confirmations={viewModel.pendingConfirmations}
+        error={viewModel.confirmationError}
+        isResolving={viewModel.isResolvingConfirmation}
+        onResolve={(confirmation, decision) =>
+          actions.resolveConfirmation({
+            confirmation,
+            decision,
+            sessionId: viewModel.sessionId,
+          })
+        }
+      />
 
       <ContextInputPanel
         draft={inputDraft}

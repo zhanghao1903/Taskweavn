@@ -14,6 +14,12 @@ from taskweavn.core import (
     SessionManager,
     WorkspaceLayout,
 )
+from taskweavn.execution_plane import (
+    EmbeddedTaskApiService,
+    InMemoryExecutionEnvRegistry,
+    SqliteExecutionPlaneStore,
+    default_local_execution_env,
+)
 from taskweavn.interaction import (
     AskStore,
     InProcessMessageBus,
@@ -133,6 +139,7 @@ from taskweavn.task import (
     TaskExecutionSummaryViewStore,
     TaskExecutionTickResult,
 )
+from taskweavn.tools import ComputerUseBackend
 from taskweavn.usage import SqliteTokenUsageStore, UsageRecordingLLM
 from taskweavn.workspace_inspection import DefaultWorkspaceInspectionGateway
 
@@ -160,6 +167,7 @@ class MainPageSidecarConfig:
     current_workspace_id: str | None = None
     global_settings_root: Path | None = None
     enable_read_only_inquiry_llm: bool = True
+    enable_computer_use_tool: bool = False
 
 
 @dataclass(frozen=True)
@@ -180,6 +188,7 @@ class MainPageSidecarDependencies:
     settings_config_gateway: SettingsConfigGateway | None = None
     default_agent: ResidentDefaultAgent | None = None
     ask_store: AskStore | None = None
+    computer_use_backend: ComputerUseBackend | None = None
 
 
 @dataclass
@@ -202,6 +211,7 @@ class MainPageWorkspaceRuntime:
     ui_command_idempotency_store: UiCommandResponseIdempotencyStore | None
     event_source: UiEventSource
     result_summary_store: TaskExecutionSummaryStore
+    execution_plane_store: SqliteExecutionPlaneStore | None
     token_usage_store: SqliteTokenUsageStore
     default_agent: ResidentDefaultAgent | None
     execution_dispatcher: FixedRouteExecutionDispatcher | None
@@ -250,6 +260,7 @@ class MainPageWorkspaceRuntime:
             self.authoring_idempotency_store,
             self.ui_command_idempotency_store,
             self.result_summary_store,
+            self.execution_plane_store,
             self.token_usage_store,
             self.ask_store,
             self.plan_store,
@@ -400,10 +411,13 @@ def build_main_page_workspace_runtime(
                 llm=usage_llm,
                 task_bus=task_bus,
                 ask_store=ask_store,
+                message_bus=message_bus,
                 max_steps=config.default_agent_max_steps,
                 result_summary_store=result_summary_store,
                 ui_event_store=event_store,
                 settings_store=settings_store,
+                enable_computer_use_tool=config.enable_computer_use_tool,
+                computer_use_backend=dependencies.computer_use_backend,
             )
         execution_dispatcher = FixedRouteExecutionDispatcher(
             task_bus=task_bus,
@@ -416,6 +430,16 @@ def build_main_page_workspace_runtime(
                 event_store,
                 plan_lifecycle_sync=plan_lifecycle_sync,
             ),
+        )
+        execution_plane_store = SqliteExecutionPlaneStore(
+            layout.meta_dir / "execution_plane.sqlite"
+        )
+        execution_plane_service = EmbeddedTaskApiService(
+            task_bus=task_bus,
+            store=execution_plane_store,
+            env_registry=_execution_env_registry(config),
+            summary_store=result_summary_store,
+            default_session_id=session.id if session is not None else "execution-plane",
         )
         context_builder = DefaultAuthoringContextBuilder(
             raw_task_store=raw_task_store,
@@ -446,6 +470,7 @@ def build_main_page_workspace_runtime(
             message_bus=message_bus,
             published_task_interrupter=task_bus,
             published_task_retrier=task_bus,
+            published_task_confirmation_resumer=task_bus,
             task_publisher=task_publisher,
         )
         ask_commands = DefaultTaskAskCommandService(
@@ -593,6 +618,7 @@ def build_main_page_workspace_runtime(
                     message_bus
                 ),
             ),
+            execution_plane_service=execution_plane_service,
         )
     except Exception:
         session_manager.close()
@@ -615,6 +641,7 @@ def build_main_page_workspace_runtime(
         ui_command_idempotency_store=ui_command_idempotency_store,
         event_source=event_source,
         result_summary_store=result_summary_store,
+        execution_plane_store=execution_plane_store,
         token_usage_store=token_usage_store,
         default_agent=default_agent,
         execution_dispatcher=execution_dispatcher,
@@ -762,6 +789,7 @@ def _sidecar_app_from_runtime(
         ui_command_idempotency_store=runtime.ui_command_idempotency_store,
         event_source=runtime.event_source,
         result_summary_store=runtime.result_summary_store,
+        execution_plane_store=runtime.execution_plane_store,
         token_usage_store=runtime.token_usage_store,
         default_agent=runtime.default_agent,
         execution_dispatcher=runtime.execution_dispatcher,
@@ -819,6 +847,24 @@ def _default_capability_catalog() -> StaticCapabilityCatalog:
             "coding",
             "testing",
             "research",
+        )
+    )
+
+
+def _execution_env_registry(
+    config: MainPageSidecarConfig,
+) -> InMemoryExecutionEnvRegistry:
+    capabilities: tuple[str, ...] = ("execute", "testing")
+    tool_pool: tuple[str, ...] = ()
+    if config.enable_computer_use_tool:
+        capabilities = (*capabilities, "computer_use")
+        tool_pool = (*tool_pool, "computer_use")
+    return InMemoryExecutionEnvRegistry(
+        (
+            default_local_execution_env(
+                capabilities=capabilities,
+                tool_pool=tool_pool,
+            ),
         )
     )
 

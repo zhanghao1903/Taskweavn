@@ -119,6 +119,33 @@ def test_in_memory_task_bus_waits_and_resumes_same_task_identity() -> None:
     assert retry_claim.claimed_by == "agent-2"
 
 
+def test_in_memory_task_bus_waits_for_confirmation_and_resumes() -> None:
+    bus = InMemoryTaskBus([_task("root")])
+    assert bus.claim_next("s1", capability="general", agent_id="agent-1") is not None
+
+    waiting = bus.wait_for_confirmation(
+        "s1",
+        "root",
+        confirmation_id="confirmation-1",
+    )
+
+    assert waiting.status == "waiting_for_user"
+    assert waiting.waiting_for_confirmation_id == "confirmation-1"
+    assert waiting.waiting_for_ask_id is None
+    assert waiting.waiting_for_user_since is not None
+
+    resumed = bus.resume_after_confirmation(
+        "s1",
+        "root",
+        confirmation_id="confirmation-1",
+    )
+
+    assert resumed.status == "pending"
+    assert resumed.waiting_for_confirmation_id is None
+    assert resumed.waiting_for_ask_id is None
+    assert resumed.waiting_for_user_since is None
+
+
 def test_in_memory_task_bus_waiting_parent_keeps_children_blocked() -> None:
     bus = InMemoryTaskBus(
         [
@@ -150,6 +177,23 @@ def test_in_memory_task_bus_waiting_task_can_fail_and_retry_clears_ask_linkage()
     assert retried.waiting_for_user_since is None
 
 
+def test_in_memory_task_bus_waiting_task_can_fail_and_retry_clears_confirmation_linkage() -> None:
+    bus = InMemoryTaskBus([_task("root")])
+    assert bus.claim_next("s1", capability="general", agent_id="agent-1") is not None
+    bus.wait_for_confirmation("s1", "root", confirmation_id="confirmation-1")
+
+    failed = bus.fail("s1", "root", error_ref="error:confirmation-timeout")
+    retried = bus.retry("s1", "root")
+
+    assert failed.status == "failed"
+    assert failed.error_ref == "error:confirmation-timeout"
+    assert failed.waiting_for_confirmation_id is None
+    assert failed.waiting_for_user_since is None
+    assert retried.status == "pending"
+    assert retried.waiting_for_confirmation_id is None
+    assert retried.waiting_for_user_since is None
+
+
 def test_in_memory_task_bus_resume_requires_matching_active_ask() -> None:
     bus = InMemoryTaskBus([_task("root")])
     assert bus.claim_next("s1", capability="general", agent_id="agent-1") is not None
@@ -157,6 +201,19 @@ def test_in_memory_task_bus_resume_requires_matching_active_ask() -> None:
 
     with pytest.raises(TaskStoreError, match="does not match"):
         bus.resume_after_user("s1", "root", ask_id="other-ask")
+
+
+def test_in_memory_task_bus_resume_requires_matching_active_confirmation() -> None:
+    bus = InMemoryTaskBus([_task("root")])
+    assert bus.claim_next("s1", capability="general", agent_id="agent-1") is not None
+    bus.wait_for_confirmation("s1", "root", confirmation_id="confirmation-1")
+
+    with pytest.raises(TaskStoreError, match="does not match"):
+        bus.resume_after_confirmation(
+            "s1",
+            "root",
+            confirmation_id="other-confirmation",
+        )
 
 
 def test_in_memory_task_bus_interrupts_pending_task_as_cancelled_failure() -> None:

@@ -1383,6 +1383,86 @@
   line-height: var(--plato-type-body-sm-line-height);
 }
 
+.confirmationDock {
+  grid-column: 2 / 4;
+  grid-row: 2;
+  align-self: end;
+  justify-self: start;
+  position: sticky;
+  bottom: calc(
+    var(--plato-page-padding) + var(--plato-inputbar-height) +
+      var(--plato-space-2)
+  );
+  z-index: 21;
+  display: grid;
+  width: min(var(--plato-inputbar-max-width), 100%);
+  min-width: 0;
+  max-height: min(280px, 34dvh);
+  overflow: auto;
+  gap: var(--plato-space-3);
+  border: 1px solid var(--plato-color-warning-text);
+  background: color-mix(
+    in srgb,
+    var(--plato-color-warning-bg) 72%,
+    var(--plato-color-semantic-surface) 28%
+  );
+  box-shadow: 0 14px 36px rgb(111 82 24 / 14%);
+}
+
+.confirmationDockHeader,
+.confirmationDockItem,
+.confirmationDockActions {
+  display: flex;
+  min-width: 0;
+  gap: var(--plato-space-2);
+}
+
+.confirmationDockHeader {
+  align-items: center;
+  justify-content: space-between;
+}
+
+.confirmationDockList {
+  display: grid;
+  min-width: 0;
+  gap: var(--plato-space-2);
+}
+
+.confirmationDockItem {
+  align-items: center;
+  justify-content: space-between;
+  border: 1px solid var(--plato-color-line);
+  border-radius: 8px;
+  padding: var(--plato-space-3);
+  background: var(--plato-color-semantic-surface);
+}
+
+.confirmationDockCopy {
+  display: grid;
+  min-width: 0;
+  gap: var(--plato-space-1);
+}
+
+.confirmationDockCopy strong,
+.confirmationDockCopy p {
+  margin: 0;
+}
+
+.confirmationDockCopy p {
+  overflow-wrap: anywhere;
+}
+
+.confirmationDockActions {
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.confirmationDockError {
+  margin: 0;
+  color: var(--plato-color-danger-text);
+}
+
 .contextInputScope {
   display: grid;
   min-width: 0;

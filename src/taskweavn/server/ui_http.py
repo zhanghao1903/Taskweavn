@@ -301,6 +301,7 @@ class PlatoUiHttpTransport:
                     execution_id=route.execution_id,
                     workspace_id=route.workspace_id,
                     service=self._execution_plane_service,
+                    execution_trigger_gateway=self._execution_trigger_gateway,
                 )
             if route_name == "diagnostics_export":
                 if self._diagnostic_export_gateway is None:

@@ -19,9 +19,10 @@ class TaskBus(Protocol):
 
     The bus owns published Task lifecycle transitions. It deliberately keeps
     the state machine small: pending -> running -> done/failed, with
-    waiting_for_user as a cooperative blocking point for durable ASK. Manual
-    retry moves a failed Task back to pending on the same Task identity. Skip is
-    represented as a failed terminal Task with a user-visible reason.
+    waiting_for_user as a cooperative blocking point for durable ASK or
+    confirmation. Manual retry moves a failed Task back to pending on the same
+    Task identity. Skip is represented as a failed terminal Task with a
+    user-visible reason.
     """
 
     def publish(self, task: TaskDomain) -> TaskDomain: ...
@@ -58,12 +59,28 @@ class TaskBus(Protocol):
         ask_id: str,
     ) -> TaskDomain: ...
 
+    def wait_for_confirmation(
+        self,
+        session_id: str,
+        task_id: str,
+        *,
+        confirmation_id: str,
+    ) -> TaskDomain: ...
+
     def resume_after_user(
         self,
         session_id: str,
         task_id: str,
         *,
         ask_id: str,
+    ) -> TaskDomain: ...
+
+    def resume_after_confirmation(
+        self,
+        session_id: str,
+        task_id: str,
+        *,
+        confirmation_id: str,
     ) -> TaskDomain: ...
 
     def skip(
@@ -195,6 +212,7 @@ class InMemoryTaskBus:
                     "result_ref": None,
                     "error_ref": error_ref,
                     "waiting_for_ask_id": None,
+                    "waiting_for_confirmation_id": None,
                     "waiting_for_user_since": None,
                     "completed_at": _utcnow(),
                 }
@@ -234,6 +252,36 @@ class InMemoryTaskBus:
             )
             return updated
 
+    def wait_for_confirmation(
+        self,
+        session_id: str,
+        task_id: str,
+        *,
+        confirmation_id: str,
+    ) -> TaskDomain:
+        confirmation_id = confirmation_id.strip()
+        if not confirmation_id:
+            raise TaskStoreError("waiting task requires confirmation_id")
+        with self._lock:
+            task = self._require_task(session_id, task_id)
+            if task.status != "running":
+                raise TaskStoreError(
+                    f"only running tasks can wait for user; got {task.status}"
+                )
+            updated = task.model_copy(
+                update=_wait_for_user_confirmation_updates(
+                    confirmation_id=confirmation_id
+                )
+            )
+            self._tasks[(session_id, task_id)] = updated
+            main_page_trace(
+                "task_bus.wait_for_confirmation",
+                confirmation_id=confirmation_id,
+                previous_status=task.status,
+                task=_task_trace_summary(updated),
+            )
+            return updated
+
     def resume_after_user(
         self,
         session_id: str,
@@ -257,6 +305,36 @@ class InMemoryTaskBus:
             main_page_trace(
                 "task_bus.resume_after_user",
                 ask_id=ask_id,
+                previous_status=task.status,
+                task=_task_trace_summary(updated),
+            )
+            return updated
+
+    def resume_after_confirmation(
+        self,
+        session_id: str,
+        task_id: str,
+        *,
+        confirmation_id: str,
+    ) -> TaskDomain:
+        confirmation_id = confirmation_id.strip()
+        if not confirmation_id:
+            raise TaskStoreError("resume requires confirmation_id")
+        with self._lock:
+            task = self._require_task(session_id, task_id)
+            if task.status != "waiting_for_user":
+                raise TaskStoreError(
+                    f"only waiting_for_user tasks can resume; got {task.status}"
+                )
+            if task.waiting_for_confirmation_id != confirmation_id:
+                raise TaskStoreError(
+                    "resume confirmation_id does not match active confirmation"
+                )
+            updated = task.model_copy(update=_resume_after_user_updates())
+            self._tasks[(session_id, task_id)] = updated
+            main_page_trace(
+                "task_bus.resume_after_confirmation",
+                confirmation_id=confirmation_id,
                 previous_status=task.status,
                 task=_task_trace_summary(updated),
             )
@@ -465,6 +543,7 @@ def _retry_updates(task: TaskDomain, *, instruction: str | None) -> dict[str, ob
         "error_ref": None,
         "claimed_by": None,
         "waiting_for_ask_id": None,
+        "waiting_for_confirmation_id": None,
         "waiting_for_user_since": None,
         "started_at": None,
         "completed_at": None,
@@ -484,6 +563,19 @@ def _wait_for_user_updates(*, ask_id: str) -> dict[str, object]:
     return {
         "status": "waiting_for_user",
         "waiting_for_ask_id": ask_id,
+        "waiting_for_confirmation_id": None,
+        "waiting_for_user_since": _utcnow(),
+        "result_ref": None,
+        "error_ref": None,
+        "completed_at": None,
+    }
+
+
+def _wait_for_user_confirmation_updates(*, confirmation_id: str) -> dict[str, object]:
+    return {
+        "status": "waiting_for_user",
+        "waiting_for_ask_id": None,
+        "waiting_for_confirmation_id": confirmation_id,
         "waiting_for_user_since": _utcnow(),
         "result_ref": None,
         "error_ref": None,
@@ -498,6 +590,7 @@ def _resume_after_user_updates() -> dict[str, object]:
         "error_ref": None,
         "claimed_by": None,
         "waiting_for_ask_id": None,
+        "waiting_for_confirmation_id": None,
         "waiting_for_user_since": None,
         "started_at": None,
         "completed_at": None,
@@ -526,6 +619,7 @@ def _recover_interrupted_running_updates(task: TaskDomain) -> dict[str, object]:
         "result_ref": None,
         "error_ref": f"cancelled: {reason}; safe_point=sidecar_recovery",
         "waiting_for_ask_id": None,
+        "waiting_for_confirmation_id": None,
         "waiting_for_user_since": None,
         "completed_at": _utcnow(),
     }
@@ -545,6 +639,7 @@ def _task_trace_summary(task: TaskDomain) -> dict[str, object | None]:
         "status": task.status,
         "task_id": task.task_id,
         "waiting_for_ask_id": task.waiting_for_ask_id,
+        "waiting_for_confirmation_id": task.waiting_for_confirmation_id,
     }
 
 

@@ -406,6 +406,7 @@ class DiagnosticBundleExporter:
                     "retryEligible": task.status == "failed",
                     "claimedBy": task.claimed_by,
                     "waitingForAskId": task.waiting_for_ask_id,
+                    "waitingForConfirmationId": task.waiting_for_confirmation_id,
                     "interruptRequested": task.interrupt_requested,
                     "interruptRequestedBy": task.interrupt_requested_by,
                     "createdAt": task.created_at,

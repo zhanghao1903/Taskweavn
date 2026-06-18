@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -63,6 +63,63 @@ describe("MainPageWorkbench layout", () => {
     expect(inputForm).not.toBeNull();
     expect(inputForm).toHaveClass(styles.contextInput);
     expect(inputForm).not.toHaveClass(styles.floatingContextInput);
+  });
+
+  it("renders pending confirmations above the context input", async () => {
+    const user = userEvent.setup();
+    const actions = buildActions();
+    const viewModel = buildViewModel("s7-confirmation", {
+      selectedTaskNodeId: "task-visual-direction",
+    });
+
+    renderWorkbench(viewModel, actions);
+
+    const dock = screen.getByRole("region", { name: "Pending confirmations" });
+    const inputForm = screen.getByLabelText("Context message").closest("form");
+    const firstOption = viewModel.pendingConfirmations[0]?.options[0];
+
+    expect(inputForm).not.toBeNull();
+    if (firstOption === undefined) {
+      throw new Error("Expected pending confirmation option.");
+    }
+    expect(
+      dock.compareDocumentPosition(inputForm!) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+
+    await user.click(
+      within(dock).getByRole("button", {
+        name: `Quick decision: ${firstOption.label}`,
+      }),
+    );
+
+    expect(actions.resolveConfirmation).toHaveBeenCalledWith({
+      confirmation: viewModel.pendingConfirmations[0],
+      decision: firstOption.value,
+      sessionId: viewModel.sessionId,
+    });
+  });
+
+  it("keeps dock confirmation actions disabled while a confirmation command is pending", () => {
+    const viewModel = buildViewModel("s7-confirmation", {
+      confirmationError: "Confirmation failed. Please retry.",
+      isResolvingConfirmation: true,
+      selectedTaskNodeId: null,
+    });
+
+    renderWorkbench(viewModel);
+
+    const dock = screen.getByRole("region", { name: "Pending confirmations" });
+
+    expect(
+      within(dock).getByText("Confirmation failed. Please retry."),
+    ).toBeInTheDocument();
+    for (const option of viewModel.pendingConfirmations[0]?.options ?? []) {
+      expect(
+        within(dock).getByRole("button", {
+          name: `Quick decision: ${option.label}`,
+        }),
+      ).toBeDisabled();
+    }
   });
 
   it("keeps the detail column when the whole plan is selected", () => {
@@ -568,6 +625,8 @@ function installTestLocalStorage(): void {
 function buildViewModel(
   stateId: MainPageStateId,
   overrides: {
+    confirmationError?: string | null;
+    isResolvingConfirmation?: boolean;
     selectedTaskNodeId?: TaskNodeId | null;
     snapshot?: MainPageSnapshot;
   } = {},
@@ -578,7 +637,7 @@ function buildViewModel(
     auditRouteAvailable: true,
     authoringAskError: null,
     authoringAskRecoveryActions: [],
-    confirmationError: null,
+    confirmationError: overrides.confirmationError ?? null,
     confirmationRecoveryActions: [],
     detailOverride: "auto",
     eventConnectionStatus: "disconnected",
@@ -593,7 +652,7 @@ function buildViewModel(
     isPublishingTaskTree: false,
     isRetryingTask: false,
     isStoppingTask: false,
-    isResolvingConfirmation: false,
+    isResolvingConfirmation: overrides.isResolvingConfirmation ?? false,
     metadata,
     selectedTaskNodeId: overrides.selectedTaskNodeId ?? null,
     snapshot: overrides.snapshot ?? snapshot,

@@ -14,7 +14,12 @@ from urllib.parse import quote
 import pytest
 
 from taskweavn.context import SqliteContextStore
-from taskweavn.core import SessionManager, SessionManagerError, WorkspaceLayout
+from taskweavn.core import (
+    SessionManager,
+    SessionManagerError,
+    SqliteEventStream,
+    WorkspaceLayout,
+)
 from taskweavn.interaction import AgentMessage, AskRequest
 from taskweavn.llm.contracts import ChatResponse, ToolCall
 from taskweavn.observability import LogArchiveManifest, LogContext, get_logging_manager
@@ -34,6 +39,8 @@ from taskweavn.task import (
     TaskRef,
     TaskRunResult,
 )
+from taskweavn.tools import ScriptedComputerUseBackend
+from taskweavn.types import ComputerUseObservation
 from tests.fixtures.sidecar_smoke import build_audit_sidecar_smoke_fixture
 
 
@@ -903,6 +910,120 @@ def test_main_page_sidecar_app_publish_start_immediately_dispatches_background_e
     )
 
 
+def test_main_page_sidecar_task_api_rejects_computer_use_when_disabled(
+    tmp_path: Any,
+) -> None:
+    app = build_main_page_sidecar_app(
+        MainPageSidecarConfig(workspace_root=tmp_path, port=0),
+        MainPageSidecarDependencies(llm=_AgentLoopLLM("unused")),
+    )
+    try:
+        session_id = _create_session(app)
+        response = _request(
+            app,
+            "POST",
+            "/api/v1/tasks",
+            body=_computer_use_task_request(
+                session_id=session_id,
+                idempotency_key="computer-use-disabled",
+            ),
+        )
+    finally:
+        app.close()
+
+    assert response.status == 409
+    assert response.json["ok"] is False
+    assert response.json["error"]["details"]["serviceCode"] == (
+        "capability_not_available"
+    )
+    assert response.json["error"]["details"]["requiredCapability"] == "computer_use"
+
+
+def test_main_page_sidecar_task_api_runs_scripted_computer_use_when_enabled(
+    tmp_path: Any,
+) -> None:
+    backend = ScriptedComputerUseBackend(
+        (
+            ComputerUseObservation(
+                operation="observe",
+                status="ok",
+                summary="Observed scripted desktop state.",
+                text_extract="Desktop ready.",
+            ),
+        )
+    )
+    llm = _AgentLoopSequencedLLM(
+        [
+            _agent_loop_tool_call_response(
+                "computer_use",
+                {
+                    "operation": "observe",
+                    "instruction": "Inspect the visible desktop state.",
+                },
+                call_id="computer-use-1",
+            ),
+            ChatResponse(
+                content="Computer-use task complete.",
+                tool_calls=[],
+                raw_assistant_message={
+                    "role": "assistant",
+                    "content": "Computer-use task complete.",
+                },
+            ),
+        ]
+    )
+    app = build_main_page_sidecar_app(
+        MainPageSidecarConfig(
+            workspace_root=tmp_path,
+            port=0,
+            enable_computer_use_tool=True,
+            execution_dispatcher_max_ticks_per_trigger=3,
+        ),
+        MainPageSidecarDependencies(
+            computer_use_backend=backend,
+            llm=llm,
+        ),
+    )
+    try:
+        session_id = _create_session(app)
+        publish = _request(
+            app,
+            "POST",
+            "/api/v1/tasks",
+            body=_computer_use_task_request(
+                session_id=session_id,
+                idempotency_key="computer-use-enabled",
+            ),
+        )
+        execution_id = publish.json["data"]["executionId"]
+        task_id = publish.json["data"]["taskId"]
+        assert _wait_for(
+            lambda: app.task_bus.get(session_id, task_id) is not None
+            and app.task_bus.get(session_id, task_id).status == "done",
+            timeout=5.0,
+        )
+        fetched = _request(app, "GET", f"/api/v1/tasks/{execution_id}")
+        with SqliteEventStream(app.layout.session_events_db(session_id)) as stream:
+            events = list(stream.iter_for_task(task_id))
+    finally:
+        app.close()
+
+    assert publish.status == 200
+    assert publish.json["ok"] is True
+    assert fetched.status == 200
+    assert fetched.json["data"]["status"] == "done"
+    assert len(backend.actions) == 1
+    assert backend.actions[0].operation == "observe"
+    first_tool_names = {tool["function"]["name"] for tool in llm.calls[0]["tools"]}
+    assert "computer_use" in first_tool_names
+    assert any(
+        isinstance(event, ComputerUseObservation)
+        and event.summary == "Observed scripted desktop state."
+        and event.text_extract == "Desktop ready."
+        for event in events
+    )
+
+
 def test_main_page_sidecar_app_fixed_route_tick_failure_path(tmp_path: Any) -> None:
     app = build_main_page_sidecar_app(
         MainPageSidecarConfig(workspace_root=tmp_path, port=0),
@@ -1195,6 +1316,95 @@ def test_main_page_sidecar_app_agent_loop_creates_ask_and_resumes_with_answer_fa
     second_prompt = llm.calls[1]["messages"][1]["content"]
     assert "ask_id=" + pending_asks[0].ask_id + " status=answered" in second_prompt
     assert "answer: Use Vercel." in second_prompt
+
+
+def test_main_page_sidecar_app_agent_loop_creates_confirmation_and_resumes(
+    tmp_path: Any,
+) -> None:
+    llm = _AgentLoopSequencedLLM(
+        [
+            _agent_loop_tool_call_response(
+                "request_confirmation",
+                {
+                    "title": "Authorize external message?",
+                    "body": "Send the prepared outreach message.",
+                    "risk_label": "external message",
+                    "allow_session_approval": True,
+                },
+                call_id="confirmation-1",
+            ),
+            ChatResponse(
+                content="Confirmation accepted; execution completed.",
+                tool_calls=[],
+                raw_assistant_message={
+                    "role": "assistant",
+                    "content": "Confirmation accepted; execution completed.",
+                },
+            ),
+        ]
+    )
+    app = build_main_page_sidecar_app(
+        MainPageSidecarConfig(
+            workspace_root=tmp_path,
+            port=0,
+            enable_execution_dispatcher=False,
+        ),
+        MainPageSidecarDependencies(llm=llm),
+    )
+    try:
+        session_id = _create_session(app)
+        app.task_bus.publish(_published_task("confirm-runtime-task", session_id=session_id))
+
+        first_tick = app.run_fixed_route_tick(session_id)
+        waiting = app.task_bus.get(session_id, "confirm-runtime-task")
+        snapshot = _request(app, "GET", f"/api/v1/sessions/{session_id}/snapshot")
+        confirmation_id = snapshot.json["data"]["pendingConfirmations"][0]["id"]
+        response = _request(
+            app,
+            "POST",
+            f"/api/v1/sessions/{session_id}/confirmations/{confirmation_id}/respond",
+            body={
+                "commandId": "approve-session-confirmation",
+                "sessionId": session_id,
+                "payload": {
+                    "value": "approve_session",
+                    "note": "Approve this session.",
+                },
+            },
+        )
+        resumed = app.task_bus.get(session_id, "confirm-runtime-task")
+        second_tick = app.run_fixed_route_tick(session_id)
+        completed = app.task_bus.get(session_id, "confirm-runtime-task")
+    finally:
+        app.close()
+
+    assert first_tick.status == "waiting_for_user"
+    assert waiting is not None
+    assert waiting.status == "waiting_for_user"
+    assert waiting.waiting_for_confirmation_id == confirmation_id
+    assert snapshot.json["data"]["session"]["status"] == "waiting_user"
+    assert snapshot.json["data"]["pendingConfirmations"][0]["options"] == [
+        {"value": "confirm", "label": "Confirm", "tone": "primary"},
+        {"value": "reject", "label": "Reject", "tone": "danger"},
+        {
+            "value": "approve_session",
+            "label": "Approve session",
+            "tone": "secondary",
+        },
+    ]
+    assert response.status == 200
+    assert response.json["ok"] is True
+    assert response.json["result"]["message"] == "confirmation resolved; task resumed"
+    assert resumed is not None
+    assert resumed.status == "pending"
+    assert resumed.waiting_for_confirmation_id is None
+    assert second_tick.status == "completed"
+    assert completed is not None
+    assert completed.status == "done"
+    first_tool_names = {tool["function"]["name"] for tool in llm.calls[0]["tools"]}
+    assert "request_confirmation" in first_tool_names
+    first_prompt = llm.calls[0]["messages"][1]["content"]
+    assert "Use request_confirmation when the intended action is known" in first_prompt
 
 
 def test_main_page_sidecar_app_projects_file_change_summary_from_agent_loop_events(
@@ -1674,6 +1884,34 @@ def _create_session(app: Any, name: str = "Demo session") -> str:
 
 def _read_jsonl(path: Any) -> list[dict[str, Any]]:
     return [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
+
+
+def _computer_use_task_request(
+    *,
+    session_id: str,
+    idempotency_key: str,
+) -> dict[str, object]:
+    return {
+        "idempotencyKey": idempotency_key,
+        "requester": {"kind": "test", "id": "computer-use-test"},
+        "externalRef": {
+            "system": "test",
+            "kind": "computer_use",
+            "id": idempotency_key,
+        },
+        "taskType": "desktop.demo.computer_use",
+        "intent": "Use local computer-use to inspect desktop state.",
+        "input": {
+            "summary": "Observe local desktop.",
+            "instructions": "Use computer_use observe once, then finish.",
+        },
+        "policy": {
+            "requiredCapability": "computer_use",
+            "allowedTools": ["computer_use"],
+            "riskLevel": "high",
+        },
+        "metadata": {"sessionId": session_id},
+    }
 
 
 def _published_task(task_id: str, *, session_id: str) -> TaskDomain:

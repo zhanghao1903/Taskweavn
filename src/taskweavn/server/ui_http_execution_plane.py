@@ -28,6 +28,7 @@ from taskweavn.server.ui_http_responses import (
     _json_response,
     _request_id_hint,
 )
+from taskweavn.task.execution import ExecutionTriggerGateway
 
 
 def _execution_plane_response(
@@ -37,6 +38,7 @@ def _execution_plane_response(
     execution_id: str = "",
     workspace_id: str = "",
     service: TaskApiService | None,
+    execution_trigger_gateway: ExecutionTriggerGateway | None = None,
 ) -> HttpApiResponse:
     if service is None:
         return _error_response(
@@ -57,7 +59,14 @@ def _execution_plane_response(
                 metadata.setdefault("workspaceId", workspace_id)
                 payload = {**payload, "metadata": metadata}
             task_request = TaskRequest.model_validate(payload)
-            return _ok(service.publish_task(task_request).model_dump(mode="json", by_alias=True))
+            execution = service.publish_task(task_request)
+            if execution_trigger_gateway is not None:
+                execution_trigger_gateway.request_dispatch(
+                    execution.session_id,
+                    reason="manual_control_route",
+                    request_id=execution.request_id,
+                )
+            return _ok(execution.model_dump(mode="json", by_alias=True))
         if route_name == "execution_plane_get":
             return _ok(service.get_task(execution_id).model_dump(mode="json", by_alias=True))
         if route_name == "execution_plane_cancel":
