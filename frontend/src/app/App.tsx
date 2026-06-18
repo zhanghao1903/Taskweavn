@@ -2,7 +2,11 @@ import { useEffect, useState } from "react";
 
 import { AppErrorBoundary } from "./AppErrorBoundary";
 import { MainPageRoute } from "./MainPageRoute";
-import { PLATO_NAVIGATION_EVENT } from "./navigation";
+import {
+  navigateApp,
+  PLATO_NAVIGATION_EVENT,
+  resolveAppNavigationHref,
+} from "./navigation";
 import {
   resolvePlatoRuntimeEnv,
   resolvePlatoStartupRuntime,
@@ -76,6 +80,48 @@ export function App({
     return () => {
       globalThis.removeEventListener("popstate", handleRouteChange);
       globalThis.removeEventListener(PLATO_NAVIGATION_EVENT, handleRouteChange);
+    };
+  }, []);
+
+  useEffect(() => {
+    const handleLinkClick = (event: MouseEvent) => {
+      const target = event.target;
+      if (
+        event.defaultPrevented ||
+        event.button !== 0 ||
+        event.altKey ||
+        event.ctrlKey ||
+        event.metaKey ||
+        event.shiftKey ||
+        !(target instanceof Element)
+      ) {
+        return;
+      }
+
+      const anchor = target.closest("a[href]");
+      if (!(anchor instanceof HTMLAnchorElement)) {
+        return;
+      }
+
+      if (
+        anchor.hasAttribute("download") ||
+        (anchor.target !== "" && anchor.target !== "_self")
+      ) {
+        return;
+      }
+
+      const nextPath = resolveAppNavigationHref(anchor.href);
+      if (nextPath === null) {
+        return;
+      }
+
+      event.preventDefault();
+      navigateApp(nextPath);
+    };
+
+    globalThis.document.addEventListener("click", handleLinkClick);
+    return () => {
+      globalThis.document.removeEventListener("click", handleLinkClick);
     };
   }, []);
 

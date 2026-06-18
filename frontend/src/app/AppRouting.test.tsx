@@ -105,6 +105,31 @@ describe("App routing", () => {
     expect(screen.queryByRole("heading", { name: "File diff" })).not.toBeInTheDocument();
   });
 
+  it("handles Workspace Inspection file links as SPA navigation", async () => {
+    const user = userEvent.setup();
+    globalThis.history.pushState(
+      null,
+      "",
+      "/workspaces/ws-a/inspection?view=status&path=src%2FApp.tsx",
+    );
+
+    render(
+      <AppProviders>
+        <App />
+      </AppProviders>,
+    );
+
+    expect(
+      await screen.findByRole("heading", { name: "Changed files" }),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole("link", { name: "Diff" }));
+
+    expect(await screen.findByRole("heading", { name: "File diff" })).toBeInTheDocument();
+    expect(globalThis.location.pathname).toBe("/workspaces/ws-a/inspection");
+    expect(globalThis.location.search).toContain("view=diff");
+  });
+
   it("re-renders the Main Page after Audit Page Return SPA navigation", async () => {
     const user = userEvent.setup();
     globalThis.history.pushState(
