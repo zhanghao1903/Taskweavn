@@ -13,6 +13,7 @@
 > [Session Conversation / Activity Timeline](session-conversation-activity-timeline.md),
 > [Runtime Input And Contract Revision Program](runtime-input-and-contract-revision-program.md),
 > [Runtime Input Router Technical Design](runtime-input-router-contract-technical-design.md),
+> [Router-first Main Page Input, Conversation Protocol, And Durable Activity Technical Design](router-first-main-input-durable-activity-technical-design.zh-CN.md),
 > [Runtime Input Router API Contract](../../engineering/runtime-input-router-api-contract.md)
 
 ---
@@ -221,9 +222,14 @@ Dependencies:
 
 ### RIR-5. Frontend Feedback
 
-Status: planned.
+Status: planned. Implementation design:
+[Router-first Main Page Input, Conversation Protocol, And Durable Activity Technical Design](router-first-main-input-durable-activity-technical-design.zh-CN.md).
 
 - Show concise interpretation for side-effecting input.
+- Show Router interpretation trace in the Conversation surface as a
+  contract-level summary, not hidden chain-of-thought.
+- Render backend-declared question cards and options in Conversation when the
+  Router needs clarification or active interaction input.
 - Keep pure answers lightweight.
 - Write activity records for routed input.
 - Migrate the Main Page input submit path to call Runtime Input Router by
@@ -235,10 +241,13 @@ Status: planned.
 
 ### RIR-6. Durable Router Session Content
 
-Status: planned.
+Status: planned. Implementation design:
+[Router-first Main Page Input, Conversation Protocol, And Durable Activity Technical Design](router-first-main-input-durable-activity-technical-design.zh-CN.md).
 
 - Persist Router decisions and user-visible outcomes as typed Session content
   or equivalent durable facts.
+- Persist user input, Router trace, Router question cards, user answers, and
+  Router outcomes as typed Conversation content.
 - Stop treating the route-result `activity` item as the only display source.
 - Preserve command/message/store sources as the product-state authority.
 - Support Conversation / Activity replay after reload and diagnostics export.

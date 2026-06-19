@@ -99,6 +99,9 @@ TaskBus execution under an accepted contract.
 9. Link Router decisions to Audit/diagnostic refs and promote remaining
    Electron and broader route acceptance coverage.
 
+Implementation design for steps 6-7:
+[Router-first Main Page Input And Durable Activity Technical Design](router-first-main-input-durable-activity-technical-design.zh-CN.md).
+
 ---
 
 ## 6. Product-Complete Closure Criteria

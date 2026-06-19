@@ -3,6 +3,8 @@
 > 多 Agent 协作架构的核心抽象 · v1.4 · 2026-05-31
 >
 > 2026-05-31 scope note: TaskBus 在所有版本中都是 PublishedTask 生命周期权威。Product 1.0 当前通过 fixed-route Default Agent bridge 使用 `claim_next -> complete / fail` 执行闭环。Router assignment、assigned-only claim、Agent Manager、stale pending sweep 和 assignment projection 是已接受的 Product 1.1+ routing foundation，不是 Product 1.0 阻塞项。
+>
+> 2026-06-19 fact note: Product 1.0 当前 TaskBus API 还包括 `wait_for_user` / `resume_after_user`（durable ASK 阻塞点）、`retry`、`skip`、`request_interrupt` 和 interrupted running recovery。动态 assignment 仍是 1.1+ 方向。
 
 ---
 
@@ -44,7 +46,7 @@ TaskPublisher / Agent Tool
   -> TaskBus
   -> FixedRouteTaskExecutor
   -> Resident Default Agent task-run
-  -> TaskBus complete / fail
+  -> TaskBus complete / fail / wait_for_user
 ```
 
 Product 1.1+ 动态路由路径会增加 Router 和 Agent Manager：
@@ -135,10 +137,15 @@ sweep_stale_pending_tasks(now)
 Product 1.0 fixed-route path：
 
 ```python
-bus.publish(task)        # pending
-bus.claim_next(...)      # pending -> running
-bus.complete(id, result) # running -> done
-bus.fail(id, error)      # running -> failed
+bus.publish(task)              # pending
+bus.claim_next(...)            # pending -> running
+bus.wait_for_user(id, ask_id)  # running -> waiting_for_user
+bus.resume_after_user(id, ask) # waiting_for_user -> running
+bus.complete(id, result)       # running -> done
+bus.fail(id, error)            # running/waiting_for_user -> failed
+bus.retry(id)                  # failed -> pending
+bus.skip(id, reason)           # pending/running -> failed("skipped: ...")
+bus.request_interrupt(id, ...) # pending -> failed or running records intent
 ```
 
 Product 1.1+ dynamic routing path 增加 assignment validation：
@@ -265,7 +272,9 @@ class TaskBus:
 
 ### 4.5 总线即审计日志
 
-每次 publish / assign / claim / complete / fail / interrupt request 都产生一个不可变事件写入 EventStream：
+每次 publish / assign / claim / complete / fail / wait_for_user / resume /
+retry / skip / interrupt request 都应产生一个不可变事实，供 EventStream、
+Audit 或 UI projection 追踪：
 
 ```
 TaskBus 事件序列          ↔        系统行为完整记录
@@ -287,48 +296,49 @@ TaskCompleted(t1, result=...)    ↔  父任务完成
 
 ```python
 class TaskBus:
-    # 发布任务
-    def publish(self, task: Task) -> TaskId:
-        """任务进入 pending 队列。"""
+    def publish(self, task: TaskDomain) -> TaskDomain: ...
 
-    # 分配任务（Router 或系统策略调用）
-    def assign(self, task_id: TaskId, agent_id: AgentId, *, assigned_by: AgentId) -> Task:
-        """pending 任务记录当前负责的 Execution Agent。"""
+    def claim_next(
+        self,
+        session_id: str,
+        *,
+        capability: str,
+        agent_id: str,
+    ) -> TaskDomain | None: ...
 
-    # 领取已分配任务（Execution Agent 实例调用）
-    def claim_assigned(self, task_id: TaskId, agent_id: AgentId) -> Task | None:
-        """只有被分配的 Agent 可以把 pending 任务推进到 running。"""
+    def complete(self, session_id: str, task_id: str, *, result_ref: str | None = None) -> TaskDomain: ...
 
-    # 完成任务
-    def complete(self, task_id: TaskId, result: TaskResult) -> None:
-        """
-        标记任务完成。若任务有未完成子任务，
-        实际状态保持 running，等待子任务结束后再转入 done。
-        """
+    def fail(self, session_id: str, task_id: str, *, error_ref: str) -> TaskDomain: ...
 
-    # 失败任务
-    def fail(self, task_id: TaskId, error: str) -> None:
-        """标记任务失败。终态，不可恢复。"""
+    def wait_for_user(self, session_id: str, task_id: str, *, ask_id: str) -> TaskDomain: ...
 
-    # 请求中断
-    def request_interrupt(self, task_id: TaskId, reason: str) -> None:
-        """
-        记录用户或系统的停止意图。
-        pending 任务可以立即终止；running 任务等待 Agent 在安全点确认。
-        """
+    def resume_after_user(self, session_id: str, task_id: str, *, ask_id: str) -> TaskDomain: ...
 
-    # 查询
-    def get(self, task_id: TaskId) -> Task: ...
-    def children_of(self, task_id: TaskId) -> list[Task]: ...
-    def pending_tasks(self) -> list[Task]: ...
+    def skip(self, session_id: str, task_id: str, *, reason: str) -> TaskDomain: ...
 
-    # 等待（用于父任务等待子任务）
-    async def wait_for_children(self, task_id: TaskId) -> list[Task]:
-        """阻塞至所有子任务进入终态。"""
+    def retry(self, session_id: str, task_id: str, *, instruction: str | None = None) -> TaskDomain: ...
+
+    def request_interrupt(
+        self,
+        session_id: str,
+        task_id: str,
+        *,
+        reason: str,
+        requested_by: TaskInterruptRequestedBy = "user",
+        request_id: str | None = None,
+    ) -> TaskDomain: ...
+
+    def recover_interrupted_running_tasks(self, session_id: str) -> list[TaskDomain]: ...
+
+    def get(self, session_id: str, task_id: str) -> TaskDomain | None: ...
+    def list_for_session(self, session_id: str) -> list[TaskDomain]: ...
+    def list_children(self, session_id: str, parent_id: str | None) -> list[TaskDomain]: ...
 ```
 
-API 表面仍然**极小**。Product 1.0 使用既有 fixed-route
-`claim_next -> complete / fail` 路径。Router / Routing Agent policy 的复杂策略不进入 TaskBus API。
+Product 1.0 的 API 表面仍然保持小而集中：TaskBus 负责 PublishedTask
+状态转换、ASK blocking point、retry/skip、interrupt intent 和 recovery。
+Router / Routing Agent policy 的复杂策略不进入 TaskBus API；动态
+assignment API 是 Product 1.1+ 扩展。
 
 ---
 
@@ -408,7 +418,7 @@ TaskPublisher / Agent Tool
   -> TaskBus
   -> FixedRouteTaskExecutor
   -> Resident Default Agent
-  -> TaskBus complete / fail
+  -> TaskBus complete / fail / wait_for_user
 ```
 
 Product 1.1+ dynamic routing relationship:
@@ -456,7 +466,7 @@ Product 1.1+ dynamic routing relationship:
 并发度               多核并行                    严格串行
 负载均衡             work stealing               不需要
 就绪判定             资源 + 信号                 parent.done == True
-状态机复杂度         多种（运行/就绪/阻塞/...）   4 种
+状态机复杂度         多种（运行/就绪/阻塞/...）   5 种（含 ASK blocking point）
 失败处理             信号 + supervisor           Task failed 不传播
 ```
 
@@ -485,10 +495,13 @@ TaskBus 在 Session active 期间持续接受任务：
 ```
 持续循环：
   Loop 1: 用户/Agent publish 任务
-  Loop 2: Router assign pending tasks
-  Loop 3: Agent Manager claim_assigned
-  Loop 4: Agent 完成或失败 → bus.complete / bus.fail
-  Loop 5: 父任务 wait_for_children 解除阻塞
+  Loop 2: Product 1.0 fixed-route executor claim_next
+  Loop 3: Agent 完成、失败或创建 ASK → bus.complete / bus.fail / bus.wait_for_user
+  Loop 4: ASK answer/defer/cancel → bus.resume_after_user 或 bus.fail
+  Loop 5: retry/skip/interrupt command 通过 TaskBus 改变生命周期事实
+
+Product 1.1+ 动态路由会在 Loop 2 前增加 Router assign pending tasks 和
+Agent Manager claim_assigned。
 ```
 
 期间 `running_task` 至多有一个，`queue` 长度可变。

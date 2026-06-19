@@ -151,7 +151,7 @@ class RawTask(BaseModel):
     assumptions: tuple[str, ...] = ()
 ```
 
-RawTask is not executable. It has no execution `required_capability`, cannot be claimed by execution Agents, and does not use `pending/running/done/failed`.
+RawTask is not executable. It has no execution `required_capability`, cannot be claimed by execution Agents, and does not use `pending/running/waiting_for_user/done/failed`.
 
 ### 3.3 FeasibilityReport
 

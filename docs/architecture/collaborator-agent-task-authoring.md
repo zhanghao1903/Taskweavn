@@ -850,7 +850,7 @@ Deliver:
 - roadmap/project roadmap status update;
 - user-case notes.
 
-End-to-end user-case testing should wait until the Task-first UI can render and operate on RawTask and DraftTask cards.
+End-to-end user-case testing should wait until the Session UI can render and operate on RawTask and DraftTask authoring cards.
 
 ### Deferred From This Package
 

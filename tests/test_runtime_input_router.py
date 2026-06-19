@@ -97,8 +97,8 @@ def test_router_question_returns_read_only_inquiry_answer() -> None:
     assert response.data.activity.side_effect == "no_effect"
     assert commands.calls == []
     assert publisher.calls == [
-        ("user_input", "route-1", "user_input"),
-        ("answer", "route-1", "activity:inquiry:route-1"),
+        ("conversation", "route-1", "question"),
+        ("activity", "route-1", "activity:inquiry:route-1", "answered"),
     ]
 
 
@@ -295,28 +295,32 @@ def test_router_read_only_answer_is_durable_activity(
 
     assert response.ok is True
     assert duplicate.ok is True
-    assert len(stream) == 2
+    assert len(stream) == 3
     messages = tuple(
         map_agent_message_view(message)
         for message in stream.list_for_session(request.session_id)
     )
-    message_by_title = {message.title: message for message in messages}
-    assert message_by_title["User input"].body == "What changed in this workspace?"
-    assert (
-        message_by_title[READ_ONLY_INQUIRY_ACTIVITY_TITLE].activity_related_refs[0].kind
-        == "session"
-    )
-    assert (
-        message_by_title[READ_ONLY_INQUIRY_ACTIVITY_TITLE].activity_related_refs[0].id
-        == "session:session-1:status"
-    )
+    assert [message.title for message in messages] == [
+        "User input",
+        "Router interpretation",
+        READ_ONLY_INQUIRY_ACTIVITY_TITLE,
+    ]
+    assert messages[0].body == "What changed in this workspace?"
+    assert messages[0].conversation_render is not None
+    assert messages[0].conversation_render.render_kind == "text"
+    assert messages[1].conversation_render is not None
+    assert messages[1].conversation_render.render_kind == "router_trace"
+    assert messages[1].conversation_render.router_trace is not None
+    assert messages[1].conversation_render.router_trace.intent == "question"
+    assert messages[2].activity_related_refs[0].kind == "session"
+    assert messages[2].activity_related_refs[0].id == "session:session-1:status"
     timeline = DefaultSessionActivityProjectionService().project(
         session_id=request.session_id,
         messages=messages,
     )
-    assert timeline.total_count == 2
+    assert timeline.total_count == 3
     item_by_kind = {item.kind: item for item in timeline.items}
-    assert set(item_by_kind) == {"user_input", "answer"}
+    assert set(item_by_kind) == {"user_input", "router_interpretation", "answer"}
     assert item_by_kind["user_input"].id == "activity:runtime-input:route-1:user_input"
     assert item_by_kind["user_input"].body == "What changed in this workspace?"
     item = item_by_kind["answer"]
@@ -386,9 +390,94 @@ def test_router_planner_interpretation_is_durable_activity(
     assert item_by_kind["user_input"].id == "activity:runtime-input:route-1:user_input"
     assert item_by_kind["user_input"].body == "How do I start this project?"
     assert item_by_kind["router_interpretation"].title == "Router interpretation"
-    assert item_by_kind["router_interpretation"].body == "Router will answer from README."
+    assert "Router will answer from README." in item_by_kind["router_interpretation"].body
     assert item_by_kind["router_interpretation"].side_effect == "no_effect"
     assert item_by_kind["answer"].body == "Captured without side effects."
+
+    bus.close()
+    stream.close()
+
+
+def test_router_clarification_is_durable_question_card(
+    tmp_path: Path,
+) -> None:
+    stream = SqliteMessageStream(tmp_path / "messages.sqlite")
+    bus = InProcessMessageBus(stream)
+    query = _QueryGateway(active_confirmation_id="confirm-1")
+    commands = _CommandGateway()
+    router = _router(
+        query,
+        commands,
+        activity_publisher=MessageBusRuntimeInputActivityPublisher(bus),
+    )
+    request = _request(
+        command_id="route-confirm-clarify",
+        content="maybe later",
+        selection=RuntimeInputSelection(scope_kind="task", task_node_id="task-1"),
+        active_confirmation_id="confirm-1",
+    )
+
+    response = router.route(request)
+
+    assert response.ok is True
+    assert response.data is not None
+    assert response.data.outcome.status == "needs_clarification"
+    messages = tuple(
+        map_agent_message_view(message)
+        for message in stream.list_for_session(request.session_id)
+    )
+    question = next(message for message in messages if message.title == "Router question")
+    assert question.conversation_render is not None
+    assert question.conversation_render.render_kind == "question_card"
+    assert question.conversation_render.question_card is not None
+    assert question.conversation_render.question_card.card_kind == "confirmation"
+    assert question.conversation_render.question_card.status == "pending"
+    assert [option.id for option in question.conversation_render.question_card.options] == [
+        "yes",
+        "no",
+    ]
+    assert commands.calls == []
+
+    bus.close()
+    stream.close()
+
+
+def test_router_ask_answer_is_durable_conversation_answer(
+    tmp_path: Path,
+) -> None:
+    stream = SqliteMessageStream(tmp_path / "messages.sqlite")
+    bus = InProcessMessageBus(stream)
+    query = _QueryGateway(active_ask_id="ask-1")
+    commands = _CommandGateway()
+    router = _router(
+        query,
+        commands,
+        activity_publisher=MessageBusRuntimeInputActivityPublisher(bus),
+    )
+    request = _request(
+        command_id="route-ask-answer",
+        content="Use Vercel.",
+        selection=RuntimeInputSelection(scope_kind="session"),
+        active_ask_id="ask-1",
+    )
+
+    response = router.route(request)
+
+    assert response.ok is True
+    assert response.data is not None
+    assert response.data.outcome.status == "dispatched"
+    messages = tuple(
+        map_agent_message_view(message)
+        for message in stream.list_for_session(request.session_id)
+    )
+    user_answer = messages[0]
+    assert user_answer.title == "User input"
+    assert user_answer.body == "Use Vercel."
+    assert user_answer.conversation_render is not None
+    assert user_answer.conversation_render.text is not None
+    assert user_answer.conversation_render.text.body == "Use Vercel."
+    assert any(message.title == "ASK answered" for message in messages)
+    assert commands.calls == [("answer_ask", "ask-1", "Use Vercel.")]
 
     bus.close()
     stream.close()
@@ -746,14 +835,27 @@ def _contract_revision_service(
 
 @dataclass
 class _ActivityPublisher:
-    calls: list[tuple[str, str, str]] = field(default_factory=list)
+    calls: list[tuple[Any, ...]] = field(default_factory=list)
 
-    def publish_user_input(
+    def publish_router_conversation(
+        self,
+        request: RuntimeInputRouteRequest,
+        decision: Any,
+        outcome: Any,
+    ) -> None:
+        del outcome
+        self.calls.append(("conversation", request.command_id, decision.intent))
+
+    def publish_router_activity(
         self,
         request: RuntimeInputRouteRequest,
         activity: SessionActivityItemView,
+        *,
+        outcome_status: str | None = None,
     ) -> None:
-        self.calls.append(("user_input", request.command_id, activity.kind))
+        self.calls.append(
+            ("activity", request.command_id, activity.id, outcome_status)
+        )
 
     def publish_read_only_answer(
         self,
@@ -761,13 +863,6 @@ class _ActivityPublisher:
         activity: SessionActivityItemView,
     ) -> None:
         self.calls.append(("answer", request.command_id, activity.id))
-
-    def publish_router_interpretation(
-        self,
-        request: RuntimeInputRouteRequest,
-        activity: SessionActivityItemView,
-    ) -> None:
-        self.calls.append(("router_interpretation", request.command_id, activity.id))
 
 
 @dataclass

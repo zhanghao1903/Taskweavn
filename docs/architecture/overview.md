@@ -1,8 +1,8 @@
 # TaskWeavn Architecture Overview
 
 > Status: active architecture overview
-> Last Updated: 2026-05-31
-> Version: v1.2
+> Last Updated: 2026-06-19
+> Version: v1.3
 > Related Decisions: [ADR-0008](../decisions/ADR-0008-authoring-domain-execution-boundary.md), [ADR-0010](../decisions/ADR-0010-line-first-authoring-experience-for-1-0.md), [ADR-0011](../decisions/ADR-0011-routing-agent-assignment-and-cooperative-interruption.md), [ADR-0012](../decisions/ADR-0012-taskbus-centered-agent-assignment-convergence.md)
 
 This document is the current high-level architecture map. It summarizes the
@@ -17,7 +17,12 @@ custom Agent governance.
 
 ## 1. Current Architecture Shape
 
-TaskWeavn is a task-first local assistant system with two major domains:
+TaskWeavn is a Session-scoped local assistant system with TaskBus-authoritative
+execution. The architecture still treats PublishedTask as the executable work
+contract, but the runtime and UI are organized around a Session that owns
+conversation, active work, workspace state, projections, and audit evidence.
+
+The system has two major task domains:
 
 ```text
 Authoring Domain
@@ -34,7 +39,7 @@ Contract Revision Loop
   understands user input and revises Session / Plan / TaskNode contract facts
 
 Contract Execution Loop
-  executes accepted PublishedTasks and may change the workspace
+  executes published PublishedTasks and may change the workspace
 ```
 
 See [Contract Revision And Execution Loops](contract-revision-and-execution-loops.md).
@@ -49,14 +54,15 @@ User message
   -> RawTask
   -> FeasibilityReport / RawTaskAsk
   -> DraftTaskTree
+  -> Plan / PlanTaskNode projection
   -> user review / edit / confirmation
   -> TaskPublisher
   -> PublishedTask
   -> TaskBus
   -> FixedRouteTaskExecutor
   -> Resident Default Agent task-run
-  -> TaskBus complete / fail
-  -> Main Page / Audit projections
+  -> TaskBus complete / fail / waiting_for_user
+  -> Main Page / Activity / Audit projections
 ```
 
 The runtime is tree-capable, but the Product 1.0 user experience is line-first:
@@ -71,15 +77,17 @@ default multi-Agent orchestration surface.
 |---|---|---|
 | `Project` | Long-lived product container for user work. It is a UI/product organization layer, not the default file write boundary. | [UI/backend communication](ui-backend-communication.md) |
 | `Workflow` | Product-level grouping under a Project. It can organize related Sessions and future reusable flows. | [Workflow Session Task UX Model](../product/workflow-session-task-ux-model.md) |
-| `Session` | Runtime boundary for one interaction context and its Session Workspace. | [Session](session.md) |
-| `Session Workspace` | File and process boundary for execution. Product 1.0 keeps one active Session workspace and avoids implicit cross-session writes. | [Session](session.md), [Workspace Communication Protocol](workspace-communication-protocol.md) |
+| `Session` | Runtime boundary for one interaction context, continuous conversation, active work, execution facts, projections, and audit evidence. | [Session](session.md) |
+| `Workspace root` | File and process boundary for execution. Current implementation uses the selected workspace root as the Agent cwd; Session facts are isolated under `.plato` stores and `session_id`, while user files are shared unless a future explicit fork/export flow is introduced. | [Session](session.md), [Workspace Communication Protocol](workspace-communication-protocol.md) |
 | `RawTask` | Durable authoring object created from task-like user intent before execution is valid. | [Authoring Domain](authoring-domain.md) |
 | `DraftTaskTree` | Editable authoring plan. It is not executable until published. | [Authoring Domain](authoring-domain.md), [Task/UI separation](task-domain-ui-model-separation.md) |
+| `Plan` / `PlanTaskNode` | Durable Session-level active-work projection created from DraftTaskTree and synchronized from PublishedTask execution. Current storage supports `archived`, while the user-facing archive command is still follow-up work. | [Task/UI separation](task-domain-ui-model-separation.md), [Session product lifecycle](../product/plato-session-active-work-lifecycle.md) |
 | `PublishedTask` | Execution-domain unit of work. It is the only Task object that enters TaskBus. | [Task](task.md) |
-| `TaskBus` | PublishedTask lifecycle authority. Product 1.0 uses fixed-route claim/complete/fail; Product 1.1+ may add assignment convergence. | [TaskBus](bus.md) |
+| `TaskBus` | PublishedTask lifecycle authority. Product 1.0 uses fixed-route claim, complete/fail, retry/skip, `waiting_for_user`, and cooperative interrupt. Product 1.1+ may add assignment convergence. | [TaskBus](bus.md) |
 | `Execution Agent` | Task executor. Product 1.0 uses a fixed Default Agent route; later versions may use routed Agent templates and instances. | [Agent](agent.md) |
 | `Context Manager` | Assembles cache-aware execution context for stateless LLM calls from task, event, workspace, tool, and permission facts. Skill, MCP, multimodal, and retrieval sources are later extension points. | [Context Manager](context-manager.md) |
-| `MessageStream` | User-visible conversation, confirmation, and execution messages. | [Interaction Layer](interaction-layer.md), [UI/backend communication](ui-backend-communication.md) |
+| `AskStore` | Durable execution ASK state. MessageStream may record ASK history, but AskStore owns pending/answered/deferred/cancelled state and TaskBus resumes only after answer persistence. | [UI/backend communication](ui-backend-communication.md) |
+| `MessageStream` | User-visible Session conversation, confirmation, ASK history, and execution messages. | [Interaction Layer](interaction-layer.md), [UI/backend communication](ui-backend-communication.md) |
 | `EventStream` | Append-only runtime fact ledger for replay, audit, and projections. | [Reference](reference.md), [TaskBus](bus.md) |
 
 ---
@@ -134,7 +142,10 @@ TaskPublisher
 TaskBus owns PublishedTask lifecycle facts:
 
 ```text
-pending -> running -> done / failed
+pending -> running -> done
+                |
+                -> waiting_for_user -> running / failed
+                -> failed
 ```
 
 Product 1.0 uses the accepted fixed-route bridge:
@@ -143,7 +154,7 @@ Product 1.0 uses the accepted fixed-route bridge:
 Published TaskBus Task
   -> FixedRouteTaskExecutor
   -> Resident Default Agent
-  -> TaskBus complete / fail
+  -> TaskBus complete / fail / wait_for_user
 ```
 
 This Product 1.0 path intentionally does not include:
@@ -169,8 +180,9 @@ Loop.
 
 | Mutation Target | Boundary | Notes |
 |---|---|---|
-| TaskWeavn authoring state | Authoring Commands | RawTask, DraftTaskTree, clarification asks, authoring messages, publish requests. |
-| PublishedTask lifecycle | TaskBus commands | publish, claim, complete, fail, retry/skip semantics, interrupt intent. |
+| TaskWeavn authoring state | Authoring Commands | RawTask, DraftTaskTree, authoring asks, authoring messages, publish requests. |
+| Execution ASK state | AskStore commands | create, answer, defer, cancel, expire; answer persistence precedes TaskBus resume. |
+| PublishedTask lifecycle | TaskBus commands | publish, claim, complete, fail, wait_for_user/resume_after_user, retry/skip semantics, interrupt intent. |
 | User workspace state | Workspace Communication Protocol | files, commands, artifacts, project processes, future external providers. |
 
 This boundary is central:
@@ -214,9 +226,11 @@ The communication pattern is Query / Command / Event:
 | Command | UI -> backend | Submit user intent. Accepted does not mean final state. |
 | Event | backend -> UI | Notify that backend facts changed. |
 
-Main Page is the Product 1.0 control plane. It projects task state, execution
-result/error summaries, file changes, messages, and confirmations. Audit Page is
-the trust plane and owns deeper evidence, diagnostics, and review trails.
+Main Page is the Product 1.0 control plane and Session perception layer. It
+projects Session conversation, active Plan / Task state, execution result/error
+summaries, pending ASK and confirmation controls, file changes, Activity, and
+Audit entry points. Audit Page is the trust plane and owns deeper evidence,
+diagnostics, and review trails.
 
 ---
 
@@ -251,7 +265,7 @@ Agent Manager, or custom Agent protocol.
 The default architecture has one active writer execution lane per Session. More
 than one Agent may appear as serialized delegation, tool-like specialization, or
 future isolated sub-session work, but multiple Agents do not concurrently write
-the same Session Workspace or advance the same task context.
+the same workspace root for the same Session or advance the same task context.
 
 Product 1.1+ will define Agent Protocol and special Agent protocols before
 custom Agents, Routing Agents, skills-driven Agents, or MCP-backed Agents become
@@ -306,11 +320,11 @@ Product 1.0 is intentionally constrained:
 
 | Constraint | Current Meaning |
 |---|---|
-| Line-first UX | The product emphasizes current step, acceptance, and next decision over full tree orchestration. |
-| One active Session workspace | File writes happen within a Session Workspace; cross-session merge/export is explicit future work. |
+| Line-first UX | The product emphasizes current step, explicit user decision, and next action over full tree orchestration. |
+| Workspace-root execution with Session fact isolation | Agent file writes happen in the selected workspace root. Session facts, events, context, asks, and projections are isolated by `.plato` storage and `session_id`; cross-session file conflict handling is explicit future work. |
 | One active writer execution lane | A Session has one context owner for workspace-writing execution; parallel Agents must be read-only, independently sharded, or workspace-isolated. |
 | Fixed execution route | PublishedTasks execute through the default Agent bridge, not dynamic routing. |
-| Simple Task status | `pending`, `running`, `done`, `failed`; cancellation and skip are represented through failure reason semantics when needed. |
+| Simple Task status | `pending`, `running`, `waiting_for_user`, `done`, `failed`; cancellation and skip are represented through failure reason semantics when needed. |
 | Deterministic, cache-aware context assembly | Context Manager starts as a simple fact assembler with append-only rendering, not a semantic retrieval platform. |
 | Projection over raw objects | UI reads ViewModels and snapshots, not TaskBus rows or store internals. |
 

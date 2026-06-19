@@ -190,11 +190,20 @@ Status: implemented.
 
 Status: deferred to Runtime Input Router.
 
+- Runtime Input Router outcomes create durable typed Conversation content:
+  - user input;
+  - Router interpretation trace;
+  - Router clarification / ASK / confirmation question cards;
+  - user answers;
+  - Router outcome text.
 - Runtime Input Router outcomes create activity records:
   - interpreted intent;
   - affected scope;
   - side-effect class;
   - related refs.
+- Conversation rendering must use a backend-declared protocol for text,
+  Router trace, and question cards/options. The frontend must not infer
+  interactive cards from raw text alone.
 - `router_interpretation`, `guidance_recorded`, `confirmation_resolved`, and
   `ask_answered` remain reserved item kinds until the Router writes them.
 - This is tracked by
