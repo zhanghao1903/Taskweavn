@@ -118,7 +118,7 @@ public skill marketplace.
 | Should | Outcome Review hardening | Completed Plan can be accepted, reviewed, or continued into a follow-up Plan without confusing Session semantics. |
 | Should | Skills governance productization | Backend skill governance exists; 1.1 should add only the minimum debug/UI exposure needed for real use. |
 | Should | Result packaging cards | Improve result readability for structured outputs after result summary and evidence refs are stable. |
-| Could | MCP / computer-use proof | Run one low-risk vertical proof behind strict permission/evidence gates. |
+| Could | MCP / computer-use proof | Run one low-risk vertical proof behind strict permission/evidence gates. macOS computer-use should use a standalone package consumed by Plato through an adapter, not a direct internal implementation. |
 | Could | Remote execution environment preview | Only after embedded Task API and local ExecutionEnv are stable. |
 
 ### Product 1.1 Non-Goals
@@ -369,7 +369,7 @@ one user-visible or architecture-visible acceptance boundary.
 | M3 Plan/TaskNode Stability | Plan/TaskNode contract migration, Activity timeline, result/error/file projection, restart-safe state. | Product + Execution projection | mostly implemented |
 | M4 Execution Plane Boundary | Embedded Task API service, local sidecar routes, ExecutionEnv registry, idempotency, result/error/evidence refs. | Execution Plane | foundation in progress |
 | M5 Outcome Review | Completion review, accept/continue/revise actions, follow-up Plan start. | Product Plane | planned |
-| M6 Skills And External Tools | Skill governance UI/debug exposure, MCP/computer-use policy proof if justified. | Context + Tool Plane | deferred until M1-M4 are stable |
+| M6 Skills And External Tools | Skill governance UI/debug exposure, MCP/computer-use policy proof if justified; macOS computer-use package proof before Plato adapter wiring. | Context + Tool Plane | deferred until M1-M4 are stable |
 
 Milestone ordering is not strictly linear, but M1-M4 are the product foundation.
 M5-M6 should not expand scope if M1-M4 have unresolved user-path regressions.

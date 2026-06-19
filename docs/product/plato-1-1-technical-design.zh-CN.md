@@ -202,6 +202,8 @@ Primary docs:
 - [Product 1.1 Skill Governance](../plans/feature/product-1-1-skill-governance.md)
 - [Skill Governance Technical Design](../plans/feature/product-1-1-skill-governance-technical-design.zh-CN.md)
 - [Codex / Claude Skill Context Governance Research](../reference/codex-claude-skill-context-governance.md)
+- [macOS Computer-Use Capability Package](../plans/feature/macos-computer-use-package.md)
+- [macOS Computer-Use Package Technical Design](../plans/feature/macos-computer-use-package-technical-design.zh-CN.md)
 
 ### 4.5 Conversation, Activity, Outcome Review, And Audit
 
@@ -509,7 +511,9 @@ Product 1.1 should not attempt all directions at once. Recommended sequencing:
 
 5. **Productize skills and MCP incrementally.**
    Keep skills as context/policy first. Add MCP/computer-use only behind clear
-   capability, permission, evidence, and confirmation gates.
+   capability, permission, evidence, and confirmation gates. macOS
+   computer-use should be packaged as a neutral LLM-free capability package and
+   consumed by Plato through an adapter.
 
 6. **Run one vertical proof.**
    Use a low-risk workflow such as email/browser draft assistance before

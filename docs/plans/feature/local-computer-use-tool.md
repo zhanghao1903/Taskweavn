@@ -154,7 +154,9 @@ ExecutionEnv work.
 
 ## 8. Follow-Up Slices
 
-1. macOS local backend behind an explicit permission/readiness gate.
+1. [macOS computer-use capability package](macos-computer-use-package.md), then
+   [Plato macOS adapter/backend](macos-computer-use-backend.md) behind an
+   explicit permission/readiness gate.
 2. Windows local backend behind an explicit permission/readiness gate.
 3. screenshot/evidence redaction.
 4. WeChat Desktop adapter.
