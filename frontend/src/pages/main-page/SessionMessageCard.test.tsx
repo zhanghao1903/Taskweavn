@@ -168,6 +168,87 @@ describe("SessionMessageCard", () => {
     expect(screen.getByText("Task activity")).toBeInTheDocument();
     expect(screen.queryByText("TaskNode: task-implementation")).not.toBeInTheDocument();
   });
+
+  it("renders Router trace conversation protocol", () => {
+    render(
+      <SessionMessageCard
+        message={message({
+          body: "Router interpreted the input.",
+          title: "Router interpretation",
+          conversationRender: {
+            protocolVersion: "plato.conversation.render.v1",
+            renderKind: "router_trace",
+            routerTrace: {
+              confidence: "high",
+              dispatchTarget: "read_only_inquiry",
+              explanation: "Input was answered through Read-Only Inquiry Context.",
+              intent: "question",
+              outcomeStatus: "answered",
+              scopeKind: "session",
+              sideEffect: "no_effect",
+            },
+          },
+        })}
+      />,
+    );
+
+    expect(
+      screen.getByText("Input was answered through Read-Only Inquiry Context."),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Intent")).toBeInTheDocument();
+    expect(screen.getByText("Question")).toBeInTheDocument();
+    expect(screen.getByText("Dispatch")).toBeInTheDocument();
+    expect(screen.getByText("Read Only Inquiry")).toBeInTheDocument();
+  });
+
+  it("renders Router question cards with options from protocol", () => {
+    render(
+      <SessionMessageCard
+        message={message({
+          body: "Please answer yes or no.",
+          title: "Router question",
+          conversationRender: {
+            protocolVersion: "plato.conversation.render.v1",
+            renderKind: "question_card",
+            questionCard: {
+              answerMode: "runtime_input",
+              cardId: "question-1",
+              cardKind: "confirmation",
+              options: [
+                {
+                  description: "Approve and continue.",
+                  id: "yes",
+                  label: "Yes",
+                },
+                {
+                  description: "Do not approve.",
+                  id: "no",
+                  label: "No",
+                },
+              ],
+              questions: [
+                {
+                  id: "answer",
+                  inputHint: "Type yes or no.",
+                  label: "Your answer",
+                  required: true,
+                },
+              ],
+              status: "pending",
+              title: "Plato needs one more detail",
+            },
+          },
+        })}
+      />,
+    );
+
+    expect(screen.getByText("Plato needs one more detail")).toBeInTheDocument();
+    expect(screen.getByText("Pending")).toBeInTheDocument();
+    expect(screen.getByText("Your answer")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Type yes or no.")).toBeDisabled();
+    expect(screen.getByRole("button", { name: /Yes/ })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /No/ })).toBeDisabled();
+  });
 });
 
 function message(

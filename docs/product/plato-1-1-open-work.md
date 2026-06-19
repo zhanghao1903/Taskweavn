@@ -2,7 +2,7 @@
 
 > Status: active open-work index
 >
-> Last Updated: 2026-06-18
+> Last Updated: 2026-06-19
 >
 > Scope: Product 1.1 unfinished product work after the accepted workspace,
 > precision-tool, read-only inquiry, token-usage, and local Electron beta
@@ -19,6 +19,8 @@ The current Product 1.1 state is:
 
 - the workspace-aware foundation is real enough for beta use;
 - several foundation slices are already accepted or implemented;
+- the Contract Revision Command Skills command set is implemented on `main`,
+  but the broader Router-first product loop is not yet product-complete;
 - the remaining Product 1.1 risk is the collaboration loop around runtime
   input, contract revision, durable evidence, and user trust.
 
@@ -43,7 +45,8 @@ These items are not open P0 blockers unless a later regression is found:
 | Read-only inquiry | Accepted for Product 1.1 local runtime: no-mutation answers, evidence refs, Activity display/replay, Audit focused refs, diagnostic actions, sidecar/Electron smoke. | [Read-Only Inquiry Context](../plans/feature/read-only-inquiry-context.md) |
 | Token usage analytics | Completed Product 1.1 slice: usage ledger, Task/Plan/Session/Workspace aggregation, cache hit-rate visibility, Settings/Main Page entries, diagnostics-safe summaries. | [Token Usage Analytics](../plans/feature/token-usage-analytics.md) |
 | UI system text foundation | Implemented typed UI system text registry, `en-US` / `zh-CN` catalogs, runtime locale override, Settings language selector, staged chrome migration. | [Product Copy Localization Foundation](../plans/feature/product-copy-localization-foundation.md) |
-| Web fetch | Implemented first Product 1.1 `web_fetch` capability behind the Web Search provider/key path. | [Execution Web Fetch Capability](../plans/feature/execution-web-fetch-capability.md) |
+| Execution web retrieval | Implemented first Product 1.1 external-evidence baseline: Tavily-backed `web_search`, selected-URL `web_fetch`, global Settings/key path, URL safety policy, gated execution tool registration, Context/Audit/diagnostic descriptors, and mock-provider tests. | [Execution Web Search Capability](../plans/feature/execution-web-search-capability.md), [Execution Web Fetch Capability](../plans/feature/execution-web-fetch-capability.md) |
+| Contract revision command substrate | Implemented CRS-A through CRS-E: command protocol, `record_guidance`, routed ASK/confirmation resolution, Plan/TaskNode patch/create/delete, and `create_execution_task` handoff. CRS-F/CRS-G remain P0 closure work because Router-first UX, durable route evidence, and full Electron/CI acceptance are not complete. | [Contract Revision Command Skills](../plans/feature/contract-revision-command-skills.md) |
 
 ## 4. P0 Milestone: Runtime Input And Evidence Closure
 
@@ -79,18 +82,18 @@ separate command paths. That is a product problem:
 
 ### 4.3 P0 Work Packages
 
-| ID | Work package | Target outcome | Source |
-|---|---|---|---|
-| P0-RIR-1 | Main Page default Router path | Main Page submit routes through Runtime Input Router by default while explicit ASK/confirmation controls continue to work. | [Runtime Input Router Contract](../plans/feature/runtime-input-router-contract.md) |
-| P0-RIR-2 | Question and guidance routes | Read-only questions use the accepted Inquiry path; guidance routes to command-backed guidance recording. Unsupported guidance never becomes hidden behavior. | [Runtime Input And Contract Revision Program](../plans/feature/runtime-input-and-contract-revision-program.md) |
-| P0-CRS-1 | Command skill protocol | Internal command skills return versioned, idempotent, auditable results with Activity metadata and no direct workspace writes. | [Contract Revision Command Skills](../plans/feature/contract-revision-command-skills.md) |
-| P0-CRS-2 | `record_guidance` | Session, Plan, or Task guidance persists as typed contract/context facts and appears in Activity. | [Contract Revision Command Skills](../plans/feature/contract-revision-command-skills.md) |
-| P0-CRS-3 | ASK and confirmation routed resolution | The same input surface can resolve active ASK and confirmation states through accepted domain commands. | [Runtime Input Router Contract](../plans/feature/runtime-input-router-contract.md) |
-| P0-CRS-4 | Execution request handoff | Workspace-changing requests create executable Plan/TaskNode contract work and enter TaskBus only through the accepted execution path. | [Contract Revision Command Skills](../plans/feature/contract-revision-command-skills.md) |
-| P0-CRS-5 | Plan/TaskNode mutation commands | Contract-changing requests use command-backed patch/create/delete operations with state, version, idempotency, and confirmation guards. | [Plan / TaskNode Contract Migration](../plans/feature/plan-tasknode-contract-migration.md) |
-| P0-ACT-1 | Durable Router Activity | Router decisions and outcomes are stored as durable Session content or equivalent facts, not only returned as transient route-result metadata. | [Session Conversation / Activity Timeline](../plans/feature/session-conversation-activity-timeline.md) |
-| P0-TRUST-1 | Audit and diagnostics linkage | Routed input links to downstream command, Activity, Audit, and diagnostic refs without exposing prompts, provider payloads, raw logs, SQLite rows, secrets, or absolute paths. | [Runtime Input And Contract Revision Program](../plans/feature/runtime-input-and-contract-revision-program.md) |
-| P0-QA-1 | Real acceptance suite | Electron/sidecar acceptance covers question, guidance, ASK, confirmation, stop/retry, execution-request handoff, unsupported routes, and no-mutation guarantees. | [Product 1.1 QA Report](plato-1-1-real-local-qa-report-2026-06-11.md) |
+| ID | Work package | Current state | Target outcome | Source |
+|---|---|---|---|---|
+| P0-RIR-1 | Main Page default Router path | Open. Deterministic Router foundation exists, but the Main Page submit path is not yet Router-first for the full input surface. | Main Page submit routes through Runtime Input Router by default while explicit ASK/confirmation controls continue to work. | [Runtime Input Router Contract](../plans/feature/runtime-input-router-contract.md) |
+| P0-RIR-2 | Question and guidance routes | Partial. Read-only inquiry is accepted; guidance recording command exists. Remaining work is Router-first product wiring and durable route replay for all route outcomes. | Read-only questions use the accepted Inquiry path; guidance routes to command-backed guidance recording. Unsupported guidance never becomes hidden behavior. | [Runtime Input And Contract Revision Program](../plans/feature/runtime-input-and-contract-revision-program.md) |
+| P0-CRS-1 | Command skill protocol | Implemented. | Internal command skills return versioned, idempotent, auditable results with Activity metadata and no direct workspace writes. | [Contract Revision Command Skills](../plans/feature/contract-revision-command-skills.md) |
+| P0-CRS-2 | `record_guidance` | Implemented. | Session, Plan, or Task guidance persists as typed contract/context facts and appears in Activity. | [Contract Revision Command Skills](../plans/feature/contract-revision-command-skills.md) |
+| P0-CRS-3 | ASK and confirmation routed resolution | Implemented. Follow-up fixes have covered PlanTaskNode/published-task ASK matching in Main Page detail. | The same input surface can resolve active ASK and confirmation states through accepted domain commands. | [Runtime Input Router Contract](../plans/feature/runtime-input-router-contract.md), [Contract Revision Command Skills](../plans/feature/contract-revision-command-skills.md) |
+| P0-CRS-4 | Execution request handoff | Implemented at command level. Full product acceptance still depends on Router-first UI and Electron smoke. | Workspace-changing requests create executable Plan/TaskNode contract work and enter TaskBus only through the accepted execution path. | [Contract Revision Command Skills](../plans/feature/contract-revision-command-skills.md) |
+| P0-CRS-5 | Plan/TaskNode mutation commands | Implemented for patch/create/delete with version, editable-Plan, idempotency, and tombstone semantics. | Contract-changing requests use command-backed patch/create/delete operations with state, version, idempotency, and confirmation guards. | [Plan / TaskNode Contract Migration](../plans/feature/plan-tasknode-contract-migration.md), [Contract Revision Command Skills](../plans/feature/contract-revision-command-skills.md) |
+| P0-ACT-1 | Durable Router Activity | Partial. Command and read-only inquiry evidence exists, but route-result metadata must not remain the only user-visible source for every route. | Router decisions and outcomes are stored as durable Session content or equivalent facts, not only returned as transient route-result metadata. | [Session Conversation / Activity Timeline](../plans/feature/session-conversation-activity-timeline.md) |
+| P0-TRUST-1 | Audit and diagnostics linkage | Partial. Implemented command descriptors exist; Router-wide Audit/diagnostic linkage and redacted export coverage still need closure. | Routed input links to downstream command, Activity, Audit, and diagnostic refs without exposing prompts, provider payloads, raw logs, SQLite rows, secrets, or absolute paths. | [Runtime Input And Contract Revision Program](../plans/feature/runtime-input-and-contract-revision-program.md) |
+| P0-QA-1 | Real acceptance suite | Open. Targeted validations exist; full Electron/sidecar P0 route acceptance remains the release gate. | Electron/sidecar acceptance covers question, guidance, ASK, confirmation, stop/retry, execution-request handoff, unsupported routes, and no-mutation guarantees. | [Product 1.1 QA Report](plato-1-1-real-local-qa-report-2026-06-11.md) |
 
 ### 4.4 P0 Non-Goals
 
@@ -129,19 +132,20 @@ The P0 milestone is accepted when:
 1. Done: implement the CRS-A command protocol models and focused unit tests.
 2. Done: implement `record_guidance` persistence, projection, and Activity
    output.
-3. Done for guidance: wire RIR guidance routes into Main Page default submit.
-   RIR question routes remain read-only inquiry backed.
+3. Partial: wire RIR question and guidance routes to accepted downstream
+   capabilities. Read-only inquiry and command-backed guidance exist; the
+   full Main Page Router-first submit path remains open.
 4. Done: add ASK/confirmation routed resolution parity with explicit UI
    controls.
-5. Partial: add guarded Plan/TaskNode mutation commands. `patch_task_node` is
-   implemented through the existing versioned `update_task_node` handler;
-   `create_task_node`, `delete_task_node`, and `create_execution_task` remain
-   open.
+5. Done: add guarded Plan/TaskNode mutation commands and
+   `create_execution_task` handoff.
 6. Partial: persist Router decisions/outcomes as durable Session Activity for
    read-only inquiry and implemented Contract Revision commands.
 7. Partial: add Router Audit/diagnostic refs and redacted diagnostic
    descriptors for implemented Contract Revision commands.
-8. Open: run the real Electron/sidecar acceptance suite for all P0 routes.
+8. Open: migrate the Main Page input submit path to Runtime Input Router by
+   default for the full input surface.
+9. Open: run the real Electron/sidecar acceptance suite for all P0 routes.
 
 ## 5. P1 Open Work
 
@@ -153,9 +157,30 @@ The P0 milestone is accepted when:
 | Token usage budget boundary | Add visible warning or budget boundary for long-running or extremely high-token execution. | Prevents cost surprises during beta use. |
 | Diagnostics descriptors | Add richer diagnostic bundle section descriptors, including workspace inspection evidence and Router decision descriptors. | Improves supportability without changing the main work loop. |
 | Localization polish | Clean remaining mixed English/Chinese execution ASK and recovery copy; continue moving UI system text behind typed keys. | Product quality issue for zh-CN beta builds. |
-| Web search status reconciliation | Align the `web_search` feature plan, implementation status, Settings path, real Tavily smoke, Audit evidence, and release docs. | Needed before claiming web retrieval as a stable Product 1.1 capability. |
-| Web fetch beta hardening | Verify real Tavily Extract smoke, result citations, Audit/diagnostic projection, and user-visible limitations. | `web_fetch` is implemented, but beta trust language still needs closure. |
+| Web retrieval beta hardening | Verify real Tavily Search/Extract smoke, broader citation/result UI, Audit projection depth, user-visible limitations, and future retrieval budget boundaries. | Search/fetch are implemented; the remaining work is beta trust and release evidence, not first capability delivery. |
 | Electron release hardening | Keep packaged/installer smoke current for Product 1.1 paths; signed/notarized distribution remains deferred until Apple Developer credentials exist. | Protects beta release quality. |
+
+## 5.1 Recommended Next Product Branches
+
+The next branches should be selected in this order:
+
+1. **Router-first Main Page input + Conversation protocol**: migrate the
+   default submit path to Runtime Input Router while preserving explicit
+   ASK/confirmation controls, display Router trace in Conversation, and render
+   backend-declared question cards/options. Technical design:
+   [Router-first Main Page Input, Conversation Protocol, And Durable Activity](../plans/feature/router-first-main-input-durable-activity-technical-design.zh-CN.md).
+2. **Durable Router Conversation / Activity**: make user input, Router trace,
+   Router questions, user answers, and Router outcomes replayable after reload
+   through typed Conversation content, with Activity summaries for inspection.
+   Technical design:
+   [Router-first Main Page Input, Conversation Protocol, And Durable Activity](../plans/feature/router-first-main-input-durable-activity-technical-design.zh-CN.md).
+3. **Router Audit / Diagnostics closure**: add redacted diagnostic descriptors
+   and consistent command/route refs for the full P0 route set.
+4. **P0 Electron acceptance**: run and harden real sidecar/Electron coverage for
+   question, guidance, ASK, confirmation, execution handoff, unsupported
+   routes, stop/retry, and no-mutation guarantees.
+5. **P1 beta polish**: stop/cancel UX, token budget warnings, localization
+   cleanup, and web retrieval release evidence.
 
 ## 6. P2 Open Work
 

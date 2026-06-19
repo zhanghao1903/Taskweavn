@@ -409,6 +409,56 @@ export type PlanView = {
 
 export type MessageKind = "informational" | "actionable" | "response" | "error";
 
+export type ConversationRenderKind = "text" | "router_trace" | "question_card";
+
+export type ConversationTextView = {
+  title?: string | null;
+  body: string;
+};
+
+export type ConversationRouterTraceView = {
+  intent: RuntimeInputIntent;
+  scopeKind: RuntimeInputScopeKind;
+  confidence: RuntimeInputConfidence;
+  sideEffect: SessionActivitySideEffect;
+  dispatchTarget: RuntimeInputDispatchTarget;
+  explanation: string;
+  outcomeStatus: RuntimeInputOutcomeStatus;
+};
+
+export type ConversationQuestionInputView = {
+  id: string;
+  label: string;
+  inputHint?: string | null;
+  required: boolean;
+};
+
+export type ConversationQuestionOptionView = {
+  id: string;
+  label: string;
+  description?: string | null;
+};
+
+export type ConversationQuestionCardView = {
+  cardId: string;
+  cardKind: "clarification" | "ask" | "confirmation";
+  status: "pending" | "answered" | "cancelled" | "expired";
+  title: string;
+  body?: string | null;
+  questions: ConversationQuestionInputView[];
+  options: ConversationQuestionOptionView[];
+  answerMode: "runtime_input" | "ask_command" | "confirmation_command";
+  targetRef?: SessionActivityRefView | null;
+};
+
+export type ConversationRenderView = {
+  protocolVersion: "plato.conversation.render.v1";
+  renderKind: ConversationRenderKind;
+  text?: ConversationTextView | null;
+  routerTrace?: ConversationRouterTraceView | null;
+  questionCard?: ConversationQuestionCardView | null;
+};
+
 export type SessionMessageView = {
   id: MessageId;
   sessionId: SessionId;
@@ -421,6 +471,7 @@ export type SessionMessageView = {
   relatedConfirmationId?: ConfirmationId | null;
   relatedCommandId?: CommandId | null;
   activityRelatedRefs?: SessionActivityRefView[];
+  conversationRender?: ConversationRenderView | null;
 };
 
 export type SessionActivityItemKind =

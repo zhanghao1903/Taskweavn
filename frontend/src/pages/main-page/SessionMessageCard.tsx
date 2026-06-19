@@ -1,4 +1,8 @@
-import type { SessionMessageView } from "../../shared/api/types";
+import type {
+  ConversationQuestionCardView,
+  ConversationRouterTraceView,
+  SessionMessageView,
+} from "../../shared/api/types";
 import {
   Badge,
   MarkdownContent,
@@ -51,13 +55,117 @@ export function SessionMessageCard({ message }: SessionMessageCardProps) {
           {formatConversationTime(message.createdAt)}
         </time>
       </div>
-      <MarkdownContent
-        className={styles.conversationMessageBody}
-        source={message.body}
-        title={message.body}
-        variant="conversation"
-      />
+      {renderConversationContent(message)}
     </article>
+  );
+}
+
+function renderConversationContent(message: SessionMessageView) {
+  const render = message.conversationRender;
+  if (
+    render === null ||
+    render === undefined ||
+    render.protocolVersion !== "plato.conversation.render.v1"
+  ) {
+    return renderMarkdownMessageBody(message.body);
+  }
+
+  if (render.renderKind === "router_trace" && render.routerTrace) {
+    return <RouterTrace trace={render.routerTrace} />;
+  }
+
+  if (render.renderKind === "question_card" && render.questionCard) {
+    return <QuestionCard card={render.questionCard} />;
+  }
+
+  if (render.renderKind === "text" && render.text) {
+    return renderMarkdownMessageBody(render.text.body);
+  }
+
+  return renderMarkdownMessageBody(message.body);
+}
+
+function renderMarkdownMessageBody(body: string) {
+  return (
+    <MarkdownContent
+      className={styles.conversationMessageBody}
+      source={body}
+      title={body}
+      variant="conversation"
+    />
+  );
+}
+
+function RouterTrace({ trace }: { trace: ConversationRouterTraceView }) {
+  return (
+    <div className={styles.routerTraceCard}>
+      <p>{trace.explanation}</p>
+      <dl>
+        <div>
+          <dt>Intent</dt>
+          <dd>{formatToken(trace.intent)}</dd>
+        </div>
+        <div>
+          <dt>Scope</dt>
+          <dd>{formatToken(trace.scopeKind)}</dd>
+        </div>
+        <div>
+          <dt>Effect</dt>
+          <dd>{formatToken(trace.sideEffect)}</dd>
+        </div>
+        <div>
+          <dt>Dispatch</dt>
+          <dd>{formatToken(trace.dispatchTarget)}</dd>
+        </div>
+        <div>
+          <dt>Outcome</dt>
+          <dd>{formatToken(trace.outcomeStatus)}</dd>
+        </div>
+      </dl>
+    </div>
+  );
+}
+
+function QuestionCard({ card }: { card: ConversationQuestionCardView }) {
+  const isPending = card.status === "pending";
+
+  return (
+    <div className={styles.conversationQuestionCard}>
+      <div className={styles.conversationQuestionHeader}>
+        <strong>{card.title}</strong>
+        <Badge size="sm" tone={isPending ? "warning" : "neutral"}>
+          {formatToken(card.status)}
+        </Badge>
+      </div>
+      {card.body ? <p>{card.body}</p> : null}
+      {card.questions.length > 0 ? (
+        <div className={styles.conversationQuestionInputs}>
+          {card.questions.map((question) => (
+            <label key={question.id}>
+              <span>
+                {question.label}
+                {question.required ? "" : " (optional)"}
+              </span>
+              <textarea
+                disabled
+                placeholder={question.inputHint ?? "Answer in the input box."}
+                rows={2}
+              />
+            </label>
+          ))}
+        </div>
+      ) : null}
+      {card.options.length > 0 ? (
+        <div className={styles.conversationQuestionOptions}>
+          {card.options.map((option) => (
+            <button disabled key={option.id} type="button">
+              <span>{option.label}</span>
+              {option.description ? <small>{option.description}</small> : null}
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
   );
 }
 
@@ -159,4 +267,12 @@ function formatLocalDate(date: Date): string {
 
 function padDatePart(value: number): string {
   return String(value).padStart(2, "0");
+}
+
+function formatToken(value: string): string {
+  return value
+    .split("_")
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toLocaleUpperCase() + part.slice(1))
+    .join(" ");
 }

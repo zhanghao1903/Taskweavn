@@ -692,11 +692,13 @@ export function useMainPageController({
   const runtimeInputMutation = useMutation({
     mutationFn: async ({
       content,
+      mode,
       sessionId,
       target,
       taskNodeId,
     }: {
       content: string;
+      mode: MainPageInputCommandMode;
       sessionId: string;
       target: InputTarget;
       taskNodeId: TaskNodeId | null;
@@ -708,6 +710,7 @@ export function useMainPageController({
       return adapter.routeRuntimeInput(
         buildRuntimeInputRouteRequest({
           content,
+          mode: runtimeInputModeFor(content, mode),
           sessionId,
           snapshot: snapshotDataRef.current?.snapshot ?? null,
           target,
@@ -765,6 +768,7 @@ export function useMainPageController({
         setInputCommandError(null);
         setInputDraft("");
         setUiNotice(runtimeInputNotice(routeResult));
+        void refetchSnapshot();
         return;
       }
 
@@ -1335,12 +1339,10 @@ export function useMainPageController({
 
     setInputCommandError(null);
     setUiNotice(null);
-    if (
-      adapter.routeRuntimeInput !== undefined &&
-      shouldRouteReadOnlyQuestion(content)
-    ) {
+    if (adapter.routeRuntimeInput !== undefined) {
       runtimeInputMutation.mutate({
         content,
+        mode,
         sessionId,
         target,
         taskNodeId,
@@ -1597,12 +1599,14 @@ function shouldRouteReadOnlyQuestion(content: string): boolean {
 
 function buildRuntimeInputRouteRequest({
   content,
+  mode,
   sessionId,
   snapshot,
   target,
   taskNodeId,
 }: {
   content: string;
+  mode: RuntimeInputRouteRequest["mode"];
   sessionId: string;
   snapshot: MainPageSnapshot | null;
   target: InputTarget;
@@ -1620,7 +1624,7 @@ function buildRuntimeInputRouteRequest({
     commandId: `route-input-${Date.now()}`,
     sessionId,
     content,
-    mode: "ask",
+    mode,
     selection: {
       scopeKind,
       planId: scopeKind === "session" ? null : activePlan?.id ?? null,
@@ -1632,6 +1636,29 @@ function buildRuntimeInputRouteRequest({
       activeConfirmationId: snapshot?.pendingConfirmations[0]?.id ?? null,
     },
   };
+}
+
+function runtimeInputModeFor(
+  content: string,
+  mode: MainPageInputCommandMode,
+): NonNullable<RuntimeInputRouteRequest["mode"]> {
+  if (shouldRouteReadOnlyQuestion(content)) {
+    return "ask";
+  }
+
+  if (mode === "generate_task_tree") {
+    return "change";
+  }
+
+  if (
+    mode === "append_plan_input" ||
+    mode === "append_session_input" ||
+    mode === "append_task_input"
+  ) {
+    return "guide";
+  }
+
+  return "auto";
 }
 
 function runtimeInputNotice(result: RuntimeInputRouteResult): string {

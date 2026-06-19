@@ -200,6 +200,7 @@ export function MainPage({
     isStoppingTask,
     isResolvingConfirmation,
     metadata,
+    runtimeInputRouterAvailable: adapter.routeRuntimeInput !== undefined,
     selectionTarget,
     selectedTaskNodeId,
     snapshot,

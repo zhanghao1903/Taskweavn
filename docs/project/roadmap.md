@@ -264,9 +264,10 @@ Audit/diagnostic linkage.
    additive request/response contract, `RouteDecision`, HTTP route,
    deterministic active ASK/confirmation and selected-task stop/retry routing,
    non-mutating unsupported outcomes, and activity metadata. The question route
-   now reaches the Read-only Inquiry backend foundation when session context is
-   available. Continue with command-backed guidance and durable Router Activity
-   writes before making Main Page input Router-first by default.
+   now reaches the accepted Read-only Inquiry foundation, and command-backed
+   guidance is available through Contract Revision Command Skills. Continue
+   with Main Page Router-first submit, durable Router Activity for every route
+   outcome, and Router-wide Audit/diagnostic linkage.
 2. **[Read-only inquiry context](../plans/feature/read-only-inquiry-context.md)** —
    foundation is implemented: contract models, frontend transport
    types/fixtures, deterministic status answers, result/file-summary refs,
@@ -296,9 +297,12 @@ Audit/diagnostic linkage.
    localization polish, optional result/detail deep links, and signed installer
    no-mutation hardening.
 3. **[Contract revision command skills](../plans/feature/contract-revision-command-skills.md)** —
-   add command-backed guidance, Plan/TaskNode patch/create/delete,
-   ASK/confirmation resolve, and workspace-changing request handoff into
-   TaskBus.
+   command substrate is implemented on `main`: command protocol,
+   `record_guidance`, ASK/confirmation routed resolution, Plan/TaskNode
+   patch/create/delete, and `create_execution_task` handoff. Remaining Product
+   1.1 closure is Router-first UX, durable route evidence, Router-wide
+   Audit/diagnostic refs, and real Electron/sidecar acceptance for the full P0
+   route set.
 4. **Localization follow-ups** — Electron native menu localization,
    translator extraction/lint tooling, backend-owned language preference if
    centralized configuration accepts it, and bilingual smoke only when Product
@@ -315,9 +319,10 @@ should improve trust and controllability before expanding automation breadth:
 workspace inspection, precision file tools, token usage analytics, workspace
 archive/delete data management, UI system text foundation, execution web
 search/fetch, Skill Governance backend foundation, Plan/TaskNode migration, and
-Conversation / Activity Timeline are completed; Runtime Input Router, contract
-revision commands, result packaging, and protocol productization are the next
-actionable tracks.
+Conversation / Activity Timeline are completed; Contract Revision Command
+Skills are implemented as the command substrate; Runtime Input Router-first UX,
+durable Router Activity, Router Audit/diagnostic closure, result packaging, and
+protocol productization are the next actionable tracks.
 
 ---
 
