@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 from taskweavn.llm import ChatResponse
+from taskweavn.observability import configure_session_logging
 from taskweavn.server.read_only_inquiry_answer_provider import (
     GuardedLLMReadOnlyInquiryAnswerProvider,
 )
@@ -125,6 +127,49 @@ def test_guarded_llm_provider_supports_safe_non_answer_status() -> None:
     assert result.warnings[-1].code == "inquiry.unsupported_question"
 
 
+def test_guarded_llm_provider_writes_split_agent_logs(tmp_path: Path) -> None:
+    configure_session_logging(tmp_path / "logs", session_id="session-1")
+    llm = _LLM(
+        json.dumps(
+            {
+                "status": "answered",
+                "title": "Evidence answer",
+                "body": "The task is complete.",
+                "confidence": "high",
+                "citedRefIds": ["task:task-1:status"],
+            }
+        )
+    )
+    provider = GuardedLLMReadOnlyInquiryAnswerProvider(llm)
+
+    result = provider.answer(
+        request=_request(question="课件是否已经完成了？"),
+        baseline_answer=_baseline(),
+        evidence_refs=(_task_evidence(),),
+    )
+
+    assert result.status == "answered"
+    meta_rows = _read_jsonl(
+        tmp_path / "logs" / "sessions" / "session-1" / "llm.jsonl"
+    )
+    io_rows = _read_jsonl(
+        tmp_path / "logs" / "sessions" / "session-1" / "llm_io.jsonl"
+    )
+    assert [row["event"] for row in meta_rows[-2:]] == [
+        "agent_input",
+        "agent_output",
+    ]
+    assert [row["event"] for row in io_rows[-2:]] == [
+        "agent_input",
+        "agent_output",
+    ]
+    assert meta_rows[-2]["data"]["request_purpose"] == "read_only_inquiry.answer"
+    assert "messages" not in meta_rows[-2]["data"]
+    assert "课件是否已经完成了？" in io_rows[-2]["data"]["input"]["messages"][1]["content"]
+    assert "content" not in meta_rows[-1]["data"]
+    assert "The task is complete." in io_rows[-1]["data"]["output"]["content"]
+
+
 @dataclass
 class _LLM:
     content: str
@@ -171,3 +216,7 @@ def _task_evidence() -> ReadOnlyInquiryEvidenceRef:
         ref_id="task:task-1:status",
         label="Task 1",
     )
+
+
+def _read_jsonl(path: Path) -> list[dict[str, Any]]:
+    return [json.loads(line) for line in path.read_text().splitlines() if line.strip()]

@@ -17,6 +17,10 @@ from taskweavn.server.read_only_inquiry import (
     WorkspaceInspectionContextProvider,
 )
 from taskweavn.server.runtime_input_activity import RuntimeInputActivityPublisher
+from taskweavn.server.runtime_input_llm_router import (
+    RuntimeInputRoutePlanner,
+    RuntimeInputRouteProposal,
+)
 from taskweavn.server.ui_contract.commands import (
     AnswerAskPayload,
     ResolveConfirmationPayload,
@@ -129,6 +133,7 @@ class DefaultRuntimeInputRouter:
     diagnostic_support_provider: DiagnosticSupportContextProvider | None = None
     activity_publisher: RuntimeInputActivityPublisher | None = None
     contract_revision_service: ContractRevisionCommandService | None = None
+    route_planner: RuntimeInputRoutePlanner | None = None
 
     def route(
         self,
@@ -157,6 +162,9 @@ class DefaultRuntimeInputRouter:
             return self._stop_selected_task(request)
         if _is_retry_phrase(normalized):
             return self._retry_selected_task(request)
+        planned = self._route_planner_result(request)
+        if planned is not None:
+            return planned
         if request.mode == "ask" or _looks_like_question(normalized):
             return self._answer_read_only_inquiry(request)
         if request.mode == "guide":
@@ -170,8 +178,7 @@ class DefaultRuntimeInputRouter:
             side_effect="no_effect",
             explanation="The Router could not classify a deterministic route.",
             user_message=(
-                "I could not route this input safely yet. "
-                "No product or workspace state changed."
+                "I could not route this input safely yet. No product or workspace state changed."
             ),
         )
 
@@ -254,9 +261,7 @@ class DefaultRuntimeInputRouter:
                 ),
             )
         plan_id = request.selection.plan_id
-        scope_kind: Literal["plan", "session"] = (
-            "plan" if plan_id is not None else "session"
-        )
+        scope_kind: Literal["plan", "session"] = "plan" if plan_id is not None else "session"
         decision = self._decision(
             request,
             intent="execution_request",
@@ -288,10 +293,7 @@ class DefaultRuntimeInputRouter:
                 user_message=(
                     "Execution work was added to the task plan."
                     if accepted
-                    else (
-                        "Execution work could not be created. "
-                        "No workspace files changed."
-                    )
+                    else ("Execution work could not be created. No workspace files changed.")
                 ),
                 recovery_actions=() if accepted else ("edit_input",),
             ),
@@ -448,9 +450,7 @@ class DefaultRuntimeInputRouter:
             dispatch_target="resolve_confirmation",
             side_effect="authorization_effect",
             explanation="Input resolved the active confirmation.",
-            related_refs=(
-                _ref("confirmation", confirmation.id, "Active confirmation"),
-            ),
+            related_refs=(_ref("confirmation", confirmation.id, "Active confirmation"),),
         )
         if self.contract_revision_service is not None:
             command_result = self.contract_revision_service.execute(
@@ -527,9 +527,7 @@ class DefaultRuntimeInputRouter:
             dispatch_target="clarification",
             side_effect="no_effect",
             explanation="Active confirmation requires a clear yes/no response.",
-            related_refs=(
-                _ref("confirmation", confirmation.id, "Active confirmation"),
-            ),
+            related_refs=(_ref("confirmation", confirmation.id, "Active confirmation"),),
         )
         return self._result(
             request,
@@ -654,6 +652,8 @@ class DefaultRuntimeInputRouter:
     def _answer_read_only_inquiry(
         self,
         request: RuntimeInputRouteRequest,
+        *,
+        planner_proposal: RuntimeInputRouteProposal | None = None,
     ) -> QueryResponse[RuntimeInputRouteResult]:
         inquiry_service = self.read_only_inquiry_service or DefaultReadOnlyInquiryService(
             self.query_gateway,
@@ -671,7 +671,11 @@ class DefaultRuntimeInputRouter:
                     plan_id=request.selection.plan_id,
                     task_node_id=request.selection.task_node_id,
                 ),
-                refs=(*request.inquiry_refs, *_inquiry_refs(request)),
+                refs=_merge_inquiry_refs(
+                    request.inquiry_refs,
+                    () if planner_proposal is None else planner_proposal.read_only_refs,
+                    _inquiry_refs(request),
+                ),
             )
         )
         if not inquiry_response.ok or inquiry_response.data is None:
@@ -688,7 +692,11 @@ class DefaultRuntimeInputRouter:
             )
 
         inquiry_result = inquiry_response.data
-        explanation = "Input was answered through Read-Only Inquiry Context."
+        explanation = (
+            planner_proposal.visible_reasoning_summary
+            if planner_proposal is not None
+            else "Input was answered through Read-Only Inquiry Context."
+        )
         decision = self._decision(
             request,
             intent="question",
@@ -696,9 +704,7 @@ class DefaultRuntimeInputRouter:
             side_effect="no_effect",
             explanation=explanation,
             confidence=(
-                inquiry_result.answer.confidence
-                if inquiry_result.answer is not None
-                else "low"
+                inquiry_result.answer.confidence if inquiry_result.answer is not None else "low"
             ),
             related_refs=(
                 inquiry_result.activity.related_refs
@@ -706,6 +712,32 @@ class DefaultRuntimeInputRouter:
                 else _selection_refs(request)
             ),
         )
+        if self.activity_publisher is not None:
+            self.activity_publisher.publish_user_input(
+                request,
+                self._activity(
+                    request,
+                    decision,
+                    RuntimeInputOutcome(
+                        status=_runtime_outcome_status(inquiry_result.status),
+                        user_message=request.content,
+                    ),
+                    activity_kind="user_input",
+                ),
+            )
+        if planner_proposal is not None and self.activity_publisher is not None:
+            self.activity_publisher.publish_router_interpretation(
+                request,
+                self._activity(
+                    request,
+                    decision,
+                    RuntimeInputOutcome(
+                        status=_runtime_outcome_status(inquiry_result.status),
+                        user_message=planner_proposal.visible_reasoning_summary,
+                    ),
+                    activity_kind="router_interpretation",
+                ),
+            )
         user_message = (
             inquiry_result.answer.body
             if inquiry_result.answer is not None
@@ -719,9 +751,7 @@ class DefaultRuntimeInputRouter:
                 user_message=user_message,
             ),
             activity_kind=(
-                "answer"
-                if inquiry_result.status == "answered"
-                else "router_interpretation"
+                "answer" if inquiry_result.status == "answered" else "router_interpretation"
             ),
         )
         if (
@@ -736,12 +766,76 @@ class DefaultRuntimeInputRouter:
             RuntimeInputOutcome(
                 status=_runtime_outcome_status(inquiry_result.status),
                 user_message=user_message,
-                recovery_actions=()
-                if inquiry_result.status == "answered"
-                else ("edit_input",),
+                recovery_actions=() if inquiry_result.status == "answered" else ("edit_input",),
             ),
             activity=activity,
             inquiry_result=inquiry_result,
+        )
+
+    def _route_planner_result(
+        self,
+        request: RuntimeInputRouteRequest,
+    ) -> QueryResponse[RuntimeInputRouteResult] | None:
+        if self.route_planner is None:
+            return None
+        planner_result = self.route_planner.plan(
+            request,
+            allowed_dispatch_targets=(
+                "read_only_inquiry",
+                "record_guidance",
+                "execution_handoff",
+                "clarification",
+                "unsupported",
+            ),
+            active_ask=False,
+            active_confirmation=False,
+        )
+        proposal = planner_result.proposal
+        if planner_result.status != "planned" or proposal is None:
+            return None
+        if proposal.dispatch_target == "read_only_inquiry":
+            return self._answer_read_only_inquiry(
+                request,
+                planner_proposal=proposal,
+            )
+        if proposal.dispatch_target == "record_guidance":
+            return self._record_guidance(request)
+        if proposal.dispatch_target == "execution_handoff":
+            return self._create_execution_task(request)
+        if proposal.dispatch_target == "clarification":
+            return self._planner_clarification(request, proposal)
+        if proposal.dispatch_target == "unsupported":
+            return self._unsupported(
+                request,
+                intent=proposal.intent,
+                dispatch_target="unsupported",
+                side_effect="no_effect",
+                explanation=proposal.visible_reasoning_summary,
+                user_message=proposal.user_message,
+            )
+        return None
+
+    def _planner_clarification(
+        self,
+        request: RuntimeInputRouteRequest,
+        proposal: RuntimeInputRouteProposal,
+    ) -> QueryResponse[RuntimeInputRouteResult]:
+        decision = self._decision(
+            request,
+            intent="clarification",
+            dispatch_target="clarification",
+            side_effect="no_effect",
+            explanation=proposal.visible_reasoning_summary,
+            confidence=proposal.confidence,
+        )
+        return self._result(
+            request,
+            decision,
+            RuntimeInputOutcome(
+                status="needs_clarification",
+                user_message=proposal.user_message,
+                recovery_actions=("edit_input",),
+            ),
         )
 
     def _unsupported(
@@ -907,9 +1001,7 @@ def _inquiry_fallback_message(inquiry_result: ReadOnlyInquiryResult) -> str:
 def _selection_refs(
     request: RuntimeInputRouteRequest,
 ) -> tuple[SessionActivityRefView, ...]:
-    refs: list[SessionActivityRefView] = [
-        _ref("session", request.session_id, "Session")
-    ]
+    refs: list[SessionActivityRefView] = [_ref("session", request.session_id, "Session")]
     if request.selection.plan_id is not None:
         refs.append(_ref("plan", request.selection.plan_id, "Plan"))
     if request.selection.task_node_id is not None:
@@ -940,6 +1032,21 @@ def _inquiry_refs(
                 label=ref.kind.replace("_", " "),
             )
         )
+    return tuple(refs)
+
+
+def _merge_inquiry_refs(
+    *groups: tuple[ReadOnlyInquiryRef, ...],
+) -> tuple[ReadOnlyInquiryRef, ...]:
+    seen: set[tuple[str, str | None, str | None, str | None]] = set()
+    refs: list[ReadOnlyInquiryRef] = []
+    for group in groups:
+        for ref in group:
+            key = (ref.kind, ref.id, ref.path, ref.evidence_id)
+            if key in seen:
+                continue
+            seen.add(key)
+            refs.append(ref)
     return tuple(refs)
 
 

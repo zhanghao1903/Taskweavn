@@ -9,6 +9,7 @@ from taskweavn.llm.contracts import ChatRequest, ChatResponse, RetryRecord
 from taskweavn.observability import LogContext, get_object_logger
 
 _LLM_LOGGER = get_object_logger("llm")
+_LLM_IO_LOGGER = get_object_logger("llm_io")
 
 
 def llm_context_from_request(request: ChatRequest, *, provider: str) -> LogContext:
@@ -109,6 +110,16 @@ def log_agent_llm_input(
 ) -> None:
     """Emit the application-level LLM input sent by one agent domain."""
     tool_payload = [dict(tool) for tool in tools] if tools is not None else None
+    _LLM_IO_LOGGER.info(
+        "agent_input",
+        context=context,
+        data={
+            "input": {
+                "messages": [dict(message) for message in messages],
+                "tools": tool_payload,
+            },
+        },
+    )
     _LLM_LOGGER.info(
         "agent_input",
         context=context,
@@ -116,9 +127,7 @@ def log_agent_llm_input(
             "agent_kind": agent_kind,
             "request_purpose": request_purpose,
             "message_count": len(messages),
-            "messages": [dict(message) for message in messages],
             "tool_count": len(tools) if tools is not None else 0,
-            "tools": tool_payload,
             "metadata": dict(metadata or {}),
         },
     )
@@ -144,21 +153,38 @@ def log_agent_llm_output(
         resolved_context = context.model_copy(
             update={"provider_request_id": provider_request_id}
         )
+    tool_call_payload = [
+        {
+            "id": tool_call.id,
+            "name": tool_call.name,
+            "arguments": tool_call.arguments,
+        }
+        for tool_call in tool_calls
+    ]
+    _LLM_IO_LOGGER.info(
+        "agent_output",
+        context=resolved_context,
+        data={
+            "output": {
+                "content": response.content,
+                "reasoning_content": reasoning_content,
+                "raw_assistant_message": _raw_assistant_message_payload(response),
+                "tool_calls": tool_call_payload,
+            },
+        },
+    )
     _LLM_LOGGER.info(
         "agent_output",
         context=resolved_context,
         data={
             "agent_kind": agent_kind,
             "request_purpose": request_purpose,
-            "content": response.content,
             "content_length": len(response.content),
-            "reasoning_content": reasoning_content,
-            "raw_assistant_message": _raw_assistant_message_payload(response),
+            "has_reasoning_content": reasoning_content is not None,
             "tool_calls": [
                 {
                     "id": tool_call.id,
                     "name": tool_call.name,
-                    "arguments": tool_call.arguments,
                 }
                 for tool_call in tool_calls
             ],

@@ -143,7 +143,7 @@ def _message_side_effect(
         return "authorization_effect"
     if kind == "recovery_note":
         return "state_effect"
-    if kind == "answer":
+    if kind in {"answer", "router_interpretation"}:
         return "no_effect"
     return "state_effect"
 
@@ -168,6 +168,10 @@ def _runtime_input_activity_kind(
         return "task_changed"
     if title == "task removed":
         return "task_removed"
+    if title == "router interpretation":
+        return "router_interpretation"
+    if title == "user input":
+        return "user_input"
     return None
 
 

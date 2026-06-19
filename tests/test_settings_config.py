@@ -83,6 +83,33 @@ def test_settings_config_update_persists_write_only_secret_and_refreshes_readine
     assert secret in store.secrets_path.read_text(encoding="utf-8")
 
 
+def test_settings_config_store_reads_provider_specific_llm_secret(
+    tmp_path: Path,
+) -> None:
+    store = FileSettingsConfigStore(tmp_path)
+    store.secrets_path.parent.mkdir(parents=True)
+    store.secrets_path.write_text(
+        json.dumps(
+            {
+                "llm": {
+                    "provider": "deepseek",
+                    "apiKey": "sk-deepseek-legacy",
+                },
+                "llmProviders": {
+                    "openrouter": {
+                        "apiKey": "sk-openrouter-provider",
+                    }
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    assert store.read_llm_provider_secret("openrouter") == "sk-openrouter-provider"
+    assert store.read_llm_provider_secret("deepseek") == "sk-deepseek-legacy"
+    assert store.read_llm_provider_secret("litellm") is None
+
+
 def test_settings_config_updates_web_search_without_echoing_secret(
     tmp_path: Path,
 ) -> None:

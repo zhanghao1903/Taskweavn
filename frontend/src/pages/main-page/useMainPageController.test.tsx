@@ -196,8 +196,16 @@ describe("useMainPageController", () => {
     await waitFor(() => {
       expect(result.current.uiNotice).toContain("Read-only answer");
     });
-    expect(result.current.runtimeActivityItems).toHaveLength(1);
+    expect(result.current.runtimeActivityItems).toHaveLength(2);
     expect(result.current.runtimeActivityItems[0]).toMatchObject({
+      body: "What is this task doing?",
+      kind: "user_input",
+      sideEffect: "context_effect",
+      sourceKind: "router",
+      taskNodeId: "task-visual-direction",
+      title: "User input",
+    });
+    expect(result.current.runtimeActivityItems[1]).toMatchObject({
       kind: "answer",
       sideEffect: "no_effect",
       sourceKind: "router",

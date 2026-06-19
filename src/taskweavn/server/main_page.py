@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import contextlib
+import os
 import threading
 from collections.abc import Callable
 from dataclasses import dataclass, field, replace
 from pathlib import Path
-from typing import cast
+from typing import Any, cast
 
 from taskweavn.contract_revision import (
     ContractCommandIdempotencyStore,
@@ -30,6 +31,8 @@ from taskweavn.interaction import (
     SqliteAskStore,
     SqliteMessageStream,
 )
+from taskweavn.llm.agent_config import AgentLlmRole
+from taskweavn.llm.agent_resolver import SettingsBackedAgentLlmResolver
 from taskweavn.observability import LogContext
 from taskweavn.observability.main_page_trace import main_page_trace
 from taskweavn.server.ask_recovery import DefaultAskRecoveryService
@@ -65,6 +68,7 @@ from taskweavn.server.read_only_inquiry_diagnostics import (
 from taskweavn.server.runtime_input_activity import (
     MessageBusRuntimeInputActivityPublisher,
 )
+from taskweavn.server.runtime_input_llm_router import LLMRuntimeInputRoutePlanner
 from taskweavn.server.runtime_input_router import DefaultRuntimeInputRouter
 from taskweavn.server.settings_config import (
     DefaultSettingsConfigGateway,
@@ -330,7 +334,6 @@ def build_main_page_workspace_runtime(
     layout = WorkspaceLayout(config.workspace_root)
     session_manager = SessionManager(layout)
     try:
-        llm = _workspace_llm(config.workspace_root, dependencies)
         session = resolve_configured_session(session_manager, config.session_id)
         logging_initializer = configure_sidecar_logging(
             workspace_root=config.workspace_root,
@@ -356,11 +359,16 @@ def build_main_page_workspace_runtime(
         )
         task_bus = SqliteTaskBus(layout.workspace_tasks_db)
         token_usage_store = SqliteTokenUsageStore(layout.workspace_usage_db)
-        usage_llm = UsageRecordingLLM(
-            llm,
-            workspace_id=config.current_workspace_id or "current",
-            sink=token_usage_store,
-            task_plan_resolver=_task_plan_resolver(task_bus),
+        settings_store = file_settings_config_store_for(
+            workspace_root=config.workspace_root,
+            global_settings_root=config.global_settings_root,
+        )
+        agent_llms = _workspace_agent_llms(
+            config,
+            dependencies,
+            settings_store=settings_store,
+            token_usage_store=token_usage_store,
+            task_bus=task_bus,
         )
         (
             raw_task_store,
@@ -394,10 +402,6 @@ def build_main_page_workspace_runtime(
         result_summary_store = dependencies.result_summary_store or SqliteTaskExecutionSummaryStore(
             layout.workspace_results_db
         )
-        settings_store = file_settings_config_store_for(
-            workspace_root=config.workspace_root,
-            global_settings_root=config.global_settings_root,
-        )
         settings_config_gateway = (
             dependencies.settings_config_gateway
             or DefaultSettingsConfigGateway(
@@ -422,7 +426,7 @@ def build_main_page_workspace_runtime(
         if default_agent is None and config.enable_default_agent:
             default_agent = build_agent_loop_resident_default_agent(
                 layout=layout,
-                llm=usage_llm,
+                llm=agent_llms.execution,
                 task_bus=task_bus,
                 ask_store=ask_store,
                 max_steps=config.default_agent_max_steps,
@@ -455,7 +459,7 @@ def build_main_page_workspace_runtime(
             evidence_store=authoring_evidence_store,
         )
         collaborator_service = DefaultCollaboratorAuthoringService(
-            llm=usage_llm,
+            llm=agent_llms.collaborator,
             context_builder=context_builder,
             command_service=authoring_command_service,
             workspace_context_source=workspace_context_source,
@@ -554,19 +558,6 @@ def build_main_page_workspace_runtime(
             dependencies.ui_command_idempotency_store
             or SqliteUiCommandResponseIdempotencyStore(layout.workspace_ui_commands_db)
         )
-        settings_config_gateway = (
-            dependencies.settings_config_gateway
-            or DefaultSettingsConfigGateway(
-                workspace_root=config.workspace_root,
-                logging_enabled=config.enable_session_logging,
-                logging_level=config.logging_level,
-                selected_logging_profile=config.logging_profile,
-                store=file_settings_config_store_for(
-                    workspace_root=config.workspace_root,
-                    global_settings_root=config.global_settings_root,
-                ),
-            )
-        )
         workspace_inspection_gateway = DefaultWorkspaceInspectionGateway.build(
             workspace_root=config.workspace_root,
             workspace_id=config.current_workspace_id or "current",
@@ -578,7 +569,9 @@ def build_main_page_workspace_runtime(
                 query_gateway,
                 workspace_inspection_gateway=workspace_inspection_gateway,
                 diagnostic_support_provider=diagnostic_support_provider,
-                answer_provider=GuardedLLMReadOnlyInquiryAnswerProvider(usage_llm),
+                answer_provider=GuardedLLMReadOnlyInquiryAnswerProvider(
+                    agent_llms.read_only_inquiry
+                ),
             )
             if config.enable_read_only_inquiry_llm
             else None
@@ -646,6 +639,7 @@ def build_main_page_workspace_runtime(
                     message_bus
                 ),
                 contract_revision_service=contract_revision_service,
+                route_planner=LLMRuntimeInputRoutePlanner(agent_llms.router),
             ),
         )
     except Exception:
@@ -833,14 +827,64 @@ def _sidecar_app_from_runtime(
     )
 
 
-def _workspace_llm(
+@dataclass(frozen=True)
+class _WorkspaceAgentLlms:
+    execution: Any
+    collaborator: Any
+    read_only_inquiry: Any
+    router: Any
+
+
+def _workspace_agent_llms(
+    config: MainPageSidecarConfig,
+    dependencies: MainPageSidecarDependencies,
+    *,
+    settings_store: Any,
+    token_usage_store: SqliteTokenUsageStore,
+    task_bus: SqliteTaskBus,
+) -> _WorkspaceAgentLlms:
+    shared_llm = _workspace_llm_if_configured(config.workspace_root, dependencies)
+    workspace_id = config.current_workspace_id or "current"
+    task_plan_resolver = _task_plan_resolver(task_bus)
+    if shared_llm is not None:
+        usage_llm = UsageRecordingLLM(
+            shared_llm,
+            workspace_id=workspace_id,
+            sink=token_usage_store,
+            task_plan_resolver=task_plan_resolver,
+        )
+        return _WorkspaceAgentLlms(
+            execution=usage_llm,
+            collaborator=usage_llm,
+            read_only_inquiry=usage_llm,
+            router=usage_llm,
+        )
+
+    resolver = SettingsBackedAgentLlmResolver(
+        settings_store=settings_store,
+        base_env=os.environ,
+        workspace_id=workspace_id,
+        usage_sink=token_usage_store,
+        task_plan_resolver=task_plan_resolver,
+    )
+
+    def client(role: AgentLlmRole) -> Any:
+        return resolver.client_for(role)
+
+    return _WorkspaceAgentLlms(
+        execution=client("execution_agent"),
+        collaborator=client("collaborator"),
+        read_only_inquiry=client("read_only_inquiry"),
+        router=client("runtime_input_router"),
+    )
+
+
+def _workspace_llm_if_configured(
     workspace_root: Path,
     dependencies: MainPageSidecarDependencies,
-) -> CollaboratorLLM:
+) -> CollaboratorLLM | None:
     if dependencies.llm_factory is not None:
         return dependencies.llm_factory(workspace_root)
-    if dependencies.llm is None:
-        raise ValueError("MainPageSidecarDependencies requires llm or llm_factory")
     return dependencies.llm
 
 

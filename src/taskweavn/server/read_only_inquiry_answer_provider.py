@@ -5,10 +5,14 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass
-from typing import Any, Protocol
+from typing import Any, Protocol, cast
 
+from taskweavn.llm.contracts import ChatResponse
+from taskweavn.llm.logging import log_agent_llm_input, log_agent_llm_output
+from taskweavn.observability import LogContext
 from taskweavn.server.ui_contract.read_only_inquiry import (
     ReadOnlyInquiryAnswer,
+    ReadOnlyInquiryConfidence,
     ReadOnlyInquiryEvidenceRef,
     ReadOnlyInquiryRequest,
     ReadOnlyInquiryStatus,
@@ -73,25 +77,49 @@ class GuardedLLMReadOnlyInquiryAnswerProvider:
                 _provider_warning("LLM answer provider requires cited evidence."),
             )
         try:
-            chat_kwargs: dict[str, Any] = {
-                "metadata": {
-                    "feature": "read_only_inquiry",
-                    "inquiryId": request.inquiry_id,
-                }
+            metadata = {
+                "agent_kind": "read_only_inquiry",
+                "agent_id": "read_only_inquiry",
+                "feature": "read_only_inquiry",
+                "inquiryId": request.inquiry_id,
+                "request_purpose": "read_only_inquiry.answer",
+                "session_id": request.session_id,
             }
+            messages = _messages(
+                request=request,
+                baseline_answer=baseline_answer,
+                evidence_refs=evidence_refs,
+                max_answer_chars=self.max_answer_chars,
+                max_cited_refs=self.max_cited_refs,
+            )
+            chat_kwargs: dict[str, Any] = {"metadata": metadata}
             if self.timeout_seconds is not None:
                 chat_kwargs["timeout_seconds"] = self.timeout_seconds
+            log_context = LogContext(
+                session_id=request.session_id,
+                agent_id="read_only_inquiry",
+            )
+            log_agent_llm_input(
+                agent_kind="read_only_inquiry",
+                request_purpose="read_only_inquiry.answer",
+                messages=messages,
+                tools=None,
+                metadata=metadata,
+                context=log_context,
+            )
             response = self.llm.chat(
-                messages=_messages(
-                    request=request,
-                    baseline_answer=baseline_answer,
-                    evidence_refs=evidence_refs,
-                    max_answer_chars=self.max_answer_chars,
-                    max_cited_refs=self.max_cited_refs,
-                ),
+                messages=messages,
                 tools=None,
                 **chat_kwargs,
             )
+            if isinstance(response, ChatResponse):
+                log_agent_llm_output(
+                    agent_kind="read_only_inquiry",
+                    request_purpose="read_only_inquiry.answer",
+                    response=response,
+                    metadata=metadata,
+                    context=log_context,
+                )
             payload = _json_payload(_response_content(response))
         except Exception:  # noqa: BLE001 - do not expose provider internals.
             return _fallback(
@@ -237,9 +265,10 @@ def _validated_payload(
     max_answer_chars: int,
     max_cited_refs: int,
 ) -> _ValidatedProviderPayload | None:
-    status = payload.get("status") or "answered"
-    if status not in _VALID_STATUSES:
+    raw_status = payload.get("status") or "answered"
+    if not isinstance(raw_status, str) or raw_status not in _VALID_STATUSES:
         return None
+    status = cast(ReadOnlyInquiryStatus, raw_status)
 
     cited_ref_ids = _string_list(payload.get("citedRefIds"))[:max_cited_refs]
     known_refs = {ref.ref_id: ref for ref in evidence_refs}
@@ -267,9 +296,14 @@ def _validated_payload(
         )
 
     body = _answer_body(payload)
-    confidence = payload.get("confidence") or "medium"
-    if body is None or confidence not in _VALID_CONFIDENCE:
+    raw_confidence = payload.get("confidence") or "medium"
+    if (
+        body is None
+        or not isinstance(raw_confidence, str)
+        or raw_confidence not in _VALID_CONFIDENCE
+    ):
         return None
+    confidence = cast(ReadOnlyInquiryConfidence, raw_confidence)
     return _ValidatedProviderPayload(
         status="answered",
         answer=ReadOnlyInquiryAnswer(

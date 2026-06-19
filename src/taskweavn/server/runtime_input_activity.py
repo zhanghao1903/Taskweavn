@@ -14,6 +14,18 @@ READ_ONLY_INQUIRY_ACTIVITY_TITLE = "Read-only question answered"
 class RuntimeInputActivityPublisher(Protocol):
     """Durable user-visible Activity write seam for Router outcomes."""
 
+    def publish_user_input(
+        self,
+        request: RuntimeInputRouteRequest,
+        activity: SessionActivityItemView,
+    ) -> None: ...
+
+    def publish_router_interpretation(
+        self,
+        request: RuntimeInputRouteRequest,
+        activity: SessionActivityItemView,
+    ) -> None: ...
+
     def publish_read_only_answer(
         self,
         request: RuntimeInputRouteRequest,
@@ -26,6 +38,35 @@ class MessageBusRuntimeInputActivityPublisher:
 
     def __init__(self, message_bus: MessageBus) -> None:
         self._message_bus = message_bus
+
+    def publish_user_input(
+        self,
+        request: RuntimeInputRouteRequest,
+        activity: SessionActivityItemView,
+    ) -> None:
+        message = AgentMessage(
+            message_id=f"runtime-input-user-{request.command_id}",
+            session_id=request.session_id,
+            task_id=request.selection.task_node_id,
+            agent_id="user",
+            message_type="informational",
+            content=request.content,
+            context={
+                "title": "User input",
+                "activity_related_refs": [
+                    ref.to_contract_dict() for ref in activity.related_refs
+                ],
+                "runtime_input_activity_kind": "user_input",
+                "runtime_input_side_effect": "context_effect",
+                "runtime_input_decision_id": activity.source_id,
+            },
+            related_action_id=request.command_id,
+        )
+        try:
+            self._message_bus.publish(message)
+        except MessageStreamError as exc:
+            if "already exists" not in str(exc):
+                raise
 
     def publish_read_only_answer(
         self,
@@ -47,6 +88,35 @@ class MessageBusRuntimeInputActivityPublisher:
                 "runtime_input_activity_kind": "answer",
                 "runtime_input_side_effect": "no_effect",
                 "read_only_answer_title": activity.title,
+                "runtime_input_decision_id": activity.source_id,
+            },
+            related_action_id=activity.source_id,
+        )
+        try:
+            self._message_bus.publish(message)
+        except MessageStreamError as exc:
+            if "already exists" not in str(exc):
+                raise
+
+    def publish_router_interpretation(
+        self,
+        request: RuntimeInputRouteRequest,
+        activity: SessionActivityItemView,
+    ) -> None:
+        message = AgentMessage(
+            message_id=f"runtime-input-router-{request.command_id}",
+            session_id=request.session_id,
+            task_id=request.selection.task_node_id,
+            agent_id="router",
+            message_type="informational",
+            content=activity.body,
+            context={
+                "title": "Router interpretation",
+                "activity_related_refs": [
+                    ref.to_contract_dict() for ref in activity.related_refs
+                ],
+                "runtime_input_activity_kind": "router_interpretation",
+                "runtime_input_side_effect": activity.side_effect,
                 "runtime_input_decision_id": activity.source_id,
             },
             related_action_id=activity.source_id,
