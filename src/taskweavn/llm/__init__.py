@@ -43,6 +43,11 @@ from taskweavn.llm.errors import (
 )
 
 _LAZY_EXPORTS = {
+    "AgentConfiguredLLM": "taskweavn.llm.agent_resolver",
+    "AgentLlmConfig": "taskweavn.llm.agent_config",
+    "AgentLlmProfileInput": "taskweavn.llm.agent_config",
+    "ResolvedAgentLlmProfile": "taskweavn.llm.agent_config",
+    "SettingsBackedAgentLlmResolver": "taskweavn.llm.agent_resolver",
     "DeepSeekProvider": "taskweavn.llm.providers.deepseek",
     "LazyLLMClient": "taskweavn.llm.client",
     "LLMClient": "taskweavn.llm.client",
@@ -65,6 +70,9 @@ def __getattr__(name: str) -> Any:
     return value
 
 __all__ = [
+    "AgentConfiguredLLM",
+    "AgentLlmConfig",
+    "AgentLlmProfileInput",
     "ChatRequest",
     "ChatResponse",
     "DEFAULT_LLM_PROVIDER",
@@ -89,8 +97,10 @@ __all__ = [
     "OpenRouterProvider",
     "ProviderCapabilities",
     "ProviderRoutingConfig",
+    "ResolvedAgentLlmProfile",
     "RetryPolicy",
     "RetryRecord",
+    "SettingsBackedAgentLlmResolver",
     "ThinkingConfig",
     "TokenCountRequest",
     "ToolCall",

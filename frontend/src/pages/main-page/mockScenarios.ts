@@ -181,6 +181,36 @@ export const mainPageMockScenarios: readonly MainPageMockScenario[] = [
     visible: ["Task plan", "Task question", "Latest activity"],
     recovery: "Answer, defer, or cancel the question and wait for Plato to update the task.",
   }),
+  mainScenario({
+    fixtureId: "s15-read-only-answer",
+    title: "Question answered without work",
+    planning: "empty",
+    readiness: "unknown",
+    execution: "not_started",
+    primary: ["Ask follow-up"],
+    disabled: [],
+    visible: ["Conversation", "Answer", "Context input"],
+  }),
+  mainScenario({
+    fixtureId: "s16-direct-task",
+    title: "Small request running directly",
+    planning: "published",
+    readiness: "published",
+    execution: "running",
+    primary: ["Append guidance"],
+    disabled: ["Publish task plan"],
+    visible: ["Conversation", "Single task progress", "Details"],
+  }),
+  mainScenario({
+    fixtureId: "s17-conversation-visual-samples",
+    title: "Conversation visual distinction",
+    planning: "empty",
+    readiness: "unknown",
+    execution: "not_started",
+    primary: ["Continue conversation"],
+    disabled: [],
+    visible: ["Conversation", "Input message", "Answer message", "Action message"],
+  }),
 ];
 
 export function listMainPageMockScenarios(): readonly MainPageMockScenario[] {

@@ -121,6 +121,14 @@ SessionActivitySourceKind = Literal[
     "system",
 ]
 SessionActivityDisclosureLevel = Literal["public", "partial", "hidden"]
+ConversationRenderKind = Literal["text", "router_trace", "question_card"]
+ConversationQuestionCardKind = Literal["clarification", "ask", "confirmation"]
+ConversationQuestionCardStatus = Literal["pending", "answered", "cancelled", "expired"]
+ConversationQuestionAnswerMode = Literal[
+    "runtime_input",
+    "ask_command",
+    "confirmation_command",
+]
 
 
 class ProjectSummary(UiContractModel):
@@ -326,6 +334,56 @@ class SessionActivityRefView(UiContractModel):
     object_ref: ObjectRef | None = None
 
 
+class ConversationTextView(UiContractModel):
+    title: str | None = Field(default=None, min_length=1)
+    body: str = Field(min_length=1)
+
+
+class ConversationRouterTraceView(UiContractModel):
+    intent: str = Field(min_length=1)
+    scope_kind: SessionActivityScopeKind
+    confidence: str = Field(min_length=1)
+    side_effect: SessionActivitySideEffect
+    dispatch_target: str = Field(min_length=1)
+    explanation: str = Field(min_length=1)
+    outcome_status: str = Field(min_length=1)
+
+
+class ConversationQuestionInputView(UiContractModel):
+    id: str = Field(min_length=1)
+    label: str = Field(min_length=1)
+    input_hint: str | None = Field(default=None, min_length=1)
+    required: bool = True
+
+
+class ConversationQuestionOptionView(UiContractModel):
+    id: str = Field(min_length=1)
+    label: str = Field(min_length=1)
+    description: str | None = Field(default=None, min_length=1)
+
+
+class ConversationQuestionCardView(UiContractModel):
+    card_id: str = Field(min_length=1)
+    card_kind: ConversationQuestionCardKind
+    status: ConversationQuestionCardStatus
+    title: str = Field(min_length=1)
+    body: str | None = Field(default=None, min_length=1)
+    questions: tuple[ConversationQuestionInputView, ...] = ()
+    options: tuple[ConversationQuestionOptionView, ...] = ()
+    answer_mode: ConversationQuestionAnswerMode
+    target_ref: SessionActivityRefView | None = None
+
+
+class ConversationRenderView(UiContractModel):
+    protocol_version: Literal["plato.conversation.render.v1"] = (
+        "plato.conversation.render.v1"
+    )
+    render_kind: ConversationRenderKind
+    text: ConversationTextView | None = None
+    router_trace: ConversationRouterTraceView | None = None
+    question_card: ConversationQuestionCardView | None = None
+
+
 class SessionMessageView(UiContractModel):
     id: str = Field(min_length=1)
     session_id: str = Field(min_length=1)
@@ -338,6 +396,7 @@ class SessionMessageView(UiContractModel):
     related_confirmation_id: str | None = None
     related_command_id: str | None = None
     activity_related_refs: tuple[SessionActivityRefView, ...] = ()
+    conversation_render: ConversationRenderView | None = None
 
 
 class SessionActivityItemView(UiContractModel):

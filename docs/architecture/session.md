@@ -1,26 +1,30 @@
 # Session 架构设计
 
-> 多 Agent 协作架构的核心抽象 · v1.1 · 2026-05-31
+> 多 Agent 协作架构的核心抽象 · v1.2 · 2026-06-19
 >
-> 2026-05-17 review note: 本文中的 `Workspace` 指 **Session Workspace / 执行工作区**，不是产品 UI 中用户长期管理的 `Project`。当前产品层级是 `Project -> Workflow -> Session -> Session Workspace`；Session Workspace 仍然是文件读写和权限隔离边界。
+> 2026-05-17 review note: 本文中的 `Workspace` 曾指 **Session Workspace / 执行工作区**，不是产品 UI 中用户长期管理的 `Project`。
 >
-> 2026-05-31 scope note: Product 1.0 line-first execution 使用一个 active Session workspace 和 fixed-route Default Agent bridge。基于完整 AgentPool / Agent Manager 的 dynamic assignment 仍是 Product 1.1+ 方向。
+> 2026-05-31 scope note: Product 1.0 line-first execution 使用 fixed-route Default Agent bridge。基于完整 AgentPool / Agent Manager 的 dynamic assignment 仍是 Product 1.1+ 方向。
+>
+> 2026-06-19 fact note: 当前实现采用 workspace-root-as-agent-cwd。一个 workspace root 可拥有多个 Session；Session 的元数据隔离在 `.plato/sessions/<session_id>/`，但 Agent 看到的项目文件根目录是 workspace root。Session 是会话、投影、执行状态和审计的隔离边界，不再等同于独占文件工作区。
 
 ---
 
 ## 1. 定义
 
-**Session 是用户的一次完整交互上下文，是系统资源的最大组织单位。**
+**Session 是 workspace 内的一次连续交互上下文，是 UI、执行状态、投影和审计的主要隔离边界。**
 
 一个 Session 对应一个用户从开启到关闭会话的整个时间段，包含：
-- 唯一的工作区（Workspace）
-- 任务总线（TaskBus）的实例
+- Session conversation / MessageStream rows
+- active Plan / Direct Task / TaskNode 投影
+- PublishedTask lifecycle facts（按 `session_id` 隔离）
 - 默认执行 Agent 运行边界；Product 1.1+ 可扩展为 AgentPool / Agent Manager
-- 长期记忆（ThoughtStore）的访问入口
-- 整棵任务树的根节点
+- execution ASK、confirmation、runtime input、result、file summary、Audit projection
+- session-private EventStream、ContextStore、ThoughtStore 和日志目录
+- 对 workspace root 的受控文件读写
 
 ```
-Session ≡ 一个隔离的工作环境 + 该环境内所有任务的容器
+Session ≡ workspace 内的连续协作上下文 + session-scoped runtime facts
 ```
 
 ---
@@ -29,49 +33,76 @@ Session ≡ 一个隔离的工作环境 + 该环境内所有任务的容器
 
 ### 2.1 Session 是资源边界
 
-Session 是所有资源的**唯一入口和出口**。任何 Task、Agent、文件读写都发生在某个 Session 内，跨 Session 通信被严格约束。
+Session 是 TaskWeavn runtime facts 的主要边界。任何 Task、Agent run、
+Message、ASK、Context snapshot、Audit event 都必须带有 `session_id`。
+
+文件读写发生在 workspace root 内。当前实现不为每个 Session fork 一份用户
+项目文件；它通过 session-scoped metadata、TaskBus 串行执行、protected
+metadata 目录和未来显式 merge/export 策略控制复杂度。
 
 ```
 ┌─ Session A ────────────────┐    ┌─ Session B ────────────────┐
-│  Workspace A               │    │  Workspace B               │
-│  TaskBus A                 │    │  TaskBus B                 │
-│  Tasks: [...]              │    │  Tasks: [...]              │
-│  Agent instances: [...]    │    │  Agent instances: [...]    │
+│  metadata .plato/A         │    │  metadata .plato/B         │
+│  Task facts: session=A     │    │  Task facts: session=B     │
+│  messages: session=A       │    │  messages: session=B       │
+│  Agent run boundary A      │    │  Agent run boundary B      │
 └────────────────────────────┘    └────────────────────────────┘
-        ↑                                  ↑
-        └── User 1                         └── User 2 (or User 1 again)
+        │                                  │
+        └──────── shared workspace root ───┘
 ```
 
-不同 Session **完全隔离**，Session A 的 Agent 看不到 Session B 的 Workspace 或 Task。
+不同 Session 的 Task、Message、ASK、Event、Context 和日志事实按
+`session_id` 隔离。它们默认共享同一个 workspace root 的用户文件，因此
+跨 Session 的文件层冲突不是通过文件系统 fork 解决，而应通过显式产品流程或
+后续 workspace isolation 能力处理。
 
-### 2.2 Session 拥有唯一 Workspace
+### 2.2 Session 拥有唯一 Project Root 视图
 
-这是本架构最强的约束之一：**一个 Session 只有一个工作区，所有 Task 共享。**
+当前实现中，一个 Session 的 Agent project root 是所属 workspace root。
+Session-private metadata 在 `.plato/sessions/<session_id>/` 下，workspace-level
+stores 在 `.plato/*.sqlite`，并通过 `session_id` 做行级隔离。
 
 ```
-旧模型：Session > Task > Agent 三层 Workspace（fork/merge）
-本架构：Session 单一 Workspace
-        Task 串行访问，无 fork
+workspace root/
+  .plato/
+    workspace.sqlite
+    messages.sqlite
+    tasks.sqlite
+    authoring.sqlite
+    asks.sqlite
+    ui_events.sqlite
+    results.sqlite
+    sessions/<session_id>/
+      events.sqlite
+      context.sqlite
+      thoughts.sqlite
+      logs/
+  ... user project files ...
 ```
 
-并发写冲突被"任务串行执行"约束消解。这是简洁性的核心来源。
+这意味着 Session 是 runtime isolation boundary，不是文件系统 fork boundary。
+Product 1.0 仍保持每个 Session 一个 active writer execution lane；跨 Session
+并发写入和 merge 语义不是默认能力。
 
-### 2.3 Session 是任务树的容器
+### 2.3 Session 是 Active Work 和历史工作的容器
 
-每个 Session 至少有一个**根任务**（Root Task），由用户的初始请求产生。所有其他任务都是这棵树的后代。
+一个 Session 可以连续承载多个工作段：
 
 ```
 Session
   │
-  ├── Root Task (用户请求 1)
-  │     ├── Subtask
-  │     └── Subtask
+  ├── Plan / Direct Task (用户请求 1)
+  │     ├── TaskNode / PublishedTask
+  │     └── TaskNode / PublishedTask
   │
-  └── Root Task (用户请求 2，同一 Session 内的后续请求)
-        └── Subtask
+  └── Plan / Direct Task (用户请求 2，同一 Session 内的后续请求)
+        └── TaskNode / PublishedTask
 ```
 
-同一 Session 内可以有**多棵任务树**（用户多次发起请求），但它们共享 Workspace，因此天然按时间串行。
+Product 1.0 Main Page 当前投影一个 active Plan / TaskTree。PlanStore 已支持
+按 Session 列出多个 Plan 并区分 active non-archived Plan；完整历史 Plan
+入口和 archive command 是后续 UI/API 工作。Execution side 仍通过
+PublishedTask + TaskBus 表达实际可执行工作。
 
 ---
 
@@ -80,12 +111,17 @@ Session
 | 属性 | 类型 | 说明 |
 |-----|------|-----|
 | `id` | `SessionId` | 全局唯一 |
-| `workspace` | `Workspace` | 唯一的工作区 |
-| `bus` | `TaskBus` | 任务总线实例 |
-| `agent_pool` | `AgentPool` | Agent 实例化的工厂 + 注册表 |
-| `thought_store` | `ThoughtStore` | 长期记忆访问入口 |
-| `event_stream` | `EventStream` | 事件日志，append-only |
-| `root_tasks` | `list[TaskId]` | 该 Session 下所有根任务 |
+| `workspace_root` | `Path` | Agent project root；多个 Session 可共享 |
+| `session_meta_dir` | `Path` | `.plato/sessions/<session_id>/` |
+| `task_bus` | `TaskBus` | PublishedTask 生命周期权威，使用 workspace-level task store + `session_id` 隔离 |
+| `message_stream` | `MessageStream` | workspace-level message store，按 `session_id` 过滤 |
+| `plan_store` | `PlanStore` | workspace-level authoring/Plan store，按 `session_id` 过滤 |
+| `ask_store` | `AskStore` | workspace-level execution ASK store，按 `session_id` 过滤 |
+| `ui_event_store` | `UiEventStore` | workspace-level UI event replay store，按 `session_id` 过滤 |
+| `event_stream` | `EventStream` | session-private execution/audit event store |
+| `context_store` | `ContextStore` | session-private context snapshots/traces |
+| `thought_store` | `ThoughtStore` | session-private thoughts store；长期记忆共享策略是后续扩展 |
+| `default_agent_boundary` | `ResidentDefaultAgent` | Product 1.0 fixed-route execution boundary |
 | `created_at` | `datetime` | 会话开始时间 |
 | `closed_at` | `datetime \| None` | 会话结束时间 |
 | `status` | `SessionStatus` | `active` / `closed` / `abandoned` |
@@ -96,35 +132,40 @@ Session
 
 ## 4. 设计理念
 
-### 4.1 Session 是"进程"，不是"对话"
+### 4.1 Session 是 runtime context，不只是"对话"
 
-Session 不只是聊天记录的容器，更是**资源容器**。它对应操作系统的进程：
+Session 不只是聊天记录的容器，更是 runtime facts 的容器。它和操作系统
+进程的类比只适用于生命周期和资源归属，不适用于文件系统隔离：
 
 ```
 进程 (Process)              Session
 ─────────────────────────────────────
-独立内存空间                独立工作区
-进程内多线程                 Session 内多 Agent 实例
-进程间通信需要显式机制       Session 间通信被约束（未来 sub-session）
-进程结束清理资源             Session 结束清理 Agent 实例和缓存
+独立内存空间                独立 session metadata / context facts
+进程内多线程                 Session 内 serialized Agent runs
+进程间通信需要显式机制       Session 间事实引用需要显式产品/API 流程
+进程结束清理资源             Session 结束清理 Agent runtime 和缓存
+文件系统隔离                当前不成立：多个 Session 共享 workspace root
 ```
 
-这种映射意味着 Session 是**重量级**的，不应频繁创建。一个用户在一段时间内只应有少数活跃 Session。
+这种映射意味着 Session 是**有状态**的，不应被当作临时 chat turn。一个
+workspace 可以有多个 Session，但 Product 1.0 默认仍以一个 active work lane
+为主要体验。
 
-### 4.2 单工作区是简洁性的支点
+### 4.2 Workspace Root 共享是简洁性的支点
 
 这条约束的取舍：
 
 ```
-代价：失去 Task 间的并行写能力
+代价：不同 Session 不天然拥有文件 fork 隔离
 收获：
   - 没有 fork / merge / conflict 解决
   - 没有跨 Workspace 同步开销
-  - 没有"哪个 Workspace 是真相"的歧义
+  - 用户项目文件只有一个真实根目录
   - Task 之间的依赖在数据层面变得清晰（同一份文件）
 ```
 
-并行的需求在 LLM 任务里通常是伪需求——LLM 调用本身是百毫秒~秒级，远超工作区 IO 时间。
+写入并发的复杂性通过 TaskBus 串行执行和后续显式 workspace isolation
+能力处理，而不是通过默认为每个 Session fork workspace 处理。
 
 ### 4.3 Session 配置是用户控制的边界
 
@@ -178,11 +219,11 @@ Session 创建时初始化所有资源：
 
 ```
 1. 分配 SessionId
-2. 创建 Workspace（默认是临时目录或用户指定的项目根）
-3. 实例化 TaskBus（空队列）
-4. 初始化默认执行 Agent 运行边界；Product 1.1+ 可初始化 AgentPool（注册可用的 Agent 模板）
-5. 连接 ThoughtStore（按 user_id 加载长期记忆）
-6. 创建 EventStream（按 session_id 创建独立流）
+2. bootstrap workspace root 与 .plato metadata skeleton
+3. 创建 .plato/sessions/<session_id>/ session-private metadata 目录
+4. 打开 workspace-level stores：messages/tasks/authoring/asks/ui_events/results
+5. 打开 session-private stores：events/context/thoughts/logs
+6. 初始化默认执行 Agent 运行边界；Product 1.1+ 可初始化 AgentPool / Agent Manager
 7. 加载 SessionConfig（默认或用户指定）
 ```
 
@@ -193,16 +234,24 @@ Session 创建时初始化所有资源：
 Session 在 `active` 状态接受用户请求和 Agent 派生的任务：
 
 ```
-用户请求 → 创建 Root Task → 进入 TaskBus → Agent 执行 → 综合 → 返回用户
+用户请求
+  -> Runtime Input Router / Authoring Domain
+  -> RawTask / DraftTaskTree / Plan
+  -> PublishedTask
+  -> TaskBus
+  -> FixedRoute Default Agent
+  -> Result / Activity / Audit projection
 
 期间：
-  - Workspace 被持续读写
-  - EventStream 持续 append
-  - ThoughtStore 在任务完成时按需写入
-  - AgentPool 按需创建 Agent 实例
+  - workspace root 可被 Agent 读写
+  - workspace-level stores 按 session_id 写入消息、任务、ASK、结果和 UI events
+  - session-private EventStream / ContextStore / logs 持续 append
+  - Product 1.0 默认 Default Agent boundary 执行；Product 1.1+ 可引入 Agent Manager
 ```
 
-`active` 期间**任意时刻只有一个任务在 running**（约束 2 的体现）。
+`active` 期间每个 Session 默认只有一个 writer execution lane。TaskBus 可以有
+`waiting_for_user` blocking point；用户 answer 成功后由 TaskBus resume 并由
+dispatcher 继续推进。
 
 ### 5.3 关闭（closed）
 
@@ -211,14 +260,16 @@ Session 在 `active` 状态接受用户请求和 Agent 派生的任务：
 ```
 1. 等待当前 running 任务终态
 2. 拒绝新任务进入 TaskBus
-3. 销毁所有 Agent 实例
-4. flush EventStream 到持久化存储
-5. flush ThoughtStore 写缓存
-6. 持久化 Workspace（如果用户选择保留）
+3. 停止 Default Agent / dispatcher runtime
+4. flush session-private EventStream / ContextStore / logs
+5. workspace-level stores 已持续写入，关闭时只需确保连接释放
+6. workspace root 用户文件默认保留
 7. 释放内存资源
 ```
 
-关闭后 Session 不可恢复。要继续工作必须创建新 Session。
+关闭后不透明恢复原 Agent stack。已持久化的 Session facts 可以继续作为历史
+查看、审计、read-only inquiry 或 follow-up work 的输入；新的执行工作应通过
+新 command、retry 或新 Session 发起。
 
 ### 5.4 异常终止（abandoned）
 
@@ -230,29 +281,37 @@ Session 在 `active` 状态接受用户请求和 Agent 派生的任务：
 
 处理：
   - EventStream 保留到崩溃前的最后一个 event
-  - Workspace 保留磁盘状态
-  - 内存中的 running 任务标记为 failed（恢复时可见）
-  - 用户下次访问时可以查看历史，但不能恢复执行
+  - workspace root 保留磁盘状态
+  - 启动或 snapshot 查询前的 recovery hook 可将 stale interrupted running
+    Task 收敛为 failed/cancelled projection
+  - answered-but-not-continued ASK 可由 recovery service 补发 resume/dispatch
+  - 用户下次访问时可以查看历史；继续执行通常通过 retry / follow-up work，
+    不是透明恢复原 Agent stack
 ```
 
 ### 5.5 持久化模型
 
 ```
 内存层（Session active 时）：
-  - TaskBus 队列
-  - Agent 实例
-  - Workspace 文件描述符
-  - ThoughtStore 写缓存
+  - Default Agent / dispatcher runtime
+  - open store connections
+  - in-flight LLM/tool state
 
-磁盘层（持续 flush）：
-  - EventStream（append-only，每个事件实时写入）
-  - Workspace（文件系统状态）
-  - ThoughtStore（按 batch flush）
+workspace-level 磁盘层（持续写入）：
+  - .plato/workspace.sqlite
+  - .plato/messages.sqlite
+  - .plato/tasks.sqlite
+  - .plato/authoring.sqlite
+  - .plato/asks.sqlite
+  - .plato/ui_events.sqlite
+  - .plato/results.sqlite
+  - workspace root 用户文件
 
-归档层（Session closed 后）：
-  - EventStream 完整归档
-  - Workspace 可选归档（用户选择）
-  - ThoughtStore 永久保留（用户的长期资产）
+session-private 磁盘层：
+  - .plato/sessions/<session_id>/events.sqlite
+  - .plato/sessions/<session_id>/context.sqlite
+  - .plato/sessions/<session_id>/thoughts.sqlite
+  - .plato/sessions/<session_id>/logs/
 ```
 
 ---
@@ -264,25 +323,27 @@ Session 在 `active` 状态接受用户请求和 Agent 派生的任务：
                        │
                        ↓ creates
                     Session  ─────┐
-                       │          │ owns
-                       │ contains ↓
-                       │       Workspace
-                       │       TaskBus
+                      │          │ owns
+                      │ contains ↓
+                       │       session metadata
+                       │       workspace-scoped stores filtered by session_id
                        │       Default Agent boundary
                        │       AgentPool / Agent Manager (Product 1.1+)
-                       │       ThoughtStore
+                       │       ContextStore / ThoughtStore
                        │       EventStream
                        │
-                       │ root
+                       │ active work
                        ↓
-                    Root Task ──→ Subtasks ──→ ...
+                    Plan / TaskNode ──→ PublishedTask ──→ TaskBus
 ```
 
 - **与 User：** 一个用户可同时拥有多个 Session（多个会话窗口），但每个 Session 只属于一个用户
-- **与 Task：** Session 是 Task 的命名空间和资源容器
+- **与 Workspace：** workspace root 是 Agent project root；Session metadata 和 store rows 按 `session_id` 隔离
+- **与 Task：** Session 是 PublishedTask、Plan、TaskNode projection 的命名空间
 - **与 Agent：** Product 1.0 使用 Session 内 Default Agent execution boundary；Product 1.1+ dynamic assignment 中，Agent 实例的创建和销毁都在 Session 内
-- **与 Bus：** 每个 Session 有独立的 TaskBus 实例，不跨 Session 共享
-- **与 ThoughtStore：** ThoughtStore 按 user_id 持久化，Session 是访问入口；跨 Session 的长期记忆通过 user_id 共享
+- **与 Bus：** TaskBus 操作按 `session_id` 隔离；当前 SQLite task store 是 workspace-level row-isolated store
+- **与 Context Manager：** SessionContextManager 是 execution LLM input 的治理边界
+- **与 ThoughtStore：** 当前 session-private thoughts store 是恢复/调试事实源；跨 Session 长期记忆仍是后续扩展
 
 ---
 
@@ -292,13 +353,16 @@ Session 在 `active` 状态接受用户请求和 Agent 派生的任务：
 
 **断点续传**
 
-Session 异常终止后，下次访问时不仅可以查看历史，还可以从中断点恢复执行：
+Session 异常终止后，下次访问时可以查看历史，并通过 recovery hooks 收敛
+stale stopping / answered ASK 等已知不一致状态。透明恢复原 Agent stack 不是
+Product 1.0 事实；继续执行通过 retry 或 follow-up work：
 
 ```python
 session = Session.resume(session_id)
 # 加载所有持久化状态
-# Running 任务被标记为 failed，但 ThoughtStore 中的推理保留
-# 用户可以选择"重试"创建新 Task 继承上下文
+# stale interrupted running 任务可被标记为 failed/cancelled projection
+# answered ASK 可补发 resume/dispatch
+# 用户可以选择 retry 或创建 follow-up work
 ```
 
 ### 7.2 v2.x：Sub-session
@@ -365,10 +429,10 @@ new_session.import_artifact(from_session=old_id, task_id=...)
 
 | 决策 | 选择 | 替代方案 | 选择理由 |
 |------|------|---------|---------|
-| 工作区数量 | 单一 | 三层（Session/Task/Agent） | 简洁性 + 串行执行使并行写不必要 |
+| 用户文件工作区 | workspace root 共享 | 每 Session 自动 fork | 简洁性 + 用户文件只有一个真实根目录；隔离通过 session metadata 和后续显式 workspace isolation 处理 |
 | 配置归属 | Session 级 | Agent 级 | 用户感知一致，一次设置贯穿会话 |
 | EventStream 边界 | 按 Session 分片 | 全局共享 | 查询和审计的范围天然清晰 |
 | Agent 实例归属 | Session 内 | 全局池 | 资源边界清晰，故障域小 |
-| 持久化粒度 | EventStream 实时 + Workspace 持续 | 关闭时统一持久化 | 崩溃时丢失最少 |
-| 跨 Session 通信 | 严格隔离 | 默认共享 | 与"进程"心智模型一致 |
+| 持久化粒度 | workspace-level stores + session-private stores 持续写入 | 关闭时统一持久化 | 崩溃时丢失最少，snapshot 可恢复 |
+| 跨 Session 通信 | runtime facts 默认隔离，workspace files 默认共享 | 完全隔离或完全共享 | 符合当前 workspace-root-as-agent-cwd 实现，同时保留后续显式引用/merge 能力 |
 | 关闭策略 | 显式或超时 | 自动按空闲清理 | 用户对会话边界有控制感 |

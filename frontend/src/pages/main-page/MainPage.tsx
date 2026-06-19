@@ -4,14 +4,14 @@ import { navigateApp } from "../../app/navigation";
 import { productRecoveryActionsFromUnknown } from "../../shared/api/productErrors";
 import type { ProductRecoveryAction } from "../../shared/api/platoApi";
 import type { BadgeTone } from "../../shared/components";
-import { Button, Panel, Text } from "../../shared/components";
+import { Badge, Button, Panel, Text } from "../../shared/components";
 import { useUiText } from "../../shared/ui-text";
 import { buildSettingsRoute } from "../settings/settingsRouteModel";
 import { NO_SESSION_AVAILABLE_MESSAGE } from "./httpMainPageAdapter";
 import { MainPageSessionSidebar } from "./MainPageSessionSidebar";
-import { MainPageTopBar } from "./MainPageTopBar";
 import { MainPageWorkbench } from "./MainPageWorkbench";
 import type { MainPageWorkspaceRuntime } from "./MainPageWorkspaceSwitcher";
+import { PlatoProductMark } from "./PlatoProductMark";
 import { ProductRecoveryActions } from "./ProductRecoveryActions";
 import { buildMainPageViewModel } from "./mainPageViewModel";
 import {
@@ -174,7 +174,7 @@ export function MainPage({
   }
 
   const { metadata, snapshot } = snapshotData;
-  const topBarTrailing = renderTopBarTrailing({
+  const utilitySlot = renderUtilitySlot({
     onStateChange: actions.changeState,
     showStatePicker: adapter.showStatePicker,
     stateId,
@@ -200,6 +200,7 @@ export function MainPage({
     isStoppingTask,
     isResolvingConfirmation,
     metadata,
+    runtimeInputRouterAvailable: adapter.routeRuntimeInput !== undefined,
     selectionTarget,
     selectedTaskNodeId,
     snapshot,
@@ -221,7 +222,7 @@ export function MainPage({
       isRepairingAuthoringState={isRepairingAuthoringState}
       isRenamingSession={isRenamingSession}
       sessionDialog={sessionDialog}
-      topBarTrailing={topBarTrailing}
+      utilitySlot={utilitySlot}
       viewModel={viewModel}
       runtimeActivityItems={runtimeActivityItems}
       activeWorkspaceId={activeWorkspaceId}
@@ -281,26 +282,9 @@ function MainPageNoSessionFrame({
 
   return (
     <main className={`${styles.page} ${styles.pageWithoutDetail}`}>
-      <MainPageTopBar
-        brandLabel="柏拉图 Plato"
-        contextItems={["Local Project", "Session"]}
-        statuses={[
-          {
-            label: uiText.main.labels.noSessions,
-            tone: "neutral",
-          },
-        ]}
-        trailing={
-          renderTopBarTrailing({
-            onStateChange,
-            showStatePicker,
-            stateId,
-          })
-        }
-      />
-
       <MainPageSessionSidebar
         activeSession={null}
+        brandLabel="柏拉图 Plato"
         isCreatingSession={isCreatingSession}
         isDeletingSession={isDeletingSession}
         isRenamingSession={isRenamingSession}
@@ -313,6 +297,11 @@ function MainPageNoSessionFrame({
         onSubmitSessionDialog={onSubmitSessionDialog}
         sessionDialog={sessionDialog}
         sessions={[]}
+        utilitySlot={renderUtilitySlot({
+          onStateChange,
+          showStatePicker,
+          stateId,
+        })}
         activeWorkspaceId={activeWorkspaceId}
         workspaceCatalog={workspaceCatalog}
         workspaceRuntime={workspaceRuntime}
@@ -345,7 +334,7 @@ function MainPageNoSessionFrame({
   );
 }
 
-function SettingsTopBarButton() {
+function SettingsUtilityButton() {
   const uiText = useUiText();
 
   return (
@@ -361,7 +350,7 @@ function SettingsTopBarButton() {
   );
 }
 
-function renderTopBarTrailing({
+function renderUtilitySlot({
   onStateChange,
   showStatePicker,
   stateId,
@@ -373,7 +362,7 @@ function renderTopBarTrailing({
   return showStatePicker ? (
     <StatePicker stateId={stateId} onStateChange={onStateChange} />
   ) : (
-    <SettingsTopBarButton />
+    <SettingsUtilityButton />
   );
 }
 
@@ -432,30 +421,28 @@ function MainPageStatusFrame({
   const uiText = useUiText();
 
   return (
-    <main className={styles.page}>
-      <MainPageTopBar
-        brandLabel="柏拉图 Plato"
-        contextItems={["Local Project", "Task authoring", "Session"]}
-        statuses={[
-          {
-            label: statusLabel,
-            tone: statusTone,
-          },
-        ]}
-        trailing={
-          renderTopBarTrailing({
-            onStateChange,
-            showStatePicker,
-            stateId,
-          })
-        }
-      />
-
+    <main className={`${styles.page} ${styles.statusPage}`}>
       <Panel
         as="section"
         className={styles.workspace}
         aria-label={uiText.main.labels.taskWorkspace}
       >
+        <div className={styles.statusFrameToolbar}>
+          <div className={styles.statusFrameBrand}>
+            <PlatoProductMark className={styles.railBrandMark} />
+            <span>Plato</span>
+          </div>
+          <div className={styles.statusFrameActions}>
+            <Badge className={styles.statusFrameBadge} tone={statusTone}>
+              {statusLabel}
+            </Badge>
+            {renderUtilitySlot({
+              onStateChange,
+              showStatePicker,
+              stateId,
+            })}
+          </div>
+        </div>
         <div className={styles.emptyState}>
           <Text as="h1" variant="heading">
             {title}

@@ -1,7 +1,7 @@
 # Architecture Docs
 
 > Status: active architecture fact baseline
-> Last Updated: 2026-05-31
+> Last Updated: 2026-06-19
 
 Architecture docs describe active system facts: object boundaries, lifecycles,
 protocols, storage ownership, agent/task responsibilities, and long-term
@@ -17,10 +17,10 @@ for technical design and implementation planning.
 For any non-trivial feature plan or code implementation, read:
 
 1. [reference.md](reference.md) — core substrate implementation reference; use overview and release docs for later Product 1.0 facts.
-2. [overview.md](overview.md) — Task-first multi-agent architecture overview.
+2. [overview.md](overview.md) — Session-scoped, TaskBus-authoritative architecture overview.
 3. [contract-revision-and-execution-loops.md](contract-revision-and-execution-loops.md) — core boundary between contract revision and workspace execution.
 4. [task.md](task.md) — Task domain model and lifecycle.
-5. [authoring-domain.md](authoring-domain.md) — RawTask, feasibility, DraftTaskTree, and publish boundary.
+5. [authoring-domain.md](authoring-domain.md) — RawTask, feasibility, ASK, DraftTaskTree, and publish boundary.
 6. [authoring-command-protocol.md](authoring-command-protocol.md) — command-first mutation boundary for RawTask and DraftTaskTree authoring.
 7. [task-domain-ui-model-separation.md](task-domain-ui-model-separation.md) — backend facts, UI ViewModels, local UI state, replayable interactions.
 8. [ui-backend-communication.md](ui-backend-communication.md) — Query / Command / Event boundary and HTTP/SSE direction.
@@ -38,9 +38,9 @@ Feature-specific work should then read the relevant area documents below.
 |---|---|---|
 | Core agent loop and implemented substrate | [reference.md](reference.md), [interaction-layer.md](interaction-layer.md) | Action/Observation, EventStream, MessageStream, autonomy gate, wait coordination, loop integration. |
 | Contract revision and execution boundary | [contract-revision-and-execution-loops.md](contract-revision-and-execution-loops.md) | Interaction Router, product-state commands, TaskBus execution, and future feature classification rule. |
-| Task domain and TaskBus | [task.md](task.md), [bus.md](bus.md), [bus-v2.md](bus-v2.md), [taskbus-service-multi-execution-env.md](taskbus-service-multi-execution-env.md) | Task lifecycle, TaskBus authority, Routing Agent assignment, cooperative interruption, publish/dispatch direction. The multi-execution-env memo is exploratory Product 1.1+ direction, not current implementation fact. |
-| Authoring domain | [authoring-domain.md](authoring-domain.md), [authoring-command-protocol.md](authoring-command-protocol.md), [collaborator-agent-task-authoring.md](collaborator-agent-task-authoring.md) | RawTask, feasibility, DraftTaskTree, Collaborator, Authoring Commands, publish boundary. |
-| UI/backend boundary | [ui-backend-communication.md](ui-backend-communication.md), [task-domain-ui-model-separation.md](task-domain-ui-model-separation.md) | ViewModel projection, Query/Command/Event, frontend/backend contract direction. |
+| Task domain and TaskBus | [task.md](task.md), [bus.md](bus.md), [bus-v2.md](bus-v2.md), [taskbus-service-multi-execution-env.md](taskbus-service-multi-execution-env.md) | Task lifecycle, TaskBus authority, `waiting_for_user` ASK blocking point, retry/skip, cooperative interruption, Routing Agent assignment, and publish/dispatch direction. The multi-execution-env memo is exploratory Product 1.1+ direction, not current implementation fact. |
+| Authoring domain | [authoring-domain.md](authoring-domain.md), [authoring-command-protocol.md](authoring-command-protocol.md), [collaborator-agent-task-authoring.md](collaborator-agent-task-authoring.md) | RawTask, feasibility, authoring ASK, DraftTaskTree, Collaborator, Authoring Commands, publish boundary. |
+| UI/backend boundary | [ui-backend-communication.md](ui-backend-communication.md), [task-domain-ui-model-separation.md](task-domain-ui-model-separation.md) | Main Page snapshot, Session conversation, Query/Command/Event, ASK/confirmation, ViewModel projection, and frontend/backend contract direction. |
 | Tool and workspace capability | [tool-capability-layer.md](tool-capability-layer.md), [workspace-communication-protocol.md](workspace-communication-protocol.md) | CapabilityCatalog, tool pools, system-state mutation, workspace operations. |
 | Agent model | [agent.md](agent.md), [multi-agent-collaboration.md](multi-agent-collaboration.md), [multi-agent-collaboration_en.md](multi-agent-collaboration_en.md) | Agent templates, Routing Agent role, Execution Agent instances, future multi-agent collaboration direction. |
 | Execution context governance | [context-manager.md](context-manager.md) | Context Manager boundary, Product 1.0 TaskExecutionContext v0, deterministic and cache-aware append-only context assembly, trace/recovery extension points. |

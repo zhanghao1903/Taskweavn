@@ -20,6 +20,8 @@ from taskweavn.usage.models import (
 TaskPlanResolver = Callable[[str | None, str | None], str | None]
 
 _SAFE_METADATA_KEYS = {
+    "agent_llm_profile",
+    "agent_llm_role",
     "agent_id",
     "agent_kind",
     "component",

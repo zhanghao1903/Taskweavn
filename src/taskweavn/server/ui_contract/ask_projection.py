@@ -11,6 +11,7 @@ from taskweavn.server.ui_contract.view_models import (
     AskOptionView,
     AskQuestionView,
     AskRequestView,
+    TaskNodeCardView,
     TaskTreeView,
 )
 from taskweavn.task.models import TaskRef
@@ -53,13 +54,15 @@ class DefaultAskProjectionService:
         task_id: str | None = None,
         task_tree: TaskTreeView | None = None,
     ) -> AskListResult:
+        task_ids = _task_ids_for_filter(task_id, task_tree=task_tree)
         asks = tuple(
             map_ask_request_view(request)
             for request in self._ask_store.list_for_session(
                 session_id,
                 statuses=statuses,
-                task_id=task_id,
+                task_id=None if task_ids is not None else task_id,
             )
+            if task_ids is None or request.task_id in task_ids
         )
         return AskListResult(
             session_id=session_id,
@@ -136,18 +139,46 @@ def select_active_ask(
         return None
     if task_tree is not None:
         waiting_task_ids = tuple(
-            node.id for node in task_tree.nodes if node.execution == "waiting_for_user"
+            _node_task_ids(node)
+            for node in task_tree.nodes
+            if node.execution == "waiting_for_user"
         )
-        for task_id in waiting_task_ids:
+        for task_ids in waiting_task_ids:
             task_candidates = [
-                ask for ask in pending if ask.task_node_id == task_id and ask.blocking
+                ask
+                for ask in pending
+                if ask.task_node_id in task_ids and ask.blocking
             ]
             if task_candidates:
-                return sorted(task_candidates, key=lambda ask: (ask.created_at, ask.id))[0]
+                return sorted(
+                    task_candidates,
+                    key=lambda ask: (ask.created_at, ask.id),
+                )[0]
         return None
     blocking = [ask for ask in pending if ask.blocking]
     candidates = blocking or list(pending)
     return sorted(candidates, key=lambda ask: (ask.created_at, ask.id))[0]
+
+
+def _task_ids_for_filter(
+    task_id: str | None,
+    *,
+    task_tree: TaskTreeView | None,
+) -> set[str] | None:
+    if task_id is None or task_tree is None:
+        return None
+    for node in task_tree.nodes:
+        ids = _node_task_ids(node)
+        if task_id in ids:
+            return ids
+    return {task_id}
+
+
+def _node_task_ids(node: TaskNodeCardView) -> set[str]:
+    ids = {node.id}
+    if node.task_ref is not None:
+        ids.add(node.task_ref.id)
+    return ids
 
 
 __all__ = [

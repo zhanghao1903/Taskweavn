@@ -32,7 +32,10 @@ export type MainPageStateId =
   | "s11-stale-snapshot"
   | "s12-backend-busy"
   | "s13-command-failed"
-  | "s14-execution-ask";
+  | "s14-execution-ask"
+  | "s15-read-only-answer"
+  | "s16-direct-task"
+  | "s17-conversation-visual-samples";
 
 export type MainPageFixture = {
   id: MainPageStateId;
@@ -141,6 +144,20 @@ const executionAskTaskTree: TaskTree = {
       ? { ...node, status: "waiting_user" }
       : node,
   ),
+};
+
+const directTaskTree: TaskTree = {
+  id: "direct-task-readme",
+  title: "Quick README update",
+  nodes: [
+    {
+      id: "task-direct-readme",
+      parentId: null,
+      title: "Update README startup commands",
+      summary: "Add the missing install and start commands",
+      status: "running",
+    },
+  ],
 };
 
 const baseMessages: SessionMessage[] = [
@@ -596,6 +613,144 @@ export const mainPageStates: MainPageFixture[] = [
     inputScope: {
       label: "Answering Initial implementation",
       placeholder: "Answer the question in the detail panel.",
+    },
+    result: null,
+    fileChangeSummary: null,
+  }),
+  state({
+    id: "s15-read-only-answer",
+    label: "S15 Read-only Answer",
+    topStatus: "Answered",
+    topStatusTone: "success",
+    taskTree: null,
+    selectedTaskNodeId: null,
+    messages: [
+      {
+        id: "message-read-only-user",
+        sessionId: sessions[0].id,
+        taskNodeId: null,
+        kind: "informational",
+        title: "User question",
+        body: "Which command starts the frontend locally?",
+        createdAt: "2026-05-17T10:23:00+08:00",
+      },
+      {
+        id: "message-read-only-answer",
+        sessionId: sessions[0].id,
+        taskNodeId: null,
+        kind: "response",
+        title: "Answer provided",
+        body: "Run npm install once, then npm run dev from the frontend directory.",
+        createdAt: "2026-05-17T10:23:10+08:00",
+      },
+    ],
+    detail: {
+      mode: "session",
+      eyebrow: "Answer",
+      title: "Frontend startup command",
+      body: "This request was answered directly, so no task was created.",
+    },
+    inputScope: {
+      label: "Writing to session",
+      placeholder: "Ask a follow-up or describe work you want Plato to do.",
+    },
+    result: null,
+    fileChangeSummary: null,
+  }),
+  state({
+    id: "s16-direct-task",
+    label: "S16 Direct Task",
+    topStatus: "Direct task",
+    topStatusTone: "blue",
+    taskTree: directTaskTree,
+    selectedTaskNodeId: "task-direct-readme",
+    messages: [
+      {
+        id: "message-direct-task-user",
+        sessionId: sessions[0].id,
+        taskNodeId: null,
+        kind: "informational",
+        title: "User request",
+        body: "Add the missing install and startup commands to the README.",
+        createdAt: "2026-05-17T10:24:00+08:00",
+      },
+      {
+        id: "message-direct-task-started",
+        sessionId: sessions[0].id,
+        taskNodeId: "task-direct-readme",
+        kind: "response",
+        title: "Direct task started",
+        body: "Plato is handling this as a small task without asking for a full plan review.",
+        createdAt: "2026-05-17T10:24:10+08:00",
+      },
+    ],
+    detail: {
+      mode: "task",
+      eyebrow: "Direct task",
+      title: "Update README startup commands",
+      body: "Plato is handling this as a small task. You can still append guidance while it runs.",
+    },
+    inputScope: {
+      label: "Writing to direct task",
+      placeholder: "Append guidance for this task.",
+    },
+    result: null,
+    fileChangeSummary: null,
+  }),
+  state({
+    id: "s17-conversation-visual-samples",
+    label: "S17 Conversation Visual Samples",
+    topStatus: "Conversation",
+    topStatusTone: "blue",
+    taskTree: null,
+    selectedTaskNodeId: null,
+    messages: [
+      {
+        id: "message-visual-user-input",
+        sessionId: sessions[0].id,
+        taskNodeId: null,
+        kind: "informational",
+        title: "User message",
+        body: "Make the portfolio page feel editorial, concise, and easy to scan.",
+        createdAt: "2026-05-17T10:25:00+08:00",
+      },
+      {
+        id: "message-visual-system-response",
+        sessionId: sessions[0].id,
+        taskNodeId: null,
+        kind: "response",
+        title: "Direction captured",
+        body: "Plato will keep the plan lightweight and focus on a clearer visual hierarchy.",
+        createdAt: "2026-05-17T10:25:30+08:00",
+      },
+      {
+        id: "message-visual-user-answer",
+        sessionId: sessions[0].id,
+        taskNodeId: null,
+        kind: "informational",
+        title: "User answer",
+        body: "Use the editorial layout option and keep free text for nuance.",
+        createdAt: "2026-05-17T10:26:00+08:00",
+      },
+      {
+        id: "message-visual-user-action",
+        sessionId: sessions[0].id,
+        taskNodeId: null,
+        kind: "informational",
+        title: "User message",
+        body: "Retry requested.",
+        createdAt: "2026-05-17T10:27:00+08:00",
+      },
+    ],
+    detail: {
+      mode: "session",
+      eyebrow: "Conversation",
+      title: "Conversation visual samples",
+      body: "This state shows user input, user answer, user action, and system response rendering together.",
+    },
+    inputScope: {
+      label: "Writing to session",
+      placeholder: "Continue the conversation or describe the next piece of work.",
     },
     result: null,
     fileChangeSummary: null,

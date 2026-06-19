@@ -8,7 +8,7 @@ import type {
   TaskNodeCardView,
 } from "../../shared/api/types";
 import type { BadgeTone } from "../../shared/components";
-import { Badge, Button, Text } from "../../shared/components";
+import { Badge, Button, MarkdownContent, Text } from "../../shared/components";
 import { useUiText } from "../../shared/ui-text";
 import { cx } from "../../shared/utils/cx";
 import styles from "./ActivityOverlay.module.css";
@@ -217,7 +217,12 @@ function ActivityItem({
       <strong className={styles.itemTitle} title={item.title}>
         {item.title}
       </strong>
-      <p className={styles.itemBody}>{item.body}</p>
+      <MarkdownContent
+        className={styles.itemBody}
+        maxLines={3}
+        source={item.body}
+        variant="activity"
+      />
       <div className={styles.itemFooter}>
         <div className={styles.itemMeta}>
           <Badge size="sm" tone={item.scopeKind === "task" ? "blue" : "neutral"}>
@@ -434,7 +439,7 @@ function ResultReader({
         <Badge size="sm" tone="blue">
           {uiText.main.activity.kinds.resultReady}
         </Badge>
-        <p>{item.body}</p>
+        <MarkdownContent source={item.body} variant="detail" />
       </article>
     </section>
   );

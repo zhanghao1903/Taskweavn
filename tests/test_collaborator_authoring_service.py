@@ -524,28 +524,49 @@ def test_collaborator_logs_agent_llm_input_and_output(tmp_path: Path) -> None:
     )
 
     assert result.ok
-    rows = _read_jsonl(tmp_path / "logs" / "sessions" / "s1" / "llm.jsonl")
-    agent_rows = [
-        row for row in rows if row["event"] in {"agent_input", "agent_output"}
+    meta_rows = _read_jsonl(tmp_path / "logs" / "sessions" / "s1" / "llm.jsonl")
+    io_rows = _read_jsonl(tmp_path / "logs" / "sessions" / "s1" / "llm_io.jsonl")
+    meta_agent_rows = [
+        row for row in meta_rows if row["event"] in {"agent_input", "agent_output"}
     ]
-    assert [row["event"] for row in agent_rows] == ["agent_input", "agent_output"]
-    input_row, output_row = agent_rows
+    io_agent_rows = [
+        row for row in io_rows if row["event"] in {"agent_input", "agent_output"}
+    ]
+    assert [row["event"] for row in meta_agent_rows] == [
+        "agent_input",
+        "agent_output",
+    ]
+    assert [row["event"] for row in io_agent_rows] == [
+        "agent_input",
+        "agent_output",
+    ]
+    input_row, output_row = meta_agent_rows
+    input_io_row, output_io_row = io_agent_rows
 
     assert input_row["context"] == {"session_id": "s1", "agent_id": "collaborator"}
     assert input_row["data"]["agent_kind"] == "collaborator"
     assert input_row["data"]["request_purpose"] == "collaborator.create_raw_task"
-    assert input_row["data"]["messages"][0]["content"] == COLLABORATOR_AUTHORING_SYSTEM_PROMPT
-    assert "Write docs for developers" in input_row["data"]["messages"][1]["content"]
+    assert "messages" not in input_row["data"]
+    assert (
+        input_io_row["data"]["input"]["messages"][0]["content"]
+        == COLLABORATOR_AUTHORING_SYSTEM_PROMPT
+    )
+    assert (
+        "Write docs for developers"
+        in input_io_row["data"]["input"]["messages"][1]["content"]
+    )
     assert input_row["data"]["metadata"]["session_id"] == "s1"
 
     assert output_row["context"] == {"session_id": "s1", "agent_id": "collaborator"}
     assert output_row["data"]["agent_kind"] == "collaborator"
     assert output_row["data"]["request_purpose"] == "collaborator.create_raw_task"
-    assert output_row["data"]["content"] == response_content
-    assert output_row["data"]["raw_assistant_message"]["content_omitted"] == (
-        "duplicate_of_content"
+    assert "content" not in output_row["data"]
+    assert output_io_row["data"]["output"]["content"] == response_content
+    assert (
+        output_io_row["data"]["output"]["raw_assistant_message"]["content_omitted"]
+        == "duplicate_of_content"
     )
-    assert "content" not in output_row["data"]["raw_assistant_message"]
+    assert "content" not in output_io_row["data"]["output"]["raw_assistant_message"]
 
 
 def test_collaborator_prompt_contains_exact_authoring_protocols() -> None:

@@ -8,6 +8,7 @@ LOG_EVENTS_BY_CATEGORY: dict[LogCategory, tuple[str, ...]] = {
     "action": ("emit",),
     "observation": ("emit",),
     "llm": ("agent_input", "agent_output", "request", "response", "retry"),
+    "llm_io": ("agent_input", "agent_output"),
     "task": (),
     "tool": ("invoke", "result"),
     "bus": (

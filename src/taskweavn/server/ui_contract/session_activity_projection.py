@@ -77,11 +77,16 @@ def _message_items(
 
 def _message_item(message: SessionMessageView) -> SessionActivityItemView:
     kind = _message_activity_kind(message)
-    side_effect = _message_side_effect(kind)
+    side_effect = _message_side_effect(message, kind)
     activity_id = f"activity:message:{message.id}"
     source_kind: SessionActivitySourceKind = "message_stream"
     source_id = message.id
-    if message.title == READ_ONLY_INQUIRY_ACTIVITY_TITLE:
+    runtime_kind = _runtime_input_activity_kind(message)
+    if runtime_kind is not None:
+        source_kind = "router"
+        source_id = message.related_command_id or message.id
+        activity_id = f"activity:runtime-input:{source_id}:{runtime_kind}"
+    elif message.title == READ_ONLY_INQUIRY_ACTIVITY_TITLE:
         source_kind = "router"
         source_id = message.related_command_id or message.id
         activity_id = f"activity:inquiry:{source_id}"
@@ -107,6 +112,9 @@ def _message_item(message: SessionMessageView) -> SessionActivityItemView:
 
 
 def _message_activity_kind(message: SessionMessageView) -> SessionActivityItemKind:
+    runtime_kind = _runtime_input_activity_kind(message)
+    if runtime_kind is not None:
+        return runtime_kind
     if message.title == READ_ONLY_INQUIRY_ACTIVITY_TITLE:
         return "answer"
     if message.kind == "response":
@@ -120,16 +128,57 @@ def _message_activity_kind(message: SessionMessageView) -> SessionActivityItemKi
     return "execution_update"
 
 
-def _message_side_effect(kind: SessionActivityItemKind) -> SessionActivitySideEffect:
+def _message_side_effect(
+    message: SessionMessageView,
+    kind: SessionActivityItemKind,
+) -> SessionActivitySideEffect:
+    del message
     if kind == "user_input":
         return "context_effect"
+    if kind == "guidance_recorded":
+        return "context_effect"
+    if kind in {"ask_answered", "confirmation_resolved"}:
+        return "resume_effect"
     if kind == "confirmation_requested":
         return "authorization_effect"
     if kind == "recovery_note":
         return "state_effect"
-    if kind == "answer":
+    if kind in {"answer", "router_interpretation"}:
         return "no_effect"
     return "state_effect"
+
+
+def _runtime_input_activity_kind(
+    message: SessionMessageView,
+) -> SessionActivityItemKind | None:
+    # Runtime Input activity kind is carried in the original AgentMessage
+    # context and mapped into the user-facing title/body/refs. The current
+    # SessionMessageView intentionally exposes only safe fields, so route using
+    # reserved titles emitted by runtime publishers.
+    title = message.title.lower()
+    if title == "guidance recorded":
+        return "guidance_recorded"
+    if title == "ask answered":
+        return "ask_answered"
+    if title == "confirmation resolved":
+        return "confirmation_resolved"
+    if title in {"task created", "execution work created"}:
+        return "task_created"
+    if title == "task changed":
+        return "task_changed"
+    if title == "task removed":
+        return "task_removed"
+    if title == "user input":
+        return "user_input"
+    if title in {
+        "router interpretation",
+        "runtime input routed",
+        "runtime input needs clarification",
+        "runtime input unsupported",
+        "runtime command routed",
+    }:
+        return "router_interpretation"
+    return None
 
 
 def _plan_item(plan: PlanView) -> SessionActivityItemView:

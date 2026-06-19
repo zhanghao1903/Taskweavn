@@ -132,6 +132,8 @@ class LLMClient:
         metadata: dict[str, Any] | None = None,
         thinking: ThinkingConfig | None = None,
         provider_routing: ProviderRoutingConfig | None = None,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
         timeout_seconds: float | None = None,
     ) -> ChatResponse:
         """Run a chat completion with optional tool schemas, parse out tool_calls.
@@ -148,6 +150,8 @@ class LLMClient:
                 if timeout_seconds is None
                 else timeout_seconds
             ),
+            temperature=temperature,
+            max_tokens=max_tokens,
             thinking=thinking or self._thinking,
             provider_routing=provider_routing or self._provider_routing,
             metadata=metadata or {},

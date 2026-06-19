@@ -3,13 +3,6 @@
   --plato-page-min-height: 820px;
   --plato-page-padding: clamp(var(--plato-space-4), 1.2vw, var(--plato-space-5));
   --plato-layout-gap: clamp(var(--plato-space-3), 1.2vw, var(--plato-space-4));
-  --plato-topbar-min-height: 72px;
-  --plato-topbar-max-height: 80px;
-  --plato-topbar-height: clamp(
-    var(--plato-topbar-min-height),
-    7dvh,
-    var(--plato-topbar-max-height)
-  );
   --plato-inputbar-min-height: 10px;
   --plato-inputbar-max-height: 164px;
   --plato-inputbar-height: clamp(
@@ -28,6 +21,7 @@
   --plato-workspace-min-width: 600px;
   --plato-detail-min-width: 320px;
   --plato-detail-width: 30%;
+  --plato-splitter-width: 12px;
   --plato-sidebar-width: clamp(
     var(--plato-sidebar-min-width),
     15vw,
@@ -40,179 +34,36 @@
   height: 100dvh;
   min-height: var(--plato-page-min-height);
   grid-template:
-    "top top top" var(--plato-topbar-height)
-    "side work detail" minmax(0, 1fr) / var(--plato-sidebar-width)
+    "side work splitter detail" minmax(0, 1fr) / var(--plato-sidebar-width)
     minmax(var(--plato-workspace-min-width), 1fr)
+    var(--plato-splitter-width)
     minmax(var(--plato-detail-min-width), var(--plato-detail-width));
-  gap: var(--plato-layout-gap);
-  padding: 0 var(--plato-page-padding) var(--plato-page-padding);
+  column-gap: 0;
+  row-gap: var(--plato-layout-gap);
+  padding: var(--plato-page-padding);
   background: var(--plato-color-project-bg);
 }
 
 .pageWithoutDetail {
   grid-template:
-    "top top top" var(--plato-topbar-height)
-    "side work work" minmax(0, 1fr) / var(--plato-sidebar-width)
-    minmax(var(--plato-workspace-min-width), 1fr)
-    minmax(var(--plato-detail-min-width), var(--plato-detail-width));
+    "side work" minmax(0, 1fr) / var(--plato-sidebar-width)
+    minmax(var(--plato-workspace-min-width), 1fr);
 }
 
-.topBar,
+.statusPage {
+  grid-template:
+    ". work ." minmax(0, 1fr) / minmax(0, 1fr)
+    minmax(var(--plato-workspace-min-width), 880px)
+    minmax(0, 1fr);
+}
+
 .sidebar,
 .workspace,
-.detailPanel,
 .contextInput {
   border: 1px solid var(--plato-color-line);
   border-radius: 8px;
   background: var(--plato-color-semantic-surface);
   box-shadow: 0 8px 24px rgb(24 32 51 / 5%);
-}
-
-.topBar {
-  grid-area: top;
-  display: grid;
-  grid-template-columns:
-    minmax(128px, 156px)
-    minmax(144px, 170px)
-    minmax(180px, 1fr)
-    minmax(120px, auto)
-    minmax(152px, auto);
-  min-width: 0;
-  min-height: var(--plato-topbar-min-height);
-  max-height: var(--plato-topbar-max-height);
-  align-items: center;
-  gap: clamp(var(--plato-space-3), 1.4vw, var(--plato-space-6));
-  margin: 0 calc(-1 * var(--plato-page-padding));
-  border-width: 0 0 1px;
-  border-radius: 0;
-  box-shadow: none;
-  overflow: hidden;
-  padding: 0 32px;
-}
-
-.brandBlock {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  gap: var(--plato-space-3);
-}
-
-.brandMark {
-  flex: 0 0 auto;
-  width: 36px;
-  height: 36px;
-}
-
-.brandCopy {
-  display: grid;
-  min-width: 0;
-  gap: 2px;
-}
-
-.brandName {
-  overflow: hidden;
-  color: var(--plato-color-ink);
-  font-size: var(--plato-type-brand-title-size);
-  font-weight: var(--plato-type-brand-title-weight);
-  line-height: var(--plato-type-brand-title-line-height);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.topBarContextBlock {
-  display: grid;
-  min-width: 0;
-  gap: var(--plato-space-1);
-}
-
-.topBarLabel {
-  overflow: hidden;
-  color: var(--plato-color-dim);
-  font-size: var(--plato-type-caption-size);
-  font-weight: var(--plato-type-caption-weight);
-  line-height: var(--plato-type-caption-line-height);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.topBarValue,
-.sessionValue {
-  min-width: 0;
-  overflow: hidden;
-  color: var(--plato-color-ink);
-  font-family: var(--plato-typography-family-cjk-ui);
-  font-size: var(--plato-type-topbar-context-size);
-  font-weight: var(--plato-type-topbar-context-weight);
-  line-height: var(--plato-type-topbar-context-line-height);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.workflowPill {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-  border-radius: var(--plato-radius-md);
-  padding: var(--plato-space-2) var(--plato-space-4);
-  background: var(--plato-color-clear-blue);
-  color: var(--plato-color-reason-blue);
-  font-family: var(--plato-typography-family-cjk-ui);
-  font-size: var(--plato-type-topbar-badge-size);
-  font-weight: var(--plato-type-topbar-badge-weight);
-  line-height: var(--plato-type-topbar-badge-line-height);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.sessionContextBlock {
-  display: flex;
-  min-width: 0;
-}
-
-.statusCluster {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  justify-content: flex-end;
-  gap: var(--plato-space-3);
-}
-
-.topBarActions {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  justify-content: flex-end;
-  gap: var(--plato-space-2);
-  overflow: hidden;
-}
-
-.topBarStatusBadge {
-  font-family: var(--plato-typography-family-cjk-ui);
-  font-size: var(--plato-type-topbar-badge-size);
-  font-weight: var(--plato-type-topbar-badge-weight);
-  line-height: var(--plato-type-topbar-badge-line-height);
-}
-
-.topBarTrailing {
-  display: flex;
-  min-width: 0;
-  max-width: 112px;
-  overflow: hidden;
-}
-
-.statusCluster > *,
-.topBarActions > * {
-  flex: 0 0 auto;
-}
-
-.topBarTrailing .statePicker > span {
-  display: none;
-}
-
-.topBarTrailing .statePicker select {
-  max-width: 112px;
 }
 
 .statePicker {
@@ -241,12 +92,61 @@
 
 .sidebar {
   grid-area: side;
+  display: flex;
+  flex-direction: column;
+  gap: var(--plato-space-4);
   min-width: 0;
   min-height: 0;
   overflow: auto;
   padding: var(--plato-space-3) var(--plato-space-2);
   scrollbar-color: rgb(92 112 130 / 18%) transparent;
   scrollbar-width: thin;
+  margin-right: var(--plato-layout-gap);
+}
+
+.railBrandBlock {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--plato-space-3);
+  padding: var(--plato-space-2);
+}
+
+.railBrandMark {
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+}
+
+.railBrandCopy {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.railBrandName {
+  overflow: hidden;
+  color: var(--plato-color-ink);
+  font-size: var(--plato-type-section-title-size);
+  font-weight: var(--plato-type-page-title-weight);
+  line-height: var(--plato-type-section-title-line-height);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.railBrandCopy span {
+  overflow: hidden;
+  font-size: var(--plato-type-caption-size);
+  line-height: var(--plato-type-caption-line-height);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.railUtilitySlot {
+  display: flex;
+  min-width: 0;
+  margin-top: auto;
+  padding: var(--plato-space-2);
 }
 
 .sidebar::-webkit-scrollbar {
@@ -325,6 +225,8 @@
 .workspaceSessionTree {
   display: grid;
   min-width: 0;
+  align-content: start;
+  flex: 0 0 auto;
   gap: var(--plato-space-3);
 }
 
@@ -339,6 +241,7 @@
 .workspaceTreeGroup {
   display: grid;
   min-width: 0;
+  align-content: start;
   gap: var(--plato-space-2);
 }
 
@@ -603,9 +506,99 @@
   padding: var(--plato-space-4);
 }
 
+.page:not(.pageWithoutDetail) .workspace {
+  border-right: 0;
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
 .sectionHeader {
   margin-bottom: var(--plato-space-3);
   min-width: 0;
+}
+
+.sessionWorkHeader {
+  display: grid;
+  min-width: 0;
+  gap: var(--plato-space-3);
+}
+
+.sessionWorkStatusRow {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--plato-space-3);
+}
+
+.sessionWorkContext {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--plato-space-3);
+}
+
+.sessionWorkProjectName,
+.sessionWorkSessionName {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--plato-color-ink);
+  font-family: var(--plato-typography-family-cjk-ui);
+  font-size: var(--plato-type-topbar-context-size);
+  font-weight: var(--plato-type-topbar-context-weight);
+  line-height: var(--plato-type-topbar-context-line-height);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sessionWorkProjectName {
+  color: var(--plato-color-muted);
+}
+
+.sessionWorkStatusCluster {
+  display: flex;
+  min-width: 0;
+  flex: 0 1 auto;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--plato-space-2);
+}
+
+.sessionWorkStatusBadge {
+  flex: 0 0 auto;
+  font-family: var(--plato-typography-family-cjk-ui);
+  font-size: var(--plato-type-topbar-badge-size);
+  font-weight: var(--plato-type-topbar-badge-weight);
+  line-height: var(--plato-type-topbar-badge-line-height);
+}
+
+.statusFrameToolbar {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--plato-space-3);
+  margin-bottom: var(--plato-space-4);
+}
+
+.statusFrameBrand,
+.statusFrameActions {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--plato-space-2);
+}
+
+.statusFrameBrand span {
+  color: var(--plato-color-ink);
+  font-size: var(--plato-type-section-title-size);
+  font-weight: var(--plato-type-page-title-weight);
+  line-height: var(--plato-type-section-title-line-height);
+}
+
+.statusFrameBadge {
+  flex: 0 0 auto;
 }
 
 .sectionHeader h1 {
@@ -621,17 +614,196 @@
   gap: var(--plato-space-2);
 }
 
-.workGrid {
-  display: grid;
-  grid-template-rows: minmax(0, 1fr);
-  grid-template-columns: minmax(0, 1fr);
-  gap: var(--plato-space-3);
-  align-items: stretch;
-  min-height: 0;
+.planProgressCollapseButton {
+  min-width: 0;
+  border: 0;
+  border-radius: calc(var(--plato-radius-md) - 2px);
+  padding: var(--plato-space-2) var(--plato-space-3);
+  background: var(--plato-color-transparent);
+  color: var(--plato-color-muted);
+  font-size: var(--plato-type-control-size);
+  font-weight: var(--plato-type-control-weight);
+  line-height: var(--plato-type-control-line-height);
+  white-space: nowrap;
 }
 
-.workGridWithoutActivity {
-  grid-template-rows: minmax(0, 1fr);
+.planProgressCollapseButton:hover,
+.planProgressCollapseButton:focus-visible {
+  outline: none;
+  box-shadow: var(--plato-shadow-focus);
+}
+
+.planProgressCollapseButton {
+  flex: 0 0 auto;
+  border: 1px solid var(--plato-color-line);
+  background: var(--plato-color-panel);
+  color: var(--plato-color-reason-blue);
+}
+
+.collapsedPlanTopbarButton {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  min-width: min(360px, 44vw);
+  max-width: min(520px, 52vw);
+  align-items: center;
+  gap: var(--plato-space-2);
+  border: 1px solid var(--plato-color-line);
+  border-radius: 999px;
+  padding: var(--plato-space-2) var(--plato-space-3);
+  background: var(--plato-color-panel);
+  color: inherit;
+  box-shadow: 0 8px 22px rgb(24 32 51 / 7%);
+  text-align: left;
+}
+
+.collapsedPlanTopbarButton:hover,
+.collapsedPlanTopbarButton:focus-visible {
+  outline: none;
+  box-shadow: var(--plato-shadow-focus);
+}
+
+.collapsedPlanTopbarLabel,
+.collapsedPlanTopbarMeta {
+  color: var(--plato-color-muted);
+  font-size: var(--plato-type-caption-size);
+  font-weight: var(--plato-type-control-weight);
+  line-height: var(--plato-type-caption-line-height);
+  white-space: nowrap;
+}
+
+.collapsedPlanTopbarLabel {
+  text-transform: uppercase;
+}
+
+.collapsedPlanTopbarTitle {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--plato-color-ink);
+  font-size: var(--plato-type-control-size);
+  font-weight: var(--plato-type-section-title-weight);
+  line-height: var(--plato-type-control-line-height);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.planWorkspace {
+  align-self: center;
+  justify-self: center;
+  z-index: 9;
+  grid-template-rows: auto minmax(0, auto);
+  width: min(1040px, calc(100% - var(--plato-space-10) - var(--plato-space-10)));
+  max-height: calc(
+    100dvh - (var(--plato-page-padding) * 2) -
+      var(--plato-inputbar-height) - var(--plato-layout-gap) -
+      var(--plato-space-6) - var(--plato-space-6)
+  );
+  margin:
+    var(--plato-space-6)
+    auto
+    calc(var(--plato-inputbar-height) * 0.5);
+  border-color: rgb(255 255 255 / 68%);
+  border-radius: 8px;
+  background:
+    radial-gradient(
+      circle at 18% 0%,
+      rgb(229 247 248 / 26%),
+      transparent 34%
+    ),
+    radial-gradient(
+      circle at 88% 12%,
+      rgb(221 237 249 / 32%),
+      transparent 38%
+    ),
+    linear-gradient(
+      180deg,
+      rgb(255 255 255 / 78%),
+      rgb(250 253 253 / 68%)
+    );
+  box-shadow:
+    0 24px 80px rgb(28 44 52 / 20%),
+    inset 0 1px 0 rgb(255 255 255 / 82%);
+  -webkit-backdrop-filter: blur(28px) saturate(1.12);
+  backdrop-filter: blur(28px) saturate(1.12);
+}
+
+.page:not(.pageWithoutDetail) .planWorkspace {
+  border-right: 1px solid rgb(255 255 255 / 68%);
+  border-top-right-radius: 8px;
+  border-bottom-right-radius: 8px;
+}
+
+.planProgressWorkspaceBody {
+  display: grid;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+}
+
+.conversationLayer {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-width: 0;
+  min-height: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  overflow: hidden;
+  padding: 0;
+}
+
+.conversationWorkspace {
+  grid-area: work;
+  z-index: 1;
+  min-width: var(--plato-workspace-min-width);
+  border: 0;
+  border-radius: 0;
+  padding: var(--plato-space-4) var(--plato-space-5);
+  background: transparent;
+  box-shadow: none;
+}
+
+.page:not(.pageWithoutDetail) .conversationWorkspace {
+  border-right: 0;
+  border-radius: 0;
+}
+
+.conversationHeader {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--plato-space-3);
+  min-height: 48px;
+  border-bottom: 1px solid var(--plato-color-line);
+  padding-bottom: var(--plato-space-3);
+  margin-bottom: var(--plato-space-4);
+}
+
+.conversationHeader h2 {
+  flex: 0 0 auto;
+  margin: 0;
+}
+
+.conversationHeaderActions {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--plato-space-2);
+}
+
+.conversationMessageList {
+  display: grid;
+  min-width: 0;
+  align-content: start;
+  gap: var(--plato-space-6);
+  overflow: auto;
+  padding: var(--plato-space-1) var(--plato-space-3) 0 0;
+  padding-bottom: calc(
+    var(--plato-inputbar-height) + var(--plato-layout-gap)
+  );
 }
 
 .panel,
@@ -655,11 +827,6 @@
   min-width: 0;
   min-height: 0;
   overflow: hidden;
-  border-top: 0;
-  padding-top: 0;
-}
-
-.workGridWithoutActivity .taskListPanel {
   border-top: 0;
   padding-top: 0;
 }
@@ -1014,19 +1181,116 @@
   white-space: nowrap;
 }
 
-.messageCard {
-  border-left: 3px solid var(--plato-color-wisdom-gold);
+.conversationMessage {
+  display: grid;
+  min-width: 0;
+  max-width: min(78%, 720px);
+  gap: var(--plato-space-2);
+}
+
+.systemConversationMessage {
+  position: relative;
+  padding-left: var(--plato-space-4);
+  justify-self: start;
+  text-align: left;
+}
+
+.systemConversationMessage::before {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  left: 0;
+  width: 2px;
+  border-radius: var(--plato-radius-lg);
+  background: color-mix(
+    in srgb,
+    var(--plato-color-line) 78%,
+    var(--plato-color-cave-blue)
+  );
+  content: "";
+}
+
+.userConversationMessage {
+  max-width: min(68%, 640px);
+  border: 1px solid var(--plato-color-line);
   border-radius: 8px;
-  padding: var(--plato-space-3);
-  background: var(--plato-color-semantic-surface);
+  padding: var(--plato-space-3) var(--plato-space-4);
+  background: var(--plato-color-panel);
+  box-shadow: 0 10px 28px rgb(24 32 51 / 7%);
+  justify-self: end;
+  text-align: left;
+}
+
+.userInputConversationMessage {
+  border-color: color-mix(
+    in srgb,
+    var(--plato-color-cave-blue) 36%,
+    var(--plato-color-line)
+  );
+  background: color-mix(
+    in srgb,
+    var(--plato-color-clear-blue) 34%,
+    var(--plato-color-panel)
+  );
+  box-shadow:
+    inset 3px 0 0 color-mix(
+      in srgb,
+      var(--plato-color-cave-blue) 60%,
+      transparent
+    ),
+    0 10px 28px rgb(24 32 51 / 7%);
+}
+
+.userAnswerConversationMessage {
+  border-color: color-mix(
+    in srgb,
+    var(--plato-color-success-text) 34%,
+    var(--plato-color-line)
+  );
+  background: color-mix(
+    in srgb,
+    var(--plato-color-success-bg) 48%,
+    var(--plato-color-panel)
+  );
+  box-shadow:
+    inset 3px 0 0 color-mix(
+      in srgb,
+      var(--plato-color-success-text) 58%,
+      transparent
+    ),
+    0 10px 28px rgb(24 32 51 / 7%);
+}
+
+.userActionConversationMessage {
+  border-color: color-mix(
+    in srgb,
+    var(--plato-color-warning-text) 34%,
+    var(--plato-color-line)
+  );
+  background: color-mix(
+    in srgb,
+    var(--plato-color-warning-bg) 44%,
+    var(--plato-color-panel)
+  );
+  box-shadow:
+    inset 3px 0 0 color-mix(
+      in srgb,
+      var(--plato-color-warning-text) 60%,
+      transparent
+    ),
+    0 10px 28px rgb(24 32 51 / 7%);
 }
 
 .messageScope,
-.messageMeta {
+.conversationMessageMeta {
   display: flex;
   min-width: 0;
   align-items: center;
   gap: var(--plato-space-2);
+}
+
+.userConversationMessage .conversationMessageMeta {
+  justify-content: flex-end;
 }
 
 .messageScope {
@@ -1034,12 +1298,15 @@
   margin-bottom: var(--plato-space-3);
 }
 
-.messageMeta {
+.conversationMessageMeta {
   flex-wrap: wrap;
-  margin-bottom: var(--plato-space-1);
 }
 
-.messageMeta span:last-child {
+.systemConversationMessage .conversationMessageMeta {
+  align-items: baseline;
+}
+
+.conversationMessageMeta span:last-child {
   min-width: 0;
   color: var(--plato-color-muted);
   font-size: var(--plato-type-caption-size);
@@ -1047,8 +1314,137 @@
   overflow-wrap: anywhere;
 }
 
-.messageCard strong {
-  margin-bottom: var(--plato-space-1);
+.conversationMessageTime {
+  flex: 0 0 auto;
+  color: var(--plato-color-muted);
+  font-size: var(--plato-type-caption-size);
+  line-height: var(--plato-type-caption-line-height);
+  white-space: nowrap;
+}
+
+.conversationMessageBody {
+  color: var(--plato-color-muted);
+}
+
+.systemConversationMessage .conversationMessageBody {
+  max-width: min(100%, 760px);
+}
+
+.userConversationMessage .conversationMessageBody {
+  color: var(--plato-color-ink);
+}
+
+.routerTraceCard,
+.conversationQuestionCard {
+  display: grid;
+  max-width: min(100%, 760px);
+  gap: var(--plato-space-3);
+  border: 1px solid var(--plato-color-line);
+  border-radius: 8px;
+  padding: var(--plato-space-3);
+  background: var(--plato-color-panel);
+}
+
+.routerTraceCard p,
+.conversationQuestionCard p {
+  margin: 0;
+  color: var(--plato-color-ink);
+  font-size: var(--plato-type-body-size);
+  line-height: var(--plato-type-body-line-height);
+}
+
+.routerTraceCard dl {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
+  gap: var(--plato-space-2);
+  margin: 0;
+}
+
+.routerTraceCard dl div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.routerTraceCard dt {
+  color: var(--plato-color-muted);
+  font-size: var(--plato-type-caption-size);
+  line-height: var(--plato-type-caption-line-height);
+}
+
+.routerTraceCard dd {
+  margin: 0;
+  color: var(--plato-color-ink);
+  font-size: var(--plato-type-body-size);
+  line-height: var(--plato-type-body-line-height);
+  overflow-wrap: anywhere;
+}
+
+.conversationQuestionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--plato-space-3);
+}
+
+.conversationQuestionHeader strong {
+  min-width: 0;
+  color: var(--plato-color-ink);
+  overflow-wrap: anywhere;
+}
+
+.conversationQuestionInputs {
+  display: grid;
+  gap: var(--plato-space-2);
+}
+
+.conversationQuestionInputs label {
+  display: grid;
+  gap: var(--plato-space-1);
+  color: var(--plato-color-muted);
+  font-size: var(--plato-type-caption-size);
+  line-height: var(--plato-type-caption-line-height);
+}
+
+.conversationQuestionInputs textarea {
+  width: 100%;
+  min-height: 72px;
+  resize: vertical;
+  border: 1px solid var(--plato-color-line);
+  border-radius: 8px;
+  padding: var(--plato-space-2);
+  background: var(--plato-color-surface);
+  color: var(--plato-color-muted);
+  font: inherit;
+}
+
+.conversationQuestionOptions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: var(--plato-space-2);
+}
+
+.conversationQuestionOptions button {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  border: 1px solid var(--plato-color-line);
+  border-radius: 8px;
+  padding: var(--plato-space-2);
+  background: var(--plato-color-surface);
+  color: var(--plato-color-ink);
+  text-align: left;
+}
+
+.conversationQuestionOptions button:disabled {
+  cursor: default;
+  opacity: 0.82;
+}
+
+.conversationQuestionOptions small {
+  color: var(--plato-color-muted);
+  font-size: var(--plato-type-caption-size);
+  line-height: var(--plato-type-caption-line-height);
 }
 
 .latestActivityStrip {
@@ -1131,11 +1527,51 @@
   grid-area: detail;
   min-width: var(--plato-detail-min-width);
   min-height: 0;
-  margin-bottom: calc(
-    var(--plato-inputbar-height) + var(--plato-layout-gap)
-  );
+  border: 0;
+  border-radius: 0;
   overflow: auto;
-  padding: var(--plato-space-4);
+  padding: var(--plato-space-4) 0 var(--plato-space-4) var(--plato-space-5);
+  background: transparent;
+  box-shadow: none;
+}
+
+.detailSplitter {
+  grid-area: splitter;
+  position: relative;
+  z-index: 18;
+  align-self: stretch;
+  width: var(--plato-splitter-width);
+  min-width: var(--plato-splitter-width);
+  min-height: 0;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  cursor: col-resize;
+  background:
+    linear-gradient(
+      to right,
+      transparent calc(50% - 0.5px),
+      var(--plato-color-line) calc(50% - 0.5px),
+      var(--plato-color-line) calc(50% + 0.5px),
+      transparent calc(50% + 0.5px)
+    );
+}
+
+.detailSplitter:hover,
+.detailSplitter:focus-visible {
+  outline: none;
+  background:
+    linear-gradient(
+      to right,
+      transparent calc(50% - 1px),
+      var(--plato-color-cave-blue) calc(50% - 1px),
+      var(--plato-color-cave-blue) calc(50% + 1px),
+      transparent calc(50% + 1px)
+    );
+}
+
+.detailSplitter:focus-visible {
+  box-shadow: var(--plato-shadow-focus);
 }
 
 .detailHeaderTitle {
@@ -1159,10 +1595,11 @@
   display: grid;
   gap: var(--plato-space-3);
   margin-top: var(--plato-space-5);
-  border: 1px solid var(--plato-color-semantic-border);
-  border-radius: 8px;
-  padding: var(--plato-space-4);
-  background: var(--plato-color-semantic-surface-muted);
+  border: 0;
+  border-top: 1px solid var(--plato-color-semantic-border);
+  border-radius: 0;
+  padding: var(--plato-space-4) 0 0;
+  background: transparent;
 }
 
 .detailTitleRow {
@@ -1321,8 +1758,8 @@
 }
 
 .contextInput {
-  grid-column: 2 / 4;
-  grid-row: 2;
+  grid-column: 2 / 3;
+  grid-row: 1;
   align-self: end;
   position: sticky;
   bottom: var(--plato-page-padding);
@@ -1570,7 +2007,6 @@
     height: auto;
     min-height: 100dvh;
     grid-template:
-      "top" auto
       "side" auto
       "work" auto
       "detail" auto
@@ -1581,66 +2017,40 @@
 
   .pageWithoutDetail {
     grid-template:
-      "top" auto
       "side" auto
       "work" auto
       "input" auto / minmax(0, 1fr);
   }
 
-  .topBar {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    max-height: none;
-    overflow: visible;
-    padding: var(--plato-space-4);
-  }
-
-  .brandBlock,
-  .topBarContextBlock,
-  .workflowPill,
-  .sessionContextBlock,
-  .statusCluster,
-  .topBarActions {
-    min-width: 0;
-  }
-
-  .workflowPill,
-  .sessionContextBlock {
-    grid-column: 1 / -1;
-    justify-content: flex-start;
-  }
-
-  .statusCluster {
-    flex-wrap: wrap;
-    justify-content: flex-start;
-  }
-
-  .topBarActions {
-    flex-wrap: wrap;
-    justify-content: flex-end;
-    overflow: visible;
-  }
-
-  .topBarTrailing {
-    max-width: 160px;
-  }
-
-  .topBarTrailing .statePicker select {
-    max-width: 160px;
+  .statusPage {
+    grid-template:
+      "work" auto / minmax(0, 1fr);
   }
 
   .sidebar {
     max-height: 240px;
+    margin-right: 0;
   }
 
   .workspace,
+  .conversationWorkspace,
   .detailPanel {
     min-width: 0;
     margin-bottom: 0;
     overflow: visible;
   }
 
-  .workGrid {
-    grid-template-columns: minmax(0, 1fr);
+  .planWorkspace {
+    width: calc(100% - var(--plato-space-6) - var(--plato-space-6));
+    max-height: none;
+    margin:
+      var(--plato-space-6)
+      auto
+      var(--plato-space-6);
+  }
+
+  .detailSplitter {
+    display: none;
   }
 
   .latestActivityStrip {
@@ -1673,36 +2083,44 @@
   .page {
     --plato-page-padding: var(--plato-space-3);
 
-    padding: 0 var(--plato-page-padding) var(--plato-page-padding);
-  }
-
-  .topBar {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .brandBlock,
-  .topBarContextBlock,
-  .workflowPill,
-  .sessionContextBlock,
-  .statusCluster,
-  .topBarActions {
-    grid-column: 1 / -1;
-  }
-
-  .topBarActions {
-    justify-content: flex-start;
+    padding: var(--plato-page-padding);
   }
 
   .sidebar,
   .workspace,
-  .detailPanel,
+  .conversationWorkspace,
   .contextInput {
+    padding: var(--plato-space-4);
+  }
+
+  .detailPanel {
     padding: var(--plato-space-4);
   }
 
   .sectionHeader h1 {
     font-size: var(--plato-type-section-title-size);
     line-height: var(--plato-type-section-title-line-height);
+  }
+
+  .conversationHeader {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .conversationHeaderActions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .collapsedPlanTopbarButton {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .planWorkspace {
+    width: 100%;
+    margin: var(--plato-space-4) 0;
   }
 
   .panel,

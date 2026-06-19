@@ -386,12 +386,28 @@ def test_agent_loop_logs_execution_agent_llm_input_and_output(tmp_path: Path) ->
     result = loop.run("Finish the task.", task_id="task-1")
 
     assert result.finished
-    rows = _read_jsonl(tmp_path / "logs" / "sessions" / "session-1" / "llm.jsonl")
-    agent_rows = [
-        row for row in rows if row["event"] in {"agent_input", "agent_output"}
+    meta_rows = _read_jsonl(
+        tmp_path / "logs" / "sessions" / "session-1" / "llm.jsonl"
+    )
+    io_rows = _read_jsonl(
+        tmp_path / "logs" / "sessions" / "session-1" / "llm_io.jsonl"
+    )
+    meta_agent_rows = [
+        row for row in meta_rows if row["event"] in {"agent_input", "agent_output"}
     ]
-    assert [row["event"] for row in agent_rows] == ["agent_input", "agent_output"]
-    input_row, output_row = agent_rows
+    io_agent_rows = [
+        row for row in io_rows if row["event"] in {"agent_input", "agent_output"}
+    ]
+    assert [row["event"] for row in meta_agent_rows] == [
+        "agent_input",
+        "agent_output",
+    ]
+    assert [row["event"] for row in io_agent_rows] == [
+        "agent_input",
+        "agent_output",
+    ]
+    input_row, output_row = meta_agent_rows
+    input_io_row, output_io_row = io_agent_rows
 
     assert input_row["context"] == {
         "session_id": "session-1",
@@ -400,19 +416,27 @@ def test_agent_loop_logs_execution_agent_llm_input_and_output(tmp_path: Path) ->
     }
     assert input_row["data"]["agent_kind"] == "execution_agent"
     assert input_row["data"]["request_purpose"] == "execution.agent_loop.step"
-    assert input_row["data"]["messages"][1] == {
+    assert "messages" not in input_row["data"]
+    assert input_io_row["data"]["input"]["messages"][1] == {
         "role": "user",
         "content": "Finish the task.",
     }
     assert input_row["data"]["metadata"]["session_id"] == "session-1"
     assert input_row["data"]["metadata"]["task_id"] == "task-1"
-    assert input_row["data"]["tools"][0]["function"]["name"] == FINISH_TOOL_NAME
+    assert (
+        input_io_row["data"]["input"]["tools"][0]["function"]["name"]
+        == FINISH_TOOL_NAME
+    )
 
     assert output_row["context"] == input_row["context"]
     assert output_row["data"]["agent_kind"] == "execution_agent"
     assert output_row["data"]["request_purpose"] == "execution.agent_loop.step"
     assert output_row["data"]["tool_calls"][0]["name"] == FINISH_TOOL_NAME
-    assert output_row["data"]["raw_assistant_message"]["role"] == "assistant"
+    assert "raw_assistant_message" not in output_row["data"]
+    assert (
+        output_io_row["data"]["output"]["raw_assistant_message"]["role"]
+        == "assistant"
+    )
 
 
 class PersistingContextProvider:

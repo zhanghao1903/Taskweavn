@@ -2,7 +2,7 @@
 
 > Status: done / accepted
 > Type: Product 1.0 minimal task control and execution safety
-> Last Updated: 2026-06-05
+> Last Updated: 2026-06-15
 > Decisions: [ADR-0011 Routing Agent Assignment And Cooperative Interruption](../../decisions/ADR-0011-routing-agent-assignment-and-cooperative-interruption.md), [ADR-0014 Interaction Control Taxonomy For Product 1.0](../../decisions/ADR-0014-interaction-control-taxonomy-for-product-1-0.md)
 > Architecture: [Task](../../architecture/task.md), [TaskBus](../../architecture/bus.md), [Agent](../../architecture/agent.md), [Context Manager](../../architecture/context-manager.md), [UI / Backend Communication](../../architecture/ui-backend-communication.md)
 > Related Plans: [Fixed-route Task Execution Bridge](fixed-route-task-execution-bridge.md), [Linear Authoring And Retry Recovery](linear-authoring-retry-recovery.md), [Context Manager Cache-Aware Rendering](context-manager-cache-aware-rendering.md)
@@ -111,6 +111,8 @@ UI integration work.
 - TaskBus interrupt intent for active published Tasks.
 - Pending Task immediate stop as terminal `failed`.
 - Running Task cooperative stop request and UI `stopping` projection.
+- Snapshot-time stale stop recovery when no safe-point acknowledgement arrives
+  within the recovery grace period.
 - Agent/runtime safe-point checks in the fixed-route Default Agent path.
 - Context Manager `InterruptionContext` population.
 - Audit/event evidence for request and terminal outcome.
@@ -183,6 +185,24 @@ must show that the stop request arrived but completion won the race.
 If the Task is already terminal, the stop request should be rejected as a
 command error or treated as an idempotent no-op only if the command layer can
 prove the same request was already recorded.
+
+### 6.5 Stale Stop Recovery
+
+`Stopping...` is a temporary projection, not a durable state. If a running Task
+has `interrupt_requested=true` and no Agent/runtime safe-point acknowledgement
+arrives within the recovery grace period, snapshot reads may recover the Task as
+a terminal cancellation:
+
+```text
+running + interrupt_requested=true + stale
+  -> failed
+  -> error_ref = "cancelled: <reason>; safe_point=snapshot_recovery"
+```
+
+This is a best-effort UI and lifecycle recovery path for dev restarts, worker
+crashes, and long non-interruptible calls. It is not a background timeout
+scheduler and does not guarantee OS-level cancellation of work already running
+inside an LLM call, tool call, or external process.
 
 ---
 

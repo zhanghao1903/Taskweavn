@@ -45,9 +45,12 @@ describe("MainPageWorkbench layout", () => {
     renderWorkbench(viewModel);
 
     expect(screen.getByRole("main")).toHaveClass(styles.pageWithoutDetail);
-    expect(screen.getByLabelText("Task workspace")).toBeInTheDocument();
+    expect(screen.getByLabelText("Conversation")).toBeInTheDocument();
     expect(
       screen.queryByRole("complementary", { name: "Details" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("separator", { name: "Resize details panel" }),
     ).not.toBeInTheDocument();
   });
 
@@ -133,6 +136,33 @@ describe("MainPageWorkbench layout", () => {
     expect(
       screen.getByRole("complementary", { name: "Details" }),
     ).toBeInTheDocument();
+    expect(
+      screen.getByRole("separator", { name: "Resize details panel" }),
+    ).toBeInTheDocument();
+  });
+
+  it("resizes the detail pane with keyboard controls", () => {
+    const viewModel = buildViewModel("s3-draft-ready");
+
+    renderWorkbench(viewModel);
+
+    const main = screen.getByRole("main");
+    const splitter = screen.getByRole("separator", {
+      name: "Resize details panel",
+    });
+
+    expect(splitter).toHaveAttribute("aria-valuenow", "380");
+    expect(main).toHaveStyle({ "--plato-detail-width": "380px" });
+
+    fireEvent.keyDown(splitter, { key: "ArrowLeft" });
+
+    expect(splitter).toHaveAttribute("aria-valuenow", "404");
+    expect(main).toHaveStyle({ "--plato-detail-width": "404px" });
+
+    fireEvent.keyDown(splitter, { key: "Home" });
+
+    expect(splitter).toHaveAttribute("aria-valuenow", "320");
+    expect(main).toHaveStyle({ "--plato-detail-width": "320px" });
   });
 
   it("keeps the detail column when a selected TaskNode has detail content", () => {
@@ -171,6 +201,98 @@ describe("MainPageWorkbench layout", () => {
       latestActivity.compareDocumentPosition(firstTaskCard!) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
+  });
+
+  it("expands the Plan & Progress layer when a task tree exists", () => {
+    const viewModel = buildViewModel("s3-draft-ready");
+
+    renderWorkbench(viewModel);
+
+    expect(screen.getByLabelText("Plan & Progress workspace")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Collapse" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Conversation")).toBeInTheDocument();
+    expect(screen.getByText("Requirement analysis")).toBeInTheDocument();
+  });
+
+  it("collapses to Conversation and can reopen Plan & Progress", async () => {
+    const user = userEvent.setup();
+    const readOnlyAnswerActivity = activityItem({
+      body: "The selected task is still a draft. No state changed.",
+      id: "activity:inquiry:route-read-only-answer",
+      kind: "answer",
+      sourceKind: "router",
+      taskNodeId: "task-visual-direction",
+      title: "Read-only answer",
+    });
+    const viewModel = buildViewModel("s3-draft-ready", {
+      selectedTaskNodeId: "task-visual-direction",
+    });
+
+    renderWorkbench(viewModel, buildActions(), {
+      runtimeActivityItems: [readOnlyAnswerActivity],
+    });
+
+    await user.click(screen.getByRole("button", { name: "Collapse" }));
+
+    const collapsedPlanButton = screen.getByRole("button", {
+      name: "Open Plan & Progress: Personal website project plan",
+    });
+
+    expect(
+      screen.queryByLabelText("Collapsed Plan & Progress"),
+    ).not.toBeInTheDocument();
+    expect(collapsedPlanButton).toBeInTheDocument();
+    expect(screen.getByText("Personal website project plan")).toBeInTheDocument();
+    expect(screen.getByLabelText("Conversation")).toBeInTheDocument();
+    expect(screen.getAllByText("Read-only answer").length).toBeGreaterThan(0);
+    expect(
+      screen.getByText("The selected task is still a draft. No state changed."),
+    ).toBeInTheDocument();
+
+    await user.click(collapsedPlanButton);
+
+    expect(screen.getByLabelText("Plan & Progress workspace")).toBeInTheDocument();
+    expect(screen.getByText("Requirement analysis")).toBeInTheDocument();
+  });
+
+  it("shows Conversation without a Plan control for an empty session", () => {
+    const viewModel = buildViewModel("s1-empty");
+
+    renderWorkbench(viewModel);
+
+    expect(screen.getByLabelText("Conversation")).toBeInTheDocument();
+    expect(
+      screen.queryByLabelText("Collapsed Plan & Progress"),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText("No conversation yet")).toBeInTheDocument();
+  });
+
+  it("shows read-only answer state in Conversation without adding task rows", () => {
+    const viewModel = buildViewModel("s15-read-only-answer");
+
+    renderWorkbench(viewModel);
+
+    expect(screen.getByLabelText("Conversation")).toBeInTheDocument();
+    expect(screen.getByText("Answer provided")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Run npm install once, then npm run dev from the frontend directory.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Update README startup commands"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows direct task state as a single runnable task", () => {
+    const viewModel = buildViewModel("s16-direct-task");
+
+    renderWorkbench(viewModel);
+
+    expect(screen.getByLabelText("Plan & Progress workspace")).toBeInTheDocument();
+    expect(screen.getAllByText("Update README startup commands").length).toBeGreaterThan(0);
+    expect(screen.getByText("running")).toBeInTheDocument();
+    expect(screen.queryByText("Requirement analysis")).not.toBeInTheDocument();
   });
 
   it("loads typed activity when the activity overlay opens", async () => {
@@ -232,17 +354,18 @@ describe("MainPageWorkbench layout", () => {
       runtimeActivityItems: [readOnlyAnswerActivity],
     });
 
-    expect(screen.getByText("Read-only answer")).toBeInTheDocument();
+    expect(screen.getAllByText("Read-only answer").length).toBeGreaterThan(0);
 
     await user.click(
       screen.getByRole("button", { name: /Open task updates/i }),
     );
 
     expect(loadSessionActivity).toHaveBeenCalledTimes(1);
-    expect(await screen.findAllByText("Read-only answer")).toHaveLength(2);
+    expect((await screen.findAllByText("Read-only answer")).length).toBeGreaterThanOrEqual(2);
     expect(
-      screen.getByText("The selected task is still a draft. No state changed."),
-    ).toBeInTheDocument();
+      screen.getAllByText("The selected task is still a draft. No state changed.")
+        .length,
+    ).toBeGreaterThan(0);
   });
 
   it("exports a redacted diagnostic bundle from diagnostic activity refs", async () => {

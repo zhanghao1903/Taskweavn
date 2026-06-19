@@ -175,6 +175,10 @@ class GuidanceContextSource:
         return self.guidance
 
 
+class ExecutionGuidanceSource(Protocol):
+    def collect(self, request: ContextBuildRequest) -> ExecutionGuidance: ...
+
+
 def merge_facts(*facts: ExecutionFacts) -> ExecutionFacts:
     return ExecutionFacts(
         recent_events=tuple(_chain(fact.recent_events for fact in facts)),

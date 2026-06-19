@@ -20,7 +20,9 @@ describe("App routing", () => {
       </AppProviders>,
     );
 
-    expect(await screen.findByText("Plan & Progress")).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: "Plan & Progress" }),
+    ).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "View audit" })).toHaveAttribute(
       "href",
       expect.stringContaining("/audit"),
@@ -77,7 +79,9 @@ describe("App routing", () => {
     expect(
       screen.getByText("Workspace inspection requires the local sidecar."),
     ).toBeInTheDocument();
-    expect(screen.queryByText("Plan & Progress")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "Plan & Progress" }),
+    ).not.toBeInTheDocument();
   });
 
   it("re-renders Workspace Inspection when only query parameters change", async () => {
@@ -105,6 +109,31 @@ describe("App routing", () => {
     expect(screen.queryByRole("heading", { name: "File diff" })).not.toBeInTheDocument();
   });
 
+  it("handles Workspace Inspection file links as SPA navigation", async () => {
+    const user = userEvent.setup();
+    globalThis.history.pushState(
+      null,
+      "",
+      "/workspaces/ws-a/inspection?view=status&path=src%2FApp.tsx",
+    );
+
+    render(
+      <AppProviders>
+        <App />
+      </AppProviders>,
+    );
+
+    expect(
+      await screen.findByRole("heading", { name: "Changed files" }),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole("link", { name: "Diff" }));
+
+    expect(await screen.findByRole("heading", { name: "File diff" })).toBeInTheDocument();
+    expect(globalThis.location.pathname).toBe("/workspaces/ws-a/inspection");
+    expect(globalThis.location.search).toContain("view=diff");
+  });
+
   it("re-renders the Main Page after Audit Page Return SPA navigation", async () => {
     const user = userEvent.setup();
     globalThis.history.pushState(
@@ -123,7 +152,9 @@ describe("App routing", () => {
 
     await user.click(screen.getByRole("button", { name: "Return" }));
 
-    expect(await screen.findByText("Plan & Progress")).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: "Plan & Progress" }),
+    ).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "View audit" })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Audit" })).not.toBeInTheDocument();
     expect(globalThis.location.pathname).not.toContain("/audit");
@@ -151,6 +182,8 @@ describe("App routing", () => {
     expect(globalThis.location.search).toBe(
       "?taskNodeId=task-return&workspaceId=workspace-return",
     );
-    expect(await screen.findByText("Plan & Progress")).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: "Plan & Progress" }),
+    ).toBeInTheDocument();
   });
 });

@@ -20,6 +20,11 @@ from taskweavn.context import (
     SqliteContextStore,
     TaskContextSource,
 )
+from taskweavn.contract_revision import (
+    ContractGuidanceContextSource,
+    GuidanceFactStore,
+    MergedGuidanceContextSource,
+)
 from taskweavn.core import (
     LoopInterruptIntent,
     LoopResult,
@@ -84,6 +89,7 @@ def build_agent_loop_resident_default_agent(
     web_fetch_provider: WebFetchProvider | None = None,
     enable_computer_use_tool: bool = False,
     computer_use_backend: ComputerUseBackend | None = None,
+    contract_guidance_store: GuidanceFactStore | None = None,
 ) -> AgentLoopResidentDefaultAgent:
     """Build the resident Default Agent used by the fixed-route sidecar bridge."""
 
@@ -100,6 +106,7 @@ def build_agent_loop_resident_default_agent(
                 session_id=task.session_id,
                 settings_store=settings_store,
                 settings_env=settings_env,
+                contract_guidance_store=contract_guidance_store,
             )
 
         context_builder_factory = build_context_builder
@@ -141,6 +148,7 @@ class _SessionContextBuilder:
     include_computer_use: bool = False
     settings_store: FileSettingsConfigStore | None = None
     settings_env: Mapping[str, str] | None = None
+    contract_guidance_store: GuidanceFactStore | None = None
 
     def build(self, request: ContextBuildRequest) -> ContextBuildResult:
         self.layout.bootstrap_session(self.session_id)
@@ -156,6 +164,26 @@ class _SessionContextBuilder:
             SqliteEventStream(self.layout.session_events_db(self.session_id)) as event_stream,
             SqliteContextStore(self.layout.session_context_db(self.session_id)) as context_store,
         ):
+            default_guidance_source = GuidanceContextSource(
+                _execution_guidance(
+                    request_confirmation_available=(
+                        self.include_request_confirmation
+                    ),
+                    web_search_available=web_search_available,
+                    web_fetch_available=web_fetch_available,
+                    computer_use_available=self.include_computer_use,
+                )
+            )
+            guidance_source = (
+                default_guidance_source
+                if self.contract_guidance_store is None
+                else MergedGuidanceContextSource(
+                    (
+                        default_guidance_source,
+                        ContractGuidanceContextSource(self.contract_guidance_store),
+                    )
+                )
+            )
             manager = SessionContextManager(
                 task_source=TaskContextSource(self.task_bus),
                 event_source=EventStreamContextSource(
@@ -176,16 +204,7 @@ class _SessionContextBuilder:
                         include_computer_use=self.include_computer_use,
                     ),
                 ),
-                guidance_source=GuidanceContextSource(
-                    _execution_guidance(
-                        request_confirmation_available=(
-                            self.include_request_confirmation
-                        ),
-                        web_search_available=web_search_available,
-                        web_fetch_available=web_fetch_available,
-                        computer_use_available=self.include_computer_use,
-                    )
-                ),
+                guidance_source=guidance_source,
                 store=context_store,
             )
             return manager.build(request)

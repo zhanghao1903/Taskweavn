@@ -679,6 +679,8 @@ function toSessionSummary(session: (typeof mainPageStates)[number]["session"]): 
 function sessionStatusForFixture(stateId: MainPageStateId): SessionStatus {
   switch (stateId) {
     case "s1-empty":
+    case "s15-read-only-answer":
+    case "s17-conversation-visual-samples":
       return "new";
     case "s2-understanding":
       return "understanding";
@@ -690,6 +692,7 @@ function sessionStatusForFixture(stateId: MainPageStateId): SessionStatus {
     case "s6-running":
     case "s11-stale-snapshot":
     case "s12-backend-busy":
+    case "s16-direct-task":
       return "running";
     case "s7-confirmation":
     case "s14-execution-ask":
@@ -794,7 +797,8 @@ function permissionsForFixture(
 
   return {
     canAppendGuidance: !readonly && !stale,
-    canCreateTaskTree: stateId === "s1-empty",
+    canCreateTaskTree:
+      stateId === "s1-empty" || stateId === "s15-read-only-answer",
     canOpenAudit: true,
     canOpenSettings: true,
     canPublishTaskTree: stateId === "s3-draft-ready",

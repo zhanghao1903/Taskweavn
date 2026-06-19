@@ -212,6 +212,7 @@ export type BuildMainPageViewModelInput = {
   isStoppingTask: boolean;
   isResolvingConfirmation: boolean;
   metadata: MainPageStateMetadata;
+  runtimeInputRouterAvailable?: boolean;
   selectionTarget?: MainPageSelectionTarget;
   selectedTaskNodeId: TaskNodeId | null;
   snapshot: MainPageSnapshot;
@@ -242,6 +243,7 @@ export function buildMainPageViewModel({
   isStoppingTask,
   isResolvingConfirmation,
   metadata,
+  runtimeInputRouterAvailable = false,
   selectionTarget,
   selectedTaskNodeId,
   snapshot,
@@ -313,6 +315,7 @@ export function buildMainPageViewModel({
     sessionPermissions: snapshot.permissions,
     inputDisabled,
     metadata,
+    runtimeInputRouterAvailable,
     selectedTask,
     hasConfirmationFocus,
     detailOverride,
@@ -826,6 +829,7 @@ function inputViewFor({
   hasConfirmationFocus,
   inputDisabled,
   metadata,
+  runtimeInputRouterAvailable,
   sessionPermissions,
   selectedTask,
   taskTree,
@@ -835,6 +839,7 @@ function inputViewFor({
   hasConfirmationFocus: boolean;
   inputDisabled: boolean;
   metadata: MainPageStateMetadata;
+  runtimeInputRouterAvailable: boolean;
   sessionPermissions: MainPageSnapshot["permissions"];
   selectedTask: TaskNodeCardView | undefined;
   taskTree: MainPageSnapshot["taskTree"];
@@ -850,6 +855,7 @@ function inputViewFor({
   const availability = inputAvailabilityFor({
     hasAuthoringAsk,
     inputDisabled,
+    runtimeInputRouterAvailable,
     selectedTask,
     sessionPermissions,
     taskTree,
@@ -879,12 +885,14 @@ function inputViewFor({
 function inputAvailabilityFor({
   hasAuthoringAsk,
   inputDisabled,
+  runtimeInputRouterAvailable,
   selectedTask,
   sessionPermissions,
   taskTree,
 }: {
   hasAuthoringAsk: boolean;
   inputDisabled: boolean;
+  runtimeInputRouterAvailable: boolean;
   selectedTask: TaskNodeCardView | undefined;
   sessionPermissions: MainPageSnapshot["permissions"];
   taskTree: MainPageSnapshot["taskTree"];
@@ -900,6 +908,13 @@ function inputAvailabilityFor({
     return {
       disabled: true,
       disabledReason: "Input command is submitting.",
+    };
+  }
+
+  if (runtimeInputRouterAvailable) {
+    return {
+      disabled: false,
+      disabledReason: null,
     };
   }
 

@@ -7,6 +7,7 @@ import json
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
 from urllib.parse import quote
@@ -1169,6 +1170,65 @@ def test_main_page_sidecar_app_recovers_stale_interrupted_running_task_on_startu
     assert events.status == 200
     assert "event: task.node.changed" in events.text
     assert '"taskNodeIds":["stale-task"]' in events.text
+
+
+def test_main_page_sidecar_app_recovers_stale_stop_before_snapshot(
+    tmp_path: Any,
+) -> None:
+    app = build_main_page_sidecar_app(
+        MainPageSidecarConfig(workspace_root=tmp_path, port=0),
+        MainPageSidecarDependencies(llm=_StubLLM()),
+    )
+    try:
+        session_id = _create_session(app)
+        app.task_bus.publish(_published_task("stale-stop-task", session_id=session_id))
+        assert (
+            app.task_bus.claim_next(
+                session_id,
+                capability="general",
+                agent_id="default_agent",
+            )
+            is not None
+        )
+        app.task_bus.request_interrupt(
+            session_id,
+            "stale-stop-task",
+            reason="user requested stop",
+            request_id="stop-stale-task",
+        )
+        interrupted = app.task_bus.get(session_id, "stale-stop-task")
+        assert interrupted is not None
+        app.task_bus._save_task(  # noqa: SLF001 - force durable stale stop fixture.
+            interrupted.model_copy(
+                update={
+                    "interrupt_requested_at": datetime(2026, 1, 1, tzinfo=UTC),
+                }
+            )
+        )
+
+        snapshot = _request(app, "GET", f"/api/v1/sessions/{session_id}/snapshot")
+        events = _request(app, "GET", f"/api/v1/sessions/{session_id}/events")
+        recovered = app.task_bus.get(session_id, "stale-stop-task")
+    finally:
+        app.close()
+
+    assert recovered is not None
+    assert recovered.status == "failed"
+    assert recovered.error_ref == (
+        "cancelled: user requested stop; safe_point=snapshot_recovery"
+    )
+    assert snapshot.status == 200
+    assert snapshot.json["ok"] is True
+    snapshot_node = snapshot.json["data"]["taskTree"]["nodes"][0]
+    assert snapshot_node["status"] == "failed"
+    assert snapshot_node["execution"] == "failed"
+    assert snapshot_node["interruptionRequested"] is True
+    assert snapshot_node["errorRef"] == (
+        "cancelled: user requested stop; safe_point=snapshot_recovery"
+    )
+    assert events.status == 200
+    assert "event: task.node.changed" in events.text
+    assert '"taskNodeIds":["stale-stop-task"]' in events.text
 
 
 def test_main_page_sidecar_app_fixed_route_tick_runs_agent_loop_default_agent(

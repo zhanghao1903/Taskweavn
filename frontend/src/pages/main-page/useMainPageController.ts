@@ -692,11 +692,13 @@ export function useMainPageController({
   const runtimeInputMutation = useMutation({
     mutationFn: async ({
       content,
+      mode,
       sessionId,
       target,
       taskNodeId,
     }: {
       content: string;
+      mode: MainPageInputCommandMode;
       sessionId: string;
       target: InputTarget;
       taskNodeId: TaskNodeId | null;
@@ -705,21 +707,24 @@ export function useMainPageController({
         throw new Error("Runtime input router is unavailable.");
       }
 
-      return adapter.routeRuntimeInput(
-        buildRuntimeInputRouteRequest({
-          content,
-          sessionId,
-          snapshot: snapshotDataRef.current?.snapshot ?? null,
-          target,
-          taskNodeId,
-        }),
+      const request = buildRuntimeInputRouteRequest({
+        content,
+        mode: runtimeInputModeFor(content, mode),
+        sessionId,
+        snapshot: snapshotDataRef.current?.snapshot ?? null,
+        target,
+        taskNodeId,
+      });
+      const response = await adapter.routeRuntimeInput(
+        request,
         activeWorkspaceId,
       );
+      return { request, response };
     },
     onError: () => {
       setInputCommandError("Question routing failed. Please retry.");
     },
-    onSuccess: (response) => {
+    onSuccess: ({ request, response }) => {
       if (!response.ok || response.data === null) {
         setInputCommandError(
           response.error?.message ?? "Question could not be answered.",
@@ -757,14 +762,19 @@ export function useMainPageController({
         routeResult.outcome.status === "dispatched"
       ) {
         const runtimeActivity = runtimeInputActivity(routeResult);
-        if (runtimeActivity !== null) {
+        const runtimeActivities = [
+          runtimeInputUserActivity(request, routeResult),
+          ...(runtimeActivity === null ? [] : [runtimeActivity]),
+        ];
+        if (runtimeActivities.length > 0) {
           setRuntimeActivityItems((items) =>
-            prependRuntimeActivityItem(items, runtimeActivity),
+            prependRuntimeActivityItems(items, runtimeActivities),
           );
         }
         setInputCommandError(null);
         setInputDraft("");
         setUiNotice(runtimeInputNotice(routeResult));
+        void refetchSnapshot();
         return;
       }
 
@@ -1335,12 +1345,10 @@ export function useMainPageController({
 
     setInputCommandError(null);
     setUiNotice(null);
-    if (
-      adapter.routeRuntimeInput !== undefined &&
-      shouldRouteReadOnlyQuestion(content)
-    ) {
+    if (adapter.routeRuntimeInput !== undefined) {
       runtimeInputMutation.mutate({
         content,
+        mode,
         sessionId,
         target,
         taskNodeId,
@@ -1597,12 +1605,14 @@ function shouldRouteReadOnlyQuestion(content: string): boolean {
 
 function buildRuntimeInputRouteRequest({
   content,
+  mode,
   sessionId,
   snapshot,
   target,
   taskNodeId,
 }: {
   content: string;
+  mode: RuntimeInputRouteRequest["mode"];
   sessionId: string;
   snapshot: MainPageSnapshot | null;
   target: InputTarget;
@@ -1620,7 +1630,7 @@ function buildRuntimeInputRouteRequest({
     commandId: `route-input-${Date.now()}`,
     sessionId,
     content,
-    mode: "ask",
+    mode,
     selection: {
       scopeKind,
       planId: scopeKind === "session" ? null : activePlan?.id ?? null,
@@ -1632,6 +1642,29 @@ function buildRuntimeInputRouteRequest({
       activeConfirmationId: snapshot?.pendingConfirmations[0]?.id ?? null,
     },
   };
+}
+
+function runtimeInputModeFor(
+  content: string,
+  mode: MainPageInputCommandMode,
+): NonNullable<RuntimeInputRouteRequest["mode"]> {
+  if (shouldRouteReadOnlyQuestion(content)) {
+    return "ask";
+  }
+
+  if (mode === "generate_task_tree") {
+    return "change";
+  }
+
+  if (
+    mode === "append_plan_input" ||
+    mode === "append_session_input" ||
+    mode === "append_task_input"
+  ) {
+    return "guide";
+  }
+
+  return "auto";
 }
 
 function runtimeInputNotice(result: RuntimeInputRouteResult): string {
@@ -1652,14 +1685,37 @@ function runtimeInputActivity(
   return result.activity ?? result.inquiryResult?.activity ?? null;
 }
 
-function prependRuntimeActivityItem(
+function runtimeInputUserActivity(
+  request: RuntimeInputRouteRequest,
+  result: RuntimeInputRouteResult,
+): SessionActivityItemView {
+  return {
+    id: `activity:runtime-input:${request.commandId}:user_input`,
+    sessionId: request.sessionId,
+    kind: "user_input",
+    title: "User input",
+    body: request.content,
+    occurredAt: result.generatedAt,
+    scopeKind: result.decision.scope.kind,
+    planId: result.decision.scope.planId ?? null,
+    taskNodeId: result.decision.scope.taskNodeId ?? null,
+    sideEffect: "context_effect",
+    relatedRefs: result.decision.relatedRefs,
+    sourceKind: "router",
+    sourceId: request.commandId,
+    disclosureLevel: "public",
+  };
+}
+
+function prependRuntimeActivityItems(
   items: SessionActivityItemView[],
-  item: SessionActivityItemView,
+  nextItems: SessionActivityItemView[],
 ): SessionActivityItemView[] {
-  return [item, ...items.filter((candidate) => candidate.id !== item.id)].slice(
-    0,
-    20,
-  );
+  const nextIds = new Set(nextItems.map((item) => item.id));
+  return [
+    ...nextItems,
+    ...items.filter((candidate) => !nextIds.has(candidate.id)),
+  ].slice(0, 20);
 }
 
 function compactNotice(message: string): string {

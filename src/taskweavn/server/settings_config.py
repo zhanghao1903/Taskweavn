@@ -279,6 +279,23 @@ class FileSettingsConfigStore:
             return None
         return provider.strip().lower(), api_key
 
+    def read_llm_provider_secret(self, provider: str) -> str | None:
+        """Read a provider-specific LLM API key from backend-only secrets."""
+
+        data = _read_json_object(self.secrets_path)
+        providers = data.get("llmProviders")
+        normalized_provider = provider.strip().lower()
+        if isinstance(providers, Mapping):
+            provider_secret = providers.get(normalized_provider)
+            if isinstance(provider_secret, Mapping):
+                api_key = provider_secret.get("apiKey")
+                if isinstance(api_key, str) and api_key.strip():
+                    return api_key
+        legacy_secret = self.read_secret()
+        if legacy_secret is not None and legacy_secret[0] == normalized_provider:
+            return legacy_secret[1]
+        return None
+
     def read_web_search_secret(self) -> tuple[str, str] | None:
         data = _read_json_object(self.secrets_path)
         web_search = data.get("webSearch")
