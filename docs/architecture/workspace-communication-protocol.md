@@ -483,4 +483,4 @@ Capabilities are the planning language.
 Workspace Protocol is the execution communication boundary.
 ```
 
-This gives TaskWeavn room to grow beyond first-party Tools while preserving policy, audit, UI projection, and Task-first planning semantics.
+This gives TaskWeavn room to grow beyond first-party Tools while preserving policy, audit, UI projection, Session conversation, and task execution semantics.

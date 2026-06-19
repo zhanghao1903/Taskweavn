@@ -1,19 +1,24 @@
 # UI And Backend Communication
 
 > Status: active architecture boundary
-> Last Updated: 2026-05-20
+> Last Updated: 2026-06-19
 > Related: [Plato Frontend Technical Design](../product/plato-frontend-technical-design.md), [Figma UI Baseline](../product/plato-figma-ui-baseline.md), [UI API Interfaces](../plans/ui/ui-api-interfaces.md), [Task Domain/UI Model Separation](task-domain-ui-model-separation.md), [Authoring Domain](authoring-domain.md), [TaskBus](bus.md)
 
 ---
 
 ## 1. Purpose
 
-TaskWeavn 的 UI 不是传统聊天窗口，也不是文件浏览器。核心交互对象是 Task：
+TaskWeavn 的 UI 不是传统聊天窗口，也不是文件浏览器。当前产品入口是
+Session；Task 仍是执行状态权威，Plan / Direct Task 是 Session 内的 active
+work 投影：
 
 - 用户输入自然语言。
-- 系统将输入转成 RawTask / DraftTaskTree / PublishedTask。
-- UI 展示 Task Tree、Task Card、Session Message Stream、确认动作、文件变更和结果摘要。
-- 用户可以全局对话，也可以选中 Task 后进行 task-scoped 对话。
+- Runtime Input Router 将输入解释为 read-only answer、ASK/confirmation
+  resolution、guidance、Direct Task、Plan-required work、stop/retry 等命令。
+- 系统将 task-like 输入转成 RawTask / DraftTaskTree / Plan / PublishedTask。
+- UI 展示 Session conversation、active Plan / TaskNode、ASK、确认动作、
+  Activity、文件变更、结果摘要和 Audit 入口。
+- 用户可以在 Session 级对话，也可以选中 Task 后进行 task-scoped 输入。
 
 这意味着 UI 与后端之间需要一套稳定通信契约，而不是临时暴露内部 service 或 SQLite 结构。
 
@@ -39,9 +44,9 @@ UI 通信分成三类：
 
 | 类型 | 方向 | 语义 |
 |---|---|---|
-| Query | UI -> Backend | 获取当前投影视图，例如 TaskTreeView / TaskDetailView。 |
-| Command | UI -> Backend | 提交用户意图，例如生成 Task Tree、更新 Task Node、确认动作。 |
-| Event | Backend -> UI | 通知事实变化，例如消息追加、Task 状态变化、确认创建/解决。 |
+| Query | UI -> Backend | 获取当前投影视图或 snapshot，例如 MainPageSnapshot / TaskDetailView。 |
+| Command | UI -> Backend | 提交用户意图，例如 runtime input、生成 Task Tree、更新 Task Node、ASK/确认动作。 |
+| Event | Backend -> UI | 通知事实变化，例如消息追加、Task 状态变化、ASK/确认创建或解决。 |
 
 不要把三者混成一个接口。查询不改变状态；命令不承诺直接返回完整最新视图；事件只通知变化，不替代查询。
 
@@ -57,10 +62,15 @@ UI 不应该直接消费：
 
 UI 应消费稳定投影：
 
+- `MainPageSnapshot`
 - `TaskTreeView`
 - `TaskCardView`
 - `TaskDetailView`
+- `PlanView`
 - `SessionMessageView`
+- `SessionActivityItemView`
+- `AskRequestView`
+- `AskListResult`
 - `ConfirmationActionView`
 - `TaskInteractionTimeline`
 - `CommandResult`
@@ -75,17 +85,19 @@ Task 是 Session 内的投影视角，而不是独立连接边界：
 
 ```text
 Session
-  ├── Task Tree View
+  ├── Conversation / Session Message Stream
+  ├── Active Plan / Task Tree View
   ├── Task Detail View
-  ├── Session Message Stream
   ├── Task-scoped Message View
+  ├── Pending ASK / Active ASK
   ├── Pending Confirmations
-  └── File / Summary Projections
+  ├── Activity
+  └── File / Result / Audit Projections
 ```
 
 Task Message View 不是第二条物理消息流。它仍然来自唯一 Session Message Stream，只是按 `TaskRef` / `task_id` 聚合过滤。
 
-### 2.3.1 Project 与 Session Workspace
+### 2.3.1 Project, Session, And Workspace Root
 
 产品 UI 会展示：
 
@@ -93,15 +105,20 @@ Task Message View 不是第二条物理消息流。它仍然来自唯一 Session
 Project
   -> Workflow
       -> Session
-          -> Session Workspace
+          -> active work / conversation / task projections
 ```
 
-但后端通信的写入边界仍以 Session 为主。
+后端通信的事实边界仍以 Session 为主，但文件写入边界是当前打开的
+workspace root，而不是一个自动 fork 的 per-session workspace。
 
 - `Project` 是用户组织工作的容器，可用于导航、归档和跨 Session 结果沉淀。
-- `Session Workspace` 是执行用文件工作区，默认挂在 Session 下并与其他 Session 隔离。
-- UI 可以展示 `Session workspace: isolated` 这类提示，但不应要求用户直接管理底层目录。
-- 跨 Session 合并、导出、沉淀到 Project baseline 都应该是显式 command，不应通过多个 Session 默认共享同一个文件 workspace 实现。
+- `Session` 是对话、active work、TaskBus 状态、ASK、Activity、Audit 和 context
+  trace 的隔离边界。
+- 当前实现让 Agent 在 selected workspace root 中读写文件。`.plato` 下的
+  stores 和 `session_id` 隔离 session metadata；用户文件默认共享。
+- UI 不应展示 `Session workspace: isolated` 这类暗示文件 fork 的提示。
+- 跨 Session 文件冲突、显式 fork、导出、沉淀到 Project baseline 都属于后续
+  command / workflow 设计，不是 Product 1.0 默认通信事实。
 
 ### 2.4 Command accepted 不等于最终状态
 
@@ -232,14 +249,18 @@ class QueryResponse[T](BaseModel):
 
 | API 语义 | 返回 | 来源 |
 |---|---|---|
+| `getSessionSnapshot(session_id)` | `MainPageSnapshot` | SessionManager + MessageStream + PlanStore + TaskStore + AskStore projection |
 | `getSessionOverview(session_id)` | `SessionOverview` | SessionManager + MessageStream + TaskStore projection |
-| `listTaskTrees(session_id, filters)` | `TaskTreeView` | TaskProjectionService |
+| `listTaskTrees(session_id, filters)` | `TaskTreeView` | TaskProjectionService / PlanProjectionService |
 | `getTaskCard(session_id, task_ref)` | `TaskCardView` | TaskProjectionService |
 | `getTaskDetail(session_id, task_ref, message_limit)` | `TaskDetailView` | TaskProjectionService + MessageView adapter |
 | `getTaskTimeline(session_id, task_ref, filters)` | `TaskInteractionTimeline` | TaskInteractionTimelineService |
 | `getTaskSnapshot(session_id, task_ref)` | `TaskInteractionSnapshot` | Detail + timeline |
 | `listSessionMessages(session_id, filters)` | `list[SessionMessageView]` | MessageStream adapter |
+| `listSessionActivity(session_id, filters)` | `list[SessionActivityItemView]` | Session activity projection |
 | `listTaskMessages(session_id, task_ref, scope)` | `list[SessionMessageView]` | MessageStream filtered view |
+| `listAsks(session_id, filters)` | `AskListResult` | AskStore projection |
+| `getAsk(session_id, ask_id)` | `AskRequestView` | AskStore projection |
 | `listPendingConfirmations(session_id, filters)` | `list[ConfirmationActionView]` | MessageStream pending actionable query |
 | `getTaskFileChanges(session_id, task_ref, recursive)` | `list[TaskFileChangeSummary]` | FileChangeStore projection |
 | `getTaskSummary(session_id, task_ref)` | `TaskSummaryView | None` | TaskSummaryStore projection |
@@ -360,16 +381,22 @@ class RefreshHint(BaseModel):
 | API 语义 | 作用 | 后端边界 |
 |---|---|---|
 | `appendSessionMessage` | 全局自然语言输入 | `CollaboratorApiAdapter.append_session_message` |
+| `routeRuntimeInput` | 主输入入口：ASK/confirmation/read-only/guidance/Direct Task/Plan-required/stop/retry 分类 | `RuntimeInputRouter` + query/command gateways |
 | `generateTaskTree` | 从 ready RawTask 或特定工作流生成 draft Task Tree | `CollaboratorApiAdapter.generate_task_tree` |
 | `appendTaskMessage` | 选中 Task 后补充信息 | draft: Collaborator authoring; published: TaskCommandService |
 | `updateTaskNode` | 修改 draft/pending Task | TaskCommandService / AuthoringCommandService |
 | `answerRawTaskAsk` | 回答可行性/澄清问题 | CollaboratorApiAdapter |
+| `answerAuthoringAskBatch` | 批量回答 authoring ASK | CollaboratorApiAdapter + AuthoringCommandService |
+| `answerAsk` | 回答 execution ASK | AskStore first, then TaskBus resume_after_user + optional dispatch |
+| `deferAsk` | 暂缓 execution ASK | AskStore first, then TaskBus fail policy |
+| `cancelAsk` | 取消 execution ASK | AskStore first, then TaskBus fail policy |
 | `resolveConfirmation` | 处理确认动作 | TaskCommandService + MessageStream |
 | `publishTaskTree` | 发布 draft tree 到 TaskBus | CollaboratorApiAdapter + TaskPublisher |
 | `assignTask` | Routing Agent 分配 pending Task 给 Execution Agent | Routing Agent + TaskBus assignment command |
 | `requestTaskInterrupt` | 用户或系统请求停止 Task | TaskCommandService + TaskBus interrupt intent |
 | `cancelTask` | 取消 draft/pending Task | draft: AuthoringCommandService; pending: TaskBus terminal update |
 | `retryTask` | failed Task 原地回到 pending | TaskCommandService + TaskBus lifecycle retry |
+| `dispatchExecution` | 推进 fixed-route execution loop | FixedRouteTaskExecutor / dispatcher |
 | `startTaskExecution` | 领取已分配 Task 并进入 running | TaskBus claim_assigned + Execution Agent runtime |
 
 ### 5.3 Command Rules
@@ -408,7 +435,9 @@ data: {"session_id":"...","task_ref":{...},"reason":"status_changed"}
 
 SSE 断线后，UI 使用最后一个 event id 作为 cursor 重连。
 
-第一版 UI/backend contract 不要求 durable event store。后端如果无法 replay cursor 之后的事件，必须返回/发送 `session.resync_required`，让 UI 重新查询 snapshot。durable replay、retention、cursor 过期策略放入 sidecar/SSE plan。
+Product 1.0 sidecar 已有 session-scoped `UiEventStore`。后端应 replay
+retained events after cursor when possible；如果无法 replay cursor 之后的
+事件，必须返回/发送 `session.resync_required`，让 UI 重新查询 snapshot。
 
 ### 6.2 Event Envelope
 
@@ -606,110 +635,76 @@ UI 可以为一次用户点击生成稳定 idempotency key，避免刷新/重试
 
 | Communication Need | Existing / Planned Backend |
 |---|---|
-| Query Task cards/details | `TaskProjectionService`, `TaskStore`, `DraftTaskStore`, Message adapter |
+| Main Page snapshot | `DefaultUiQueryGateway.get_session_snapshot`, PlanStore, TaskStore, AskStore, MessageStream adapters |
+| Query Task cards/details | `TaskProjectionService`, `PlanProjectionService`, `TaskStore`, `DraftTaskStore`, Message adapter |
 | Query timeline | `TaskInteractionTimelineService` |
 | Generate/edit draft tree | `CollaboratorApiAdapter`, `AuthoringCommandService` |
 | Publish draft/custom tree | `TaskPublisher`, `TaskPublishService`, `TaskBus` |
 | Scheduled/API publish | `SchedulerPublisher`, `DefaultApiTaskPublisher` |
-| Message stream and confirmations | `MessageStream`, `InProcessMessageBus`, `WaitCoordinator` |
-| Assignment and execution status | Routing Agent assignment commands + TaskBus claim/complete/fail lifecycle |
+| Message stream, ASK, and confirmations | `MessageStream`, `AskStore`, `TaskAskCommandService`, `InProcessMessageBus`, `WaitCoordinator` |
+| Assignment and execution status | Product 1.0 fixed-route dispatch + TaskBus claim/complete/fail/wait/retry/interrupt lifecycle; Product 1.1+ Routing Agent assignment commands |
 | Interruption | TaskBus interrupt intent + Agent/runtime cooperative safe points |
+| Runtime input | `RuntimeInputRouter`, read-only inquiry, command gateway |
+| HTTP/SSE transport | `ui_http.py`, `ui_http_routes.py`, `UiEventStore` |
 | Logs/diagnostics | Configurable logging and archives |
 
-The first UI transport should wrap these services; it should not create a second business layer.
+The UI transport wraps these services; it should not create a second business
+layer.
 
 ---
 
-## 11. Recommended First Implementation Slices
+## 11. Current Implemented Baseline
 
-### Slice 1 — UI Gateway Models
+The Product 1.0 sidecar baseline now includes:
 
-Add stable transport-facing models:
+- Gateway protocol and envelope models under `src/taskweavn/server/ui_contract/`.
+- Main Page snapshot query with Session, active Plan, Task tree, messages,
+  Activity, pending ASK, confirmations, results, file summaries, and audit
+  links.
+- HTTP route matching under `/api/v1/sessions/{session_id}/...`.
+- Session-scoped `UiEventStore` and SSE replay where retained events are
+  available.
+- Runtime input routing for ASK/confirmation/read-only/guidance/Direct Task
+  handoff/stop/retry.
+- Execution ASK query and command endpoints.
+- Task retry and cooperative stop commands.
+- Snapshot-time recovery hooks for stale stopping and answered-but-not-continued
+  ASK cases.
 
-- `QueryResponse`
-- `CommandResponse`
-- `ApiError`
-- `RefreshHint`
-- `UiEvent`
-- `EventCursor`
-
-No web server required yet.
-
-### Slice 2 — UI Query Gateway
-
-Implement a service object:
-
-```python
-class UiQueryGateway(Protocol):
-    def get_session_overview(self, session_id: str) -> QueryResponse[SessionOverview]: ...
-    def list_task_trees(self, session_id: str, filters: TaskTreeFilters) -> QueryResponse[TaskTreeView]: ...
-    def get_task_detail(self, session_id: str, task_ref: TaskRef) -> QueryResponse[TaskDetailView]: ...
-    def list_session_messages(self, session_id: str, filters: MessageFilters) -> QueryResponse[tuple[SessionMessageView, ...]]: ...
-```
-
-### Slice 3 — UI Command Gateway
-
-Implement command adapter over existing services:
-
-```python
-class UiCommandGateway(Protocol):
-    def append_session_message(self, request: CommandRequest) -> CommandResponse: ...
-    def generate_task_tree(self, request: CommandRequest) -> CommandResponse: ...
-    def update_task_node(self, request: CommandRequest) -> CommandResponse: ...
-    def resolve_confirmation(self, request: CommandRequest) -> CommandResponse: ...
-    def publish_task_tree(self, request: CommandRequest) -> CommandResponse: ...
-```
-
-### Slice 4 — Event Projection
-
-Define how domain changes become `UiEvent`.
-
-First version can be coarse:
-
-- emit `task.tree.changed`;
-- emit `message.appended`;
-- emit `confirmation.created/resolved`;
-- emit `session.resync_required` when uncertain。
-
-Coarse events are acceptable if UI can re-query.
-
-### Slice 5 — HTTP + SSE Transport
-
-Add concrete transport only after gateway tests are stable.
-
-Suggested first version:
+Current concrete route families include:
 
 ```text
-GET  /sessions/{session_id}/overview
-GET  /sessions/{session_id}/tasks
-GET  /sessions/{session_id}/messages
-GET  /sessions/{session_id}/events
-POST /sessions/{session_id}/commands/{command_name}
+GET  /api/v1/sessions/{session_id}/snapshot
+GET  /api/v1/sessions/{session_id}/activity
+POST /api/v1/sessions/{session_id}/runtime-input/route
+POST /api/v1/sessions/{session_id}/input
+POST /api/v1/sessions/{session_id}/task-tree/generate
+POST /api/v1/sessions/{session_id}/task-tree/publish
+POST /api/v1/sessions/{session_id}/authoring/raw-tasks/{raw_task_id}/asks/answers
+GET  /api/v1/sessions/{session_id}/asks
+GET  /api/v1/sessions/{session_id}/asks/{ask_id}
+POST /api/v1/sessions/{session_id}/asks/{ask_id}/answer
+POST /api/v1/sessions/{session_id}/asks/{ask_id}/defer
+POST /api/v1/sessions/{session_id}/asks/{ask_id}/cancel
+POST /api/v1/sessions/{session_id}/tasks/{task_id}/retry
+POST /api/v1/sessions/{session_id}/tasks/{task_id}/stop
+GET  /api/v1/sessions/{session_id}/events
 ```
 
-Exact paths can change. The important part is preserving Query / Command / Event semantics.
-
-### Slice 6 — Frontend Integration Contract Tests
-
-Add end-to-end tests around:
-
-- snapshot load；
-- generate Task Tree command；
-- selected Task detail refresh；
-- confirmation created/resolved；
-- reconnect with stale cursor -> resync_required。
+The important invariant is preserving Query / Command / Event semantics. Route
+paths can evolve only through the UI API contract, tests, and compatibility
+notes.
 
 ---
 
 ## 12. Open Questions
 
-1. 第一版 HTTP server 用 FastAPI、Starlette，还是先保持无框架 gateway？
-2. sidecar/SSE plan 中再决定 event retention 存在哪里：MessageStream、EventStream，还是独立 UiEventStore？
-3. 第一版是否需要为 `ObjectRef` 增加 stable URI 格式，还是保持 `{kind, id}`？
-4. UI 是否需要 local-first cache；如果需要，cursor/version 设计要更严格。
-5. 多用户/多浏览器同时连接同一个 Session 时，是否需要 user identity 和 presence？
-6. WebSocket 何时升级：多人协作、浏览器端 agent worker，还是高频日志流？
-7. 任务执行日志是否走同一 SSE channel，还是单独 debug/log channel？
+1. 是否需要为 `ObjectRef` 增加 stable URI 格式，还是保持 `{kind, id}`？
+2. UI 是否需要 local-first cache；如果需要，cursor/version 设计要更严格。
+3. 多用户/多浏览器同时连接同一个 Session 时，是否需要 user identity 和 presence？
+4. WebSocket 何时升级：多人协作、浏览器端 agent worker，还是高频日志流？
+5. 任务执行日志是否走同一 SSE channel，还是单独 debug/log channel？
+6. Plan archive command、Session history query、archived Plan detail projection 的 API 是否单独成组？
 
 ---
 
