@@ -26,7 +26,8 @@
 ### 1.2 不算新（诚实说）
 
 - 单根树 vs DAG（Claude Code、CrewAI 都这样）
-- 4 状态任务机（标准做法）
+- 极简任务状态机（当前实现为 `pending` / `running` /
+  `waiting_for_user` / `done` / `failed`）
 - 无状态 Agent（LangGraph 类似）
 - EventStream / append-only（event sourcing 老技术）
 - 进程/线程类比（解释装置很好，但映射本身不新）

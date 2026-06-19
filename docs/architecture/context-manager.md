@@ -1,7 +1,7 @@
 # Context Manager Architecture
 
 > Status: accepted architecture baseline for Product 1.0 execution context governance
-> Last Updated: 2026-06-02
+> Last Updated: 2026-06-19
 
 Context Manager is the execution-time context governance layer for Taskweavn.
 It bridges the stateful workspace and task runtime to the stateless LLM API
@@ -40,7 +40,8 @@ Taskweavn's execution world is stateful:
 
 - PublishedTasks have lifecycle, assignment, results, and parent-child
   relationships.
-- Session Workspace contains files, documents, code, and generated artifacts.
+- The workspace root contains files, documents, code, and generated artifacts;
+  Session metadata, context snapshots, logs, and task facts live under `.plato`.
 - Tool calls produce observations, errors, command output, and file changes.
 - Users can interrupt, clarify, approve, deny, or redirect work.
 - Skills, project rules, tool permissions, and autonomy settings constrain
@@ -93,7 +94,8 @@ Facts remain owned by their domains:
 |---|---|
 | TaskBus / TaskDomain | PublishedTask state, claim, result, and failure facts |
 | EventStream / EventLog | Ordered runtime facts and audit events |
-| Session Workspace | Files, code, documents, generated artifacts |
+| Workspace root | Files, code, documents, generated artifacts |
+| AskStore | Durable execution ASK pending/answered/deferred/cancelled facts |
 | Tool runtime / ToolResultStore | Tool calls, observations, command output, raw results |
 | Permission / Autonomy runtime | Allowed tools, pending approval, interrupt intent |
 | Skill registry | Future available and activated skill descriptions |
@@ -197,7 +199,7 @@ true:
 
 | Parallel Shape | Requirement |
 |---|---|
-| Read-only reviewer | Agent may inspect facts but cannot mutate Task state or Session Workspace. |
+| Read-only reviewer | Agent may inspect facts but cannot mutate Task state or workspace files. |
 | Independent shard | Inputs and outputs are independent and can be reduced explicitly. |
 | Isolated workspace | Agent runs in a sub-session or separate workspace with explicit merge/export. |
 | Tool-like specialist | Specialist returns a bounded structured result to the active lane and does not own ongoing context. |
@@ -309,6 +311,7 @@ class ExecutionFacts(ContextModel):
     recent_tool_results: tuple[ToolResultSummary, ...]
     workspace_refs: tuple[WorkspaceRef, ...]
     selected_file_snippets: tuple[FileSnippet, ...]
+    ask_facts: tuple[AskFact, ...]
     changed_artifacts: tuple[str, ...]
 ```
 
@@ -342,6 +345,21 @@ class FileSnippet(ContextModel):
     can_act_as_instruction: bool = False
 ```
 
+```python
+class AskFact(ContextModel):
+    ask_id: str
+    task_id: str | None
+    status: Literal["pending", "answered", "deferred", "cancelled", "expired"]
+    question: str
+    reason: str
+    selected_option_ids: tuple[str, ...]
+    answer_text: str | None
+    answer_id: str | None
+    blocking: bool
+    created_at: datetime
+    answered_at: datetime | None
+```
+
 Rules:
 
 - Workspace remains the source of truth for file contents.
@@ -350,6 +368,9 @@ Rules:
   refs, but it does not crawl the whole workspace in Product 1.0.
 - File snippets are rendered as workspace evidence, not instructions.
 - Large file reads should be represented by bounded snippets plus `raw_ref`.
+- ASK facts are rendered as user interaction facts. Pending blocking ASK facts
+  explain why a task is waiting; answered ASK facts explain why a resumed task
+  may continue with user-provided constraints.
 
 ### 5.4 Controls
 
@@ -414,7 +435,8 @@ Product 1.0 selection policy:
 4. Include bounded recent events.
 5. Include bounded recent tool result summaries.
 6. Include explicit workspace references already connected to the task.
-7. Exclude raw large outputs by default; provide `raw_ref` instead.
+7. Include active or recently answered ASK facts for the current task.
+8. Exclude raw large outputs by default; provide `raw_ref` instead.
 
 No LLM ranking is used in Product 1.0. Selection is deterministic.
 
@@ -433,6 +455,8 @@ The renderer should produce:
 - controls and permission facts;
 - recent event/tool summaries;
 - workspace references;
+- ASK facts when a task is waiting for the user or has just resumed from an
+  answer;
 - output expectations;
 - references to raw artifacts or tool results.
 
@@ -592,7 +616,15 @@ Agent lifecycle ownership.
 
 TaskBus remains the PublishedTask lifecycle authority. Context Manager reads
 Task facts and may include task status, assignment, result, and failure facts in
-context. It does not call `claim`, `complete`, `fail`, or retry operations.
+context. It does not call `claim_next`, `complete`, `fail`, `wait_for_user`,
+`resume_after_user`, `retry`, or `skip`.
+
+### AskStore
+
+AskStore remains the durable ASK authority. Context Manager reads pending or
+answered ASK facts so the Execution Agent can see user clarification and
+resume constraints, but Context Manager does not create, answer, defer, cancel,
+or expire ASK records.
 
 ### Execution Agent
 
@@ -613,9 +645,10 @@ context policy system.
 
 ### Workspace
 
-Workspace owns files and artifacts. Context Manager includes workspace refs and
-selected snippets only when they are task-relevant and within Product 1.0
-budget limits.
+The workspace root owns files and artifacts. Context Manager includes workspace
+refs and selected snippets only when they are task-relevant and within Product
+1.0 budget limits. Session metadata isolation does not imply per-session file
+forking.
 
 ---
 
@@ -632,11 +665,13 @@ Product 1.0 Context Manager is acceptable when:
 6. Context snapshots and traces can explain a rendered LLM input.
 7. Context can be rebuilt from TaskBus/EventLog/Workspace facts after
    interruption or process restart.
-8. Product 1.0 implementation does not require semantic retrieval, long-term
+8. Pending and answered execution ASK facts are represented when a task is
+   waiting for the user or has resumed after a user answer.
+9. Product 1.0 implementation does not require semantic retrieval, long-term
    memory, complex compression, MCP expansion, or multimodal packing.
-9. Future context sources and policies can be added without changing TaskBus
+10. Future context sources and policies can be added without changing TaskBus
    ownership or Execution Agent lifecycle ownership.
-10. The default Session context policy permits only one active writer execution
+11. The default Session context policy permits only one active writer execution
     lane; parallel Agent context builds must be read-only or isolated.
 
 ---

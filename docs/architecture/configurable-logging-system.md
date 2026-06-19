@@ -29,7 +29,8 @@ get_channel_logger(channel) -> logging.Logger
 这足够支撑早期开发，但已经不够支撑接下来的服务端核心线：
 
 - LLM provider 已经有 retry、provider、request_id、usage 等调试元数据；
-- Task-first 架构会引入 Task、TaskBus、Agent、Publisher 等对象；
+- Session-scoped execution 架构会引入 Task、TaskBus、Agent、Publisher、ASK
+  等对象；
 - 用户测试需要按 Session / category 动态打开 DEBUG；
 - 长会话需要稳定归档目录和 manifest；
 - CLI 体验不能要求用户直接读巨大 JSON。

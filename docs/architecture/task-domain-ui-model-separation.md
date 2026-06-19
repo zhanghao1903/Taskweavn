@@ -1,7 +1,7 @@
 # Task Domain And UI ViewModel Separation
 
 > Status: implemented / accepted
-> Last Updated: 2026-05-14
+> Last Updated: 2026-06-19
 > Work Stream: Phase 3C — Task Authoring Foundation
 > Related Plan: [Task Domain/UI Separation](../plans/feature/task-domain-ui-model-separation.md)
 > Related ADR: [ADR-0002](../decisions/ADR-0002-task-domain-viewmodel-and-replay.md)
@@ -12,7 +12,12 @@
 
 ## 1. Purpose
 
-Task is now the primary user-facing object in TaskWeavn. That makes the Task model dangerous territory: if every UI need is pushed into the backend `Task`, TaskBus becomes noisy and unstable; if every interaction fact is kept only in the frontend, the backend cannot replay what the user confirmed, changed, or instructed.
+Session is now the primary product boundary in TaskWeavn. PublishedTask remains
+the execution/state authority inside a Session. That makes the Task projection
+model dangerous territory: if every UI need is pushed into the backend `Task`,
+TaskBus becomes noisy and unstable; if every interaction fact is kept only in
+the frontend, the backend cannot replay what the user confirmed, changed,
+answered, or instructed.
 
 This design defines the boundary between:
 
@@ -47,7 +52,7 @@ The current repository has these architectural facts:
 | Task | `docs/architecture/task.md` defines Task as a small backend domain object: id, parent, intent, required capability, status, result. |
 | TaskBus | `docs/architecture/bus.md` treats TaskBus as the execution/state authority for published Tasks. |
 | MessageStream | Interaction Layer already stores session messages with `session_id`, `agent_id`, `task_id`, `created_at`. Task views should filter/aggregate this single stream. |
-| UI API | `docs/plans/ui/ui-api-interfaces.md` already defines query/command/event boundaries for Task-first UI. |
+| UI API | `docs/plans/ui/ui-api-interfaces.md` and `docs/architecture/ui-backend-communication.md` define query/command/event boundaries for Session-first UI with Task execution projections. |
 | Collaborator Agent | `docs/plans/feature/collaborator-agent-task-authoring.md` defines `DraftTaskNode`, `DraftTaskTree`, patching, validation, and Authoring Commands. |
 | ADR | `ADR-0002` already accepts domain/view/local-state separation and replayable interactions. |
 
@@ -132,7 +137,7 @@ class TaskDomain(BaseModel):
     required_capability: str
     dispatch_constraints: TaskDispatchConstraints | None = None
 
-    status: Literal["pending", "running", "done", "failed"]
+    status: Literal["pending", "running", "waiting_for_user", "done", "failed"]
     result_ref: str | None = None
     error_ref: str | None = None
 
@@ -285,7 +290,15 @@ class TaskCardView(BaseModel):
 
     title: str
     intent_preview: str
-    status: Literal["draft", "pending", "running", "done", "failed", "cancelled"]
+    status: Literal[
+        "draft",
+        "pending",
+        "running",
+        "waiting_for_user",
+        "done",
+        "failed",
+        "cancelled",
+    ]
     depth: int
     order_index: int
 
@@ -659,8 +672,9 @@ The first version should store `payload_ref` rather than duplicating large paylo
 | Source | Timeline examples |
 |---|---|
 | DraftTaskStore | draft created, node patched, tree accepted, tree published. |
-| MessageStream | user guidance, collaborator reply, task-scoped clarification. |
+| MessageStream | user guidance, collaborator reply, task-scoped clarification, ASK history. |
 | Confirmation/actionable message | confirmation created, option selected, timeout/default applied. |
+| AskStore | ASK created, answered, deferred, cancelled, expired. |
 | EventStream | Task published, Action emitted, Observation received, Task status changed. |
 | FileChangeStore | direct file changed, child file roll-up changed. |
 | TaskSummaryStore | result summarized, failure summarized, follow-up proposed. |
@@ -684,7 +698,8 @@ UI local state is not part of this replay guarantee.
 
 ## 12. Event And Subscription Requirements
 
-Task-first UI should subscribe at session level.
+Session-first UI should subscribe at session level. Task views are projections
+over the Session event stream, not independent subscriptions.
 
 ```python
 class SessionEventEnvelope(BaseModel):
@@ -708,6 +723,8 @@ Minimum event types:
 | `message.appended` | Update latest message, unread counts, timeline. |
 | `confirmation.created` | Add pending confirmation badge/action. |
 | `confirmation.resolved` | Clear pending confirmation and append history. |
+| `ask.created` | Add pending ASK / active ASK projection. |
+| `ask.resolved` | Clear pending ASK and append answer history. |
 | `file_change.recorded` | Update direct and recursive file badges. |
 | `task.summary_updated` | Update done/failed summary. |
 
@@ -796,7 +813,8 @@ Deliver:
 - `TaskCardAction`;
 - shared aliases for status and view ids.
 
-Tests should cover draft card, pending card, running card, done/failed readonly card.
+Tests should cover draft card, pending card, running card, waiting-for-user card,
+and done/failed readonly card.
 
 ### Slice 3 — Projection Service
 
