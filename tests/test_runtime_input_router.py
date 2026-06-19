@@ -19,6 +19,10 @@ from taskweavn.server.runtime_input_activity import (
     READ_ONLY_INQUIRY_ACTIVITY_TITLE,
     MessageBusRuntimeInputActivityPublisher,
 )
+from taskweavn.server.runtime_input_llm_router import (
+    RouterPlannerResult,
+    RuntimeInputRouteProposal,
+)
 from taskweavn.server.runtime_input_router import DefaultRuntimeInputRouter
 from taskweavn.server.ui_contract import (
     ApiError,
@@ -114,6 +118,50 @@ def test_router_passes_workspace_id_to_read_only_inquiry() -> None:
 
     assert response.ok is True
     assert inquiry.requests[0].workspace_id == "workspace-1"
+
+
+def test_router_planner_can_request_read_only_workspace_file_context() -> None:
+    query = _QueryGateway()
+    commands = _CommandGateway()
+    inquiry = _CapturingInquiry()
+    planner = _Planner(
+        RuntimeInputRouteProposal(
+            intent="question",
+            dispatch_target="read_only_inquiry",
+            side_effect="no_effect",
+            confidence="high",
+            visible_reasoning_summary="Router will answer from README.",
+            user_message="I can answer this from README.",
+            read_only_refs=(
+                ReadOnlyInquiryRef(
+                    kind="file",
+                    path="README.md",
+                    label="README",
+                ),
+            ),
+        )
+    )
+    router = _router(
+        query,
+        commands,
+        read_only_inquiry_service=inquiry,
+        route_planner=planner,
+    )
+
+    response = router.route(
+        _request(
+            content="How do I start this project?",
+            selection=RuntimeInputSelection(scope_kind="session"),
+        )
+    )
+
+    assert response.ok is True
+    assert response.data is not None
+    assert response.data.decision.dispatch_target == "read_only_inquiry"
+    assert response.data.decision.explanation == "Router will answer from README."
+    assert inquiry.requests[0].refs[0].kind == "file"
+    assert inquiry.requests[0].refs[0].path == "README.md"
+    assert commands.calls == []
 
 
 def test_router_records_guidance_through_contract_revision_service() -> None:
@@ -257,6 +305,7 @@ def test_router_read_only_answer_is_durable_activity(
         "Router interpretation",
         READ_ONLY_INQUIRY_ACTIVITY_TITLE,
     ]
+    assert messages[0].body == "What changed in this workspace?"
     assert messages[0].conversation_render is not None
     assert messages[0].conversation_render.render_kind == "text"
     assert messages[1].conversation_render is not None
@@ -270,11 +319,11 @@ def test_router_read_only_answer_is_durable_activity(
         messages=messages,
     )
     assert timeline.total_count == 3
-    item = next(
-        candidate
-        for candidate in timeline.items
-        if candidate.id == "activity:inquiry:route-1"
-    )
+    item_by_kind = {item.kind: item for item in timeline.items}
+    assert set(item_by_kind) == {"user_input", "router_interpretation", "answer"}
+    assert item_by_kind["user_input"].id == "activity:runtime-input:route-1:user_input"
+    assert item_by_kind["user_input"].body == "What changed in this workspace?"
+    item = item_by_kind["answer"]
     assert item.id == "activity:inquiry:route-1"
     assert item.kind == "answer"
     assert item.side_effect == "no_effect"
@@ -284,6 +333,66 @@ def test_router_read_only_answer_is_durable_activity(
     assert item.related_refs[0].kind == "session"
     assert item.related_refs[0].id == "session:session-1:status"
     assert commands.calls == []
+
+    bus.close()
+    stream.close()
+
+
+def test_router_planner_interpretation_is_durable_activity(
+    tmp_path: Path,
+) -> None:
+    stream = SqliteMessageStream(tmp_path / "messages.sqlite")
+    bus = InProcessMessageBus(stream)
+    query = _QueryGateway()
+    commands = _CommandGateway()
+    planner = _Planner(
+        RuntimeInputRouteProposal(
+            intent="question",
+            dispatch_target="read_only_inquiry",
+            side_effect="no_effect",
+            confidence="high",
+            visible_reasoning_summary="Router will answer from README.",
+            user_message="I can answer this from README.",
+            read_only_refs=(
+                ReadOnlyInquiryRef(
+                    kind="file",
+                    path="README.md",
+                    label="README",
+                ),
+            ),
+        )
+    )
+    router = _router(
+        query,
+        commands,
+        read_only_inquiry_service=_CapturingInquiry(),
+        activity_publisher=MessageBusRuntimeInputActivityPublisher(bus),
+        route_planner=planner,
+    )
+    request = _request(
+        content="How do I start this project?",
+        selection=RuntimeInputSelection(scope_kind="session"),
+    )
+
+    response = router.route(request)
+
+    assert response.ok is True
+    messages = tuple(
+        map_agent_message_view(message)
+        for message in stream.list_for_session(request.session_id)
+    )
+    timeline = DefaultSessionActivityProjectionService().project(
+        session_id=request.session_id,
+        messages=messages,
+    )
+    item_by_kind = {item.kind: item for item in timeline.items}
+    assert set(item_by_kind) == {"user_input", "router_interpretation", "answer"}
+    assert item_by_kind["user_input"].id == "activity:runtime-input:route-1:user_input"
+    assert item_by_kind["user_input"].body == "How do I start this project?"
+    assert item_by_kind["router_interpretation"].title == "Router interpretation"
+    assert "Router will answer from README." in item_by_kind["router_interpretation"].body
+    assert item_by_kind["router_interpretation"].side_effect == "no_effect"
+    assert item_by_kind["answer"].body == "Captured without side effects."
 
     bus.close()
     stream.close()
@@ -699,6 +808,7 @@ def _router(
     read_only_inquiry_service: Any | None = None,
     activity_publisher: Any | None = None,
     contract_revision_service: Any | None = None,
+    route_planner: Any | None = None,
 ) -> DefaultRuntimeInputRouter:
     return DefaultRuntimeInputRouter(
         query_gateway=cast(Any, query),
@@ -706,6 +816,7 @@ def _router(
         read_only_inquiry_service=read_only_inquiry_service,
         activity_publisher=activity_publisher,
         contract_revision_service=contract_revision_service,
+        route_planner=route_planner,
     )
 
 
@@ -751,7 +862,7 @@ class _ActivityPublisher:
         request: RuntimeInputRouteRequest,
         activity: SessionActivityItemView,
     ) -> None:
-        self.calls.append((request.command_id, activity.id))
+        self.calls.append(("answer", request.command_id, activity.id))
 
 
 @dataclass
@@ -953,6 +1064,14 @@ class _CapturingInquiry:
                 ),
             ),
         )
+
+
+@dataclass
+class _Planner:
+    proposal: RuntimeInputRouteProposal
+
+    def plan(self, *args: Any, **kwargs: Any) -> RouterPlannerResult:
+        return RouterPlannerResult(status="planned", proposal=self.proposal)
 
 
 def _ask(

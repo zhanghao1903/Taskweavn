@@ -6,9 +6,9 @@ import argparse
 import json
 import os
 import time
-from collections.abc import Callable, Sequence
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 _STARTUP_TIMING_STARTED_AT = time.perf_counter()
 
@@ -79,7 +79,6 @@ def _serve(args: argparse.Namespace) -> int:
         WorkspaceRegistryEntry,
         build_main_page_sidecar_app,
     )
-    from taskweavn.server.settings_config import file_settings_config_store_for
 
     _mark_startup_timing(
         "python_sidecar_import_ready",
@@ -102,13 +101,7 @@ def _serve(args: argparse.Namespace) -> int:
             global_settings_root=args.global_settings_root,
             enable_read_only_inquiry_llm=args.enable_read_only_inquiry_llm,
         ),
-        MainPageSidecarDependencies(
-            llm_factory=_settings_backed_llm_factory(
-                default_model="deepseek-v4-pro",
-                global_settings_root=args.global_settings_root,
-                settings_store_factory=file_settings_config_store_for,
-            ),
-        ),
+        MainPageSidecarDependencies(),
     )
     try:
         sidecar.start_in_thread()
@@ -133,28 +126,6 @@ def _env_bool(name: str, *, default: bool) -> bool:
     if normalized in {"0", "false", "no", "off"}:
         return False
     return default
-
-
-def _settings_backed_llm_factory(
-    *,
-    default_model: str,
-    global_settings_root: Path | None,
-    settings_store_factory: Callable[..., Any],
-) -> Callable[[Path], Any]:
-    def factory(workspace_root: Path) -> Any:
-        from taskweavn.llm.client import LazyLLMClient
-
-        settings_store = settings_store_factory(
-            workspace_root=workspace_root,
-            global_settings_root=global_settings_root,
-        )
-
-        def effective_llm_env() -> dict[str, str]:
-            return cast(dict[str, str], settings_store.effective_env(os.environ))
-
-        return LazyLLMClient(default_model=default_model, env_provider=effective_llm_env)
-
-    return factory
 
 
 def _parse_workspace_registry_json(

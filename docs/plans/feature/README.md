@@ -4,6 +4,7 @@ Feature plans are scoped implementation packets for independent feature sessions
 
 | File | Feature |
 |---|---|
+| [agent-llm-config-and-router-llm.md](agent-llm-config-and-router-llm.md) | Proposed technical design for backend-only Agent-level LLM profiles, role-specific LLM resolution, and LLM-assisted Runtime Input Router planning with deterministic command safety boundaries. |
 | [centralized-runtime-configuration.md](centralized-runtime-configuration.md) | Centralized hierarchical runtime configuration with hot updates. |
 | [collaborator-agent-task-authoring.md](collaborator-agent-task-authoring.md) | System Collaborator Agent and Task authoring tools. |
 | [collaborator-workspace-informed-authoring.md](collaborator-workspace-informed-authoring.md) | Planned with accepted technical design: bounded read-only Collaborator authoring loop with workspace read/query/search and shared AgentLoop profile contract. |
