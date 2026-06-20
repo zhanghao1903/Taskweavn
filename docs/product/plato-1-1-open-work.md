@@ -2,7 +2,7 @@
 
 > Status: active open-work index
 >
-> Last Updated: 2026-06-19
+> Last Updated: 2026-06-20
 >
 > Scope: Product 1.1 unfinished product work after the accepted workspace,
 > precision-tool, read-only inquiry, token-usage, and local Electron beta
@@ -18,11 +18,20 @@ retrieval, diagnostics, and release-hardening tasks.
 The current Product 1.1 state is:
 
 - the workspace-aware foundation is real enough for beta use;
-- several foundation slices are already accepted or implemented;
-- the Contract Revision Command Skills command set is implemented on `main`,
-  but the broader Router-first product loop is not yet product-complete;
-- the remaining Product 1.1 risk is the collaboration loop around runtime
-  input, contract revision, durable evidence, and user trust.
+- the main collaboration-loop feature set is now on `main`: Runtime Input
+  Router, Router-first Main Page input, Contract Revision Command Skills,
+  durable Conversation / Activity, and backend-only Agent LLM / Router LLM
+  configuration;
+- Product 1.1 P0 is no longer first-capability work. The remaining P0 closure
+  scope was Electron acceptance, Audit / Diagnostics closure, and release
+  evidence;
+- that P0 closure scope now has beta release evidence: configured Electron,
+  packaged app, and mounted `1.1-beta` installer smoke pass the Runtime Input
+  route matrix, Audit / Diagnostics closure, startup diagnostics, and first-run
+  paths;
+- the remaining Product 1.1 risk has moved to P1 beta-depth work: sidecar
+  restart replay, optional LLM-rendered inquiry smoke, public repository
+  release-note sync, signed/notarized distribution, and broader release polish.
 
 ## 2. Priority Model
 
@@ -41,14 +50,15 @@ These items are not open P0 blockers unless a later regression is found:
 | Workspace inspection | Accepted Product 1.1 P0 milestone: git status, diff, file viewer, Main/Audit/Outcome links, diagnostic descriptors, sidecar/Electron smoke. | [Workspace Inspection Milestone](../plans/feature/product-1-1-workspace-inspection-milestone.md) |
 | Precision file tools | Completed Product 1.1 line-range read, workspace search, guarded replace, append, changed-line evidence, Agent/CLI registration, file-summary projection. | [Precision File Tools](../plans/feature/precision-file-tools.md) |
 | Plan / TaskNode foundation | Accepted Plan/TaskNode migration foundation: durable Plan/TaskNode storage, active Plan identity, publish handoff, lifecycle sync, result/file/detail reads, Audit identity normalization. | [Plan / TaskNode Contract Migration](../plans/feature/plan-tasknode-contract-migration.md) |
-| Session Activity surface | Accepted foundation: typed Activity query, backend projection, frontend drawer, related refs. Router-written records remain open. | [Session Conversation / Activity Timeline](../plans/feature/session-conversation-activity-timeline.md) |
+| Session Activity surface | Accepted foundation plus Router-written durable Conversation / Activity: user input, Router trace, question cards, read-only answers, command outcomes, and reloadable Activity projection are on `main`. | [Session Conversation / Activity Timeline](../plans/feature/session-conversation-activity-timeline.md) |
 | Read-only inquiry | Accepted for Product 1.1 local runtime: no-mutation answers, evidence refs, Activity display/replay, Audit focused refs, diagnostic actions, sidecar/Electron smoke. | [Read-Only Inquiry Context](../plans/feature/read-only-inquiry-context.md) |
 | Token usage analytics | Completed Product 1.1 slice: usage ledger, Task/Plan/Session/Workspace aggregation, cache hit-rate visibility, Settings/Main Page entries, diagnostics-safe summaries. | [Token Usage Analytics](../plans/feature/token-usage-analytics.md) |
 | UI system text foundation | Implemented typed UI system text registry, `en-US` / `zh-CN` catalogs, runtime locale override, Settings language selector, staged chrome migration. | [Product Copy Localization Foundation](../plans/feature/product-copy-localization-foundation.md) |
 | Execution web retrieval | Implemented first Product 1.1 external-evidence baseline: Tavily-backed `web_search`, selected-URL `web_fetch`, global Settings/key path, URL safety policy, gated execution tool registration, Context/Audit/diagnostic descriptors, and mock-provider tests. | [Execution Web Search Capability](../plans/feature/execution-web-search-capability.md), [Execution Web Fetch Capability](../plans/feature/execution-web-fetch-capability.md) |
-| Contract revision command substrate | Implemented CRS-A through CRS-E: command protocol, `record_guidance`, routed ASK/confirmation resolution, Plan/TaskNode patch/create/delete, and `create_execution_task` handoff. CRS-F/CRS-G remain P0 closure work because Router-first UX, durable route evidence, and full Electron/CI acceptance are not complete. | [Contract Revision Command Skills](../plans/feature/contract-revision-command-skills.md) |
+| Runtime Input Router and Router LLM | Implemented Router-first Main Page path, durable Router Conversation protocol, question cards/options, read-only answers, guidance, ASK/confirmation routes, execution handoff, and backend-only Agent LLM / Router LLM configuration. | [Runtime Input Router Contract](../plans/feature/runtime-input-router-contract.md), [Router-first Main Page Input](../plans/feature/router-first-main-input-durable-activity-technical-design.zh-CN.md), [Agent LLM Config And Router LLM](../plans/feature/agent-llm-config-and-router-llm.md) |
+| Contract revision command substrate | Implemented CRS-A through CRS-G: command protocol, `record_guidance`, routed ASK/confirmation resolution, Plan/TaskNode patch/create/delete, `create_execution_task` handoff, Audit / Diagnostics linkage, and configured Electron acceptance evidence. | [Contract Revision Command Skills](../plans/feature/contract-revision-command-skills.md), [P0 Release Evidence](plato-1-1-p0-release-evidence-2026-06-20.md) |
 
-## 4. P0 Milestone: Runtime Input And Evidence Closure
+## 4. P0 Closure: Runtime Input And Evidence Readiness
 
 ### 4.1 Milestone Statement
 
@@ -60,40 +70,59 @@ Runtime Input Router
   + durable Activity / Audit evidence
 ```
 
-The milestone is complete when a user can type into the Main Page once, Plato
-can safely interpret the input as a question, guidance, command, ASK answer,
-confirmation response, or execution request, and the user can later inspect
-what happened through durable Activity and Audit evidence.
+The functional milestone implementation is now on `main`. Product 1.1 P0 is no
+longer missing first capability work. The remaining P0 closure scope was:
+
+```text
+Electron acceptance
+  + Audit / Diagnostics closure
+  + release evidence
+```
+
+That scope is now recorded for the configured Electron app, packaged app, and
+mounted `1.1-beta` installer. Public repository release-note sync and richer
+visual evidence remain useful release polish, but they are no longer P0
+capability blockers.
+
+The milestone is product-complete when a user can type into the Main Page once,
+Plato can safely interpret the input as a question, guidance, command, ASK
+answer, confirmation response, or execution request, and the user can later
+inspect what happened through durable Conversation, Activity, Audit, and
+diagnostic evidence.
 
 ### 4.2 Why This Is The P0
 
-Product 1.1 already has useful workspace and trust surfaces. The remaining
-failure mode is that user input can still feel like chat attached to several
-separate command paths. That is a product problem:
+Product 1.1 already has useful workspace and trust surfaces. The previous
+failure mode was that user input could feel like chat attached to several
+separate command paths. The main code path now routes through the Runtime Input
+Router, and the configured Electron sidecar now passes the P0 route matrix.
+Product 1.1 needed release evidence that proves the loop behaves correctly
+under beta distribution conditions:
 
-- guidance can be lost as informal text instead of becoming typed context;
-- command-like requests can be ambiguous or unsupported without a clear
-  product explanation;
-- ASK and confirmation resolution can exist in explicit UI paths but still be
-  inconsistent with the natural-language input surface;
-- workspace-changing requests must become executable contract work, not direct
+- Router decisions must remain durable and replayable after reload;
+- command-like requests must keep using command-backed product-state mutation;
+- workspace-changing requests must create executable contract work, not direct
   tool execution;
-- Router decisions must be durable and auditable, not transient UI metadata.
+- ASK and confirmation resolution must work from both explicit controls and the
+  natural-language input surface;
+- diagnostics and release evidence must prove that prompts, provider payloads,
+  raw logs, SQLite rows, secrets, and absolute paths are not exposed.
 
 ### 4.3 P0 Work Packages
 
 | ID | Work package | Current state | Target outcome | Source |
 |---|---|---|---|---|
-| P0-RIR-1 | Main Page default Router path | Open. Deterministic Router foundation exists, but the Main Page submit path is not yet Router-first for the full input surface. | Main Page submit routes through Runtime Input Router by default while explicit ASK/confirmation controls continue to work. | [Runtime Input Router Contract](../plans/feature/runtime-input-router-contract.md) |
-| P0-RIR-2 | Question and guidance routes | Partial. Read-only inquiry is accepted; guidance recording command exists. Remaining work is Router-first product wiring and durable route replay for all route outcomes. | Read-only questions use the accepted Inquiry path; guidance routes to command-backed guidance recording. Unsupported guidance never becomes hidden behavior. | [Runtime Input And Contract Revision Program](../plans/feature/runtime-input-and-contract-revision-program.md) |
+| P0-RIR-1 | Main Page default Router path | Implemented on `main`; component coverage exists for the default submit path and configured Electron smoke covers the P0 route matrix through Runtime Input routes. | Main Page submit routes through Runtime Input Router by default while explicit ASK/confirmation controls continue to work. | [Runtime Input Router Contract](../plans/feature/runtime-input-router-contract.md), [P0 Release Evidence](plato-1-1-p0-release-evidence-2026-06-20.md) |
+| P0-RIR-2 | Question and guidance routes | Implemented on `main`; configured Electron smoke verifies read-only question Activity replay and command-backed guidance in the sidecar runtime. | Read-only questions use the accepted Inquiry path; guidance routes to command-backed guidance recording. Unsupported guidance never becomes hidden behavior. | [Runtime Input And Contract Revision Program](../plans/feature/runtime-input-and-contract-revision-program.md), [P0 Release Evidence](plato-1-1-p0-release-evidence-2026-06-20.md) |
 | P0-CRS-1 | Command skill protocol | Implemented. | Internal command skills return versioned, idempotent, auditable results with Activity metadata and no direct workspace writes. | [Contract Revision Command Skills](../plans/feature/contract-revision-command-skills.md) |
 | P0-CRS-2 | `record_guidance` | Implemented. | Session, Plan, or Task guidance persists as typed contract/context facts and appears in Activity. | [Contract Revision Command Skills](../plans/feature/contract-revision-command-skills.md) |
 | P0-CRS-3 | ASK and confirmation routed resolution | Implemented. Follow-up fixes have covered PlanTaskNode/published-task ASK matching in Main Page detail. | The same input surface can resolve active ASK and confirmation states through accepted domain commands. | [Runtime Input Router Contract](../plans/feature/runtime-input-router-contract.md), [Contract Revision Command Skills](../plans/feature/contract-revision-command-skills.md) |
-| P0-CRS-4 | Execution request handoff | Implemented at command level. Full product acceptance still depends on Router-first UI and Electron smoke. | Workspace-changing requests create executable Plan/TaskNode contract work and enter TaskBus only through the accepted execution path. | [Contract Revision Command Skills](../plans/feature/contract-revision-command-skills.md) |
+| P0-CRS-4 | Execution request handoff | Implemented on `main`; configured Electron smoke verifies `mode: change` routes to execution handoff and does not mutate workspace files directly. | Workspace-changing requests create executable Plan/TaskNode contract work and enter TaskBus only through the accepted execution path. | [Contract Revision Command Skills](../plans/feature/contract-revision-command-skills.md), [P0 Release Evidence](plato-1-1-p0-release-evidence-2026-06-20.md) |
 | P0-CRS-5 | Plan/TaskNode mutation commands | Implemented for patch/create/delete with version, editable-Plan, idempotency, and tombstone semantics. | Contract-changing requests use command-backed patch/create/delete operations with state, version, idempotency, and confirmation guards. | [Plan / TaskNode Contract Migration](../plans/feature/plan-tasknode-contract-migration.md), [Contract Revision Command Skills](../plans/feature/contract-revision-command-skills.md) |
-| P0-ACT-1 | Durable Router Activity | Partial. Command and read-only inquiry evidence exists, but route-result metadata must not remain the only user-visible source for every route. | Router decisions and outcomes are stored as durable Session content or equivalent facts, not only returned as transient route-result metadata. | [Session Conversation / Activity Timeline](../plans/feature/session-conversation-activity-timeline.md) |
-| P0-TRUST-1 | Audit and diagnostics linkage | Partial. Implemented command descriptors exist; Router-wide Audit/diagnostic linkage and redacted export coverage still need closure. | Routed input links to downstream command, Activity, Audit, and diagnostic refs without exposing prompts, provider payloads, raw logs, SQLite rows, secrets, or absolute paths. | [Runtime Input And Contract Revision Program](../plans/feature/runtime-input-and-contract-revision-program.md) |
-| P0-QA-1 | Real acceptance suite | Open. Targeted validations exist; full Electron/sidecar P0 route acceptance remains the release gate. | Electron/sidecar acceptance covers question, guidance, ASK, confirmation, stop/retry, execution-request handoff, unsupported routes, and no-mutation guarantees. | [Product 1.1 QA Report](plato-1-1-real-local-qa-report-2026-06-11.md) |
+| P0-ACT-1 | Durable Router Conversation / Activity | Implemented on `main`; configured Electron smoke verifies durable Activity replay after renderer reload for read-only, guidance, ASK, confirmation, execution handoff, and unsupported routes. | Router decisions and outcomes are stored as durable Session content or equivalent facts, not only returned as transient route-result metadata. | [Session Conversation / Activity Timeline](../plans/feature/session-conversation-activity-timeline.md), [P0 Release Evidence](plato-1-1-p0-release-evidence-2026-06-20.md) |
+| P0-TRUST-1 | Audit and diagnostics linkage | Passed for the configured P0 route matrix. Router-specific diagnostic bundle descriptors and Router-specific Audit records/details exist; Electron smoke verifies Audit navigation, diagnostic export, `runtime_input` descriptors, and no absolute path leakage. | Routed input links to downstream command, Activity, Audit, and diagnostic refs without exposing prompts, provider payloads, raw logs, SQLite rows, secrets, or absolute paths. | [Runtime Input And Contract Revision Program](../plans/feature/runtime-input-and-contract-revision-program.md), [P0 Release Evidence](plato-1-1-p0-release-evidence-2026-06-20.md) |
+| P0-QA-1 | Real acceptance suite | Passed for configured Electron, packaged app, and mounted `1.1-beta` installer smoke. Sidecar restart replay remains beta-depth release confidence work. | Electron/sidecar acceptance covers question, guidance, ASK, confirmation, stop/retry, execution-request handoff, unsupported routes, and no-mutation guarantees. | [Product 1.1 QA Report](plato-1-1-real-local-qa-report-2026-06-11.md), [P0 Release Evidence](plato-1-1-p0-release-evidence-2026-06-20.md) |
+| P0-REL-1 | Release evidence package | Closed for Product 1.1 P0 beta evidence. The release evidence package links the route matrix, Audit / Diagnostics closure, packaged app, mounted `1.1-beta` installer smoke, SHA256, known limitations, and release record. Public repository release-note sync remains P1 external-doc polish. | Stable/beta release docs clearly show what Product 1.1 includes, what was verified, and what remains deferred. | [P0 Release Evidence](plato-1-1-p0-release-evidence-2026-06-20.md), [Product 1.1 Runtime Input Router Release Evidence](../releases/product-1-1-runtime-input-router-release-evidence.md), [Runtime Input And Contract Revision Program](../plans/feature/runtime-input-and-contract-revision-program.md) |
 
 ### 4.4 P0 Non-Goals
 
@@ -126,26 +155,36 @@ The P0 milestone is accepted when:
    workspace files.
 10. Real sidecar/Electron acceptance covers happy paths, rejected commands,
     unsupported routes, and no-mutation guarantees.
+11. Release evidence links the accepted Product 1.1 features to docs, tests,
+    screenshots or smoke logs, and known limitations.
 
 ### 4.6 Suggested P0 Execution Order
 
 1. Done: implement the CRS-A command protocol models and focused unit tests.
 2. Done: implement `record_guidance` persistence, projection, and Activity
    output.
-3. Partial: wire RIR question and guidance routes to accepted downstream
-   capabilities. Read-only inquiry and command-backed guidance exist; the
-   full Main Page Router-first submit path remains open.
+3. Done: wire RIR question and guidance routes to accepted downstream
+   capabilities. Read-only inquiry, command-backed guidance, Router-first
+   submit, and durable route replay are on `main`.
 4. Done: add ASK/confirmation routed resolution parity with explicit UI
    controls.
 5. Done: add guarded Plan/TaskNode mutation commands and
    `create_execution_task` handoff.
-6. Partial: persist Router decisions/outcomes as durable Session Activity for
-   read-only inquiry and implemented Contract Revision commands.
-7. Partial: add Router Audit/diagnostic refs and redacted diagnostic
-   descriptors for implemented Contract Revision commands.
-8. Open: migrate the Main Page input submit path to Runtime Input Router by
+6. Done: persist Router decisions/outcomes as durable Conversation / Activity
+   for read-only inquiry and implemented Contract Revision commands.
+7. Done for P0: add Router Audit/diagnostic refs and redacted diagnostic
+   descriptors for implemented Contract Revision commands. Diagnostic bundle
+   `runtime_input` descriptors and Router-specific Audit records/details now
+   exist and are covered by configured Electron smoke.
+8. Done: migrate the Main Page input submit path to Runtime Input Router by
    default for the full input surface.
-9. Open: run the real Electron/sidecar acceptance suite for all P0 routes.
+9. Done for configured P0 route matrix: run the real Electron/sidecar
+   acceptance suite for read-only, guidance, ASK, confirmation, execution
+   handoff, unsupported routes, stale retry rejection, Audit navigation,
+   diagnostics export, and no-mutation guarantees.
+10. Done for P0: finish Product 1.1 release evidence by tying accepted routes
+    to release docs, packaged-release evidence, mounted `1.1-beta` installer
+    smoke, SHA256, and known limitations.
 
 ## 5. P1 Open Work
 
@@ -155,31 +194,23 @@ The P0 milestone is accepted when:
 | Precision file tools product acceptance | Run broader sidecar/Electron evidence-link smoke after frontend entry points consume precision evidence links. | Tool/backend scope is complete; remaining work is acceptance depth. |
 | Stop / cancel UX | Represent intentional user stop as `stopped` or `cancelled`, not as a generic `failed` state with `Retry`. | Avoids user trust damage in long-running tasks. |
 | Token usage budget boundary | Add visible warning or budget boundary for long-running or extremely high-token execution. | Prevents cost surprises during beta use. |
-| Diagnostics descriptors | Add richer diagnostic bundle section descriptors, including workspace inspection evidence and Router decision descriptors. | Improves supportability without changing the main work loop. |
+| Diagnostics descriptors | Add richer beta-depth diagnostic bundle descriptors for workspace inspection evidence, per-route Electron logs, and support-oriented summaries. | Improves supportability beyond the P0 route-matrix closure. |
 | Localization polish | Clean remaining mixed English/Chinese execution ASK and recovery copy; continue moving UI system text behind typed keys. | Product quality issue for zh-CN beta builds. |
 | Web retrieval beta hardening | Verify real Tavily Search/Extract smoke, broader citation/result UI, Audit projection depth, user-visible limitations, and future retrieval budget boundaries. | Search/fetch are implemented; the remaining work is beta trust and release evidence, not first capability delivery. |
-| Electron release hardening | Keep packaged/installer smoke current for Product 1.1 paths; signed/notarized distribution remains deferred until Apple Developer credentials exist. | Protects beta release quality. |
+| Electron release hardening | Keep packaged/installer smoke current for Product 1.1 paths; add sidecar restart replay; signed/notarized distribution remains deferred until Apple Developer credentials exist. | Protects beta release quality. |
+| External release docs sync | Mirror Product 1.1 beta evidence and known limitations into the public repository release/user docs when publishing externally. | Public-facing clarity matters, but the internal P0 release evidence is now closed. |
 
 ## 5.1 Recommended Next Product Branches
 
 The next branches should be selected in this order:
 
-1. **Router-first Main Page input + Conversation protocol**: migrate the
-   default submit path to Runtime Input Router while preserving explicit
-   ASK/confirmation controls, display Router trace in Conversation, and render
-   backend-declared question cards/options. Technical design:
-   [Router-first Main Page Input, Conversation Protocol, And Durable Activity](../plans/feature/router-first-main-input-durable-activity-technical-design.zh-CN.md).
-2. **Durable Router Conversation / Activity**: make user input, Router trace,
-   Router questions, user answers, and Router outcomes replayable after reload
-   through typed Conversation content, with Activity summaries for inspection.
-   Technical design:
-   [Router-first Main Page Input, Conversation Protocol, And Durable Activity](../plans/feature/router-first-main-input-durable-activity-technical-design.zh-CN.md).
-3. **Router Audit / Diagnostics closure**: add redacted diagnostic descriptors
-   and consistent command/route refs for the full P0 route set.
-4. **P0 Electron acceptance**: run and harden real sidecar/Electron coverage for
-   question, guidance, ASK, confirmation, execution handoff, unsupported
-   routes, stop/retry, and no-mutation guarantees.
-5. **P1 beta polish**: stop/cancel UX, token budget warnings, localization
+1. **Sidecar restart replay confidence**: prove durable Conversation /
+   Activity replay after killing and relaunching the packaged sidecar, then
+   fold that into installer smoke if it remains stable.
+2. **External Product 1.1 release docs sync**: mirror the internal Product 1.1
+   beta release record into the public repository docs with user-facing known
+   limitations.
+3. **P1 beta polish**: stop/cancel UX, token budget warnings, localization
    cleanup, and web retrieval release evidence.
 
 ## 6. P2 Open Work

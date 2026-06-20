@@ -24,6 +24,7 @@ from taskweavn.server import (
     MainPageSidecarConfig,
     MainPageSidecarDependencies,
     MainPageTaskRefResolver,
+    WorkspaceRegistryEntry,
     build_main_page_sidecar_app,
 )
 from taskweavn.task import (
@@ -321,6 +322,44 @@ def test_audit_sidecar_smoke_fixture_can_force_first_run_configured(
     assert response.json["data"]["llm"]["provider"] == "deepseek"
     assert response.json["data"]["llm"]["missingEnvVars"] == []
     assert "test-sidecar-readiness-key" not in response.text
+
+
+def test_audit_sidecar_smoke_fixture_uses_workspace_registry_id(
+    tmp_path: Any,
+) -> None:
+    fixture = build_audit_sidecar_smoke_fixture(
+        tmp_path,
+        workspace_registry=(
+            WorkspaceRegistryEntry(
+                workspace_id="workspace-smoke",
+                root_path=tmp_path,
+                label="Smoke workspace",
+                is_current=True,
+            ),
+        ),
+    )
+    try:
+        diff = fixture.request(
+            "GET",
+            (
+                f"/api/v1/workspaces/{quote(fixture.workspace_id, safe='')}"
+                f"/inspection/diff?path={quote(fixture.inspection_file_path, safe='')}"
+            ),
+        )
+        stale_current = fixture.request(
+            "GET",
+            (
+                "/api/v1/workspaces/current/inspection/diff?"
+                f"path={quote(fixture.inspection_file_path, safe='')}"
+            ),
+        )
+    finally:
+        fixture.close()
+
+    assert fixture.workspace_id == "workspace-smoke"
+    assert diff.status == 200
+    assert "Workspace inspection seeded change." in diff.text
+    assert stale_current.status == 404
 
 
 def test_build_main_page_sidecar_app_starts_without_session_and_frontend_creates_one(

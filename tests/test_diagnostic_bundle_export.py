@@ -170,6 +170,82 @@ def test_diagnostic_bundle_marks_missing_sources_without_failing(tmp_path: Path)
     assert section_status["workspace_inspection"] == "missing"
 
 
+def test_diagnostic_bundle_exports_runtime_input_route_descriptors(
+    tmp_path: Path,
+) -> None:
+    layout = WorkspaceLayout(tmp_path / "workspace")
+    layout.bootstrap()
+    with SessionManager(layout) as manager:
+        session = manager.create("Runtime input diagnostics")
+    _write_runtime_input_messages(layout, session)
+
+    result = DiagnosticBundleExporter(
+        DiagnosticExportOptions(
+            workspace_root=layout.root,
+            session_id=session.id,
+            output_dir=tmp_path / "diagnostics",
+            create_zip=False,
+            created_at=NOW,
+        )
+    ).export()
+
+    manifest = json.loads((result.bundle_dir / "manifest.json").read_text(encoding="utf-8"))
+    assert "runtime_input" in manifest["includedSections"]
+    assert "router/runtime-input.summary.json" in {
+        entry["path"] for entry in manifest["files"]
+    }
+
+    summary_text = (result.bundle_dir / "router/runtime-input.summary.json").read_text(
+        encoding="utf-8"
+    )
+    assert str(layout.root) not in summary_text
+    assert "secret-value" not in summary_text
+    assert "workspace://current/private.txt" in summary_text
+    summary = json.loads(summary_text)
+    assert summary["schemaVersion"] == "plato.runtime_input.diagnostic_summary.v1"
+    assert summary["routeCount"] == 2
+    assert summary["redactionPolicy"] == {
+        "llmProviderData": "excluded",
+        "modelInputData": "excluded",
+        "rawLogsIncluded": False,
+        "rawSqlRowsIncluded": False,
+        "source": "MessageStream safe Router context",
+    }
+
+    routes = {route["commandId"]: route for route in summary["routes"]}
+    route = routes["route-1"]
+    assert route["decisionIds"] == ["decision-1"]
+    assert route["conversationMessageIds"] == [
+        "runtime-input-user-route-1",
+        "runtime-input-trace-route-1",
+    ]
+    assert route["activityMessageIds"] == ["runtime-input-activity-answer-route-1"]
+    assert route["auditRefs"]["recordIds"] == [
+        "record-message-runtime-input-user-route-1",
+        "record-message-runtime-input-trace-route-1",
+        "record-message-runtime-input-activity-answer-route-1",
+    ]
+    assert route["intent"] == "question"
+    assert route["sideEffect"] == "no_effect"
+    assert route["dispatchTarget"] == "read_only_inquiry"
+    assert route["outcomeStatus"] == "answered"
+    assert route["diagnosticDescriptor"] == {
+        "kind": "runtime_input_route",
+        "linksActivity": True,
+        "linksAuditRecord": True,
+        "linksDownstreamCommand": False,
+        "linksRouterDecision": True,
+        "linksUserInput": True,
+        "redacted": True,
+    }
+
+    command_route = routes["route-2"]
+    assert command_route["downstreamCommandIds"] == ["route-2"]
+    assert command_route["contractCommandKinds"] == ["record_guidance"]
+    assert command_route["contractCommandStatuses"] == ["accepted"]
+    assert command_route["diagnosticDescriptor"]["linksDownstreamCommand"] is True
+
+
 def test_diagnostic_bundle_allows_repeated_export_in_same_second(
     tmp_path: Path,
 ) -> None:
@@ -327,6 +403,122 @@ def _write_message(layout: WorkspaceLayout, session: Session) -> None:
                     "prompt": "raw prompt should not ship",
                     "path": str(layout.root / "secret.txt"),
                 },
+            )
+        )
+    finally:
+        bus.close()
+        stream.close()
+
+
+def _write_runtime_input_messages(layout: WorkspaceLayout, session: Session) -> None:
+    stream = SqliteMessageStream(layout.workspace_messages_db)
+    bus = InProcessMessageBus(stream)
+    try:
+        bus.publish(
+            AgentMessage(
+                message_id="runtime-input-user-route-1",
+                session_id=session.id,
+                agent_id="user",
+                message_type="informational",
+                content=(
+                    f"Can you inspect {layout.root}/private.txt with "
+                    "api_key=secret-value?"
+                ),
+                context={
+                    "title": "User input",
+                    "conversation_render": {
+                        "protocolVersion": "plato.conversation.render.v1",
+                        "renderKind": "text",
+                        "text": {
+                            "title": "User input",
+                            "body": (
+                                f"Can you inspect {layout.root}/private.txt with "
+                                "api_key=secret-value?"
+                            ),
+                        },
+                    },
+                },
+                related_action_id="route-1",
+            )
+        )
+        bus.publish(
+            AgentMessage(
+                message_id="runtime-input-trace-route-1",
+                session_id=session.id,
+                agent_id="router",
+                message_type="informational",
+                content="Input was answered through Read-Only Inquiry Context.",
+                context={
+                    "title": "Router interpretation",
+                    "activity_related_refs": [
+                        {
+                            "kind": "session",
+                            "id": f"session:{session.id}:status",
+                            "label": "Session status",
+                        }
+                    ],
+                    "conversation_render": {
+                        "protocolVersion": "plato.conversation.render.v1",
+                        "renderKind": "router_trace",
+                        "routerTrace": {
+                            "intent": "question",
+                            "scopeKind": "session",
+                            "confidence": "high",
+                            "sideEffect": "no_effect",
+                            "dispatchTarget": "read_only_inquiry",
+                            "explanation": (
+                                f"Looked at {layout.root}/private.txt while "
+                                "redacting api_key=secret-value."
+                            ),
+                            "outcomeStatus": "answered",
+                        },
+                    },
+                },
+                related_action_id="decision-1",
+            )
+        )
+        bus.publish(
+            AgentMessage(
+                message_id="runtime-input-activity-answer-route-1",
+                session_id=session.id,
+                agent_id="router",
+                message_type="informational",
+                content="Answered without mutating workspace files.",
+                context={
+                    "title": "Read-only question answered",
+                    "activity_related_refs": [
+                        {
+                            "kind": "session",
+                            "id": f"session:{session.id}:status",
+                            "label": "Session status",
+                        }
+                    ],
+                    "runtime_input_activity_kind": "answer",
+                    "runtime_input_side_effect": "no_effect",
+                    "runtime_input_decision_id": "decision-1",
+                    "runtime_input_outcome_status": "answered",
+                    "runtime_input_scope_kind": "session",
+                },
+                related_action_id="decision-1",
+            )
+        )
+        bus.publish(
+            AgentMessage(
+                message_id="contract-revision-route-2",
+                session_id=session.id,
+                agent_id="router",
+                message_type="informational",
+                content="Guidance recorded: keep diffs small.",
+                context={
+                    "title": "Guidance recorded",
+                    "runtime_input_activity_kind": "guidance_recorded",
+                    "runtime_input_side_effect": "context_effect",
+                    "contract_command_id": "route-2",
+                    "contract_command_kind": "record_guidance",
+                    "contract_command_status": "accepted",
+                    "contract_guidance_id": "guidance-1",
+                },
+                related_action_id="route-2",
             )
         )
     finally:

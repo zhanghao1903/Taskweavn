@@ -80,6 +80,7 @@ from taskweavn.server.ui_contract.gateway_protocols import (
     AuditLogProvider,
 )
 from taskweavn.server.ui_contract.view_models import (
+    AuditConfidence,
     AuditConfirmationScope,
     AuditFileScope,
     AuditRecord,
@@ -400,6 +401,9 @@ def _confirmation_audit_record(
 
 
 def _message_audit_record(message: SessionMessageView) -> AuditRecord:
+    runtime_record = _runtime_input_message_audit_record(message)
+    if runtime_record is not None:
+        return runtime_record
     record_id = f"record-message-{message.id}"
     task_ref = message.task_ref
     task_node_id = message.task_node_id
@@ -437,6 +441,142 @@ def _message_audit_record(message: SessionMessageView) -> AuditRecord:
             ),
         ),
     )
+
+
+def _runtime_input_message_audit_record(
+    message: SessionMessageView,
+) -> AuditRecord | None:
+    record_kind = _runtime_input_record_kind(message)
+    if record_kind is None:
+        return None
+    record_id = f"record-message-{message.id}"
+    task_ref = message.task_ref
+    task_node_id = message.task_node_id
+    title, summary, confidence = _runtime_input_record_text(message, record_kind)
+    return AuditRecord(
+        id=record_id,
+        scope=(
+            AuditTaskScope(
+                session_id=message.session_id,
+                task_node_id=task_node_id,
+                task_ref=task_ref,
+            )
+            if task_node_id is not None
+            else AuditSessionScope(session_id=message.session_id)
+        ),
+        kind="message",
+        filter_kind="system",
+        title=title,
+        summary=summary,
+        actor=_runtime_input_actor(message, record_kind),
+        source_label="Runtime Input Router",
+        occurred_at=message.created_at,
+        severity="info",
+        confidence=confidence,
+        completeness="complete",
+        task_node_id=task_node_id,
+        task_ref=task_ref,
+        confirmation_id=message.related_confirmation_id,
+        action_id=message.related_command_id,
+        evidence_refs=(
+            EvidenceRef(
+                id=f"evidence-{record_id}",
+                kind="message",
+                label=title,
+                summary=summary,
+            ),
+        ),
+    )
+
+
+def _runtime_input_record_kind(message: SessionMessageView) -> str | None:
+    if message.title == "User input" and _runtime_input_action_id(message):
+        return "user_input"
+    render = message.conversation_render
+    if render is not None and render.router_trace is not None:
+        return "router_trace"
+    if render is not None and render.question_card is not None:
+        return "question_card"
+    if message.title in {
+        "Read-only question answered",
+        "Guidance recorded",
+        "ASK answered",
+        "Confirmation resolved",
+        "Task created",
+        "Execution work created",
+        "Task changed",
+        "Task removed",
+        "Runtime input routed",
+        "Runtime input needs clarification",
+        "Runtime input unsupported",
+    } and _runtime_input_action_id(message):
+        return "route_outcome"
+    return None
+
+
+def _runtime_input_record_text(
+    message: SessionMessageView,
+    record_kind: str,
+) -> tuple[str, str, AuditConfidence]:
+    if record_kind == "user_input":
+        return (
+            "Runtime input received",
+            f"User input entered the Runtime Input Router: {message.body}",
+            "high",
+        )
+    render = message.conversation_render
+    if record_kind == "router_trace" and render is not None and render.router_trace:
+        trace = render.router_trace
+        return (
+            "Runtime Input Router decision",
+            (
+                f"Intent {trace.intent} routed to {trace.dispatch_target}; "
+                f"outcome {trace.outcome_status}; side effect {trace.side_effect}. "
+                f"{trace.explanation}"
+            ),
+            _audit_confidence(trace.confidence),
+        )
+    if record_kind == "question_card" and render is not None and render.question_card:
+        card = render.question_card
+        body = card.body or message.body
+        return (
+            "Runtime Input Router question",
+            f"{card.title}: {body}",
+            "high",
+        )
+    return (
+        f"Runtime Input Router outcome: {message.title}",
+        message.body,
+        "medium",
+    )
+
+
+def _runtime_input_actor(
+    message: SessionMessageView,
+    record_kind: str,
+) -> Literal["user", "agent", "system"]:
+    if record_kind == "user_input":
+        return "user"
+    if message.title in {"Guidance recorded", "ASK answered", "Confirmation resolved"}:
+        return "system"
+    return "agent"
+
+
+def _runtime_input_action_id(message: SessionMessageView) -> str | None:
+    action_id = message.related_command_id
+    if action_id is not None and action_id:
+        return action_id
+    if message.id.startswith("runtime-input-") or message.id.startswith(
+        "contract-revision-"
+    ):
+        return message.id
+    return None
+
+
+def _audit_confidence(value: str) -> AuditConfidence:
+    if value in {"high", "medium", "low", "unknown"}:
+        return cast(AuditConfidence, value)
+    return "medium"
 
 
 def _message_actor(message: SessionMessageView) -> Literal["user", "agent", "system"]:

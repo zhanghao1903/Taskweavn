@@ -15,6 +15,7 @@ from typing import Any, cast
 from urllib.parse import quote
 
 from taskweavn.core import SqliteEventStream
+from taskweavn.interaction import AgentMessage, AskRequest
 from taskweavn.server import (
     MainPageSidecarApp,
     MainPageSidecarConfig,
@@ -27,6 +28,9 @@ from taskweavn.task import TaskDomain, TaskExecutionSummary
 from taskweavn.tools.fs import FileWriteObservation
 
 SMOKE_TASK_ID = "diagnostic-export-task"
+SMOKE_INTERACTION_TASK_ID = "runtime-input-interaction-task"
+SMOKE_ASK_ID = "runtime-input-smoke-ask"
+SMOKE_CONFIRMATION_ID = "runtime-input-smoke-confirmation"
 SMOKE_ERROR_REF = "provider:rate_limit"
 SMOKE_FRONTEND_ERROR_MESSAGE = "diagnostics.route.render.failed"
 SMOKE_LOG_RECORD_ID = "record-log-frontend-errors.jsonl"
@@ -55,6 +59,8 @@ class SidecarSmokeFixture:
     app: MainPageSidecarApp
     session_id: str
     task_id: str
+    ask_id: str
+    confirmation_id: str
     log_record_id: str
     log_evidence_id: str
     diagnostics_log_href: str
@@ -108,6 +114,7 @@ def build_audit_sidecar_smoke_fixture(
     """Create a deterministic real-sidecar session for frontend integration checks."""
 
     _seed_workspace_inspection_state(workspace_root)
+    workspace_id = _current_workspace_id_from_registry(workspace_registry)
     app = build_main_page_sidecar_app(
         MainPageSidecarConfig(
             workspace_root=workspace_root,
@@ -147,6 +154,7 @@ def build_audit_sidecar_smoke_fixture(
         if claimed is None:
             raise AssertionError("sidecar smoke task was not claimable")
         _seed_result_and_file_evidence(app, session_id, task)
+        _seed_runtime_input_interaction_state(app, session_id)
         app.task_bus.fail(session_id, SMOKE_TASK_ID, error_ref=SMOKE_ERROR_REF)
         _write_frontend_error_log(app, session_id)
         diagnostics_log_href, log_evidence_id = _require_related_log_context(
@@ -157,9 +165,12 @@ def build_audit_sidecar_smoke_fixture(
             app=app,
             session_id=session_id,
             task_id=SMOKE_TASK_ID,
+            ask_id=SMOKE_ASK_ID,
+            confirmation_id=SMOKE_CONFIRMATION_ID,
             log_record_id=SMOKE_LOG_RECORD_ID,
             log_evidence_id=log_evidence_id,
             diagnostics_log_href=diagnostics_log_href,
+            workspace_id=workspace_id,
             read_only_inquiry_llm_enabled=enable_read_only_inquiry_llm,
         )
     except Exception:
@@ -189,6 +200,17 @@ def request_sidecar(
         )
     finally:
         conn.close()
+
+
+def _current_workspace_id_from_registry(
+    workspace_registry: tuple[WorkspaceRegistryEntry, ...],
+) -> str:
+    if not workspace_registry:
+        return "current"
+    for entry in workspace_registry:
+        if entry.is_current:
+            return entry.workspace_id
+    return workspace_registry[0].workspace_id
 
 
 def _create_session(app: MainPageSidecarApp, name: str = "Diagnostics smoke") -> str:
@@ -231,6 +253,37 @@ def _seed_result_and_file_evidence(
             ),
             task_id=task.task_id,
         )
+
+
+def _seed_runtime_input_interaction_state(
+    app: MainPageSidecarApp,
+    session_id: str,
+) -> None:
+    app.task_bus.publish(
+        _published_task(SMOKE_INTERACTION_TASK_ID, session_id=session_id)
+    )
+    app.ask_store.create(
+        AskRequest(
+            ask_id=SMOKE_ASK_ID,
+            session_id=session_id,
+            task_id=SMOKE_INTERACTION_TASK_ID,
+            question="Which release channel should Product 1.1 use?",
+            reason="The acceptance smoke needs a durable routed ASK target.",
+        )
+    )
+    app.message_bus.publish(
+        AgentMessage(
+            message_id=SMOKE_CONFIRMATION_ID,
+            session_id=session_id,
+            task_id=SMOKE_INTERACTION_TASK_ID,
+            agent_id="sidecar-smoke",
+            message_type="actionable",
+            content="Approve Product 1.1 release evidence closure?",
+            action_options=["yes", "no"],
+            requires_response=True,
+            context={"task_ref_kind": "published"},
+        )
+    )
 
 
 def _write_frontend_error_log(app: MainPageSidecarApp, session_id: str) -> None:
@@ -514,6 +567,8 @@ def _ready_payload(fixture: SidecarSmokeFixture) -> dict[str, object]:
         "baseUrl": fixture.base_url,
         "diagnosticExportUrl": fixture.diagnostic_export_url,
         "diagnosticsLogUrl": fixture.diagnostics_log_url,
+        "askId": fixture.ask_id,
+        "confirmationId": fixture.confirmation_id,
         "inspectionFilePath": fixture.inspection_file_path,
         "logEvidenceId": fixture.log_evidence_id,
         "logRecordId": fixture.log_record_id,

@@ -4,13 +4,14 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { App } from "../app/App";
 import { navigateApp } from "../app/navigation";
-import { buildWorkspaceInspectionRoute } from "../app/routes";
+import { buildAuditTaskRoute, buildWorkspaceInspectionRoute } from "../app/routes";
 import { AppProviders } from "../app/providers";
 
 const requiredEnv = {
   baseUrl: process.env.PLATO_E2E_SIDECAR_BASE_URL,
   inspectionFilePath: process.env.PLATO_E2E_INSPECTION_FILE_PATH,
   sessionId: process.env.PLATO_E2E_SESSION_ID,
+  taskId: process.env.PLATO_E2E_TASK_ID,
   workspaceId: process.env.PLATO_E2E_WORKSPACE_ID,
   workspaceRoot: process.env.PLATO_E2E_WORKSPACE_ROOT,
 };
@@ -49,9 +50,10 @@ describeSidecarE2E("Workspace inspection real sidecar E2E", () => {
       { timeout: 10_000 },
     );
 
-    const auditHref = screen.getByRole("link", { name: "View audit" }).getAttribute("href");
     await act(async () => {
-      navigateApp(auditHref ?? `/sessions/${requiredEnv.sessionId}/audit`);
+      navigateApp(
+        buildAuditTaskRoute(requiredEnv.sessionId ?? "", requiredEnv.taskId ?? ""),
+      );
     });
 
     expect(await screen.findByRole("heading", { name: "Audit" })).toBeInTheDocument();
