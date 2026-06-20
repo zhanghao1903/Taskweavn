@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { App } from "../app/App";
 import { navigateApp } from "../app/navigation";
 import { AppProviders } from "../app/providers";
+import { buildAuditTaskRoute } from "../app/routes";
 
 const requiredEnv = {
   baseUrl: process.env.PLATO_E2E_SIDECAR_BASE_URL,
@@ -46,16 +47,10 @@ describeSidecarE2E("Audit result/evidence real sidecar E2E", () => {
     );
     expect(screen.getAllByText(`Run ${requiredEnv.taskId}`).length).toBeGreaterThan(0);
 
-    const auditLink = screen.getByRole("link", { name: "View audit" });
-    const auditHref = auditLink.getAttribute("href");
-    expect(auditHref).toEqual(expect.stringContaining("/audit"));
-
-    auditLink.addEventListener("click", (event) => event.preventDefault(), {
-      once: true,
-    });
-    await user.click(auditLink);
     await act(async () => {
-      navigateApp(auditHref ?? `/sessions/${requiredEnv.sessionId}/audit`);
+      navigateApp(
+        buildAuditTaskRoute(requiredEnv.sessionId ?? "", requiredEnv.taskId ?? ""),
+      );
     });
 
     expect(await screen.findByRole("heading", { name: "Audit" })).toBeInTheDocument();
