@@ -123,7 +123,12 @@ try {
   process.exitCode = 1;
 } finally {
   stopAll();
-  rmSync(runDir, { force: true, recursive: true });
+  rmSync(runDir, {
+    force: true,
+    maxRetries: 5,
+    recursive: true,
+    retryDelay: 500,
+  });
 }
 
 function parseArgs(args) {
@@ -370,6 +375,15 @@ async function seedLauncherWorkspace({ kind, packagedDefaultWorkspace }) {
     ? path.join(userDataDir, "workspace")
     : path.join(runDir, "workspace-launcher");
   const readyFile = path.join(runDir, "launcher-seed-ready.json");
+  const workspaceSummary = summarizeWorkspace(workspaceDir, workspaceDir);
+  const workspaceRegistry = [
+    {
+      isCurrent: true,
+      label: workspaceSummary.name,
+      rootPath: workspaceDir,
+      workspaceId: workspaceSummary.id,
+    },
+  ];
   mkdirSync(workspaceDir, { recursive: true });
   const firstRunFlag =
     kind === "first-run" ? "--first-run-unconfigured" : "--first-run-configured";
@@ -384,6 +398,8 @@ async function seedLauncherWorkspace({ kind, packagedDefaultWorkspace }) {
       workspaceDir,
       "--ready-file",
       readyFile,
+      "--workspace-registry-json",
+      JSON.stringify(workspaceRegistry),
       firstRunFlag,
     ],
     {
@@ -404,7 +420,7 @@ async function seedLauncherWorkspace({ kind, packagedDefaultWorkspace }) {
     ...sidecarInfo,
     userDataDir,
     workspaceDir,
-    workspaceId: summarizeWorkspace(workspaceDir, workspaceDir).id,
+    workspaceId: workspaceSummary.id,
   };
 }
 

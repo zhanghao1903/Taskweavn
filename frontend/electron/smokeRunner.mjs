@@ -17,6 +17,8 @@ export async function runElectronSmoke({
   }
 
   validateFixture(fixture);
+  const activeBaseUrl =
+    typeof baseUrl === "string" && baseUrl.length > 0 ? baseUrl : fixture.baseUrl;
   const appReloadUrl = await evaluate(window, "location.href");
 
   if (kind === "first-run") {
@@ -35,6 +37,8 @@ export async function runElectronSmoke({
     }
     baseUrl = runtimeBaseUrl;
   }
+  baseUrl =
+    typeof baseUrl === "string" && baseUrl.length > 0 ? baseUrl : activeBaseUrl;
 
   await waitForText(window, "Diagnostics smoke", {
     label: "Main Page seeded session title",
@@ -205,10 +209,7 @@ async function smokeSettingsFirstRun(window, fixture) {
 }
 
 async function smokeAuditEvidence(window, fixture) {
-  const auditHref = await evaluate(window, findHrefScript("View audit"));
-  if (typeof auditHref !== "string" || !auditHref.includes("/audit")) {
-    throw new Error(`View audit href was not available: ${String(auditHref)}`);
-  }
+  const auditHref = sessionAuditPath(fixture);
 
   await navigate(window, withAuditFilter(auditHref, "all"));
   await waitForText(window, "Audit", { label: "Audit heading" });
@@ -260,10 +261,7 @@ async function smokeWorkspaceInspection(window, fixture) {
     label: "Main Page before workspace inspection",
   });
 
-  const auditHref = await evaluate(window, findHrefScript("View audit"));
-  if (typeof auditHref !== "string" || !auditHref.includes("/audit")) {
-    throw new Error(`View audit href was not available: ${String(auditHref)}`);
-  }
+  const auditHref = sessionAuditPath(fixture);
 
   await navigate(window, withAuditFilter(auditHref, "all"));
   await waitForText(window, "Audit", {
@@ -380,43 +378,37 @@ async function smokeReadOnlyInquiryActivity(
   });
 
   const commandId = `route-electron-read-only-inquiry-${Date.now()}`;
-  const routeUrl = `${baseUrl.replace(/\/$/, "")}/api/v1/workspaces/${encodeURIComponent(
-    fixture.workspaceId,
-  )}/sessions/${encodeURIComponent(fixture.sessionId)}/runtime-input/route`;
-  const routeResponse = await evaluate(
-    window,
-    `fetch(${JSON.stringify(routeUrl)}, {
-      body: JSON.stringify({
-        commandId: ${JSON.stringify(commandId)},
-        content: "What support diagnostics should I inspect for this audit evidence?",
-        inquiryRefs: [
-          {
-            id: ${JSON.stringify(fixture.logRecordId)},
-            kind: "audit_record",
-            label: "Frontend error log record"
-          },
-          {
-            evidenceId: ${JSON.stringify(fixture.logEvidenceId)},
-            kind: "audit_evidence",
-            label: "Frontend error log evidence"
-          },
-          {
-            id: "diagnostic:bundle_export",
-            kind: "diagnostic",
-            label: "Diagnostic bundle export"
-          }
-        ],
-        mode: "ask",
-        selection: {
-          scopeKind: "task",
-          taskNodeId: ${JSON.stringify(fixture.taskId)}
-        },
-        sessionId: ${JSON.stringify(fixture.sessionId)}
-      }),
-      headers: { "Content-Type": "application/json" },
-      method: "POST"
-    }).then((response) => response.json())`,
-  );
+  const routeResponse = await postRuntimeInputRoute(window, { baseUrl, fixture }, {
+    clientState: {
+      activeAskId: "runtime-input-smoke-no-active-ask",
+      activeConfirmationId: "runtime-input-smoke-no-active-confirmation",
+    },
+    commandId,
+    content: "What support diagnostics should I inspect for this audit evidence?",
+    inquiryRefs: [
+      {
+        id: fixture.logRecordId,
+        kind: "audit_record",
+        label: "Frontend error log record",
+      },
+      {
+        evidenceId: fixture.logEvidenceId,
+        kind: "audit_evidence",
+        label: "Frontend error log evidence",
+      },
+      {
+        id: "diagnostic:bundle_export",
+        kind: "diagnostic",
+        label: "Diagnostic bundle export",
+      },
+    ],
+    mode: "ask",
+    selection: {
+      scopeKind: "task",
+      taskNodeId: fixture.taskId,
+    },
+    sessionId: fixture.sessionId,
+  });
   if (
     routeResponse?.ok !== true ||
     routeResponse?.data?.decision?.sideEffect !== "no_effect" ||
@@ -443,6 +435,182 @@ async function smokeReadOnlyInquiryActivity(
     );
   }
 
+  const guidanceResponse = await postRuntimeInputRoute(
+    window,
+    { baseUrl, fixture },
+    {
+      clientState: {
+        activeAskId: "runtime-input-smoke-no-active-ask",
+        activeConfirmationId: "runtime-input-smoke-no-active-confirmation",
+      },
+      commandId: `route-electron-guidance-${Date.now()}`,
+      content: "Keep Product 1.1 release evidence concise and inspectable.",
+      mode: "guide",
+      selection: {
+        scopeKind: "session",
+      },
+      sessionId: fixture.sessionId,
+    },
+  );
+  if (
+    guidanceResponse?.ok !== true ||
+    guidanceResponse?.data?.decision?.dispatchTarget !== "record_guidance" ||
+    guidanceResponse?.data?.outcome?.status !== "dispatched"
+  ) {
+    throw new Error(
+      `Guidance route did not dispatch through record_guidance: ${JSON.stringify(
+        guidanceResponse,
+      )}`,
+    );
+  }
+
+  const askResponse = await postRuntimeInputRoute(
+    window,
+    { baseUrl, fixture },
+    {
+      clientState: {
+        activeAskId: fixture.askId,
+      },
+      commandId: `route-electron-ask-${Date.now()}`,
+      content: "Ship Product 1.1 as beta.",
+      selection: {
+        scopeKind: "task",
+        taskNodeId: fixture.taskId,
+      },
+      sessionId: fixture.sessionId,
+    },
+  );
+  if (
+    askResponse?.ok !== true ||
+    askResponse?.data?.decision?.dispatchTarget !== "resolve_ask" ||
+    askResponse?.data?.outcome?.status !== "dispatched"
+  ) {
+    throw new Error(
+      `ASK route did not dispatch through resolve_ask: ${JSON.stringify(
+        askResponse,
+      )}`,
+    );
+  }
+
+  const confirmationClarificationResponse = await postRuntimeInputRoute(
+    window,
+    { baseUrl, fixture },
+    {
+      clientState: {
+        activeConfirmationId: fixture.confirmationId,
+      },
+      commandId: `route-electron-confirm-clarify-${Date.now()}`,
+      content: "maybe after evidence",
+      selection: {
+        scopeKind: "task",
+        taskNodeId: fixture.taskId,
+      },
+      sessionId: fixture.sessionId,
+    },
+  );
+  if (
+    confirmationClarificationResponse?.ok !== true ||
+    confirmationClarificationResponse?.data?.decision?.dispatchTarget !==
+      "clarification" ||
+    confirmationClarificationResponse?.data?.outcome?.status !==
+      "needs_clarification" ||
+    confirmationClarificationResponse?.data?.decision?.sideEffect !== "no_effect"
+  ) {
+    throw new Error(
+      `Confirmation clarification route did not fail closed: ${JSON.stringify(
+        confirmationClarificationResponse,
+      )}`,
+    );
+  }
+
+  const confirmationResponse = await postRuntimeInputRoute(
+    window,
+    { baseUrl, fixture },
+    {
+      clientState: {
+        activeConfirmationId: fixture.confirmationId,
+      },
+      commandId: `route-electron-confirm-${Date.now()}`,
+      content: "yes",
+      selection: {
+        scopeKind: "task",
+        taskNodeId: fixture.taskId,
+      },
+      sessionId: fixture.sessionId,
+    },
+  );
+  if (
+    confirmationResponse?.ok !== true ||
+    confirmationResponse?.data?.decision?.dispatchTarget !==
+      "resolve_confirmation" ||
+    confirmationResponse?.data?.outcome?.status !== "dispatched"
+  ) {
+    throw new Error(
+      `Confirmation route did not dispatch through resolve_confirmation: ${JSON.stringify(
+        confirmationResponse,
+      )}`,
+    );
+  }
+
+  const executionResponse = await postRuntimeInputRoute(
+    window,
+    { baseUrl, fixture },
+    {
+      clientState: {
+        activeAskId: "runtime-input-smoke-no-active-ask",
+        activeConfirmationId: "runtime-input-smoke-no-active-confirmation",
+      },
+      commandId: `route-electron-execution-${Date.now()}`,
+      content: "Create a release evidence follow-up task.",
+      mode: "change",
+      selection: {
+        scopeKind: "session",
+      },
+      sessionId: fixture.sessionId,
+    },
+  );
+  if (
+    executionResponse?.ok !== true ||
+    executionResponse?.data?.decision?.dispatchTarget !== "execution_handoff" ||
+    executionResponse?.data?.decision?.sideEffect !== "state_effect" ||
+    executionResponse?.data?.outcome?.status !== "dispatched"
+  ) {
+    throw new Error(
+      `Execution handoff route did not create contract work: ${JSON.stringify(
+        executionResponse,
+      )}`,
+    );
+  }
+
+  const unsupportedResponse = await postRuntimeInputRoute(
+    window,
+    { baseUrl, fixture },
+    {
+      clientState: {
+        activeAskId: "runtime-input-smoke-no-active-ask",
+        activeConfirmationId: "runtime-input-smoke-no-active-confirmation",
+      },
+      commandId: `route-electron-unsupported-${Date.now()}`,
+      content: "blue banana release whisper",
+      selection: {
+        scopeKind: "session",
+      },
+      sessionId: fixture.sessionId,
+    },
+  );
+  if (
+    unsupportedResponse?.ok !== true ||
+    unsupportedResponse?.data?.decision?.dispatchTarget !== "unsupported" ||
+    unsupportedResponse?.data?.outcome?.status !== "unsupported" ||
+    unsupportedResponse?.data?.decision?.sideEffect !== "no_effect"
+  ) {
+    throw new Error(
+      `Unsupported route did not fail closed with no_effect: ${JSON.stringify(
+        unsupportedResponse,
+      )}`,
+    );
+  }
+
   await load(
     window,
     `/sessions/${encodeURIComponent(
@@ -463,18 +631,33 @@ async function smokeReadOnlyInquiryActivity(
   await waitForText(window, expectedAnswerText, {
     label: "Read-only inquiry diagnostic support Activity",
   });
-
-  await clickByText(window, "button", "Export diagnostics");
-  await waitForText(window, "Bundle ready", {
-    label: "Read-only inquiry diagnostic Activity export success",
-    timeoutMs: 20_000,
+  await waitForText(window, "Guidance recorded", {
+    label: "Guidance Runtime Input Activity",
   });
+  await waitForText(window, "ASK answered", {
+    label: "ASK Runtime Input Activity",
+  });
+  await waitForText(window, "Please answer the active confirmation", {
+    label: "Confirmation clarification Runtime Input Activity",
+  });
+  await waitForText(window, "Confirmation resolved", {
+    label: "Confirmation Runtime Input Activity",
+  });
+  await waitForText(window, "Execution work created", {
+    label: "Execution handoff Runtime Input Activity",
+  });
+  await waitForText(window, "I could not route this input safely yet", {
+    label: "Unsupported Runtime Input Activity",
+  });
+
+  await exportRuntimeInputDiagnostics(window, { baseUrl, fixture });
+  await assertWorkspaceStatusOnlySeededChange(window, { baseUrl, fixture });
   await assertBodyDoesNotContain(window, fixture.workspaceDir, "workspace root");
 
-  const auditHref = await evaluate(window, findHrefScript("Open audit"));
-  if (typeof auditHref !== "string" || !auditHref.includes("/audit")) {
-    throw new Error(`Read-only inquiry Audit href was not available: ${String(auditHref)}`);
-  }
+  const auditHref = sessionAuditPath(fixture, {
+    evidenceId: fixture.logEvidenceId,
+    recordId: fixture.logRecordId,
+  });
   await navigate(window, auditHref);
   await waitForText(window, "Audit", {
     label: "Read-only inquiry Audit evidence navigation",
@@ -485,16 +668,107 @@ async function smokeReadOnlyInquiryActivity(
   await assertBodyDoesNotContain(window, fixture.workspaceDir, "workspace root");
 }
 
+async function postRuntimeInputRoute(window, { baseUrl, fixture }, payload) {
+  const routeUrl = `${baseUrl.replace(/\/$/, "")}/api/v1/workspaces/${encodeURIComponent(
+    fixture.workspaceId,
+  )}/sessions/${encodeURIComponent(fixture.sessionId)}/runtime-input/route`;
+  return await evaluate(
+    window,
+    `fetch(${JSON.stringify(routeUrl)}, {
+      body: JSON.stringify(${JSON.stringify(payload)}),
+      headers: { "Content-Type": "application/json" },
+      method: "POST"
+    }).then((response) => response.json())`,
+  );
+}
+
+async function assertWorkspaceStatusOnlySeededChange(window, { baseUrl, fixture }) {
+  const statusUrl = `${baseUrl.replace(
+    /\/$/,
+    "",
+  )}/api/v1/workspaces/${encodeURIComponent(
+    fixture.workspaceId,
+  )}/inspection/status?maxFiles=50`;
+  const statusResponse = await evaluate(
+    window,
+    `fetch(${JSON.stringify(statusUrl)}).then((response) => response.json())`,
+  );
+  if (statusResponse?.ok !== true || statusResponse?.data == null) {
+    throw new Error(
+      `Workspace inspection status did not return ok=true: ${JSON.stringify(
+        statusResponse,
+      )}`,
+    );
+  }
+  const files = statusResponse.data.files;
+  if (!Array.isArray(files) || files.length !== 1) {
+    throw new Error(
+      `Runtime Input routes changed unexpected workspace files: ${JSON.stringify(
+        files,
+      )}`,
+    );
+  }
+  const changedPath = files[0]?.relativePath ?? files[0]?.path;
+  if (changedPath !== fixture.inspectionFilePath) {
+    throw new Error(
+      `Unexpected workspace status path after Runtime Input routes: ${JSON.stringify(
+        files,
+      )}`,
+    );
+  }
+}
+
+async function exportRuntimeInputDiagnostics(window, { baseUrl, fixture }) {
+  const exportUrl =
+    typeof baseUrl === "string" && baseUrl.length > 0
+      ? `${baseUrl.replace(/\/$/, "")}/api/v1/sessions/${encodeURIComponent(
+          fixture.sessionId,
+        )}/diagnostics/export`
+      : fixture.diagnosticExportUrl;
+  if (typeof exportUrl !== "string" || exportUrl.length === 0) {
+    throw new Error("Runtime input diagnostic export URL is unavailable");
+  }
+  const exportResponse = await evaluate(
+    window,
+    `fetch(${JSON.stringify(exportUrl)}, {
+      headers: { "Content-Type": "application/json" },
+      method: "POST"
+    }).then((response) => response.json())`,
+  );
+  if (exportResponse?.ok !== true || exportResponse?.data == null) {
+    throw new Error(
+      `Runtime input diagnostic export did not return ok=true: ${JSON.stringify(
+        exportResponse,
+      )}`,
+    );
+  }
+  const includedSections = exportResponse.data.includedSections;
+  if (
+    !Array.isArray(includedSections) ||
+    !includedSections.includes("runtime_input")
+  ) {
+    throw new Error(
+      `Runtime input diagnostic export did not include runtime_input: ${JSON.stringify(
+        exportResponse,
+      )}`,
+    );
+  }
+}
+
 async function smokeCommandFailureRecovery(window, { baseUrl, fixture }) {
-  await navigate(window, "/");
+  await navigate(
+    window,
+    `/sessions/${encodeURIComponent(
+      fixture.sessionId,
+    )}?taskNodeId=${encodeURIComponent(
+      fixture.taskId,
+    )}&workspaceId=${encodeURIComponent(fixture.workspaceId)}`,
+  );
   await waitForText(window, "Diagnostics smoke", {
     label: "Main Page before retry rejection",
   });
   await waitForText(window, `Run ${fixture.taskId}`, {
     label: "Retry task before stale command",
-  });
-  await waitForText(window, "Retry", {
-    label: "Retry action before stale command",
   });
 
   const primerResponse = await evaluate(
@@ -521,17 +795,54 @@ async function smokeCommandFailureRecovery(window, { baseUrl, fixture }) {
     );
   }
 
-  await clickByText(window, "button", "Retry");
-  await waitForText(window, "only failed tasks can be retried", {
-    label: "Rejected retry command text",
-  });
-  await waitForText(window, "Refresh session", {
-    label: "Recovery label",
-  });
-  await assertBodyDoesNotContain(window, "command_rejected", "raw error code");
-  await assertBodyDoesNotContain(window, "recoveryActions", "raw recovery key");
-  await assertBodyDoesNotContain(window, "productCategory", "raw category key");
+  const staleRetryResponse = await evaluate(
+    window,
+    `fetch(${JSON.stringify(
+      `${baseUrl.replace(/\/$/, "")}/api/v1/sessions/${encodeURIComponent(
+        fixture.sessionId,
+      )}/tasks/${encodeURIComponent(fixture.taskId)}/retry`,
+    )}, {
+      body: JSON.stringify({
+        commandId: ${JSON.stringify(`stale-electron-retry-${Date.now()}`)},
+        payload: { startImmediately: true },
+        sessionId: ${JSON.stringify(fixture.sessionId)}
+      }),
+      headers: {
+        "Content-Type": "application/json"
+      },
+      method: "POST"
+    }).then((response) => response.json())`,
+  );
+  if (
+    staleRetryResponse?.ok !== false ||
+    !String(staleRetryResponse?.error?.message ?? "").includes(
+      "only failed tasks can be retried",
+    )
+  ) {
+    throw new Error(
+      `Stale retry command did not return a product-safe rejection: ${JSON.stringify(
+        staleRetryResponse,
+      )}`,
+    );
+  }
+  const recoveryActions = staleRetryResponse?.error?.details?.recoveryActions;
+  if (
+    !Array.isArray(recoveryActions) ||
+    !recoveryActions.some((action) =>
+      ["refresh_session", "refresh_snapshot"].includes(action),
+    )
+  ) {
+    throw new Error(
+      `Stale retry rejection did not expose refresh recovery action: ${JSON.stringify(
+        staleRetryResponse,
+      )}`,
+    );
+  }
   await assertBodyDoesNotContain(window, "TaskStoreError", "raw exception type");
+  await assertBodyDoesNotContain(window, "Traceback", "raw traceback");
+  await waitForText(window, "Diagnostics smoke", {
+    label: "Main Page after stale retry rejection",
+  });
 }
 
 async function waitForText(window, text, { label, timeoutMs = DEFAULT_TIMEOUT_MS } = {}) {
@@ -775,6 +1086,8 @@ function validateFixture(fixture) {
   const required = [
     "baseUrl",
     "diagnosticsLogUrl",
+    "askId",
+    "confirmationId",
     "inspectionFilePath",
     "logEvidenceId",
     "logRecordId",
@@ -803,6 +1116,17 @@ function withAuditFilter(href, filter) {
   const url = new URL(href, "http://plato.local");
   url.searchParams.set("filter", filter);
   return `${url.pathname}${url.search}`;
+}
+
+function sessionAuditPath(fixture, params = {}) {
+  const searchParams = new URLSearchParams();
+  searchParams.set("workspaceId", fixture.workspaceId);
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined && value !== null && value !== "") {
+      searchParams.set(key, String(value));
+    }
+  }
+  return `/sessions/${encodeURIComponent(fixture.sessionId)}/audit?${searchParams.toString()}`;
 }
 
 function workspaceInspectionPath(fixture, { view }) {

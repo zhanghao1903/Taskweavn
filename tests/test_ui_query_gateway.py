@@ -1333,6 +1333,100 @@ def test_audit_non_snapshot_queries_use_stored_plan_task_node_identity() -> None
     assert disclosure_spy.evidence_record_task_node_id == "node-stored"
 
 
+def test_audit_records_project_runtime_input_router_messages() -> None:
+    messages = [
+        AgentMessage(
+            message_id="runtime-input-user-route-1",
+            session_id="session-1",
+            agent_id="user",
+            message_type="informational",
+            content="Is the courseware finished?",
+            context={"title": "User input"},
+            related_action_id="route-1",
+            created_at=NOW,
+        ),
+        AgentMessage(
+            message_id="runtime-input-trace-route-1",
+            session_id="session-1",
+            agent_id="router",
+            message_type="informational",
+            content="Input was answered through Read-Only Inquiry Context.",
+            context={
+                "title": "Router interpretation",
+                "conversation_render": {
+                    "protocolVersion": "plato.conversation.render.v1",
+                    "renderKind": "router_trace",
+                    "routerTrace": {
+                        "intent": "question",
+                        "scopeKind": "session",
+                        "confidence": "high",
+                        "sideEffect": "no_effect",
+                        "dispatchTarget": "read_only_inquiry",
+                        "explanation": "Router answered from durable session facts.",
+                        "outcomeStatus": "answered",
+                    },
+                },
+            },
+            related_action_id="decision-1",
+            created_at=NOW,
+        ),
+        AgentMessage(
+            message_id="runtime-input-activity-answer-route-1",
+            session_id="session-1",
+            agent_id="router",
+            message_type="informational",
+            content="Yes, the courseware is ready for review.",
+            context={
+                "title": "Read-only question answered",
+                "runtime_input_activity_kind": "answer",
+                "runtime_input_side_effect": "no_effect",
+                "runtime_input_decision_id": "decision-1",
+                "runtime_input_outcome_status": "answered",
+            },
+            related_action_id="decision-1",
+            created_at=NOW,
+        ),
+    ]
+    gateway = DefaultUiQueryGateway(
+        session_reader=_SessionReader([_session()]),
+        task_projection=_Projection(TaskTreeView(session_id="session-1")),
+        session_message_provider=_SessionMessageProvider(messages),
+    )
+
+    response = gateway.list_audit_records(
+        "session-1",
+        filter_kind="system",
+        kind="message",
+    )
+    detail = gateway.get_audit_record_detail(
+        "session-1",
+        "record-message-runtime-input-trace-route-1",
+        include_evidence=True,
+    )
+
+    assert response.ok is True
+    assert response.data is not None
+    records = {record.id: record for record in response.data.records}
+    assert records["record-message-runtime-input-user-route-1"].title == (
+        "Runtime input received"
+    )
+    trace = records["record-message-runtime-input-trace-route-1"]
+    assert trace.title == "Runtime Input Router decision"
+    assert trace.source_label == "Runtime Input Router"
+    assert trace.action_id == "decision-1"
+    assert trace.confidence == "high"
+    assert trace.evidence_refs[0].kind == "message"
+    assert "question routed to read_only_inquiry" in trace.summary
+    outcome = records["record-message-runtime-input-activity-answer-route-1"]
+    assert outcome.title == "Runtime Input Router outcome: Read-only question answered"
+    assert outcome.source_label == "Runtime Input Router"
+
+    assert detail.ok is True
+    assert detail.data is not None
+    assert detail.data.why_it_matters.startswith("Router records explain")
+    assert detail.data.evidence[0].source == "message_stream"
+
+
 def test_get_audit_snapshot_falls_back_to_legacy_task_selection() -> None:
     card = _card("legacy-task", status="done")
     plan = Plan(

@@ -158,6 +158,11 @@ def _record_session_id(record: AuditRecord) -> str:
 
 
 def _record_why_it_matters(record: AuditRecord) -> str:
+    if record.source_label == "Runtime Input Router":
+        return (
+            "Router records explain how Plato interpreted user input, whether "
+            "it had side effects, and which downstream command or answer path ran."
+        )
     if record.kind == "confirmation":
         return "User authorization decisions affect whether the task can safely proceed."
     if record.kind == "audit_verdict":
@@ -254,7 +259,11 @@ def _evidence_source(
     if evidence_ref.kind == "audit_observation":
         return "audit_agent"
     if evidence_ref.kind == "message":
-        return "message_stream" if record.source_label == "Message stream" else "task_projection"
+        return (
+            "message_stream"
+            if record.source_label in {"Message stream", "Runtime Input Router"}
+            else "task_projection"
+        )
     if evidence_ref.kind == "config_snapshot":
         return "config_store"
     if evidence_ref.kind == "log_excerpt":

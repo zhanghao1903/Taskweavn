@@ -11,6 +11,8 @@ const fixture = {
   diagnosticsLogUrl:
     "http://127.0.0.1:53100/sessions/session-1/diagnostics/logs?category=audit&recordId=record-log.jsonl",
   inspectionFilePath: "diagnostics-summary.md",
+  askId: "ask-1",
+  confirmationId: "confirmation-1",
   logEvidenceId: "evidence-log-jsonl",
   logRecordId: "record-log.jsonl",
   sessionId: "session-1",
@@ -23,6 +25,13 @@ const navigations: string[] = [];
 const tempDirs: string[] = [];
 let routeInquiryAnswered = false;
 let routeInquiryAnswerText = "Diagnostic support 'Diagnostic bundle export'";
+let routeGuidanceRecorded = false;
+let routeAskAnswered = false;
+let routeConfirmationClarification = false;
+let routeConfirmationResolved = false;
+let routeExecutionHandoff = false;
+let routeUnsupported = false;
+let retryRequestCount = 0;
 
 describe("runElectronSmoke", () => {
   const originalFetch = globalThis.fetch;
@@ -31,8 +40,148 @@ describe("runElectronSmoke", () => {
     installTestLocalStorage();
     routeInquiryAnswered = false;
     routeInquiryAnswerText = "Diagnostic support 'Diagnostic bundle export'";
-    globalThis.fetch = vi.fn(async (input) => {
+    routeGuidanceRecorded = false;
+    routeAskAnswered = false;
+    routeConfirmationClarification = false;
+    routeConfirmationResolved = false;
+    routeExecutionHandoff = false;
+    routeUnsupported = false;
+    retryRequestCount = 0;
+    globalThis.fetch = vi.fn(async (input, init) => {
+      if (String(input).includes("/tasks/task-1/retry")) {
+        retryRequestCount += 1;
+        if (retryRequestCount === 1) {
+          return new Response(JSON.stringify({ ok: true }), {
+            headers: { "Content-Type": "application/json" },
+          });
+        }
+        return new Response(
+          JSON.stringify({
+            ok: false,
+            error: {
+              message: "only failed tasks can be retried",
+              details: {
+                recoveryActions: ["refresh_snapshot"],
+              },
+            },
+          }),
+          { headers: { "Content-Type": "application/json" } },
+        );
+      }
+      if (String(input).includes("/inspection/status")) {
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            data: {
+              files: [{ path: fixture.inspectionFilePath }],
+            },
+          }),
+          { headers: { "Content-Type": "application/json" } },
+        );
+      }
+      if (String(input).includes("/diagnostics/export")) {
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            data: {
+              includedSections: ["session", "audit", "runtime_input"],
+            },
+          }),
+          { headers: { "Content-Type": "application/json" } },
+        );
+      }
       if (String(input).includes("/runtime-input/route")) {
+        const body = JSON.parse(String(init?.body ?? "{}"));
+        if (body.mode === "guide") {
+          routeGuidanceRecorded = true;
+          return new Response(
+            JSON.stringify({
+              ok: true,
+              data: {
+                decision: { dispatchTarget: "record_guidance" },
+                outcome: { status: "dispatched" },
+              },
+            }),
+            { headers: { "Content-Type": "application/json" } },
+          );
+        }
+        if (body.clientState?.activeAskId === fixture.askId) {
+          routeAskAnswered = true;
+          return new Response(
+            JSON.stringify({
+              ok: true,
+              data: {
+                decision: { dispatchTarget: "resolve_ask" },
+                outcome: { status: "dispatched" },
+              },
+            }),
+            { headers: { "Content-Type": "application/json" } },
+          );
+        }
+        if (
+          body.clientState?.activeConfirmationId === fixture.confirmationId &&
+          String(body.content).includes("maybe")
+        ) {
+          routeConfirmationClarification = true;
+          return new Response(
+            JSON.stringify({
+              ok: true,
+              data: {
+                decision: {
+                  dispatchTarget: "clarification",
+                  sideEffect: "no_effect",
+                },
+                outcome: { status: "needs_clarification" },
+              },
+            }),
+            { headers: { "Content-Type": "application/json" } },
+          );
+        }
+        if (body.clientState?.activeConfirmationId === fixture.confirmationId) {
+          routeConfirmationResolved = true;
+          return new Response(
+            JSON.stringify({
+              ok: true,
+              data: {
+                decision: { dispatchTarget: "resolve_confirmation" },
+                outcome: { status: "dispatched" },
+              },
+            }),
+            { headers: { "Content-Type": "application/json" } },
+          );
+        }
+        if (body.mode === "change") {
+          routeExecutionHandoff = true;
+          return new Response(
+            JSON.stringify({
+              ok: true,
+              data: {
+                decision: {
+                  dispatchTarget: "execution_handoff",
+                  sideEffect: "state_effect",
+                },
+                outcome: { status: "dispatched" },
+              },
+            }),
+            { headers: { "Content-Type": "application/json" } },
+          );
+        }
+        if (String(body.content).includes("blue banana")) {
+          routeUnsupported = true;
+          return new Response(
+            JSON.stringify({
+              ok: true,
+              data: {
+                decision: {
+                  dispatchTarget: "unsupported",
+                  sideEffect: "no_effect",
+                },
+                outcome: { status: "unsupported" },
+              },
+            }),
+            { headers: { "Content-Type": "application/json" } },
+          );
+        }
         routeInquiryAnswered = true;
         return new Response(
           JSON.stringify({
@@ -190,10 +339,32 @@ function renderMainPage() {
       `,
     );
     getButton("Activity").addEventListener("click", () => {
+      const guidanceHtml = routeGuidanceRecorded
+        ? "<p>Guidance recorded</p>"
+        : "";
+      const askHtml = routeAskAnswered ? "<p>ASK answered</p>" : "";
+      const confirmationClarificationHtml = routeConfirmationClarification
+        ? "<p>Please answer the active confirmation with a clear yes or no.</p>"
+        : "";
+      const confirmationHtml = routeConfirmationResolved
+        ? "<p>Confirmation resolved</p>"
+        : "";
+      const executionHtml = routeExecutionHandoff
+        ? "<p>Execution work created</p>"
+        : "";
+      const unsupportedHtml = routeUnsupported
+        ? "<p>I could not route this input safely yet.</p>"
+        : "";
       document.body.insertAdjacentHTML(
         "beforeend",
         `
           <p>${routeInquiryAnswerText}</p>
+          ${guidanceHtml}
+          ${askHtml}
+          ${confirmationClarificationHtml}
+          ${confirmationHtml}
+          ${executionHtml}
+          ${unsupportedHtml}
           <button type="button">Export diagnostics</button>
           <a href="/sessions/session-1/audit?recordId=record-log.jsonl&evidenceId=evidence-log-jsonl">Open audit</a>
         `,

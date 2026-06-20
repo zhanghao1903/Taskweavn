@@ -24,6 +24,7 @@ from taskweavn import __version__
 from taskweavn.core import Session, SessionManager, WorkspaceLayout
 from taskweavn.core.workspace_layout import WORKSPACE_META_DIR_NAME
 from taskweavn.diagnostics.inspection import collect_inspection_evidence_summary
+from taskweavn.diagnostics.runtime_input import collect_runtime_input_diagnostic_summary
 from taskweavn.diagnostics.skills import collect_skill_governance_summary
 from taskweavn.diagnostics.usage import collect_token_usage_summary
 from taskweavn.interaction import AgentMessage, SqliteMessageStream
@@ -55,6 +56,7 @@ _SECTION_ORDER = (
     "tasks",
     "results",
     "messages",
+    "runtime_input",
     "audit",
     "workspace_inspection",
     "skill_governance",
@@ -153,6 +155,7 @@ class DiagnosticExportOptions:
     max_ui_events: int = 100
     max_inspection_evidence: int = 50
     max_usage_events: int = 50
+    max_runtime_input_routes: int = 100
     max_log_entries_per_category: int = 40
     max_audit_records: int = 100
     created_at: datetime | None = None
@@ -186,6 +189,7 @@ class DiagnosticBundleExporter:
             max_ui_events=max(0, options.max_ui_events),
             max_inspection_evidence=max(0, options.max_inspection_evidence),
             max_usage_events=max(0, options.max_usage_events),
+            max_runtime_input_routes=max(0, options.max_runtime_input_routes),
             max_log_entries_per_category=max(0, options.max_log_entries_per_category),
             max_audit_records=max(0, options.max_audit_records),
             created_at=options.created_at,
@@ -246,6 +250,11 @@ class DiagnosticBundleExporter:
                 writer,
                 "messages",
                 lambda: self._collect_messages(writer, session),
+            )
+            self._run_collector(
+                writer,
+                "runtime_input",
+                lambda: self._collect_runtime_input(writer, session),
             )
             self._run_collector(
                 writer,
@@ -499,6 +508,29 @@ class DiagnosticBundleExporter:
             },
         )
         return (rel_path,), tuple(warnings)
+
+    def _collect_runtime_input(
+        self,
+        writer: _BundleWriter,
+        session: Session,
+    ) -> tuple[tuple[str, ...], tuple[str, ...]]:
+        if not self.layout.workspace_messages_db.exists():
+            return (), ("message stream store is not present",)
+        with SqliteMessageStream(self.layout.workspace_messages_db) as stream:
+            payload, warnings = collect_runtime_input_diagnostic_summary(
+                session_id=session.id,
+                messages=stream.list_for_session(session.id),
+                max_routes=self.options.max_runtime_input_routes,
+            )
+        if payload is None:
+            return (), warnings
+        rel_path = writer.write_json(
+            "router/runtime-input.summary.json",
+            kind="runtime_input_route_summary",
+            source="MessageStream",
+            payload=payload,
+        )
+        return (rel_path,), warnings
 
     def _collect_audit(
         self,
