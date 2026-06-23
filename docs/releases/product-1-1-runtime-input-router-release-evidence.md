@@ -66,6 +66,7 @@ Additional P1 beta-depth checks:
 | Check | Command | Result |
 |---|---|---|
 | Sidecar restart replay smoke | `npm run electron:smoke:sidecar-restart` | Pass on 2026-06-24: repo-mode Electron sidecar lifecycle replayed durable Conversation, Activity, Audit record, Audit evidence, and fixture file state without duplicate IDs. |
+| Launcher-packaged sidecar restart replay smoke | `npm run electron:smoke:sidecar-restart:launcher` | Pass on 2026-06-24: rebuilt `dist-electron-launcher`, launched package-local sidecar launcher twice with bundled Python runtime, and replayed durable Conversation, Activity, Audit record, Audit evidence, and fixture file state without duplicate IDs. |
 
 ## Release Artifact
 
@@ -82,8 +83,8 @@ Additional P1 beta-depth checks:
 
 - The `1.1-beta` DMG is unsigned and not notarized.
 - Smoke assets are included only for deterministic beta smoke artifacts.
-- Sidecar restart replay is covered by repo-mode Electron sidecar smoke, but is
-  not yet folded into the packaged or installer smoke matrix.
+- Sidecar restart replay is covered by repo-mode and launcher-packaged Electron
+  sidecar smoke, but is not yet folded into mounted installer smoke.
 - Optional LLM-rendered read-only inquiry smoke remains beta-depth evidence.
 - Public repository release/user docs still need external sync before public
   publishing.
@@ -94,8 +95,8 @@ Additional P1 beta-depth checks:
 
 | Priority | Follow-up |
 |---|---|
-| P1 | Fold sidecar restart replay evidence into packaged or installer smoke after the repo-mode signal stays stable. |
 | P1 | Mirror Product 1.1 beta evidence and known limitations into public docs. |
+| P1 | Optionally fold sidecar restart replay evidence into mounted installer smoke before a broader external beta. |
 | P1 | Add optional real/LLM-rendered read-only inquiry smoke evidence. |
 | P1 | Continue stop/cancel UX, token budget warnings, localization, and web retrieval beta hardening. |
 | P2 | Signed/notarized distribution and broader platform expansion. |

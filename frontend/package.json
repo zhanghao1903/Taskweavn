@@ -21,6 +21,7 @@
     "electron:smoke:packaged-read-only-inquiry-llm": "node scripts/run-electron-packaged-smoke.mjs --read-only-inquiry-llm-only",
     "electron:smoke:read-only-inquiry-llm": "node scripts/run-electron-smoke.mjs --read-only-inquiry-llm",
     "electron:smoke:sidecar-restart": "node scripts/run-sidecar-restart-replay-smoke.mjs",
+    "electron:smoke:sidecar-restart:launcher": "npm run electron:package:launcher-dir -- --include-smoke && node scripts/run-sidecar-restart-replay-smoke.mjs --launcher",
     "electron:smoke:workspace-git": "node scripts/run-electron-smoke.mjs --workspace-git-init",
     "electron:smoke:workspace-entry": "node scripts/run-electron-smoke.mjs --workspace-entry",
     "build": "tsc -b && vite build",

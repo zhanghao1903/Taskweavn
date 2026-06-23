@@ -15,12 +15,16 @@ import { startPythonSidecar } from "../electron/sidecarProcess.mjs";
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const frontendRoot = path.resolve(scriptDir, "..");
 const repoRoot = path.resolve(frontendRoot, "..");
+const defaultLauncherPackageDir = path.join(frontendRoot, "dist-electron-launcher");
 const runDir = mkdtempSync(path.join(tmpdir(), "taskweavn-sidecar-replay-"));
 const workspaceDir = path.join(runDir, "workspace");
 const readyFile = path.join(runDir, "seed-ready.json");
 const commandId = "sidecar-restart-replay";
 
 const options = parseArgs(process.argv.slice(2));
+const launcherManifest = options.launcher
+  ? readLauncherPackageManifest(options.packageDir)
+  : null;
 const children = new Set();
 let activeRuntime = null;
 let shuttingDown = false;
@@ -76,8 +80,11 @@ try {
 
 function parseArgs(args) {
   let keepArtifacts = false;
+  let launcher = false;
+  let packageDir = defaultLauncherPackageDir;
 
-  for (const arg of args) {
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
     if (arg === "--help" || arg === "-h") {
       printUsage();
       process.exit(0);
@@ -86,20 +93,41 @@ function parseArgs(args) {
       keepArtifacts = true;
       continue;
     }
+    if (arg === "--launcher") {
+      launcher = true;
+      continue;
+    }
+    if (arg === "--package-dir") {
+      const value = args[index + 1];
+      if (!value) {
+        throw new Error("--package-dir requires a path");
+      }
+      packageDir = path.resolve(value);
+      index += 1;
+      continue;
+    }
     throw new Error(`unknown option for sidecar restart replay smoke: ${arg}`);
   }
 
-  return { keepArtifacts };
+  return { keepArtifacts, launcher, packageDir };
 }
 
 function printUsage() {
   console.log(`Usage:
   npm run electron:smoke:sidecar-restart
+  npm run electron:smoke:sidecar-restart:launcher
   npm run electron:smoke:sidecar-restart -- --keep-artifacts
+  node scripts/run-sidecar-restart-replay-smoke.mjs --launcher --package-dir ./dist-electron-launcher
 
 Seeds deterministic Product 1.1 sidecar data, routes one read-only inquiry,
 restarts the Electron sidecar lifecycle process against the same workspace, and
-verifies durable Conversation / Activity / Audit replay.`);
+verifies durable Conversation / Activity / Audit replay.
+
+Options:
+  --launcher             Start the sidecar through a packaged launcher runtime.
+  --package-dir <path>   Launcher package root. Defaults to dist-electron-launcher.
+  --keep-artifacts       Keep the temporary replay workspace after the run.
+  --help                 Show this help.`);
 }
 
 async function seedWorkspace() {
@@ -175,7 +203,10 @@ async function startFixtureRuntime(label) {
 }
 
 async function startReplayRuntime(label) {
-  console.log(`[plato-sidecar-restart-replay-smoke] start ${label} sidecar`);
+  const mode = launcherManifest === null ? "repo" : "launcher";
+  console.log(
+    `[plato-sidecar-restart-replay-smoke] start ${label} ${mode} sidecar`,
+  );
   const runtime = await startPythonSidecar({
     appVersion: "sidecar-restart-replay-smoke",
     electronVersion: process.versions.electron ?? "node",
@@ -183,6 +214,17 @@ async function startReplayRuntime(label) {
       ...process.env,
       PLATO_ENABLE_READ_ONLY_INQUIRY_LLM: "0",
     },
+    launcherEnv:
+      launcherManifest === null
+        ? {}
+        : {
+            PLATO_ENABLE_READ_ONLY_INQUIRY_LLM: "0",
+            PLATO_SIDECAR_LAUNCHER_FIRST_RUN: "configured",
+            PLATO_SIDECAR_LAUNCHER_RUNTIME_MANIFEST:
+              launcherManifest.sidecarRuntimeManifestPath,
+          },
+    launcherNodePath: process.execPath,
+    launcherPath: launcherManifest?.sidecarLauncherPath ?? null,
     repoRoot,
     startupId: `sidecar-restart-replay-${label}`,
     timeoutMs: 20_000,
@@ -192,6 +234,61 @@ async function startReplayRuntime(label) {
     `[plato-sidecar-restart-replay-smoke] ready ${label} sidecar ${runtime.baseUrl}`,
   );
   return runtime;
+}
+
+function readLauncherPackageManifest(packageDir) {
+  const manifestPath = path.join(packageDir, "package-manifest.json");
+  if (!existsSync(manifestPath)) {
+    throw new Error(
+      `Launcher package manifest not found: ${manifestPath}. Run npm run electron:package:launcher-dir -- --include-smoke first.`,
+    );
+  }
+  const manifest = normalizePackageManifest(
+    JSON.parse(readFileSync(manifestPath, "utf8")),
+    packageDir,
+  );
+  for (const key of ["sidecarLauncherPath", "sidecarRuntimeManifestPath"]) {
+    if (typeof manifest[key] !== "string" || !existsSync(manifest[key])) {
+      throw new Error(`Launcher package manifest is missing ${key}`);
+    }
+  }
+  return manifest;
+}
+
+function normalizePackageManifest(manifest, packageDir) {
+  if (process.platform !== "darwin") {
+    return manifest;
+  }
+
+  const appName = manifest.appName ?? "Plato";
+  const appRoot = path.join(packageDir, `${appName}.app`);
+  if (!existsSync(appRoot)) {
+    return manifest;
+  }
+
+  const appResourceDir = path.join(appRoot, "Contents", "Resources", "app");
+  const sidecarLauncherPath = path.join(
+    appResourceDir,
+    "sidecar",
+    "plato-sidecar-launcher.mjs",
+  );
+  const sidecarRuntimeManifestPath = path.join(
+    appResourceDir,
+    "sidecar",
+    "runtime",
+    "launcher-runtime.json",
+  );
+  return {
+    ...manifest,
+    appResourceDir,
+    appRoot,
+    sidecarLauncherPath: existsSync(sidecarLauncherPath)
+      ? sidecarLauncherPath
+      : manifest.sidecarLauncherPath,
+    sidecarRuntimeManifestPath: existsSync(sidecarRuntimeManifestPath)
+      ? sidecarRuntimeManifestPath
+      : manifest.sidecarRuntimeManifestPath,
+  };
 }
 
 async function routeReadOnlyInquiry(baseUrl, fixture) {

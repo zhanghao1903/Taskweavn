@@ -1,7 +1,7 @@
 # Sidecar Restart Replay Confidence Technical Plan
 
-> Status: implemented for repo-mode sidecar replay smoke; packaged/installer
-> fold-in remains follow-up
+> Status: implemented for repo-mode and launcher-packaged sidecar replay smoke;
+> installer fold-in remains follow-up
 >
 > Last Updated: 2026-06-24
 >
@@ -68,7 +68,7 @@ waits for readiness, and re-queries the same session.
    process, not only the renderer.
 4. Add snapshot/activity/audit replay assertions after readiness returns.
 5. Run first against repo-mode Electron sidecar lifecycle, then against packaged
-   or installer smoke if stable.
+   launcher smoke, then installer smoke if stable.
 6. Update Product 1.1 release evidence and open-work status after the smoke is
    accepted.
 
@@ -92,10 +92,11 @@ waits for readiness, and re-queries the same session.
 
 ## 7. Implementation Status
 
-Implemented smoke command:
+Implemented smoke commands:
 
 ```bash
 npm run electron:smoke:sidecar-restart
+npm run electron:smoke:sidecar-restart:launcher
 ```
 
 Current coverage:
@@ -108,8 +109,11 @@ Current coverage:
   restart;
 - asserts stable message IDs, Activity IDs, read-only inquiry Activity payload,
   Audit refs, evidence refs, and fixture file content.
+- `:launcher` builds `dist-electron-launcher` and repeats the same replay
+  assertions through the package-local sidecar launcher and bundled Python
+  runtime.
 
 Remaining follow-up:
 
-- fold the same replay confidence into packaged or installer smoke after the
-  repo-mode signal stays stable.
+- fold the same replay confidence into mounted installer smoke if release
+  cadence needs installer-level replay evidence.
