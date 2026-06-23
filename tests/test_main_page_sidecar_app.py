@@ -1473,6 +1473,12 @@ def test_main_page_sidecar_agent_loop_uses_effective_runtime_config_context_chec
         "checkpoint_context",
     ]
     assert llm.calls[1]["metadata"]["context_checkpoint_reason"] == "interval:2"
+    assert [
+        call["metadata"]["context_runtime_config_hash"] for call in llm.calls
+    ] == [
+        app.runtime_config.config_hash,
+        app.runtime_config.config_hash,
+    ]
 
 
 def test_main_page_sidecar_dispatcher_uses_effective_runtime_config_enabled(

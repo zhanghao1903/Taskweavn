@@ -1,6 +1,6 @@
 # Feature Plan: Centralized Runtime Configuration
 
-> Status: C1-C3 and C4.1-C4.2 implemented / remaining C4 and C5-C7 deferred
+> Status: C1-C4 implemented / C5-C7 deferred
 > Type: Runtime control plane / configuration governance
 > Last Updated: 2026-06-24
 > Owner/Session: computer-use hardening discussion
@@ -628,7 +628,7 @@ Status: implemented for read-only HTTP routes.
 
 ### C4: Runtime Constructor Wiring
 
-Status: C4.1-C4.3 implemented; remaining trace metadata deferred.
+Status: implemented.
 
 Implemented C4.1 behavior-preserving migration:
 
@@ -673,9 +673,17 @@ Implemented C4.3 behavior-preserving migration:
 - The guarded read-only inquiry LLM service is now assembled from
   `read_only_inquiry.llm_enabled` in the effective config snapshot.
 
-Still deferred inside C4:
+Implemented C4.4 behavior-preserving migration:
 
-- persisted execution trace linkage to the effective config hash.
+- `ContextBuildRequest`, `RenderedLlmInput`, `ContextSnapshot`, and
+  `ContextTrace` can carry the effective `runtime_config_hash`.
+- `SessionAgentLoopContextProvider` propagates the sidecar-resolved config
+  hash into every Context Manager build.
+- AgentLoop LLM call metadata includes `context_runtime_config_hash` when the
+  context provider supplies it.
+- Main Page sidecar resident agent assembly passes the effective config hash
+  from `RuntimeContextSettings`, giving execution/context diagnostics a stable
+  reference to the runtime snapshot used for that agent run.
 
 All C4 migrations must preserve current defaults unless a later slice
 explicitly authorizes runtime behavior changes.
@@ -724,6 +732,8 @@ Status: deferred.
 9. Initial read-only registry/resolver does not change runtime behavior.
 10. Tests cover defaults, source priority, mutability metadata, and duplicate
     key validation.
+11. Context/execution trace metadata can reference the effective config hash
+    used at runtime assembly.
 
 ---
 
@@ -760,42 +770,40 @@ Status: deferred.
 
 ## 19. Recommended Next Task
 
-The next implementation should continue C4 before adding write APIs. C4.1 made
-AgentLoop and fixed-route dispatcher construction consume effective config.
-C4.2 made Context Manager checkpointing, prior-message bounds, and context
-budget limits consume effective config.
-C4.3 made computer-use tool availability and read-only inquiry LLM service
-assembly consume effective config.
+C4 is now closed for the read-only, behavior-preserving runtime constructor
+and trace metadata path. The next implementation should move to C5 only if
+Product 1.0/1.1 needs editable or persisted config changes. Otherwise, keep
+using the read-only effective config snapshot for diagnostics and runtime
+assembly.
 
-Recommended next task:
+Recommended next task if config mutation becomes necessary:
 
 ```text
 Use the product-workflow-gate skill first.
-Use the maintainability-gate skill if touching Main Page sidecar assembly or
-large server modules.
+Use the maintainability-gate skill if touching Main Page sidecar assembly,
+settings persistence, or large server modules.
 
 Task:
-Implement C4.4 runtime config trace metadata closure.
+Design C5 Config Change Store for centralized runtime configuration.
 
 Scope:
-- Add config-hash metadata to execution/context trace surfaces where it can be
-  recorded without changing runtime behavior.
-- Keep config resolution at sidecar assembly / agent-run boundary; do not read
-  env vars inside AgentLoop, Context Manager, tools, or per-app adapters.
-- Add focused tests showing trace diagnostics reference the effective config
-  hash used at runtime assembly.
-- Keep behavior-preserving unless the selected slice explicitly authorizes a
-  runtime behavior change.
+- Define durable config change records, accepted/rejected patch semantics,
+  scope boundaries, mutability boundaries, and snapshot storage.
+- Keep secrets out of ordinary config diffs.
+- Preserve read-only effective config behavior until mutation semantics and
+  audit/diagnostics disclosure rules are accepted.
 
 Do not:
 - Add Settings UI.
-- Add config write APIs before the mutation/source-priority rules are settled.
+- Add config write APIs before C5 mutation/source-priority rules are settled.
 - Treat app-specific automation behavior such as WeChat send steps as top-level
   runtime config.
 
 Output:
-- files changed
+- Workflow Gate Report
+- C5 config store plan/design
+- proposed storage model
+- mutation validation rules
 - tests required
-- checks run
-- remaining C4/C5 blockers
+- remaining C6/C7 blockers
 ```

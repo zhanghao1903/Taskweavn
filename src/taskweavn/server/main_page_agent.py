@@ -357,6 +357,7 @@ def _context_provider(
         max_prior_messages=context_settings.max_prior_messages,
         checkpoint_interval_steps=context_settings.checkpoint_interval_steps,
         default_budget=context_settings.budget,
+        runtime_config_hash=context_settings.config_hash,
     )
 
 

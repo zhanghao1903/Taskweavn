@@ -127,6 +127,9 @@ class SessionContextManager:
             snapshot_id=snapshot_id,
             trace_id=trace_id,
         )
+        rendered = rendered.model_copy(
+            update={"runtime_config_hash": request.runtime_config_hash}
+        )
         trace = ContextTrace(
             trace_id=trace_id,
             snapshot_id=snapshot_id,
@@ -150,6 +153,7 @@ class SessionContextManager:
             checkpoint_reason=(
                 request.render_reason if rendered.render_mode == "checkpoint_context" else None
             ),
+            runtime_config_hash=request.runtime_config_hash,
             active_skill_ids=tuple(segment.skill_id for segment in skill_segments),
             active_skill_hashes=tuple(segment.content_hash for segment in skill_segments),
             skill_activation_ids=tuple(segment.activation_id for segment in skill_segments),
@@ -184,6 +188,7 @@ class SessionContextManager:
             render_mode=rendered.render_mode,
             stable_prefix_hash=rendered.stable_prefix_hash,
             context_segment_hashes=tuple(segment.content_hash for segment in rendered.segments),
+            runtime_config_hash=request.runtime_config_hash,
             task_execution_context=context,
         )
         self.store.save_snapshot(snapshot)
