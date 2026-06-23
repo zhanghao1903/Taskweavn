@@ -563,10 +563,30 @@ def _json_payload_or_none(content: str) -> dict[str, Any] | None:
     try:
         payload = json.loads(stripped)
     except json.JSONDecodeError:
-        return None
+        payload = _embedded_json_payload(stripped)
+        if payload is None:
+            return None
     if not isinstance(payload, dict):
         return None
     return payload
+
+
+def _embedded_json_payload(content: str) -> dict[str, Any] | None:
+    decoder = json.JSONDecoder()
+    for index, char in enumerate(content):
+        if char != "{":
+            continue
+        try:
+            payload, _end = decoder.raw_decode(content[index:])
+        except json.JSONDecodeError:
+            continue
+        if isinstance(payload, dict) and _looks_like_answer_payload(payload):
+            return payload
+    return None
+
+
+def _looks_like_answer_payload(payload: dict[str, Any]) -> bool:
+    return any(key in payload for key in ("status", "body", "answer", "citedRefIds"))
 
 
 def _response_content(response: Any) -> str:

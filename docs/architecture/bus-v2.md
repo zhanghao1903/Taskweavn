@@ -1,8 +1,10 @@
 # TaskBus v2 架构设计
 
-> 多 Agent 协作架构 · TaskBus 增强版本 · v2.0 · 2026-05-09
+> 多 Agent 协作架构 · TaskBus 增强版本 · v2.1 · 2026-06-24
 >
 > 2026-05-31 scope note: 本文是后续并发和智能调度的探索文档，不是 Product 1.0 / 1.1 默认路线。当前架构默认单 Session 一个 active writer execution lane。并发多 Agent 只有在上下文独立、read-only、或 workspace/sub-session 隔离并具备显式 merge/replay 机制时才允许进入实施规划。
+>
+> 2026-06-24 Product 1.1 alignment: Product 1.1 当前没有启用 TaskBus v2 调度器或 LLM scheduler。Runtime Input Router 是用户输入/contract revision 路由，不是 Task execution scheduler。TaskBus v2 仍是未来多执行环境、并发和智能调度的设计参考。
 
 ---
 

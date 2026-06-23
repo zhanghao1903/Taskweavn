@@ -1,10 +1,12 @@
 # Tool Capability Layer
 
-> Status: design baseline / extension point
-> Last Updated: 2026-05-14
+> Status: current capability boundary / extension point
+> Last Updated: 2026-06-24
 > Related Discussion: [Product positioning 10.7-10.8](../discussion/2026-05-11-product-positioning-and-boundaries.md#107-新暴露的系统级问题工具供给与选择负载比工具可扩展更关键)
 > Related Architecture: [Authoring Domain](authoring-domain.md), [Authoring Command Protocol](authoring-command-protocol.md), [Workspace Communication Protocol](workspace-communication-protocol.md), [Collaborator Agent](collaborator-agent-task-authoring.md), [Task](task.md), [TaskBus](bus.md)
 > User Needs: [UN-105](../user_model/needs/UN-105-system-evaluability-and-capability-disclosure.md), [UN-101](../user_model/needs/UN-101-photo-curation-batch-screening.md), [UN-102](../user_model/needs/UN-102-courseware-html-generation.md), [UN-103](../user_model/needs/UN-103-car-purchase-decision-support.md)
+>
+> Product 1.1 alignment: current capability facts include precision file tools, workspace inspection/file/diff/status evidence, and gated web retrieval (`web_search`, `web_fetch`) with Settings-backed provider/key configuration. A full dynamic capability catalog remains an extension direction; implemented tools must still declare effect profile, policy, evidence, and diagnostics behavior.
 
 ---
 

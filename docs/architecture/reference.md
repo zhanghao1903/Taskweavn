@@ -1,6 +1,6 @@
 # TaskWeavn — 核心架构参考
 
-> 版本 v1.0 · 2026-05-08
+> 版本 v1.1 · 2026-06-24
 > Status: implemented core substrate reference / partial current implementation map
 >
 > 关联文档：
@@ -12,7 +12,7 @@
 >
 > 不重复设计动机（见上方关联文档）；只列 core substrate 中的实现对象、Protocol、对象生命周期。
 > 范围说明：本文最初截至 Phase 3.6a，仍适合理解 Action/Observation、Tool/Runtime、LLM provider、EventStream、MessageStream、AgentLoop 等底层 substrate。
-> Product 1.0 后续已经补齐 Authoring Domain、UI/backend contract、fixed-route execution bridge、result/error summary、Main Page projection、file summary projection 等事实。完整当前架构总览以 [overview.md](overview.md) 为准；Product 1.0 fixed-route execution 事实以 [Fixed-Route Task Execution Bridge release](../releases/fixed-route-task-execution-bridge.md) 为准。
+> Product 1.0 后续已经补齐 Authoring Domain、UI/backend contract、fixed-route execution bridge、result/error summary、Main Page projection、file summary projection 等事实。Product 1.1 又补齐 Runtime Input Router、durable Conversation / Activity、read-only inquiry、workspace inspection、precision file tools、token usage、Agent LLM resolver、web search/fetch 和 Execution Plane foundation。完整当前架构总览以 [overview.md](overview.md) 为准；Product 1.1 P0 证据以 [Product 1.1 Runtime Input Router Release Evidence](../releases/product-1-1-runtime-input-router-release-evidence.md) 为准。
 
 ---
 

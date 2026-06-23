@@ -1,6 +1,10 @@
 # 多 Agent 协作架构设计
 
-> 版本 v1.0 · 2026-05-07
+> 版本 v1.1 · 2026-06-24
+>
+> Status: historical architecture concept reference
+>
+> Product 1.1 alignment: 本文保留多 Agent 协作的早期理念来源。当前 Product 1.1 已落地的是 Runtime Input Router、task-scoped Default Agent execution、Agent LLM resolver、read-only inquiry 和 command-backed contract revision；完整 Agent Manager、dynamic assignment、custom Agent protocol 仍是后续扩展。当前事实以 [overview.md](overview.md)、[agent.md](agent.md)、[task.md](task.md) 和 [bus.md](bus.md) 为准。
 
 ---
 

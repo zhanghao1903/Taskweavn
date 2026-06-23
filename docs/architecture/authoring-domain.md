@@ -1,12 +1,14 @@
 # Authoring Domain Architecture
 
-> Status: accepted baseline
-> Last Updated: 2026-06-06
+> Status: current authoring domain baseline
+> Last Updated: 2026-06-24
 > Related Discussion: [RawTask、可行性判断与 Authoring Domain](../discussion/2026-05-14-raw-task-authoring-domain.md)
 > Related ADR: [ADR-0008](../decisions/ADR-0008-authoring-domain-execution-boundary.md)
 > Related Plans: [Collaborator Agent](../plans/feature/collaborator-agent-task-authoring.md), [Task model/UI separation](../plans/feature/task-domain-ui-model-separation.md)
 > Related Protocol: [Authoring Command Protocol](authoring-command-protocol.md)
 > User Needs: [UN-105](../user_model/needs/UN-105-system-evaluability-and-capability-disclosure.md), [UN-101](../user_model/needs/UN-101-photo-curation-batch-screening.md), [UN-102](../user_model/needs/UN-102-courseware-html-generation.md), [UN-103](../user_model/needs/UN-103-car-purchase-decision-support.md)
+>
+> Product 1.1 alignment: Authoring remains the product-state boundary for RawTask, feasibility, ASK, DraftTaskTree, and publish. Runtime Input Router now sits in front of authoring and routes guidance, ASK answers, confirmation responses, read-only questions, and execution handoff into command-backed domain paths. LLM proposal generation is still subordinate to validated commands.
 
 ---
 

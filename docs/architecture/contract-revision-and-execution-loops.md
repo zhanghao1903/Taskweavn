@@ -2,7 +2,7 @@
 
 > Status: active architecture baseline
 >
-> Last Updated: 2026-06-13
+> Last Updated: 2026-06-24
 >
 > Related Product Model:
 > [Plato Contract Loop Product Model](../product/plato-contract-loop-model.md)
@@ -16,6 +16,8 @@
 > [UI/backend communication](ui-backend-communication.md),
 > [Tool Capability Layer](tool-capability-layer.md),
 > [Context Manager](context-manager.md)
+>
+> Product 1.1 alignment: The core loop described here is now implemented for the local beta path: Main Page submit routes through Runtime Input Router, read-only inquiry is no-mutation, command-backed guidance/ASK/confirmation/execution handoff are durable, and Router decisions/outcomes are projected into Conversation / Activity, Audit, and diagnostics. Broader natural-language plan editing remains a follow-up command-skill surface.
 
 This document defines the core system answer to user natural-language input:
 Plato separates contract revision from contract execution.

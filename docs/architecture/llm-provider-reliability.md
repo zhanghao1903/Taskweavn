@@ -1,10 +1,17 @@
 # LLM Provider Reliability Technical Design
 
 > Status: implemented
-> Last Updated: 2026-05-11
-> Scope: server core execution line
+> Last Updated: 2026-06-24
+> Scope: server core execution line, Router/read-only inquiry, and Agent LLM resolver
 > Related Plan: [LLM provider retry thinking](../plans/feature/llm-provider-retry-thinking.md)
 > Related Roadmap: [Phase 3B — Reliability And Observability](../roadmap.md#phase-3b--reliability-and-observability)
+> Related Product 1.1: [Agent LLM Config And Router LLM](../plans/feature/agent-llm-config-and-router-llm.md), [Runtime Input Router Contract](../plans/feature/runtime-input-router-contract.md), [Read-Only Inquiry Context](../plans/feature/read-only-inquiry-context.md)
+
+Product 1.1 alignment: the LLM boundary is no longer only the execution
+AgentLoop facade. Current runtime also uses Settings-backed Agent LLM profiles
+for `execution`, `collaborator`, `router`, and `read_only_inquiry` roles. Router
+and read-only inquiry calls must use the same provider reliability, redaction,
+usage, and input/output logging discipline as execution calls.
 
 ---
 

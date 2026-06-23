@@ -1,12 +1,14 @@
 # Collaborator Agent And Task Authoring
 
-> Status: draft
-> Last Updated: 2026-05-14
+> Status: implemented foundation / extension design
+> Last Updated: 2026-06-24
 > Work Stream: Phase 3C — Task Authoring Foundation
 > Related Plan: [Collaborator Agent](../plans/feature/collaborator-agent-task-authoring.md)
 > Depends On: [Task Domain/UI ViewModel Separation](task-domain-ui-model-separation.md), [Authoring Domain](authoring-domain.md), [Authoring Command Protocol](authoring-command-protocol.md), [Tool Capability Layer](tool-capability-layer.md), [Workspace Communication Protocol](workspace-communication-protocol.md)
 > Related Docs: [Agent](agent.md), [Task](task.md), [TaskBus](bus.md), [UI API Interfaces](../plans/ui/ui-api-interfaces.md)
 > User Needs: [UN-105](../user_model/needs/UN-105-system-evaluability-and-capability-disclosure.md), [UN-101](../user_model/needs/UN-101-photo-curation-batch-screening.md), [UN-102](../user_model/needs/UN-102-courseware-html-generation.md), [UN-103](../user_model/needs/UN-103-car-purchase-decision-support.md)
+>
+> Product 1.1 alignment: the authoring foundation is on the current product path through RawTask proposal, DraftTaskTree publishing, command-backed authoring, and Router-first input. The broader Collaborator Agent described here remains a controlled LLM proposal layer, not an unrestricted tool-using execution Agent. Mutations must pass through command services.
 
 ---
 

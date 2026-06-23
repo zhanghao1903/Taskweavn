@@ -1,12 +1,14 @@
 # Task Domain And UI ViewModel Separation
 
 > Status: implemented / accepted
-> Last Updated: 2026-06-19
+> Last Updated: 2026-06-24
 > Work Stream: Phase 3C — Task Authoring Foundation
 > Related Plan: [Task Domain/UI Separation](../plans/feature/task-domain-ui-model-separation.md)
 > Related ADR: [ADR-0002](../decisions/ADR-0002-task-domain-viewmodel-and-replay.md)
 > Related Docs: [Task Architecture](task.md), [TaskBus](bus.md), [Authoring Command Protocol](authoring-command-protocol.md), [UI API Interfaces](../plans/ui/ui-api-interfaces.md), [Collaborator Agent](../plans/feature/collaborator-agent-task-authoring.md)
 > User Needs: [UN-101](../user_model/needs/UN-101-photo-curation-batch-screening.md), [UN-102](../user_model/needs/UN-102-courseware-html-generation.md), [UN-105](../user_model/needs/UN-105-system-evaluability-and-capability-disclosure.md)
+>
+> Product 1.1 alignment: The separation now covers Session Conversation / Activity, Router interpretation cards, read-only inquiry result items, workspace inspection refs, token usage summaries, and command outcomes. UI components still render projections; backend stores remain authoritative.
 
 ---
 
