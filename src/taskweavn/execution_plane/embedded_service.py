@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Any, cast
+from collections.abc import Iterable
+from typing import Any, Protocol, cast
 from uuid import NAMESPACE_URL, uuid5
 
 from taskweavn.execution_plane.env_registry import (
@@ -41,6 +42,19 @@ from taskweavn.task.result_summary import TaskExecutionSummaryStore
 from taskweavn.task.stores import TaskStoreError
 
 
+class EmbeddedTaskRuntimeHandler(Protocol):
+    @property
+    def task_type(self) -> str: ...
+
+    def validate_request(self, request: TaskRequest) -> None: ...
+
+    def publish_or_resume(
+        self,
+        request: TaskRequest,
+        execution: TaskExecution,
+    ) -> TaskExecution: ...
+
+
 class EmbeddedTaskApiService(TaskApiService):
     """Service-compatible Task API that runs in-process over TaskBus."""
 
@@ -52,6 +66,7 @@ class EmbeddedTaskApiService(TaskApiService):
         env_registry: ExecutionEnvRegistry | None = None,
         summary_store: TaskExecutionSummaryStore | None = None,
         default_session_id: str = "execution-plane",
+        runtime_handlers: Iterable[EmbeddedTaskRuntimeHandler] = (),
     ) -> None:
         self._task_bus = task_bus
         self._store = store or InMemoryExecutionPlaneStore()
@@ -60,8 +75,12 @@ class EmbeddedTaskApiService(TaskApiService):
         )
         self._summary_store = summary_store
         self._default_session_id = default_session_id
+        self._runtime_handlers = {handler.task_type: handler for handler in runtime_handlers}
 
     def publish_task(self, request: TaskRequest) -> TaskExecution:
+        runtime_handler = self._runtime_handlers.get(request.task_type)
+        if runtime_handler is not None:
+            runtime_handler.validate_request(request)
         scoped_key = scoped_idempotency_key(request)
         current_hash = request_hash(request)
         existing = self._store.get_idempotency(scoped_key)
@@ -76,7 +95,10 @@ class EmbeddedTaskApiService(TaskApiService):
                         "requestHash": current_hash,
                     },
                 )
-            return self.get_task(existing.execution_id)
+            execution = self.get_task(existing.execution_id)
+            if runtime_handler is not None:
+                return runtime_handler.publish_or_resume(request, execution)
+            return execution
 
         env = self._env_registry.find_compatible(request.policy)
         if env is None:
@@ -148,6 +170,8 @@ class EmbeddedTaskApiService(TaskApiService):
                 },
             )
         )
+        if runtime_handler is not None:
+            return runtime_handler.publish_or_resume(request, execution)
         return execution
 
     def get_task(self, execution_id: str) -> TaskExecution:

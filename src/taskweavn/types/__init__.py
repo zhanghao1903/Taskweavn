@@ -17,19 +17,19 @@ from taskweavn.types.code_action import (
     FileChange,
     TrackingConfig,
 )
-from taskweavn.types.confirmation import (
-    RequestConfirmationAction,
-    RequestConfirmationObservation,
-)
-from taskweavn.types.computer_use import (
-    ComputerUseAction,
-    ComputerUseObservation,
-)
 from taskweavn.types.common import (
     AgentErrorObservation,
     AgentFinishAction,
     AgentFinishObservation,
     ErrorObservation,
+)
+from taskweavn.types.computer_use import (
+    ComputerUseAction,
+    ComputerUseObservation,
+)
+from taskweavn.types.confirmation import (
+    RequestConfirmationAction,
+    RequestConfirmationObservation,
 )
 from taskweavn.types.registry import ActionRegistry, ObservationRegistry
 

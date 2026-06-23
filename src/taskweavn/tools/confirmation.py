@@ -45,11 +45,7 @@ class RequestConfirmationTool(
             agent_id=self.agent_id,
             message_type="actionable",
             content=_content(action),
-            context={
-                "confirmation_kind": "execution_authorization",
-                "risk_label": action.risk_label,
-                "default_option": action.default_option,
-            },
+            context=_message_context(action),
             action_options=list(options),
             requires_response=True,
             related_action_id=action.event_id,
@@ -74,6 +70,18 @@ class RequestConfirmationTool(
 def _content(action: RequestConfirmationAction) -> str:
     risk = f"\n\nRisk: {action.risk_label}" if action.risk_label else ""
     return f"{action.title}\n\n{action.body}{risk}"
+
+
+def _message_context(action: RequestConfirmationAction) -> dict[str, object]:
+    context: dict[str, object] = {
+        "confirmation_kind": "execution_authorization",
+        "risk_label": action.risk_label,
+        "default_option": action.default_option,
+    }
+    context.update(action.context)
+    context["risk_label"] = action.risk_label
+    context["default_option"] = action.default_option
+    return context
 
 
 def _confirmation_options(action: RequestConfirmationAction) -> tuple[str, ...]:

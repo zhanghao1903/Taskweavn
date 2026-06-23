@@ -26,10 +26,17 @@ from taskweavn.core import (
     WorkspaceLayout,
 )
 from taskweavn.execution_plane import (
+    WECHAT_SEND_CAPABILITY,
     EmbeddedTaskApiService,
     InMemoryExecutionEnvRegistry,
     SqliteExecutionPlaneStore,
+    SqliteWeChatSendBoundaryStore,
+    WeChatSendRuntimeHandler,
     default_local_execution_env,
+)
+from taskweavn.integrations.wechat_desktop import (
+    MacOSWeChatSearchDriver,
+    WeChatDesktopAdapter,
 )
 from taskweavn.interaction import (
     AskStore,
@@ -464,12 +471,22 @@ def build_main_page_workspace_runtime(
         execution_plane_store = SqliteExecutionPlaneStore(
             layout.meta_dir / "execution_plane.sqlite"
         )
+        execution_plane_runtime_handlers = _execution_plane_runtime_handlers(
+            config,
+            layout=layout,
+            task_bus=task_bus,
+            message_bus=message_bus,
+            message_stream=message_stream,
+            execution_plane_store=execution_plane_store,
+            computer_use_backend=dependencies.computer_use_backend,
+        )
         execution_plane_service = EmbeddedTaskApiService(
             task_bus=task_bus,
             store=execution_plane_store,
             env_registry=_execution_env_registry(config),
             summary_store=result_summary_store,
             default_session_id=session.id if session is not None else "execution-plane",
+            runtime_handlers=execution_plane_runtime_handlers,
         )
         context_builder = DefaultAuthoringContextBuilder(
             raw_task_store=raw_task_store,
@@ -961,8 +978,8 @@ def _execution_env_registry(
     capabilities: tuple[str, ...] = ("execute", "testing")
     tool_pool: tuple[str, ...] = ()
     if config.enable_computer_use_tool:
-        capabilities = (*capabilities, "computer_use")
-        tool_pool = (*tool_pool, "computer_use")
+        capabilities = (*capabilities, "computer_use", WECHAT_SEND_CAPABILITY)
+        tool_pool = (*tool_pool, "computer_use", "wechat_desktop")
     return InMemoryExecutionEnvRegistry(
         (
             default_local_execution_env(
@@ -970,6 +987,36 @@ def _execution_env_registry(
                 tool_pool=tool_pool,
             ),
         )
+    )
+
+
+def _execution_plane_runtime_handlers(
+    config: MainPageSidecarConfig,
+    *,
+    layout: WorkspaceLayout,
+    task_bus: SqliteTaskBus,
+    message_bus: InProcessMessageBus,
+    message_stream: SqliteMessageStream,
+    execution_plane_store: SqliteExecutionPlaneStore,
+    computer_use_backend: ComputerUseBackend | None,
+) -> tuple[WeChatSendRuntimeHandler, ...]:
+    if not config.enable_computer_use_tool or computer_use_backend is None:
+        return ()
+    wechat_boundary_store = SqliteWeChatSendBoundaryStore(
+        layout.meta_dir / "wechat_send_boundaries.sqlite"
+    )
+    return (
+        WeChatSendRuntimeHandler(
+            task_bus=task_bus,
+            message_bus=message_bus,
+            message_stream=message_stream,
+            execution_store=execution_plane_store,
+            boundary_store=wechat_boundary_store,
+            adapter=WeChatDesktopAdapter(
+                computer_use_backend,
+                contact_search_driver=MacOSWeChatSearchDriver(),
+            ),
+        ),
     )
 
 

@@ -35,6 +35,29 @@ from taskweavn.execution_plane.store import (
     request_hash,
     scoped_idempotency_key,
 )
+from taskweavn.execution_plane.wechat_send_boundary import (
+    SqliteWeChatSendBoundaryStore,
+    WeChatSendBoundary,
+    WeChatSendBoundaryConflictError,
+    WeChatSendBoundaryStatus,
+    WeChatSendBoundaryStore,
+    WeChatSendBoundaryStoreError,
+    WeChatSendBoundaryTransitionError,
+)
+from taskweavn.execution_plane.wechat_send_execution import (
+    WeChatSendAdapter,
+    WeChatSendExecutionOutcome,
+    WeChatSendExecutionRequest,
+    WeChatSendExecutionService,
+    WeChatSendExecutionStatus,
+)
+from taskweavn.execution_plane.wechat_send_runtime import (
+    WECHAT_SEND_CAPABILITY,
+    WECHAT_SEND_TASK_TYPE,
+    WeChatSendRuntimeAdapter,
+    WeChatSendRuntimeConfig,
+    WeChatSendRuntimeHandler,
+)
 
 __all__ = [
     "CallbackPolicy",
@@ -53,6 +76,7 @@ __all__ = [
     "InMemoryExecutionPlaneStore",
     "RetryTaskCommand",
     "SqliteExecutionPlaneStore",
+    "SqliteWeChatSendBoundaryStore",
     "TaskApiService",
     "TaskError",
     "TaskEvent",
@@ -63,6 +87,22 @@ __all__ = [
     "TaskRequestIdempotencyRecord",
     "TaskRequester",
     "TaskResult",
+    "WeChatSendBoundary",
+    "WeChatSendBoundaryConflictError",
+    "WeChatSendBoundaryStatus",
+    "WeChatSendBoundaryStore",
+    "WeChatSendBoundaryStoreError",
+    "WeChatSendBoundaryTransitionError",
+    "WeChatSendAdapter",
+    "WeChatSendExecutionOutcome",
+    "WeChatSendExecutionRequest",
+    "WeChatSendExecutionService",
+    "WeChatSendExecutionStatus",
+    "WECHAT_SEND_CAPABILITY",
+    "WECHAT_SEND_TASK_TYPE",
+    "WeChatSendRuntimeAdapter",
+    "WeChatSendRuntimeConfig",
+    "WeChatSendRuntimeHandler",
     "default_local_execution_env",
     "request_hash",
     "scoped_idempotency_key",

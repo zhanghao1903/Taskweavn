@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import ClassVar, Literal
+from typing import Any, ClassVar, Literal
 
 from pydantic import Field
 
@@ -44,6 +44,14 @@ class RequestConfirmationAction(BaseAction, kind="RequestConfirmationAction"):
             "When true, the UI may offer approve_session as an additional "
             "decision value. Product 1.0 records it but does not auto-bypass "
             "future confirmations."
+        ),
+    )
+    context: dict[str, Any] = Field(
+        default_factory=dict,
+        description=(
+            "Structured business metadata copied onto the actionable message. "
+            "Use for action fingerprints or route context; do not put raw "
+            "secret payloads here."
         ),
     )
     blocking: Literal[True] = True

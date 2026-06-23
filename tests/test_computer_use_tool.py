@@ -14,6 +14,7 @@ from taskweavn.types import ComputerUseAction, ComputerUseObservation
 
 
 def test_computer_use_action_validates_operation_payloads() -> None:
+    ComputerUseAction(operation="readiness", instruction="Check backend readiness.")
     ComputerUseAction(operation="observe", instruction="Inspect the visible state.")
     ComputerUseAction(
         operation="open_app",

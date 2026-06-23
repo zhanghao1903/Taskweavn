@@ -9,6 +9,7 @@ from pydantic import Field, model_validator
 from taskweavn.types.base import BaseAction, BaseObservation
 
 ComputerUseOperation = Literal[
+    "readiness",
     "observe",
     "open_app",
     "click",
