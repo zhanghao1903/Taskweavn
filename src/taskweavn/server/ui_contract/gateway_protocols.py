@@ -11,6 +11,7 @@ from taskweavn.interaction import AgentMessage
 from taskweavn.server.ui_contract.commands import (
     AnswerAskPayload,
     AnswerAuthoringAskBatchPayload,
+    ArchivePlanPayload,
     AppendSessionInputPayload,
     AppendTaskInputPayload,
     CancelAskPayload,
@@ -292,6 +293,12 @@ class UiCommandGateway(Protocol):
     def publish_task_tree(
         self,
         request: CommandRequest[PublishTaskTreePayload],
+    ) -> CommandResponse: ...
+
+    def archive_plan(
+        self,
+        plan_id: str,
+        request: CommandRequest[ArchivePlanPayload],
     ) -> CommandResponse: ...
 
     def retry_task(

@@ -2,7 +2,7 @@
 
 > Status: draft PRD
 >
-> Last Updated: 2026-06-17
+> Last Updated: 2026-06-19
 >
 > Scope: product requirements for making Plato feel responsive through a
 > Session-level natural-language conversation layer, and for supporting small
@@ -14,6 +14,7 @@
 > [Plato Contract Loop Product Model](plato-contract-loop-model.md),
 > [Plato Runtime Input Model](plato-runtime-input-model.md),
 > [Plato Session Content Model](plato-session-content-model.md),
+> [Plato Session Active Work Lifecycle](plato-session-active-work-lifecycle.md),
 > [Plato Task Semantics](plato-task-semantics.md),
 > [Session Conversation / Activity Timeline](../plans/feature/session-conversation-activity-timeline.md),
 > [Runtime Input Router Contract](../plans/feature/runtime-input-router-contract.md)
@@ -22,8 +23,9 @@
 
 ## 1. One-Sentence Product Definition
 
-Plato is still Task-first, but the user should experience it through a
-Session-level conversation timeline that explains how Plato understood,
+Plato uses Tasks as executable work contracts, but the product core is the
+Session. The user should experience Plato through a Session-level conversation
+timeline that explains how Plato understood,
 responded to, and acted on their instructions.
 
 For small requests, Plato should be able to create and run a Direct Task
@@ -88,9 +90,10 @@ interaction shape.
 Product rule:
 
 ```text
-Session is the user-visible conversation timeline.
+Session is the user-visible product root and conversation timeline.
 Task is the minimum executable work contract.
-Plan is the organization structure for work that needs planning.
+Plan is a structured work segment for work that needs planning.
+Direct Task is a lightweight work segment for small executable requests.
 ```
 
 Therefore:
@@ -186,11 +189,31 @@ Scope meanings:
 | Scope | User meaning | Examples |
 |---|---|---|
 | Session | This whole collaboration run. | Original request, session-wide guidance, overall status answer. |
-| Plan | This organized round of work. | Plan generated, plan revised, plan accepted, plan outcome summary. |
+| Plan | This organized round of work. | Plan generated, plan revised, plan completed, plan archived, plan outcome summary. |
 | Task | One executable work contract. | Task started, ASK required, confirmation required, task completed, task failed. |
 
 Files, diffs, ASK, confirmation, result, audit records, and messages are refs,
 not primary collaboration scopes.
+
+### 6.2.1 Session, Plan, And Active Work
+
+Conversation belongs to Session, not to Plan.
+
+Plan is a scope and work segment inside the Session. It can be active,
+completed, or archived, but it should not reset the Session conversation.
+
+```text
+Session timeline
+  -> Plan started
+  -> Task updates
+  -> Plan completed
+  -> Plan archived
+  -> next user input
+```
+
+A completed Plan remains active until the user clicks `Archive plan`. Archive
+moves the Plan into Session history and returns the Session to a no-active-work
+state, ready for a read-only question, Direct Task, or new Plan-required goal.
 
 ### 6.3 Direct Task
 
@@ -218,6 +241,10 @@ small user request
 Implementation may attach the Direct Task to an implicit single-task Plan or
 Plan Cycle for internal consistency. The product requirement is that the user
 does not have to review a full Plan when the request does not need one.
+
+Direct Task can be the current active work item. When it reaches a terminal
+state and no recovery is pending, it becomes Session history without a Plan
+archive ceremony.
 
 ### 6.4 Plan-Required Work
 

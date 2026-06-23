@@ -3,6 +3,7 @@ import type {
   AppendTaskInputPayload,
   AnswerAskPayload,
   AnswerAuthoringAskBatchPayload,
+  ArchivePlanPayload,
   CancelAskPayload,
   DeferAskPayload,
   GenerateTaskTreePayload,
@@ -51,6 +52,7 @@ import type {
   AppendTaskInputCommand,
   AnswerAskCommand,
   AnswerAuthoringAskBatchCommand,
+  ArchivePlanCommand,
   CancelAskCommand,
   DeferAskCommand,
   GenerateTaskTreeCommand,
@@ -81,6 +83,7 @@ export type {
   AppendTaskInputCommand,
   AnswerAskCommand,
   AnswerAuthoringAskBatchCommand,
+  ArchivePlanCommand,
   CancelAskCommand,
   DeferAskCommand,
   GenerateTaskTreeCommand,
@@ -370,6 +373,21 @@ export async function publishTaskTreeMockCommand(
   });
 }
 
+export async function archivePlanMockCommand(
+  sessionId: SessionId,
+  planId: string,
+  request: CommandRequest<ArchivePlanPayload>,
+): Promise<CommandResponse> {
+  await delay(60);
+
+  return acceptedCommandResponse({
+    commandId: request.commandId,
+    message: "Plan archived.",
+    sessionId,
+    objectRefs: [{ kind: "plan", id: planId }],
+  });
+}
+
 export async function retryTaskMockCommand(
   sessionId: SessionId,
   taskNodeId: string,
@@ -493,6 +511,7 @@ export const mainPageMockAdapter: MainPageAdapter = {
   answerAuthoringAskBatch: answerAuthoringAskBatchMockCommand,
   appendSessionInput: appendSessionInputMockCommand,
   appendTaskInput: appendTaskInputMockCommand,
+  archivePlan: archivePlanMockCommand,
   cancelAsk: cancelAskMockCommand,
   async createSession(payload) {
     await delay(20);
@@ -553,11 +572,13 @@ export function createMainPageMockAdapter(
 function acceptedCommandResponse({
   commandId,
   message,
+  objectRefs = [],
   sessionId,
   taskNodeId,
 }: {
   commandId: string;
   message: string;
+  objectRefs?: NonNullable<CommandResponse["result"]>["objectRefs"];
   sessionId: string;
   taskNodeId?: string;
 }): CommandResponse {
@@ -576,7 +597,7 @@ function acceptedCommandResponse({
             },
           ]
         : [],
-      objectRefs: [],
+      objectRefs,
       affectedObjects: [],
       emittedMessageIds: [`message-${commandId}`],
       publishedTaskIds: [],

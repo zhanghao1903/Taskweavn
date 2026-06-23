@@ -72,6 +72,7 @@ from taskweavn.server.runtime_input_llm_router import LLMRuntimeInputRoutePlanne
 from taskweavn.server.runtime_input_router import DefaultRuntimeInputRouter
 from taskweavn.server.settings_config import (
     DefaultSettingsConfigGateway,
+    effective_web_search_settings,
     file_settings_config_store_for,
 )
 from taskweavn.server.sidecar import (
@@ -119,6 +120,7 @@ from taskweavn.task import (
     DefaultAuthoringContextBuilder,
     DefaultCollaboratorApiAdapter,
     DefaultCollaboratorAuthoringService,
+    DefaultPlanLifecycleCommandService,
     DefaultPlanPublisher,
     DefaultTaskAskCommandService,
     DefaultTaskCommandService,
@@ -152,6 +154,7 @@ from taskweavn.task import (
     TaskExecutionTickResult,
 )
 from taskweavn.usage import SqliteTokenUsageStore, UsageRecordingLLM
+from taskweavn.web_retrieval import TavilyWebSearchProvider, WebSearchProvider
 from taskweavn.workspace_inspection import DefaultWorkspaceInspectionGateway
 
 DEFAULT_PLATO_SIDECAR_PORT = 52789
@@ -389,6 +392,11 @@ def build_main_page_workspace_runtime(
             plan_store=plan_store,
             task_publisher=task_publisher,
         )
+        plan_lifecycle_commands = DefaultPlanLifecycleCommandService(
+            plan_store=plan_store,
+            authoring_state_store=authoring_state_store,
+            message_bus=message_bus,
+        )
         authoring_command_service = DefaultAuthoringCommandService(
             raw_task_store=raw_task_store,
             draft_store=draft_store,
@@ -469,6 +477,7 @@ def build_main_page_workspace_runtime(
             command_service=authoring_command_service,
             template_registry=InMemoryCollaboratorTemplateRegistry(),
             message_bus=message_bus,
+            raw_task_store=raw_task_store,
         )
         task_commands = DefaultTaskCommandService(
             task_store=task_bus,
@@ -530,6 +539,7 @@ def build_main_page_workspace_runtime(
             task_projection=task_projection,
             plan_store=plan_store,
             plan_publisher=plan_publisher,
+            plan_lifecycle_commands=plan_lifecycle_commands,
         )
         command_gateway: UiCommandGateway = AuditEventCommandGateway(
             inner=core_command_gateway,
@@ -570,7 +580,10 @@ def build_main_page_workspace_runtime(
                 workspace_inspection_gateway=workspace_inspection_gateway,
                 diagnostic_support_provider=diagnostic_support_provider,
                 answer_provider=GuardedLLMReadOnlyInquiryAnswerProvider(
-                    agent_llms.read_only_inquiry
+                    agent_llms.read_only_inquiry,
+                    web_search_provider=_read_only_inquiry_web_search_provider(
+                        settings_store
+                    ),
                 ),
             )
             if config.enable_read_only_inquiry_llm
@@ -886,6 +899,19 @@ def _workspace_llm_if_configured(
     if dependencies.llm_factory is not None:
         return dependencies.llm_factory(workspace_root)
     return dependencies.llm
+
+
+def _read_only_inquiry_web_search_provider(
+    settings_store: Any,
+) -> WebSearchProvider | None:
+    settings = effective_web_search_settings(
+        config=settings_store.read_config(),
+        base_env=os.environ,
+        store=settings_store,
+    )
+    if settings.status != "ready" or settings.provider != "tavily":
+        return None
+    return TavilyWebSearchProvider(api_key=settings.api_key or "")
 
 
 def _authoring_stores(

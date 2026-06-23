@@ -3,6 +3,7 @@ import type {
   AppendTaskInputPayload,
   AnswerAskPayload,
   AnswerAuthoringAskBatchPayload,
+  ArchivePlanPayload,
   CancelAskPayload,
   DeferAskPayload,
   CreateSessionPayload,
@@ -175,6 +176,13 @@ export type PublishTaskTreeCommand = (
   workspaceId?: WorkspaceId | null,
 ) => Promise<CommandResponse>;
 
+export type ArchivePlanCommand = (
+  sessionId: SessionId,
+  planId: string,
+  request: CommandRequest<ArchivePlanPayload>,
+  workspaceId?: WorkspaceId | null,
+) => Promise<CommandResponse>;
+
 export type RepairAuthoringStateCommand = (
   request: CommandRequest<RepairAuthoringStatePayload>,
   workspaceId?: WorkspaceId | null,
@@ -206,6 +214,7 @@ export type MainPageAdapter = {
   answerAuthoringAskBatch: AnswerAuthoringAskBatchCommand;
   appendSessionInput: AppendSessionInputCommand;
   appendTaskInput: AppendTaskInputCommand;
+  archivePlan: ArchivePlanCommand;
   cancelAsk: CancelAskCommand;
   createSession: SessionLifecycleCommand<CreateSessionPayload>;
   deferAsk: DeferAskCommand;

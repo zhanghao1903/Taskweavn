@@ -35,6 +35,7 @@ from taskweavn.task.collaborator import (
 )
 from taskweavn.task.commands import CommandResult
 from taskweavn.task.models import TaskRef
+from taskweavn.task.stores import RawTaskStore
 
 
 def _new_id() -> str:
@@ -122,6 +123,7 @@ class DefaultCollaboratorApiAdapter:
         command_service: AuthoringCommandService,
         template_registry: CollaboratorTemplateRegistry,
         message_bus: MessageBus | None = None,
+        raw_task_store: RawTaskStore | None = None,
         template: CollaboratorAgentTemplate | None = None,
         user_actor: ActorRef | None = None,
     ) -> None:
@@ -129,6 +131,7 @@ class DefaultCollaboratorApiAdapter:
         self._command_service = command_service
         self._template_registry = template_registry
         self._message_bus = message_bus
+        self._raw_task_store = raw_task_store
         self._template = template or default_collaborator_template()
         self._user_actor = user_actor or ActorRef(
             actor_id="user",
@@ -213,10 +216,12 @@ class DefaultCollaboratorApiAdapter:
             return normalized
         emitted: tuple[str, ...] = ()
         if source_message_id is None:
+            raw_task = self._raw_task(session_id, raw_task_id)
             message_id = self._publish_user_message(
                 session_id=session_id,
-                content=value,
+                content=_answer_content_for_display(raw_task, normalized),
                 context={
+                    "title": "User answer",
                     "surface": "raw_task_ask",
                     "operation": "answerRawTaskAsk",
                     "raw_task_id": raw_task_id,
@@ -251,10 +256,12 @@ class DefaultCollaboratorApiAdapter:
             return normalized
         emitted: tuple[str, ...] = ()
         if source_message_id is None:
+            raw_task = self._raw_task(session_id, raw_task_id)
             message_id = self._publish_user_message(
                 session_id=session_id,
-                content=_batch_answer_content(normalized),
+                content=_answer_content_for_display(raw_task, normalized),
                 context={
+                    "title": "User answer",
                     "surface": "raw_task_ask",
                     "operation": "answerRawTaskAskBatch",
                     "raw_task_id": raw_task_id,
@@ -449,6 +456,11 @@ class DefaultCollaboratorApiAdapter:
             self._message_bus.publish(message)
         return message.message_id
 
+    def _raw_task(self, session_id: str, raw_task_id: str) -> Any | None:
+        if self._raw_task_store is None:
+            return None
+        return self._raw_task_store.get(session_id, raw_task_id)
+
 
 def _command_result(
     result: AuthoringCommandResult,
@@ -506,6 +518,38 @@ def _batch_answer_content(answers: tuple[RawTaskAskAnswerSubmission, ...]) -> st
     if len(answers) == 1:
         return answers[0].value
     return "\n".join(f"{index}. {answer.value}" for index, answer in enumerate(answers, 1))
+
+
+def _answer_content_for_display(
+    raw_task: Any | None,
+    answers: tuple[RawTaskAskAnswerSubmission, ...],
+) -> str:
+    display_answers = tuple(
+        RawTaskAskAnswerSubmission(
+            ask_id=answer.ask_id,
+            value=_answer_value_for_display(raw_task, answer),
+        )
+        for answer in answers
+    )
+    return _batch_answer_content(display_answers)
+
+
+def _answer_value_for_display(
+    raw_task: Any | None,
+    answer: RawTaskAskAnswerSubmission,
+) -> str:
+    if raw_task is None:
+        return answer.value
+    ask = next(
+        (candidate for candidate in raw_task.asks if candidate.ask_id == answer.ask_id),
+        None,
+    )
+    if ask is None:
+        return answer.value
+    for option in ask.options:
+        if answer.value in {option.option_id, option.value, option.label}:
+            return option.label
+    return answer.value
 
 
 def _error_summary(errors: tuple[AuthoringCommandError, ...]) -> str:

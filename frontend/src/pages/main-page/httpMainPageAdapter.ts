@@ -21,6 +21,7 @@ export type HttpMainPageApi = Pick<
   | "answerAuthoringAskBatch"
   | "appendSessionInput"
   | "appendTaskInput"
+  | "archivePlan"
   | "cancelAsk"
   | "createSession"
   | "deferAsk"
@@ -94,6 +95,14 @@ export function createHttpMainPageAdapter({
       return api.appendTaskInput(
         nextSessionId,
         taskNodeId,
+        request,
+        workspaceOptions(nextWorkspaceId),
+      );
+    },
+    archivePlan(nextSessionId, planId, request, nextWorkspaceId) {
+      return api.archivePlan(
+        nextSessionId,
+        planId,
         request,
         workspaceOptions(nextWorkspaceId),
       );

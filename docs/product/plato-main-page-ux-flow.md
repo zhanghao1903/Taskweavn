@@ -2,7 +2,29 @@
 
 > Status: UX flow baseline
 >
+> Last Updated: 2026-06-19
+>
 > Scope: Main Page 第一版交互流程、关键画面状态、对象状态变化和 Figma 输入。本文不是最终视觉稿、组件 API 或后端接口文档。
+
+## 0. 2026-06-19 Session-First Direction Update
+
+Main Page 的产品核心从“Plan 页面”收敛为“Session 工作台”。
+
+```text
+Session = 核心工作单元与连续对话时间线
+Conversation = 用户感知层
+Plan = Session 内的一段结构化工作
+Direct Task = Session 内的一段轻量执行工作
+TaskNode = 可执行工作锚点
+```
+
+Plan 完成后不自动归档。完成的 Plan 仍作为当前 active work 展示，直到用户点击：
+
+```text
+Archive plan
+```
+
+归档后，Plan 从 active work 区域移入 Session history；Conversation 不清空，用户仍可向前滚动查看之前 Plan 的内容。历史 Plan 的主入口应位于 Session 级 `Plans` / `History`，并可通过 Conversation 中的 `Plan archived` 边界项进入。
 
 ## 1. 目标
 
@@ -12,7 +34,8 @@ Main Page 是柏拉图的用户控制面。
 
 ```text
 输入目标
-  -> 看到 Draft TaskTree
+  -> 看到对话响应和必要的 Plan / Direct Task
+  -> 看到 Draft TaskTree（当请求需要 Plan）
   -> 选中 TaskNode
   -> 补充或确认
   -> 发布执行
@@ -26,13 +49,15 @@ Main Page 是柏拉图的用户控制面。
 
 ## 2. UX 原则
 
-1. TaskTree 必须是主对象，不能被聊天流淹没。
-2. TaskNode 是最小交互锚点。
-3. 用户输入框必须显示当前作用域。
-4. 确认动作必须挂在具体 TaskNode 上。
-5. Result 和 File Change Summary 必须容易找到。
-6. Audit 入口可见但不打扰主流程。
-7. Main Page 展示用户下一步要做什么，不展示完整内部细节。
+1. Session Conversation 是用户感知主线，不能被 Plan 切断。
+2. TaskTree / Plan & Progress 是结构化控制面，不能替代 Session。
+3. TaskNode 是最小交互锚点。
+4. 用户输入框必须显示当前作用域。
+5. 确认动作必须挂在具体 TaskNode 上。
+6. Result 和 File Change Summary 必须容易找到。
+7. Audit 入口可见但不打扰主流程。
+8. Main Page 展示用户下一步要做什么，不展示完整内部细节。
+9. 完成的 Plan 由用户手动归档，归档不清空 Conversation。
 
 ## 3. Main Page 信息模型
 
@@ -554,7 +579,8 @@ MVP 消息类型：
 给 Figma 的设计输入可以概括为：
 
 ```text
-Design a desktop-first Main Page for Plato, a Task-first intelligent workbench.
+Design a desktop-first Main Page for Plato, a Session-first intelligent
+workbench with Task-first execution control.
 The page should show Workflow, Session, Draft TaskTree, TaskNode details,
 Session messages, Task-scoped messages, confirmation cards, result cards,
 file change summaries, and a lightweight audit entry.

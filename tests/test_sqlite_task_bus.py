@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import sqlite3
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -63,6 +64,38 @@ def test_persists_across_reopen(tmp_path: Path) -> None:
         assert loaded.required_capability == "general"
     finally:
         second.close()
+
+
+def test_reads_legacy_null_confirmation_payload_field(tmp_path: Path) -> None:
+    db = tmp_path / "tasks.sqlite"
+    first = SqliteTaskBus(db)
+    try:
+        first.publish(_root("root"))
+    finally:
+        first.close()
+
+    with sqlite3.connect(db) as conn:
+        payload = json.loads(
+            conn.execute(
+                "SELECT payload FROM tasks WHERE session_id = ? AND task_id = ?",
+                ("s1", "root"),
+            ).fetchone()[0]
+        )
+        payload["waiting_for_confirmation_id"] = None
+        conn.execute(
+            "UPDATE tasks SET payload = ? WHERE session_id = ? AND task_id = ?",
+            (json.dumps(payload), "s1", "root"),
+        )
+
+    second = SqliteTaskBus(db)
+    try:
+        loaded = second.get("s1", "root")
+    finally:
+        second.close()
+
+    assert loaded is not None
+    assert loaded.task_id == "root"
+    assert loaded.status == "pending"
 
 
 def test_context_manager_closes_connection(tmp_path: Path) -> None:

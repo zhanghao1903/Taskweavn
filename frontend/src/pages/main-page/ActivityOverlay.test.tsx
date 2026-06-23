@@ -274,6 +274,38 @@ describe("ActivityOverlay", () => {
     expect(screen.getByText("Result summary generated")).toBeInTheDocument();
   });
 
+  it("opens archived plan activity in a reader without selecting the active plan", async () => {
+    const user = userEvent.setup();
+    const onOpenPlan = vi.fn();
+
+    render(
+      <ActivityOverlay
+        items={[
+          activityItem({
+            body:
+              "**Stored plan**\n\nStored durable plan summary.\n\nTasks:\n- Task 1: Stored task (done)",
+            id: "archived-plan-activity",
+            kind: "plan_updated",
+            relatedRefs: [],
+            scopeKind: "plan",
+            taskNodeId: null,
+            title: "Plan archived",
+          }),
+        ]}
+        onClose={vi.fn()}
+        onOpenPlan={onOpenPlan}
+        selectedTask={undefined}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Open plan" }));
+
+    const reader = screen.getByLabelText("Plan details");
+    expect(within(reader).getByText("Stored plan")).toBeInTheDocument();
+    expect(within(reader).getByText(/Stored durable plan summary/)).toBeInTheDocument();
+    expect(onOpenPlan).not.toHaveBeenCalled();
+  });
+
   it("renders result reader markdown through the shared renderer", async () => {
     const user = userEvent.setup();
 

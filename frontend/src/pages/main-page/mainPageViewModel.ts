@@ -6,6 +6,7 @@ import type {
   MainPageSnapshot,
   PlanningAskView,
   ResultCardView,
+  RuntimeInputMode,
   SessionMessageView,
   SessionSummary,
   TaskNodeCardView,
@@ -137,6 +138,7 @@ export type MainPageAuditEntryViewModel = {
 };
 
 export type MainPageTaskWorkspaceViewModel = {
+  activePlan: MainPageSnapshot["activePlan"];
   allMessages: SessionMessageView[];
   authoringDiagnostic: MainPageAuthoringDiagnosticViewModel | null;
   fileChangeSummary: FileChangeSummaryView | null;
@@ -200,6 +202,7 @@ export type BuildMainPageViewModelInput = {
   isAnsweringAuthoringAsk: boolean;
   executionAskError: string | null;
   executionAskRecoveryActions: ProductRecoveryAction[];
+  activeRuntimeInputMode?: RuntimeInputMode | null;
   isAnsweringAsk: boolean;
   isCancellingAsk: boolean;
   isDeferringAsk: boolean;
@@ -240,6 +243,7 @@ export function buildMainPageViewModel({
   isStoppingTask,
   isResolvingConfirmation,
   metadata,
+  activeRuntimeInputMode = null,
   runtimeInputRouterAvailable = false,
   selectionTarget,
   selectedTaskNodeId,
@@ -367,11 +371,15 @@ export function buildMainPageViewModel({
       sessions: snapshot.sessions,
     },
     taskWorkspace: {
+      activePlan: snapshot.activePlan ?? null,
       allMessages: snapshot.messages,
       authoringDiagnostic: authoringDiagnosticViewFor(snapshot.planning),
       fileChangeSummary,
       isGeneratingTaskPlan:
-        authoringAsk === null && snapshot.taskTree === null && inputDisabled,
+        authoringAsk === null &&
+        snapshot.taskTree === null &&
+        inputDisabled &&
+        activeRuntimeInputMode !== "ask",
       isMessageScoped: scopedProjection.isMessageScoped,
       isTaskPlanSelected:
         snapshot.taskTree !== null && effectiveSelectedTaskNodeId === null,

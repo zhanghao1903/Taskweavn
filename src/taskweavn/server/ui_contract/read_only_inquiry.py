@@ -42,6 +42,7 @@ ReadOnlyInquiryEvidenceKind = Literal[
     "session_status",
     "task_status",
     "plan_status",
+    "web_search_result",
 ]
 ReadOnlyInquiryDisclosure = Literal["public", "partial", "hidden"]
 ReadOnlyInquiryWarningCode = Literal[

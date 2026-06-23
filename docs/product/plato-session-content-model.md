@@ -2,7 +2,7 @@
 
 > Status: product semantic baseline
 >
-> Last Updated: 2026-06-09
+> Last Updated: 2026-06-19
 >
 > Scope: user-facing meaning of Session content and its relationship to
 > Session, Plan, Task, Activity, MessageStream, and Audit. This is not a UI
@@ -10,23 +10,27 @@
 >
 > Related:
 > [Plato Task Semantics](plato-task-semantics.md),
+> [Plato Session Active Work Lifecycle](plato-session-active-work-lifecycle.md),
 > [Workflow, Session, And Task UX Model](workflow-session-task-ux-model.md),
 > [Core Product Principles](core-product-principles.md),
 > [Plan / TaskNode Model Technical Design](../plans/feature/plan-tasknode-model-technical-design.zh-CN.md)
 
 ## 1. Core Definition
 
-Session content is a typed, scoped collaboration record.
+Session content is a typed, scoped collaboration record for a continuous
+Session.
 
 It is not the Task itself and not raw chat. It explains Task intent, planning,
 execution, user decisions, results, and recovery.
 
-Task remains the work contract and state authority. Session content is the
-user-readable narrative and interaction history around that contract.
+Session is the product's core user-facing work unit. Task remains the executable
+work contract and state authority. Session content is the user-readable
+narrative and interaction history around active and historical work.
 
-Plan is the scoped work program inside a Session. Session content should attach
-to Plan when the content is about this round of authoring, execution,
-finalization, or outcome review.
+Plan is a structured work segment inside a Session. It is not the product's
+core node. Session content may attach to Plan when the content is about that
+round of authoring, execution, finalization, outcome review, or archive, but
+Conversation continuity belongs to Session.
 
 ## 2. Product Meaning
 
@@ -40,13 +44,15 @@ For a Task-first product, Session content answers:
 6. What result and evidence were produced?
 7. What can the user do next?
 
-Session content is therefore the collaboration layer around Session, Plan, and
-Task. It should not become the primary product object.
+Session content is therefore the collaboration layer around Session, active
+work, Plan, and Task. It should not become a second state authority.
 
 ```text
-Plan = scoped work program and context-management boundary
-Task = work contract and state authority inside a Plan
-Session content = collaboration narrative around Plan and Task contracts
+Session = product root and continuous collaboration timeline
+Active Work = current Plan or Direct Task
+Plan = structured work segment inside a Session
+Task = executable work contract and state authority
+Session content = collaboration narrative around active and historical work
 Audit = evidence trace behind the contracts
 ```
 
@@ -85,9 +91,10 @@ primary collaboration objects.
 | Plan | This round of organized work. | Revise plan, split steps, simplify sequence, review outcome, start follow-up plan. |
 | Task | A concrete work contract inside the plan. | Add guidance, answer ASK, resolve confirmation, retry, inspect result. |
 
-Plan scope is especially important because a long Session may contain multiple
-Plans. A user can ask about the Session, but most actionable collaboration
-should attach to the active Plan or a selected TaskNode.
+Plan scope is useful because a long Session may contain multiple Plans, but it
+is not the root of continuity. A user can ask about the Session, archived Plans,
+the active Plan, or a selected TaskNode. Most mutating collaboration should
+attach to the active work or selected TaskNode.
 
 ## 5. References Are Not Scopes
 
@@ -107,7 +114,7 @@ Examples:
 | "Do not touch CSS in this task." | guidance | Task | selected Task |
 | "Make the plan frontend-first." | command | Plan | current Plan |
 | "Summarize what this plan achieved." | question | Plan | Plan outcome |
-| "Start the next plan from these results." | command | Plan / Session | accepted Plan |
+| "Start the next plan from these results." | command | Plan / Session | completed or archived Plan |
 | "Explain the overall status." | question | Session | none |
 
 This keeps the product model centered on collaboration rather than low-level
@@ -124,6 +131,7 @@ degrading into raw chat.
 | Planning note | User-readable note about interpretation or plan generation. | Plan | Explains plan state. |
 | Plan summary | User-readable summary of the current Plan. | Plan | Explains scope, progress, and outcome. |
 | Plan finalization note | Summary, validation, integration, or context-compression output after TaskNode execution. | Plan | May prepare outcome review or follow-up authoring. |
+| Plan archive boundary | User-visible marker that a completed Plan moved from active work into Session history. | Session / Plan | Clears active Plan without clearing Conversation. |
 | User guidance | Constraint, preference, or additional context. | Session / Task | Affects future context, not direct structure. |
 | Question | User asks for understanding. | Session / Plan / Task | No state mutation by default. |
 | Answer | Plato answers a read-only question. | Session / Plan / Task | No state mutation by default. |
@@ -220,7 +228,8 @@ It should show:
 
 ### 8.3 Plan Activity
 
-Plan Activity should show how the current plan was created or changed.
+Plan Activity should show how the current active or historical Plan was created,
+changed, completed, or archived.
 
 It should show:
 
@@ -228,11 +237,15 @@ It should show:
 - planning notes;
 - Plan-level constraints and context policy when user-visible;
 - plan revision requests;
-- plan acceptance;
+- plan completion and archive;
 - transition from plan to execution;
 - Plan finalization progress;
 - Plan outcome summary;
+- Plan archived boundary;
 - follow-up plan creation when Product 1.1 supports it.
+
+Plan Activity must not imply that Conversation belongs to a Plan. Conversation
+belongs to Session and can scroll across Plan boundaries.
 
 ### 8.4 Audit
 
@@ -282,18 +295,19 @@ Session
       -> Outcome content
 ```
 
-This lets the user continue a Session after accepting an outcome without
-mixing the old plan and the new follow-up plan into one ambiguous thread.
+This lets the user continue a Session after completing or archiving an outcome
+without mixing the old plan and the new follow-up plan into one ambiguous active
+work item.
 
 Plan content should include enough information for the next Plan to be authored
 without relying on raw chat:
 
 - original Plan goal;
-- accepted TaskNode list;
+- completed TaskNode list;
 - TaskNode outcomes;
 - file-change rollups;
 - unresolved questions and warnings;
-- user acceptance or follow-up decision;
+- user archive, recovery, or follow-up decision;
 - context-compression summary for Collaborator.
 
 ## 11. Product Invariants
@@ -302,7 +316,7 @@ without relying on raw chat:
 2. Session content is not raw chat, but it can project a typed conversation
    history.
 3. Task remains the work contract and state authority.
-4. Plan is the scoped work program and context-management boundary.
+4. Plan is a structured active work segment inside the Session.
 5. Activity explains what happened in user-readable form.
 6. File, diff, result, audit, ASK, and confirmation are references unless they
    also represent a Task or Plan interaction.

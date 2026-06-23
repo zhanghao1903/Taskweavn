@@ -32,6 +32,24 @@ describe("buildMainPageViewModel", () => {
     expect(viewModel.taskWorkspace.isGeneratingTaskPlan).toBe(true);
   });
 
+  it("does not mark the empty workspace as generating while a read-only ASK is pending", () => {
+    const viewModel = buildViewModel("s1-empty", {
+      activeRuntimeInputMode: "ask",
+      inputDisabled: true,
+    });
+
+    expect(viewModel.taskWorkspace.isGeneratingTaskPlan).toBe(false);
+  });
+
+  it("keeps the generation transition while a routed change is pending", () => {
+    const viewModel = buildViewModel("s1-empty", {
+      activeRuntimeInputMode: "change",
+      inputDisabled: true,
+    });
+
+    expect(viewModel.taskWorkspace.isGeneratingTaskPlan).toBe(true);
+  });
+
   it("does not show the generation transition once a TaskTree exists", () => {
     const viewModel = buildViewModel("s3-draft-ready", {
       inputDisabled: true,
@@ -332,6 +350,7 @@ function buildViewModel(
   stateId: MainPageStateId,
   overrides: {
     auditRouteAvailable?: boolean;
+    activeRuntimeInputMode?: "auto" | "ask" | "change" | "guide" | null;
     detailOverride?: DetailOverride;
     eventConnectionStatus?: EventConnectionStatus;
     inputDisabled?: boolean;
@@ -345,6 +364,7 @@ function buildViewModel(
 
   return buildMainPageViewModel({
     auditRouteAvailable: overrides.auditRouteAvailable,
+    activeRuntimeInputMode: overrides.activeRuntimeInputMode,
     authoringAskError: null,
     authoringAskRecoveryActions: [],
     confirmationError: null,

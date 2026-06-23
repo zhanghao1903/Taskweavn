@@ -201,7 +201,7 @@ This keeps Activity Stream explainable without exposing raw router internals.
 
 ## 11. Relationship To Plan Cycle
 
-After a Plan Cycle is accepted, a new user input may mean:
+After a Plan Cycle is completed or archived, a new user input may mean:
 
 - read-only question about the result;
 - follow-up guidance for a future Plan;
@@ -210,7 +210,7 @@ After a Plan Cycle is accepted, a new user input may mean:
 - new independent goal that should create a new Session.
 
 Product 1.1 should classify these cases explicitly instead of treating every
-post-acceptance message as ordinary chat.
+post-completion message as ordinary chat.
 
 ## 12. Non-Goals
 

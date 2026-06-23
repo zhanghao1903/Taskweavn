@@ -659,6 +659,12 @@ def test_command_routes_validate_and_dispatch_to_gateway_methods() -> None:
         ),
         (
             "POST",
+            "/api/v1/sessions/session%201/plans/plan%201/archive",
+            _command_body("session 1", {"reason": "user archive"}),
+            "archive_plan:plan 1",
+        ),
+        (
+            "POST",
             "/api/v1/sessions/session%201/confirmations/confirm%201/respond",
             _command_body("session 1", {"value": "yes"}),
             "resolve_confirmation:confirm 1",
@@ -1469,6 +1475,14 @@ class _CommandGateway:
         request: CommandRequest[Any],
     ) -> CommandResponse:
         self.calls.append("publish_task_tree")
+        return _accepted(request.command_id)
+
+    def archive_plan(
+        self,
+        plan_id: str,
+        request: CommandRequest[Any],
+    ) -> CommandResponse:
+        self.calls.append(f"archive_plan:{plan_id}")
         return _accepted(request.command_id)
 
     def retry_task(

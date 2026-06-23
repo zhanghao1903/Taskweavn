@@ -9,6 +9,7 @@ import { ProductRecoveryActions } from "./ProductRecoveryActions";
 import styles from "./MainPage.module.css";
 
 export type MainPageWorkspaceHeaderProps = {
+  actionSlot?: ReactNode;
   auditEntry: MainPageAuditEntryViewModel;
   eventError: string | null;
   isPublishingTaskTree: boolean;
@@ -25,6 +26,7 @@ export type MainPageWorkspaceHeaderProps = {
 };
 
 export function MainPageWorkspaceHeader({
+  actionSlot = null,
   auditEntry,
   eventError,
   isPublishingTaskTree,
@@ -86,6 +88,7 @@ export function MainPageWorkspaceHeader({
           {uiNotice ? <Text variant="muted">{uiNotice}</Text> : null}
         </div>
         <div className={styles.actionRow}>
+          {actionSlot}
           {showPublishTaskTree ? (
             <Button
               disabled={isPublishingTaskTree}

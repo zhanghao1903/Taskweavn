@@ -10,6 +10,7 @@ import type {
   ConfirmationActionView,
   AskId,
   MainPageSnapshot,
+  RuntimeInputMode,
   RuntimeInputRouteRequest,
   RuntimeInputRouteResult,
   SessionActivityItemView,
@@ -59,6 +60,12 @@ export type InputSubmitContext = {
 export type PublishTaskTreeContext = {
   sessionId: string;
   taskTreeId: string | null;
+};
+
+export type ArchivePlanContext = {
+  expectedVersion?: number | null;
+  planId: string;
+  sessionId: string;
 };
 
 export type RetryTaskContext = {
@@ -150,11 +157,13 @@ export type MainPageController = {
   isDeferringAsk: boolean;
   isInputSubmitting: boolean;
   isPublishingTaskTree: boolean;
+  isArchivingPlan: boolean;
   isRepairingAuthoringState: boolean;
   isRenamingSession: boolean;
   isRetryingTask: boolean;
   isStoppingTask: boolean;
   isResolvingConfirmation: boolean;
+  activeRuntimeInputMode: RuntimeInputMode | null;
   selectionTarget: MainPageSelectionTarget;
   sessionDialog: SessionLifecycleDialog;
   isSnapshotError: boolean;
@@ -176,6 +185,7 @@ export type MainPageController = {
     createSession: (workspaceId?: WorkspaceId | null) => void;
     deleteSession: (session: SessionSummary) => void;
     answerAuthoringAskBatch: (context: AnswerAuthoringAskBatchContext) => void;
+    archivePlan: (context: ArchivePlanContext) => void;
     repairAuthoringState: (context: RepairAuthoringStateContext) => void;
     answerAsk: (context: AnswerExecutionAskContext) => void;
     cancelAsk: (context: CancelExecutionAskContext) => void;
@@ -244,6 +254,8 @@ export function useMainPageController({
   const [runtimeActivityItems, setRuntimeActivityItems] = useState<
     SessionActivityItemView[]
   >([]);
+  const [activeRuntimeInputMode, setActiveRuntimeInputMode] =
+    useState<RuntimeInputMode | null>(null);
   const [sessionDialog, setSessionDialog] = useState<SessionLifecycleDialog>({
     mode: "idle",
   });
@@ -692,13 +704,13 @@ export function useMainPageController({
   const runtimeInputMutation = useMutation({
     mutationFn: async ({
       content,
-      mode,
+      routeMode,
       sessionId,
       target,
       taskNodeId,
     }: {
       content: string;
-      mode: MainPageInputCommandMode;
+      routeMode: RuntimeInputMode;
       sessionId: string;
       target: InputTarget;
       taskNodeId: TaskNodeId | null;
@@ -709,7 +721,7 @@ export function useMainPageController({
 
       const request = buildRuntimeInputRouteRequest({
         content,
-        mode: runtimeInputModeFor(content, mode),
+        mode: routeMode,
         sessionId,
         snapshot: snapshotDataRef.current?.snapshot ?? null,
         target,
@@ -723,6 +735,9 @@ export function useMainPageController({
     },
     onError: () => {
       setInputCommandError("Question routing failed. Please retry.");
+    },
+    onSettled: () => {
+      setActiveRuntimeInputMode(null);
     },
     onSuccess: ({ request, response }) => {
       if (!response.ok || response.data === null) {
@@ -819,6 +834,53 @@ export function useMainPageController({
       }
 
       setTaskTreeCommandFailure(null);
+      if (result.shouldRefetch) {
+        void refetchSnapshot();
+      }
+    },
+  });
+
+  const archivePlanMutation = useMutation({
+    mutationFn: async ({
+      expectedVersion,
+      planId,
+      sessionId,
+    }: ArchivePlanContext) =>
+      adapter.archivePlan(
+        sessionId,
+        planId,
+        {
+          commandId: `archive-plan-${planId}-${Date.now()}`,
+          expectedVersion,
+          sessionId,
+          payload: {
+            reason: "user requested archive",
+          },
+        },
+        activeWorkspaceId,
+      ),
+    onError: () => {
+      setTaskTreeCommandFailure("Archive plan failed. Please retry.");
+    },
+    onSuccess: (response) => {
+      const result = handleCommandResponse(
+        response,
+        "Archive plan was rejected.",
+      );
+
+      if (result.errorMessage) {
+        setTaskTreeCommandFailure(
+          result.errorMessage,
+          result.recoveryActions,
+        );
+        return;
+      }
+
+      setSelectedTaskNodeId(null);
+      setSelectionTarget("auto");
+      setDetailOverride("auto");
+      setTaskTreeCommandFailure(null);
+      setUiNotice("Plan archived.");
       if (result.shouldRefetch) {
         void refetchSnapshot();
       }
@@ -1346,9 +1408,11 @@ export function useMainPageController({
     setInputCommandError(null);
     setUiNotice(null);
     if (adapter.routeRuntimeInput !== undefined) {
+      const routeMode = runtimeInputModeFor(content, mode);
+      setActiveRuntimeInputMode(routeMode);
       runtimeInputMutation.mutate({
         content,
-        mode,
+        routeMode,
         sessionId,
         target,
         taskNodeId,
@@ -1380,6 +1444,12 @@ export function useMainPageController({
       sessionId,
       taskTreeId,
     });
+  }
+
+  function handleArchivePlan(context: ArchivePlanContext) {
+    setTaskTreeCommandFailure(null);
+    setUiNotice(null);
+    archivePlanMutation.mutate(context);
   }
 
   function handleConfirmationDecision({
@@ -1512,11 +1582,13 @@ export function useMainPageController({
     isDeferringAsk: deferAskMutation.isPending,
     isInputSubmitting: inputMutation.isPending || runtimeInputMutation.isPending,
     isPublishingTaskTree: publishTaskTreeMutation.isPending,
+    isArchivingPlan: archivePlanMutation.isPending,
     isRepairingAuthoringState: repairAuthoringStateMutation.isPending,
     isRenamingSession: renameSessionMutation.isPending,
     isRetryingTask: retryTaskMutation.isPending,
     isStoppingTask: stopTaskMutation.isPending,
     isResolvingConfirmation: resolveConfirmationMutation.isPending,
+    activeRuntimeInputMode,
     selectionTarget,
     sessionDialog,
     isSnapshotError: snapshotQuery.isError,
@@ -1533,6 +1605,7 @@ export function useMainPageController({
     actions: {
       answerAuthoringAskBatch: handleAnswerAuthoringAskBatch,
       answerAsk: handleAnswerAsk,
+      archivePlan: handleArchivePlan,
       cancelSessionDialog: handleSessionDialogCancel,
       cancelAsk: handleCancelAsk,
       changeSessionDialogDraft: handleSessionDialogDraftChange,

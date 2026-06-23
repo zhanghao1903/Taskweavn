@@ -58,6 +58,14 @@ class PlanStore(PlanTaskNodeStore, Protocol):
 
     def save_plan(self, plan: Plan, *, expected_version: int) -> Plan: ...
 
+    def archive_plan(
+        self,
+        session_id: str,
+        plan_id: str,
+        *,
+        expected_version: int | None = None,
+    ) -> Plan: ...
+
 
 __all__ = [
     "PlanStore",

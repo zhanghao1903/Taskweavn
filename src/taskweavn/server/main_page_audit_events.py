@@ -15,6 +15,7 @@ from taskweavn.server.ui_contract import (
     AnswerAuthoringAskBatchPayload,
     AppendSessionInputPayload,
     AppendTaskInputPayload,
+    ArchivePlanPayload,
     AuditConfigScope,
     AuditConfirmationScope,
     AuditLogEvidenceScope,
@@ -33,6 +34,7 @@ from taskweavn.server.ui_contract import (
     UpdateTaskNodePayload,
     audit_records_changed,
     task_node_changed,
+    task_tree_changed,
 )
 from taskweavn.server.ui_events import (
     UiEventSource,
@@ -83,6 +85,21 @@ class AuditEventCommandGateway:
         request: CommandRequest[PublishTaskTreePayload],
     ) -> CommandResponse:
         return self.inner.publish_task_tree(request)
+
+    def archive_plan(
+        self,
+        plan_id: str,
+        request: CommandRequest[ArchivePlanPayload],
+    ) -> CommandResponse:
+        response = self.inner.archive_plan(plan_id, request)
+        if response.ok:
+            emit_plan_archived_task_tree_changed(
+                self.event_store,
+                session_id=request.session_id,
+                plan_id=plan_id,
+                command_id=request.command_id,
+            )
+        return response
 
     def retry_task(
         self,
@@ -220,6 +237,35 @@ def emit_task_lifecycle_task_node_changed(
         event_store.append(event)
 
 
+def emit_plan_archived_task_tree_changed(
+    event_store: UiEventStore | None,
+    *,
+    session_id: str,
+    plan_id: str,
+    command_id: str | None = None,
+) -> None:
+    """Emit a Main Page invalidation after an active Plan is archived."""
+    if event_store is None:
+        return
+
+    event = task_tree_changed(
+        session_id,
+        cursor=f"plan_archive:{plan_id}:{session_id}:{uuid4().hex}",
+        command_id=command_id,
+        reason="plan_archived",
+    )
+    main_page_trace(
+        "plan_archive.event.emit",
+        event_id=event.event_id,
+        event_type=event.event_type,
+        reason="plan_archived",
+        session_id=session_id,
+        plan_id=plan_id,
+    )
+    with contextlib.suppress(UiEventSourceError):
+        event_store.append(event)
+
+
 def emit_confirmation_audit_records_changed(
     event_store: UiEventStore | None,
     *,
@@ -311,6 +357,7 @@ __all__ = [
     "emit_config_manifest_audit_records_changed",
     "emit_confirmation_audit_records_changed",
     "emit_log_archive_audit_records_changed",
+    "emit_plan_archived_task_tree_changed",
     "emit_task_lifecycle_task_node_changed",
     "ui_event_store",
 ]

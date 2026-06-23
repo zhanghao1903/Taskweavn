@@ -64,12 +64,14 @@ export function MainPage({
     isCancellingAsk,
     isDeferringAsk,
     isInputSubmitting,
+    isArchivingPlan,
     isPublishingTaskTree,
     isRepairingAuthoringState,
     isRenamingSession,
     isRetryingTask,
     isStoppingTask,
     isResolvingConfirmation,
+    activeRuntimeInputMode,
     selectionTarget,
     sessionDialog,
     isSnapshotError,
@@ -199,6 +201,7 @@ export function MainPage({
     isRetryingTask,
     isStoppingTask,
     isResolvingConfirmation,
+    activeRuntimeInputMode,
     metadata,
     runtimeInputRouterAvailable: adapter.routeRuntimeInput !== undefined,
     selectionTarget,
@@ -219,6 +222,7 @@ export function MainPage({
       isCreatingSession={isCreatingSession}
       isDeletingSession={isDeletingSession}
       isInputSubmitting={isInputSubmitting}
+      isArchivingPlan={isArchivingPlan}
       isRepairingAuthoringState={isRepairingAuthoringState}
       isRenamingSession={isRenamingSession}
       sessionDialog={sessionDialog}

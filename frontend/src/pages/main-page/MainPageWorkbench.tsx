@@ -9,11 +9,12 @@ import {
 
 import type { ProductRecoveryAction } from "../../shared/api/platoApi";
 import type {
+  PlanView,
   SessionActivityItemView,
   SessionActivityRefView,
   SessionMessageView,
 } from "../../shared/api/types";
-import { Panel } from "../../shared/components";
+import { Button, Panel } from "../../shared/components";
 import { useUiText } from "../../shared/ui-text";
 import {
   ActivityOverlay,
@@ -49,6 +50,7 @@ export type MainPageWorkbenchProps = {
   inputDraft: string;
   inputError: string | null;
   inputRecoveryActions: ProductRecoveryAction[];
+  isArchivingPlan: boolean;
   isCreatingSession: boolean;
   isDeletingSession: boolean;
   isInputSubmitting: boolean;
@@ -71,6 +73,7 @@ export function MainPageWorkbench({
   inputDraft,
   inputError,
   inputRecoveryActions,
+  isArchivingPlan,
   isCreatingSession,
   isDeletingSession,
   isInputSubmitting,
@@ -104,18 +107,20 @@ export function MainPageWorkbench({
   const [isExportingActivityDiagnostic, setIsExportingActivityDiagnostic] =
     useState(false);
   const [detailWidth, setDetailWidth] = useState(DEFAULT_DETAIL_WIDTH);
-  const hidesDetailPanel = viewModel.detail.kind === "note";
-  const pageClassName = hidesDetailPanel
-    ? `${styles.page} ${styles.pageWithoutDetail}`
-    : styles.page;
-  const pageStyle = {
-    "--plato-detail-width": `${detailWidth}px`,
-  } as CSSProperties;
   const hasActivity =
     viewModel.mainWorkArea.kind !== "authoringAsk" &&
     (viewModel.taskWorkspace.allMessages.length > 0 ||
       runtimeActivityItems.length > 0 ||
       loadSessionActivity !== undefined);
+  const showsActivityPanel = isActivityOverlayOpen && hasActivity;
+  const hasDetailColumn = viewModel.detail.kind !== "note" || showsActivityPanel;
+  const showsDetailPanel = viewModel.detail.kind !== "note" && !showsActivityPanel;
+  const pageClassName = !hasDetailColumn
+    ? `${styles.page} ${styles.pageWithoutDetail}`
+    : styles.page;
+  const pageStyle = {
+    "--plato-detail-width": `${detailWidth}px`,
+  } as CSSProperties;
   const transientMessages = useMemo(
     () => runtimeActivityItems.map(messageFromActivityItem),
     [runtimeActivityItems],
@@ -146,10 +151,6 @@ export function MainPageWorkbench({
     loadSessionActivity === undefined
       ? mergeActivityItems(runtimeActivityItems, fallbackActivityItems)
       : mergeActivityItems(runtimeActivityItems, activityItems);
-  const latestActivityMessages = [
-    ...viewModel.taskWorkspace.messages,
-    ...visibleTransientMessages,
-  ];
   const conversationMessages = useMemo(
     () =>
       mergeMessages(
@@ -158,16 +159,41 @@ export function MainPageWorkbench({
       ),
     [transientMessages, viewModel.taskWorkspace.allMessages],
   );
-  const totalActivityCount =
-    viewModel.taskWorkspace.totalMessageCount + transientMessages.length;
-  const visibleActivityCount =
-    viewModel.taskWorkspace.visibleMessageCount + visibleTransientMessages.length;
+  const latestActivityMessages = useMemo(
+    () =>
+      mergeMessages(
+        viewModel.taskWorkspace.messages,
+        visibleTransientMessages,
+      ),
+    [viewModel.taskWorkspace.messages, visibleTransientMessages],
+  );
+  const totalActivityCount = conversationMessages.length;
+  const visibleActivityCount = latestActivityMessages.length;
   const collapsedPlanTitle =
     viewModel.taskWorkspace.taskTree?.title ?? viewModel.workspace.title;
   const collapsedPlanMeta =
     viewModel.taskWorkspace.taskTree !== null
       ? `${viewModel.taskWorkspace.taskTree.nodes.length} tasks · ${viewModel.taskWorkspace.taskTree.status}`
       : "Generating plan";
+  const activePlan = viewModel.taskWorkspace.activePlan;
+  const showArchivePlan = activePlan != null && canArchivePlan(activePlan);
+  const archivePlanAction =
+    showArchivePlan && activePlan != null ? (
+      <Button
+        disabled={isArchivingPlan}
+        onClick={() =>
+          actions.archivePlan({
+            expectedVersion: activePlan.version,
+            planId: activePlan.id,
+            sessionId: viewModel.sessionId,
+          })
+        }
+        size="sm"
+        variant="secondary"
+      >
+        {isArchivingPlan ? "Archiving..." : "Archive plan"}
+      </Button>
+    ) : null;
 
   useEffect(() => {
     setIsPlanLayerExpanded(hasPlanLayer);
@@ -280,7 +306,7 @@ export function MainPageWorkbench({
   }
 
   function startDetailResize(event: PointerEvent<HTMLButtonElement>) {
-    if (hidesDetailPanel) {
+    if (!hasDetailColumn) {
       return;
     }
 
@@ -373,9 +399,13 @@ export function MainPageWorkbench({
       </button>
     ) : null;
 
-  function renderWorkspaceHeader(statusActions: ReactNode = null) {
+  function renderWorkspaceHeader(
+    statusActions: ReactNode = null,
+    actionSlot: ReactNode = null,
+  ) {
     return (
       <MainPageWorkspaceHeader
+        actionSlot={actionSlot}
         auditEntry={viewModel.workspace.auditEntry}
         eventError={viewModel.workspace.eventError}
         isPublishingTaskTree={viewModel.workspace.isPublishingTaskTree}
@@ -459,14 +489,14 @@ export function MainPageWorkbench({
           className={`${styles.workspace} ${styles.planWorkspace}`}
           aria-label="Plan & Progress workspace"
         >
-          {renderWorkspaceHeader(collapsePlanAction)}
+          {renderWorkspaceHeader(collapsePlanAction, archivePlanAction)}
           <div className={styles.planProgressWorkspaceBody}>
             {planProgressLayer}
           </div>
         </Panel>
       ) : null}
 
-      {!hidesDetailPanel ? (
+      {hasDetailColumn ? (
         <button
           aria-label="Resize details panel"
           aria-orientation="vertical"
@@ -498,72 +528,74 @@ export function MainPageWorkbench({
         />
       ) : null}
 
-      <MainPageDetailPanel
-        detail={viewModel.detail}
-        onAnswerAsk={(payload) => {
-          if (viewModel.detail.kind !== "executionAsk") {
-            return;
+      {showsDetailPanel ? (
+        <MainPageDetailPanel
+          detail={viewModel.detail}
+          onAnswerAsk={(payload) => {
+            if (viewModel.detail.kind !== "executionAsk") {
+              return;
+            }
+
+            actions.answerAsk({
+              askId: viewModel.detail.ask.id,
+              selectedOptionIds: payload.selectedOptionIds,
+              sessionId: viewModel.sessionId,
+              text: payload.text,
+            });
+          }}
+          onCancelAsk={(payload) => {
+            if (viewModel.detail.kind !== "executionAsk") {
+              return;
+            }
+
+            actions.cancelAsk({
+              askId: viewModel.detail.ask.id,
+              reason: payload.reason,
+              sessionId: viewModel.sessionId,
+            });
+          }}
+          onConfirmationDecision={(decision) =>
+            actions.resolveConfirmation({
+              confirmation:
+                viewModel.detail.kind === "confirmation"
+                  ? viewModel.detail.confirmation
+                  : undefined,
+              decision,
+              sessionId: viewModel.sessionId,
+            })
           }
+          onDeferAsk={(payload) => {
+            if (viewModel.detail.kind !== "executionAsk") {
+              return;
+            }
 
-          actions.answerAsk({
-            askId: viewModel.detail.ask.id,
-            selectedOptionIds: payload.selectedOptionIds,
-            sessionId: viewModel.sessionId,
-            text: payload.text,
-          });
-        }}
-        onCancelAsk={(payload) => {
-          if (viewModel.detail.kind !== "executionAsk") {
-            return;
+            actions.deferAsk({
+              askId: viewModel.detail.ask.id,
+              reason: payload.reason,
+              sessionId: viewModel.sessionId,
+            });
+          }}
+          onRetryTask={(taskNodeId) =>
+            actions.retryTask({
+              sessionId: viewModel.sessionId,
+              taskNodeId,
+            })
           }
-
-          actions.cancelAsk({
-            askId: viewModel.detail.ask.id,
-            reason: payload.reason,
-            sessionId: viewModel.sessionId,
-          });
-        }}
-        onConfirmationDecision={(decision) =>
-          actions.resolveConfirmation({
-            confirmation:
-              viewModel.detail.kind === "confirmation"
-                ? viewModel.detail.confirmation
-                : undefined,
-            decision,
-            sessionId: viewModel.sessionId,
-          })
-        }
-        onDeferAsk={(payload) => {
-          if (viewModel.detail.kind !== "executionAsk") {
-            return;
+          onStopTask={(taskNodeId) =>
+            actions.stopTask({
+              sessionId: viewModel.sessionId,
+              taskNodeId,
+            })
           }
+          onShowFileChanges={actions.showFileChanges}
+          onShowResult={actions.showResult}
+          loadTokenUsageSummary={loadTokenUsageSummary}
+          sessionId={viewModel.sessionId}
+          workspaceId={resolvedWorkspaceId}
+        />
+      ) : null}
 
-          actions.deferAsk({
-            askId: viewModel.detail.ask.id,
-            reason: payload.reason,
-            sessionId: viewModel.sessionId,
-          });
-        }}
-        onRetryTask={(taskNodeId) =>
-          actions.retryTask({
-            sessionId: viewModel.sessionId,
-            taskNodeId,
-          })
-        }
-        onStopTask={(taskNodeId) =>
-          actions.stopTask({
-            sessionId: viewModel.sessionId,
-            taskNodeId,
-          })
-        }
-        onShowFileChanges={actions.showFileChanges}
-        onShowResult={actions.showResult}
-        loadTokenUsageSummary={loadTokenUsageSummary}
-        sessionId={viewModel.sessionId}
-        workspaceId={resolvedWorkspaceId}
-      />
-
-      {isActivityOverlayOpen && hasActivity ? (
+      {showsActivityPanel ? (
         <ActivityOverlay
           errorMessage={activityError}
           isLoading={isActivityLoading}
@@ -622,9 +654,26 @@ function mergeActivityItems(
   sourceItems: readonly SessionActivityItemView[],
 ): SessionActivityItemView[] {
   const byId = new Set<string>();
+  const sourceDedupKeys = new Set(
+    sourceItems
+      .map(activityDedupKey)
+      .filter((key): key is string => key !== null),
+  );
   const merged: SessionActivityItemView[] = [];
 
-  for (const item of [...transientItems, ...sourceItems]) {
+  for (const item of transientItems) {
+    const dedupKey = activityDedupKey(item);
+    if (dedupKey !== null && sourceDedupKeys.has(dedupKey)) {
+      continue;
+    }
+    if (byId.has(item.id)) {
+      continue;
+    }
+    byId.add(item.id);
+    merged.push(item);
+  }
+
+  for (const item of sourceItems) {
     if (byId.has(item.id)) {
       continue;
     }
@@ -640,9 +689,26 @@ function mergeMessages(
   transientMessages: readonly SessionMessageView[],
 ): SessionMessageView[] {
   const byId = new Set<string>();
+  const sourceDedupKeys = new Set(
+    sourceMessages
+      .map(messageDedupKey)
+      .filter((key): key is string => key !== null),
+  );
   const merged: SessionMessageView[] = [];
 
-  for (const message of [...sourceMessages, ...transientMessages]) {
+  for (const message of sourceMessages) {
+    if (byId.has(message.id)) {
+      continue;
+    }
+    byId.add(message.id);
+    merged.push(message);
+  }
+
+  for (const message of transientMessages) {
+    const dedupKey = messageDedupKey(message);
+    if (dedupKey !== null && sourceDedupKeys.has(dedupKey)) {
+      continue;
+    }
     if (byId.has(message.id)) {
       continue;
     }
@@ -664,7 +730,71 @@ function messageFromActivityItem(
     title: item.title,
     body: item.body,
     createdAt: item.occurredAt,
+    relatedCommandId:
+      item.sourceKind === "router" && item.sourceId ? item.sourceId : null,
+    activityRelatedRefs: item.relatedRefs,
   };
+}
+
+function activityDedupKey(item: SessionActivityItemView): string | null {
+  if (item.sourceKind !== "router" || !item.sourceId) {
+    return null;
+  }
+
+  return routeScopedDedupKey(
+    item.sourceId,
+    item.kind,
+    item.scopeKind,
+    item.planId ?? null,
+    item.taskNodeId ?? null,
+  );
+}
+
+function messageDedupKey(message: SessionMessageView): string | null {
+  if (!message.relatedCommandId) {
+    return null;
+  }
+
+  return routeScopedDedupKey(
+    message.relatedCommandId,
+    messageRouteKind(message),
+    message.taskNodeId === null ? "session" : "task",
+    null,
+    message.taskNodeId,
+  );
+}
+
+function routeScopedDedupKey(
+  commandId: string,
+  kind: string,
+  scopeKind: string,
+  planId: string | null,
+  taskNodeId: string | null,
+): string {
+  return [
+    "router",
+    commandId,
+    kind,
+    scopeKind,
+    planId ?? "",
+    taskNodeId ?? "",
+  ].join(":");
+}
+
+function messageRouteKind(message: SessionMessageView): string {
+  const title = message.title.trim().toLocaleLowerCase();
+
+  if (title === "read-only question answered" || title === "read-only answer") {
+    return "answer";
+  }
+  if (title === "user input") {
+    return "user_input";
+  }
+  if (title === "router interpretation") {
+    return "router_interpretation";
+  }
+
+  return `${message.kind}:${title}`;
 }
 
 function messageKindFromActivity(
@@ -688,4 +818,24 @@ function messageKindFromActivity(
 
 function clampDetailWidth(width: number): number {
   return Math.min(MAX_DETAIL_WIDTH, Math.max(MIN_DETAIL_WIDTH, width));
+}
+
+function isArchiveablePlanStatus(status: string): boolean {
+  return (
+    status === "ready_for_review" ||
+    status === "accepted" ||
+    status === "follow_up_needed" ||
+    status === "failed" ||
+    status === "cancelled"
+  );
+}
+
+function canArchivePlan(plan: PlanView): boolean {
+  if (!isArchiveablePlanStatus(plan.status)) {
+    return false;
+  }
+  return (
+    plan.sourceKind === "plan_store" ||
+    plan.sourceKind === "legacy_published_task_tree"
+  );
 }

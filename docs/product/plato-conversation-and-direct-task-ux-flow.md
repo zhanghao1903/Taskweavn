@@ -2,7 +2,7 @@
 
 > Status: accepted UX flow
 >
-> Last Updated: 2026-06-17
+> Last Updated: 2026-06-19
 >
 > Scope: UX flow for the Session-level conversation entry and the three first
 > routing outcomes: read-only answer, Direct Task, and Plan required. This
@@ -14,6 +14,7 @@
 > [Plato Conversation And Direct Task PRD](plato-conversation-and-direct-task-prd.md),
 > [Plato Runtime Input Model](plato-runtime-input-model.md),
 > [Plato Session Content Model](plato-session-content-model.md),
+> [Plato Session Active Work Lifecycle](plato-session-active-work-lifecycle.md),
 > [Plato Main Page UX Flow](plato-main-page-ux-flow.md),
 > [Session Conversation / Activity Timeline](../plans/feature/session-conversation-activity-timeline.md)
 
@@ -49,8 +50,9 @@ The UX must answer:
    language responses, not only status changes.
 2. **Task remains the execution authority.** Direct Task is still a Task; it
    only skips full visible Plan authoring.
-3. **Plan remains the structure for larger work.** Do not hide multi-step work
-   inside one Direct Task.
+3. **Plan is a structured work segment for larger work.** Do not hide
+   multi-step work inside one Direct Task, but do not make Plan the Session's
+   continuity root.
 4. **Activity is scoped.** Every visible response belongs to Session, Plan, or
    Task scope.
 5. **Action / Observation are not primary copy.** Tool calls and observations
@@ -62,6 +64,8 @@ The UX must answer:
    collaboration thread, while Activity can use denser structured records.
 8. **Activity explains Agent work.** Activity should make visible what the
    Agent is doing, why that step exists, and what the user should expect next.
+9. **Conversation stays continuous across Plans.** Archiving a Plan must not
+   clear or reset the Session conversation.
 
 ---
 
@@ -117,7 +121,8 @@ Recommended default:
   visible; Plan layer may show a compact single-task plan or "No full plan
   needed".
 - After completion: Conversation shows the narrative, Plan/Task shows result
-  structure.
+  structure. A completed Plan remains active until the user clicks `Archive
+  plan`.
 
 ### 3.3 Conversation, Activity, And Audit Projections
 
@@ -180,6 +185,30 @@ Ask, guide, or request a change...
 The user should not choose "read-only answer / Direct Task / Plan required"
 before typing. Plato routes by default and explains the interpretation after
 submission.
+
+### 3.5 Completed Plan And Archive UX
+
+When a Plan completes, the page remains in the same Session and shows the
+completed Plan as the active work item.
+
+The Plan control should expose:
+
+```text
+Archive plan
+```
+
+Archive behavior:
+
+```text
+user clicks Archive plan
+  -> Conversation appends a Plan archived boundary item
+  -> Plan disappears from active work controls
+  -> Session input returns to Session-level scope
+  -> Plans / History entry can reopen the archived Plan read-only
+```
+
+The UI should not display an empty Conversation after archive. The same Session
+timeline remains visible and scrollable, including prior Plan messages.
 
 ---
 
@@ -497,13 +526,13 @@ answer only
 ```text
 direct task done
   -> result review
-  -> user accepts / asks follow-up / creates follow-up task or plan
+  -> user asks follow-up / creates follow-up task or plan / returns to session
 ```
 
 ```text
 direct task too broad
   -> propose Plan required
-  -> create Plan only after user accepts or after low-risk auto route policy
+  -> create Plan only after user approves or after low-risk auto route policy
 ```
 
 ### 8.3 From Plan Required
@@ -517,7 +546,7 @@ plan ready
 ```text
 plan complete
   -> outcome review
-  -> accept / follow-up Plan / Direct Task fix / read-only question
+  -> archive plan / follow-up Plan / Direct Task fix / read-only question
 ```
 
 ---

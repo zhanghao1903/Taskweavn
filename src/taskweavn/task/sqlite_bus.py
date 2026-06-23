@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import json
 import sqlite3
 from datetime import UTC, datetime
 from pathlib import Path
 from threading import RLock
 from typing import Any
+
+from pydantic import ValidationError
 
 from taskweavn.observability.main_page_trace import main_page_trace
 from taskweavn.task.bus import (
@@ -41,6 +44,8 @@ CREATE INDEX IF NOT EXISTS idx_tasks_children
 CREATE INDEX IF NOT EXISTS idx_tasks_root
     ON tasks(session_id, root_id, order_index, created_at, task_id);
 """
+
+_LEGACY_NULL_TASK_PAYLOAD_FIELDS = frozenset({"waiting_for_confirmation_id"})
 
 
 class SqliteTaskBus:
@@ -487,7 +492,39 @@ class SqliteTaskBus:
 
 
 def _task_from_row(row: sqlite3.Row) -> TaskDomain:
-    return TaskDomain.model_validate_json(str(row["payload"]))
+    payload = str(row["payload"])
+    try:
+        return TaskDomain.model_validate_json(payload)
+    except ValidationError as exc:
+        task = _task_from_legacy_payload(payload)
+        if task is None:
+            raise exc
+        return task
+
+
+def _task_from_legacy_payload(payload: str) -> TaskDomain | None:
+    try:
+        decoded = json.loads(payload)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(decoded, dict):
+        return None
+
+    normalized = _drop_legacy_null_task_fields(decoded)
+    if normalized is decoded:
+        return None
+    return TaskDomain.model_validate(normalized)
+
+
+def _drop_legacy_null_task_fields(payload: dict[str, Any]) -> dict[str, Any]:
+    stale_fields = {
+        field
+        for field in _LEGACY_NULL_TASK_PAYLOAD_FIELDS
+        if field in payload and payload[field] is None
+    }
+    if not stale_fields:
+        return payload
+    return {key: value for key, value in payload.items() if key not in stale_fields}
 
 
 def _parent_is_done(

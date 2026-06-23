@@ -232,6 +232,36 @@ class SqlitePlanStore:
                 raise PlanStoreError("failed to save Plan") from exc
         return updated
 
+    def archive_plan(
+        self,
+        session_id: str,
+        plan_id: str,
+        *,
+        expected_version: int | None = None,
+    ) -> Plan:
+        with self._lock:
+            current = self.get_plan(session_id, plan_id)
+            if current is None:
+                raise LookupError(f"Plan {plan_id!r} not found")
+            if expected_version is not None:
+                _check_version(current.version, expected_version, plan_id)
+            if current.status == "archived" or current.archived_at is not None:
+                raise PlanStoreError(f"Plan {plan_id!r} is already archived")
+            archived_at = _utcnow()
+            archived = _copy_plan(
+                current,
+                status="archived",
+                archived_at=archived_at,
+                version=current.version + 1,
+                updated_at=archived_at,
+            )
+            try:
+                with self._write_transaction():
+                    self._update_plan(archived)
+            except sqlite3.Error as exc:
+                raise PlanStoreError("failed to archive Plan") from exc
+        return archived
+
     def get_task_node(self, session_id: str, task_node_id: str) -> PlanTaskNode | None:
         with self._lock:
             row = self._conn.execute(
