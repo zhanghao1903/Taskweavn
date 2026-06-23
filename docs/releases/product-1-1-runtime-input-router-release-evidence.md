@@ -61,6 +61,12 @@ The following checks passed on 2026-06-20:
 | `1.1-beta` installer package | `npm run electron:package:installer -- --release-version 1.1-beta --include-smoke` | Pass |
 | `1.1-beta` mounted installer smoke | `npm run electron:smoke:installer -- --skip-package --installer ./dist-electron-installer/Plato-1.1-beta-macos-arm64.dmg` | Pass |
 
+Additional P1 beta-depth checks:
+
+| Check | Command | Result |
+|---|---|---|
+| Sidecar restart replay smoke | `npm run electron:smoke:sidecar-restart` | Pass on 2026-06-24: repo-mode Electron sidecar lifecycle replayed durable Conversation, Activity, Audit record, Audit evidence, and fixture file state without duplicate IDs. |
+
 ## Release Artifact
 
 | Field | Value |
@@ -76,7 +82,8 @@ The following checks passed on 2026-06-20:
 
 - The `1.1-beta` DMG is unsigned and not notarized.
 - Smoke assets are included only for deterministic beta smoke artifacts.
-- Sidecar restart replay is not yet part of the installer smoke matrix.
+- Sidecar restart replay is covered by repo-mode Electron sidecar smoke, but is
+  not yet folded into the packaged or installer smoke matrix.
 - Optional LLM-rendered read-only inquiry smoke remains beta-depth evidence.
 - Public repository release/user docs still need external sync before public
   publishing.
@@ -87,7 +94,7 @@ The following checks passed on 2026-06-20:
 
 | Priority | Follow-up |
 |---|---|
-| P1 | Add sidecar restart replay evidence for durable Conversation / Activity. |
+| P1 | Fold sidecar restart replay evidence into packaged or installer smoke after the repo-mode signal stays stable. |
 | P1 | Mirror Product 1.1 beta evidence and known limitations into public docs. |
 | P1 | Add optional real/LLM-rendered read-only inquiry smoke evidence. |
 | P1 | Continue stop/cancel UX, token budget warnings, localization, and web retrieval beta hardening. |
