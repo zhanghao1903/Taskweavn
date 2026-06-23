@@ -1,14 +1,20 @@
 from __future__ import annotations
 
 import pytest
+from pydantic import ValidationError
 
 from taskweavn.runtime_config import (
+    RuntimeConfigActor,
+    RuntimeConfigChange,
     RuntimeConfigKey,
     RuntimeConfigLayer,
+    RuntimeConfigPatch,
     RuntimeConfigRegistry,
     RuntimeConfigRegistryError,
+    RuntimeConfigRejection,
     RuntimeConfigResolverError,
     RuntimeConfigScope,
+    RuntimeConfigSnapshotRecord,
     RuntimeConfigSource,
     build_default_runtime_config_registry,
     environment_runtime_config_layer,
@@ -307,6 +313,170 @@ def test_runtime_patch_non_live_values_are_marked_pending() -> None:
     value = config.values["agent_loop.default_max_steps"]
     assert value.value == 12
     assert value.effective_status == "pending_next_agent_run"
+
+
+def test_runtime_config_patch_requires_explicit_scope_identifiers() -> None:
+    actor = RuntimeConfigActor(actor_type="user", actor_id="user-1")
+
+    with pytest.raises(ValidationError, match="workspace runtime config scope requires"):
+        RuntimeConfigPatch(
+            patch_id="patch-1",
+            scope=RuntimeConfigScope(level="workspace"),
+            actor=actor,
+            values={"logging.level": "DEBUG"},
+        )
+
+    patch = RuntimeConfigPatch(
+        patch_id="patch-2",
+        idempotency_key="idem-2",
+        scope=RuntimeConfigScope(
+            level="session",
+            workspace_id="workspace-1",
+            session_id="session-1",
+        ),
+        actor=actor,
+        reason="increase diagnostics",
+        values={"logging.level": "DEBUG"},
+        expected_base_config_hash="base-hash",
+    )
+
+    assert patch.scope.level == "session"
+    assert patch.scope.workspace_id == "workspace-1"
+    assert patch.scope.session_id == "session-1"
+    assert patch.values == {"logging.level": "DEBUG"}
+
+
+def test_runtime_config_change_validates_status_and_redaction() -> None:
+    actor = RuntimeConfigActor(actor_type="system", actor_id="settings")
+    scope = RuntimeConfigScope(level="workspace", workspace_id="workspace-1")
+
+    with pytest.raises(ValidationError, match="accepted config change requires"):
+        RuntimeConfigChange(
+            change_id="change-1",
+            patch_id="patch-1",
+            scope=scope,
+            actor=actor,
+            status="accepted",
+            requested_values={"logging.level": "DEBUG"},
+            accepted_values={},
+            base_config_hash="base-hash",
+            resulting_config_hash="next-hash",
+        )
+
+    with pytest.raises(ValidationError, match="redacted keys"):
+        RuntimeConfigChange(
+            change_id="change-2",
+            patch_id="patch-2",
+            scope=scope,
+            actor=actor,
+            status="rejected",
+            requested_values={"llm.default_model": "deepseek-v4-pro"},
+            rejected_values={
+                "llm.api_key": RuntimeConfigRejection(
+                    code="secret_not_patchable",
+                    message="Secrets are owned by the Settings secret boundary.",
+                    details={"redacted": True},
+                )
+            },
+            redacted_keys=("llm.api_key",),
+            base_config_hash="base-hash",
+        )
+
+    change = RuntimeConfigChange(
+        change_id="change-3",
+        patch_id="patch-3",
+        idempotency_key="idem-3",
+        scope=scope,
+        actor=actor,
+        reason="debug one workspace",
+        status="accepted",
+        requested_values={
+            "logging.level": "DEBUG",
+            "llm.api_key": {"redacted": True},
+        },
+        accepted_values={"logging.level": "DEBUG"},
+        rejected_values={
+            "llm.api_key": RuntimeConfigRejection(
+                code="secret_not_patchable",
+                message="Secrets are owned by the Settings secret boundary.",
+                details={"redacted": True},
+            )
+        },
+        redacted_keys=("llm.api_key",),
+        base_config_hash="base-hash",
+        resulting_config_hash="next-hash",
+        effective_status_by_key={"logging.level": "active"},
+    )
+
+    assert change.status == "accepted"
+    assert change.redacted_keys == ("llm.api_key",)
+    assert change.rejected_values["llm.api_key"].code == "secret_not_patchable"
+    assert change.model_dump(mode="json", by_alias=True)["redactedKeys"] == [
+        "llm.api_key"
+    ]
+
+
+def test_runtime_config_change_validates_no_op_hash() -> None:
+    actor = RuntimeConfigActor(actor_type="test")
+    scope = RuntimeConfigScope(level="workspace", workspace_id="workspace-1")
+
+    with pytest.raises(ValidationError, match="no-op config change must preserve"):
+        RuntimeConfigChange(
+            change_id="change-1",
+            patch_id="patch-1",
+            scope=scope,
+            actor=actor,
+            status="no_op",
+            requested_values={"logging.level": "INFO"},
+            base_config_hash="base-hash",
+            resulting_config_hash="different-hash",
+        )
+
+    change = RuntimeConfigChange(
+        change_id="change-2",
+        patch_id="patch-2",
+        scope=scope,
+        actor=actor,
+        status="no_op",
+        requested_values={"logging.level": "INFO"},
+        base_config_hash="base-hash",
+        resulting_config_hash="base-hash",
+    )
+
+    assert change.status == "no_op"
+    assert change.resulting_config_hash == change.base_config_hash
+
+
+def test_runtime_config_snapshot_record_matches_effective_config() -> None:
+    scope = RuntimeConfigScope(level="workspace", workspace_id="workspace-1")
+    config = resolve_default_runtime_config(scope=scope)
+
+    record = RuntimeConfigSnapshotRecord(
+        snapshot_id="snapshot-1",
+        config_hash=config.config_hash,
+        scope=scope,
+        effective_config=config,
+        created_by_change_id="change-1",
+    )
+
+    assert record.config_hash == config.config_hash
+    assert record.effective_config.config_hash == config.config_hash
+
+    with pytest.raises(ValidationError, match="config_hash must match"):
+        RuntimeConfigSnapshotRecord(
+            snapshot_id="snapshot-2",
+            config_hash="wrong-hash",
+            scope=scope,
+            effective_config=config,
+        )
+
+    with pytest.raises(ValidationError, match="scope must match"):
+        RuntimeConfigSnapshotRecord(
+            snapshot_id="snapshot-3",
+            config_hash=config.config_hash,
+            scope=RuntimeConfigScope(level="workspace", workspace_id="workspace-2"),
+            effective_config=config,
+        )
 
 
 def test_runtime_config_resolver_rejects_unknown_keys() -> None:

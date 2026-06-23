@@ -690,15 +690,15 @@ explicitly authorizes runtime behavior changes.
 
 ### C5: Config Change Store
 
-Status: design accepted; implementation deferred.
+Status: C5.1 implemented; C5.2-C5.5 deferred.
 
 The C5 contract is defined in
 [Runtime Config Change Store](../../engineering/runtime-config-change-store.md).
 
 Required implementation slices:
 
-- C5.1 Contract Models: additive patch/change/snapshot models and validation
-  tests.
+- C5.1 Contract Models: implemented additive patch/change/snapshot models and
+  validation tests.
 - C5.2 SQLite Store: durable change ledger and effective config snapshot
   storage.
 - C5.3 Mutation Service: validate patches, normalize values, resolve base and
@@ -799,16 +799,16 @@ Use the maintainability-gate skill if touching Main Page sidecar assembly,
 settings persistence, or large server modules.
 
 Task:
-Implement C5.1 Runtime Config Change Store contract models.
+Implement C5.2 SQLite Runtime Config Change Store.
 
 Scope:
-- Add additive `RuntimeConfigPatch`, `RuntimeConfigActor`,
-  `RuntimeConfigChange`, `RuntimeConfigRejection`, and
-  `RuntimeConfigSnapshotRecord` models following
+- Add `SqliteRuntimeConfigChangeStore` following
   docs/engineering/runtime-config-change-store.md.
-- Add focused model validation tests for scope requirements, redaction,
-  rejection payloads, and no-op/accepted/rejected statuses.
-- Do not add SQLite storage, HTTP write routes, Settings UI, or ConfigBus in
+- Add schema creation for `runtime_config_changes` and
+  `runtime_config_snapshots`.
+- Round-trip accepted, rejected, no-op, and snapshot records.
+- Verify idempotency-key replay lookup returns the original change.
+- Do not add mutation service, HTTP write routes, Settings UI, or ConfigBus in
   this slice.
 
 Do not:
@@ -820,7 +820,7 @@ Do not:
 Output:
 - Workflow Gate Report
 - files changed
-- models added
+- store added
 - tests required
 - checks run
 - remaining C6/C7 blockers

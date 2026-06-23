@@ -1,7 +1,6 @@
 # Runtime Config Change Store Contract
 
-> Status: C5 design accepted for implementation planning; runtime mutation not
-> implemented.
+> Status: C5.1 contract models implemented; C5.2-C5.5 deferred.
 > Related Plan:
 > [Centralized Runtime Configuration](../plans/feature/centralized-runtime-configuration.md)
 > Related Product Boundary:
@@ -374,17 +373,24 @@ available.
 
 ### C5.1 Contract Models
 
-- Add additive runtime config patch/change/snapshot models.
-- Keep them optional and independent of existing read-only resolver behavior.
-- Add model validation tests for scope, rejection, and redaction.
+Status: implemented.
+
+- Added additive runtime config patch/change/snapshot models.
+- Kept them independent of existing read-only resolver behavior.
+- Added model validation tests for scope requirements, status consistency,
+  rejection payloads, redaction markers, and snapshot hash/scope matching.
 
 ### C5.2 SQLite Store
+
+Status: next.
 
 - Add `SqliteRuntimeConfigChangeStore`.
 - Round-trip accepted, rejected, no-op, and snapshot records.
 - Verify idempotency-key replay returns the original change.
 
 ### C5.3 Mutation Service
+
+Status: deferred.
 
 - Validate patches against `RuntimeConfigRegistry`.
 - Normalize accepted values through existing value rules.
@@ -394,11 +400,15 @@ available.
 
 ### C5.4 Read Gateway Extension
 
+Status: deferred.
+
 - Extend read-only gateway with change/snapshot query methods.
 - Keep existing schema/effective/explain routes unchanged.
 - Add tests proving existing read-only endpoints are behavior-compatible.
 
 ### C5.5 HTTP Write API Design Gate
+
+Status: deferred.
 
 - Only after C5.1-C5.4 pass, design write routes:
   - `PATCH /api/v1/runtime/config`
