@@ -99,6 +99,39 @@ def test_guarded_llm_provider_injects_local_time_context() -> None:
     }
 
 
+def test_guarded_llm_provider_extracts_embedded_structured_answer() -> None:
+    body = (
+        "根据提供的证据，下周（2026年6月21日至6月27日）将有以下世界杯比赛：\n\n"
+        "* 6月21日：库拉索 vs 德国；突尼斯 vs 荷兰\n"
+        "* 6月24日：瑞士 vs 加拿大；苏格兰 vs 巴西"
+    )
+    llm = _LLM(
+        "* 6月21日：库拉索 vs 德国\n\n"
+        + json.dumps(
+            {
+                "status": "answered",
+                "body": body,
+                "confidence": "medium",
+                "citedRefIds": ["task:task-1:status"],
+            },
+            ensure_ascii=False,
+        )
+    )
+    provider = GuardedLLMReadOnlyInquiryAnswerProvider(llm)
+
+    result = provider.answer(
+        request=_request(question="下周世界杯有哪些比赛"),
+        baseline_answer=_baseline(body="Session 'ask' is understanding."),
+        evidence_refs=(_task_evidence(),),
+    )
+
+    assert result.status == "answered"
+    assert result.answer is not None
+    assert result.answer.body == body
+    assert result.answer.confidence == "medium"
+    assert "Session 'ask' is understanding" not in result.answer.body
+
+
 def test_guarded_llm_provider_falls_back_when_citation_is_unknown() -> None:
     llm = _LLM(
         json.dumps(
