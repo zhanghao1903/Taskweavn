@@ -120,6 +120,10 @@ export type PublishTaskTreePayload = {
   startImmediately: boolean;
 };
 
+export type ArchivePlanPayload = {
+  reason?: string | null;
+};
+
 export type RetryTaskPayload = {
   instruction?: string;
   startImmediately: boolean;
@@ -499,6 +503,12 @@ export type PlatoApi = {
     request: CommandRequest<PublishTaskTreePayload>,
     options?: WorkspaceRouteOptions,
   ): Promise<CommandResponse>;
+  archivePlan(
+    sessionId: SessionId,
+    planId: string,
+    request: CommandRequest<ArchivePlanPayload>,
+    options?: WorkspaceRouteOptions,
+  ): Promise<CommandResponse>;
   retryTask(
     sessionId: SessionId,
     taskNodeId: TaskNodeId,
@@ -768,6 +778,12 @@ export function createHttpPlatoApi(options: HttpPlatoApiOptions): PlatoApi {
     publishTaskTree(request, options) {
       return client.postJson<CommandResponse>(
         `${sessionBase(request.sessionId, options)}/task-tree/publish`,
+        request,
+      );
+    },
+    archivePlan(sessionId, planId, request, options) {
+      return client.postJson<CommandResponse>(
+        `${sessionBase(sessionId, options)}/plans/${segment(planId)}/archive`,
         request,
       );
     },

@@ -214,6 +214,81 @@ describe("MainPageWorkbench layout", () => {
     expect(screen.getByText("Requirement analysis")).toBeInTheDocument();
   });
 
+  it("shows archive action for completed legacy plans", async () => {
+    const user = userEvent.setup();
+    const runtime = getMainPageMockSnapshot("s8-completed");
+    const taskTree = runtime.snapshot.taskTree;
+
+    expect(taskTree).not.toBeNull();
+
+    const snapshot: MainPageSnapshot = {
+      ...runtime.snapshot,
+      activePlan: {
+        id: `plan:legacy:${runtime.snapshot.session.id}`,
+        sessionId: runtime.snapshot.session.id,
+        title: taskTree!.title,
+        summary: taskTree!.summary ?? taskTree!.title,
+        objective: taskTree!.summary ?? taskTree!.title,
+        status: "ready_for_review",
+        taskCount: taskTree!.nodes.length,
+        taskNodeIds: taskTree!.nodes.map((node) => node.id),
+        taskNodes: taskTree!.nodes,
+        executionRollup: taskTree!.executionRollup ?? {
+          total: taskTree!.nodes.length,
+          notStarted: 0,
+          pending: 0,
+          running: 0,
+          done: taskTree!.nodes.length,
+          failed: 0,
+          cancelled: 0,
+          unknown: 0,
+          blockedByConfirmation: 0,
+        },
+        finalization: {
+          status: "skipped",
+          required: false,
+          summaryRef: null,
+          fileRollupRef: null,
+          contextSummaryRef: null,
+          warnings: [],
+        },
+        outcome: null,
+        permissions: {
+          canEdit: false,
+          canPublish: false,
+          canAppendGuidance: false,
+          canCreateTaskNode: false,
+          canDeleteTaskNode: false,
+          canRequestExecution: false,
+          readonlyReason: "Completed legacy plan.",
+        },
+        taskTreeProjection: taskTree,
+        sourceKind: "legacy_published_task_tree",
+        sourceRef: null,
+        version: taskTree!.version,
+      },
+    };
+    const actions = buildActions();
+    const viewModel = buildViewModel("s8-completed", { snapshot });
+
+    renderWorkbench(viewModel, actions);
+
+    const archiveButton = screen.getByRole("button", { name: "Archive plan" });
+    const auditLink = screen.getByRole("link", { name: "View audit" });
+
+    expect(archiveButton.closest(`.${styles.actionRow}`)).toBe(
+      auditLink.closest(`.${styles.actionRow}`),
+    );
+
+    await user.click(archiveButton);
+
+    expect(actions.archivePlan).toHaveBeenCalledWith({
+      expectedVersion: taskTree!.version,
+      planId: `plan:legacy:${runtime.snapshot.session.id}`,
+      sessionId: runtime.snapshot.session.id,
+    });
+  });
+
   it("collapses to Conversation and can reopen Plan & Progress", async () => {
     const user = userEvent.setup();
     const readOnlyAnswerActivity = activityItem({
@@ -267,6 +342,45 @@ describe("MainPageWorkbench layout", () => {
     expect(screen.getByText("No conversation yet")).toBeInTheDocument();
   });
 
+  it("opens session activity in the detail column when detail is otherwise hidden", async () => {
+    const user = userEvent.setup();
+    const loadSessionActivity = vi.fn<LoadSessionActivity>(async () => ({
+      generatedAt: "2026-06-14T00:00:00.000Z",
+      items: [
+        activityItem({
+          id: "activity-archived-plan",
+          kind: "plan_updated",
+          scopeKind: "plan",
+          taskNodeId: null,
+          title: "Plan archived",
+        }),
+      ],
+      sessionId: "session-empty",
+      totalCount: 1,
+    }));
+    const viewModel = buildViewModel("s1-empty");
+
+    renderWorkbench(viewModel, buildActions(), { loadSessionActivity });
+
+    const page = screen.getByRole("main");
+    expect(page).toHaveClass(styles.pageWithoutDetail);
+
+    await user.click(screen.getByRole("button", { name: "Activity 0" }));
+
+    expect(page).not.toHaveClass(styles.pageWithoutDetail);
+    expect(screen.getByRole("separator", { name: "Resize details panel" }))
+      .toBeInTheDocument();
+    expect(screen.getByLabelText("Session activity")).toBeInTheDocument();
+    expect(screen.getByLabelText("Conversation")).toBeInTheDocument();
+    expect(loadSessionActivity).toHaveBeenCalledWith(
+      {
+        limit: 100,
+        sessionId: "session-website-plan",
+      },
+      null,
+    );
+  });
+
   it("shows read-only answer state in Conversation without adding task rows", () => {
     const viewModel = buildViewModel("s15-read-only-answer");
 
@@ -282,6 +396,65 @@ describe("MainPageWorkbench layout", () => {
     expect(
       screen.queryByText("Update README startup commands"),
     ).not.toBeInTheDocument();
+  });
+
+  it("deduplicates transient runtime input after durable read-only messages arrive", () => {
+    const { snapshot: baseSnapshot } = getMainPageMockSnapshot(
+      "s15-read-only-answer",
+    );
+    const snapshot: MainPageSnapshot = {
+      ...baseSnapshot,
+      messages: baseSnapshot.messages.map((message) => ({
+        ...message,
+        kind:
+          message.id === "message-read-only-answer"
+            ? "informational"
+            : message.kind,
+        relatedCommandId: "route-input-1",
+        title:
+          message.id === "message-read-only-answer"
+            ? "Read-only question answered"
+            : "User input",
+      })),
+    };
+    const transientUserInput = activityItem({
+      body: "Which command starts the frontend locally?",
+      id: "activity:runtime-input:route-input-1:user_input",
+      kind: "user_input",
+      occurredAt: "2026-05-17T10:23:00+08:00",
+      planId: null,
+      scopeKind: "session",
+      sourceId: "route-input-1",
+      sourceKind: "router",
+      taskNodeId: null,
+      title: "User input",
+    });
+    const transientAnswer = activityItem({
+      body: "Run npm install once, then npm run dev from the frontend directory.",
+      id: "activity:inquiry:route-input-1",
+      kind: "answer",
+      occurredAt: "2026-05-17T10:23:10+08:00",
+      planId: null,
+      scopeKind: "session",
+      sourceId: "route-input-1",
+      sourceKind: "router",
+      taskNodeId: null,
+      title: "Read-only answer",
+    });
+    const viewModel = buildViewModel("s15-read-only-answer", { snapshot });
+
+    renderWorkbench(viewModel, buildActions(), {
+      runtimeActivityItems: [transientUserInput, transientAnswer],
+    });
+
+    expect(
+      screen.getAllByText("Which command starts the frontend locally?"),
+    ).toHaveLength(1);
+    expect(
+      screen.getAllByText(
+        "Run npm install once, then npm run dev from the frontend directory.",
+      ),
+    ).toHaveLength(1);
   });
 
   it("shows direct task state as a single runnable task", () => {
@@ -612,6 +785,7 @@ function renderWorkbench(
       inputDraft=""
       inputError={null}
       inputRecoveryActions={[]}
+      isArchivingPlan={false}
       isCreatingSession={false}
       isDeletingSession={false}
       isInputSubmitting={false}
@@ -789,6 +963,7 @@ function buildActions(): MainPageController["actions"] {
   return {
     answerAsk: vi.fn(),
     answerAuthoringAskBatch: vi.fn(),
+    archivePlan: vi.fn(),
     cancelAsk: vi.fn(),
     cancelSessionDialog: vi.fn(),
     changeInputDraft: vi.fn(),

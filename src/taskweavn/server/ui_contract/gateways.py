@@ -35,6 +35,9 @@ from taskweavn.server.ui_contract.audit_projection import (
     _require_audit_record,
     _require_evidence_ref,
 )
+from taskweavn.server.ui_contract.authoring_answer_projection import (
+    project_authoring_ask_answer_message_view,
+)
 from taskweavn.server.ui_contract.command_gateway import DefaultUiCommandGateway
 from taskweavn.server.ui_contract.envelopes import (
     QueryResponse,
@@ -80,6 +83,7 @@ from taskweavn.server.ui_contract.plan_projection import (
 from taskweavn.server.ui_contract.plan_read_helpers import (
     active_plan_read_context,
     active_stored_plan,
+    archived_plan_views,
     audit_task_read_context,
     file_change_summary_from_plan_nodes,
     result_from_plan_nodes,
@@ -104,6 +108,7 @@ from taskweavn.server.ui_contract.view_models import (
     PlanningDiagnosticView,
     PlanningState,
     PlanningView,
+    PlanView,
     ProjectSummary,
     ResultCardView,
     SessionActivityTimelineResult,
@@ -236,9 +241,15 @@ class DefaultUiQueryGateway:
             )
             active_plan = plan_context.active_plan
             task_tree = plan_context.task_tree
+            archived_plans = archived_plan_views(
+                session.id,
+                plan_store=self._plan_store,
+                plan_projection=self._plan_projection,
+            )
             messages = _merge_messages(
                 _messages_from_tree(source_tree),
                 self._session_messages(session.id),
+                _archived_plan_messages(archived_plans),
             )
             confirmations = _confirmations_from_tree(source_tree, session_id=session.id)
             planning = self._planning(session.id, task_tree=task_tree)
@@ -252,11 +263,13 @@ class DefaultUiQueryGateway:
                 )
                 if plan_context.stored_plan_nodes is not None
                 else None
-            ) or _result_from_tree(
-                source_tree,
-                session_id=session.id,
-                task_projection=self._task_projection,
             )
+            if result is None and plan_context.legacy_fallback_allowed:
+                result = _result_from_tree(
+                    source_tree,
+                    session_id=session.id,
+                    task_projection=self._task_projection,
+                )
             file_change_summary = (
                 file_change_summary_from_plan_nodes(
                     plan_context.stored_plan_nodes,
@@ -265,11 +278,16 @@ class DefaultUiQueryGateway:
                 )
                 if plan_context.stored_plan_nodes is not None
                 else None
-            ) or _file_change_summary_from_tree(
-                source_tree,
-                session_id=session.id,
-                task_projection=self._task_projection,
             )
+            if (
+                file_change_summary is None
+                and plan_context.legacy_fallback_allowed
+            ):
+                file_change_summary = _file_change_summary_from_tree(
+                    source_tree,
+                    session_id=session.id,
+                    task_projection=self._task_projection,
+                )
             project = self._project_provider.get_project()
             workflow = self._workflow_provider.get_workflow(session)
             workflows = self._workflow_provider.list_workflows()
@@ -386,11 +404,13 @@ class DefaultUiQueryGateway:
                 )
                 if plan_context.stored_plan_nodes is not None
                 else None
-            ) or _result_from_tree(
-                source_tree,
-                session_id=session.id,
-                task_projection=self._task_projection,
             )
+            if result is None and plan_context.legacy_fallback_allowed:
+                result = _result_from_tree(
+                    source_tree,
+                    session_id=session.id,
+                    task_projection=self._task_projection,
+                )
             file_change_summary = (
                 file_change_summary_from_plan_nodes(
                     plan_context.stored_plan_nodes,
@@ -399,15 +419,25 @@ class DefaultUiQueryGateway:
                 )
                 if plan_context.stored_plan_nodes is not None
                 else None
-            ) or _file_change_summary_from_tree(
-                source_tree,
-                session_id=session.id,
-                task_projection=self._task_projection,
             )
+            if (
+                file_change_summary is None
+                and plan_context.legacy_fallback_allowed
+            ):
+                file_change_summary = _file_change_summary_from_tree(
+                    source_tree,
+                    session_id=session.id,
+                    task_projection=self._task_projection,
+                )
             activity = self._activity_projection.project(
                 session_id=session.id,
                 messages=messages,
                 active_plan=plan_context.active_plan,
+                archived_plans=archived_plan_views(
+                    session.id,
+                    plan_store=self._plan_store,
+                    plan_projection=self._plan_projection,
+                ),
                 task_tree=plan_context.task_tree,
                 pending_asks=pending_asks,
                 active_ask=active_ask,
@@ -971,7 +1001,11 @@ class DefaultUiQueryGateway:
         if self._session_message_provider is None:
             return ()
         return tuple(
-            map_agent_message_view(message)
+            project_authoring_ask_answer_message_view(
+                map_agent_message_view(message),
+                message,
+                raw_task_store=self._raw_task_store,
+            )
             for message in self._session_message_provider.list_for_session(session_id)
         )
 
@@ -1122,6 +1156,38 @@ def _messages_from_tree(source: CoreTaskTreeView) -> tuple[SessionMessageView, .
         seen.add(node.latest_message.message_id)
     messages.sort(key=lambda message: (message.created_at, message.message_id))
     return tuple(map_session_message_view(message) for message in messages)
+
+
+def _archived_plan_messages(
+    plans: Sequence[PlanView],
+) -> tuple[SessionMessageView, ...]:
+    return tuple(
+        SessionMessageView(
+            id=f"message:archived-plan:{plan.id}:{plan.version}",
+            session_id=plan.session_id,
+            kind="informational",
+            title="Plan archived",
+            body=_archived_plan_message_body(plan),
+        )
+        for plan in plans
+    )
+
+
+def _archived_plan_message_body(plan: PlanView) -> str:
+    lines = [
+        f"**{plan.title}**",
+        "",
+        plan.summary,
+        "",
+        f"{plan.task_count} task{'s' if plan.task_count != 1 else ''} moved to Session history.",
+    ]
+    if plan.task_nodes:
+        lines.extend(("", "Tasks:"))
+        lines.extend(
+            f"- Task {node.display_index}: {node.title} ({node.status})"
+            for node in plan.task_nodes
+        )
+    return "\n".join(lines)
 
 
 def _merge_messages(

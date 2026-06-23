@@ -2,7 +2,7 @@
 
 > Status: product semantic baseline
 >
-> Last Updated: 2026-06-07
+> Last Updated: 2026-06-19
 >
 > Scope: UI information structure and product meaning for the state after a
 > Plan Cycle has executed. This is not a visual design, API contract, or
@@ -10,6 +10,7 @@
 >
 > Related:
 > [Plato Plan Cycle Semantics](plato-plan-cycle-semantics.md),
+> [Plato Session Active Work Lifecycle](plato-session-active-work-lifecycle.md),
 > [Plato Task Semantics](plato-task-semantics.md),
 > [Plato Session Content Model](plato-session-content-model.md),
 > [Plato Runtime Input Model](plato-runtime-input-model.md)
@@ -20,12 +21,12 @@ Outcome Review is the user-facing review workspace after a Plan Cycle has
 executed.
 
 It is not a chat ending page and not a raw execution log. It is where the user
-understands, verifies, accepts, recovers, or continues from the outcome.
+understands, verifies, archives, recovers, or continues from the outcome.
 
 ```text
 Plan execution completed
   -> Outcome Review
-  -> Accept / Close / Ask / Recover / Follow-up
+  -> Archive plan / Ask / Recover / Follow-up
 ```
 
 ## 2. Product Questions
@@ -43,7 +44,7 @@ logs, the Outcome Review is incomplete.
 
 ## 3. Information Structure
 
-Outcome Review should be organized as an acceptance workspace with six
+Outcome Review should be organized as a completion review workspace with six
 information areas.
 
 ### 3.1 Outcome Header
@@ -68,7 +69,7 @@ Recommended status labels:
 - `Completed with warnings`
 - `Partially completed`
 - `Needs recovery`
-- `Accepted`
+- `Ready to archive`
 
 Example copy:
 
@@ -78,7 +79,7 @@ Plato completed 5 of 5 tasks and changed 3 files.
 
 Primary action examples:
 
-- `Accept outcome`
+- `Archive plan`
 - `Review warnings`
 - `Recover failed tasks`
 
@@ -189,11 +190,11 @@ Actions should depend on outcome quality.
 
 | Outcome | Primary actions |
 |---|---|
-| Success | Accept outcome, ask about result, start follow-up, view audit. |
-| Warning | Review warning, accept with warning, create follow-up, view evidence. |
+| Success | Archive plan, ask about result, start follow-up, view audit. |
+| Warning | Review warning, archive with warning visible, create follow-up, view evidence. |
 | Partial | Retry failed tasks, revise plan, skip remaining, create recovery plan. |
 | Failed | Inspect failure, retry, revise plan, close as failed. |
-| Accepted | Close Session, start follow-up, ask about accepted result. |
+| Archived | Start follow-up, ask about archived result, view history. |
 
 Next actions should make clear whether they are read-only, recovery, or new
 work.
@@ -272,7 +273,7 @@ Suggested UI state names:
 - `review_ready_with_warnings`
 - `review_ready_partial`
 - `review_ready_failed`
-- `accepted`
+- `archived`
 - `follow_up_authoring`
 - `closed`
 
@@ -339,7 +340,7 @@ Product 1.0 minimum:
 - audit entry link;
 - failed/skipped/warning visibility;
 - retry/recovery where already supported;
-- accept/close affordance if implemented;
+- `Archive plan` affordance after completed Plan review if implemented;
 - no raw LLM output as main outcome.
 
 Product 1.1 expansion:
@@ -348,15 +349,15 @@ Product 1.1 expansion:
 - file viewer;
 - stronger changed-line evidence;
 - follow-up Plan Cycle;
-- authoring context from accepted outcome;
+- authoring context from completed or archived outcome;
 - read-only inquiry over outcome;
-- richer acceptance and handoff flows.
+- richer archive and handoff flows.
 
 ## 11. Product Invariants
 
-1. Outcome Review is an acceptance workspace.
+1. Outcome Review is a completion review workspace.
 2. Plan execution completed enters review, not automatic Session death.
-3. Accepting the outcome is a user act.
+3. Archiving the completed Plan is a user act.
 4. TaskTree after execution is a result map and evidence index.
 5. Risks and unresolved items must be visible on Main Page.
 6. Workspace changes should be close to result summary.

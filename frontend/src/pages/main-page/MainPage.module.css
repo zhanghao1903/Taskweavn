@@ -916,6 +916,13 @@
   text-transform: uppercase;
 }
 
+.planActionRow {
+  display: flex;
+  min-width: 0;
+  justify-content: flex-end;
+  margin-top: calc(var(--plato-space-2) * -0.5);
+}
+
 .authoringDiagnosticBanner {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;

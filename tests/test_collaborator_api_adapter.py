@@ -124,6 +124,7 @@ def _adapter(
             command_service=command_service,
             template_registry=registry,
             message_bus=bus,
+            raw_task_store=raw_store,
         ),
         raw_store=raw_store,
         draft_store=draft_store,
@@ -239,6 +240,7 @@ def test_answer_raw_task_ask_records_answer_and_user_message(tmp_path: Any) -> N
     assert updated.answers[0].value == "Developers"
     messages = list(harness.stream.list_for_session("s1"))
     assert messages[-1].content == "Developers"
+    assert messages[-1].context["title"] == "User answer"
     assert messages[-1].context["operation"] == "answerRawTaskAsk"
 
 
@@ -293,8 +295,76 @@ def test_answer_raw_task_asks_records_batch_answers_and_user_message(
     ]
     messages = list(harness.stream.list_for_session("s1"))
     assert messages[-1].content == "1. Developers\n2. Portfolio and contact"
+    assert messages[-1].context["title"] == "User answer"
     assert messages[-1].context["operation"] == "answerRawTaskAskBatch"
     assert messages[-1].context["ask_ids"] == [ask.ask_id for ask in raw.asks]
+
+
+def test_answer_raw_task_asks_projects_option_labels_to_user_message(
+    tmp_path: Any,
+) -> None:
+    harness = _adapter(
+        tmp_path,
+        _StubLLM(
+            [
+                """
+                {
+                  "intent_summary": "Build a website",
+                  "feasibility": {
+                    "status": "needs_clarification",
+                    "confidence": 0.5,
+                    "missing_inputs": ["site_kind", "style"]
+                  },
+                  "asks": [
+                    {
+                      "question": "Which site kind?",
+                      "reason": "Need scope",
+                      "options": [
+                        {
+                          "option_id": "site-static",
+                          "label": "Static site",
+                          "value": "static"
+                        }
+                      ]
+                    },
+                    {
+                      "question": "Which visual style?",
+                      "reason": "Need scope",
+                      "options": [
+                        {
+                          "option_id": "style-minimal",
+                          "label": "Minimal style",
+                          "value": "minimal"
+                        }
+                      ]
+                    }
+                  ]
+                }
+                """
+            ]
+        ),
+    )
+    harness.adapter.append_session_message(session_id="s1", content="Build a website")
+    raw = harness.raw_store.list_for_session("s1")[0]
+
+    result = harness.adapter.answer_raw_task_asks(
+        session_id="s1",
+        raw_task_id=raw.raw_task_id,
+        answers=(
+            RawTaskAskAnswerSubmission(ask_id=raw.asks[0].ask_id, value="static"),
+            RawTaskAskAnswerSubmission(ask_id=raw.asks[1].ask_id, value="minimal"),
+        ),
+        idempotency_key="answer-batch-1",
+    )
+    updated = harness.raw_store.get("s1", raw.raw_task_id)
+
+    assert result.accepted
+    assert updated is not None
+    assert [answer.value for answer in updated.answers] == ["static", "minimal"]
+    messages = list(harness.stream.list_for_session("s1"))
+    assert messages[-1].content == "1. Static site\n2. Minimal style"
+    assert messages[-1].context["title"] == "User answer"
+    assert messages[-1].context["operation"] == "answerRawTaskAskBatch"
 
 
 def test_answer_raw_task_asks_rejects_duplicate_ask_ids(tmp_path: Any) -> None:

@@ -1,7 +1,7 @@
 # Workflow, Session, And Task UX Model
 
 > Status: product direction baseline
-> Last Updated: 2026-06-06
+> Last Updated: 2026-06-19
 >
 > Scope: user-facing objects and lifecycle semantics. This document avoids
 > concrete page layout, visual hierarchy, and component-level design.
@@ -14,10 +14,11 @@ Plato should keep a small set of objects stable in the user's mind.
 |---|---|---|
 | Project | A user-facing project or space. | Long-lived container for Workflows, Sessions, results, and shared context. It is not the default file execution boundary. |
 | Workflow | A mode of work. | Defines input style, expected deliverable, interaction rhythm, and defaults. |
-| Session | One run of a Workflow. | Holds the current collaboration, messages, Tasks, results, and isolated execution workspace. |
+| Session | One continuous collaboration in a Workflow. | Product core: owns conversation continuity, active work, historical work segments, messages, Tasks, results, and isolated execution workspace. |
 | Session Workspace | The file execution boundary for one Session. | Keeps file writes isolated so sessions do not default to concurrent writes into the same workspace. |
 | RawTask | The user's original intention before structure. | Captures natural language and clarification history. |
-| Plan Cycle | One round of authoring, execution, outcome review, and acceptance inside a Session. | Lets a Session continue after outcome review without silently overwriting previous Plans. |
+| Active Work | The current Plan or Direct Task inside a Session. | Defines what the input and Context Manager should focus on now. |
+| Plan Cycle | One round of authoring, execution, outcome review, completion, and archive inside a Session. | Lets a Session continue after outcome review without silently overwriting previous Plans. |
 | TaskTree / WorkTree | A structured plan or work graph. | Lets the user review, edit, publish, and track work. |
 | TaskNode | One actionable unit in the tree. | Smallest anchor for status, confirmation, instruction, result, and file changes. |
 | Agent / Capability | Who or what can do a Task. | Advanced routing and collaboration concept. |
@@ -176,7 +177,8 @@ Created
   -> Reviewing
   -> Executing
   -> Waiting for User
-  -> Completed / Failed / Paused
+  -> Active Work Completed
+  -> Idle / Failed / Paused
 ```
 
 User-facing meaning:
@@ -187,7 +189,10 @@ User-facing meaning:
 - `Reviewing`: The user can inspect and adjust the plan.
 - `Executing`: Published Tasks are being worked on.
 - `Waiting for User`: The system needs confirmation, input, or correction.
-- `Completed`: The Session produced its intended deliverable.
+- `Active Work Completed`: The current Plan or Direct Task produced its
+  intended deliverable.
+- `Idle`: The Session has no active work and is ready for a read-only question,
+  Direct Task, or new Plan-required request.
 - `Failed`: The Session cannot continue without recovery.
 - `Paused`: The user intentionally stopped progress for now.
 
@@ -200,7 +205,8 @@ Authoring
   -> Plan Ready
   -> Executing
   -> Outcome Review
-  -> Accepted / Closed / Follow-up Requested / Recovery
+  -> Completed
+  -> Archived / Follow-up Requested / Recovery
 ```
 
 User-facing meaning:
@@ -210,15 +216,20 @@ User-facing meaning:
 - `Executing`: Published Tasks are being worked on.
 - `Outcome Review`: Plan execution completed enough for result, file, warning,
   failure, and audit review.
-- `Accepted`: The user accepts the outcome.
-- `Closed`: The Session stops after this Plan Cycle.
+- `Completed`: The system considers the Plan work done enough for review.
+- `Archived`: The user explicitly moves the completed Plan from active work
+  into Session history.
 - `Follow-up Requested`: The user wants related additional work in the same
   Session.
 - `Recovery`: The user wants to retry, revise, or resolve failed work.
 
 A Session may contain multiple Plan Cycles over time, but it should expose at
-most one active Plan at a time. Previous Plans remain history, baseline, and
+most one active work item at a time. Completed Plans remain active until the
+user clicks `Archive plan`. Archived Plans remain history, baseline, and
 evidence; they should not be silently overwritten.
+
+Conversation belongs to Session, not Plan. Archiving a Plan must not clear the
+Session conversation.
 
 ## 6. RawTask Lifecycle
 
@@ -371,6 +382,7 @@ This keeps the backend simple while preserving the user's mental model:
 ```text
 The Session has a conversation.
 Each Task can show the parts relevant to it.
+Plan boundaries segment the conversation but do not reset it.
 ```
 
 ## 11. Result Lifecycle

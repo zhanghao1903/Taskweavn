@@ -15,6 +15,7 @@ import type {
   AppendTaskInputCommand,
   AnswerAuthoringAskBatchCommand,
   AnswerAskCommand,
+  ArchivePlanCommand,
   CancelAskCommand,
   DeferAskCommand,
   GenerateTaskTreeCommand,
@@ -215,6 +216,64 @@ describe("useMainPageController", () => {
     expect(result.current.inputError).toBe(null);
   });
 
+  it("exposes the pending runtime ASK mode while routing a read-only question", async () => {
+    let capturedRequest: RuntimeInputRouteRequest | null = null;
+    let resolveRoute:
+      | ((response: QueryResponse<RuntimeInputRouteResult>) => void)
+      | null = null;
+    const routeRuntimeInput = vi.fn<RouteRuntimeInputCommand>((request) => {
+      capturedRequest = request;
+      return new Promise((resolve) => {
+        resolveRoute = resolve;
+      });
+    });
+
+    const { result } = renderMainPageController({
+      adapter: testAdapter({
+        routeRuntimeInput,
+      }),
+      initialStateId: "s1-empty",
+    });
+
+    await waitFor(() => {
+      expect(result.current.snapshotData?.metadata.id).toBe("s1-empty");
+    });
+
+    act(() => {
+      result.current.actions.changeInputDraft("明天世界杯有哪些比赛？");
+    });
+    act(() => {
+      result.current.actions.submitInput({
+        mode: "generate_task_tree",
+        sessionId: "session-website-plan",
+        target: "session",
+        taskNodeId: null,
+      });
+    });
+
+    await waitFor(() => {
+      expect(routeRuntimeInput).toHaveBeenCalledTimes(1);
+    });
+    expect(result.current.activeRuntimeInputMode).toBe("ask");
+
+    const request = capturedRequest;
+    if (!request) {
+      throw new Error("Runtime input request was not captured.");
+    }
+    const response = answeredRuntimeInputResponse(request);
+
+    act(() => {
+      if (resolveRoute === null) {
+        throw new Error("Runtime input resolver was not captured.");
+      }
+      resolveRoute(response);
+    });
+
+    await waitFor(() => {
+      expect(result.current.activeRuntimeInputMode).toBe(null);
+    });
+  });
+
   it("routes task guidance through Runtime Input Router by default", async () => {
     const routeRuntimeInput = vi.fn<RouteRuntimeInputCommand>(
       async (request) => dispatchedRuntimeInputResponse(request),
@@ -370,6 +429,58 @@ describe("useMainPageController", () => {
 
     expect(result.current.taskTreeCommandError).toBe(null);
     expect(result.current.uiNotice).toBe("Stop requested.");
+  });
+
+  it("submits an archive plan command and refetches the session projection", async () => {
+    const archivePlan = vi.fn<ArchivePlanCommand>(
+      async (sessionId, _planId, request) =>
+        acceptedCommandResponse({
+          commandId: request.commandId,
+          sessionId,
+        }),
+    );
+    const loadSnapshot = vi.fn<LoadMainPageSnapshot>(loadImmediateSnapshot);
+
+    const { result } = renderMainPageController({
+      adapter: testAdapter({
+        archivePlan,
+        loadSnapshot,
+      }),
+      initialStateId: "s3-draft-ready",
+    });
+
+    await waitFor(() => {
+      expect(result.current.snapshotData?.metadata.id).toBe("s3-draft-ready");
+    });
+
+    act(() => {
+      result.current.actions.archivePlan({
+        expectedVersion: 7,
+        planId: "plan-website",
+        sessionId: "session-website-plan",
+      });
+    });
+
+    await waitFor(() => {
+      expect(archivePlan).toHaveBeenCalledWith(
+        "session-website-plan",
+        "plan-website",
+        expect.objectContaining({
+          expectedVersion: 7,
+          sessionId: "session-website-plan",
+          payload: {
+            reason: "user requested archive",
+          },
+        }),
+        null,
+      );
+    });
+    await waitFor(() => {
+      expect(loadSnapshot).toHaveBeenCalledTimes(2);
+    });
+
+    expect(result.current.taskTreeCommandError).toBe(null);
+    expect(result.current.uiNotice).toBe("Plan archived.");
   });
 
   it("submits authoring ASK answers as one batch and refetches projection", async () => {

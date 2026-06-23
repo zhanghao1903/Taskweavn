@@ -203,6 +203,8 @@ function ActivityItem({
   const kind = activityKindPresentation(item.kind, uiText);
   const scopeLabel = activityScopeLabel(item, uiText);
   const isResult = item.kind === "result_ready";
+  const isReadableArchivedPlan =
+    item.kind === "plan_updated" && item.title === "Plan archived";
 
   return (
     <li className={cx(styles.activityItem, activityItemKindClass(item.kind))}>
@@ -231,9 +233,11 @@ function ActivityItem({
           <Badge size="sm" tone="neutral">
             {activitySideEffectLabel(item.sideEffect, uiText)}
           </Badge>
-          {isResult ? (
+          {isResult || isReadableArchivedPlan ? (
             <Button onClick={onOpenReader} size="sm" variant="ghost">
-              {uiText.main.activity.actions.viewFullResult}
+              {isResult
+                ? uiText.main.activity.actions.viewFullResult
+                : uiText.main.activity.actions.openPlan}
             </Button>
           ) : null}
         </div>
@@ -418,16 +422,21 @@ function ResultReader({
   onBack: () => void;
 }) {
   const uiText = useUiText();
+  const isArchivedPlan =
+    item.kind === "plan_updated" && item.title === "Plan archived";
+  const readerLabel = isArchivedPlan
+    ? "Plan details"
+    : uiText.main.activity.labels.fullResult;
 
   return (
     <section
-      aria-label={uiText.main.activity.labels.fullResult}
+      aria-label={readerLabel}
       className={styles.reader}
     >
       <div className={styles.readerHeader}>
         <div>
           <Text as="span" variant="eyebrow">
-            {uiText.main.activity.labels.fullResult}
+            {readerLabel}
           </Text>
           <h3>{item.title}</h3>
         </div>
@@ -437,7 +446,7 @@ function ResultReader({
       </div>
       <article className={styles.readerBody}>
         <Badge size="sm" tone="blue">
-          {uiText.main.activity.kinds.resultReady}
+          {isArchivedPlan ? "Plan" : uiText.main.activity.kinds.resultReady}
         </Badge>
         <MarkdownContent source={item.body} variant="detail" />
       </article>

@@ -5,6 +5,7 @@ import type {
   AnswerAuthoringAskBatchPayload,
   AppendSessionInputPayload,
   AppendTaskInputPayload,
+  ArchivePlanPayload,
   CancelAskPayload,
   DeferAskPayload,
   DiagnosticBundleExportResult,
@@ -212,6 +213,14 @@ describe("HTTP MainPage adapter bridge", () => {
         reason: "user requested stop",
       },
     };
+    const archivePlanRequest: CommandRequest<ArchivePlanPayload> = {
+      commandId: "archive-plan",
+      expectedVersion: 3,
+      sessionId: snapshot.session.id,
+      payload: {
+        reason: "user finished the plan",
+      },
+    };
     const routeRequest: RuntimeInputRouteRequest = {
       commandId: "route-question",
       sessionId: snapshot.session.id,
@@ -234,6 +243,11 @@ describe("HTTP MainPage adapter bridge", () => {
     await adapter.publishTaskTree(publishRequest);
     await adapter.repairAuthoringState(repairAuthoringStateRequest);
     await adapter.stopTask(snapshot.session.id, "task-implementation", stopRequest);
+    await adapter.archivePlan(
+      snapshot.session.id,
+      "plan-website",
+      archivePlanRequest,
+    );
     await adapter.createSession({ name: "New session" });
     await adapter.renameSession({
       name: "Renamed",
@@ -294,6 +308,12 @@ describe("HTTP MainPage adapter bridge", () => {
       snapshot.session.id,
       "task-implementation",
       stopRequest,
+      undefined,
+    );
+    expect(api.archivePlan).toHaveBeenCalledWith(
+      snapshot.session.id,
+      "plan-website",
+      archivePlanRequest,
       undefined,
     );
     expect(api.createSession).toHaveBeenCalledWith(
@@ -414,6 +434,15 @@ describe("HTTP MainPage adapter bridge", () => {
       sessionId: snapshot.session.id,
     });
     await adapter.exportDiagnosticBundle?.(snapshot.session.id);
+    await adapter.archivePlan(
+      snapshot.session.id,
+      "plan-1",
+      {
+        commandId: "archive-plan",
+        sessionId: snapshot.session.id,
+        payload: {},
+      },
+    );
     const unsubscribe = adapter.subscribeSessionEvents(
       snapshot.session.id,
       "cursor-1",
@@ -446,6 +475,14 @@ describe("HTTP MainPage adapter bridge", () => {
     );
     expect(api.exportDiagnosticBundle).toHaveBeenCalledWith(
       snapshot.session.id,
+      { workspaceId: "workspace-1" },
+    );
+    expect(api.archivePlan).toHaveBeenCalledWith(
+      snapshot.session.id,
+      "plan-1",
+      expect.objectContaining({
+        commandId: "archive-plan",
+      }),
       { workspaceId: "workspace-1" },
     );
     expect(api.subscribeSessionEvents).toHaveBeenCalledWith(
@@ -486,6 +523,7 @@ function stubPlatoApi(snapshot: MainPageSnapshot) {
     appendTaskInput: vi.fn(async () => response),
     publishTaskTree: vi.fn(async () => response),
     repairAuthoringState: vi.fn(async () => response),
+    archivePlan: vi.fn(async () => response),
     retryTask: vi.fn(async () => response),
     stopTask: vi.fn(async () => response),
     resolveConfirmation: vi.fn(async () => response),

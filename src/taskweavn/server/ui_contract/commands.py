@@ -58,6 +58,10 @@ class PublishTaskTreePayload(UiContractModel):
     start_immediately: bool = True
 
 
+class ArchivePlanPayload(UiContractModel):
+    reason: str | None = Field(default=None, min_length=1)
+
+
 class RetryTaskPayload(UiContractModel):
     instruction: str | None = Field(default=None, min_length=1)
     start_immediately: bool = True

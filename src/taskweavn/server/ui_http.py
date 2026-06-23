@@ -21,6 +21,7 @@ from taskweavn.server.ui_contract import (
     ApiError,
     AppendSessionInputPayload,
     AppendTaskInputPayload,
+    ArchivePlanPayload,
     CancelAskPayload,
     CommandRequest,
     DeferAskPayload,
@@ -594,6 +595,23 @@ class PlatoUiHttpTransport:
                         self._command_gateway,
                         self._execution_trigger_gateway,
                         publish_request,
+                    ),
+                    self._command_idempotency_store,
+                )
+            if route_name == "archive_plan":
+                archive_request = _parse_command_request(
+                    request,
+                    route.session_id,
+                    CommandRequest[ArchivePlanPayload],
+                )
+                if isinstance(archive_request, HttpApiResponse):
+                    return archive_request
+                return _command_response(
+                    route,
+                    archive_request,
+                    lambda: self._command_gateway.archive_plan(
+                        route.plan_id,
+                        archive_request,
                     ),
                     self._command_idempotency_store,
                 )

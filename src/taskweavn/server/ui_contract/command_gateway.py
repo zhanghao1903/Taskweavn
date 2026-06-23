@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
+from urllib.parse import unquote
+
 from taskweavn.server.ui_contract.command_mapping import (
     _child_idempotency_key,
     _command_bad_request_response,
@@ -22,6 +25,7 @@ from taskweavn.server.ui_contract.commands import (
     AnswerAuthoringAskBatchPayload,
     AppendSessionInputPayload,
     AppendTaskInputPayload,
+    ArchivePlanPayload,
     CancelAskPayload,
     DeferAskPayload,
     GenerateTaskTreePayload,
@@ -34,11 +38,16 @@ from taskweavn.server.ui_contract.commands import (
 )
 from taskweavn.server.ui_contract.envelopes import CommandRequest, CommandResponse
 from taskweavn.server.ui_contract.gateway_protocols import TaskRefResolver
+from taskweavn.server.ui_contract.mapping import map_task_tree_view
 from taskweavn.server.ui_contract.refs import (
     AffectedObjectImpact,
     AffectedObjectRef,
     AffectedScope,
     ObjectRef,
+)
+from taskweavn.server.ui_contract.view_models import (
+    TaskNodeCardView,
+    TaskTreeView,
 )
 from taskweavn.task.ask_service import TaskAskCommandService
 from taskweavn.task.authoring import RawTask
@@ -49,7 +58,8 @@ from taskweavn.task.collaborator_api import (
 from taskweavn.task.commands import CommandResult as CoreCommandResult
 from taskweavn.task.commands import TaskCommandService
 from taskweavn.task.models import TaskRef
-from taskweavn.task.plan_models import Plan
+from taskweavn.task.plan_commands import PlanLifecycleCommandService
+from taskweavn.task.plan_models import Plan, PlanFinalizationState, PlanTaskNode
 from taskweavn.task.plan_publisher import PlanPublisher, PublishPlanCommand
 from taskweavn.task.plan_stores import PlanStore
 from taskweavn.task.projection import TaskProjectionService
@@ -71,6 +81,7 @@ class DefaultUiCommandGateway:
         task_projection: TaskProjectionService | None = None,
         plan_store: PlanStore | None = None,
         plan_publisher: PlanPublisher | None = None,
+        plan_lifecycle_commands: PlanLifecycleCommandService | None = None,
     ) -> None:
         self._collaborator = collaborator
         self._task_commands = task_commands
@@ -81,6 +92,7 @@ class DefaultUiCommandGateway:
         self._task_projection = task_projection
         self._plan_store = plan_store
         self._plan_publisher = plan_publisher
+        self._plan_lifecycle_commands = plan_lifecycle_commands
 
     def append_session_input(
         self,
@@ -355,9 +367,109 @@ class DefaultUiCommandGateway:
             active = self._authoring_state_store.get_active(session_id)
             if active.active_plan_id is not None:
                 plan = self._plan_store.get_plan(session_id, active.active_plan_id)
-                if plan is not None:
+                if plan is not None and not _archived_plan(plan):
                     return plan
-        return self._plan_store.get_active_plan(session_id)
+        plan = self._plan_store.get_active_plan(session_id)
+        return None if _archived_plan(plan) else plan
+
+    def archive_plan(
+        self,
+        plan_id: str,
+        request: CommandRequest[ArchivePlanPayload],
+    ) -> CommandResponse:
+        try:
+            plan_id = _normalize_plan_id(plan_id)
+            if _is_legacy_plan_id(request.session_id, plan_id):
+                result = self._archive_legacy_plan(plan_id, request)
+            else:
+                if self._plan_lifecycle_commands is None:
+                    return _command_response(
+                        request,
+                        CoreCommandResult(
+                            status="rejected",
+                            message="Plan lifecycle command service is not configured",
+                        ),
+                    )
+                result = self._plan_lifecycle_commands.archive_plan(
+                    request.session_id,
+                    plan_id,
+                    expected_version=request.expected_version,
+                    reason=request.payload.reason,
+                    request_id=request.command_id,
+                )
+            plan_ref = ObjectRef(kind="plan", id=plan_id)
+            return _command_response(
+                request,
+                result,
+                object_refs=(plan_ref,),
+                affected_objects=(
+                    AffectedObjectRef(
+                        ref=plan_ref,
+                        impact="changed",
+                        reason="Plan archive was requested.",
+                    ),
+                ),
+                suggested_queries=(
+                    "session.snapshot",
+                    "session.activity",
+                    "task.tree",
+                    "plans.history",
+                ),
+                affected_scopes=(
+                    AffectedScope(kind="session"),
+                    AffectedScope(kind="task_tree"),
+                    AffectedScope(kind="messages"),
+                ),
+            )
+        except Exception as exc:
+            return _command_exception_response(request, exc)
+
+    def _archive_legacy_plan(
+        self,
+        plan_id: str,
+        request: CommandRequest[ArchivePlanPayload],
+    ) -> CoreCommandResult:
+        if self._plan_store is None or self._task_projection is None:
+            return CoreCommandResult(
+                command_id=request.command_id,
+                status="rejected",
+                message="Legacy Plan archive requires PlanStore and TaskProjection",
+            )
+        existing = self._plan_store.get_plan(request.session_id, plan_id)
+        if _archived_plan(existing):
+            return CoreCommandResult(
+                command_id=request.command_id,
+                status="accepted",
+                message="Plan archived.",
+            )
+        if existing is not None:
+            return CoreCommandResult(
+                command_id=request.command_id,
+                status="rejected",
+                message="Legacy Plan archive conflicts with an active durable Plan",
+            )
+
+        source_tree = self._task_projection.list_task_tree(request.session_id)
+        task_tree = map_task_tree_view(source_tree, tree_id=plan_id)
+        if task_tree.status not in {"completed", "failed"}:
+            return CoreCommandResult(
+                command_id=request.command_id,
+                status="rejected",
+                message="only completed or failed legacy plans can be archived",
+            )
+
+        plan, nodes = _archived_legacy_plan_from_task_tree(
+            task_tree,
+            expected_version=request.expected_version,
+        )
+        self._plan_store.create_plan(plan, nodes)
+        if self._authoring_state_store is not None:
+            self._authoring_state_store.cancel_active(request.session_id)
+        return CoreCommandResult(
+            command_id=request.command_id,
+            status="accepted",
+            message="Plan archived.",
+        )
 
     def retry_task(
         self,
@@ -869,4 +981,88 @@ def _ask_command_response[T](
                 for task_ref in result.affected_task_refs
             ),
         ),
+    )
+
+
+def _archived_plan(plan: Plan | None) -> bool:
+    return plan is not None and (
+        plan.status == "archived" or plan.archived_at is not None
+    )
+
+
+def _legacy_plan_id(session_id: str) -> str:
+    return f"plan:legacy:{session_id}"
+
+
+def _normalize_plan_id(plan_id: str) -> str:
+    return unquote(plan_id)
+
+
+def _is_legacy_plan_id(session_id: str, plan_id: str) -> bool:
+    return plan_id == _legacy_plan_id(session_id)
+
+
+def _archived_legacy_plan_from_task_tree(
+    task_tree: TaskTreeView,
+    *,
+    expected_version: int | None,
+) -> tuple[Plan, tuple[PlanTaskNode, ...]]:
+    now = datetime.now(UTC)
+    plan = Plan(
+        plan_id=_legacy_plan_id(task_tree.session_id),
+        session_id=task_tree.session_id,
+        title=task_tree.title,
+        objective=task_tree.summary or task_tree.title,
+        summary=task_tree.summary or task_tree.title,
+        status="archived",
+        version=expected_version or task_tree.version,
+        finalization=PlanFinalizationState(status="skipped", required=False),
+        created_at=now,
+        updated_at=now,
+        archived_at=now,
+    )
+    nodes = tuple(
+        _archived_legacy_plan_node(
+            node,
+            plan_id=plan.plan_id,
+            session_id=plan.session_id,
+            order_index=index,
+            now=now,
+        )
+        for index, node in enumerate(task_tree.nodes)
+    )
+    return plan, nodes
+
+
+def _archived_legacy_plan_node(
+    node: TaskNodeCardView,
+    *,
+    plan_id: str,
+    session_id: str,
+    order_index: int,
+    now: datetime,
+) -> PlanTaskNode:
+    task_ref = node.task_ref
+    return PlanTaskNode(
+        task_node_id=node.id,
+        plan_id=plan_id,
+        session_id=session_id,
+        task_index=node.task_index or str(order_index + 1),
+        order_index=order_index,
+        title=node.title,
+        intent=node.intent or node.title,
+        summary=node.summary or node.title,
+        instructions=node.instructions or "",
+        acceptance_criteria=node.acceptance_criteria,
+        readiness="published" if task_ref is not None and task_ref.kind == "published" else "draft",
+        execution=node.execution,
+        draft_ref=task_ref if task_ref is not None and task_ref.kind == "draft" else None,
+        published_ref=(
+            task_ref if task_ref is not None and task_ref.kind == "published" else None
+        ),
+        result_ref=node.result_ref,
+        error_ref=node.error_ref,
+        version=node.version,
+        created_at=now,
+        updated_at=now,
     )

@@ -16,6 +16,7 @@ class _Route:
     task_node_id: str = ""
     confirmation_id: str = ""
     ask_id: str = ""
+    plan_id: str = ""
     record_id: str = ""
     evidence_id: str = ""
     execution_id: str = ""
@@ -91,6 +92,13 @@ def _match_route(path: str) -> _Route | None:
         return _Route(name="generate_task_tree", method="POST", session_id=session_id)
     if suffix == ("task-tree", "publish"):
         return _Route(name="publish_task_tree", method="POST", session_id=session_id)
+    if len(suffix) == 3 and suffix[0] == "plans" and suffix[2] == "archive":
+        return _Route(
+            name="archive_plan",
+            method="POST",
+            session_id=session_id,
+            plan_id=suffix[1],
+        )
     if suffix == ("authoring", "repair"):
         return _Route(name="repair_authoring_state", method="POST", session_id=session_id)
     if (

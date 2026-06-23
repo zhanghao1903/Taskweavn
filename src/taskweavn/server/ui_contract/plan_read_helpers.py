@@ -35,6 +35,7 @@ class ActivePlanReadContext:
     active_plan: PlanView | None
     task_tree: TaskTreeView | None
     stored_plan_nodes: list[PlanTaskNode] | None
+    legacy_fallback_allowed: bool = True
 
 
 @dataclass(frozen=True)
@@ -65,12 +66,26 @@ def active_stored_plan(
     if plan is None:
         plan = plan_store.get_active_plan(session_id)
     if plan is None:
+        legacy_plan = plan_store.get_plan(session_id, _legacy_plan_id(session_id))
+        if _archived_plan(legacy_plan):
+            plan = legacy_plan
+    if plan is None:
         return None
     try:
         nodes = plan_store.list_task_nodes(session_id, plan.plan_id)
     except LookupError:
         return None
     return StoredPlanContext(plan=plan, task_nodes=nodes)
+
+
+def _archived_plan(plan: Plan | None) -> bool:
+    return plan is not None and (
+        plan.status == "archived" or plan.archived_at is not None
+    )
+
+
+def _legacy_plan_id(session_id: str) -> str:
+    return f"plan:legacy:{session_id}"
 
 
 def active_plan_read_context(
@@ -82,6 +97,13 @@ def active_plan_read_context(
     active_plan: PlanView | None
     stored_plan_nodes: list[PlanTaskNode] | None = None
     if stored_plan is not None:
+        if _archived_plan(stored_plan.plan):
+            return ActivePlanReadContext(
+                active_plan=None,
+                task_tree=None,
+                stored_plan_nodes=None,
+                legacy_fallback_allowed=False,
+            )
         stored_plan_nodes = stored_plan.task_nodes
         active_plan = plan_projection.project_stored_plan(
             stored_plan.plan,
@@ -101,6 +123,32 @@ def active_plan_read_context(
     )
 
 
+def archived_plan_views(
+    session_id: str,
+    *,
+    plan_store: PlanStore | None,
+    plan_projection: PlanProjectionService,
+    limit: int = 10,
+) -> tuple[PlanView, ...]:
+    if plan_store is None or limit <= 0:
+        return ()
+    archived = [
+        plan for plan in plan_store.list_plans(session_id) if _archived_plan(plan)
+    ]
+    archived.sort(
+        key=lambda plan: (plan.archived_at or plan.updated_at, plan.plan_id),
+        reverse=True,
+    )
+    views: list[PlanView] = []
+    for plan in archived[:limit]:
+        try:
+            nodes = plan_store.list_task_nodes(session_id, plan.plan_id)
+        except LookupError:
+            continue
+        views.append(plan_projection.project_stored_plan(plan, nodes))
+    return tuple(views)
+
+
 def audit_task_read_context(
     *,
     task_node_id: str | None,
@@ -109,6 +157,13 @@ def audit_task_read_context(
     plan_projection: PlanProjectionService,
 ) -> AuditTaskReadContext:
     if stored_plan is not None:
+        if _archived_plan(stored_plan.plan):
+            return AuditTaskReadContext(
+                task_tree=None,
+                selected_task=None,
+                record_source_task_node_id=None,
+                task_node_ids_by_legacy_id={},
+            )
         plan_tree = plan_projection.project_stored_plan(
             stored_plan.plan,
             stored_plan.task_nodes,

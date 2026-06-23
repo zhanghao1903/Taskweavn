@@ -2,19 +2,26 @@
 
 > Status: product direction baseline
 >
+> Last Updated: 2026-06-19
+>
 > Scope: product concept, user mental model, and interaction direction. This is
 > not a screen layout spec and not a backend architecture spec.
 
 ## 1. Product Thesis
 
-Plato is the user-facing Task-first intelligent workbench.
+Plato is the user-facing Session-first intelligent workbench with Task-first
+execution control.
 
 The user expresses an intention in natural language. The system turns that
 intention into understandable, editable, confirmable, executable, and traceable
 Tasks.
 
-The core product object is not the chat transcript, not the file tree, and not
-the Agent. The core product object is the Task.
+The core product object is not the file tree, not the Agent, and not an
+individual Plan. The core product object is the Session.
+
+The Session is the user's continuous collaboration timeline. It can contain
+multiple structured Plans, lightweight Direct Tasks, messages, results, and
+audit links over time.
 
 A Task is a user-visible work contract between the user and Plato. Before
 execution, it is a reviewed plan. During execution, it is delegated work under
@@ -28,8 +35,9 @@ how execution produced outcome and evidence. See
 [Plato Session Content Model](plato-session-content-model.md).
 
 A Session may contain multiple Plan Cycles over time. Each Plan Cycle is one
-round of authoring, execution, outcome review, and acceptance. See
-[Plato Plan Cycle Semantics](plato-plan-cycle-semantics.md).
+round of authoring, execution, outcome review, completion, and optional manual
+archive. See [Plato Plan Cycle Semantics](plato-plan-cycle-semantics.md) and
+[Plato Session Active Work Lifecycle](plato-session-active-work-lifecycle.md).
 
 Natural-language input is governed by two loops:
 
@@ -64,11 +72,11 @@ Traditional assistant products usually center one of three objects:
 | Coding agent | Files and terminal actions | User asks, agent edits and runs tools. |
 | Workflow tool | Steps and forms | User configures a fixed process. |
 
-Plato should center the Task:
+Plato should center the Session while preserving Task authority:
 
 | Plato | Main object | User experience |
 |---|---|---|
-| Task-first workbench | Workflow + TaskTree + TaskNode | User states a goal, reviews Tasks, confirms risky steps, tracks execution, and accepts results. |
+| Session-first workbench with Task-first execution | Session conversation + active Plan / Direct Task + TaskNode | User states a goal, sees Plato respond, reviews structured work when needed, confirms risky steps, tracks execution, and continues from results. |
 
 The surprising part is that natural language becomes a structured, interactive,
 traceable task system. The conservative part is that the user sees familiar
@@ -190,7 +198,7 @@ Examples:
 - Research a question.
 - Fix a bug.
 - Package results into cards.
-- Review and accept completed work.
+- Review and archive completed work.
 
 Different Workflows may have different:
 

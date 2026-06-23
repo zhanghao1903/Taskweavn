@@ -11,6 +11,7 @@ from taskweavn.server.ui_contract import (
     AnswerAuthoringAskItemPayload,
     AppendSessionInputPayload,
     AppendTaskInputPayload,
+    ArchivePlanPayload,
     CancelAskPayload,
     CommandRequest,
     DefaultUiCommandGateway,
@@ -399,6 +400,7 @@ class _Resolver:
 @dataclass(frozen=True)
 class _TaskProjection:
     has_published_tree: bool = False
+    tree: CoreTaskTreeView | None = None
 
     def list_task_tree(
         self,
@@ -408,6 +410,8 @@ class _TaskProjection:
         include_drafts: bool = True,
         include_published: bool = True,
     ) -> CoreTaskTreeView:
+        if self.tree is not None:
+            return self.tree
         if not include_published or not self.has_published_tree:
             return CoreTaskTreeView(session_id=session_id)
         ref = TaskRef.published("task-1")
@@ -474,19 +478,40 @@ class _AuthoringStateStore:
 @dataclass
 class _PlanStore:
     active_plan: Plan | None = None
+    created_plans: list[Plan] = field(default_factory=list)
+    created_task_nodes: list[PlanTaskNode] = field(default_factory=list)
+
+    def __post_init__(self) -> None:
+        self._plans: dict[tuple[str, str], Plan] = {}
+        self._task_nodes: dict[tuple[str, str], list[PlanTaskNode]] = {}
+        if self.active_plan is not None:
+            self._plans[
+                (self.active_plan.session_id, self.active_plan.plan_id)
+            ] = self.active_plan
 
     def create_plan(
         self,
         plan: Plan,
         task_nodes: Sequence[PlanTaskNode] = (),
     ) -> Plan:
-        raise NotImplementedError
+        if (plan.session_id, plan.plan_id) in self._plans:
+            raise ValueError(f"Plan {plan.plan_id!r} already exists")
+        saved = plan.model_copy(
+            update={
+                "task_node_ids": tuple(node.task_node_id for node in task_nodes),
+            }
+        )
+        self._plans[(saved.session_id, saved.plan_id)] = saved
+        self._task_nodes[(saved.session_id, saved.plan_id)] = list(task_nodes)
+        self.created_plans.append(saved)
+        self.created_task_nodes.extend(task_nodes)
+        return saved
 
     def get_plan(self, session_id: str, plan_id: str) -> Plan | None:
-        raise NotImplementedError
+        return self._plans.get((session_id, plan_id))
 
     def list_plans(self, session_id: str) -> list[Plan]:
-        raise NotImplementedError
+        return [plan for plan in self._plans.values() if plan.session_id == session_id]
 
     def get_active_plan(self, session_id: str) -> Plan | None:
         if self.active_plan is None or self.active_plan.session_id != session_id:
@@ -496,11 +521,22 @@ class _PlanStore:
     def save_plan(self, plan: Plan, *, expected_version: int) -> Plan:
         raise NotImplementedError
 
+    def archive_plan(
+        self,
+        session_id: str,
+        plan_id: str,
+        *,
+        expected_version: int | None = None,
+    ) -> Plan:
+        raise NotImplementedError
+
     def get_task_node(self, session_id: str, task_node_id: str) -> PlanTaskNode | None:
         raise NotImplementedError
 
     def list_task_nodes(self, session_id: str, plan_id: str) -> list[PlanTaskNode]:
-        raise NotImplementedError
+        if (session_id, plan_id) not in self._plans:
+            raise LookupError(f"Plan {plan_id!r} not found")
+        return list(self._task_nodes.get((session_id, plan_id), []))
 
     def add_task_node(
         self,
@@ -545,6 +581,41 @@ class _PlanPublisher:
         )
 
 
+@dataclass
+class _PlanLifecycleCommands:
+    result: CoreCommandResult = field(
+        default_factory=lambda: CoreCommandResult(
+            command_id="plan-lifecycle",
+            status="accepted",
+            message="Plan archived.",
+            emitted_message_ids=("message-1",),
+        )
+    )
+    calls: list[tuple[str, str, dict[str, object]]] = field(default_factory=list)
+
+    def archive_plan(
+        self,
+        session_id: str,
+        plan_id: str,
+        *,
+        expected_version: int | None = None,
+        reason: str | None = None,
+        request_id: str | None = None,
+    ) -> CoreCommandResult:
+        self.calls.append(
+            (
+                session_id,
+                plan_id,
+                {
+                    "expected_version": expected_version,
+                    "reason": reason,
+                    "request_id": request_id,
+                },
+            )
+        )
+        return self.result
+
+
 def _gateway(
     *,
     collaborator: _Collaborator | None = None,
@@ -556,6 +627,7 @@ def _gateway(
     task_projection: _TaskProjection | None = None,
     plan_store: _PlanStore | None = None,
     plan_publisher: _PlanPublisher | None = None,
+    plan_lifecycle_commands: _PlanLifecycleCommands | None = None,
 ) -> DefaultUiCommandGateway:
     return DefaultUiCommandGateway(
         collaborator=collaborator or _Collaborator(),
@@ -568,6 +640,7 @@ def _gateway(
         task_projection=task_projection,
         plan_store=plan_store,
         plan_publisher=plan_publisher,
+        plan_lifecycle_commands=plan_lifecycle_commands,
     )
 
 
@@ -1161,6 +1234,157 @@ def test_publish_task_tree_plan_publish_uses_command_id_as_idempotency_fallback(
     assert response.ok is True
     assert collaborator.calls == []
     assert plan_publisher.calls[0].idempotency_key == "publish-plan-without-key"
+
+
+def test_archive_plan_routes_to_plan_lifecycle_commands() -> None:
+    plan_lifecycle = _PlanLifecycleCommands()
+    gateway = _gateway(plan_lifecycle_commands=plan_lifecycle)
+    request = CommandRequest[ArchivePlanPayload](
+        command_id="archive-plan-1",
+        session_id="session-1",
+        expected_version=7,
+        payload=ArchivePlanPayload(reason="user moved completed plan to history"),
+    )
+
+    response = gateway.archive_plan("plan-1", request)
+
+    assert response.ok is True
+    assert response.result is not None
+    assert response.result.message == "Plan archived."
+    assert {"kind": "plan", "id": "plan-1"} in response.result.model_dump(
+        mode="json"
+    )["objectRefs"]
+    assert response.result.emitted_message_ids == ("message-1",)
+    assert response.refresh.suggested_queries == (
+        "session.snapshot",
+        "session.activity",
+        "task.tree",
+        "plans.history",
+    )
+    assert [scope.kind for scope in response.refresh.affected_scopes] == [
+        "session",
+        "task_tree",
+        "messages",
+    ]
+    assert plan_lifecycle.calls == [
+        (
+            "session-1",
+            "plan-1",
+            {
+                "expected_version": 7,
+                "reason": "user moved completed plan to history",
+                "request_id": "archive-plan-1",
+            },
+        )
+    ]
+
+
+def test_archive_plan_materializes_completed_legacy_plan() -> None:
+    ref = TaskRef.published("task-1")
+    task_projection = _TaskProjection(
+        tree=CoreTaskTreeView(
+            session_id="session-1",
+            title="Legacy plan",
+            summary="Completed legacy task tree.",
+            nodes=(
+                CoreTaskCardView(
+                    task_ref=ref,
+                    root_ref=ref,
+                    title="Complete task",
+                    intent_preview="Completed task summary.",
+                    full_intent="Complete the task.",
+                    instructions="Check the output.",
+                    acceptance_criteria=("Output checked",),
+                    status="done",
+                ),
+            ),
+        )
+    )
+    plan_store = _PlanStore(active_plan=None)
+    plan_lifecycle = _PlanLifecycleCommands()
+    authoring_state_store = _AuthoringStateStore(
+        ActiveAuthoringState(
+            session_id="session-1",
+            active_draft_tree_id="legacy-tree",
+            active_state="published",
+        )
+    )
+    gateway = _gateway(
+        authoring_state_store=authoring_state_store,
+        task_projection=task_projection,
+        plan_store=plan_store,
+        plan_lifecycle_commands=plan_lifecycle,
+    )
+    request = CommandRequest[ArchivePlanPayload](
+        command_id="archive-legacy-plan",
+        session_id="session-1",
+        expected_version=4,
+        payload=ArchivePlanPayload(reason="done"),
+    )
+
+    response = gateway.archive_plan("plan:legacy:session-1", request)
+
+    assert response.ok is True
+    assert response.result is not None
+    assert response.result.message == "Plan archived."
+    assert plan_lifecycle.calls == []
+    assert len(plan_store.created_plans) == 1
+    archived = plan_store.created_plans[0]
+    assert archived.plan_id == "plan:legacy:session-1"
+    assert archived.status == "archived"
+    assert archived.version == 4
+    assert archived.archived_at is not None
+    assert len(plan_store.created_task_nodes) == 1
+    archived_node = plan_store.created_task_nodes[0]
+    assert archived_node.task_node_id == "task-1"
+    assert archived_node.execution == "done"
+    assert archived_node.published_ref == ref
+    assert authoring_state_store.state.active_state == "cancelled"
+
+
+def test_archive_plan_materializes_encoded_legacy_plan_id() -> None:
+    ref = TaskRef.published("task-1")
+    task_projection = _TaskProjection(
+        tree=CoreTaskTreeView(
+            session_id="session-1",
+            title="Legacy plan",
+            summary="Completed legacy task tree.",
+            nodes=(
+                CoreTaskCardView(
+                    task_ref=ref,
+                    root_ref=ref,
+                    title="Complete task",
+                    intent_preview="Completed task summary.",
+                    full_intent="Complete the task.",
+                    instructions="Check the output.",
+                    acceptance_criteria=("Output checked",),
+                    status="done",
+                ),
+            ),
+        )
+    )
+    plan_store = _PlanStore(active_plan=None)
+    plan_lifecycle = _PlanLifecycleCommands()
+    gateway = _gateway(
+        task_projection=task_projection,
+        plan_store=plan_store,
+        plan_lifecycle_commands=plan_lifecycle,
+    )
+    request = CommandRequest[ArchivePlanPayload](
+        command_id="archive-legacy-plan",
+        session_id="session-1",
+        expected_version=4,
+        payload=ArchivePlanPayload(reason="done"),
+    )
+
+    response = gateway.archive_plan("plan%3Alegacy%3Asession-1", request)
+
+    assert response.ok is True
+    assert response.result is not None
+    assert response.result.message == "Plan archived."
+    assert plan_lifecycle.calls == []
+    assert len(plan_store.created_plans) == 1
+    assert plan_store.created_plans[0].plan_id == "plan:legacy:session-1"
 
 
 def test_publish_task_tree_falls_back_to_legacy_without_active_durable_plan() -> None:

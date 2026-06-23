@@ -164,17 +164,18 @@ class _PlanStore:
         self,
         *,
         active_plan: Plan | None = None,
+        plans: Sequence[Plan] = (),
         task_nodes: Sequence[PlanTaskNode] = (),
     ) -> None:
         self._active_plan = active_plan
-        self._plans = (
-            {(active_plan.session_id, active_plan.plan_id): active_plan}
-            if active_plan is not None
-            else {}
-        )
-        self._task_nodes = {
-            (node.session_id, node.plan_id): list(task_nodes) for node in task_nodes
+        self._plans = {
+            (plan.session_id, plan.plan_id): plan for plan in plans
         }
+        if active_plan is not None:
+            self._plans[(active_plan.session_id, active_plan.plan_id)] = active_plan
+        self._task_nodes: dict[tuple[str, str], list[PlanTaskNode]] = {}
+        for node in task_nodes:
+            self._task_nodes.setdefault((node.session_id, node.plan_id), []).append(node)
 
     def create_plan(
         self,
@@ -195,6 +196,15 @@ class _PlanStore:
         return None
 
     def save_plan(self, plan: Plan, *, expected_version: int) -> Plan:
+        raise NotImplementedError
+
+    def archive_plan(
+        self,
+        session_id: str,
+        plan_id: str,
+        *,
+        expected_version: int | None = None,
+    ) -> Plan:
         raise NotImplementedError
 
     def get_task_node(self, session_id: str, task_node_id: str) -> PlanTaskNode | None:
@@ -442,6 +452,159 @@ def test_get_session_snapshot_prefers_active_stored_plan_over_legacy_projection(
     assert response.data.task_tree is not None
     assert response.data.task_tree.id == "draft-tree-1"
     assert response.data.task_tree.nodes[0].id == "node-stored"
+
+
+def test_get_session_snapshot_suppresses_legacy_projection_for_archived_plan() -> None:
+    tree = TaskTreeView(session_id="session-1", nodes=(_draft_card("draft-legacy"),))
+    archived_plan = Plan(
+        plan_id="plan-stored",
+        session_id="session-1",
+        source_draft_tree_id="draft-tree-1",
+        title="Stored plan",
+        objective="Use durable plan facts.",
+        summary="Stored durable plan summary.",
+        status="archived",
+    )
+    plan_node = PlanTaskNode(
+        task_node_id="node-stored",
+        plan_id=archived_plan.plan_id,
+        session_id="session-1",
+        task_index="1",
+        title="Stored task",
+        intent="Use stored PlanTaskNode.",
+        summary="Stored task summary.",
+        readiness="approved",
+        draft_ref=TaskRef.draft("draft-stored"),
+    )
+    gateway = DefaultUiQueryGateway(
+        session_reader=_SessionReader([_session()]),
+        task_projection=_Projection(tree),
+        authoring_state_store=_AuthoringStateStore(
+            ActiveAuthoringState(
+                session_id="session-1",
+                active_draft_tree_id="draft-tree-1",
+                active_plan_id=archived_plan.plan_id,
+                active_state="published",
+            )
+        ),
+        plan_store=_PlanStore(active_plan=archived_plan, task_nodes=(plan_node,)),
+    )
+
+    response = gateway.get_session_snapshot("session-1")
+
+    assert response.ok is True
+    assert response.data is not None
+    assert response.data.active_plan is None
+    assert response.data.task_tree is None
+    assert response.data.result is None
+    assert response.data.file_change_summary is None
+    assert response.data.messages
+    archive_message = response.data.messages[-1]
+    assert archive_message.title == "Plan archived"
+    assert archive_message.task_node_id is None
+    assert "**Stored plan**" in archive_message.body
+    assert "Task 1: Stored task" in archive_message.body
+
+
+def test_get_session_snapshot_suppresses_legacy_projection_for_archived_legacy_plan() -> None:
+    tree = TaskTreeView(session_id="session-1", nodes=(_draft_card("draft-legacy"),))
+    archived_plan = Plan(
+        plan_id="plan:legacy:session-1",
+        session_id="session-1",
+        title="Legacy plan",
+        objective="Archived legacy task tree.",
+        summary="Archived legacy task tree.",
+        status="archived",
+    )
+    plan_node = PlanTaskNode(
+        task_node_id="node-legacy",
+        plan_id=archived_plan.plan_id,
+        session_id="session-1",
+        task_index="1",
+        title="Archived task",
+        intent="Archive the legacy TaskTree projection.",
+        summary="Archived task summary.",
+        readiness="published",
+        published_ref=TaskRef.published("draft-legacy"),
+    )
+    gateway = DefaultUiQueryGateway(
+        session_reader=_SessionReader([_session()]),
+        task_projection=_Projection(tree),
+        authoring_state_store=_AuthoringStateStore(
+            ActiveAuthoringState(
+                session_id="session-1",
+                active_draft_tree_id="draft-tree-1",
+                active_plan_id=None,
+                active_state="published",
+            )
+        ),
+        plan_store=_PlanStore(plans=(archived_plan,), task_nodes=(plan_node,)),
+    )
+
+    response = gateway.get_session_snapshot("session-1")
+
+    assert response.ok is True
+    assert response.data is not None
+    assert response.data.active_plan is None
+    assert response.data.task_tree is None
+    assert response.data.result is None
+    assert response.data.file_change_summary is None
+    assert response.data.messages
+    archive_message = response.data.messages[-1]
+    assert archive_message.title == "Plan archived"
+    assert archive_message.task_node_id is None
+    assert "**Legacy plan**" in archive_message.body
+    assert "Task 1: Archived task" in archive_message.body
+
+
+def test_list_session_activity_projects_archived_plan_history_entry() -> None:
+    tree = TaskTreeView(session_id="session-1", nodes=(_draft_card("draft-legacy"),))
+    archived_plan = Plan(
+        plan_id="plan-stored",
+        session_id="session-1",
+        source_draft_tree_id="draft-tree-1",
+        title="Stored plan",
+        objective="Use durable plan facts.",
+        summary="Stored durable plan summary.",
+        status="archived",
+    )
+    plan_node = PlanTaskNode(
+        task_node_id="node-stored",
+        plan_id=archived_plan.plan_id,
+        session_id="session-1",
+        task_index="1",
+        title="Stored task",
+        intent="Use stored PlanTaskNode.",
+        summary="Stored task summary.",
+        readiness="approved",
+        draft_ref=TaskRef.draft("draft-stored"),
+    )
+    gateway = DefaultUiQueryGateway(
+        session_reader=_SessionReader([_session()]),
+        task_projection=_Projection(tree),
+        authoring_state_store=_AuthoringStateStore(
+            ActiveAuthoringState(
+                session_id="session-1",
+                active_draft_tree_id="draft-tree-1",
+                active_plan_id=archived_plan.plan_id,
+                active_state="published",
+            )
+        ),
+        plan_store=_PlanStore(active_plan=archived_plan, task_nodes=(plan_node,)),
+    )
+
+    response = gateway.list_session_activity("session-1", limit=10)
+
+    assert response.ok is True
+    assert response.data is not None
+    assert response.data.total_count == 1
+    archived_item = response.data.items[0]
+    assert archived_item.kind == "plan_updated"
+    assert archived_item.title == "Plan archived"
+    assert archived_item.plan_id == "plan-stored"
+    assert archived_item.related_refs == ()
+    assert "**Stored plan**" in archived_item.body
+    assert "Task 1: Stored task" in archived_item.body
 
 
 def test_list_session_activity_projects_stored_plan_and_messages() -> None:
@@ -767,6 +930,71 @@ def test_get_session_snapshot_includes_session_level_messages_without_task_tree(
     assert response.data.messages[0].title == "User message"
     assert response.data.messages[0].body == "Build a quiet personal website."
     assert response.data.session.status == "understanding"
+
+
+def test_get_session_snapshot_projects_authoring_ask_answer_messages() -> None:
+    raw_task = RawTask(
+        raw_task_id="raw-1",
+        session_id="session-1",
+        source_message_id="source-message",
+        user_input="Build a website.",
+        status="awaiting_user",
+        asks=(
+            RawTaskAsk(
+                ask_id="ask-site-kind",
+                raw_task_id="raw-1",
+                question="Which site kind?",
+                reason="Need scope.",
+                options=(
+                    RawTaskAnswerOption(
+                        option_id="site-static",
+                        label="Static site",
+                        value="static",
+                    ),
+                ),
+            ),
+            RawTaskAsk(
+                ask_id="ask-style",
+                raw_task_id="raw-1",
+                question="Which visual style?",
+                reason="Need scope.",
+                options=(
+                    RawTaskAnswerOption(
+                        option_id="style-minimal",
+                        label="Minimal style",
+                        value="minimal",
+                    ),
+                ),
+            ),
+        ),
+    )
+    message = AgentMessage(
+        message_id="message-answer",
+        session_id="session-1",
+        agent_id="user",
+        message_type="informational",
+        content="1. static\n2. minimal",
+        created_at=NOW,
+        context={
+            "surface": "raw_task_ask",
+            "operation": "answerRawTaskAskBatch",
+            "raw_task_id": "raw-1",
+            "ask_ids": ["ask-site-kind", "ask-style"],
+        },
+    )
+    gateway = DefaultUiQueryGateway(
+        session_reader=_SessionReader([_session()]),
+        task_projection=_Projection(TaskTreeView(session_id="session-1")),
+        session_message_provider=_SessionMessageProvider([message]),
+        raw_task_store=InMemoryRawTaskStore([raw_task]),
+    )
+
+    response = gateway.get_session_snapshot("session-1")
+
+    assert response.ok is True
+    assert response.data is not None
+    assert response.data.messages[0].title == "User answer"
+    assert response.data.messages[0].body == "1. Static site\n2. Minimal style"
 
 
 def test_get_session_snapshot_prefers_rich_session_message_over_tree_latest() -> None:

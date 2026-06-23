@@ -122,6 +122,64 @@ def test_sqlite_plan_store_persists_plan_and_task_nodes_after_reopen(
         second.close()
 
 
+def test_sqlite_plan_store_archives_plan_and_clears_active_plan(
+    tmp_path: Path,
+) -> None:
+    db = tmp_path / "authoring.sqlite"
+    store = SqlitePlanStore(db)
+    try:
+        created = store.create_plan(
+            _plan().model_copy(update={"status": "accepted"}),
+            (_node("node-1"),),
+        )
+
+        archived = store.archive_plan(
+            "session-1",
+            "plan-1",
+            expected_version=created.version,
+        )
+
+        assert archived.status == "archived"
+        assert archived.archived_at is not None
+        assert archived.updated_at == archived.archived_at
+        assert archived.version == created.version + 1
+        assert store.get_active_plan("session-1") is None
+
+        loaded = store.get_plan("session-1", "plan-1")
+        assert loaded == archived
+    finally:
+        store.close()
+
+    reopened = SqlitePlanStore(db)
+    try:
+        assert reopened.get_active_plan("session-1") is None
+        loaded = reopened.get_plan("session-1", "plan-1")
+        assert loaded is not None
+        assert loaded.status == "archived"
+        assert loaded.archived_at is not None
+    finally:
+        reopened.close()
+
+
+def test_sqlite_plan_store_rejects_stale_and_repeated_archive(
+    tmp_path: Path,
+) -> None:
+    store = SqlitePlanStore(tmp_path / "authoring.sqlite")
+    try:
+        created = store.create_plan(_plan().model_copy(update={"status": "accepted"}))
+
+        with pytest.raises(VersionConflictError, match="stale version"):
+            store.archive_plan("session-1", "plan-1", expected_version=created.version + 1)
+
+        archived = store.archive_plan("session-1", "plan-1")
+        assert archived.status == "archived"
+
+        with pytest.raises(PlanStoreError, match="already archived"):
+            store.archive_plan("session-1", "plan-1")
+    finally:
+        store.close()
+
+
 def test_sqlite_plan_store_migrates_error_ref_column(tmp_path: Path) -> None:
     db = tmp_path / "authoring.sqlite"
     conn = sqlite3.connect(db)

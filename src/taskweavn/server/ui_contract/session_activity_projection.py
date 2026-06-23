@@ -36,6 +36,7 @@ class DefaultSessionActivityProjectionService:
         session_id: str,
         messages: Sequence[SessionMessageView] = (),
         active_plan: PlanView | None = None,
+        archived_plans: Sequence[PlanView] = (),
         task_tree: TaskTreeView | None = None,
         pending_asks: Sequence[AskRequestView] = (),
         active_ask: AskRequestView | None = None,
@@ -52,6 +53,7 @@ class DefaultSessionActivityProjectionService:
             items.extend(_task_items(active_plan.task_nodes, session_id=session_id))
         elif task_tree is not None:
             items.extend(_task_items(task_tree.nodes, session_id=session_id))
+        items.extend(_archived_plan_items(archived_plans))
         items.extend(_ask_items(pending_asks, active_ask=active_ask))
         items.extend(_confirmation_items(confirmations))
         if result is not None:
@@ -195,6 +197,45 @@ def _plan_item(plan: PlanView) -> SessionActivityItemView:
         source_kind="plan_projection",
         source_id=plan.id,
     )
+
+
+def _archived_plan_items(
+    plans: Sequence[PlanView],
+) -> tuple[SessionActivityItemView, ...]:
+    return tuple(_archived_plan_item(plan) for plan in plans)
+
+
+def _archived_plan_item(plan: PlanView) -> SessionActivityItemView:
+    return SessionActivityItemView(
+        id=f"activity:archived-plan:{plan.id}:{plan.version}",
+        session_id=plan.session_id,
+        kind="plan_updated",
+        title="Plan archived",
+        body=_archived_plan_body(plan),
+        scope_kind="plan",
+        plan_id=plan.id,
+        side_effect="state_effect",
+        related_refs=(),
+        source_kind="plan_projection",
+        source_id=plan.id,
+    )
+
+
+def _archived_plan_body(plan: PlanView) -> str:
+    lines = [
+        f"**{plan.title}**",
+        "",
+        plan.summary,
+        "",
+        f"{plan.task_count} task{'s' if plan.task_count != 1 else ''} moved to Session history.",
+    ]
+    if plan.task_nodes:
+        lines.extend(("", "Tasks:"))
+        lines.extend(
+            f"- Task {node.display_index}: {node.title} ({node.status})"
+            for node in plan.task_nodes
+        )
+    return "\n".join(lines)
 
 
 def _task_items(

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
+from datetime import UTC, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -15,6 +16,11 @@ from taskweavn.server.ui_contract.read_only_inquiry import (
     ReadOnlyInquiryEvidenceRef,
     ReadOnlyInquiryRequest,
     ReadOnlyInquiryScope,
+)
+from taskweavn.web_retrieval import (
+    WebSearchRequest,
+    WebSearchResponse,
+    WebSearchResult,
 )
 
 
@@ -49,6 +55,48 @@ def test_guarded_llm_provider_accepts_cited_json_answer() -> None:
     prompt = llm.calls[0]["messages"][1]["content"]
     assert "/Users/example/project" not in prompt
     assert "[redacted-path]" in prompt
+
+
+def test_guarded_llm_provider_injects_local_time_context() -> None:
+    llm = _LLM(
+        json.dumps(
+            {
+                "status": "answered",
+                "body": "The resolved date is 2026-06-21.",
+                "confidence": "high",
+                "citedRefIds": ["task:task-1:status"],
+            }
+        )
+    )
+    provider = GuardedLLMReadOnlyInquiryAnswerProvider(
+        llm,
+        clock=lambda: datetime(
+            2026,
+            6,
+            20,
+            12,
+            8,
+            tzinfo=timezone(timedelta(hours=8), "Asia/Shanghai"),
+        ),
+    )
+
+    provider.answer(
+        request=_request(question="明天世界杯有哪些比赛"),
+        baseline_answer=_baseline(),
+        evidence_refs=(_task_evidence(),),
+    )
+
+    system_prompt = llm.calls[0]["messages"][0]["content"]
+    prompt_payload = json.loads(llm.calls[0]["messages"][1]["content"])
+    assert "Use timeContext to resolve relative dates" in system_prompt
+    assert prompt_payload["timeContext"] == {
+        "localNow": "2026-06-20T12:08:00+08:00",
+        "localDate": "2026-06-20",
+        "timezone": "Asia/Shanghai",
+        "utcOffset": "+08:00",
+        "yesterdayDate": "2026-06-19",
+        "tomorrowDate": "2026-06-21",
+    }
 
 
 def test_guarded_llm_provider_falls_back_when_citation_is_unknown() -> None:
@@ -127,6 +175,127 @@ def test_guarded_llm_provider_supports_safe_non_answer_status() -> None:
     assert result.warnings[-1].code == "inquiry.unsupported_question"
 
 
+def test_guarded_llm_provider_uses_web_search_after_unsupported_answer() -> None:
+    llm = _SequencedLLM(
+        (
+            json.dumps(
+                {
+                    "status": "unsupported",
+                    "citedRefIds": ["task:task-1:status"],
+                }
+            ),
+            json.dumps(
+                {
+                    "status": "answered",
+                    "title": "World Cup fixtures",
+                    "body": "Tomorrow's fixture list is available from FIFA.",
+                    "confidence": "medium",
+                    "citedRefIds": ["web:search:1"],
+                }
+            ),
+        )
+    )
+    web_search = _WebSearchProvider(
+        WebSearchResponse(
+            provider="fake",
+            query="明天世界杯有哪些比赛",
+            retrieved_at=datetime.now(UTC),
+            results=(
+                WebSearchResult(
+                    title="FIFA match centre",
+                    url="https://www.fifa.com/match-centre",
+                    snippet="Tomorrow's FIFA World Cup fixtures are listed here.",
+                    source="fake",
+                ),
+            ),
+        )
+    )
+    provider = GuardedLLMReadOnlyInquiryAnswerProvider(
+        llm,
+        web_search_provider=web_search,
+    )
+
+    result = provider.answer(
+        request=_request(question="明天世界杯有哪些比赛"),
+        baseline_answer=_baseline(),
+        evidence_refs=(_task_evidence(),),
+    )
+
+    assert result.status == "answered"
+    assert result.answer is not None
+    assert result.answer.title == "World Cup fixtures"
+    assert result.evidence_refs[-1].kind == "web_search_result"
+    assert result.evidence_refs[-1].ref_id == "web:search:1"
+    assert web_search.calls == [WebSearchRequest(query="明天世界杯有哪些比赛", max_results=5)]
+    assert len(llm.calls) == 2
+    second_prompt = llm.calls[1]["messages"][1]["content"]
+    assert "External web search evidence" in second_prompt
+    assert "FIFA match centre" in second_prompt
+    assert "https://www.fifa.com/match-centre" in second_prompt
+
+
+def test_guarded_llm_provider_wraps_plain_text_answer_after_web_search() -> None:
+    plain_answer = "根据当前时间2026年6月20日，下周世界杯比赛包括若干小组赛。"
+    llm = _SequencedLLM(
+        (
+            json.dumps(
+                {
+                    "status": "unsupported",
+                    "citedRefIds": ["task:task-1:status"],
+                }
+            ),
+            plain_answer,
+        )
+    )
+    web_search = _WebSearchProvider(
+        WebSearchResponse(
+            provider="fake",
+            query="下周世界杯有哪些比赛",
+            retrieved_at=datetime.now(UTC),
+            results=(
+                WebSearchResult(
+                    title="FIFA fixtures",
+                    url="https://www.fifa.com/match-centre",
+                    snippet="Fixtures for the requested week.",
+                    source="fake",
+                ),
+            ),
+        )
+    )
+    provider = GuardedLLMReadOnlyInquiryAnswerProvider(
+        llm,
+        web_search_provider=web_search,
+    )
+
+    result = provider.answer(
+        request=_request(question="下周世界杯有哪些比赛"),
+        baseline_answer=_baseline(),
+        evidence_refs=(_task_evidence(),),
+    )
+
+    assert result.status == "answered"
+    assert result.answer is not None
+    assert result.answer.body == plain_answer
+    assert result.answer.confidence == "medium"
+    assert result.evidence_refs[-1].kind == "web_search_result"
+
+
+def test_guarded_llm_provider_rejects_mutating_plain_text_answer() -> None:
+    llm = _LLM("I will run a shell command to answer this.")
+    provider = GuardedLLMReadOnlyInquiryAnswerProvider(llm)
+    baseline = _baseline()
+
+    result = provider.answer(
+        request=_request(),
+        baseline_answer=baseline,
+        evidence_refs=(_web_search_evidence(),),
+    )
+
+    assert result.status == "answered"
+    assert result.answer == baseline
+    assert result.warnings[-1].code == "inquiry.no_mutation_boundary"
+
+
 def test_guarded_llm_provider_writes_split_agent_logs(tmp_path: Path) -> None:
     configure_session_logging(tmp_path / "logs", session_id="session-1")
     llm = _LLM(
@@ -189,6 +358,37 @@ class _LLM:
         )
 
 
+@dataclass
+class _SequencedLLM:
+    contents: tuple[str, ...]
+    calls: list[dict[str, Any]] = field(default_factory=list)
+
+    def chat(
+        self,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]] | None = None,
+        **kwargs: Any,
+    ) -> ChatResponse:
+        self.calls.append({"messages": messages, "tools": tools, "kwargs": kwargs})
+        content = self.contents[min(len(self.calls) - 1, len(self.contents) - 1)]
+        return ChatResponse(
+            content=content,
+            tool_calls=[],
+            raw_assistant_message={},
+        )
+
+
+@dataclass
+class _WebSearchProvider:
+    response: WebSearchResponse
+    provider: str = "fake"
+    calls: list[WebSearchRequest] = field(default_factory=list)
+
+    def search(self, request: WebSearchRequest) -> WebSearchResponse:
+        self.calls.append(request)
+        return self.response
+
+
 def _request(question: str = "What happened?") -> ReadOnlyInquiryRequest:
     return ReadOnlyInquiryRequest(
         inquiry_id="inq-1",
@@ -215,6 +415,14 @@ def _task_evidence() -> ReadOnlyInquiryEvidenceRef:
         kind="task_status",
         ref_id="task:task-1:status",
         label="Task 1",
+    )
+
+
+def _web_search_evidence() -> ReadOnlyInquiryEvidenceRef:
+    return ReadOnlyInquiryEvidenceRef(
+        kind="web_search_result",
+        ref_id="web:search:1",
+        label="FIFA fixtures - https://www.fifa.com/match-centre",
     )
 
 
