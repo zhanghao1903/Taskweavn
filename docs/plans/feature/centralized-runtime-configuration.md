@@ -5,7 +5,7 @@
 > Last Updated: 2026-06-24
 > Owner/Session: computer-use hardening discussion
 > Target Implementation Session: runtime-config read-only diagnostics slice complete
-> Related Docs: [Configuration Guide](../../configuration.md), [Settings, Logs, And Audit Boundary](../../product/plato-settings-logs-audit-boundary.md), [Configurable Logging System](configurable-logging-system.md), [LLM Provider Plan](llm-provider-retry-thinking.md), [Execution Plane Service Task API](execution-plane-service-task-api.md), [Context Manager 1.0](context-manager-1-0.md), [Skill Governance](product-1-1-skill-governance.md)
+> Related Docs: [Configuration Guide](../../configuration.md), [Settings, Logs, And Audit Boundary](../../product/plato-settings-logs-audit-boundary.md), [Runtime Config Change Store](../../engineering/runtime-config-change-store.md), [Configurable Logging System](configurable-logging-system.md), [LLM Provider Plan](llm-provider-retry-thinking.md), [Execution Plane Service Task API](execution-plane-service-task-api.md), [Context Manager 1.0](context-manager-1-0.md), [Skill Governance](product-1-1-skill-governance.md)
 
 ---
 
@@ -690,11 +690,26 @@ explicitly authorizes runtime behavior changes.
 
 ### C5: Config Change Store
 
-Status: deferred.
+Status: design accepted; implementation deferred.
 
-- Add durable `ConfigChange` and `EffectiveRuntimeConfig` snapshot storage.
-- Record accepted and rejected patches.
-- Scope by global/workspace/session/task.
+The C5 contract is defined in
+[Runtime Config Change Store](../../engineering/runtime-config-change-store.md).
+
+Required implementation slices:
+
+- C5.1 Contract Models: additive patch/change/snapshot models and validation
+  tests.
+- C5.2 SQLite Store: durable change ledger and effective config snapshot
+  storage.
+- C5.3 Mutation Service: validate patches, normalize values, resolve base and
+  candidate effective configs, and persist accepted/rejected/no-op records.
+- C5.4 Read Gateway Extension: expose change/snapshot queries without changing
+  existing read-only schema/effective/explain behavior.
+- C5.5 HTTP Write API Design Gate: design patch/list routes only after the
+  backend store and mutation service are proven.
+
+C5 remains backend/control-plane work. It must not add Settings UI, live
+ConfigBus application, or app-specific automation behavior.
 
 ### C6: Runtime Patches And ConfigBus
 
@@ -771,10 +786,10 @@ Status: deferred.
 ## 19. Recommended Next Task
 
 C4 is now closed for the read-only, behavior-preserving runtime constructor
-and trace metadata path. The next implementation should move to C5 only if
-Product 1.0/1.1 needs editable or persisted config changes. Otherwise, keep
-using the read-only effective config snapshot for diagnostics and runtime
-assembly.
+and trace metadata path. C5 now has a concrete backend/control-plane contract,
+but implementation should still proceed only if Product 1.0/1.1 needs editable
+or persisted config changes. Otherwise, keep using the read-only effective
+config snapshot for diagnostics and runtime assembly.
 
 Recommended next task if config mutation becomes necessary:
 
@@ -784,14 +799,17 @@ Use the maintainability-gate skill if touching Main Page sidecar assembly,
 settings persistence, or large server modules.
 
 Task:
-Design C5 Config Change Store for centralized runtime configuration.
+Implement C5.1 Runtime Config Change Store contract models.
 
 Scope:
-- Define durable config change records, accepted/rejected patch semantics,
-  scope boundaries, mutability boundaries, and snapshot storage.
-- Keep secrets out of ordinary config diffs.
-- Preserve read-only effective config behavior until mutation semantics and
-  audit/diagnostics disclosure rules are accepted.
+- Add additive `RuntimeConfigPatch`, `RuntimeConfigActor`,
+  `RuntimeConfigChange`, `RuntimeConfigRejection`, and
+  `RuntimeConfigSnapshotRecord` models following
+  docs/engineering/runtime-config-change-store.md.
+- Add focused model validation tests for scope requirements, redaction,
+  rejection payloads, and no-op/accepted/rejected statuses.
+- Do not add SQLite storage, HTTP write routes, Settings UI, or ConfigBus in
+  this slice.
 
 Do not:
 - Add Settings UI.
@@ -801,9 +819,9 @@ Do not:
 
 Output:
 - Workflow Gate Report
-- C5 config store plan/design
-- proposed storage model
-- mutation validation rules
+- files changed
+- models added
 - tests required
+- checks run
 - remaining C6/C7 blockers
 ```
