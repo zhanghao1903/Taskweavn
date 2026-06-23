@@ -25,7 +25,11 @@ from taskweavn.core.loop import (
     LoopError,
     LoopInterruptIntent,
 )
-from taskweavn.interaction import InMemoryAskStore
+from taskweavn.interaction import (
+    InMemoryAskStore,
+    InProcessMessageBus,
+    SqliteMessageStream,
+)
 from taskweavn.llm.client import ChatResponse, ToolCall
 from taskweavn.observability import configure_session_logging
 from taskweavn.runtime import LocalRuntime
@@ -33,6 +37,7 @@ from taskweavn.task import InMemoryTaskBus, TaskDomain
 from taskweavn.tools import (
     AskUserTool,
     ReadFileTool,
+    RequestConfirmationTool,
     Workspace,
     WriteFileTool,
 )
@@ -232,6 +237,68 @@ def test_loop_stops_when_ask_user_blocks_current_task() -> None:
     assert len(asks) == 1
     assert waiting_task.waiting_for_ask_id == asks[0].ask_id
     assert asks[0].suggested_options[0].label == "Vercel"
+
+
+def test_loop_stops_when_confirmation_blocks_current_task(tmp_path: Path) -> None:
+    task = TaskDomain(
+        task_id="task-1",
+        session_id="session-1",
+        root_id="task-1",
+        intent="Send a message.",
+        required_capability="general",
+        created_by="tester",
+    )
+    task_bus = InMemoryTaskBus([task])
+    claimed = task_bus.claim_next(
+        "session-1",
+        capability="general",
+        agent_id="default_agent",
+    )
+    assert claimed is not None
+    message_stream = SqliteMessageStream(tmp_path / "messages.sqlite")
+    message_bus = InProcessMessageBus(message_stream)
+    runtime = LocalRuntime()
+    tool = RequestConfirmationTool(
+        message_bus=message_bus,
+        task_bus=task_bus,
+        session_id="session-1",
+        task_id="task-1",
+    )
+    tool.register(runtime)
+    llm = StubLLM(
+        [
+            _tool_call_response(
+                "request_confirmation",
+                {
+                    "title": "Send WeChat message?",
+                    "body": "Send hello to the selected contact.",
+                    "risk_label": "external message",
+                },
+                call_id="confirmation-call-1",
+            )
+        ]
+    )
+    loop = AgentLoop(
+        llm=llm,  # type: ignore[arg-type]
+        runtime=runtime,
+        tools=[tool],
+        session_id="session-1",
+    )
+
+    result = loop.run("Send the message.", task_id="task-1")
+
+    waiting_task = task_bus.get("session-1", "task-1")
+    messages = list(message_stream.list_for_session("session-1"))
+    assert result.finished is False
+    assert result.stop_reason == "waiting_for_user"
+    assert waiting_task is not None
+    assert waiting_task.status == "waiting_for_user"
+    assert len(messages) == 1
+    confirmation = messages[0]
+    assert confirmation.message_type == "actionable"
+    assert confirmation.action_options == ["confirm", "reject"]
+    assert waiting_task.waiting_for_confirmation_id == confirmation.message_id
+    assert waiting_task.waiting_for_ask_id is None
 
 
 def test_loop_persists_batched_ask_user_questions() -> None:

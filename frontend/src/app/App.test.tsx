@@ -262,7 +262,7 @@ describe("App", () => {
 
   it("renders confirmation and file-change fixture states when explicitly requested", async () => {
     const confirmationView = renderFixtureMainPageWithStatePicker("s7-confirmation");
-    expect(await screen.findByText("Confirm baseline")).toBeInTheDocument();
+    expect(await screen.findAllByText("Confirm baseline")).not.toHaveLength(0);
 
     confirmationView.unmount();
     renderFixtureMainPageWithStatePicker("s9-file-changes");
@@ -392,8 +392,8 @@ describe("App", () => {
     await user.click(screen.getByRole("button", { name: "Resolve decision" }));
 
     expect(
-      await screen.findByText("Confirmation failed. Please retry."),
-    ).toBeInTheDocument();
+      await screen.findAllByText("Confirmation failed. Please retry."),
+    ).not.toHaveLength(0);
     expect(screen.getByText("Decision needed")).toBeInTheDocument();
   });
 

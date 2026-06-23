@@ -1,0 +1,160 @@
+# Local macOS WeChat Send Playbook
+
+> Status: Accepted local smoke playbook
+>
+> Last Updated: 2026-06-22
+>
+> Related:
+> [Local macOS WeChat Send MVP](local-macos-wechat-send-mvp.md),
+> [technical design](local-macos-wechat-send-mvp-technical-design.zh-CN.md),
+> [Remote WeChat Message Task PRD](../../product/remote-wechat-message-task-prd.md)
+
+---
+
+## 1. Scope
+
+This playbook runs the local macOS WeChat send MVP through Plato's local
+Execution Plane path:
+
+```text
+local sidecar -> Task API -> WeChatSendRuntimeHandler
+  -> macOS computer-use adapter -> WeChat Desktop adapter
+  -> draft -> confirmation -> keyboard Return submit
+  -> result/evidence -> same-key terminal replay
+```
+
+It is only for controlled local smoke testing. It is not a bulk messaging,
+remote ExecutionEnv, LAN API, Windows, or production contact-management
+workflow.
+
+## 2. Preconditions
+
+- macOS Accessibility is granted to the Python/Terminal runtime that starts the
+  sidecar.
+- WeChat Desktop is installed, logged in, unlocked, and available on the local
+  machine.
+- The test contact is controlled. The default smoke contact is `文件传输助手`.
+- The message is non-sensitive and unique per real send attempt.
+- Screenshot evidence remains disabled unless a separate redaction plan exists.
+
+## 3. Start The Sidecar
+
+Use a Python environment that can import the local `macos-computer-use` package:
+
+```bash
+uv run taskweavn plato-sidecar \
+  --workspace ./plato-workspace \
+  --port 0 \
+  --computer-use-backend macos \
+  --computer-use-allowed-apps WeChat
+```
+
+Record the printed local base URL.
+
+## 4. Preflight
+
+Run preflight before any real WeChat task:
+
+```bash
+uv run python scripts/manual_wechat_send_smoke.py \
+  --base-url http://127.0.0.1:<sidecar-port> \
+  --preflight-only \
+  --evidence-output /tmp/plato-wechat-preflight-<run>.json
+```
+
+Required result:
+
+- `sidecarOk=true`
+- `computerUseStatus="ok"`
+- `packageReadinessStatus="ready"`
+- `accessibilityTrusted=true`
+- `ready=true`
+
+If preflight is not ready, do not run a send smoke.
+
+## 5. Controlled Confirm/Send Once
+
+Create or select a smoke session, then run one fresh idempotency key:
+
+```bash
+uv run python scripts/manual_wechat_send_smoke.py \
+  --base-url http://127.0.0.1:<sidecar-port> \
+  --session-id <session-id> \
+  --contact 文件传输助手 \
+  --message "Plato local WeChat smoke test <unique-run-id>" \
+  --idempotency-key <fresh-key> \
+  --response confirm \
+  --allow-send \
+  --timeout-seconds 90 \
+  --poll-seconds 0.5 \
+  --evidence-output /tmp/plato-wechat-confirm-smoke-<run>.json
+```
+
+The smoke is accepted only if all are true:
+
+- `finalStatus=done`
+- `resultKind=wechat_send_result`
+- `errorCode=null`
+- `terminalReplayStatus=done`
+- `terminalReplaySameExecution=true`
+- result query returns `sendBoundaryStatus=sent`
+- evidence query includes `WeChat send observation` with:
+  - `phase=keyboard_submit`
+  - `send_method=keyboard_return`
+  - `send_attempted=true`
+  - `confirmation_required=true`
+  - `confirmed_by_user=true`
+
+## 6. Validated Smoke Record
+
+Validated on 2026-06-22:
+
+- contact: `文件传输助手`
+- idempotency key:
+  `manual-wechat-smoke-20260622-keyboard-submit-e05a-03`
+- execution id: `exec_c47432a39d1b5a0da94d15d16dd1827e`
+- confirmation id: `217fddb7310f47b4968f852734457e64`
+- result: `wechat_send_result`
+- send boundary: `sent`
+- replay: same execution, same `done` terminal status
+
+## 7. Implementation Invariants
+
+- Clear existing input before typing a fresh draft.
+- Do not click the WeChat send button in the accepted MVP path.
+- Final submit uses keyboard Return after confirmation.
+- Unknown submit failures are manual-review states and must not be retried
+  automatically.
+- Do not store raw unrelated WeChat chat history.
+- Use a fresh idempotency key for every new real send attempt.
+
+## 8. Failure Handling
+
+| Failure | Meaning | Rule |
+|---|---|---|
+| preflight not ready | Runtime or permissions unavailable. | Fix setup before any task. |
+| contact resolution failed | Controlled contact was not selected. | Open WeChat main window and rerun reject/no-send first. |
+| draft failed | Input was not safely written. | Do not confirm; inspect evidence. |
+| `wechat_send_unknown` | Send boundary may have side effects. | No automatic retry; manual review only. |
+| terminal replay differs | Idempotency is broken. | Stop; fix boundary before another send. |
+
+## 9. Focused Checks
+
+Run after changing this path:
+
+```bash
+uv run ruff check \
+  src/taskweavn/integrations/wechat_desktop/macos_driver.py \
+  tests/test_wechat_macos_driver.py
+
+uv run mypy \
+  src/taskweavn/integrations/wechat_desktop/macos_driver.py \
+  tests/test_wechat_macos_driver.py
+
+uv run pytest \
+  tests/test_wechat_macos_driver.py \
+  tests/test_wechat_desktop_adapter.py \
+  tests/test_wechat_send_execution.py \
+  tests/test_wechat_send_runtime.py \
+  tests/test_manual_wechat_send_smoke_script.py
+```

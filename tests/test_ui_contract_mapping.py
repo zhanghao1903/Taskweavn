@@ -200,6 +200,45 @@ def test_map_task_node_with_pending_confirmation_becomes_waiting_user() -> None:
     assert mapped_confirmation.risk_label == "risk=0.50"
 
 
+def test_map_confirmation_options_marks_rejection_as_danger() -> None:
+    confirm = ConfirmationOptionView(
+        option_id="confirm-option",
+        label="Confirm",
+        value="confirm",
+        is_default=True,
+    )
+    reject = ConfirmationOptionView(
+        option_id="reject-option",
+        label="Reject",
+        value="reject",
+    )
+    session_approval = ConfirmationOptionView(
+        option_id="approve-session-option",
+        label="Approve session",
+        value="approve_session",
+    )
+    confirmation = ConfirmationActionView(
+        confirmation_id="confirmation-1",
+        task_ref=TaskRef.published("root"),
+        prompt="Proceed?",
+        options=(confirm, reject, session_approval),
+        default_option_id="confirm-option",
+    )
+
+    mapped = map_confirmation_action_view(confirmation, session_id="session-1")
+
+    assert [option.label for option in mapped.options] == [
+        "Confirm",
+        "Reject",
+        "Approve session",
+    ]
+    assert [option.tone for option in mapped.options] == [
+        "primary",
+        "danger",
+        "secondary",
+    ]
+
+
 def test_map_session_message_types_to_contract_kinds() -> None:
     user_message = SessionMessageView(
         message_id="message-1",

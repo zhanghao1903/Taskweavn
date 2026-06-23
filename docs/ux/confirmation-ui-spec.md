@@ -1,7 +1,7 @@
 # Confirmation UI Spec: Detail Panel Authorization
 
 > Status: draft UI spec
-> Last Updated: 2026-06-04
+> Last Updated: 2026-06-19
 > Scope: Product 1.0 confirmation placement, component structure, state table,
 > and Main Page projection rules.
 > Related: `docs/plans/feature/message-ask-confirmation-backend.md`,
@@ -41,6 +41,12 @@ domain copy, commands, lifecycle, and audit meaning.
 7. Confirmation options are text-only.
 8. Command accepted is not final UI truth. Final state follows snapshot, event,
    or query projection.
+9. Runtime blocking confirmations may also render in a compact pending dock
+   above the context input so the user does not need to hunt for the selected
+   TaskNode while execution is paused.
+10. `approve_session` is a visible decision option when supplied by backend,
+    but Product 1.0 records it only as a response value. It does not silently
+    bypass future confirmations.
 
 ## 3. Placement Model
 
@@ -64,6 +70,9 @@ MainPage
           ConfirmationOptionGroup
           ConfirmationActionFooter
         ConfirmationAuditHint
+    PendingConfirmationDock
+      ConfirmationPromptSummary
+      ConfirmationOptionButtons
     ContextInputBar
       task guidance mode or disabled while resolve command submits
 ```
@@ -84,6 +93,7 @@ a concrete task/action. The Main Work Area stays available for task context.
 | `ConfirmationAuditHint` | Passive hint that confirmation and response are auditable. | audit link when available. |
 | `ConfirmationNeededBadge` | TaskTree signal only. | count or pending marker. |
 | `ConfirmationHistoryEntry` | MessageStream history entry and jump link. | pending/resolved/expired display state. |
+| `PendingConfirmationDock` | Compact global pending-confirmation surface above context input. | pending count, prompt summary, quick decision buttons. |
 
 ## 5. Shared UI Primitives
 
@@ -160,6 +170,10 @@ Rules:
    targeted query before rendering the confirmation as resolved.
 6. Duplicate non-idempotent resolve attempts must remain disabled while a
    resolve command is in flight.
+7. If the selected option value is `approve_session`, the UI label should read
+   "Approve session" and the action must still call the same concrete
+   confirmation response route. It must not imply future confirmations will be
+   auto-approved unless a later session approval policy is implemented.
 
 ## 9. Projection Requirements
 

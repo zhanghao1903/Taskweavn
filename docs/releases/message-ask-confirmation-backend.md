@@ -23,6 +23,11 @@ Default Agent call receives answered ASK facts through Context Manager.
 Frontend ASK Dock and confirmation UI integration remain separate follow-up
 work.
 
+Update 2026-06-19: execution-time confirmations can now use the same
+`waiting_for_user` Task lifecycle as ASK. The confirmation remains an
+actionable MessageStream object, but the owning published Task carries
+`waiting_for_confirmation_id` until the user resolves it.
+
 ---
 
 ## 2. Release Scope
@@ -33,6 +38,10 @@ work.
 - Duplicate non-idempotent resolve attempts are rejected.
 - Idempotent replay returns the accepted prior command result.
 - ASK terminology is kept separate from confirmation terminology.
+- Added `request_confirmation` as an execution Agent tool for known
+  authorization decisions.
+- Resolving a matching published-task confirmation resumes the waiting Task
+  back to `pending` for fixed-route redispatch.
 
 ### 2.2 Durable ASK Domain
 
@@ -46,8 +55,11 @@ work.
 - Added `waiting_for_user` as a published Task execution state.
 - Added active ASK linkage through `waiting_for_ask_id` and
   `waiting_for_user_since`.
+- Added active confirmation linkage through `waiting_for_confirmation_id`.
 - `claim_next` ignores waiting Tasks.
 - `resume_after_user(...)` moves a matching waiting Task back to `pending`.
+- `resume_after_confirmation(...)` moves a matching confirmation-waiting Task
+  back to `pending`.
 - `fail(...)` can terminally fail a waiting Task.
 
 ### 2.4 ASK Commands, Queries, And Projection

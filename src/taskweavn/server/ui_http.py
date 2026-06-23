@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Protocol
 
+from taskweavn.execution_plane import TaskApiService
 from taskweavn.observability.main_page_trace import main_page_trace
 from taskweavn.server.client_logs import ClientErrorLogSink
 from taskweavn.server.diagnostics_export import (
@@ -43,6 +44,7 @@ from taskweavn.server.ui_http_commands import (
     _publish_task_tree_with_optional_dispatch,
     _retry_task_with_optional_dispatch,
 )
+from taskweavn.server.ui_http_execution_plane import _execution_plane_response
 from taskweavn.server.ui_http_inspection import (
     WorkspaceInspectionGateway,
     _workspace_inspection_response,
@@ -143,6 +145,7 @@ class PlatoUiHttpTransport:
         workspace_inspection_gateway: WorkspaceInspectionGateway | None = None,
         token_usage_gateway: TokenUsageSummaryGateway | None = None,
         runtime_input_router: RuntimeInputRouter | None = None,
+        execution_plane_service: TaskApiService | None = None,
     ) -> None:
         self._query_gateway = query_gateway
         self._command_gateway = command_gateway
@@ -159,6 +162,7 @@ class PlatoUiHttpTransport:
         self._workspace_inspection_gateway = workspace_inspection_gateway
         self._token_usage_gateway = token_usage_gateway
         self._runtime_input_router = runtime_input_router
+        self._execution_plane_service = execution_plane_service
 
     def handle(self, request: HttpApiRequest) -> HttpApiResponse:
         route = _match_route(request.path)
@@ -242,6 +246,8 @@ class PlatoUiHttpTransport:
                             "token_usage_summary_url_template": (
                                 "/api/v1/usage/token-summary?dimension={dimension}"
                             ),
+                            "task_api_url": "/api/v1/tasks",
+                            "task_api_url_template": "/api/v1/tasks/{executionId}",
                         },
                         "error": None,
                     }
@@ -287,6 +293,15 @@ class PlatoUiHttpTransport:
                     request,
                     route_name=route_name,
                     gateway=self._workspace_inspection_gateway,
+                )
+            if route_name.startswith("execution_plane_"):
+                return _execution_plane_response(
+                    request,
+                    route_name=route_name,
+                    execution_id=route.execution_id,
+                    workspace_id=route.workspace_id,
+                    service=self._execution_plane_service,
+                    execution_trigger_gateway=self._execution_trigger_gateway,
                 )
             if route_name == "diagnostics_export":
                 if self._diagnostic_export_gateway is None:

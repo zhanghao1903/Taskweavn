@@ -1,0 +1,4 @@
+interface:
+  display_name: "Local WeChat Send Smoke"
+  short_description: "Run and diagnose the local macOS WeChat send smoke safely."
+  default_prompt: "Run the Local macOS WeChat Send MVP smoke with preflight, confirmation gating, fresh idempotency, and evidence review."

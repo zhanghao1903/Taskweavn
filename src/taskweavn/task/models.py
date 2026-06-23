@@ -89,6 +89,7 @@ class TaskDomain(_FrozenModel):
     error_ref: str | None = Field(default=None, min_length=1)
     claimed_by: str | None = Field(default=None, min_length=1)
     waiting_for_ask_id: str | None = Field(default=None, min_length=1)
+    waiting_for_confirmation_id: str | None = Field(default=None, min_length=1)
     waiting_for_user_since: datetime | None = None
     interrupt_requested: bool = False
     interrupt_request_id: str | None = Field(default=None, min_length=1)
@@ -110,11 +111,24 @@ class TaskDomain(_FrozenModel):
     @model_validator(mode="after")
     def _validate_waiting_for_user_linkage(self) -> TaskDomain:
         if self.status == "waiting_for_user":
-            if self.waiting_for_ask_id is None:
-                raise ValueError("waiting_for_user task requires waiting_for_ask_id")
+            active_links = [
+                self.waiting_for_ask_id is not None,
+                self.waiting_for_confirmation_id is not None,
+            ]
+            if active_links.count(True) != 1:
+                raise ValueError(
+                    "waiting_for_user task requires exactly one active ASK or "
+                    "confirmation linkage"
+                )
             return self
-        if self.waiting_for_ask_id is not None or self.waiting_for_user_since is not None:
-            raise ValueError("non-waiting task must not carry active ASK linkage")
+        if (
+            self.waiting_for_ask_id is not None
+            or self.waiting_for_confirmation_id is not None
+            or self.waiting_for_user_since is not None
+        ):
+            raise ValueError(
+                "non-waiting task must not carry active user-wait linkage"
+            )
         return self
 
 

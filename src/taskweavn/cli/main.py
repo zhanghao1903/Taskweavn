@@ -53,6 +53,10 @@ from taskweavn.server import (
     WorkspaceRegistryEntry,
     build_main_page_sidecar_app,
 )
+from taskweavn.server.computer_use_runtime import (
+    ComputerUseRuntimeSelection,
+    build_computer_use_runtime,
+)
 from taskweavn.server.settings_config import file_settings_config_store_for
 from taskweavn.tools.base import Tool
 from taskweavn.tools.code_action_tool import CodeActionTool
@@ -159,10 +163,50 @@ def plato_sidecar(
             ),
         ),
     ] = True,
+    computer_use_backend: Annotated[
+        str,
+        typer.Option(
+            "--computer-use-backend",
+            envvar="PLATO_COMPUTER_USE_BACKEND",
+            help=(
+                "Optional computer-use backend for execution tools. "
+                "Valid values: disabled, macos."
+            ),
+        ),
+    ] = "disabled",
+    computer_use_allowed_apps: Annotated[
+        str | None,
+        typer.Option(
+            "--computer-use-allowed-apps",
+            envvar="PLATO_COMPUTER_USE_ALLOWED_APPS",
+            help=(
+                "Comma-separated macOS app allowlist for computer-use, "
+                "for example: WeChat,TextEdit."
+            ),
+        ),
+    ] = None,
 ) -> None:
     """Start the local Plato Main Page backend sidecar."""
 
     workspace_registry = _parse_workspace_registry_json(workspace_registry_json)
+    computer_use_runtime = _build_cli_computer_use_runtime(
+        backend_name=computer_use_backend,
+        allowed_apps=computer_use_allowed_apps,
+    )
+    dependencies = (
+        MainPageSidecarDependencies(
+            llm_factory=_settings_backed_llm_factory(
+                default_model="deepseek-v4-pro",
+                global_settings_root=global_settings_root,
+            ),
+            computer_use_backend=computer_use_runtime.backend,
+        )
+        if model is None
+        else MainPageSidecarDependencies(
+            llm=LLMClient(model=model),
+            computer_use_backend=computer_use_runtime.backend,
+        )
+    )
     sidecar = build_main_page_sidecar_app(
         MainPageSidecarConfig(
             workspace_root=workspace,
@@ -171,17 +215,9 @@ def plato_sidecar(
             workspace_registry=workspace_registry,
             global_settings_root=global_settings_root,
             enable_read_only_inquiry_llm=enable_read_only_inquiry_llm,
+            enable_computer_use_tool=computer_use_runtime.enabled,
         ),
-        (
-            MainPageSidecarDependencies(
-                llm_factory=_settings_backed_llm_factory(
-                    default_model="deepseek-v4-pro",
-                    global_settings_root=global_settings_root,
-                )
-            )
-            if model is None
-            else MainPageSidecarDependencies(llm=LLMClient(model=model))
-        ),
+        dependencies,
     )
     try:
         sidecar.start_in_thread()
@@ -312,6 +348,28 @@ def plato_dev(
             ),
         ),
     ] = True,
+    computer_use_backend: Annotated[
+        str,
+        typer.Option(
+            "--computer-use-backend",
+            envvar="PLATO_COMPUTER_USE_BACKEND",
+            help=(
+                "Optional computer-use backend for execution tools. "
+                "Valid values: disabled, macos."
+            ),
+        ),
+    ] = "disabled",
+    computer_use_allowed_apps: Annotated[
+        str | None,
+        typer.Option(
+            "--computer-use-allowed-apps",
+            envvar="PLATO_COMPUTER_USE_ALLOWED_APPS",
+            help=(
+                "Comma-separated macOS app allowlist for computer-use, "
+                "for example: WeChat,TextEdit."
+            ),
+        ),
+    ] = None,
 ) -> None:
     """Start Plato backend sidecar and frontend dev server together."""
 
@@ -327,14 +385,22 @@ def plato_dev(
         raise typer.Exit(code=1)
 
     llm = LLMClient.from_env() if model is None else LLMClient(model=model)
+    computer_use_runtime = _build_cli_computer_use_runtime(
+        backend_name=computer_use_backend,
+        allowed_apps=computer_use_allowed_apps,
+    )
     sidecar = build_main_page_sidecar_app(
         MainPageSidecarConfig(
             workspace_root=workspace,
             host=sidecar_host,
             port=sidecar_port,
             enable_read_only_inquiry_llm=enable_read_only_inquiry_llm,
+            enable_computer_use_tool=computer_use_runtime.enabled,
         ),
-        MainPageSidecarDependencies(llm=llm),
+        MainPageSidecarDependencies(
+            llm=llm,
+            computer_use_backend=computer_use_runtime.backend,
+        ),
     )
     frontend_process: subprocess.Popen[str] | None = None
     try:
@@ -854,6 +920,23 @@ def _plato_sidecar_env_lines(*, base_url: str) -> tuple[str, ...]:
         "VITE_PLATO_API_MODE=http",
         f"VITE_PLATO_API_BASE_URL={base_url}",
     )
+
+
+def _build_cli_computer_use_runtime(
+    *,
+    backend_name: str,
+    allowed_apps: str | None,
+) -> ComputerUseRuntimeSelection:
+    try:
+        return build_computer_use_runtime(
+            backend_name=backend_name,
+            allowed_apps=allowed_apps,
+        )
+    except ValueError as exc:
+        raise typer.BadParameter(
+            str(exc),
+            param_hint="--computer-use-backend",
+        ) from exc
 
 
 def _plato_frontend_env(*, base_url: str) -> dict[str, str]:

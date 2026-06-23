@@ -2,7 +2,7 @@
 
 > Status: done / accepted
 > Type: Product 1.0 interaction backend closure
-> Last Updated: 2026-06-05
+> Last Updated: 2026-06-19
 > Decisions: [ADR-0014 Interaction Control Taxonomy For Product 1.0](../../decisions/ADR-0014-interaction-control-taxonomy-for-product-1-0.md)
 > Architecture: [Interaction Layer](../../architecture/interaction-layer.md), [UI / Backend Communication](../../architecture/ui-backend-communication.md), [Task](../../architecture/task.md), [TaskBus](../../architecture/bus.md), [Context Manager](../../architecture/context-manager.md)
 > Related Contracts: [ASK Lifecycle Contract](../../engineering/ask-lifecycle-contract.md), [ASK User Interaction](../../interaction-model/ask-user-interaction.md), [Confirmation UI Spec](../../ux/confirmation-ui-spec.md), [ASK And Confirmation Frontend Integration](ask-confirmation-frontend-integration.md), [UI API Interfaces](../ui/ui-api-interfaces.md), [UI ViewModel Contract](../../frontend/ui-viewmodel-contract.md)
@@ -276,30 +276,64 @@ Deliver:
   - `running -> waiting_for_user`;
   - `waiting_for_user -> pending` for Product 1.0 fixed-route redispatch;
   - `waiting_for_user -> failed`;
-- retry clears active ASK linkage according to backend policy;
+- retry clears active ASK/confirmation linkage according to backend policy;
 - projection maps `waiting_for_user` distinctly from confirmation pending.
 
 Acceptance:
 
 - `claim_next` does not claim `waiting_for_user` tasks;
 - child tasks do not unlock until parent reaches `done`;
-- Main Page can distinguish execution waiting on ASK from confirmation pending;
+- Main Page can distinguish execution waiting on ASK, execution waiting on a
+  confirmation, and non-execution confirmation pending;
 - existing pending/running/done/failed behavior remains compatible.
 
 Implementation note:
 
-- `TaskDomain` now carries active ASK linkage with `waiting_for_ask_id` and
+- `TaskDomain` now carries one active user-wait linkage:
+  `waiting_for_ask_id` or `waiting_for_confirmation_id`, plus
   `waiting_for_user_since`.
 - `TaskBus.wait_for_user(...)` moves a running task into
   `waiting_for_user`.
 - `TaskBus.resume_after_user(...)` requires the same ASK id and returns the
   same task identity to unclaimed `pending` for Product 1.0 redispatch.
+- `TaskBus.wait_for_confirmation(...)` and
+  `TaskBus.resume_after_confirmation(...)` provide the same blocking/resume
+  lifecycle for confirmation/actionable messages.
 - The SQLite TaskBus continues to persist full `TaskDomain` facts in the JSON
   payload and mirrors the canonical status column for existing query paths; no
-  extra ASK index column is introduced in Product 1.0 C4.
+  extra ASK/confirmation index column is introduced in Product 1.0 C4.
 - UI contract mapping exposes node `status="waiting_user"` while preserving
-  `execution="waiting_for_user"`, so ASK waiting can be distinguished from
-  confirmation-pending running tasks.
+  `execution="waiting_for_user"`, so user-waiting execution can be
+  distinguished from non-execution confirmation-pending running tasks.
+
+### C4.1. Confirmation Runtime Blocking And Session Approval Decision
+
+Current status: implemented.
+
+Deliver:
+
+- `request_confirmation` execution tool for AgentLoop;
+- blocking confirmation creation through MessageBus and TaskBus;
+- Main Page pending confirmation dock above the context input;
+- confirmation options mapped to product-readable labels and tones;
+- optional `approve_session` decision value for user intent capture.
+
+Acceptance:
+
+- AgentLoop can create an actionable confirmation and stop with
+  `stop_reason="waiting_for_user"`;
+- the owning task records `waiting_for_confirmation_id`;
+- resolving the confirmation writes a response message and resumes the same
+  task back to `pending` for redispatch;
+- `approve_session` is displayed as "Approve session" and recorded as the
+  response value.
+
+Implementation note:
+
+- Product 1.0 treats `approve_session` as a recorded decision value, not as a
+  durable policy that automatically suppresses future confirmations. A future
+  session approval policy must define scope, expiry, action categories,
+  auditability, and revocation before any automatic bypass is allowed.
 
 ### C5. ASK Commands, Queries, And Snapshot Projection
 

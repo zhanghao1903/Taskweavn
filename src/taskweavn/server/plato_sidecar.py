@@ -45,6 +45,22 @@ def _parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
             "across workspaces."
         ),
     )
+    parser.add_argument(
+        "--computer-use-backend",
+        default=os.environ.get("PLATO_COMPUTER_USE_BACKEND", "disabled"),
+        help=(
+            "Optional computer-use backend for execution tools. "
+            "Valid values: disabled, macos."
+        ),
+    )
+    parser.add_argument(
+        "--computer-use-allowed-apps",
+        default=os.environ.get("PLATO_COMPUTER_USE_ALLOWED_APPS"),
+        help=(
+            "Comma-separated macOS app allowlist for computer-use, "
+            "for example: WeChat,TextEdit."
+        ),
+    )
     parser.set_defaults(
         enable_read_only_inquiry_llm=_env_bool(
             "PLATO_ENABLE_READ_ONLY_INQUIRY_LLM",
@@ -73,6 +89,7 @@ def _parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
 def _serve(args: argparse.Namespace) -> int:
     import_started_at = time.perf_counter()
     _mark_startup_timing("python_sidecar_import_begin")
+    from taskweavn.server.computer_use_runtime import build_computer_use_runtime
     from taskweavn.server.main_page import (
         MainPageSidecarConfig,
         MainPageSidecarDependencies,
@@ -92,6 +109,10 @@ def _serve(args: argparse.Namespace) -> int:
         "python_sidecar_build_begin",
         workspaceRegistryCount=len(workspace_registry),
     )
+    computer_use_runtime = build_computer_use_runtime(
+        backend_name=args.computer_use_backend,
+        allowed_apps=args.computer_use_allowed_apps,
+    )
     sidecar = build_main_page_sidecar_app(
         MainPageSidecarConfig(
             workspace_root=args.workspace,
@@ -100,8 +121,11 @@ def _serve(args: argparse.Namespace) -> int:
             workspace_registry=workspace_registry,
             global_settings_root=args.global_settings_root,
             enable_read_only_inquiry_llm=args.enable_read_only_inquiry_llm,
+            enable_computer_use_tool=computer_use_runtime.enabled,
         ),
-        MainPageSidecarDependencies(),
+        MainPageSidecarDependencies(
+            computer_use_backend=computer_use_runtime.backend,
+        ),
     )
     try:
         sidecar.start_in_thread()

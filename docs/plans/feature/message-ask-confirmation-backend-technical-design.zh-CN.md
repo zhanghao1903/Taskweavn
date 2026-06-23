@@ -2,7 +2,7 @@
 
 > 状态: done / accepted
 > 类型: Product 1.0 interaction backend technical design
-> Last Updated: 2026-06-05
+> Last Updated: 2026-06-19
 > Decisions: [ADR-0014 Interaction Control Taxonomy For Product 1.0](../../decisions/ADR-0014-interaction-control-taxonomy-for-product-1-0.md)
 > Feature Plan: [Message, ASK, And Confirmation Backend](message-ask-confirmation-backend.md)
 > Related: [ASK Lifecycle Contract](../../engineering/ask-lifecycle-contract.md), [ASK User Interaction](../../interaction-model/ask-user-interaction.md), [Task](../../architecture/task.md), [TaskBus](../../architecture/bus.md), [Context Manager](../../architecture/context-manager.md)
@@ -114,6 +114,39 @@ Product 1.0 规则：
 - ASK 已 answered 后，新的不同 command 试图再次回答，拒绝；
 - confirmation 已 resolved 后，新的不同 command 试图再次 resolve，拒绝；
 - 重复拒绝必须返回结构化 command rejection，前端据此 refresh。
+
+### 2.6 Confirmation runtime blocking 与会话级通过
+
+Product 1.0 新增 `request_confirmation` execution tool。它只用于“Agent
+已经知道要执行什么，但执行前需要用户授权”的场景，不用于缺失信息澄清。
+
+执行顺序：
+
+```text
+AgentLoop calls request_confirmation
+  -> MessageBus writes AgentMessage(actionable)
+  -> TaskBus.wait_for_confirmation(...)
+  -> AgentLoop returns stop_reason=waiting_for_user
+  -> Main Page shows pending confirmation
+  -> user responds confirm / reject / approve_session
+  -> MessageBus writes AgentMessage(response)
+  -> TaskBus.resume_after_confirmation(...)
+  -> fixed-route dispatcher can claim the same task again
+```
+
+`approve_session` 在 Product 1.0 只表示“用户本次选择了会话级通过”的记录型
+决策值。它会被写入 `AgentMessage.response_value` 并进入 audit/message
+history，但不会自动成为未来 confirmation 的跳过策略。
+
+原因：
+
+- 自动跳过需要定义 action scope、风险等级、过期时间、撤销、审计和多客户端
+  同步；
+- 当前 Task 执行仍由 Agent 主动决定是否调用 `request_confirmation`；
+- 过早加入隐式 approval policy 会扩大 1.0 闭环风险。
+
+后续若要实现真正的会话级免确认，应新增 `SessionApprovalStore` 或等价 policy
+store，并让高风险 tool 在执行前强制校验该策略，而不是仅依赖 LLM 自觉判断。
 
 ---
 
@@ -388,19 +421,21 @@ TaskStatus = Literal["pending", "running", "waiting_for_user", "done", "failed"]
 
 ### 6.2 TaskDomain 字段
 
-建议新增 active ASK linkage：
+建议新增 active user-wait linkage：
 
 ```python
 waiting_for_ask_id: str | None = None
+waiting_for_confirmation_id: str | None = None
 waiting_for_user_since: datetime | None = None
 ```
 
 约束：
 
-- `status == "waiting_for_user"` 时 `waiting_for_ask_id` 必须存在；
+- `status == "waiting_for_user"` 时必须且只能存在一个 active linkage：
+  `waiting_for_ask_id` 或 `waiting_for_confirmation_id`；
 - `status != "waiting_for_user"` 时 active linkage 应为空，除非后续决定保留
-  last answered ASK reference。Product 1.0 建议清空 active linkage，用 AskStore
-  查历史。
+  last answered ASK/confirmation reference。Product 1.0 建议清空 active
+  linkage，用 AskStore 或 MessageStream 查历史。
 
 ### 6.3 TaskBus API
 
@@ -422,6 +457,22 @@ def resume_after_user(
     *,
     ask_id: str,
 ) -> TaskDomain: ...
+
+def wait_for_confirmation(
+    self,
+    session_id: str,
+    task_id: str,
+    *,
+    confirmation_id: str,
+) -> TaskDomain: ...
+
+def resume_after_confirmation(
+    self,
+    session_id: str,
+    task_id: str,
+    *,
+    confirmation_id: str,
+) -> TaskDomain: ...
 ```
 
 状态规则：
@@ -435,13 +486,22 @@ waiting_for_user + resume_after_user(same ask_id)
   -> pending
   -> waiting_for_ask_id = null
 
+running + wait_for_confirmation(confirmation_id)
+  -> waiting_for_user
+  -> waiting_for_confirmation_id = confirmation_id
+
+waiting_for_user + resume_after_confirmation(same confirmation_id)
+  -> pending
+  -> waiting_for_confirmation_id = null
+
 waiting_for_user + fail(...)
   -> failed
 ```
 
-`resume_after_user` 不直接执行任务，只把 Task 从等待态变为可继续执行状态。
-Product 1.0 的 fixed-route executor 通过重新 claim 同一个 Task 身份继续推进，
-因此 resume 目标状态是 `pending`。dispatcher resume 是下一层行为。
+`resume_after_user` / `resume_after_confirmation` 不直接执行任务，只把 Task
+从等待态变为可继续执行状态。Product 1.0 的 fixed-route executor 通过重新
+claim 同一个 Task 身份继续推进，因此 resume 目标状态是 `pending`。
+dispatcher resume 是下一层行为。
 
 ### 6.4 claim_next
 

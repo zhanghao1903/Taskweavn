@@ -178,9 +178,12 @@ export type MainPageWorkAreaView =
     };
 
 export type MainPageViewModel = {
+  confirmationError: string | null;
   detail: MainPageDetailView;
   input: MainPageInputViewModel;
+  isResolvingConfirmation: boolean;
   mainWorkArea: MainPageWorkAreaView;
+  pendingConfirmations: ConfirmationActionView[];
   sessionId: string;
   sidebar: MainPageSidebarViewModel;
   taskWorkspace: MainPageTaskWorkspaceViewModel;
@@ -333,6 +336,7 @@ export function buildMainPageViewModel({
   });
 
   return {
+    confirmationError,
     detail: detailViewFor({
       activeConfirmation,
       activeExecutionAsk,
@@ -357,10 +361,14 @@ export function buildMainPageViewModel({
       wantsResultView,
     }),
     input,
+    isResolvingConfirmation,
     mainWorkArea:
       authoringAsk === null
         ? { kind: "taskWorkspace" }
         : { authoringAsk, kind: "authoringAsk" },
+    pendingConfirmations: snapshot.pendingConfirmations.filter(
+      (confirmation) => confirmation.status === "pending",
+    ),
     sessionId: snapshot.session.id,
     sidebar: {
       activeSession: snapshot.session,

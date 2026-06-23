@@ -727,9 +727,36 @@ def test_projection_aggregates_messages_confirmations_files_and_summary() -> Non
     assert card.badges.subtree_file_change_count == 1
     assert card.confirmation is not None
     assert card.confirmation.options[0].value == "yes"
+    assert card.confirmation.options[0].label == "Yes"
+    assert card.confirmation.options[1].label == "No"
     assert detail.messages[-1].message_type == "confirmation"
     assert detail.file_changes[0].from_subtree is True
     assert detail.result_summary is summary
+
+
+def test_projection_labels_session_approval_confirmation_option() -> None:
+    root = _task("root")
+    actionable = AgentMessage(
+        session_id="s1",
+        task_id="root",
+        message_type="actionable",
+        content="Approve all planned writes for this session?",
+        action_options=["confirm", "reject", "approve_session"],
+        requires_response=True,
+    )
+    service = DefaultTaskProjectionService(
+        task_store=_TaskStore([root]),
+        message_stream=_MessageStream([actionable]),
+    )
+
+    card = service.get_task_card("s1", TaskRef.published("root"))
+
+    assert card.confirmation is not None
+    assert [option.label for option in card.confirmation.options] == [
+        "Confirm",
+        "Reject",
+        "Approve session",
+    ]
 
 
 def test_projection_drops_resolved_confirmation_from_pending_views() -> None:

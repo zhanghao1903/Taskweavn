@@ -196,7 +196,7 @@ def map_confirmation_option_view(
     return ContractConfirmationOptionView(
         value=view.value,
         label=view.label,
-        tone="primary" if view.is_default else "secondary",
+        tone=_confirmation_option_tone(view),
     )
 
 
@@ -420,6 +420,17 @@ def _default_option_value(
         if option.option_id == default_option_id:
             return option.value
     return None
+
+
+def _confirmation_option_tone(
+    view: task_views.ConfirmationOptionView,
+) -> Literal["primary", "secondary", "danger"]:
+    normalized = view.value.strip().lower()
+    if normalized in {"reject", "no", "deny", "decline"}:
+        return "danger"
+    if view.is_default:
+        return "primary"
+    return "secondary"
 
 
 def _map_file_change_type(

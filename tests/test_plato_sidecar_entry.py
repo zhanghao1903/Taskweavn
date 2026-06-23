@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import pytest
+
 from taskweavn.server.plato_sidecar import _parse_args
 
 
 def test_plato_sidecar_parse_args_reads_read_only_inquiry_llm_env(
-    monkeypatch,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("PLATO_ENABLE_READ_ONLY_INQUIRY_LLM", "1")
 
@@ -14,7 +16,7 @@ def test_plato_sidecar_parse_args_reads_read_only_inquiry_llm_env(
 
 
 def test_plato_sidecar_parse_args_defaults_read_only_inquiry_llm_on(
-    monkeypatch,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.delenv("PLATO_ENABLE_READ_ONLY_INQUIRY_LLM", raising=False)
 
@@ -24,7 +26,7 @@ def test_plato_sidecar_parse_args_defaults_read_only_inquiry_llm_on(
 
 
 def test_plato_sidecar_parse_args_can_disable_read_only_inquiry_llm_env(
-    monkeypatch,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("PLATO_ENABLE_READ_ONLY_INQUIRY_LLM", "0")
 
@@ -34,7 +36,7 @@ def test_plato_sidecar_parse_args_can_disable_read_only_inquiry_llm_env(
 
 
 def test_plato_sidecar_parse_args_can_disable_read_only_inquiry_llm_flag(
-    monkeypatch,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.delenv("PLATO_ENABLE_READ_ONLY_INQUIRY_LLM", raising=False)
 
@@ -49,3 +51,38 @@ def test_plato_sidecar_parse_args_can_disable_read_only_inquiry_llm_flag(
     )
 
     assert args.enable_read_only_inquiry_llm is False
+
+
+def test_plato_sidecar_parse_args_reads_computer_use_env(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("PLATO_COMPUTER_USE_BACKEND", "macos")
+    monkeypatch.setenv("PLATO_COMPUTER_USE_ALLOWED_APPS", "WeChat,TextEdit")
+
+    args = _parse_args(["--workspace", "/tmp/workspace", "--port", "0"])
+
+    assert args.computer_use_backend == "macos"
+    assert args.computer_use_allowed_apps == "WeChat,TextEdit"
+
+
+def test_plato_sidecar_parse_args_computer_use_flags_override_env(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("PLATO_COMPUTER_USE_BACKEND", "disabled")
+    monkeypatch.setenv("PLATO_COMPUTER_USE_ALLOWED_APPS", "TextEdit")
+
+    args = _parse_args(
+        [
+            "--workspace",
+            "/tmp/workspace",
+            "--port",
+            "0",
+            "--computer-use-backend",
+            "macos",
+            "--computer-use-allowed-apps",
+            "WeChat",
+        ]
+    )
+
+    assert args.computer_use_backend == "macos"
+    assert args.computer_use_allowed_apps == "WeChat"

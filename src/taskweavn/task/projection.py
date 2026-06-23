@@ -785,11 +785,17 @@ def _message_to_view(message: AgentMessage, task_ref: TaskRef) -> SessionMessage
 
 
 def _actionable_to_confirmation(message: AgentMessage, task_ref: TaskRef) -> ConfirmationActionView:
+    default_value = _confirmation_default_value(message)
     options = tuple(
-        ConfirmationOptionView(option_id=option, label=option, value=option)
+        ConfirmationOptionView(
+            option_id=option,
+            label=_confirmation_option_label(option),
+            value=option,
+            is_default=option == default_value,
+        )
         for option in message.action_options
     )
-    default_option_id = options[0].option_id if options else None
+    default_option_id = default_value if default_value is not None else None
     risk_summary = None
     if message.risk_assessment is not None:
         risk_summary = f"risk={message.risk_assessment.final:.2f}"
@@ -802,3 +808,26 @@ def _actionable_to_confirmation(message: AgentMessage, task_ref: TaskRef) -> Con
         risk_summary=risk_summary,
         status="pending",
     )
+
+
+def _confirmation_default_value(message: AgentMessage) -> str | None:
+    context_default = message.context.get("default_option")
+    if isinstance(context_default, str) and context_default in message.action_options:
+        return context_default
+    return message.action_options[0] if message.action_options else None
+
+
+def _confirmation_option_label(value: str) -> str:
+    normalized = value.strip().lower()
+    if normalized == "confirm":
+        return "Confirm"
+    if normalized == "reject":
+        return "Reject"
+    if normalized == "approve_session":
+        return "Approve session"
+    if normalized == "yes":
+        return "Yes"
+    if normalized == "no":
+        return "No"
+    label = value.strip().replace("_", " ")
+    return label[:1].upper() + label[1:] if label else value

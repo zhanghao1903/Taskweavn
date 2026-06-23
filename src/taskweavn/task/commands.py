@@ -90,6 +90,21 @@ class PublishedTaskInterrupter(Protocol):
 
 
 @runtime_checkable
+class PublishedTaskConfirmationResumer(Protocol):
+    """Boundary for resuming a published Task after a confirmation response."""
+
+    def get(self, session_id: str, task_id: str) -> TaskDomain | None: ...
+
+    def resume_after_confirmation(
+        self,
+        session_id: str,
+        task_id: str,
+        *,
+        confirmation_id: str,
+    ) -> TaskDomain: ...
+
+
+@runtime_checkable
 class TaskCommandService(Protocol):
     def update_task_node(
         self,
@@ -149,6 +164,9 @@ class DefaultTaskCommandService:
         published_task_editor: PublishedTaskEditor | None = None,
         published_task_retrier: PublishedTaskRetrier | None = None,
         published_task_interrupter: PublishedTaskInterrupter | None = None,
+        published_task_confirmation_resumer: (
+            PublishedTaskConfirmationResumer | None
+        ) = None,
         task_publisher: TaskPublisher | None = None,
     ) -> None:
         self._task_store = task_store
@@ -157,6 +175,9 @@ class DefaultTaskCommandService:
         self._published_task_editor = published_task_editor
         self._published_task_retrier = published_task_retrier
         self._published_task_interrupter = published_task_interrupter
+        self._published_task_confirmation_resumer = (
+            published_task_confirmation_resumer
+        )
         self._task_publisher = task_publisher
 
     def update_task_node(
@@ -232,9 +253,15 @@ class DefaultTaskCommandService:
         )
         self._message_bus.publish(response)
         affected = _task_ref_for_message(parent)
+        resumed = self._resume_published_task_after_confirmation(
+            session_id,
+            parent,
+        )
         return _accepted(
-            "confirmation resolved",
-            affected_task_refs=affected,
+            "confirmation resolved" if resumed is None else "confirmation resolved; task resumed",
+            affected_task_refs=affected
+            if resumed is None
+            else (TaskRef.published(resumed.task_id),),
             emitted_message_ids=(response.message_id,),
         )
 
@@ -444,6 +471,36 @@ class DefaultTaskCommandService:
         )
         self._message_bus.publish(message)
         return message.message_id
+
+    def _resume_published_task_after_confirmation(
+        self,
+        session_id: str,
+        parent: AgentMessage,
+    ) -> TaskDomain | None:
+        if parent.task_id is None:
+            return None
+        if parent.context.get("task_ref_kind") == "draft":
+            return None
+        if self._published_task_confirmation_resumer is None:
+            return None
+        task = self._published_task_confirmation_resumer.get(
+            session_id,
+            parent.task_id,
+        )
+        if (
+            task is None
+            or task.status != "waiting_for_user"
+            or task.waiting_for_confirmation_id != parent.message_id
+        ):
+            return None
+        try:
+            return self._published_task_confirmation_resumer.resume_after_confirmation(
+                session_id,
+                parent.task_id,
+                confirmation_id=parent.message_id,
+            )
+        except TaskStoreError:
+            return None
 
 
 def _accepted(

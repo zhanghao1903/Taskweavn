@@ -15,6 +15,7 @@ from taskweavn.task.bus import (
     _resume_after_user_updates,
     _retry_updates,
     _task_trace_summary,
+    _wait_for_user_confirmation_updates,
     _wait_for_user_updates,
 )
 from taskweavn.task.models import TaskDomain, TaskInterruptRequestedBy
@@ -197,6 +198,7 @@ class SqliteTaskBus:
                     "result_ref": None,
                     "error_ref": error_ref,
                     "waiting_for_ask_id": None,
+                    "waiting_for_confirmation_id": None,
                     "waiting_for_user_since": None,
                     "completed_at": _utcnow(),
                 }
@@ -236,6 +238,36 @@ class SqliteTaskBus:
             )
             return updated
 
+    def wait_for_confirmation(
+        self,
+        session_id: str,
+        task_id: str,
+        *,
+        confirmation_id: str,
+    ) -> TaskDomain:
+        confirmation_id = confirmation_id.strip()
+        if not confirmation_id:
+            raise TaskStoreError("waiting task requires confirmation_id")
+        with self._lock:
+            task = self._require_task(session_id, task_id)
+            if task.status != "running":
+                raise TaskStoreError(
+                    f"only running tasks can wait for user; got {task.status}"
+                )
+            updated = task.model_copy(
+                update=_wait_for_user_confirmation_updates(
+                    confirmation_id=confirmation_id
+                )
+            )
+            self._save_task(updated)
+            main_page_trace(
+                "task_bus.wait_for_confirmation",
+                confirmation_id=confirmation_id,
+                previous_status=task.status,
+                task=_task_trace_summary(updated),
+            )
+            return updated
+
     def resume_after_user(
         self,
         session_id: str,
@@ -259,6 +291,36 @@ class SqliteTaskBus:
             main_page_trace(
                 "task_bus.resume_after_user",
                 ask_id=ask_id,
+                previous_status=task.status,
+                task=_task_trace_summary(updated),
+            )
+            return updated
+
+    def resume_after_confirmation(
+        self,
+        session_id: str,
+        task_id: str,
+        *,
+        confirmation_id: str,
+    ) -> TaskDomain:
+        confirmation_id = confirmation_id.strip()
+        if not confirmation_id:
+            raise TaskStoreError("resume requires confirmation_id")
+        with self._lock:
+            task = self._require_task(session_id, task_id)
+            if task.status != "waiting_for_user":
+                raise TaskStoreError(
+                    f"only waiting_for_user tasks can resume; got {task.status}"
+                )
+            if task.waiting_for_confirmation_id != confirmation_id:
+                raise TaskStoreError(
+                    "resume confirmation_id does not match active confirmation"
+                )
+            updated = task.model_copy(update=_resume_after_user_updates())
+            self._save_task(updated)
+            main_page_trace(
+                "task_bus.resume_after_confirmation",
+                confirmation_id=confirmation_id,
                 previous_status=task.status,
                 task=_task_trace_summary(updated),
             )

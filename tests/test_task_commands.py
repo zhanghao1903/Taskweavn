@@ -17,6 +17,7 @@ from taskweavn.task import (
     DraftTaskStore,
     DraftTaskTree,
     DraftToPublishedMapping,
+    PublishedTaskConfirmationResumer,
     PublishedTaskEditor,
     PublishedTaskInterrupter,
     PublishedTaskRetrier,
@@ -321,6 +322,48 @@ class _PublishedInterrupter:
         return task
 
 
+class _PublishedConfirmationResumer:
+    def __init__(self, tasks: list[TaskDomain]) -> None:
+        self.tasks = tasks
+        self.calls: list[tuple[str, str, str]] = []
+
+    def get(self, session_id: str, task_id: str) -> TaskDomain | None:
+        return next(
+            (
+                task
+                for task in self.tasks
+                if task.session_id == session_id and task.task_id == task_id
+            ),
+            None,
+        )
+
+    def resume_after_confirmation(
+        self,
+        session_id: str,
+        task_id: str,
+        *,
+        confirmation_id: str,
+    ) -> TaskDomain:
+        self.calls.append((session_id, task_id, confirmation_id))
+        current = self.get(session_id, task_id)
+        if current is None:
+            raise AssertionError("task not found")
+        updated = current.model_copy(
+            update={
+                "status": "pending",
+                "claimed_by": None,
+                "waiting_for_confirmation_id": None,
+                "waiting_for_user_since": None,
+                "started_at": None,
+            }
+        )
+        self.tasks[:] = [
+            updated if task.session_id == session_id and task.task_id == task_id else task
+            for task in self.tasks
+        ]
+        return updated
+
+
 class _Publisher:
     kind: Any = "collaborator"
 
@@ -379,6 +422,7 @@ def test_command_service_protocol_conformance() -> None:
     assert isinstance(_DraftStore([_draft()]), DraftTaskStore)
     assert isinstance(_PublishedEditor(), PublishedTaskEditor)
     assert isinstance(_PublishedInterrupter(), PublishedTaskInterrupter)
+    assert isinstance(_PublishedConfirmationResumer([]), PublishedTaskConfirmationResumer)
     assert isinstance(_Publisher(), TaskPublisher)
 
 
@@ -491,6 +535,63 @@ def test_resolve_confirmation_publishes_response() -> None:
     assert response.parent_message_id == "confirmation-1"
     assert response.response_value == "yes"
     assert response.content == "Looks good"
+
+
+def test_resolve_confirmation_resumes_matching_waiting_published_task() -> None:
+    parent = AgentMessage(
+        message_id="confirmation-1",
+        session_id="s1",
+        task_id="t1",
+        message_type="actionable",
+        content="Proceed?",
+        requires_response=True,
+    )
+    waiting_task = _task("t1").model_copy(
+        update={
+            "status": "waiting_for_user",
+            "waiting_for_confirmation_id": "confirmation-1",
+        }
+    )
+    bus = _Bus(_MessageStream([parent]))
+    resumer = _PublishedConfirmationResumer([waiting_task])
+    service = DefaultTaskCommandService(
+        task_store=_TaskStore([waiting_task]),
+        message_bus=bus,
+        published_task_confirmation_resumer=resumer,
+    )
+
+    result = service.resolve_confirmation("s1", "confirmation-1", "confirm")
+
+    assert result.accepted is True
+    assert result.message == "confirmation resolved; task resumed"
+    assert result.affected_task_refs == (TaskRef.published("t1"),)
+    assert resumer.calls == [("s1", "t1", "confirmation-1")]
+    assert resumer.tasks[0].status == "pending"
+    assert resumer.tasks[0].waiting_for_confirmation_id is None
+
+
+def test_resolve_confirmation_does_not_resume_draft_confirmation() -> None:
+    parent = AgentMessage(
+        message_id="confirmation-draft",
+        session_id="s1",
+        task_id="d1",
+        message_type="actionable",
+        content="Accept draft option?",
+        requires_response=True,
+        context={"task_ref_kind": "draft"},
+    )
+    resumer = _PublishedConfirmationResumer([])
+    service = DefaultTaskCommandService(
+        task_store=_TaskStore([]),
+        message_bus=_Bus(_MessageStream([parent])),
+        published_task_confirmation_resumer=resumer,
+    )
+
+    result = service.resolve_confirmation("s1", "confirmation-draft", "yes")
+
+    assert result.accepted is True
+    assert result.affected_task_refs == (TaskRef.draft("d1"),)
+    assert resumer.calls == []
 
 
 def test_resolve_confirmation_rejects_already_resolved_confirmation() -> None:

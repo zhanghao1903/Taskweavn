@@ -75,6 +75,7 @@ from taskweavn.types.common import (
     AgentFinishObservation,
     ErrorObservation,
 )
+from taskweavn.types.confirmation import RequestConfirmationObservation
 
 if TYPE_CHECKING:  # pragma: no cover
     from taskweavn.context.agent_loop_provider import AgentLoopContextProvider
@@ -497,7 +498,7 @@ class AgentLoop:
                 self._append_event(observation)
                 messages.append(self._tool_message(tool_call.id, observation))
                 self._maybe_audit(action, observation, messages)
-                if _is_blocking_ask_observation(observation):
+                if _is_blocking_user_wait_observation(observation):
                     return LoopResult(
                         final_answer=observation.message,
                         steps=step,
@@ -1040,11 +1041,11 @@ def _is_rejection(value: str | None) -> bool:
     return stripped in _REJECTION_TOKENS
 
 
-def _is_blocking_ask_observation(
+def _is_blocking_user_wait_observation(
     observation: BaseObservation,
-) -> TypeGuard[AskUserObservation]:
+) -> TypeGuard[AskUserObservation | RequestConfirmationObservation]:
     return (
-        isinstance(observation, AskUserObservation)
+        isinstance(observation, (AskUserObservation, RequestConfirmationObservation))
         and observation.success
         and observation.status == "waiting_for_user"
     )
