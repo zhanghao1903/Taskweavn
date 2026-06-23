@@ -80,8 +80,11 @@ from taskweavn.server.read_only_inquiry_diagnostics import (
     DefaultDiagnosticSupportContextProvider,
 )
 from taskweavn.server.runtime_config_consumers import (
+    RuntimeComputerUseSettings,
+    runtime_computer_use_settings_from_config,
     runtime_context_settings_from_config,
     runtime_execution_settings_from_config,
+    runtime_read_only_inquiry_settings_from_config,
 )
 from taskweavn.server.runtime_config_gateway import DefaultRuntimeConfigGateway
 from taskweavn.server.runtime_input_activity import (
@@ -209,6 +212,8 @@ class MainPageSidecarConfig:
     global_settings_root: Path | None = None
     enable_read_only_inquiry_llm: bool = True
     enable_computer_use_tool: bool = False
+    computer_use_backend_name: str = "disabled"
+    computer_use_allowed_apps: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -471,6 +476,12 @@ def build_main_page_workspace_runtime(
             runtime_config
         )
         runtime_context_settings = runtime_context_settings_from_config(runtime_config)
+        runtime_computer_use_settings = runtime_computer_use_settings_from_config(
+            runtime_config
+        )
+        runtime_read_only_inquiry_settings = (
+            runtime_read_only_inquiry_settings_from_config(runtime_config)
+        )
         _recover_interrupted_running_tasks(
             task_bus=task_bus,
             session_manager=session_manager,
@@ -490,7 +501,7 @@ def build_main_page_workspace_runtime(
                 result_summary_store=result_summary_store,
                 ui_event_store=event_store,
                 settings_store=settings_store,
-                enable_computer_use_tool=config.enable_computer_use_tool,
+                enable_computer_use_tool=runtime_computer_use_settings.enabled,
                 computer_use_backend=dependencies.computer_use_backend,
                 contract_guidance_store=guidance_store,
             )
@@ -512,18 +523,20 @@ def build_main_page_workspace_runtime(
             layout.meta_dir / "execution_plane.sqlite"
         )
         execution_plane_runtime_handlers = _execution_plane_runtime_handlers(
-            config,
             layout=layout,
             task_bus=task_bus,
             message_bus=message_bus,
             message_stream=message_stream,
             execution_plane_store=execution_plane_store,
+            computer_use_settings=runtime_computer_use_settings,
             computer_use_backend=dependencies.computer_use_backend,
         )
         execution_plane_service = EmbeddedTaskApiService(
             task_bus=task_bus,
             store=execution_plane_store,
-            env_registry=_execution_env_registry(config),
+            env_registry=_execution_env_registry(
+                computer_use_settings=runtime_computer_use_settings,
+            ),
             summary_store=result_summary_store,
             default_session_id=session.id if session is not None else "execution-plane",
             runtime_handlers=execution_plane_runtime_handlers,
@@ -660,7 +673,7 @@ def build_main_page_workspace_runtime(
                     ),
                 ),
             )
-            if config.enable_read_only_inquiry_llm
+            if runtime_read_only_inquiry_settings.llm_enabled
             else None
         )
         contract_revision_service = ContractRevisionCommandService(
@@ -947,6 +960,8 @@ def _runtime_config_process_values(config: MainPageSidecarConfig) -> dict[str, o
         "task_api.enabled": True,
         "task_api.require_valid_session": True,
         "computer_use.enabled": config.enable_computer_use_tool,
+        "computer_use.backend": config.computer_use_backend_name,
+        "computer_use.allowed_apps": config.computer_use_allowed_apps,
         "read_only_inquiry.llm_enabled": config.enable_read_only_inquiry_llm,
         "logging.level": config.logging_level,
     }
@@ -1069,11 +1084,12 @@ def _default_capability_catalog() -> StaticCapabilityCatalog:
 
 
 def _execution_env_registry(
-    config: MainPageSidecarConfig,
+    *,
+    computer_use_settings: RuntimeComputerUseSettings,
 ) -> InMemoryExecutionEnvRegistry:
     capabilities: tuple[str, ...] = ("execute", "testing")
     tool_pool: tuple[str, ...] = ()
-    if config.enable_computer_use_tool:
+    if computer_use_settings.enabled:
         capabilities = (*capabilities, "computer_use", WECHAT_SEND_CAPABILITY)
         tool_pool = (*tool_pool, "computer_use", "wechat_desktop")
     return InMemoryExecutionEnvRegistry(
@@ -1087,16 +1103,16 @@ def _execution_env_registry(
 
 
 def _execution_plane_runtime_handlers(
-    config: MainPageSidecarConfig,
     *,
     layout: WorkspaceLayout,
     task_bus: SqliteTaskBus,
     message_bus: InProcessMessageBus,
     message_stream: SqliteMessageStream,
     execution_plane_store: SqliteExecutionPlaneStore,
+    computer_use_settings: RuntimeComputerUseSettings,
     computer_use_backend: ComputerUseBackend | None,
 ) -> tuple[WeChatSendRuntimeHandler, ...]:
-    if not config.enable_computer_use_tool or computer_use_backend is None:
+    if not computer_use_settings.enabled or computer_use_backend is None:
         return ()
     wechat_boundary_store = SqliteWeChatSendBoundaryStore(
         layout.meta_dir / "wechat_send_boundaries.sqlite"

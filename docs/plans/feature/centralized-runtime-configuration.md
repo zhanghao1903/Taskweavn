@@ -628,7 +628,7 @@ Status: implemented for read-only HTTP routes.
 
 ### C4: Runtime Constructor Wiring
 
-Status: C4.1-C4.2 implemented; remaining C4 consumers deferred.
+Status: C4.1-C4.3 implemented; remaining trace metadata deferred.
 
 Implemented C4.1 behavior-preserving migration:
 
@@ -658,10 +658,23 @@ Implemented C4.2 behavior-preserving migration:
 - Main Page sidecar process inputs expose the Context Manager keys so
   diagnostics and runtime constructor behavior share one effective snapshot.
 
+Implemented C4.3 behavior-preserving migration:
+
+- `RuntimeComputerUseSettings` adapts the effective config snapshot into typed
+  computer-use runtime envelope settings.
+- The resident Default Agent tool assembly, Execution Plane environment
+  registry, and WeChat runtime handler registration now use
+  `computer_use.enabled` from the effective config snapshot.
+- Main Page sidecar process inputs expose `computer_use.backend` and
+  `computer_use.allowed_apps`, preserving CLI/packaged sidecar selections in
+  diagnostics.
+- `RuntimeReadOnlyInquirySettings` adapts the effective config snapshot into
+  the read-only inquiry service toggle.
+- The guarded read-only inquiry LLM service is now assembled from
+  `read_only_inquiry.llm_enabled` in the effective config snapshot.
+
 Still deferred inside C4:
 
-- computer-use enabled/backend/allowed apps as a tool policy source;
-- read-only inquiry LLM flag as a consumer of effective config;
 - persisted execution trace linkage to the effective config hash.
 
 All C4 migrations must preserve current defaults unless a later slice
@@ -751,6 +764,8 @@ The next implementation should continue C4 before adding write APIs. C4.1 made
 AgentLoop and fixed-route dispatcher construction consume effective config.
 C4.2 made Context Manager checkpointing, prior-message bounds, and context
 budget limits consume effective config.
+C4.3 made computer-use tool availability and read-only inquiry LLM service
+assembly consume effective config.
 
 Recommended next task:
 
@@ -760,20 +775,15 @@ Use the maintainability-gate skill if touching Main Page sidecar assembly or
 large server modules.
 
 Task:
-Implement C4.3 runtime config consumer migration for tool policy and
-diagnostic trace metadata.
+Implement C4.4 runtime config trace metadata closure.
 
 Scope:
-- Source computer-use enabled/backend/allowed-app settings from effective
-  runtime config where tools are assembled, without making WeChat a top-level
-  config domain.
-- Preserve current defaults and behavior.
 - Add config-hash metadata to execution/context trace surfaces where it can be
   recorded without changing runtime behavior.
 - Keep config resolution at sidecar assembly / agent-run boundary; do not read
-  env vars inside tools or per-app adapters.
-- Add focused tests showing tool availability and trace diagnostics come from
-  effective config.
+  env vars inside AgentLoop, Context Manager, tools, or per-app adapters.
+- Add focused tests showing trace diagnostics reference the effective config
+  hash used at runtime assembly.
 - Keep behavior-preserving unless the selected slice explicitly authorizes a
   runtime behavior change.
 

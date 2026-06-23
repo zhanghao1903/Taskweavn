@@ -33,6 +33,24 @@ class RuntimeContextSettings:
     config_hash: str
 
 
+@dataclass(frozen=True)
+class RuntimeComputerUseSettings:
+    """Computer-use settings consumed by runtime tool and env assembly."""
+
+    enabled: bool
+    backend: str
+    allowed_apps: tuple[str, ...]
+    config_hash: str
+
+
+@dataclass(frozen=True)
+class RuntimeReadOnlyInquirySettings:
+    """Read-only inquiry settings consumed by runtime service assembly."""
+
+    llm_enabled: bool
+    config_hash: str
+
+
 def runtime_execution_settings_from_config(
     config: EffectiveRuntimeConfig,
 ) -> RuntimeExecutionSettings:
@@ -48,6 +66,30 @@ def runtime_execution_settings_from_config(
             config,
             "execution_dispatcher.max_ticks_per_trigger",
         ),
+        config_hash=config.config_hash,
+    )
+
+
+def runtime_computer_use_settings_from_config(
+    config: EffectiveRuntimeConfig,
+) -> RuntimeComputerUseSettings:
+    """Extract computer-use runtime envelope values from an effective config."""
+
+    return RuntimeComputerUseSettings(
+        enabled=_bool_value(config, "computer_use.enabled"),
+        backend=_str_value(config, "computer_use.backend"),
+        allowed_apps=_str_tuple_value(config, "computer_use.allowed_apps"),
+        config_hash=config.config_hash,
+    )
+
+
+def runtime_read_only_inquiry_settings_from_config(
+    config: EffectiveRuntimeConfig,
+) -> RuntimeReadOnlyInquirySettings:
+    """Extract read-only inquiry runtime values from an effective config."""
+
+    return RuntimeReadOnlyInquirySettings(
+        llm_enabled=_bool_value(config, "read_only_inquiry.llm_enabled"),
         config_hash=config.config_hash,
     )
 
@@ -109,10 +151,30 @@ def _bool_value(config: EffectiveRuntimeConfig, key: str) -> bool:
     return value
 
 
+def _str_value(config: EffectiveRuntimeConfig, key: str) -> str:
+    value = _value(config, key)
+    if not isinstance(value, str):
+        raise RuntimeConfigConsumerError(f"{key} must be a string")
+    return value
+
+
+def _str_tuple_value(config: EffectiveRuntimeConfig, key: str) -> tuple[str, ...]:
+    value = _value(config, key)
+    if not isinstance(value, tuple) or not all(
+        isinstance(item, str) for item in value
+    ):
+        raise RuntimeConfigConsumerError(f"{key} must be a string tuple")
+    return cast(tuple[str, ...], value)
+
+
 __all__ = [
+    "RuntimeComputerUseSettings",
     "RuntimeConfigConsumerError",
     "RuntimeContextSettings",
     "RuntimeExecutionSettings",
+    "RuntimeReadOnlyInquirySettings",
+    "runtime_computer_use_settings_from_config",
     "runtime_context_settings_from_config",
     "runtime_execution_settings_from_config",
+    "runtime_read_only_inquiry_settings_from_config",
 ]

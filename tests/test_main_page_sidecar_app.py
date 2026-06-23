@@ -69,6 +69,8 @@ def test_main_page_sidecar_exposes_effective_runtime_config(
             execution_dispatcher_max_ticks_per_trigger=3,
             enable_read_only_inquiry_llm=False,
             enable_computer_use_tool=True,
+            computer_use_backend_name="macos",
+            computer_use_allowed_apps=("WeChat", "TextEdit"),
             logging_level="DEBUG",
         ),
         MainPageSidecarDependencies(llm=_StubLLM()),
@@ -90,6 +92,8 @@ def test_main_page_sidecar_exposes_effective_runtime_config(
     assert values["execution_dispatcher.max_ticks_per_trigger"]["value"] == 3
     assert values["read_only_inquiry.llm_enabled"]["value"] is False
     assert values["computer_use.enabled"]["value"] is True
+    assert values["computer_use.backend"]["value"] == "macos"
+    assert values["computer_use.allowed_apps"]["value"] == ["WeChat", "TextEdit"]
     assert values["logging.level"]["value"] == "DEBUG"
 
 
@@ -178,6 +182,7 @@ def test_main_page_sidecar_can_disable_guarded_llm_inquiry_provider(
     assert response.json["data"]["inquiryResult"]["answer"]["body"] == (
         "Session 'Demo session' is new."
     )
+    assert app.runtime_config.values["read_only_inquiry.llm_enabled"].value is False
     assert llm.calls == []
 
 
@@ -1056,6 +1061,8 @@ def test_main_page_sidecar_task_api_runs_scripted_computer_use_when_enabled(
             workspace_root=tmp_path,
             port=0,
             enable_computer_use_tool=True,
+            computer_use_backend_name="macos",
+            computer_use_allowed_apps=("TextEdit",),
             execution_dispatcher_max_ticks_per_trigger=3,
         ),
         MainPageSidecarDependencies(
@@ -1089,6 +1096,9 @@ def test_main_page_sidecar_task_api_runs_scripted_computer_use_when_enabled(
 
     assert publish.status == 200
     assert publish.json["ok"] is True
+    assert app.runtime_config.values["computer_use.enabled"].value is True
+    assert app.runtime_config.values["computer_use.backend"].value == "macos"
+    assert app.runtime_config.values["computer_use.allowed_apps"].value == ("TextEdit",)
     assert fetched.status == 200
     assert fetched.json["data"]["status"] == "done"
     assert len(backend.actions) == 1

@@ -17,8 +17,10 @@ from taskweavn.runtime_config import (
 )
 from taskweavn.server.runtime_config_consumers import (
     RuntimeConfigConsumerError,
+    runtime_computer_use_settings_from_config,
     runtime_context_settings_from_config,
     runtime_execution_settings_from_config,
+    runtime_read_only_inquiry_settings_from_config,
 )
 
 
@@ -231,6 +233,31 @@ def test_runtime_context_settings_are_extracted_from_effective_config() -> None:
     assert settings.budget.max_file_snippet_chars == 6000
     assert settings.budget.max_rendered_chars == 50000
     assert settings.config_hash == config.config_hash
+
+
+def test_runtime_tool_and_read_only_settings_are_extracted_from_effective_config() -> None:
+    layer = process_runtime_config_layer(
+        {
+            "computer_use.enabled": True,
+            "computer_use.backend": "macos",
+            "computer_use.allowed_apps": ("WeChat", "TextEdit"),
+            "read_only_inquiry.llm_enabled": False,
+        }
+    )
+    config = resolve_default_runtime_config(
+        scope=RuntimeConfigScope(level="workspace", workspace_id="w1"),
+        layers=(layer,),
+    )
+
+    computer_use = runtime_computer_use_settings_from_config(config)
+    inquiry = runtime_read_only_inquiry_settings_from_config(config)
+
+    assert computer_use.enabled is True
+    assert computer_use.backend == "macos"
+    assert computer_use.allowed_apps == ("WeChat", "TextEdit")
+    assert computer_use.config_hash == config.config_hash
+    assert inquiry.llm_enabled is False
+    assert inquiry.config_hash == config.config_hash
 
 
 def test_runtime_execution_settings_reject_invalid_effective_values() -> None:
