@@ -1,8 +1,10 @@
 # Workspace Communication Protocol
 
-> Status: architecture planning / not implemented in current package
-> Last Updated: 2026-05-14
+> Status: architecture planning with implemented Product 1.1 slices
+> Last Updated: 2026-06-24
 > Related Architecture: [Tool Capability Layer](tool-capability-layer.md), [Task](task.md), [Agent](agent.md), [Interaction Layer](interaction-layer.md), [Authoring Command Protocol](authoring-command-protocol.md)
+>
+> Product 1.1 alignment: the full Workspace Communication Protocol described here is not implemented as one unified protocol. Implemented slices are `workspace_inspection` status/diff/file/evidence routes, precision file tools with guarded path policy, read-only inquiry refs over file/diff evidence, and diagnostics-safe inspection summaries. Treat the remaining request/result protocol as a future unification layer.
 
 ---
 

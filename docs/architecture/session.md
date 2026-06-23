@@ -1,12 +1,14 @@
 # Session 架构设计
 
-> 多 Agent 协作架构的核心抽象 · v1.2 · 2026-06-19
+> 多 Agent 协作架构的核心抽象 · v1.3 · 2026-06-24
 >
 > 2026-05-17 review note: 本文中的 `Workspace` 曾指 **Session Workspace / 执行工作区**，不是产品 UI 中用户长期管理的 `Project`。
 >
 > 2026-05-31 scope note: Product 1.0 line-first execution 使用 fixed-route Default Agent bridge。基于完整 AgentPool / Agent Manager 的 dynamic assignment 仍是 Product 1.1+ 方向。
 >
 > 2026-06-19 fact note: 当前实现采用 workspace-root-as-agent-cwd。一个 workspace root 可拥有多个 Session；Session 的元数据隔离在 `.plato/sessions/<session_id>/`，但 Agent 看到的项目文件根目录是 workspace root。Session 是会话、投影、执行状态和审计的隔离边界，不再等同于独占文件工作区。
+>
+> 2026-06-24 Product 1.1 alignment: Session 现在也是 durable Conversation / Activity、Router decision/outcome、read-only inquiry result、workspace inspection evidence links、token usage projection、Audit/diagnostics linkage 的归属边界。Workspace root 仍共享项目文件；Session 隔离的是运行事实、会话投影和审计证据。
 
 ---
 
@@ -340,7 +342,7 @@ session-private 磁盘层：
 - **与 User：** 一个用户可同时拥有多个 Session（多个会话窗口），但每个 Session 只属于一个用户
 - **与 Workspace：** workspace root 是 Agent project root；Session metadata 和 store rows 按 `session_id` 隔离
 - **与 Task：** Session 是 PublishedTask、Plan、TaskNode projection 的命名空间
-- **与 Agent：** Product 1.0 使用 Session 内 Default Agent execution boundary；Product 1.1+ dynamic assignment 中，Agent 实例的创建和销毁都在 Session 内
+- **与 Agent：** 当前 Product 1.1 使用 Session 内 Default Agent execution boundary；later dynamic assignment 中，Agent 实例的创建和销毁都在 Session 内
 - **与 Bus：** TaskBus 操作按 `session_id` 隔离；当前 SQLite task store 是 workspace-level row-isolated store
 - **与 Context Manager：** SessionContextManager 是 execution LLM input 的治理边界
 - **与 ThoughtStore：** 当前 session-private thoughts store 是恢复/调试事实源；跨 Session 长期记忆仍是后续扩展

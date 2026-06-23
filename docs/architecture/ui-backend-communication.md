@@ -1,8 +1,10 @@
 # UI And Backend Communication
 
 > Status: active architecture boundary
-> Last Updated: 2026-06-19
+> Last Updated: 2026-06-24
 > Related: [Plato Frontend Technical Design](../product/plato-frontend-technical-design.md), [Figma UI Baseline](../product/plato-figma-ui-baseline.md), [UI API Interfaces](../plans/ui/ui-api-interfaces.md), [Task Domain/UI Model Separation](task-domain-ui-model-separation.md), [Authoring Domain](authoring-domain.md), [TaskBus](bus.md)
+>
+> Product 1.1 alignment: This boundary now includes Router-first Main Page input, durable Conversation / Activity replay, read-only inquiry, command-backed ASK/confirmation/guidance/execution handoff, workspace inspection routes, token usage projection, Audit/Diagnostics linkage, and local sidecar settings-backed runtime.
 
 ---
 

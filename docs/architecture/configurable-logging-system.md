@@ -1,10 +1,16 @@
 # Configurable Logging System Technical Design
 
 > Status: implemented v1
-> Last Updated: 2026-05-12
-> Scope: server core execution line
+> Last Updated: 2026-06-24
+> Scope: server core execution line, local sidecar, Router/read-only inquiry, Agent LLM logs, diagnostics
 > Related Plan: [Configurable logging feature plan](../plans/feature/configurable-logging-system.md)
 > Related Architecture: [Architecture Reference](reference.md)
+
+Product 1.1 alignment: logging now supports the local sidecar runtime, diagnostic
+bundles, workspace inspection summaries, token usage analytics, Runtime Input
+Router, and Agent LLM calls. LLM observability is split conceptually into
+input/output logs for prompt/response payloads and metadata logs for provider,
+usage, retry, routing, and diagnostics-safe summaries.
 
 ---
 
