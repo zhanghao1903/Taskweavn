@@ -37,6 +37,11 @@ from taskweavn.runtime_config.resolver import (
     process_runtime_config_layer,
     resolve_default_runtime_config,
 )
+from taskweavn.runtime_config.sqlite_store import (
+    RuntimeConfigChangeStore,
+    RuntimeConfigChangeStoreError,
+    SqliteRuntimeConfigChangeStore,
+)
 
 __all__ = [
     "EffectiveRuntimeConfig",
@@ -45,6 +50,8 @@ __all__ = [
     "RuntimeConfigActorType",
     "RuntimeConfigChange",
     "RuntimeConfigChangeStatus",
+    "RuntimeConfigChangeStore",
+    "RuntimeConfigChangeStoreError",
     "RuntimeConfigEffectiveStatus",
     "RuntimeConfigKey",
     "RuntimeConfigLayer",
@@ -63,6 +70,7 @@ __all__ = [
     "RuntimeConfigSource",
     "RuntimeConfigSourceKind",
     "RuntimeConfigValueType",
+    "SqliteRuntimeConfigChangeStore",
     "build_default_runtime_config_registry",
     "default_runtime_config_keys",
     "environment_runtime_config_layer",

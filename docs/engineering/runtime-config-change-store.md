@@ -1,6 +1,6 @@
 # Runtime Config Change Store Contract
 
-> Status: C5.1 contract models implemented; C5.2-C5.5 deferred.
+> Status: C5.1-C5.2 implemented; C5.3-C5.5 deferred.
 > Related Plan:
 > [Centralized Runtime Configuration](../plans/feature/centralized-runtime-configuration.md)
 > Related Product Boundary:
@@ -230,8 +230,10 @@ Recommended SQLite tables:
 Indexes:
 
 - `(scope_level, workspace_id, session_id, task_id, agent_run_id, created_at)`
-- `(idempotency_key, scope_level, workspace_id, session_id, task_id)` unique
-  where `idempotency_key IS NOT NULL`
+- `(idempotency_key, scope_level, workspace_id, session_id, task_id,
+  agent_run_id)` unique where `idempotency_key IS NOT NULL`; SQLite
+  implementation uses `COALESCE(...)` expression indexes for nullable scope
+  IDs so same-scope idempotency works when narrower IDs are absent.
 - `(resulting_config_hash)`
 
 ### `runtime_config_snapshots`
@@ -341,9 +343,17 @@ C5 should introduce a backend service boundary before HTTP routes:
 
 ```python
 class RuntimeConfigChangeStore(Protocol):
-    def append_change(self, change: RuntimeConfigChange) -> None: ...
-    def save_snapshot(self, snapshot: RuntimeConfigSnapshotRecord) -> None: ...
+    def append_change(self, change: RuntimeConfigChange) -> RuntimeConfigChange: ...
+    def save_snapshot(
+        self,
+        snapshot: RuntimeConfigSnapshotRecord,
+    ) -> RuntimeConfigSnapshotRecord: ...
     def get_change(self, change_id: str) -> RuntimeConfigChange | None: ...
+    def get_change_by_idempotency_key(
+        self,
+        idempotency_key: str,
+        scope: RuntimeConfigScope,
+    ) -> RuntimeConfigChange | None: ...
     def get_snapshot(self, config_hash: str) -> RuntimeConfigSnapshotRecord | None: ...
     def list_changes(self, scope: RuntimeConfigScope) -> tuple[RuntimeConfigChange, ...]: ...
 
@@ -382,15 +392,21 @@ Status: implemented.
 
 ### C5.2 SQLite Store
 
-Status: next.
+Status: implemented.
 
-- Add `SqliteRuntimeConfigChangeStore`.
+- Added `SqliteRuntimeConfigChangeStore` in
+  `src/taskweavn/runtime_config/sqlite_store.py`.
+- Added durable `runtime_config_changes` and `runtime_config_snapshots`
+  schema creation.
 - Round-trip accepted, rejected, no-op, and snapshot records.
-- Verify idempotency-key replay returns the original change.
+- Added idempotency-key lookup scoped by `RuntimeConfigScope`.
+- Added same-scope duplicate idempotency rejection.
+- Kept the store as a ledger only; it does not mutate the active resolver,
+  publish ConfigBus events, or expose HTTP write routes.
 
 ### C5.3 Mutation Service
 
-Status: deferred.
+Status: next.
 
 - Validate patches against `RuntimeConfigRegistry`.
 - Normalize accepted values through existing value rules.

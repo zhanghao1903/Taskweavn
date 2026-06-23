@@ -1,6 +1,6 @@
 # Feature Plan: Centralized Runtime Configuration
 
-> Status: C1-C4 implemented / C5-C7 deferred
+> Status: C1-C5.2 implemented / C5.3-C7 deferred
 > Type: Runtime control plane / configuration governance
 > Last Updated: 2026-06-24
 > Owner/Session: computer-use hardening discussion
@@ -174,8 +174,8 @@ As of 2026-06-24, the first read-only implementation slice exists:
 The implementation is intentionally behavior-preserving. Runtime components
 still primarily receive their values through the existing constructor/config
 paths. The centralized config layer currently reflects and explains those
-values; it is not yet the sole source of runtime behavior. C5-C7 remain
-deferred.
+values; it is not yet the sole source of runtime behavior. C5.1-C5.2 now
+provide durable change/snapshot facts, while C5.3-C7 remain deferred.
 
 ---
 
@@ -690,7 +690,7 @@ explicitly authorizes runtime behavior changes.
 
 ### C5: Config Change Store
 
-Status: C5.1 implemented; C5.2-C5.5 deferred.
+Status: C5.1-C5.2 implemented; C5.3-C5.5 deferred.
 
 The C5 contract is defined in
 [Runtime Config Change Store](../../engineering/runtime-config-change-store.md).
@@ -700,7 +700,9 @@ Required implementation slices:
 - C5.1 Contract Models: implemented additive patch/change/snapshot models and
   validation tests.
 - C5.2 SQLite Store: durable change ledger and effective config snapshot
-  storage.
+  storage implemented in `SqliteRuntimeConfigChangeStore`; accepted,
+  rejected, no-op, snapshot, idempotency lookup, and duplicate idempotency
+  rejection tests are covered.
 - C5.3 Mutation Service: validate patches, normalize values, resolve base and
   candidate effective configs, and persist accepted/rejected/no-op records.
 - C5.4 Read Gateway Extension: expose change/snapshot queries without changing
@@ -785,11 +787,11 @@ Status: deferred.
 
 ## 19. Recommended Next Task
 
-C4 is now closed for the read-only, behavior-preserving runtime constructor
-and trace metadata path. C5 now has a concrete backend/control-plane contract,
-but implementation should still proceed only if Product 1.0/1.1 needs editable
-or persisted config changes. Otherwise, keep using the read-only effective
-config snapshot for diagnostics and runtime assembly.
+C4 is closed for the read-only, behavior-preserving runtime constructor and
+trace metadata path. C5.1-C5.2 are now implemented for durable
+change/snapshot facts. The next backend/control-plane decision is C5.3:
+whether to add a mutation service that validates and records patches without
+introducing HTTP write APIs or Settings UI.
 
 Recommended next task if config mutation becomes necessary:
 
@@ -799,28 +801,27 @@ Use the maintainability-gate skill if touching Main Page sidecar assembly,
 settings persistence, or large server modules.
 
 Task:
-Implement C5.2 SQLite Runtime Config Change Store.
+Implement C5.3 Runtime Config Mutation Service.
 
 Scope:
-- Add `SqliteRuntimeConfigChangeStore` following
-  docs/engineering/runtime-config-change-store.md.
-- Add schema creation for `runtime_config_changes` and
-  `runtime_config_snapshots`.
-- Round-trip accepted, rejected, no-op, and snapshot records.
-- Verify idempotency-key replay lookup returns the original change.
-- Do not add mutation service, HTTP write routes, Settings UI, or ConfigBus in
-  this slice.
+- Validate `RuntimeConfigPatch` against `RuntimeConfigRegistry`.
+- Normalize accepted values through the existing resolver rules.
+- Resolve base and candidate `EffectiveRuntimeConfig` snapshots.
+- Persist `RuntimeConfigChange` and `RuntimeConfigSnapshotRecord` through
+  `SqliteRuntimeConfigChangeStore`.
+- Respect idempotency-key replay by returning the original stored change.
+- Do not add HTTP write routes, Settings UI, or ConfigBus in this slice.
 
 Do not:
 - Add Settings UI.
-- Add config write APIs before C5 mutation/source-priority rules are settled.
+- Add config write APIs before C5 mutation/source-priority behavior is tested.
 - Treat app-specific automation behavior such as WeChat send steps as top-level
   runtime config.
 
 Output:
 - Workflow Gate Report
 - files changed
-- store added
+- mutation service added
 - tests required
 - checks run
 - remaining C6/C7 blockers
