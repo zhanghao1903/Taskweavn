@@ -62,6 +62,9 @@ def test_main_page_sidecar_exposes_effective_runtime_config(
             workspace_root=tmp_path,
             port=0,
             default_agent_max_steps=7,
+            context_checkpoint_interval_steps=4,
+            context_max_prior_messages=12,
+            context_budget_max_events=11,
             enable_execution_dispatcher=False,
             execution_dispatcher_max_ticks_per_trigger=3,
             enable_read_only_inquiry_llm=False,
@@ -80,6 +83,9 @@ def test_main_page_sidecar_exposes_effective_runtime_config(
     values = response.json["data"]["values"]
     assert values["agent_loop.default_max_steps"]["value"] == 7
     assert values["agent_loop.default_max_steps"]["source"]["kind"] == "process_input"
+    assert values["context_manager.checkpoint_interval_steps"]["value"] == 4
+    assert values["context_manager.max_prior_messages"]["value"] == 12
+    assert values["context_manager.budget.max_events"]["value"] == 11
     assert values["execution_dispatcher.enabled"]["value"] is False
     assert values["execution_dispatcher.max_ticks_per_trigger"]["value"] == 3
     assert values["read_only_inquiry.llm_enabled"]["value"] is False
@@ -1409,6 +1415,54 @@ def test_main_page_sidecar_agent_loop_uses_effective_runtime_config_max_steps(
     assert task.status == "failed"
     assert task.error_ref == tick.error_ref
     assert len(llm.calls) == 1
+
+
+def test_main_page_sidecar_agent_loop_uses_effective_runtime_config_context_checkpoint(
+    tmp_path: Any,
+) -> None:
+    llm = _AgentLoopSequencedLLM(
+        [
+            _agent_loop_tool_call_response(
+                "write_file",
+                {"path": "notes/checkpoint.md", "content": "checkpoint"},
+                call_id="write-context-checkpoint",
+            ),
+            ChatResponse(
+                content="Loop completed.",
+                tool_calls=[],
+                raw_assistant_message={
+                    "role": "assistant",
+                    "content": "Loop completed.",
+                },
+            ),
+        ]
+    )
+    app = build_main_page_sidecar_app(
+        MainPageSidecarConfig(
+            workspace_root=tmp_path,
+            port=0,
+            context_checkpoint_interval_steps=2,
+        ),
+        MainPageSidecarDependencies(llm=llm),
+    )
+    try:
+        session_id = _create_session(app)
+        app.task_bus.publish(_published_task("context-config-task", session_id=session_id))
+
+        tick = app.run_fixed_route_tick(session_id)
+    finally:
+        app.close()
+
+    assert (
+        app.runtime_config.values["context_manager.checkpoint_interval_steps"].value
+        == 2
+    )
+    assert tick.status == "completed"
+    assert [call["metadata"]["context_render_mode"] for call in llm.calls] == [
+        "start_context",
+        "checkpoint_context",
+    ]
+    assert llm.calls[1]["metadata"]["context_checkpoint_reason"] == "interval:2"
 
 
 def test_main_page_sidecar_dispatcher_uses_effective_runtime_config_enabled(

@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, cast
 
+from taskweavn.context import ContextBudget
 from taskweavn.runtime_config import EffectiveRuntimeConfig
 
 
@@ -22,6 +23,16 @@ class RuntimeExecutionSettings:
     config_hash: str
 
 
+@dataclass(frozen=True)
+class RuntimeContextSettings:
+    """Context Manager settings consumed by AgentLoop context assembly."""
+
+    checkpoint_interval_steps: int
+    max_prior_messages: int
+    budget: ContextBudget
+    config_hash: str
+
+
 def runtime_execution_settings_from_config(
     config: EffectiveRuntimeConfig,
 ) -> RuntimeExecutionSettings:
@@ -36,6 +47,40 @@ def runtime_execution_settings_from_config(
         execution_dispatcher_max_ticks_per_trigger=_int_value(
             config,
             "execution_dispatcher.max_ticks_per_trigger",
+        ),
+        config_hash=config.config_hash,
+    )
+
+
+def runtime_context_settings_from_config(
+    config: EffectiveRuntimeConfig,
+) -> RuntimeContextSettings:
+    """Extract Context Manager constructor values from an effective config snapshot."""
+
+    return RuntimeContextSettings(
+        checkpoint_interval_steps=_int_value(
+            config,
+            "context_manager.checkpoint_interval_steps",
+        ),
+        max_prior_messages=_int_value(config, "context_manager.max_prior_messages"),
+        budget=ContextBudget(
+            max_events=_int_value(config, "context_manager.budget.max_events"),
+            max_tool_results=_int_value(
+                config,
+                "context_manager.budget.max_tool_results",
+            ),
+            max_file_snippets=_int_value(
+                config,
+                "context_manager.budget.max_file_snippets",
+            ),
+            max_file_snippet_chars=_int_value(
+                config,
+                "context_manager.budget.max_file_snippet_chars",
+            ),
+            max_rendered_chars=_int_value(
+                config,
+                "context_manager.budget.max_rendered_chars",
+            ),
         ),
         config_hash=config.config_hash,
     )
@@ -66,6 +111,8 @@ def _bool_value(config: EffectiveRuntimeConfig, key: str) -> bool:
 
 __all__ = [
     "RuntimeConfigConsumerError",
+    "RuntimeContextSettings",
     "RuntimeExecutionSettings",
+    "runtime_context_settings_from_config",
     "runtime_execution_settings_from_config",
 ]

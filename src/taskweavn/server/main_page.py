@@ -80,6 +80,7 @@ from taskweavn.server.read_only_inquiry_diagnostics import (
     DefaultDiagnosticSupportContextProvider,
 )
 from taskweavn.server.runtime_config_consumers import (
+    runtime_context_settings_from_config,
     runtime_execution_settings_from_config,
 )
 from taskweavn.server.runtime_config_gateway import DefaultRuntimeConfigGateway
@@ -191,6 +192,13 @@ class MainPageSidecarConfig:
     auth_token: str | None = None
     enable_default_agent: bool = True
     default_agent_max_steps: int = 20
+    context_checkpoint_interval_steps: int = 5
+    context_max_prior_messages: int = 200
+    context_budget_max_events: int = 20
+    context_budget_max_tool_results: int = 10
+    context_budget_max_file_snippets: int = 6
+    context_budget_max_file_snippet_chars: int = 8_000
+    context_budget_max_rendered_chars: int = 60_000
     enable_execution_dispatcher: bool = True
     execution_dispatcher_max_ticks_per_trigger: int = 10
     enable_session_logging: bool = True
@@ -462,6 +470,7 @@ def build_main_page_workspace_runtime(
         runtime_execution_settings = runtime_execution_settings_from_config(
             runtime_config
         )
+        runtime_context_settings = runtime_context_settings_from_config(runtime_config)
         _recover_interrupted_running_tasks(
             task_bus=task_bus,
             session_manager=session_manager,
@@ -477,6 +486,7 @@ def build_main_page_workspace_runtime(
                 ask_store=ask_store,
                 message_bus=message_bus,
                 max_steps=runtime_execution_settings.default_agent_max_steps,
+                context_settings=runtime_context_settings,
                 result_summary_store=result_summary_store,
                 ui_event_store=event_store,
                 settings_store=settings_store,
@@ -913,6 +923,23 @@ def _sidecar_app_from_runtime(
 def _runtime_config_process_values(config: MainPageSidecarConfig) -> dict[str, object]:
     values: dict[str, object] = {
         "agent_loop.default_max_steps": config.default_agent_max_steps,
+        "context_manager.checkpoint_interval_steps": (
+            config.context_checkpoint_interval_steps
+        ),
+        "context_manager.max_prior_messages": config.context_max_prior_messages,
+        "context_manager.budget.max_events": config.context_budget_max_events,
+        "context_manager.budget.max_tool_results": (
+            config.context_budget_max_tool_results
+        ),
+        "context_manager.budget.max_file_snippets": (
+            config.context_budget_max_file_snippets
+        ),
+        "context_manager.budget.max_file_snippet_chars": (
+            config.context_budget_max_file_snippet_chars
+        ),
+        "context_manager.budget.max_rendered_chars": (
+            config.context_budget_max_rendered_chars
+        ),
         "execution_dispatcher.enabled": config.enable_execution_dispatcher,
         "execution_dispatcher.max_ticks_per_trigger": (
             config.execution_dispatcher_max_ticks_per_trigger

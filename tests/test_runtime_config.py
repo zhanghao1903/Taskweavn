@@ -17,6 +17,7 @@ from taskweavn.runtime_config import (
 )
 from taskweavn.server.runtime_config_consumers import (
     RuntimeConfigConsumerError,
+    runtime_context_settings_from_config,
     runtime_execution_settings_from_config,
 )
 
@@ -203,6 +204,35 @@ def test_runtime_execution_settings_are_extracted_from_effective_config() -> Non
     assert settings.config_hash == config.config_hash
 
 
+def test_runtime_context_settings_are_extracted_from_effective_config() -> None:
+    layer = process_runtime_config_layer(
+        {
+            "context_manager.checkpoint_interval_steps": 3,
+            "context_manager.max_prior_messages": 11,
+            "context_manager.budget.max_events": 9,
+            "context_manager.budget.max_tool_results": 8,
+            "context_manager.budget.max_file_snippets": 7,
+            "context_manager.budget.max_file_snippet_chars": 6000,
+            "context_manager.budget.max_rendered_chars": 50000,
+        }
+    )
+    config = resolve_default_runtime_config(
+        scope=RuntimeConfigScope(level="workspace", workspace_id="w1"),
+        layers=(layer,),
+    )
+
+    settings = runtime_context_settings_from_config(config)
+
+    assert settings.checkpoint_interval_steps == 3
+    assert settings.max_prior_messages == 11
+    assert settings.budget.max_events == 9
+    assert settings.budget.max_tool_results == 8
+    assert settings.budget.max_file_snippets == 7
+    assert settings.budget.max_file_snippet_chars == 6000
+    assert settings.budget.max_rendered_chars == 50000
+    assert settings.config_hash == config.config_hash
+
+
 def test_runtime_execution_settings_reject_invalid_effective_values() -> None:
     config = resolve_default_runtime_config(
         scope=RuntimeConfigScope(level="process"),
@@ -215,6 +245,20 @@ def test_runtime_execution_settings_reject_invalid_effective_values() -> None:
 
     with pytest.raises(RuntimeConfigConsumerError, match="must be an int"):
         runtime_execution_settings_from_config(bad_config)
+
+
+def test_runtime_context_settings_reject_invalid_effective_values() -> None:
+    config = resolve_default_runtime_config(
+        scope=RuntimeConfigScope(level="process"),
+    )
+    values = dict(config.values)
+    values["context_manager.max_prior_messages"] = values[
+        "context_manager.max_prior_messages"
+    ].model_copy(update={"value": True})
+    bad_config = config.model_copy(update={"values": values})
+
+    with pytest.raises(RuntimeConfigConsumerError, match="must be an int"):
+        runtime_context_settings_from_config(bad_config)
 
 
 def test_runtime_patch_non_live_values_are_marked_pending() -> None:

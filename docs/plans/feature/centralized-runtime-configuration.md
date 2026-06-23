@@ -1,6 +1,6 @@
 # Feature Plan: Centralized Runtime Configuration
 
-> Status: C1-C4 read-only diagnostics slice implemented / C5-C7 deferred
+> Status: C1-C3 and C4.1-C4.2 implemented / remaining C4 and C5-C7 deferred
 > Type: Runtime control plane / configuration governance
 > Last Updated: 2026-06-24
 > Owner/Session: computer-use hardening discussion
@@ -628,7 +628,7 @@ Status: implemented for read-only HTTP routes.
 
 ### C4: Runtime Constructor Wiring
 
-Status: C4.1 implemented; remaining C4 consumers deferred.
+Status: C4.1-C4.2 implemented; remaining C4 consumers deferred.
 
 Implemented C4.1 behavior-preserving migration:
 
@@ -645,10 +645,21 @@ Implemented C4.1 behavior-preserving migration:
 - `MainPageWorkspaceRuntime` retains the effective runtime config snapshot and
   config hash for the assembled runtime.
 
+Implemented C4.2 behavior-preserving migration:
+
+- `RuntimeContextSettings` adapts the effective config snapshot into typed
+  Context Manager constructor settings.
+- `SessionAgentLoopContextProvider.checkpoint_interval_steps` is now sourced
+  from `context_manager.checkpoint_interval_steps`.
+- `SessionAgentLoopContextProvider.max_prior_messages` is now sourced from
+  `context_manager.max_prior_messages`.
+- The AgentLoop context provider now passes a configured `ContextBudget` into
+  every `ContextBuildRequest`, using `context_manager.budget.*` keys.
+- Main Page sidecar process inputs expose the Context Manager keys so
+  diagnostics and runtime constructor behavior share one effective snapshot.
+
 Still deferred inside C4:
 
-- `SessionAgentLoopContextProvider.checkpoint_interval_steps`;
-- Context Manager budget limits;
 - computer-use enabled/backend/allowed apps as a tool policy source;
 - read-only inquiry LLM flag as a consumer of effective config;
 - persisted execution trace linkage to the effective config hash.
@@ -738,8 +749,8 @@ Status: deferred.
 
 The next implementation should continue C4 before adding write APIs. C4.1 made
 AgentLoop and fixed-route dispatcher construction consume effective config.
-C4.2 should migrate Context Manager constructor behavior next, because context
-checkpointing and budget limits are user-visible execution behavior.
+C4.2 made Context Manager checkpointing, prior-message bounds, and context
+budget limits consume effective config.
 
 Recommended next task:
 
@@ -749,17 +760,20 @@ Use the maintainability-gate skill if touching Main Page sidecar assembly or
 large server modules.
 
 Task:
-Implement C4.2 Context Manager runtime config consumer migration.
+Implement C4.3 runtime config consumer migration for tool policy and
+diagnostic trace metadata.
 
 Scope:
-- Source `SessionAgentLoopContextProvider.checkpoint_interval_steps` from
-  `context_manager.checkpoint_interval_steps`.
-- Source context budget limits from `context_manager.budget.*`.
+- Source computer-use enabled/backend/allowed-app settings from effective
+  runtime config where tools are assembled, without making WeChat a top-level
+  config domain.
 - Preserve current defaults and behavior.
+- Add config-hash metadata to execution/context trace surfaces where it can be
+  recorded without changing runtime behavior.
 - Keep config resolution at sidecar assembly / agent-run boundary; do not read
-  env vars inside Context Manager.
-- Add focused tests showing context checkpoint/budget constructor values come
-  from effective config.
+  env vars inside tools or per-app adapters.
+- Add focused tests showing tool availability and trace diagnostics come from
+  effective config.
 - Keep behavior-preserving unless the selected slice explicitly authorizes a
   runtime behavior change.
 

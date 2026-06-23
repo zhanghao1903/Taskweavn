@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from typing import Any, Literal, Protocol, runtime_checkable
 
 from taskweavn.context.models import (
+    ContextBudget,
     ContextBuildRequest,
     ContextBuildResult,
     ContextModel,
@@ -87,6 +88,7 @@ class SessionAgentLoopContextProvider:
     context_builder: ContextBuilder
     max_prior_messages: int = 200
     checkpoint_interval_steps: int = 5
+    default_budget: ContextBudget = field(default_factory=ContextBudget)
     additional_trigger_evaluators: tuple[ContextTriggerEvaluator, ...] = ()
     _run_states: dict[str, CacheAwareRunState] = field(
         default_factory=dict,
@@ -107,6 +109,7 @@ class SessionAgentLoopContextProvider:
                 render_mode="full_context",
                 writer=True,
                 turn_index=request.turn_index,
+                budget=self.default_budget,
                 prior_messages=prior_messages,
             )
         )
@@ -138,6 +141,7 @@ class SessionAgentLoopContextProvider:
                 render_mode="start_context",
                 writer=True,
                 turn_index=request.turn_index,
+                budget=self.default_budget,
                 prior_messages=(),
             )
         )
@@ -176,6 +180,7 @@ class SessionAgentLoopContextProvider:
                 render_mode="delta_context",
                 writer=True,
                 turn_index=request.turn_index,
+                budget=self.default_budget,
                 prior_messages=request.loop_messages,
             )
         )
@@ -226,6 +231,7 @@ class SessionAgentLoopContextProvider:
                 render_reason=trigger.reason,
                 writer=True,
                 turn_index=request.turn_index,
+                budget=self.default_budget,
                 prior_messages=request.loop_messages,
             )
         )

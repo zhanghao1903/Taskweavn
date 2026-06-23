@@ -209,8 +209,8 @@ def _current_workspace_id_from_registry(
         return "current"
     for entry in workspace_registry:
         if entry.is_current:
-            return entry.workspace_id
-    return workspace_registry[0].workspace_id
+            return cast(str, entry.workspace_id)
+    return cast(str, workspace_registry[0].workspace_id)
 
 
 def _create_session(app: MainPageSidecarApp, name: str = "Diagnostics smoke") -> str:
