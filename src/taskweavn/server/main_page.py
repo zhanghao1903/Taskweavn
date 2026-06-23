@@ -48,6 +48,7 @@ from taskweavn.llm.agent_config import AgentLlmRole
 from taskweavn.llm.agent_resolver import SettingsBackedAgentLlmResolver
 from taskweavn.observability import LogContext
 from taskweavn.observability.main_page_trace import main_page_trace
+from taskweavn.runtime_config import EffectiveRuntimeConfig, RuntimeConfigScope
 from taskweavn.server.ask_recovery import DefaultAskRecoveryService
 from taskweavn.server.client_logs import FileClientErrorLogSink
 from taskweavn.server.diagnostics_export import DefaultDiagnosticExportGateway
@@ -77,6 +78,9 @@ from taskweavn.server.read_only_inquiry_answer_provider import (
 )
 from taskweavn.server.read_only_inquiry_diagnostics import (
     DefaultDiagnosticSupportContextProvider,
+)
+from taskweavn.server.runtime_config_consumers import (
+    runtime_execution_settings_from_config,
 )
 from taskweavn.server.runtime_config_gateway import DefaultRuntimeConfigGateway
 from taskweavn.server.runtime_input_activity import (
@@ -245,6 +249,7 @@ class MainPageWorkspaceRuntime:
     result_summary_store: TaskExecutionSummaryStore
     execution_plane_store: SqliteExecutionPlaneStore | None
     token_usage_store: SqliteTokenUsageStore
+    runtime_config: EffectiveRuntimeConfig
     default_agent: ResidentDefaultAgent | None
     execution_dispatcher: FixedRouteExecutionDispatcher | None
     query_gateway: DefaultUiQueryGateway
@@ -443,6 +448,20 @@ def build_main_page_workspace_runtime(
             layout.workspace_ui_events_db
         )
         event_store = ui_event_store(event_source)
+        current_workspace_id = config.current_workspace_id or "current"
+        runtime_config_gateway = DefaultRuntimeConfigGateway.from_process_inputs(
+            _runtime_config_process_values(config),
+            workspace_id=current_workspace_id,
+        )
+        runtime_config = runtime_config_gateway.effective(
+            RuntimeConfigScope(
+                level="workspace",
+                workspace_id=current_workspace_id,
+            )
+        )
+        runtime_execution_settings = runtime_execution_settings_from_config(
+            runtime_config
+        )
         _recover_interrupted_running_tasks(
             task_bus=task_bus,
             session_manager=session_manager,
@@ -457,7 +476,7 @@ def build_main_page_workspace_runtime(
                 task_bus=task_bus,
                 ask_store=ask_store,
                 message_bus=message_bus,
-                max_steps=config.default_agent_max_steps,
+                max_steps=runtime_execution_settings.default_agent_max_steps,
                 result_summary_store=result_summary_store,
                 ui_event_store=event_store,
                 settings_store=settings_store,
@@ -468,8 +487,10 @@ def build_main_page_workspace_runtime(
         execution_dispatcher = FixedRouteExecutionDispatcher(
             task_bus=task_bus,
             default_agent=default_agent,
-            max_ticks_per_trigger=config.execution_dispatcher_max_ticks_per_trigger,
-            enabled=config.enable_execution_dispatcher,
+            max_ticks_per_trigger=(
+                runtime_execution_settings.execution_dispatcher_max_ticks_per_trigger
+            ),
+            enabled=runtime_execution_settings.execution_dispatcher_enabled,
             result_summary_store=result_summary_store,
             message_bus=message_bus,
             on_task_lifecycle_committed=_task_lifecycle_event_callback(
@@ -613,12 +634,8 @@ def build_main_page_workspace_runtime(
         )
         workspace_inspection_gateway = DefaultWorkspaceInspectionGateway.build(
             workspace_root=config.workspace_root,
-            workspace_id=config.current_workspace_id or "current",
+            workspace_id=current_workspace_id,
             inspection_db_path=layout.workspace_inspection_db,
-        )
-        runtime_config_gateway = DefaultRuntimeConfigGateway.from_process_inputs(
-            _runtime_config_process_values(config),
-            workspace_id=config.current_workspace_id or "current",
         )
         diagnostic_support_provider = DefaultDiagnosticSupportContextProvider()
         read_only_inquiry_service = (
@@ -729,6 +746,7 @@ def build_main_page_workspace_runtime(
         result_summary_store=result_summary_store,
         execution_plane_store=execution_plane_store,
         token_usage_store=token_usage_store,
+        runtime_config=runtime_config,
         default_agent=default_agent,
         execution_dispatcher=execution_dispatcher,
         query_gateway=query_gateway,
@@ -881,6 +899,7 @@ def _sidecar_app_from_runtime(
         result_summary_store=runtime.result_summary_store,
         execution_plane_store=runtime.execution_plane_store,
         token_usage_store=runtime.token_usage_store,
+        runtime_config=runtime.runtime_config,
         default_agent=runtime.default_agent,
         execution_dispatcher=runtime.execution_dispatcher,
         query_gateway=runtime.query_gateway,

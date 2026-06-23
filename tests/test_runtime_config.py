@@ -15,6 +15,10 @@ from taskweavn.runtime_config import (
     process_runtime_config_layer,
     resolve_default_runtime_config,
 )
+from taskweavn.server.runtime_config_consumers import (
+    RuntimeConfigConsumerError,
+    runtime_execution_settings_from_config,
+)
 
 
 def test_default_runtime_config_registry_contains_first_batch_keys() -> None:
@@ -176,6 +180,41 @@ def test_process_runtime_config_layer_has_priority_over_environment() -> None:
     assert config.values["computer_use.backend"].source.kind == "process_input"
     assert config.values["computer_use.allowed_apps"].value == ()
     assert config.values["agent_loop.default_max_steps"].value == 8
+
+
+def test_runtime_execution_settings_are_extracted_from_effective_config() -> None:
+    layer = process_runtime_config_layer(
+        {
+            "agent_loop.default_max_steps": 4,
+            "execution_dispatcher.enabled": False,
+            "execution_dispatcher.max_ticks_per_trigger": 2,
+        }
+    )
+    config = resolve_default_runtime_config(
+        scope=RuntimeConfigScope(level="workspace", workspace_id="w1"),
+        layers=(layer,),
+    )
+
+    settings = runtime_execution_settings_from_config(config)
+
+    assert settings.default_agent_max_steps == 4
+    assert settings.execution_dispatcher_enabled is False
+    assert settings.execution_dispatcher_max_ticks_per_trigger == 2
+    assert settings.config_hash == config.config_hash
+
+
+def test_runtime_execution_settings_reject_invalid_effective_values() -> None:
+    config = resolve_default_runtime_config(
+        scope=RuntimeConfigScope(level="process"),
+    )
+    values = dict(config.values)
+    values["agent_loop.default_max_steps"] = values[
+        "agent_loop.default_max_steps"
+    ].model_copy(update={"value": "20"})
+    bad_config = config.model_copy(update={"values": values})
+
+    with pytest.raises(RuntimeConfigConsumerError, match="must be an int"):
+        runtime_execution_settings_from_config(bad_config)
 
 
 def test_runtime_patch_non_live_values_are_marked_pending() -> None:

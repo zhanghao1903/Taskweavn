@@ -628,24 +628,33 @@ Status: implemented for read-only HTTP routes.
 
 ### C4: Runtime Constructor Wiring
 
-Status: partially implemented as behavior-preserving sidecar reflection.
+Status: C4.1 implemented; remaining C4 consumers deferred.
 
-Current slice wires existing sidecar process inputs into the
-`RuntimeConfigGateway`, so diagnostics can explain the active values without
-changing runtime behavior. It does not yet move all runtime consumers from ad
-hoc defaults to `EffectiveRuntimeConfig` injection.
+Implemented C4.1 behavior-preserving migration:
 
-Future C4 migration should move selected consumers from ad hoc defaults to
-effective config injection:
+- Main Page sidecar resolves a workspace-scoped `EffectiveRuntimeConfig`
+  during runtime assembly.
+- `src/taskweavn/server/runtime_config_consumers.py` adapts the effective
+  config snapshot into typed execution constructor settings.
+- `AgentLoop.max_steps` for the resident default agent is now sourced from
+  `agent_loop.default_max_steps` in the effective config snapshot.
+- `FixedRouteExecutionDispatcher.enabled` is now sourced from
+  `execution_dispatcher.enabled`.
+- `FixedRouteExecutionDispatcher.max_ticks_per_trigger` is now sourced from
+  `execution_dispatcher.max_ticks_per_trigger`.
+- `MainPageWorkspaceRuntime` retains the effective runtime config snapshot and
+  config hash for the assembled runtime.
 
-- `AgentLoop.max_steps`;
+Still deferred inside C4:
+
 - `SessionAgentLoopContextProvider.checkpoint_interval_steps`;
-- Context budgets;
-- execution dispatcher ticks;
-- computer-use enabled/backend/allowed apps;
-- read-only inquiry LLM flag.
+- Context Manager budget limits;
+- computer-use enabled/backend/allowed apps as a tool policy source;
+- read-only inquiry LLM flag as a consumer of effective config;
+- persisted execution trace linkage to the effective config hash.
 
-This slice must preserve current defaults.
+All C4 migrations must preserve current defaults unless a later slice
+explicitly authorizes runtime behavior changes.
 
 ### C5: Config Change Store
 
@@ -727,10 +736,10 @@ Status: deferred.
 
 ## 19. Recommended Next Task
 
-The C1-C4 read-only diagnostics slice is complete enough for inspection and
-tests. The next implementation decision should not be a blind write API. First
-decide whether to finish C4 consumer migration or move directly to durable
-config changes.
+The next implementation should continue C4 before adding write APIs. C4.1 made
+AgentLoop and fixed-route dispatcher construction consume effective config.
+C4.2 should migrate Context Manager constructor behavior next, because context
+checkpointing and budget limits are user-visible execution behavior.
 
 Recommended next task:
 
@@ -740,17 +749,19 @@ Use the maintainability-gate skill if touching Main Page sidecar assembly or
 large server modules.
 
 Task:
-Design the next Centralized Runtime Configuration slice.
+Implement C4.2 Context Manager runtime config consumer migration.
 
 Scope:
-- Review the implemented read-only runtime config registry/resolver/API.
-- Decide whether the next slice is:
-  1. finish C4 runtime consumer migration for AgentLoop/ContextManager/tool
-     policy, or
-  2. start C5 durable ConfigChange storage.
+- Source `SessionAgentLoopContextProvider.checkpoint_interval_steps` from
+  `context_manager.checkpoint_interval_steps`.
+- Source context budget limits from `context_manager.budget.*`.
+- Preserve current defaults and behavior.
+- Keep config resolution at sidecar assembly / agent-run boundary; do not read
+  env vars inside Context Manager.
+- Add focused tests showing context checkpoint/budget constructor values come
+  from effective config.
 - Keep behavior-preserving unless the selected slice explicitly authorizes a
   runtime behavior change.
-- Update this plan with the selected slice and acceptance criteria.
 
 Do not:
 - Add Settings UI.
@@ -759,8 +770,8 @@ Do not:
   runtime config.
 
 Output:
-- selected next slice
-- migration boundary
+- files changed
 - tests required
-- remaining blockers
+- checks run
+- remaining C4/C5 blockers
 ```

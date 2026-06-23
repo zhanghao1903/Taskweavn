@@ -1373,6 +1373,120 @@ def test_main_page_sidecar_app_fixed_route_tick_runs_agent_loop_default_agent(
     assert "event: session.resync_required" not in events_after_snapshot.text
 
 
+def test_main_page_sidecar_agent_loop_uses_effective_runtime_config_max_steps(
+    tmp_path: Any,
+) -> None:
+    llm = _AgentLoopSequencedLLM(
+        [
+            _agent_loop_tool_call_response(
+                "write_file",
+                {"path": "notes/loop.md", "content": "step 1"},
+                call_id="write-max-step-1",
+            ),
+        ]
+    )
+    app = build_main_page_sidecar_app(
+        MainPageSidecarConfig(
+            workspace_root=tmp_path,
+            port=0,
+            default_agent_max_steps=1,
+        ),
+        MainPageSidecarDependencies(llm=llm),
+    )
+    try:
+        session_id = _create_session(app)
+        app.task_bus.publish(_published_task("max-steps-task", session_id=session_id))
+
+        tick = app.run_fixed_route_tick(session_id)
+        task = app.task_bus.get(session_id, "max-steps-task")
+    finally:
+        app.close()
+
+    assert app.runtime_config.values["agent_loop.default_max_steps"].value == 1
+    assert tick.status == "failed"
+    assert tick.error_ref == f"agent_loop_failed:{session_id}:max-steps-task:max_steps"
+    assert task is not None
+    assert task.status == "failed"
+    assert task.error_ref == tick.error_ref
+    assert len(llm.calls) == 1
+
+
+def test_main_page_sidecar_dispatcher_uses_effective_runtime_config_enabled(
+    tmp_path: Any,
+) -> None:
+    app = build_main_page_sidecar_app(
+        MainPageSidecarConfig(
+            workspace_root=tmp_path,
+            port=0,
+            enable_execution_dispatcher=False,
+        ),
+        MainPageSidecarDependencies(llm=_AgentLoopLLM("Loop completed.")),
+    )
+    try:
+        session_id = _create_session(app)
+        app.task_bus.publish(
+            _published_task("disabled-dispatch-task", session_id=session_id)
+        )
+
+        assert app.execution_dispatcher is not None
+        request = app.execution_dispatcher.request_dispatch(
+            session_id,
+            reason="manual_control_route",
+        )
+        task = app.task_bus.get(session_id, "disabled-dispatch-task")
+    finally:
+        app.close()
+
+    assert app.runtime_config.values["execution_dispatcher.enabled"].value is False
+    assert request.status == "disabled"
+    assert request.accepted is False
+    assert task is not None
+    assert task.status == "pending"
+
+
+def test_main_page_sidecar_dispatcher_uses_effective_runtime_config_tick_limit(
+    tmp_path: Any,
+) -> None:
+    app = build_main_page_sidecar_app(
+        MainPageSidecarConfig(
+            workspace_root=tmp_path,
+            port=0,
+            execution_dispatcher_max_ticks_per_trigger=1,
+        ),
+        MainPageSidecarDependencies(
+            default_agent=_FakeDefaultAgent(TaskRunResult(result_ref="result:ok")),
+        ),
+    )
+    try:
+        session_id = _create_session(app)
+        app.task_bus.publish(_published_task("tick-limit-1", session_id=session_id))
+        app.task_bus.publish(_published_task("tick-limit-2", session_id=session_id))
+
+        assert app.execution_dispatcher is not None
+        request = app.execution_dispatcher.request_dispatch(
+            session_id,
+            reason="manual_control_route",
+        )
+        assert request.status == "queued"
+        assert _wait_for(
+            lambda: app.task_bus.get(session_id, "tick-limit-1") is not None
+            and app.task_bus.get(session_id, "tick-limit-1").status == "done",
+        )
+        first = app.task_bus.get(session_id, "tick-limit-1")
+        second = app.task_bus.get(session_id, "tick-limit-2")
+    finally:
+        app.close()
+
+    assert (
+        app.runtime_config.values["execution_dispatcher.max_ticks_per_trigger"].value
+        == 1
+    )
+    assert first is not None
+    assert first.status == "done"
+    assert second is not None
+    assert second.status == "pending"
+
+
 def test_main_page_sidecar_app_agent_loop_creates_ask_and_resumes_with_answer_fact(
     tmp_path: Any,
 ) -> None:
