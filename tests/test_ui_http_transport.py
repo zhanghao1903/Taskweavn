@@ -16,6 +16,7 @@ from taskweavn.server import (
     StaticUiEventSource,
     UiEventSource,
 )
+from taskweavn.server.runtime_config_gateway import DefaultRuntimeConfigGateway
 from taskweavn.server.settings_config import (
     SettingsConfigFieldError,
     SettingsConfigValidationError,
@@ -69,6 +70,13 @@ def test_root_route_returns_sidecar_api_hint() -> None:
     assert body["data"]["health_url"] == "/api/v1/health"
     assert body["data"]["settings_readiness_url"] == "/api/v1/settings/readiness"
     assert body["data"]["settings_config_url"] == "/api/v1/settings/config"
+    assert body["data"]["runtime_config_schema_url"] == "/api/v1/runtime/config/schema"
+    assert body["data"]["runtime_config_effective_url"] == (
+        "/api/v1/runtime/config/effective"
+    )
+    assert body["data"]["runtime_config_explain_url_template"] == (
+        "/api/v1/runtime/config/explain?key={key}"
+    )
     assert body["data"]["settings_readiness_recheck_url"] == (
         "/api/v1/settings/readiness/recheck"
     )
@@ -261,6 +269,118 @@ def test_settings_config_route_returns_gateway_payload() -> None:
     assert body["data"]["schemaVersion"] == "plato.settings_config.v1"
     assert body["data"]["llm"]["apiKeyConfigured"] is False
     assert settings.config_calls == 1
+
+
+def test_runtime_config_schema_route_returns_registered_keys() -> None:
+    transport = _transport(runtime_config_gateway=DefaultRuntimeConfigGateway())
+
+    response = transport.handle(
+        HttpApiRequest(method="GET", path="/api/v1/runtime/config/schema")
+    )
+    body = _dict_body(response.body)
+
+    assert response.status_code == 200
+    assert body["ok"] is True
+    assert body["data"]["schemaVersion"] == "plato.runtime_config_schema.v1"
+    keys = {item["key"] for item in body["data"]["keys"]}
+    assert "agent_loop.default_max_steps" in keys
+    assert "computer_use.backend" in keys
+
+
+def test_runtime_config_effective_route_returns_source_attribution() -> None:
+    runtime_config_gateway = DefaultRuntimeConfigGateway.from_process_inputs(
+        {
+            "agent_loop.default_max_steps": 8,
+            "computer_use.enabled": True,
+            "logging.level": "DEBUG",
+        },
+        workspace_id="workspace-1",
+        env={"LLM_PROVIDER": "deepseek", "LLM_MODEL": "deepseek-v4-pro"},
+    )
+    transport = _transport(runtime_config_gateway=runtime_config_gateway)
+
+    response = transport.handle(
+        HttpApiRequest(
+            method="GET",
+            path="/api/v1/runtime/config/effective?sessionId=session-1",
+        )
+    )
+    body = _dict_body(response.body)
+
+    assert response.status_code == 200
+    assert body["ok"] is True
+    data = body["data"]
+    assert data["schemaVersion"] == "plato.runtime_config.v1"
+    assert data["scope"]["level"] == "session"
+    assert data["scope"]["sessionId"] == "session-1"
+    max_steps = data["values"]["agent_loop.default_max_steps"]
+    assert max_steps["value"] == 8
+    assert max_steps["source"]["kind"] == "process_input"
+    llm_provider = data["values"]["llm.default_provider"]
+    assert llm_provider["value"] == "deepseek"
+    assert llm_provider["source"]["kind"] == "environment"
+
+
+def test_runtime_config_explain_route_returns_one_key() -> None:
+    runtime_config_gateway = DefaultRuntimeConfigGateway.from_process_inputs(
+        {"agent_loop.default_max_steps": 12},
+        workspace_id="workspace-1",
+    )
+    transport = _transport(runtime_config_gateway=runtime_config_gateway)
+
+    response = transport.handle(
+        HttpApiRequest(
+            method="GET",
+            path="/api/v1/runtime/config/explain?key=agent_loop.default_max_steps",
+        )
+    )
+    body = _dict_body(response.body)
+
+    assert response.status_code == 200
+    assert body["ok"] is True
+    assert body["data"]["key"] == "agent_loop.default_max_steps"
+    assert body["data"]["value"] == 12
+    assert body["data"]["effectiveStatus"] == "active"
+
+
+def test_runtime_config_routes_require_gateway() -> None:
+    transport = _transport()
+
+    response = transport.handle(
+        HttpApiRequest(method="GET", path="/api/v1/runtime/config/effective")
+    )
+    body = _dict_body(response.body)
+
+    assert response.status_code == 503
+    assert body["error"]["code"] == "internal_error"
+    assert body["error"]["details"]["route"] == "runtime_config_effective"
+
+
+def test_runtime_config_explain_requires_key() -> None:
+    transport = _transport(runtime_config_gateway=DefaultRuntimeConfigGateway())
+
+    response = transport.handle(
+        HttpApiRequest(method="GET", path="/api/v1/runtime/config/explain")
+    )
+    body = _dict_body(response.body)
+
+    assert response.status_code == 400
+    assert body["error"]["code"] == "bad_request"
+
+
+def test_runtime_config_explain_rejects_unknown_key() -> None:
+    transport = _transport(runtime_config_gateway=DefaultRuntimeConfigGateway())
+
+    response = transport.handle(
+        HttpApiRequest(
+            method="GET",
+            path="/api/v1/runtime/config/explain?key=wechat.enabled",
+        )
+    )
+    body = _dict_body(response.body)
+
+    assert response.status_code == 400
+    assert body["error"]["code"] == "bad_request"
 
 
 def test_settings_config_route_patches_without_echoing_secret() -> None:
@@ -1811,6 +1931,7 @@ def _transport(
     settings_config_gateway: _SettingsConfigGateway | None = None,
     diagnostic_export_gateway: _DiagnosticExportGateway | None = None,
     runtime_input_router: _RuntimeInputRouter | None = None,
+    runtime_config_gateway: DefaultRuntimeConfigGateway | None = None,
 ) -> PlatoUiHttpTransport:
     return PlatoUiHttpTransport(
         query_gateway=query or _QueryGateway(),
@@ -1826,6 +1947,7 @@ def _transport(
         settings_config_gateway=settings_config_gateway,
         diagnostic_export_gateway=diagnostic_export_gateway,
         runtime_input_router=runtime_input_router,
+        runtime_config_gateway=runtime_config_gateway,
     )
 
 

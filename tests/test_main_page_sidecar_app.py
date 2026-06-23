@@ -54,6 +54,39 @@ def test_main_page_sidecar_config_uses_stable_dev_port_by_default(
     assert config.port == DEFAULT_PLATO_SIDECAR_PORT
 
 
+def test_main_page_sidecar_exposes_effective_runtime_config(
+    tmp_path: Any,
+) -> None:
+    app = build_main_page_sidecar_app(
+        MainPageSidecarConfig(
+            workspace_root=tmp_path,
+            port=0,
+            default_agent_max_steps=7,
+            enable_execution_dispatcher=False,
+            execution_dispatcher_max_ticks_per_trigger=3,
+            enable_read_only_inquiry_llm=False,
+            enable_computer_use_tool=True,
+            logging_level="DEBUG",
+        ),
+        MainPageSidecarDependencies(llm=_StubLLM()),
+    )
+    try:
+        response = _request(app, "GET", "/api/v1/runtime/config/effective")
+    finally:
+        app.close()
+
+    assert response.status == 200
+    assert response.json["ok"] is True
+    values = response.json["data"]["values"]
+    assert values["agent_loop.default_max_steps"]["value"] == 7
+    assert values["agent_loop.default_max_steps"]["source"]["kind"] == "process_input"
+    assert values["execution_dispatcher.enabled"]["value"] is False
+    assert values["execution_dispatcher.max_ticks_per_trigger"]["value"] == 3
+    assert values["read_only_inquiry.llm_enabled"]["value"] is False
+    assert values["computer_use.enabled"]["value"] is True
+    assert values["logging.level"]["value"] == "DEBUG"
+
+
 def test_main_page_sidecar_uses_guarded_llm_inquiry_provider_by_default(
     tmp_path: Any,
 ) -> None:

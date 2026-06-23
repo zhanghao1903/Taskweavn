@@ -1,488 +1,766 @@
-# Feature Plan: 集中化分级运行时配置系统
+# Feature Plan: Centralized Runtime Configuration
 
-> Status: planned
-> Type: 新特性支持 / 系统控制面
-> Last Updated: 2026-05-13
-> Owner/Session: planning session
-> Target Implementation Session: independent feature session
-> Related Docs: [Configurable Logging System](configurable-logging-system.md), [LLM Provider Plan](llm-provider-retry-thinking.md), [Task-first UI Plan](../task-first-ui-interaction.md), [Planning Workflow](../../planning_workflow.md)
-
----
-
-## 1. 背景
-
-TaskWeavn 的用户体验很大程度由配置决定：
-
-- 交互频繁度：什么时候问用户，什么时候自动执行；
-- 审计强度：哪些 Action 必须审计，审计到什么深度；
-- 日志多寡：哪些对象输出日志，输出到哪里，输出多少；
-- LLM 行为：provider、model、retry、thinking、routing；
-- Task 行为：Task depth、pipeline、agent assignment、result packaging；
-- UI 行为：是否显示卡片结果、消息折叠、确认动作样式；
-- 安全与预算：风险阈值、成本上限、工具权限。
-
-这些配置目前分散在：
-
-- CLI flags；
-- dataclass / Pydantic 默认值；
-- 各模块构造参数；
-- feature plan 中的未来字段；
-- logging / autonomy / LLM provider 等专项计划。
-
-如果继续分散下去，用户体验会变得不可预测：同一个 Session 里为什么这次问用户、为什么这次不问、为什么日志突然很多，很难解释。
-
-本计划目标是把配置升级成 TaskWeavn 的集中化控制面：**分级、可验证、可审计、可热更新**。
+> Status: C1-C4 read-only diagnostics slice implemented / C5-C7 deferred
+> Type: Runtime control plane / configuration governance
+> Last Updated: 2026-06-24
+> Owner/Session: computer-use hardening discussion
+> Target Implementation Session: runtime-config read-only diagnostics slice complete
+> Related Docs: [Configuration Guide](../../configuration.md), [Settings, Logs, And Audit Boundary](../../product/plato-settings-logs-audit-boundary.md), [Configurable Logging System](configurable-logging-system.md), [LLM Provider Plan](llm-provider-retry-thinking.md), [Execution Plane Service Task API](execution-plane-service-task-api.md), [Context Manager 1.0](context-manager-1-0.md), [Skill Governance](product-1-1-skill-governance.md)
 
 ---
 
-## 2. 目标
+## 1. Problem
 
-1. 建立统一配置模型：
-   - global；
-   - workspace/project；
-   - session；
-   - task；
-   - runtime override。
-2. 支持配置集中化管理：
-   - 统一 schema；
-   - 统一加载；
-   - 统一合并；
-   - 统一校验；
-   - 统一变更记录。
-3. 支持会话中热更新：
-   - logging level / sink；
-   - autonomy threshold；
-   - audit strength；
-   - result packaging policy；
-   - LLM retry / provider routing 的下一次请求生效。
-4. 定义配置生命周期：
-   - 启动加载；
-   - 创建 Session；
-   - 发布 Task；
-   - 运行中 patch；
-   - 订阅生效；
-   - 归档和 replay。
-5. 为 UI / CLI / API 提供配置查询与修改入口。
+Plato / Taskweavn now has enough runtime behavior that scattered configuration
+is becoming a product risk.
 
----
+Current behavior-shaping values are spread across:
 
-## 3. 非目标
+- CLI flags in `taskweavn run`, `taskweavn plato-sidecar`, and `taskweavn plato-dev`;
+- environment variables such as `PLATO_COMPUTER_USE_BACKEND`,
+  `PLATO_COMPUTER_USE_ALLOWED_APPS`, `PLATO_ENABLE_READ_ONLY_INQUIRY_LLM`,
+  `LLM_PROVIDER`, `LLM_MODEL`, `LLM_REQUEST_TIMEOUT_SECONDS`,
+  `PLATO_WEB_SEARCH_ENABLED`, and logging/debug variables;
+- dataclass defaults such as `MainPageSidecarConfig.default_agent_max_steps`;
+- direct constructor defaults such as `AgentLoop.max_steps = 20`;
+- Context Manager defaults such as context budgets and checkpoint intervals;
+- feature-specific stores such as Settings config, logging config, thought
+  config, web-search config, and computer-use runtime assembly;
+- tests and scripts that pass their own local runtime parameters.
 
-- 不在第一版实现远程配置服务。
-- 不做完整权限系统，但预留 user/admin/system scope。
-- 不把所有 feature 的详细配置都一次性落地；第一版先做框架和少数高价值配置域。
-- 不要求所有配置都能即时热更新；必须区分 live / next_action / next_task / next_session / static。
-- 不替代 EventStream / MessageStream。配置变更要记录，但配置本身不是用户消息。
-
----
-
-## 4. 核心决策
-
-### 4.1 配置是控制面，不是散落参数
-
-模块不应该各自发明配置读取方式。核心模块应依赖：
+The result is that users and developers cannot reliably answer:
 
 ```text
-ConfigStore -> ConfigResolver -> EffectiveConfig -> subscriber/component
+Why did the Agent stop now?
+Why did it compact/checkpoint context at this point?
+Why did it ask me for confirmation here but not there?
+Why can this workspace use computer-use but another cannot?
+Why is this LLM/model/provider active?
+Why did this timeout happen?
+Which behavior will change immediately if I edit a setting?
 ```
 
-### 4.2 生效配置是不可变快照
+The product need is not merely "more settings". The need is a single control
+plane that explains the current expected behavior of the system.
 
-运行时组件读取的是 `EffectiveConfig` 快照，而不是到处读 mutable dict。
+---
 
-热更新时：
+## 2. Goals
 
-```text
-ConfigPatch
-  -> validate
-  -> append ConfigChange
-  -> recompute EffectiveConfig
-  -> publish ConfigChanged
-  -> subscribers apply if hot-updatable
-```
+1. Define a centralized runtime configuration model with typed domains,
+   metadata, validation, and defaults.
+2. Make current effective behavior queryable as an immutable
+   `EffectiveRuntimeConfig` snapshot.
+3. Separate configuration scope from configuration mutability:
+   - where a value applies;
+   - when a value takes effect.
+4. Preserve source attribution for every effective value:
+   built-in default, environment, CLI, global settings, workspace override,
+   session override, task override, or runtime patch.
+5. Give users and developers one place to inspect the expected behavior of the
+   system.
+6. Migrate high-impact behavior-shaping values first:
+   Agent loop limits, Context Manager budgets/checkpointing, dispatcher ticks,
+   computer-use enablement, LLM provider/timeouts, logging, web search, and
+   safety/confirmation policy.
+7. Keep the first implementation read-only and behavior-preserving.
 
-### 4.3 不是所有配置都 live 生效
+---
 
-每个配置 key 必须标注 mutability：
+## 3. Non-Goals
 
-| Mutability | 含义 | 示例 |
+- Do not implement remote configuration service in the first version.
+- Do not make every setting editable in the UI immediately.
+- Do not force all configuration to be hot-updatable.
+- Do not mix secrets into ordinary config diffs. Secrets should remain in a
+  dedicated secret/settings boundary and only expose configured/not-configured
+  status in effective config.
+- Do not turn runtime configuration into an app automation playbook.
+- Do not make app-specific behavior such as "how to send a WeChat message" a
+  top-level config domain.
+- Do not replace EventStream, MessageStream, TaskBus, or Context snapshots.
+  Config is control-plane state, not work history.
+
+---
+
+## 4. Current State Inventory
+
+### 4.1 Existing Config Entry Points
+
+| Area | Current Entry | Example | Problem |
+|---|---|---|---|
+| CLI run | `taskweavn run` flags | `--max-steps 20`, `--logging-profile debug-tools`, `--autonomy careful` | Applies only to CLI run path. |
+| Plato sidecar | `taskweavn plato-sidecar` / `taskweavn plato-dev` flags and env | `--computer-use-backend macos`, `PLATO_ENABLE_READ_ONLY_INQUIRY_LLM=0` | Not visible as an effective config object. |
+| Packaged sidecar | `src/taskweavn/server/plato_sidecar.py` args/env | `PLATO_COMPUTER_USE_BACKEND` | Duplicates CLI concepts. |
+| Main Page runtime | `MainPageSidecarConfig` | `default_agent_max_steps=20` | Some values are hidden constructor defaults. |
+| Agent loop | `AgentLoop` dataclass | `max_steps=20` | Hardcoded default, no source attribution. |
+| Context Manager | `ContextBudget`, `SessionAgentLoopContextProvider` | `checkpoint_interval_steps=5` | User cannot inspect why context checkpointing happens. |
+| Execution dispatcher | `MainPageSidecarConfig` | `execution_dispatcher_max_ticks_per_trigger=10` | Runtime behavior not surfaced. |
+| LLM | env + Settings config + agent resolver | provider/model/timeout | Multiple resolver paths. |
+| Logging | logging config + Settings | profile/level/sinks | Has its own partial control plane. |
+| Computer use | sidecar flags/env | backend, allowed apps | Product-critical, but not surfaced as effective behavior. |
+| Web search/fetch | Settings + env | provider, enablement, fetch limits | Behavior-changing config is feature-local. |
+| Safety/confirmation | autonomy/gate defaults and task handlers | risk thresholds, confirmation requirements | Not yet centralized. |
+| Main Page trace | env | `PLATO_MAIN_PAGE_TRACE`, `PLATO_MAIN_PAGE_TRACE_FILE` | Debug behavior is environment-only. |
+
+### 4.2 Current Hardcoded / Distributed Defaults
+
+These are current implementation facts that the first registry must represent
+without changing behavior.
+
+| Concern | Current Default / Source | Current Location |
 |---|---|---|
-| `live` | 当前运行中立即生效 | logging level、UI presentation density |
-| `next_action` | 下一个 Action 决策生效 | autonomy threshold、audit strength |
-| `next_llm_call` | 下一次 LLM 请求生效 | retry policy、provider routing |
-| `next_task` | 下一个 Task 生效 | tool allowlist、agent assignment policy |
-| `next_session` | 下个 Session 生效 | default agent templates |
-| `static` | 需要重启或迁移 | workspace root、schema version |
+| Main Page sidecar port | `52789` | `DEFAULT_PLATO_SIDECAR_PORT` |
+| Sidecar host | `127.0.0.1` | CLI / packaged sidecar args |
+| Default Agent max steps | `20` | `MainPageSidecarConfig.default_agent_max_steps`, CLI `run --max-steps`, `main_page_agent` |
+| Execution dispatcher | enabled | `MainPageSidecarConfig.enable_execution_dispatcher` |
+| Dispatcher ticks per trigger | `10` | `MainPageSidecarConfig.execution_dispatcher_max_ticks_per_trigger` |
+| Read-only inquiry LLM | enabled | `MainPageSidecarConfig.enable_read_only_inquiry_llm`, `PLATO_ENABLE_READ_ONLY_INQUIRY_LLM` |
+| Computer-use backend | `disabled` | CLI/packaged sidecar `--computer-use-backend`, `PLATO_COMPUTER_USE_BACKEND` |
+| Computer-use allowed apps | empty allowlist unless passed | `PLATO_COMPUTER_USE_ALLOWED_APPS` / sidecar args |
+| Computer-use coordinate click | `false` | `build_computer_use_runtime(... allow_coordinate_click=False)` |
+| Computer-use screen recording requirement | `false` | `build_computer_use_runtime(... screen_recording_required=False)` |
+| Computer-use max text chars | `4000` | `MacOSComputerUseBackendConfig.max_text_chars` |
+| Context max prior messages | `200` | `SessionAgentLoopContextProvider.max_prior_messages` |
+| Context checkpoint interval | `5` steps | `SessionAgentLoopContextProvider.checkpoint_interval_steps` |
+| Context recent events budget | `20` | `ContextBudget.max_events` |
+| Context tool results budget | `10` | `ContextBudget.max_tool_results` |
+| Context file snippets budget | `6` | `ContextBudget.max_file_snippets` |
+| Context file snippet chars | `8000` | `ContextBudget.max_file_snippet_chars` |
+| Context rendered chars | `60000` | `ContextBudget.max_rendered_chars` |
+| Default LLM provider | `deepseek` | `DEFAULT_LLM_PROVIDER` |
+| First-run LLM model | `deepseek-v4-pro` | Settings readiness/config defaults |
+| LLM request timeout | `180` seconds | `DEFAULT_LLM_REQUEST_TIMEOUT_SECONDS` |
+| Web search | disabled unless Settings/env enable it | Settings config / `PLATO_WEB_SEARCH_ENABLED` |
+| Web fetch | disabled unless Settings/env enable it | Settings config / `PLATO_WEB_FETCH_ENABLED` |
+| Web fetch limits | Settings/env-derived | `PLATO_WEB_FETCH_MAX_*` |
+| Structured logging level | `INFO` | CLI / `MainPageSidecarConfig.logging_level` |
+| Main Page trace | enabled by default | `PLATO_MAIN_PAGE_TRACE`, `PLATO_MAIN_PAGE_TRACE_PRINT`, `PLATO_MAIN_PAGE_TRACE_FILE` |
 
-### 4.4 热更新通过 ConfigBus 传播
+### 4.3 Existing Plan Status
 
-配置变更不应该靠轮询文件。系统内部使用轻量 `ConfigBus` 发布变更，订阅者按 scope 和 domain 接收。
+This document previously described a general hierarchical configuration system.
+That direction remains valid, but it did not account for Product 1.0 / 1.1
+work that now exists:
+
+- Task-first Main Page runtime;
+- fixed-route task execution bridge;
+- Task API / Execution Plane service shell;
+- ASK and confirmation lifecycle;
+- Context Manager and cache-aware rendering;
+- Skill Governance and skill context sources;
+- macOS computer-use and Local WeChat Send MVP;
+- Settings config and Diagnostics surfaces.
+
+The updated plan below treats centralized runtime config as a control-plane
+hardening effort over the current system, not as a greenfield configuration
+rewrite.
+
+As of 2026-06-24, the first read-only implementation slice exists:
+
+- `src/taskweavn/runtime_config/` defines typed registry, defaults, env/process
+  source layers, resolver, and effective config models;
+- `src/taskweavn/server/runtime_config_gateway.py` exposes a sidecar-facing
+  gateway;
+- `src/taskweavn/server/ui_http_runtime_config.py` exposes read-only HTTP
+  adapters for schema/effective/explain;
+- `src/taskweavn/server/ui_http_routes.py` registers:
+  - `GET /api/v1/runtime/config/schema`
+  - `GET /api/v1/runtime/config/effective`
+  - `GET /api/v1/runtime/config/explain`
+- `src/taskweavn/server/main_page.py` wires sidecar process inputs into the
+  read-only gateway.
+
+The implementation is intentionally behavior-preserving. Runtime components
+still primarily receive their values through the existing constructor/config
+paths. The centralized config layer currently reflects and explains those
+values; it is not yet the sole source of runtime behavior. C5-C7 remain
+deferred.
 
 ---
 
-## 5. 配置层级
+## 5. Core Decisions
 
-建议层级：
+### 5.1 Config Explains Expected Behavior
+
+Runtime config should answer:
+
+```text
+What behavior should this process/workspace/session/task currently exhibit?
+Where did each behavior value come from?
+When will changes to that value take effect?
+```
+
+### 5.2 Effective Config Is Immutable
+
+Runtime components should consume an immutable snapshot:
+
+```text
+ConfigRegistry
+  -> ConfigSources
+  -> RuntimeConfigResolver
+  -> EffectiveRuntimeConfig
+  -> runtime component constructors / diagnostics / audit
+```
+
+Components should not independently read environment variables, ad hoc dicts,
+or hidden defaults once their domain is migrated.
+
+### 5.3 Scope And Mutability Are Separate
+
+Scope defines where a value applies.
+
+Mutability defines when a changed value becomes effective.
+
+These must not be collapsed.
+
+### 5.4 First Implementation Is Read-Only
+
+The first implementation should not change runtime behavior. It should:
+
+1. register important config keys;
+2. compute effective values from existing defaults/CLI/env/settings;
+3. expose source attribution;
+4. add tests proving existing behavior is represented.
+
+Write APIs and UI editing come later.
+
+### 5.5 App Behavior Belongs To Skills / Adapters
+
+Specific application procedures are not top-level runtime config.
+
+For example, WeChat should not be a first-class config domain.
+
+Correct split:
+
+| Concern | Owner |
+|---|---|
+| Whether computer-use is enabled | `computer_use` config |
+| Which apps may be controlled | `computer_use.allowed_apps` |
+| Whether high-risk sends require confirmation | `safety` / `computer_use.action_policy` config |
+| How WeChat contact search works | WeChat adapter / skill |
+| Whether WeChat submits by Return or button click | WeChat adapter / skill |
+| WeChat send evidence schema | adapter / skill contract |
+
+If app-specific configuration is later needed, it should live under
+`computer_use.app_profiles`, not as a top-level `wechat` domain.
+
+---
+
+## 6. Scope Model
+
+Recommended scope levels:
+
+```text
+built_in_default
+  -> user_global
+  -> workspace
+  -> session
+  -> task
+  -> agent_run
+  -> runtime_override
+  -> cli_env_process
+```
+
+Product-facing scopes:
+
+| Scope | Meaning | Example |
+|---|---|---|
+| `global` | Default user/device behavior. | Default LLM provider. |
+| `workspace` | Behavior for one workspace. | Enable web search for this workspace. |
+| `session` | Behavior for one user collaboration session. | More careful confirmation policy. |
+| `task` | Behavior for one task. | Require audit/evidence for this task. |
+| `agent_run` | Frozen behavior for one execution attempt. | Max steps for this run. |
+| `process` | Startup-only sidecar behavior. | Host, port, computer-use backend. |
+
+Implementation sources may include CLI/env, but source is not the same as
+scope. For example, `PLATO_COMPUTER_USE_BACKEND=macos` is a process source for
+the `computer_use.backend` key.
+
+---
+
+## 7. Mutability Model
+
+Every registered key must declare when a changed value takes effect.
+
+| Mutability | Meaning | Examples |
+|---|---|---|
+| `live` | Current process applies immediately. | logging level, UI density. |
+| `next_context_build` | Next Context Manager build applies. | context budget limits. |
+| `next_llm_call` | Next LLM request applies. | request timeout, retry policy. |
+| `next_action` | Next action/safety decision applies. | risk threshold, audit strength. |
+| `next_agent_run` | Next agent execution attempt applies. | Agent loop max steps, checkpoint interval. |
+| `next_task` | Next published/claimed task applies. | tool allowlist, capability routing. |
+| `next_session` | New session applies. | default task authoring behavior. |
+| `startup_only` | Requires process restart. | host, port, computer-use backend package backend. |
+| `migration_only` | Requires data/schema migration. | config schema version. |
+
+`agent_loop.default_max_steps` and
+`context_manager.checkpoint_interval_steps` should be `next_agent_run`, not
+`live`. Changing them mid-run would make current execution difficult to explain.
+
+---
+
+## 8. Runtime Domains
+
+First-class top-level domains should be stable system behavior domains.
+
+| Domain | Purpose | First-batch examples |
+|---|---|---|
+| `agent_loop` | Execution loop behavior. | `default_max_steps` |
+| `context_manager` | Context assembly and compaction/checkpoint behavior. | `checkpoint_interval_steps`, budgets |
+| `execution_dispatcher` | TaskBus dispatch trigger behavior. | `max_ticks_per_trigger`, enabled |
+| `task_api` | Local Task API / Execution Plane service behavior. | enabled, idempotency policy, session validation |
+| `computer_use` | OS automation backend and safety envelope. | backend, allowed apps, coordinate-click policy |
+| `safety` | Confirmation and risk behavior. | high-risk confirmation requirement |
+| `llm` | Provider/model/retry/timeout/routing. | default model, request timeout |
+| `logging` | Log profiles, levels, sinks. | selected profile, level |
+| `audit` | Audit strength and evidence behavior. | mode, relevant record collection |
+| `web` | Web search/fetch behavior. | enabled, provider, fetch limits |
+| `settings` | Settings storage/readiness behavior. | global settings root |
+| `ui` | Presentation defaults. | density, raw-result visibility |
+
+Not top-level domains:
+
+| Not Top-Level | Reason |
+|---|---|
+| `wechat` | App procedure belongs to adapter/skill; config only controls whether WeChat can be automated. |
+| `tavily` | Provider detail under `web`. |
+| `deepseek` / `openrouter` | Provider detail under `llm`. |
+| `local_wechat_send_smoke` | Test harness / skill, not runtime config. |
+
+---
+
+## 9. First-Batch Key Registry
+
+The initial registry should be intentionally small and focused on behavior users
+can observe.
+
+| Key | Current Source | Scope | Mutability | Notes |
+|---|---|---|---|---|
+| `agent_loop.default_max_steps` | `AgentLoop.max_steps`, `MainPageSidecarConfig.default_agent_max_steps`, CLI `--max-steps` | workspace/session/agent_run | `next_agent_run` | Current common value is 20. |
+| `context_manager.checkpoint_interval_steps` | `SessionAgentLoopContextProvider.checkpoint_interval_steps` | workspace/session/agent_run | `next_agent_run` | Current common value is 5. |
+| `context_manager.max_prior_messages` | `SessionAgentLoopContextProvider.max_prior_messages` | workspace/session/agent_run | `next_agent_run` | Current common value is 200. |
+| `context_manager.budget.max_events` | `ContextBudget.max_events` | workspace/session/task | `next_context_build` | Current common value is 20. |
+| `context_manager.budget.max_tool_results` | `ContextBudget.max_tool_results` | workspace/session/task | `next_context_build` | Current common value is 10. |
+| `context_manager.budget.max_file_snippets` | `ContextBudget.max_file_snippets` | workspace/session/task | `next_context_build` | Current common value is 6. |
+| `context_manager.budget.max_file_snippet_chars` | `ContextBudget.max_file_snippet_chars` | workspace/session/task | `next_context_build` | Current common value is 8000. |
+| `context_manager.budget.max_rendered_chars` | `ContextBudget.max_rendered_chars` | workspace/session/task | `next_context_build` | Current common value is 60000. |
+| `execution_dispatcher.enabled` | `MainPageSidecarConfig.enable_execution_dispatcher` | process/workspace | `startup_only` initially | Can become live later. |
+| `execution_dispatcher.max_ticks_per_trigger` | `MainPageSidecarConfig.execution_dispatcher_max_ticks_per_trigger` | process/workspace | `next_task` | Current common value is 10. |
+| `task_api.enabled` | sidecar route/service assembly | process/workspace | `startup_only` | Needs explicit surface. |
+| `task_api.require_valid_session` | planned hardening | workspace | `next_task` | Should prevent orphan external tasks. |
+| `computer_use.enabled` | derived from backend/dependency | process/workspace | `startup_only` | Current default disabled. |
+| `computer_use.backend` | CLI/env `PLATO_COMPUTER_USE_BACKEND` | process | `startup_only` | `disabled` or `macos`. |
+| `computer_use.allowed_apps` | CLI/env `PLATO_COMPUTER_USE_ALLOWED_APPS` | process/workspace | `startup_only` initially | Example: `WeChat`. |
+| `computer_use.allow_coordinate_click` | backend assembly | process/workspace | `startup_only` initially | Default should remain false. |
+| `computer_use.screen_recording_required` | backend assembly | process/workspace | `startup_only` initially | Default should remain false. |
+| `computer_use.max_text_chars` | `MacOSComputerUseBackendConfig.max_text_chars` | process/workspace | `startup_only` initially | Current value is 4000. |
+| `safety.high_risk_confirmation` | confirmation/handler policy | workspace/session/task | `next_action` | Required for send-like actions. |
+| `llm.default_provider` | env/settings | global/workspace/session | `next_llm_call` | Current default is `deepseek`. |
+| `llm.default_model` | env/settings/CLI | global/workspace/session | `next_llm_call` | Current first-run default is `deepseek-v4-pro`. |
+| `llm.request_timeout_seconds` | env/settings/profile | global/workspace/session | `next_llm_call` | Current default is 180 seconds. |
+| `logging.profile` | CLI/settings/logging config | global/workspace/session | `live` where supported |
+| `logging.level` | CLI/settings/logging config | global/workspace/session | `live` where supported |
+| `web.search_enabled` | Settings/env | global/workspace/session | `next_action` |
+| `web.fetch_limits` | Settings/env | global/workspace/session | `next_action` |
+| `read_only_inquiry.llm_enabled` | CLI/env | process/workspace | `startup_only` initially |
+| `debug.main_page_trace_enabled` | env | process | `live` or `startup_only` initially | Current default is enabled. |
+| `debug.main_page_trace_sink` | env | process | `startup_only` initially | stdout/file behavior is env-only today. |
+
+---
+
+## 10. Core Contracts
+
+### 10.1 RuntimeConfigKey
+
+```python
+class RuntimeConfigKey(BaseModel):
+    key: str
+    domain: str
+    value_type: str
+    default: Any
+    scope_levels: tuple[str, ...]
+    mutability: str
+    description: str
+    user_visible: bool = True
+    secret: bool = False
+    restart_required: bool = False
+```
+
+### 10.2 RuntimeConfigSource
+
+```python
+class RuntimeConfigSource(BaseModel):
+    source_id: str
+    kind: Literal[
+        "built_in_default",
+        "environment",
+        "cli",
+        "settings_store",
+        "workspace_file",
+        "session_override",
+        "task_override",
+        "runtime_patch",
+    ]
+    scope: ConfigScope
+    priority: int
+```
+
+### 10.3 EffectiveRuntimeConfigValue
+
+```python
+class EffectiveRuntimeConfigValue(BaseModel):
+    key: str
+    value: Any
+    source: RuntimeConfigSource
+    mutability: str
+    effective_status: Literal[
+        "active",
+        "pending_next_context_build",
+        "pending_next_llm_call",
+        "pending_next_action",
+        "pending_next_agent_run",
+        "pending_next_task",
+        "pending_next_session",
+        "pending_restart",
+    ]
+    redacted: bool = False
+```
+
+### 10.4 EffectiveRuntimeConfig
+
+```python
+class EffectiveRuntimeConfig(BaseModel):
+    config_id: str
+    scope: ConfigScope
+    created_at: datetime
+    schema_version: str
+    values: dict[str, EffectiveRuntimeConfigValue]
+    source_layers: tuple[RuntimeConfigSource, ...]
+    config_hash: str
+```
+
+### 10.5 RuntimeConfigResolver
+
+```python
+class RuntimeConfigResolver(Protocol):
+    def resolve(self, scope: ConfigScope) -> EffectiveRuntimeConfig:
+        ...
+
+    def explain(self, key: str, scope: ConfigScope) -> EffectiveRuntimeConfigValue:
+        ...
+```
+
+---
+
+## 11. Config Source Order
+
+Initial merge order:
 
 ```text
 built-in defaults
-  -> user global config        (~/.plato/config.yaml)
-  -> workspace config          <workspace>/.plato/config.yaml
-  -> session config            workspace/.plato/sessions/<id>/config overlay
-  -> task config               task metadata / task config patch
-  -> runtime override          UI / CLI / API hot patch
+  -> user global settings
+  -> workspace settings
+  -> session overrides
+  -> task overrides
+  -> runtime patches
+  -> CLI/env process overrides
 ```
 
-合并规则：
+For Product 1.0/1.1 compatibility, CLI/env process overrides should remain
+highest priority for startup-only process behavior. This avoids surprising
+developers who intentionally launched a sidecar with explicit flags.
 
-| 类型 | 默认规则 |
-|---|---|
-| scalar | 下层覆盖上层 |
-| dict/object | 深度合并 |
-| list | 默认整体替换 |
-| list with merge mode | 显式 `append` / `remove` / `replace` |
-| secret | 不在普通 diff 中显示明文 |
-
-冲突原则：
-
-- scope 越具体优先级越高；
-- runtime override 优先级最高，但可设置 TTL；
-- system/admin locked key 不能被普通 user override；
-- validation 失败时整个 patch 拒绝。
+Future product settings can decide whether user-visible UI overrides outrank
+environment overrides for non-startup settings.
 
 ---
 
-## 6. 配置域
+## 12. Runtime Lifecycle
 
-第一版建议内置这些 domain：
-
-| Domain | 例子 | Hot Update |
-|---|---|---|
-| `autonomy` | trigger、risk threshold、wait strategy、timeout action | next_action |
-| `audit` | audit mode、sample rate、required actions | next_action |
-| `logging` | category level、sink、payload mode | live |
-| `llm` | provider、model、retry、thinking、routing | next_llm_call / next_session |
-| `task` | max depth、max nodes、default status policy | next_task |
-| `pipeline` | task_before / task_begin / task_after | next_task / next_session |
-| `result_presentation` | card policy、card density、disable cards | live / next_task |
-| `budget` | max cost、token budget、on_exceed | live / next_llm_call |
-| `tools` | allowlist、denylist、risk override | next_task |
-| `ui` | message density、show raw result、theme hints | live |
-
-第一版不需要把每个 domain 的字段都做完整，但必须让 domain 注册、校验和订阅机制可扩展。
-
----
-
-## 7. 核心接口草案
-
-### 7.1 ConfigScope
-
-```python
-class ConfigScope(BaseModel):
-    level: Literal["global", "workspace", "session", "task", "runtime"]
-    workspace_id: str | None = None
-    session_id: str | None = None
-    task_id: str | None = None
-```
-
-### 7.2 ConfigPatch
-
-```python
-class ConfigPatch(BaseModel):
-    patch_id: str
-    scope: ConfigScope
-    domain: str
-    data: dict[str, Any]
-    actor: Literal["user", "system", "agent", "api"]
-    reason: str | None = None
-    ttl_seconds: int | None = None
-```
-
-### 7.3 ConfigChange
-
-```python
-class ConfigChange(BaseModel):
-    change_id: str
-    patch: ConfigPatch
-    effective_from: datetime
-    previous_hash: str
-    new_hash: str
-    accepted: bool
-    validation_errors: list[str] = []
-```
-
-### 7.4 EffectiveConfig
-
-```python
-class EffectiveConfig(BaseModel):
-    config_id: str
-    scope: ConfigScope
-    version: str
-    domains: dict[str, Any]
-    source_layers: list[ConfigLayerRef]
-    created_at: datetime
-```
-
-### 7.5 ConfigStore
-
-```python
-class ConfigStore(Protocol):
-    def append_patch(self, patch: ConfigPatch) -> ConfigChange:
-        ...
-
-    def list_changes(self, scope: ConfigScope) -> list[ConfigChange]:
-        ...
-
-    def snapshot(self, scope: ConfigScope) -> EffectiveConfig | None:
-        ...
-```
-
-### 7.6 ConfigResolver
-
-```python
-class ConfigResolver(Protocol):
-    def resolve(self, scope: ConfigScope) -> EffectiveConfig:
-        ...
-
-    def validate_patch(self, patch: ConfigPatch) -> ValidationResult:
-        ...
-```
-
-### 7.7 ConfigBus
-
-```python
-class ConfigBus(Protocol):
-    def publish(self, change: ConfigChange) -> None:
-        ...
-
-    def subscribe(
-        self,
-        *,
-        scope: ConfigScope | None = None,
-        domains: set[str] | None = None,
-    ) -> ConfigSubscription:
-        ...
-```
-
----
-
-## 8. 运行时生命周期
-
-### 8.1 启动
+### 12.1 Process Startup
 
 ```text
-load built-in defaults
-load user global YAML
-load workspace YAML
-validate schemas
-create global/workspace effective config
+load built-in registry defaults
+read environment variables
+read CLI args
+read global/workspace settings if available
+resolve process/workspace EffectiveRuntimeConfig
+assemble sidecar/runtime dependencies
+expose effective config through diagnostics/API
 ```
 
-### 8.2 创建 Session
+### 12.2 Session Creation / Selection
 
 ```text
-SessionManager.create(...)
-  -> resolve workspace effective config
-  -> apply session overrides
-  -> persist session config snapshot
-  -> publish ConfigLoaded(session)
+resolve workspace config
+apply session config overlay
+persist or reference session effective config hash
+show behavior summary in diagnostics/settings
 ```
 
-### 8.3 发布 Task
+### 12.3 Task Claim / Agent Run Start
 
 ```text
-TaskPublisher.publish(...)
-  -> resolve session config
-  -> apply task-level config patch
-  -> validate task constraints
-  -> persist task config ref
+resolve task/agent_run config
+freeze agent_run effective config
+construct AgentLoop / ContextProvider / tool policy from snapshot
+store config hash with execution trace
 ```
 
-### 8.4 会话中热更新
+### 12.4 Runtime Patch
 
 ```text
-UI / CLI / API sends ConfigPatch
-  -> ConfigStore.append_patch
-  -> ConfigResolver validates and recomputes
-  -> ConfigBus publishes ConfigChanged
-  -> subscribers apply if mutability allows
+receive patch from UI/CLI/API
+validate against registry
+write ConfigChange
+compute pending/active effective status
+publish ConfigChanged when supported
+surface when restart or next boundary is required
 ```
 
-### 8.5 归档和 Replay
+### 12.5 Archive / Audit
 
-每个 Session 归档时应保留：
+Session diagnostics and Audit evidence should be able to show:
 
-- session config snapshot；
-- config changes；
-- task-level config refs；
-- rejected config patches；
-- config hash timeline。
-
-这样可以回答：
-
-```text
-为什么这个 Action 当时需要用户确认？
-为什么这个 Task 的日志这么多？
-为什么这个 LLM provider 当时用了 DeepSeek thinking？
-为什么这个结果被包装成卡片？
-```
+- effective config summary;
+- config hash timeline;
+- relevant config changes;
+- rejected config patches;
+- whether a surprising behavior came from a setting, CLI flag, env var, or
+  built-in default.
 
 ---
 
-## 9. 用户设置入口
+## 13. User Surfaces
 
-### 9.1 UI
+### 13.1 Settings / Runtime Behavior
 
-建议三个层级：
+User-facing Settings should show stable behavior controls:
 
-| UI Area | Scope | 示例 |
-|---|---|---|
-| Global Settings | global / workspace | 默认 LLM provider、默认日志 profile |
-| Session Controls | session | 本会话 autonomy、audit、logging、result cards |
-| Task Advanced Panel | task | 该任务是否强审计、是否包装结果、工具限制 |
+- Agent loop maximum steps;
+- Context Manager checkpoint/context budget behavior;
+- default LLM provider/model/readiness;
+- logging profile;
+- computer-use enabled/disabled and allowed apps;
+- high-risk confirmation policy;
+- web search/fetch enablement.
 
-### 9.2 CLI
+Settings should avoid exposing every registry key by default. Advanced details
+belong in Diagnostics.
+
+### 13.2 Diagnostics / Effective Config
+
+Diagnostics should expose:
+
+- current `EffectiveRuntimeConfig`;
+- source per key;
+- mutability per key;
+- pending restart / pending next-run indicators;
+- config hash;
+- redacted secret status.
+
+### 13.3 Audit Page
+
+Audit Page should not edit configuration. It should show relevant configuration
+evidence for the current session/task/action:
+
+- effective config summary;
+- config change records;
+- config validation rejections;
+- related logging/profile/tool policy at the time of action.
+
+---
+
+## 14. API Surface
+
+First version should be read-only:
 
 ```text
-taskweavn config get
-taskweavn config set logging.level DEBUG --session <id>
-taskweavn config set autonomy.preset careful --session <id>
-taskweavn config unset result_presentation.disable_cards --session <id>
-taskweavn config history --session <id>
+GET /api/v1/runtime/config/schema
+GET /api/v1/runtime/config/effective?workspaceId=...&sessionId=...&taskId=...
+GET /api/v1/runtime/config/explain?key=...&workspaceId=...&sessionId=...
 ```
 
-### 9.3 配置文件
+Later write APIs:
 
-```yaml
-version: "1"
-
-autonomy:
-  preset: risk_gated
-  threshold: 0.6
-
-logging:
-  profile: tester-debug
-
-result_presentation:
-  cards:
-    enabled: true
-    auto_package: true
-
-llm:
-  provider: deepseek
-  thinking:
-    enabled: true
+```text
+PATCH /api/v1/runtime/config
+GET /api/v1/runtime/config/changes
 ```
 
----
-
-## 10. 与日志系统的关系
-
-可配置日志系统是这个配置层的第一个重度消费者。
-
-日志系统不应该自己实现一套继承和热更新机制；它应该：
-
-1. 注册 `logging` domain schema；
-2. 订阅 `ConfigBus(domain=logging)`；
-3. 收到 live patch 后原子替换 handler / level / sink；
-4. 在 LogContext 中记录 config hash。
-
-这样日志计划可以专注于日志事件、sink、归档和输出格式，而不是重复造配置合并系统。
+The write API must return whether the patch is active now, pending a boundary,
+or rejected.
 
 ---
 
-## 11. 执行切片
+## 15. Implementation Slices
 
-### Slice 1: Config Schema Registry
+### C1: Read-Only Config Registry
 
-- `ConfigDomain`
-- `ConfigScope`
-- `ConfigPatch`
-- `ConfigChange`
-- `EffectiveConfig`
-- mutability metadata
+Status: implemented.
 
-### Slice 2: Config Resolver
+- Add typed registry models.
+- Register first-batch keys.
+- Include defaults, scope, mutability, descriptions, and source labels.
+- Add unit tests for registry completeness and duplicate key rejection.
+- No runtime behavior changes.
 
-- built-in defaults；
-- YAML load；
-- layer merge；
-- validation；
-- effective config hash。
+### C2: Effective Config Resolver
 
-### Slice 3: Config Store
+Status: implemented.
 
-- SQLite `config_changes`；
-- SQLite `config_snapshots`；
-- rejected patch record；
-- session/task scope queries。
+- Resolve built-in defaults plus existing CLI/env/settings sources.
+- Produce `EffectiveRuntimeConfig`.
+- Preserve source attribution.
+- Add tests proving current values are represented.
+- No runtime behavior changes unless tests explicitly cover equivalence.
 
-### Slice 4: ConfigBus
+### C3: Diagnostics/API Exposure
 
-- in-process publish/subscribe；
-- domain filtering；
-- scope filtering；
-- subscriber lifecycle。
+Status: implemented for read-only HTTP routes.
 
-### Slice 5: First Consumers
+- Expose schema/effective/explain endpoints.
+- Add sidecar read-only effective config exposure.
+- Add config hash to startup diagnostics.
+- Keep write APIs out of scope.
 
-- logging live level update；
-- autonomy next_action threshold update；
-- result_presentation live disable/enable；
-- LLM retry/policy next call config ref。
+### C4: Runtime Constructor Wiring
 
-### Slice 6: UI / CLI API
+Status: partially implemented as behavior-preserving sidecar reflection.
 
-- config get/set/unset/history；
-- session settings API；
-- task advanced config API；
-- validation error display。
+Current slice wires existing sidecar process inputs into the
+`RuntimeConfigGateway`, so diagnostics can explain the active values without
+changing runtime behavior. It does not yet move all runtime consumers from ad
+hoc defaults to `EffectiveRuntimeConfig` injection.
 
-### Slice 7: Replay And Docs
+Future C4 migration should move selected consumers from ad hoc defaults to
+effective config injection:
 
-- config timeline in session archive；
-- replay helper；
-- user guide；
-- migration note from old flags/defaults。
+- `AgentLoop.max_steps`;
+- `SessionAgentLoopContextProvider.checkpoint_interval_steps`;
+- Context budgets;
+- execution dispatcher ticks;
+- computer-use enabled/backend/allowed apps;
+- read-only inquiry LLM flag.
+
+This slice must preserve current defaults.
+
+### C5: Config Change Store
+
+Status: deferred.
+
+- Add durable `ConfigChange` and `EffectiveRuntimeConfig` snapshot storage.
+- Record accepted and rejected patches.
+- Scope by global/workspace/session/task.
+
+### C6: Runtime Patches And ConfigBus
+
+Status: deferred.
+
+- Add patch validation.
+- Publish config changes.
+- Support `live` consumers first, likely logging.
+- Mark other changes as pending appropriate boundaries.
+
+### C7: Settings UI And Audit/Diagnostics Integration
+
+Status: deferred.
+
+- Settings shows behavior controls.
+- Diagnostics shows raw effective config.
+- Audit shows relevant config evidence.
+- Do not overload Audit as a config editor.
 
 ---
 
-## 12. 验收标准
+## 16. Acceptance Criteria
 
-1. 同一配置 key 可以在 global / workspace / session / task 层覆盖，最终值正确。
-2. 无效 patch 被拒绝，并记录 validation error。
-3. `logging.level` 在运行中更新后立即影响输出。
-4. `autonomy.threshold` 更新后从下一个 Action 决策开始生效。
-5. task-level tool/audit override 不影响其他 Task。
-6. 配置变更能在 Session 归档中被查询。
-7. UI/CLI 可以看到 effective config 和变更历史。
-8. 现有模块默认值可以平滑迁移到 built-in defaults。
+1. A developer can query one effective config snapshot and see why the current
+   Agent loop will stop after N steps.
+2. A developer can query why Context Manager checkpointing happens every N
+   steps.
+3. Computer-use enablement and allowed apps are visible in effective config.
+4. LLM provider/model/timeout source is visible without reading env or CLI code.
+5. Logging profile/level source is visible.
+6. Startup-only values clearly say restart is required.
+7. Next-run values clearly say current Agent run is unaffected.
+8. No app-specific playbook, including WeChat send behavior, becomes a top-level
+   config domain.
+9. Initial read-only registry/resolver does not change runtime behavior.
+10. Tests cover defaults, source priority, mutability metadata, and duplicate
+    key validation.
 
 ---
 
-## 13. 风险
+## 17. Risks And Mitigations
 
 | Risk | Mitigation |
 |---|---|
-| 配置系统过度抽象 | 第一版只落地高价值 domain 和少量消费者 |
-| 热更新导致运行中状态不一致 | 每个 key 标注 mutability；不能 live 的延迟到边界生效 |
-| 配置来源难以解释 | EffectiveConfig 保留 source_layers 和 hash |
-| UI 暴露太多选项 | UI 使用 profile + advanced panel，不直接暴露全量 schema |
-| 日志 / autonomy 各自重复实现配置 | 明确由 centralized config 提供合并和订阅 |
+| Config system becomes too abstract | Start with read-only registry and high-impact keys only. |
+| Runtime behavior changes accidentally | C1-C3 must be behavior-preserving. |
+| UI exposes too many controls | Split Settings summary from Diagnostics raw config. |
+| App automation scripts leak into config | Keep app procedures in skills/adapters; config only controls permission/safety envelope. |
+| Hot updates cause inconsistent execution | Require mutability metadata and freeze agent-run snapshots. |
+| Secrets leak into diagnostics | Store only redacted configured/not-configured status. |
+| CLI/env compatibility breaks | Treat explicit process flags/env as high-priority startup sources initially. |
 
 ---
 
-## 14. Open Questions
+## 18. Open Questions
 
-1. 是否需要单独的 `workspace_id`，还是 workspace path 足够？
-2. runtime override 是否默认带 TTL？
-3. user/global config 存放路径是否固定为 `~/.plato/config.yaml`？
-4. secret 是否进入同一配置系统，还是单独 SecretStore？
-5. UI 是否允许编辑 task-level 配置，还是第一版只读展示？
+1. Should `task_api.enabled` be independently configurable, or does the sidecar
+   process itself imply local Task API availability?
+2. Should session-level config snapshots be persisted at session creation or
+   resolved lazily at task/agent-run start?
+3. Should `computer_use.allowed_apps` become workspace-level later, or remain a
+   process launch boundary for safety?
+4. Which config store should own global/workspace/session overrides:
+   existing Settings config store, a new ConfigStore, or a shared SQLite config
+   database?
+5. Should runtime patches have TTL by default?
+6. Which Settings controls are safe for Product 1.0/1.1 users versus
+   Diagnostics-only?
 
 ---
 
-## 15. Status
+## 19. Recommended Next Task
 
-- Status: planned
-- Next Step: 在独立实现会话中先做 Slice 1 + Slice 2，并让 logging plan 依赖该配置解析层。
+The C1-C4 read-only diagnostics slice is complete enough for inspection and
+tests. The next implementation decision should not be a blind write API. First
+decide whether to finish C4 consumer migration or move directly to durable
+config changes.
+
+Recommended next task:
+
+```text
+Use the product-workflow-gate skill first.
+Use the maintainability-gate skill if touching Main Page sidecar assembly or
+large server modules.
+
+Task:
+Design the next Centralized Runtime Configuration slice.
+
+Scope:
+- Review the implemented read-only runtime config registry/resolver/API.
+- Decide whether the next slice is:
+  1. finish C4 runtime consumer migration for AgentLoop/ContextManager/tool
+     policy, or
+  2. start C5 durable ConfigChange storage.
+- Keep behavior-preserving unless the selected slice explicitly authorizes a
+  runtime behavior change.
+- Update this plan with the selected slice and acceptance criteria.
+
+Do not:
+- Add Settings UI.
+- Add config write APIs before the mutation/source-priority rules are settled.
+- Treat app-specific automation behavior such as WeChat send steps as top-level
+  runtime config.
+
+Output:
+- selected next slice
+- migration boundary
+- tests required
+- remaining blockers
+```

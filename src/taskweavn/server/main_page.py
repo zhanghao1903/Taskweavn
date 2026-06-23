@@ -78,6 +78,7 @@ from taskweavn.server.read_only_inquiry_answer_provider import (
 from taskweavn.server.read_only_inquiry_diagnostics import (
     DefaultDiagnosticSupportContextProvider,
 )
+from taskweavn.server.runtime_config_gateway import DefaultRuntimeConfigGateway
 from taskweavn.server.runtime_input_activity import (
     MessageBusRuntimeInputActivityPublisher,
 )
@@ -615,6 +616,10 @@ def build_main_page_workspace_runtime(
             workspace_id=config.current_workspace_id or "current",
             inspection_db_path=layout.workspace_inspection_db,
         )
+        runtime_config_gateway = DefaultRuntimeConfigGateway.from_process_inputs(
+            _runtime_config_process_values(config),
+            workspace_id=config.current_workspace_id or "current",
+        )
         diagnostic_support_provider = DefaultDiagnosticSupportContextProvider()
         read_only_inquiry_service = (
             DefaultReadOnlyInquiryService(
@@ -683,6 +688,7 @@ def build_main_page_workspace_runtime(
                 store=token_usage_store,
                 workspace_id=config.current_workspace_id or "current",
             ),
+            runtime_config_gateway=runtime_config_gateway,
             runtime_input_router=DefaultRuntimeInputRouter(
                 query_gateway=query_gateway,
                 command_gateway=command_gateway,
@@ -883,6 +889,24 @@ def _sidecar_app_from_runtime(
         server=server,
         _close_callback=close_callback,
     )
+
+
+def _runtime_config_process_values(config: MainPageSidecarConfig) -> dict[str, object]:
+    values: dict[str, object] = {
+        "agent_loop.default_max_steps": config.default_agent_max_steps,
+        "execution_dispatcher.enabled": config.enable_execution_dispatcher,
+        "execution_dispatcher.max_ticks_per_trigger": (
+            config.execution_dispatcher_max_ticks_per_trigger
+        ),
+        "task_api.enabled": True,
+        "task_api.require_valid_session": True,
+        "computer_use.enabled": config.enable_computer_use_tool,
+        "read_only_inquiry.llm_enabled": config.enable_read_only_inquiry_llm,
+        "logging.level": config.logging_level,
+    }
+    if config.logging_profile is not None:
+        values["logging.profile"] = config.logging_profile
+    return values
 
 
 @dataclass(frozen=True)
