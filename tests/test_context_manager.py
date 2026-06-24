@@ -11,6 +11,7 @@ from taskweavn.context import (
     CacheAwareRunState,
     ContextBudget,
     ContextBuildRequest,
+    ContextBuildResult,
     ContextCandidate,
     ContextRenderTrigger,
     ContextSnapshot,
@@ -483,6 +484,86 @@ def test_session_agent_loop_provider_appends_interval_checkpoint() -> None:
     checkpoint_trace = store.get_trace(checkpoint_trace_ref.trace_id)
     assert checkpoint_trace is not None
     assert checkpoint_trace.appended_context_message_count == 1
+
+
+def test_session_agent_loop_provider_passes_default_budget_to_builder() -> None:
+    class RecordingBuilder:
+        def __init__(self, manager: SessionContextManager) -> None:
+            self.manager = manager
+            self.requests: list[ContextBuildRequest] = []
+
+        def build(self, request: ContextBuildRequest) -> ContextBuildResult:
+            self.requests.append(request)
+            return self.manager.build(request)
+
+    bus = InMemoryTaskBus()
+    bus.publish(_task())
+    manager = SessionContextManager(task_source=TaskContextSource(bus))
+    builder = RecordingBuilder(manager)
+    budget = ContextBudget(
+        max_events=3,
+        max_tool_results=2,
+        max_file_snippets=1,
+        max_file_snippet_chars=400,
+        max_rendered_chars=5000,
+    )
+    provider = SessionAgentLoopContextProvider(
+        builder,
+        default_budget=budget,
+    )
+
+    provider.prepare_llm_call(
+        AgentLoopContextRequest(
+            session_id="session-1",
+            task_id="task-1",
+            agent_run_id="run-1",
+            turn_index=1,
+            loop_messages=(
+                {"role": "system", "content": "loop system"},
+                {"role": "user", "content": "loop task"},
+            ),
+        )
+    )
+
+    assert builder.requests[0].budget == budget
+
+
+def test_session_agent_loop_provider_records_runtime_config_hash() -> None:
+    bus = InMemoryTaskBus()
+    bus.publish(_task())
+    store = InMemoryContextStore()
+    manager = SessionContextManager(
+        task_source=TaskContextSource(bus),
+        store=store,
+    )
+    provider = SessionAgentLoopContextProvider(
+        manager,
+        runtime_config_hash="runtime-hash-1",
+    )
+
+    call = provider.prepare_llm_call(
+        AgentLoopContextRequest(
+            session_id="session-1",
+            task_id="task-1",
+            agent_run_id="run-1",
+            turn_index=1,
+            loop_messages=(
+                {"role": "system", "content": "loop system"},
+                {"role": "user", "content": "loop task"},
+            ),
+        )
+    )
+
+    assert call.runtime_config_hash == "runtime-hash-1"
+    assert call.rendered.runtime_config_hash == "runtime-hash-1"
+    snapshots = store.list_snapshots_for_task("session-1", "task-1")
+    assert len(snapshots) == 1
+    assert snapshots[0].runtime_config_hash == "runtime-hash-1"
+    trace_ref = snapshots[0].task_execution_context.trace
+    assert trace_ref is not None
+    trace = store.get_trace(trace_ref.trace_id)
+    assert trace is not None
+    assert trace.runtime_config_hash == "runtime-hash-1"
 
 
 def test_session_agent_loop_provider_accepts_future_delta_trigger() -> None:

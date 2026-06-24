@@ -26,9 +26,10 @@ User intent
 ## Current Status
 
 TaskWeavn has moved beyond the early single ReAct-loop prototype. The active
-Product 1.0 path is a local Plato experience with a Main Page frontend, a local
-Python sidecar, durable authoring/execution stores, fixed-route execution, and a
-deterministic, cache-aware Context Manager for LLM input assembly.
+Product 1.1 beta path is a local Plato experience with a Main Page frontend, a
+local Python sidecar, durable authoring/execution stores, Router-first runtime
+input, workspace evidence, restart-safe replay checks, and a deterministic,
+cache-aware Context Manager for LLM input assembly.
 
 | Area | State | Notes |
 |---|---:|---|
@@ -36,16 +37,22 @@ deterministic, cache-aware Context Manager for LLM input assembly.
 | Interaction substrate | Done | Session/workspace persistence, MessageStream, MessageBus, risk/autonomy, wait coordination, derived session status. |
 | Reliability and observability | Done / follow-up hardening | LLM provider abstraction, retry, DeepSeek thinking, OpenRouter routing, structured JSONL session logs. |
 | Authoring domain | Done | RawTask, feasibility, DraftTaskTree, Authoring Commands, Collaborator authoring, publish boundary. |
-| Publishing and TaskBus | Done baseline | TaskPublisher, SQLite TaskBus, publish idempotency, claim/running/complete/fail/skip lifecycle. |
+| Publishing and TaskBus | Done | TaskPublisher, SQLite TaskBus, publish idempotency, claim/running/complete/fail/skip/retry lifecycle. |
+| Runtime input | Product 1.1 beta | One Main Page input routes questions, guidance, ASK / confirmation answers, Plan / TaskNode edits, and execution handoff through the Runtime Input Router. |
+| Conversation / Activity | Product 1.1 beta | User input, Router interpretation, answers, command outcomes, task updates, and Plan archive events are durable and replayable. |
+| Workspace evidence | Product 1.1 beta | Git/diff/file-viewer foundation, precision file tools, result/file projections, Audit links, and diagnostics-safe descriptors. |
 | Main Page integration | Done baseline | Frontend runtime adapter, local sidecar HTTP/SSE shell, command/query/event contracts, result/error/file projections. |
-| Fixed-route execution | Done baseline | Product 1.0 uses one resident Default Agent route instead of Router / Agent Manager. |
-| Context Manager 1.0 | Accepted / cache-aware hardened | Deterministic and append-only cache-aware context assembly before `llm.chat(...)`. |
-| Manual retry | In progress | Failed published Tasks can return to pending in place while failure messages/result summaries remain auditable. |
-| Product 1.1+ | Planned | Router, Agent Manager, skills, MCP, multimodal context, richer result packaging, and advanced pipelines. |
+| Context Manager | Accepted / cache-aware hardened | Deterministic and append-only cache-aware context assembly before `llm.chat(...)`. |
+| Electron beta release | P0 accepted / P1 hardening | Configured Electron, packaged app, mounted `1.1-beta` installer, repo-mode sidecar replay, and launcher-packaged sidecar replay smoke pass. |
+| Product 1.1+ platform work | Planned | Public skill marketplace, custom Agent protocol, broad MCP, multimodal context, signed distribution, and remote execution remain later work. |
 
 Start with [docs/roadmap.md](docs/roadmap.md),
 [docs/project/roadmap.md](docs/project/roadmap.md), and
 [docs/gaps/README.md](docs/gaps/README.md) for the current planning state.
+For Product 1.1 beta publishing, start with
+[Product 1.1 Beta External Release Notes](docs/releases/product-1-1-beta-external-release-notes.md)
+and the internal
+[Product 1.1 Runtime Input Router Release Evidence](docs/releases/product-1-1-runtime-input-router-release-evidence.md).
 
 ## Prerequisites
 
