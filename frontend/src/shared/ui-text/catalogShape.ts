@@ -280,6 +280,65 @@ export type UiTextCatalog = {
       writingToPrefix: string;
       writingTo: UiTextTemplate<{ target: string }>;
     };
+    interaction: {
+      ask: {
+        actions: {
+          answer: string;
+          answering: string;
+          cancelQuestion: string;
+          cancelling: string;
+          defer: string;
+          deferring: string;
+        };
+        labels: {
+          answerText: string;
+          optional: string;
+          task: UiTextTemplate<{ title: string }>;
+          taskInputRequired: string;
+        };
+        messages: {
+          addMissingInformation: string;
+          addYourAnswer: string;
+          batchAnswerHeader: string;
+          batchAnswerItem: UiTextTemplate<{
+            answer: string;
+            index: number;
+            question: string;
+          }>;
+          chooseOption: string;
+          chooseOptionOrEnterAnswer: string;
+          enterAnswer: string;
+          requiredQuestions: string;
+          staleAsk: string;
+        };
+        statuses: Record<
+          "answered" | "cancelled" | "deferred" | "expired" | "pending",
+          string
+        >;
+      };
+      confirmation: {
+        actions: {
+          confirm: string;
+          resolveDecision: string;
+          resolving: string;
+          reviseTask: string;
+          skip: string;
+        };
+        labels: {
+          confirmationStatus: UiTextTemplate<{ status: string }>;
+          decisionNeeded: string;
+          decisionUnavailable: string;
+          impact: string;
+          resolvingDecision: string;
+        };
+        messages: {
+          decisionReadOnly: string;
+          executionWaits: string;
+          selectOneOption: string;
+        };
+        statuses: Record<"expired" | "pending" | "resolved", string>;
+      };
+    };
     labels: {
       noSessions: string;
       noSessionSelected: string;
@@ -390,6 +449,7 @@ export type UiTextCatalog = {
     tabs: {
       configuration: string;
       dataManagement: string;
+      runtimeBehavior: string;
       usageInformation: string;
     };
     fields: {

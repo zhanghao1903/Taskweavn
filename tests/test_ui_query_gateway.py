@@ -1554,10 +1554,12 @@ def test_audit_non_snapshot_queries_use_stored_plan_task_node_identity() -> None
     assert detail.data is not None
     assert detail.data.task_node_id == "node-stored"
     assert detail.data.task_ref == TaskRef.published("published-task")
+    assert detail.data.evidence[0].source == "workspace_inspection"
     assert detail.data.related_logs[0].filters["taskNodeId"] == "node-stored"
     assert evidence.ok is True
     assert evidence.data is not None
     assert evidence.data.id == "evidence-record-file-change-1"
+    assert evidence.data.source == "workspace_inspection"
     assert disclosure_spy.evidence_record_task_node_id == "node-stored"
 
 

@@ -122,6 +122,8 @@ def _serve(args: argparse.Namespace) -> int:
             global_settings_root=args.global_settings_root,
             enable_read_only_inquiry_llm=args.enable_read_only_inquiry_llm,
             enable_computer_use_tool=computer_use_runtime.enabled,
+            computer_use_backend_name=computer_use_runtime.backend_name,
+            computer_use_allowed_apps=computer_use_runtime.allowed_apps,
         ),
         MainPageSidecarDependencies(
             computer_use_backend=computer_use_runtime.backend,
