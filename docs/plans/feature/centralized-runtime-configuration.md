@@ -722,12 +722,18 @@ ConfigBus application, or app-specific automation behavior.
 
 ### C6: Runtime Patches And ConfigBus
 
-Status: deferred.
+Status: C6.1 implemented / C6.2-C6.3 deferred.
 
-- Add patch validation.
-- Publish config changes.
-- Support `live` consumers first, likely logging.
-- Mark other changes as pending appropriate boundaries.
+- C6.1 Internal Bus And Publication Boundary: implemented in
+  [Runtime Config ConfigBus](../../engineering/runtime-config-configbus-contract.md).
+- Publish accepted non-dry-run config changes through an internal typed
+  ConfigBus.
+- Do not publish rejected, no-op, dry-run, or idempotency replay changes.
+- Separate active values from pending values so live consumers cannot
+  accidentally mutate already-running AgentLoop or Context Manager state.
+- Support production `live` consumers later, likely logging/debug only.
+- Keep other changes pending appropriate boundaries such as next context build,
+  next agent run, next task, next session, or restart.
 
 ### C7: Settings UI And Audit/Diagnostics Integration
 
@@ -797,8 +803,9 @@ Status: deferred.
 C4 is closed for the read-only, behavior-preserving runtime constructor and
 trace metadata path. C5 is closed through durable change/snapshot facts,
 backend-only mutation validation, read gateway queries, and the HTTP write API
-design gate. The next implementation step is C6: decide which runtime patches
-can publish ConfigBus events and which consumers can apply live changes.
+design gate. C6.1 is closed for the internal ConfigBus event and publication
+boundary. The next implementation step is C6.2: add the first production
+live-safe consumer, likely logging/debug only.
 
 Recommended next task if config mutation becomes necessary:
 
@@ -808,13 +815,14 @@ Use the maintainability-gate skill if touching Main Page sidecar assembly,
 settings persistence, or large server modules.
 
 Task:
-Design C6 Runtime Patches And ConfigBus.
+Implement C6.2 first live-safe Runtime Config ConfigBus consumer.
 
 Scope:
-- Define ConfigBus event contract for runtime config changes.
-- Define which mutability classes can apply live in Product 1.0/1.1.
-- Define consumer subscription boundaries and rollback/failure behavior.
-- Start with logging/debug settings as the likely first live consumer.
+- Subscribe a logging/debug consumer to the internal Runtime Config ConfigBus.
+- Apply only active `logging.*` or debug keys that are already marked `active`
+  by the effective runtime config status model.
+- Record skipped pending keys without mutating running agents.
+- Add focused tests for apply/skip/failure behavior.
 - Do not add Settings UI in this slice.
 
 Do not:

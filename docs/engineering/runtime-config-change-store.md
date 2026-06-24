@@ -1,10 +1,12 @@
 # Runtime Config Change Store Contract
 
-> Status: C5.1-C5.5 implemented; C6 deferred.
+> Status: C5.1-C5.5 implemented; C6.1 ConfigBus publication boundary implemented.
 > Related Plan:
 > [Centralized Runtime Configuration](../plans/feature/centralized-runtime-configuration.md)
 > Related Write API Contract:
 > [Runtime Config Write API](runtime-config-write-api-contract.md)
+> Related ConfigBus Contract:
+> [Runtime Config ConfigBus](runtime-config-configbus-contract.md)
 > Related Product Boundary:
 > [Settings, Logs, And Audit Boundary](../product/plato-settings-logs-audit-boundary.md)
 > Last Updated: 2026-06-24
@@ -24,9 +26,9 @@ The Config Change Store must answer:
 - when the change becomes effective according to each key's mutability;
 - which execution/context/audit traces can reference the effective config hash.
 
-This store is a control-plane ledger. It is not the hot-update mechanism. C6
-will decide which accepted changes publish ConfigBus events and which consumers
-can apply them live.
+This store is a control-plane ledger. It is not the hot-update mechanism. C6.1
+adds an internal ConfigBus publication boundary for accepted changes, but
+durable store records remain the source of truth.
 
 ## 2. Scope
 
@@ -45,7 +47,7 @@ Out of scope for C5:
 
 - Settings UI;
 - HTTP write routes;
-- live ConfigBus publication;
+- production live ConfigBus consumers;
 - applying patches to running components;
 - app-specific playbooks such as WeChat send behavior;
 - secret storage or API key editing.

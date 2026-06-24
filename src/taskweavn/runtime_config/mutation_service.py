@@ -9,6 +9,7 @@ from datetime import UTC, datetime
 from typing import Any, Protocol, runtime_checkable
 from uuid import uuid4
 
+from taskweavn.runtime_config.config_bus import RuntimeConfigBus
 from taskweavn.runtime_config.defaults import build_default_runtime_config_registry
 from taskweavn.runtime_config.models import (
     EffectiveRuntimeConfig,
@@ -46,6 +47,7 @@ class RuntimeConfigMutationServiceConfig:
     """Dependencies for the runtime config mutation service."""
 
     store: RuntimeConfigChangeStore
+    config_bus: RuntimeConfigBus | None = None
     registry: RuntimeConfigRegistry = field(
         default_factory=build_default_runtime_config_registry
     )
@@ -60,6 +62,7 @@ class DefaultRuntimeConfigMutationService:
         self._registry = config.registry
         self._resolver = RuntimeConfigResolver(config.registry)
         self._base_layers = config.base_layers
+        self._config_bus = config.config_bus
 
     def validate_patch(self, patch: RuntimeConfigPatch) -> RuntimeConfigChange:
         base_config = self._resolve_base(patch.scope)
@@ -219,6 +222,8 @@ class DefaultRuntimeConfigMutationService:
         snapshot = self._snapshot_for_change(change)
         if snapshot is not None:
             self._store.save_snapshot(snapshot)
+        if change.status == "accepted" and self._config_bus is not None:
+            self._config_bus.publish_change(change)
         return change
 
     def _build_rejected_change(
