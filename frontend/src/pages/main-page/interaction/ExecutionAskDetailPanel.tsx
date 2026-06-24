@@ -9,6 +9,7 @@ import type {
 import type { AskRequestView } from "../../../shared/api/types";
 import { Badge, Button, ChoiceGroup, Text } from "../../../shared/components";
 import type { ChoiceGroupMode } from "../../../shared/components";
+import { useUiText, type UiTextCatalog } from "../../../shared/ui-text";
 import { ProductRecoveryActions } from "../ProductRecoveryActions";
 import type { MainPageDetailView } from "../mainPageViewModel";
 import styles from "./ExecutionAskDetailPanel.module.css";
@@ -40,13 +41,15 @@ export function ExecutionAskDetailPanel({
   onCancel,
   onDefer,
 }: ExecutionAskDetailPanelProps) {
+  const uiText = useUiText();
+  const askText = uiText.main.interaction.ask;
   const [draftsByAskId, setDraftsByAskId] = useState<DraftsByAskId>({});
   const ask = detail.ask;
   const draft = draftsByAskId[ask.id] ?? emptyDraft();
   const pendingAction = pendingActionFor(detail);
   const isPending = pendingAction !== null;
   const isStale = isStaleAsk(detail);
-  const validation = validateAskDraft(ask, draft);
+  const validation = validateAskDraft(ask, draft, askText.messages);
   const canAnswer = validation.valid && !isPending && !isStale;
   const batchQuestions = ask.questions ?? [];
   const hasBatchQuestions = batchQuestions.length > 0;
@@ -93,7 +96,7 @@ export function ExecutionAskDetailPanel({
     onAnswer({
       selectedOptionIds: acceptsOptions ? draft.selectedOptionIds : [],
       text: hasBatchQuestions
-        ? formatBatchAnswer(batchQuestions, draft.questionTexts)
+        ? formatBatchAnswer(batchQuestions, draft.questionTexts, askText.messages)
         : draft.text.trim() || null,
     });
   }
@@ -102,16 +105,16 @@ export function ExecutionAskDetailPanel({
     <section className={styles.root} data-ask-id={ask.id}>
       <div className={styles.titleRow}>
         <Text as="strong" variant="label">
-          Task input required
+          {askText.labels.taskInputRequired}
         </Text>
         <Badge tone={isStale ? "danger" : "warning"}>
-          {askStatusLabel(ask.status)}
+          {askStatusLabel(ask.status, askText.statuses)}
         </Badge>
       </div>
 
       {detail.selectedTask ? (
         <Text variant="muted">
-          Task: {detail.selectedTask.title}
+          {askText.labels.task({ title: detail.selectedTask.title })}
         </Text>
       ) : null}
 
@@ -145,7 +148,7 @@ export function ExecutionAskDetailPanel({
               <label className={styles.textAnswer} key={question.id}>
                 <span>
                   {index + 1}. {question.question}
-                  {question.required ? "" : " (optional)"}
+                  {question.required ? "" : ` (${askText.labels.optional})`}
                 </span>
                 <textarea
                   aria-invalid={
@@ -162,7 +165,7 @@ export function ExecutionAskDetailPanel({
                       },
                     })
                   }
-                  placeholder={question.inputHint ?? "Add your answer."}
+                  placeholder={question.inputHint ?? askText.messages.addYourAnswer}
                   rows={3}
                   value={draft.questionTexts[question.id] ?? ""}
                 />
@@ -173,12 +176,12 @@ export function ExecutionAskDetailPanel({
 
         {showTextInput ? (
           <label className={styles.textAnswer}>
-            <span>Answer text</span>
+            <span>{askText.labels.answerText}</span>
             <textarea
               aria-invalid={draft.touched && !validation.valid}
               disabled={isPending || isStale}
               onChange={(event) => updateDraft({ text: event.currentTarget.value })}
-              placeholder="Add the missing information."
+              placeholder={askText.messages.addMissingInformation}
               rows={4}
               value={draft.text}
             />
@@ -194,8 +197,7 @@ export function ExecutionAskDetailPanel({
 
       {isStale ? (
         <Text className={styles.error} role="alert" variant="muted">
-          This question no longer matches the selected task. Refresh or select the
-          waiting task before answering.
+          {askText.messages.staleAsk}
         </Text>
       ) : null}
 
@@ -223,39 +225,36 @@ export function ExecutionAskDetailPanel({
                 className={styles.pendingSpinner}
                 size={16}
               />
-              Answering
+              {askText.actions.answering}
             </>
           ) : (
-            "Answer"
+            askText.actions.answer
           )}
         </Button>
         <Button
           disabled={isPending || isStale}
           onClick={() => onDefer({ reason: "user deferred ASK" })}
         >
-          {detail.isDeferringAsk ? "Deferring" : "Defer"}
+          {detail.isDeferringAsk ? askText.actions.deferring : askText.actions.defer}
         </Button>
         <Button
           disabled={isPending || isStale}
           onClick={() => onCancel({ reason: "user cancelled ASK" })}
           variant="danger"
         >
-          {detail.isCancellingAsk ? "Cancelling" : "Cancel question"}
+          {detail.isCancellingAsk
+            ? askText.actions.cancelling
+            : askText.actions.cancelQuestion}
         </Button>
       </div>
     </section>
   );
 }
 
-function askStatusLabel(status: AskRequestView["status"]) {
-  const labels: Record<AskRequestView["status"], string> = {
-    answered: "Answered",
-    cancelled: "Cancelled",
-    deferred: "Deferred",
-    expired: "Expired",
-    pending: "Waiting",
-  };
-
+function askStatusLabel(
+  status: AskRequestView["status"],
+  labels: UiTextCatalog["main"]["interaction"]["ask"]["statuses"],
+) {
   return labels[status];
 }
 
@@ -313,6 +312,7 @@ function selectedTaskMatchesAsk(
 function validateAskDraft(
   ask: AskRequestView,
   draft: ExecutionAskDraft,
+  messages: UiTextCatalog["main"]["interaction"]["ask"]["messages"],
 ): { message: string; valid: boolean } {
   const hasSelectedOption = draft.selectedOptionIds.length > 0;
   const hasText = draft.text.trim().length > 0;
@@ -328,7 +328,7 @@ function validateAskDraft(
     );
     if (!hasAnyAnswer || hasMissingRequired) {
       return {
-        message: "Answer the required questions before submitting.",
+        message: messages.requiredQuestions,
         valid: false,
       };
     }
@@ -338,7 +338,7 @@ function validateAskDraft(
   if (ask.answerType === "free_text") {
     return hasText
       ? { message: "", valid: true }
-      : { message: "Enter an answer before submitting.", valid: false };
+      : { message: messages.enterAnswer, valid: false };
   }
 
   if (hasSelectedOption) {
@@ -351,8 +351,8 @@ function validateAskDraft(
 
   return {
     message: ask.allowFreeText
-      ? "Choose an option or enter an answer."
-      : "Choose an option before submitting.",
+      ? messages.chooseOptionOrEnterAnswer
+      : messages.chooseOption,
     valid: false,
   };
 }
@@ -360,6 +360,7 @@ function validateAskDraft(
 function formatBatchAnswer(
   questions: NonNullable<AskRequestView["questions"]>,
   questionTexts: Record<string, string>,
+  messages: UiTextCatalog["main"]["interaction"]["ask"]["messages"],
 ): string {
   const lines = questions
     .map((question, index) => {
@@ -367,8 +368,12 @@ function formatBatchAnswer(
       if (!answer) {
         return null;
       }
-      return `${index + 1}. ${question.question}\nAnswer: ${answer}`;
+      return messages.batchAnswerItem({
+        answer,
+        index: index + 1,
+        question: question.question,
+      });
     })
     .filter((line): line is string => line !== null);
-  return `Batch ASK answers:\n\n${lines.join("\n\n")}`;
+  return `${messages.batchAnswerHeader}\n\n${lines.join("\n\n")}`;
 }
