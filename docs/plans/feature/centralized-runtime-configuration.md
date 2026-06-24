@@ -1,11 +1,11 @@
 # Feature Plan: Centralized Runtime Configuration
 
-> Status: C1-C5.4 implemented / C5.5-C7 deferred
+> Status: C1-C5 implemented / C6-C7 deferred
 > Type: Runtime control plane / configuration governance
 > Last Updated: 2026-06-24
 > Owner/Session: computer-use hardening discussion
 > Target Implementation Session: runtime-config read-only diagnostics slice complete
-> Related Docs: [Configuration Guide](../../configuration.md), [Settings, Logs, And Audit Boundary](../../product/plato-settings-logs-audit-boundary.md), [Runtime Config Change Store](../../engineering/runtime-config-change-store.md), [Configurable Logging System](configurable-logging-system.md), [LLM Provider Plan](llm-provider-retry-thinking.md), [Execution Plane Service Task API](execution-plane-service-task-api.md), [Context Manager 1.0](context-manager-1-0.md), [Skill Governance](product-1-1-skill-governance.md)
+> Related Docs: [Configuration Guide](../../configuration.md), [Settings, Logs, And Audit Boundary](../../product/plato-settings-logs-audit-boundary.md), [Runtime Config Change Store](../../engineering/runtime-config-change-store.md), [Runtime Config Write API](../../engineering/runtime-config-write-api-contract.md), [Configurable Logging System](configurable-logging-system.md), [LLM Provider Plan](llm-provider-retry-thinking.md), [Execution Plane Service Task API](execution-plane-service-task-api.md), [Context Manager 1.0](context-manager-1-0.md), [Skill Governance](product-1-1-skill-governance.md)
 
 ---
 
@@ -174,9 +174,9 @@ As of 2026-06-24, the first read-only implementation slice exists:
 The implementation is intentionally behavior-preserving. Runtime components
 still primarily receive their values through the existing constructor/config
 paths. The centralized config layer currently reflects and explains those
-values; it is not yet the sole source of runtime behavior. C5.1-C5.4 now
-provide durable change/snapshot facts, a backend mutation service, and
-read-gateway queries, while C5.5-C7 remain deferred.
+values; it is not yet the sole source of runtime behavior. C5 is now complete
+through the backend store, mutation service, read gateway, and write API
+design gate. C6-C7 remain deferred.
 
 ---
 
@@ -691,7 +691,7 @@ explicitly authorizes runtime behavior changes.
 
 ### C5: Config Change Store
 
-Status: C5.1-C5.4 implemented; C5.5 deferred.
+Status: implemented.
 
 The C5 contract is defined in
 [Runtime Config Change Store](../../engineering/runtime-config-change-store.md).
@@ -714,7 +714,8 @@ Required implementation slices:
   `DefaultRuntimeConfigGateway`; tests cover optional store queries and
   existing HTTP route compatibility.
 - C5.5 HTTP Write API Design Gate: design patch/list routes only after the
-  backend store and mutation service are proven.
+  backend store and mutation service are proven; implemented in
+  [Runtime Config Write API](../../engineering/runtime-config-write-api-contract.md).
 
 C5 remains backend/control-plane work. It must not add Settings UI, live
 ConfigBus application, or app-specific automation behavior.
@@ -794,10 +795,10 @@ Status: deferred.
 ## 19. Recommended Next Task
 
 C4 is closed for the read-only, behavior-preserving runtime constructor and
-trace metadata path. C5.1-C5.4 are now implemented for durable
-change/snapshot facts, backend-only mutation validation, and read gateway
-queries. The next backend/control-plane step is C5.5: design the HTTP write API
-before exposing any patch/list routes.
+trace metadata path. C5 is closed through durable change/snapshot facts,
+backend-only mutation validation, read gateway queries, and the HTTP write API
+design gate. The next implementation step is C6: decide which runtime patches
+can publish ConfigBus events and which consumers can apply live changes.
 
 Recommended next task if config mutation becomes necessary:
 
@@ -807,25 +808,25 @@ Use the maintainability-gate skill if touching Main Page sidecar assembly,
 settings persistence, or large server modules.
 
 Task:
-Design C5.5 Runtime Config HTTP Write API.
+Design C6 Runtime Patches And ConfigBus.
 
 Scope:
-- Define route candidates for patch submission and change listing.
-- Define request/response/error/idempotency semantics.
-- Define authorization and partial-acceptance policy.
-- Define UI copy/status expectations before Settings UI work.
-- Do not implement HTTP write routes, Settings UI, or ConfigBus in this slice.
+- Define ConfigBus event contract for runtime config changes.
+- Define which mutability classes can apply live in Product 1.0/1.1.
+- Define consumer subscription boundaries and rollback/failure behavior.
+- Start with logging/debug settings as the likely first live consumer.
+- Do not add Settings UI in this slice.
 
 Do not:
 - Add Settings UI.
-- Add config write APIs before C5 mutation/source-priority behavior is tested.
+- Apply non-live config changes to already-running agents.
 - Treat app-specific automation behavior such as WeChat send steps as top-level
   runtime config.
 
 Output:
 - Workflow Gate Report
 - files changed
-- API design updated
+- C6 design updated
 - tests required, if any
 - checks run
 - remaining C6/C7 blockers

@@ -1,8 +1,10 @@
 # Runtime Config Change Store Contract
 
-> Status: C5.1-C5.4 implemented; C5.5 deferred.
+> Status: C5.1-C5.5 implemented; C6 deferred.
 > Related Plan:
 > [Centralized Runtime Configuration](../plans/feature/centralized-runtime-configuration.md)
+> Related Write API Contract:
+> [Runtime Config Write API](runtime-config-write-api-contract.md)
 > Related Product Boundary:
 > [Settings, Logs, And Audit Boundary](../product/plato-settings-logs-audit-boundary.md)
 > Last Updated: 2026-06-24
@@ -434,13 +436,15 @@ Status: implemented.
 
 ### C5.5 HTTP Write API Design Gate
 
-Status: next.
+Status: implemented as design gate.
 
-- Only after C5.1-C5.4 pass, design write routes:
+- Designed future write routes in
+  [Runtime Config Write API](runtime-config-write-api-contract.md):
   - `PATCH /api/v1/runtime/config`
   - `GET /api/v1/runtime/config/changes`
-- Define authorization, partial-acceptance policy, and UI copy before
-  implementation.
+- Defined request/response shapes, transport errors, idempotency semantics,
+  authorization policy, partial-acceptance default, and Settings UI copy rules.
+- Did not implement HTTP write routes.
 
 ## 14. Acceptance Criteria
 
