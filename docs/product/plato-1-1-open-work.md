@@ -193,7 +193,7 @@ The P0 milestone is accepted when:
 | Workspace inspection hardening | Decide whether viewer route openings should automatically capture durable evidence; add richer Audit evidence detail expansion; keep raw unified diff deferred unless a concrete UI/diagnostic need appears. | Useful for trust and support, but the accepted inspection milestone already covers the beta path. |
 | Precision file tools product acceptance | Run broader sidecar/Electron evidence-link smoke after frontend entry points consume precision evidence links. | Tool/backend scope is complete; remaining work is acceptance depth. |
 | Stop / cancel UX | Represent intentional user stop as `stopped` or `cancelled`, not as a generic `failed` state with `Retry`. | Avoids user trust damage in long-running tasks. |
-| Token usage budget boundary | Add visible warning or budget boundary for long-running or extremely high-token execution. | Prevents cost surprises during beta use. |
+| Token usage budget boundary | Done in `codex/product-1-1-token-budget-boundary`: Main Page contextual token usage now shows a visible warning at 1,000,000+ tokens. Full pricing, quota, and hard-stop policy remain deferred. | Prevents cost surprises during beta use. |
 | Diagnostics descriptors | Add richer beta-depth diagnostic bundle descriptors for workspace inspection evidence, per-route Electron logs, and support-oriented summaries. | Improves supportability beyond the P0 route-matrix closure. |
 | Localization polish | Clean remaining mixed English/Chinese execution ASK and recovery copy; continue moving UI system text behind typed keys. | Product quality issue for zh-CN beta builds. |
 | Web retrieval beta hardening | Verify real Tavily Search/Extract smoke, broader citation/result UI, Audit projection depth, user-visible limitations, and future retrieval budget boundaries. | Search/fetch are implemented; the remaining work is beta trust and release evidence, not first capability delivery. |
@@ -210,8 +210,8 @@ The next branches should be selected in this order:
 2. **External Product 1.1 release docs sync**: mirror the internal Product 1.1
    beta release record into the public repository docs with user-facing known
    limitations.
-3. **P1 beta polish**: stop/cancel UX, token budget warnings, localization
-   cleanup, and web retrieval release evidence.
+3. **P1 beta polish**: stop/cancel UX, localization cleanup, and web retrieval
+   release evidence.
 
 ## 6. P2 Open Work
 

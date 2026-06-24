@@ -354,6 +354,7 @@ export type UiTextCatalog = {
       inputOutput: string;
       reasoningTokens: string;
       tokenUsage: string;
+      tokenUsageBudget: string;
       totalTokens: string;
       unknownUsage: string;
       usage: string;
@@ -361,6 +362,8 @@ export type UiTextCatalog = {
     };
     messages: {
       compactHelp: string;
+      highUsageWarning: string;
+      highUsageWarningTitle: UiTextTemplate<{ threshold: string }>;
       workspaceUsageHelp: string;
     };
     states: {

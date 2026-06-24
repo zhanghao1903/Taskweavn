@@ -459,6 +459,7 @@ export const zhCN: UiTextCatalog = {
       inputOutput: "输入 / 输出",
       reasoningTokens: "推理 token",
       tokenUsage: "Token 用量",
+      tokenUsageBudget: "预算",
       totalTokens: "总 token",
       unknownUsage: "未知用量",
       usage: "用量",
@@ -466,6 +467,9 @@ export const zhCN: UiTextCatalog = {
     },
     messages: {
       compactHelp: "此范围内已记录的 provider 用量。",
+      highUsageWarning: "用量偏高",
+      highUsageWarningTitle: ({ threshold }) =>
+        `此范围已达到至少 ${threshold} tokens。继续长任务前建议先检查用量。`,
       workspaceUsageHelp:
         "按工作区、会话、计划和任务查看 token 用量。这里不会展示原始 prompt 或 completion。",
     },
