@@ -90,5 +90,5 @@ The following checks passed on 2026-06-20:
 | P1 | Add sidecar restart replay evidence for durable Conversation / Activity. |
 | P1 | Mirror Product 1.1 beta evidence and known limitations into public docs. |
 | P1 | Add optional real/LLM-rendered read-only inquiry smoke evidence. |
-| P1 | Continue stop/cancel UX, token budget warnings, localization, and web retrieval beta hardening. |
+| P1 | Continue stop/cancel UX, token budget warnings, localization, and web retrieval beta hardening; web retrieval user-visible beta limitations are defined in [Product docs](../product/plato-1-1-web-retrieval-beta-limitations.md). |
 | P2 | Signed/notarized distribution and broader platform expansion. |
