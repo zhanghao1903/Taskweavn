@@ -1,6 +1,6 @@
 # Runtime Config ConfigBus Contract
 
-> Status: C6.1-C6.2 implemented.
+> Status: C6.1-C6.3 implemented.
 > Related Plan:
 > [Centralized Runtime Configuration](../plans/feature/centralized-runtime-configuration.md)
 > Related Store Contract:
@@ -185,11 +185,16 @@ Status: implemented.
 
 ### C6.3 Diagnostics Projection
 
-Status: deferred.
+Status: implemented.
 
-- expose publication/consumer results in diagnostics only after a production
-  consumer exists;
-- keep Audit references tied to durable change/snapshot IDs.
+- Added `RuntimeConfigBusDiagnosticsSnapshot`.
+- Added `RuntimeConfigBusPublicationSummary`.
+- Added `runtime_config_bus_diagnostics_snapshot(...)`.
+- Summaries include event/change/patch IDs, scope, base/resulting config hashes,
+  active keys, pending keys, and consumer results.
+- No HTTP route or Settings UI is exposed in C6.3.
+- Audit and Diagnostics should still treat durable change/snapshot IDs as the
+  source-of-truth evidence.
 
 ## 10. Acceptance Criteria
 
@@ -199,4 +204,6 @@ Status: deferred.
 - Consumers can distinguish active keys from pending keys.
 - Consumer failure is observable without rolling back persisted config changes.
 - Active `logging.level` changes have a live-safe consumer path.
-- Running agents are not hot-mutated by C6.1-C6.2.
+- Recent publication and consumer results can be projected into diagnostics
+  summaries without adding external routes.
+- Running agents are not hot-mutated by C6.1-C6.3.

@@ -722,7 +722,7 @@ ConfigBus application, or app-specific automation behavior.
 
 ### C6: Runtime Patches And ConfigBus
 
-Status: C6.1-C6.2 implemented / C6.3 deferred.
+Status: implemented.
 
 - C6.1 Internal Bus And Publication Boundary: implemented in
   [Runtime Config ConfigBus](../../engineering/runtime-config-configbus-contract.md).
@@ -737,6 +737,8 @@ Status: C6.1-C6.2 implemented / C6.3 deferred.
   clearer.
 - Keep other changes pending appropriate boundaries such as next context build,
   next agent run, next task, next session, or restart.
+- Project recent ConfigBus publication and consumer result facts into internal
+  diagnostics summaries without adding external routes.
 
 ### C7: Settings UI And Audit/Diagnostics Integration
 
@@ -806,10 +808,9 @@ Status: deferred.
 C4 is closed for the read-only, behavior-preserving runtime constructor and
 trace metadata path. C5 is closed through durable change/snapshot facts,
 backend-only mutation validation, read gateway queries, and the HTTP write API
-design gate. C6.1 is closed for the internal ConfigBus event and publication
-boundary. C6.2 is closed for active `logging.level` live-safe application. The
-next implementation step is C6.3: expose ConfigBus publication/consumer facts
-through diagnostics without adding Settings UI.
+design gate. C6 is closed for the internal ConfigBus event boundary, active
+`logging.level` live-safe application, and internal diagnostics projection. The
+next implementation step is C7: Settings UI and Audit/Diagnostics integration.
 
 Recommended next task if config mutation becomes necessary:
 
@@ -819,27 +820,26 @@ Use the maintainability-gate skill if touching Main Page sidecar assembly,
 settings persistence, or large server modules.
 
 Task:
-Implement C6.3 Runtime Config ConfigBus diagnostics projection.
+Design C7 Settings UI And Audit/Diagnostics Integration for runtime config.
 
 Scope:
-- Expose recent ConfigBus publication and consumer result facts through an
-  internal diagnostics boundary.
-- Reference durable `RuntimeConfigChange` and `RuntimeConfigSnapshotRecord`
-  IDs as source-of-truth evidence.
-- Keep Settings UI and HTTP write routes deferred.
-- Do not add Settings UI in this slice.
+- Define the minimum Settings controls that are safe for Product 1.0/1.1.
+- Define how Diagnostics exposes effective config, change history, and
+  ConfigBus publication facts.
+- Define how Audit references relevant config evidence by change/snapshot hash.
+- Decide whether HTTP write routes are required before Settings UI.
 
 Do not:
-- Add Settings UI.
-- Apply non-live config changes to already-running agents.
 - Treat app-specific automation behavior such as WeChat send steps as top-level
   runtime config.
+- Expose remote runtime config writes without a separate authorization model.
+- Apply non-live config changes to already-running agents.
 
 Output:
 - Workflow Gate Report
 - files changed
-- C6 design updated
+- C7 design updated
 - tests required, if any
 - checks run
-- remaining C6/C7 blockers
+- remaining C7 blockers
 ```
