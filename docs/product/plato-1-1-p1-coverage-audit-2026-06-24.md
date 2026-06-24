@@ -4,6 +4,8 @@
 >
 > Baseline: `main` after `git pull --ff-only origin main`
 >
+> Last verified: 2026-06-25
+>
 > Scope: Product 1.1 P1 open-work coverage after P0 release evidence closure.
 > This document verifies whether each Product 1.1 P1 row has a standalone
 > owner branch / PR. It does not mark those PRs accepted or merged.
@@ -47,8 +49,8 @@ merged or otherwise accepted.
 | Diagnostics descriptors | Covered by split PRs | PR #97, PR #108 | PR #97 adds workspace inspection diagnostic support summaries. PR #108 adds per-route Electron log descriptor planning. |
 | Localization polish | Covered | PR #96 | Localizes remaining ASK / confirmation detail chrome and continues typed UI text migration. |
 | Web retrieval beta hardening | Covered by split PRs | PR #98, PR #101, PR #102, PR #104, PR #106 | Covers read-only fallback hardening, live Tavily smoke, user-visible limitations, citation/result UI planning, and retrieval budget boundary planning. |
-| Electron release hardening | Covered, with branch-hygiene risk | PR #93, PR #108 | PR #93 owns sidecar restart replay confidence and release notes. PR #108 owns route-log descriptor planning. Signed/notarized distribution remains credential-gated and deferred. PR #93 should be reviewed for diff hygiene before merge because it also carries broader branch-lineage changes. |
-| External release docs sync | Covered | PR #103 | Defines public Product 1.1 release docs sync. Public visual assets are already tracked separately in `public-exposure/`. |
+| Electron release hardening | Covered by split PRs | PR #108, PR #110 | PR #110 owns sidecar restart replay confidence as a narrow smoke/evidence PR. PR #108 owns route-log descriptor planning. Signed/notarized distribution remains credential-gated and deferred. |
+| External release docs sync | Covered by split PRs | PR #103, PR #111 | PR #103 defines the public Product 1.1 release docs sync plan. PR #111 prepares the public-facing Product 1.1 beta source release notes and related indexes. Copying those notes into the external public repository remains the final publishing operation. |
 
 ## 4. Related Accepted Or Existing Evidence
 
@@ -65,11 +67,16 @@ The following are not new P1 gaps:
 
 ## 5. Current Assessment
 
-As of this audit, every Product 1.1 P1 open-work row has either:
+As of the 2026-06-25 verification, every Product 1.1 P1 open-work row has
+either:
 
 - a dedicated open PR;
 - a split set of open PRs for independently reviewable sub-risks; or
 - an explicit external dependency deferral.
+
+The previously broad PR #93 was closed as superseded because it mixed sidecar
+restart replay confidence with external release notes. Its scope is now split
+across PR #110 and PR #111.
 
 Product 1.1 P1 should not be marked complete yet because the owner PRs remain
 open and several are draft. The next release-readiness step is to move through
@@ -79,10 +86,11 @@ is merged.
 
 ## 6. Follow-Up Checklist
 
-1. Confirm PR #93 branch hygiene before merge or split the sidecar restart
-   replay changes into a narrower replacement branch.
-2. Review and merge / close PRs #94 through #108 one by one.
-3. After each merge, update the owning plan, Product 1.1 open-work index, and
+1. Keep PR #93 closed; do not merge the superseded mixed branch.
+2. Review and merge / close PRs #94 through #111 one by one.
+3. Merge PR #110 before PR #111 if Product 1.1 release docs should claim
+   sidecar restart replay commands are available on `main`.
+4. After each merge, update the owning plan, Product 1.1 open-work index, and
    gap registry only when readiness or acceptance changes.
-4. After all owner PRs are accepted, create a final Product 1.1 P1 closure
+5. After all owner PRs are accepted, create a final Product 1.1 P1 closure
    record that references merged commits instead of open PR numbers.
