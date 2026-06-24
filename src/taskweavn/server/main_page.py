@@ -48,6 +48,14 @@ from taskweavn.llm.agent_config import AgentLlmRole
 from taskweavn.llm.agent_resolver import SettingsBackedAgentLlmResolver
 from taskweavn.observability import LogContext
 from taskweavn.observability.main_page_trace import main_page_trace
+from taskweavn.runtime_config import (
+    DefaultRuntimeConfigMutationService,
+    EffectiveRuntimeConfig,
+    RuntimeConfigChangeStore,
+    RuntimeConfigMutationServiceConfig,
+    RuntimeConfigScope,
+    SqliteRuntimeConfigChangeStore,
+)
 from taskweavn.server.ask_recovery import DefaultAskRecoveryService
 from taskweavn.server.client_logs import FileClientErrorLogSink
 from taskweavn.server.diagnostics_export import DefaultDiagnosticExportGateway
@@ -78,6 +86,14 @@ from taskweavn.server.read_only_inquiry_answer_provider import (
 from taskweavn.server.read_only_inquiry_diagnostics import (
     DefaultDiagnosticSupportContextProvider,
 )
+from taskweavn.server.runtime_config_consumers import (
+    RuntimeComputerUseSettings,
+    runtime_computer_use_settings_from_config,
+    runtime_context_settings_from_config,
+    runtime_execution_settings_from_config,
+    runtime_read_only_inquiry_settings_from_config,
+)
+from taskweavn.server.runtime_config_gateway import DefaultRuntimeConfigGateway
 from taskweavn.server.runtime_input_activity import (
     MessageBusRuntimeInputActivityPublisher,
 )
@@ -186,6 +202,13 @@ class MainPageSidecarConfig:
     auth_token: str | None = None
     enable_default_agent: bool = True
     default_agent_max_steps: int = 20
+    context_checkpoint_interval_steps: int = 5
+    context_max_prior_messages: int = 200
+    context_budget_max_events: int = 20
+    context_budget_max_tool_results: int = 10
+    context_budget_max_file_snippets: int = 6
+    context_budget_max_file_snippet_chars: int = 8_000
+    context_budget_max_rendered_chars: int = 60_000
     enable_execution_dispatcher: bool = True
     execution_dispatcher_max_ticks_per_trigger: int = 10
     enable_session_logging: bool = True
@@ -196,6 +219,8 @@ class MainPageSidecarConfig:
     global_settings_root: Path | None = None
     enable_read_only_inquiry_llm: bool = True
     enable_computer_use_tool: bool = False
+    computer_use_backend_name: str = "disabled"
+    computer_use_allowed_apps: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -244,6 +269,8 @@ class MainPageWorkspaceRuntime:
     result_summary_store: TaskExecutionSummaryStore
     execution_plane_store: SqliteExecutionPlaneStore | None
     token_usage_store: SqliteTokenUsageStore
+    runtime_config_change_store: RuntimeConfigChangeStore | None
+    runtime_config: EffectiveRuntimeConfig
     default_agent: ResidentDefaultAgent | None
     execution_dispatcher: FixedRouteExecutionDispatcher | None
     query_gateway: DefaultUiQueryGateway
@@ -295,6 +322,7 @@ class MainPageWorkspaceRuntime:
             self.result_summary_store,
             self.execution_plane_store,
             self.token_usage_store,
+            self.runtime_config_change_store,
             self.ask_store,
             self.plan_store,
             self.draft_store,
@@ -442,6 +470,34 @@ def build_main_page_workspace_runtime(
             layout.workspace_ui_events_db
         )
         event_store = ui_event_store(event_source)
+        current_workspace_id = config.current_workspace_id or "current"
+        runtime_config_change_store = SqliteRuntimeConfigChangeStore(
+            layout.workspace_runtime_config_db
+        )
+        runtime_config_mutation_service = DefaultRuntimeConfigMutationService(
+            RuntimeConfigMutationServiceConfig(store=runtime_config_change_store)
+        )
+        runtime_config_gateway = DefaultRuntimeConfigGateway.from_process_inputs(
+            _runtime_config_process_values(config),
+            workspace_id=current_workspace_id,
+            change_store=runtime_config_change_store,
+        )
+        runtime_config = runtime_config_gateway.effective(
+            RuntimeConfigScope(
+                level="workspace",
+                workspace_id=current_workspace_id,
+            )
+        )
+        runtime_execution_settings = runtime_execution_settings_from_config(
+            runtime_config
+        )
+        runtime_context_settings = runtime_context_settings_from_config(runtime_config)
+        runtime_computer_use_settings = runtime_computer_use_settings_from_config(
+            runtime_config
+        )
+        runtime_read_only_inquiry_settings = (
+            runtime_read_only_inquiry_settings_from_config(runtime_config)
+        )
         _recover_interrupted_running_tasks(
             task_bus=task_bus,
             session_manager=session_manager,
@@ -456,19 +512,22 @@ def build_main_page_workspace_runtime(
                 task_bus=task_bus,
                 ask_store=ask_store,
                 message_bus=message_bus,
-                max_steps=config.default_agent_max_steps,
+                max_steps=runtime_execution_settings.default_agent_max_steps,
+                context_settings=runtime_context_settings,
                 result_summary_store=result_summary_store,
                 ui_event_store=event_store,
                 settings_store=settings_store,
-                enable_computer_use_tool=config.enable_computer_use_tool,
+                enable_computer_use_tool=runtime_computer_use_settings.enabled,
                 computer_use_backend=dependencies.computer_use_backend,
                 contract_guidance_store=guidance_store,
             )
         execution_dispatcher = FixedRouteExecutionDispatcher(
             task_bus=task_bus,
             default_agent=default_agent,
-            max_ticks_per_trigger=config.execution_dispatcher_max_ticks_per_trigger,
-            enabled=config.enable_execution_dispatcher,
+            max_ticks_per_trigger=(
+                runtime_execution_settings.execution_dispatcher_max_ticks_per_trigger
+            ),
+            enabled=runtime_execution_settings.execution_dispatcher_enabled,
             result_summary_store=result_summary_store,
             message_bus=message_bus,
             on_task_lifecycle_committed=_task_lifecycle_event_callback(
@@ -480,18 +539,20 @@ def build_main_page_workspace_runtime(
             layout.meta_dir / "execution_plane.sqlite"
         )
         execution_plane_runtime_handlers = _execution_plane_runtime_handlers(
-            config,
             layout=layout,
             task_bus=task_bus,
             message_bus=message_bus,
             message_stream=message_stream,
             execution_plane_store=execution_plane_store,
+            computer_use_settings=runtime_computer_use_settings,
             computer_use_backend=dependencies.computer_use_backend,
         )
         execution_plane_service = EmbeddedTaskApiService(
             task_bus=task_bus,
             store=execution_plane_store,
-            env_registry=_execution_env_registry(config),
+            env_registry=_execution_env_registry(
+                computer_use_settings=runtime_computer_use_settings,
+            ),
             summary_store=result_summary_store,
             default_session_id=session.id if session is not None else "execution-plane",
             runtime_handlers=execution_plane_runtime_handlers,
@@ -558,7 +619,9 @@ def build_main_page_workspace_runtime(
             session_reader=session_manager,
             task_projection=task_projection,
             audit_event_provider=WorkspaceAuditEventProvider(layout),
-            audit_config_provider=WorkspaceAuditConfigProvider(),
+            audit_config_provider=WorkspaceAuditConfigProvider(
+                runtime_config_gateway=runtime_config_gateway,
+            ),
             audit_log_provider=WorkspaceAuditLogProvider(),
             task_timeline_service=task_timeline,
             session_message_provider=message_stream,
@@ -612,7 +675,7 @@ def build_main_page_workspace_runtime(
         )
         workspace_inspection_gateway = DefaultWorkspaceInspectionGateway.build(
             workspace_root=config.workspace_root,
-            workspace_id=config.current_workspace_id or "current",
+            workspace_id=current_workspace_id,
             inspection_db_path=layout.workspace_inspection_db,
         )
         diagnostic_support_provider = DefaultDiagnosticSupportContextProvider()
@@ -628,7 +691,7 @@ def build_main_page_workspace_runtime(
                     ),
                 ),
             )
-            if config.enable_read_only_inquiry_llm
+            if runtime_read_only_inquiry_settings.llm_enabled
             else None
         )
         contract_revision_service = ContractRevisionCommandService(
@@ -683,6 +746,8 @@ def build_main_page_workspace_runtime(
                 store=token_usage_store,
                 workspace_id=config.current_workspace_id or "current",
             ),
+            runtime_config_gateway=runtime_config_gateway,
+            runtime_config_mutation_service=runtime_config_mutation_service,
             runtime_input_router=DefaultRuntimeInputRouter(
                 query_gateway=query_gateway,
                 command_gateway=command_gateway,
@@ -723,6 +788,8 @@ def build_main_page_workspace_runtime(
         result_summary_store=result_summary_store,
         execution_plane_store=execution_plane_store,
         token_usage_store=token_usage_store,
+        runtime_config_change_store=runtime_config_change_store,
+        runtime_config=runtime_config,
         default_agent=default_agent,
         execution_dispatcher=execution_dispatcher,
         query_gateway=query_gateway,
@@ -875,6 +942,8 @@ def _sidecar_app_from_runtime(
         result_summary_store=runtime.result_summary_store,
         execution_plane_store=runtime.execution_plane_store,
         token_usage_store=runtime.token_usage_store,
+        runtime_config_change_store=runtime.runtime_config_change_store,
+        runtime_config=runtime.runtime_config,
         default_agent=runtime.default_agent,
         execution_dispatcher=runtime.execution_dispatcher,
         query_gateway=runtime.query_gateway,
@@ -883,6 +952,43 @@ def _sidecar_app_from_runtime(
         server=server,
         _close_callback=close_callback,
     )
+
+
+def _runtime_config_process_values(config: MainPageSidecarConfig) -> dict[str, object]:
+    values: dict[str, object] = {
+        "agent_loop.default_max_steps": config.default_agent_max_steps,
+        "context_manager.checkpoint_interval_steps": (
+            config.context_checkpoint_interval_steps
+        ),
+        "context_manager.max_prior_messages": config.context_max_prior_messages,
+        "context_manager.budget.max_events": config.context_budget_max_events,
+        "context_manager.budget.max_tool_results": (
+            config.context_budget_max_tool_results
+        ),
+        "context_manager.budget.max_file_snippets": (
+            config.context_budget_max_file_snippets
+        ),
+        "context_manager.budget.max_file_snippet_chars": (
+            config.context_budget_max_file_snippet_chars
+        ),
+        "context_manager.budget.max_rendered_chars": (
+            config.context_budget_max_rendered_chars
+        ),
+        "execution_dispatcher.enabled": config.enable_execution_dispatcher,
+        "execution_dispatcher.max_ticks_per_trigger": (
+            config.execution_dispatcher_max_ticks_per_trigger
+        ),
+        "task_api.enabled": True,
+        "task_api.require_valid_session": True,
+        "computer_use.enabled": config.enable_computer_use_tool,
+        "computer_use.backend": config.computer_use_backend_name,
+        "computer_use.allowed_apps": config.computer_use_allowed_apps,
+        "read_only_inquiry.llm_enabled": config.enable_read_only_inquiry_llm,
+        "logging.level": config.logging_level,
+    }
+    if config.logging_profile is not None:
+        values["logging.profile"] = config.logging_profile
+    return values
 
 
 @dataclass(frozen=True)
@@ -999,11 +1105,12 @@ def _default_capability_catalog() -> StaticCapabilityCatalog:
 
 
 def _execution_env_registry(
-    config: MainPageSidecarConfig,
+    *,
+    computer_use_settings: RuntimeComputerUseSettings,
 ) -> InMemoryExecutionEnvRegistry:
     capabilities: tuple[str, ...] = ("execute", "testing")
     tool_pool: tuple[str, ...] = ()
-    if config.enable_computer_use_tool:
+    if computer_use_settings.enabled:
         capabilities = (*capabilities, "computer_use", WECHAT_SEND_CAPABILITY)
         tool_pool = (*tool_pool, "computer_use", "wechat_desktop")
     return InMemoryExecutionEnvRegistry(
@@ -1017,16 +1124,16 @@ def _execution_env_registry(
 
 
 def _execution_plane_runtime_handlers(
-    config: MainPageSidecarConfig,
     *,
     layout: WorkspaceLayout,
     task_bus: SqliteTaskBus,
     message_bus: InProcessMessageBus,
     message_stream: SqliteMessageStream,
     execution_plane_store: SqliteExecutionPlaneStore,
+    computer_use_settings: RuntimeComputerUseSettings,
     computer_use_backend: ComputerUseBackend | None,
 ) -> tuple[WeChatSendRuntimeHandler, ...]:
-    if not config.enable_computer_use_tool or computer_use_backend is None:
+    if not computer_use_settings.enabled or computer_use_backend is None:
         return ()
     wechat_boundary_store = SqliteWeChatSendBoundaryStore(
         layout.meta_dir / "wechat_send_boundaries.sqlite"

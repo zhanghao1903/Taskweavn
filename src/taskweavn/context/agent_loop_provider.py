@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from typing import Any, Literal, Protocol, runtime_checkable
 
 from taskweavn.context.models import (
+    ContextBudget,
     ContextBuildRequest,
     ContextBuildResult,
     ContextModel,
@@ -35,6 +36,7 @@ class AgentLoopContextCallResult(ContextModel):
     stable_prefix_hash: str | None = None
     delta_reason: str | None = None
     checkpoint_reason: str | None = None
+    runtime_config_hash: str | None = None
 
 
 class CacheAwareRunState(ContextModel):
@@ -87,6 +89,8 @@ class SessionAgentLoopContextProvider:
     context_builder: ContextBuilder
     max_prior_messages: int = 200
     checkpoint_interval_steps: int = 5
+    default_budget: ContextBudget = field(default_factory=ContextBudget)
+    runtime_config_hash: str | None = None
     additional_trigger_evaluators: tuple[ContextTriggerEvaluator, ...] = ()
     _run_states: dict[str, CacheAwareRunState] = field(
         default_factory=dict,
@@ -107,6 +111,8 @@ class SessionAgentLoopContextProvider:
                 render_mode="full_context",
                 writer=True,
                 turn_index=request.turn_index,
+                budget=self.default_budget,
+                runtime_config_hash=self.runtime_config_hash,
                 prior_messages=prior_messages,
             )
         )
@@ -138,6 +144,8 @@ class SessionAgentLoopContextProvider:
                 render_mode="start_context",
                 writer=True,
                 turn_index=request.turn_index,
+                budget=self.default_budget,
+                runtime_config_hash=self.runtime_config_hash,
                 prior_messages=(),
             )
         )
@@ -159,6 +167,7 @@ class SessionAgentLoopContextProvider:
             rendered=rendered,
             render_mode=rendered.render_mode,
             stable_prefix_hash=rendered.stable_prefix_hash,
+            runtime_config_hash=rendered.runtime_config_hash,
         )
 
     def _prepare_reuse_transcript(
@@ -176,6 +185,8 @@ class SessionAgentLoopContextProvider:
                 render_mode="delta_context",
                 writer=True,
                 turn_index=request.turn_index,
+                budget=self.default_budget,
+                runtime_config_hash=self.runtime_config_hash,
                 prior_messages=request.loop_messages,
             )
         )
@@ -207,6 +218,7 @@ class SessionAgentLoopContextProvider:
             rendered=rendered,
             render_mode=rendered.render_mode,
             stable_prefix_hash=rendered.stable_prefix_hash or state.stable_prefix_hash,
+            runtime_config_hash=rendered.runtime_config_hash,
         )
 
     def _prepare_triggered_context(
@@ -226,6 +238,8 @@ class SessionAgentLoopContextProvider:
                 render_reason=trigger.reason,
                 writer=True,
                 turn_index=request.turn_index,
+                budget=self.default_budget,
+                runtime_config_hash=self.runtime_config_hash,
                 prior_messages=request.loop_messages,
             )
         )
@@ -268,6 +282,7 @@ class SessionAgentLoopContextProvider:
             checkpoint_reason=(
                 trigger.reason if trigger.render_mode == "checkpoint_context" else None
             ),
+            runtime_config_hash=rendered.runtime_config_hash,
         )
 
     def _next_trigger(
