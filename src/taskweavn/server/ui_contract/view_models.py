@@ -628,6 +628,7 @@ AuditEvidenceSource = Literal[
     "event_stream",
     "message_stream",
     "task_projection",
+    "workspace_inspection",
     "audit_agent",
     "config_store",
     "log_archive",

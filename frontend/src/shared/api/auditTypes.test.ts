@@ -53,6 +53,28 @@ describe("Audit Page frontend contract types", () => {
     expect(detail.sanitizedPayload?.format).toBe("json");
   });
 
+  it("accepts workspace inspection as a file-change evidence source", () => {
+    const detail: EvidenceDetail = {
+      available: true,
+      body: "Modified src/App.tsx.",
+      disclosure: {
+        rawPayloadAvailable: false,
+        rawPayloadShown: false,
+      },
+      hidden: false,
+      id: "evidence-file-change-1",
+      kind: "file_change",
+      label: "Projected file change",
+      occurredAt: "2026-05-24T10:01:00Z",
+      redacted: false,
+      sanitizedPayload: null,
+      source: "workspace_inspection",
+      summary: "Modified src/App.tsx.",
+    };
+
+    expect(detail.source).toBe("workspace_inspection");
+  });
+
   it("accepts additive audit event literals", () => {
     const event: UiEvent = {
       createdAt: "2026-05-24T10:03:00Z",
