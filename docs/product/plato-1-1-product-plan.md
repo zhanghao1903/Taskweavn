@@ -318,7 +318,8 @@ Completed baseline:
 Deferred follow-ups:
 
 - advanced search modes and provider-hosted search adapters;
-- per-session retrieval budgets;
+- per-session retrieval budgets, now scoped by
+  [Web Retrieval Budget Boundary](../plans/feature/web-retrieval-budget-boundary.md);
 - broader citation/result UI;
 - browser automation, dynamic rendering, crawl, PDF/OCR, and media extraction.
 
