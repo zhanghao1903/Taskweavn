@@ -236,6 +236,12 @@ class PlatoUiHttpTransport:
                             "runtime_config_explain_url_template": (
                                 "/api/v1/runtime/config/explain?key={key}"
                             ),
+                            "runtime_config_changes_url": (
+                                "/api/v1/runtime/config/changes"
+                            ),
+                            "runtime_config_snapshot_url_template": (
+                                "/api/v1/runtime/config/snapshots/{configHash}"
+                            ),
                             "settings_readiness_recheck_url": (
                                 "/api/v1/settings/readiness/recheck"
                             ),
@@ -296,11 +302,14 @@ class PlatoUiHttpTransport:
                 "runtime_config_schema",
                 "runtime_config_effective",
                 "runtime_config_explain",
+                "runtime_config_changes",
+                "runtime_config_snapshot",
             }:
                 return _runtime_config_response(
                     request,
                     route_name=route_name,
                     gateway=self._runtime_config_gateway,
+                    config_hash=route.record_id,
                 )
             if route_name == "usage_token_summary":
                 return _usage_token_summary_response(

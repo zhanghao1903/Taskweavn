@@ -7,6 +7,14 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from taskweavn.runtime_config import (
+    DefaultRuntimeConfigMutationService,
+    RuntimeConfigActor,
+    RuntimeConfigMutationServiceConfig,
+    RuntimeConfigPatch,
+    RuntimeConfigScope,
+    SqliteRuntimeConfigChangeStore,
+)
 from taskweavn.server import (
     HttpApiRequest,
     InMemoryUiCommandResponseIdempotencyStore,
@@ -76,6 +84,12 @@ def test_root_route_returns_sidecar_api_hint() -> None:
     )
     assert body["data"]["runtime_config_explain_url_template"] == (
         "/api/v1/runtime/config/explain?key={key}"
+    )
+    assert body["data"]["runtime_config_changes_url"] == (
+        "/api/v1/runtime/config/changes"
+    )
+    assert body["data"]["runtime_config_snapshot_url_template"] == (
+        "/api/v1/runtime/config/snapshots/{configHash}"
     )
     assert body["data"]["settings_readiness_recheck_url"] == (
         "/api/v1/settings/readiness/recheck"
@@ -341,6 +355,114 @@ def test_runtime_config_explain_route_returns_one_key() -> None:
     assert body["data"]["key"] == "agent_loop.default_max_steps"
     assert body["data"]["value"] == 12
     assert body["data"]["effectiveStatus"] == "active"
+
+
+def test_runtime_config_changes_route_returns_scoped_history(
+    tmp_path: Path,
+) -> None:
+    scope = RuntimeConfigScope(level="workspace", workspace_id="workspace-1")
+    patch = RuntimeConfigPatch(
+        patch_id="patch-http-read-history",
+        scope=scope,
+        actor=_runtime_config_actor(),
+        values={"logging.level": "DEBUG"},
+        requested_at=_runtime_config_ts(),
+    )
+
+    with SqliteRuntimeConfigChangeStore(tmp_path / "runtime-config.db") as store:
+        service = DefaultRuntimeConfigMutationService(
+            RuntimeConfigMutationServiceConfig(store=store)
+        )
+        change = service.apply_patch(patch)
+        transport = _transport(
+            runtime_config_gateway=DefaultRuntimeConfigGateway.from_process_inputs(
+                {},
+                workspace_id="workspace-1",
+                change_store=store,
+            )
+        )
+
+        response = transport.handle(
+            HttpApiRequest(
+                method="GET",
+                path="/api/v1/runtime/config/changes?workspaceId=workspace-1",
+            )
+        )
+        body = _dict_body(response.body)
+
+    assert response.status_code == 200
+    assert body["ok"] is True
+    assert body["data"]["schemaVersion"] == "plato.runtime_config_changes.v1"
+    assert body["data"]["scope"] == {
+        "level": "workspace",
+        "workspaceId": "workspace-1",
+        "sessionId": None,
+        "taskId": None,
+        "agentRunId": None,
+    }
+    assert body["data"]["totalCount"] == 1
+    assert body["data"]["changes"][0]["changeId"] == change.change_id
+    assert body["data"]["changes"][0]["acceptedValues"] == {"logging.level": "DEBUG"}
+
+
+def test_runtime_config_snapshot_route_returns_snapshot_record(
+    tmp_path: Path,
+) -> None:
+    scope = RuntimeConfigScope(level="workspace", workspace_id="workspace-1")
+    patch = RuntimeConfigPatch(
+        patch_id="patch-http-read-snapshot",
+        scope=scope,
+        actor=_runtime_config_actor(),
+        values={"logging.level": "DEBUG"},
+        requested_at=_runtime_config_ts(),
+    )
+
+    with SqliteRuntimeConfigChangeStore(tmp_path / "runtime-config.db") as store:
+        service = DefaultRuntimeConfigMutationService(
+            RuntimeConfigMutationServiceConfig(store=store)
+        )
+        change = service.apply_patch(patch)
+        assert change.resulting_config_hash is not None
+        transport = _transport(
+            runtime_config_gateway=DefaultRuntimeConfigGateway.from_process_inputs(
+                {},
+                workspace_id="workspace-1",
+                change_store=store,
+            )
+        )
+
+        response = transport.handle(
+            HttpApiRequest(
+                method="GET",
+                path=(
+                    "/api/v1/runtime/config/snapshots/"
+                    f"{change.resulting_config_hash}"
+                ),
+            )
+        )
+        body = _dict_body(response.body)
+
+    assert response.status_code == 200
+    assert body["ok"] is True
+    assert body["data"]["schemaVersion"] == "plato.runtime_config_snapshot.v1"
+    assert body["data"]["snapshot"]["configHash"] == change.resulting_config_hash
+    assert body["data"]["snapshot"]["createdByChangeId"] == change.change_id
+
+
+def test_runtime_config_snapshot_route_returns_not_found_for_missing_hash() -> None:
+    transport = _transport(runtime_config_gateway=DefaultRuntimeConfigGateway())
+
+    response = transport.handle(
+        HttpApiRequest(
+            method="GET",
+            path="/api/v1/runtime/config/snapshots/missing-hash",
+        )
+    )
+    body = _dict_body(response.body)
+
+    assert response.status_code == 404
+    assert body["error"]["code"] == "not_found"
+    assert body["error"]["details"]["configHash"] == "missing-hash"
 
 
 def test_runtime_config_routes_require_gateway() -> None:
@@ -1961,6 +2083,18 @@ def _accepted(command_id: str) -> CommandResponse:
             message="accepted",
         ),
     )
+
+
+def _runtime_config_actor() -> RuntimeConfigActor:
+    return RuntimeConfigActor(
+        actor_type="test",
+        actor_id="test-suite",
+        display_name="UI HTTP runtime config tests",
+    )
+
+
+def _runtime_config_ts() -> datetime:
+    return datetime(2026, 6, 24, 18, 0, tzinfo=UTC)
 
 
 def _rejected(command_id: str, *, message: str) -> CommandResponse:

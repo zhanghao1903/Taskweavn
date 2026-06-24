@@ -1,6 +1,7 @@
 # Runtime Config Settings, Diagnostics, And Audit Integration
 
-> Status: C7 design accepted; C7.1 diagnostics read model implemented.
+> Status: C7 design accepted; C7.1 diagnostics read model and C7.2 HTTP
+> read extension implemented.
 > Related Plan:
 > [Centralized Runtime Configuration](../plans/feature/centralized-runtime-configuration.md)
 > Related Contracts:
@@ -127,11 +128,11 @@ Diagnostics should expose:
    - existing `GET /api/v1/runtime/config/explain?key=...`;
    - source layers and selected value.
 3. Change history:
-   - future `GET /api/v1/runtime/config/changes`;
+   - implemented `GET /api/v1/runtime/config/changes`;
    - accepted/rejected/no-op, actor, reason, hashes, rejected keys.
 4. Snapshot lookup:
-   - future `GET /api/v1/runtime/config/snapshots/{configHash}` only when
-     Audit or diagnostics needs direct lookup.
+   - implemented `GET /api/v1/runtime/config/snapshots/{configHash}`;
+   - returns `not_found` for unknown hashes.
 5. ConfigBus diagnostics:
    - internal `RuntimeConfigBusDiagnosticsSnapshot`;
    - publication event/change IDs;
@@ -216,10 +217,12 @@ Status: implemented.
 
 ### C7.2 HTTP Read Extension
 
-Status: deferred.
+Status: implemented.
 
-- Expose scoped change list route.
-- Add snapshot lookup route only if diagnostics or Audit needs it.
+- Exposed scoped change list route:
+  `GET /api/v1/runtime/config/changes`.
+- Exposed snapshot lookup route:
+  `GET /api/v1/runtime/config/snapshots/{configHash}`.
 - Preserve existing read-only route behavior.
 
 ### C7.3 Runtime Config HTTP Write Route

@@ -742,11 +742,11 @@ Status: implemented.
 
 ### C7: Settings UI And Audit/Diagnostics Integration
 
-Status: design accepted; C7.1 diagnostics read model implemented.
+Status: design accepted; C7.1-C7.2 read diagnostics implemented.
 
 - Settings shows behavior controls.
-- Diagnostics shows raw effective config and C7.1 read-only combined
-  diagnostics facts.
+- Diagnostics shows raw effective config, C7.1 read-only combined diagnostics
+  facts, and C7.2 read-only HTTP change/snapshot routes.
 - Audit shows relevant config evidence.
 - Do not overload Audit as a config editor.
 - Integration design is defined in
@@ -814,9 +814,10 @@ backend-only mutation validation, read gateway queries, and the HTTP write API
 design gate. C6 is closed for the internal ConfigBus event boundary, active
 `logging.level` live-safe application, and internal diagnostics projection. C7
 design is accepted for Settings, Diagnostics, and Audit integration. C7.1 is
-closed with an internal read-only diagnostics gateway. The next implementation
-step is C7.2: expose HTTP read extensions for change list and snapshot lookup
-before any Settings write UI.
+closed with an internal read-only diagnostics gateway. C7.2 is closed with
+read-only HTTP extensions for change list and snapshot lookup. The next
+implementation step is C7.3: add the controlled HTTP write route before any
+Settings write UI.
 
 Recommended next task if config mutation becomes necessary:
 
@@ -826,16 +827,16 @@ Use the maintainability-gate skill if touching Main Page sidecar assembly,
 settings persistence, or large server modules.
 
 Task:
-Implement C7.2 Runtime Config HTTP Read Extension.
+Implement C7.3 Runtime Config HTTP Write Route.
 
 Scope:
-- Add read-only HTTP routes for scoped runtime config change list and snapshot
-  lookup.
-- Preserve existing effective/explain route behavior.
-- Reuse the C7.1 diagnostics gateway where it reduces duplication.
-- Keep it read-only.
+- Add `PATCH /api/v1/runtime/config`.
+- Construct a local actor from the HTTP boundary.
+- Enforce idempotency replay/conflict semantics through the existing mutation
+  service.
+- Keep `allowPartialAcceptance=false` by default.
+- Return accepted, rejected, dry-run, and no-op results without leaking secrets.
 - Do not add Settings UI.
-- Do not add runtime config write routes.
 - Do not add Audit UI.
 
 Do not:

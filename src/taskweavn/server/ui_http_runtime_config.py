@@ -4,9 +4,15 @@ from __future__ import annotations
 
 from typing import cast
 
-from pydantic import ValidationError
+from pydantic import Field, ValidationError
 
-from taskweavn.runtime_config import RuntimeConfigRegistryError, RuntimeConfigResolverError
+from taskweavn.runtime_config import (
+    RuntimeConfigChange,
+    RuntimeConfigModel,
+    RuntimeConfigRegistryError,
+    RuntimeConfigResolverError,
+    RuntimeConfigSnapshotRecord,
+)
 from taskweavn.runtime_config.models import RuntimeConfigScope, RuntimeConfigScopeLevel
 from taskweavn.server.runtime_config_gateway import RuntimeConfigGateway
 from taskweavn.server.transport import HttpApiRequest, HttpApiResponse
@@ -20,6 +26,7 @@ def _runtime_config_response(
     *,
     route_name: str,
     gateway: RuntimeConfigGateway | None,
+    config_hash: str = "",
 ) -> HttpApiResponse:
     if gateway is None:
         return _error_response(
@@ -39,6 +46,36 @@ def _runtime_config_response(
                 mode="json",
                 by_alias=True,
             )
+        elif route_name == "runtime_config_changes":
+            scope = _scope_from_query(request)
+            data = RuntimeConfigChangeListResponse(
+                scope=scope,
+                changes=gateway.list_changes(scope),
+            ).model_dump(mode="json", by_alias=True)
+        elif route_name == "runtime_config_snapshot":
+            if not config_hash:
+                return _error_response(
+                    400,
+                    ApiError(
+                        code="bad_request",
+                        message="runtime config snapshot requires config hash",
+                    ),
+                    request_id=_request_id_hint(request),
+                )
+            snapshot = gateway.get_snapshot(config_hash)
+            if snapshot is None:
+                return _error_response(
+                    404,
+                    ApiError(
+                        code="not_found",
+                        message="runtime config snapshot not found",
+                        details={"configHash": config_hash},
+                    ),
+                    request_id=_request_id_hint(request),
+                )
+            data = RuntimeConfigSnapshotLookupResponse(
+                snapshot=snapshot,
+            ).model_dump(mode="json", by_alias=True)
         else:
             key = _request_query(request).get("key")
             if not key:
@@ -65,6 +102,25 @@ def _runtime_config_response(
             request_id=_request_id_hint(request),
         )
     return _json_response({"ok": True, "data": data, "error": None})
+
+
+class RuntimeConfigChangeListResponse(RuntimeConfigModel):
+    """Read-only HTTP response for scoped runtime config change history."""
+
+    schema_version: str = "plato.runtime_config_changes.v1"
+    scope: RuntimeConfigScope
+    changes: tuple[RuntimeConfigChange, ...] = ()
+    total_count: int = Field(default=0, ge=0)
+
+    def model_post_init(self, __context: object) -> None:
+        object.__setattr__(self, "total_count", len(self.changes))
+
+
+class RuntimeConfigSnapshotLookupResponse(RuntimeConfigModel):
+    """Read-only HTTP response for a durable runtime config snapshot lookup."""
+
+    schema_version: str = "plato.runtime_config_snapshot.v1"
+    snapshot: RuntimeConfigSnapshotRecord
 
 
 def _scope_from_query(request: HttpApiRequest) -> RuntimeConfigScope:
