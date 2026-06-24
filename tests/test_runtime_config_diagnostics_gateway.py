@@ -112,4 +112,3 @@ def _actor() -> RuntimeConfigActor:
 
 def _ts() -> datetime:
     return datetime(2026, 6, 24, 17, 0, tzinfo=UTC)
-
