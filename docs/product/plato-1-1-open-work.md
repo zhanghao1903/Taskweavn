@@ -2,7 +2,7 @@
 
 > Status: active open-work index
 >
-> Last Updated: 2026-06-20
+> Last Updated: 2026-06-24
 >
 > Scope: Product 1.1 unfinished product work after the accepted workspace,
 > precision-tool, read-only inquiry, token-usage, and local Electron beta
@@ -195,7 +195,7 @@ The P0 milestone is accepted when:
 | Stop / cancel UX | Represent intentional user stop as `stopped` or `cancelled`, not as a generic `failed` state with `Retry`. | Avoids user trust damage in long-running tasks. |
 | Token usage budget boundary | Add visible warning or budget boundary for long-running or extremely high-token execution. | Prevents cost surprises during beta use. |
 | Diagnostics descriptors | Add richer beta-depth diagnostic bundle descriptors for workspace inspection evidence, per-route Electron logs, and support-oriented summaries. | Improves supportability beyond the P0 route-matrix closure. |
-| Localization polish | Clean remaining mixed English/Chinese execution ASK and recovery copy; continue moving UI system text behind typed keys. | Product quality issue for zh-CN beta builds. |
+| Localization polish | Done in `codex/product-1-1-localization-polish` for execution ASK and confirmation detail chrome: controls, statuses, validation, stale-question recovery, fallback confirmation options, and generated batch-answer prefixes now use typed `en-US` / `zh-CN` UI system text keys. Backend-provided ASK/confirmation content and LLM output remain source content. | Product quality issue for zh-CN beta builds. |
 | Web retrieval beta hardening | Verify real Tavily Search/Extract smoke, broader citation/result UI, Audit projection depth, user-visible limitations, and future retrieval budget boundaries. | Search/fetch are implemented; the remaining work is beta trust and release evidence, not first capability delivery. |
 | Electron release hardening | Keep packaged/installer smoke current for Product 1.1 paths; add sidecar restart replay; signed/notarized distribution remains deferred until Apple Developer credentials exist. | Protects beta release quality. |
 | External release docs sync | Mirror Product 1.1 beta evidence and known limitations into the public repository release/user docs when publishing externally. | Public-facing clarity matters, but the internal P0 release evidence is now closed. |
