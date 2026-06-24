@@ -722,7 +722,7 @@ ConfigBus application, or app-specific automation behavior.
 
 ### C6: Runtime Patches And ConfigBus
 
-Status: C6.1 implemented / C6.2-C6.3 deferred.
+Status: C6.1-C6.2 implemented / C6.3 deferred.
 
 - C6.1 Internal Bus And Publication Boundary: implemented in
   [Runtime Config ConfigBus](../../engineering/runtime-config-configbus-contract.md).
@@ -731,7 +731,10 @@ Status: C6.1 implemented / C6.2-C6.3 deferred.
 - Do not publish rejected, no-op, dry-run, or idempotency replay changes.
 - Separate active values from pending values so live consumers cannot
   accidentally mutate already-running AgentLoop or Context Manager state.
-- Support production `live` consumers later, likely logging/debug only.
+- Support a first production `live` consumer for active `logging.level`
+  changes through the existing observability manager.
+- Keep `logging.profile` deferred until session/global scope semantics are
+  clearer.
 - Keep other changes pending appropriate boundaries such as next context build,
   next agent run, next task, next session, or restart.
 
@@ -804,8 +807,9 @@ C4 is closed for the read-only, behavior-preserving runtime constructor and
 trace metadata path. C5 is closed through durable change/snapshot facts,
 backend-only mutation validation, read gateway queries, and the HTTP write API
 design gate. C6.1 is closed for the internal ConfigBus event and publication
-boundary. The next implementation step is C6.2: add the first production
-live-safe consumer, likely logging/debug only.
+boundary. C6.2 is closed for active `logging.level` live-safe application. The
+next implementation step is C6.3: expose ConfigBus publication/consumer facts
+through diagnostics without adding Settings UI.
 
 Recommended next task if config mutation becomes necessary:
 
@@ -815,14 +819,14 @@ Use the maintainability-gate skill if touching Main Page sidecar assembly,
 settings persistence, or large server modules.
 
 Task:
-Implement C6.2 first live-safe Runtime Config ConfigBus consumer.
+Implement C6.3 Runtime Config ConfigBus diagnostics projection.
 
 Scope:
-- Subscribe a logging/debug consumer to the internal Runtime Config ConfigBus.
-- Apply only active `logging.*` or debug keys that are already marked `active`
-  by the effective runtime config status model.
-- Record skipped pending keys without mutating running agents.
-- Add focused tests for apply/skip/failure behavior.
+- Expose recent ConfigBus publication and consumer result facts through an
+  internal diagnostics boundary.
+- Reference durable `RuntimeConfigChange` and `RuntimeConfigSnapshotRecord`
+  IDs as source-of-truth evidence.
+- Keep Settings UI and HTTP write routes deferred.
 - Do not add Settings UI in this slice.
 
 Do not:

@@ -1,6 +1,6 @@
 # Runtime Config ConfigBus Contract
 
-> Status: C6.1 implemented as internal bus + mutation publication boundary.
+> Status: C6.1-C6.2 implemented.
 > Related Plan:
 > [Centralized Runtime Configuration](../plans/feature/centralized-runtime-configuration.md)
 > Related Store Contract:
@@ -95,8 +95,9 @@ but live consumers may apply only `active_values`.
 | `pending_next_session` | Do not mutate current session; apply to next session. |
 | `pending_restart` | Do not apply until restart. |
 
-Initial live-safe keys are limited to `logging.*` keys marked `active` by the
-existing resolver.
+Initial live-safe application is limited to `logging.level` when it is marked
+`active` by the existing resolver. `logging.profile` remains deferred because
+profile application needs clearer session/global scope semantics.
 
 ## 6. Consumer Boundary
 
@@ -171,13 +172,16 @@ Status: implemented.
 
 ### C6.2 First Production Consumer
 
-Status: deferred.
+Status: implemented.
 
-Recommended first consumer:
-
-- logging/debug consumer that only applies active `logging.*` keys;
-- records skipped keys explicitly;
-- does not mutate AgentLoop, Context Manager, computer-use, or task API state.
+- Added `RuntimeConfigLoggingConsumer` in
+  `src/taskweavn/observability/runtime_config_consumer.py`.
+- Added `subscribe_runtime_config_logging_consumer(...)` for runtime assembly.
+- Applies only active `logging.level` values through the existing
+  `LoggingManager.set_level(...)` boundary.
+- Records skipped keys explicitly for pending values and unsupported active
+  keys such as `logging.profile`.
+- Does not mutate AgentLoop, Context Manager, computer-use, or task API state.
 
 ### C6.3 Diagnostics Projection
 
@@ -194,4 +198,5 @@ Status: deferred.
   runtime propagation.
 - Consumers can distinguish active keys from pending keys.
 - Consumer failure is observable without rolling back persisted config changes.
-- Running agents are not hot-mutated by C6.1.
+- Active `logging.level` changes have a live-safe consumer path.
+- Running agents are not hot-mutated by C6.1-C6.2.
