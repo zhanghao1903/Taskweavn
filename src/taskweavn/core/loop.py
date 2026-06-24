@@ -801,6 +801,8 @@ class AgentLoop:
                 metadata["context_delta_reason"] = call.delta_reason
             if call.checkpoint_reason is not None:
                 metadata["context_checkpoint_reason"] = call.checkpoint_reason
+            if call.runtime_config_hash is not None:
+                metadata["context_runtime_config_hash"] = call.runtime_config_hash
             return [dict(message) for message in call.llm_messages], metadata
 
         rendered = self.context_provider.build_for_llm_call(request)
@@ -837,6 +839,9 @@ class AgentLoop:
         stable_prefix_hash = getattr(rendered, "stable_prefix_hash", None)
         if stable_prefix_hash is not None:
             metadata["context_stable_prefix_hash"] = stable_prefix_hash
+        runtime_config_hash = getattr(rendered, "runtime_config_hash", None)
+        if runtime_config_hash is not None:
+            metadata["context_runtime_config_hash"] = runtime_config_hash
         return metadata
 
     # ------------------------------------------------------------------

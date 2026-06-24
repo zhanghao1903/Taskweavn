@@ -737,7 +737,11 @@ def test_loop_observes_checkpoint_interval_and_stable_prefix(
         task_source=TaskContextSource(task_bus),
         store=store,
     )
-    provider = SessionAgentLoopContextProvider(manager, checkpoint_interval_steps=2)
+    provider = SessionAgentLoopContextProvider(
+        manager,
+        checkpoint_interval_steps=2,
+        runtime_config_hash="loop-runtime-hash",
+    )
     loop = _build_loop(workspace, llm, max_steps=3)
     loop.context_provider = provider
 
@@ -756,6 +760,13 @@ def test_loop_observes_checkpoint_interval_and_stable_prefix(
         0,
     ]
     assert llm.calls[1]["metadata"]["context_checkpoint_reason"] == "interval:2"
+    assert [
+        call["metadata"]["context_runtime_config_hash"] for call in llm.calls
+    ] == [
+        "loop-runtime-hash",
+        "loop-runtime-hash",
+        "loop-runtime-hash",
+    ]
     assert (
         llm.calls[0]["metadata"]["context_stable_prefix_hash"]
         == llm.calls[1]["metadata"]["context_stable_prefix_hash"]

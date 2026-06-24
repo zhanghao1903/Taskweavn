@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
+import { UiTextProvider } from "../../../shared/ui-text";
 import { ConfirmationDetailPanel } from "./ConfirmationDetailPanel";
 import type { MainPageDetailView } from "../mainPageViewModel";
 
@@ -130,6 +131,36 @@ describe("ConfirmationDetailPanel", () => {
 
     expect(screen.getByText("Confirmation expired")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Resolve decision" })).toBeNull();
+  });
+
+  it("renders fallback confirmation controls in zh-CN", async () => {
+    const user = userEvent.setup();
+    const onResolve = vi.fn();
+
+    render(
+      <UiTextProvider locale="zh-CN">
+        <ConfirmationDetailPanel
+          detail={confirmationDetail({
+            confirmation: {
+              ...confirmationDetail().confirmation!,
+              options: [],
+              riskLabel: undefined,
+            },
+          })}
+          onResolve={onResolve}
+        />
+      </UiTextProvider>,
+    );
+
+    expect(screen.getByText("需要决定")).toBeInTheDocument();
+    expect(screen.getByText("待处理")).toBeInTheDocument();
+    expect(screen.getByText("影响")).toBeInTheDocument();
+    expect(screen.getByText("执行正在等待这个决定。")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "确认" }));
+    await user.click(screen.getByRole("button", { name: "提交决定" }));
+
+    expect(onResolve).toHaveBeenCalledWith("confirmed");
   });
 });
 

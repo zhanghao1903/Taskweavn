@@ -1,7 +1,7 @@
 # TaskWeavn Roadmap
 
 > Status: active
-> Last Updated: 2026-06-18
+> Last Updated: 2026-06-24
 > Maintained By: planning session
 > Related: [Project Plan](project/roadmap.md), [Gap Registry](gaps/), [Planning Workflow](planning_workflow.md), [Architecture](architecture/), [Architecture Decisions](decisions/), [Release Records](releases/), [User Traceability](user_model/traceability.md)
 
@@ -59,7 +59,7 @@ TaskWeavn has moved past the original "single ReAct agent with tools" shape. The
 | Derived Session.status | Done | Phase 3.8; stored status is a hint except `archived`. |
 | Task-first architecture and Product 1.0 loop | Accepted local RC | Authoring, publishing, fixed-route execution, ASK/confirmation, Main Page, Audit, result/error/file summaries, diagnostics, and local Electron packaging have Product 1.0 closure records. |
 | Reliability and observability plans | Accepted baseline | LLM provider/retry/thinking and configurable logging are done; centralized runtime config remains a follow-up control-plane plan. |
-| Product 1.1 workspace-aware and service-capable foundation | Started | Workspace Inspection, precision tools, token analytics, workspace lifecycle, UI system text foundation, Plan/TaskNode migration, Session Conversation / Activity, read-only inquiry, and Skill Governance backend foundation are in place. Next tracks are Runtime Input Router command closure, contract revision commands, Execution Plane Service / Task API, result packaging, and protocol productization. |
+| Product 1.1 workspace-aware and service-capable foundation | Beta P0 accepted / P1 hardening | Workspace Inspection, precision tools, token analytics, workspace lifecycle, UI system text foundation, Plan/TaskNode migration, Session Conversation / Activity, read-only inquiry, Runtime Input Router, Contract Revision Command Skills, Router Audit / Diagnostics, packaged Electron, mounted `1.1-beta` installer smoke, and sidecar restart replay confidence are in place. Next tracks are external public publication, optional mounted-installer replay depth, stop/cancel UX, localization, web retrieval release evidence, Execution Plane Service / Task API, result packaging, and protocol productization. |
 
 The project is now re-baselined around **Task-first interaction**:
 
@@ -296,45 +296,33 @@ workspace-aware foundation.
 
 For exact gap state, see [Gap Registry](gaps/). The current sequencing is:
 
-1. **[Plan / TaskNode contract migration](plans/feature/plan-tasknode-contract-migration.md)** —
-   accept the draft model, add `PlanView` / `activePlan` contracts, projection-only
-   legacy compatibility, Plan proposal schema, durable stores, and PublishPlan
-   handoff.
-2. **[Session Conversation / Activity timeline](plans/feature/session-conversation-activity-timeline.md)** —
-   expose typed history for user input, Router interpretation, guidance,
-   Plan/Task changes, ASK/confirmation, result, file, and recovery notes.
-3. **[Runtime Input Router contract](plans/feature/runtime-input-router-contract.md)** —
-   route one natural-language input surface through question, guidance,
-   command, ASK answer, confirmation response, or execution request with one
-   primary dispatch and activity projection.
-4. **[Read-only inquiry context](plans/feature/read-only-inquiry-context.md)** —
-   answer selected file/diff/result/audit/status questions with evidence refs
-   and no Plan, TaskBus, or workspace mutation.
-5. **[Contract revision command skills](plans/feature/contract-revision-command-skills.md)** —
-   add command-backed guidance, Plan/TaskNode patch/create/delete, ASK/
-   confirmation resolve, and workspace-changing request handoff into TaskBus.
-6. **[Execution Plane Service / Task API](plans/feature/execution-plane-service-task-api.md)** —
+1. **Product 1.1 beta external publication** —
+   copy [Product 1.1 Beta External Release Notes](releases/product-1-1-beta-external-release-notes.md)
+   into the external public repository release/user docs, attach the beta
+   artifact/checksum, and keep unsigned / not-notarized caveats visible.
+2. **Optional mounted-installer replay depth** —
+   repo-mode and launcher-packaged sidecar restart replay are covered; only
+   mounted-installer replay fold-in remains optional release-gate depth.
+3. **P1 beta trust polish** —
+   stop/cancel UX, token budget warnings, localization cleanup, web retrieval
+   real-provider release evidence, and support-oriented diagnostics.
+4. **[Execution Plane Service / Task API](plans/feature/execution-plane-service-task-api.md)** —
    introduce a service-compatible execution boundary for Plato and future
    external apps: DTOs, embedded TaskApiService, compatibility mapping, local
    sidecar Task API shell, and local ExecutionEnv registry.
-7. **Localization follow-ups** — Settings language selector, persisted locale
-   preference, Electron native menu localization, and bilingual smoke when the
-   acceptance path requires them.
-8. **Result packaging and completion-time `task_after`** — improve result
+5. **Result packaging and completion-time `task_after`** — improve result
    comprehension and post-completion automation after Plan/TaskNode and input
    boundaries are clear.
-9. **Skills, MCP, Agent protocol, and routing productization** — keep as
+6. **Skills, MCP, Agent protocol, and routing productization** — keep as
    research/productization tracks until workspace trust, precision tools, and
    runtime input are stable.
 
-Product 1.0 is accepted as a local unsigned release candidate. Product 1.1
-should improve trust and controllability before expanding automation breadth:
-workspace inspection, precision file tools, token usage analytics, workspace
-archive/delete data management, UI system text foundation, Plan/TaskNode
-migration, Conversation / Activity, read-only inquiry, and Skill Governance
-backend foundation are in place; Runtime Input Router command closure,
-contract revision commands, Execution Plane Service / Task API, result
-packaging, and protocol productization are the next actionable tracks.
+Product 1.0 is accepted as a local unsigned release candidate. Product 1.1 P0
+is accepted for beta evidence across the configured Electron app, packaged app,
+mounted `1.1-beta` installer, Runtime Input Router route matrix, Router Audit /
+Diagnostics, and sidecar restart replay smoke. The remaining Product 1.1 work
+is P1 beta-depth hardening and publication polish before broader platform
+expansion.
 
 For status and routing of each gap, see [Gap Registry](gaps/).
 
