@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
+import { UiTextProvider } from "../../../shared/ui-text";
 import { ExecutionAskDetailPanel } from "./ExecutionAskDetailPanel";
 import type { MainPageDetailView } from "../mainPageViewModel";
 
@@ -341,6 +342,42 @@ describe("ExecutionAskDetailPanel", () => {
     expect(screen.queryByText(/This ASK/)).not.toBeInTheDocument();
     expect(screen.queryByText(/TaskNode/)).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Answer" })).toBeDisabled();
+  });
+
+  it("renders execution ASK controls in zh-CN", async () => {
+    const user = userEvent.setup();
+    const onAnswer = vi.fn();
+
+    render(
+      <UiTextProvider locale="zh-CN">
+        <ExecutionAskDetailPanel
+          detail={executionAskDetail({
+            ask: {
+              ...executionAskDetail().ask,
+              answerType: "free_text",
+              allowFreeText: true,
+              allowNoOptionWithText: true,
+              suggestedOptions: [],
+            },
+          })}
+          onAnswer={onAnswer}
+          onCancel={vi.fn()}
+          onDefer={vi.fn()}
+        />
+      </UiTextProvider>,
+    );
+
+    expect(screen.getByText("任务需要输入")).toBeInTheDocument();
+    expect(screen.getByText("等待回答")).toBeInTheDocument();
+    expect(screen.getByText("任务：Initial implementation")).toBeInTheDocument();
+
+    await user.type(screen.getByLabelText("回答内容"), "使用测试环境。");
+    await user.click(screen.getByRole("button", { name: "提交回答" }));
+
+    expect(onAnswer).toHaveBeenCalledWith({
+      selectedOptionIds: [],
+      text: "使用测试环境。",
+    });
   });
 });
 

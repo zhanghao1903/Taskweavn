@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { ConfirmationActionView } from "../../../shared/api/types";
 import { Badge, Button, ChoiceGroup, Text } from "../../../shared/components";
 import type { ChoiceOptionTone } from "../../../shared/components";
+import { useUiText, type UiTextCatalog } from "../../../shared/ui-text";
 import { ProductRecoveryActions } from "../ProductRecoveryActions";
 import type { MainPageDetailView } from "../mainPageViewModel";
 import styles from "./ConfirmationDetailPanel.module.css";
@@ -28,11 +29,21 @@ export function ConfirmationDetailPanel({
   detail,
   onResolve,
 }: ConfirmationDetailPanelProps) {
+  const uiText = useUiText();
+  const confirmationText = uiText.main.interaction.confirmation;
   const confirmation = detail.confirmation;
   const [drafts, setDrafts] = useState<DraftsByConfirmationId>({});
+  const fallbackOptions = useMemo(
+    () => fallbackConfirmationOptions(confirmationText.actions),
+    [confirmationText.actions],
+  );
   const optionValues = useMemo(
-    () => (confirmation?.options ?? fallbackConfirmationOptions).map((option) => option.value),
-    [confirmation?.options],
+    () =>
+      (confirmation && confirmation.options.length > 0
+        ? confirmation.options
+        : fallbackOptions
+      ).map((option) => option.value),
+    [confirmation, fallbackOptions],
   );
   const draft =
     confirmation === undefined
@@ -98,7 +109,7 @@ export function ConfirmationDetailPanel({
     return (
       <section className={styles.root}>
         <Text as="strong" variant="label">
-          Decision unavailable
+          {confirmationText.labels.decisionUnavailable}
         </Text>
         <Text variant="muted">{detail.fallbackBody}</Text>
       </section>
@@ -110,20 +121,24 @@ export function ConfirmationDetailPanel({
       <section className={styles.root} data-confirmation-id={confirmation.id}>
         <div className={styles.titleRow}>
           <Text as="strong" variant="label">
-            Confirmation {confirmation.status}
+            {confirmationText.labels.confirmationStatus({
+              status: confirmationText.statuses[confirmation.status],
+            })}
           </Text>
-          <Badge tone={confirmation.status === "resolved" ? "success" : "danger"}>
-            {confirmation.status}
+          <Badge
+            tone={confirmation.status === "resolved" ? "success" : "danger"}
+          >
+            {confirmationText.statuses[confirmation.status]}
           </Badge>
         </div>
-        <Text variant="muted">This decision is read-only.</Text>
+        <Text variant="muted">{confirmationText.messages.decisionReadOnly}</Text>
       </section>
     );
   }
 
   const options = (confirmation.options.length > 0
     ? confirmation.options
-    : fallbackConfirmationOptions
+    : fallbackOptions
   ).map((option) => ({
     label: option.label,
     recommended: option.value === confirmation.defaultOptionValue,
@@ -135,16 +150,20 @@ export function ConfirmationDetailPanel({
     <section className={styles.root} data-confirmation-id={confirmation.id}>
       <div className={styles.titleRow}>
         <Text as="strong" variant="label">
-          {isResolving ? "Resolving decision" : "Decision needed"}
+          {isResolving
+            ? confirmationText.labels.resolvingDecision
+            : confirmationText.labels.decisionNeeded}
         </Text>
-        <Badge tone="warning">{confirmation.status}</Badge>
+        <Badge tone="warning">
+          {confirmationText.statuses[confirmation.status]}
+        </Badge>
       </div>
       <div className={styles.impactSummary}>
         <Badge size="sm" tone="warning">
-          Impact
+          {confirmationText.labels.impact}
         </Badge>
         <Text variant="muted">
-          {confirmation.riskLabel ?? "Execution waits for this decision."}
+          {confirmation.riskLabel ?? confirmationText.messages.executionWaits}
         </Text>
       </div>
 
@@ -152,7 +171,7 @@ export function ConfirmationDetailPanel({
         disabled={isResolving}
         error={
           draft.touched && !hasValidSelection
-            ? "Select one confirmation option."
+            ? confirmationText.messages.selectOneOption
             : null
         }
         layout={options.length <= 3 ? "segmented" : "rows"}
@@ -172,7 +191,9 @@ export function ConfirmationDetailPanel({
 
       <div className={styles.actionRow}>
         <Button disabled={!canResolve} onClick={handleResolve} variant="primary">
-          {isResolving ? "Resolving" : "Resolve decision"}
+          {isResolving
+            ? confirmationText.actions.resolving
+            : confirmationText.actions.resolveDecision}
         </Button>
       </div>
     </section>
@@ -194,10 +215,12 @@ function choiceTone(option: ConfirmationActionView["options"][number]): ChoiceOp
   return "neutral";
 }
 
-const fallbackConfirmationOptions: NonNullable<
-  ConfirmationActionView["options"]
-> = [
-  { value: "confirmed", label: "Confirm", tone: "primary" },
-  { value: "revise", label: "Revise task", tone: "secondary" },
-  { value: "skipped", label: "Skip", tone: "danger" },
-];
+function fallbackConfirmationOptions(
+  actions: UiTextCatalog["main"]["interaction"]["confirmation"]["actions"],
+): NonNullable<ConfirmationActionView["options"]> {
+  return [
+    { value: "confirmed", label: actions.confirm, tone: "primary" },
+    { value: "revise", label: actions.reviseTask, tone: "secondary" },
+    { value: "skipped", label: actions.skip, tone: "danger" },
+  ];
+}

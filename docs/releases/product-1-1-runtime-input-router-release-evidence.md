@@ -7,6 +7,9 @@
 > Product evidence: [Product 1.1 P0 Release Evidence](../product/plato-1-1-p0-release-evidence-2026-06-20.md)
 >
 > Open work index: [Product 1.1 Open Work](../product/plato-1-1-open-work.md)
+>
+> Public-facing source notes:
+> [Product 1.1 Beta External Release Notes](product-1-1-beta-external-release-notes.md)
 
 ## Summary
 
@@ -61,6 +64,13 @@ The following checks passed on 2026-06-20:
 | `1.1-beta` installer package | `npm run electron:package:installer -- --release-version 1.1-beta --include-smoke` | Pass |
 | `1.1-beta` mounted installer smoke | `npm run electron:smoke:installer -- --skip-package --installer ./dist-electron-installer/Plato-1.1-beta-macos-arm64.dmg` | Pass |
 
+Additional P1 beta-depth checks:
+
+| Check | Command | Result |
+|---|---|---|
+| Sidecar restart replay smoke | `npm run electron:smoke:sidecar-restart` | Pass on 2026-06-24: repo-mode Electron sidecar lifecycle replayed durable Conversation, Activity, Audit record, Audit evidence, and fixture file state without duplicate IDs. |
+| Launcher-packaged sidecar restart replay smoke | `npm run electron:smoke:sidecar-restart:launcher` | Pass on 2026-06-24: rebuilt `dist-electron-launcher`, launched package-local sidecar launcher twice with bundled Python runtime, and replayed durable Conversation, Activity, Audit record, Audit evidence, and fixture file state without duplicate IDs. |
+
 ## Release Artifact
 
 | Field | Value |
@@ -76,10 +86,11 @@ The following checks passed on 2026-06-20:
 
 - The `1.1-beta` DMG is unsigned and not notarized.
 - Smoke assets are included only for deterministic beta smoke artifacts.
-- Sidecar restart replay is not yet part of the installer smoke matrix.
+- Sidecar restart replay is covered by repo-mode and launcher-packaged Electron
+  sidecar smoke, but is not yet folded into mounted installer smoke.
 - Optional LLM-rendered read-only inquiry smoke remains beta-depth evidence.
-- Public repository release/user docs still need external sync before public
-  publishing.
+- Public-facing source release notes are prepared in this repository; copying
+  them into the external public repository remains a publishing operation.
 - Signing, notarization, Gatekeeper assessment, and signed installer acceptance
   remain deferred until Apple Developer credentials are available.
 
@@ -87,8 +98,8 @@ The following checks passed on 2026-06-20:
 
 | Priority | Follow-up |
 |---|---|
-| P1 | Add sidecar restart replay evidence for durable Conversation / Activity. |
-| P1 | Mirror Product 1.1 beta evidence and known limitations into public docs. |
+| P1 | Copy Product 1.1 beta external release notes into the public repository release docs when publishing. |
+| P1 | Optionally fold sidecar restart replay evidence into mounted installer smoke before a broader external beta. |
 | P1 | Add optional real/LLM-rendered read-only inquiry smoke evidence. |
 | P1 | Continue stop/cancel UX, token budget warnings, localization, and web retrieval beta hardening. |
 | P2 | Signed/notarized distribution and broader platform expansion. |

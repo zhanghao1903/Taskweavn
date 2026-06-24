@@ -40,6 +40,11 @@ from taskweavn.observability.models import (
     LogSinkConfig,
     RotationConfig,
 )
+from taskweavn.observability.runtime_config_consumer import (
+    LoggingLevelApplier,
+    RuntimeConfigLoggingConsumer,
+    subscribe_runtime_config_logging_consumer,
+)
 from taskweavn.observability.setup import (
     CHANNELS,
     LOGGER_PREFIX,
@@ -68,10 +73,12 @@ __all__ = [
     "LoggingControlOperation",
     "LoggingControlResult",
     "LoggingControlService",
+    "LoggingLevelApplier",
     "LoggingManager",
     "LoggingProfile",
     "LoggingProfileInfo",
     "ObjectLogger",
+    "RuntimeConfigLoggingConsumer",
     "RotationConfig",
     "build_disabled_logging_config",
     "build_legacy_logging_config",
@@ -86,5 +93,6 @@ __all__ = [
     "known_log_events",
     "load_logging_config",
     "merge_log_context",
+    "subscribe_runtime_config_logging_consumer",
     "use_log_context",
 ]
