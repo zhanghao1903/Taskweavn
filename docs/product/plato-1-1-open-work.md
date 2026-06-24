@@ -213,6 +213,16 @@ The next branches should be selected in this order:
 3. **P1 beta polish**: stop/cancel UX, token budget warnings, localization
    cleanup, and web retrieval release evidence.
 
+## 5.2 P1 Coverage Audit
+
+The current P1 split-work coverage is tracked in
+[Plato Product 1.1 P1 Coverage Audit - 2026-06-24](plato-1-1-p1-coverage-audit-2026-06-24.md).
+
+That audit records which Product 1.1 P1 rows have owner PRs and which rows are
+externally deferred. It is not a completion record: P1 remains open until the
+owner PRs are merged or explicitly closed and the accepted evidence is folded
+back into this open-work index.
+
 ## 6. P2 Open Work
 
 | Area | Open work | Why P2 |
