@@ -2,7 +2,7 @@
 
 > Status: active open-work index
 >
-> Last Updated: 2026-06-20
+> Last Updated: 2026-06-24
 >
 > Scope: Product 1.1 unfinished product work after the accepted workspace,
 > precision-tool, read-only inquiry, token-usage, and local Electron beta
@@ -190,28 +190,39 @@ The P0 milestone is accepted when:
 
 | Area | Open work | Why P1 |
 |---|---|---|
-| Workspace inspection hardening | Decide whether viewer route openings should automatically capture durable evidence; add richer Audit evidence detail expansion; keep raw unified diff deferred unless a concrete UI/diagnostic need appears. | Useful for trust and support, but the accepted inspection milestone already covers the beta path. |
+| Workspace inspection hardening | In progress: Audit file-change evidence now uses the dedicated `workspace_inspection` source instead of generic Task projection. Remaining decisions: whether viewer route openings should automatically capture durable evidence; whether raw unified diff expansion is needed for a concrete UI/diagnostic path. | Useful for trust and support, but the accepted inspection milestone already covers the beta path. |
 | Precision file tools product acceptance | Run broader sidecar/Electron evidence-link smoke after frontend entry points consume precision evidence links. | Tool/backend scope is complete; remaining work is acceptance depth. |
 | Stop / cancel UX | Represent intentional user stop as `stopped` or `cancelled`, not as a generic `failed` state with `Retry`. | Avoids user trust damage in long-running tasks. |
 | Token usage budget boundary | Add visible warning or budget boundary for long-running or extremely high-token execution. | Prevents cost surprises during beta use. |
 | Diagnostics descriptors | Add richer beta-depth diagnostic bundle descriptors for workspace inspection evidence, per-route Electron logs, and support-oriented summaries. | Improves supportability beyond the P0 route-matrix closure. |
-| Localization polish | Clean remaining mixed English/Chinese execution ASK and recovery copy; continue moving UI system text behind typed keys. | Product quality issue for zh-CN beta builds. |
-| Web retrieval beta hardening | Broader citation/result UI and Audit projection depth are now scoped in [Web Retrieval Citation And Result UI](../plans/feature/web-retrieval-citation-result-ui.md). Remaining hardening also includes real Tavily Search/Extract smoke, user-visible limitations, and future retrieval budget boundaries. | Search/fetch are implemented; the remaining work is beta trust and release evidence, not first capability delivery. |
-| Electron release hardening | Keep packaged/installer smoke current for Product 1.1 paths; add sidecar restart replay; signed/notarized distribution remains deferred until Apple Developer credentials exist. | Protects beta release quality. |
-| External release docs sync | Mirror Product 1.1 beta evidence and known limitations into the public repository release/user docs when publishing externally. | Public-facing clarity matters, but the internal P0 release evidence is now closed. |
+| Localization polish | Done in `codex/product-1-1-localization-polish` for execution ASK and confirmation detail chrome: controls, statuses, validation, stale-question recovery, fallback confirmation options, and generated batch-answer prefixes now use typed `en-US` / `zh-CN` UI system text keys. Backend-provided ASK/confirmation content and LLM output remain source content. | Product quality issue for zh-CN beta builds. |
+| Web retrieval beta hardening | Verify real Tavily Search/Extract smoke, broader citation/result UI, Audit projection depth, user-visible limitations, and future retrieval budget boundaries. | Search/fetch are implemented; the remaining work is beta trust and release evidence, not first capability delivery. |
+| Electron release hardening | Keep packaged/installer smoke current for Product 1.1 paths; repo-mode and launcher-packaged sidecar restart replay smoke now exist; mounted installer replay remains optional release-gate depth. Signed/notarized distribution remains deferred until Apple Developer credentials exist. | Protects beta release quality. |
+| External release docs sync | Public-facing Product 1.1 beta source release notes now mirror shipped behavior, verification, artifact metadata, known limitations, safe claims, and publishing checklist. Copying those notes into the external public repository remains the final publishing operation. | Public-facing clarity matters, but the internal P0 release evidence is now closed. |
 
 ## 5.1 Recommended Next Product Branches
 
 The next branches should be selected in this order:
 
-1. **Sidecar restart replay confidence**: prove durable Conversation /
-   Activity replay after killing and relaunching the packaged sidecar, then
-   fold that into installer smoke if it remains stable.
-2. **External Product 1.1 release docs sync**: mirror the internal Product 1.1
-   beta release record into the public repository docs with user-facing known
-   limitations.
+1. **Sidecar restart replay confidence**: repo-mode and launcher-packaged
+   Electron sidecar replay are now covered; only mounted installer replay
+   remains optional release-gate depth.
+   Plan: [Sidecar Restart Replay Confidence](../plans/feature/sidecar-restart-replay-confidence.md).
+2. **External public repository publication**: copy the prepared Product 1.1
+   beta external release notes into the public repository release/user docs and
+   attach the beta artifact/checksum when publishing.
 3. **P1 beta polish**: stop/cancel UX, token budget warnings, localization
    cleanup, and web retrieval release evidence.
+
+## 5.2 P1 Coverage Audit
+
+The current P1 split-work coverage is tracked in
+[Plato Product 1.1 P1 Coverage Audit - 2026-06-24](plato-1-1-p1-coverage-audit-2026-06-24.md).
+
+That audit records which Product 1.1 P1 rows have owner PRs and which rows are
+externally deferred. It is not a completion record: P1 remains open until the
+owner PRs are merged or explicitly closed and the accepted evidence is folded
+back into this open-work index.
 
 ## 6. P2 Open Work
 
