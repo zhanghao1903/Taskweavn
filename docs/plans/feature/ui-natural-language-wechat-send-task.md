@@ -1,6 +1,6 @@
 # Feature Plan: UI Natural-Language WeChat Send Task
 
-Status: in progress
+Status: completed
 Last updated: 2026-06-24
 
 ## Summary
@@ -165,9 +165,18 @@ Current implementation status:
   - verifies safe capability-disabled feedback when computer-use is not enabled
     in the seeded fixture.
 
-Remaining work:
+Final validation:
 
-- Controlled real local smoke to `文件传输助手`.
+- Controlled real local smoke to `文件传输助手` passed on 2026-06-24:
+  - base URL: local sidecar `http://127.0.0.1:58027`;
+  - session: `a436ec2f`;
+  - execution: `exec_93d596a34767537297a69bd6502e2f10`;
+  - confirmation: `d601fc72dc53417fa1fc96db9f0958c2`;
+  - idempotency key: `manual-wechat-smoke-20260624-e05a-authorized-02`;
+  - result kind: `wechat_send_result`;
+  - send boundary: `sent`;
+  - submit method: `keyboard_return`;
+  - terminal same-key replay returned the same execution and `done`.
 
 ### NLW0 - Plan And Technical Design
 
@@ -252,7 +261,7 @@ Run fake-adapter integration first, then one controlled real local smoke to
 `文件传输助手`.
 
 Status: fake-adapter integration implemented; renderer/Electron UI-path smoke
-passed; real local smoke pending.
+passed; controlled real local smoke passed on 2026-06-24.
 
 Acceptance:
 
