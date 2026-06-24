@@ -1,7 +1,8 @@
 # Runtime Config Write API Contract
 
 > Status: C5.5 design gate accepted; C7.2 read routes, C7.3 transport write
-> route, and C7.3b local sidecar store wiring implemented.
+> route, and C7.3b local sidecar store wiring implemented; C7.4 read-only
+> Settings runtime behavior display implemented without write controls.
 > Related Store Contract: [Runtime Config Change Store](runtime-config-change-store.md)
 > Related Plan:
 > [Centralized Runtime Configuration](../plans/feature/centralized-runtime-configuration.md)
@@ -17,12 +18,13 @@ configuration. C5.1-C5.4 already provide:
 - backend mutation validation;
 - read gateway methods for persisted change facts.
 
-C5.5 is a design gate only. It prevents Settings UI or external API work from
-inventing runtime config write semantics in route handlers.
+C5.5 is a design gate only. It prevents Settings write UI or external API work
+from inventing runtime config write semantics in route handlers.
 
 ## 2. Non-Goals
 
-- Do not add Settings UI.
+- Do not add Settings write controls from this contract alone. Read-only
+  Settings display may use the accepted read route.
 - Do not apply live mutations to running agents.
 - Do not make app-specific playbooks, such as WeChat send steps, runtime config.
 - Do not expose raw secrets through config writes or snapshots.

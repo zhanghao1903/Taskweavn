@@ -390,6 +390,7 @@ export type UiTextCatalog = {
     tabs: {
       configuration: string;
       dataManagement: string;
+      runtimeBehavior: string;
       usageInformation: string;
     };
     fields: {

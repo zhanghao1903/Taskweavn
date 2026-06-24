@@ -1,5 +1,5 @@
 export type SettingsRouteSource = "first-run" | "settings";
-export type SettingsTab = "configuration" | "data" | "usage";
+export type SettingsTab = "configuration" | "data" | "runtime" | "usage";
 
 export type SettingsRouteContext = {
   returnTo: string;
@@ -64,5 +64,7 @@ export function sanitizeReturnTo(value: string): string {
 }
 
 function parseSettingsTab(raw: string | null): SettingsTab {
-  return raw === "data" || raw === "usage" ? raw : "configuration";
+  return raw === "data" || raw === "runtime" || raw === "usage"
+    ? raw
+    : "configuration";
 }

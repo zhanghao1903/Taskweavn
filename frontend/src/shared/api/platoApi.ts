@@ -419,10 +419,75 @@ export type SettingsConfigUpdateResult = {
   readiness: SettingsReadinessReport;
 };
 
+export type RuntimeConfigScope = {
+  level: "global" | "workspace" | "session" | "task" | "agent_run" | "process";
+  workspaceId?: string | null;
+  sessionId?: string | null;
+  taskId?: string | null;
+  agentRunId?: string | null;
+};
+
+export type RuntimeConfigSource = {
+  sourceId: string;
+  kind:
+    | "built_in_default"
+    | "environment"
+    | "cli"
+    | "settings_store"
+    | "workspace_file"
+    | "session_override"
+    | "task_override"
+    | "runtime_patch"
+    | "process_input";
+  scope: RuntimeConfigScope;
+  priority: number;
+};
+
+export type RuntimeConfigMutability =
+  | "live"
+  | "next_context_build"
+  | "next_llm_call"
+  | "next_action"
+  | "next_agent_run"
+  | "next_task"
+  | "next_session"
+  | "startup_only"
+  | "migration_only";
+
+export type RuntimeConfigEffectiveStatus =
+  | "active"
+  | "pending_next_context_build"
+  | "pending_next_llm_call"
+  | "pending_next_action"
+  | "pending_next_agent_run"
+  | "pending_next_task"
+  | "pending_next_session"
+  | "pending_restart";
+
+export type RuntimeConfigEffectiveValue = {
+  key: string;
+  value: unknown;
+  source: RuntimeConfigSource;
+  mutability: RuntimeConfigMutability;
+  effectiveStatus: RuntimeConfigEffectiveStatus;
+  redacted: boolean;
+};
+
+export type RuntimeConfigEffective = {
+  configId: string;
+  scope: RuntimeConfigScope;
+  createdAt: string;
+  schemaVersion: "plato.runtime_config.v1";
+  values: Record<string, RuntimeConfigEffectiveValue>;
+  sourceLayers: RuntimeConfigSource[];
+  configHash: string;
+};
+
 export type PlatoApi = {
   getSettingsReadiness(): Promise<QueryResponse<SettingsReadinessReport>>;
   recheckSettingsReadiness(): Promise<QueryResponse<SettingsReadinessReport>>;
   getSettingsConfig(): Promise<QueryResponse<SettingsConfigSummary>>;
+  getRuntimeConfigEffective(): Promise<QueryResponse<RuntimeConfigEffective>>;
   updateSettingsConfig(
     payload: UpdateSettingsConfigPayload,
   ): Promise<QueryResponse<SettingsConfigUpdateResult>>;
@@ -622,6 +687,11 @@ export function createHttpPlatoApi(options: HttpPlatoApiOptions): PlatoApi {
     getSettingsConfig() {
       return client.getJson<QueryResponse<SettingsConfigSummary>>(
         "/api/v1/settings/config",
+      );
+    },
+    getRuntimeConfigEffective() {
+      return client.getJson<QueryResponse<RuntimeConfigEffective>>(
+        "/api/v1/runtime/config/effective",
       );
     },
     updateSettingsConfig(payload) {

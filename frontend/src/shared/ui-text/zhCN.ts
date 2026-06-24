@@ -612,6 +612,7 @@ export const zhCN: UiTextCatalog = {
     tabs: {
       configuration: "配置",
       dataManagement: "数据管理",
+      runtimeBehavior: "运行时行为",
       usageInformation: "使用信息",
     },
   },

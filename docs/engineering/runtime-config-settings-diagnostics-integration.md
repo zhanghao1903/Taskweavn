@@ -2,7 +2,7 @@
 
 > Status: C7 design accepted; C7.1 diagnostics read model, C7.2 HTTP read
 > extension, C7.3 transport write route, and C7.3b local sidecar store wiring
-> implemented.
+> implemented; C7.4 read-only Settings runtime behavior section implemented.
 > Related Plan:
 > [Centralized Runtime Configuration](../plans/feature/centralized-runtime-configuration.md)
 > Related Contracts:
@@ -189,7 +189,9 @@ Reason:
 
 Therefore:
 
-- Diagnostics and Settings read-only effective config display may proceed.
+- Diagnostics and Settings read-only effective config display may proceed. The
+  first Settings runtime behavior section is read-only and backed by
+  `GET /api/v1/runtime/config/effective`.
 - Settings runtime config mutation UI must still wait for:
   - safe control selection;
   - user-facing pending/restart copy;
@@ -259,20 +261,29 @@ Status: implemented for the local sidecar.
   Runtime patches do not imply that already-running agents or constructor-bound
   components have changed behavior.
 
-### C7.4 Settings Runtime Config Controls
+### C7.4 Settings Runtime Behavior Section
 
-Status: deferred.
+Status: implemented as read-only display.
 
-- Add a Settings runtime behavior section.
-- Start with safe controls only.
-- Show effective status copy after save:
-  - applied now;
-  - next action;
-  - next LLM call;
-  - next task;
-  - next session;
-  - restart required.
-- Keep Diagnostics-only keys visible behind an advanced raw view, not editable.
+- Added a Settings `Runtime Behavior` tab that reads
+  `GET /api/v1/runtime/config/effective`.
+- Displays selected Product 1.0/1.1 runtime behavior keys grouped by:
+  - Agent and context limits;
+  - Execution and Task API;
+  - Computer use and safety;
+  - LLM and inquiry;
+  - Logging and web tools.
+- Shows value, source attribution, and effective status/mutability copy.
+- Includes explicit read-only copy: persisted changes may be visible in
+  diagnostics, but non-live values do not affect already-running agents.
+- Does not add edit controls, raw config editing, or direct mutation calls.
+
+Deferred editable Settings controls still need:
+
+- safe control selection;
+- pending/restart copy after save;
+- rejected/partial/idempotency response UI;
+- local authorization and remote-write boundary decisions.
 
 ### C7.5 Audit Evidence Projection
 
@@ -285,9 +296,12 @@ Status: deferred.
 ## 10. Acceptance Criteria
 
 - Settings control scope is explicitly limited.
+- Settings can inspect selected effective runtime behavior facts without
+  offering edit controls.
 - Diagnostics can explain current effective config without exposing secrets.
 - Audit can reference config evidence without owning config history.
-- Runtime config writes are not implemented before the HTTP write boundary.
+- Runtime config writes are not exposed through Settings before the HTTP write
+  and safe-control boundaries are complete.
 - App-specific automation behavior remains outside top-level runtime config.
 - Pending statuses are preserved in UI/diagnostics copy.
 

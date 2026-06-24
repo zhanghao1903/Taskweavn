@@ -10,6 +10,7 @@ import { AppProviders } from "./providers";
 import { MainPage } from "../pages/main-page/MainPage";
 import type { CommandResponse, QueryResponse, UiEvent } from "../shared/api/types";
 import type {
+  RuntimeConfigEffective,
   SettingsConfigSummary,
   SettingsReadinessReport,
 } from "../shared/api/platoApi";
@@ -1055,6 +1056,23 @@ function appSettingsApi(): SettingsRouteApi {
       ok: true,
       requestId: "settings-config",
     })),
+    getRuntimeConfigEffective: vi.fn(
+      async (): Promise<QueryResponse<RuntimeConfigEffective>> => ({
+      data: {
+        configHash: "runtime-config-hash",
+        configId: "runtime-config-process",
+        createdAt: "2026-06-24T10:00:00Z",
+        schemaVersion: "plato.runtime_config.v1",
+        scope: { level: "process" },
+        sourceLayers: [],
+        values: {},
+      },
+      error: null,
+      generatedAt: "2026-06-24T10:00:00Z",
+      ok: true,
+      requestId: "runtime-config-effective",
+      }),
+    ),
     getTokenUsageSummary: vi.fn(async (request) => ({
       data: tokenUsageSummary(request.dimension),
       error: null,

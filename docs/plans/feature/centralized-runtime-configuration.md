@@ -1,10 +1,10 @@
 # Feature Plan: Centralized Runtime Configuration
 
-> Status: C1-C7.3b implemented / C7.4-C7.5 deferred
+> Status: C1-C7.4 implemented / C7.5 deferred
 > Type: Runtime control plane / configuration governance
 > Last Updated: 2026-06-24
 > Owner/Session: computer-use hardening discussion
-> Target Implementation Session: runtime-config sidecar store wiring complete
+> Target Implementation Session: runtime-config Settings read-only behavior complete
 > Related Docs: [Configuration Guide](../../configuration.md), [Settings, Logs, And Audit Boundary](../../product/plato-settings-logs-audit-boundary.md), [Runtime Config Change Store](../../engineering/runtime-config-change-store.md), [Runtime Config Write API](../../engineering/runtime-config-write-api-contract.md), [Configurable Logging System](configurable-logging-system.md), [LLM Provider Plan](llm-provider-retry-thinking.md), [Execution Plane Service Task API](execution-plane-service-task-api.md), [Context Manager 1.0](context-manager-1-0.md), [Skill Governance](product-1-1-skill-governance.md)
 
 ---
@@ -176,6 +176,9 @@ exist:
 - `src/taskweavn/server/main_page.py` wires sidecar process inputs into the
   runtime config gateway and wires the workspace-local change store/mutation
   service into the local sidecar transport.
+- `frontend/src/pages/settings/SettingsRuntimeBehaviorTab.tsx` adds a
+  read-only Settings runtime behavior section backed by
+  `GET /api/v1/runtime/config/effective`.
 
 The implementation is intentionally behavior-preserving. Runtime components
 still primarily receive their values through the existing constructor/config
@@ -184,7 +187,9 @@ workspace-local runtime config changes in the local sidecar. It is not yet the
 sole source of runtime behavior, and most changed values do not mutate
 already-running agents. C7.3b wires the durable change/snapshot store and
 mutation service into local sidecar assembly so the HTTP write route can persist
-changes. Settings UI controls and Audit evidence projection remain deferred.
+changes. C7.4 exposes a read-only Settings runtime behavior section for the
+current effective config, source attribution, mutability, and effective status.
+Editable Settings controls and Audit evidence projection remain deferred.
 
 ---
 
@@ -750,17 +755,20 @@ Status: implemented.
 
 ### C7: Settings UI And Audit/Diagnostics Integration
 
-Status: design accepted; C7.1-C7.3b diagnostics/read/write transport and
-local sidecar store wiring implemented.
+Status: design accepted; C7.1-C7.4 diagnostics/read/write transport, local
+sidecar store wiring, and read-only Settings behavior display implemented.
 
-- Settings shows behavior controls.
+- Settings shows a read-only runtime behavior summary for selected effective
+  config keys.
 - Diagnostics shows raw effective config, C7.1 read-only combined diagnostics
   facts, and C7.2 read-only HTTP change/snapshot routes.
 - HTTP transport exposes C7.3 controlled runtime config patch semantics.
 - Local sidecar assembly creates a workspace-local runtime config SQLite store,
   constructs `DefaultRuntimeConfigMutationService`, and passes both read and
   write dependencies into the HTTP transport.
-- Audit shows relevant config evidence.
+- Settings runtime config editing controls remain deferred until safe controls,
+  pending-state copy, and authorization behavior are accepted.
+- Audit evidence projection remains deferred to C7.5.
 - Do not overload Audit as a config editor.
 - Integration design is defined in
   [Runtime Config Settings, Diagnostics, And Audit Integration](../../engineering/runtime-config-settings-diagnostics-integration.md).
@@ -785,6 +793,9 @@ local sidecar store wiring implemented.
     key validation.
 11. Context/execution trace metadata can reference the effective config hash
     used at runtime assembly.
+12. Settings can show a read-only runtime behavior section with effective
+    values, source attribution, mutability/effective status copy, and no edit
+    controls.
 
 ---
 
@@ -830,39 +841,37 @@ design is accepted for Settings, Diagnostics, and Audit integration. C7.1 is
 closed with an internal read-only diagnostics gateway. C7.2 is closed with
 read-only HTTP extensions for change list and snapshot lookup. C7.3 is closed
 with the framework-neutral `PATCH /api/v1/runtime/config` route. C7.3b is
-closed with local sidecar store and mutation service wiring.
+closed with local sidecar store and mutation service wiring. C7.4 is closed
+with a read-only Settings runtime behavior section backed by the effective
+config HTTP route.
 
 Recommended next task:
 
 ```text
 Use the product-workflow-gate skill first.
-Use the maintainability-gate skill if touching Settings, Main Page sidecar
-assembly, or large frontend/backend modules.
 
 Task:
-Implement C7.4 Runtime Config Settings Read-Only Behavior Section.
+Implement C7.5 Runtime Config Audit Evidence Projection.
 
 Scope:
-- Add a read-only Settings/Diagnostics-facing runtime behavior section that
-  shows current effective config values, source attribution, mutability, and
-  effective status for Product 1.0/1.1 safe keys.
-- Start with read-only display and copy only; do not add editable controls.
-- Make clear that runtime patches can be persisted but most non-live values do
-  not affect already-running agents.
-- Preserve existing first-run Settings behavior.
-- Do not add Audit UI.
+- Project relevant runtime config snapshot/change facts into Audit evidence
+  records where they explain task/session/action behavior.
+- Link Audit details to Diagnostics or config snapshot hashes for full
+  inspection.
+- Preserve redaction and pending-status semantics.
+- Do not make Audit a config editor.
 
 Do not:
 - Treat app-specific automation behavior such as WeChat send steps as top-level
   runtime config.
-- Add a generic raw config editor.
+- Add a generic raw config editor or Settings write controls.
 - Expose remote runtime config writes.
 - Apply non-live config changes to already-running agents.
 
 Output:
 - Workflow Gate Report
 - files changed
-- C7.4 Settings/Diagnostics boundary updated
+- C7.5 Audit evidence boundary updated
 - tests required, if any
 - checks run
 - remaining C7 blockers
