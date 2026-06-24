@@ -1,6 +1,6 @@
 # Runtime Config Change Store Contract
 
-> Status: C5.1-C5.2 implemented; C5.3-C5.5 deferred.
+> Status: C5.1-C5.3 implemented; C5.4-C5.5 deferred.
 > Related Plan:
 > [Centralized Runtime Configuration](../plans/feature/centralized-runtime-configuration.md)
 > Related Product Boundary:
@@ -406,17 +406,22 @@ Status: implemented.
 
 ### C5.3 Mutation Service
 
-Status: next.
+Status: implemented.
 
-- Validate patches against `RuntimeConfigRegistry`.
-- Normalize accepted values through existing value rules.
-- Resolve base and candidate `EffectiveRuntimeConfig`.
-- Persist change and snapshot records.
-- Do not expose HTTP write routes yet.
+- Added `DefaultRuntimeConfigMutationService` in
+  `src/taskweavn/runtime_config/mutation_service.py`.
+- Validates `RuntimeConfigPatch` against `RuntimeConfigRegistry`.
+- Normalizes accepted values through the existing resolver path.
+- Resolves base and candidate `EffectiveRuntimeConfig` snapshots.
+- Persists accepted, rejected, no-op, partial, stale-base, dry-run, and
+  idempotency replay behavior through `SqliteRuntimeConfigChangeStore`.
+- Rejects direct durable `process` and `agent_run` patches for now, matching
+  the C5 scope recommendation.
+- Does not expose HTTP write routes, Settings UI, or ConfigBus.
 
 ### C5.4 Read Gateway Extension
 
-Status: deferred.
+Status: next.
 
 - Extend read-only gateway with change/snapshot query methods.
 - Keep existing schema/effective/explain routes unchanged.

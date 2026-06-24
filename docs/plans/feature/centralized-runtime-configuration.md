@@ -1,6 +1,6 @@
 # Feature Plan: Centralized Runtime Configuration
 
-> Status: C1-C5.2 implemented / C5.3-C7 deferred
+> Status: C1-C5.3 implemented / C5.4-C7 deferred
 > Type: Runtime control plane / configuration governance
 > Last Updated: 2026-06-24
 > Owner/Session: computer-use hardening discussion
@@ -174,8 +174,9 @@ As of 2026-06-24, the first read-only implementation slice exists:
 The implementation is intentionally behavior-preserving. Runtime components
 still primarily receive their values through the existing constructor/config
 paths. The centralized config layer currently reflects and explains those
-values; it is not yet the sole source of runtime behavior. C5.1-C5.2 now
-provide durable change/snapshot facts, while C5.3-C7 remain deferred.
+values; it is not yet the sole source of runtime behavior. C5.1-C5.3 now
+provide durable change/snapshot facts and a backend mutation service, while
+C5.4-C7 remain deferred.
 
 ---
 
@@ -690,7 +691,7 @@ explicitly authorizes runtime behavior changes.
 
 ### C5: Config Change Store
 
-Status: C5.1-C5.2 implemented; C5.3-C5.5 deferred.
+Status: C5.1-C5.3 implemented; C5.4-C5.5 deferred.
 
 The C5 contract is defined in
 [Runtime Config Change Store](../../engineering/runtime-config-change-store.md).
@@ -704,7 +705,10 @@ Required implementation slices:
   rejected, no-op, snapshot, idempotency lookup, and duplicate idempotency
   rejection tests are covered.
 - C5.3 Mutation Service: validate patches, normalize values, resolve base and
-  candidate effective configs, and persist accepted/rejected/no-op records.
+  candidate effective configs, and persist accepted/rejected/no-op records
+  implemented in `DefaultRuntimeConfigMutationService`; tests cover accepted,
+  rejected, no-op, partial acceptance, stale base hash, dry-run, process-scope
+  rejection, and idempotency replay.
 - C5.4 Read Gateway Extension: expose change/snapshot queries without changing
   existing read-only schema/effective/explain behavior.
 - C5.5 HTTP Write API Design Gate: design patch/list routes only after the
@@ -788,10 +792,10 @@ Status: deferred.
 ## 19. Recommended Next Task
 
 C4 is closed for the read-only, behavior-preserving runtime constructor and
-trace metadata path. C5.1-C5.2 are now implemented for durable
-change/snapshot facts. The next backend/control-plane decision is C5.3:
-whether to add a mutation service that validates and records patches without
-introducing HTTP write APIs or Settings UI.
+trace metadata path. C5.1-C5.3 are now implemented for durable
+change/snapshot facts and backend-only mutation validation. The next
+backend/control-plane step is C5.4: read gateway extension for querying change
+and snapshot records without changing existing schema/effective/explain routes.
 
 Recommended next task if config mutation becomes necessary:
 
@@ -801,15 +805,13 @@ Use the maintainability-gate skill if touching Main Page sidecar assembly,
 settings persistence, or large server modules.
 
 Task:
-Implement C5.3 Runtime Config Mutation Service.
+Implement C5.4 Runtime Config Read Gateway Extension.
 
 Scope:
-- Validate `RuntimeConfigPatch` against `RuntimeConfigRegistry`.
-- Normalize accepted values through the existing resolver rules.
-- Resolve base and candidate `EffectiveRuntimeConfig` snapshots.
-- Persist `RuntimeConfigChange` and `RuntimeConfigSnapshotRecord` through
-  `SqliteRuntimeConfigChangeStore`.
-- Respect idempotency-key replay by returning the original stored change.
+- Extend the read-only runtime config gateway with methods to query persisted
+  `RuntimeConfigChange` records and `RuntimeConfigSnapshotRecord` snapshots.
+- Keep existing schema/effective/explain behavior-compatible.
+- Add tests proving the existing read-only HTTP adapters still behave the same.
 - Do not add HTTP write routes, Settings UI, or ConfigBus in this slice.
 
 Do not:
@@ -821,7 +823,7 @@ Do not:
 Output:
 - Workflow Gate Report
 - files changed
-- mutation service added
+- read gateway methods added
 - tests required
 - checks run
 - remaining C6/C7 blockers

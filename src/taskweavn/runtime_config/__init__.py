@@ -26,6 +26,11 @@ from taskweavn.runtime_config.models import (
     RuntimeConfigSourceKind,
     RuntimeConfigValueType,
 )
+from taskweavn.runtime_config.mutation_service import (
+    DefaultRuntimeConfigMutationService,
+    RuntimeConfigMutationService,
+    RuntimeConfigMutationServiceConfig,
+)
 from taskweavn.runtime_config.registry import (
     RuntimeConfigRegistry,
     RuntimeConfigRegistryError,
@@ -46,6 +51,7 @@ from taskweavn.runtime_config.sqlite_store import (
 __all__ = [
     "EffectiveRuntimeConfig",
     "EffectiveRuntimeConfigValue",
+    "DefaultRuntimeConfigMutationService",
     "RuntimeConfigActor",
     "RuntimeConfigActorType",
     "RuntimeConfigChange",
@@ -57,6 +63,8 @@ __all__ = [
     "RuntimeConfigLayer",
     "RuntimeConfigModel",
     "RuntimeConfigMutability",
+    "RuntimeConfigMutationService",
+    "RuntimeConfigMutationServiceConfig",
     "RuntimeConfigPatch",
     "RuntimeConfigRejection",
     "RuntimeConfigRejectionCode",
