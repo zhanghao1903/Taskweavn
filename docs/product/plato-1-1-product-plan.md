@@ -319,7 +319,8 @@ Deferred follow-ups:
 
 - advanced search modes and provider-hosted search adapters;
 - per-session retrieval budgets;
-- broader citation/result UI;
+- broader citation/result UI, now planned in
+  [Web Retrieval Citation And Result UI](../plans/feature/web-retrieval-citation-result-ui.md);
 - browser automation, dynamic rendering, crawl, PDF/OCR, and media extraction.
 
 ### 3.8 Execution Plane As Service / Task API
