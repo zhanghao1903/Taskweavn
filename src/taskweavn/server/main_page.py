@@ -759,6 +759,7 @@ def build_main_page_workspace_runtime(
                     message_bus
                 ),
                 contract_revision_service=contract_revision_service,
+                execution_plane_service=execution_plane_service,
                 route_planner=LLMRuntimeInputRoutePlanner(agent_llms.router),
             ),
             execution_plane_service=execution_plane_service,

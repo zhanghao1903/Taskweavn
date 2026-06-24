@@ -47,6 +47,11 @@ export async function runElectronSmoke({
     label: "Main Page seeded task",
   });
 
+  if (kind === "runtime-input-wechat") {
+    await smokeRuntimeInputWeChat(window, { appReloadUrl, baseUrl, fixture });
+    return;
+  }
+
   await smokeAuditEvidence(window, fixture);
   await smokeWorkspaceInspection(window, fixture);
   await smokeDiagnosticsExport(window, fixture);
@@ -366,6 +371,119 @@ async function smokeDiagnosticsExport(window, fixture) {
     label: "Diagnostic bundle workspace label",
   });
   await assertBodyDoesNotContain(window, fixture.workspaceDir, "workspace root");
+}
+
+async function smokeRuntimeInputWeChat(
+  window,
+  { appReloadUrl, baseUrl, fixture },
+) {
+  await clearSeededRuntimeInputGates(window, { appReloadUrl, baseUrl, fixture });
+
+  await setLabeledControlValue(
+    window,
+    "Context message",
+    "给微信文件传输助手发消息",
+  );
+  await waitForControlValue(window, "Context message", "给微信文件传输助手发消息", {
+    label: "WeChat missing-message input value",
+  });
+  await clickByText(window, "button", "Send message");
+  await waitForText(
+    window,
+    "要发送给文件传输助手的消息内容是什么？没有创建发送任务。",
+    {
+      label: "WeChat send missing-message clarification",
+    },
+  );
+
+  await setLabeledControlValue(
+    window,
+    "Context message",
+    "Plato runtime input smoke message; computer-use remains disabled.",
+  );
+  await waitForControlValue(
+    window,
+    "Context message",
+    "Plato runtime input smoke message; computer-use remains disabled.",
+    {
+      label: "WeChat follow-up input value",
+    },
+  );
+  await clickByText(window, "button", "Send message");
+  await waitForText(window, "当前执行环境不支持微信发送能力。没有发送消息。", {
+    label: "WeChat send capability-disabled feedback",
+  });
+  await assertBodyDoesNotContain(window, fixture.workspaceDir, "workspace root");
+}
+
+async function clearSeededRuntimeInputGates(
+  window,
+  { appReloadUrl, baseUrl, fixture },
+) {
+  const askResponse = await postRuntimeInputRoute(window, { baseUrl, fixture }, {
+    clientState: {
+      activeAskId: fixture.askId,
+    },
+    commandId: `route-electron-wechat-setup-ask-${Date.now()}`,
+    content: "Runtime input WeChat smoke setup answer.",
+    selection: {
+      scopeKind: "task",
+      taskNodeId: fixture.taskId,
+    },
+    sessionId: fixture.sessionId,
+  });
+  if (
+    askResponse?.ok !== true ||
+    askResponse?.data?.decision?.dispatchTarget !== "resolve_ask" ||
+    askResponse?.data?.outcome?.status !== "dispatched"
+  ) {
+    throw new Error(
+      `Runtime input WeChat smoke could not clear seeded ASK: ${JSON.stringify(
+        askResponse,
+      )}`,
+    );
+  }
+
+  const confirmationResponse = await postRuntimeInputRoute(
+    window,
+    { baseUrl, fixture },
+    {
+      clientState: {
+        activeConfirmationId: fixture.confirmationId,
+      },
+      commandId: `route-electron-wechat-setup-confirm-${Date.now()}`,
+      content: "no",
+      selection: {
+        scopeKind: "task",
+        taskNodeId: fixture.taskId,
+      },
+      sessionId: fixture.sessionId,
+    },
+  );
+  if (
+    confirmationResponse?.ok !== true ||
+    confirmationResponse?.data?.decision?.dispatchTarget !==
+      "resolve_confirmation" ||
+    confirmationResponse?.data?.outcome?.status !== "dispatched"
+  ) {
+    throw new Error(
+      `Runtime input WeChat smoke could not clear seeded confirmation: ${JSON.stringify(
+        confirmationResponse,
+      )}`,
+    );
+  }
+
+  await load(
+    window,
+    `/sessions/${encodeURIComponent(fixture.sessionId)}?workspaceId=${encodeURIComponent(
+      fixture.workspaceId,
+    )}`,
+    { appReloadUrl },
+  );
+  await waitForText(window, "Diagnostics smoke", {
+    label: "Main Page after clearing runtime-input gates",
+    timeoutMs: 20_000,
+  });
 }
 
 async function smokeReadOnlyInquiryActivity(

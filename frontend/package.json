@@ -20,6 +20,7 @@
     "electron:smoke:packaged": "node scripts/run-electron-packaged-smoke.mjs",
     "electron:smoke:packaged-read-only-inquiry-llm": "node scripts/run-electron-packaged-smoke.mjs --read-only-inquiry-llm-only",
     "electron:smoke:read-only-inquiry-llm": "node scripts/run-electron-smoke.mjs --read-only-inquiry-llm",
+    "electron:smoke:runtime-input-wechat": "node scripts/run-electron-smoke.mjs --runtime-input-wechat",
     "electron:smoke:workspace-git": "node scripts/run-electron-smoke.mjs --workspace-git-init",
     "electron:smoke:workspace-entry": "node scripts/run-electron-smoke.mjs --workspace-entry",
     "build": "tsc -b && vite build",

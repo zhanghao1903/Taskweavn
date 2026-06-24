@@ -11,6 +11,7 @@ import type {
   AskId,
   MainPageSnapshot,
   RuntimeInputMode,
+  RuntimeInputPendingClarification,
   RuntimeInputRouteRequest,
   RuntimeInputRouteResult,
   SessionActivityItemView,
@@ -256,6 +257,8 @@ export function useMainPageController({
   >([]);
   const [activeRuntimeInputMode, setActiveRuntimeInputMode] =
     useState<RuntimeInputMode | null>(null);
+  const [pendingRuntimeClarification, setPendingRuntimeClarification] =
+    useState<RuntimeInputPendingClarification | null>(null);
   const [sessionDialog, setSessionDialog] = useState<SessionLifecycleDialog>({
     mode: "idle",
   });
@@ -722,6 +725,7 @@ export function useMainPageController({
       const request = buildRuntimeInputRouteRequest({
         content,
         mode: routeMode,
+        pendingClarification: pendingRuntimeClarification,
         sessionId,
         snapshot: snapshotDataRef.current?.snapshot ?? null,
         target,
@@ -750,6 +754,7 @@ export function useMainPageController({
 
       const routeResult = response.data;
       if (routeResult.commandResponse !== null && routeResult.commandResponse !== undefined) {
+        setPendingRuntimeClarification(null);
         const commandResult = handleCommandResponse(
           routeResult.commandResponse,
           "Runtime input command was rejected.",
@@ -776,6 +781,7 @@ export function useMainPageController({
         routeResult.outcome.status === "answered" ||
         routeResult.outcome.status === "dispatched"
       ) {
+        setPendingRuntimeClarification(null);
         const runtimeActivity = runtimeInputActivity(routeResult);
         const runtimeActivities = [
           runtimeInputUserActivity(request, routeResult),
@@ -796,6 +802,9 @@ export function useMainPageController({
       setInputCommandError(
         routeResult.outcome.userMessage,
         routeResult.outcome.recoveryActions,
+      );
+      setPendingRuntimeClarification(
+        routeResult.outcome.pendingClarification ?? null,
       );
     },
   });
@@ -1679,6 +1688,7 @@ function shouldRouteReadOnlyQuestion(content: string): boolean {
 function buildRuntimeInputRouteRequest({
   content,
   mode,
+  pendingClarification,
   sessionId,
   snapshot,
   target,
@@ -1686,6 +1696,7 @@ function buildRuntimeInputRouteRequest({
 }: {
   content: string;
   mode: RuntimeInputRouteRequest["mode"];
+  pendingClarification: RuntimeInputPendingClarification | null;
   sessionId: string;
   snapshot: MainPageSnapshot | null;
   target: InputTarget;
@@ -1713,6 +1724,7 @@ function buildRuntimeInputRouteRequest({
     clientState: {
       activeAskId: snapshot?.activeAsk?.id ?? null,
       activeConfirmationId: snapshot?.pendingConfirmations[0]?.id ?? null,
+      pendingClarification,
     },
   };
 }

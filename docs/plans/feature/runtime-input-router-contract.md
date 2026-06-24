@@ -1,8 +1,8 @@
 # Feature Plan: Runtime Input Router Contract
 
-> Status: in_progress / RIR-1-RIR-2 implemented
+> Status: in_progress / RIR-1-RIR-2 implemented; bounded WeChat execution handoff in progress
 >
-> Last Updated: 2026-06-14
+> Last Updated: 2026-06-24
 >
 > Owner: Product / Backend UI Gateway / Frontend
 >
@@ -14,7 +14,8 @@
 > [Runtime Input And Contract Revision Program](runtime-input-and-contract-revision-program.md),
 > [Runtime Input Router Technical Design](runtime-input-router-contract-technical-design.md),
 > [Router-first Main Page Input, Conversation Protocol, And Durable Activity Technical Design](router-first-main-input-durable-activity-technical-design.zh-CN.md),
-> [Runtime Input Router API Contract](../../engineering/runtime-input-router-api-contract.md)
+> [Runtime Input Router API Contract](../../engineering/runtime-input-router-api-contract.md),
+> [UI Natural-Language WeChat Send Task](ui-natural-language-wechat-send-task.md)
 
 ---
 
@@ -205,12 +206,24 @@ Dependencies:
 
 ### RIR-4. Execution Request Handoff
 
-Status: planned.
+Status: partially implemented for one bounded WeChat send path; general
+workspace-changing handoff remains planned.
 
 - Route workspace-changing requests to create or update executable Task/TaskNode
   contract.
 - Do not run tools directly.
 - Defer actual workspace mutation to TaskBus execution.
+
+Implemented narrow path:
+
+- clear local WeChat-send phrases are resolved before LLM planning;
+- missing or unsupported WeChat send slots return non-mutating clarification or
+  unsupported outcomes;
+- when an Execution Plane service is available, the Router publishes a
+  confirmation-gated `communication.wechat.send_message` `TaskRequest`;
+- when no Execution Plane service is available, the Router can fall back to a
+  contract-created execution TaskNode;
+- this path is intentionally not a general natural-language command language.
 
 Dependencies:
 

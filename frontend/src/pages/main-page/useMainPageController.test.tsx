@@ -334,6 +334,77 @@ describe("useMainPageController", () => {
     expect(result.current.inputError).toBe(null);
   });
 
+  it("keeps pending runtime clarification and sends it with the follow-up input", async () => {
+    let routeCallCount = 0;
+    const routeRuntimeInput = vi.fn<RouteRuntimeInputCommand>(
+      async (request) => {
+        routeCallCount += 1;
+        return routeCallCount === 1
+          ? needsClarificationRuntimeInputResponse(request)
+          : dispatchedRuntimeInputResponse(request);
+      },
+    );
+
+    const { result } = renderMainPageController({
+      adapter: testAdapter({
+        routeRuntimeInput,
+      }),
+      initialStateId: "s3-draft-ready",
+    });
+
+    await waitFor(() => {
+      expect(result.current.snapshotData?.metadata.id).toBe("s3-draft-ready");
+    });
+
+    act(() => {
+      result.current.actions.changeInputDraft("给微信文件传输助手发消息");
+    });
+    act(() => {
+      result.current.actions.submitInput({
+        mode: "append_session_input",
+        sessionId: "session-website-plan",
+        target: "session",
+        taskNodeId: null,
+      });
+    });
+
+    await waitFor(() => {
+      expect(result.current.inputError).toBe(
+        "要发送给文件传输助手的消息内容是什么？没有创建发送任务。",
+      );
+    });
+
+    act(() => {
+      result.current.actions.changeInputDraft("Plato 补全消息");
+    });
+    act(() => {
+      result.current.actions.submitInput({
+        mode: "append_session_input",
+        sessionId: "session-website-plan",
+        target: "session",
+        taskNodeId: null,
+      });
+    });
+
+    await waitFor(() => {
+      expect(routeRuntimeInput).toHaveBeenCalledTimes(2);
+    });
+    expect(routeRuntimeInput.mock.calls[1]?.[0]).toMatchObject({
+      clientState: {
+        pendingClarification: {
+          contactDisplayName: "文件传输助手",
+          kind: "wechat_send",
+          missingSlots: ["messageText"],
+        },
+      },
+      content: "Plato 补全消息",
+    });
+    await waitFor(() => {
+      expect(result.current.uiNotice).toBe("Guidance was recorded.");
+    });
+    expect(result.current.inputError).toBe(null);
+  });
+
   it("submits a manual retry command for the selected failed task", async () => {
     const retryTask = vi.fn<RetryTaskCommand>(async (sessionId, taskNodeId, request) =>
       acceptedCommandResponse({
@@ -1447,6 +1518,54 @@ function dispatchedRuntimeInputResponse(
         sourceKind: "router",
         disclosureLevel: "public",
       },
+      commandResponse: null,
+      inquiryResult: null,
+      generatedAt: now,
+    },
+    error: null,
+    cursor: null,
+    generatedAt: now,
+  };
+}
+
+function needsClarificationRuntimeInputResponse(
+  request: RuntimeInputRouteRequest,
+): QueryResponse<RuntimeInputRouteResult> {
+  const now = "2026-06-14T00:00:00Z";
+
+  return {
+    requestId: `request-${request.commandId}`,
+    ok: true,
+    data: {
+      sessionId: request.sessionId,
+      decision: {
+        id: `decision-${request.commandId}`,
+        intent: "clarification",
+        scope: {
+          kind: request.selection.scopeKind,
+          planId: request.selection.planId ?? null,
+          taskNodeId: request.selection.taskNodeId ?? null,
+        },
+        confidence: "high",
+        sideEffect: "no_effect",
+        dispatchTarget: "clarification",
+        explanation: "The input is missing the WeChat message text.",
+        relatedRefs: [],
+      },
+      outcome: {
+        status: "needs_clarification",
+        userMessage: "要发送给文件传输助手的消息内容是什么？没有创建发送任务。",
+        recoveryActions: ["edit_input"],
+        pendingClarification: {
+          kind: "wechat_send",
+          reasonCode: "missing_message",
+          contactDisplayName: "文件传输助手",
+          messageText: null,
+          missingSlots: ["messageText"],
+          originalContent: request.content,
+        },
+      },
+      activity: null,
       commandResponse: null,
       inquiryResult: null,
       generatedAt: now,

@@ -52,6 +52,8 @@ RuntimeInputOutcomeStatus = Literal[
     "rejected",
 ]
 RuntimeInputScopeKind = Literal["session", "plan", "task"]
+RuntimeInputPendingClarificationKind = Literal["wechat_send"]
+RuntimeInputPendingClarificationSlot = Literal["contactDisplayName", "messageText"]
 
 
 def _new_router_id() -> str:
@@ -73,9 +75,32 @@ class RuntimeInputSelection(UiContractModel):
         return self
 
 
+class RuntimeInputPendingClarification(UiContractModel):
+    kind: RuntimeInputPendingClarificationKind
+    reason_code: str = Field(min_length=1)
+    contact_display_name: str | None = Field(default=None, min_length=1)
+    message_text: str | None = Field(default=None, min_length=1)
+    missing_slots: tuple[RuntimeInputPendingClarificationSlot, ...]
+    original_content: str = Field(min_length=1, max_length=8000)
+
+    @model_validator(mode="after")
+    def _validate_pending_payload(self) -> RuntimeInputPendingClarification:
+        if not self.missing_slots:
+            raise ValueError("pending clarification requires at least one missing slot")
+        if (
+            "contactDisplayName" in self.missing_slots
+            and self.contact_display_name is not None
+        ):
+            raise ValueError("pending contact clarification must not include contact")
+        if "messageText" in self.missing_slots and self.message_text is not None:
+            raise ValueError("pending message clarification must not include message")
+        return self
+
+
 class RuntimeInputClientState(UiContractModel):
     active_ask_id: str | None = Field(default=None, min_length=1)
     active_confirmation_id: str | None = Field(default=None, min_length=1)
+    pending_clarification: RuntimeInputPendingClarification | None = None
 
 
 class RuntimeInputRouteRequest(UiContractModel):
@@ -128,6 +153,7 @@ class RuntimeInputOutcome(UiContractModel):
     status: RuntimeInputOutcomeStatus
     user_message: str = Field(min_length=1)
     recovery_actions: tuple[ProductRecoveryAction, ...] = ()
+    pending_clarification: RuntimeInputPendingClarification | None = None
 
 
 class RuntimeInputRouteResult(UiContractModel):
@@ -149,6 +175,9 @@ __all__ = [
     "RuntimeInputMode",
     "RuntimeInputOutcome",
     "RuntimeInputOutcomeStatus",
+    "RuntimeInputPendingClarification",
+    "RuntimeInputPendingClarificationKind",
+    "RuntimeInputPendingClarificationSlot",
     "RuntimeInputRouteDecision",
     "RuntimeInputRouteRequest",
     "RuntimeInputRouteResult",

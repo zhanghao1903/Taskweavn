@@ -10,6 +10,9 @@ from taskweavn.contract_revision.models import (
     ContractCommandResult,
 )
 from taskweavn.contract_revision.service import ContractRevisionCommandService
+from taskweavn.execution_plane.errors import ExecutionPlaneError
+from taskweavn.execution_plane.models import TaskExecution
+from taskweavn.execution_plane.service import TaskApiService
 from taskweavn.server.read_only_inquiry import (
     DefaultReadOnlyInquiryService,
     DiagnosticSupportContextProvider,
@@ -20,6 +23,13 @@ from taskweavn.server.runtime_input_activity import RuntimeInputActivityPublishe
 from taskweavn.server.runtime_input_llm_router import (
     RuntimeInputRoutePlanner,
     RuntimeInputRouteProposal,
+)
+from taskweavn.server.runtime_input_wechat import (
+    WeChatSendResolution,
+    resolve_wechat_send_input,
+    resolve_wechat_send_pending_clarification,
+    wechat_send_execution_payload,
+    wechat_send_task_request,
 )
 from taskweavn.server.ui_contract.commands import (
     AnswerAskPayload,
@@ -51,6 +61,7 @@ from taskweavn.server.ui_contract.runtime_input import (
     RuntimeInputIntent,
     RuntimeInputOutcome,
     RuntimeInputOutcomeStatus,
+    RuntimeInputPendingClarification,
     RuntimeInputRouteDecision,
     RuntimeInputRouteRequest,
     RuntimeInputRouteResult,
@@ -133,6 +144,7 @@ class DefaultRuntimeInputRouter:
     diagnostic_support_provider: DiagnosticSupportContextProvider | None = None
     activity_publisher: RuntimeInputActivityPublisher | None = None
     contract_revision_service: ContractRevisionCommandService | None = None
+    execution_plane_service: TaskApiService | None = None
     route_planner: RuntimeInputRoutePlanner | None = None
 
     def route(
@@ -162,6 +174,20 @@ class DefaultRuntimeInputRouter:
             return self._stop_selected_task(request)
         if _is_retry_phrase(normalized):
             return self._retry_selected_task(request)
+        wechat_pending = request.client_state.pending_clarification
+        if wechat_pending is not None and wechat_pending.kind == "wechat_send":
+            return self._route_wechat_send(
+                request,
+                resolve_wechat_send_pending_clarification(
+                    request.content,
+                    contact_display_name=wechat_pending.contact_display_name,
+                    message_text=wechat_pending.message_text,
+                    missing_slots=wechat_pending.missing_slots,
+                ),
+            )
+        wechat_send = resolve_wechat_send_input(request.content)
+        if wechat_send is not None:
+            return self._route_wechat_send(request, wechat_send)
         planned = self._route_planner_result(request)
         if planned is not None:
             return planned
@@ -303,6 +329,176 @@ class DefaultRuntimeInputRouter:
             else None,
             activity_kind="task_created" if accepted else "recovery_note",
             publish_activity=not accepted,
+        )
+
+    def _route_wechat_send(
+        self,
+        request: RuntimeInputRouteRequest,
+        resolution: WeChatSendResolution,
+    ) -> QueryResponse[RuntimeInputRouteResult]:
+        if resolution.status == "needs_clarification":
+            decision = self._decision(
+                request,
+                intent="clarification",
+                dispatch_target="clarification",
+                side_effect="no_effect",
+                explanation=(
+                    "Input looks like a WeChat send request but is missing required "
+                    f"slots: {', '.join(resolution.missing_slots)}."
+                ),
+                related_refs=_selection_refs(request),
+            )
+            return self._result(
+                request,
+                decision,
+                RuntimeInputOutcome(
+                    status="needs_clarification",
+                    user_message=resolution.user_message,
+                    recovery_actions=("edit_input",),
+                    pending_clarification=_wechat_pending_clarification(
+                        request,
+                        resolution,
+                    ),
+                ),
+            )
+        if resolution.status == "unsupported":
+            return self._unsupported(
+                request,
+                intent="execution_request",
+                dispatch_target="unsupported",
+                side_effect="no_effect",
+                explanation=(
+                    "Input looks like a WeChat send request but is outside the "
+                    f"bounded supported shape: {resolution.reason_code}."
+                ),
+                user_message=resolution.user_message,
+            )
+        return self._create_wechat_send_execution_task(request, resolution)
+
+    def _create_wechat_send_execution_task(
+        self,
+        request: RuntimeInputRouteRequest,
+        resolution: WeChatSendResolution,
+    ) -> QueryResponse[RuntimeInputRouteResult]:
+        if self.execution_plane_service is not None:
+            return self._publish_wechat_send_execution_task(request, resolution)
+        if self.contract_revision_service is None:
+            return self._unsupported(
+                request,
+                intent="execution_request",
+                dispatch_target="execution_handoff",
+                side_effect="state_effect",
+                explanation="WeChat send handoff is unavailable without command service.",
+                user_message=(
+                    "微信发送任务需要通过执行任务创建流程处理。当前流程不可用，"
+                    "没有创建任务，也没有发送消息。"
+                ),
+            )
+        plan_id = request.selection.plan_id
+        scope_kind: Literal["plan", "session"] = "plan" if plan_id is not None else "session"
+        decision = self._decision(
+            request,
+            intent="execution_request",
+            dispatch_target="execution_handoff",
+            side_effect="state_effect",
+            explanation=(
+                "Input created a bounded, confirmation-gated WeChat send execution task."
+            ),
+            related_refs=_selection_refs(request),
+        )
+        command_result = self.contract_revision_service.execute(
+            ContractCommandRequest(
+                command_id=request.command_id,
+                idempotency_key=request.command_id,
+                command_kind="create_execution_task",
+                workspace_id=request.workspace_id or "current",
+                session_id=request.session_id,
+                scope_kind=scope_kind,
+                plan_id=plan_id,
+                source="runtime_input",
+                router_decision_id=decision.id,
+                payload=wechat_send_execution_payload(resolution),
+            )
+        )
+        accepted = command_result.status in {"accepted", "noop"}
+        return self._result(
+            request,
+            decision,
+            RuntimeInputOutcome(
+                status="dispatched" if accepted else "rejected",
+                user_message=(
+                    "微信发送任务已创建；真正发送前仍需要用户确认。"
+                    if accepted
+                    else "微信发送任务未能创建。没有发送消息。"
+                ),
+                recovery_actions=() if accepted else ("edit_input",),
+            ),
+            activity=_activity_from_contract_result(request, decision, command_result)
+            if command_result.activity is not None
+            else None,
+            activity_kind="task_created" if accepted else "recovery_note",
+            publish_activity=not accepted,
+        )
+
+    def _publish_wechat_send_execution_task(
+        self,
+        request: RuntimeInputRouteRequest,
+        resolution: WeChatSendResolution,
+    ) -> QueryResponse[RuntimeInputRouteResult]:
+        assert self.execution_plane_service is not None
+        decision = self._decision(
+            request,
+            intent="execution_request",
+            dispatch_target="execution_handoff",
+            side_effect="execution_request",
+            explanation=(
+                "Input published a bounded, confirmation-gated WeChat send task "
+                "through Execution Plane."
+            ),
+            related_refs=_selection_refs(request),
+        )
+        try:
+            execution = self.execution_plane_service.publish_task(
+                wechat_send_task_request(
+                    resolution,
+                    command_id=request.command_id,
+                    session_id=request.session_id,
+                    workspace_id=request.workspace_id,
+                    original_content=request.content,
+                )
+            )
+        except ExecutionPlaneError as exc:
+            outcome = RuntimeInputOutcome(
+                status="rejected",
+                user_message=(
+                    "微信发送任务未能创建。没有发送消息。"
+                    if exc.code != "capability_not_available"
+                    else "当前执行环境不支持微信发送能力。没有发送消息。"
+                ),
+                recovery_actions=("retry_command",) if exc.retryable else ("edit_input",),
+            )
+            return self._result(
+                request,
+                decision,
+                outcome,
+                activity=self._activity(
+                    request,
+                    decision,
+                    outcome,
+                    activity_kind="recovery_note",
+                ),
+                publish_activity=True,
+            )
+
+        outcome = RuntimeInputOutcome(
+            status="dispatched",
+            user_message=_wechat_execution_user_message(execution),
+        )
+        return self._result(
+            request,
+            decision,
+            outcome,
+            activity=_wechat_execution_activity(request, decision, execution, outcome),
         )
 
     def _active_ask(self, request: RuntimeInputRouteRequest) -> AskRequestView | None:
@@ -1096,6 +1292,54 @@ def _activity_from_contract_result(
         source_kind="router",
         source_id=decision.id,
         disclosure_level=command_result.activity.disclosure_level,
+    )
+
+
+def _wechat_execution_activity(
+    request: RuntimeInputRouteRequest,
+    decision: RuntimeInputRouteDecision,
+    execution: TaskExecution,
+    outcome: RuntimeInputOutcome,
+) -> SessionActivityItemView:
+    return SessionActivityItemView(
+        id=f"activity:{decision.id}",
+        session_id=request.session_id,
+        kind="task_created",
+        title="WeChat send task created",
+        body=outcome.user_message,
+        scope_kind=decision.scope.kind,
+        plan_id=decision.scope.plan_id,
+        task_node_id=decision.scope.task_node_id,
+        side_effect=decision.side_effect,
+        related_refs=decision.related_refs
+        + (_ref("task", execution.task_id, "Execution Plane task"),),
+        source_kind="router",
+        source_id=decision.id,
+        disclosure_level="public",
+    )
+
+
+def _wechat_execution_user_message(execution: TaskExecution) -> str:
+    if execution.status == "waiting_for_user":
+        return "微信发送任务已创建，正在等待用户确认。"
+    if execution.status == "failed":
+        return "微信发送任务已创建但未完成。请查看错误和证据。"
+    if execution.status == "done":
+        return "微信发送任务已完成。"
+    return "微信发送任务已创建；真正发送前仍需要用户确认。"
+
+
+def _wechat_pending_clarification(
+    request: RuntimeInputRouteRequest,
+    resolution: WeChatSendResolution,
+) -> RuntimeInputPendingClarification:
+    return RuntimeInputPendingClarification(
+        kind="wechat_send",
+        reason_code=resolution.reason_code,
+        contact_display_name=resolution.contact_display_name,
+        message_text=resolution.message_text,
+        missing_slots=resolution.missing_slots,
+        original_content=request.content,
     )
 
 
