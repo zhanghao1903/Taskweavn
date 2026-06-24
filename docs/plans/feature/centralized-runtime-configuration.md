@@ -1,10 +1,10 @@
 # Feature Plan: Centralized Runtime Configuration
 
-> Status: C1-C5 implemented / C6-C7 deferred
+> Status: C1-C7.3b implemented / C7.4-C7.5 deferred
 > Type: Runtime control plane / configuration governance
 > Last Updated: 2026-06-24
 > Owner/Session: computer-use hardening discussion
-> Target Implementation Session: runtime-config read-only diagnostics slice complete
+> Target Implementation Session: runtime-config sidecar store wiring complete
 > Related Docs: [Configuration Guide](../../configuration.md), [Settings, Logs, And Audit Boundary](../../product/plato-settings-logs-audit-boundary.md), [Runtime Config Change Store](../../engineering/runtime-config-change-store.md), [Runtime Config Write API](../../engineering/runtime-config-write-api-contract.md), [Configurable Logging System](configurable-logging-system.md), [LLM Provider Plan](llm-provider-retry-thinking.md), [Execution Plane Service Task API](execution-plane-service-task-api.md), [Context Manager 1.0](context-manager-1-0.md), [Skill Governance](product-1-1-skill-governance.md)
 
 ---
@@ -156,27 +156,35 @@ The updated plan below treats centralized runtime config as a control-plane
 hardening effort over the current system, not as a greenfield configuration
 rewrite.
 
-As of 2026-06-24, the first read-only implementation slice exists:
+As of 2026-06-24, the first centralized runtime config implementation slices
+exist:
 
 - `src/taskweavn/runtime_config/` defines typed registry, defaults, env/process
   source layers, resolver, and effective config models;
 - `src/taskweavn/server/runtime_config_gateway.py` exposes a sidecar-facing
   gateway;
-- `src/taskweavn/server/ui_http_runtime_config.py` exposes read-only HTTP
-  adapters for schema/effective/explain;
+- `src/taskweavn/server/ui_http_runtime_config.py` exposes HTTP adapters for
+  schema/effective/explain, change history, snapshot lookup, and controlled
+  local patch writes;
 - `src/taskweavn/server/ui_http_routes.py` registers:
   - `GET /api/v1/runtime/config/schema`
   - `GET /api/v1/runtime/config/effective`
   - `GET /api/v1/runtime/config/explain`
+  - `GET /api/v1/runtime/config/changes`
+  - `GET /api/v1/runtime/config/snapshots/{configHash}`
+  - `PATCH /api/v1/runtime/config`
 - `src/taskweavn/server/main_page.py` wires sidecar process inputs into the
-  read-only gateway.
+  runtime config gateway and wires the workspace-local change store/mutation
+  service into the local sidecar transport.
 
 The implementation is intentionally behavior-preserving. Runtime components
 still primarily receive their values through the existing constructor/config
-paths. The centralized config layer currently reflects and explains those
-values; it is not yet the sole source of runtime behavior. C5 is now complete
-through the backend store, mutation service, read gateway, and write API
-design gate. C6-C7 remain deferred.
+paths. The centralized config layer now reflects, explains, and records
+workspace-local runtime config changes in the local sidecar. It is not yet the
+sole source of runtime behavior, and most changed values do not mutate
+already-running agents. C7.3b wires the durable change/snapshot store and
+mutation service into local sidecar assembly so the HTTP write route can persist
+changes. Settings UI controls and Audit evidence projection remain deferred.
 
 ---
 
@@ -742,13 +750,16 @@ Status: implemented.
 
 ### C7: Settings UI And Audit/Diagnostics Integration
 
-Status: design accepted; C7.1-C7.3 diagnostics/read/write transport
-implemented.
+Status: design accepted; C7.1-C7.3b diagnostics/read/write transport and
+local sidecar store wiring implemented.
 
 - Settings shows behavior controls.
 - Diagnostics shows raw effective config, C7.1 read-only combined diagnostics
   facts, and C7.2 read-only HTTP change/snapshot routes.
 - HTTP transport exposes C7.3 controlled runtime config patch semantics.
+- Local sidecar assembly creates a workspace-local runtime config SQLite store,
+  constructs `DefaultRuntimeConfigMutationService`, and passes both read and
+  write dependencies into the HTTP transport.
 - Audit shows relevant config evidence.
 - Do not overload Audit as a config editor.
 - Integration design is defined in
@@ -818,40 +829,40 @@ design gate. C6 is closed for the internal ConfigBus event boundary, active
 design is accepted for Settings, Diagnostics, and Audit integration. C7.1 is
 closed with an internal read-only diagnostics gateway. C7.2 is closed with
 read-only HTTP extensions for change list and snapshot lookup. C7.3 is closed
-with the framework-neutral `PATCH /api/v1/runtime/config` route. The next
-implementation step is C7.3b: wire a runtime config change store and mutation
-service into the local sidecar before any Settings write UI.
+with the framework-neutral `PATCH /api/v1/runtime/config` route. C7.3b is
+closed with local sidecar store and mutation service wiring.
 
-Recommended next task if config mutation becomes necessary:
+Recommended next task:
 
 ```text
 Use the product-workflow-gate skill first.
-Use the maintainability-gate skill if touching Main Page sidecar assembly,
-settings persistence, or large server modules.
+Use the maintainability-gate skill if touching Settings, Main Page sidecar
+assembly, or large frontend/backend modules.
 
 Task:
-Implement C7.3b Runtime Config Sidecar Store Wiring.
+Implement C7.4 Runtime Config Settings Read-Only Behavior Section.
 
 Scope:
-- Create/open a workspace-local runtime config change store during sidecar
-  assembly.
-- Construct a `DefaultRuntimeConfigMutationService` with that store.
-- Pass both runtime config gateway and mutation service into the UI HTTP
-  transport.
-- Preserve existing read routes and startup behavior.
-- Do not add Settings UI.
+- Add a read-only Settings/Diagnostics-facing runtime behavior section that
+  shows current effective config values, source attribution, mutability, and
+  effective status for Product 1.0/1.1 safe keys.
+- Start with read-only display and copy only; do not add editable controls.
+- Make clear that runtime patches can be persisted but most non-live values do
+  not affect already-running agents.
+- Preserve existing first-run Settings behavior.
 - Do not add Audit UI.
 
 Do not:
 - Treat app-specific automation behavior such as WeChat send steps as top-level
   runtime config.
-- Expose remote runtime config writes without a separate authorization model.
+- Add a generic raw config editor.
+- Expose remote runtime config writes.
 - Apply non-live config changes to already-running agents.
 
 Output:
 - Workflow Gate Report
 - files changed
-- C7 design updated
+- C7.4 Settings/Diagnostics boundary updated
 - tests required, if any
 - checks run
 - remaining C7 blockers

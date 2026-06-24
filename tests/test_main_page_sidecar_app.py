@@ -97,6 +97,53 @@ def test_main_page_sidecar_exposes_effective_runtime_config(
     assert values["logging.level"]["value"] == "DEBUG"
 
 
+def test_main_page_sidecar_runtime_config_patch_route_persists_change(
+    tmp_path: Any,
+) -> None:
+    app = build_main_page_sidecar_app(
+        MainPageSidecarConfig(
+            workspace_root=tmp_path,
+            port=0,
+            current_workspace_id="workspace-1",
+        ),
+        MainPageSidecarDependencies(llm=_StubLLM()),
+    )
+    try:
+        patch = _request(
+            app,
+            "PATCH",
+            "/api/v1/runtime/config",
+            body={
+                "idempotencyKey": "main-page-runtime-config-write",
+                "scope": {
+                    "level": "workspace",
+                    "workspaceId": "workspace-1",
+                },
+                "values": {"logging.level": "DEBUG"},
+            },
+        )
+        changes = _request(
+            app,
+            "GET",
+            "/api/v1/runtime/config/changes?workspaceId=workspace-1",
+        )
+    finally:
+        app.close()
+
+    assert patch.status == 200
+    assert patch.json["ok"] is True
+    assert patch.json["data"]["change"]["status"] == "accepted"
+    assert patch.json["data"]["snapshotRef"]["configHash"] == (
+        patch.json["data"]["change"]["resultingConfigHash"]
+    )
+    assert changes.status == 200
+    assert changes.json["ok"] is True
+    assert changes.json["data"]["totalCount"] == 1
+    assert changes.json["data"]["changes"][0]["idempotencyKey"] == (
+        "main-page-runtime-config-write"
+    )
+
+
 def test_main_page_sidecar_uses_guarded_llm_inquiry_provider_by_default(
     tmp_path: Any,
 ) -> None:

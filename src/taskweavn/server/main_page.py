@@ -48,7 +48,14 @@ from taskweavn.llm.agent_config import AgentLlmRole
 from taskweavn.llm.agent_resolver import SettingsBackedAgentLlmResolver
 from taskweavn.observability import LogContext
 from taskweavn.observability.main_page_trace import main_page_trace
-from taskweavn.runtime_config import EffectiveRuntimeConfig, RuntimeConfigScope
+from taskweavn.runtime_config import (
+    DefaultRuntimeConfigMutationService,
+    EffectiveRuntimeConfig,
+    RuntimeConfigChangeStore,
+    RuntimeConfigMutationServiceConfig,
+    RuntimeConfigScope,
+    SqliteRuntimeConfigChangeStore,
+)
 from taskweavn.server.ask_recovery import DefaultAskRecoveryService
 from taskweavn.server.client_logs import FileClientErrorLogSink
 from taskweavn.server.diagnostics_export import DefaultDiagnosticExportGateway
@@ -262,6 +269,7 @@ class MainPageWorkspaceRuntime:
     result_summary_store: TaskExecutionSummaryStore
     execution_plane_store: SqliteExecutionPlaneStore | None
     token_usage_store: SqliteTokenUsageStore
+    runtime_config_change_store: RuntimeConfigChangeStore | None
     runtime_config: EffectiveRuntimeConfig
     default_agent: ResidentDefaultAgent | None
     execution_dispatcher: FixedRouteExecutionDispatcher | None
@@ -314,6 +322,7 @@ class MainPageWorkspaceRuntime:
             self.result_summary_store,
             self.execution_plane_store,
             self.token_usage_store,
+            self.runtime_config_change_store,
             self.ask_store,
             self.plan_store,
             self.draft_store,
@@ -462,9 +471,16 @@ def build_main_page_workspace_runtime(
         )
         event_store = ui_event_store(event_source)
         current_workspace_id = config.current_workspace_id or "current"
+        runtime_config_change_store = SqliteRuntimeConfigChangeStore(
+            layout.workspace_runtime_config_db
+        )
+        runtime_config_mutation_service = DefaultRuntimeConfigMutationService(
+            RuntimeConfigMutationServiceConfig(store=runtime_config_change_store)
+        )
         runtime_config_gateway = DefaultRuntimeConfigGateway.from_process_inputs(
             _runtime_config_process_values(config),
             workspace_id=current_workspace_id,
+            change_store=runtime_config_change_store,
         )
         runtime_config = runtime_config_gateway.effective(
             RuntimeConfigScope(
@@ -729,6 +745,7 @@ def build_main_page_workspace_runtime(
                 workspace_id=config.current_workspace_id or "current",
             ),
             runtime_config_gateway=runtime_config_gateway,
+            runtime_config_mutation_service=runtime_config_mutation_service,
             runtime_input_router=DefaultRuntimeInputRouter(
                 query_gateway=query_gateway,
                 command_gateway=command_gateway,
@@ -769,6 +786,7 @@ def build_main_page_workspace_runtime(
         result_summary_store=result_summary_store,
         execution_plane_store=execution_plane_store,
         token_usage_store=token_usage_store,
+        runtime_config_change_store=runtime_config_change_store,
         runtime_config=runtime_config,
         default_agent=default_agent,
         execution_dispatcher=execution_dispatcher,
@@ -922,6 +940,7 @@ def _sidecar_app_from_runtime(
         result_summary_store=runtime.result_summary_store,
         execution_plane_store=runtime.execution_plane_store,
         token_usage_store=runtime.token_usage_store,
+        runtime_config_change_store=runtime.runtime_config_change_store,
         runtime_config=runtime.runtime_config,
         default_agent=runtime.default_agent,
         execution_dispatcher=runtime.execution_dispatcher,

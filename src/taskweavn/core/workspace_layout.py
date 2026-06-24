@@ -116,6 +116,11 @@ class WorkspaceLayout:
         return self.meta_dir / "contract_revision.sqlite"
 
     @property
+    def workspace_runtime_config_db(self) -> Path:
+        """Workspace-scoped runtime config change/snapshot ledger."""
+        return self.meta_dir / "runtime_config.sqlite"
+
+    @property
     def shared_dir(self) -> Path:
         return self.root / "shared"
 

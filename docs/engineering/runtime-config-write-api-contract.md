@@ -1,7 +1,7 @@
 # Runtime Config Write API Contract
 
-> Status: C5.5 design gate accepted; C7.2 read routes and C7.3 transport
-> write route implemented.
+> Status: C5.5 design gate accepted; C7.2 read routes, C7.3 transport write
+> route, and C7.3b local sidecar store wiring implemented.
 > Related Store Contract: [Runtime Config Change Store](runtime-config-change-store.md)
 > Related Plan:
 > [Centralized Runtime Configuration](../plans/feature/centralized-runtime-configuration.md)
@@ -26,8 +26,9 @@ inventing runtime config write semantics in route handlers.
 - Do not apply live mutations to running agents.
 - Do not make app-specific playbooks, such as WeChat send steps, runtime config.
 - Do not expose raw secrets through config writes or snapshots.
-- Do not treat C7.3 transport support as production Settings enablement until
-  sidecar store/service wiring is explicitly configured.
+- Do not treat C7.3/C7.3b local write support as production Settings
+  enablement until safe Settings controls, copy, and authorization boundaries
+  are explicitly scoped.
 
 ## 3. Source Of Truth
 
@@ -56,7 +57,8 @@ PATCH /api/v1/runtime/config
 Use this route for controlled runtime config mutation from Settings,
 Diagnostics, tests, or future operator tools.
 
-Implementation status: framework-neutral transport route implemented in C7.3.
+Implementation status: framework-neutral transport route implemented in C7.3;
+local sidecar store/service wiring implemented in C7.3b.
 
 ### 4.2 List Runtime Config Changes
 

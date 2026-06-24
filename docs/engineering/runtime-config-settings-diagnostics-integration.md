@@ -1,7 +1,8 @@
 # Runtime Config Settings, Diagnostics, And Audit Integration
 
 > Status: C7 design accepted; C7.1 diagnostics read model, C7.2 HTTP read
-> extension, and C7.3 transport write route implemented.
+> extension, C7.3 transport write route, and C7.3b local sidecar store wiring
+> implemented.
 > Related Plan:
 > [Centralized Runtime Configuration](../plans/feature/centralized-runtime-configuration.md)
 > Related Contracts:
@@ -67,7 +68,7 @@ contract.
 
 | Surface | Runtime Config Role | Write Access |
 |---|---|---|
-| Settings | User-facing safe controls and pending-state copy. | Only through local HTTP write route after C7.3. |
+| Settings | User-facing safe controls and pending-state copy. | Only through local HTTP write route after C7.3/C7.3b, and only after UI controls are explicitly scoped. |
 | Diagnostics | Raw effective config, change history, snapshots, ConfigBus publication summaries. | Read-only in first C7 implementation. |
 | Audit | Relevant effective config and config changes for a session/task/action. | Read-only evidence only. |
 | Main Page | Shows selected effective behavior summary only when it affects current workflow. | No raw editor. |
@@ -173,8 +174,9 @@ Audit must not:
 
 ## 8. HTTP Write Route Requirement
 
-Settings runtime config writes must wait for the C5.5 HTTP write contract to be
-implemented.
+Settings runtime config writes now have a local HTTP/store boundary, but UI
+write controls remain gated until the safe Settings surface is explicitly
+scoped.
 
 Reason:
 
@@ -187,13 +189,15 @@ Reason:
 
 Therefore:
 
-- Diagnostics read-only work may proceed before write routes.
-- Settings read-only effective config display may proceed before write routes.
-- Settings runtime config mutation must wait for:
-  - `PATCH /api/v1/runtime/config`;
-  - `GET /api/v1/runtime/config/changes`;
-  - route tests for accepted/rejected/no-op/idempotency conflict;
-  - local-only authorization placeholder.
+- Diagnostics and Settings read-only effective config display may proceed.
+- Settings runtime config mutation UI must still wait for:
+  - safe control selection;
+  - user-facing pending/restart copy;
+  - explicit local-only authorization behavior;
+  - tests that prove rejected/partial/idempotency responses are shown
+    correctly.
+- Existing first-run Settings should remain stable until the new Settings
+  runtime behavior section is accepted.
 
 ## 9. Implementation Sequence
 
@@ -234,8 +238,26 @@ Status: implemented at the framework-neutral transport layer.
 - The HTTP route keeps `allowPartialAcceptance=false` by default while the
   backend mutation service can still represent explicit partial acceptance.
 - Dry-run writes do not persist changes or snapshots.
-- Production sidecar store/service wiring remains a follow-up; without an
-  injected mutation service the route returns `503`.
+- C7.3 alone remains a framework-neutral transport slice; without an injected
+  mutation service the route returns `503`. C7.3b wires that service into the
+  local sidecar.
+
+### C7.3b Runtime Config Sidecar Store Wiring
+
+Status: implemented for the local sidecar.
+
+- Local sidecar assembly creates a workspace-local
+  `runtime_config.sqlite` ledger under the workspace metadata directory.
+- The sidecar constructs `SqliteRuntimeConfigChangeStore` and
+  `DefaultRuntimeConfigMutationService` during runtime assembly.
+- The same store is passed to `DefaultRuntimeConfigGateway` for change and
+  snapshot reads.
+- The UI HTTP transport receives both the read gateway and mutation service, so
+  `PATCH /api/v1/runtime/config` can persist accepted changes and
+  `GET /api/v1/runtime/config/changes` can read them back in the same sidecar.
+- The sidecar runtime retains the effective config snapshot resolved at startup.
+  Runtime patches do not imply that already-running agents or constructor-bound
+  components have changed behavior.
 
 ### C7.4 Settings Runtime Config Controls
 
