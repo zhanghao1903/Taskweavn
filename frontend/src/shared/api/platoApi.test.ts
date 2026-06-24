@@ -172,6 +172,44 @@ describe("createHttpPlatoApi", () => {
     );
   });
 
+  it("loads effective runtime config through the documented endpoint", async () => {
+    const fetcher = vi.fn<FetchFn>(async () =>
+      jsonResponse({
+        data: {
+          configHash: "runtime-config-hash",
+          configId: "runtime-config-process",
+          createdAt: "2026-06-24T10:00:00Z",
+          schemaVersion: "plato.runtime_config.v1",
+          scope: { level: "process" },
+          sourceLayers: [],
+          values: {},
+        },
+        error: null,
+        generatedAt: "2026-06-24T10:00:00Z",
+        ok: true,
+        requestId: "runtime-config-effective",
+      }),
+    );
+    const api = createHttpPlatoApi({
+      baseUrl: "https://plato.test/",
+      fetcher,
+    });
+
+    await expect(api.getRuntimeConfigEffective()).resolves.toMatchObject({
+      data: {
+        configHash: "runtime-config-hash",
+        schemaVersion: "plato.runtime_config.v1",
+      },
+      ok: true,
+    });
+    expect(fetcher).toHaveBeenCalledWith(
+      "https://plato.test/api/v1/runtime/config/effective",
+      expect.objectContaining({
+        method: "GET",
+      }),
+    );
+  });
+
   it("routes read-only inquiry results through the documented endpoint", async () => {
     const fetcher = vi.fn<FetchFn>(async () =>
       jsonResponse({

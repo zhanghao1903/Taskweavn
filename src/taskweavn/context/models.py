@@ -68,6 +68,7 @@ class ContextBuildRequest(ContextModel):
     writer: bool = True
     turn_index: int = Field(default=0, ge=0)
     budget: ContextBudget = Field(default_factory=ContextBudget)
+    runtime_config_hash: str | None = Field(default=None, min_length=1)
     latest_user_instruction: str | None = None
     prior_messages: tuple[dict[str, Any], ...] = ()
 
@@ -288,6 +289,7 @@ class ContextTrace(ContextModel):
     delta_reason: str | None = None
     checkpoint_reason: str | None = None
     cache_policy_version: str | None = None
+    runtime_config_hash: str | None = Field(default=None, min_length=1)
     active_skill_ids: tuple[str, ...] = ()
     active_skill_hashes: tuple[str, ...] = ()
     skill_activation_ids: tuple[str, ...] = ()
@@ -312,6 +314,7 @@ class ContextSnapshot(ContextModel):
     render_mode: ContextRenderMode = "full_context"
     stable_prefix_hash: str | None = None
     context_segment_hashes: tuple[str, ...] = ()
+    runtime_config_hash: str | None = Field(default=None, min_length=1)
     task_execution_context: TaskExecutionContextV0
     created_at: datetime = Field(default_factory=utcnow)
 
@@ -327,6 +330,7 @@ class RenderedLlmInput(ContextModel):
     render_mode: ContextRenderMode = "full_context"
     segments: tuple[ContextMessageSegment, ...] = ()
     stable_prefix_hash: str | None = None
+    runtime_config_hash: str | None = Field(default=None, min_length=1)
 
 
 class ContextBuildResult(ContextModel):

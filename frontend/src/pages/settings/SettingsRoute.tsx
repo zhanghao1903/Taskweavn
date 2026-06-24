@@ -27,6 +27,7 @@ import {
 } from "../../shared/ui-text";
 import { formatRecoveryAction, settingsProviderLabel } from "./settingsCopy";
 import { SettingsDataManagementTab } from "./SettingsDataManagementTab";
+import { SettingsRuntimeBehaviorTab } from "./SettingsRuntimeBehaviorTab";
 import { SettingsUsageInformationTab } from "./SettingsUsageInformationTab";
 import type { SettingsRouteContext, SettingsTab } from "./settingsRouteModel";
 import { buildSettingsRoute, parseSettingsRouteLocation } from "./settingsRouteModel";
@@ -52,6 +53,7 @@ import styles from "./SettingsRoute.module.css";
 export type SettingsRouteApi = Pick<
   PlatoApi,
   | "exportDiagnosticBundle"
+  | "getRuntimeConfigEffective"
   | "getSettingsConfig"
   | "getTokenUsageSummary"
   | "listSessions"
@@ -174,6 +176,23 @@ export function SettingsRoute({
         <p className={styles.helperText}>
           {uiText.settings.messages.settingsUnavailableHelp}
         </p>
+      </SettingsShell>
+    );
+  }
+
+  if (routeContext.tab === "runtime") {
+    return (
+      <SettingsShell
+        activeTab={routeContext.tab}
+        heading={uiText.settings.labels.settings}
+        presentation={presentation}
+        routeContext={routeContext}
+        status={uiText.settings.tabs.runtimeBehavior}
+      >
+        <SettingsRuntimeBehaviorTab
+          api={settingsApi}
+          apiBaseUrl={apiBaseUrl}
+        />
       </SettingsShell>
     );
   }
@@ -810,6 +829,7 @@ function SettingsTabs({
   const tabs: Array<{ id: SettingsTab; label: string }> = [
     { id: "configuration", label: uiText.settings.tabs.configuration },
     { id: "data", label: uiText.settings.tabs.dataManagement },
+    { id: "runtime", label: uiText.settings.tabs.runtimeBehavior },
     { id: "usage", label: uiText.settings.tabs.usageInformation },
   ];
 
