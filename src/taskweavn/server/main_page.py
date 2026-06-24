@@ -619,7 +619,9 @@ def build_main_page_workspace_runtime(
             session_reader=session_manager,
             task_projection=task_projection,
             audit_event_provider=WorkspaceAuditEventProvider(layout),
-            audit_config_provider=WorkspaceAuditConfigProvider(),
+            audit_config_provider=WorkspaceAuditConfigProvider(
+                runtime_config_gateway=runtime_config_gateway,
+            ),
             audit_log_provider=WorkspaceAuditLogProvider(),
             task_timeline_service=task_timeline,
             session_message_provider=message_stream,

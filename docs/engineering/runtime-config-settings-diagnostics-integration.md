@@ -2,7 +2,8 @@
 
 > Status: C7 design accepted; C7.1 diagnostics read model, C7.2 HTTP read
 > extension, C7.3 transport write route, and C7.3b local sidecar store wiring
-> implemented; C7.4 read-only Settings runtime behavior section implemented.
+> implemented; C7.4 read-only Settings runtime behavior section and C7.5 Audit
+> evidence projection implemented.
 > Related Plan:
 > [Centralized Runtime Configuration](../plans/feature/centralized-runtime-configuration.md)
 > Related Contracts:
@@ -287,11 +288,20 @@ Deferred editable Settings controls still need:
 
 ### C7.5 Audit Evidence Projection
 
-Status: deferred.
+Status: implemented as read-only Audit config evidence.
 
-- Project config evidence refs into relevant Audit records.
-- Link to Diagnostics for full details.
-- Do not make Audit a config editor.
+- `WorkspaceAuditConfigProvider` can receive the runtime config gateway from
+  local sidecar assembly.
+- Audit config records now include:
+  - an effective runtime config snapshot record keyed by config hash;
+  - durable runtime config change records from the local change ledger.
+- Runtime config Audit records use `config_snapshot` evidence refs with
+  `config_store` evidence source mapping.
+- Audit records expose key names, status/counts, hashes, redaction markers, and
+  Settings runtime tab hrefs. They do not expose raw config values.
+- Existing session logging manifest config evidence remains supported.
+- Audit remains read-only and does not become a config editor or a full config
+  history browser.
 
 ## 10. Acceptance Criteria
 
@@ -313,7 +323,8 @@ Status: deferred.
    or remain a diagnostics-only policy until ASK/confirmation UI is complete?
 3. Should Diagnostics expose ConfigBus publications through HTTP, diagnostic
    bundle export, or only in-process support tooling first?
-4. Should Audit query runtime config snapshots directly by hash, or should
-   task/action evidence refs resolve them through a narrower provider?
+4. Should future Audit detail deep-link directly to runtime config Diagnostics
+   by config hash/change id, or is the current Settings runtime tab href enough
+   for the Product 1.1 surface?
 5. Should ordinary users ever edit `agent_loop` and `context_manager` budgets,
    or should they remain developer/operator controls?

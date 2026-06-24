@@ -1,6 +1,6 @@
 # Feature Plan: Centralized Runtime Configuration
 
-> Status: C1-C7.4 implemented / C7.5 deferred
+> Status: C1-C7.5 implemented control-plane foundation
 > Type: Runtime control plane / configuration governance
 > Last Updated: 2026-06-24
 > Owner/Session: computer-use hardening discussion
@@ -189,7 +189,9 @@ already-running agents. C7.3b wires the durable change/snapshot store and
 mutation service into local sidecar assembly so the HTTP write route can persist
 changes. C7.4 exposes a read-only Settings runtime behavior section for the
 current effective config, source attribution, mutability, and effective status.
-Editable Settings controls and Audit evidence projection remain deferred.
+C7.5 projects runtime config snapshot/change facts into Audit config evidence
+through the existing Audit config provider seam. Editable Settings controls and
+broader runtime consumers remain deferred.
 
 ---
 
@@ -755,8 +757,7 @@ Status: implemented.
 
 ### C7: Settings UI And Audit/Diagnostics Integration
 
-Status: design accepted; C7.1-C7.4 diagnostics/read/write transport, local
-sidecar store wiring, and read-only Settings behavior display implemented.
+Status: C7.1-C7.5 implemented as a control-plane foundation.
 
 - Settings shows a read-only runtime behavior summary for selected effective
   config keys.
@@ -768,7 +769,9 @@ sidecar store wiring, and read-only Settings behavior display implemented.
   write dependencies into the HTTP transport.
 - Settings runtime config editing controls remain deferred until safe controls,
   pending-state copy, and authorization behavior are accepted.
-- Audit evidence projection remains deferred to C7.5.
+- Audit evidence projection includes effective runtime config snapshot records
+  and runtime config change records with config snapshot evidence refs. Audit
+  does not expose raw config values and remains read-only.
 - Do not overload Audit as a config editor.
 - Integration design is defined in
   [Runtime Config Settings, Diagnostics, And Audit Integration](../../engineering/runtime-config-settings-diagnostics-integration.md).
@@ -843,7 +846,8 @@ read-only HTTP extensions for change list and snapshot lookup. C7.3 is closed
 with the framework-neutral `PATCH /api/v1/runtime/config` route. C7.3b is
 closed with local sidecar store and mutation service wiring. C7.4 is closed
 with a read-only Settings runtime behavior section backed by the effective
-config HTTP route.
+config HTTP route. C7.5 is closed with Audit config evidence records for the
+effective runtime config snapshot and durable runtime config changes.
 
 Recommended next task:
 
@@ -851,15 +855,13 @@ Recommended next task:
 Use the product-workflow-gate skill first.
 
 Task:
-Implement C7.5 Runtime Config Audit Evidence Projection.
+Define the next Centralized Runtime Configuration closure slice.
 
 Scope:
-- Project relevant runtime config snapshot/change facts into Audit evidence
-  records where they explain task/session/action behavior.
-- Link Audit details to Diagnostics or config snapshot hashes for full
-  inspection.
-- Preserve redaction and pending-status semantics.
-- Do not make Audit a config editor.
+- Decide whether the next slice should be Settings safe-edit controls, broader
+  runtime consumer migration, or diagnostics bundle export.
+- Keep runtime config as the system behavior control plane.
+- Keep app-specific procedures such as WeChat send behavior in skills/adapters.
 
 Do not:
 - Treat app-specific automation behavior such as WeChat send steps as top-level
@@ -871,8 +873,8 @@ Do not:
 Output:
 - Workflow Gate Report
 - files changed
-- C7.5 Audit evidence boundary updated
+- selected next slice and rationale
 - tests required, if any
 - checks run
-- remaining C7 blockers
+- remaining runtime config blockers
 ```
