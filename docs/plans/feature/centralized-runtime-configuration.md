@@ -742,11 +742,13 @@ Status: implemented.
 
 ### C7: Settings UI And Audit/Diagnostics Integration
 
-Status: design accepted; C7.1-C7.2 read diagnostics implemented.
+Status: design accepted; C7.1-C7.3 diagnostics/read/write transport
+implemented.
 
 - Settings shows behavior controls.
 - Diagnostics shows raw effective config, C7.1 read-only combined diagnostics
   facts, and C7.2 read-only HTTP change/snapshot routes.
+- HTTP transport exposes C7.3 controlled runtime config patch semantics.
 - Audit shows relevant config evidence.
 - Do not overload Audit as a config editor.
 - Integration design is defined in
@@ -815,9 +817,10 @@ design gate. C6 is closed for the internal ConfigBus event boundary, active
 `logging.level` live-safe application, and internal diagnostics projection. C7
 design is accepted for Settings, Diagnostics, and Audit integration. C7.1 is
 closed with an internal read-only diagnostics gateway. C7.2 is closed with
-read-only HTTP extensions for change list and snapshot lookup. The next
-implementation step is C7.3: add the controlled HTTP write route before any
-Settings write UI.
+read-only HTTP extensions for change list and snapshot lookup. C7.3 is closed
+with the framework-neutral `PATCH /api/v1/runtime/config` route. The next
+implementation step is C7.3b: wire a runtime config change store and mutation
+service into the local sidecar before any Settings write UI.
 
 Recommended next task if config mutation becomes necessary:
 
@@ -827,15 +830,15 @@ Use the maintainability-gate skill if touching Main Page sidecar assembly,
 settings persistence, or large server modules.
 
 Task:
-Implement C7.3 Runtime Config HTTP Write Route.
+Implement C7.3b Runtime Config Sidecar Store Wiring.
 
 Scope:
-- Add `PATCH /api/v1/runtime/config`.
-- Construct a local actor from the HTTP boundary.
-- Enforce idempotency replay/conflict semantics through the existing mutation
-  service.
-- Keep `allowPartialAcceptance=false` by default.
-- Return accepted, rejected, dry-run, and no-op results without leaking secrets.
+- Create/open a workspace-local runtime config change store during sidecar
+  assembly.
+- Construct a `DefaultRuntimeConfigMutationService` with that store.
+- Pass both runtime config gateway and mutation service into the UI HTTP
+  transport.
+- Preserve existing read routes and startup behavior.
 - Do not add Settings UI.
 - Do not add Audit UI.
 

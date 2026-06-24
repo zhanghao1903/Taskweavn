@@ -1,7 +1,7 @@
 # Runtime Config Settings, Diagnostics, And Audit Integration
 
-> Status: C7 design accepted; C7.1 diagnostics read model and C7.2 HTTP
-> read extension implemented.
+> Status: C7 design accepted; C7.1 diagnostics read model, C7.2 HTTP read
+> extension, and C7.3 transport write route implemented.
 > Related Plan:
 > [Centralized Runtime Configuration](../plans/feature/centralized-runtime-configuration.md)
 > Related Contracts:
@@ -227,12 +227,15 @@ Status: implemented.
 
 ### C7.3 Runtime Config HTTP Write Route
 
-Status: deferred.
+Status: implemented at the framework-neutral transport layer.
 
-- Implement `PATCH /api/v1/runtime/config`.
-- Implement idempotency replay/conflict.
-- Enforce local-only authorization placeholder.
-- Keep `allowPartialAcceptance=false` by default.
+- Implemented `PATCH /api/v1/runtime/config` in the UI HTTP transport.
+- Implemented idempotency replay/conflict checks before mutation service write.
+- The HTTP route keeps `allowPartialAcceptance=false` by default while the
+  backend mutation service can still represent explicit partial acceptance.
+- Dry-run writes do not persist changes or snapshots.
+- Production sidecar store/service wiring remains a follow-up; without an
+  injected mutation service the route returns `503`.
 
 ### C7.4 Settings Runtime Config Controls
 

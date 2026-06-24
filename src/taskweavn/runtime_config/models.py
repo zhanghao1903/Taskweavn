@@ -197,6 +197,7 @@ class RuntimeConfigPatch(RuntimeConfigModel):
     values: dict[str, Any] = Field(min_length=1)
     expected_base_config_hash: str | None = Field(default=None, min_length=1)
     dry_run: bool = False
+    allow_partial_acceptance: bool = True
     requested_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
     @model_validator(mode="after")

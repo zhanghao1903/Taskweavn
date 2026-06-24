@@ -163,6 +163,29 @@ class DefaultRuntimeConfigMutationService:
                 redacted_keys=tuple(redacted_keys),
             )
 
+        if rejected_values and not patch.allow_partial_acceptance:
+            rejected_values = {
+                **rejected_values,
+                **{
+                    key: RuntimeConfigRejection(
+                        code="policy_denied",
+                        message=(
+                            "Runtime config patch was rejected because partial "
+                            "acceptance is disabled and another key failed validation."
+                        ),
+                        details={"key": key, "partialAcceptance": False},
+                    )
+                    for key in accepted_values
+                },
+            }
+            return self._build_rejected_change(
+                patch=patch,
+                requested_values=requested_values,
+                rejected_values=rejected_values,
+                base_config=base_config,
+                redacted_keys=tuple(redacted_keys),
+            )
+
         if not rejected_values and _patch_is_no_op(base_config, accepted_values):
             return RuntimeConfigChange(
                 change_id=_new_change_id(),

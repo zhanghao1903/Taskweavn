@@ -1,6 +1,7 @@
 # Runtime Config Write API Contract
 
-> Status: C5.5 design gate accepted; routes are not implemented.
+> Status: C5.5 design gate accepted; C7.2 read routes and C7.3 transport
+> write route implemented.
 > Related Store Contract: [Runtime Config Change Store](runtime-config-change-store.md)
 > Related Plan:
 > [Centralized Runtime Configuration](../plans/feature/centralized-runtime-configuration.md)
@@ -21,12 +22,12 @@ inventing runtime config write semantics in route handlers.
 
 ## 2. Non-Goals
 
-- Do not implement the routes in C5.5.
 - Do not add Settings UI.
-- Do not publish ConfigBus events.
 - Do not apply live mutations to running agents.
 - Do not make app-specific playbooks, such as WeChat send steps, runtime config.
 - Do not expose raw secrets through config writes or snapshots.
+- Do not treat C7.3 transport support as production Settings enablement until
+  sidecar store/service wiring is explicitly configured.
 
 ## 3. Source Of Truth
 
@@ -55,6 +56,8 @@ PATCH /api/v1/runtime/config
 Use this route for controlled runtime config mutation from Settings,
 Diagnostics, tests, or future operator tools.
 
+Implementation status: framework-neutral transport route implemented in C7.3.
+
 ### 4.2 List Runtime Config Changes
 
 ```text
@@ -64,6 +67,8 @@ GET /api/v1/runtime/config/changes?workspaceId=...&sessionId=...&taskId=...
 Use this route to inspect persisted config changes for Settings, Diagnostics,
 and Audit evidence.
 
+Implementation status: framework-neutral transport route implemented in C7.2.
+
 ### 4.3 Deferred Snapshot HTTP Route
 
 No snapshot HTTP route is required for the first write API slice.
@@ -71,11 +76,11 @@ No snapshot HTTP route is required for the first write API slice.
 The backend already has `RuntimeConfigGateway.get_snapshot(config_hash)`.
 Expose a snapshot route only when Diagnostics or Audit needs direct HTTP access.
 
-Candidate later route:
-
 ```text
 GET /api/v1/runtime/config/snapshots/{configHash}
 ```
+
+Implementation status: framework-neutral transport route implemented in C7.2.
 
 ## 5. Patch Request
 

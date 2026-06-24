@@ -7,6 +7,7 @@ from typing import Any, Protocol
 
 from taskweavn.execution_plane import TaskApiService
 from taskweavn.observability.main_page_trace import main_page_trace
+from taskweavn.runtime_config import RuntimeConfigMutationService
 from taskweavn.server.client_logs import ClientErrorLogSink
 from taskweavn.server.diagnostics_export import (
     DiagnosticExportFailure,
@@ -149,6 +150,7 @@ class PlatoUiHttpTransport:
         token_usage_gateway: TokenUsageSummaryGateway | None = None,
         runtime_input_router: RuntimeInputRouter | None = None,
         runtime_config_gateway: RuntimeConfigGateway | None = None,
+        runtime_config_mutation_service: RuntimeConfigMutationService | None = None,
         execution_plane_service: TaskApiService | None = None,
     ) -> None:
         self._query_gateway = query_gateway
@@ -167,6 +169,7 @@ class PlatoUiHttpTransport:
         self._token_usage_gateway = token_usage_gateway
         self._runtime_input_router = runtime_input_router
         self._runtime_config_gateway = runtime_config_gateway
+        self._runtime_config_mutation_service = runtime_config_mutation_service
         self._execution_plane_service = execution_plane_service
 
     def handle(self, request: HttpApiRequest) -> HttpApiResponse:
@@ -304,11 +307,13 @@ class PlatoUiHttpTransport:
                 "runtime_config_explain",
                 "runtime_config_changes",
                 "runtime_config_snapshot",
+                "runtime_config_patch",
             }:
                 return _runtime_config_response(
                     request,
                     route_name=route_name,
                     gateway=self._runtime_config_gateway,
+                    mutation_service=self._runtime_config_mutation_service,
                     config_hash=route.record_id,
                 )
             if route_name == "usage_token_summary":

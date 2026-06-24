@@ -465,6 +465,396 @@ def test_runtime_config_snapshot_route_returns_not_found_for_missing_hash() -> N
     assert body["error"]["details"]["configHash"] == "missing-hash"
 
 
+def test_runtime_config_patch_route_accepts_and_persists_change(
+    tmp_path: Path,
+) -> None:
+    with SqliteRuntimeConfigChangeStore(tmp_path / "runtime-config.db") as store:
+        service = DefaultRuntimeConfigMutationService(
+            RuntimeConfigMutationServiceConfig(store=store)
+        )
+        transport = _transport(
+            runtime_config_gateway=DefaultRuntimeConfigGateway.from_process_inputs(
+                {},
+                workspace_id="workspace-1",
+                change_store=store,
+            ),
+            runtime_config_mutation_service=service,
+        )
+
+        response = transport.handle(
+            HttpApiRequest(
+                method="PATCH",
+                path="/api/v1/runtime/config",
+                body={
+                    "schemaVersion": "plato.runtime_config_patch_request.v1",
+                    "idempotencyKey": "runtime-config-http-accepted",
+                    "scope": {
+                        "level": "workspace",
+                        "workspaceId": "workspace-1",
+                    },
+                    "values": {"logging.level": "DEBUG"},
+                    "reason": "enable debug logging",
+                },
+            )
+        )
+        body = _dict_body(response.body)
+
+        changes = store.list_changes(
+            RuntimeConfigScope(level="workspace", workspace_id="workspace-1")
+        )
+
+    assert response.status_code == 200
+    assert body["ok"] is True
+    assert body["data"]["schemaVersion"] == "plato.runtime_config_patch_response.v1"
+    assert body["data"]["change"]["status"] == "accepted"
+    assert body["data"]["change"]["actor"] == {
+        "actorType": "user",
+        "actorId": "local-sidecar",
+        "displayName": "Local Sidecar",
+    }
+    assert body["data"]["change"]["acceptedValues"] == {"logging.level": "DEBUG"}
+    assert body["data"]["snapshotRef"]["configHash"] == (
+        body["data"]["change"]["resultingConfigHash"]
+    )
+    assert body["data"]["replayed"] is False
+    assert body["data"]["warnings"] == []
+    assert len(changes) == 1
+
+
+def test_runtime_config_patch_route_records_no_op(
+    tmp_path: Path,
+) -> None:
+    with SqliteRuntimeConfigChangeStore(tmp_path / "runtime-config.db") as store:
+        service = DefaultRuntimeConfigMutationService(
+            RuntimeConfigMutationServiceConfig(store=store)
+        )
+        transport = _transport(
+            runtime_config_gateway=DefaultRuntimeConfigGateway.from_process_inputs(
+                {},
+                workspace_id="workspace-1",
+                change_store=store,
+            ),
+            runtime_config_mutation_service=service,
+        )
+
+        response = transport.handle(
+            HttpApiRequest(
+                method="PATCH",
+                path="/api/v1/runtime/config",
+                body={
+                    "idempotencyKey": "runtime-config-http-no-op",
+                    "scope": {
+                        "level": "workspace",
+                        "workspaceId": "workspace-1",
+                    },
+                    "values": {"agent_loop.default_max_steps": 20},
+                },
+            )
+        )
+        body = _dict_body(response.body)
+
+    assert response.status_code == 200
+    assert body["ok"] is True
+    assert body["data"]["change"]["status"] == "no_op"
+    assert body["data"]["snapshotRef"]["configHash"] == (
+        body["data"]["change"]["resultingConfigHash"]
+    )
+
+
+def test_runtime_config_patch_route_rejects_partial_by_default(
+    tmp_path: Path,
+) -> None:
+    with SqliteRuntimeConfigChangeStore(tmp_path / "runtime-config.db") as store:
+        service = DefaultRuntimeConfigMutationService(
+            RuntimeConfigMutationServiceConfig(store=store)
+        )
+        transport = _transport(
+            runtime_config_gateway=DefaultRuntimeConfigGateway.from_process_inputs(
+                {},
+                workspace_id="workspace-1",
+                change_store=store,
+            ),
+            runtime_config_mutation_service=service,
+        )
+
+        response = transport.handle(
+            HttpApiRequest(
+                method="PATCH",
+                path="/api/v1/runtime/config",
+                body={
+                    "idempotencyKey": "runtime-config-http-rejected",
+                    "scope": {
+                        "level": "workspace",
+                        "workspaceId": "workspace-1",
+                    },
+                    "values": {
+                        "logging.level": "DEBUG",
+                        "unknown.key": "value",
+                    },
+                },
+            )
+        )
+        body = _dict_body(response.body)
+
+    assert response.status_code == 200
+    assert body["ok"] is True
+    assert body["data"]["change"]["status"] == "rejected"
+    assert body["data"]["change"]["acceptedValues"] == {}
+    assert body["data"]["change"]["rejectedValues"]["unknown.key"]["code"] == (
+        "unknown_key"
+    )
+    assert body["data"]["change"]["rejectedValues"]["logging.level"]["code"] == (
+        "policy_denied"
+    )
+    assert body["data"]["snapshotRef"] is None
+
+
+def test_runtime_config_patch_route_allows_explicit_partial_acceptance(
+    tmp_path: Path,
+) -> None:
+    with SqliteRuntimeConfigChangeStore(tmp_path / "runtime-config.db") as store:
+        service = DefaultRuntimeConfigMutationService(
+            RuntimeConfigMutationServiceConfig(store=store)
+        )
+        transport = _transport(
+            runtime_config_gateway=DefaultRuntimeConfigGateway.from_process_inputs(
+                {},
+                workspace_id="workspace-1",
+                change_store=store,
+            ),
+            runtime_config_mutation_service=service,
+        )
+
+        response = transport.handle(
+            HttpApiRequest(
+                method="PATCH",
+                path="/api/v1/runtime/config",
+                body={
+                    "idempotencyKey": "runtime-config-http-partial",
+                    "scope": {
+                        "level": "workspace",
+                        "workspaceId": "workspace-1",
+                    },
+                    "values": {
+                        "logging.level": "DEBUG",
+                        "unknown.key": "value",
+                    },
+                    "allowPartialAcceptance": True,
+                },
+            )
+        )
+        body = _dict_body(response.body)
+
+    assert response.status_code == 200
+    assert body["ok"] is True
+    assert body["data"]["change"]["status"] == "accepted"
+    assert body["data"]["change"]["acceptedValues"] == {"logging.level": "DEBUG"}
+    assert body["data"]["change"]["rejectedValues"]["unknown.key"]["code"] == (
+        "unknown_key"
+    )
+    assert body["data"]["warnings"] == [
+        {
+            "code": "partial_acceptance",
+            "message": "Runtime config patch was partially accepted.",
+            "configKeys": ["unknown.key"],
+        }
+    ]
+
+
+def test_runtime_config_patch_route_supports_dry_run_without_persistence(
+    tmp_path: Path,
+) -> None:
+    scope = RuntimeConfigScope(level="workspace", workspace_id="workspace-1")
+    with SqliteRuntimeConfigChangeStore(tmp_path / "runtime-config.db") as store:
+        service = DefaultRuntimeConfigMutationService(
+            RuntimeConfigMutationServiceConfig(store=store)
+        )
+        transport = _transport(
+            runtime_config_gateway=DefaultRuntimeConfigGateway.from_process_inputs(
+                {},
+                workspace_id="workspace-1",
+                change_store=store,
+            ),
+            runtime_config_mutation_service=service,
+        )
+
+        response = transport.handle(
+            HttpApiRequest(
+                method="PATCH",
+                path="/api/v1/runtime/config",
+                body={
+                    "scope": {
+                        "level": "workspace",
+                        "workspaceId": "workspace-1",
+                    },
+                    "values": {"logging.level": "DEBUG"},
+                    "dryRun": True,
+                },
+            )
+        )
+        body = _dict_body(response.body)
+        changes = store.list_changes(scope)
+
+    assert response.status_code == 200
+    assert body["ok"] is True
+    assert body["data"]["change"]["status"] == "accepted"
+    assert body["data"]["dryRun"] is True
+    assert body["data"]["snapshotRef"] is None
+    assert changes == ()
+
+
+def test_runtime_config_patch_route_replays_matching_idempotency_key(
+    tmp_path: Path,
+) -> None:
+    request_body = {
+        "idempotencyKey": "runtime-config-http-replay",
+        "scope": {
+            "level": "workspace",
+            "workspaceId": "workspace-1",
+        },
+        "values": {"logging.level": "DEBUG"},
+    }
+    with SqliteRuntimeConfigChangeStore(tmp_path / "runtime-config.db") as store:
+        service = DefaultRuntimeConfigMutationService(
+            RuntimeConfigMutationServiceConfig(store=store)
+        )
+        transport = _transport(
+            runtime_config_gateway=DefaultRuntimeConfigGateway.from_process_inputs(
+                {},
+                workspace_id="workspace-1",
+                change_store=store,
+            ),
+            runtime_config_mutation_service=service,
+        )
+
+        first_response = transport.handle(
+            HttpApiRequest(
+                method="PATCH",
+                path="/api/v1/runtime/config",
+                body=request_body,
+            )
+        )
+        replay_response = transport.handle(
+            HttpApiRequest(
+                method="PATCH",
+                path="/api/v1/runtime/config",
+                body=request_body,
+            )
+        )
+        first_body = _dict_body(first_response.body)
+        replay_body = _dict_body(replay_response.body)
+        changes = store.list_changes(
+            RuntimeConfigScope(level="workspace", workspace_id="workspace-1")
+        )
+
+    assert replay_response.status_code == 200
+    assert replay_body["data"]["replayed"] is True
+    assert replay_body["data"]["change"]["changeId"] == (
+        first_body["data"]["change"]["changeId"]
+    )
+    assert len(changes) == 1
+
+
+def test_runtime_config_patch_route_rejects_idempotency_conflict(
+    tmp_path: Path,
+) -> None:
+    with SqliteRuntimeConfigChangeStore(tmp_path / "runtime-config.db") as store:
+        service = DefaultRuntimeConfigMutationService(
+            RuntimeConfigMutationServiceConfig(store=store)
+        )
+        transport = _transport(
+            runtime_config_gateway=DefaultRuntimeConfigGateway.from_process_inputs(
+                {},
+                workspace_id="workspace-1",
+                change_store=store,
+            ),
+            runtime_config_mutation_service=service,
+        )
+
+        transport.handle(
+            HttpApiRequest(
+                method="PATCH",
+                path="/api/v1/runtime/config",
+                body={
+                    "idempotencyKey": "runtime-config-http-conflict",
+                    "scope": {
+                        "level": "workspace",
+                        "workspaceId": "workspace-1",
+                    },
+                    "values": {"logging.level": "DEBUG"},
+                },
+            )
+        )
+        response = transport.handle(
+            HttpApiRequest(
+                method="PATCH",
+                path="/api/v1/runtime/config",
+                body={
+                    "idempotencyKey": "runtime-config-http-conflict",
+                    "scope": {
+                        "level": "workspace",
+                        "workspaceId": "workspace-1",
+                    },
+                    "values": {"logging.level": "INFO"},
+                },
+            )
+        )
+        body = _dict_body(response.body)
+
+    assert response.status_code == 409
+    assert body["error"]["code"] == "idempotency_conflict"
+
+
+def test_runtime_config_patch_route_requires_mutation_service() -> None:
+    transport = _transport(runtime_config_gateway=DefaultRuntimeConfigGateway())
+
+    response = transport.handle(
+        HttpApiRequest(
+            method="PATCH",
+            path="/api/v1/runtime/config",
+            body={
+                "idempotencyKey": "runtime-config-http-missing-service",
+                "scope": {"level": "workspace", "workspaceId": "workspace-1"},
+                "values": {"logging.level": "DEBUG"},
+            },
+        )
+    )
+    body = _dict_body(response.body)
+
+    assert response.status_code == 503
+    assert body["error"]["code"] == "internal_error"
+    assert body["error"]["details"]["route"] == "runtime_config_patch"
+
+
+def test_runtime_config_patch_route_requires_idempotency_key() -> None:
+    with SqliteRuntimeConfigChangeStore(":memory:") as store:
+        transport = _transport(
+            runtime_config_gateway=DefaultRuntimeConfigGateway.from_process_inputs(
+                {},
+                workspace_id="workspace-1",
+                change_store=store,
+            ),
+            runtime_config_mutation_service=DefaultRuntimeConfigMutationService(
+                RuntimeConfigMutationServiceConfig(store=store)
+            ),
+        )
+
+        response = transport.handle(
+            HttpApiRequest(
+                method="PATCH",
+                path="/api/v1/runtime/config",
+                body={
+                    "scope": {"level": "workspace", "workspaceId": "workspace-1"},
+                    "values": {"logging.level": "DEBUG"},
+                },
+            )
+        )
+        body = _dict_body(response.body)
+
+    assert response.status_code == 400
+    assert body["error"]["code"] == "bad_request"
+
+
 def test_runtime_config_routes_require_gateway() -> None:
     transport = _transport()
 
@@ -2054,6 +2444,7 @@ def _transport(
     diagnostic_export_gateway: _DiagnosticExportGateway | None = None,
     runtime_input_router: _RuntimeInputRouter | None = None,
     runtime_config_gateway: DefaultRuntimeConfigGateway | None = None,
+    runtime_config_mutation_service: DefaultRuntimeConfigMutationService | None = None,
 ) -> PlatoUiHttpTransport:
     return PlatoUiHttpTransport(
         query_gateway=query or _QueryGateway(),
@@ -2070,6 +2461,7 @@ def _transport(
         diagnostic_export_gateway=diagnostic_export_gateway,
         runtime_input_router=runtime_input_router,
         runtime_config_gateway=runtime_config_gateway,
+        runtime_config_mutation_service=runtime_config_mutation_service,
     )
 
 

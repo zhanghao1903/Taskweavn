@@ -34,6 +34,8 @@ def _match_route(path: str) -> _Route | None:
         return _Route(name="settings_readiness_recheck", method="POST")
     if parts == ("api", "v1", "settings", "config"):
         return _Route(name="settings_config", method="*")
+    if parts == ("api", "v1", "runtime", "config"):
+        return _Route(name="runtime_config_patch", method="PATCH")
     if parts == ("api", "v1", "runtime", "config", "schema"):
         return _Route(name="runtime_config_schema", method="GET")
     if parts == ("api", "v1", "runtime", "config", "effective"):

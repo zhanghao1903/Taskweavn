@@ -136,6 +136,36 @@ def test_runtime_config_mutation_service_records_partial_acceptance(
         assert store.get_change(change.change_id) == change
 
 
+def test_runtime_config_mutation_service_can_disable_partial_acceptance(
+    tmp_path: Path,
+) -> None:
+    scope = RuntimeConfigScope(level="workspace", workspace_id="w1")
+    patch = RuntimeConfigPatch(
+        patch_id="patch-no-partial",
+        scope=scope,
+        actor=_actor(),
+        values={
+            "logging.level": "DEBUG",
+            "unknown.key": "value",
+        },
+        allow_partial_acceptance=False,
+        requested_at=_ts(),
+    )
+
+    with SqliteRuntimeConfigChangeStore(tmp_path / "runtime-config.db") as store:
+        service = DefaultRuntimeConfigMutationService(
+            RuntimeConfigMutationServiceConfig(store=store)
+        )
+
+        change = service.apply_patch(patch)
+
+        assert change.status == "rejected"
+        assert change.accepted_values == {}
+        assert change.rejected_values["unknown.key"].code == "unknown_key"
+        assert change.rejected_values["logging.level"].code == "policy_denied"
+        assert store.get_change(change.change_id) == change
+
+
 def test_runtime_config_mutation_service_rejects_stale_base_hash(
     tmp_path: Path,
 ) -> None:
