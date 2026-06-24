@@ -15,6 +15,7 @@ from taskweavn.server.ui_contract import (
     TaskTreeView,
     WorkflowSummary,
 )
+from taskweavn.task.plan_models import Plan, PlanTaskNode
 
 NOW = datetime(2026, 6, 13, 8, 0, tzinfo=UTC)
 
@@ -129,6 +130,45 @@ def test_legacy_plan_projection_flattens_task_nodes_but_keeps_task_tree_projecti
     assert plan.task_tree_projection.nodes[1].parent_id == "root"
     assert plan.task_tree_projection.nodes[1].depth == 1
     assert plan.task_tree_projection.nodes[1].task_index == "2"
+
+
+def test_stored_plan_projects_cancelled_failure_without_retry() -> None:
+    source_plan = Plan(
+        plan_id="plan-1",
+        session_id="session-1",
+        title="Website plan",
+        objective="Prepare the website.",
+        summary="Prepare the website.",
+        status="running",
+        task_node_ids=("task-1",),
+    )
+    stopped_node = PlanTaskNode(
+        task_node_id="task-1",
+        plan_id="plan-1",
+        session_id="session-1",
+        task_index="1",
+        title="Stopped task",
+        intent="Stop this work safely.",
+        summary="Stop this work safely.",
+        readiness="published",
+        execution="failed",
+        error_ref="cancelled: user requested stop",
+    )
+
+    plan = DefaultPlanProjectionService().project_stored_plan(
+        source_plan,
+        (stopped_node,),
+    )
+
+    task = plan.task_nodes[0]
+    assert task.status == "cancelled"
+    assert task.execution == "cancelled"
+    assert task.error_ref == "cancelled: user requested stop"
+    assert task.permissions.can_retry is False
+    assert plan.execution_rollup.cancelled == 1
+    assert plan.execution_rollup.failed == 0
+    assert plan.task_tree_projection is not None
+    assert plan.task_tree_projection.nodes[0].status == "cancelled"
 
 
 def test_main_page_snapshot_keeps_no_plan_state_when_task_tree_missing() -> None:

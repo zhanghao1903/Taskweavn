@@ -32,6 +32,8 @@ from taskweavn.task.views import (
     TaskViewStatus,
 )
 
+_INTENTIONAL_STOP_ERROR_PREFIXES = ("cancelled:", "skipped:")
+
 
 @runtime_checkable
 class FileChangeStore(Protocol):
@@ -412,7 +414,8 @@ class DefaultTaskProjectionService:
             if child_tasks is not None
             else [candidate for candidate in tasks if candidate.parent_id == task.task_id]
         )
-        permissions = _permissions_for_status(task.status)
+        status = _projected_task_status(task)
+        permissions = _permissions_for_status(status)
         if task.interrupt_requested:
             permissions = permissions.model_copy(
                 update={
@@ -433,7 +436,7 @@ class DefaultTaskProjectionService:
             full_intent=content.intent,
             instructions=content.instructions,
             acceptance_criteria=content.acceptance_criteria,
-            status=task.status,
+            status=status,
             depth=depth,
             order_index=task.order_index,
             result_ref=task.result_ref,
@@ -445,7 +448,11 @@ class DefaultTaskProjectionService:
                 subtree_file_change_count=len(subtree_file_changes),
                 child_count=len(child_tasks),
                 done_child_count=sum(1 for child in child_tasks if child.status == "done"),
-                failed_child_count=sum(1 for child in child_tasks if child.status == "failed"),
+                failed_child_count=sum(
+                    1
+                    for child in child_tasks
+                    if _projected_task_status(child) == "failed"
+                ),
             ),
             permissions=permissions,
             primary_actions=_actions_for_permissions(permissions),
@@ -456,7 +463,11 @@ class DefaultTaskProjectionService:
                 TaskProgressView(
                     child_count=len(child_tasks),
                     done_child_count=sum(1 for child in child_tasks if child.status == "done"),
-                    failed_child_count=sum(1 for child in child_tasks if child.status == "failed"),
+                    failed_child_count=sum(
+                        1
+                        for child in child_tasks
+                        if _projected_task_status(child) == "failed"
+                    ),
                     running_child_count=sum(
                         1
                         for child in child_tasks
@@ -646,6 +657,19 @@ def _task_content(task: TaskDomain) -> _ProjectedTaskContent:
     )
 
 
+def _projected_task_status(task: TaskDomain) -> TaskViewStatus:
+    if task.status == "failed" and _is_intentional_stop_error(task.error_ref):
+        return "cancelled"
+    return task.status
+
+
+def _is_intentional_stop_error(error_ref: str | None) -> bool:
+    if error_ref is None:
+        return False
+    normalized = error_ref.strip().lower()
+    return normalized.startswith(_INTENTIONAL_STOP_ERROR_PREFIXES)
+
+
 def _split_legacy_task_content(text: str) -> _ProjectedTaskContent:
     intent_lines: list[str] = []
     summary: str | None = None
@@ -741,6 +765,8 @@ def _permissions_for_status(status: str) -> TaskCardPermissions:
         return TaskCardPermissions(readonly_reason="task is waiting for user input")
     if status == "failed":
         return TaskCardPermissions(can_retry=True, readonly_reason="task failed")
+    if status == "cancelled":
+        return TaskCardPermissions(readonly_reason="task was stopped")
     if status == "done":
         return TaskCardPermissions(readonly_reason="task is done")
     return TaskCardPermissions(readonly_reason=f"unknown status: {status}")
