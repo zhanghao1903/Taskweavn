@@ -742,12 +742,15 @@ Status: implemented.
 
 ### C7: Settings UI And Audit/Diagnostics Integration
 
-Status: deferred.
+Status: design accepted; C7.1 diagnostics read model implemented.
 
 - Settings shows behavior controls.
-- Diagnostics shows raw effective config.
+- Diagnostics shows raw effective config and C7.1 read-only combined
+  diagnostics facts.
 - Audit shows relevant config evidence.
 - Do not overload Audit as a config editor.
+- Integration design is defined in
+  [Runtime Config Settings, Diagnostics, And Audit Integration](../../engineering/runtime-config-settings-diagnostics-integration.md).
 
 ---
 
@@ -809,8 +812,11 @@ C4 is closed for the read-only, behavior-preserving runtime constructor and
 trace metadata path. C5 is closed through durable change/snapshot facts,
 backend-only mutation validation, read gateway queries, and the HTTP write API
 design gate. C6 is closed for the internal ConfigBus event boundary, active
-`logging.level` live-safe application, and internal diagnostics projection. The
-next implementation step is C7: Settings UI and Audit/Diagnostics integration.
+`logging.level` live-safe application, and internal diagnostics projection. C7
+design is accepted for Settings, Diagnostics, and Audit integration. C7.1 is
+closed with an internal read-only diagnostics gateway. The next implementation
+step is C7.2: expose HTTP read extensions for change list and snapshot lookup
+before any Settings write UI.
 
 Recommended next task if config mutation becomes necessary:
 
@@ -820,14 +826,17 @@ Use the maintainability-gate skill if touching Main Page sidecar assembly,
 settings persistence, or large server modules.
 
 Task:
-Design C7 Settings UI And Audit/Diagnostics Integration for runtime config.
+Implement C7.2 Runtime Config HTTP Read Extension.
 
 Scope:
-- Define the minimum Settings controls that are safe for Product 1.0/1.1.
-- Define how Diagnostics exposes effective config, change history, and
-  ConfigBus publication facts.
-- Define how Audit references relevant config evidence by change/snapshot hash.
-- Decide whether HTTP write routes are required before Settings UI.
+- Add read-only HTTP routes for scoped runtime config change list and snapshot
+  lookup.
+- Preserve existing effective/explain route behavior.
+- Reuse the C7.1 diagnostics gateway where it reduces duplication.
+- Keep it read-only.
+- Do not add Settings UI.
+- Do not add runtime config write routes.
+- Do not add Audit UI.
 
 Do not:
 - Treat app-specific automation behavior such as WeChat send steps as top-level
