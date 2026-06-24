@@ -1,7 +1,7 @@
 # Context Manager Architecture
 
-> Status: accepted architecture baseline for Product 1.0 execution context governance
-> Last Updated: 2026-06-19
+> Status: current execution context baseline with Product 1.1 extension boundary
+> Last Updated: 2026-06-24
 
 Context Manager is the execution-time context governance layer for Taskweavn.
 It bridges the stateful workspace and task runtime to the stateless LLM API
@@ -12,6 +12,13 @@ Context Manager collects known facts from existing runtime sources, builds a
 structured execution context, renders the LLM input, and records enough trace
 data for recovery and debugging. It does not implement complex retrieval,
 memory, ranking, multimodal packing, or agent-specific policy optimization.
+
+Product 1.1 does not replace this execution baseline. It adds context sources
+around it: Runtime Input Router decisions, durable Conversation / Activity,
+read-only inquiry refs, workspace inspection evidence, token usage summaries,
+Agent LLM profile metadata, and optional web retrieval evidence. Those sources
+must enter LLM calls through explicit selectors and traceable records, not
+through implicit whole-workspace crawling.
 
 The accepted Product 1.0 implementation lives under `src/taskweavn/context/`
 and is wired into the sidecar-built fixed-route Default Agent path, including

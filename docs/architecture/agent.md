@@ -1,10 +1,12 @@
 # Agent 架构设计
 
-> 多 Agent 协作架构的核心抽象 · v1.3 · 2026-06-19
+> 多 Agent 协作架构的核心抽象 · v1.4 · 2026-06-24
 >
-> 2026-05-31 scope note: Product 1.0 通过固定 Default Agent route 执行 PublishedTask。Default Agent 有稳定 runtime boundary 和 system identity，但 Product 1.0 不引入 public Agent Manager、dynamic Agent assignment、custom Agent protocol 或 long-lived AgentLoop instance。Routing Agent 和 public Agent protocol 仍是 Product 1.1+ 方向。
+> 2026-05-31 scope note: Product 1.0 通过固定 Default Agent route 执行 PublishedTask。Default Agent 有稳定 runtime boundary 和 system identity，但 Product 1.0 不引入 public Agent Manager、dynamic Agent assignment、custom Agent protocol 或 long-lived AgentLoop instance。
 >
 > 2026-06-19 fact note: 当前实现中 Agent 的 Product 1.0 事实是 `FixedRouteTaskExecutor -> Resident Default Agent boundary -> task-scoped AgentLoop run`。Agent 是能力/模板层概念，真正执行的是 task-scoped run；Session 与 context ownership 由 TaskBus、Context Manager、AskStore、Event/Audit stores 约束，不由 Agent 私有状态决定。
+>
+> 2026-06-24 Product 1.1 alignment: Product 1.1 已经落地 Runtime Input Router、Router LLM、read-only inquiry LLM、Collaborator/Execution Agent LLM profile 解析，以及全局 Settings-backed Agent LLM resolver。完整 Agent Manager、dynamic execution assignment、public Agent protocol 和用户自定义 Agent 仍是后续扩展，不是当前 Product 1.1 本地闭环事实。
 
 ---
 
@@ -31,7 +33,7 @@ Agent run ≈ scoped execution(Task, workspace root, context manager) → outcom
 boundary 或 template 上，但 Task state、ASK、messages、context traces 和 audit
 facts 仍由各自 domain/store 持久化。
 
-Routing Agent 是一个特殊 Agent role：它观察 pending Tasks 和可用 Agent 描述，提交 assignment command。它可以是硬规则、LLM 策略或高级用户自定义策略，但不能直接修改 Task 状态。该能力是 Product 1.1+ routing foundation，不是 Product 1.0 固定路线执行闭环的依赖。
+Routing Agent 是一个特殊 Agent role：它观察 pending Tasks 和可用 Agent 描述，提交 assignment command。它可以是硬规则、LLM 策略或高级用户自定义策略，但不能直接修改 Task 状态。该能力是 later dynamic routing foundation，不是当前 Product 1.1 固定路线执行闭环的依赖。
 
 ---
 
@@ -170,9 +172,9 @@ safe_point_description: str
 
 常见安全点包括 tool call 前后、文件写入前后、shell command 结束后、搜索批次结束后、等待用户确认时。
 
-### 2.7 Product 1.1 TODO：Agent Protocol
+### 2.7 Later TODO: Agent Protocol
 
-当前文档先定义 Agent 的系统边界，不在 1.0 内完成公开协议。Product 1.1 需要补一层 Agent 接入协议，先回答“什么样的 Agent 允许接入系统”：
+当前文档先定义 Agent 的系统边界，不在当前 Product 1.1 本地闭环内完成公开协议。后续 Agent Manager / dynamic assignment 需要补一层 Agent 接入协议，先回答“什么样的 Agent 允许接入系统”：
 
 - 是否有稳定 `agent_id` / `template_id`、版本和 role；
 - 是否声明 capability、工具需求、输入/输出 schema 和可观测事件；
@@ -180,7 +182,7 @@ safe_point_description: str
 - 是否通过 command 请求系统状态变化，而不是直接改 Task、Session、Audit 等状态；
 - 是否能被 TaskBus、CapabilityCatalog、Interaction Layer 和 Audit Page 验证、观测和追溯。
 
-特殊 Agent 的协议作为后续 TODO 补完，包括 Routing Agent、Execution Agent、Collaborator Agent、Audit Agent、Result Packaging Agent 等。高级用户自定义 Agent、router-style policy Agent、模板化创建 Agent 和 workflow 生成 Agent 都归入 Product 1.1+ 的扩展性规划，不作为 1.0 闭环阻塞项。
+特殊 Agent 的协议作为后续 TODO 补完，包括 Routing Agent、Execution Agent、Collaborator Agent、Audit Agent、Result Packaging Agent 等。高级用户自定义 Agent、router-style policy Agent、模板化创建 Agent 和 workflow 生成 Agent 都归入后续扩展性规划，不作为当前 Product 1.1 本地闭环事实。
 
 ---
 

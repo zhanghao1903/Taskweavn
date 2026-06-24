@@ -1,9 +1,11 @@
 # TaskBus Service And Multi-Execution-Env Architecture Memo
 
 > Status: exploratory architecture memo
-> Last Updated: 2026-06-17
-> Scope: Product 1.1+ direction; not current implementation fact
+> Last Updated: 2026-06-24
+> Scope: Execution Plane / Task API direction; foundation exists, multi-env service model remains exploratory
 > Related: [task.md](task.md), [bus-v2.md](bus-v2.md), [agent.md](agent.md), [tool-capability-layer.md](tool-capability-layer.md), [workspace-communication-protocol.md](workspace-communication-protocol.md), [context-manager.md](context-manager.md), [ui-backend-communication.md](ui-backend-communication.md)
+>
+> Product 1.1 alignment: main has an additive Execution Plane foundation and local embedded service pieces. This memo still goes beyond the current local Product 1.1 loop when it discusses multi-environment dispatch, service ownership, and external vertical packages. Treat those sections as direction, not release fact.
 
 ---
 

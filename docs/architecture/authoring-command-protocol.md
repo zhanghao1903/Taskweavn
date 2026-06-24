@@ -1,10 +1,12 @@
 # Authoring Command Protocol
 
-> Status: design baseline / high-change area
-> Last Updated: 2026-05-14
+> Status: current command boundary / high-change area
+> Last Updated: 2026-06-24
 > Related Architecture: [Authoring Domain](authoring-domain.md), [Collaborator Agent](collaborator-agent-task-authoring.md), [Tool Capability Layer](tool-capability-layer.md), [Workspace Communication Protocol](workspace-communication-protocol.md)
 > Related ADR: [ADR-0008](../decisions/ADR-0008-authoring-domain-execution-boundary.md)
 > User Needs: [UN-105](../user_model/needs/UN-105-system-evaluability-and-capability-disclosure.md), [UN-101](../user_model/needs/UN-101-photo-curation-batch-screening.md), [UN-102](../user_model/needs/UN-102-courseware-html-generation.md), [UN-103](../user_model/needs/UN-103-car-purchase-decision-support.md)
+>
+> Product 1.1 alignment: This command-first boundary now applies beyond initial authoring. Runtime Input Router and Contract Revision command skills must route user-visible mutations through explicit command handlers, idempotency records, Activity/Audit evidence, and diagnostics-safe payloads. Read-only inquiry is the no-mutation sibling path.
 
 ---
 

@@ -1,6 +1,10 @@
 # 架构评审与自评
 
 > 多 Agent 协作架构 v1.0 + bus-v2 · 第三方视角自评 · 2026-05-09
+>
+> Status: historical review input
+>
+> Product 1.1 alignment: 本文是早期 architecture review，不是当前 Product 1.1 状态报告。当前已落地的 Runtime Input Router、durable Conversation / Activity、read-only inquiry、workspace inspection、precision file tools、token usage、Agent LLM resolver、web retrieval 和 Execution Plane foundation 以 [overview.md](overview.md)、[README.md](README.md) 和 release docs 为准。本文仍可用于理解为什么后续计划强调权限、成本、上下文、工具治理和调度收敛。
 
 ---
 

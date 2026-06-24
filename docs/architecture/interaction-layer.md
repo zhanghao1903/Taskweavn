@@ -1,6 +1,6 @@
 # Interaction Layer 技术设计
 
-> 版本 v1.1 · 2026-05-08
+> 版本 v1.2 · 2026-06-24
 >
 > Status: implemented historical baseline
 >
@@ -10,13 +10,16 @@
 
 > 2026-05-17 review note:
 > 本文是 Phase 3.1-3.8 interaction substrate 的历史技术设计，仍可用于理解
-> `RiskAssessment`、`AutonomyBehavior`、`AgentMessage`、`MessageStream`、
-> `MessageBus`、`AutonomyGate` 和 `WaitCoordinator` 的来源。
-> 它不再是当前 Plato Main Page / frontend implementation 的规划入口。
-> 当前 UI 规划以 [Plato MVP PRD](../product/plato-mvp-prd.md)、
-> [Main Page UX Flow](../product/plato-main-page-ux-flow.md)、
-> [Figma UI Baseline](../product/plato-figma-ui-baseline.md) 和
-> [Frontend Technical Design](../product/plato-frontend-technical-design.md) 为准。
+> Action / Observation / EventStream / MessageStream、
+> `RiskAssessment`、`AutonomyBehavior`、`AgentMessage`、`MessageBus`、
+> `AutonomyGate` 和 `WaitCoordinator` 的底层来源。
+>
+> 2026-06-24 Product 1.1 alignment:
+> 当前用户可见交互层已经上移到 Main Page Runtime Input Router、
+> Session Conversation / Activity、Audit 和 Diagnostics。本文不是当前 UI
+> 或 Router 合同的来源；当前合同以 [overview.md](overview.md)、
+> [contract-revision-and-execution-loops.md](contract-revision-and-execution-loops.md)
+> 和 [ui-backend-communication.md](ui-backend-communication.md) 为准。
 
 ---
 

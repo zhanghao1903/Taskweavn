@@ -1,6 +1,10 @@
 # Multi-Agent Collaboration Architecture
 
-> [中文版](multi-agent-collaboration.md) · v1.0 · 2026-05-07
+> [中文版](multi-agent-collaboration.md) · v1.1 · 2026-06-24
+>
+> Status: historical architecture concept reference
+>
+> Product 1.1 alignment: this document preserves the early multi-agent collaboration concept. Current Product 1.1 implements Runtime Input Router, task-scoped Default Agent execution, Agent LLM resolver, read-only inquiry, and command-backed contract revision. Full Agent Manager, dynamic assignment, and custom Agent protocol remain later extensions. Use [overview.md](overview.md), [agent.md](agent.md), [task.md](task.md), and [bus.md](bus.md) for current facts.
 
 ---
 
