@@ -30,6 +30,7 @@ def test_build_computer_use_runtime_defaults_disabled() -> None:
     assert runtime.enabled is False
     assert runtime.backend is None
     assert runtime.backend_name == "disabled"
+    assert runtime.allowed_apps == ()
 
 
 def test_build_computer_use_runtime_supports_macos_backend() -> None:
@@ -40,6 +41,7 @@ def test_build_computer_use_runtime_supports_macos_backend() -> None:
 
     assert runtime.enabled is True
     assert runtime.backend_name == "macos"
+    assert runtime.allowed_apps == ("WeChat", "TextEdit")
     assert isinstance(runtime.backend, MacOSComputerUseBackend)
 
 

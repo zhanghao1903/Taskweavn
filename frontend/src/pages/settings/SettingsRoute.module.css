@@ -393,6 +393,61 @@
   padding-top: 20px;
 }
 
+.runtimeBehavior {
+  display: grid;
+  gap: 16px;
+  margin-top: 24px;
+}
+
+.runtimeConfigGroups {
+  display: grid;
+  gap: 14px;
+}
+
+.runtimeConfigTable {
+  display: grid;
+  overflow: hidden;
+  border: 1px solid var(--plato-color-semantic-border);
+  border-radius: 6px;
+  background: var(--plato-color-semantic-surface);
+}
+
+.runtimeConfigHeader,
+.runtimeConfigRow {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.3fr) minmax(120px, 1fr) minmax(120px, 0.8fr) minmax(150px, 1fr);
+  gap: 10px;
+  align-items: baseline;
+  padding: 9px 10px;
+}
+
+.runtimeConfigHeader {
+  background: var(--plato-color-semantic-surface-muted);
+  color: var(--plato-color-semantic-text-secondary);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 16px;
+  text-transform: uppercase;
+}
+
+.runtimeConfigRow {
+  border-top: 1px solid var(--plato-color-semantic-border);
+  color: var(--plato-color-semantic-text-secondary);
+  font-size: 12px;
+  line-height: 17px;
+}
+
+.runtimeConfigRow span,
+.runtimeConfigRow strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.runtimeConfigRow strong {
+  color: var(--plato-color-semantic-text-primary);
+  font-weight: 700;
+}
+
 .diagnosticsPanel p {
   margin: 4px 0 0;
   color: var(--plato-color-semantic-text-secondary);
@@ -429,7 +484,9 @@
   .headerRow,
   .formGrid,
   .summaryGrid,
-  .exportResult {
+  .exportResult,
+  .runtimeConfigHeader,
+  .runtimeConfigRow {
     grid-template-columns: 1fr;
   }
 

@@ -34,6 +34,28 @@ def _match_route(path: str) -> _Route | None:
         return _Route(name="settings_readiness_recheck", method="POST")
     if parts == ("api", "v1", "settings", "config"):
         return _Route(name="settings_config", method="*")
+    if parts == ("api", "v1", "runtime", "config"):
+        return _Route(name="runtime_config_patch", method="PATCH")
+    if parts == ("api", "v1", "runtime", "config", "schema"):
+        return _Route(name="runtime_config_schema", method="GET")
+    if parts == ("api", "v1", "runtime", "config", "effective"):
+        return _Route(name="runtime_config_effective", method="GET")
+    if parts == ("api", "v1", "runtime", "config", "explain"):
+        return _Route(name="runtime_config_explain", method="GET")
+    if parts == ("api", "v1", "runtime", "config", "changes"):
+        return _Route(name="runtime_config_changes", method="GET")
+    if len(parts) == 6 and parts[:5] == (
+        "api",
+        "v1",
+        "runtime",
+        "config",
+        "snapshots",
+    ):
+        return _Route(
+            name="runtime_config_snapshot",
+            method="GET",
+            record_id=parts[5],
+        )
     if parts == ("api", "v1", "workspaces"):
         return _Route(name="workspaces", method="GET")
     execution_plane_route = _match_execution_plane_route(parts)

@@ -7,11 +7,13 @@ from typing import Any, Protocol
 
 from taskweavn.execution_plane import TaskApiService
 from taskweavn.observability.main_page_trace import main_page_trace
+from taskweavn.runtime_config import RuntimeConfigMutationService
 from taskweavn.server.client_logs import ClientErrorLogSink
 from taskweavn.server.diagnostics_export import (
     DiagnosticExportFailure,
     DiagnosticExportSessionNotFound,
 )
+from taskweavn.server.runtime_config_gateway import RuntimeConfigGateway
 from taskweavn.server.runtime_input_router import RuntimeInputRouter
 from taskweavn.server.transport import HttpApiRequest, HttpApiResponse
 from taskweavn.server.ui_command_idempotency import UiCommandResponseIdempotencyStore
@@ -66,6 +68,7 @@ from taskweavn.server.ui_http_responses import (
     _request_id_hint,
 )
 from taskweavn.server.ui_http_routes import _match_route
+from taskweavn.server.ui_http_runtime_config import _runtime_config_response
 from taskweavn.server.ui_http_runtime_input import _runtime_input_route_response
 from taskweavn.server.ui_http_settings import (
     SettingsConfigGateway,
@@ -146,6 +149,8 @@ class PlatoUiHttpTransport:
         workspace_inspection_gateway: WorkspaceInspectionGateway | None = None,
         token_usage_gateway: TokenUsageSummaryGateway | None = None,
         runtime_input_router: RuntimeInputRouter | None = None,
+        runtime_config_gateway: RuntimeConfigGateway | None = None,
+        runtime_config_mutation_service: RuntimeConfigMutationService | None = None,
         execution_plane_service: TaskApiService | None = None,
     ) -> None:
         self._query_gateway = query_gateway
@@ -163,6 +168,8 @@ class PlatoUiHttpTransport:
         self._workspace_inspection_gateway = workspace_inspection_gateway
         self._token_usage_gateway = token_usage_gateway
         self._runtime_input_router = runtime_input_router
+        self._runtime_config_gateway = runtime_config_gateway
+        self._runtime_config_mutation_service = runtime_config_mutation_service
         self._execution_plane_service = execution_plane_service
 
     def handle(self, request: HttpApiRequest) -> HttpApiResponse:
@@ -223,6 +230,21 @@ class PlatoUiHttpTransport:
                                 "/api/v1/settings/readiness"
                             ),
                             "settings_config_url": "/api/v1/settings/config",
+                            "runtime_config_schema_url": (
+                                "/api/v1/runtime/config/schema"
+                            ),
+                            "runtime_config_effective_url": (
+                                "/api/v1/runtime/config/effective"
+                            ),
+                            "runtime_config_explain_url_template": (
+                                "/api/v1/runtime/config/explain?key={key}"
+                            ),
+                            "runtime_config_changes_url": (
+                                "/api/v1/runtime/config/changes"
+                            ),
+                            "runtime_config_snapshot_url_template": (
+                                "/api/v1/runtime/config/snapshots/{configHash}"
+                            ),
                             "settings_readiness_recheck_url": (
                                 "/api/v1/settings/readiness/recheck"
                             ),
@@ -278,6 +300,21 @@ class PlatoUiHttpTransport:
                 return _settings_config_response(
                     request,
                     self._settings_config_gateway,
+                )
+            if route_name in {
+                "runtime_config_schema",
+                "runtime_config_effective",
+                "runtime_config_explain",
+                "runtime_config_changes",
+                "runtime_config_snapshot",
+                "runtime_config_patch",
+            }:
+                return _runtime_config_response(
+                    request,
+                    route_name=route_name,
+                    gateway=self._runtime_config_gateway,
+                    mutation_service=self._runtime_config_mutation_service,
+                    config_hash=route.record_id,
                 )
             if route_name == "usage_token_summary":
                 return _usage_token_summary_response(
