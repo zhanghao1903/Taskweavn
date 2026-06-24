@@ -630,6 +630,7 @@ export const enUS: UiTextCatalog = {
     tabs: {
       configuration: "Configuration",
       dataManagement: "Data Management",
+      runtimeBehavior: "Runtime Behavior",
       usageInformation: "Usage Information",
     },
   },

@@ -19,6 +19,7 @@ class ComputerUseRuntimeSelection:
     enabled: bool
     backend: ComputerUseBackend | None
     backend_name: str
+    allowed_apps: tuple[str, ...] = ()
 
 
 def build_computer_use_runtime(
@@ -31,11 +32,13 @@ def build_computer_use_runtime(
     """Build the optional computer-use backend selected by runtime config."""
 
     normalized = (backend_name or "disabled").strip().lower()
+    parsed_allowed_apps = parse_computer_use_allowed_apps(allowed_apps)
     if normalized in {"", "disabled", "none", "off"}:
         return ComputerUseRuntimeSelection(
             enabled=False,
             backend=None,
             backend_name="disabled",
+            allowed_apps=parsed_allowed_apps,
         )
     if normalized != "macos":
         raise ValueError(
@@ -47,12 +50,13 @@ def build_computer_use_runtime(
         enabled=True,
         backend=MacOSComputerUseBackend(
             config=MacOSComputerUseBackendConfig(
-                allowed_apps=parse_computer_use_allowed_apps(allowed_apps),
+                allowed_apps=parsed_allowed_apps,
                 allow_coordinate_click=allow_coordinate_click,
                 screen_recording_required=screen_recording_required,
             )
         ),
         backend_name="macos",
+        allowed_apps=parsed_allowed_apps,
     )
 
 

@@ -36,6 +36,7 @@ from taskweavn.runtime import LocalRuntime
 from taskweavn.server.main_page_audit_events import (
     emit_agent_loop_audit_records_changed,
 )
+from taskweavn.server.runtime_config_consumers import RuntimeContextSettings
 from taskweavn.server.settings_config import (
     FileSettingsConfigStore,
     effective_web_search_settings,
@@ -81,6 +82,7 @@ def build_agent_loop_resident_default_agent(
     ask_store: AskStore | None = None,
     message_bus: MessageBus | None = None,
     max_steps: int = 20,
+    context_settings: RuntimeContextSettings | None = None,
     result_summary_store: TaskExecutionSummaryStore | None = None,
     ui_event_store: UiEventStore | None = None,
     settings_store: FileSettingsConfigStore | None = None,
@@ -117,6 +119,7 @@ def build_agent_loop_resident_default_agent(
             llm=llm,
             session_id=task.session_id,
             max_steps=max_steps,
+            context_settings=context_settings,
             ui_event_store=ui_event_store,
             task_bus=task_bus,
             ask_store=ask_store,
@@ -218,6 +221,7 @@ class _SessionAgentLoopRunner:
     llm: Any
     session_id: str
     max_steps: int
+    context_settings: RuntimeContextSettings | None = None
     ui_event_store: UiEventStore | None = None
     task_bus: TaskBus | None = None
     ask_store: AskStore | None = None
@@ -316,7 +320,10 @@ class _SessionAgentLoopRunner:
                 context_provider=(
                     None
                     if self.context_builder is None
-                    else SessionAgentLoopContextProvider(self.context_builder)
+                    else _context_provider(
+                        self.context_builder,
+                        self.context_settings,
+                    )
                 ),
                 interrupt_checker=(
                     None
@@ -337,6 +344,21 @@ class _SessionAgentLoopRunner:
             return result
         finally:
             event_stream.close()
+
+
+def _context_provider(
+    context_builder: _SessionContextBuilder,
+    context_settings: RuntimeContextSettings | None,
+) -> SessionAgentLoopContextProvider:
+    if context_settings is None:
+        return SessionAgentLoopContextProvider(context_builder)
+    return SessionAgentLoopContextProvider(
+        context_builder,
+        max_prior_messages=context_settings.max_prior_messages,
+        checkpoint_interval_steps=context_settings.checkpoint_interval_steps,
+        default_budget=context_settings.budget,
+        runtime_config_hash=context_settings.config_hash,
+    )
 
 
 @dataclass(frozen=True)

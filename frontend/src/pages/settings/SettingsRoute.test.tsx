@@ -8,6 +8,7 @@ import { PLATO_NAVIGATION_EVENT } from "../../app/navigation";
 import { ApiClientError } from "../../shared/api/client";
 import type {
   DiagnosticBundleExportResult,
+  RuntimeConfigEffective,
   SettingsConfigSummary,
   SettingsConfigUpdateResult,
   SettingsReadinessReport,
@@ -234,6 +235,28 @@ describe("SettingsRoute", () => {
       globalThis.localStorage.getItem(UI_LOCALE_PREFERENCE_STORAGE_KEY),
     ).toBe("zh-CN");
     expect(screen.getByLabelText("Interface language")).toHaveValue("zh-CN");
+  });
+
+  it("renders read-only runtime behavior facts", async () => {
+    const api = settingsApi({
+      runtimeConfig: runtimeConfigEffective(),
+    });
+    globalThis.history.pushState(null, "", "/settings?tab=runtime");
+
+    renderWithQueryClient(
+      <SettingsRoute api={api} runtimeEnv={{ VITE_PLATO_API_MODE: "http" }} />,
+    );
+
+    expect(
+      await screen.findByText(/Runtime behavior is read-only here/),
+    ).toBeInTheDocument();
+    expect(screen.getByText("agent_loop.default_max_steps")).toBeInTheDocument();
+    expect(screen.getByText("7")).toBeInTheDocument();
+    expect(screen.getAllByText("process input").length).toBeGreaterThan(0);
+    expect(screen.getByText("pending next agent run")).toBeInTheDocument();
+    expect(screen.getByText("computer_use.allowed_apps")).toBeInTheDocument();
+    expect(screen.getByText("TextEdit, WeChat")).toBeInTheDocument();
+    expect(api.getRuntimeConfigEffective).toHaveBeenCalledTimes(1);
   });
 
   it("saves global Web Search configuration without keeping the secret visible", async () => {
@@ -472,14 +495,17 @@ function renderWithQueryClient(
 function settingsApi({
   config = settingsConfig({ apiKeyConfigured: true }),
   readiness = settingsReadiness({ ready: true }),
+  runtimeConfig = runtimeConfigEffective(),
   updateError,
 }: {
   config?: SettingsConfigSummary;
   readiness?: SettingsReadinessReport;
+  runtimeConfig?: RuntimeConfigEffective;
   updateError?: Error;
 } = {}): SettingsRouteApi {
   return {
     exportDiagnosticBundle: vi.fn(async () => okResponse(diagnosticExport())),
+    getRuntimeConfigEffective: vi.fn(async () => okResponse(runtimeConfig)),
     getSettingsConfig: vi.fn(async () => okResponse(config)),
     getTokenUsageSummary: vi.fn(async (request) =>
       okResponse(tokenUsageSummary(request.dimension)),
@@ -513,6 +539,180 @@ function settingsApi({
     }),
   };
 }
+
+function runtimeConfigEffective(): RuntimeConfigEffective {
+  const processScope = { level: "process" as const };
+  const processSource = {
+    kind: "process_input" as const,
+    priority: 100,
+    scope: processScope,
+    sourceId: "process",
+  };
+  const defaultSource = {
+    kind: "built_in_default" as const,
+    priority: 0,
+    scope: processScope,
+    sourceId: "built-in-default",
+  };
+  return {
+    configHash: "runtime-config-hash",
+    configId: "runtime-config-process",
+    createdAt: "2026-06-24T10:00:00Z",
+    schemaVersion: "plato.runtime_config.v1",
+    scope: processScope,
+    sourceLayers: [defaultSource, processSource],
+    values: {
+      "agent_loop.default_max_steps": runtimeConfigValue({
+        effectiveStatus: "pending_next_agent_run",
+        key: "agent_loop.default_max_steps",
+        mutability: "next_agent_run",
+        source: processSource,
+        value: 7,
+      }),
+      "computer_use.allowed_apps": runtimeConfigValue({
+        key: "computer_use.allowed_apps",
+        mutability: "startup_only",
+        source: processSource,
+        value: ["TextEdit", "WeChat"],
+      }),
+      "computer_use.backend": runtimeConfigValue({
+        key: "computer_use.backend",
+        mutability: "startup_only",
+        source: processSource,
+        value: "macos",
+      }),
+      "computer_use.enabled": runtimeConfigValue({
+        key: "computer_use.enabled",
+        mutability: "startup_only",
+        source: processSource,
+        value: true,
+      }),
+      "context_manager.budget.max_events": runtimeConfigValue({
+        key: "context_manager.budget.max_events",
+        mutability: "next_context_build",
+        source: defaultSource,
+        value: 20,
+      }),
+      "context_manager.budget.max_rendered_chars": runtimeConfigValue({
+        key: "context_manager.budget.max_rendered_chars",
+        mutability: "next_context_build",
+        source: defaultSource,
+        value: 60000,
+      }),
+      "context_manager.checkpoint_interval_steps": runtimeConfigValue({
+        key: "context_manager.checkpoint_interval_steps",
+        mutability: "next_agent_run",
+        source: processSource,
+        value: 4,
+      }),
+      "context_manager.max_prior_messages": runtimeConfigValue({
+        key: "context_manager.max_prior_messages",
+        mutability: "next_agent_run",
+        source: defaultSource,
+        value: 200,
+      }),
+      "execution_dispatcher.enabled": runtimeConfigValue({
+        key: "execution_dispatcher.enabled",
+        mutability: "startup_only",
+        source: processSource,
+        value: true,
+      }),
+      "execution_dispatcher.max_ticks_per_trigger": runtimeConfigValue({
+        key: "execution_dispatcher.max_ticks_per_trigger",
+        mutability: "next_task",
+        source: processSource,
+        value: 10,
+      }),
+      "llm.default_model": runtimeConfigValue({
+        key: "llm.default_model",
+        mutability: "next_llm_call",
+        source: defaultSource,
+        value: "deepseek-v4-pro",
+      }),
+      "llm.default_provider": runtimeConfigValue({
+        key: "llm.default_provider",
+        mutability: "next_llm_call",
+        source: defaultSource,
+        value: "deepseek",
+      }),
+      "llm.request_timeout_seconds": runtimeConfigValue({
+        key: "llm.request_timeout_seconds",
+        mutability: "next_llm_call",
+        source: defaultSource,
+        value: 180,
+      }),
+      "logging.level": runtimeConfigValue({
+        key: "logging.level",
+        mutability: "live",
+        source: processSource,
+        value: "DEBUG",
+      }),
+      "logging.profile": runtimeConfigValue({
+        key: "logging.profile",
+        mutability: "live",
+        source: defaultSource,
+        value: null,
+      }),
+      "read_only_inquiry.llm_enabled": runtimeConfigValue({
+        key: "read_only_inquiry.llm_enabled",
+        mutability: "startup_only",
+        source: processSource,
+        value: true,
+      }),
+      "safety.high_risk_confirmation": runtimeConfigValue({
+        key: "safety.high_risk_confirmation",
+        mutability: "next_action",
+        source: defaultSource,
+        value: "required",
+      }),
+      "task_api.enabled": runtimeConfigValue({
+        key: "task_api.enabled",
+        mutability: "startup_only",
+        source: processSource,
+        value: true,
+      }),
+      "task_api.require_valid_session": runtimeConfigValue({
+        key: "task_api.require_valid_session",
+        mutability: "next_task",
+        source: processSource,
+        value: true,
+      }),
+      "web.search_enabled": runtimeConfigValue({
+        key: "web.search_enabled",
+        mutability: "next_action",
+        source: defaultSource,
+        value: false,
+      }),
+    },
+  };
+}
+
+function runtimeConfigValue({
+  effectiveStatus = "active",
+  key,
+  mutability,
+  source,
+  value,
+}: RuntimeConfigValueInput): RuntimeConfigEffective["values"][string] {
+  return {
+    effectiveStatus,
+    key,
+    mutability,
+    redacted: false,
+    source,
+    value,
+  };
+}
+
+type RuntimeConfigValueInput = Omit<
+  Pick<
+    RuntimeConfigEffective["values"][string],
+    "effectiveStatus" | "key" | "mutability" | "source" | "value"
+  >,
+  "effectiveStatus"
+> & {
+  effectiveStatus?: RuntimeConfigEffective["values"][string]["effectiveStatus"];
+};
 
 function okResponse<T>(data: T): QueryResponse<T> {
   return {

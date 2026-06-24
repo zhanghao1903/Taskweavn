@@ -54,6 +54,96 @@ def test_main_page_sidecar_config_uses_stable_dev_port_by_default(
     assert config.port == DEFAULT_PLATO_SIDECAR_PORT
 
 
+def test_main_page_sidecar_exposes_effective_runtime_config(
+    tmp_path: Any,
+) -> None:
+    app = build_main_page_sidecar_app(
+        MainPageSidecarConfig(
+            workspace_root=tmp_path,
+            port=0,
+            default_agent_max_steps=7,
+            context_checkpoint_interval_steps=4,
+            context_max_prior_messages=12,
+            context_budget_max_events=11,
+            enable_execution_dispatcher=False,
+            execution_dispatcher_max_ticks_per_trigger=3,
+            enable_read_only_inquiry_llm=False,
+            enable_computer_use_tool=True,
+            computer_use_backend_name="macos",
+            computer_use_allowed_apps=("WeChat", "TextEdit"),
+            logging_level="DEBUG",
+        ),
+        MainPageSidecarDependencies(llm=_StubLLM()),
+    )
+    try:
+        response = _request(app, "GET", "/api/v1/runtime/config/effective")
+    finally:
+        app.close()
+
+    assert response.status == 200
+    assert response.json["ok"] is True
+    values = response.json["data"]["values"]
+    assert values["agent_loop.default_max_steps"]["value"] == 7
+    assert values["agent_loop.default_max_steps"]["source"]["kind"] == "process_input"
+    assert values["context_manager.checkpoint_interval_steps"]["value"] == 4
+    assert values["context_manager.max_prior_messages"]["value"] == 12
+    assert values["context_manager.budget.max_events"]["value"] == 11
+    assert values["execution_dispatcher.enabled"]["value"] is False
+    assert values["execution_dispatcher.max_ticks_per_trigger"]["value"] == 3
+    assert values["read_only_inquiry.llm_enabled"]["value"] is False
+    assert values["computer_use.enabled"]["value"] is True
+    assert values["computer_use.backend"]["value"] == "macos"
+    assert values["computer_use.allowed_apps"]["value"] == ["WeChat", "TextEdit"]
+    assert values["logging.level"]["value"] == "DEBUG"
+
+
+def test_main_page_sidecar_runtime_config_patch_route_persists_change(
+    tmp_path: Any,
+) -> None:
+    app = build_main_page_sidecar_app(
+        MainPageSidecarConfig(
+            workspace_root=tmp_path,
+            port=0,
+            current_workspace_id="workspace-1",
+        ),
+        MainPageSidecarDependencies(llm=_StubLLM()),
+    )
+    try:
+        patch = _request(
+            app,
+            "PATCH",
+            "/api/v1/runtime/config",
+            body={
+                "idempotencyKey": "main-page-runtime-config-write",
+                "scope": {
+                    "level": "workspace",
+                    "workspaceId": "workspace-1",
+                },
+                "values": {"logging.level": "DEBUG"},
+            },
+        )
+        changes = _request(
+            app,
+            "GET",
+            "/api/v1/runtime/config/changes?workspaceId=workspace-1",
+        )
+    finally:
+        app.close()
+
+    assert patch.status == 200
+    assert patch.json["ok"] is True
+    assert patch.json["data"]["change"]["status"] == "accepted"
+    assert patch.json["data"]["snapshotRef"]["configHash"] == (
+        patch.json["data"]["change"]["resultingConfigHash"]
+    )
+    assert changes.status == 200
+    assert changes.json["ok"] is True
+    assert changes.json["data"]["totalCount"] == 1
+    assert changes.json["data"]["changes"][0]["idempotencyKey"] == (
+        "main-page-runtime-config-write"
+    )
+
+
 def test_main_page_sidecar_uses_guarded_llm_inquiry_provider_by_default(
     tmp_path: Any,
 ) -> None:
@@ -139,6 +229,7 @@ def test_main_page_sidecar_can_disable_guarded_llm_inquiry_provider(
     assert response.json["data"]["inquiryResult"]["answer"]["body"] == (
         "Session 'Demo session' is new."
     )
+    assert app.runtime_config.values["read_only_inquiry.llm_enabled"].value is False
     assert llm.calls == []
 
 
@@ -1017,6 +1108,8 @@ def test_main_page_sidecar_task_api_runs_scripted_computer_use_when_enabled(
             workspace_root=tmp_path,
             port=0,
             enable_computer_use_tool=True,
+            computer_use_backend_name="macos",
+            computer_use_allowed_apps=("TextEdit",),
             execution_dispatcher_max_ticks_per_trigger=3,
         ),
         MainPageSidecarDependencies(
@@ -1050,6 +1143,9 @@ def test_main_page_sidecar_task_api_runs_scripted_computer_use_when_enabled(
 
     assert publish.status == 200
     assert publish.json["ok"] is True
+    assert app.runtime_config.values["computer_use.enabled"].value is True
+    assert app.runtime_config.values["computer_use.backend"].value == "macos"
+    assert app.runtime_config.values["computer_use.allowed_apps"].value == ("TextEdit",)
     assert fetched.status == 200
     assert fetched.json["data"]["status"] == "done"
     assert len(backend.actions) == 1
@@ -1338,6 +1434,174 @@ def test_main_page_sidecar_app_fixed_route_tick_runs_agent_loop_default_agent(
     assert snapshot_cursor.startswith("task_lifecycle:loop-task:")
     assert events_after_snapshot.status == 200
     assert "event: session.resync_required" not in events_after_snapshot.text
+
+
+def test_main_page_sidecar_agent_loop_uses_effective_runtime_config_max_steps(
+    tmp_path: Any,
+) -> None:
+    llm = _AgentLoopSequencedLLM(
+        [
+            _agent_loop_tool_call_response(
+                "write_file",
+                {"path": "notes/loop.md", "content": "step 1"},
+                call_id="write-max-step-1",
+            ),
+        ]
+    )
+    app = build_main_page_sidecar_app(
+        MainPageSidecarConfig(
+            workspace_root=tmp_path,
+            port=0,
+            default_agent_max_steps=1,
+        ),
+        MainPageSidecarDependencies(llm=llm),
+    )
+    try:
+        session_id = _create_session(app)
+        app.task_bus.publish(_published_task("max-steps-task", session_id=session_id))
+
+        tick = app.run_fixed_route_tick(session_id)
+        task = app.task_bus.get(session_id, "max-steps-task")
+    finally:
+        app.close()
+
+    assert app.runtime_config.values["agent_loop.default_max_steps"].value == 1
+    assert tick.status == "failed"
+    assert tick.error_ref == f"agent_loop_failed:{session_id}:max-steps-task:max_steps"
+    assert task is not None
+    assert task.status == "failed"
+    assert task.error_ref == tick.error_ref
+    assert len(llm.calls) == 1
+
+
+def test_main_page_sidecar_agent_loop_uses_effective_runtime_config_context_checkpoint(
+    tmp_path: Any,
+) -> None:
+    llm = _AgentLoopSequencedLLM(
+        [
+            _agent_loop_tool_call_response(
+                "write_file",
+                {"path": "notes/checkpoint.md", "content": "checkpoint"},
+                call_id="write-context-checkpoint",
+            ),
+            ChatResponse(
+                content="Loop completed.",
+                tool_calls=[],
+                raw_assistant_message={
+                    "role": "assistant",
+                    "content": "Loop completed.",
+                },
+            ),
+        ]
+    )
+    app = build_main_page_sidecar_app(
+        MainPageSidecarConfig(
+            workspace_root=tmp_path,
+            port=0,
+            context_checkpoint_interval_steps=2,
+        ),
+        MainPageSidecarDependencies(llm=llm),
+    )
+    try:
+        session_id = _create_session(app)
+        app.task_bus.publish(_published_task("context-config-task", session_id=session_id))
+
+        tick = app.run_fixed_route_tick(session_id)
+    finally:
+        app.close()
+
+    assert (
+        app.runtime_config.values["context_manager.checkpoint_interval_steps"].value
+        == 2
+    )
+    assert tick.status == "completed"
+    assert [call["metadata"]["context_render_mode"] for call in llm.calls] == [
+        "start_context",
+        "checkpoint_context",
+    ]
+    assert llm.calls[1]["metadata"]["context_checkpoint_reason"] == "interval:2"
+    assert [
+        call["metadata"]["context_runtime_config_hash"] for call in llm.calls
+    ] == [
+        app.runtime_config.config_hash,
+        app.runtime_config.config_hash,
+    ]
+
+
+def test_main_page_sidecar_dispatcher_uses_effective_runtime_config_enabled(
+    tmp_path: Any,
+) -> None:
+    app = build_main_page_sidecar_app(
+        MainPageSidecarConfig(
+            workspace_root=tmp_path,
+            port=0,
+            enable_execution_dispatcher=False,
+        ),
+        MainPageSidecarDependencies(llm=_AgentLoopLLM("Loop completed.")),
+    )
+    try:
+        session_id = _create_session(app)
+        app.task_bus.publish(
+            _published_task("disabled-dispatch-task", session_id=session_id)
+        )
+
+        assert app.execution_dispatcher is not None
+        request = app.execution_dispatcher.request_dispatch(
+            session_id,
+            reason="manual_control_route",
+        )
+        task = app.task_bus.get(session_id, "disabled-dispatch-task")
+    finally:
+        app.close()
+
+    assert app.runtime_config.values["execution_dispatcher.enabled"].value is False
+    assert request.status == "disabled"
+    assert request.accepted is False
+    assert task is not None
+    assert task.status == "pending"
+
+
+def test_main_page_sidecar_dispatcher_uses_effective_runtime_config_tick_limit(
+    tmp_path: Any,
+) -> None:
+    app = build_main_page_sidecar_app(
+        MainPageSidecarConfig(
+            workspace_root=tmp_path,
+            port=0,
+            execution_dispatcher_max_ticks_per_trigger=1,
+        ),
+        MainPageSidecarDependencies(
+            default_agent=_FakeDefaultAgent(TaskRunResult(result_ref="result:ok")),
+        ),
+    )
+    try:
+        session_id = _create_session(app)
+        app.task_bus.publish(_published_task("tick-limit-1", session_id=session_id))
+        app.task_bus.publish(_published_task("tick-limit-2", session_id=session_id))
+
+        assert app.execution_dispatcher is not None
+        request = app.execution_dispatcher.request_dispatch(
+            session_id,
+            reason="manual_control_route",
+        )
+        assert request.status == "queued"
+        assert _wait_for(
+            lambda: app.task_bus.get(session_id, "tick-limit-1") is not None
+            and app.task_bus.get(session_id, "tick-limit-1").status == "done",
+        )
+        first = app.task_bus.get(session_id, "tick-limit-1")
+        second = app.task_bus.get(session_id, "tick-limit-2")
+    finally:
+        app.close()
+
+    assert (
+        app.runtime_config.values["execution_dispatcher.max_ticks_per_trigger"].value
+        == 1
+    )
+    assert first is not None
+    assert first.status == "done"
+    assert second is not None
+    assert second.status == "pending"
 
 
 def test_main_page_sidecar_app_agent_loop_creates_ask_and_resumes_with_answer_fact(
