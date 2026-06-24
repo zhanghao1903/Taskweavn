@@ -53,6 +53,9 @@ The first executable Product 1.1 milestone is
 [Product 1.1 Workspace Inspection Milestone](../plans/feature/product-1-1-workspace-inspection-milestone.md),
 with API decisions captured in
 [Git, Diff, And File Viewer API Contract](../engineering/git-diff-file-viewer-api-contract.md).
+Workspace inspection evidence capture remains explicit: opening a live file or
+diff viewer route does not create durable evidence by itself; stable historical
+views come from captured inspection evidence refs.
 UI system text polish and bilingual support are tracked in
 [UI System Text And Localization Foundation](../plans/feature/product-copy-localization-foundation.md),
 with implementation boundaries captured in
