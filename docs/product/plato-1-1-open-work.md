@@ -198,7 +198,7 @@ The P0 milestone is accepted when:
 | Localization polish | Clean remaining mixed English/Chinese execution ASK and recovery copy; continue moving UI system text behind typed keys. | Product quality issue for zh-CN beta builds. |
 | Web retrieval beta hardening | Verify real Tavily Search/Extract smoke, broader citation/result UI, Audit projection depth, user-visible limitations, and future retrieval budget boundaries. | Search/fetch are implemented; the remaining work is beta trust and release evidence, not first capability delivery. |
 | Electron release hardening | Keep packaged/installer smoke current for Product 1.1 paths; add sidecar restart replay; signed/notarized distribution remains deferred until Apple Developer credentials exist. | Protects beta release quality. |
-| External release docs sync | Mirror Product 1.1 beta evidence and known limitations into the public repository release/user docs when publishing externally. | Public-facing clarity matters, but the internal P0 release evidence is now closed. |
+| External release docs sync | Private sync package is defined in [Plato 1.1 Public Release Docs Sync](public-exposure/plato-1-1-public-release-doc-sync.md). Remaining work is the separate public-repo PR that mirrors approved Product 1.1 beta evidence and known limitations into `zhanghao1903/plato-public`. | Public-facing clarity matters, but the internal P0 release evidence is now closed. |
 
 ## 5.1 Recommended Next Product Branches
 
@@ -207,9 +207,9 @@ The next branches should be selected in this order:
 1. **Sidecar restart replay confidence**: prove durable Conversation /
    Activity replay after killing and relaunching the packaged sidecar, then
    fold that into installer smoke if it remains stable.
-2. **External Product 1.1 release docs sync**: mirror the internal Product 1.1
-   beta release record into the public repository docs with user-facing known
-   limitations.
+2. **External Product 1.1 release docs sync**: use the private sync package to
+   update the public repository docs with user-facing Product 1.1 beta evidence
+   and known limitations.
 3. **P1 beta polish**: stop/cancel UX, token budget warnings, localization
    cleanup, and web retrieval release evidence.
 

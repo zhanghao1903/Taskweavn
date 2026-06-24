@@ -13,6 +13,7 @@ expanded.
 | File | Purpose |
 |---|---|
 | [plato-public-exposure-plan.md](plato-public-exposure-plan.md) | Public repository exposure strategy, including product narrative, architecture boundaries, information architecture, execution slices, risks, and assumptions. |
+| [plato-1-1-public-release-doc-sync.md](plato-1-1-public-release-doc-sync.md) | Product 1.1 beta public release docs sync package: source docs, public targets, allowed/forbidden claims, limitations, and public PR checklist. |
 | [plato-public-repository-optimization-plan.md](plato-public-repository-optimization-plan.md) | Implementation-ready optimization plan for making `zhanghao1903/plato-public` more user-friendly, recruiter-friendly, and release-ready. |
 | [public-visual-asset-gaps.md](public-visual-asset-gaps.md) | Image, screenshot, diagram, and visual presentation gap tracker for public Plato materials. |
 
