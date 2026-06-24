@@ -264,6 +264,8 @@ def _evidence_source(
             if record.source_label in {"Message stream", "Runtime Input Router"}
             else "task_projection"
         )
+    if evidence_ref.kind == "file_change":
+        return "workspace_inspection"
     if evidence_ref.kind == "config_snapshot":
         return "config_store"
     if evidence_ref.kind == "log_excerpt":

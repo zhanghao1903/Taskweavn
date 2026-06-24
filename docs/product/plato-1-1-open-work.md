@@ -2,7 +2,7 @@
 
 > Status: active open-work index
 >
-> Last Updated: 2026-06-20
+> Last Updated: 2026-06-24
 >
 > Scope: Product 1.1 unfinished product work after the accepted workspace,
 > precision-tool, read-only inquiry, token-usage, and local Electron beta
@@ -190,7 +190,7 @@ The P0 milestone is accepted when:
 
 | Area | Open work | Why P1 |
 |---|---|---|
-| Workspace inspection hardening | Decide whether viewer route openings should automatically capture durable evidence; add richer Audit evidence detail expansion; keep raw unified diff deferred unless a concrete UI/diagnostic need appears. | Useful for trust and support, but the accepted inspection milestone already covers the beta path. |
+| Workspace inspection hardening | In progress: Audit file-change evidence now uses the dedicated `workspace_inspection` source instead of generic Task projection. Remaining decisions: whether viewer route openings should automatically capture durable evidence; whether raw unified diff expansion is needed for a concrete UI/diagnostic path. | Useful for trust and support, but the accepted inspection milestone already covers the beta path. |
 | Precision file tools product acceptance | Run broader sidecar/Electron evidence-link smoke after frontend entry points consume precision evidence links. | Tool/backend scope is complete; remaining work is acceptance depth. |
 | Stop / cancel UX | Represent intentional user stop as `stopped` or `cancelled`, not as a generic `failed` state with `Retry`. | Avoids user trust damage in long-running tasks. |
 | Token usage budget boundary | Add visible warning or budget boundary for long-running or extremely high-token execution. | Prevents cost surprises during beta use. |

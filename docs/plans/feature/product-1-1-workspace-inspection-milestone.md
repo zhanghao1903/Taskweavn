@@ -266,7 +266,7 @@ Acceptance:
 
 ### WIP-3. Main/Audit/Outcome Wiring
 
-Status: accepted.
+Status: accepted; P1 evidence-source hardening in progress.
 
 Deliver:
 
@@ -280,6 +280,14 @@ Acceptance:
 - Main Page, Audit, and result detail expose file/diff links;
 - user can move from Task/Result file changes to file or diff inspection;
 - broader Outcome Review acceptance remains outside this inspection milestone.
+
+P1 hardening note, 2026-06-24:
+
+- Audit file-change evidence uses `workspace_inspection` as its detail source,
+  making file-change evidence distinct from generic Task projection evidence.
+- Raw unified diff expansion and automatic durable evidence capture from viewer
+  route openings remain deferred until a concrete UI, diagnostic, or support
+  workflow requires them.
 
 ### WIP-4. Product Acceptance Smoke
 
