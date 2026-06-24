@@ -28,6 +28,7 @@ Specialized gap registries:
 | File | Scope |
 |---|---|
 | [public-visual-asset-gaps.md](../product/public-exposure/public-visual-asset-gaps.md) | Public-facing Plato image, screenshot, diagram, and visual presentation gaps for `zhanghao1903/plato-public`. |
+| [plato-1-1-p1-coverage-audit-2026-06-24.md](../product/plato-1-1-p1-coverage-audit-2026-06-24.md) | Product 1.1 P1 beta-depth open-work coverage across owner PRs and explicit deferrals. |
 
 ---
 
