@@ -2,7 +2,7 @@
 
 > Status: active open-work index
 >
-> Last Updated: 2026-06-20
+> Last Updated: 2026-06-24
 >
 > Scope: Product 1.1 unfinished product work after the accepted workspace,
 > precision-tool, read-only inquiry, token-usage, and local Electron beta
@@ -197,19 +197,20 @@ The P0 milestone is accepted when:
 | Diagnostics descriptors | Add richer beta-depth diagnostic bundle descriptors for workspace inspection evidence, per-route Electron logs, and support-oriented summaries. | Improves supportability beyond the P0 route-matrix closure. |
 | Localization polish | Clean remaining mixed English/Chinese execution ASK and recovery copy; continue moving UI system text behind typed keys. | Product quality issue for zh-CN beta builds. |
 | Web retrieval beta hardening | Verify real Tavily Search/Extract smoke, broader citation/result UI, Audit projection depth, user-visible limitations, and future retrieval budget boundaries. | Search/fetch are implemented; the remaining work is beta trust and release evidence, not first capability delivery. |
-| Electron release hardening | Keep packaged/installer smoke current for Product 1.1 paths; add sidecar restart replay; signed/notarized distribution remains deferred until Apple Developer credentials exist. | Protects beta release quality. |
-| External release docs sync | Mirror Product 1.1 beta evidence and known limitations into the public repository release/user docs when publishing externally. | Public-facing clarity matters, but the internal P0 release evidence is now closed. |
+| Electron release hardening | Keep packaged/installer smoke current for Product 1.1 paths; repo-mode and launcher-packaged sidecar restart replay smoke now exist; mounted installer replay remains optional release-gate depth. Signed/notarized distribution remains deferred until Apple Developer credentials exist. | Protects beta release quality. |
+| External release docs sync | Public-facing Product 1.1 beta source release notes now mirror shipped behavior, verification, artifact metadata, known limitations, safe claims, and publishing checklist. Copying those notes into the external public repository remains the final publishing operation. | Public-facing clarity matters, but the internal P0 release evidence is now closed. |
 
 ## 5.1 Recommended Next Product Branches
 
 The next branches should be selected in this order:
 
-1. **Sidecar restart replay confidence**: prove durable Conversation /
-   Activity replay after killing and relaunching the packaged sidecar, then
-   fold that into installer smoke if it remains stable.
-2. **External Product 1.1 release docs sync**: mirror the internal Product 1.1
-   beta release record into the public repository docs with user-facing known
-   limitations.
+1. **Sidecar restart replay confidence**: repo-mode and launcher-packaged
+   Electron sidecar replay are now covered; only mounted installer replay
+   remains optional release-gate depth.
+   Plan: [Sidecar Restart Replay Confidence](../plans/feature/sidecar-restart-replay-confidence.md).
+2. **External public repository publication**: copy the prepared Product 1.1
+   beta external release notes into the public repository release/user docs and
+   attach the beta artifact/checksum when publishing.
 3. **P1 beta polish**: stop/cancel UX, token budget warnings, localization
    cleanup, and web retrieval release evidence.
 
