@@ -2,7 +2,7 @@
 
 > Status: completed for Product 1.1 precision file tools scope
 >
-> Last Updated: 2026-06-11
+> Last Updated: 2026-06-24
 >
 > Owner: Backend / Tools / Trust / Frontend
 >
@@ -239,8 +239,10 @@ Deliver:
 - sidecar/Electron path when UI evidence links are affected.
 
 Closure note: deterministic backend/tool coverage is complete for this slice.
-Broader sidecar/Electron evidence-link smoke can be added as a future
-acceptance-hardening task when Audit evidence detail expansion resumes.
+Sidecar acceptance now covers a fixed-route `replace_file_range` mutation,
+Main Page file-summary projection, and the existing workspace inspection file
+and diff routes. Broader Electron visual evidence can be added after frontend
+entry points consume richer precision evidence refs directly.
 
 Acceptance:
 
@@ -252,8 +254,10 @@ Current scope:
 - Targeted tests cover line-range read, workspace search, drift rejection,
   idempotent replace/append replay, operation conflict, protected metadata
   paths, and file-summary projection.
-- Full sidecar/Electron smoke should be run after frontend entry points consume
-  precision evidence links.
+- Sidecar acceptance covers precision mutation evidence through Main Page file
+  summaries and workspace inspection file/diff routes.
+- Full Electron visual smoke should be run after frontend entry points consume
+  richer precision evidence refs directly.
 
 ## 9. Test Plan
 
