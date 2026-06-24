@@ -10,10 +10,13 @@ from typing import Any, Protocol
 from taskweavn.runtime_config import (
     EffectiveRuntimeConfig,
     EffectiveRuntimeConfigValue,
+    RuntimeConfigChange,
+    RuntimeConfigChangeStore,
     RuntimeConfigLayer,
     RuntimeConfigRegistry,
     RuntimeConfigResolver,
     RuntimeConfigScope,
+    RuntimeConfigSnapshotRecord,
     build_default_runtime_config_registry,
     environment_runtime_config_layer,
     process_runtime_config_layer,
@@ -33,6 +36,21 @@ class RuntimeConfigGateway(Protocol):
         scope: RuntimeConfigScope,
     ) -> EffectiveRuntimeConfigValue: ...
 
+    def get_change(self, change_id: str) -> RuntimeConfigChange | None: ...
+
+    def get_change_by_idempotency_key(
+        self,
+        idempotency_key: str,
+        scope: RuntimeConfigScope,
+    ) -> RuntimeConfigChange | None: ...
+
+    def get_snapshot(self, config_hash: str) -> RuntimeConfigSnapshotRecord | None: ...
+
+    def list_changes(
+        self,
+        scope: RuntimeConfigScope,
+    ) -> tuple[RuntimeConfigChange, ...]: ...
+
 
 @dataclass(frozen=True)
 class DefaultRuntimeConfigGateway:
@@ -40,6 +58,7 @@ class DefaultRuntimeConfigGateway:
 
     layers: tuple[RuntimeConfigLayer, ...] = ()
     default_scope: RuntimeConfigScope = RuntimeConfigScope(level="process")
+    change_store: RuntimeConfigChangeStore | None = None
 
     @classmethod
     def from_process_inputs(
@@ -48,6 +67,7 @@ class DefaultRuntimeConfigGateway:
         *,
         workspace_id: str | None = None,
         env: Mapping[str, str] | None = None,
+        change_store: RuntimeConfigChangeStore | None = None,
     ) -> DefaultRuntimeConfigGateway:
         layers = (
             environment_runtime_config_layer(os.environ if env is None else env),
@@ -59,6 +79,7 @@ class DefaultRuntimeConfigGateway:
                 level="workspace" if workspace_id else "process",
                 workspace_id=workspace_id,
             ),
+            change_store=change_store,
         )
 
     def schema(self) -> dict[str, object]:
@@ -81,6 +102,38 @@ class DefaultRuntimeConfigGateway:
             key=key,
             scope=_merge_default_scope(scope, self.default_scope),
             layers=self.layers,
+        )
+
+    def get_change(self, change_id: str) -> RuntimeConfigChange | None:
+        if self.change_store is None:
+            return None
+        return self.change_store.get_change(change_id)
+
+    def get_change_by_idempotency_key(
+        self,
+        idempotency_key: str,
+        scope: RuntimeConfigScope,
+    ) -> RuntimeConfigChange | None:
+        if self.change_store is None:
+            return None
+        return self.change_store.get_change_by_idempotency_key(
+            idempotency_key,
+            _merge_default_scope(scope, self.default_scope),
+        )
+
+    def get_snapshot(self, config_hash: str) -> RuntimeConfigSnapshotRecord | None:
+        if self.change_store is None:
+            return None
+        return self.change_store.get_snapshot(config_hash)
+
+    def list_changes(
+        self,
+        scope: RuntimeConfigScope,
+    ) -> tuple[RuntimeConfigChange, ...]:
+        if self.change_store is None:
+            return ()
+        return self.change_store.list_changes(
+            _merge_default_scope(scope, self.default_scope),
         )
 
 

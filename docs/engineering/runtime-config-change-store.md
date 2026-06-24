@@ -1,6 +1,6 @@
 # Runtime Config Change Store Contract
 
-> Status: C5.1-C5.3 implemented; C5.4-C5.5 deferred.
+> Status: C5.1-C5.4 implemented; C5.5 deferred.
 > Related Plan:
 > [Centralized Runtime Configuration](../plans/feature/centralized-runtime-configuration.md)
 > Related Product Boundary:
@@ -421,15 +421,20 @@ Status: implemented.
 
 ### C5.4 Read Gateway Extension
 
-Status: next.
+Status: implemented.
 
-- Extend read-only gateway with change/snapshot query methods.
-- Keep existing schema/effective/explain routes unchanged.
-- Add tests proving existing read-only endpoints are behavior-compatible.
+- Extended `DefaultRuntimeConfigGateway` with optional
+  `RuntimeConfigChangeStore` queries:
+  - `get_change(...)`
+  - `get_change_by_idempotency_key(...)`
+  - `get_snapshot(...)`
+  - `list_changes(...)`
+- Preserved existing schema/effective/explain HTTP behavior.
+- Added gateway tests and targeted HTTP adapter compatibility tests.
 
 ### C5.5 HTTP Write API Design Gate
 
-Status: deferred.
+Status: next.
 
 - Only after C5.1-C5.4 pass, design write routes:
   - `PATCH /api/v1/runtime/config`
