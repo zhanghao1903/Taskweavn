@@ -15,26 +15,13 @@ from taskweavn.server.ui_contract.audit_disclosure import (
 from taskweavn.server.ui_contract.audit_projection import (
     WorkspaceAuditConfigProvider,
     WorkspaceAuditLogProvider,
-    _audit_entry_context,
-    _audit_entry_kind,
-    _audit_filter_kind,
-    _audit_filters,
-    _audit_overview,
-    _audit_page_state,
-    _audit_record_detail,
-    _audit_record_kind,
-    _audit_records_from_projection,
-    _audit_return_target,
-    _audit_scope,
-    _AuditProjectionBundle,
-    _effective_config,
-    _evidence_detail,
-    _filter_audit_records,
-    _normalize_audit_record_task_identity,
-    _page_audit_records,
-    _related_logs,
-    _require_audit_record,
-    _require_evidence_ref,
+)
+from taskweavn.server.ui_contract.audit_read_helpers import (
+    AuditReadDependencies,
+    get_audit_record_detail_response,
+    get_audit_snapshot_response,
+    get_evidence_detail_response,
+    list_audit_records_response,
 )
 from taskweavn.server.ui_contract.authoring_answer_projection import (
     project_authoring_ask_answer_message_view,
@@ -93,7 +80,6 @@ from taskweavn.server.ui_contract.plan_read_helpers import (
     active_plan_read_context,
     active_stored_plan,
     archived_plan_views,
-    audit_task_read_context,
     file_change_summary_from_plan_nodes,
     result_from_plan_nodes,
 )
@@ -105,8 +91,6 @@ from taskweavn.server.ui_contract.view_models import (
     AskListResult,
     AskRequestView,
     AuditLinkView,
-    AuditPageRequestView,
-    AuditPermissions,
     AuditRecordDetail,
     AuditRecordsResult,
     EvidenceDetail,
@@ -194,6 +178,21 @@ class DefaultUiQueryGateway:
         self._plan_projection = plan_projection or DefaultPlanProjectionService()
         self._plan_store = plan_store
         self._activity_projection = DefaultSessionActivityProjectionService()
+        self._audit_read_deps = AuditReadDependencies(
+            session_reader=self._session_reader,
+            task_projection=self._task_projection,
+            authoring_state_store=self._authoring_state_store,
+            plan_store=self._plan_store,
+            plan_projection=self._plan_projection,
+            project_provider=self._project_provider,
+            workflow_provider=self._workflow_provider,
+            task_timeline_service=self._task_timeline_service,
+            audit_event_provider=self._audit_event_provider,
+            audit_config_provider=self._audit_config_provider,
+            audit_log_provider=self._audit_log_provider,
+            audit_payload_disclosure_service=self._audit_payload_disclosure_service,
+            session_messages=self._session_messages,
+        )
 
     def get_session_snapshot(
         self,
@@ -519,123 +518,18 @@ class DefaultUiQueryGateway:
         cursor: str | None = None,
         request_id: str | None = None,
     ) -> QueryResponse[AuditPageSnapshot]:
-        try:
-            checked_filter = _audit_filter_kind(filter_kind)
-            checked_entry = _audit_entry_kind(entry, task_node_id=task_node_id)
-            bundle = self._audit_projection(session_id, task_node_id=task_node_id)
-            filtered = _filter_audit_records(
-                bundle.records,
-                filter_kind=checked_filter,
-                kind=None,
-                from_time=None,
-                to_time=None,
-            )
-            page_records, next_cursor = _page_audit_records(
-                filtered,
-                limit=limit,
-                cursor=cursor,
-            )
-            should_include_detail = (
-                record_id is not None if include_detail is None else include_detail
-            )
-            related_logs = _related_logs(
-                bundle.session,
-                task_node_id=bundle.record_task_node_id,
-                record_id=record_id,
-                log_provider=self._audit_log_provider,
-            )
-            selected_record = (
-                _audit_record_detail(
-                    _require_audit_record(bundle.records, record_id),
-                    session=bundle.session,
-                    log_provider=self._audit_log_provider,
-                    payload_disclosure_service=self._audit_payload_disclosure_service,
-                    include_evidence=True,
-                    include_sanitized_payload=False,
-                )
-                if record_id is not None and should_include_detail
-                else None
-            )
-            snapshot = AuditPageSnapshot(
-                request=AuditPageRequestView(
-                    filter=checked_filter,
-                    record_id=record_id,
-                    include_detail=should_include_detail,
-                    limit=limit,
-                    cursor=cursor,
-                ),
-                scope=_audit_scope(
-                    bundle.session.id,
-                    task_node_id=task_node_id,
-                    selected_task=bundle.selected_task,
-                ),
-                entry_context=_audit_entry_context(
-                    bundle.session.id,
-                    entry=checked_entry,
-                    task_node_id=task_node_id,
-                    selected_task=bundle.selected_task,
-                    filter_kind=checked_filter,
-                    record_id=record_id,
-                ),
-                return_target=_audit_return_target(
-                    bundle.session_summary,
-                    task_node_id=task_node_id,
-                    record_id=record_id,
-                ),
-                project=bundle.project,
-                workflow=bundle.workflow,
-                session=bundle.session_summary,
-                selected_task=bundle.selected_task,
-                overview=_audit_overview(bundle.records),
-                filters=_audit_filters(bundle.records),
-                records=page_records,
-                selected_record=selected_record,
-                effective_config=_effective_config(
-                    bundle.session,
-                    bundle.records,
-                    self._audit_config_provider,
-                ),
-                related_logs=related_logs,
-                permissions=AuditPermissions(
-                    can_open_related_logs=any(link.enabled for link in related_logs),
-                ),
-                page_state=_audit_page_state(bundle.records, filtered),
-                cursor=next_cursor,
-            )
-            return QueryResponse[AuditPageSnapshot](
-                request_id=request_id or _request_id("audit.snapshot", session_id),
-                ok=True,
-                data=snapshot,
-                error=None,
-                cursor=snapshot.cursor,
-            )
-        except LookupError as exc:
-            return QueryResponse[AuditPageSnapshot](
-                request_id=request_id or _request_id("audit.snapshot", session_id),
-                ok=False,
-                data=None,
-                error=not_found(str(exc), session_id=session_id),
-                cursor=None,
-            )
-        except ValueError as exc:
-            return QueryResponse[AuditPageSnapshot](
-                request_id=request_id or _request_id("audit.snapshot", session_id),
-                ok=False,
-                data=None,
-                error=bad_request(str(exc), session_id=session_id),
-                cursor=None,
-            )
-        except Exception as exc:
-            return QueryResponse[AuditPageSnapshot](
-                request_id=request_id or _request_id("audit.snapshot", session_id),
-                ok=False,
-                data=None,
-                error=internal_error(
-                    "Unable to load audit snapshot",
-                    error_type=type(exc).__name__,
-                ),
-                cursor=None,
-            )
+        return get_audit_snapshot_response(
+            session_id,
+            cursor=cursor,
+            deps=self._audit_read_deps,
+            entry=entry,
+            filter_kind=filter_kind,
+            include_detail=include_detail,
+            limit=limit,
+            record_id=record_id,
+            request_id=request_id,
+            task_node_id=task_node_id,
+        )
 
     def list_audit_records(
         self,
@@ -651,61 +545,19 @@ class DefaultUiQueryGateway:
         include_hidden_reasons: bool = False,
         request_id: str | None = None,
     ) -> QueryResponse[AuditRecordsResult]:
-        try:
-            del include_hidden_reasons
-            checked_filter = _audit_filter_kind(filter_kind)
-            checked_kind = _audit_record_kind(kind)
-            bundle = self._audit_projection(session_id, task_node_id=task_node_id)
-            filtered = _filter_audit_records(
-                bundle.records,
-                filter_kind=checked_filter,
-                kind=checked_kind,
-                from_time=from_time,
-                to_time=to_time,
-            )
-            page_records, next_cursor = _page_audit_records(
-                filtered,
-                limit=limit,
-                cursor=cursor,
-            )
-            return QueryResponse[AuditRecordsResult](
-                request_id=request_id or _request_id("audit.records", session_id),
-                ok=True,
-                data=AuditRecordsResult(
-                    records=page_records,
-                    next_cursor=next_cursor,
-                    total_count=len(filtered),
-                ),
-                error=None,
-                cursor=next_cursor,
-            )
-        except LookupError as exc:
-            return QueryResponse[AuditRecordsResult](
-                request_id=request_id or _request_id("audit.records", session_id),
-                ok=False,
-                data=None,
-                error=not_found(str(exc), session_id=session_id),
-                cursor=None,
-            )
-        except ValueError as exc:
-            return QueryResponse[AuditRecordsResult](
-                request_id=request_id or _request_id("audit.records", session_id),
-                ok=False,
-                data=None,
-                error=bad_request(str(exc), session_id=session_id),
-                cursor=None,
-            )
-        except Exception as exc:
-            return QueryResponse[AuditRecordsResult](
-                request_id=request_id or _request_id("audit.records", session_id),
-                ok=False,
-                data=None,
-                error=internal_error(
-                    "Unable to list audit records",
-                    error_type=type(exc).__name__,
-                ),
-                cursor=None,
-            )
+        return list_audit_records_response(
+            session_id,
+            cursor=cursor,
+            deps=self._audit_read_deps,
+            filter_kind=filter_kind,
+            from_time=from_time,
+            include_hidden_reasons=include_hidden_reasons,
+            kind=kind,
+            limit=limit,
+            request_id=request_id,
+            task_node_id=task_node_id,
+            to_time=to_time,
+        )
 
     def get_audit_record_detail(
         self,
@@ -716,42 +568,14 @@ class DefaultUiQueryGateway:
         include_sanitized_payload: bool = False,
         request_id: str | None = None,
     ) -> QueryResponse[AuditRecordDetail]:
-        try:
-            bundle = self._audit_projection(session_id, task_node_id=None)
-            record = _require_audit_record(bundle.records, record_id)
-            return QueryResponse[AuditRecordDetail](
-                request_id=request_id or _request_id("audit.record", record_id),
-                ok=True,
-                data=_audit_record_detail(
-                    record,
-                    session=bundle.session,
-                    log_provider=self._audit_log_provider,
-                    payload_disclosure_service=self._audit_payload_disclosure_service,
-                    include_evidence=include_evidence,
-                    include_sanitized_payload=include_sanitized_payload,
-                ),
-                error=None,
-                cursor=None,
-            )
-        except LookupError as exc:
-            return QueryResponse[AuditRecordDetail](
-                request_id=request_id or _request_id("audit.record", record_id),
-                ok=False,
-                data=None,
-                error=not_found(str(exc), session_id=session_id, record_id=record_id),
-                cursor=None,
-            )
-        except Exception as exc:
-            return QueryResponse[AuditRecordDetail](
-                request_id=request_id or _request_id("audit.record", record_id),
-                ok=False,
-                data=None,
-                error=internal_error(
-                    "Unable to load audit record detail",
-                    error_type=type(exc).__name__,
-                ),
-                cursor=None,
-            )
+        return get_audit_record_detail_response(
+            session_id,
+            record_id,
+            deps=self._audit_read_deps,
+            include_evidence=include_evidence,
+            include_sanitized_payload=include_sanitized_payload,
+            request_id=request_id,
+        )
 
     def get_evidence_detail(
         self,
@@ -761,117 +585,12 @@ class DefaultUiQueryGateway:
         include_sanitized_payload: bool = False,
         request_id: str | None = None,
     ) -> QueryResponse[EvidenceDetail]:
-        try:
-            bundle = self._audit_projection(session_id, task_node_id=None)
-            record, evidence_ref = _require_evidence_ref(bundle.records, evidence_id)
-            return QueryResponse[EvidenceDetail](
-                request_id=request_id or _request_id("audit.evidence", evidence_id),
-                ok=True,
-                data=_evidence_detail(
-                    record,
-                    evidence_ref,
-                    session=bundle.session,
-                    payload_disclosure_service=self._audit_payload_disclosure_service,
-                    include_sanitized_payload=include_sanitized_payload,
-                ),
-                error=None,
-                cursor=None,
-            )
-        except LookupError as exc:
-            return QueryResponse[EvidenceDetail](
-                request_id=request_id or _request_id("audit.evidence", evidence_id),
-                ok=False,
-                data=None,
-                error=not_found(str(exc), session_id=session_id, evidence_id=evidence_id),
-                cursor=None,
-            )
-        except Exception as exc:
-            return QueryResponse[EvidenceDetail](
-                request_id=request_id or _request_id("audit.evidence", evidence_id),
-                ok=False,
-                data=None,
-                error=internal_error(
-                    "Unable to load evidence detail",
-                    error_type=type(exc).__name__,
-                ),
-                cursor=None,
-            )
-
-    def _audit_projection(
-        self,
-        session_id: str,
-        *,
-        task_node_id: str | None,
-    ) -> _AuditProjectionBundle:
-        session = self._session_reader.get(session_id)
-        if session is None:
-            raise LookupError("session not found")
-
-        source_tree = self._task_projection.list_task_tree(session.id)
-        task_tree = _map_optional_task_tree(
-            source_tree,
-            authoring_state_store=self._authoring_state_store,
-        )
-        stored_plan = active_stored_plan(
-            session.id,
-            plan_store=self._plan_store,
-            authoring_state_store=self._authoring_state_store,
-        )
-        audit_context = audit_task_read_context(
-            task_node_id=task_node_id,
-            legacy_task_tree=task_tree,
-            stored_plan=stored_plan,
-            plan_projection=self._plan_projection,
-        )
-        task_tree = audit_context.task_tree
-        selected_task = audit_context.selected_task
-        if task_node_id is not None and selected_task is None:
-            raise LookupError("task not found")
-
-        project = self._project_provider.get_project()
-        workflow = self._workflow_provider.get_workflow(session)
-        confirmations = _confirmations_from_tree(source_tree, session_id=session.id)
-        messages = _merge_messages(
-            _messages_from_tree(source_tree),
-            self._session_messages(session.id),
-        )
-        session_summary = _session_summary(
-            session,
-            project=project,
-            workflow=workflow,
-            status=_derive_session_status(
-                session,
-                task_tree=task_tree,
-                confirmations=confirmations,
-                messages=messages,
-            ),
-        )
-        records = _audit_records_from_projection(
-            source_tree,
-            session_id=session.id,
-            task_node_id=audit_context.record_source_task_node_id,
-            messages=messages,
-            task_projection=self._task_projection,
-            task_timeline_service=self._task_timeline_service,
-            event_provider=self._audit_event_provider,
-            config_provider=self._audit_config_provider,
-            log_provider=self._audit_log_provider,
-            session=session,
-        )
-        records = _normalize_audit_record_task_identity(
-            records,
-            task_node_ids_by_legacy_id=audit_context.task_node_ids_by_legacy_id,
-        )
-        return _AuditProjectionBundle(
-            session=session,
-            session_summary=session_summary,
-            project=project,
-            workflow=workflow,
-            source_tree=source_tree,
-            task_tree=task_tree,
-            selected_task=selected_task,
-            record_task_node_id=audit_context.record_task_node_id,
-            records=records,
+        return get_evidence_detail_response(
+            session_id,
+            evidence_id,
+            deps=self._audit_read_deps,
+            include_sanitized_payload=include_sanitized_payload,
+            request_id=request_id,
         )
 
     def _audit_links(self, session_id: str) -> tuple[AuditLinkView, ...]:
