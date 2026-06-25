@@ -101,5 +101,5 @@ Additional P1 beta-depth checks:
 | P1 | Copy Product 1.1 beta external release notes into the public repository release docs when publishing. |
 | P1 | Optionally fold sidecar restart replay evidence into mounted installer smoke before a broader external beta. |
 | P1 | Add optional real/LLM-rendered read-only inquiry smoke evidence. |
-| P1 | Continue stop/cancel UX, token budget warnings, localization, and web retrieval beta hardening. |
+| P1 | Continue stop/cancel UX, token budget warnings, localization, and web retrieval beta hardening; web retrieval user-visible beta limitations are defined in [Product docs](../product/plato-1-1-web-retrieval-beta-limitations.md). |
 | P2 | Signed/notarized distribution and broader platform expansion. |

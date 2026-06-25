@@ -1,8 +1,8 @@
 # Feature Plan: Execution Web Search Capability
 
-> Status: implemented
+> Status: implemented; Product 1.1 beta hardening in progress
 >
-> Last Updated: 2026-06-15
+> Last Updated: 2026-06-24
 >
 > Owner: Product / Agents / Backend / Trust / Frontend
 >
@@ -96,6 +96,12 @@ Product 1.1 execution web search is implemented in the current `main` branch:
 Remaining work is follow-up hardening: advanced search mode, hosted-provider
 adapters, per-session retrieval budgets, broader citation UI, and optional
 manual Tavily smoke when a real key is available.
+
+Product 1.1 beta hardening now includes a read-only inquiry fallback guard:
+when web search evidence is collected only to support LLM synthesis and the LLM
+provider still cannot produce a safe answer, Plato keeps the collected web refs
+as evidence but does not render the raw search evidence block as the user-facing
+answer.
 
 ## 4. Non-Goals
 
@@ -322,6 +328,27 @@ Acceptance:
 
 - deterministic CI stays offline;
 - manual smoke can verify one real `basic` Tavily search when a key is present.
+
+### EWS-8. Product 1.1 Fallback Hardening
+
+Status: in progress in `codex/product-1-1-web-retrieval-fallback-hardening`.
+
+Deliver:
+
+- read-only inquiry keeps web search evidence available to the LLM provider;
+- if the LLM provider fails or returns unsafe output after web evidence is
+  collected, the result remains unsupported instead of rendering the raw
+  evidence block as an answer;
+- deterministic regression coverage uses a mock search provider and simulated
+  LLM failure.
+
+Acceptance:
+
+- the second LLM call still receives bounded web evidence context;
+- the final result preserves web evidence refs for downstream query and
+  diagnostics linkage;
+- the final user-facing answer is empty for unsupported fallback, so the UI can
+  show a concise unsupported/recovery message instead of a long search dump.
 
 ## 9. Open Questions
 

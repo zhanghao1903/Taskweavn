@@ -242,6 +242,8 @@ Display rules:
 - Diagnostics include redacted usage summaries.
 - Focused tests cover usage normalization, aggregation, cache rate fallback,
   and workspace path redaction.
+- Main Page contextual token usage shows a visible high-usage warning once a
+  scope reaches the Product 1.1 beta warning threshold.
 
 ## 11. Decisions And Deferred Items
 
@@ -253,6 +255,9 @@ Display rules:
    user-facing UI; provider-reported cache hit rate is shown with source labels.
 4. Model price tables, budget enforcement, and quota stop policy are deferred
    until a separate pricing/budget contract is accepted.
+5. Product 1.1 beta uses a visible warning-only threshold of 1,000,000 tokens
+   for contextual Main Page usage. This is not billing, quota enforcement, or
+   an execution stop policy.
 
 ## 12. Implemented Slice
 
