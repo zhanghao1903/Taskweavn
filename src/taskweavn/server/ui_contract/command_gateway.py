@@ -2,6 +2,11 @@
 
 from __future__ import annotations
 
+from taskweavn.server.ui_contract.command_ask_helpers import (
+    answer_ask_command,
+    cancel_ask_command,
+    defer_ask_command,
+)
 from taskweavn.server.ui_contract.command_mapping import (
     _child_idempotency_key,
     _command_bad_request_response,
@@ -43,7 +48,6 @@ from taskweavn.server.ui_contract.envelopes import CommandRequest, CommandRespon
 from taskweavn.server.ui_contract.gateway_protocols import TaskRefResolver
 from taskweavn.server.ui_contract.mapping import map_task_tree_view
 from taskweavn.server.ui_contract.refs import (
-    AffectedObjectImpact,
     AffectedObjectRef,
     AffectedScope,
     ObjectRef,
@@ -600,29 +604,7 @@ class DefaultUiCommandGateway:
         request: CommandRequest[AnswerAskPayload],
     ) -> CommandResponse:
         try:
-            if self._ask_commands is None:
-                return _command_response(
-                    request,
-                    CoreCommandResult(
-                        status="rejected",
-                        message="ASK command service is not configured",
-                    ),
-                )
-            result = self._ask_commands.answer_ask(
-                request.session_id,
-                ask_id,
-                selected_option_ids=request.payload.selected_option_ids,
-                text=request.payload.text,
-                idempotency_key=request.idempotency_key,
-                command_id=request.command_id,
-            )
-            return _ask_command_response(
-                request,
-                result,
-                ask_id=ask_id,
-                impact="changed",
-                reason="ASK was answered.",
-            )
+            return answer_ask_command(self._ask_commands, ask_id, request)
         except Exception as exc:
             return _command_exception_response(request, exc)
 
@@ -795,28 +777,7 @@ class DefaultUiCommandGateway:
         request: CommandRequest[DeferAskPayload],
     ) -> CommandResponse:
         try:
-            if self._ask_commands is None:
-                return _command_response(
-                    request,
-                    CoreCommandResult(
-                        status="rejected",
-                        message="ASK command service is not configured",
-                    ),
-                )
-            result = self._ask_commands.defer_ask(
-                request.session_id,
-                ask_id,
-                reason=request.payload.reason,
-                idempotency_key=request.idempotency_key,
-                command_id=request.command_id,
-            )
-            return _ask_command_response(
-                request,
-                result,
-                ask_id=ask_id,
-                impact="changed",
-                reason="ASK was deferred.",
-            )
+            return defer_ask_command(self._ask_commands, ask_id, request)
         except Exception as exc:
             return _command_exception_response(request, exc)
 
@@ -826,28 +787,7 @@ class DefaultUiCommandGateway:
         request: CommandRequest[CancelAskPayload],
     ) -> CommandResponse:
         try:
-            if self._ask_commands is None:
-                return _command_response(
-                    request,
-                    CoreCommandResult(
-                        status="rejected",
-                        message="ASK command service is not configured",
-                    ),
-                )
-            result = self._ask_commands.cancel_ask(
-                request.session_id,
-                ask_id,
-                reason=request.payload.reason,
-                idempotency_key=request.idempotency_key,
-                command_id=request.command_id,
-            )
-            return _ask_command_response(
-                request,
-                result,
-                ask_id=ask_id,
-                impact="changed",
-                reason="ASK was cancelled.",
-            )
+            return cancel_ask_command(self._ask_commands, ask_id, request)
         except Exception as exc:
             return _command_exception_response(request, exc)
 
@@ -949,35 +889,3 @@ class DefaultUiCommandGateway:
             provided_task_tree_id=provided,
             active_draft_tree_id=active_id,
         )
-
-
-def _ask_command_response[T](
-    request: CommandRequest[T],
-    result: CoreCommandResult,
-    *,
-    ask_id: str,
-    impact: AffectedObjectImpact,
-    reason: str,
-) -> CommandResponse:
-    ask_ref = ObjectRef(kind="ask", id=ask_id)
-    return _command_response(
-        request,
-        result,
-        object_refs=(ask_ref,),
-        affected_objects=(
-            AffectedObjectRef(
-                ref=ask_ref,
-                impact=impact,
-                reason=reason,
-            ),
-        ),
-        suggested_queries=("session.snapshot", "asks", "task.tree", "task.detail"),
-        affected_scopes=(
-            AffectedScope(kind="asks"),
-            AffectedScope(kind="task_tree"),
-            *(
-                AffectedScope(kind="task_detail", task_ref=task_ref)
-                for task_ref in result.affected_task_refs
-            ),
-        ),
-    )
