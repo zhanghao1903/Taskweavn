@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -40,10 +40,75 @@ def collect_inspection_evidence_summary(
             "schemaVersion": "plato.workspace_inspection.diagnostic_summary.v1",
             "evidenceCount": len(records),
             "includedEvidenceCount": len(records),
+            "supportSummary": _support_summary(records, max_records=max_records),
             "records": [_record_summary(record) for record in records],
         },
         tuple(warnings),
     )
+
+
+def _support_summary(
+    records: Sequence[Mapping[str, Any]],
+    *,
+    max_records: int,
+) -> dict[str, Any]:
+    records_by_kind = _count_by(records, "kind")
+    records_by_source = _count_by(records, "source")
+    omitted_payload_count = 0
+    latest_captured_at: str | None = None
+
+    for record in records:
+        payload = _mapping(record.get("payload"))
+        if payload.get("omitted") is True:
+            omitted_payload_count += 1
+        captured_at = record.get("capturedAt")
+        if isinstance(captured_at, str) and (
+            latest_captured_at is None or captured_at > latest_captured_at
+        ):
+            latest_captured_at = captured_at
+
+    return {
+        "schemaVersion": "plato.workspace_inspection.support_summary.v1",
+        "recordCount": len(records),
+        "recordLimit": max_records,
+        "recordsByKind": records_by_kind,
+        "recordsBySource": records_by_source,
+        "latestCapturedAt": latest_captured_at,
+        "omittedPayloadCount": omitted_payload_count,
+        "availableEvidenceKinds": tuple(sorted(records_by_kind)),
+        "hasGitStatusEvidence": "git_status_snapshot" in records_by_kind,
+        "hasDiffEvidence": "diff_snapshot" in records_by_kind,
+        "hasFileEvidence": "file_snapshot" in records_by_kind,
+        "previewLimits": {
+            "maxPreviewLines": MAX_DIAGNOSTIC_PREVIEW_LINES,
+            "maxPreviewChars": MAX_DIAGNOSTIC_PREVIEW_CHARS,
+        },
+        "supportUse": (
+            "Use evidenceRef.pathLabel and payloadSummary to identify the inspected file or diff.",
+            "Use contentHash when present to compare whether later evidence "
+            "describes the same content.",
+            "Use manifest section warnings to see whether the evidence list was truncated.",
+        ),
+        "limitations": (
+            "The diagnostic bundle includes descriptors and small redacted previews only.",
+            "Raw unified diffs and full file contents are intentionally excluded.",
+            "Only the most recent workspace inspection evidence records are included.",
+        ),
+    }
+
+
+def _count_by(
+    records: Sequence[Mapping[str, Any]],
+    key: str,
+) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for record in records:
+        value = record.get(key)
+        if value is None:
+            continue
+        label = str(value)
+        counts[label] = counts.get(label, 0) + 1
+    return dict(sorted(counts.items()))
 
 
 def _record_summary(record: Mapping[str, Any]) -> dict[str, Any]:

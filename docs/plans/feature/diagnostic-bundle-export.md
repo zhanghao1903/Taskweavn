@@ -1,7 +1,8 @@
 # Feature Plan: Diagnostic Bundle Export
 
-> Status: accepted for Product 1.0 local unsigned RC
-> Last Updated: 2026-06-07
+> Status: accepted for Product 1.0 local unsigned RC; Product 1.1 support
+> descriptor hardening in progress
+> Last Updated: 2026-06-24
 > Gap: [Diagnostic bundle](../../gaps/README.md)
 > Architecture: [Configurable Logging System](../../architecture/configurable-logging-system.md), [UI And Backend Communication](../../architecture/ui-backend-communication.md), [Task Domain/UI Model Separation](../../architecture/task-domain-ui-model-separation.md)
 > Product: [Plato Settings, Logs, And Audit Boundary](../../product/plato-settings-logs-audit-boundary.md), [Plato Product 1.0 Frontend QA Runbook](../../product/plato-1-0-frontend-qa-runbook.md)
@@ -246,6 +247,27 @@ Acceptance:
   collection;
 - support can inspect manifest first and know what was included or skipped.
 
+### D6 Product 1.1 Support Descriptors
+
+Deliver beta-depth descriptors that help support understand the bundle without
+opening raw stores:
+
+- workspace inspection support summary with evidence counts by kind/source,
+  latest capture timestamp, omitted-payload count, preview limits, safe support
+  use guidance, and explicit limitations;
+- future follow-up: per-route Electron log descriptors once a concrete support
+  path needs route-level log correlation;
+- future follow-up: higher-level support summary if support starts triaging
+  multiple diagnostic sections manually.
+
+Acceptance:
+
+- descriptors do not include raw diffs, full file contents, raw prompts,
+  provider payloads, secrets, or absolute paths;
+- existing `manifest.json` remains the bundle file inventory authority;
+- tests prove descriptor presence and redaction boundaries for at least one
+  workspace inspection evidence bundle.
+
 ---
 
 ## 7. Contract / API Changes
@@ -380,12 +402,23 @@ Product 1.0 local RC closure:
 - Mounted unsigned DMG smoke covers Diagnostic Bundle export through the
   launcher-backed bundled runtime.
 
+Product 1.1 support descriptor hardening:
+
+- Implemented in `codex/product-1-1-diagnostics-inspection-summary`:
+  `inspection/evidence.summary.json` now includes a `supportSummary` object for
+  workspace inspection evidence. The summary records evidence counts by
+  kind/source, latest capture time, omitted payload count, preview limits,
+  support-use hints, and explicit limitations while preserving the existing
+  redacted descriptor-only boundary.
+
 Follow-ups:
 
 - Broaden Audit-specific diagnostic refs beyond task result failures when
   additional support paths need them.
 - Add richer QA handoff copy beyond the in-app descriptor state if early tester
   support needs it.
+- Add per-route Electron log descriptors if beta support needs route-level log
+  correlation.
 - Signed/notarized distribution validation is deferred under the Packaging plan
   until Apple Developer credentials are available.
 
