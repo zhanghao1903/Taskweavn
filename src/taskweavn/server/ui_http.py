@@ -52,13 +52,18 @@ from taskweavn.server.ui_http_inspection import (
     WorkspaceInspectionGateway,
     _workspace_inspection_response,
 )
+from taskweavn.server.ui_http_lifecycle import (
+    SessionLifecycleGateway,
+    _health_response,
+    _root_response,
+    _session_lifecycle_response,
+)
 from taskweavn.server.ui_http_query_params import (
     _bool_query,
     _int_query,
     _optional_bool_query,
     _parse_command_request,
     _request_query,
-    _string_body_value,
 )
 from taskweavn.server.ui_http_responses import (
     _contract_response,
@@ -83,18 +88,6 @@ from taskweavn.server.ui_http_usage import (
     _usage_token_summary_response,
 )
 from taskweavn.task import ExecutionTriggerGateway
-
-
-class SessionLifecycleGateway(Protocol):
-    """Small session lifecycle boundary used by the local Main Page sidecar."""
-
-    def list_sessions(self) -> dict[str, Any]: ...
-
-    def create_session(self, name: str) -> dict[str, Any]: ...
-
-    def rename_session(self, session_id: str, name: str) -> dict[str, Any]: ...
-
-    def delete_session(self, session_id: str) -> dict[str, Any]: ...
 
 
 class SnapshotRecoveryGateway(Protocol):
@@ -218,74 +211,9 @@ class PlatoUiHttpTransport:
 
         try:
             if route_name == "root":
-                return _json_response(
-                    {
-                        "ok": True,
-                        "data": {
-                            "name": "Plato Sidecar",
-                            "version": "0.1.0",
-                            "api_base_path": "/api/v1",
-                            "health_url": "/api/v1/health",
-                            "settings_readiness_url": (
-                                "/api/v1/settings/readiness"
-                            ),
-                            "settings_config_url": "/api/v1/settings/config",
-                            "runtime_config_schema_url": (
-                                "/api/v1/runtime/config/schema"
-                            ),
-                            "runtime_config_effective_url": (
-                                "/api/v1/runtime/config/effective"
-                            ),
-                            "runtime_config_explain_url_template": (
-                                "/api/v1/runtime/config/explain?key={key}"
-                            ),
-                            "runtime_config_changes_url": (
-                                "/api/v1/runtime/config/changes"
-                            ),
-                            "runtime_config_snapshot_url_template": (
-                                "/api/v1/runtime/config/snapshots/{configHash}"
-                            ),
-                            "settings_readiness_recheck_url": (
-                                "/api/v1/settings/readiness/recheck"
-                            ),
-                            "snapshot_url_template": (
-                                "/api/v1/sessions/{sessionId}/snapshot"
-                            ),
-                            "activity_url_template": (
-                                "/api/v1/sessions/{sessionId}/activity"
-                            ),
-                            "runtime_input_route_url_template": (
-                                "/api/v1/sessions/{sessionId}/runtime-input/route"
-                            ),
-                            "events_url_template": (
-                                "/api/v1/sessions/{sessionId}/events"
-                            ),
-                            "dispatch_url_template": (
-                                "/api/v1/sessions/{sessionId}/execution/dispatch"
-                            ),
-                            "diagnostics_export_url_template": (
-                                "/api/v1/sessions/{sessionId}/diagnostics/export"
-                            ),
-                            "token_usage_summary_url_template": (
-                                "/api/v1/usage/token-summary?dimension={dimension}"
-                            ),
-                            "task_api_url": "/api/v1/tasks",
-                            "task_api_url_template": "/api/v1/tasks/{executionId}",
-                        },
-                        "error": None,
-                    }
-                )
+                return _root_response()
             if route_name == "health":
-                return _json_response(
-                    {
-                        "ok": True,
-                        "data": {
-                            "name": "Plato Sidecar",
-                            "version": "0.1.0",
-                        },
-                        "error": None,
-                    }
-                )
+                return _health_response()
             if route_name == "settings_readiness":
                 return _settings_readiness_response(
                     request,
@@ -362,37 +290,10 @@ class PlatoUiHttpTransport:
                     }
                 )
             if route_name == "sessions":
-                lifecycle = self._require_session_lifecycle(request)
-                if isinstance(lifecycle, HttpApiResponse):
-                    return lifecycle
-                if request.method.upper() == "GET":
-                    return _json_response(
-                        {
-                            "ok": True,
-                            "data": lifecycle.list_sessions(),
-                            "error": None,
-                        }
-                    )
-                if request.method.upper() != "POST":
-                    return _error_response(
-                        405,
-                        ApiError(
-                            code="bad_request",
-                            message="sessions requires GET or POST",
-                            details={"allowed_methods": ["GET", "POST"]},
-                        ),
-                        request_id=_request_id_hint(request),
-                        headers={"allow": "GET, POST"},
-                    )
-                name = _string_body_value(request, "name", default="New session")
-                if isinstance(name, HttpApiResponse):
-                    return name
-                return _json_response(
-                    {
-                        "ok": True,
-                        "data": lifecycle.create_session(name),
-                        "error": None,
-                    }
+                return _session_lifecycle_response(
+                    request,
+                    gateway=self._session_lifecycle_gateway,
+                    route_name=route_name,
                 )
             if route_name == "snapshot":
                 self._recover_before_snapshot(route.session_id)
@@ -496,29 +397,18 @@ class PlatoUiHttpTransport:
                     )
                 )
             if route_name == "rename_session":
-                lifecycle = self._require_session_lifecycle(request)
-                if isinstance(lifecycle, HttpApiResponse):
-                    return lifecycle
-                name = _string_body_value(request, "name")
-                if isinstance(name, HttpApiResponse):
-                    return name
-                return _json_response(
-                    {
-                        "ok": True,
-                        "data": lifecycle.rename_session(route.session_id, name),
-                        "error": None,
-                    }
+                return _session_lifecycle_response(
+                    request,
+                    gateway=self._session_lifecycle_gateway,
+                    route_name=route_name,
+                    session_id=route.session_id,
                 )
             if route_name == "delete_session":
-                lifecycle = self._require_session_lifecycle(request)
-                if isinstance(lifecycle, HttpApiResponse):
-                    return lifecycle
-                return _json_response(
-                    {
-                        "ok": True,
-                        "data": lifecycle.delete_session(route.session_id),
-                        "error": None,
-                    }
+                return _session_lifecycle_response(
+                    request,
+                    gateway=self._session_lifecycle_gateway,
+                    route_name=route_name,
+                    session_id=route.session_id,
                 )
             if route_name == "append_session_input":
                 append_session_request = _parse_command_request(
@@ -855,22 +745,6 @@ class PlatoUiHttpTransport:
                 error_type=type(exc).__name__,
                 session_id=session_id,
             )
-
-    def _require_session_lifecycle(
-        self,
-        request: HttpApiRequest,
-    ) -> SessionLifecycleGateway | HttpApiResponse:
-        if self._session_lifecycle_gateway is not None:
-            return self._session_lifecycle_gateway
-        return _error_response(
-            501,
-            ApiError(
-                code="internal_error",
-                message="session lifecycle gateway is not configured",
-            ),
-            request_id=_request_id_hint(request),
-        )
-
 
 def _safe_query(query: dict[str, str]) -> dict[str, str]:
     return {
