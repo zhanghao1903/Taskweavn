@@ -2,7 +2,7 @@
 
 > Status: implemented Product 1.1 foundation
 >
-> Last Updated: 2026-06-10
+> Last Updated: 2026-06-24
 >
 > Owner: Product / Frontend
 >
@@ -176,12 +176,28 @@ acceptance pass needs manual switching immediately.
 - Deferred: add one Electron smoke or sidecar E2E path that exercises the configured
   locale once the selector/runtime override exists.
 
+### C8. Execution ASK And Confirmation Detail Polish
+
+- Implemented in `codex/product-1-1-localization-polish`: execution ASK detail
+  controls, validation text, stale-question recovery text, ASK status labels,
+  and generated batch-answer prefixes now read from the UI system text
+  registry.
+- Implemented in `codex/product-1-1-localization-polish`: confirmation detail
+  controls, fallback options, status labels, impact fallback text, validation
+  text, and read-only terminal text now read from the UI system text registry.
+- Scope boundary: backend-provided ASK questions, reasons, option labels,
+  confirmation bodies, generated task content, and LLM output remain source
+  content and are not translated by the UI registry.
+
 ## 7. Acceptance Criteria
 
 - UI system text keys are typed and shared through a stable frontend API.
 - `en-US` and `zh-CN` catalogs have identical key coverage.
 - Main Page and Settings no longer introduce new user-facing text outside the
   registry after their migration slices.
+- Execution ASK and confirmation detail chrome can render through `en-US` and
+  `zh-CN` catalog keys without changing backend facts or user/LLM-authored
+  content.
 - Product error recovery labels can render in both languages.
 - Backend APIs do not expose raw exception, prompt, provider, log, or SQLite
   payloads as user-facing localized text.
@@ -213,6 +229,8 @@ Implemented on 2026-06-10:
 - Main Page, Settings/first-run, Diagnostics, Workspace Inspection, and the
   stable Audit label helpers now use the registry for renderer-owned UI system
   text.
+- Execution ASK and confirmation detail chrome use typed catalog keys for their
+  renderer-owned labels, actions, statuses, validation, and fallback messages.
 - Full frontend unit test suite and production build pass.
 
 ## 10. Remaining Follow-Ups

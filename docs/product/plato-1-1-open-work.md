@@ -1,8 +1,8 @@
 # Plato Product 1.1 Open Work
 
-> Status: active open-work index
+> Status: active open-work index; Product 1.1 P1 beta-readiness accepted
 >
-> Last Updated: 2026-06-20
+> Last Updated: 2026-06-25
 >
 > Scope: Product 1.1 unfinished product work after the accepted workspace,
 > precision-tool, read-only inquiry, token-usage, and local Electron beta
@@ -29,16 +29,20 @@ The current Product 1.1 state is:
   packaged app, and mounted `1.1-beta` installer smoke pass the Runtime Input
   route matrix, Audit / Diagnostics closure, startup diagnostics, and first-run
   paths;
-- the remaining Product 1.1 risk has moved to P1 beta-depth work: sidecar
-  restart replay, optional LLM-rendered inquiry smoke, public repository
-  release-note sync, signed/notarized distribution, and broader release polish.
+- Product 1.1 P1 beta-depth work is accepted for this repository: sidecar
+  restart replay confidence, web retrieval trust polish, stop/cancel wording,
+  token budget warning, diagnostics descriptors, localization polish, and
+  public release-note preparation are now represented on `main`;
+- remaining release operations are external or credential-gated: copying
+  prepared public release notes into an external repository and signed /
+  notarized distribution after Apple Developer credentials exist.
 
 ## 2. Priority Model
 
 | Priority | Meaning | Product 1.1 rule |
 |---|---|---|
 | P0 | Required to make Product 1.1 feel like one coherent collaboration loop. | Must be planned and closed before calling Product 1.1 product-complete. |
-| P1 | Release hardening, trust polish, or beta-readiness work. | Should be pulled in when it protects user trust or reduces support risk. |
+| P1 | Release hardening, trust polish, or beta-readiness work. | Accepted for the current Product 1.1 beta-readiness pass; future P1-like work should open a new release scope. |
 | P2 | Platform expansion after the Product 1.1 loop is coherent. | Keep planned, but do not let it block P0 closure. |
 
 ## 3. Accepted Or Implemented 1.1 Baselines
@@ -186,32 +190,41 @@ The P0 milestone is accepted when:
     to release docs, packaged-release evidence, mounted `1.1-beta` installer
     smoke, SHA256, and known limitations.
 
-## 5. P1 Open Work
+## 5. P1 Accepted Closure
 
-| Area | Open work | Why P1 |
+| Area | Closure | Remaining boundary |
 |---|---|---|
-| Workspace inspection hardening | Decide whether viewer route openings should automatically capture durable evidence; add richer Audit evidence detail expansion; keep raw unified diff deferred unless a concrete UI/diagnostic need appears. | Useful for trust and support, but the accepted inspection milestone already covers the beta path. |
-| Precision file tools product acceptance | Run broader sidecar/Electron evidence-link smoke after frontend entry points consume precision evidence links. | Tool/backend scope is complete; remaining work is acceptance depth. |
-| Stop / cancel UX | Represent intentional user stop as `stopped` or `cancelled`, not as a generic `failed` state with `Retry`. | Avoids user trust damage in long-running tasks. |
-| Token usage budget boundary | Add visible warning or budget boundary for long-running or extremely high-token execution. | Prevents cost surprises during beta use. |
-| Diagnostics descriptors | Add richer beta-depth diagnostic bundle descriptors for workspace inspection evidence, per-route Electron logs, and support-oriented summaries. | Improves supportability beyond the P0 route-matrix closure. |
-| Localization polish | Clean remaining mixed English/Chinese execution ASK and recovery copy; continue moving UI system text behind typed keys. | Product quality issue for zh-CN beta builds. |
-| Web retrieval beta hardening | Verify real Tavily Search/Extract smoke, broader citation/result UI, Audit projection depth, user-visible limitations, and future retrieval budget boundaries. | Search/fetch are implemented; the remaining work is beta trust and release evidence, not first capability delivery. |
-| Electron release hardening | Keep packaged/installer smoke current for Product 1.1 paths; add sidecar restart replay; signed/notarized distribution remains deferred until Apple Developer credentials exist. | Protects beta release quality. |
-| External release docs sync | Mirror Product 1.1 beta evidence and known limitations into the public repository release/user docs when publishing externally. | Public-facing clarity matters, but the internal P0 release evidence is now closed. |
+| Workspace inspection hardening | Accepted on `main`: Audit file-change evidence uses the dedicated `workspace_inspection` source, and durable capture policy is documented. | Raw unified diff capture remains deferred until a concrete UI/diagnostic need appears. |
+| Precision file tools product acceptance | Accepted on `main`: sidecar acceptance smoke covers precision file tool evidence linkage. | Broader frontend-driven evidence-link smoke can be added after more entry points consume precision evidence links. |
+| Stop / cancel UX | Accepted on `main`: intentional stops project as cancelled/stopped user intent instead of generic failed/retry language. | No Product 1.1 blocker remains. |
+| Token usage budget boundary | Accepted on `main`: long-running / high-token execution has visible beta trust warning boundaries. | Budget enforcement and billing controls remain future product tracks. |
+| Diagnostics descriptors | Accepted on `main`: workspace inspection support summaries and per-route Electron log descriptor planning are linked. | Additional descriptor depth should be added only when support cases require it. |
+| Localization polish | Accepted on `main`: execution ASK and confirmation detail chrome use typed `en-US` / `zh-CN` UI system text keys. | Backend-provided ASK / confirmation content and LLM output remain source content. |
+| Web retrieval beta hardening | Accepted on `main`: fallback hardening, live Tavily smoke runbook, beta limitations, citation/result UI plan, and retrieval budget boundary plan are linked. | Advanced providers, richer source previews, and enforced retrieval budgets remain Product 1.1+ hardening. |
+| Electron release hardening | Accepted on `main`: sidecar restart replay confidence and route-log descriptor planning are linked. | Mounted installer replay is optional release-gate depth; signed/notarized distribution remains credential-gated. |
+| External release docs sync | Accepted internally on `main`: public-facing Product 1.1 beta source release notes mirror shipped behavior, verification, artifact metadata, known limitations, safe claims, and publishing checklist. | Copying prepared notes into an external public repository remains a publishing operation outside this repo closure. |
 
 ## 5.1 Recommended Next Product Branches
 
 The next branches should be selected in this order:
 
-1. **Sidecar restart replay confidence**: prove durable Conversation /
-   Activity replay after killing and relaunching the packaged sidecar, then
-   fold that into installer smoke if it remains stable.
-2. **External Product 1.1 release docs sync**: mirror the internal Product 1.1
-   beta release record into the public repository docs with user-facing known
-   limitations.
-3. **P1 beta polish**: stop/cancel UX, token budget warnings, localization
-   cleanup, and web retrieval release evidence.
+1. **External public repository publication**: copy the prepared Product 1.1
+   beta external release notes into the public repository release/user docs and
+   attach the beta artifact/checksum when publishing.
+2. **Signed / notarized distribution planning**: start only after Apple
+   Developer credentials exist.
+3. **Next Product 1.1+ hardening scope**: open a new release scope for richer
+   web retrieval UI, enforced retrieval budgets, or support-driven diagnostic
+   depth instead of reopening this P1 closure.
+
+## 5.2 P1 Coverage Audit
+
+The current P1 split-work coverage is tracked in
+[Plato Product 1.1 P1 Coverage Audit - 2026-06-24](plato-1-1-p1-coverage-audit-2026-06-24.md).
+
+That audit now records which Product 1.1 P1 rows were accepted on `main` and
+which rows are explicitly deferred as external release operations or later
+hardening. It is the P1 closure record for this repository.
 
 ## 6. P2 Open Work
 

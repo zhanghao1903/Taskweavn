@@ -16,7 +16,9 @@ alongside the release record.
 
 | Release | Status | Summary |
 |---|---:|---|
+| [Product 1.1 Beta External Release Notes](product-1-1-beta-external-release-notes.md) | ready | Public-facing source notes for external Product 1.1 beta publication: shipped behavior, verified scope, artifact metadata, known limitations, safe claims, and publishing checklist. |
 | [Product 1.1 Runtime Input Router Release Evidence](product-1-1-runtime-input-router-release-evidence.md) | done | Product 1.1 beta P0 evidence closure: Runtime Input Router, Contract Revision Command Skills, durable Conversation / Activity, Router Audit / Diagnostics, packaged app, and mounted `1.1-beta` installer smoke. |
+| [Product 1.1 Web Retrieval Live Smoke](product-1-1-web-retrieval-live-smoke.md) | P1 runbook | Opt-in Tavily Search/Extract live smoke harness for beta release operators with a real API key. |
 | [API Publish Server Transport](api-publish-server-transport.md) | done | Framework-neutral HTTP/RPC adapter for `DefaultApiTaskPublisher` routes and response envelopes. |
 | [Configurable Logging System](configurable-logging-system.md) | done | Structured JSONL logging, session archives, profiles, same-process control API, and core object integrations. |
 | [Publish Persistence Foundation](publish-persistence-foundation.md) | done | SQLite publish idempotency, audit, scheduler stores, service assembly, and deterministic idempotency hardening. |

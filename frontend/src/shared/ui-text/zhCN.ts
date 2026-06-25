@@ -340,6 +340,70 @@ export const zhCN: UiTextCatalog = {
       writingToPrefix: "写入",
       writingTo: ({ target }) => `写入${target}`,
     },
+    interaction: {
+      ask: {
+        actions: {
+          answer: "提交回答",
+          answering: "正在提交",
+          cancelQuestion: "取消问题",
+          cancelling: "正在取消",
+          defer: "稍后回答",
+          deferring: "正在暂缓",
+        },
+        labels: {
+          answerText: "回答内容",
+          optional: "可选",
+          task: ({ title }) => `任务：${title}`,
+          taskInputRequired: "任务需要输入",
+        },
+        messages: {
+          addMissingInformation: "补充缺失的信息。",
+          addYourAnswer: "填写你的回答。",
+          batchAnswerHeader: "批量 ASK 回答：",
+          batchAnswerItem: ({ answer, index, question }) =>
+            `${index}. ${question}\n回答：${answer}`,
+          chooseOption: "提交前请选择一个选项。",
+          chooseOptionOrEnterAnswer: "请选择一个选项，或填写回答。",
+          enterAnswer: "提交前请填写回答。",
+          requiredQuestions: "提交前请回答必填问题。",
+          staleAsk:
+            "此问题不再匹配当前选中的任务。请刷新，或选择正在等待回答的任务后再提交。",
+        },
+        statuses: {
+          answered: "已回答",
+          cancelled: "已取消",
+          deferred: "已暂缓",
+          expired: "已过期",
+          pending: "等待回答",
+        },
+      },
+      confirmation: {
+        actions: {
+          confirm: "确认",
+          resolveDecision: "提交决定",
+          resolving: "正在提交",
+          reviseTask: "修改任务",
+          skip: "跳过",
+        },
+        labels: {
+          confirmationStatus: ({ status }) => `确认${status}`,
+          decisionNeeded: "需要决定",
+          decisionUnavailable: "决定不可用",
+          impact: "影响",
+          resolvingDecision: "正在提交决定",
+        },
+        messages: {
+          decisionReadOnly: "此决定已只读。",
+          executionWaits: "执行正在等待这个决定。",
+          selectOneOption: "请选择一个确认选项。",
+        },
+        statuses: {
+          expired: "已过期",
+          pending: "待处理",
+          resolved: "已处理",
+        },
+      },
+    },
     labels: {
       noSessions: "暂无会话",
       noSessionSelected: "未选择会话",
@@ -459,6 +523,7 @@ export const zhCN: UiTextCatalog = {
       inputOutput: "输入 / 输出",
       reasoningTokens: "推理 token",
       tokenUsage: "Token 用量",
+      tokenUsageBudget: "预算",
       totalTokens: "总 token",
       unknownUsage: "未知用量",
       usage: "用量",
@@ -466,6 +531,9 @@ export const zhCN: UiTextCatalog = {
     },
     messages: {
       compactHelp: "此范围内已记录的 provider 用量。",
+      highUsageWarning: "用量偏高",
+      highUsageWarningTitle: ({ threshold }) =>
+        `此范围已达到至少 ${threshold} tokens。继续长任务前建议先检查用量。`,
       workspaceUsageHelp:
         "按工作区、会话、计划和任务查看 token 用量。这里不会展示原始 prompt 或 completion。",
     },

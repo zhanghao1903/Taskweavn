@@ -53,6 +53,9 @@ The first executable Product 1.1 milestone is
 [Product 1.1 Workspace Inspection Milestone](../plans/feature/product-1-1-workspace-inspection-milestone.md),
 with API decisions captured in
 [Git, Diff, And File Viewer API Contract](../engineering/git-diff-file-viewer-api-contract.md).
+Workspace inspection evidence capture remains explicit: opening a live file or
+diff viewer route does not create durable evidence by itself; stable historical
+views come from captured inspection evidence refs.
 UI system text polish and bilingual support are tracked in
 [UI System Text And Localization Foundation](../plans/feature/product-copy-localization-foundation.md),
 with implementation boundaries captured in
@@ -314,12 +317,17 @@ Completed baseline:
   policy;
 - gated execution tool registration, Context/Audit/diagnostics descriptors,
   and offline-first mock-provider tests.
+- Product beta limitation boundaries are captured in
+  [Plato 1.1 Web Retrieval Beta Limitations](plato-1-1-web-retrieval-beta-limitations.md).
 
 Deferred follow-ups:
 
 - advanced search modes and provider-hosted search adapters;
-- per-session retrieval budgets;
-- broader citation/result UI;
+- per-session retrieval budgets, now scoped by
+  [Web Retrieval Budget Boundary](../plans/feature/web-retrieval-budget-boundary.md);
+- broader citation/result UI, now planned in
+  [Web Retrieval Citation And Result UI](../plans/feature/web-retrieval-citation-result-ui.md);
+- deeper Audit projection and source-preview controls;
 - browser automation, dynamic rendering, crawl, PDF/OCR, and media extraction.
 
 ### 3.8 Execution Plane As Service / Task API

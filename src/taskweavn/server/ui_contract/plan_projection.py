@@ -8,6 +8,7 @@ from typing import Literal, Protocol
 from taskweavn.server.ui_contract.refs import ObjectRef
 from taskweavn.server.ui_contract.view_models import (
     ExecutionRollupView,
+    ExecutionStatus,
     PlanFinalizationView,
     PlanOutcomeView,
     PlanPermissions,
@@ -20,6 +21,8 @@ from taskweavn.server.ui_contract.view_models import (
     TaskTreeView,
 )
 from taskweavn.task.plan_models import Plan, PlanOutcome, PlanTaskNode
+
+_INTENTIONAL_STOP_ERROR_PREFIXES = ("cancelled:", "skipped:")
 
 
 class PlanProjectionService(Protocol):
@@ -223,7 +226,11 @@ def _task_node_card_from_plan(
         "status": (
             live_card.status if live_card is not None else _task_status_from_plan_node(node)
         ),
-        "execution": live_card.execution if live_card is not None else node.execution,
+        "execution": (
+            live_card.execution
+            if live_card is not None
+            else _task_execution_from_plan_node(node)
+        ),
         "depth": 0,
         "order_index": order_index,
         "display_index": order_index + 1,
@@ -269,6 +276,8 @@ def _task_status_from_plan_node(node: PlanTaskNode) -> TaskNodeStatus:
         return "running"
     if node.execution == "done":
         return "done"
+    if node.execution == "failed" and _is_intentional_stop_error(node.error_ref):
+        return "cancelled"
     if node.execution == "failed":
         return "failed"
     if node.execution == "cancelled":
@@ -282,15 +291,31 @@ def _task_status_from_plan_node(node: PlanTaskNode) -> TaskNodeStatus:
     return "draft"
 
 
+def _task_execution_from_plan_node(node: PlanTaskNode) -> ExecutionStatus:
+    if node.execution == "failed" and _is_intentional_stop_error(node.error_ref):
+        return "cancelled"
+    return node.execution
+
+
 def _task_permissions_from_plan_node(node: PlanTaskNode) -> TaskNodePermissions:
     editable = node.readiness in {"draft", "reviewing", "approved"}
+    retryable = node.execution == "failed" and not _is_intentional_stop_error(
+        node.error_ref
+    )
     return TaskNodePermissions(
         can_edit=editable,
         can_append_guidance=editable,
         can_publish=editable,
         can_cancel=node.readiness not in {"published", "cancelled"},
-        can_retry=node.execution == "failed",
+        can_retry=retryable,
     )
+
+
+def _is_intentional_stop_error(error_ref: str | None) -> bool:
+    if error_ref is None:
+        return False
+    normalized = error_ref.strip().lower()
+    return normalized.startswith(_INTENTIONAL_STOP_ERROR_PREFIXES)
 
 
 def _task_tree_from_plan(
