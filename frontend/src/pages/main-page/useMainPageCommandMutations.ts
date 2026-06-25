@@ -28,6 +28,7 @@ import type {
   MainPageRuntimeSnapshot,
 } from "./runtime/adapter";
 import { useMainPageInteractionCommandMutations } from "./useMainPageInteractionCommandMutations";
+import { useMainPagePlanCommandMutations } from "./useMainPagePlanCommandMutations";
 import { useMainPageRuntimeInputMutation } from "./useMainPageRuntimeInputMutation";
 
 const mainPageCommandLogger = createFrontendLogger("main-page");
@@ -49,17 +50,6 @@ export type InputSubmitContext = {
   taskNodeId: TaskNodeId | null;
 };
 
-export type PublishTaskTreeContext = {
-  sessionId: string;
-  taskTreeId: string | null;
-};
-
-export type ArchivePlanContext = {
-  expectedVersion?: number | null;
-  planId: string;
-  sessionId: string;
-};
-
 export type RetryTaskContext = {
   sessionId: string;
   taskNodeId: TaskNodeId;
@@ -78,6 +68,10 @@ export type {
   DeferExecutionAskContext,
   RepairAuthoringStateContext,
 } from "./useMainPageInteractionCommandMutations";
+export type {
+  ArchivePlanContext,
+  PublishTaskTreeContext,
+} from "./useMainPagePlanCommandMutations";
 
 export type UseMainPageCommandMutationsOptions = {
   activeWorkspaceId: WorkspaceId | null;
@@ -229,91 +223,18 @@ export function useMainPageCommandMutations({
     setUiNotice,
   });
 
-  const publishTaskTreeMutation = useMutation({
-    mutationFn: async ({
-      sessionId,
-      taskTreeId,
-    }: {
-      sessionId: string;
-      taskTreeId: string;
-    }) =>
-      adapter.publishTaskTree(
-        {
-          commandId: `publish-task-tree-${Date.now()}`,
-          sessionId,
-          payload: {
-            taskTreeId,
-            startImmediately: true,
-          },
-        },
-        activeWorkspaceId,
-      ),
-    onError: () => {
-      setTaskTreeCommandFailure("Publish failed. Please retry.");
-    },
-    onSuccess: (response) => {
-      const result = handleCommandResponse(response, "Publish was rejected.");
-
-      if (result.errorMessage) {
-        setTaskTreeCommandFailure(
-          result.errorMessage,
-          result.recoveryActions,
-        );
-        return;
-      }
-
-      setTaskTreeCommandFailure(null);
-      if (result.shouldRefetch) {
-        void refetchSnapshot();
-      }
-    },
-  });
-
-  const archivePlanMutation = useMutation({
-    mutationFn: async ({
-      expectedVersion,
-      planId,
-      sessionId,
-    }: ArchivePlanContext) =>
-      adapter.archivePlan(
-        sessionId,
-        planId,
-        {
-          commandId: `archive-plan-${planId}-${Date.now()}`,
-          expectedVersion,
-          sessionId,
-          payload: {
-            reason: "user requested archive",
-          },
-        },
-        activeWorkspaceId,
-      ),
-    onError: () => {
-      setTaskTreeCommandFailure("Archive plan failed. Please retry.");
-    },
-    onSuccess: (response) => {
-      const result = handleCommandResponse(
-        response,
-        "Archive plan was rejected.",
-      );
-
-      if (result.errorMessage) {
-        setTaskTreeCommandFailure(
-          result.errorMessage,
-          result.recoveryActions,
-        );
-        return;
-      }
-
-      setSelectedTaskNodeId(null);
-      setSelectionTarget("auto");
-      setDetailOverride("auto");
-      setTaskTreeCommandFailure(null);
-      setUiNotice("Plan archived.");
-      if (result.shouldRefetch) {
-        void refetchSnapshot();
-      }
-    },
+  const {
+    archivePlanMutation,
+    publishTaskTreeMutation,
+  } = useMainPagePlanCommandMutations({
+    activeWorkspaceId,
+    adapter,
+    refetchSnapshot,
+    setDetailOverride,
+    setSelectedTaskNodeId,
+    setSelectionTarget,
+    setTaskTreeCommandFailure,
+    setUiNotice,
   });
 
   const retryTaskMutation = useMutation({
