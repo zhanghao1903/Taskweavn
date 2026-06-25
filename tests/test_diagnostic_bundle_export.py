@@ -142,6 +142,25 @@ def test_diagnostic_bundle_export_writes_redacted_manifest_and_sections(
     assert inspection["records"][0]["payloadSummary"]["previewLines"][0]["text"] == (
         "api_key=<redacted>"
     )
+    support_summary = inspection["supportSummary"]
+    assert support_summary["schemaVersion"] == (
+        "plato.workspace_inspection.support_summary.v1"
+    )
+    assert support_summary["recordCount"] == 1
+    assert support_summary["recordsByKind"] == {"file_snapshot": 1}
+    assert support_summary["availableEvidenceKinds"] == ["file_snapshot"]
+    assert support_summary["hasFileEvidence"] is True
+    assert support_summary["hasDiffEvidence"] is False
+    assert support_summary["hasGitStatusEvidence"] is False
+    assert support_summary["previewLimits"] == {
+        "maxPreviewChars": 200,
+        "maxPreviewLines": 20,
+    }
+    assert any(
+        limitation
+        == "Raw unified diffs and full file contents are intentionally excluded."
+        for limitation in support_summary["limitations"]
+    )
 
 
 def test_diagnostic_bundle_marks_missing_sources_without_failing(tmp_path: Path) -> None:

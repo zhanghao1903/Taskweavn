@@ -301,6 +301,7 @@ _MUTATING_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"\bI\s+(?:will|can)\s+(?:run|execute|write|edit|modify|delete)\b", re.I),
 )
 _ABSOLUTE_HOME_PATH = re.compile(r"/Users/[^\s`\"']+")
+_WEB_SEARCH_CONTEXT_TITLE = "Web search evidence"
 
 
 def _messages(
@@ -453,7 +454,7 @@ def _web_search_context(
         )
     return _WebSearchContext(
         baseline_answer=ReadOnlyInquiryAnswer(
-            title="Web search evidence",
+            title=_WEB_SEARCH_CONTEXT_TITLE,
             body="\n".join(body_lines),
             confidence="low",
         ),
@@ -643,11 +644,27 @@ def _fallback(
     warnings: tuple[ReadOnlyInquiryWarning, ...],
     warning: ReadOnlyInquiryWarning,
 ) -> ReadOnlyInquiryAnswerProviderResult:
+    if _is_web_search_context_answer(baseline_answer, evidence_refs):
+        return ReadOnlyInquiryAnswerProviderResult(
+            status="unsupported",
+            answer=None,
+            evidence_refs=evidence_refs,
+            warnings=(*warnings, warning),
+        )
     return ReadOnlyInquiryAnswerProviderResult(
         status="answered",
         answer=baseline_answer,
         evidence_refs=evidence_refs,
         warnings=(*warnings, warning),
+    )
+
+
+def _is_web_search_context_answer(
+    answer: ReadOnlyInquiryAnswer,
+    evidence_refs: tuple[ReadOnlyInquiryEvidenceRef, ...],
+) -> bool:
+    return answer.title == _WEB_SEARCH_CONTEXT_TITLE and _has_web_search_evidence(
+        evidence_refs
     )
 
 

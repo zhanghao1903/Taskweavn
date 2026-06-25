@@ -538,6 +538,7 @@ export const enUS: UiTextCatalog = {
       inputOutput: "Input / output",
       reasoningTokens: "Reasoning tokens",
       tokenUsage: "Token usage",
+      tokenUsageBudget: "Budget",
       totalTokens: "Total tokens",
       unknownUsage: "Unknown usage",
       usage: "Usage",
@@ -545,6 +546,9 @@ export const enUS: UiTextCatalog = {
     },
     messages: {
       compactHelp: "Tracked provider usage for this scope.",
+      highUsageWarning: "High usage",
+      highUsageWarningTitle: ({ threshold }) =>
+        `This scope has reached at least ${threshold} tokens. Review usage before continuing long-running work.`,
       workspaceUsageHelp:
         "Compare token usage by Workspace, Session, Plan, and Task. Raw prompts and completions are never shown here.",
     },

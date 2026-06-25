@@ -313,6 +313,49 @@ def test_guarded_llm_provider_wraps_plain_text_answer_after_web_search() -> None
     assert result.evidence_refs[-1].kind == "web_search_result"
 
 
+def test_guarded_llm_provider_does_not_render_web_evidence_as_answer_on_fallback() -> None:
+    llm = _FailingSecondCallLLM(
+        json.dumps(
+            {
+                "status": "unsupported",
+                "citedRefIds": ["task:task-1:status"],
+            }
+        )
+    )
+    web_search = _WebSearchProvider(
+        WebSearchResponse(
+            provider="fake",
+            query="下周世界杯有哪些比赛",
+            retrieved_at=datetime.now(UTC),
+            results=(
+                WebSearchResult(
+                    title="FIFA fixtures",
+                    url="https://www.fifa.com/match-centre",
+                    snippet="Fixtures for the requested week.",
+                    source="fake",
+                ),
+            ),
+        )
+    )
+    provider = GuardedLLMReadOnlyInquiryAnswerProvider(
+        llm,
+        web_search_provider=web_search,
+    )
+
+    result = provider.answer(
+        request=_request(question="下周世界杯有哪些比赛"),
+        baseline_answer=_baseline(body="Session 'ask' is understanding."),
+        evidence_refs=(_task_evidence(),),
+    )
+
+    assert result.status == "unsupported"
+    assert result.answer is None
+    assert result.evidence_refs[-1].kind == "web_search_result"
+    assert result.warnings[-1].message == "LLM answer provider is unavailable."
+    assert len(llm.calls) == 2
+    assert "External web search evidence" in llm.calls[1]["messages"][1]["content"]
+
+
 def test_guarded_llm_provider_rejects_mutating_plain_text_answer() -> None:
     llm = _LLM("I will run a shell command to answer this.")
     provider = GuardedLLMReadOnlyInquiryAnswerProvider(llm)
@@ -406,6 +449,27 @@ class _SequencedLLM:
         content = self.contents[min(len(self.calls) - 1, len(self.contents) - 1)]
         return ChatResponse(
             content=content,
+            tool_calls=[],
+            raw_assistant_message={},
+        )
+
+
+@dataclass
+class _FailingSecondCallLLM:
+    first_content: str
+    calls: list[dict[str, Any]] = field(default_factory=list)
+
+    def chat(
+        self,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]] | None = None,
+        **kwargs: Any,
+    ) -> ChatResponse:
+        self.calls.append({"messages": messages, "tools": tools, "kwargs": kwargs})
+        if len(self.calls) > 1:
+            raise RuntimeError("simulated unavailable provider")
+        return ChatResponse(
+            content=self.first_content,
             tool_calls=[],
             raw_assistant_message={},
         )
