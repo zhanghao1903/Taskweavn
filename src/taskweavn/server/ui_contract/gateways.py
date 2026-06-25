@@ -3,6 +3,12 @@
 from __future__ import annotations
 
 from taskweavn.server.ui_contract.ask_projection import AskProjectionService
+from taskweavn.server.ui_contract.ask_read_helpers import (
+    active_ask,
+    get_ask_response,
+    list_asks_response,
+    pending_asks,
+)
 from taskweavn.server.ui_contract.audit_disclosure import (
     DefaultAuditPayloadDisclosureService,
 )
@@ -65,7 +71,6 @@ from taskweavn.server.ui_contract.gateway_providers import (
 )
 from taskweavn.server.ui_contract.main_page_read_helpers import (
     _archived_plan_messages,
-    _ask_statuses,
     _confirmations_from_tree,
     _derive_session_status,
     _file_change_summary_from_tree,
@@ -236,8 +241,15 @@ class DefaultUiQueryGateway:
             )
             confirmations = _confirmations_from_tree(source_tree, session_id=session.id)
             planning = self._planning(session.id, task_tree=task_tree)
-            pending_asks = self._pending_asks(session.id)
-            active_ask = self._active_ask(session.id, task_tree=task_tree)
+            pending_ask_views = pending_asks(
+                session.id,
+                ask_projection=self._ask_projection,
+            )
+            active_ask_view = active_ask(
+                session.id,
+                ask_projection=self._ask_projection,
+                task_tree=task_tree,
+            )
             result = (
                 result_from_plan_nodes(
                     plan_context.stored_plan_nodes,
@@ -283,7 +295,7 @@ class DefaultUiQueryGateway:
                     task_tree=task_tree,
                     confirmations=confirmations,
                     messages=messages,
-                    active_ask=active_ask,
+                    active_ask=active_ask_view,
                     planning=planning,
                 ),
             )
@@ -306,8 +318,8 @@ class DefaultUiQueryGateway:
                 task_tree=task_tree,
                 messages=messages,
                 pending_confirmations=confirmations,
-                pending_asks=pending_asks,
-                active_ask=active_ask,
+                pending_asks=pending_ask_views,
+                active_ask=active_ask_view,
                 result=result,
                 file_change_summary=file_change_summary,
                 audit_links=self._audit_links(session.id),
@@ -374,9 +386,13 @@ class DefaultUiQueryGateway:
                 self._session_messages(session.id),
             )
             confirmations = _confirmations_from_tree(source_tree, session_id=session.id)
-            pending_asks = self._pending_asks(session.id)
-            active_ask = self._active_ask(
+            pending_ask_views = pending_asks(
                 session.id,
+                ask_projection=self._ask_projection,
+            )
+            active_ask_view = active_ask(
+                session.id,
+                ask_projection=self._ask_projection,
                 task_tree=plan_context.task_tree,
             )
             result = (
@@ -422,8 +438,8 @@ class DefaultUiQueryGateway:
                     plan_projection=self._plan_projection,
                 ),
                 task_tree=plan_context.task_tree,
-                pending_asks=pending_asks,
-                active_ask=active_ask,
+                pending_asks=pending_ask_views,
+                active_ask=active_ask_view,
                 confirmations=confirmations,
                 result=result,
                 file_change_summary=file_change_summary,
@@ -465,55 +481,16 @@ class DefaultUiQueryGateway:
         task_node_id: str | None = None,
         request_id: str | None = None,
     ) -> QueryResponse[AskListResult]:
-        try:
-            if self._ask_projection is None:
-                return QueryResponse[AskListResult](
-                    request_id=request_id or _request_id("asks", session_id),
-                    ok=True,
-                    data=AskListResult(session_id=session_id),
-                    error=None,
-                )
-            session = self._session_reader.get(session_id)
-            if session is None:
-                return QueryResponse[AskListResult](
-                    request_id=request_id or _request_id("asks", session_id),
-                    ok=False,
-                    data=None,
-                    error=not_found("session not found", session_id=session_id),
-                )
-            task_tree = _map_optional_task_tree(
-                _list_main_page_plan_tree(self._task_projection, session.id),
-                authoring_state_store=self._authoring_state_store,
-            )
-            result = self._ask_projection.list_asks(
-                session.id,
-                statuses=_ask_statuses(status),
-                task_id=task_node_id,
-                task_tree=task_tree,
-            )
-            return QueryResponse[AskListResult](
-                request_id=request_id or _request_id("asks", session.id),
-                ok=True,
-                data=result,
-                error=None,
-            )
-        except ValueError as exc:
-            return QueryResponse[AskListResult](
-                request_id=request_id or _request_id("asks", session_id),
-                ok=False,
-                data=None,
-                error=bad_request(str(exc), session_id=session_id),
-            )
-        except Exception as exc:
-            return QueryResponse[AskListResult](
-                request_id=request_id or _request_id("asks", session_id),
-                ok=False,
-                data=None,
-                error=internal_error(
-                    "Unable to load ASK list",
-                    error_type=type(exc).__name__,
-                ),
-            )
+        return list_asks_response(
+            session_id,
+            ask_projection=self._ask_projection,
+            authoring_state_store=self._authoring_state_store,
+            request_id=request_id,
+            session_reader=self._session_reader,
+            status=status,
+            task_node_id=task_node_id,
+            task_projection=self._task_projection,
+        )
 
     def get_ask(
         self,
@@ -522,34 +499,12 @@ class DefaultUiQueryGateway:
         *,
         request_id: str | None = None,
     ) -> QueryResponse[AskRequestView]:
-        try:
-            ask = None if self._ask_projection is None else self._ask_projection.get_ask(
-                session_id,
-                ask_id,
-            )
-            if ask is None:
-                return QueryResponse[AskRequestView](
-                    request_id=request_id or _request_id("ask", ask_id),
-                    ok=False,
-                    data=None,
-                    error=not_found("ASK not found", session_id=session_id, ask_id=ask_id),
-                )
-            return QueryResponse[AskRequestView](
-                request_id=request_id or _request_id("ask", ask_id),
-                ok=True,
-                data=ask,
-                error=None,
-            )
-        except Exception as exc:
-            return QueryResponse[AskRequestView](
-                request_id=request_id or _request_id("ask", ask_id),
-                ok=False,
-                data=None,
-                error=internal_error(
-                    "Unable to load ASK",
-                    error_type=type(exc).__name__,
-                ),
-            )
+        return get_ask_response(
+            session_id,
+            ask_id,
+            ask_projection=self._ask_projection,
+            request_id=request_id,
+        )
 
     def get_audit_snapshot(
         self,
@@ -923,21 +878,6 @@ class DefaultUiQueryGateway:
         if self._audit_link_provider is None:
             return ()
         return self._audit_link_provider.list_for_session(session_id)
-
-    def _pending_asks(self, session_id: str) -> tuple[AskRequestView, ...]:
-        if self._ask_projection is None:
-            return ()
-        return self._ask_projection.pending_asks(session_id)
-
-    def _active_ask(
-        self,
-        session_id: str,
-        *,
-        task_tree: TaskTreeView | None,
-    ) -> AskRequestView | None:
-        if self._ask_projection is None:
-            return None
-        return self._ask_projection.active_ask(session_id, task_tree=task_tree)
 
     def _planning(
         self,
