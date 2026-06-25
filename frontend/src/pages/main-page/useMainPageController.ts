@@ -9,10 +9,7 @@ import type {
 import type {
   ConfirmationActionView,
   AskId,
-  MainPageSnapshot,
   RuntimeInputMode,
-  RuntimeInputRouteRequest,
-  RuntimeInputRouteResult,
   SessionActivityItemView,
   SessionSummary,
   TaskNodeId,
@@ -45,6 +42,14 @@ import {
   mainPageSnapshotIdentity,
   mainPageSnapshotQueryKey,
 } from "./runtime/adapter";
+import {
+  buildRuntimeInputRouteRequest,
+  prependRuntimeActivityItems,
+  runtimeInputActivity,
+  runtimeInputModeFor,
+  runtimeInputNotice,
+  runtimeInputUserActivity,
+} from "./mainPageRuntimeInput";
 import { handleCommandResponse } from "./runtime/commandRefresh";
 import { resyncEventKey, routeMainPageEvent } from "./runtime/eventRouter";
 
@@ -1629,173 +1634,4 @@ export function useMainPageController({
       publishTaskTree: handlePublishTaskTree,
     },
   };
-}
-
-function shouldRouteReadOnlyQuestion(content: string): boolean {
-  const trimmed = content.trim();
-  if (!trimmed) {
-    return false;
-  }
-
-  if (trimmed.includes("?") || trimmed.includes("？")) {
-    return true;
-  }
-
-  const lower = trimmed.toLowerCase();
-  const englishQuestionPrefixes = [
-    "what ",
-    "why ",
-    "how ",
-    "where ",
-    "when ",
-    "who ",
-    "which ",
-    "can ",
-    "could ",
-    "should ",
-    "is ",
-    "are ",
-    "do ",
-    "does ",
-    "did ",
-  ];
-  if (englishQuestionPrefixes.some((prefix) => lower.startsWith(prefix))) {
-    return true;
-  }
-
-  return [
-    "什么",
-    "为什么",
-    "为何",
-    "如何",
-    "怎么",
-    "是否",
-    "吗",
-    "哪",
-    "能不能",
-  ].some((marker) => trimmed.includes(marker));
-}
-
-function buildRuntimeInputRouteRequest({
-  content,
-  mode,
-  sessionId,
-  snapshot,
-  target,
-  taskNodeId,
-}: {
-  content: string;
-  mode: RuntimeInputRouteRequest["mode"];
-  sessionId: string;
-  snapshot: MainPageSnapshot | null;
-  target: InputTarget;
-  taskNodeId: TaskNodeId | null;
-}): RuntimeInputRouteRequest {
-  const activePlan = snapshot?.activePlan ?? null;
-  const scopeKind =
-    target === "task" && taskNodeId !== null
-      ? "task"
-      : target === "plan" && activePlan !== null
-        ? "plan"
-        : "session";
-
-  return {
-    commandId: `route-input-${Date.now()}`,
-    sessionId,
-    content,
-    mode,
-    selection: {
-      scopeKind,
-      planId: scopeKind === "session" ? null : activePlan?.id ?? null,
-      taskNodeId: scopeKind === "task" ? taskNodeId : null,
-      refs: [],
-    },
-    clientState: {
-      activeAskId: snapshot?.activeAsk?.id ?? null,
-      activeConfirmationId: snapshot?.pendingConfirmations[0]?.id ?? null,
-    },
-  };
-}
-
-function runtimeInputModeFor(
-  content: string,
-  mode: MainPageInputCommandMode,
-): NonNullable<RuntimeInputRouteRequest["mode"]> {
-  if (shouldRouteReadOnlyQuestion(content)) {
-    return "ask";
-  }
-
-  if (mode === "generate_task_tree") {
-    return "change";
-  }
-
-  if (
-    mode === "append_plan_input" ||
-    mode === "append_session_input" ||
-    mode === "append_task_input"
-  ) {
-    return "guide";
-  }
-
-  return "auto";
-}
-
-function runtimeInputNotice(result: RuntimeInputRouteResult): string {
-  const answer = result.inquiryResult?.answer;
-  const message =
-    answer === null || answer === undefined
-      ? result.outcome.userMessage
-      : answer.title
-        ? `${answer.title}: ${answer.body}`
-        : answer.body;
-
-  return compactNotice(message);
-}
-
-function runtimeInputActivity(
-  result: RuntimeInputRouteResult,
-): SessionActivityItemView | null {
-  return result.activity ?? result.inquiryResult?.activity ?? null;
-}
-
-function runtimeInputUserActivity(
-  request: RuntimeInputRouteRequest,
-  result: RuntimeInputRouteResult,
-): SessionActivityItemView {
-  return {
-    id: `activity:runtime-input:${request.commandId}:user_input`,
-    sessionId: request.sessionId,
-    kind: "user_input",
-    title: "User input",
-    body: request.content,
-    occurredAt: result.generatedAt,
-    scopeKind: result.decision.scope.kind,
-    planId: result.decision.scope.planId ?? null,
-    taskNodeId: result.decision.scope.taskNodeId ?? null,
-    sideEffect: "context_effect",
-    relatedRefs: result.decision.relatedRefs,
-    sourceKind: "router",
-    sourceId: request.commandId,
-    disclosureLevel: "public",
-  };
-}
-
-function prependRuntimeActivityItems(
-  items: SessionActivityItemView[],
-  nextItems: SessionActivityItemView[],
-): SessionActivityItemView[] {
-  const nextIds = new Set(nextItems.map((item) => item.id));
-  return [
-    ...nextItems,
-    ...items.filter((candidate) => !nextIds.has(candidate.id)),
-  ].slice(0, 20);
-}
-
-function compactNotice(message: string): string {
-  const maxLength = 360;
-  if (message.length <= maxLength) {
-    return message;
-  }
-
-  return `${message.slice(0, maxLength - 3)}...`;
 }
