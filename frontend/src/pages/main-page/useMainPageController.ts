@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import type {
   ProductRecoveryAction,
@@ -41,6 +41,7 @@ import {
   useMainPageSessionLifecycle,
   type SessionLifecycleDialog,
 } from "./useMainPageSessionLifecycle";
+import { useMainPageSelectionState } from "./useMainPageSelectionState";
 import { useMainPageSnapshotQuery } from "./useMainPageSnapshotQuery";
 
 export type {
@@ -141,12 +142,6 @@ export function useMainPageController({
   initialTaskNodeId = null,
 }: UseMainPageControllerOptions): MainPageController {
   const [stateId, setStateId] = useState<MainPageStateId>(initialStateId);
-  const [selectedTaskNodeId, setSelectedTaskNodeId] =
-    useState<TaskNodeId | null>(null);
-  const [selectionTarget, setSelectionTarget] =
-    useState<MainPageSelectionTarget>("auto");
-  const [detailOverride, setDetailOverride] =
-    useState<DetailOverride>("auto");
   const [confirmationError, setConfirmationError] = useState<string | null>(
     null,
   );
@@ -175,6 +170,19 @@ export function useMainPageController({
     setTaskTreeCommandRecoveryActions,
   ] = useState<ProductRecoveryAction[]>([]);
   const [uiNotice, setUiNotice] = useState<string | null>(null);
+  const clearUiNotice = useCallback(() => {
+    setUiNotice(null);
+  }, []);
+  const {
+    actions: selectionActions,
+    detailOverride,
+    resetSelection,
+    selectedTaskNodeId,
+    selectionTarget,
+    setDetailOverride,
+    setSelectedTaskNodeId,
+    setSelectionTarget,
+  } = useMainPageSelectionState(clearUiNotice);
   const [runtimeActivityItems, setRuntimeActivityItems] = useState<
     SessionActivityItemView[]
   >([]);
@@ -347,9 +355,7 @@ export function useMainPageController({
         ? routeTaskNodeId
         : currentSnapshot.metadata.initialSelectedTaskNodeId;
     initialTaskNodeIdRef.current = null;
-    setSelectedTaskNodeId(nextSelectedTaskNodeId);
-    setSelectionTarget("auto");
-    setDetailOverride("auto");
+    resetSelection(nextSelectedTaskNodeId);
     setAuthoringAskError(null);
     setExecutionAskError(null);
     setConfirmationError(null);
@@ -360,13 +366,16 @@ export function useMainPageController({
     setUiNotice(null);
     resetSessionDialog();
     clearEventError();
-  }, [clearEventError, resetSessionDialog, snapshotIdentity]);
+  }, [
+    clearEventError,
+    resetSessionDialog,
+    resetSelection,
+    snapshotIdentity,
+  ]);
 
   function handleStateChange(nextStateId: MainPageStateId) {
     setStateId(nextStateId);
-    setSelectedTaskNodeId(null);
-    setSelectionTarget("auto");
-    setDetailOverride("auto");
+    resetSelection();
     setAuthoringAskError(null);
     setExecutionAskError(null);
     setConfirmationError(null);
@@ -385,20 +394,6 @@ export function useMainPageController({
     cancelAskMutation.reset();
     inputMutation.reset();
     publishTaskTreeMutation.reset();
-  }
-
-  function selectTask(nodeId: TaskNodeId) {
-    setSelectedTaskNodeId(nodeId);
-    setSelectionTarget("task");
-    setDetailOverride("auto");
-    setUiNotice(null);
-  }
-
-  function selectTaskPlan() {
-    setSelectedTaskNodeId(null);
-    setSelectionTarget("plan");
-    setDetailOverride("auto");
-    setUiNotice(null);
   }
 
   function handleSessionSelect(
@@ -643,10 +638,10 @@ export function useMainPageController({
       retryTask: handleRetryTask,
       stopTask: handleStopTask,
       selectSession: handleSessionSelect,
-      selectTaskPlan,
-      selectTask,
-      showFileChanges: () => setDetailOverride("fileChanges"),
-      showResult: () => setDetailOverride("result"),
+      selectTaskPlan: selectionActions.selectTaskPlan,
+      selectTask: selectionActions.selectTask,
+      showFileChanges: selectionActions.showFileChanges,
+      showResult: selectionActions.showResult,
       submitSessionDialog: sessionLifecycle.actions.submitSessionDialog,
       submitInput: handleInputSubmit,
       publishTaskTree: handlePublishTaskTree,
