@@ -23,7 +23,10 @@ import type {
 } from "./runtime/adapter";
 import { useMainPageCommandErrorState } from "./useMainPageCommandErrorState";
 import { useMainPageInputRuntimeState } from "./useMainPageInputRuntimeState";
-import { useMainPageSessionIdentityState } from "./useMainPageSessionIdentityState";
+import {
+  useMainPageSessionIdentityAdoption,
+  useMainPageSessionIdentityState,
+} from "./useMainPageSessionIdentityState";
 import { useMainPageUiNoticeState } from "./useMainPageUiNoticeState";
 import { runtimeInputModeFor } from "./mainPageRuntimeInput";
 import {
@@ -219,6 +222,12 @@ export function useMainPageController({
     initialTaskNodeId,
     stateId,
   });
+  useMainPageSessionIdentityAdoption({
+    adoptSessionId,
+    adoptWorkspaceId,
+    catalogWorkspaceId: workspaceCatalog?.currentWorkspaceId ?? null,
+    snapshotSessionId: snapshotData?.snapshot.session.id ?? null,
+  });
   const {
     clearEventError,
     eventConnectionStatus,
@@ -230,20 +239,6 @@ export function useMainPageController({
     resetKey: snapshotIdentity,
     snapshotData,
   });
-
-  useEffect(() => {
-    if (!snapshotData) {
-      return;
-    }
-    adoptSessionId(snapshotData.snapshot.session.id);
-  }, [adoptSessionId, snapshotData]);
-
-  useEffect(() => {
-    if (workspaceCatalog === null) {
-      return;
-    }
-    adoptWorkspaceId(workspaceCatalog.currentWorkspaceId);
-  }, [adoptWorkspaceId, workspaceCatalog]);
 
   const {
     answerAskMutation,
