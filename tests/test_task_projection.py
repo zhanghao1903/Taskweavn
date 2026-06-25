@@ -670,6 +670,37 @@ def test_published_permissions_follow_status() -> None:
     assert failed.permissions.can_retry is True
 
 
+def test_intentional_stop_failure_projects_as_cancelled_without_retry() -> None:
+    tasks = [
+        _task(
+            "stopped",
+            status="failed",
+            error_ref="cancelled: user requested stop",
+        ),
+        _task(
+            "skipped",
+            status="failed",
+            error_ref="skipped: optional work was skipped",
+        ),
+        _task("failed", status="failed", error_ref="error: failed"),
+    ]
+    service = DefaultTaskProjectionService(task_store=_TaskStore(tasks))
+
+    stopped = service.get_task_card("s1", TaskRef.published("stopped"))
+    skipped = service.get_task_card("s1", TaskRef.published("skipped"))
+    failed = service.get_task_card("s1", TaskRef.published("failed"))
+
+    assert stopped.status == "cancelled"
+    assert stopped.error_ref == "cancelled: user requested stop"
+    assert stopped.permissions.can_retry is False
+    assert stopped.permissions.readonly_reason == "task was stopped"
+    assert {action.kind for action in stopped.primary_actions} == {"open_detail"}
+    assert skipped.status == "cancelled"
+    assert skipped.permissions.can_retry is False
+    assert failed.status == "failed"
+    assert failed.permissions.can_retry is True
+
+
 def test_published_projection_preserves_result_and_error_refs() -> None:
     tasks = [
         _task("done", status="done", result_ref="result:done"),
