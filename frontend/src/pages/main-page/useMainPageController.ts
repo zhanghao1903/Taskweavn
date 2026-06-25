@@ -19,7 +19,6 @@ import { productRecoveryActionsFromApiError } from "../../shared/api/productErro
 import {
   summarizeCommandResponse,
   summarizeMainPageSnapshot,
-  summarizeUiEvent,
 } from "../../shared/api/traceSummary";
 import {
   createFrontendLogger,
@@ -51,7 +50,7 @@ import {
   runtimeInputUserActivity,
 } from "./mainPageRuntimeInput";
 import { handleCommandResponse } from "./runtime/commandRefresh";
-import { resyncEventKey, routeMainPageEvent } from "./runtime/eventRouter";
+import { useMainPageEventSubscription } from "./useMainPageEventSubscription";
 
 const mainPageLogger = createFrontendLogger("main-page");
 
@@ -264,16 +263,12 @@ export function useMainPageController({
   const [sessionDialog, setSessionDialog] = useState<SessionLifecycleDialog>({
     mode: "idle",
   });
-  const [eventError, setEventError] = useState<string | null>(null);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(
     adapter.sessionId,
   );
   const [activeWorkspaceId, setActiveWorkspaceId] = useState<WorkspaceId | null>(
     adapter.workspaceId ?? null,
   );
-  const [eventConnectionStatus, setEventConnectionStatus] =
-    useState<EventConnectionStatus>("disconnected");
-
   const workspaceCatalogQuery = useQuery({
     enabled: adapter.loadWorkspaceCatalog !== undefined,
     queryKey: ["main-page", "workspaces", adapter.runtimeKind],
@@ -298,8 +293,6 @@ export function useMainPageController({
   const snapshotData = snapshotQuery.data;
   const snapshotDataRef = useRef(snapshotData);
   const initialTaskNodeIdRef = useRef<TaskNodeId | null>(initialTaskNodeId);
-  const lastEventCursorRef = useRef<string | null>(null);
-  const lastResyncEventKeyRef = useRef<string | null>(null);
   snapshotDataRef.current = snapshotData;
   const snapshotIdentity = snapshotData
     ? mainPageSnapshotIdentity(
@@ -311,6 +304,17 @@ export function useMainPageController({
       )
     : null;
   const refetchSnapshot = snapshotQuery.refetch;
+  const {
+    clearEventError,
+    eventConnectionStatus,
+    eventError,
+  } = useMainPageEventSubscription({
+    activeWorkspaceId,
+    adapter,
+    refetchSnapshot,
+    resetKey: snapshotIdentity,
+    snapshotData,
+  });
 
   function refetchWorkspaceCatalog() {
     if (adapter.loadWorkspaceCatalog === undefined) {
@@ -1113,121 +1117,8 @@ export function useMainPageController({
     clearCommandRecoveryActions();
     setUiNotice(null);
     setSessionDialog({ mode: "idle" });
-    setEventError(null);
-    lastEventCursorRef.current = null;
-    lastResyncEventKeyRef.current = null;
-  }, [snapshotIdentity]);
-
-  useEffect(() => {
-    if (!snapshotData) {
-      return undefined;
-    }
-
-    mainPageLogger.info("events.subscribe.start", {
-      runtimeKind: adapter.runtimeKind,
-      sessionId: snapshotData.snapshot.session.id,
-    });
-
-    let active = true;
-    setEventConnectionStatus("connected");
-
-    let unsubscribe: (() => void) | null = null;
-    try {
-      unsubscribe = adapter.subscribeSessionEvents(
-        snapshotData.snapshot.session.id,
-        snapshotData.snapshot.cursor,
-        (event) => {
-          mainPageLogger.debug("events.received", {
-            ...summarizeUiEvent(event),
-          });
-
-          if (event.cursor === lastEventCursorRef.current) {
-            mainPageLogger.info("events.cursor.duplicate_ignored", {
-              event: summarizeUiEvent(event),
-            });
-            return;
-          }
-          lastEventCursorRef.current = event.cursor;
-
-          const nextResyncEventKey = resyncEventKey(event);
-          if (nextResyncEventKey !== null) {
-            if (nextResyncEventKey === lastResyncEventKeyRef.current) {
-              mainPageLogger.info("events.resync.duplicate_ignored", {
-                event: summarizeUiEvent(event),
-              });
-              return;
-            }
-            lastResyncEventKeyRef.current = nextResyncEventKey;
-          }
-
-          const action = routeMainPageEvent(event);
-          mainPageLogger.info("events.route", {
-            action,
-            event: summarizeUiEvent(event),
-          });
-          if (action.kind === "ignore") {
-            return;
-          }
-
-          if (action.errorMessage) {
-            setEventError(action.errorMessage);
-          }
-          setEventConnectionStatus(action.status);
-          mainPageLogger.info("snapshot.refetch.request", {
-            event: summarizeUiEvent(event),
-            reason: "event",
-          });
-          void refetchSnapshot()
-            .then((queryResult) => {
-              mainPageLogger.info("snapshot.refetch.result", {
-                event: summarizeUiEvent(event),
-                hasData: queryResult.data !== undefined,
-                reason: "event",
-                snapshot:
-                  queryResult.data === undefined
-                    ? null
-                    : summarizeMainPageSnapshot(queryResult.data.snapshot),
-                status: queryResult.status,
-              });
-            })
-            .catch((error) => {
-              mainPageLogger.error("snapshot.refetch.failed", {
-                error: toLoggableError(error),
-                event: summarizeUiEvent(event),
-                reason: "event",
-              });
-            })
-            .finally(() => {
-              if (active) {
-                setEventConnectionStatus("connected");
-              }
-            });
-        },
-        activeWorkspaceId,
-      );
-    } catch (error) {
-      mainPageLogger.error("events.subscribe.failed", {
-        error: toLoggableError(error),
-        runtimeKind: adapter.runtimeKind,
-        sessionId: snapshotData.snapshot.session.id,
-      });
-      setEventConnectionStatus("disconnected");
-      setEventError(
-        error instanceof Error
-          ? `Event stream unavailable: ${error.message}`
-          : "Event stream unavailable.",
-      );
-    }
-
-    return () => {
-      active = false;
-      mainPageLogger.info("events.subscribe.stop", {
-        runtimeKind: adapter.runtimeKind,
-        sessionId: snapshotData.snapshot.session.id,
-      });
-      unsubscribe?.();
-    };
-  }, [activeWorkspaceId, adapter, refetchSnapshot, snapshotData]);
+    clearEventError();
+  }, [clearEventError, snapshotIdentity]);
 
   function handleStateChange(nextStateId: MainPageStateId) {
     setStateId(nextStateId);
@@ -1243,7 +1134,7 @@ export function useMainPageController({
     clearCommandRecoveryActions();
     setUiNotice(null);
     setSessionDialog({ mode: "idle" });
-    setEventError(null);
+    clearEventError();
     resolveConfirmationMutation.reset();
     answerAuthoringAskBatchMutation.reset();
     repairAuthoringStateMutation.reset();
