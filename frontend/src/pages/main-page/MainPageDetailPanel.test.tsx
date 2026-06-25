@@ -269,6 +269,77 @@ describe("MainPageDetailPanel", () => {
     );
   });
 
+  it("shows a budget warning for high task token usage", async () => {
+    const loadTokenUsageSummary = vi.fn(async () => ({
+      dimension: "task" as const,
+      totals: {
+        dimension: "task" as const,
+        id: "total",
+        label: "Total",
+        workspaceId: "workspace-a",
+        sessionId: "session-1",
+        planId: "plan-1",
+        taskNodeId: "task-technical-stack",
+        callCount: 12,
+        unknownUsageCallCount: 0,
+        inputTokens: 900000,
+        outputTokens: 250000,
+        totalTokens: 1150000,
+        reasoningTokens: null,
+        cachedTokens: null,
+        cacheHitTokens: null,
+        cacheMissTokens: null,
+        cacheHitRatio: null,
+        cacheRateSource: "unavailable" as const,
+        firstOccurredAt: "2026-06-10T00:00:00Z",
+        lastOccurredAt: "2026-06-10T00:01:00Z",
+      },
+      rows: [],
+    }));
+
+    renderWithQueryClient(
+      <MainPageDetailPanel
+        detail={{
+          header: {
+            body: "Compare framework options.",
+            eyebrow: "Task",
+            title: "Choose stack",
+          },
+          isRetryingTask: false,
+          isStoppingTask: false,
+          kind: "task",
+          selectedTask: taskNode({
+            id: "task-technical-stack",
+            summary: "Compare framework options.",
+            taskRef: {
+              id: "task-technical-stack",
+              kind: "published",
+            },
+            title: "Choose stack",
+          }),
+        }}
+        loadTokenUsageSummary={loadTokenUsageSummary}
+        onAnswerAsk={vi.fn()}
+        onCancelAsk={vi.fn()}
+        onConfirmationDecision={vi.fn()}
+        onDeferAsk={vi.fn()}
+        onRetryTask={vi.fn()}
+        onShowFileChanges={vi.fn()}
+        onShowResult={vi.fn()}
+        onStopTask={vi.fn()}
+        sessionId="session-1"
+        workspaceId="workspace-a"
+      />,
+    );
+
+    const budgetLine = await screen.findByLabelText("Budget");
+    expect(budgetLine).toHaveTextContent("High usage");
+    expect(budgetLine).toHaveAttribute(
+      "title",
+      "This scope has reached at least 1,000,000 tokens. Review usage before continuing long-running work.",
+    );
+  });
+
   it("hides stop for published selected tasks that are not running", () => {
     render(
       <MainPageDetailPanel
