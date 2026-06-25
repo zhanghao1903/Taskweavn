@@ -21,6 +21,7 @@ import type {
   MainPageAdapter,
   MainPageRuntimeSnapshot,
 } from "./runtime/adapter";
+import { useMainPageCommandErrorState } from "./useMainPageCommandErrorState";
 import { runtimeInputModeFor } from "./mainPageRuntimeInput";
 import {
   useMainPageCommandMutations,
@@ -142,37 +143,30 @@ export function useMainPageController({
   initialTaskNodeId = null,
 }: UseMainPageControllerOptions): MainPageController {
   const [stateId, setStateId] = useState<MainPageStateId>(initialStateId);
-  const [confirmationError, setConfirmationError] = useState<string | null>(
-    null,
-  );
-  const [confirmationRecoveryActions, setConfirmationRecoveryActions] =
-    useState<ProductRecoveryAction[]>([]);
-  const [authoringAskError, setAuthoringAskError] = useState<string | null>(
-    null,
-  );
-  const [authoringAskRecoveryActions, setAuthoringAskRecoveryActions] =
-    useState<ProductRecoveryAction[]>([]);
-  const [executionAskError, setExecutionAskError] = useState<string | null>(
-    null,
-  );
-  const [executionAskRecoveryActions, setExecutionAskRecoveryActions] =
-    useState<ProductRecoveryAction[]>([]);
   const [inputDraft, setInputDraft] = useState("");
-  const [inputError, setInputError] = useState<string | null>(null);
-  const [inputRecoveryActions, setInputRecoveryActions] = useState<
-    ProductRecoveryAction[]
-  >([]);
-  const [taskTreeCommandError, setTaskTreeCommandError] = useState<string | null>(
-    null,
-  );
-  const [
-    taskTreeCommandRecoveryActions,
-    setTaskTreeCommandRecoveryActions,
-  ] = useState<ProductRecoveryAction[]>([]);
   const [uiNotice, setUiNotice] = useState<string | null>(null);
   const clearUiNotice = useCallback(() => {
     setUiNotice(null);
   }, []);
+  const {
+    authoringAskError,
+    authoringAskRecoveryActions,
+    confirmationError,
+    confirmationRecoveryActions,
+    executionAskError,
+    executionAskRecoveryActions,
+    inputError,
+    inputRecoveryActions,
+    resetCommandErrorState,
+    setAuthoringAskCommandError,
+    setConfirmationCommandError,
+    setExecutionAskCommandError,
+    setInputCommandError,
+    setTaskTreeCommandError,
+    setTaskTreeCommandFailure,
+    taskTreeCommandError,
+    taskTreeCommandRecoveryActions,
+  } = useMainPageCommandErrorState();
   const {
     actions: selectionActions,
     detailOverride,
@@ -223,56 +217,6 @@ export function useMainPageController({
     resetKey: snapshotIdentity,
     snapshotData,
   });
-
-  function setConfirmationCommandError(
-    message: string | null,
-    recoveryActions: ProductRecoveryAction[] = [],
-  ) {
-    setConfirmationError(message);
-    setConfirmationRecoveryActions(message === null ? [] : recoveryActions);
-  }
-
-  function setAuthoringAskCommandError(
-    message: string | null,
-    recoveryActions: ProductRecoveryAction[] = [],
-  ) {
-    setAuthoringAskError(message);
-    setAuthoringAskRecoveryActions(message === null ? [] : recoveryActions);
-  }
-
-  function setExecutionAskCommandError(
-    message: string | null,
-    recoveryActions: ProductRecoveryAction[] = [],
-  ) {
-    setExecutionAskError(message);
-    setExecutionAskRecoveryActions(message === null ? [] : recoveryActions);
-  }
-
-  function setInputCommandError(
-    message: string | null,
-    recoveryActions: ProductRecoveryAction[] = [],
-  ) {
-    setInputError(message);
-    setInputRecoveryActions(message === null ? [] : recoveryActions);
-  }
-
-  function setTaskTreeCommandFailure(
-    message: string | null,
-    recoveryActions: ProductRecoveryAction[] = [],
-  ) {
-    setTaskTreeCommandError(message);
-    setTaskTreeCommandRecoveryActions(
-      message === null ? [] : recoveryActions,
-    );
-  }
-
-  function clearCommandRecoveryActions() {
-    setAuthoringAskRecoveryActions([]);
-    setConfirmationRecoveryActions([]);
-    setExecutionAskRecoveryActions([]);
-    setInputRecoveryActions([]);
-    setTaskTreeCommandRecoveryActions([]);
-  }
 
   useEffect(() => {
     if (!snapshotData || activeSessionId !== null) {
@@ -356,18 +300,14 @@ export function useMainPageController({
         : currentSnapshot.metadata.initialSelectedTaskNodeId;
     initialTaskNodeIdRef.current = null;
     resetSelection(nextSelectedTaskNodeId);
-    setAuthoringAskError(null);
-    setExecutionAskError(null);
-    setConfirmationError(null);
     setInputDraft("");
-    setInputError(null);
-    setTaskTreeCommandError(null);
-    clearCommandRecoveryActions();
+    resetCommandErrorState();
     setUiNotice(null);
     resetSessionDialog();
     clearEventError();
   }, [
     clearEventError,
+    resetCommandErrorState,
     resetSessionDialog,
     resetSelection,
     snapshotIdentity,
@@ -376,13 +316,8 @@ export function useMainPageController({
   function handleStateChange(nextStateId: MainPageStateId) {
     setStateId(nextStateId);
     resetSelection();
-    setAuthoringAskError(null);
-    setExecutionAskError(null);
-    setConfirmationError(null);
     setInputDraft("");
-    setInputError(null);
-    setTaskTreeCommandError(null);
-    clearCommandRecoveryActions();
+    resetCommandErrorState();
     setUiNotice(null);
     resetSessionLifecycle();
     clearEventError();
