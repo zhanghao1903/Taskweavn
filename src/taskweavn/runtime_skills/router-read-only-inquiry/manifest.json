@@ -1,0 +1,18 @@
+{
+  "schemaVersion": "plato.runtime_skill.v1",
+  "skillId": "internal:router-read-only-inquiry",
+  "kind": "router_capability",
+  "capabilities": [
+    "runtime_input.read_only_inquiry",
+    "runtime_input.read_file_context",
+    "runtime_input.read_diff_context",
+    "runtime_input.search_context"
+  ],
+  "allowedDispatchTargets": [
+    "read_only_inquiry",
+    "clarification",
+    "unsupported"
+  ],
+  "requiresHumanConfirmation": false,
+  "outputSchemaRef": "RuntimeInputRouteProposal.requestedReadOnlyContext"
+}

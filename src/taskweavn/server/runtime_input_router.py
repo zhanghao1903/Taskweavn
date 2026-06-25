@@ -1,4 +1,4 @@
-"""Deterministic Runtime Input Router foundation."""
+"""Runtime Input Router foundation."""
 
 from __future__ import annotations
 
@@ -24,10 +24,15 @@ from taskweavn.server.runtime_input_llm_router import (
     RuntimeInputRoutePlanner,
     RuntimeInputRouteProposal,
 )
+from taskweavn.server.runtime_input_router_logging import (
+    log_runtime_input_router_dispatch,
+)
+from taskweavn.server.runtime_input_router_planner_dispatch import (
+    PlannerDispatchHandlers,
+    route_planner_result,
+)
 from taskweavn.server.runtime_input_wechat import (
     WeChatSendResolution,
-    resolve_wechat_send_input,
-    resolve_wechat_send_pending_clarification,
     wechat_send_execution_payload,
     wechat_send_task_request,
 )
@@ -61,7 +66,6 @@ from taskweavn.server.ui_contract.runtime_input import (
     RuntimeInputIntent,
     RuntimeInputOutcome,
     RuntimeInputOutcomeStatus,
-    RuntimeInputPendingClarification,
     RuntimeInputRouteDecision,
     RuntimeInputRouteRequest,
     RuntimeInputRouteResult,
@@ -80,51 +84,6 @@ from taskweavn.server.ui_http_commands import (
     _retry_task_with_optional_dispatch,
 )
 from taskweavn.task import ExecutionTriggerGateway
-
-_STOP_PHRASES = {
-    "stop",
-    "stop task",
-    "stop this task",
-    "stop selected task",
-}
-_RETRY_PHRASES = {
-    "retry",
-    "retry task",
-    "retry this task",
-    "retry selected task",
-    "try again",
-}
-_CONFIRM_YES = {"yes", "y", "ok", "okay", "confirm", "confirmed", "approve", "approved"}
-_CONFIRM_NO = {"no", "n", "reject", "rejected", "decline", "declined"}
-_QUESTION_PREFIXES = (
-    "what ",
-    "why ",
-    "how ",
-    "when ",
-    "where ",
-    "who ",
-    "which ",
-)
-_QUESTION_MARKERS = ("?", "？")
-_QUESTION_SUBSTRINGS = (
-    "什么",
-    "为什么",
-    "为何",
-    "如何",
-    "怎么",
-    "是否",
-    "吗",
-)
-_WORKSPACE_CHANGE_MARKERS = (
-    "write file",
-    "edit file",
-    "change file",
-    "modify file",
-    "create file",
-    "delete file",
-    "run command",
-    "execute command",
-)
 
 
 class RuntimeInputRouter(Protocol):
@@ -151,58 +110,32 @@ class DefaultRuntimeInputRouter:
         self,
         request: RuntimeInputRouteRequest,
     ) -> QueryResponse[RuntimeInputRouteResult]:
-        normalized = _normalize_content(request.content)
         active_ask = self._active_ask(request)
-        if active_ask is not None:
-            return self._answer_ask(request, active_ask)
-
         active_confirmation = self._active_confirmation(request)
-        if active_confirmation is not None:
-            confirmation_value = _confirmation_value(normalized)
-            if confirmation_value is None:
-                return self._needs_confirmation_clarification(
-                    request,
-                    active_confirmation,
-                )
-            return self._resolve_confirmation(
-                request,
-                active_confirmation,
-                confirmation_value,
-            )
 
-        if _is_stop_phrase(normalized):
-            return self._stop_selected_task(request)
-        if _is_retry_phrase(normalized):
-            return self._retry_selected_task(request)
-        wechat_pending = request.client_state.pending_clarification
-        if wechat_pending is not None and wechat_pending.kind == "wechat_send":
-            return self._route_wechat_send(
-                request,
-                resolve_wechat_send_pending_clarification(
-                    request.content,
-                    contact_display_name=wechat_pending.contact_display_name,
-                    message_text=wechat_pending.message_text,
-                    missing_slots=wechat_pending.missing_slots,
-                ),
-            )
-        wechat_send = resolve_wechat_send_input(request.content)
-        if wechat_send is not None:
-            return self._route_wechat_send(request, wechat_send)
-        planned = self._route_planner_result(request)
+        planned = self._route_planner_result(
+            request,
+            active_ask=active_ask,
+            active_confirmation=active_confirmation,
+        )
         if planned is not None:
             return planned
-        if request.mode == "ask" or _looks_like_question(normalized):
+
+        if request.mode == "ask":
             return self._answer_read_only_inquiry(request)
         if request.mode == "guide":
             return self._record_guidance(request)
-        if request.mode == "change" or _looks_like_workspace_change(normalized):
+        if request.mode == "change":
             return self._create_execution_task(request)
         return self._unsupported(
             request,
             intent="unsupported",
             dispatch_target="unsupported",
             side_effect="no_effect",
-            explanation="The Router could not classify a deterministic route.",
+            explanation=(
+                "The Router could not produce a planner-backed route and no "
+                "explicit input mode was provided."
+            ),
             user_message=(
                 "I could not route this input safely yet. No product or workspace state changed."
             ),
@@ -330,50 +263,6 @@ class DefaultRuntimeInputRouter:
             activity_kind="task_created" if accepted else "recovery_note",
             publish_activity=not accepted,
         )
-
-    def _route_wechat_send(
-        self,
-        request: RuntimeInputRouteRequest,
-        resolution: WeChatSendResolution,
-    ) -> QueryResponse[RuntimeInputRouteResult]:
-        if resolution.status == "needs_clarification":
-            decision = self._decision(
-                request,
-                intent="clarification",
-                dispatch_target="clarification",
-                side_effect="no_effect",
-                explanation=(
-                    "Input looks like a WeChat send request but is missing required "
-                    f"slots: {', '.join(resolution.missing_slots)}."
-                ),
-                related_refs=_selection_refs(request),
-            )
-            return self._result(
-                request,
-                decision,
-                RuntimeInputOutcome(
-                    status="needs_clarification",
-                    user_message=resolution.user_message,
-                    recovery_actions=("edit_input",),
-                    pending_clarification=_wechat_pending_clarification(
-                        request,
-                        resolution,
-                    ),
-                ),
-            )
-        if resolution.status == "unsupported":
-            return self._unsupported(
-                request,
-                intent="execution_request",
-                dispatch_target="unsupported",
-                side_effect="no_effect",
-                explanation=(
-                    "Input looks like a WeChat send request but is outside the "
-                    f"bounded supported shape: {resolution.reason_code}."
-                ),
-                user_message=resolution.user_message,
-            )
-        return self._create_wechat_send_execution_task(request, resolution)
 
     def _create_wechat_send_execution_task(
         self,
@@ -561,7 +450,10 @@ class DefaultRuntimeInputRouter:
         self,
         request: RuntimeInputRouteRequest,
         ask: AskRequestView,
+        *,
+        answer_text: str | None = None,
     ) -> QueryResponse[RuntimeInputRouteResult]:
+        text = answer_text or request.content
         decision = self._decision(
             request,
             intent="ask_answer",
@@ -582,7 +474,7 @@ class DefaultRuntimeInputRouter:
                     ask_id=ask.id,
                     source="runtime_input",
                     router_decision_id=decision.id,
-                    payload={"text": request.content},
+                    payload={"text": text},
                 )
             )
             accepted = command_result.status in {"accepted", "noop"}
@@ -617,7 +509,7 @@ class DefaultRuntimeInputRouter:
             CommandRequest[AnswerAskPayload](
                 command_id=request.command_id,
                 session_id=request.session_id,
-                payload=AnswerAskPayload(text=request.content),
+                payload=AnswerAskPayload(text=text),
             ),
         )
         accepted = command_response.ok and command_response.result is not None
@@ -716,34 +608,11 @@ class DefaultRuntimeInputRouter:
             activity_kind="confirmation_resolved" if accepted else "recovery_note",
         )
 
-    def _needs_confirmation_clarification(
-        self,
-        request: RuntimeInputRouteRequest,
-        confirmation: ConfirmationActionView,
-    ) -> QueryResponse[RuntimeInputRouteResult]:
-        decision = self._decision(
-            request,
-            intent="clarification",
-            dispatch_target="clarification",
-            side_effect="no_effect",
-            explanation="Active confirmation requires a clear yes/no response.",
-            related_refs=(_ref("confirmation", confirmation.id, "Active confirmation"),),
-        )
-        return self._result(
-            request,
-            decision,
-            RuntimeInputOutcome(
-                status="needs_clarification",
-                user_message=(
-                    "Please answer the active confirmation with a clear yes or no. "
-                    "No product or workspace state changed."
-                ),
-            ),
-        )
-
     def _stop_selected_task(
         self,
         request: RuntimeInputRouteRequest,
+        *,
+        planner_proposal: RuntimeInputRouteProposal | None = None,
     ) -> QueryResponse[RuntimeInputRouteResult]:
         task_node_id = request.selection.task_node_id
         if request.selection.scope_kind != "task" or task_node_id is None:
@@ -762,7 +631,14 @@ class DefaultRuntimeInputRouter:
             intent="command",
             dispatch_target="existing_command",
             side_effect="state_effect",
-            explanation="Input matched the deterministic stop-task command.",
+            explanation=(
+                planner_proposal.visible_reasoning_summary
+                if planner_proposal is not None
+                else "Input routed to stop-task command."
+            ),
+            confidence=(
+                planner_proposal.confidence if planner_proposal is not None else "high"
+            ),
             related_refs=(_ref("task", task_node_id, "Selected task"),),
         )
         return self._result(
@@ -783,6 +659,8 @@ class DefaultRuntimeInputRouter:
     def _retry_selected_task(
         self,
         request: RuntimeInputRouteRequest,
+        *,
+        planner_proposal: RuntimeInputRouteProposal | None = None,
     ) -> QueryResponse[RuntimeInputRouteResult]:
         task_node_id = request.selection.task_node_id
         if request.selection.scope_kind != "task" or task_node_id is None:
@@ -806,7 +684,14 @@ class DefaultRuntimeInputRouter:
             intent="command",
             dispatch_target="existing_command",
             side_effect="state_effect",
-            explanation="Input matched the deterministic retry-task command.",
+            explanation=(
+                planner_proposal.visible_reasoning_summary
+                if planner_proposal is not None
+                else "Input routed to retry-task command."
+            ),
+            confidence=(
+                planner_proposal.confidence if planner_proposal is not None else "high"
+            ),
             related_refs=(_ref("task", task_node_id, "Selected task"),),
         )
         return self._result(
@@ -835,7 +720,7 @@ class DefaultRuntimeInputRouter:
             intent="clarification",
             dispatch_target="clarification",
             side_effect="no_effect",
-            explanation=f"Deterministic {action} command requires a selected task.",
+            explanation=f"Planner-routed {action} command requires a selected task.",
         )
         return self._result(
             request,
@@ -943,45 +828,174 @@ class DefaultRuntimeInputRouter:
     def _route_planner_result(
         self,
         request: RuntimeInputRouteRequest,
+        *,
+        active_ask: AskRequestView | None,
+        active_confirmation: ConfirmationActionView | None,
     ) -> QueryResponse[RuntimeInputRouteResult] | None:
-        if self.route_planner is None:
-            return None
-        planner_result = self.route_planner.plan(
+        return route_planner_result(
             request,
-            allowed_dispatch_targets=(
-                "read_only_inquiry",
-                "record_guidance",
-                "execution_handoff",
-                "clarification",
-                "unsupported",
+            self.route_planner,
+            active_ask=active_ask is not None,
+            active_confirmation=active_confirmation is not None,
+            handlers=self._planner_dispatch_handlers(
+                active_ask=active_ask,
+                active_confirmation=active_confirmation,
             ),
-            active_ask=False,
-            active_confirmation=False,
         )
-        proposal = planner_result.proposal
-        if planner_result.status != "planned" or proposal is None:
-            return None
-        if proposal.dispatch_target == "read_only_inquiry":
-            return self._answer_read_only_inquiry(
-                request,
-                planner_proposal=proposal,
-            )
-        if proposal.dispatch_target == "record_guidance":
-            return self._record_guidance(request)
-        if proposal.dispatch_target == "execution_handoff":
-            return self._create_execution_task(request)
-        if proposal.dispatch_target == "clarification":
-            return self._planner_clarification(request, proposal)
-        if proposal.dispatch_target == "unsupported":
+
+    def _planner_dispatch_handlers(
+        self,
+        *,
+        active_ask: AskRequestView | None,
+        active_confirmation: ConfirmationActionView | None,
+    ) -> PlannerDispatchHandlers:
+        return PlannerDispatchHandlers(
+            answer_read_only_inquiry=(
+                lambda request, proposal: self._answer_read_only_inquiry(
+                    request,
+                    planner_proposal=proposal,
+                )
+            ),
+            record_guidance=self._record_guidance,
+            create_execution_task=self._create_execution_task,
+            create_wechat_send_execution_task=self._create_wechat_send_execution_task,
+            stop_selected_task=(
+                lambda request, proposal: self._stop_selected_task(
+                    request,
+                    planner_proposal=proposal,
+                )
+            ),
+            retry_selected_task=(
+                lambda request, proposal: self._retry_selected_task(
+                    request,
+                    planner_proposal=proposal,
+                )
+            ),
+            resolve_ask=(
+                lambda request, proposal: self._planner_resolve_ask(
+                    request,
+                    proposal,
+                    active_ask=active_ask,
+                )
+            ),
+            resolve_confirmation=(
+                lambda request, proposal: self._planner_resolve_confirmation(
+                    request,
+                    proposal,
+                    active_confirmation=active_confirmation,
+                )
+            ),
+            planner_clarification=self._planner_clarification,
+            unsupported=self._unsupported,
+        )
+
+    def _planner_resolve_ask(
+        self,
+        request: RuntimeInputRouteRequest,
+        proposal: RuntimeInputRouteProposal,
+        *,
+        active_ask: AskRequestView | None,
+    ) -> QueryResponse[RuntimeInputRouteResult]:
+        if active_ask is None:
             return self._unsupported(
                 request,
                 intent=proposal.intent,
                 dispatch_target="unsupported",
                 side_effect="no_effect",
-                explanation=proposal.visible_reasoning_summary,
-                user_message=proposal.user_message,
+                explanation="Planner proposed ASK resolution but no active ASK exists.",
+                user_message=(
+                    "There is no active ASK to answer. "
+                    "No product or workspace state changed."
+                ),
             )
-        return None
+        draft = proposal.ask_answer_draft
+        if draft is None:
+            return self._unsupported(
+                request,
+                intent=proposal.intent,
+                dispatch_target="unsupported",
+                side_effect="no_effect",
+                explanation="Planner resolve_ask proposal did not include answer draft.",
+                user_message=(
+                    "The Router could not validate that ASK answer. "
+                    "No product or workspace state changed."
+                ),
+            )
+        if draft.ask_id is not None and draft.ask_id != active_ask.id:
+            return self._unsupported(
+                request,
+                intent=proposal.intent,
+                dispatch_target="unsupported",
+                side_effect="no_effect",
+                explanation="Planner ASK answer draft targeted a non-active ASK.",
+                user_message=(
+                    "That ASK is no longer active. "
+                    "No product or workspace state changed."
+                ),
+            )
+        return self._answer_ask(request, active_ask, answer_text=draft.answer_text)
+
+    def _planner_resolve_confirmation(
+        self,
+        request: RuntimeInputRouteRequest,
+        proposal: RuntimeInputRouteProposal,
+        *,
+        active_confirmation: ConfirmationActionView | None,
+    ) -> QueryResponse[RuntimeInputRouteResult]:
+        if active_confirmation is None:
+            return self._unsupported(
+                request,
+                intent=proposal.intent,
+                dispatch_target="unsupported",
+                side_effect="no_effect",
+                explanation=(
+                    "Planner proposed confirmation resolution but no active "
+                    "confirmation exists."
+                ),
+                user_message=(
+                    "There is no active confirmation to resolve. "
+                    "No product or workspace state changed."
+                ),
+            )
+        draft = proposal.confirmation_response_draft
+        if draft is None:
+            return self._unsupported(
+                request,
+                intent=proposal.intent,
+                dispatch_target="unsupported",
+                side_effect="no_effect",
+                explanation=(
+                    "Planner resolve_confirmation proposal did not include "
+                    "confirmation response draft."
+                ),
+                user_message=(
+                    "The Router could not validate that confirmation response. "
+                    "No product or workspace state changed."
+                ),
+            )
+        if (
+            draft.confirmation_id is not None
+            and draft.confirmation_id != active_confirmation.id
+        ):
+            return self._unsupported(
+                request,
+                intent=proposal.intent,
+                dispatch_target="unsupported",
+                side_effect="no_effect",
+                explanation=(
+                    "Planner confirmation response draft targeted a non-active "
+                    "confirmation."
+                ),
+                user_message=(
+                    "That confirmation is no longer active. "
+                    "No product or workspace state changed."
+                ),
+            )
+        return self._resolve_confirmation(
+            request,
+            active_confirmation,
+            draft.resolution,
+        )
 
     def _planner_clarification(
         self,
@@ -1090,6 +1104,13 @@ class DefaultRuntimeInputRouter:
             outcome,
             enabled=publish_activity,
         )
+        log_runtime_input_router_dispatch(
+            request,
+            decision,
+            outcome,
+            command_response=command_response,
+            inquiry_result=inquiry_result,
+        )
         return QueryResponse[RuntimeInputRouteResult](
             request_id=request.command_id,
             ok=True,
@@ -1158,38 +1179,6 @@ class DefaultRuntimeInputRouter:
             source_id=decision.id,
             disclosure_level="public",
         )
-
-
-def _normalize_content(content: str) -> str:
-    return " ".join(content.strip().lower().split())
-
-
-def _is_stop_phrase(content: str) -> bool:
-    return content in _STOP_PHRASES
-
-
-def _is_retry_phrase(content: str) -> bool:
-    return content in _RETRY_PHRASES
-
-
-def _confirmation_value(content: str) -> str | None:
-    if content in _CONFIRM_YES:
-        return "confirmed"
-    if content in _CONFIRM_NO:
-        return "rejected"
-    return None
-
-
-def _looks_like_question(content: str) -> bool:
-    return (
-        content.endswith(_QUESTION_MARKERS)
-        or content.startswith(_QUESTION_PREFIXES)
-        or any(marker in content for marker in _QUESTION_SUBSTRINGS)
-    )
-
-
-def _looks_like_workspace_change(content: str) -> bool:
-    return any(marker in content for marker in _WORKSPACE_CHANGE_MARKERS)
 
 
 def _runtime_outcome_status(status: ReadOnlyInquiryStatus) -> RuntimeInputOutcomeStatus:
@@ -1327,20 +1316,6 @@ def _wechat_execution_user_message(execution: TaskExecution) -> str:
     if execution.status == "done":
         return "微信发送任务已完成。"
     return "微信发送任务已创建；真正发送前仍需要用户确认。"
-
-
-def _wechat_pending_clarification(
-    request: RuntimeInputRouteRequest,
-    resolution: WeChatSendResolution,
-) -> RuntimeInputPendingClarification:
-    return RuntimeInputPendingClarification(
-        kind="wechat_send",
-        reason_code=resolution.reason_code,
-        contact_display_name=resolution.contact_display_name,
-        message_text=resolution.message_text,
-        missing_slots=resolution.missing_slots,
-        original_content=request.content,
-    )
 
 
 def _contract_activity_kind(

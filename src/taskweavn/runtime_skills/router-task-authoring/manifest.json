@@ -1,0 +1,19 @@
+{
+  "schemaVersion": "plato.runtime_skill.v1",
+  "skillId": "internal:router-task-authoring",
+  "kind": "router_capability",
+  "capabilities": [
+    "runtime_input.task_authoring",
+    "runtime_input.plan_revision",
+    "runtime_input.execution_handoff"
+  ],
+  "allowedDispatchTargets": [
+    "record_guidance",
+    "existing_command",
+    "execution_handoff",
+    "clarification",
+    "unsupported"
+  ],
+  "requiresHumanConfirmation": false,
+  "outputSchemaRef": "RuntimeInputRouteProposal.taskRequestDraft"
+}

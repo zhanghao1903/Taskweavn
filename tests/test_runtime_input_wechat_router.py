@@ -13,6 +13,10 @@ from taskweavn.contract_revision import (
 )
 from taskweavn.execution_plane.models import TaskExecution, TaskRequest, utcnow
 from taskweavn.server import HttpApiRequest, PlatoUiHttpTransport
+from taskweavn.server.runtime_input_llm_router import (
+    RouterPlannerResult,
+    RuntimeInputRouteProposal,
+)
 from taskweavn.server.runtime_input_router import DefaultRuntimeInputRouter
 from taskweavn.server.ui_contract import (
     ApiError,
@@ -24,7 +28,6 @@ from taskweavn.server.ui_contract import (
     ProjectSummary,
     QueryResponse,
     RuntimeInputClientState,
-    RuntimeInputPendingClarification,
     RuntimeInputRouteRequest,
     RuntimeInputSelection,
     SessionSummary,
@@ -46,12 +49,17 @@ def test_router_creates_confirmation_gated_wechat_execution_task() -> None:
     query = _QueryGateway()
     commands = _CommandGateway()
     handler = _TaskNodeCommandHandler()
-    router = _router(query, commands, handler=handler)
+    router = _router(
+        query,
+        commands,
+        handler=handler,
+        route_planner=_wechat_planner("Plato 本地发送测试"),
+    )
 
     response = router.route(
         _request(
             command_id="route-wechat-send",
-            content="给微信文件传输助手发送一条消息：Plato 本地发送测试。发送前让我确认。",
+            content="给微信的文件传输助手发送测试消息",
         )
     )
 
@@ -82,12 +90,13 @@ def test_router_publishes_wechat_send_task_to_execution_plane_when_available() -
         query,
         commands,
         execution_plane_service=execution_plane,
+        route_planner=_wechat_planner("hello"),
     )
 
     response = router.route(
         _request(
             command_id="route-wechat-send",
-            content="给微信文件传输助手发送消息：hello",
+            content="给微信文件传输助手发送消息",
         )
     )
 
@@ -112,6 +121,94 @@ def test_router_publishes_wechat_send_task_to_execution_plane_when_available() -
     assert commands.calls == []
 
 
+def test_router_uses_planner_wechat_task_request_draft_for_execution_plane() -> None:
+    query = _QueryGateway()
+    commands = _CommandGateway()
+    execution_plane = _ExecutionPlaneService(status="waiting_for_user")
+    planner = _Planner(
+        RuntimeInputRouteProposal(
+            intent="execution_request",
+            dispatch_target="execution_handoff",
+            side_effect="state_effect",
+            confidence="high",
+            visible_reasoning_summary="Router skill created a WeChat task draft.",
+            user_message="I will create a confirmation-gated WeChat task.",
+            activated_skill_ids=("internal:router-wechat-send",),
+            task_request_draft={
+                "taskType": "communication.wechat.send_message",
+                "instructions": "Send one confirmation-gated WeChat message.",
+                "input": {
+                    "contactDisplayName": "文件传输助手",
+                    "messageText": "LLM proposal path",
+                },
+                "policy": {
+                    "requiredCapability": "communication.wechat_desktop_send",
+                    "requiresHumanConfirmation": True,
+                    "riskLevel": "high",
+                },
+            },
+        )
+    )
+    router = _router(
+        query,
+        commands,
+        execution_plane_service=execution_plane,
+        route_planner=planner,
+    )
+
+    response = router.route(
+        _request(
+            command_id="route-wechat-llm",
+            content="请按刚才讨论的外部联系流程处理这条消息",
+        )
+    )
+
+    assert response.ok is True
+    assert response.data is not None
+    assert response.data.decision.intent == "execution_request"
+    assert response.data.decision.dispatch_target == "execution_handoff"
+    assert response.data.decision.side_effect == "execution_request"
+    assert response.data.outcome.status == "dispatched"
+    assert len(execution_plane.requests) == 1
+    task_request = execution_plane.requests[0]
+    assert task_request.idempotency_key == "runtime-input:session-1:route-wechat-llm"
+    assert task_request.task_type == "communication.wechat.send_message"
+    assert task_request.input["contactDisplayName"] == "文件传输助手"
+    assert task_request.input["messageText"] == "LLM proposal path"
+    assert task_request.policy.requires_human_confirmation is True
+    assert task_request.policy.risk_level == "high"
+    assert commands.calls == []
+
+
+def test_router_planner_unavailable_does_not_fall_back_to_wechat_parser() -> None:
+    query = _QueryGateway()
+    commands = _CommandGateway()
+    execution_plane = _ExecutionPlaneService(status="waiting_for_user")
+    planner = _Planner(None, status="unavailable", warning="planner timeout")
+    router = _router(
+        query,
+        commands,
+        execution_plane_service=execution_plane,
+        route_planner=planner,
+    )
+
+    response = router.route(
+        _request(
+            command_id="route-wechat-planner-unavailable",
+            content="给微信文件传输助手发送消息：should not send",
+        )
+    )
+
+    assert response.ok is True
+    assert response.data is not None
+    assert response.data.decision.intent == "unsupported"
+    assert response.data.decision.dispatch_target == "unsupported"
+    assert response.data.decision.explanation == "planner timeout"
+    assert response.data.outcome.status == "unsupported"
+    assert execution_plane.requests == []
+    assert commands.calls == []
+
+
 def test_workspace_http_route_publishes_wechat_send_task_to_execution_plane() -> None:
     query = _QueryGateway()
     commands = _CommandGateway()
@@ -120,6 +217,7 @@ def test_workspace_http_route_publishes_wechat_send_task_to_execution_plane() ->
         query,
         commands,
         execution_plane_service=execution_plane,
+        route_planner=_wechat_planner("HTTP route smoke"),
     )
     transport = PlatoUiHttpTransport(
         query_gateway=cast(Any, query),
@@ -137,7 +235,7 @@ def test_workspace_http_route_publishes_wechat_send_task_to_execution_plane() ->
             body={
                 "commandId": "route-wechat-http",
                 "sessionId": "session-1",
-                "content": "给微信文件传输助手发送一条消息：HTTP route smoke",
+                "content": "给微信文件传输助手发送一条消息",
                 "selection": {"scopeKind": "session"},
             },
         )
@@ -164,89 +262,25 @@ def test_workspace_http_route_publishes_wechat_send_task_to_execution_plane() ->
     assert commands.calls == []
 
 
-def test_router_wechat_send_missing_message_needs_clarification_without_task() -> None:
+def test_router_without_planner_does_not_parse_wechat_send_text() -> None:
     query = _QueryGateway()
     commands = _CommandGateway()
     handler = _TaskNodeCommandHandler()
     router = _router(query, commands, handler=handler)
 
-    response = router.route(_request(content="给微信文件传输助手发消息"))
+    response = router.route(_request(content="给微信文件传输助手发送消息：hello"))
 
     assert response.ok is True
     assert response.data is not None
-    assert response.data.decision.intent == "clarification"
-    assert response.data.decision.dispatch_target == "clarification"
-    assert response.data.decision.side_effect == "no_effect"
-    assert response.data.outcome.status == "needs_clarification"
-    assert response.data.outcome.pending_clarification is not None
-    pending = response.data.outcome.pending_clarification
-    assert pending.kind == "wechat_send"
-    assert pending.contact_display_name == "文件传输助手"
-    assert pending.message_text is None
-    assert pending.missing_slots == ("messageText",)
-    assert (
-        response.data.outcome.user_message
-        == "要发送给文件传输助手的消息内容是什么？没有创建发送任务。"
-    )
-    assert handler.payloads == []
-    assert commands.calls == []
-
-
-def test_router_completes_pending_wechat_send_clarification() -> None:
-    query = _QueryGateway()
-    commands = _CommandGateway()
-    execution_plane = _ExecutionPlaneService(status="waiting_for_user")
-    router = _router(
-        query,
-        commands,
-        execution_plane_service=execution_plane,
-    )
-
-    response = router.route(
-        _request(
-            command_id="route-wechat-complete",
-            content="Plato 补全后的消息。发送前让我确认。",
-            pending_clarification=RuntimeInputPendingClarification(
-                kind="wechat_send",
-                reason_code="missing_message",
-                contact_display_name="文件传输助手",
-                missing_slots=("messageText",),
-                original_content="给微信文件传输助手发消息",
-            ),
-        )
-    )
-
-    assert response.ok is True
-    assert response.data is not None
-    assert response.data.decision.intent == "execution_request"
-    assert response.data.outcome.status == "dispatched"
-    assert response.data.outcome.pending_clarification is None
-    assert len(execution_plane.requests) == 1
-    task_request = execution_plane.requests[0]
-    assert task_request.input["contactDisplayName"] == "文件传输助手"
-    assert task_request.input["messageText"] == "Plato 补全后的消息"
-
-
-def test_router_wechat_send_bulk_contact_is_unsupported_without_task() -> None:
-    query = _QueryGateway()
-    commands = _CommandGateway()
-    handler = _TaskNodeCommandHandler()
-    router = _router(query, commands, handler=handler)
-
-    response = router.route(_request(content="给微信张三和李四发送消息：明天开会"))
-
-    assert response.ok is True
-    assert response.data is not None
-    assert response.data.decision.intent == "execution_request"
+    assert response.data.decision.intent == "unsupported"
     assert response.data.decision.dispatch_target == "unsupported"
     assert response.data.decision.side_effect == "no_effect"
     assert response.data.outcome.status == "unsupported"
-    assert response.data.outcome.user_message == "一次只能创建一个微信发送任务。没有发送消息。"
     assert handler.payloads == []
     assert commands.calls == []
 
 
-def test_router_active_confirmation_takes_priority_over_wechat_send_intent() -> None:
+def test_router_active_confirmation_without_planner_does_not_parse_wechat_send_text() -> None:
     query = _QueryGateway(active_confirmation_id="confirm-1")
     commands = _CommandGateway()
     handler = _TaskNodeCommandHandler()
@@ -261,8 +295,8 @@ def test_router_active_confirmation_takes_priority_over_wechat_send_intent() -> 
 
     assert response.ok is True
     assert response.data is not None
-    assert response.data.decision.intent == "clarification"
-    assert response.data.outcome.status == "needs_clarification"
+    assert response.data.decision.intent == "unsupported"
+    assert response.data.outcome.status == "unsupported"
     assert handler.payloads == []
     assert commands.calls == []
 
@@ -272,7 +306,6 @@ def _request(
     content: str,
     command_id: str = "route-1",
     active_confirmation_id: str | None = None,
-    pending_clarification: RuntimeInputPendingClarification | None = None,
 ) -> RuntimeInputRouteRequest:
     return RuntimeInputRouteRequest(
         command_id=command_id,
@@ -282,7 +315,6 @@ def _request(
         selection=RuntimeInputSelection(scope_kind="session"),
         client_state=RuntimeInputClientState(
             active_confirmation_id=active_confirmation_id,
-            pending_clarification=pending_clarification,
         ),
     )
 
@@ -293,6 +325,7 @@ def _router(
     *,
     handler: _TaskNodeCommandHandler | None = None,
     execution_plane_service: _ExecutionPlaneService | None = None,
+    route_planner: _Planner | None = None,
 ) -> DefaultRuntimeInputRouter:
     service = (
         None
@@ -309,6 +342,34 @@ def _router(
         command_gateway=cast(Any, commands),
         contract_revision_service=service,
         execution_plane_service=cast(Any, execution_plane_service),
+        route_planner=route_planner,
+    )
+
+
+def _wechat_planner(message_text: str) -> _Planner:
+    return _Planner(
+        RuntimeInputRouteProposal(
+            intent="execution_request",
+            dispatch_target="execution_handoff",
+            side_effect="state_effect",
+            confidence="high",
+            visible_reasoning_summary="Router skill created a WeChat task draft.",
+            user_message="I will create a confirmation-gated WeChat task.",
+            activated_skill_ids=("internal:router-wechat-send",),
+            task_request_draft={
+                "taskType": "communication.wechat.send_message",
+                "instructions": "Send one confirmation-gated WeChat message.",
+                "input": {
+                    "contactDisplayName": "文件传输助手",
+                    "messageText": message_text,
+                },
+                "policy": {
+                    "requiredCapability": "communication.wechat_desktop_send",
+                    "requiresHumanConfirmation": True,
+                    "riskLevel": "high",
+                },
+            },
+        )
     )
 
 
@@ -333,6 +394,20 @@ class _ExecutionPlaneService:
             created_at=now,
             updated_at=now,
             session_id=cast(str, request.metadata["sessionId"]),
+        )
+
+
+@dataclass
+class _Planner:
+    proposal: RuntimeInputRouteProposal | None
+    status: str = "planned"
+    warning: str | None = None
+
+    def plan(self, *args: Any, **kwargs: Any) -> RouterPlannerResult:
+        return RouterPlannerResult(
+            status=cast(Any, self.status),
+            proposal=self.proposal,
+            warning=self.warning,
         )
 
 

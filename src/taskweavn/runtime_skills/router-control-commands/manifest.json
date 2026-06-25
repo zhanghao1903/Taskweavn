@@ -1,0 +1,18 @@
+{
+  "schemaVersion": "plato.runtime_skill.v1",
+  "skillId": "internal:router-control-commands",
+  "kind": "router_capability",
+  "capabilities": [
+    "runtime_input.control.stop",
+    "runtime_input.control.retry",
+    "runtime_input.control.resume",
+    "runtime_input.control.cancel"
+  ],
+  "allowedDispatchTargets": [
+    "existing_command",
+    "clarification",
+    "unsupported"
+  ],
+  "requiresHumanConfirmation": false,
+  "outputSchemaRef": "RuntimeInputRouteProposal.commandDraft"
+}

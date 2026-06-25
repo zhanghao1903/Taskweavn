@@ -1,0 +1,17 @@
+{
+  "schemaVersion": "plato.runtime_skill.v1",
+  "skillId": "internal:router-core",
+  "kind": "router_core",
+  "allowedDispatchTargets": [
+    "read_only_inquiry",
+    "record_guidance",
+    "resolve_ask",
+    "resolve_confirmation",
+    "existing_command",
+    "execution_handoff",
+    "clarification",
+    "unsupported"
+  ],
+  "requiresHumanConfirmation": false,
+  "outputSchemaRef": "RuntimeInputRouteProposal"
+}

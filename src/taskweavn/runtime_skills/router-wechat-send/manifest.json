@@ -1,0 +1,20 @@
+{
+  "schemaVersion": "plato.runtime_skill.v1",
+  "skillId": "internal:router-wechat-send",
+  "kind": "router_capability",
+  "capabilities": [
+    "communication.wechat.send_message"
+  ],
+  "requiredSlots": [
+    "contactDisplayName",
+    "messageText"
+  ],
+  "allowedDispatchTargets": [
+    "execution_handoff",
+    "clarification",
+    "unsupported"
+  ],
+  "riskLevel": "high",
+  "requiresHumanConfirmation": true,
+  "outputSchemaRef": "RuntimeInputRouteProposal.taskRequestDraft"
+}

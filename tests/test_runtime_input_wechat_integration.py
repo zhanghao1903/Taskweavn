@@ -21,6 +21,10 @@ from taskweavn.integrations.wechat_desktop import (
 )
 from taskweavn.interaction import AgentMessage, InProcessMessageBus, SqliteMessageStream
 from taskweavn.server import HttpApiRequest, PlatoUiHttpTransport
+from taskweavn.server.runtime_input_llm_router import (
+    RouterPlannerResult,
+    RuntimeInputRouteProposal,
+)
 from taskweavn.server.runtime_input_router import DefaultRuntimeInputRouter
 from taskweavn.server.ui_contract import (
     ApiError,
@@ -144,6 +148,7 @@ def _fixture(tmp_path: Path) -> _Fixture:
         query_gateway=cast(Any, query),
         command_gateway=cast(Any, commands),
         execution_plane_service=service,
+        route_planner=_Planner(),
     )
     transport = PlatoUiHttpTransport(
         query_gateway=cast(Any, query),
@@ -301,3 +306,34 @@ class _CommandGateway:
 
     def retry_task(self, *args: Any, **kwargs: Any) -> CommandResponse:
         raise AssertionError("retry_task should not be called")
+
+
+@dataclass
+class _Planner:
+    def plan(self, request: Any, *args: Any, **kwargs: Any) -> RouterPlannerResult:
+        message_text = str(request.content).split("：", 1)[-1].strip()
+        return RouterPlannerResult(
+            status="planned",
+            proposal=RuntimeInputRouteProposal(
+                intent="execution_request",
+                dispatch_target="execution_handoff",
+                side_effect="state_effect",
+                confidence="high",
+                visible_reasoning_summary="Router skill created a WeChat task draft.",
+                user_message="I will create a confirmation-gated WeChat task.",
+                activated_skill_ids=("internal:router-wechat-send",),
+                task_request_draft={
+                    "taskType": "communication.wechat.send_message",
+                    "instructions": "Send one confirmation-gated WeChat message.",
+                    "input": {
+                        "contactDisplayName": "文件传输助手",
+                        "messageText": message_text,
+                    },
+                    "policy": {
+                        "requiredCapability": "communication.wechat_desktop_send",
+                        "requiresHumanConfirmation": True,
+                        "riskLevel": "high",
+                    },
+                },
+            ),
+        )

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -14,6 +15,7 @@ from taskweavn.contract_revision import (
     UiGatewayContractInteractionCommandHandler,
 )
 from taskweavn.interaction import InProcessMessageBus, SqliteMessageStream
+from taskweavn.observability import configure_session_logging
 from taskweavn.server import HttpApiRequest, PlatoUiHttpTransport
 from taskweavn.server.runtime_input_activity import (
     READ_ONLY_INQUIRY_ACTIVITY_TITLE,
@@ -69,6 +71,44 @@ def test_runtime_input_route_request_rejects_task_scope_without_task_id() -> Non
         raise AssertionError("expected task scope validation to fail")
 
 
+def test_router_default_without_planner_rejects_free_text_semantic_fallback() -> None:
+    query = _QueryGateway()
+    commands = _CommandGateway()
+    router = _router(query, commands)
+
+    question = router.route(
+        _request(
+            content="What changed in this workspace?",
+            selection=RuntimeInputSelection(scope_kind="session"),
+        )
+    )
+    stop = router.route(
+        _request(
+            command_id="route-stop",
+            content="stop",
+            selection=RuntimeInputSelection(scope_kind="task", task_node_id="task-1"),
+        )
+    )
+    change = router.route(
+        _request(
+            command_id="route-change",
+            content="create file README.md",
+            selection=RuntimeInputSelection(scope_kind="session"),
+        )
+    )
+
+    assert question.data is not None
+    assert question.data.decision.dispatch_target == "unsupported"
+    assert question.data.outcome.status == "unsupported"
+    assert stop.data is not None
+    assert stop.data.decision.dispatch_target == "unsupported"
+    assert stop.data.outcome.status == "unsupported"
+    assert change.data is not None
+    assert change.data.decision.dispatch_target == "unsupported"
+    assert change.data.outcome.status == "unsupported"
+    assert commands.calls == []
+
+
 def test_router_question_returns_read_only_inquiry_answer() -> None:
     query = _QueryGateway()
     commands = _CommandGateway()
@@ -78,6 +118,7 @@ def test_router_question_returns_read_only_inquiry_answer() -> None:
     response = router.route(
         _request(
             content="What changed in this workspace?",
+            mode="ask",
             selection=RuntimeInputSelection(scope_kind="session"),
         )
     )
@@ -111,6 +152,7 @@ def test_router_passes_workspace_id_to_read_only_inquiry() -> None:
     response = router.route(
         _request(
             content="What changed in this workspace?",
+            mode="ask",
             workspace_id="workspace-1",
             selection=RuntimeInputSelection(scope_kind="session"),
         )
@@ -118,6 +160,43 @@ def test_router_passes_workspace_id_to_read_only_inquiry() -> None:
 
     assert response.ok is True
     assert inquiry.requests[0].workspace_id == "workspace-1"
+
+
+def test_router_writes_final_dispatch_summary_log(tmp_path: Path) -> None:
+    configure_session_logging(tmp_path / "logs", session_id="session-1")
+    query = _QueryGateway()
+    commands = _CommandGateway()
+    router = _router(query, commands)
+
+    response = router.route(
+        _request(
+            content="What changed in this workspace?",
+            mode="ask",
+            workspace_id="workspace-1",
+            selection=RuntimeInputSelection(scope_kind="session"),
+        )
+    )
+
+    assert response.ok is True
+    runtime_rows = _read_jsonl(
+        tmp_path / "logs" / "sessions" / "session-1" / "runtime.jsonl"
+    )
+    dispatch_log = runtime_rows[-1]
+    assert dispatch_log["event"] == "runtime_input_router_dispatch"
+    data = dispatch_log["data"]
+    assert data["request_id"] == "route-1"
+    assert data["workspace_id"] == "workspace-1"
+    assert data["intent"] == "question"
+    assert data["dispatch_target"] == "read_only_inquiry"
+    assert data["side_effect"] == "no_effect"
+    assert data["outcome_status"] == "answered"
+    assert data["inquiry_result"]["status"] == "answered"
+    assert data["command_response"] is None
+    assert data["requires_confirmation"] is False
+    assert "What changed in this workspace?" not in json.dumps(
+        runtime_rows,
+        ensure_ascii=False,
+    )
 
 
 def test_router_planner_can_request_read_only_workspace_file_context() -> None:
@@ -162,6 +241,271 @@ def test_router_planner_can_request_read_only_workspace_file_context() -> None:
     assert inquiry.requests[0].refs[0].kind == "file"
     assert inquiry.requests[0].refs[0].path == "README.md"
     assert commands.calls == []
+
+
+def test_router_planner_unavailable_fails_closed_without_question_fallback() -> None:
+    query = _QueryGateway()
+    commands = _CommandGateway()
+    inquiry = _CapturingInquiry()
+    planner = _Planner(None, status="unavailable", warning="planner timeout")
+    router = _router(
+        query,
+        commands,
+        read_only_inquiry_service=inquiry,
+        route_planner=planner,
+    )
+
+    response = router.route(
+        _request(
+            content="What changed in this workspace?",
+            selection=RuntimeInputSelection(scope_kind="session"),
+        )
+    )
+
+    assert response.ok is True
+    assert response.data is not None
+    assert response.data.decision.intent == "unsupported"
+    assert response.data.decision.dispatch_target == "unsupported"
+    assert response.data.decision.explanation == "planner timeout"
+    assert response.data.outcome.status == "unsupported"
+    assert inquiry.requests == []
+    assert commands.calls == []
+
+
+def test_router_planner_unavailable_fails_closed_without_stop_fallback() -> None:
+    query = _QueryGateway()
+    commands = _CommandGateway()
+    planner = _Planner(None, status="unavailable", warning="planner timeout")
+    router = _router(query, commands, route_planner=planner)
+
+    response = router.route(
+        _request(
+            content="stop",
+            selection=RuntimeInputSelection(
+                scope_kind="task",
+                task_node_id="task-1",
+            ),
+        )
+    )
+
+    assert response.ok is True
+    assert response.data is not None
+    assert response.data.decision.intent == "unsupported"
+    assert response.data.decision.dispatch_target == "unsupported"
+    assert response.data.decision.explanation == "planner timeout"
+    assert response.data.outcome.status == "unsupported"
+    assert commands.calls == []
+
+
+def test_router_planner_unavailable_fails_closed_without_change_fallback() -> None:
+    query = _QueryGateway()
+    commands = _CommandGateway()
+    service = ContractRevisionCommandService(
+        idempotency_store=InMemoryContractCommandIdempotencyStore(),
+        guidance_store=InMemoryGuidanceFactStore(),
+        workspace_id="workspace-1",
+    )
+    planner = _Planner(None, status="unavailable", warning="planner timeout")
+    router = _router(
+        query,
+        commands,
+        contract_revision_service=service,
+        route_planner=planner,
+    )
+
+    response = router.route(
+        _request(
+            content="create file README.md",
+            selection=RuntimeInputSelection(scope_kind="session"),
+            workspace_id="workspace-1",
+        )
+    )
+
+    assert response.ok is True
+    assert response.data is not None
+    assert response.data.decision.intent == "unsupported"
+    assert response.data.decision.dispatch_target == "unsupported"
+    assert response.data.decision.explanation == "planner timeout"
+    assert response.data.outcome.status == "unsupported"
+    assert response.data.command_response is None
+    assert commands.calls == []
+
+
+def test_router_planner_can_dispatch_existing_stop_command() -> None:
+    query = _QueryGateway()
+    commands = _CommandGateway()
+    planner = _Planner(
+        RuntimeInputRouteProposal(
+            intent="command",
+            dispatch_target="existing_command",
+            side_effect="state_effect",
+            confidence="high",
+            visible_reasoning_summary="Router skill mapped this to stop_task.",
+            user_message="I will stop the selected task.",
+            activated_skill_ids=("internal:router-control-commands",),
+            command_draft={
+                "commandKind": "stop_task",
+                "targetScopeKind": "task",
+                "targetTaskNodeId": "task-1",
+                "rationale": "User asked to stop the current task.",
+            },
+        )
+    )
+    router = _router(query, commands, route_planner=planner)
+
+    response = router.route(
+        _request(
+            content="stop",
+            selection=RuntimeInputSelection(
+                scope_kind="task",
+                task_node_id="task-1",
+            ),
+        )
+    )
+
+    assert response.ok is True
+    assert response.data is not None
+    assert response.data.decision.intent == "command"
+    assert response.data.decision.dispatch_target == "existing_command"
+    assert response.data.decision.explanation == "Router skill mapped this to stop_task."
+    assert response.data.outcome.status == "dispatched"
+    assert commands.calls == [("stop_task", "task-1", "stop")]
+
+
+def test_router_planner_can_dispatch_existing_retry_command() -> None:
+    query = _QueryGateway()
+    commands = _CommandGateway()
+    planner = _Planner(
+        RuntimeInputRouteProposal(
+            intent="command",
+            dispatch_target="existing_command",
+            side_effect="state_effect",
+            confidence="high",
+            visible_reasoning_summary="Router skill mapped this to retry_task.",
+            user_message="I will retry the selected task.",
+            activated_skill_ids=("internal:router-control-commands",),
+            command_draft={
+                "commandKind": "retry_task",
+                "targetScopeKind": "task",
+                "targetTaskNodeId": "task-1",
+                "rationale": "User asked to retry the current task.",
+            },
+        )
+    )
+    router = _router(query, commands, route_planner=planner)
+
+    response = router.route(
+        _request(
+            content="run that one again",
+            selection=RuntimeInputSelection(
+                scope_kind="task",
+                task_node_id="task-1",
+            ),
+        )
+    )
+
+    assert response.ok is True
+    assert response.data is not None
+    assert response.data.decision.intent == "command"
+    assert response.data.decision.dispatch_target == "existing_command"
+    assert response.data.decision.explanation == "Router skill mapped this to retry_task."
+    assert response.data.outcome.status == "dispatched"
+    assert commands.calls == [("retry_task", "task-1", "run that one again", True)]
+
+
+def test_router_planner_can_dispatch_active_ask_answer() -> None:
+    query = _QueryGateway(active_ask_id="ask-1")
+    commands = _CommandGateway()
+    planner = _Planner(
+        RuntimeInputRouteProposal(
+            intent="ask_answer",
+            dispatch_target="resolve_ask",
+            side_effect="resume_effect",
+            confidence="high",
+            visible_reasoning_summary="Router mapped this to the active ASK answer.",
+            user_message="I will answer the active ASK.",
+            activated_skill_ids=("internal:router-control-commands",),
+            ask_answer_draft={
+                "askId": "ask-1",
+                "answerText": "Use Netlify.",
+            },
+        )
+    )
+    router = _router(query, commands, route_planner=planner)
+
+    response = router.route(
+        _request(
+            content="I think Netlify is better here.",
+            selection=RuntimeInputSelection(scope_kind="session"),
+            active_ask_id="ask-1",
+        )
+    )
+
+    assert response.ok is True
+    assert response.data is not None
+    assert response.data.decision.intent == "ask_answer"
+    assert response.data.decision.dispatch_target == "resolve_ask"
+    assert response.data.outcome.status == "dispatched"
+    assert commands.calls == [("answer_ask", "ask-1", "Use Netlify.")]
+
+
+def test_router_planner_unavailable_fails_closed_without_active_ask_fallback() -> None:
+    query = _QueryGateway(active_ask_id="ask-1")
+    commands = _CommandGateway()
+    planner = _Planner(None, status="unavailable", warning="planner timeout")
+    router = _router(query, commands, route_planner=planner)
+
+    response = router.route(
+        _request(
+            content="Use Vercel.",
+            selection=RuntimeInputSelection(scope_kind="session"),
+            active_ask_id="ask-1",
+        )
+    )
+
+    assert response.ok is True
+    assert response.data is not None
+    assert response.data.decision.intent == "unsupported"
+    assert response.data.decision.dispatch_target == "unsupported"
+    assert response.data.decision.explanation == "planner timeout"
+    assert response.data.outcome.status == "unsupported"
+    assert commands.calls == []
+
+
+def test_router_planner_can_dispatch_active_confirmation_response() -> None:
+    query = _QueryGateway(active_confirmation_id="confirm-1")
+    commands = _CommandGateway()
+    planner = _Planner(
+        RuntimeInputRouteProposal(
+            intent="confirmation_response",
+            dispatch_target="resolve_confirmation",
+            side_effect="authorization_effect",
+            confidence="high",
+            visible_reasoning_summary="Router mapped this to confirmation rejection.",
+            user_message="I will reject the active confirmation.",
+            activated_skill_ids=("internal:router-control-commands",),
+            confirmation_response_draft={
+                "confirmationId": "confirm-1",
+                "resolution": "rejected",
+            },
+        )
+    )
+    router = _router(query, commands, route_planner=planner)
+
+    response = router.route(
+        _request(
+            content="No, do not send it.",
+            selection=RuntimeInputSelection(scope_kind="task", task_node_id="task-1"),
+            active_confirmation_id="confirm-1",
+        )
+    )
+
+    assert response.ok is True
+    assert response.data is not None
+    assert response.data.decision.intent == "confirmation_response"
+    assert response.data.decision.dispatch_target == "resolve_confirmation"
+    assert response.data.outcome.status == "dispatched"
+    assert commands.calls == [("resolve_confirmation", "confirm-1", "rejected")]
 
 
 def test_router_records_guidance_through_contract_revision_service() -> None:
@@ -246,6 +590,7 @@ def test_router_passes_explicit_inquiry_refs_to_read_only_inquiry() -> None:
     response = router.route(
         _request(
             content="What changed in diagnostics-summary.md?",
+            mode="ask",
             selection=RuntimeInputSelection(
                 scope_kind="session",
                 refs=(ObjectRef(kind="message", id="activity-1"),),
@@ -287,6 +632,7 @@ def test_router_read_only_answer_is_durable_activity(
     )
     request = _request(
         content="What changed in this workspace?",
+        mode="ask",
         selection=RuntimeInputSelection(scope_kind="session"),
     )
 
@@ -403,18 +749,29 @@ def test_router_clarification_is_durable_question_card(
 ) -> None:
     stream = SqliteMessageStream(tmp_path / "messages.sqlite")
     bus = InProcessMessageBus(stream)
-    query = _QueryGateway(active_confirmation_id="confirm-1")
+    query = _QueryGateway()
     commands = _CommandGateway()
+    planner = _Planner(
+        RuntimeInputRouteProposal(
+            intent="clarification",
+            dispatch_target="clarification",
+            side_effect="no_effect",
+            confidence="medium",
+            visible_reasoning_summary="Router needs a clearer response.",
+            user_message="Please clarify before Plato changes anything.",
+            activated_skill_ids=("internal:router-core",),
+        )
+    )
     router = _router(
         query,
         commands,
         activity_publisher=MessageBusRuntimeInputActivityPublisher(bus),
+        route_planner=planner,
     )
     request = _request(
         command_id="route-confirm-clarify",
         content="maybe later",
         selection=RuntimeInputSelection(scope_kind="task", task_node_id="task-1"),
-        active_confirmation_id="confirm-1",
     )
 
     response = router.route(request)
@@ -430,12 +787,9 @@ def test_router_clarification_is_durable_question_card(
     assert question.conversation_render is not None
     assert question.conversation_render.render_kind == "question_card"
     assert question.conversation_render.question_card is not None
-    assert question.conversation_render.question_card.card_kind == "confirmation"
+    assert question.conversation_render.question_card.card_kind == "clarification"
     assert question.conversation_render.question_card.status == "pending"
-    assert [option.id for option in question.conversation_render.question_card.options] == [
-        "yes",
-        "no",
-    ]
+    assert question.conversation_render.question_card.options == ()
     assert commands.calls == []
 
     bus.close()
@@ -449,10 +803,26 @@ def test_router_ask_answer_is_durable_conversation_answer(
     bus = InProcessMessageBus(stream)
     query = _QueryGateway(active_ask_id="ask-1")
     commands = _CommandGateway()
+    planner = _Planner(
+        RuntimeInputRouteProposal(
+            intent="ask_answer",
+            dispatch_target="resolve_ask",
+            side_effect="resume_effect",
+            confidence="high",
+            visible_reasoning_summary="Router mapped this to the active ASK answer.",
+            user_message="I will answer the active ASK.",
+            activated_skill_ids=("internal:router-control-commands",),
+            ask_answer_draft={
+                "askId": "ask-1",
+                "answerText": "Use Vercel.",
+            },
+        )
+    )
     router = _router(
         query,
         commands,
         activity_publisher=MessageBusRuntimeInputActivityPublisher(bus),
+        route_planner=planner,
     )
     request = _request(
         command_id="route-ask-answer",
@@ -491,6 +861,7 @@ def test_router_question_falls_back_when_read_only_inquiry_unavailable() -> None
     response = router.route(
         _request(
             content="What changed in this workspace?",
+            mode="ask",
             selection=RuntimeInputSelection(scope_kind="session"),
         )
     )
@@ -508,7 +879,7 @@ def test_router_question_falls_back_when_read_only_inquiry_unavailable() -> None
     assert commands.calls == []
 
 
-def test_router_active_ask_answer_dispatches_existing_command() -> None:
+def test_router_active_ask_without_planner_is_unsupported() -> None:
     query = _QueryGateway(active_ask_id="ask-1")
     commands = _CommandGateway()
     router = _router(query, commands)
@@ -524,16 +895,16 @@ def test_router_active_ask_answer_dispatches_existing_command() -> None:
 
     assert response.ok is True
     assert response.data is not None
-    assert response.data.decision.intent == "ask_answer"
-    assert response.data.decision.side_effect == "resume_effect"
-    assert response.data.outcome.status == "dispatched"
+    assert response.data.decision.intent == "unsupported"
+    assert response.data.decision.side_effect == "no_effect"
+    assert response.data.outcome.status == "unsupported"
     assert response.data.activity is not None
-    assert response.data.activity.kind == "ask_answered"
-    assert response.data.command_response is not None
-    assert commands.calls == [("answer_ask", "ask-1", "Use Vercel.")]
+    assert response.data.activity.kind == "router_interpretation"
+    assert response.data.command_response is None
+    assert commands.calls == []
 
 
-def test_router_active_ask_answer_dispatches_through_contract_revision_service() -> None:
+def test_router_active_ask_with_contract_service_without_planner_is_unsupported() -> None:
     query = _QueryGateway(active_ask_id="ask-1")
     commands = _CommandGateway()
     service = _contract_revision_service(commands)
@@ -550,17 +921,15 @@ def test_router_active_ask_answer_dispatches_through_contract_revision_service()
 
     assert response.ok is True
     assert response.data is not None
-    assert response.data.decision.intent == "ask_answer"
-    assert response.data.decision.dispatch_target == "resolve_ask"
-    assert response.data.decision.side_effect == "resume_effect"
-    assert response.data.outcome.status == "dispatched"
-    assert response.data.activity is not None
-    assert response.data.activity.kind == "ask_answered"
-    assert response.data.command_response is not None
-    assert commands.calls == [("answer_ask", "ask-1", "Use Vercel.")]
+    assert response.data.decision.intent == "unsupported"
+    assert response.data.decision.dispatch_target == "unsupported"
+    assert response.data.decision.side_effect == "no_effect"
+    assert response.data.outcome.status == "unsupported"
+    assert response.data.command_response is None
+    assert commands.calls == []
 
 
-def test_router_confirmation_requires_clear_response() -> None:
+def test_router_active_confirmation_without_planner_is_unsupported() -> None:
     query = _QueryGateway(active_confirmation_id="confirm-1")
     commands = _CommandGateway()
     router = _router(query, commands)
@@ -575,13 +944,13 @@ def test_router_confirmation_requires_clear_response() -> None:
 
     assert response.ok is True
     assert response.data is not None
-    assert response.data.decision.intent == "clarification"
-    assert response.data.outcome.status == "needs_clarification"
+    assert response.data.decision.intent == "unsupported"
+    assert response.data.outcome.status == "unsupported"
     assert response.data.command_response is None
     assert commands.calls == []
 
 
-def test_router_confirmation_response_dispatches_existing_command() -> None:
+def test_router_confirmation_response_without_planner_is_unsupported() -> None:
     query = _QueryGateway(active_confirmation_id="confirm-1")
     commands = _CommandGateway()
     router = _router(query, commands)
@@ -597,15 +966,15 @@ def test_router_confirmation_response_dispatches_existing_command() -> None:
 
     assert response.ok is True
     assert response.data is not None
-    assert response.data.decision.intent == "confirmation_response"
-    assert response.data.decision.side_effect == "authorization_effect"
-    assert response.data.outcome.status == "dispatched"
+    assert response.data.decision.intent == "unsupported"
+    assert response.data.decision.side_effect == "no_effect"
+    assert response.data.outcome.status == "unsupported"
     assert response.data.activity is not None
-    assert response.data.activity.kind == "confirmation_resolved"
-    assert commands.calls == [("resolve_confirmation", "confirm-1", "confirmed")]
+    assert response.data.activity.kind == "router_interpretation"
+    assert commands.calls == []
 
 
-def test_router_confirmation_response_dispatches_through_contract_revision_service() -> None:
+def test_router_confirmation_with_contract_service_without_planner_is_unsupported() -> None:
     query = _QueryGateway(active_confirmation_id="confirm-1")
     commands = _CommandGateway()
     service = _contract_revision_service(commands)
@@ -622,17 +991,15 @@ def test_router_confirmation_response_dispatches_through_contract_revision_servi
 
     assert response.ok is True
     assert response.data is not None
-    assert response.data.decision.intent == "confirmation_response"
-    assert response.data.decision.dispatch_target == "resolve_confirmation"
-    assert response.data.decision.side_effect == "authorization_effect"
-    assert response.data.outcome.status == "dispatched"
-    assert response.data.activity is not None
-    assert response.data.activity.kind == "confirmation_resolved"
-    assert response.data.command_response is not None
-    assert commands.calls == [("resolve_confirmation", "confirm-1", "confirmed")]
+    assert response.data.decision.intent == "unsupported"
+    assert response.data.decision.dispatch_target == "unsupported"
+    assert response.data.decision.side_effect == "no_effect"
+    assert response.data.outcome.status == "unsupported"
+    assert response.data.command_response is None
+    assert commands.calls == []
 
 
-def test_router_stop_and_retry_require_selected_task() -> None:
+def test_router_stop_and_retry_free_text_without_planner_are_unsupported() -> None:
     query = _QueryGateway()
     commands = _CommandGateway()
     router = _router(query, commands)
@@ -659,15 +1026,12 @@ def test_router_stop_and_retry_require_selected_task() -> None:
     )
 
     assert no_scope.data is not None
-    assert no_scope.data.outcome.status == "needs_clarification"
+    assert no_scope.data.outcome.status == "unsupported"
     assert stop.data is not None
-    assert stop.data.decision.dispatch_target == "existing_command"
+    assert stop.data.decision.dispatch_target == "unsupported"
     assert retry.data is not None
-    assert retry.data.decision.dispatch_target == "existing_command"
-    assert commands.calls == [
-        ("stop_task", "task-1", "stop"),
-        ("retry_task", "task-1", "retry", True),
-    ]
+    assert retry.data.decision.dispatch_target == "unsupported"
+    assert commands.calls == []
 
 
 def test_router_defers_publish_and_workspace_changing_requests() -> None:
@@ -742,7 +1106,24 @@ def test_router_change_mode_dispatches_execution_task_command() -> None:
 def test_runtime_input_http_route_returns_contract_json() -> None:
     query = _QueryGateway()
     commands = _CommandGateway()
-    router = _router(query, commands)
+    planner = _Planner(
+        RuntimeInputRouteProposal(
+            intent="command",
+            dispatch_target="existing_command",
+            side_effect="state_effect",
+            confidence="high",
+            visible_reasoning_summary="Router skill mapped this to stop_task.",
+            user_message="I will stop the selected task.",
+            activated_skill_ids=("internal:router-control-commands",),
+            command_draft={
+                "commandKind": "stop_task",
+                "targetScopeKind": "task",
+                "targetTaskNodeId": "task-1",
+                "rationale": "User asked to stop the current task.",
+            },
+        )
+    )
+    router = _router(query, commands, route_planner=planner)
     transport = PlatoUiHttpTransport(
         query_gateway=cast(Any, query),
         command_gateway=cast(Any, commands),
@@ -1068,10 +1449,16 @@ class _CapturingInquiry:
 
 @dataclass
 class _Planner:
-    proposal: RuntimeInputRouteProposal
+    proposal: RuntimeInputRouteProposal | None
+    status: str = "planned"
+    warning: str | None = None
 
     def plan(self, *args: Any, **kwargs: Any) -> RouterPlannerResult:
-        return RouterPlannerResult(status="planned", proposal=self.proposal)
+        return RouterPlannerResult(
+            status=cast(Any, self.status),
+            proposal=self.proposal,
+            warning=self.warning,
+        )
 
 
 def _ask(
@@ -1144,3 +1531,11 @@ def _accepted(command_id: str) -> CommandResponse:
             message="accepted",
         ),
     )
+
+
+def _read_jsonl(path: Path) -> list[dict[str, Any]]:
+    return [
+        json.loads(line)
+        for line in path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]

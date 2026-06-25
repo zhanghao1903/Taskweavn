@@ -61,6 +61,11 @@ def test_default_runtime_config_registry_contains_first_batch_keys() -> None:
         "web.search_enabled",
         "web.fetch_limits",
         "read_only_inquiry.llm_enabled",
+        "runtime_input_router.mode",
+        "runtime_input_router.llm_planner_required",
+        "runtime_input_router.planner_failure_policy",
+        "runtime_input_router.skill_source",
+        "runtime_input_router.max_skill_instruction_chars",
         "debug.main_page_trace_enabled",
         "debug.main_page_trace_sink",
     }
@@ -110,6 +115,17 @@ def test_runtime_config_resolver_uses_built_in_defaults() -> None:
     assert config.values["context_manager.budget.max_rendered_chars"].value == 60000
     assert config.values["computer_use.max_text_chars"].value == 4000
     assert config.values["debug.main_page_trace_enabled"].value is True
+    assert config.values["runtime_input_router.mode"].value == "llm_first"
+    assert config.values["runtime_input_router.llm_planner_required"].value is True
+    assert (
+        config.values["runtime_input_router.planner_failure_policy"].value
+        == "fail_closed_no_mutation"
+    )
+    assert (
+        config.values["runtime_input_router.skill_source"].value
+        == "builtin_runtime_skills"
+    )
+    assert config.values["runtime_input_router.max_skill_instruction_chars"].value == 2400
     assert config.config_id.startswith("runtime_config:")
     assert len(config.config_hash) == 64
 
