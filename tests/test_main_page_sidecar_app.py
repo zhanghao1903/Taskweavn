@@ -1248,8 +1248,8 @@ def test_main_page_sidecar_app_loads_snapshot_for_failed_interrupted_task(
     assert snapshot.status == 200
     assert snapshot.json["ok"] is True
     snapshot_node = snapshot.json["data"]["taskTree"]["nodes"][0]
-    assert snapshot_node["status"] == "failed"
-    assert snapshot_node["execution"] == "failed"
+    assert snapshot_node["status"] == "cancelled"
+    assert snapshot_node["execution"] == "cancelled"
     assert snapshot_node["interruptionRequested"] is True
     assert snapshot_node["errorRef"] == (
         "cancelled: user requested stop; safe_point=after_llm_response"
@@ -1304,8 +1304,8 @@ def test_main_page_sidecar_app_recovers_stale_interrupted_running_task_on_startu
     assert snapshot.status == 200
     assert snapshot.json["ok"] is True
     snapshot_node = snapshot.json["data"]["taskTree"]["nodes"][0]
-    assert snapshot_node["status"] == "failed"
-    assert snapshot_node["execution"] == "failed"
+    assert snapshot_node["status"] == "cancelled"
+    assert snapshot_node["execution"] == "cancelled"
     assert snapshot_node["interruptionRequested"] is True
     assert snapshot_node["errorRef"] == (
         "cancelled: user requested stop; safe_point=sidecar_recovery"
@@ -1363,8 +1363,8 @@ def test_main_page_sidecar_app_recovers_stale_stop_before_snapshot(
     assert snapshot.status == 200
     assert snapshot.json["ok"] is True
     snapshot_node = snapshot.json["data"]["taskTree"]["nodes"][0]
-    assert snapshot_node["status"] == "failed"
-    assert snapshot_node["execution"] == "failed"
+    assert snapshot_node["status"] == "cancelled"
+    assert snapshot_node["execution"] == "cancelled"
     assert snapshot_node["interruptionRequested"] is True
     assert snapshot_node["errorRef"] == (
         "cancelled: user requested stop; safe_point=snapshot_recovery"
