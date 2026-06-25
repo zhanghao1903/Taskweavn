@@ -339,7 +339,63 @@ describe("MainPageWorkbench layout", () => {
     expect(
       screen.queryByLabelText("Collapsed Plan & Progress"),
     ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", {
+        name: "Open archived plan from Conversation",
+      }),
+    ).not.toBeInTheDocument();
     expect(screen.getByText("No conversation yet")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "View audit" })).toBeInTheDocument();
+  });
+
+  it("exposes archived plan and Audit entries from Conversation-only state", async () => {
+    const user = userEvent.setup();
+    const { snapshot } = getMainPageMockSnapshot("s15-read-only-answer");
+    const archivedPlanMessage = {
+      id: "message-archived-plan",
+      sessionId: snapshot.session.id,
+      taskNodeId: null,
+      kind: "informational" as const,
+      title: "Plan archived",
+      body:
+        "**Stored plan**\n\nStored durable plan summary.\n\nTasks:\n- Task 1: Stored task (done)",
+      createdAt: "2026-05-17T10:24:00+08:00",
+    };
+    const viewModel = buildViewModel("s15-read-only-answer", {
+      snapshot: {
+        ...snapshot,
+        messages: [...snapshot.messages, archivedPlanMessage],
+      },
+    });
+
+    renderWorkbench(viewModel);
+
+    expect(screen.queryByLabelText("Plan & Progress workspace"))
+      .not.toBeInTheDocument();
+
+    const auditLink = screen.getByRole("link", { name: "View audit" });
+    expect(auditLink).toHaveAttribute(
+      "href",
+      "/sessions/session-website-plan/audit?entry=from_session&returnFocus=session&returnSessionId=session-website-plan",
+    );
+
+    await user.click(
+      screen.getByRole("button", {
+        name: "Open archived plan from Conversation",
+      }),
+    );
+
+    expect(screen.getByLabelText("Archived Plans")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Session activity"))
+      .not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Open plan" }));
+
+    const reader = screen.getByLabelText("Archived plan detail");
+    expect(within(reader).getByText("Stored plan")).toBeInTheDocument();
+    expect(
+      within(reader).getByText(/Stored durable plan summary/),
+    ).toBeInTheDocument();
   });
 
   it("opens session activity in the detail column when detail is otherwise hidden", async () => {

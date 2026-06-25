@@ -20,6 +20,7 @@ import {
   ActivityOverlay,
   type ActivityOverlayStatusMessage,
 } from "./ActivityOverlay";
+import { ArchivedPlansPanel } from "./ArchivedPlansPanel";
 import { ConfirmationDock } from "./ConfirmationDock";
 import { ConversationLayer } from "./ConversationLayer";
 import { ContextInputPanel } from "./ContextInputPanel";
@@ -92,6 +93,8 @@ export function MainPageWorkbench({
 }: MainPageWorkbenchProps) {
   const uiText = useUiText();
   const [isActivityOverlayOpen, setIsActivityOverlayOpen] = useState(false);
+  const [isArchivedPlansPanelOpen, setIsArchivedPlansPanelOpen] =
+    useState(false);
   const [activityItems, setActivityItems] = useState<
     SessionActivityItemView[]
   >([]);
@@ -114,8 +117,30 @@ export function MainPageWorkbench({
       runtimeActivityItems.length > 0 ||
       loadSessionActivity !== undefined);
   const showsActivityPanel = isActivityOverlayOpen && hasActivity;
-  const hasDetailColumn = viewModel.detail.kind !== "note" || showsActivityPanel;
-  const showsDetailPanel = viewModel.detail.kind !== "note" && !showsActivityPanel;
+  const fallbackActivityItems = useMemo(
+    () => activityItemsFromMessages(viewModel.taskWorkspace.allMessages),
+    [viewModel.taskWorkspace.allMessages],
+  );
+  const archivedPlanItems = useMemo(
+    () =>
+      selectArchivedPlanItems(
+        mergeActivityItems(
+          runtimeActivityItems,
+          mergeActivityItems(activityItems, fallbackActivityItems),
+        ),
+      ),
+    [activityItems, fallbackActivityItems, runtimeActivityItems],
+  );
+  const showsArchivedPlansPanel =
+    isArchivedPlansPanelOpen && archivedPlanItems.length > 0;
+  const hasDetailColumn =
+    viewModel.detail.kind !== "note" ||
+    showsActivityPanel ||
+    showsArchivedPlansPanel;
+  const showsDetailPanel =
+    viewModel.detail.kind !== "note" &&
+    !showsActivityPanel &&
+    !showsArchivedPlansPanel;
   const pageClassName = !hasDetailColumn
     ? `${styles.page} ${styles.pageWithoutDetail}`
     : styles.page;
@@ -144,10 +169,6 @@ export function MainPageWorkbench({
     viewModel.sidebar.activeSession.workspaceId ??
     activeWorkspaceId ??
     null;
-  const fallbackActivityItems = useMemo(
-    () => activityItemsFromMessages(viewModel.taskWorkspace.allMessages),
-    [viewModel.taskWorkspace.allMessages],
-  );
   const overlayActivityItems =
     loadSessionActivity === undefined
       ? mergeActivityItems(runtimeActivityItems, fallbackActivityItems)
@@ -198,6 +219,8 @@ export function MainPageWorkbench({
 
   useEffect(() => {
     setIsPlanLayerExpanded(hasPlanLayer);
+    setIsActivityOverlayOpen(false);
+    setIsArchivedPlansPanelOpen(false);
   }, [hasPlanLayer, viewModel.sessionId]);
 
   useEffect(() => {
@@ -256,6 +279,7 @@ export function MainPageWorkbench({
     }
     actions.showResult();
     setIsActivityOverlayOpen(false);
+    setIsArchivedPlansPanelOpen(false);
   }
 
   function showActivityFiles(taskNodeId: string | null) {
@@ -264,12 +288,14 @@ export function MainPageWorkbench({
     }
     actions.showFileChanges();
     setIsActivityOverlayOpen(false);
+    setIsArchivedPlansPanelOpen(false);
   }
 
   function showActivityAudit(ref: SessionActivityRefView) {
     const href = ref.href ?? viewModel.workspace.auditEntry.href;
     window.location.assign(href);
     setIsActivityOverlayOpen(false);
+    setIsArchivedPlansPanelOpen(false);
   }
 
   async function exportActivityDiagnostic() {
@@ -337,7 +363,10 @@ export function MainPageWorkbench({
             messages={latestActivityMessages}
             onOpenActivity={
               hasActivity
-                ? () => setIsActivityOverlayOpen(true)
+                ? () => {
+                    setIsArchivedPlansPanelOpen(false);
+                    setIsActivityOverlayOpen(true);
+                  }
                 : undefined
             }
             selectedTask={viewModel.taskWorkspace.selectedTask}
@@ -399,6 +428,48 @@ export function MainPageWorkbench({
         </span>
       </button>
     ) : null;
+  const showConversationPlanEntry =
+    !hasPlanLayer &&
+    archivedPlanItems.length > 0;
+  const conversationPlanAction = showConversationPlanEntry ? (
+    <Button
+      aria-label="Open archived plan from Conversation"
+      onClick={() => {
+        setIsActivityOverlayOpen(false);
+        setIsArchivedPlansPanelOpen(true);
+      }}
+      size="sm"
+      variant="secondary"
+    >
+      Plan
+    </Button>
+  ) : null;
+  const conversationAuditAction =
+    !hasPlanLayer || !isPlanLayerExpanded ? (
+      viewModel.workspace.auditEntry.isEnabled ? (
+        <Button asChild size="sm" variant="secondary">
+          <a href={viewModel.workspace.auditEntry.href}>
+            {viewModel.workspace.auditEntry.label}
+          </a>
+        </Button>
+      ) : (
+        <Button
+          disabled
+          size="sm"
+          title={viewModel.workspace.auditEntry.disabledReason ?? undefined}
+          variant="secondary"
+        >
+          {viewModel.workspace.auditEntry.label}
+        </Button>
+      )
+    ) : null;
+  const conversationHeaderActions = (
+    <>
+      {collapsedPlanTopbarAction}
+      {conversationPlanAction}
+      {conversationAuditAction}
+    </>
+  );
 
   function renderWorkspaceHeader(
     statusActions: ReactNode = null,
@@ -457,10 +528,15 @@ export function MainPageWorkbench({
       {viewModel.mainWorkArea.kind !== "authoringAsk" ? (
         <ConversationLayer
           className={styles.conversationWorkspace}
-          headerActions={collapsedPlanTopbarAction}
+          headerActions={conversationHeaderActions}
           messages={conversationMessages}
           onOpenActivity={
-            hasActivity ? () => setIsActivityOverlayOpen(true) : undefined
+            hasActivity
+              ? () => {
+                  setIsArchivedPlansPanelOpen(false);
+                  setIsActivityOverlayOpen(true);
+                }
+              : undefined
           }
           totalActivityCount={totalActivityCount}
         />
@@ -601,7 +677,9 @@ export function MainPageWorkbench({
           errorMessage={activityError}
           isLoading={isActivityLoading}
           items={overlayActivityItems}
-          onClose={() => setIsActivityOverlayOpen(false)}
+          onClose={() => {
+            setIsActivityOverlayOpen(false);
+          }}
           onOpenAudit={
             viewModel.workspace.auditEntry.isEnabled
               ? showActivityAudit
@@ -618,15 +696,25 @@ export function MainPageWorkbench({
           onOpenPlan={() => {
             actions.selectTaskPlan();
             setIsActivityOverlayOpen(false);
+            setIsArchivedPlansPanelOpen(false);
           }}
           onOpenResult={showActivityResult}
           onOpenTask={(taskNodeId) => {
             actions.selectTask(taskNodeId);
             setIsActivityOverlayOpen(false);
+            setIsArchivedPlansPanelOpen(false);
           }}
           onRetry={() => setActivityLoadKey((key) => key + 1)}
           selectedTask={viewModel.taskWorkspace.selectedTask}
           statusMessage={activityStatusMessage}
+        />
+      ) : null}
+
+      {showsArchivedPlansPanel ? (
+        <ArchivedPlansPanel
+          auditHref={viewModel.workspace.auditEntry.href}
+          items={archivedPlanItems}
+          onClose={() => setIsArchivedPlansPanelOpen(false)}
         />
       ) : null}
 
@@ -851,5 +939,15 @@ function canArchivePlan(plan: PlanView): boolean {
   return (
     plan.sourceKind === "plan_store" ||
     plan.sourceKind === "legacy_published_task_tree"
+  );
+}
+
+function selectArchivedPlanItems(
+  items: readonly SessionActivityItemView[],
+): SessionActivityItemView[] {
+  return items.filter(
+    (item) =>
+      item.kind === "plan_updated" &&
+      item.title.trim().toLocaleLowerCase() === "plan archived",
   );
 }
