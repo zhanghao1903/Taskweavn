@@ -320,6 +320,7 @@ class DefaultUiQueryGateway:
                 session=session_summary,
                 planning=planning,
                 active_plan=active_plan,
+                archived_plans=archived_plans,
                 task_tree=task_tree,
                 messages=messages,
                 pending_confirmations=confirmations,

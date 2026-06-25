@@ -878,7 +878,8 @@
   justify-content: space-between;
 }
 
-.archivedPlanItemHeader time {
+.archivedPlanItemHeader time,
+.archivedPlanTimeFallback {
   color: var(--plato-color-muted);
   font-size: var(--plato-type-caption-size);
   line-height: var(--plato-type-caption-line-height);
@@ -894,6 +895,7 @@
 
 .archivedPlanPreview,
 .archivedPlanBody {
+  margin: 0;
   color: var(--plato-color-muted);
 }
 

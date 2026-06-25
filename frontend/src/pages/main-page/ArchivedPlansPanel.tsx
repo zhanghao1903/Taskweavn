@@ -1,24 +1,20 @@
-import { useState } from "react";
-
-import type { SessionActivityItemView } from "../../shared/api/types";
-import { Badge, Button, MarkdownContent, Text } from "../../shared/components";
+import type { PlanView } from "../../shared/api/types";
+import { Badge, Button, Text } from "../../shared/components";
 import styles from "./MainPage.module.css";
 
 export type ArchivedPlansPanelProps = {
   auditHref: string;
-  items: readonly SessionActivityItemView[];
+  items: readonly PlanView[];
   onClose: () => void;
+  onOpenPlan: (planId: string) => void;
 };
 
 export function ArchivedPlansPanel({
   auditHref,
   items,
   onClose,
+  onOpenPlan,
 }: ArchivedPlansPanelProps) {
-  const [readerItem, setReaderItem] = useState<SessionActivityItemView | null>(
-    null,
-  );
-
   return (
     <aside
       aria-label="Archived Plans"
@@ -30,25 +26,15 @@ export function ArchivedPlansPanel({
           <Text as="span" variant="eyebrow">
             Plan archive
           </Text>
-          <h2>{readerItem ? archivedPlanTitle(readerItem) : "Archived Plans"}</h2>
-          <p>
-            {readerItem
-              ? "Read-only record of the archived plan."
-              : "Plans moved out of the active workspace remain available here."}
-          </p>
+          <h2>Archived Plans</h2>
+          <p>Plans moved out of the active workspace remain available here.</p>
         </div>
         <Button onClick={onClose} size="sm" variant="secondary">
           Close
         </Button>
       </div>
 
-      {readerItem ? (
-        <ArchivedPlanReader
-          auditHref={auditHref}
-          item={readerItem}
-          onBack={() => setReaderItem(null)}
-        />
-      ) : items.length === 0 ? (
+      {items.length === 0 ? (
         <div className={styles.archivedPlansEmpty}>
           <strong>No archived plans</strong>
           <p>Archived plan records will appear here after a plan is archived.</p>
@@ -61,20 +47,28 @@ export function ArchivedPlansPanel({
                 <Badge size="sm" tone="neutral">
                   Archived
                 </Badge>
-                <time dateTime={item.occurredAt}>
-                  {formatArchivedPlanTime(item.occurredAt)}
-                </time>
+                {item.archivedAt ? (
+                  <time dateTime={item.archivedAt}>
+                    {formatArchivedPlanTime(item.archivedAt)}
+                  </time>
+                ) : (
+                  <span className={styles.archivedPlanTimeFallback}>
+                    Archived time unavailable
+                  </span>
+                )}
               </div>
-              <h3>{archivedPlanTitle(item)}</h3>
-              <MarkdownContent
+              <h3>{item.title}</h3>
+              <p
                 className={styles.archivedPlanPreview}
-                maxLines={4}
-                source={item.body}
-                variant="activity"
-              />
+              >
+                {item.summary}
+              </p>
+              <Text variant="muted">
+                {archivedPlanTaskCount(item.taskCount)}
+              </Text>
               <div className={styles.archivedPlanActions}>
                 <Button
-                  onClick={() => setReaderItem(item)}
+                  onClick={() => onOpenPlan(item.id)}
                   size="sm"
                   variant="secondary"
                 >
@@ -92,51 +86,6 @@ export function ArchivedPlansPanel({
   );
 }
 
-function ArchivedPlanReader({
-  auditHref,
-  item,
-  onBack,
-}: {
-  auditHref: string;
-  item: SessionActivityItemView;
-  onBack: () => void;
-}) {
-  return (
-    <section
-      aria-label="Archived plan detail"
-      className={styles.archivedPlanReader}
-    >
-      <div className={styles.archivedPlanReaderActions}>
-        <Button onClick={onBack} size="sm" variant="secondary">
-          Back to plans
-        </Button>
-        <Button asChild size="sm" variant="ghost">
-          <a href={auditHref}>View audit</a>
-        </Button>
-      </div>
-      <MarkdownContent
-        className={styles.archivedPlanBody}
-        source={item.body}
-        variant="activity"
-      />
-    </section>
-  );
-}
-
-function archivedPlanTitle(item: SessionActivityItemView): string {
-  const titleMatch = item.body.match(/^\s*\*\*(.+?)\*\*/m);
-  if (titleMatch?.[1]) {
-    return titleMatch[1].trim();
-  }
-
-  const firstLine = item.body
-    .split("\n")
-    .map((line) => line.trim())
-    .find((line) => line.length > 0);
-
-  return firstLine?.replaceAll("*", "").trim() || item.title;
-}
-
 function formatArchivedPlanTime(value: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
@@ -150,4 +99,8 @@ function formatArchivedPlanTime(value: string): string {
     month: "2-digit",
     year: "numeric",
   });
+}
+
+function archivedPlanTaskCount(count: number): string {
+  return `${count} task${count === 1 ? "" : "s"} moved to Session history.`;
 }

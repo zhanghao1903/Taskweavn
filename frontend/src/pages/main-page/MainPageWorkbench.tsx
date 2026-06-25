@@ -13,6 +13,7 @@ import type {
   SessionActivityItemView,
   SessionActivityRefView,
   SessionMessageView,
+  TaskNodeId,
 } from "../../shared/api/types";
 import { Button, Panel } from "../../shared/components";
 import { useUiText } from "../../shared/ui-text";
@@ -95,6 +96,10 @@ export function MainPageWorkbench({
   const [isActivityOverlayOpen, setIsActivityOverlayOpen] = useState(false);
   const [isArchivedPlansPanelOpen, setIsArchivedPlansPanelOpen] =
     useState(false);
+  const [selectedArchivedPlanId, setSelectedArchivedPlanId] =
+    useState<string | null>(null);
+  const [selectedArchivedPlanTaskNodeId, setSelectedArchivedPlanTaskNodeId] =
+    useState<TaskNodeId | null>(null);
   const [activityItems, setActivityItems] = useState<
     SessionActivityItemView[]
   >([]);
@@ -121,18 +126,11 @@ export function MainPageWorkbench({
     () => activityItemsFromMessages(viewModel.taskWorkspace.allMessages),
     [viewModel.taskWorkspace.allMessages],
   );
-  const archivedPlanItems = useMemo(
-    () =>
-      selectArchivedPlanItems(
-        mergeActivityItems(
-          runtimeActivityItems,
-          mergeActivityItems(activityItems, fallbackActivityItems),
-        ),
-      ),
-    [activityItems, fallbackActivityItems, runtimeActivityItems],
-  );
+  const archivedPlans = viewModel.taskWorkspace.archivedPlans;
+  const selectedArchivedPlan =
+    archivedPlans.find((plan) => plan.id === selectedArchivedPlanId) ?? null;
   const showsArchivedPlansPanel =
-    isArchivedPlansPanelOpen && archivedPlanItems.length > 0;
+    isArchivedPlansPanelOpen && archivedPlans.length > 0;
   const hasDetailColumn =
     viewModel.detail.kind !== "note" ||
     showsActivityPanel ||
@@ -221,7 +219,19 @@ export function MainPageWorkbench({
     setIsPlanLayerExpanded(hasPlanLayer);
     setIsActivityOverlayOpen(false);
     setIsArchivedPlansPanelOpen(false);
+    setSelectedArchivedPlanId(null);
+    setSelectedArchivedPlanTaskNodeId(null);
   }, [hasPlanLayer, viewModel.sessionId]);
+
+  useEffect(() => {
+    if (
+      selectedArchivedPlanId !== null &&
+      !archivedPlans.some((plan) => plan.id === selectedArchivedPlanId)
+    ) {
+      setSelectedArchivedPlanId(null);
+      setSelectedArchivedPlanTaskNodeId(null);
+    }
+  }, [archivedPlans, selectedArchivedPlanId]);
 
   useEffect(() => {
     if (!isActivityOverlayOpen || loadSessionActivity === undefined) {
@@ -280,6 +290,8 @@ export function MainPageWorkbench({
     actions.showResult();
     setIsActivityOverlayOpen(false);
     setIsArchivedPlansPanelOpen(false);
+    setSelectedArchivedPlanId(null);
+    setSelectedArchivedPlanTaskNodeId(null);
   }
 
   function showActivityFiles(taskNodeId: string | null) {
@@ -289,6 +301,8 @@ export function MainPageWorkbench({
     actions.showFileChanges();
     setIsActivityOverlayOpen(false);
     setIsArchivedPlansPanelOpen(false);
+    setSelectedArchivedPlanId(null);
+    setSelectedArchivedPlanTaskNodeId(null);
   }
 
   function showActivityAudit(ref: SessionActivityRefView) {
@@ -296,6 +310,8 @@ export function MainPageWorkbench({
     window.location.assign(href);
     setIsActivityOverlayOpen(false);
     setIsArchivedPlansPanelOpen(false);
+    setSelectedArchivedPlanId(null);
+    setSelectedArchivedPlanTaskNodeId(null);
   }
 
   async function exportActivityDiagnostic() {
@@ -402,6 +418,18 @@ export function MainPageWorkbench({
       taskTree={viewModel.taskWorkspace.taskTree}
     />
   ) : null;
+  const archivedPlanProgressLayer =
+    selectedArchivedPlan?.taskTreeProjection ? (
+      <TaskTreePanel
+        isTaskPlanSelected={selectedArchivedPlanTaskNodeId === null}
+        onRetryTask={() => undefined}
+        onSelectTaskPlan={() => setSelectedArchivedPlanTaskNodeId(null)}
+        onSelectTask={setSelectedArchivedPlanTaskNodeId}
+        onStopTask={() => undefined}
+        selectedTaskNodeId={selectedArchivedPlanTaskNodeId}
+        taskTree={selectedArchivedPlan.taskTreeProjection}
+      />
+    ) : null;
   const collapsePlanAction = (
     <button
       className={styles.planProgressCollapseButton}
@@ -430,13 +458,15 @@ export function MainPageWorkbench({
     ) : null;
   const showConversationPlanEntry =
     !hasPlanLayer &&
-    archivedPlanItems.length > 0;
+    archivedPlans.length > 0;
   const conversationPlanAction = showConversationPlanEntry ? (
     <Button
       aria-label="Open archived plan from Conversation"
       onClick={() => {
         setIsActivityOverlayOpen(false);
         setIsArchivedPlansPanelOpen(true);
+        setSelectedArchivedPlanId(null);
+        setSelectedArchivedPlanTaskNodeId(null);
       }}
       size="sm"
       variant="secondary"
@@ -474,6 +504,7 @@ export function MainPageWorkbench({
   function renderWorkspaceHeader(
     statusActions: ReactNode = null,
     actionSlot: ReactNode = null,
+    title = viewModel.workspace.title,
   ) {
     return (
       <MainPageWorkspaceHeader
@@ -495,7 +526,7 @@ export function MainPageWorkbench({
         }
         sessionName={viewModel.sidebar.activeSession.name}
         statuses={viewModel.topBar.statuses}
-        title={viewModel.workspace.title}
+        title={title}
         statusActions={statusActions}
         uiNotice={viewModel.workspace.uiNotice}
       />
@@ -534,6 +565,8 @@ export function MainPageWorkbench({
             hasActivity
               ? () => {
                   setIsArchivedPlansPanelOpen(false);
+                  setSelectedArchivedPlanId(null);
+                  setSelectedArchivedPlanTaskNodeId(null);
                   setIsActivityOverlayOpen(true);
                 }
               : undefined
@@ -569,6 +602,42 @@ export function MainPageWorkbench({
           {renderWorkspaceHeader(collapsePlanAction, archivePlanAction)}
           <div className={styles.planProgressWorkspaceBody}>
             {planProgressLayer}
+          </div>
+        </Panel>
+      ) : null}
+
+      {!hasPlanLayer && selectedArchivedPlan !== null ? (
+        <Panel
+          as="section"
+          className={`${styles.workspace} ${styles.planWorkspace}`}
+          aria-label="Archived Plan & Progress workspace"
+        >
+          {renderWorkspaceHeader(
+            <button
+              className={styles.planProgressCollapseButton}
+              onClick={() => {
+                setSelectedArchivedPlanId(null);
+                setSelectedArchivedPlanTaskNodeId(null);
+              }}
+              type="button"
+            >
+              Back to conversation
+            </button>,
+            null,
+            "Plan & Progress",
+          )}
+          <div className={styles.planProgressWorkspaceBody}>
+            {archivedPlanProgressLayer ?? (
+              <TaskTreePanel
+                isTaskPlanSelected
+                onRetryTask={() => undefined}
+                onSelectTaskPlan={() => undefined}
+                onSelectTask={() => undefined}
+                onStopTask={() => undefined}
+                selectedTaskNodeId={null}
+                taskTree={null}
+              />
+            )}
           </div>
         </Panel>
       ) : null}
@@ -697,12 +766,16 @@ export function MainPageWorkbench({
             actions.selectTaskPlan();
             setIsActivityOverlayOpen(false);
             setIsArchivedPlansPanelOpen(false);
+            setSelectedArchivedPlanId(null);
+            setSelectedArchivedPlanTaskNodeId(null);
           }}
           onOpenResult={showActivityResult}
           onOpenTask={(taskNodeId) => {
             actions.selectTask(taskNodeId);
             setIsActivityOverlayOpen(false);
             setIsArchivedPlansPanelOpen(false);
+            setSelectedArchivedPlanId(null);
+            setSelectedArchivedPlanTaskNodeId(null);
           }}
           onRetry={() => setActivityLoadKey((key) => key + 1)}
           selectedTask={viewModel.taskWorkspace.selectedTask}
@@ -713,8 +786,13 @@ export function MainPageWorkbench({
       {showsArchivedPlansPanel ? (
         <ArchivedPlansPanel
           auditHref={viewModel.workspace.auditEntry.href}
-          items={archivedPlanItems}
+          items={archivedPlans}
           onClose={() => setIsArchivedPlansPanelOpen(false)}
+          onOpenPlan={(planId) => {
+            setSelectedArchivedPlanId(planId);
+            setSelectedArchivedPlanTaskNodeId(null);
+            setIsArchivedPlansPanelOpen(false);
+          }}
         />
       ) : null}
 
@@ -939,15 +1017,5 @@ function canArchivePlan(plan: PlanView): boolean {
   return (
     plan.sourceKind === "plan_store" ||
     plan.sourceKind === "legacy_published_task_tree"
-  );
-}
-
-function selectArchivedPlanItems(
-  items: readonly SessionActivityItemView[],
-): SessionActivityItemView[] {
-  return items.filter(
-    (item) =>
-      item.kind === "plan_updated" &&
-      item.title.trim().toLocaleLowerCase() === "plan archived",
   );
 }
