@@ -2,9 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
-from urllib.parse import unquote
-
 from taskweavn.server.ui_contract.command_mapping import (
     _child_idempotency_key,
     _command_bad_request_response,
@@ -19,6 +16,12 @@ from taskweavn.server.ui_contract.command_mapping import (
     _TaskTreeIdentityError,
     _update_affected_scopes,
     _update_suggested_queries,
+)
+from taskweavn.server.ui_contract.command_plan_helpers import (
+    archived_legacy_plan_from_task_tree,
+    archived_plan,
+    is_legacy_plan_id,
+    normalize_plan_id,
 )
 from taskweavn.server.ui_contract.commands import (
     AnswerAskPayload,
@@ -45,10 +48,6 @@ from taskweavn.server.ui_contract.refs import (
     AffectedScope,
     ObjectRef,
 )
-from taskweavn.server.ui_contract.view_models import (
-    TaskNodeCardView,
-    TaskTreeView,
-)
 from taskweavn.task.ask_service import TaskAskCommandService
 from taskweavn.task.authoring import RawTask
 from taskweavn.task.collaborator_api import (
@@ -59,7 +58,7 @@ from taskweavn.task.commands import CommandResult as CoreCommandResult
 from taskweavn.task.commands import TaskCommandService
 from taskweavn.task.models import TaskRef
 from taskweavn.task.plan_commands import PlanLifecycleCommandService
-from taskweavn.task.plan_models import Plan, PlanFinalizationState, PlanTaskNode
+from taskweavn.task.plan_models import Plan
 from taskweavn.task.plan_publisher import PlanPublisher, PublishPlanCommand
 from taskweavn.task.plan_stores import PlanStore
 from taskweavn.task.projection import TaskProjectionService
@@ -367,10 +366,10 @@ class DefaultUiCommandGateway:
             active = self._authoring_state_store.get_active(session_id)
             if active.active_plan_id is not None:
                 plan = self._plan_store.get_plan(session_id, active.active_plan_id)
-                if plan is not None and not _archived_plan(plan):
+                if plan is not None and not archived_plan(plan):
                     return plan
         plan = self._plan_store.get_active_plan(session_id)
-        return None if _archived_plan(plan) else plan
+        return None if archived_plan(plan) else plan
 
     def archive_plan(
         self,
@@ -378,8 +377,8 @@ class DefaultUiCommandGateway:
         request: CommandRequest[ArchivePlanPayload],
     ) -> CommandResponse:
         try:
-            plan_id = _normalize_plan_id(plan_id)
-            if _is_legacy_plan_id(request.session_id, plan_id):
+            plan_id = normalize_plan_id(plan_id)
+            if is_legacy_plan_id(request.session_id, plan_id):
                 result = self._archive_legacy_plan(plan_id, request)
             else:
                 if self._plan_lifecycle_commands is None:
@@ -436,7 +435,7 @@ class DefaultUiCommandGateway:
                 message="Legacy Plan archive requires PlanStore and TaskProjection",
             )
         existing = self._plan_store.get_plan(request.session_id, plan_id)
-        if _archived_plan(existing):
+        if archived_plan(existing):
             return CoreCommandResult(
                 command_id=request.command_id,
                 status="accepted",
@@ -458,7 +457,7 @@ class DefaultUiCommandGateway:
                 message="only completed or failed legacy plans can be archived",
             )
 
-        plan, nodes = _archived_legacy_plan_from_task_tree(
+        plan, nodes = archived_legacy_plan_from_task_tree(
             task_tree,
             expected_version=request.expected_version,
         )
@@ -981,88 +980,4 @@ def _ask_command_response[T](
                 for task_ref in result.affected_task_refs
             ),
         ),
-    )
-
-
-def _archived_plan(plan: Plan | None) -> bool:
-    return plan is not None and (
-        plan.status == "archived" or plan.archived_at is not None
-    )
-
-
-def _legacy_plan_id(session_id: str) -> str:
-    return f"plan:legacy:{session_id}"
-
-
-def _normalize_plan_id(plan_id: str) -> str:
-    return unquote(plan_id)
-
-
-def _is_legacy_plan_id(session_id: str, plan_id: str) -> bool:
-    return plan_id == _legacy_plan_id(session_id)
-
-
-def _archived_legacy_plan_from_task_tree(
-    task_tree: TaskTreeView,
-    *,
-    expected_version: int | None,
-) -> tuple[Plan, tuple[PlanTaskNode, ...]]:
-    now = datetime.now(UTC)
-    plan = Plan(
-        plan_id=_legacy_plan_id(task_tree.session_id),
-        session_id=task_tree.session_id,
-        title=task_tree.title,
-        objective=task_tree.summary or task_tree.title,
-        summary=task_tree.summary or task_tree.title,
-        status="archived",
-        version=expected_version or task_tree.version,
-        finalization=PlanFinalizationState(status="skipped", required=False),
-        created_at=now,
-        updated_at=now,
-        archived_at=now,
-    )
-    nodes = tuple(
-        _archived_legacy_plan_node(
-            node,
-            plan_id=plan.plan_id,
-            session_id=plan.session_id,
-            order_index=index,
-            now=now,
-        )
-        for index, node in enumerate(task_tree.nodes)
-    )
-    return plan, nodes
-
-
-def _archived_legacy_plan_node(
-    node: TaskNodeCardView,
-    *,
-    plan_id: str,
-    session_id: str,
-    order_index: int,
-    now: datetime,
-) -> PlanTaskNode:
-    task_ref = node.task_ref
-    return PlanTaskNode(
-        task_node_id=node.id,
-        plan_id=plan_id,
-        session_id=session_id,
-        task_index=node.task_index or str(order_index + 1),
-        order_index=order_index,
-        title=node.title,
-        intent=node.intent or node.title,
-        summary=node.summary or node.title,
-        instructions=node.instructions or "",
-        acceptance_criteria=node.acceptance_criteria,
-        readiness="published" if task_ref is not None and task_ref.kind == "published" else "draft",
-        execution=node.execution,
-        draft_ref=task_ref if task_ref is not None and task_ref.kind == "draft" else None,
-        published_ref=(
-            task_ref if task_ref is not None and task_ref.kind == "published" else None
-        ),
-        result_ref=node.result_ref,
-        error_ref=node.error_ref,
-        version=node.version,
-        created_at=now,
-        updated_at=now,
     )
