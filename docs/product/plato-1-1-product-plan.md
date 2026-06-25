@@ -314,12 +314,15 @@ Completed baseline:
   policy;
 - gated execution tool registration, Context/Audit/diagnostics descriptors,
   and offline-first mock-provider tests.
+- Product beta limitation boundaries are captured in
+  [Plato 1.1 Web Retrieval Beta Limitations](plato-1-1-web-retrieval-beta-limitations.md).
 
 Deferred follow-ups:
 
 - advanced search modes and provider-hosted search adapters;
 - per-session retrieval budgets;
 - broader citation/result UI;
+- deeper Audit projection and source-preview controls;
 - browser automation, dynamic rendering, crawl, PDF/OCR, and media extraction.
 
 ### 3.8 Execution Plane As Service / Task API
