@@ -1,7 +1,7 @@
 # TaskWeavn Docs
 
 > Status: active documentation entry
-> Last Updated: 2026-05-19
+> Last Updated: 2026-06-24
 
 This directory is organized by document responsibility, not by implementation
 module.
@@ -31,6 +31,7 @@ The current V2 documentation model is intentionally narrow:
 | What implementation plans exist? | [Plans](plans/) |
 | What decisions are expensive to reverse? | [ADRs](decisions/) |
 | What actually shipped? | [Release Records](releases/) |
+| What is ready for Product 1.1 beta external publication? | [Product 1.1 Beta External Release Notes](releases/product-1-1-beta-external-release-notes.md) |
 
 ---
 

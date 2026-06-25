@@ -351,6 +351,70 @@ export const enUS: UiTextCatalog = {
       writingToPrefix: "Writing to",
       writingTo: ({ target }) => `Writing to ${target}`,
     },
+    interaction: {
+      ask: {
+        actions: {
+          answer: "Answer",
+          answering: "Answering",
+          cancelQuestion: "Cancel question",
+          cancelling: "Cancelling",
+          defer: "Defer",
+          deferring: "Deferring",
+        },
+        labels: {
+          answerText: "Answer text",
+          optional: "optional",
+          task: ({ title }) => `Task: ${title}`,
+          taskInputRequired: "Task input required",
+        },
+        messages: {
+          addMissingInformation: "Add the missing information.",
+          addYourAnswer: "Add your answer.",
+          batchAnswerHeader: "Batch ASK answers:",
+          batchAnswerItem: ({ answer, index, question }) =>
+            `${index}. ${question}\nAnswer: ${answer}`,
+          chooseOption: "Choose an option before submitting.",
+          chooseOptionOrEnterAnswer: "Choose an option or enter an answer.",
+          enterAnswer: "Enter an answer before submitting.",
+          requiredQuestions: "Answer the required questions before submitting.",
+          staleAsk:
+            "This question no longer matches the selected task. Refresh or select the waiting task before answering.",
+        },
+        statuses: {
+          answered: "Answered",
+          cancelled: "Cancelled",
+          deferred: "Deferred",
+          expired: "Expired",
+          pending: "Waiting",
+        },
+      },
+      confirmation: {
+        actions: {
+          confirm: "Confirm",
+          resolveDecision: "Resolve decision",
+          resolving: "Resolving",
+          reviseTask: "Revise task",
+          skip: "Skip",
+        },
+        labels: {
+          confirmationStatus: ({ status }) => `Confirmation ${status}`,
+          decisionNeeded: "Decision needed",
+          decisionUnavailable: "Decision unavailable",
+          impact: "Impact",
+          resolvingDecision: "Resolving decision",
+        },
+        messages: {
+          decisionReadOnly: "This decision is read-only.",
+          executionWaits: "Execution waits for this decision.",
+          selectOneOption: "Select one confirmation option.",
+        },
+        statuses: {
+          expired: "expired",
+          pending: "pending",
+          resolved: "resolved",
+        },
+      },
+    },
     labels: {
       noSessions: "No sessions",
       noSessionSelected: "No session selected",
