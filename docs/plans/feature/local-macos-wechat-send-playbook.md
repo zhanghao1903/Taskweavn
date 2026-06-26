@@ -234,6 +234,27 @@ Validated structured window-count preflight on 2026-06-27:
   Open the WeChat main window or chat list, then rerun helper-backed preflight
   before publishing a task.
 
+Fresh helper/sidecar preflight repeated the same blocker on 2026-06-27:
+
+- evidence:
+  `/tmp/plato-computer-use-smoke/helper-app-readiness-preflight-current-20260627.json`
+- helper/sidecar state:
+  - `sidecarOk=true`
+  - `computerUseBackend=helper`
+  - `computerUseStatus=ok`
+  - `packageReadinessStatus=ready`
+  - `helperStatus=ready`
+- WeChat app readiness:
+  - `wechatAppSuccess=false`
+  - `wechatAppFailureKind=needs_user`
+  - `wechatAppPhase=window_readiness`
+  - `wechatAppDiagnostics.process_exists=true`
+  - `wechatAppDiagnostics.window_count=0`
+- interpretation: this is not a Plato helper capability failure. The helper is
+  ready, but WeChat has no automatable main window. Do not publish a WeChat send
+  task until the operator opens/unlocks the main WeChat window and preflight
+  returns `ready=true`.
+
 ### 6.3 Helper-Backed Contact Resolution Progress
 
 Attempted on 2026-06-27 with `response=reject` and no `--allow-send`:
