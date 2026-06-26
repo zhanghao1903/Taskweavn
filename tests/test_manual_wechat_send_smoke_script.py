@@ -127,7 +127,26 @@ def test_manual_wechat_smoke_preflight_passes_with_ready_sidecar(
     assert result.package_readiness_status == "ready"
     assert result.computer_use_ready is True
     assert result.computer_use_backend == "helper"
+    assert result.computer_use_helper == {
+        "bundleId": "com.taskweavn.plato.computer-use-helper.dev",
+        "version": "0.1.0",
+        "apiVersion": "plato.computer_use_helper.v1",
+        "path": "/Applications/Plato Computer Use Helper Dev.app",
+        "signingMode": "development-app",
+    }
+    assert result.computer_use_diagnostics == {
+        "diagnostics": {
+            "checkedByProcessPath": "/Applications/Plato Computer Use Helper Dev.app",
+            "adapterProcessExecutable": "/Applications/Plato Computer Use Helper Dev.app",
+            "adapterArgv0": "computer-use-helper",
+            "packageClientClass": "macos_computer_use.client.MacOSComputerUseClient",
+        },
+        "provider": "helper",
+        "helper_status": "ready",
+    }
     assert result.helper_status == "ready"
+    serialized = json.dumps(result.as_dict(), ensure_ascii=False)
+    assert "must-not-leak" not in serialized
 
 
 def test_manual_wechat_smoke_preflight_fails_when_accessibility_is_missing(
@@ -447,6 +466,29 @@ class _FakeSidecarState:
             "helperStatus": "ready",
             "summary": "Plato Computer Use Helper is ready.",
             "recoveryActions": [],
+            "helper": {
+                "bundleId": "com.taskweavn.plato.computer-use-helper.dev",
+                "version": "0.1.0",
+                "apiVersion": "plato.computer_use_helper.v1",
+                "path": "/Applications/Plato Computer Use Helper Dev.app",
+                "signingMode": "development-app",
+                "tokenRef": "must-not-leak",
+            },
+            "diagnostics": {
+                "diagnostics": {
+                    "checkedByProcessPath": "/Applications/Plato Computer Use Helper Dev.app",
+                    "adapterProcessExecutable": (
+                        "/Applications/Plato Computer Use Helper Dev.app"
+                    ),
+                    "adapterArgv0": "computer-use-helper",
+                    "packageClientClass": (
+                        "macos_computer_use.client.MacOSComputerUseClient"
+                    ),
+                    "accessToken": "must-not-leak",
+                },
+                "provider": "helper",
+                "helper_status": "ready",
+            },
         }
     )
 

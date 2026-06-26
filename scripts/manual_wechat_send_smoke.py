@@ -19,13 +19,15 @@ import time
 import urllib.error
 import urllib.request
 import uuid
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, Literal
 
 WECHAT_SEND_TASK_TYPE = "communication.wechat.send_message"
 WECHAT_SEND_CAPABILITY = "communication.wechat_desktop_send"
+_HELPER_IDENTITY_KEYS = ("bundleId", "version", "apiVersion", "path", "signingMode")
+_SENSITIVE_KEY_PARTS = ("api_key", "authorization", "password", "secret", "token")
 
 ResponseMode = Literal["reject", "confirm", "prompt"]
 
@@ -82,6 +84,8 @@ class PreflightResult:
     setup_hint: str | None
     computer_use_ready: bool | None = None
     computer_use_backend: str | None = None
+    computer_use_helper: dict[str, object] | None = None
+    computer_use_diagnostics: dict[str, object] | None = None
     helper_status: str | None = None
     failure_kind: str | None = None
     wechat_app_status: str | None = None
@@ -121,6 +125,8 @@ class PreflightResult:
             "setupHint": self.setup_hint,
             "computerUseReady": self.computer_use_ready,
             "computerUseBackend": self.computer_use_backend,
+            "computerUseHelper": self.computer_use_helper,
+            "computerUseDiagnostics": self.computer_use_diagnostics,
             "helperStatus": self.helper_status,
             "failureKind": self.failure_kind,
             "wechatAppStatus": self.wechat_app_status,
@@ -228,6 +234,8 @@ def _preflight_from_sidecar_readiness(
         or _optional_str(readiness, "setup_hint"),
         computer_use_ready=_optional_bool(computer_use, "ready"),
         computer_use_backend=_optional_str(computer_use, "backend"),
+        computer_use_helper=_safe_helper_identity(computer_use.get("helper")),
+        computer_use_diagnostics=_safe_diagnostics(diagnostics),
         helper_status=_optional_str(computer_use, "helperStatus"),
         failure_kind=_optional_str(computer_use, "failureKind"),
     )
@@ -589,6 +597,49 @@ def _optional_str_tuple(payload: dict[str, Any], key: str) -> tuple[str, ...]:
     if not isinstance(value, list | tuple):
         return ()
     return tuple(item for item in value if isinstance(item, str) and item)
+
+
+def _safe_helper_identity(value: object) -> dict[str, object] | None:
+    if not isinstance(value, Mapping):
+        return None
+    safe: dict[str, object] = {}
+    for key in _HELPER_IDENTITY_KEYS:
+        raw = value.get(key)
+        if isinstance(raw, str) and raw:
+            safe[key] = raw[:500]
+    return safe or None
+
+
+def _safe_diagnostics(value: object) -> dict[str, object] | None:
+    if not isinstance(value, Mapping):
+        return None
+    safe = {
+        str(key)[:80]: _safe_diagnostic_value(nested)
+        for key, nested in list(value.items())[:20]
+        if not _is_sensitive_key(str(key))
+    }
+    return safe or None
+
+
+def _safe_diagnostic_value(value: object) -> object:
+    if value is None or isinstance(value, (bool, int, float)):
+        return value
+    if isinstance(value, str):
+        return value[:500]
+    if isinstance(value, Mapping):
+        return {
+            str(key)[:80]: _safe_diagnostic_value(nested)
+            for key, nested in list(value.items())[:20]
+            if not _is_sensitive_key(str(key))
+        }
+    if isinstance(value, (list, tuple)):
+        return [_safe_diagnostic_value(item) for item in list(value)[:20]]
+    return str(value)[:500]
+
+
+def _is_sensitive_key(key: str) -> bool:
+    normalized = key.lower()
+    return any(part in normalized for part in _SENSITIVE_KEY_PARTS)
 
 
 def _sidecar_computer_use_readiness(config: SmokeConfig) -> dict[str, Any]:
