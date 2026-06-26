@@ -215,6 +215,45 @@ def test_manual_wechat_smoke_evidence_output_redacts_contact_and_message(
     assert "真实消息正文不应写入" not in serialized
 
 
+def test_manual_wechat_smoke_failure_evidence_is_written_and_redacted(
+    tmp_path: Path,
+) -> None:
+    module = _load_script()
+    evidence_path = tmp_path / "evidence" / "wechat-smoke-failure.json"
+    config = module.SmokeConfig(
+        base_url="http://127.0.0.1:53123",
+        session_id="session-1",
+        contact="真实联系人不应写入",
+        message="真实消息正文不应写入",
+        idempotency_key="manual-smoke-key",
+        response="reject",
+        allow_send=False,
+        timeout_seconds=1.0,
+        poll_seconds=0.1,
+        evidence_output=evidence_path,
+    )
+    error = module.SmokeError(
+        "Failed before sending 真实消息正文不应写入",
+        details={
+            "contact": "真实联系人不应写入",
+            "nested": ["真实消息正文不应写入"],
+        },
+    )
+
+    module.write_failure_evidence_output(config, error)
+
+    payload = json.loads(evidence_path.read_text(encoding="utf-8"))
+    assert payload["kind"] == "failure"
+    assert payload["result"]["message"] == "Failed before sending [redacted-message]"
+    assert payload["result"]["details"] == {
+        "contact": "[redacted-contact]",
+        "nested": ["[redacted-message]"],
+    }
+    serialized = json.dumps(payload, ensure_ascii=False)
+    assert "真实联系人不应写入" not in serialized
+    assert "真实消息正文不应写入" not in serialized
+
+
 def test_manual_wechat_smoke_reject_path_against_fake_http_sidecar(
     tmp_path: Path,
 ) -> None:

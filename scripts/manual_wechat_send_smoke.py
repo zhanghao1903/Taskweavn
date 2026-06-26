@@ -123,6 +123,7 @@ def main() -> int:
         print(f"SMOKE FAILED: {exc}", file=sys.stderr)
         if exc.details:
             print(json.dumps(exc.details, ensure_ascii=False, indent=2), file=sys.stderr)
+        write_failure_evidence_output(config, exc)
         return 1
 
     write_evidence_output(config, kind="smoke", result=result.as_dict())
@@ -208,7 +209,7 @@ def _preflight_from_sidecar_readiness(
 def write_evidence_output(
     config: SmokeConfig,
     *,
-    kind: Literal["preflight", "smoke"],
+    kind: Literal["preflight", "smoke", "failure"],
     result: dict[str, object],
 ) -> None:
     if config.evidence_output is None:
@@ -236,6 +237,39 @@ def write_evidence_output(
         json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
+
+
+def write_failure_evidence_output(config: SmokeConfig, exc: SmokeError) -> None:
+    write_evidence_output(
+        config,
+        kind="failure",
+        result={
+            "message": _redact_value(str(exc), config),
+            "details": _redact_value(exc.details, config),
+        },
+    )
+
+
+def _redact_value(value: object, config: SmokeConfig) -> object:
+    if isinstance(value, str):
+        text = value
+        if config.contact:
+            text = text.replace(config.contact, "[redacted-contact]")
+        if config.message:
+            text = text.replace(config.message, "[redacted-message]")
+        return text
+    if isinstance(value, dict):
+        return {
+            str(key): _redact_value(child, config)
+            for key, child in value.items()
+        }
+    if isinstance(value, list):
+        return [_redact_value(child, config) for child in value]
+    if isinstance(value, tuple):
+        return [_redact_value(child, config) for child in value]
+    if value is None or isinstance(value, (bool, int, float)):
+        return value
+    return str(value)
 
 
 def run_smoke(config: SmokeConfig) -> SmokeResult:

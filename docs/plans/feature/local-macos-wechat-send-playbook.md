@@ -2,7 +2,7 @@
 
 > Status: Accepted local smoke playbook
 >
-> Last Updated: 2026-06-22
+> Last Updated: 2026-06-27
 >
 > Related:
 > [Local macOS WeChat Send MVP](local-macos-wechat-send-mvp.md),
@@ -137,7 +137,9 @@ The smoke is accepted only if all are true:
 
 ## 6. Validated Smoke Record
 
-Validated on 2026-06-22:
+### 6.1 Direct macOS Backend Confirm/Send
+
+Validated on 2026-06-22 with the legacy direct `macos` backend:
 
 - contact: `文件传输助手`
 - idempotency key:
@@ -147,6 +149,50 @@ Validated on 2026-06-22:
 - result: `wechat_send_result`
 - send boundary: `sent`
 - replay: same execution, same `done` terminal status
+
+### 6.2 Helper-Backed Preflight
+
+Validated on 2026-06-27 with `computer-use-backend=helper`:
+
+- helper manifest:
+  `/tmp/plato-computer-use-smoke/computer-use-helper.json`
+- helper readiness:
+  - `status=ready`
+  - `success=true`
+  - `accessibility_trusted=true`
+  - `helper.bundleId=com.taskweavn.plato.computer-use-helper.dev`
+- sidecar preflight evidence:
+  `/tmp/plato-computer-use-smoke/helper-preflight.json`
+- preflight result:
+  - `sidecarOk=true`
+  - `computerUseBackend=helper`
+  - `computerUseStatus=ok`
+  - `packageReadinessStatus=ready`
+  - `computerUseReady=true`
+  - `helperStatus=ready`
+  - `ready=true`
+
+This validates the Plato sidecar -> helper backend readiness path. It does not
+validate WeChat contact resolution, draft insertion, or send.
+
+### 6.3 Current Helper-Backed Reject/No-Send Blocker
+
+Attempted on 2026-06-27 with `response=reject` and no `--allow-send`:
+
+- session id: `37272159`
+- idempotency key:
+  `manual-wechat-helper-reject-20260627-failure-evidence-01`
+- execution id: `exec_b2caa66958ea5142be2e175d9327e1cd`
+- failure evidence:
+  `/tmp/plato-computer-use-smoke/helper-reject-nosend-failure.json`
+- terminal status: `failed` before confirmation
+- error code: `wechat_contact_needs_user`
+- error message:
+  `Target app is not frontmost: expected WeChat, got Codex.`
+
+No message was sent. The task did not reach the confirmation boundary. Before
+the next reject/no-send attempt, manually open the WeChat main window and ensure
+it is frontmost, then use a fresh idempotency key.
 
 ## 7. Implementation Invariants
 
@@ -163,6 +209,7 @@ Validated on 2026-06-22:
 | Failure | Meaning | Rule |
 |---|---|---|
 | preflight not ready | Runtime or permissions unavailable. | Fix setup before any task. |
+| helper preflight ready but WeChat not frontmost | Helper/TCC path is ready, but the app-specific contact driver cannot safely operate. | Manually open/focus WeChat main window and rerun reject/no-send with a fresh key. |
 | contact resolution failed | Controlled contact was not selected. | Open WeChat main window and rerun reject/no-send first. |
 | draft failed | Input was not safely written. | Do not confirm; inspect evidence. |
 | `wechat_send_unknown` | Send boundary may have side effects. | No automatic retry; manual review only. |
