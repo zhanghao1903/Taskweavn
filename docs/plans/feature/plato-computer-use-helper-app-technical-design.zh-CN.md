@@ -974,11 +974,20 @@ Helper 返回：
 
 ### H4: WeChat Draft/Send Through Helper
 
-- move WeChat desktop runtime calls behind helper；
-- draft-message API；
-- send-confirmed API；
-- preserve existing send-boundary idempotency；
-- real reject/no-send smoke。
+- move WeChat desktop runtime calls behind helper；（in progress）
+- draft-message API；（implemented at helper transport boundary with fake adapter tests）
+- send-confirmed API；（implemented at helper transport boundary; missing/mismatch proof rejected before send）
+- Plato-side helper HTTP client envelope methods；（implemented）
+- preserve existing send-boundary idempotency；（pending production runtime wiring）
+- real reject/no-send smoke。（pending; requires helper runtime wiring and explicit manual authorization）
+
+2026-06-27 update: the repo-local helper transport now exposes
+`POST /v1/apps/wechat/draft-message` and
+`POST /v1/apps/wechat/send-confirmed`. The endpoints are tested with
+`FakeWeChatDesktopAdapter` only. This proves the IPC/API boundary and
+confirmation-proof gate, but does not yet prove the production
+`WeChatSendRuntimeHandler` routes through the helper-owned API or that a real
+WeChat smoke passes through the helper app.
 
 ### H5: Release Packaging
 

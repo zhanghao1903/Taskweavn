@@ -13,9 +13,20 @@ import secrets
 from dataclasses import dataclass
 from os import getpid
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, Protocol, cast
 from urllib.parse import urlsplit
 
+from taskweavn.integrations.wechat_desktop.confirmation import (
+    WeChatSendActionFingerprint,
+)
+from taskweavn.integrations.wechat_desktop.models import (
+    WeChatContactResolution,
+    WeChatDraftState,
+    WeChatOperationResult,
+    WeChatReadiness,
+    WeChatSendAttemptResult,
+    WeChatSendTaskInput,
+)
 from taskweavn.server.sidecar import LocalSidecarConfig, LocalSidecarServer
 from taskweavn.server.transport import HttpApiRequest, HttpApiResponse
 from taskweavn.tools import ComputerUseBackend, DisabledComputerUseBackend
@@ -121,6 +132,33 @@ class ComputerUseHelperServerHandle:
         self.close()
 
 
+class WeChatHelperAdapter(Protocol):
+    """WeChat-specific app adapter hosted by the helper process."""
+
+    def readiness(self) -> WeChatReadiness: ...
+
+    def open_or_focus(self) -> WeChatOperationResult: ...
+
+    def resolve_contact(
+        self,
+        task_input: WeChatSendTaskInput,
+    ) -> WeChatContactResolution: ...
+
+    def draft_message(
+        self,
+        resolution: WeChatContactResolution,
+        message_text: str,
+    ) -> WeChatDraftState: ...
+
+    def send_after_confirmation(
+        self,
+        fingerprint: WeChatSendActionFingerprint,
+        *,
+        contact_summary: str,
+        message_preview: str,
+    ) -> WeChatSendAttemptResult: ...
+
+
 class ComputerUseHelperTransport:
     """Framework-neutral route handler for the helper local API."""
 
@@ -128,11 +166,13 @@ class ComputerUseHelperTransport:
         self,
         *,
         backend: ComputerUseBackend | None = None,
+        wechat_adapter: WeChatHelperAdapter | None = None,
         config: ComputerUseHelperTransportConfig | None = None,
     ) -> None:
         self._backend = backend or DisabledComputerUseBackend(
             "computer-use helper backend is not configured"
         )
+        self._wechat_adapter = wechat_adapter
         self._config = config or ComputerUseHelperTransportConfig()
 
     def handle(self, request: HttpApiRequest) -> HttpApiResponse:
@@ -162,6 +202,20 @@ class ComputerUseHelperTransport:
             return _json_response(_info_body(self._config.info))
         if request.method == "GET" and parts == ("v1", "readiness"):
             return _json_response(self._readiness_body(request_id=None))
+        if request.method == "POST" and parts == (
+            "v1",
+            "apps",
+            "wechat",
+            "draft-message",
+        ):
+            return self._wechat_draft_response(request.body)
+        if request.method == "POST" and parts == (
+            "v1",
+            "apps",
+            "wechat",
+            "send-confirmed",
+        ):
+            return self._wechat_send_confirmed_response(request.body)
         if request.method == "POST" and parts in _OPERATION_BY_PATH:
             return self._operation_response(_OPERATION_BY_PATH[parts], request.body)
         return _error_response(404, "not_found", f"helper route not found: {request.path}")
@@ -205,17 +259,138 @@ class ComputerUseHelperTransport:
         response["helper"] = _info_body(self._config.info)
         return _json_response(response)
 
+    def _wechat_draft_response(self, body: dict[str, Any] | None) -> HttpApiResponse:
+        if self._wechat_adapter is None:
+            return _json_response(
+                _wechat_not_available_body(
+                    request_id=_request_id(body),
+                    operation="wechat.draft_message",
+                    helper_info=self._config.info,
+                )
+            )
+        if body is None:
+            return _error_response(400, "bad_request", "request body is required")
+        try:
+            task_input = _wechat_task_input_from_body(body)
+        except ValueError as exc:
+            return _error_response(400, "bad_request", str(exc))
+
+        readiness = self._wechat_adapter.readiness()
+        if readiness.status != "ready":
+            return _json_response(
+                _wechat_readiness_body(
+                    request_id=_request_id(body),
+                    operation="wechat.draft_message",
+                    readiness=readiness,
+                    helper_info=self._config.info,
+                )
+            )
+        opened = self._wechat_adapter.open_or_focus()
+        if opened.status != "ok":
+            return _json_response(
+                _wechat_operation_failure_body(
+                    request_id=_request_id(body),
+                    operation="wechat.draft_message",
+                    phase="open_app",
+                    result=opened,
+                    helper_info=self._config.info,
+                )
+            )
+        resolution = self._wechat_adapter.resolve_contact(task_input)
+        if resolution.status != "resolved" or resolution.selected is None:
+            return _json_response(
+                _wechat_contact_failure_body(
+                    request_id=_request_id(body),
+                    operation="wechat.draft_message",
+                    resolution=resolution,
+                    helper_info=self._config.info,
+                )
+            )
+        draft = self._wechat_adapter.draft_message(
+            resolution,
+            task_input.message_text,
+        )
+        if draft.status != "drafted":
+            return _json_response(
+                _wechat_draft_failure_body(
+                    request_id=_request_id(body),
+                    draft=draft,
+                    helper_info=self._config.info,
+                )
+            )
+        try:
+            fingerprint = WeChatSendActionFingerprint.from_draft(
+                execution_id=_execution_id(body),
+                idempotency_key=_idempotency_key(body),
+                draft_state=draft,
+                app_identity=_wechat_app_identity(body),
+            )
+        except ValueError as exc:
+            return _error_response(400, "bad_request", str(exc))
+        return _json_response(
+            _wechat_draft_success_body(
+                request_id=_request_id(body),
+                task_input=task_input,
+                resolution=resolution,
+                draft=draft,
+                fingerprint=fingerprint,
+                helper_info=self._config.info,
+            )
+        )
+
+    def _wechat_send_confirmed_response(
+        self,
+        body: dict[str, Any] | None,
+    ) -> HttpApiResponse:
+        if self._wechat_adapter is None:
+            return _json_response(
+                _wechat_not_available_body(
+                    request_id=_request_id(body),
+                    operation="wechat.send_confirmed",
+                    helper_info=self._config.info,
+                )
+            )
+        if body is None:
+            return _error_response(400, "bad_request", "request body is required")
+        try:
+            fingerprint = _wechat_fingerprint_from_body(body)
+            contact_summary = _wechat_contact_summary_from_body(body)
+            message_preview = _wechat_message_preview_from_body(body)
+            _validate_wechat_confirmation_proof(body, fingerprint)
+        except ValueError as exc:
+            return _error_response(400, "bad_request", str(exc))
+
+        attempt = self._wechat_adapter.send_after_confirmation(
+            fingerprint,
+            contact_summary=contact_summary,
+            message_preview=message_preview,
+        )
+        return _json_response(
+            _wechat_send_attempt_body(
+                request_id=_request_id(body),
+                attempt=attempt,
+                contact_summary=contact_summary,
+                message_preview=message_preview,
+                helper_info=self._config.info,
+            )
+        )
+
 
 def build_computer_use_helper_server(
     *,
     backend: ComputerUseBackend | None = None,
+    wechat_adapter: WeChatHelperAdapter | None = None,
     helper_config: ComputerUseHelperTransportConfig | None = None,
     server_config: LocalSidecarConfig | None = None,
 ) -> LocalSidecarServer:
     """Build a loopback-only helper prototype server."""
 
     return LocalSidecarServer(
-        ComputerUseHelperTransport(backend=backend, config=helper_config),
+        ComputerUseHelperTransport(
+            backend=backend,
+            wechat_adapter=wechat_adapter,
+            config=helper_config,
+        ),
         config=server_config,
     )
 
@@ -427,6 +602,410 @@ def _error_response(status_code: int, code: str, message: str) -> HttpApiRespons
         },
         status_code=status_code,
     )
+
+
+def _wechat_task_input_from_body(body: dict[str, Any]) -> WeChatSendTaskInput:
+    raw_input = body.get("input")
+    if not isinstance(raw_input, dict):
+        raise ValueError("request input must be a JSON object")
+    contact = _string(raw_input.get("contactDisplayName")) or _string(
+        raw_input.get("contact_display_name")
+    )
+    message = _string(raw_input.get("messageText")) or _string(
+        raw_input.get("message_text")
+    )
+    if contact is None:
+        raise ValueError("input.contactDisplayName is required")
+    if message is None:
+        raise ValueError("input.messageText is required")
+    external_ref = raw_input.get("externalRef") or raw_input.get("external_ref")
+    if not isinstance(external_ref, dict):
+        external_ref = None
+    return WeChatSendTaskInput(
+        contact_display_name=contact,
+        message_text=message,
+        contact_alias=_string(raw_input.get("contactAlias"))
+        or _string(raw_input.get("contact_alias")),
+        external_ref=cast(dict[str, str] | None, external_ref),
+        operator_note=_string(raw_input.get("operatorNote"))
+        or _string(raw_input.get("operator_note")),
+    )
+
+
+def _wechat_fingerprint_from_body(body: dict[str, Any]) -> WeChatSendActionFingerprint:
+    raw_input = body.get("input")
+    if not isinstance(raw_input, dict):
+        raise ValueError("request input must be a JSON object")
+    raw = raw_input.get("actionFingerprintPayload") or raw_input.get(
+        "action_fingerprint_payload"
+    )
+    if not isinstance(raw, dict):
+        raise ValueError("input.actionFingerprintPayload is required")
+    return WeChatSendActionFingerprint(
+        execution_id=_required_string(raw, "execution_id"),
+        idempotency_key=_required_string(raw, "idempotency_key"),
+        contact_summary_hash=_required_string(raw, "contact_summary_hash"),
+        message_hash=_required_string(raw, "message_hash"),
+        draft_observation_ref=_string(raw.get("draft_observation_ref")),
+        app_identity=_required_string(raw, "app_identity"),
+    )
+
+
+def _wechat_contact_summary_from_body(body: dict[str, Any]) -> str:
+    raw_input = body.get("input")
+    if not isinstance(raw_input, dict):
+        raise ValueError("request input must be a JSON object")
+    value = _string(raw_input.get("contactSummary")) or _string(
+        raw_input.get("contact_summary")
+    )
+    if value is None:
+        raise ValueError("input.contactSummary is required")
+    return value
+
+
+def _wechat_message_preview_from_body(body: dict[str, Any]) -> str:
+    raw_input = body.get("input")
+    if not isinstance(raw_input, dict):
+        raise ValueError("request input must be a JSON object")
+    value = _string(raw_input.get("messagePreview")) or _string(
+        raw_input.get("message_preview")
+    )
+    if value is None:
+        raise ValueError("input.messagePreview is required")
+    return value
+
+
+def _validate_wechat_confirmation_proof(
+    body: dict[str, Any],
+    fingerprint: WeChatSendActionFingerprint,
+) -> None:
+    raw_input = body.get("input")
+    if not isinstance(raw_input, dict):
+        raise ValueError("request input must be a JSON object")
+    proof = raw_input.get("confirmationProof") or raw_input.get("confirmation_proof")
+    if not isinstance(proof, dict):
+        raise ValueError("input.confirmationProof is required")
+    decision = _string(proof.get("decision")) or _string(proof.get("responseValue"))
+    if decision not in {"confirm", "approve_session"}:
+        raise ValueError("confirmationProof.decision must be confirm")
+    source = _string(proof.get("source")) or _string(proof.get("responseSource"))
+    if source != "user":
+        raise ValueError("confirmationProof.source must be user")
+    digest = _string(proof.get("actionFingerprint")) or _string(
+        proof.get("action_fingerprint")
+    )
+    if digest != fingerprint.digest():
+        raise ValueError("confirmationProof.actionFingerprint does not match")
+
+
+def _wechat_not_available_body(
+    *,
+    request_id: str | None,
+    operation: str,
+    helper_info: ComputerUseHelperInfo,
+) -> dict[str, Any]:
+    return {
+        "requestId": request_id,
+        "operation": operation,
+        "status": "not_available",
+        "success": False,
+        "summary": "WeChat helper adapter is not configured.",
+        "failureKind": "capability_not_available",
+        "phase": "readiness",
+        "evidence": {
+            "kind": "computer_use_operation",
+            "safeSummary": "Helper process has no WeChat app adapter.",
+            "targetApp": "WeChat",
+            "redaction": "no_raw_chat_history",
+        },
+        "diagnostics": {},
+        "helper": _info_body(helper_info),
+    }
+
+
+def _wechat_readiness_body(
+    *,
+    request_id: str | None,
+    operation: str,
+    readiness: WeChatReadiness,
+    helper_info: ComputerUseHelperInfo,
+) -> dict[str, Any]:
+    return {
+        "requestId": request_id,
+        "operation": operation,
+        "status": _wechat_status(readiness.status),
+        "success": False,
+        "summary": readiness.summary,
+        "failureKind": _wechat_failure_kind(readiness.status),
+        "phase": "readiness",
+        "evidence": {
+            "kind": "computer_use_operation",
+            "safeSummary": readiness.summary,
+            "targetApp": readiness.app_name,
+            "observationRef": readiness.observation_ref,
+            "redaction": "no_raw_chat_history",
+        },
+        "diagnostics": {"setupHint": readiness.setup_hint}
+        if readiness.setup_hint
+        else {},
+        "helper": _info_body(helper_info),
+    }
+
+
+def _wechat_operation_failure_body(
+    *,
+    request_id: str | None,
+    operation: str,
+    phase: str,
+    result: WeChatOperationResult,
+    helper_info: ComputerUseHelperInfo,
+) -> dict[str, Any]:
+    return {
+        "requestId": request_id,
+        "operation": operation,
+        "status": _wechat_status(result.status),
+        "success": False,
+        "summary": result.summary,
+        "failureKind": _wechat_failure_kind(result.status),
+        "phase": phase,
+        "evidence": {
+            "kind": "computer_use_operation",
+            "safeSummary": result.summary,
+            "targetApp": "WeChat",
+            "observationRef": result.observation_ref,
+            "redaction": "no_raw_chat_history",
+        },
+        "diagnostics": result.metadata or {},
+        "helper": _info_body(helper_info),
+    }
+
+
+def _wechat_contact_failure_body(
+    *,
+    request_id: str | None,
+    operation: str,
+    resolution: WeChatContactResolution,
+    helper_info: ComputerUseHelperInfo,
+) -> dict[str, Any]:
+    return {
+        "requestId": request_id,
+        "operation": operation,
+        "status": _wechat_status(resolution.status),
+        "success": False,
+        "summary": resolution.reason or "WeChat contact was not resolved safely.",
+        "failureKind": f"contact_{resolution.status}",
+        "phase": "contact_resolution",
+        "evidence": {
+            "kind": "computer_use_operation",
+            "safeSummary": resolution.reason
+            or "WeChat contact was not resolved safely.",
+            "targetApp": "WeChat",
+            "candidates": [candidate.summary() for candidate in resolution.candidates],
+            "observationRef": resolution.observation_ref,
+            "redaction": "no_raw_chat_history",
+        },
+        "diagnostics": resolution.diagnostics or {},
+        "helper": _info_body(helper_info),
+    }
+
+
+def _wechat_draft_failure_body(
+    *,
+    request_id: str | None,
+    draft: WeChatDraftState,
+    helper_info: ComputerUseHelperInfo,
+) -> dict[str, Any]:
+    return {
+        "requestId": request_id,
+        "operation": "wechat.draft_message",
+        "status": "failed",
+        "success": False,
+        "summary": draft.reason or "WeChat draft failed.",
+        "failureKind": "draft_failed",
+        "phase": "draft",
+        "draftState": _draft_state_body(draft),
+        "evidence": {
+            "kind": "computer_use_operation",
+            "safeSummary": draft.reason or "WeChat draft failed.",
+            "targetApp": "WeChat",
+            "targetContact": draft.contact_summary,
+            "observationRef": draft.draft_observation_ref,
+            "redaction": "no_raw_chat_history",
+        },
+        "diagnostics": {},
+        "helper": _info_body(helper_info),
+    }
+
+
+def _wechat_draft_success_body(
+    *,
+    request_id: str | None,
+    task_input: WeChatSendTaskInput,
+    resolution: WeChatContactResolution,
+    draft: WeChatDraftState,
+    fingerprint: WeChatSendActionFingerprint,
+    helper_info: ComputerUseHelperInfo,
+) -> dict[str, Any]:
+    return {
+        "requestId": request_id,
+        "operation": "wechat.draft_message",
+        "status": "ok",
+        "success": True,
+        "summary": f"Drafted message for contact {draft.contact_summary}.",
+        "failureKind": None,
+        "phase": "draft",
+        "risk": {
+            "level": "high",
+            "requiresConfirmation": True,
+            "reason": "External message send requires confirmation.",
+            "actionFingerprint": fingerprint.digest(),
+        },
+        "input": {
+            "contactDisplayName": task_input.contact_display_name,
+            "messagePreview": draft.message_preview,
+        },
+        "contactResolution": {
+            "status": resolution.status,
+            "selected": resolution.selected.summary() if resolution.selected else None,
+            "observationRef": resolution.observation_ref,
+        },
+        "draftState": _draft_state_body(draft),
+        "actionFingerprint": fingerprint.digest(),
+        "actionFingerprintPayload": fingerprint.to_safe_context(),
+        "evidence": {
+            "kind": "computer_use_operation",
+            "safeSummary": "WeChat contact resolved and draft inserted.",
+            "targetApp": "WeChat",
+            "targetContact": draft.contact_summary,
+            "messagePreview": draft.message_preview,
+            "observationRef": draft.draft_observation_ref,
+            "redaction": "no_raw_chat_history",
+        },
+        "diagnostics": resolution.diagnostics or {},
+        "helper": _info_body(helper_info),
+    }
+
+
+def _wechat_send_attempt_body(
+    *,
+    request_id: str | None,
+    attempt: WeChatSendAttemptResult,
+    contact_summary: str,
+    message_preview: str,
+    helper_info: ComputerUseHelperInfo,
+) -> dict[str, Any]:
+    success = attempt.status == "sent"
+    return {
+        "requestId": request_id,
+        "operation": "wechat.send_confirmed",
+        "status": attempt.status,
+        "success": success,
+        "summary": attempt.summary,
+        "failureKind": None if success else _attempt_failure_kind(attempt),
+        "phase": (attempt.metadata or {}).get("phase") or "keyboard_submit",
+        "evidence": {
+            "kind": "computer_use_operation",
+            "safeSummary": attempt.summary,
+            "targetApp": "WeChat",
+            "targetContact": contact_summary,
+            "messagePreview": message_preview,
+            "observationRef": attempt.send_observation_ref,
+            "redaction": "no_raw_chat_history",
+        },
+        "diagnostics": attempt.metadata or {},
+        "helper": _info_body(helper_info),
+    }
+
+
+def _draft_state_body(draft: WeChatDraftState) -> dict[str, Any]:
+    return {
+        "status": draft.status,
+        "contactSummary": draft.contact_summary,
+        "messageHash": draft.message_hash,
+        "messagePreview": draft.message_preview,
+        "draftObservationRef": draft.draft_observation_ref,
+        "reason": draft.reason,
+    }
+
+
+def _request_id(body: dict[str, Any] | None) -> str | None:
+    if body is None:
+        return None
+    return _string(body.get("requestId")) or _string(body.get("request_id"))
+
+
+def _idempotency_key(body: dict[str, Any]) -> str:
+    value = _string(body.get("idempotencyKey")) or _string(body.get("idempotency_key"))
+    if value is None:
+        raise ValueError("idempotencyKey is required")
+    return value
+
+
+def _execution_id(body: dict[str, Any]) -> str:
+    raw_caller = body.get("caller")
+    if isinstance(raw_caller, dict):
+        for key in ("taskExecutionId", "task_execution_id", "executionId"):
+            value = _string(raw_caller.get(key))
+            if value is not None:
+                return value
+    request_id = _request_id(body)
+    if request_id is None:
+        raise ValueError("caller.taskExecutionId or requestId is required")
+    return request_id
+
+
+def _wechat_app_identity(body: dict[str, Any]) -> str:
+    raw_input = body.get("input")
+    if isinstance(raw_input, dict):
+        value = _string(raw_input.get("appIdentity")) or _string(
+            raw_input.get("app_identity")
+        )
+        if value is not None:
+            return value
+    return "com.tencent.xinWeChat"
+
+
+def _wechat_status(status: str) -> str:
+    if status in {"ready", "ok", "resolved", "drafted"}:
+        return "ok"
+    if status in {"needs_user", "ambiguous"}:
+        return "needs_user"
+    if status in {"wechat_missing", "not_observable", "not_available"}:
+        return "not_available"
+    return "failed"
+
+
+def _wechat_failure_kind(status: str) -> str:
+    if status in {"ready", "ok", "resolved", "drafted"}:
+        return ""
+    if status == "wechat_missing":
+        return "app_not_installed"
+    if status in {"not_observable", "not_available"}:
+        return "missing_accessibility"
+    if status == "not_logged_in":
+        return "app_needs_user"
+    if status == "needs_user":
+        return "needs_user"
+    return status
+
+
+def _attempt_failure_kind(attempt: WeChatSendAttemptResult) -> str:
+    if attempt.metadata:
+        failure_kind = attempt.metadata.get("failure_kind")
+        if isinstance(failure_kind, str) and failure_kind:
+            return failure_kind
+    if attempt.status == "not_sent":
+        return "send_not_attempted"
+    if attempt.status == "unknown":
+        return "send_unknown"
+    return "send_failed"
+
+
+def _required_string(raw: dict[str, Any], key: str) -> str:
+    value = _string(raw.get(key))
+    if value is None:
+        raise ValueError(f"input.actionFingerprintPayload.{key} is required")
+    return value
 
 
 def _string(value: Any) -> str | None:

@@ -299,6 +299,72 @@ class ComputerUseHelperHttpClient:
     def execute(self, action: ComputerUseAction) -> Mapping[str, Any]:
         return self._request("POST", _operation_path(action.operation), self._payload(action))
 
+    def wechat_draft_message(
+        self,
+        *,
+        request_id: str,
+        idempotency_key: str,
+        caller: Mapping[str, str],
+        contact_display_name: str,
+        message_text: str,
+        contact_alias: str | None = None,
+        operator_note: str | None = None,
+        external_ref: Mapping[str, str] | None = None,
+        app_identity: str | None = None,
+    ) -> Mapping[str, Any]:
+        """Ask the helper to resolve a WeChat contact and insert a draft only."""
+
+        payload: dict[str, Any] = {
+            "requestId": request_id,
+            "idempotencyKey": idempotency_key,
+            "caller": dict(caller),
+            "operation": "wechat.draft_message",
+            "input": {
+                "contactDisplayName": contact_display_name,
+                "messageText": message_text,
+                "contactAlias": contact_alias,
+                "operatorNote": operator_note,
+                "externalRef": dict(external_ref or {}),
+                "appIdentity": app_identity,
+            },
+            "policy": self._policy(requires_confirmation_before_send=True),
+        }
+        return self._request("POST", "/v1/apps/wechat/draft-message", payload)
+
+    def wechat_send_confirmed(
+        self,
+        *,
+        request_id: str,
+        idempotency_key: str,
+        caller: Mapping[str, str],
+        action_fingerprint_payload: Mapping[str, Any],
+        action_fingerprint: str,
+        contact_summary: str,
+        message_preview: str,
+        confirmation_id: str,
+    ) -> Mapping[str, Any]:
+        """Ask the helper to submit an already drafted WeChat message."""
+
+        payload: dict[str, Any] = {
+            "requestId": request_id,
+            "idempotencyKey": idempotency_key,
+            "caller": dict(caller),
+            "operation": "wechat.send_confirmed",
+            "input": {
+                "actionFingerprintPayload": dict(action_fingerprint_payload),
+                "contactSummary": contact_summary,
+                "messagePreview": message_preview,
+                "confirmationProof": {
+                    "confirmationId": confirmation_id,
+                    "decision": "confirm",
+                    "source": "user",
+                    "actionFingerprint": action_fingerprint,
+                },
+            },
+            "policy": self._policy(requires_confirmation_before_send=False),
+        }
+        return self._request("POST", "/v1/apps/wechat/send-confirmed", payload)
+
     def _payload(self, action: ComputerUseAction) -> dict[str, Any]:
         caller = {
             key: action.metadata[key]
@@ -323,11 +389,16 @@ class ComputerUseHelperHttpClient:
                 "metadata": action.metadata,
             },
             "policy": {
-                "allowedApps": list(self._allowed_apps),
-                "allowCoordinateClick": self._allow_coordinate_click,
-                "allowScreenshot": self._allow_screenshot,
-                "requiresConfirmationBeforeSend": True,
+                **self._policy(requires_confirmation_before_send=True),
             },
+        }
+
+    def _policy(self, *, requires_confirmation_before_send: bool) -> dict[str, Any]:
+        return {
+            "allowedApps": list(self._allowed_apps),
+            "allowCoordinateClick": self._allow_coordinate_click,
+            "allowScreenshot": self._allow_screenshot,
+            "requiresConfirmationBeforeSend": requires_confirmation_before_send,
         }
 
     def _request(

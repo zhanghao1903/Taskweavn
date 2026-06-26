@@ -6,6 +6,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
 
+from taskweavn.integrations.wechat_desktop import (
+    FakeWeChatDesktopAdapter,
+    WeChatContactCandidate,
+    WeChatContactResolution,
+)
 from taskweavn.server import (
     ComputerUseHelperInfo,
     ComputerUseHelperManifest,
@@ -146,6 +151,113 @@ def test_helper_transport_rejects_bad_operation_payload() -> None:
     assert response.body["error"]["code"] == "bad_request"
 
 
+def test_helper_server_wechat_draft_message_routes_to_adapter() -> None:
+    adapter = FakeWeChatDesktopAdapter(contact_resolution=_wechat_resolution())
+    with build_computer_use_helper_server(wechat_adapter=adapter) as server:
+        response = _request(
+            server,
+            "POST",
+            "/v1/apps/wechat/draft-message",
+            body=_wechat_draft_body(),
+        )
+
+    assert response.status == 200
+    assert response.json["operation"] == "wechat.draft_message"
+    assert response.json["status"] == "ok"
+    assert response.json["success"] is True
+    assert response.json["phase"] == "draft"
+    assert response.json["risk"]["requiresConfirmation"] is True
+    assert response.json["actionFingerprint"]
+    assert response.json["actionFingerprintPayload"]["execution_id"] == "exec-1"
+    assert response.json["draftState"]["contactSummary"] == "文件传输助手"
+    assert response.json["evidence"]["redaction"] == "no_raw_chat_history"
+    assert [name for name, _payload in adapter.calls] == [
+        "readiness",
+        "open_or_focus",
+        "resolve_contact",
+        "draft_message",
+    ]
+
+
+def test_helper_server_wechat_send_confirmed_rejects_missing_proof() -> None:
+    adapter = FakeWeChatDesktopAdapter(contact_resolution=_wechat_resolution())
+    with build_computer_use_helper_server(wechat_adapter=adapter) as server:
+        draft = _request(
+            server,
+            "POST",
+            "/v1/apps/wechat/draft-message",
+            body=_wechat_draft_body(),
+        )
+        response = _request(
+            server,
+            "POST",
+            "/v1/apps/wechat/send-confirmed",
+            body={
+                "requestId": "send-1",
+                "idempotencyKey": "idem-1",
+                "caller": {"taskExecutionId": "exec-1"},
+                "operation": "wechat.send_confirmed",
+                "input": {
+                    "actionFingerprintPayload": draft.json[
+                        "actionFingerprintPayload"
+                    ],
+                    "contactSummary": draft.json["draftState"]["contactSummary"],
+                    "messagePreview": draft.json["draftState"]["messagePreview"],
+                },
+            },
+        )
+
+    assert response.status == 400
+    assert response.json["error"]["code"] == "bad_request"
+    assert "confirmationProof" in response.json["error"]["message"]
+    assert [name for name, _payload in adapter.calls].count(
+        "send_after_confirmation"
+    ) == 0
+
+
+def test_helper_server_wechat_send_confirmed_routes_matching_proof() -> None:
+    adapter = FakeWeChatDesktopAdapter(contact_resolution=_wechat_resolution())
+    with build_computer_use_helper_server(wechat_adapter=adapter) as server:
+        draft = _request(
+            server,
+            "POST",
+            "/v1/apps/wechat/draft-message",
+            body=_wechat_draft_body(),
+        ).json
+        response = _request(
+            server,
+            "POST",
+            "/v1/apps/wechat/send-confirmed",
+            body={
+                "requestId": "send-1",
+                "idempotencyKey": "idem-1",
+                "caller": {"taskExecutionId": "exec-1"},
+                "operation": "wechat.send_confirmed",
+                "input": {
+                    "actionFingerprintPayload": draft["actionFingerprintPayload"],
+                    "contactSummary": draft["draftState"]["contactSummary"],
+                    "messagePreview": draft["draftState"]["messagePreview"],
+                    "confirmationProof": {
+                        "confirmationId": "confirm-1",
+                        "decision": "confirm",
+                        "source": "user",
+                        "actionFingerprint": draft["actionFingerprint"],
+                    },
+                },
+            },
+        )
+
+    assert response.status == 200
+    assert response.json["operation"] == "wechat.send_confirmed"
+    assert response.json["status"] == "sent"
+    assert response.json["success"] is True
+    assert response.json["phase"] == "keyboard_submit"
+    assert response.json["evidence"]["targetContact"] == "文件传输助手"
+    assert [name for name, _payload in adapter.calls].count(
+        "send_after_confirmation"
+    ) == 1
+
+
 def test_helper_manifest_roundtrip(tmp_path: Path) -> None:
     manifest_path = tmp_path / "computer-use-helper.json"
     manifest = ComputerUseHelperManifest(
@@ -256,3 +368,36 @@ def _observation(
         metadata=metadata or {},
         text_extract=text_extract,
     )
+
+
+def _wechat_resolution() -> WeChatContactResolution:
+    candidate = WeChatContactCandidate(
+        display_name="文件传输助手",
+        stable_hint="wechat:search:文件传输助手",
+        confidence=1.0,
+    )
+    return WeChatContactResolution(
+        status="resolved",
+        selected=candidate,
+        candidates=(candidate,),
+        observation_ref="wechat-contact-observation",
+    )
+
+
+def _wechat_draft_body() -> dict[str, Any]:
+    return {
+        "requestId": "draft-1",
+        "idempotencyKey": "idem-1",
+        "caller": {"taskExecutionId": "exec-1", "sessionId": "session-1"},
+        "operation": "wechat.draft_message",
+        "input": {
+            "contactDisplayName": "文件传输助手",
+            "messageText": "你好",
+        },
+        "policy": {
+            "allowedApps": ["WeChat"],
+            "allowCoordinateClick": False,
+            "allowScreenshot": False,
+            "requiresConfirmationBeforeSend": True,
+        },
+    }

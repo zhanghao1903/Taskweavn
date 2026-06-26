@@ -200,6 +200,93 @@ def test_helper_http_client_builds_operation_envelope() -> None:
     assert payload["policy"]["requiresConfirmationBeforeSend"] is True
 
 
+def test_helper_http_client_builds_wechat_draft_envelope() -> None:
+    calls: list[tuple[str, str, dict[str, Any] | None]] = []
+
+    def transport(
+        method: str,
+        path: str,
+        payload: dict[str, Any] | None,
+    ) -> dict[str, Any]:
+        calls.append((method, path, payload))
+        return {"status": "ok", "summary": "Drafted."}
+
+    client = ComputerUseHelperHttpClient(
+        endpoint="http://127.0.0.1:49321",
+        token="secret",
+        allowed_apps=("WeChat",),
+        allow_coordinate_click=False,
+        allow_screenshot=False,
+        transport=transport,
+    )
+
+    response = client.wechat_draft_message(
+        request_id="draft-1",
+        idempotency_key="idem-1",
+        caller={"sessionId": "session-1", "taskExecutionId": "exec-1"},
+        contact_display_name="文件传输助手",
+        message_text="你好",
+    )
+
+    assert response["summary"] == "Drafted."
+    method, path, payload = calls[0]
+    assert method == "POST"
+    assert path == "/v1/apps/wechat/draft-message"
+    assert payload is not None
+    assert payload["operation"] == "wechat.draft_message"
+    assert payload["idempotencyKey"] == "idem-1"
+    assert payload["input"]["contactDisplayName"] == "文件传输助手"
+    assert payload["input"]["messageText"] == "你好"
+    assert payload["policy"]["allowedApps"] == ["WeChat"]
+    assert payload["policy"]["requiresConfirmationBeforeSend"] is True
+
+
+def test_helper_http_client_builds_wechat_send_confirmed_envelope() -> None:
+    calls: list[tuple[str, str, dict[str, Any] | None]] = []
+
+    def transport(
+        method: str,
+        path: str,
+        payload: dict[str, Any] | None,
+    ) -> dict[str, Any]:
+        calls.append((method, path, payload))
+        return {"status": "sent", "summary": "Sent."}
+
+    client = ComputerUseHelperHttpClient(
+        endpoint="http://127.0.0.1:49321",
+        token="secret",
+        allowed_apps=("WeChat",),
+        allow_coordinate_click=False,
+        allow_screenshot=False,
+        transport=transport,
+    )
+
+    response = client.wechat_send_confirmed(
+        request_id="send-1",
+        idempotency_key="idem-1",
+        caller={"sessionId": "session-1", "taskExecutionId": "exec-1"},
+        action_fingerprint_payload={"execution_id": "exec-1"},
+        action_fingerprint="fingerprint-1",
+        contact_summary="文件传输助手",
+        message_preview="你好",
+        confirmation_id="confirm-1",
+    )
+
+    assert response["summary"] == "Sent."
+    method, path, payload = calls[0]
+    assert method == "POST"
+    assert path == "/v1/apps/wechat/send-confirmed"
+    assert payload is not None
+    assert payload["operation"] == "wechat.send_confirmed"
+    assert payload["input"]["confirmationProof"] == {
+        "confirmationId": "confirm-1",
+        "decision": "confirm",
+        "source": "user",
+        "actionFingerprint": "fingerprint-1",
+    }
+    assert payload["policy"]["requiresConfirmationBeforeSend"] is False
+
+
 def test_helper_backend_loads_endpoint_and_token_ref_from_manifest(tmp_path: Path) -> None:
     token_path = tmp_path / "token.txt"
     token_path.write_text("token-from-file\n", encoding="utf-8")
