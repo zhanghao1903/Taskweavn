@@ -1,4 +1,4 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 
 import type {
@@ -48,6 +48,10 @@ import {
   type StopTaskContext,
 } from "./useMainPageCommandMutations";
 import { useMainPageEventSubscription } from "./useMainPageEventSubscription";
+import {
+  useMainPageSessionLifecycle,
+  type SessionLifecycleDialog,
+} from "./useMainPageSessionLifecycle";
 
 const mainPageLogger = createFrontendLogger("main-page");
 
@@ -64,27 +68,7 @@ export type {
   RetryTaskContext,
   StopTaskContext,
 } from "./useMainPageCommandMutations";
-
-export type SessionLifecycleDialog =
-  | {
-      mode: "idle";
-    }
-  | {
-      draftName: string;
-      error: string | null;
-      mode: "create";
-    }
-  | {
-      draftName: string;
-      error: string | null;
-      mode: "rename";
-      session: SessionSummary;
-    }
-  | {
-      error: string | null;
-      mode: "delete";
-      session: SessionSummary;
-    };
+export type { SessionLifecycleDialog } from "./useMainPageSessionLifecycle";
 
 export type MainPageController = {
   activeSessionId: string | null;
@@ -208,9 +192,6 @@ export function useMainPageController({
   >([]);
   const [activeRuntimeInputMode, setActiveRuntimeInputMode] =
     useState<RuntimeInputMode | null>(null);
-  const [sessionDialog, setSessionDialog] = useState<SessionLifecycleDialog>({
-    mode: "idle",
-  });
   const [activeSessionId, setActiveSessionId] = useState<string | null>(
     adapter.sessionId,
   );
@@ -401,85 +382,20 @@ export function useMainPageController({
     setTaskTreeCommandFailure,
     setUiNotice,
   });
-
-  const createSessionMutation = useMutation({
-    mutationFn: async ({
-      name,
-      workspaceId,
-    }: {
-      name: string;
-      workspaceId: WorkspaceId | null;
-    }) =>
-      adapter.createSession(
-        {
-          name,
-        },
-        workspaceId,
-      ),
-    onError: () => {
-      setSessionDialogError("Create session failed. Please retry.");
-    },
-    onSuccess: (result) => {
-      const nextSessionId = result.sessionId ?? result.session?.id ?? null;
-      if (nextSessionId === null) {
-        setSessionDialogError("Created session was unavailable. Please retry.");
-        return;
-      }
-
-      if (result.session?.workspaceId) {
-        setActiveWorkspaceId(result.session.workspaceId);
-      }
-      setActiveSessionId(nextSessionId);
-      setUiNotice(`Created session ${result.session?.name ?? nextSessionId}.`);
-      setSessionDialog({ mode: "idle" });
-      refetchWorkspaceCatalog();
-    },
+  const sessionLifecycle = useMainPageSessionLifecycle({
+    activeWorkspaceId,
+    adapter,
+    getSnapshotData: () => snapshotDataRef.current,
+    refetchSnapshot,
+    refetchWorkspaceCatalog,
+    setActiveSessionId,
+    setActiveWorkspaceId,
+    setUiNotice,
   });
-
-  const renameSessionMutation = useMutation({
-    mutationFn: async ({
-      name,
-      sessionId,
-      workspaceId,
-    }: {
-      name: string;
-      sessionId: string;
-      workspaceId: WorkspaceId | null;
-    }) =>
-      adapter.renameSession({
-        name,
-        sessionId,
-      }, workspaceId),
-    onError: () => {
-      setSessionDialogError("Rename session failed. Please retry.");
-    },
-    onSuccess: (result) => {
-      setUiNotice(`Renamed session to ${result.session?.name ?? "new name"}.`);
-      setSessionDialog({ mode: "idle" });
-      refetchWorkspaceCatalog();
-      void refetchSnapshot();
-    },
-  });
-
-  const deleteSessionMutation = useMutation({
-    mutationFn: async ({
-      sessionId,
-      workspaceId,
-    }: {
-      sessionId: string;
-      workspaceId: WorkspaceId | null;
-    }) => adapter.deleteSession(sessionId, workspaceId),
-    onError: () => {
-      setSessionDialogError("Delete session failed. Please retry.");
-    },
-    onSuccess: (result) => {
-      const nextSessionId = result.nextSessionId ?? null;
-      setActiveSessionId(nextSessionId);
-      setUiNotice("Session deleted.");
-      setSessionDialog({ mode: "idle" });
-      refetchWorkspaceCatalog();
-    },
-  });
+  const {
+    resetSessionDialog,
+    resetSessionLifecycle,
+  } = sessionLifecycle;
 
   useEffect(() => {
     const currentSnapshot = snapshotDataRef.current;
@@ -508,9 +424,9 @@ export function useMainPageController({
     setTaskTreeCommandError(null);
     clearCommandRecoveryActions();
     setUiNotice(null);
-    setSessionDialog({ mode: "idle" });
+    resetSessionDialog();
     clearEventError();
-  }, [clearEventError, snapshotIdentity]);
+  }, [clearEventError, resetSessionDialog, snapshotIdentity]);
 
   function handleStateChange(nextStateId: MainPageStateId) {
     setStateId(nextStateId);
@@ -525,7 +441,7 @@ export function useMainPageController({
     setTaskTreeCommandError(null);
     clearCommandRecoveryActions();
     setUiNotice(null);
-    setSessionDialog({ mode: "idle" });
+    resetSessionLifecycle();
     clearEventError();
     resolveConfirmationMutation.reset();
     answerAuthoringAskBatchMutation.reset();
@@ -535,9 +451,6 @@ export function useMainPageController({
     cancelAskMutation.reset();
     inputMutation.reset();
     publishTaskTreeMutation.reset();
-    createSessionMutation.reset();
-    renameSessionMutation.reset();
-    deleteSessionMutation.reset();
   }
 
   function selectTask(nodeId: TaskNodeId) {
@@ -566,119 +479,6 @@ export function useMainPageController({
 
     setActiveWorkspaceId(nextWorkspaceId ?? null);
     setActiveSessionId(session.id);
-  }
-
-  function handleCreateSession(workspaceId?: WorkspaceId | null) {
-    const targetWorkspaceId = workspaceId ?? activeWorkspaceId;
-    if (targetWorkspaceId !== activeWorkspaceId) {
-      setActiveWorkspaceId(targetWorkspaceId ?? null);
-    }
-    if (!snapshotDataRef.current) {
-      createSessionMutation.mutate({
-        name: "New session",
-        workspaceId: targetWorkspaceId ?? null,
-      });
-      return;
-    }
-
-    setSessionDialog({
-      draftName: "New session",
-      error: null,
-      mode: "create",
-    });
-  }
-
-  function handleRenameSession(session: SessionSummary) {
-    setSessionDialog({
-      draftName: session.name,
-      error: null,
-      mode: "rename",
-      session,
-    });
-  }
-
-  function handleDeleteSession(session: SessionSummary) {
-    setSessionDialog({
-      error: null,
-      mode: "delete",
-      session,
-    });
-  }
-
-  function handleSessionDialogDraftChange(draftName: string) {
-    setSessionDialog((current) => {
-      if (current.mode !== "create" && current.mode !== "rename") {
-        return current;
-      }
-
-      return {
-        ...current,
-        draftName,
-        error: null,
-      };
-    });
-  }
-
-  function handleSessionDialogCancel() {
-    if (
-      createSessionMutation.isPending ||
-      renameSessionMutation.isPending ||
-      deleteSessionMutation.isPending
-    ) {
-      return;
-    }
-
-    setSessionDialog({ mode: "idle" });
-  }
-
-  function handleSessionDialogSubmit() {
-    if (sessionDialog.mode === "idle") {
-      return;
-    }
-
-    if (sessionDialog.mode === "delete") {
-      setUiNotice(null);
-      deleteSessionMutation.mutate({
-        sessionId: sessionDialog.session.id,
-        workspaceId: sessionDialog.session.workspaceId ?? activeWorkspaceId,
-      });
-      return;
-    }
-
-    const trimmed = sessionDialog.draftName.trim();
-    if (!trimmed) {
-      setSessionDialogError("Session name must not be empty.");
-      return;
-    }
-
-    setUiNotice(null);
-
-    if (sessionDialog.mode === "create") {
-      createSessionMutation.mutate({
-        name: trimmed,
-        workspaceId: activeWorkspaceId,
-      });
-      return;
-    }
-
-    renameSessionMutation.mutate({
-      name: trimmed,
-      sessionId: sessionDialog.session.id,
-      workspaceId: sessionDialog.session.workspaceId ?? activeWorkspaceId,
-    });
-  }
-
-  function setSessionDialogError(message: string) {
-    setSessionDialog((current) => {
-      if (current.mode === "idle") {
-        return current;
-      }
-
-      return {
-        ...current,
-        error: message,
-      };
-    });
   }
 
   function handleInputSubmit({
@@ -860,8 +660,8 @@ export function useMainPageController({
     inputDraft,
     inputError,
     inputRecoveryActions,
-    isCreatingSession: createSessionMutation.isPending,
-    isDeletingSession: deleteSessionMutation.isPending,
+    isCreatingSession: sessionLifecycle.isCreatingSession,
+    isDeletingSession: sessionLifecycle.isDeletingSession,
     isAnsweringAuthoringAsk: answerAuthoringAskBatchMutation.isPending,
     executionAskError,
     executionAskRecoveryActions,
@@ -872,13 +672,13 @@ export function useMainPageController({
     isPublishingTaskTree: publishTaskTreeMutation.isPending,
     isArchivingPlan: archivePlanMutation.isPending,
     isRepairingAuthoringState: repairAuthoringStateMutation.isPending,
-    isRenamingSession: renameSessionMutation.isPending,
+    isRenamingSession: sessionLifecycle.isRenamingSession,
     isRetryingTask: retryTaskMutation.isPending,
     isStoppingTask: stopTaskMutation.isPending,
     isResolvingConfirmation: resolveConfirmationMutation.isPending,
     activeRuntimeInputMode,
     selectionTarget,
-    sessionDialog,
+    sessionDialog: sessionLifecycle.sessionDialog,
     isSnapshotError: snapshotQuery.isError,
     isSnapshotPending: snapshotQuery.isPending,
     selectedTaskNodeId,
@@ -894,16 +694,17 @@ export function useMainPageController({
       answerAuthoringAskBatch: handleAnswerAuthoringAskBatch,
       answerAsk: handleAnswerAsk,
       archivePlan: handleArchivePlan,
-      cancelSessionDialog: handleSessionDialogCancel,
+      cancelSessionDialog: sessionLifecycle.actions.cancelSessionDialog,
       cancelAsk: handleCancelAsk,
-      changeSessionDialogDraft: handleSessionDialogDraftChange,
+      changeSessionDialogDraft:
+        sessionLifecycle.actions.changeSessionDialogDraft,
       changeInputDraft: setInputDraft,
       changeState: handleStateChange,
-      createSession: handleCreateSession,
-      deleteSession: handleDeleteSession,
+      createSession: sessionLifecycle.actions.createSession,
+      deleteSession: sessionLifecycle.actions.deleteSession,
       repairAuthoringState: handleRepairAuthoringState,
       deferAsk: handleDeferAsk,
-      renameSession: handleRenameSession,
+      renameSession: sessionLifecycle.actions.renameSession,
       resolveConfirmation: handleConfirmationDecision,
       retryTask: handleRetryTask,
       stopTask: handleStopTask,
@@ -912,7 +713,7 @@ export function useMainPageController({
       selectTask,
       showFileChanges: () => setDetailOverride("fileChanges"),
       showResult: () => setDetailOverride("result"),
-      submitSessionDialog: handleSessionDialogSubmit,
+      submitSessionDialog: sessionLifecycle.actions.submitSessionDialog,
       submitInput: handleInputSubmit,
       publishTaskTree: handlePublishTaskTree,
     },
