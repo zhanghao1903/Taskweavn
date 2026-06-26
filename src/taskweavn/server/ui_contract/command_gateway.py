@@ -8,12 +8,14 @@ from taskweavn.server.ui_contract.command_ask_helpers import (
     defer_ask_command,
 )
 from taskweavn.server.ui_contract.command_authoring_helpers import (
+    answered_authoring_ask_batch_response,
     authoring_context_is_superseded,
     latest_raw_task,
     raw_task_all_asks_answered,
     raw_task_ready_for_planning,
     resolve_publish_draft_tree_id,
     session_has_published_task_tree,
+    stale_authoring_context_response,
 )
 from taskweavn.server.ui_contract.command_mapping import (
     _child_idempotency_key,
@@ -632,48 +634,7 @@ class DefaultUiCommandGateway:
                 self._task_projection,
                 request.session_id,
             ):
-                raw_ref = ObjectRef(kind="raw_task", id=raw_task_id)
-                ask_refs = tuple(
-                    ObjectRef(kind="raw_task_ask", id=answer.ask_id)
-                    for answer in request.payload.answers
-                )
-                result = CoreCommandResult(
-                    status="rejected",
-                    message=(
-                        "stale_authoring_context: authoring ASK was superseded "
-                        "by the active TaskTree"
-                    ),
-                )
-                return _command_response(
-                    request,
-                    result,
-                    object_refs=(raw_ref, *ask_refs),
-                    affected_objects=(
-                        AffectedObjectRef(
-                            ref=raw_ref,
-                            impact="superseded",
-                            reason="stale_authoring_context",
-                        ),
-                        *(
-                            AffectedObjectRef(
-                                ref=ask_ref,
-                                impact="superseded",
-                                reason="stale_authoring_context",
-                            )
-                            for ask_ref in ask_refs
-                        ),
-                    ),
-                    suggested_queries=(
-                        "session.snapshot",
-                        "session.messages",
-                        "task.tree",
-                    ),
-                    affected_scopes=(
-                        AffectedScope(kind="session"),
-                        AffectedScope(kind="messages"),
-                        AffectedScope(kind="task_tree"),
-                    ),
-                )
+                return stale_authoring_context_response(raw_task_id, request)
             result = self._collaborator.answer_raw_task_asks(
                 session_id=request.session_id,
                 raw_task_id=raw_task_id,
@@ -700,36 +661,10 @@ class DefaultUiCommandGateway:
                     ),
                 )
                 result = _merge_prompt_task_tree_results(result, tree_result)
-            raw_ref = ObjectRef(kind="raw_task", id=raw_task_id)
-            ask_refs = tuple(
-                ObjectRef(kind="raw_task_ask", id=answer.ask_id)
-                for answer in request.payload.answers
-            )
-            return _command_response(
+            return answered_authoring_ask_batch_response(
+                raw_task_id,
                 request,
                 result,
-                object_refs=(raw_ref, *ask_refs),
-                affected_objects=(
-                    AffectedObjectRef(
-                        ref=raw_ref,
-                        impact="changed",
-                        reason="RawTask authoring ASK answers were submitted.",
-                    ),
-                    *(
-                        AffectedObjectRef(
-                            ref=ask_ref,
-                            impact="changed",
-                            reason="RawTask authoring ASK was answered.",
-                        )
-                        for ask_ref in ask_refs
-                    ),
-                ),
-                suggested_queries=("session.snapshot", "session.messages", "task.tree"),
-                affected_scopes=(
-                    AffectedScope(kind="session"),
-                    AffectedScope(kind="messages"),
-                    AffectedScope(kind="task_tree"),
-                ),
             )
         except Exception as exc:
             return _command_exception_response(request, exc)
