@@ -54,7 +54,18 @@ def test_computer_use_readiness_reports_ready_backend() -> None:
                 operation="readiness",
                 status="ok",
                 summary="Helper is ready.",
-                metadata={"provider": "helper", "helper_status": "ready"},
+                metadata={
+                    "provider": "helper",
+                    "helper_status": "ready",
+                    "helper": {
+                        "bundleId": "com.taskweavn.plato.computer-use-helper.dev",
+                        "version": "0.1.0",
+                        "apiVersion": "plato.computer_use_helper.v1",
+                        "path": "/Applications/Plato Computer Use Helper Dev.app",
+                        "signingMode": "development-app",
+                        "tokenRef": "must-not-leak",
+                    },
+                },
             ),
         )
     )
@@ -72,6 +83,14 @@ def test_computer_use_readiness_reports_ready_backend() -> None:
     assert readiness["backend"] == "helper"
     assert readiness["allowedApps"] == ["WeChat"]
     assert readiness["recoveryActions"] == []
+    assert readiness["helper"] == {
+        "bundleId": "com.taskweavn.plato.computer-use-helper.dev",
+        "version": "0.1.0",
+        "apiVersion": "plato.computer_use_helper.v1",
+        "path": "/Applications/Plato Computer Use Helper Dev.app",
+        "signingMode": "development-app",
+    }
+    assert "must-not-leak" not in str(readiness)
     assert backend.actions[0].operation == "readiness"
 
 
@@ -91,6 +110,11 @@ def test_computer_use_readiness_degrades_when_enabled_backend_is_not_ready() -> 
                     "diagnostics": {
                         "bundle_id": "com.taskweavn.plato.computer-use-helper.dev",
                         "token": "must-not-leak",
+                    },
+                    "helper": {
+                        "bundleId": "com.taskweavn.plato.computer-use-helper.dev",
+                        "path": "/Applications/Plato Computer Use Helper Dev.app",
+                        "tokenRef": "must-not-leak",
                     },
                     "secret": "must-not-leak",
                 },
@@ -121,6 +145,10 @@ def test_computer_use_readiness_degrades_when_enabled_backend_is_not_ready() -> 
     assert computer_use["setupHint"] == (
         "Enable Accessibility for Plato Computer Use Helper."
     )
+    assert computer_use["helper"] == {
+        "bundleId": "com.taskweavn.plato.computer-use-helper.dev",
+        "path": "/Applications/Plato Computer Use Helper Dev.app",
+    }
     assert report["warnings"] == [
         {
             "code": "computer_use.not_ready",

@@ -122,6 +122,7 @@ def _readiness_from_observation(
     helper_status = _string(metadata.get("helper_status"))
     failure_kind = _string(metadata.get("failure_kind"))
     setup_hint = _string(metadata.get("setup_hint"))
+    helper_identity = _safe_helper_identity(metadata.get("helper"))
 
     base["operationStatus"] = observation.status
     base["ready"] = observation.success and observation.status == "ok"
@@ -133,6 +134,8 @@ def _readiness_from_observation(
         base["failureKind"] = failure_kind
     if setup_hint:
         base["setupHint"] = setup_hint
+    if helper_identity:
+        base["helper"] = helper_identity
     diagnostics = _safe_metadata(metadata)
     if diagnostics:
         base["diagnostics"] = diagnostics
@@ -173,6 +176,17 @@ def _safe_value(value: object) -> object:
     if isinstance(value, (list, tuple)):
         return [_safe_value(item) for item in list(value)[:20]]
     return str(value)[:500]
+
+
+def _safe_helper_identity(value: object) -> dict[str, str]:
+    if not isinstance(value, Mapping):
+        return {}
+    safe: dict[str, str] = {}
+    for key in ("bundleId", "version", "apiVersion", "path", "signingMode"):
+        raw = value.get(key)
+        if isinstance(raw, str) and raw:
+            safe[key] = raw[:500]
+    return safe
 
 
 def _string(value: object) -> str | None:
