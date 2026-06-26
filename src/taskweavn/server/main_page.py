@@ -67,6 +67,7 @@ from taskweavn.server.main_page_sessions import (
     MainPageTaskRefResolver,
     resolve_configured_session,
 )
+from taskweavn.server.main_page_usage import task_plan_resolver
 from taskweavn.server.multi_workspace import (
     MultiWorkspacePlatoUiHttpTransport,
     WorkspaceRegistryEntry,
@@ -1003,13 +1004,13 @@ def _workspace_agent_llms(
 ) -> _WorkspaceAgentLlms:
     shared_llm = _workspace_llm_if_configured(config.workspace_root, dependencies)
     workspace_id = config.current_workspace_id or "current"
-    task_plan_resolver = _task_plan_resolver(task_bus)
+    plan_resolver = task_plan_resolver(task_bus)
     if shared_llm is not None:
         usage_llm = UsageRecordingLLM(
             shared_llm,
             workspace_id=workspace_id,
             sink=token_usage_store,
-            task_plan_resolver=task_plan_resolver,
+            task_plan_resolver=plan_resolver,
         )
         return _WorkspaceAgentLlms(
             execution=usage_llm,
@@ -1023,7 +1024,7 @@ def _workspace_agent_llms(
         base_env=os.environ,
         workspace_id=workspace_id,
         usage_sink=token_usage_store,
-        task_plan_resolver=task_plan_resolver,
+        task_plan_resolver=plan_resolver,
     )
 
     def client(role: AgentLlmRole) -> Any:
@@ -1096,21 +1097,6 @@ def _default_capability_catalog() -> StaticCapabilityCatalog:
             "research",
         )
     )
-
-
-def _task_plan_resolver(
-    task_bus: SqliteTaskBus,
-) -> Callable[[str | None, str | None], str | None]:
-    def resolve(session_id: str | None, task_node_id: str | None) -> str | None:
-        if session_id is None or task_node_id is None:
-            return None
-        with contextlib.suppress(Exception):
-            task = task_bus.get(session_id, task_node_id)
-            if task is not None:
-                return task.root_id
-        return None
-
-    return resolve
 
 
 def _snapshot_cursor_provider(
