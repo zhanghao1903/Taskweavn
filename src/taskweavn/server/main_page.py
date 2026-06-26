@@ -63,7 +63,7 @@ from taskweavn.server.main_page_audit_events import (
     FRONTEND_ERROR_LOG_FILENAME,
     AuditEventClientErrorLogSink,
     AuditEventCommandGateway,
-    emit_task_lifecycle_task_node_changed,
+    task_lifecycle_event_callback,
     ui_event_store,
 )
 from taskweavn.server.main_page_logging import configure_sidecar_logging
@@ -131,7 +131,6 @@ from taskweavn.server.ui_events import (
     SqliteUiEventSource,
     UiEventCursorProvider,
     UiEventSource,
-    UiEventStore,
 )
 from taskweavn.server.ui_http import PlatoUiHttpTransport, SidecarAuth
 from taskweavn.server.ui_http_settings import (
@@ -177,7 +176,6 @@ from taskweavn.task import (
     SqliteTaskBus,
     SqliteTaskExecutionSummaryStore,
     StaticCapabilityCatalog,
-    TaskDomain,
     TaskExecutionSummaryStore,
     TaskExecutionSummaryViewStore,
     TaskExecutionTickResult,
@@ -292,7 +290,7 @@ class MainPageWorkspaceRuntime:
             ),
             result_summary_store=self.result_summary_store,
             message_bus=self.message_bus,
-            on_task_lifecycle_committed=_task_lifecycle_event_callback(
+            on_task_lifecycle_committed=task_lifecycle_event_callback(
                 ui_event_store(self.event_source),
                 plan_lifecycle_sync=self.plan_lifecycle_sync,
             ),
@@ -501,7 +499,7 @@ def build_main_page_workspace_runtime(
         recover_interrupted_running_tasks_on_startup(
             task_bus=task_bus,
             session_ids=(session.id for session in session_manager.list()),
-            on_task_recovered=_task_lifecycle_event_callback(
+            on_task_recovered=task_lifecycle_event_callback(
                 event_store,
                 plan_lifecycle_sync=plan_lifecycle_sync,
             ),
@@ -532,7 +530,7 @@ def build_main_page_workspace_runtime(
             enabled=runtime_execution_settings.execution_dispatcher_enabled,
             result_summary_store=result_summary_store,
             message_bus=message_bus,
-            on_task_lifecycle_committed=_task_lifecycle_event_callback(
+            on_task_lifecycle_committed=task_lifecycle_event_callback(
                 event_store,
                 plan_lifecycle_sync=plan_lifecycle_sync,
             ),
@@ -659,14 +657,14 @@ def build_main_page_workspace_runtime(
             ask_store=ask_store,
             task_bus=task_bus,
             execution_trigger_gateway=execution_dispatcher,
-            on_task_lifecycle_committed=_task_lifecycle_event_callback(
+            on_task_lifecycle_committed=task_lifecycle_event_callback(
                 event_store,
                 plan_lifecycle_sync=plan_lifecycle_sync,
             ),
         )
         task_stop_recovery = DefaultTaskStopRecoveryService(
             task_bus=task_bus,
-            on_task_lifecycle_committed=_task_lifecycle_event_callback(
+            on_task_lifecycle_committed=task_lifecycle_event_callback(
                 event_store,
                 plan_lifecycle_sync=plan_lifecycle_sync,
             ),
@@ -1153,24 +1151,6 @@ def _execution_plane_runtime_handlers(
             ),
         ),
     )
-
-
-def _task_lifecycle_event_callback(
-    event_store: UiEventStore | None,
-    *,
-    plan_lifecycle_sync: PlanTaskNodeLifecycleSync | None = None,
-) -> Callable[[TaskDomain], None]:
-    def emit(task: TaskDomain) -> None:
-        if plan_lifecycle_sync is not None:
-            with contextlib.suppress(Exception):
-                plan_lifecycle_sync.sync_task(task)
-        emit_task_lifecycle_task_node_changed(
-            event_store,
-            session_id=task.session_id,
-            task_id=task.task_id,
-        )
-
-    return emit
 
 
 def _task_plan_resolver(

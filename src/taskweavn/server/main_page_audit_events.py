@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import contextlib
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 from uuid import uuid4
@@ -41,7 +42,7 @@ from taskweavn.server.ui_events import (
     UiEventSourceError,
     UiEventStore,
 )
-from taskweavn.task import TaskRef
+from taskweavn.task import PlanTaskNodeLifecycleSync, TaskDomain, TaskRef
 
 FRONTEND_ERROR_LOG_FILENAME = "frontend-errors.jsonl"
 _ID_SAFE_RE = re.compile(r"[^A-Za-z0-9_.:-]+")
@@ -237,6 +238,26 @@ def emit_task_lifecycle_task_node_changed(
         event_store.append(event)
 
 
+def task_lifecycle_event_callback(
+    event_store: UiEventStore | None,
+    *,
+    plan_lifecycle_sync: PlanTaskNodeLifecycleSync | None = None,
+) -> Callable[[TaskDomain], None]:
+    """Build the lifecycle callback that syncs Plan state and invalidates UI nodes."""
+
+    def emit(task: TaskDomain) -> None:
+        if plan_lifecycle_sync is not None:
+            with contextlib.suppress(Exception):
+                plan_lifecycle_sync.sync_task(task)
+        emit_task_lifecycle_task_node_changed(
+            event_store,
+            session_id=task.session_id,
+            task_id=task.task_id,
+        )
+
+    return emit
+
+
 def emit_plan_archived_task_tree_changed(
     event_store: UiEventStore | None,
     *,
@@ -359,5 +380,6 @@ __all__ = [
     "emit_log_archive_audit_records_changed",
     "emit_plan_archived_task_tree_changed",
     "emit_task_lifecycle_task_node_changed",
+    "task_lifecycle_event_callback",
     "ui_event_store",
 ]
