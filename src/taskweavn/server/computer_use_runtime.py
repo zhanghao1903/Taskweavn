@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
+from pathlib import Path
 
 from taskweavn.core import WorkspaceLayout
 from taskweavn.execution_plane import (
@@ -23,6 +24,8 @@ from taskweavn.server.runtime_config_consumers import RuntimeComputerUseSettings
 from taskweavn.task import SqliteTaskBus
 from taskweavn.tools import (
     ComputerUseBackend,
+    ComputerUseHelperBackend,
+    ComputerUseHelperBackendConfig,
     MacOSComputerUseBackend,
     MacOSComputerUseBackendConfig,
 )
@@ -44,6 +47,9 @@ def build_computer_use_runtime(
     allowed_apps: str | Sequence[str] | None = None,
     allow_coordinate_click: bool = False,
     screen_recording_required: bool = False,
+    helper_manifest_path: str | None = None,
+    helper_endpoint: str | None = None,
+    helper_token: str | None = None,
 ) -> ComputerUseRuntimeSelection:
     """Build the optional computer-use backend selected by runtime config."""
 
@@ -56,10 +62,38 @@ def build_computer_use_runtime(
             backend_name="disabled",
             allowed_apps=parsed_allowed_apps,
         )
+    if normalized == "helper":
+        return ComputerUseRuntimeSelection(
+            enabled=True,
+            backend=ComputerUseHelperBackend(
+                config=ComputerUseHelperBackendConfig.from_environment(
+                    allowed_apps=parsed_allowed_apps,
+                    allow_coordinate_click=allow_coordinate_click,
+                    allow_screenshot=screen_recording_required,
+                )
+                if helper_manifest_path is None
+                and helper_endpoint is None
+                and helper_token is None
+                else ComputerUseHelperBackendConfig(
+                    endpoint_manifest_path=(
+                        None
+                        if helper_manifest_path is None
+                        else Path(helper_manifest_path).expanduser()
+                    ),
+                    endpoint=helper_endpoint,
+                    token=helper_token,
+                    allowed_apps=parsed_allowed_apps,
+                    allow_coordinate_click=allow_coordinate_click,
+                    allow_screenshot=screen_recording_required,
+                )
+            ),
+            backend_name="helper",
+            allowed_apps=parsed_allowed_apps,
+        )
     if normalized != "macos":
         raise ValueError(
             "unsupported computer-use backend "
-            f"{backend_name!r}; valid values: disabled, macos"
+            f"{backend_name!r}; valid values: disabled, helper, macos"
         )
 
     return ComputerUseRuntimeSelection(

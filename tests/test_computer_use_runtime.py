@@ -6,7 +6,7 @@ from taskweavn.server.computer_use_runtime import (
     build_computer_use_runtime,
     parse_computer_use_allowed_apps,
 )
-from taskweavn.tools import MacOSComputerUseBackend
+from taskweavn.tools import ComputerUseHelperBackend, MacOSComputerUseBackend
 
 
 def test_parse_computer_use_allowed_apps_from_csv() -> None:
@@ -45,6 +45,20 @@ def test_build_computer_use_runtime_supports_macos_backend() -> None:
     assert isinstance(runtime.backend, MacOSComputerUseBackend)
 
 
+def test_build_computer_use_runtime_supports_helper_backend() -> None:
+    runtime = build_computer_use_runtime(
+        backend_name="helper",
+        allowed_apps="WeChat,TextEdit",
+        helper_endpoint="http://127.0.0.1:49321",
+        helper_token="test-token",
+    )
+
+    assert runtime.enabled is True
+    assert runtime.backend_name == "helper"
+    assert runtime.allowed_apps == ("WeChat", "TextEdit")
+    assert isinstance(runtime.backend, ComputerUseHelperBackend)
+
+
 def test_build_computer_use_runtime_rejects_unknown_backend() -> None:
-    with pytest.raises(ValueError, match="unsupported computer-use backend"):
+    with pytest.raises(ValueError, match="disabled, helper, macos"):
         build_computer_use_runtime(backend_name="browser")

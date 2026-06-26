@@ -50,7 +50,7 @@ def _parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
         default=os.environ.get("PLATO_COMPUTER_USE_BACKEND", "disabled"),
         help=(
             "Optional computer-use backend for execution tools. "
-            "Valid values: disabled, macos."
+            "Valid values: disabled, helper, macos."
         ),
     )
     parser.add_argument(

@@ -40,6 +40,10 @@ from taskweavn.server.ui_events import (
 __all__ = [
     "ApiErrorBody",
     "ApiPublishHttpTransport",
+    "ComputerUseHelperInfo",
+    "ComputerUseHelperManifest",
+    "ComputerUseHelperTransport",
+    "ComputerUseHelperTransportConfig",
     "HttpApiRequest",
     "HttpApiResponse",
     "InMemoryUiCommandResponseIdempotencyStore",
@@ -76,11 +80,14 @@ __all__ = [
     "UiCommandResponseIdempotencyStore",
     "UiCommandResponseIdempotencyStoreError",
     "WorkspaceRegistryEntry",
+    "build_computer_use_helper_server",
     "build_agent_loop_resident_default_agent",
     "build_main_page_sidecar_app",
     "build_main_page_workspace_runtime",
     "sse_frame",
     "sse_stream",
+    "read_helper_manifest",
+    "write_helper_manifest",
 ]
 
 _LAZY_EXPORTS = {
@@ -89,6 +96,10 @@ _LAZY_EXPORTS = {
     "DefaultDiagnosticExportGateway": "taskweavn.server.diagnostics_export",
     "DiagnosticExportFailure": "taskweavn.server.diagnostics_export",
     "DiagnosticExportSessionNotFound": "taskweavn.server.diagnostics_export",
+    "ComputerUseHelperInfo": "taskweavn.server.computer_use_helper",
+    "ComputerUseHelperManifest": "taskweavn.server.computer_use_helper",
+    "ComputerUseHelperTransport": "taskweavn.server.computer_use_helper",
+    "ComputerUseHelperTransportConfig": "taskweavn.server.computer_use_helper",
     "LocalSidecarConfig": "taskweavn.server.sidecar",
     "LocalSidecarServer": "taskweavn.server.sidecar",
     "MainPageSessionLifecycleGateway": "taskweavn.server.main_page",
@@ -100,9 +111,12 @@ _LAZY_EXPORTS = {
     "PlatoUiHttpTransport": "taskweavn.server.ui_http",
     "SidecarAuth": "taskweavn.server.ui_http",
     "WorkspaceRegistryEntry": "taskweavn.server.main_page",
+    "build_computer_use_helper_server": "taskweavn.server.computer_use_helper",
     "build_agent_loop_resident_default_agent": "taskweavn.server.main_page",
     "build_main_page_sidecar_app": "taskweavn.server.main_page",
     "build_main_page_workspace_runtime": "taskweavn.server.main_page",
+    "read_helper_manifest": "taskweavn.server.computer_use_helper",
+    "write_helper_manifest": "taskweavn.server.computer_use_helper",
 }
 
 

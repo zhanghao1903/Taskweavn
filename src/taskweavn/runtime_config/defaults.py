@@ -157,7 +157,34 @@ def default_runtime_config_keys() -> tuple[RuntimeConfigKey, ...]:
             mutability="startup_only",
             source_hints=("built_in_default", "environment", "cli", "process_input"),
             restart_required=True,
-            description="Selected computer-use backend.",
+            description="Selected computer-use backend: disabled, helper, or macos.",
+        ),
+        RuntimeConfigKey(
+            key="computer_use.helper.endpoint_manifest_path",
+            domain="computer_use",
+            value_type="string",
+            default_value="",
+            scope_levels=("process", "workspace"),
+            mutability="startup_only",
+            source_hints=("built_in_default", "environment", "process_input"),
+            restart_required=True,
+            description=(
+                "Path to the Plato Computer Use Helper endpoint manifest. "
+                "Used when computer_use.backend is helper."
+            ),
+        ),
+        RuntimeConfigKey(
+            key="computer_use.helper.endpoint",
+            domain="computer_use",
+            value_type="string",
+            default_value="",
+            scope_levels=("process",),
+            mutability="startup_only",
+            source_hints=("built_in_default", "environment", "process_input"),
+            restart_required=True,
+            description=(
+                "Direct Plato Computer Use Helper endpoint override for development."
+            ),
         ),
         RuntimeConfigKey(
             key="computer_use.allowed_apps",

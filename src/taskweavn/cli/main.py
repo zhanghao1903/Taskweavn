@@ -170,7 +170,7 @@ def plato_sidecar(
             envvar="PLATO_COMPUTER_USE_BACKEND",
             help=(
                 "Optional computer-use backend for execution tools. "
-                "Valid values: disabled, macos."
+                "Valid values: disabled, helper, macos."
             ),
         ),
     ] = "disabled",
@@ -357,7 +357,7 @@ def plato_dev(
             envvar="PLATO_COMPUTER_USE_BACKEND",
             help=(
                 "Optional computer-use backend for execution tools. "
-                "Valid values: disabled, macos."
+                "Valid values: disabled, helper, macos."
             ),
         ),
     ] = "disabled",

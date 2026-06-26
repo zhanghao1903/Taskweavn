@@ -9,6 +9,12 @@ from taskweavn.tools.computer_use import (
     DisabledComputerUseBackend,
     ScriptedComputerUseBackend,
 )
+from taskweavn.tools.computer_use_helper_adapter import (
+    ComputerUseHelperBackend,
+    ComputerUseHelperBackendConfig,
+    ComputerUseHelperClientProtocol,
+    ComputerUseHelperHttpClient,
+)
 from taskweavn.tools.computer_use_macos_adapter import (
     MacOSComputerUseBackend,
     MacOSComputerUseBackendConfig,
@@ -69,6 +75,10 @@ __all__ = [
     "CodeActionTool",
     "CommandResultObservation",
     "ComputerUseBackend",
+    "ComputerUseHelperBackend",
+    "ComputerUseHelperBackendConfig",
+    "ComputerUseHelperClientProtocol",
+    "ComputerUseHelperHttpClient",
     "ComputerUseTool",
     "DirEntry",
     "DirListingObservation",

@@ -1,6 +1,6 @@
 # Plato Computer Use Helper.app 技术方案
 
-> Status: proposed / helper-boundary planning
+> Status: in progress / Plato-side helper client and prototype server implemented
 >
 > Last Updated: 2026-06-26
 >
@@ -867,6 +867,19 @@ Helper 返回：
 真实发送 smoke 必须显式授权，且使用 fresh idempotency key。
 
 ## 16. Implementation Slices
+
+当前实现状态（2026-06-26）：
+
+- 已新增 Plato-side `ComputerUseHelperBackend` 和 `ComputerUseHelperHttpClient`；
+- 已支持 `computer_use.backend=helper` runtime selection；
+- 已支持 helper manifest / endpoint / tokenRef 读取；
+- 已新增 repo-local `ComputerUseHelperTransport` / `LocalSidecarServer`
+  prototype，可提供 `/healthz`、`/v1/info`、`/v1/readiness` 和通用
+  operation endpoint，用 fake/scripted backend 做 CI 验证；
+- 已将 helper readiness、failure kind、phase、risk、evidence、diagnostics
+  映射回 `ComputerUseObservation.metadata`；
+- 尚未实现真实 `Plato Computer Use Helper.app` macOS `.app` wrapper、
+  startup manifest writer、Settings readiness projection 和 release packaging。
 
 ### H0: Decision And Contract
 
