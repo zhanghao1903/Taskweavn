@@ -76,9 +76,9 @@ from taskweavn.server.ui_contract.plan_read_helpers import (
     file_change_summary_from_plan_nodes,
     result_from_plan_nodes,
 )
+from taskweavn.server.ui_contract.query_ask_helpers import get_ask_query, list_asks_query
 from taskweavn.server.ui_contract.query_snapshot_helpers import (
     _archived_plan_messages,
-    _ask_statuses,
     _confirmations_from_tree,
     _derive_session_status,
     _file_change_summary_from_tree,
@@ -466,55 +466,16 @@ class DefaultUiQueryGateway:
         task_node_id: str | None = None,
         request_id: str | None = None,
     ) -> QueryResponse[AskListResult]:
-        try:
-            if self._ask_projection is None:
-                return QueryResponse[AskListResult](
-                    request_id=request_id or _request_id("asks", session_id),
-                    ok=True,
-                    data=AskListResult(session_id=session_id),
-                    error=None,
-                )
-            session = self._session_reader.get(session_id)
-            if session is None:
-                return QueryResponse[AskListResult](
-                    request_id=request_id or _request_id("asks", session_id),
-                    ok=False,
-                    data=None,
-                    error=not_found("session not found", session_id=session_id),
-                )
-            task_tree = _map_optional_task_tree(
-                _list_main_page_plan_tree(self._task_projection, session.id),
-                authoring_state_store=self._authoring_state_store,
-            )
-            result = self._ask_projection.list_asks(
-                session.id,
-                statuses=_ask_statuses(status),
-                task_id=task_node_id,
-                task_tree=task_tree,
-            )
-            return QueryResponse[AskListResult](
-                request_id=request_id or _request_id("asks", session.id),
-                ok=True,
-                data=result,
-                error=None,
-            )
-        except ValueError as exc:
-            return QueryResponse[AskListResult](
-                request_id=request_id or _request_id("asks", session_id),
-                ok=False,
-                data=None,
-                error=bad_request(str(exc), session_id=session_id),
-            )
-        except Exception as exc:
-            return QueryResponse[AskListResult](
-                request_id=request_id or _request_id("asks", session_id),
-                ok=False,
-                data=None,
-                error=internal_error(
-                    "Unable to load ASK list",
-                    error_type=type(exc).__name__,
-                ),
-            )
+        return list_asks_query(
+            session_id,
+            ask_projection=self._ask_projection,
+            authoring_state_store=self._authoring_state_store,
+            request_id=request_id,
+            session_reader=self._session_reader,
+            status=status,
+            task_node_id=task_node_id,
+            task_projection=self._task_projection,
+        )
 
     def get_ask(
         self,
@@ -523,34 +484,12 @@ class DefaultUiQueryGateway:
         *,
         request_id: str | None = None,
     ) -> QueryResponse[AskRequestView]:
-        try:
-            ask = None if self._ask_projection is None else self._ask_projection.get_ask(
-                session_id,
-                ask_id,
-            )
-            if ask is None:
-                return QueryResponse[AskRequestView](
-                    request_id=request_id or _request_id("ask", ask_id),
-                    ok=False,
-                    data=None,
-                    error=not_found("ASK not found", session_id=session_id, ask_id=ask_id),
-                )
-            return QueryResponse[AskRequestView](
-                request_id=request_id or _request_id("ask", ask_id),
-                ok=True,
-                data=ask,
-                error=None,
-            )
-        except Exception as exc:
-            return QueryResponse[AskRequestView](
-                request_id=request_id or _request_id("ask", ask_id),
-                ok=False,
-                data=None,
-                error=internal_error(
-                    "Unable to load ASK",
-                    error_type=type(exc).__name__,
-                ),
-            )
+        return get_ask_query(
+            session_id,
+            ask_id,
+            ask_projection=self._ask_projection,
+            request_id=request_id,
+        )
 
     def get_audit_snapshot(
         self,
