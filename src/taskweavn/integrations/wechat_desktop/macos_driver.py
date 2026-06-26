@@ -291,11 +291,17 @@ class MacOSWeChatSearchDriver:
 
         result = _run_osascript(_window_readiness_script(app_name), timeout_seconds)
         if result.returncode != 0:
+            is_timeout = result.returncode == 124
             return WeChatWindowReadinessResult(
                 status="needs_user",
-                summary="WeChat main window readiness AppleScript failed.",
-                diagnostics=_with_window_recovery_metadata(
-                    {"stderr": _bounded(result.stderr)}
+                summary=(
+                    "WeChat main window readiness AppleScript timed out."
+                    if is_timeout
+                    else "WeChat main window readiness AppleScript failed."
+                ),
+                diagnostics=_window_readiness_failure_diagnostics(
+                    result,
+                    timeout_seconds=timeout_seconds,
                 ),
             )
         fields = _parse_result_fields(result.stdout)
@@ -841,6 +847,25 @@ def _with_window_recovery_metadata(values: dict[str, str]) -> dict[str, str]:
         "setupHint": WECHAT_MAIN_WINDOW_SETUP_HINT,
         "recoveryActions": ",".join(WECHAT_MAIN_WINDOW_RECOVERY_ACTIONS),
     }
+
+
+def _window_readiness_failure_diagnostics(
+    result: subprocess.CompletedProcess[str],
+    *,
+    timeout_seconds: float,
+) -> dict[str, str]:
+    failure_kind = (
+        "applescript_timeout" if result.returncode == 124 else "applescript_error"
+    )
+    return _with_window_recovery_metadata(
+        {
+            "phase": "window_readiness",
+            "failure_kind": failure_kind,
+            "returncode": str(result.returncode),
+            "timeout_seconds": f"{timeout_seconds:.1f}",
+            "stderr": _bounded(result.stderr),
+        }
+    )
 
 
 def _bounded(value: str, limit: int = 1_000) -> str:

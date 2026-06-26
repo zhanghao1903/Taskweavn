@@ -71,6 +71,44 @@ def test_resolve_contact_fails_before_search_when_wechat_window_unavailable(
     assert len(calls) == 1
 
 
+def test_window_readiness_classifies_applescript_timeout(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    def fake_run_osascript(
+        script: str, timeout_seconds: float
+    ) -> subprocess.CompletedProcess[str]:
+        del script, timeout_seconds
+        return subprocess.CompletedProcess(
+            ["osascript", "-e", "script"],
+            124,
+            stdout="",
+            stderr="osascript timed out after 10.0s",
+        )
+
+    monkeypatch.setattr(
+        "taskweavn.integrations.wechat_desktop.macos_driver.platform.system",
+        lambda: "Darwin",
+    )
+    monkeypatch.setattr(macos_driver, "_run_osascript", fake_run_osascript)
+
+    result = MacOSWeChatSearchDriver().window_readiness(
+        app_name="WeChat",
+        timeout_seconds=10.0,
+    )
+
+    assert result.status == "needs_user"
+    assert result.summary == "WeChat main window readiness AppleScript timed out."
+    assert result.diagnostics == {
+        "phase": "window_readiness",
+        "failure_kind": "applescript_timeout",
+        "returncode": "124",
+        "timeout_seconds": "10.0",
+        "stderr": "osascript timed out after 10.0s",
+        "setupHint": macos_driver.WECHAT_MAIN_WINDOW_SETUP_HINT,
+        "recoveryActions": ",".join(macos_driver.WECHAT_MAIN_WINDOW_RECOVERY_ACTIONS),
+    }
+
+
 def test_resolve_contact_continues_to_search_after_wechat_window_ready(
     monkeypatch: MonkeyPatch,
 ) -> None:
