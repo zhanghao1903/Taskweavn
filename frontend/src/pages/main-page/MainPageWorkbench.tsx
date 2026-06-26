@@ -33,7 +33,10 @@ import { MainPageWorkspaceHeader } from "./MainPageWorkspaceHeader";
 import { TaskTreePanel } from "./TaskTreePanel";
 import { AuthoringAskWorkArea } from "./interaction/AuthoringAskWorkArea";
 import { activityItemsFromMessages } from "./mainPageActivityProjection";
-import type { MainPageViewModel } from "./mainPageViewModel";
+import type {
+  MainPageDetailView,
+  MainPageViewModel,
+} from "./mainPageViewModel";
 import type { MainPageController } from "./useMainPageController";
 import type {
   ExportDiagnosticBundle,
@@ -129,16 +132,29 @@ export function MainPageWorkbench({
   const archivedPlans = viewModel.taskWorkspace.archivedPlans;
   const selectedArchivedPlan =
     archivedPlans.find((plan) => plan.id === selectedArchivedPlanId) ?? null;
+  const archivedPlanDetail =
+    selectedArchivedPlan?.taskTreeProjection
+      ? archivedPlanDetailView(
+          selectedArchivedPlan,
+          selectedArchivedPlanTaskNodeId,
+        )
+      : null;
   const showsArchivedPlansPanel =
     isArchivedPlansPanelOpen && archivedPlans.length > 0;
+  const showsArchivedPlanDetailPanel =
+    archivedPlanDetail !== null &&
+    !showsActivityPanel &&
+    !showsArchivedPlansPanel;
   const hasDetailColumn =
     viewModel.detail.kind !== "note" ||
     showsActivityPanel ||
-    showsArchivedPlansPanel;
+    showsArchivedPlansPanel ||
+    showsArchivedPlanDetailPanel;
   const showsDetailPanel =
     viewModel.detail.kind !== "note" &&
     !showsActivityPanel &&
-    !showsArchivedPlansPanel;
+    !showsArchivedPlansPanel &&
+    !showsArchivedPlanDetailPanel;
   const pageClassName = !hasDetailColumn
     ? `${styles.page} ${styles.pageWithoutDetail}`
     : styles.page;
@@ -741,6 +757,23 @@ export function MainPageWorkbench({
         />
       ) : null}
 
+      {showsArchivedPlanDetailPanel ? (
+        <MainPageDetailPanel
+          detail={archivedPlanDetail}
+          onAnswerAsk={() => undefined}
+          onCancelAsk={() => undefined}
+          onConfirmationDecision={() => undefined}
+          onDeferAsk={() => undefined}
+          onRetryTask={() => undefined}
+          onStopTask={() => undefined}
+          onShowFileChanges={actions.showFileChanges}
+          onShowResult={actions.showResult}
+          loadTokenUsageSummary={loadTokenUsageSummary}
+          sessionId={viewModel.sessionId}
+          workspaceId={resolvedWorkspaceId}
+        />
+      ) : null}
+
       {showsActivityPanel ? (
         <ActivityOverlay
           errorMessage={activityError}
@@ -1018,4 +1051,51 @@ function canArchivePlan(plan: PlanView): boolean {
     plan.sourceKind === "plan_store" ||
     plan.sourceKind === "legacy_published_task_tree"
   );
+}
+
+function archivedPlanDetailView(
+  plan: PlanView,
+  selectedTaskNodeId: TaskNodeId | null,
+): MainPageDetailView {
+  const taskTree = plan.taskTreeProjection;
+  if (taskTree === null || taskTree === undefined) {
+    return {
+      body: "Archived plan details are unavailable.",
+      header: {
+        body: plan.summary,
+        eyebrow: "PLAN",
+        title: plan.title,
+      },
+      kind: "note",
+    };
+  }
+
+  const selectedTask =
+    selectedTaskNodeId === null
+      ? undefined
+      : taskTree.nodes.find((node) => node.id === selectedTaskNodeId);
+
+  if (selectedTask !== undefined) {
+    return {
+      header: {
+        body: selectedTask.summary,
+        eyebrow: "TASK",
+        title: selectedTask.title,
+      },
+      isRetryingTask: false,
+      isStoppingTask: false,
+      kind: "task",
+      selectedTask,
+    };
+  }
+
+  return {
+    header: {
+      body: plan.summary,
+      eyebrow: "PLAN",
+      title: plan.title,
+    },
+    kind: "plan",
+    taskTree,
+  };
 }

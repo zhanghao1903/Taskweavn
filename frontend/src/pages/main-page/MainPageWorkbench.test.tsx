@@ -399,6 +399,29 @@ describe("MainPageWorkbench layout", () => {
     ).toBeInTheDocument();
     expect(within(archivedWorkspace).getByText("Stored task"))
       .toBeInTheDocument();
+    expect(screen.getByRole("complementary", { name: "Details" }))
+      .toBeInTheDocument();
+    expect(
+      within(screen.getByRole("complementary", { name: "Details" }))
+        .getByRole("heading", { name: "Stored plan" }),
+    ).toBeInTheDocument();
+
+    const storedTaskButton = within(archivedWorkspace)
+      .getByText("Stored task")
+      .closest("button");
+    if (storedTaskButton === null) {
+      throw new Error("Expected archived task button.");
+    }
+
+    await user.click(storedTaskButton);
+
+    const detailPanel = screen.getByRole("complementary", { name: "Details" });
+    expect(
+      within(detailPanel).getByRole("heading", { name: "Stored task" }),
+    ).toBeInTheDocument();
+    expect(
+      within(detailPanel).getAllByText("Use stored PlanTaskNode."),
+    ).toHaveLength(2);
   });
 
   it("opens session activity in the detail column when detail is otherwise hidden", async () => {
