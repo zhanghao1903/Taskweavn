@@ -212,6 +212,32 @@ def test_plato_dev_help_does_not_expose_session_startup_flags() -> None:
     assert "--no-create-session" not in result.output
 
 
+def test_computer_use_helper_help_exposes_manifest_and_backend_options() -> None:
+    runner = CliRunner()
+    result = runner.invoke(app, ["computer-use-helper", "--help"])
+
+    assert result.exit_code == 0
+    assert "--manifest-path" in result.output
+    assert "--computer-use-backend" in result.output
+
+
+def test_computer_use_helper_rejects_recursive_helper_backend(tmp_path: Path) -> None:
+    runner = CliRunner()
+    result = runner.invoke(
+        app,
+        [
+            "computer-use-helper",
+            "--manifest-path",
+            str(tmp_path / "computer-use-helper.json"),
+            "--computer-use-backend",
+            "helper",
+        ],
+    )
+
+    assert result.exit_code != 0
+    assert "recursively run inside helper" in result.output
+
+
 def test_plato_dev_rejects_missing_frontend_dir(tmp_path: Path) -> None:
     runner = CliRunner()
     result = runner.invoke(

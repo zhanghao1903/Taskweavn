@@ -48,10 +48,13 @@ from taskweavn.observability.formatting import event_to_pretty
 from taskweavn.runtime.local import LocalRuntime
 from taskweavn.server import (
     DEFAULT_PLATO_SIDECAR_PORT,
+    ComputerUseHelperInfo,
+    ComputerUseHelperServerConfig,
     MainPageSidecarConfig,
     MainPageSidecarDependencies,
     WorkspaceRegistryEntry,
     build_main_page_sidecar_app,
+    prepare_computer_use_helper_server,
 )
 from taskweavn.server.computer_use_runtime import (
     ComputerUseRuntimeSelection,
@@ -234,6 +237,90 @@ def plato_sidecar(
         typer.echo("\n[plato-sidecar] stopping")
     finally:
         sidecar.close()
+
+
+@app.command("computer-use-helper")
+def computer_use_helper(
+    manifest_path: Annotated[
+        Path,
+        typer.Option(
+            "--manifest-path",
+            envvar="PLATO_COMPUTER_USE_HELPER_MANIFEST",
+            help="Path where the helper writes its endpoint manifest.",
+        ),
+    ] = Path("~/Library/Application Support/PlatoDev/computer-use-helper.json"),
+    token_path: Annotated[
+        Path | None,
+        typer.Option(
+            "--token-path",
+            envvar="PLATO_COMPUTER_USE_HELPER_TOKEN_FILE",
+            help="Path where the helper writes its local bearer token.",
+        ),
+    ] = None,
+    host: Annotated[
+        str,
+        typer.Option("--host", help="Loopback host for the helper API."),
+    ] = "127.0.0.1",
+    port: Annotated[
+        int,
+        typer.Option("--port", help="Port for the helper API; use 0 for a free port."),
+    ] = 0,
+    computer_use_backend: Annotated[
+        str,
+        typer.Option(
+            "--computer-use-backend",
+            envvar="PLATO_COMPUTER_USE_HELPER_BACKEND",
+            help="Backend used inside the helper process. Valid values: disabled, macos.",
+        ),
+    ] = "disabled",
+    computer_use_allowed_apps: Annotated[
+        str | None,
+        typer.Option(
+            "--computer-use-allowed-apps",
+            envvar="PLATO_COMPUTER_USE_ALLOWED_APPS",
+            help="Comma-separated app allowlist for helper operations.",
+        ),
+    ] = None,
+) -> None:
+    """Start the dev Plato Computer Use Helper loopback API."""
+
+    normalized_backend = computer_use_backend.strip().lower()
+    if normalized_backend == "helper":
+        raise typer.BadParameter("helper backend cannot recursively run inside helper")
+    computer_use_runtime = _build_cli_computer_use_runtime(
+        backend_name=normalized_backend,
+        allowed_apps=computer_use_allowed_apps,
+    )
+    helper = prepare_computer_use_helper_server(
+        backend=computer_use_runtime.backend,
+        config=ComputerUseHelperServerConfig(
+            manifest_path=manifest_path.expanduser(),
+            token_path=None if token_path is None else token_path.expanduser(),
+            host=host,
+            port=port,
+            info=ComputerUseHelperInfo(
+                path=sys.executable,
+                signing_mode="development-cli",
+            ),
+        ),
+    )
+    try:
+        typer.echo(f"[computer-use-helper] endpoint={helper.base_url}")
+        typer.echo(f"[computer-use-helper] manifest={helper.manifest_path}")
+        typer.echo(f"[computer-use-helper] tokenRef={helper.token_path}")
+        typer.echo(
+            "[computer-use-helper] "
+            f"backend={computer_use_runtime.backend_name} "
+            f"allowedApps={','.join(computer_use_runtime.allowed_apps) or '(none)'}"
+        )
+        typer.echo("[computer-use-helper] press Ctrl-C to stop")
+        helper.start_in_thread()
+        while True:
+            time.sleep(3600)
+    except KeyboardInterrupt:
+        typer.echo("\n[computer-use-helper] stopping")
+    finally:
+        helper.close()
 
 
 def _settings_backed_llm_factory(

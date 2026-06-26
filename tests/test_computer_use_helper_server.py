@@ -9,9 +9,11 @@ from typing import Any, cast
 from taskweavn.server import (
     ComputerUseHelperInfo,
     ComputerUseHelperManifest,
+    ComputerUseHelperServerConfig,
     ComputerUseHelperTransport,
     ComputerUseHelperTransportConfig,
     build_computer_use_helper_server,
+    prepare_computer_use_helper_server,
     read_helper_manifest,
     write_helper_manifest,
 )
@@ -156,6 +158,52 @@ def test_helper_manifest_roundtrip(tmp_path: Path) -> None:
     loaded = read_helper_manifest(manifest_path)
 
     assert loaded == manifest
+
+
+def test_prepare_helper_server_writes_token_manifest_and_serves(
+    tmp_path: Path,
+) -> None:
+    backend = ScriptedComputerUseBackend(
+        responses=[
+            _observation(
+                operation="readiness",
+                status="ok",
+                summary="helper dev server is ready",
+                metadata={"readiness": {"status": "ready"}},
+            )
+        ]
+    )
+    manifest_path = tmp_path / "computer-use-helper.json"
+    helper = prepare_computer_use_helper_server(
+        backend=backend,
+        config=ComputerUseHelperServerConfig(
+            manifest_path=manifest_path,
+            info=ComputerUseHelperInfo(path="/dev/Plato Computer Use Helper Dev.app"),
+        ),
+    )
+
+    try:
+        helper.start_in_thread()
+        manifest = read_helper_manifest(manifest_path)
+        token_ref = manifest.token_ref
+        assert token_ref is not None
+        token = Path(token_ref).read_text(encoding="utf-8")
+        client = ComputerUseHelperHttpClient(
+            endpoint=manifest.endpoint,
+            token=token,
+            allowed_apps=("TextEdit",),
+            allow_coordinate_click=False,
+            allow_screenshot=False,
+        )
+        response = client.readiness()
+    finally:
+        helper.close()
+
+    assert manifest.endpoint == helper.base_url
+    assert manifest.pid is not None
+    assert manifest.bundle_id == "com.taskweavn.plato.computer-use-helper.dev"
+    assert response["status"] == "ready"
+    assert response["helper"]["path"] == "/dev/Plato Computer Use Helper Dev.app"
 
 
 @dataclass(frozen=True)

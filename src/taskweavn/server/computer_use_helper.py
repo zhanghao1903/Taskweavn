@@ -9,7 +9,9 @@ not need macOS UI permissions.
 from __future__ import annotations
 
 import json
+import secrets
 from dataclasses import dataclass
+from os import getpid
 from pathlib import Path
 from typing import Any, cast
 from urllib.parse import urlsplit
@@ -71,6 +73,50 @@ class ComputerUseHelperTransportConfig:
 
     auth_token: str | None = None
     info: ComputerUseHelperInfo = ComputerUseHelperInfo()
+
+
+@dataclass(frozen=True)
+class ComputerUseHelperServerConfig:
+    """Startup config for a local helper server process."""
+
+    manifest_path: Path
+    token_path: Path | None = None
+    host: str = "127.0.0.1"
+    port: int = 0
+    auth_token: str | None = None
+    info: ComputerUseHelperInfo = ComputerUseHelperInfo()
+
+
+@dataclass
+class ComputerUseHelperServerHandle:
+    """Running helper server plus the manifest it published."""
+
+    server: LocalSidecarServer
+    manifest_path: Path
+    token_path: Path
+    manifest: ComputerUseHelperManifest
+    auth_token: str
+
+    @property
+    def base_url(self) -> str:
+        return self.server.base_url
+
+    def start_in_thread(self) -> None:
+        self.server.start_in_thread()
+
+    def serve_forever(self) -> None:
+        self.server.serve_forever()
+
+    def close(self) -> None:
+        self.server.shutdown()
+        self.server.server_close()
+
+    def __enter__(self) -> ComputerUseHelperServerHandle:
+        self.start_in_thread()
+        return self
+
+    def __exit__(self, exc_type: object, exc: object, traceback: object) -> None:
+        self.close()
 
 
 class ComputerUseHelperTransport:
@@ -170,6 +216,57 @@ def build_computer_use_helper_server(
         ComputerUseHelperTransport(backend=backend, config=helper_config),
         config=server_config,
     )
+
+
+def prepare_computer_use_helper_server(
+    *,
+    backend: ComputerUseBackend | None = None,
+    config: ComputerUseHelperServerConfig,
+) -> ComputerUseHelperServerHandle:
+    """Prepare a helper server and publish its startup manifest.
+
+    The server is bound before the manifest is written, so callers can use port
+    ``0`` and still publish the resolved endpoint. The caller decides whether
+    to run it in-thread or foreground via the returned handle.
+    """
+
+    auth_token = config.auth_token or secrets.token_urlsafe(32)
+    token_path = config.token_path or config.manifest_path.with_suffix(".token")
+    server = build_computer_use_helper_server(
+        backend=backend,
+        helper_config=ComputerUseHelperTransportConfig(
+            auth_token=auth_token,
+            info=config.info,
+        ),
+        server_config=LocalSidecarConfig(host=config.host, port=config.port),
+    )
+    write_helper_token(token_path, auth_token)
+    manifest = ComputerUseHelperManifest(
+        endpoint=server.base_url,
+        token_ref=str(token_path),
+        pid=getpid(),
+        bundle_id=config.info.bundle_id,
+        version=config.info.version,
+    )
+    write_helper_manifest(config.manifest_path, manifest)
+    return ComputerUseHelperServerHandle(
+        server=server,
+        manifest_path=config.manifest_path,
+        token_path=token_path,
+        manifest=manifest,
+        auth_token=auth_token,
+    )
+
+
+def write_helper_token(path: Path, token: str) -> None:
+    """Write a helper startup token with owner-only permissions where possible."""
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(token, encoding="utf-8")
+    try:
+        path.chmod(0o600)
+    except OSError:
+        return
 
 
 def write_helper_manifest(path: Path, manifest: ComputerUseHelperManifest) -> None:
@@ -351,9 +448,13 @@ def _float(value: Any) -> float | None:
 __all__ = [
     "ComputerUseHelperInfo",
     "ComputerUseHelperManifest",
+    "ComputerUseHelperServerConfig",
+    "ComputerUseHelperServerHandle",
     "ComputerUseHelperTransport",
     "ComputerUseHelperTransportConfig",
     "build_computer_use_helper_server",
+    "prepare_computer_use_helper_server",
     "read_helper_manifest",
     "write_helper_manifest",
+    "write_helper_token",
 ]

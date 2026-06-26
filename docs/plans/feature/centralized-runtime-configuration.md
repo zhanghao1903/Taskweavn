@@ -387,7 +387,7 @@ can observe.
 | `task_api.enabled` | sidecar route/service assembly | process/workspace | `startup_only` | Needs explicit surface. |
 | `task_api.require_valid_session` | planned hardening | workspace | `next_task` | Should prevent orphan external tasks. |
 | `computer_use.enabled` | derived from backend/dependency | process/workspace | `startup_only` | Current default disabled. |
-| `computer_use.backend` | CLI/env `PLATO_COMPUTER_USE_BACKEND` | process | `startup_only` | `disabled` or `macos`. |
+| `computer_use.backend` | CLI/env `PLATO_COMPUTER_USE_BACKEND` | process | `startup_only` | `disabled`, `helper`, or `macos`. |
 | `computer_use.allowed_apps` | CLI/env `PLATO_COMPUTER_USE_ALLOWED_APPS` | process/workspace | `startup_only` initially | Example: `WeChat`. |
 | `computer_use.allow_coordinate_click` | backend assembly | process/workspace | `startup_only` initially | Default should remain false. |
 | `computer_use.screen_recording_required` | backend assembly | process/workspace | `startup_only` initially | Default should remain false. |

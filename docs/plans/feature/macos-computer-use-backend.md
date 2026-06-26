@@ -1,6 +1,6 @@
 # macOS Computer-Use Backend
 
-> Status: in progress / helper provider client and prototype server implemented
+> Status: in progress / helper provider client and dev launcher implemented
 >
 > Last Updated: 2026-06-19
 >
@@ -254,7 +254,7 @@ message-class constraints.
 
 ## 7. Implementation Slices
 
-Implementation status as of 2026-06-26:
+Implementation status as of 2026-06-27:
 
 - Plato now supports `computer_use.backend=helper` as a runtime selection.
 - The helper provider currently forwards generic `computer_use` operations to a
@@ -262,8 +262,10 @@ Implementation status as of 2026-06-26:
   `ComputerUseObservation`.
 - A repo-local helper HTTP prototype server now exposes `/healthz`, `/v1/info`,
   `/v1/readiness`, and bounded generic operation endpoints over loopback.
-- The actual `Plato Computer Use Helper.app` macOS wrapper, startup manifest
-  writer, stable TCC identity, and release packaging are still pending.
+- A dev helper launcher now generates a startup token, writes a tokenRef-based
+  owner-only manifest, and serves the helper API over loopback.
+- The actual `Plato Computer Use Helper.app` macOS wrapper, stable TCC identity,
+  Settings readiness projection, and release packaging are still pending.
 
 ### M0. Package Boundary And Skeleton
 

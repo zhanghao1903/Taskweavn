@@ -42,6 +42,8 @@ __all__ = [
     "ApiPublishHttpTransport",
     "ComputerUseHelperInfo",
     "ComputerUseHelperManifest",
+    "ComputerUseHelperServerConfig",
+    "ComputerUseHelperServerHandle",
     "ComputerUseHelperTransport",
     "ComputerUseHelperTransportConfig",
     "HttpApiRequest",
@@ -84,10 +86,12 @@ __all__ = [
     "build_agent_loop_resident_default_agent",
     "build_main_page_sidecar_app",
     "build_main_page_workspace_runtime",
+    "prepare_computer_use_helper_server",
     "sse_frame",
     "sse_stream",
     "read_helper_manifest",
     "write_helper_manifest",
+    "write_helper_token",
 ]
 
 _LAZY_EXPORTS = {
@@ -98,6 +102,8 @@ _LAZY_EXPORTS = {
     "DiagnosticExportSessionNotFound": "taskweavn.server.diagnostics_export",
     "ComputerUseHelperInfo": "taskweavn.server.computer_use_helper",
     "ComputerUseHelperManifest": "taskweavn.server.computer_use_helper",
+    "ComputerUseHelperServerConfig": "taskweavn.server.computer_use_helper",
+    "ComputerUseHelperServerHandle": "taskweavn.server.computer_use_helper",
     "ComputerUseHelperTransport": "taskweavn.server.computer_use_helper",
     "ComputerUseHelperTransportConfig": "taskweavn.server.computer_use_helper",
     "LocalSidecarConfig": "taskweavn.server.sidecar",
@@ -115,8 +121,10 @@ _LAZY_EXPORTS = {
     "build_agent_loop_resident_default_agent": "taskweavn.server.main_page",
     "build_main_page_sidecar_app": "taskweavn.server.main_page",
     "build_main_page_workspace_runtime": "taskweavn.server.main_page",
+    "prepare_computer_use_helper_server": "taskweavn.server.computer_use_helper",
     "read_helper_manifest": "taskweavn.server.computer_use_helper",
     "write_helper_manifest": "taskweavn.server.computer_use_helper",
+    "write_helper_token": "taskweavn.server.computer_use_helper",
 }
 
 

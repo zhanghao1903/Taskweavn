@@ -1,6 +1,6 @@
 # Plato Computer Use Helper.app 技术方案
 
-> Status: in progress / Plato-side helper client and prototype server implemented
+> Status: in progress / Plato-side helper client and dev launcher implemented
 >
 > Last Updated: 2026-06-26
 >
@@ -868,7 +868,7 @@ Helper 返回：
 
 ## 16. Implementation Slices
 
-当前实现状态（2026-06-26）：
+当前实现状态（2026-06-27）：
 
 - 已新增 Plato-side `ComputerUseHelperBackend` 和 `ComputerUseHelperHttpClient`；
 - 已支持 `computer_use.backend=helper` runtime selection；
@@ -876,10 +876,12 @@ Helper 返回：
 - 已新增 repo-local `ComputerUseHelperTransport` / `LocalSidecarServer`
   prototype，可提供 `/healthz`、`/v1/info`、`/v1/readiness` 和通用
   operation endpoint，用 fake/scripted backend 做 CI 验证；
+- 已新增 dev helper launcher，可生成 startup token、写入 tokenRef manifest、
+  启动 loopback helper API，并通过 `taskweavn computer-use-helper` 手动运行；
 - 已将 helper readiness、failure kind、phase、risk、evidence、diagnostics
   映射回 `ComputerUseObservation.metadata`；
 - 尚未实现真实 `Plato Computer Use Helper.app` macOS `.app` wrapper、
-  startup manifest writer、Settings readiness projection 和 release packaging。
+  stable TCC identity、Settings readiness projection 和 release packaging。
 
 ### H0: Decision And Contract
 
@@ -898,9 +900,9 @@ Helper 返回：
 
 ### H2: macOS Dev App Wrapper
 
-- build `.app`；
-- fixed dev bundle id；
-- helper startup；
+- build `.app`；（pending）
+- fixed dev bundle id；（logical dev id implemented; real `.app` bundle pending）
+- helper startup；（dev CLI + manifest implemented）
 - readiness from helper process；
 - Accessibility prompt guidance。
 
