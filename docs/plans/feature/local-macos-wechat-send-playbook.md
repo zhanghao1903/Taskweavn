@@ -279,6 +279,39 @@ Structured stale-helper-manifest preflight on 2026-06-27:
   retry the current helper request once. The preflight evidence preserves safe
   helper manifest identity while excluding `tokenRef` and token values.
 
+Validated helper auto-launch preflight on 2026-06-27:
+
+- generated dev helper app:
+  `/tmp/plato-computer-use-autolaunch-20260627/Plato Computer Use Helper Dev.app`
+- manifest:
+  `/tmp/plato-computer-use-autolaunch-20260627/computer-use-helper.json`
+- evidence:
+  `/tmp/plato-computer-use-autolaunch-20260627/preflight-autolaunch-20260627.json`
+- sidecar/helper state:
+  - `sidecarOk=true`
+  - `computerUseBackend=helper`
+  - `computerUseStatus=ok`
+  - `packageReadinessStatus=ready`
+  - `computerUseReady=true`
+  - `helperStatus=ready`
+  - `computerUseHelper.path=/private/tmp/plato-computer-use-autolaunch-20260627/Plato Computer Use Helper Dev.app`
+  - `helperManifest.endpoint=http://127.0.0.1:60557`
+  - `helperManifest.pid=66418`
+- runtime identity:
+  - `computerUseDiagnostics.diagnostics.checkedByProcessPath=/Users/zhanghao/.codex/worktrees/e05a/Taskweavn/.venv/bin/python`
+  - `computerUseDiagnostics.diagnostics.adapterProcessExecutable=/Users/zhanghao/.codex/worktrees/e05a/Taskweavn/.venv/bin/python`
+- WeChat app readiness:
+  - `wechatAppSuccess=false`
+  - `wechatAppPhase=window_readiness`
+  - `wechatAppSummary=WeChat main window readiness AppleScript failed.`
+  - `wechatAppDiagnostics.stderr=osascript timed out after 10.0s`
+- interpretation: helper auto-launch and manifest publication work in the dev
+  path. The remaining blocker is WeChat window readiness, not helper discovery.
+  The dev scaffold still delegates the actual macOS backend to the configured
+  Python runtime; release packaging must replace this with a helper-owned
+  packaged/embedded executable before treating Helper.app as the final TCC
+  permission subject.
+
 ### 6.3 Helper-Backed Contact Resolution Progress
 
 Attempted on 2026-06-27 with `response=reject` and no `--allow-send`:

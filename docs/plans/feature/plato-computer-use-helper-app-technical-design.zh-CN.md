@@ -1014,6 +1014,17 @@ Plato could connect to helper-specific WeChat endpoints but a real helper
 process would return "WeChat adapter not configured". Coverage is still
 structural/fake-driver based; real helper app smoke remains pending.
 
+2026-06-27 update 4: local dev helper auto-launch has been validated with a
+generated `.app` under `/tmp`. Plato sidecar launched the helper, the helper
+published a fresh manifest, `/api/v1/settings/readiness` reported
+`computerUseBackend=helper`, `computerUseStatus=ok`, `helperStatus=ready`, and
+the helper-specific WeChat readiness call reached the window-readiness phase.
+The smoke stopped before task publication because WeChat window readiness timed
+out. Evidence also confirms the current dev scaffold still runs the macOS
+backend in `.venv/bin/python`; this remains dev-only and release packaging still
+must provide a helper-owned packaged/embedded executable for stable TCC
+identity.
+
 ### H5: Release Packaging
 
 - helper bundled with Plato installer；
