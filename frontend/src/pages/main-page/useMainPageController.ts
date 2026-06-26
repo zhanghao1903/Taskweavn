@@ -60,6 +60,7 @@ import {
   useMainPageRuntimeInputCommands,
   type InputSubmitContext,
 } from "./useMainPageRuntimeInputCommands";
+import { useMainPageSelectionState } from "./useMainPageSelectionState";
 import {
   useMainPageSessionDialogState,
   type SessionLifecycleDialog,
@@ -177,12 +178,6 @@ export function useMainPageController({
   initialTaskNodeId = null,
 }: UseMainPageControllerOptions): MainPageController {
   const [stateId, setStateId] = useState<MainPageStateId>(initialStateId);
-  const [selectedTaskNodeId, setSelectedTaskNodeId] =
-    useState<TaskNodeId | null>(null);
-  const [selectionTarget, setSelectionTarget] =
-    useState<MainPageSelectionTarget>("auto");
-  const [detailOverride, setDetailOverride] =
-    useState<DetailOverride>("auto");
   const [inputDraft, setInputDraft] = useState("");
   const [uiNotice, setUiNotice] = useState<string | null>(null);
   const [runtimeActivityItems, setRuntimeActivityItems] = useState<
@@ -209,6 +204,17 @@ export function useMainPageController({
     taskTreeCommandError,
     taskTreeCommandRecoveryActions,
   } = useMainPageCommandState();
+  const {
+    applySnapshotSelection,
+    detailOverride,
+    resetSelection,
+    selectedTaskNodeId,
+    selectionTarget,
+    selectTask: selectTaskState,
+    selectTaskPlan: selectTaskPlanState,
+    showFileChanges,
+    showResult,
+  } = useMainPageSelectionState(initialTaskNodeId);
   const {
     changeSessionDialogDraft,
     closeSessionDialog,
@@ -247,7 +253,6 @@ export function useMainPageController({
   });
   const snapshotData = snapshotQuery.data;
   const snapshotDataRef = useRef(snapshotData);
-  const initialTaskNodeIdRef = useRef<TaskNodeId | null>(initialTaskNodeId);
   snapshotDataRef.current = snapshotData;
   const snapshotIdentity = snapshotData
     ? mainPageSnapshotIdentity(
@@ -381,11 +386,7 @@ export function useMainPageController({
   } = useMainPagePlanCommands({
     activeWorkspaceId,
     adapter,
-    onArchivePlanSucceeded: () => {
-      setSelectedTaskNodeId(null);
-      setSelectionTarget("auto");
-      setDetailOverride("auto");
-    },
+    onArchivePlanSucceeded: resetSelection,
     refetchSnapshot,
     setTaskTreeCommandFailure,
     setUiNotice,
@@ -424,30 +425,23 @@ export function useMainPageController({
       return;
     }
 
-    const routeTaskNodeId = initialTaskNodeIdRef.current;
-    const nextSelectedTaskNodeId =
-      routeTaskNodeId !== null &&
-      currentSnapshot.snapshot.taskTree?.nodes.some(
-        (node) => node.id === routeTaskNodeId,
-      )
-        ? routeTaskNodeId
-        : currentSnapshot.metadata.initialSelectedTaskNodeId;
-    initialTaskNodeIdRef.current = null;
-    setSelectedTaskNodeId(nextSelectedTaskNodeId);
-    setSelectionTarget("auto");
-    setDetailOverride("auto");
+    applySnapshotSelection(currentSnapshot);
     setInputDraft("");
     clearCommandState();
     setUiNotice(null);
     closeSessionDialog();
     clearEventError();
-  }, [clearCommandState, clearEventError, closeSessionDialog, snapshotIdentity]);
+  }, [
+    applySnapshotSelection,
+    clearCommandState,
+    clearEventError,
+    closeSessionDialog,
+    snapshotIdentity,
+  ]);
 
   function handleStateChange(nextStateId: MainPageStateId) {
     setStateId(nextStateId);
-    setSelectedTaskNodeId(null);
-    setSelectionTarget("auto");
-    setDetailOverride("auto");
+    resetSelection();
     setInputDraft("");
     clearCommandState();
     setUiNotice(null);
@@ -467,16 +461,12 @@ export function useMainPageController({
   }
 
   function selectTask(nodeId: TaskNodeId) {
-    setSelectedTaskNodeId(nodeId);
-    setSelectionTarget("task");
-    setDetailOverride("auto");
+    selectTaskState(nodeId);
     setUiNotice(null);
   }
 
   function selectTaskPlan() {
-    setSelectedTaskNodeId(null);
-    setSelectionTarget("plan");
-    setDetailOverride("auto");
+    selectTaskPlanState();
     setUiNotice(null);
   }
 
@@ -781,8 +771,8 @@ export function useMainPageController({
       selectSession: handleSessionSelect,
       selectTaskPlan,
       selectTask,
-      showFileChanges: () => setDetailOverride("fileChanges"),
-      showResult: () => setDetailOverride("result"),
+      showFileChanges,
+      showResult,
       submitSessionDialog: handleSessionDialogSubmit,
       submitInput: handleInputSubmit,
       publishTaskTree: handlePublishTaskTree,
