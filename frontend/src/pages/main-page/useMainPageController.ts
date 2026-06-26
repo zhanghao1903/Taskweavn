@@ -17,7 +17,6 @@ import type {
 } from "../../shared/api/types";
 import { productRecoveryActionsFromApiError } from "../../shared/api/productErrors";
 import {
-  summarizeCommandResponse,
   summarizeMainPageSnapshot,
 } from "../../shared/api/traceSummary";
 import {
@@ -51,6 +50,11 @@ import {
 } from "./mainPageRuntimeInput";
 import { handleCommandResponse } from "./runtime/commandRefresh";
 import { useMainPageEventSubscription } from "./useMainPageEventSubscription";
+import {
+  useMainPageTaskLifecycleCommands,
+  type RetryTaskContext,
+  type StopTaskContext,
+} from "./useMainPageTaskLifecycleCommands";
 
 const mainPageLogger = createFrontendLogger("main-page");
 
@@ -70,16 +74,6 @@ export type ArchivePlanContext = {
   expectedVersion?: number | null;
   planId: string;
   sessionId: string;
-};
-
-export type RetryTaskContext = {
-  sessionId: string;
-  taskNodeId: TaskNodeId;
-};
-
-export type StopTaskContext = {
-  sessionId: string;
-  taskNodeId: TaskNodeId;
 };
 
 export type ConfirmationDecisionContext = {
@@ -896,118 +890,15 @@ export function useMainPageController({
     },
   });
 
-  const retryTaskMutation = useMutation({
-    mutationFn: async ({
-      sessionId,
-      taskNodeId,
-    }: {
-      sessionId: string;
-      taskNodeId: TaskNodeId;
-    }) =>
-      adapter.retryTask(sessionId, taskNodeId, {
-        commandId: `retry-task-${taskNodeId}-${Date.now()}`,
-        sessionId,
-        payload: {
-          startImmediately: true,
-        },
-      }, activeWorkspaceId),
-    onError: () => {
-      setTaskTreeCommandFailure("Retry failed. Please retry.");
-    },
-    onSuccess: (response) => {
-      const result = handleCommandResponse(
-        response,
-        "Retry was rejected.",
-      );
-
-      if (result.errorMessage) {
-        setTaskTreeCommandFailure(
-          result.errorMessage,
-          result.recoveryActions,
-        );
-        return;
-      }
-
-      setTaskTreeCommandFailure(null);
-      setUiNotice("Retry queued.");
-      if (result.shouldRefetch) {
-        void refetchSnapshot();
-      }
-    },
-  });
-
-  const stopTaskMutation = useMutation({
-    mutationFn: async ({
-      sessionId,
-      taskNodeId,
-    }: {
-      sessionId: string;
-      taskNodeId: TaskNodeId;
-    }) => {
-      const commandId = `stop-task-${taskNodeId}-${Date.now()}`;
-      mainPageLogger.info("command.stop.submit", {
-        commandId,
-        sessionId,
-        taskNodeId,
-      });
-      return adapter.stopTask(sessionId, taskNodeId, {
-        commandId,
-        sessionId,
-        payload: {
-          reason: "user requested stop",
-        },
-      }, activeWorkspaceId);
-    },
-    onError: (error) => {
-      mainPageLogger.error("command.stop.failed", {
-        error: toLoggableError(error),
-      });
-      setTaskTreeCommandFailure("Stop failed. Please retry.");
-    },
-    onSuccess: (response) => {
-      const result = handleCommandResponse(
-        response,
-        "Stop was rejected.",
-      );
-      mainPageLogger.info("command.stop.result", {
-        ...summarizeCommandResponse(response),
-        shouldRefetch: result.shouldRefetch,
-      });
-
-      if (result.errorMessage) {
-        setTaskTreeCommandFailure(
-          result.errorMessage,
-          result.recoveryActions,
-        );
-        return;
-      }
-
-      setTaskTreeCommandFailure(null);
-      setUiNotice("Stop requested.");
-      if (result.shouldRefetch) {
-        mainPageLogger.info("snapshot.refetch.request", {
-          reason: "stop_command_refresh",
-        });
-        void refetchSnapshot()
-          .then((queryResult) => {
-            mainPageLogger.info("snapshot.refetch.result", {
-              hasData: queryResult.data !== undefined,
-              reason: "stop_command_refresh",
-              snapshot:
-                queryResult.data === undefined
-                  ? null
-                  : summarizeMainPageSnapshot(queryResult.data.snapshot),
-              status: queryResult.status,
-            });
-          })
-          .catch((error) => {
-            mainPageLogger.error("snapshot.refetch.failed", {
-              error: toLoggableError(error),
-              reason: "stop_command_refresh",
-            });
-          });
-      }
-    },
+  const {
+    retryTaskMutation,
+    stopTaskMutation,
+  } = useMainPageTaskLifecycleCommands({
+    activeWorkspaceId,
+    adapter,
+    refetchSnapshot,
+    setTaskTreeCommandFailure,
+    setUiNotice,
   });
 
   const createSessionMutation = useMutation({
