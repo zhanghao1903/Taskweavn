@@ -43,6 +43,7 @@ import {
   useMainPageConfirmationCommands,
   type ConfirmationDecisionContext,
 } from "./useMainPageConfirmationCommands";
+import { useMainPageCommandState } from "./useMainPageCommandState";
 import { useMainPageEventSubscription } from "./useMainPageEventSubscription";
 import {
   useMainPageExecutionAskCommands,
@@ -182,39 +183,32 @@ export function useMainPageController({
     useState<MainPageSelectionTarget>("auto");
   const [detailOverride, setDetailOverride] =
     useState<DetailOverride>("auto");
-  const [confirmationError, setConfirmationError] = useState<string | null>(
-    null,
-  );
-  const [confirmationRecoveryActions, setConfirmationRecoveryActions] =
-    useState<ProductRecoveryAction[]>([]);
-  const [authoringAskError, setAuthoringAskError] = useState<string | null>(
-    null,
-  );
-  const [authoringAskRecoveryActions, setAuthoringAskRecoveryActions] =
-    useState<ProductRecoveryAction[]>([]);
-  const [executionAskError, setExecutionAskError] = useState<string | null>(
-    null,
-  );
-  const [executionAskRecoveryActions, setExecutionAskRecoveryActions] =
-    useState<ProductRecoveryAction[]>([]);
   const [inputDraft, setInputDraft] = useState("");
-  const [inputError, setInputError] = useState<string | null>(null);
-  const [inputRecoveryActions, setInputRecoveryActions] = useState<
-    ProductRecoveryAction[]
-  >([]);
-  const [taskTreeCommandError, setTaskTreeCommandError] = useState<string | null>(
-    null,
-  );
-  const [
-    taskTreeCommandRecoveryActions,
-    setTaskTreeCommandRecoveryActions,
-  ] = useState<ProductRecoveryAction[]>([]);
   const [uiNotice, setUiNotice] = useState<string | null>(null);
   const [runtimeActivityItems, setRuntimeActivityItems] = useState<
     SessionActivityItemView[]
   >([]);
   const [activeRuntimeInputMode, setActiveRuntimeInputMode] =
     useState<RuntimeInputMode | null>(null);
+  const {
+    authoringAskError,
+    authoringAskRecoveryActions,
+    clearCommandState,
+    confirmationError,
+    confirmationRecoveryActions,
+    executionAskError,
+    executionAskRecoveryActions,
+    inputError,
+    inputRecoveryActions,
+    setAuthoringAskCommandError,
+    setConfirmationCommandError,
+    setExecutionAskCommandError,
+    setInputCommandError,
+    setTaskTreeCommandError,
+    setTaskTreeCommandFailure,
+    taskTreeCommandError,
+    taskTreeCommandRecoveryActions,
+  } = useMainPageCommandState();
   const {
     changeSessionDialogDraft,
     closeSessionDialog,
@@ -282,56 +276,6 @@ export function useMainPageController({
       return;
     }
     void workspaceCatalogQuery.refetch();
-  }
-
-  function setConfirmationCommandError(
-    message: string | null,
-    recoveryActions: ProductRecoveryAction[] = [],
-  ) {
-    setConfirmationError(message);
-    setConfirmationRecoveryActions(message === null ? [] : recoveryActions);
-  }
-
-  function setAuthoringAskCommandError(
-    message: string | null,
-    recoveryActions: ProductRecoveryAction[] = [],
-  ) {
-    setAuthoringAskError(message);
-    setAuthoringAskRecoveryActions(message === null ? [] : recoveryActions);
-  }
-
-  function setExecutionAskCommandError(
-    message: string | null,
-    recoveryActions: ProductRecoveryAction[] = [],
-  ) {
-    setExecutionAskError(message);
-    setExecutionAskRecoveryActions(message === null ? [] : recoveryActions);
-  }
-
-  function setInputCommandError(
-    message: string | null,
-    recoveryActions: ProductRecoveryAction[] = [],
-  ) {
-    setInputError(message);
-    setInputRecoveryActions(message === null ? [] : recoveryActions);
-  }
-
-  function setTaskTreeCommandFailure(
-    message: string | null,
-    recoveryActions: ProductRecoveryAction[] = [],
-  ) {
-    setTaskTreeCommandError(message);
-    setTaskTreeCommandRecoveryActions(
-      message === null ? [] : recoveryActions,
-    );
-  }
-
-  function clearCommandRecoveryActions() {
-    setAuthoringAskRecoveryActions([]);
-    setConfirmationRecoveryActions([]);
-    setExecutionAskRecoveryActions([]);
-    setInputRecoveryActions([]);
-    setTaskTreeCommandRecoveryActions([]);
   }
 
   useEffect(() => {
@@ -492,30 +436,20 @@ export function useMainPageController({
     setSelectedTaskNodeId(nextSelectedTaskNodeId);
     setSelectionTarget("auto");
     setDetailOverride("auto");
-    setAuthoringAskError(null);
-    setExecutionAskError(null);
-    setConfirmationError(null);
     setInputDraft("");
-    setInputError(null);
-    setTaskTreeCommandError(null);
-    clearCommandRecoveryActions();
+    clearCommandState();
     setUiNotice(null);
     closeSessionDialog();
     clearEventError();
-  }, [clearEventError, closeSessionDialog, snapshotIdentity]);
+  }, [clearCommandState, clearEventError, closeSessionDialog, snapshotIdentity]);
 
   function handleStateChange(nextStateId: MainPageStateId) {
     setStateId(nextStateId);
     setSelectedTaskNodeId(null);
     setSelectionTarget("auto");
     setDetailOverride("auto");
-    setAuthoringAskError(null);
-    setExecutionAskError(null);
-    setConfirmationError(null);
     setInputDraft("");
-    setInputError(null);
-    setTaskTreeCommandError(null);
-    clearCommandRecoveryActions();
+    clearCommandState();
     setUiNotice(null);
     closeSessionDialog();
     clearEventError();
