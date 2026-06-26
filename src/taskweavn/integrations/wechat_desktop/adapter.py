@@ -127,6 +127,10 @@ class WeChatDesktopAdapter:
     def resolve_contact(
         self,
         task_input: WeChatSendTaskInput,
+        *,
+        execution_id: str | None = None,
+        idempotency_key: str | None = None,
+        session_id: str | None = None,
     ) -> WeChatContactResolution:
         observation = self._execute(
             ComputerUseAction(
@@ -323,6 +327,7 @@ class WeChatDesktopAdapter:
         *,
         contact_summary: str,
         message_preview: str,
+        confirmation_id: str | None = None,
     ) -> WeChatSendAttemptResult:
         if self.contact_search_driver is not None:
             submit = self.contact_search_driver.submit_message(

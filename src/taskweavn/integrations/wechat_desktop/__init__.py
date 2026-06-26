@@ -12,6 +12,10 @@ from taskweavn.integrations.wechat_desktop.confirmation import (
     build_wechat_send_confirmation_payload,
 )
 from taskweavn.integrations.wechat_desktop.fake_adapter import FakeWeChatDesktopAdapter
+from taskweavn.integrations.wechat_desktop.helper_adapter import (
+    WeChatDesktopHelperAdapter,
+    WeChatHelperHttpClient,
+)
 from taskweavn.integrations.wechat_desktop.macos_driver import (
     MacOSWeChatSearchDriver,
     WeChatContactSearchResult,
@@ -36,6 +40,7 @@ __all__ = [
     "WeChatContactResolution",
     "WeChatDesktopAdapter",
     "WeChatDesktopAdapterConfig",
+    "WeChatDesktopHelperAdapter",
     "WeChatDraftState",
     "FakeWeChatDesktopAdapter",
     "MacOSWeChatSearchDriver",
@@ -51,6 +56,7 @@ __all__ = [
     "WeChatInputFocusResult",
     "WeChatMessageSubmitResult",
     "WeChatWindowReadinessResult",
+    "WeChatHelperHttpClient",
     "build_wechat_send_confirmation_payload",
     "wechat_message_hash",
     "wechat_message_preview",

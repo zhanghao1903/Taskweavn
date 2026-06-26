@@ -52,7 +52,14 @@ class WeChatSendRuntimeAdapter(Protocol):
 
     def open_or_focus(self) -> WeChatOperationResult: ...
 
-    def resolve_contact(self, task_input: WeChatSendTaskInput) -> WeChatContactResolution: ...
+    def resolve_contact(
+        self,
+        task_input: WeChatSendTaskInput,
+        *,
+        execution_id: str | None = None,
+        idempotency_key: str | None = None,
+        session_id: str | None = None,
+    ) -> WeChatContactResolution: ...
 
     def draft_message(
         self,
@@ -66,6 +73,7 @@ class WeChatSendRuntimeAdapter(Protocol):
         *,
         contact_summary: str,
         message_preview: str,
+        confirmation_id: str | None = None,
     ) -> WeChatSendAttemptResult: ...
 
 
@@ -184,7 +192,12 @@ class WeChatSendRuntimeHandler:
                 retryable=opened.status in {"needs_user", "not_available"},
             )
 
-        resolution = self.adapter.resolve_contact(task_input)
+        resolution = self.adapter.resolve_contact(
+            task_input,
+            execution_id=execution.execution_id,
+            idempotency_key=request.idempotency_key,
+            session_id=execution.session_id,
+        )
         evidence_ids.append(
             self._put_evidence(
                 execution,

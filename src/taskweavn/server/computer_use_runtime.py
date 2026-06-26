@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
+from typing import cast
 
 from taskweavn.core import WorkspaceLayout
 from taskweavn.execution_plane import (
@@ -12,12 +13,15 @@ from taskweavn.execution_plane import (
     InMemoryExecutionEnvRegistry,
     SqliteExecutionPlaneStore,
     SqliteWeChatSendBoundaryStore,
+    WeChatSendRuntimeAdapter,
     WeChatSendRuntimeHandler,
     default_local_execution_env,
 )
 from taskweavn.integrations.wechat_desktop import (
     MacOSWeChatSearchDriver,
     WeChatDesktopAdapter,
+    WeChatDesktopHelperAdapter,
+    WeChatHelperHttpClient,
 )
 from taskweavn.interaction import InProcessMessageBus, SqliteMessageStream
 from taskweavn.server.runtime_config_consumers import RuntimeComputerUseSettings
@@ -177,16 +181,31 @@ def build_execution_plane_runtime_handlers(
             message_stream=message_stream,
             execution_store=execution_plane_store,
             boundary_store=wechat_boundary_store,
-            adapter=WeChatDesktopAdapter(
-                computer_use_backend,
-                contact_search_driver=MacOSWeChatSearchDriver(),
-            ),
+            adapter=build_wechat_runtime_adapter(computer_use_backend),
         ),
+    )
+
+
+def build_wechat_runtime_adapter(
+    computer_use_backend: ComputerUseBackend,
+) -> WeChatSendRuntimeAdapter:
+    """Select the WeChat runtime adapter for the configured computer-use backend."""
+
+    if isinstance(computer_use_backend, ComputerUseHelperBackend):
+        helper_client = computer_use_backend.helper_client
+        if helper_client is not None and hasattr(helper_client, "wechat_draft_message"):
+            return WeChatDesktopHelperAdapter(
+                cast(WeChatHelperHttpClient, helper_client)
+            )
+    return WeChatDesktopAdapter(
+        computer_use_backend,
+        contact_search_driver=MacOSWeChatSearchDriver(),
     )
 
 
 __all__ = [
     "ComputerUseRuntimeSelection",
+    "build_wechat_runtime_adapter",
     "build_execution_env_registry",
     "build_execution_plane_runtime_handlers",
     "build_computer_use_runtime",

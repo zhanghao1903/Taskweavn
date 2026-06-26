@@ -4,11 +4,14 @@ from pathlib import Path
 
 import pytest
 
+from taskweavn.integrations.wechat_desktop import WeChatDesktopHelperAdapter
 from taskweavn.server.computer_use_runtime import (
     build_computer_use_runtime,
+    build_wechat_runtime_adapter,
     parse_computer_use_allowed_apps,
 )
 from taskweavn.tools import ComputerUseHelperBackend, MacOSComputerUseBackend
+from taskweavn.types import ComputerUseAction
 
 
 def test_parse_computer_use_allowed_apps_from_csv() -> None:
@@ -83,3 +86,25 @@ def test_build_computer_use_runtime_passes_helper_launch_config(
 def test_build_computer_use_runtime_rejects_unknown_backend() -> None:
     with pytest.raises(ValueError, match="disabled, helper, macos"):
         build_computer_use_runtime(backend_name="browser")
+
+
+def test_build_wechat_runtime_adapter_uses_helper_wechat_api_client() -> None:
+    helper_backend = ComputerUseHelperBackend(client=_FakeHelperWeChatClient())
+
+    adapter = build_wechat_runtime_adapter(helper_backend)
+
+    assert isinstance(adapter, WeChatDesktopHelperAdapter)
+
+
+class _FakeHelperWeChatClient:
+    def readiness(self) -> dict[str, object]:
+        return {"status": "ready", "summary": "ready"}
+
+    def execute(self, action: ComputerUseAction) -> dict[str, object]:
+        return {"status": "ok", "summary": action.instruction}
+
+    def wechat_draft_message(self, **kwargs: object) -> dict[str, object]:
+        return {"status": "ok", "summary": "drafted"}
+
+    def wechat_send_confirmed(self, **kwargs: object) -> dict[str, object]:
+        return {"status": "sent", "summary": "sent"}

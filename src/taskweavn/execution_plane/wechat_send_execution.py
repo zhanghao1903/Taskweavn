@@ -38,6 +38,7 @@ class WeChatSendAdapter(Protocol):
         *,
         contact_summary: str,
         message_preview: str,
+        confirmation_id: str | None = None,
     ) -> WeChatSendAttemptResult: ...
 
 
@@ -135,6 +136,7 @@ class WeChatSendExecutionService:
             request.action_fingerprint,
             contact_summary=request.contact_summary,
             message_preview=request.message_preview,
+            confirmation_id=boundary.confirmation_id,
         )
         if attempt.status == "sent":
             attempted = self.boundary_store.transition(

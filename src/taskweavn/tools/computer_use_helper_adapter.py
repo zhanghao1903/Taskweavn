@@ -270,6 +270,12 @@ class ComputerUseHelperBackend(ComputerUseBackend):
             expected_api_version=self._config.expected_api_version,
         )
 
+    @property
+    def helper_client(self) -> ComputerUseHelperClientProtocol | None:
+        """Return the loaded helper client for higher-level helper APIs."""
+
+        return self._client
+
 
 class ComputerUseHelperHttpClient:
     """HTTP client for the local Plato Computer Use Helper API."""

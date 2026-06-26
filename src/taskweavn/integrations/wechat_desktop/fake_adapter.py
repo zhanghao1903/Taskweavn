@@ -56,6 +56,10 @@ class FakeWeChatDesktopAdapter:
     def resolve_contact(
         self,
         task_input: WeChatSendTaskInput,
+        *,
+        execution_id: str | None = None,
+        idempotency_key: str | None = None,
+        session_id: str | None = None,
     ) -> WeChatContactResolution:
         self.calls.append(("resolve_contact", task_input))
         return self.contact_resolution
@@ -89,6 +93,7 @@ class FakeWeChatDesktopAdapter:
         *,
         contact_summary: str,
         message_preview: str,
+        confirmation_id: str | None = None,
     ) -> WeChatSendAttemptResult:
         self.calls.append(
             (
@@ -97,6 +102,7 @@ class FakeWeChatDesktopAdapter:
                     "fingerprint": fingerprint,
                     "contact_summary": contact_summary,
                     "message_preview": message_preview,
+                    "confirmation_id": confirmation_id,
                 },
             )
         )
