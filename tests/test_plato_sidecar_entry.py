@@ -86,3 +86,23 @@ def test_plato_sidecar_parse_args_computer_use_flags_override_env(
 
     assert args.computer_use_backend == "macos"
     assert args.computer_use_allowed_apps == "WeChat"
+
+
+def test_plato_sidecar_parse_args_reads_helper_launch_env(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("PLATO_COMPUTER_USE_HELPER_MANIFEST", "/tmp/helper.json")
+    monkeypatch.setenv(
+        "PLATO_COMPUTER_USE_HELPER_APP_PATH",
+        "/tmp/Plato Computer Use Helper Dev.app",
+    )
+    monkeypatch.setenv("PLATO_COMPUTER_USE_HELPER_AUTO_LAUNCH", "1")
+
+    args = _parse_args(["--workspace", "/tmp/workspace", "--port", "0"])
+
+    assert args.computer_use_helper_manifest == "/tmp/helper.json"
+    assert (
+        args.computer_use_helper_app_path
+        == "/tmp/Plato Computer Use Helper Dev.app"
+    )
+    assert args.computer_use_helper_auto_launch is True

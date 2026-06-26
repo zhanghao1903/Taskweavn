@@ -4,6 +4,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+import pytest
+
 from taskweavn.tools import (
     ComputerUseHelperBackend,
     ComputerUseHelperBackendConfig,
@@ -218,6 +220,78 @@ def test_helper_backend_loads_endpoint_and_token_ref_from_manifest(tmp_path: Pat
     )
 
     assert backend._client is not None
+
+
+def test_helper_backend_auto_launches_app_and_waits_for_manifest(
+    tmp_path: Path,
+) -> None:
+    app_path = tmp_path / "Plato Computer Use Helper Dev.app"
+    app_path.mkdir()
+    manifest_path = tmp_path / "helper.json"
+    launches: list[Path] = []
+
+    def launcher(path: Path) -> None:
+        launches.append(path)
+        manifest_path.write_text(
+            json.dumps(
+                {
+                    "endpoint": "http://127.0.0.1:49321",
+                    "bundleId": "com.taskweavn.plato.computer-use-helper.dev",
+                    "apiVersion": "plato.computer_use_helper.v1",
+                }
+            ),
+            encoding="utf-8",
+        )
+
+    backend = ComputerUseHelperBackend(
+        config=ComputerUseHelperBackendConfig(
+            endpoint_manifest_path=manifest_path,
+            helper_app_path=app_path,
+            helper_auto_launch=True,
+            helper_launch_timeout_seconds=0.1,
+            helper_app_launcher=launcher,
+            expected_bundle_id="com.taskweavn.plato.computer-use-helper.dev",
+        )
+    )
+
+    assert launches == [app_path]
+    assert backend._client is not None
+
+
+def test_helper_backend_reports_missing_helper_app_for_auto_launch(
+    tmp_path: Path,
+) -> None:
+    backend = ComputerUseHelperBackend(
+        config=ComputerUseHelperBackendConfig(
+            endpoint_manifest_path=tmp_path / "helper.json",
+            helper_app_path=tmp_path / "Missing Helper.app",
+            helper_auto_launch=True,
+        )
+    )
+
+    observation = backend.readiness()
+
+    assert observation.success is False
+    assert observation.status == "not_available"
+    assert observation.metadata["failure_kind"] == "helper_not_installed"
+    assert "helper app not found" in observation.metadata["setup_hint"]
+
+
+def test_helper_backend_reads_auto_launch_environment(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manifest_path = tmp_path / "helper.json"
+    app_path = tmp_path / "Plato Computer Use Helper Dev.app"
+    monkeypatch.setenv("PLATO_COMPUTER_USE_HELPER_MANIFEST", str(manifest_path))
+    monkeypatch.setenv("PLATO_COMPUTER_USE_HELPER_APP_PATH", str(app_path))
+    monkeypatch.setenv("PLATO_COMPUTER_USE_HELPER_AUTO_LAUNCH", "1")
+
+    config = ComputerUseHelperBackendConfig.from_environment()
+
+    assert config.endpoint_manifest_path == manifest_path
+    assert config.helper_app_path == app_path
+    assert config.helper_auto_launch is True
 
 
 def test_helper_backend_rejects_manifest_bundle_mismatch(tmp_path: Path) -> None:

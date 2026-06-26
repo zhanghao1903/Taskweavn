@@ -61,6 +61,28 @@ def _parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
             "for example: WeChat,TextEdit."
         ),
     )
+    parser.add_argument(
+        "--computer-use-helper-manifest",
+        default=os.environ.get("PLATO_COMPUTER_USE_HELPER_MANIFEST"),
+        help="Path to the helper endpoint manifest for helper backend.",
+    )
+    parser.add_argument(
+        "--computer-use-helper-app-path",
+        default=os.environ.get("PLATO_COMPUTER_USE_HELPER_APP_PATH"),
+        help="Path to Plato Computer Use Helper.app for opt-in auto-launch.",
+    )
+    parser.add_argument(
+        "--computer-use-helper-auto-launch",
+        action="store_true",
+        default=_env_bool("PLATO_COMPUTER_USE_HELPER_AUTO_LAUNCH", default=False),
+        help="Launch the configured helper app when its manifest is missing.",
+    )
+    parser.add_argument(
+        "--no-computer-use-helper-auto-launch",
+        dest="computer_use_helper_auto_launch",
+        action="store_false",
+        help="Disable helper app auto-launch.",
+    )
     parser.set_defaults(
         enable_read_only_inquiry_llm=_env_bool(
             "PLATO_ENABLE_READ_ONLY_INQUIRY_LLM",
@@ -112,6 +134,9 @@ def _serve(args: argparse.Namespace) -> int:
     computer_use_runtime = build_computer_use_runtime(
         backend_name=args.computer_use_backend,
         allowed_apps=args.computer_use_allowed_apps,
+        helper_manifest_path=args.computer_use_helper_manifest,
+        helper_app_path=args.computer_use_helper_app_path,
+        helper_auto_launch=args.computer_use_helper_auto_launch,
     )
     sidecar = build_main_page_sidecar_app(
         MainPageSidecarConfig(

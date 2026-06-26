@@ -212,6 +212,16 @@ def test_plato_dev_help_does_not_expose_session_startup_flags() -> None:
     assert "--no-create-session" not in result.output
 
 
+def test_plato_sidecar_help_exposes_helper_launch_options() -> None:
+    runner = CliRunner()
+    result = runner.invoke(app, ["plato-sidecar", "--help"])
+
+    assert result.exit_code == 0
+    assert "endpoint manifest" in result.output
+    assert "opt-in auto-launch" in result.output
+    assert "manifest is missing" in result.output
+
+
 def test_computer_use_helper_help_exposes_manifest_and_backend_options() -> None:
     runner = CliRunner()
     result = runner.invoke(app, ["computer-use-helper", "--help"])

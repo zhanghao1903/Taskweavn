@@ -9,6 +9,9 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
+import sys
+import time
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -26,6 +29,7 @@ from taskweavn.types.computer_use import (
 )
 
 HelperTransport = Callable[[str, str, dict[str, Any] | None], dict[str, Any]]
+HelperAppLauncher = Callable[[Path], None]
 
 
 class ComputerUseHelperClientProtocol(Protocol):
@@ -43,6 +47,11 @@ class ComputerUseHelperBackendConfig:
     endpoint: str | None = None
     token: str | None = None
     endpoint_manifest_path: Path | None = None
+    helper_app_path: Path | None = None
+    helper_auto_launch: bool = False
+    helper_launch_timeout_seconds: float = 10.0
+    helper_launch_poll_interval_seconds: float = 0.2
+    helper_app_launcher: HelperAppLauncher | None = None
     expected_bundle_id: str | None = None
     expected_api_version: str | None = "plato.computer_use_helper.v1"
     allowed_apps: tuple[str, ...] = ()
@@ -61,10 +70,18 @@ class ComputerUseHelperBackendConfig:
         """Build config from the current process environment."""
 
         manifest = os.environ.get("PLATO_COMPUTER_USE_HELPER_MANIFEST")
+        helper_app_path = os.environ.get("PLATO_COMPUTER_USE_HELPER_APP_PATH")
         return cls(
             endpoint=os.environ.get("PLATO_COMPUTER_USE_HELPER_ENDPOINT"),
             token=os.environ.get("PLATO_COMPUTER_USE_HELPER_TOKEN"),
             endpoint_manifest_path=Path(manifest).expanduser() if manifest else None,
+            helper_app_path=(
+                Path(helper_app_path).expanduser() if helper_app_path else None
+            ),
+            helper_auto_launch=_env_bool(
+                "PLATO_COMPUTER_USE_HELPER_AUTO_LAUNCH",
+                default=False,
+            ),
             expected_bundle_id=os.environ.get(
                 "PLATO_COMPUTER_USE_HELPER_EXPECTED_BUNDLE_ID"
             ),
@@ -96,13 +113,8 @@ class ComputerUseHelperBackend(ComputerUseBackend):
         endpoint = self._config.endpoint
         token = self._config.token
         if self._config.endpoint_manifest_path is not None:
-            try:
-                manifest = _read_manifest(self._config.endpoint_manifest_path)
-            except OSError as exc:
-                self._setup_error = f"helper manifest unavailable: {exc}"
-                return None
-            except ValueError as exc:
-                self._setup_error = str(exc)
+            manifest = self._read_manifest_or_launch_helper()
+            if manifest is None:
                 return None
             manifest_error = _helper_identity_error(
                 manifest,
@@ -139,6 +151,69 @@ class ComputerUseHelperBackend(ComputerUseBackend):
             allow_screenshot=self._config.allow_screenshot,
             timeout_seconds=self._config.timeout_seconds,
         )
+
+    def _read_manifest_or_launch_helper(self) -> dict[str, Any] | None:
+        assert self._config.endpoint_manifest_path is not None
+        manifest_path = self._config.endpoint_manifest_path
+        try:
+            return _read_manifest(manifest_path)
+        except OSError as exc:
+            initial_error: Exception = exc
+            self._setup_error = f"helper manifest unavailable: {exc}"
+        except ValueError as exc:
+            initial_error = exc
+            self._setup_error = str(exc)
+        if not self._config.helper_auto_launch:
+            return None
+        if self._config.helper_app_path is None:
+            self._setup_error = (
+                f"{self._setup_error}; helper auto-launch is enabled but "
+                "PLATO_COMPUTER_USE_HELPER_APP_PATH is not configured."
+            )
+            return None
+        return self._launch_helper_and_read_manifest(
+            manifest_path=manifest_path,
+            initial_error=initial_error,
+        )
+
+    def _launch_helper_and_read_manifest(
+        self,
+        *,
+        manifest_path: Path,
+        initial_error: Exception,
+    ) -> dict[str, Any] | None:
+        assert self._config.helper_app_path is not None
+        app_path = self._config.helper_app_path.expanduser()
+        if not app_path.exists():
+            self._setup_failure_kind = "helper_not_installed"
+            self._setup_error = f"helper app not found: {app_path}"
+            return None
+        launcher = self._config.helper_app_launcher or _default_helper_app_launcher
+        try:
+            launcher(app_path)
+        except Exception as exc:  # noqa: BLE001 - helper launch errors are sanitized.
+            self._setup_failure_kind = "helper_not_running"
+            self._setup_error = f"helper app launch failed: {exc}"
+            return None
+
+        deadline = time.monotonic() + max(
+            0.0,
+            self._config.helper_launch_timeout_seconds,
+        )
+        last_error = initial_error
+        while True:
+            try:
+                return _read_manifest(manifest_path)
+            except (OSError, ValueError) as exc:
+                last_error = exc
+            if time.monotonic() >= deadline:
+                self._setup_failure_kind = "helper_not_running"
+                self._setup_error = (
+                    "helper app launched but did not publish manifest "
+                    f"{manifest_path}: {last_error}"
+                )
+                return None
+            time.sleep(max(0.05, self._config.helper_launch_poll_interval_seconds))
 
     def readiness(self, *, action_id: str | None = None) -> ComputerUseObservation:
         if self._client is None:
@@ -294,6 +369,23 @@ def _read_manifest(path: Path) -> dict[str, Any]:
     if not isinstance(parsed, dict):
         raise ValueError("helper manifest must be a JSON object")
     return parsed
+
+
+def _default_helper_app_launcher(app_path: Path) -> None:
+    if sys.platform != "darwin":
+        raise RuntimeError("helper app auto-launch is only supported on macOS")
+    completed = subprocess.run(  # noqa: S603 - fixed executable and args.
+        ["/usr/bin/open", "-gj", str(app_path)],
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    if completed.returncode != 0:
+        detail = completed.stderr.strip() or completed.stdout.strip()
+        raise RuntimeError(
+            f"open returned {completed.returncode}: {_bounded(detail or 'no output')}"
+        )
 
 
 def _operation_path(operation: ComputerUseOperation) -> str:
@@ -502,6 +594,18 @@ def _bounded(value: str, *, limit: int = 1_000) -> str:
     if len(value) <= limit:
         return value
     return f"{value[: limit - 1]}..."
+
+
+def _env_bool(name: str, *, default: bool) -> bool:
+    raw_value = os.environ.get(name)
+    if raw_value is None:
+        return default
+    normalized = raw_value.strip().lower()
+    if normalized in {"1", "true", "yes", "on"}:
+        return True
+    if normalized in {"0", "false", "no", "off"}:
+        return False
+    return default
 
 
 __all__ = [

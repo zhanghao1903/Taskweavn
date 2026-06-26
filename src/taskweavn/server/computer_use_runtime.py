@@ -50,6 +50,8 @@ def build_computer_use_runtime(
     helper_manifest_path: str | None = None,
     helper_endpoint: str | None = None,
     helper_token: str | None = None,
+    helper_app_path: str | None = None,
+    helper_auto_launch: bool = False,
 ) -> ComputerUseRuntimeSelection:
     """Build the optional computer-use backend selected by runtime config."""
 
@@ -74,6 +76,8 @@ def build_computer_use_runtime(
                 if helper_manifest_path is None
                 and helper_endpoint is None
                 and helper_token is None
+                and helper_app_path is None
+                and not helper_auto_launch
                 else ComputerUseHelperBackendConfig(
                     endpoint_manifest_path=(
                         None
@@ -82,6 +86,12 @@ def build_computer_use_runtime(
                     ),
                     endpoint=helper_endpoint,
                     token=helper_token,
+                    helper_app_path=(
+                        None
+                        if helper_app_path is None
+                        else Path(helper_app_path).expanduser()
+                    ),
+                    helper_auto_launch=helper_auto_launch,
                     allowed_apps=parsed_allowed_apps,
                     allow_coordinate_click=allow_coordinate_click,
                     allow_screenshot=screen_recording_required,

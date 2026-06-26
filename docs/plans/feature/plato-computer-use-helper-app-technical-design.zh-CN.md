@@ -331,10 +331,25 @@ Plato 启动时：
 
 1. 查找 helper manifest；
 2. 检查 helper version；
-3. 如果 helper 未运行，启动 helper；
+3. 如果 helper manifest 缺失且显式开启 auto-launch，启动 helper；
 4. 等待 `/healthz`；
 5. 调用 `/v1/readiness`；
 6. 将 readiness 投射到 Settings 和 capability registry。
+
+当前实现状态：
+
+- `computer_use.backend=helper` 可通过 manifest 或 endpoint 连接 helper；
+- `PLATO_COMPUTER_USE_HELPER_MANIFEST` / `--computer-use-helper-manifest`
+  指定 manifest；
+- `PLATO_COMPUTER_USE_HELPER_APP_PATH` / `--computer-use-helper-app-path`
+  指定 dev helper app；
+- `PLATO_COMPUTER_USE_HELPER_AUTO_LAUNCH=1` 或
+  `--computer-use-helper-auto-launch` 才会在 manifest 缺失时尝试 `open -gj`
+  启动 `.app`；
+- 默认不会在普通 readiness 检查中偷偷启动 helper app。
+
+auto-launch 只负责启动 `.app` 并等待 manifest 出现；它不授予 TCC 权限，不执行
+WeChat send，也不绕过 confirmation。
 
 ### 7.3 Release Background Mode
 
@@ -899,6 +914,9 @@ Helper 返回：
   会生成 `Plato Computer Use Helper Dev.app` 的 `Info.plist`、固定 dev
   bundle id、launcher config 和 `Contents/MacOS/PlatoComputerUseHelper`
   wrapper；
+- 已新增 helper app opt-in auto-launch：helper backend 可在 manifest 缺失时
+  启动配置的 `.app` 并轮询 manifest；该行为必须通过
+  `PLATO_COMPUTER_USE_HELPER_AUTO_LAUNCH=1` 或 CLI flag 显式开启；
 - 已将 helper readiness、failure kind、phase、risk、evidence、diagnostics
   映射回 `ComputerUseObservation.metadata`；
 - 已将 computer-use/backend readiness 投射到
@@ -935,6 +953,7 @@ Helper 返回：
 - fixed dev bundle id；（dev `Info.plist` implemented）
 - helper startup；（dev CLI + manifest implemented）
 - readiness from helper process；（requires running generated app manually）
+- optional helper app auto-launch；（implemented; explicit opt-in only）
 - Accessibility prompt guidance。
 
 ### H3: Plato Adapter To Helper

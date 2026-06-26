@@ -267,6 +267,9 @@ Implementation status as of 2026-06-27:
 - A dev helper `.app` scaffold builder now writes `Info.plist`, fixed dev
   bundle id, launcher config, and `Contents/MacOS/PlatoComputerUseHelper` via
   `taskweavn computer-use-helper-app`.
+- Helper backend now supports explicit opt-in auto-launch from a configured
+  helper app path and waits for the helper manifest before connecting. This is
+  disabled by default and does not grant macOS permissions.
 - Settings readiness now exposes a `computerUse` section sourced from the
   selected backend. Enabled-but-not-ready computer-use degrades readiness with
   a `computer_use.not_ready` warning and safe recovery actions.
@@ -277,6 +280,27 @@ Implementation status as of 2026-06-27:
 - Release-grade `Plato Computer Use Helper.app`, stable TCC identity validation
   from a helper-owned packaged/embedded executable, Settings UI details, and
   release packaging are still pending.
+
+Dev helper launch configuration:
+
+```bash
+uv run taskweavn plato-dev \
+  --computer-use-backend helper \
+  --computer-use-helper-manifest "$HOME/Library/Application Support/PlatoDev/computer-use-helper.json" \
+  --computer-use-helper-app-path "$HOME/Applications/Plato Computer Use Helper Dev.app" \
+  --computer-use-helper-auto-launch \
+  --computer-use-allowed-apps WeChat,TextEdit
+```
+
+Equivalent environment variables:
+
+```text
+PLATO_COMPUTER_USE_BACKEND=helper
+PLATO_COMPUTER_USE_HELPER_MANIFEST=~/Library/Application Support/PlatoDev/computer-use-helper.json
+PLATO_COMPUTER_USE_HELPER_APP_PATH=~/Applications/Plato Computer Use Helper Dev.app
+PLATO_COMPUTER_USE_HELPER_AUTO_LAUNCH=1
+PLATO_COMPUTER_USE_ALLOWED_APPS=WeChat,TextEdit
+```
 
 ### M0. Package Boundary And Skeleton
 
