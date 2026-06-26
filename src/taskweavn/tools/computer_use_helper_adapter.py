@@ -116,26 +116,14 @@ class ComputerUseHelperBackend(ComputerUseBackend):
             manifest = self._read_manifest_or_launch_helper()
             if manifest is None:
                 return None
-            manifest_error = _helper_identity_error(
+            manifest_client = self._client_from_manifest(
                 manifest,
-                expected_bundle_id=self._config.expected_bundle_id,
-                expected_api_version=self._config.expected_api_version,
+                endpoint_override=endpoint,
+                token_override=token,
             )
-            if manifest_error is not None:
-                self._setup_error = manifest_error.message
-                self._setup_failure_kind = manifest_error.failure_kind
+            if manifest_client is None:
                 return None
-            endpoint = endpoint or _string(manifest.get("endpoint"))
-            token = token or _string(manifest.get("token"))
-            token_ref = _string(manifest.get("tokenRef")) or _string(
-                manifest.get("token_ref")
-            )
-            if token is None and token_ref:
-                try:
-                    token = Path(token_ref).expanduser().read_text(encoding="utf-8").strip()
-                except OSError as exc:
-                    self._setup_error = f"helper token unavailable: {exc}"
-                    return None
+            return manifest_client
         if not endpoint:
             self._setup_error = (
                 "Plato Computer Use Helper endpoint is not configured. "
@@ -143,6 +131,46 @@ class ComputerUseHelperBackend(ComputerUseBackend):
                 "PLATO_COMPUTER_USE_HELPER_ENDPOINT."
             )
             return None
+        return self._build_client(endpoint=endpoint, token=token)
+
+    def _client_from_manifest(
+        self,
+        manifest: Mapping[str, Any],
+        *,
+        endpoint_override: str | None = None,
+        token_override: str | None = None,
+    ) -> ComputerUseHelperClientProtocol | None:
+        manifest_error = _helper_identity_error(
+            manifest,
+            expected_bundle_id=self._config.expected_bundle_id,
+            expected_api_version=self._config.expected_api_version,
+        )
+        if manifest_error is not None:
+            self._setup_error = manifest_error.message
+            self._setup_failure_kind = manifest_error.failure_kind
+            return None
+        endpoint = endpoint_override or _string(manifest.get("endpoint"))
+        token = token_override or _string(manifest.get("token"))
+        token_ref = _string(manifest.get("tokenRef")) or _string(
+            manifest.get("token_ref")
+        )
+        if token is None and token_ref:
+            try:
+                token = Path(token_ref).expanduser().read_text(encoding="utf-8").strip()
+            except OSError as exc:
+                self._setup_error = f"helper token unavailable: {exc}"
+                return None
+        if not endpoint:
+            self._setup_error = "helper manifest does not include an endpoint."
+            return None
+        return self._build_client(endpoint=endpoint, token=token)
+
+    def _build_client(
+        self,
+        *,
+        endpoint: str,
+        token: str | None,
+    ) -> ComputerUseHelperClientProtocol:
         return ComputerUseHelperHttpClient(
             endpoint=endpoint,
             token=token,
@@ -151,6 +179,32 @@ class ComputerUseHelperBackend(ComputerUseBackend):
             allow_screenshot=self._config.allow_screenshot,
             timeout_seconds=self._config.timeout_seconds,
         )
+
+    def _relaunch_helper_and_reload_client(
+        self,
+        *,
+        initial_error: Exception,
+    ) -> ComputerUseHelperClientProtocol | None:
+        if (
+            not self._config.helper_auto_launch
+            or self._config.endpoint_manifest_path is None
+            or self._config.helper_app_path is None
+        ):
+            return None
+        manifest = self._launch_helper_and_read_manifest(
+            manifest_path=self._config.endpoint_manifest_path,
+            initial_error=initial_error,
+        )
+        if manifest is None:
+            return None
+        client = self._client_from_manifest(
+            manifest,
+            endpoint_override=self._config.endpoint,
+            token_override=self._config.token,
+        )
+        if client is not None:
+            self._client = client
+        return client
 
     def _read_manifest_or_launch_helper(self) -> dict[str, Any] | None:
         assert self._config.endpoint_manifest_path is not None
@@ -225,13 +279,47 @@ class ComputerUseHelperBackend(ComputerUseBackend):
         try:
             response = self._client.readiness()
         except Exception as exc:  # noqa: BLE001 - helper boundary must sanitize.
+            refreshed_client = self._relaunch_helper_and_reload_client(
+                initial_error=exc,
+            )
+            if refreshed_client is not None:
+                try:
+                    response = refreshed_client.readiness()
+                except Exception as retry_exc:  # noqa: BLE001
+                    return ComputerUseObservation(
+                        action_id=action_id,
+                        success=False,
+                        operation="readiness",
+                        status="failed",
+                        summary=(
+                            "Plato Computer Use Helper readiness failed after "
+                            f"relaunch: {type(retry_exc).__name__}"
+                        ),
+                        metadata={
+                            "provider": "helper",
+                            "failure_kind": "helper_not_running",
+                            "error": str(retry_exc),
+                            "previous_error": str(exc),
+                        },
+                    )
+                return _helper_response_to_observation(
+                    operation="readiness",
+                    action_id=action_id,
+                    response=response,
+                    expected_bundle_id=self._config.expected_bundle_id,
+                    expected_api_version=self._config.expected_api_version,
+                )
             return ComputerUseObservation(
                 action_id=action_id,
                 success=False,
                 operation="readiness",
                 status="failed",
                 summary=f"Plato Computer Use Helper readiness failed: {type(exc).__name__}",
-                metadata={"error": str(exc)},
+                metadata={
+                    "provider": "helper",
+                    "failure_kind": "helper_not_running",
+                    "error": str(exc),
+                },
             )
         return _helper_response_to_observation(
             operation="readiness",
@@ -254,13 +342,47 @@ class ComputerUseHelperBackend(ComputerUseBackend):
         try:
             response = self._client.execute(action)
         except Exception as exc:  # noqa: BLE001 - helper boundary must sanitize.
+            refreshed_client = self._relaunch_helper_and_reload_client(
+                initial_error=exc,
+            )
+            if refreshed_client is not None:
+                try:
+                    response = refreshed_client.execute(action)
+                except Exception as retry_exc:  # noqa: BLE001
+                    return ComputerUseObservation(
+                        action_id=action.event_id,
+                        success=False,
+                        operation=action.operation,
+                        status="failed",
+                        summary=(
+                            "Plato Computer Use Helper operation failed after "
+                            f"relaunch: {type(retry_exc).__name__}"
+                        ),
+                        metadata={
+                            "provider": "helper",
+                            "failure_kind": "helper_not_running",
+                            "error": str(retry_exc),
+                            "previous_error": str(exc),
+                        },
+                    )
+                return _helper_response_to_observation(
+                    operation=action.operation,
+                    action_id=action.event_id,
+                    response=response,
+                    expected_bundle_id=self._config.expected_bundle_id,
+                    expected_api_version=self._config.expected_api_version,
+                )
             return ComputerUseObservation(
                 action_id=action.event_id,
                 success=False,
                 operation=action.operation,
                 status="failed",
                 summary=f"Plato Computer Use Helper operation failed: {type(exc).__name__}",
-                metadata={"error": str(exc)},
+                metadata={
+                    "provider": "helper",
+                    "failure_kind": "helper_not_running",
+                    "error": str(exc),
+                },
             )
         return _helper_response_to_observation(
             operation=action.operation,

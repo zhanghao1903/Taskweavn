@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
@@ -25,6 +26,19 @@ class FakeHelperClient:
     def execute(self, action: ComputerUseAction) -> dict[str, Any]:
         self.actions.append(action)
         return self.response
+
+
+class FailingHelperClient:
+    def __init__(self, message: str = "helper connection failed") -> None:
+        self.message = message
+        self.actions: list[ComputerUseAction] = []
+
+    def readiness(self) -> dict[str, Any]:
+        raise RuntimeError(self.message)
+
+    def execute(self, action: ComputerUseAction) -> dict[str, Any]:
+        self.actions.append(action)
+        raise RuntimeError(self.message)
 
 
 def test_helper_backend_reports_missing_connection_as_not_available() -> None:
@@ -343,6 +357,88 @@ def test_helper_backend_auto_launches_app_and_waits_for_manifest(
 
     assert launches == [app_path]
     assert backend._client is not None
+
+
+def test_helper_backend_relaunches_when_existing_manifest_endpoint_is_stale(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app_path = tmp_path / "Plato Computer Use Helper Dev.app"
+    app_path.mkdir()
+    manifest_path = tmp_path / "helper.json"
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "endpoint": "http://127.0.0.1:9",
+                "bundleId": "com.taskweavn.plato.computer-use-helper.dev",
+                "apiVersion": "plato.computer_use_helper.v1",
+            }
+        ),
+        encoding="utf-8",
+    )
+    launches: list[Path] = []
+    manifests_seen: list[Mapping[str, Any]] = []
+
+    def launcher(path: Path) -> None:
+        launches.append(path)
+        manifest_path.write_text(
+            json.dumps(
+                {
+                    "endpoint": "http://127.0.0.1:49322",
+                    "bundleId": "com.taskweavn.plato.computer-use-helper.dev",
+                    "apiVersion": "plato.computer_use_helper.v1",
+                }
+            ),
+            encoding="utf-8",
+        )
+
+    backend = ComputerUseHelperBackend(
+        client=FailingHelperClient(),
+        config=ComputerUseHelperBackendConfig(
+            endpoint_manifest_path=manifest_path,
+            helper_app_path=app_path,
+            helper_auto_launch=True,
+            helper_launch_timeout_seconds=0.1,
+            helper_app_launcher=launcher,
+            expected_bundle_id="com.taskweavn.plato.computer-use-helper.dev",
+        ),
+    )
+
+    def client_from_manifest(
+        manifest: Mapping[str, Any],
+        *,
+        endpoint_override: str | None = None,
+        token_override: str | None = None,
+    ) -> FakeHelperClient:
+        assert endpoint_override is None
+        assert token_override is None
+        manifests_seen.append(manifest)
+        return FakeHelperClient(
+            {
+                "status": "ready",
+                "summary": "Helper relaunched.",
+                "helper": {
+                    "bundleId": "com.taskweavn.plato.computer-use-helper.dev",
+                    "apiVersion": "plato.computer_use_helper.v1",
+                },
+            }
+        )
+
+    monkeypatch.setattr(backend, "_client_from_manifest", client_from_manifest)
+
+    observation = backend.readiness()
+
+    assert launches == [app_path]
+    assert manifests_seen == [
+        {
+            "endpoint": "http://127.0.0.1:49322",
+            "bundleId": "com.taskweavn.plato.computer-use-helper.dev",
+            "apiVersion": "plato.computer_use_helper.v1",
+        }
+    ]
+    assert observation.success is True
+    assert observation.status == "ok"
+    assert observation.summary == "Helper relaunched."
 
 
 def test_helper_backend_reports_missing_helper_app_for_auto_launch(

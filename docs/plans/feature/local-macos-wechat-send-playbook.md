@@ -272,9 +272,12 @@ Structured stale-helper-manifest preflight on 2026-06-27:
   - `wechatAppSummary=Request failed for POST /v1/apps/wechat/readiness: <urlopen error [Errno 61] Connection refused>`
 - interpretation: the sidecar can run, but the helper manifest points to a
   dead helper endpoint. No task should be published. Relaunch the helper or
-  regenerate the manifest, then rerun helper-backed preflight. The preflight
-  evidence now preserves safe helper manifest identity while excluding
-  `tokenRef` and token values.
+  regenerate the manifest, then rerun helper-backed preflight. If the sidecar is
+  started with both `--computer-use-helper-app-path` and
+  `--computer-use-helper-auto-launch`, the helper backend can now relaunch the
+  helper, refresh the stale manifest endpoint, rebuild the helper client, and
+  retry the current helper request once. The preflight evidence preserves safe
+  helper manifest identity while excluding `tokenRef` and token values.
 
 ### 6.3 Helper-Backed Contact Resolution Progress
 
