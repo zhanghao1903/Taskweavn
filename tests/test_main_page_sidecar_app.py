@@ -42,6 +42,7 @@ from tests.fixtures.main_page_sidecar_app import (
     _agent_loop_tool_call_response,
     _AgentLoopLLM,
     _AgentLoopSequencedLLM,
+    _build_stubbed_sidecar_app,
     _computer_use_task_request,
     _create_session,
     _FakeDefaultAgent,
@@ -66,23 +67,19 @@ def test_main_page_sidecar_config_uses_stable_dev_port_by_default(
 def test_main_page_sidecar_exposes_effective_runtime_config(
     tmp_path: Any,
 ) -> None:
-    app = build_main_page_sidecar_app(
-        MainPageSidecarConfig(
-            workspace_root=tmp_path,
-            port=0,
-            default_agent_max_steps=7,
-            context_checkpoint_interval_steps=4,
-            context_max_prior_messages=12,
-            context_budget_max_events=11,
-            enable_execution_dispatcher=False,
-            execution_dispatcher_max_ticks_per_trigger=3,
-            enable_read_only_inquiry_llm=False,
-            enable_computer_use_tool=True,
-            computer_use_backend_name="macos",
-            computer_use_allowed_apps=("WeChat", "TextEdit"),
-            logging_level="DEBUG",
-        ),
-        MainPageSidecarDependencies(llm=_StubLLM()),
+    app = _build_stubbed_sidecar_app(
+        tmp_path,
+        default_agent_max_steps=7,
+        context_checkpoint_interval_steps=4,
+        context_max_prior_messages=12,
+        context_budget_max_events=11,
+        enable_execution_dispatcher=False,
+        execution_dispatcher_max_ticks_per_trigger=3,
+        enable_read_only_inquiry_llm=False,
+        enable_computer_use_tool=True,
+        computer_use_backend_name="macos",
+        computer_use_allowed_apps=("WeChat", "TextEdit"),
+        logging_level="DEBUG",
     )
     try:
         response = _request(app, "GET", "/api/v1/runtime/config/effective")
@@ -109,13 +106,9 @@ def test_main_page_sidecar_exposes_effective_runtime_config(
 def test_main_page_sidecar_runtime_config_patch_route_persists_change(
     tmp_path: Any,
 ) -> None:
-    app = build_main_page_sidecar_app(
-        MainPageSidecarConfig(
-            workspace_root=tmp_path,
-            port=0,
-            current_workspace_id="workspace-1",
-        ),
-        MainPageSidecarDependencies(llm=_StubLLM()),
+    app = _build_stubbed_sidecar_app(
+        tmp_path,
+        current_workspace_id="workspace-1",
     )
     try:
         patch = _request(
@@ -157,13 +150,7 @@ def test_main_page_sidecar_uses_guarded_llm_inquiry_provider_by_default(
     tmp_path: Any,
 ) -> None:
     llm = _AgentLoopLLM("{}")
-    app = build_main_page_sidecar_app(
-        MainPageSidecarConfig(
-            workspace_root=tmp_path,
-            port=0,
-        ),
-        MainPageSidecarDependencies(llm=llm),
-    )
+    app = _build_stubbed_sidecar_app(tmp_path, llm=llm)
     try:
         session_id = _create_session(app)
         llm.final_answer = json.dumps(
@@ -207,13 +194,10 @@ def test_main_page_sidecar_can_disable_guarded_llm_inquiry_provider(
     tmp_path: Any,
 ) -> None:
     llm = _AgentLoopLLM("{}")
-    app = build_main_page_sidecar_app(
-        MainPageSidecarConfig(
-            workspace_root=tmp_path,
-            port=0,
-            enable_read_only_inquiry_llm=False,
-        ),
-        MainPageSidecarDependencies(llm=llm),
+    app = _build_stubbed_sidecar_app(
+        tmp_path,
+        llm=llm,
+        enable_read_only_inquiry_llm=False,
     )
     try:
         session_id = _create_session(app)
@@ -250,10 +234,7 @@ def test_main_page_sidecar_app_exposes_settings_readiness_without_secret(
     monkeypatch.setenv("LLM_API_KEY", "sk-sidecar-readiness-secret")
     monkeypatch.setenv("LLM_MODEL", "deepseek-v4-pro")
 
-    app = build_main_page_sidecar_app(
-        MainPageSidecarConfig(workspace_root=tmp_path, port=0),
-        MainPageSidecarDependencies(llm=_StubLLM()),
-    )
+    app = _build_stubbed_sidecar_app(tmp_path)
     try:
         response = _request(app, "GET", "/api/v1/settings/readiness")
     finally:
@@ -285,10 +266,7 @@ def test_main_page_sidecar_app_saves_settings_config_and_refreshes_readiness(
         monkeypatch.delenv(key, raising=False)
     secret = "sk-sidecar-settings-secret"
 
-    app = build_main_page_sidecar_app(
-        MainPageSidecarConfig(workspace_root=tmp_path, port=0),
-        MainPageSidecarDependencies(llm=_StubLLM()),
-    )
+    app = _build_stubbed_sidecar_app(tmp_path)
     try:
         initial = _request(app, "GET", "/api/v1/settings/readiness")
         saved = _request(
@@ -344,13 +322,9 @@ def test_main_page_sidecar_app_saves_settings_config_to_global_root(
     global_settings_root = tmp_path / "plato-user-data"
     secret = "sk-global-settings-secret"
 
-    app = build_main_page_sidecar_app(
-        MainPageSidecarConfig(
-            workspace_root=workspace_root,
-            global_settings_root=global_settings_root,
-            port=0,
-        ),
-        MainPageSidecarDependencies(llm=_StubLLM()),
+    app = _build_stubbed_sidecar_app(
+        workspace_root,
+        global_settings_root=global_settings_root,
     )
     try:
         saved = _request(
@@ -472,13 +446,7 @@ def test_audit_sidecar_smoke_fixture_uses_workspace_registry_id(
 def test_build_main_page_sidecar_app_starts_without_session_and_frontend_creates_one(
     tmp_path: Any,
 ) -> None:
-    app = build_main_page_sidecar_app(
-        MainPageSidecarConfig(
-            workspace_root=tmp_path,
-            port=0,
-        ),
-        MainPageSidecarDependencies(llm=_StubLLM()),
-    )
+    app = _build_stubbed_sidecar_app(tmp_path)
     try:
         listed = _request(app, "GET", "/api/v1/sessions")
         created = _request(app, "POST", "/api/v1/sessions", body={"name": "Demo session"})
@@ -506,10 +474,7 @@ def test_build_main_page_sidecar_app_reuses_existing_session(tmp_path: Any) -> N
     finally:
         manager.close()
 
-    app = build_main_page_sidecar_app(
-        MainPageSidecarConfig(workspace_root=tmp_path, session_id=session.id, port=0),
-        MainPageSidecarDependencies(llm=_StubLLM()),
-    )
+    app = _build_stubbed_sidecar_app(tmp_path, session_id=session.id)
     try:
         assert app.session is not None
         assert app.session.id == session.id
@@ -528,10 +493,7 @@ def test_build_main_page_sidecar_app_initializes_existing_session_logs(
     finally:
         manager.close()
 
-    app = build_main_page_sidecar_app(
-        MainPageSidecarConfig(workspace_root=tmp_path, session_id=session.id, port=0),
-        MainPageSidecarDependencies(llm=_StubLLM()),
-    )
+    app = _build_stubbed_sidecar_app(tmp_path, session_id=session.id)
     try:
         get_logging_manager().emit(
             "session",
@@ -561,10 +523,7 @@ def test_build_main_page_sidecar_app_initializes_existing_session_logs(
 
 
 def test_session_lifecycle_create_initializes_session_logs(tmp_path: Any) -> None:
-    app = build_main_page_sidecar_app(
-        MainPageSidecarConfig(workspace_root=tmp_path, port=0),
-        MainPageSidecarDependencies(llm=_StubLLM()),
-    )
+    app = _build_stubbed_sidecar_app(tmp_path)
     try:
         session_id = _create_session(app)
         session = app.session_manager.require(session_id)
@@ -580,10 +539,7 @@ def test_session_lifecycle_create_initializes_session_logs(tmp_path: Any) -> Non
 
 
 def test_main_page_sidecar_app_session_lifecycle_routes(tmp_path: Any) -> None:
-    app = build_main_page_sidecar_app(
-        MainPageSidecarConfig(workspace_root=tmp_path, port=0),
-        MainPageSidecarDependencies(llm=_StubLLM()),
-    )
+    app = _build_stubbed_sidecar_app(tmp_path)
     try:
         first = _request(app, "POST", "/api/v1/sessions", body={"name": "First"})
         first_id = first.json["data"]["sessionId"]
