@@ -34,6 +34,7 @@ type CommandErrorSetter = (
 ) => void;
 
 export type RuntimeInputMutationContext = {
+  commandId: string;
   content: string;
   routeMode: RuntimeInputMode;
   sessionId: string;
@@ -46,6 +47,18 @@ export type UseMainPageRuntimeInputMutationOptions = {
   adapter: MainPageAdapter;
   getSnapshotData: () => MainPageRuntimeSnapshot | undefined;
   refetchSnapshot: () => Promise<SnapshotRefetchResult>;
+  acceptRuntimeInputSubmit: (commandId: string) => void;
+  failRuntimeInputSubmit: (context: {
+    commandId: string;
+    message: string;
+    recoveryActions: ProductRecoveryAction[];
+  }) => void;
+  reconcileRuntimeInputSubmit: (commandId: string) => void;
+  rejectRuntimeInputSubmit: (context: {
+    commandId: string;
+    message: string;
+    recoveryActions: ProductRecoveryAction[];
+  }) => void;
   setActiveRuntimeInputMode: (mode: RuntimeInputMode | null) => void;
   setInputCommandError: CommandErrorSetter;
   setInputDraft: (draft: string) => void;
@@ -53,6 +66,18 @@ export type UseMainPageRuntimeInputMutationOptions = {
     SetStateAction<SessionActivityItemView[]>
   >;
   setUiNotice: (notice: string | null) => void;
+  startRuntimeInputSubmit: (context: {
+    body: string;
+    commandId: string;
+    createdAt: string;
+    scope: {
+      scopeKind: "session" | "plan" | "task";
+      planId: string | null;
+      taskNodeId: TaskNodeId | null;
+    };
+    sessionId: string;
+    workspaceId: WorkspaceId | null;
+  }) => void;
 };
 
 export function useMainPageRuntimeInputMutation({
@@ -60,14 +85,20 @@ export function useMainPageRuntimeInputMutation({
   adapter,
   getSnapshotData,
   refetchSnapshot,
+  acceptRuntimeInputSubmit,
+  failRuntimeInputSubmit,
+  reconcileRuntimeInputSubmit,
+  rejectRuntimeInputSubmit,
   setActiveRuntimeInputMode,
   setInputCommandError,
   setInputDraft,
   setRuntimeActivityItems,
   setUiNotice,
+  startRuntimeInputSubmit,
 }: UseMainPageRuntimeInputMutationOptions) {
   return useMutation({
     mutationFn: async ({
+      commandId,
       content,
       routeMode,
       sessionId,
@@ -79,6 +110,7 @@ export function useMainPageRuntimeInputMutation({
       }
 
       const request = buildRuntimeInputRouteRequest({
+        commandId,
         content,
         mode: routeMode,
         sessionId,
@@ -92,17 +124,64 @@ export function useMainPageRuntimeInputMutation({
       );
       return { request, response };
     },
-    onError: () => {
-      setInputCommandError("Question routing failed. Please retry.");
+    onError: (_error, variables) => {
+      const message = "Question routing failed. Please retry.";
+      failRuntimeInputSubmit({
+        commandId: variables.commandId,
+        message,
+        recoveryActions: [],
+      });
+      setInputCommandError(message);
+    },
+    onMutate: ({
+      commandId,
+      content,
+      routeMode,
+      sessionId,
+      target,
+      taskNodeId,
+    }) => {
+      const request = buildRuntimeInputRouteRequest({
+        commandId,
+        content,
+        mode: routeMode,
+        sessionId,
+        snapshot: getSnapshotData()?.snapshot ?? null,
+        target,
+        taskNodeId,
+      });
+
+      startRuntimeInputSubmit({
+        body: request.content,
+        commandId: request.commandId,
+        createdAt: new Date().toISOString(),
+        scope: {
+          planId: request.selection.planId ?? null,
+          scopeKind: request.selection.scopeKind,
+          taskNodeId: request.selection.taskNodeId ?? null,
+        },
+        sessionId: request.sessionId,
+        workspaceId: activeWorkspaceId,
+      });
     },
     onSettled: () => {
       setActiveRuntimeInputMode(null);
     },
     onSuccess: ({ request, response }) => {
       if (!response.ok || response.data === null) {
+        const message =
+          response.error?.message ?? "Question could not be answered.";
+        const recoveryActions = productRecoveryActionsFromApiError(
+          response.error,
+        );
+        rejectRuntimeInputSubmit({
+          commandId: request.commandId,
+          message,
+          recoveryActions,
+        });
         setInputCommandError(
-          response.error?.message ?? "Question could not be answered.",
-          productRecoveryActionsFromApiError(response.error),
+          message,
+          recoveryActions,
         );
         return;
       }
@@ -118,6 +197,11 @@ export function useMainPageRuntimeInputMutation({
         );
 
         if (commandResult.errorMessage) {
+          rejectRuntimeInputSubmit({
+            commandId: request.commandId,
+            message: commandResult.errorMessage,
+            recoveryActions: commandResult.recoveryActions,
+          });
           setInputCommandError(
             commandResult.errorMessage,
             commandResult.recoveryActions,
@@ -125,6 +209,8 @@ export function useMainPageRuntimeInputMutation({
           return;
         }
 
+        acceptRuntimeInputSubmit(request.commandId);
+        reconcileRuntimeInputSubmit(request.commandId);
         setInputCommandError(null);
         setInputDraft("");
         setUiNotice(routeResult.outcome.userMessage);
@@ -144,6 +230,7 @@ export function useMainPageRuntimeInputMutation({
           ...(runtimeActivity === null ? [] : [runtimeActivity]),
         ];
         if (runtimeActivities.length > 0) {
+          reconcileRuntimeInputSubmit(request.commandId);
           setRuntimeActivityItems((items) =>
             prependRuntimeActivityItems(items, runtimeActivities),
           );
@@ -155,6 +242,11 @@ export function useMainPageRuntimeInputMutation({
         return;
       }
 
+      rejectRuntimeInputSubmit({
+        commandId: request.commandId,
+        message: routeResult.outcome.userMessage,
+        recoveryActions: routeResult.outcome.recoveryActions,
+      });
       setInputCommandError(
         routeResult.outcome.userMessage,
         routeResult.outcome.recoveryActions,

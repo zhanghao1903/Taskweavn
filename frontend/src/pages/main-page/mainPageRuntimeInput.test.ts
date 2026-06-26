@@ -70,6 +70,22 @@ describe("mainPageRuntimeInput", () => {
     });
   });
 
+  it("uses an explicit runtime input command id when provided", () => {
+    vi.spyOn(Date, "now").mockReturnValue(123);
+
+    const request = buildRuntimeInputRouteRequest({
+      commandId: "route-input-explicit",
+      content: "Please continue",
+      mode: "guide",
+      sessionId: "session-1",
+      snapshot: null,
+      target: "session",
+      taskNodeId: null,
+    });
+
+    expect(request.commandId).toBe("route-input-explicit");
+  });
+
   it("uses answer content as the runtime notice", () => {
     const result = {
       inquiryResult: {

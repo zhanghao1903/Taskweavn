@@ -54,6 +54,18 @@ export type UseMainPageCommandMutationsOptions = {
   adapter: MainPageAdapter;
   getSnapshotData: () => MainPageRuntimeSnapshot | undefined;
   refetchSnapshot: () => Promise<SnapshotRefetchResult>;
+  acceptRuntimeInputSubmit: (commandId: string) => void;
+  failRuntimeInputSubmit: (context: {
+    commandId: string;
+    message: string;
+    recoveryActions: ProductRecoveryAction[];
+  }) => void;
+  reconcileRuntimeInputSubmit: (commandId: string) => void;
+  rejectRuntimeInputSubmit: (context: {
+    commandId: string;
+    message: string;
+    recoveryActions: ProductRecoveryAction[];
+  }) => void;
   setActiveRuntimeInputMode: (mode: RuntimeInputMode | null) => void;
   setAuthoringAskCommandError: CommandErrorSetter;
   setConfirmationCommandError: CommandErrorSetter;
@@ -69,6 +81,18 @@ export type UseMainPageCommandMutationsOptions = {
   setTaskTreeCommandError: (message: string | null) => void;
   setTaskTreeCommandFailure: CommandErrorSetter;
   setUiNotice: (notice: string | null) => void;
+  startRuntimeInputSubmit: (context: {
+    body: string;
+    commandId: string;
+    createdAt: string;
+    scope: {
+      scopeKind: "session" | "plan" | "task";
+      planId: string | null;
+      taskNodeId: TaskNodeId | null;
+    };
+    sessionId: string;
+    workspaceId: WorkspaceId | null;
+  }) => void;
 };
 
 export function useMainPageCommandMutations({
@@ -76,6 +100,10 @@ export function useMainPageCommandMutations({
   adapter,
   getSnapshotData,
   refetchSnapshot,
+  acceptRuntimeInputSubmit,
+  failRuntimeInputSubmit,
+  reconcileRuntimeInputSubmit,
+  rejectRuntimeInputSubmit,
   setActiveRuntimeInputMode,
   setAuthoringAskCommandError,
   setConfirmationCommandError,
@@ -89,6 +117,7 @@ export function useMainPageCommandMutations({
   setTaskTreeCommandError,
   setTaskTreeCommandFailure,
   setUiNotice,
+  startRuntimeInputSubmit,
 }: UseMainPageCommandMutationsOptions) {
   const {
     answerAskMutation,
@@ -121,11 +150,16 @@ export function useMainPageCommandMutations({
     adapter,
     getSnapshotData,
     refetchSnapshot,
+    acceptRuntimeInputSubmit,
+    failRuntimeInputSubmit,
+    reconcileRuntimeInputSubmit,
+    rejectRuntimeInputSubmit,
     setActiveRuntimeInputMode,
     setInputCommandError,
     setInputDraft,
     setRuntimeActivityItems,
     setUiNotice,
+    startRuntimeInputSubmit,
   });
 
   const {

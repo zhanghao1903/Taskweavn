@@ -28,7 +28,10 @@ import {
   useMainPageSessionIdentityState,
 } from "./useMainPageSessionIdentityState";
 import { useMainPageUiNoticeState } from "./useMainPageUiNoticeState";
-import { runtimeInputModeFor } from "./mainPageRuntimeInput";
+import {
+  createRuntimeInputCommandId,
+  runtimeInputModeFor,
+} from "./mainPageRuntimeInput";
 import {
   useMainPageCommandMutations,
   type AnswerAuthoringAskBatchContext,
@@ -193,13 +196,19 @@ export function useMainPageController({
     setUiNotice,
   });
   const {
+    acceptRuntimeInputSubmit,
     activeRuntimeInputMode,
     changeInputDraft,
+    failRuntimeInputSubmit,
+    hydrateRuntimeInputSnapshot,
     inputDraft,
+    reconcileRuntimeInputSubmit,
+    rejectRuntimeInputSubmit,
     resetInputDraft,
     runtimeActivityItems,
     setActiveRuntimeInputMode,
     setRuntimeActivityItems,
+    startRuntimeInputSubmit,
   } = useMainPageInputRuntimeState({
     activeSessionId,
     activeWorkspaceId,
@@ -258,6 +267,10 @@ export function useMainPageController({
     adapter,
     getSnapshotData: () => snapshotDataRef.current,
     refetchSnapshot,
+    acceptRuntimeInputSubmit,
+    failRuntimeInputSubmit,
+    reconcileRuntimeInputSubmit,
+    rejectRuntimeInputSubmit,
     setActiveRuntimeInputMode,
     setAuthoringAskCommandError,
     setConfirmationCommandError,
@@ -271,6 +284,7 @@ export function useMainPageController({
     setTaskTreeCommandError,
     setTaskTreeCommandFailure,
     setUiNotice,
+    startRuntimeInputSubmit,
   });
   const sessionLifecycle = useMainPageSessionLifecycle({
     activeWorkspaceId,
@@ -318,6 +332,24 @@ export function useMainPageController({
     snapshotIdentity,
   ]);
 
+  useEffect(() => {
+    const currentSnapshot = snapshotData?.snapshot;
+
+    if (!currentSnapshot) {
+      return;
+    }
+
+    hydrateRuntimeInputSnapshot({
+      messages: currentSnapshot.messages,
+      sessionId: currentSnapshot.session.id,
+      workspaceId: activeWorkspaceId,
+    });
+  }, [
+    activeWorkspaceId,
+    hydrateRuntimeInputSnapshot,
+    snapshotData?.snapshot,
+  ]);
+
   function handleStateChange(nextStateId: MainPageStateId) {
     setStateId(nextStateId);
     resetSelection();
@@ -351,9 +383,11 @@ export function useMainPageController({
     setInputCommandError(null);
     setUiNotice(null);
     if (adapter.routeRuntimeInput !== undefined) {
+      const commandId = createRuntimeInputCommandId();
       const routeMode = runtimeInputModeFor(content, mode);
       setActiveRuntimeInputMode(routeMode);
       runtimeInputMutation.mutate({
+        commandId,
         content,
         routeMode,
         sessionId,

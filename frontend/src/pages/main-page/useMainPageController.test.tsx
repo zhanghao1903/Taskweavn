@@ -255,6 +255,19 @@ describe("useMainPageController", () => {
       expect(routeRuntimeInput).toHaveBeenCalledTimes(1);
     });
     expect(result.current.activeRuntimeInputMode).toBe("ask");
+    expect(result.current.runtimeActivityItems).toHaveLength(2);
+    expect(result.current.runtimeActivityItems[0]).toMatchObject({
+      body: "明天世界杯有哪些比赛？",
+      kind: "user_input",
+      sourceKind: "router",
+      title: "User input",
+    });
+    expect(result.current.runtimeActivityItems[1]).toMatchObject({
+      body: "Understanding your request...",
+      kind: "router_interpretation",
+      sourceKind: "router",
+      title: "Plato is understanding",
+    });
 
     const request = capturedRequest;
     if (!request) {
