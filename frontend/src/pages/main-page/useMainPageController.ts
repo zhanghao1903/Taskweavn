@@ -2,7 +2,6 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 
 import type {
-  AnswerAuthoringAskItemPayload,
   ProductRecoveryAction,
   WorkspaceCatalogResult,
 } from "../../shared/api/platoApi";
@@ -48,6 +47,11 @@ import {
 } from "./mainPageRuntimeInput";
 import { handleCommandResponse } from "./runtime/commandRefresh";
 import {
+  useMainPageAuthoringCommands,
+  type AnswerAuthoringAskBatchContext,
+  type RepairAuthoringStateContext,
+} from "./useMainPageAuthoringCommands";
+import {
   useMainPageConfirmationCommands,
   type ConfirmationDecisionContext,
 } from "./useMainPageConfirmationCommands";
@@ -66,6 +70,10 @@ import {
 
 const mainPageLogger = createFrontendLogger("main-page");
 
+export type {
+  AnswerAuthoringAskBatchContext,
+  RepairAuthoringStateContext,
+} from "./useMainPageAuthoringCommands";
 export type { ConfirmationDecisionContext } from "./useMainPageConfirmationCommands";
 export type {
   AnswerExecutionAskContext,
@@ -92,16 +100,6 @@ export type PublishTaskTreeContext = {
 export type ArchivePlanContext = {
   expectedVersion?: number | null;
   planId: string;
-  sessionId: string;
-};
-
-export type AnswerAuthoringAskBatchContext = {
-  answers: AnswerAuthoringAskItemPayload[];
-  rawTaskId: string;
-  sessionId: string;
-};
-
-export type RepairAuthoringStateContext = {
   sessionId: string;
 };
 
@@ -418,73 +416,16 @@ export function useMainPageController({
     setConfirmationCommandError,
   });
 
-  const answerAuthoringAskBatchMutation = useMutation({
-    mutationFn: async ({
-      answers,
-      rawTaskId,
-      sessionId,
-    }: AnswerAuthoringAskBatchContext) =>
-      adapter.answerAuthoringAskBatch(sessionId, rawTaskId, {
-        commandId: `answer-authoring-asks-${rawTaskId}-${Date.now()}`,
-        sessionId,
-        payload: {
-          answers,
-        },
-      }, activeWorkspaceId),
-    onError: () => {
-      setAuthoringAskCommandError("Answer submission failed. Please retry.");
-    },
-    onSuccess: (response) => {
-      const result = handleCommandResponse(
-        response,
-        "Answer submission was rejected.",
-      );
-
-      if (result.errorMessage) {
-        setAuthoringAskCommandError(
-          result.errorMessage,
-          result.recoveryActions,
-        );
-        return;
-      }
-
-      setAuthoringAskCommandError(null);
-      setUiNotice("Authoring answers submitted.");
-      if (result.shouldRefetch) {
-        void refetchSnapshot();
-      }
-    },
-  });
-
-  const repairAuthoringStateMutation = useMutation({
-    mutationFn: async ({ sessionId }: RepairAuthoringStateContext) =>
-      adapter.repairAuthoringState({
-        commandId: `repair-authoring-state-${Date.now()}`,
-        sessionId,
-        payload: {
-          reason: "dirty_authoring_state",
-        },
-      }, activeWorkspaceId),
-    onError: () => {
-      setTaskTreeCommandError("Authoring repair failed. Please retry.");
-    },
-    onSuccess: (response) => {
-      const result = handleCommandResponse(
-        response,
-        "Authoring repair was rejected.",
-      );
-
-      if (result.errorMessage) {
-        setTaskTreeCommandError(result.errorMessage);
-        return;
-      }
-
-      setTaskTreeCommandError(null);
-      setUiNotice("Authoring state repaired.");
-      if (result.shouldRefetch) {
-        void refetchSnapshot();
-      }
-    },
+  const {
+    answerAuthoringAskBatchMutation,
+    repairAuthoringStateMutation,
+  } = useMainPageAuthoringCommands({
+    activeWorkspaceId,
+    adapter,
+    refetchSnapshot,
+    setAuthoringAskCommandError,
+    setTaskTreeCommandError,
+    setUiNotice,
   });
 
   const {
