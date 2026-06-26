@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 
 import type {
   ProductRecoveryAction,
@@ -23,6 +23,7 @@ import type {
 } from "./runtime/adapter";
 import { useMainPageCommandErrorState } from "./useMainPageCommandErrorState";
 import { useMainPageInputRuntimeState } from "./useMainPageInputRuntimeState";
+import { useMainPageUiNoticeState } from "./useMainPageUiNoticeState";
 import { runtimeInputModeFor } from "./mainPageRuntimeInput";
 import {
   useMainPageCommandMutations,
@@ -144,10 +145,7 @@ export function useMainPageController({
   initialTaskNodeId = null,
 }: UseMainPageControllerOptions): MainPageController {
   const [stateId, setStateId] = useState<MainPageStateId>(initialStateId);
-  const [uiNotice, setUiNotice] = useState<string | null>(null);
-  const clearUiNotice = useCallback(() => {
-    setUiNotice(null);
-  }, []);
+  const { clearUiNotice, setUiNotice, uiNotice } = useMainPageUiNoticeState();
   const {
     authoringAskError,
     authoringAskRecoveryActions,
