@@ -1,5 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
 import type {
   ProductRecoveryAction,
@@ -12,12 +11,6 @@ import type {
   TaskNodeId,
   WorkspaceId,
 } from "../../shared/api/types";
-import { summarizeMainPageSnapshot } from "../../shared/api/traceSummary";
-import {
-  createFrontendLogger,
-  summarizeLoggableError,
-  toLoggableError,
-} from "../../shared/logging/frontendLogger";
 import type {
   DetailOverride,
   EventConnectionStatus,
@@ -27,10 +20,6 @@ import type { MainPageStateId } from "./mockPlatoApi";
 import type {
   MainPageAdapter,
   MainPageRuntimeSnapshot,
-} from "./runtime/adapter";
-import {
-  mainPageSnapshotIdentity,
-  mainPageSnapshotQueryKey,
 } from "./runtime/adapter";
 import { runtimeInputModeFor } from "./mainPageRuntimeInput";
 import {
@@ -52,8 +41,7 @@ import {
   useMainPageSessionLifecycle,
   type SessionLifecycleDialog,
 } from "./useMainPageSessionLifecycle";
-
-const mainPageLogger = createFrontendLogger("main-page");
+import { useMainPageSnapshotQuery } from "./useMainPageSnapshotQuery";
 
 export type {
   AnswerAuthoringAskBatchContext,
@@ -198,41 +186,24 @@ export function useMainPageController({
   const [activeWorkspaceId, setActiveWorkspaceId] = useState<WorkspaceId | null>(
     adapter.workspaceId ?? null,
   );
-  const workspaceCatalogQuery = useQuery({
-    enabled: adapter.loadWorkspaceCatalog !== undefined,
-    queryKey: ["main-page", "workspaces", adapter.runtimeKind],
-    queryFn: () => {
-      if (adapter.loadWorkspaceCatalog === undefined) {
-        throw new Error("Workspace catalog is unavailable.");
-      }
-      return adapter.loadWorkspaceCatalog();
-    },
+  const {
+    initialTaskNodeIdRef,
+    isSnapshotError,
+    isSnapshotPending,
+    refetchSnapshot,
+    refetchWorkspaceCatalog,
+    snapshotData,
+    snapshotDataRef,
+    snapshotError,
+    snapshotIdentity,
+    workspaceCatalog,
+  } = useMainPageSnapshotQuery({
+    activeSessionId,
+    activeWorkspaceId,
+    adapter,
+    initialTaskNodeId,
+    stateId,
   });
-  const workspaceCatalog = workspaceCatalogQuery.data ?? null;
-
-  const snapshotQuery = useQuery({
-    queryKey: mainPageSnapshotQueryKey(
-      adapter,
-      stateId,
-      activeSessionId,
-      activeWorkspaceId,
-    ),
-    queryFn: () => adapter.loadSnapshot(stateId, activeSessionId, activeWorkspaceId),
-  });
-  const snapshotData = snapshotQuery.data;
-  const snapshotDataRef = useRef(snapshotData);
-  const initialTaskNodeIdRef = useRef<TaskNodeId | null>(initialTaskNodeId);
-  snapshotDataRef.current = snapshotData;
-  const snapshotIdentity = snapshotData
-    ? mainPageSnapshotIdentity(
-        adapter,
-        stateId,
-        snapshotData,
-        activeSessionId,
-        activeWorkspaceId,
-      )
-    : null;
-  const refetchSnapshot = snapshotQuery.refetch;
   const {
     clearEventError,
     eventConnectionStatus,
@@ -244,13 +215,6 @@ export function useMainPageController({
     resetKey: snapshotIdentity,
     snapshotData,
   });
-
-  function refetchWorkspaceCatalog() {
-    if (adapter.loadWorkspaceCatalog === undefined) {
-      return;
-    }
-    void workspaceCatalogQuery.refetch();
-  }
 
   function setConfirmationCommandError(
     message: string | null,
@@ -319,36 +283,6 @@ export function useMainPageController({
   useEffect(() => {
     setRuntimeActivityItems([]);
   }, [activeSessionId, activeWorkspaceId]);
-
-  useEffect(() => {
-    if (!snapshotQuery.isError) {
-      return;
-    }
-
-    mainPageLogger.error(
-      `snapshot.query.failed ${stateId} -> ${summarizeLoggableError(
-        snapshotQuery.error,
-      )}`,
-      {
-        error: toLoggableError(snapshotQuery.error),
-        runtimeKind: adapter.runtimeKind,
-        stateId,
-      },
-    );
-  }, [adapter.runtimeKind, snapshotQuery.error, snapshotQuery.isError, stateId]);
-
-  useEffect(() => {
-    if (!snapshotData) {
-      return;
-    }
-
-    mainPageLogger.info("snapshot.query.data", {
-      ...summarizeMainPageSnapshot(snapshotData.snapshot),
-      activeSessionId,
-      runtimeKind: adapter.runtimeKind,
-      stateId,
-    });
-  }, [activeSessionId, adapter.runtimeKind, snapshotData, stateId]);
 
   const {
     answerAskMutation,
@@ -679,11 +613,11 @@ export function useMainPageController({
     activeRuntimeInputMode,
     selectionTarget,
     sessionDialog: sessionLifecycle.sessionDialog,
-    isSnapshotError: snapshotQuery.isError,
-    isSnapshotPending: snapshotQuery.isPending,
+    isSnapshotError,
+    isSnapshotPending,
     selectedTaskNodeId,
     snapshotData,
-    snapshotError: snapshotQuery.error,
+    snapshotError,
     stateId,
     taskTreeCommandError,
     taskTreeCommandRecoveryActions,
