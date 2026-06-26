@@ -364,15 +364,19 @@ end activateTarget
 on firstWindowSummary(appName)
 tell application "System Events"
   if not (exists process appName) then
-    return "status=needs_user" & linefeed & "reason=target app is not running"
+    return "status=needs_user" & linefeed & "reason=target app is not running" & linefeed & "process_exists=false" & linefeed & "window_count=0"
   end if
   tell process appName
+    set windowCount to count of windows
+    if windowCount is 0 then
+      return "status=needs_user" & linefeed & "reason=WeChat main window is unavailable; open the main WeChat window before sending." & linefeed & "process_exists=true" & linefeed & "window_count=0"
+    end if
     try
       set windowPosition to position of window 1
       set windowSize to size of window 1
-      return "status=ready" & linefeed & "window_position=" & (windowPosition as text) & linefeed & "window_size=" & (windowSize as text)
+      return "status=ready" & linefeed & "process_exists=true" & linefeed & "window_count=" & windowCount & linefeed & "window_position=" & (windowPosition as text) & linefeed & "window_size=" & (windowSize as text)
     on error errMsg
-      return "status=needs_user" & linefeed & "reason=WeChat main window is unavailable; open the main WeChat window before sending." & linefeed & "error=" & errMsg
+      return "status=needs_user" & linefeed & "reason=WeChat main window is unavailable; open the main WeChat window before sending." & linefeed & "process_exists=true" & linefeed & "window_count=" & windowCount & linefeed & "error=" & errMsg
     end try
   end tell
 end tell

@@ -14,6 +14,8 @@ def test_window_readiness_script_reopens_and_activates_wechat() -> None:
     assert "tell application appName to reopen" in script
     assert "tell application appName to activate" in script
     assert "firstWindowSummary(appName)" in script
+    assert "set windowCount to count of windows" in script
+    assert "window_count=0" in script
 
 
 def test_resolve_contact_fails_before_search_when_wechat_window_unavailable(
@@ -33,6 +35,8 @@ def test_resolve_contact_fails_before_search_when_wechat_window_unavailable(
                 "status=needs_user\n"
                 "reason=WeChat main window is unavailable; "
                 "open the main WeChat window before sending.\n"
+                "process_exists=true\n"
+                "window_count=0\n"
                 "error=Can’t get front window"
             ),
             stderr="",
@@ -58,6 +62,8 @@ def test_resolve_contact_fails_before_search_when_wechat_window_unavailable(
         "reason": (
             "WeChat main window is unavailable; open the main WeChat window before sending."
         ),
+        "process_exists": "true",
+        "window_count": "0",
         "error": "Can’t get front window",
         "setupHint": macos_driver.WECHAT_MAIN_WINDOW_SETUP_HINT,
         "recoveryActions": ",".join(macos_driver.WECHAT_MAIN_WINDOW_RECOVERY_ACTIONS),
@@ -79,7 +85,13 @@ def test_resolve_contact_continues_to_search_after_wechat_window_ready(
             return subprocess.CompletedProcess(
                 ["osascript", "-e", script],
                 0,
-                stdout="status=ready\nwindow_position=0, 0\nwindow_size=1200, 800",
+                stdout=(
+                    "status=ready\n"
+                    "process_exists=true\n"
+                    "window_count=1\n"
+                    "window_position=0, 0\n"
+                    "window_size=1200, 800"
+                ),
                 stderr="",
             )
         if len(calls) == 2:

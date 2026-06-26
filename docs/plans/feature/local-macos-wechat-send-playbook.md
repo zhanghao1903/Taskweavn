@@ -221,6 +221,19 @@ Validated recovery-action preflight on 2026-06-27:
   - `wechatAppRecoveryActions=["open_wechat_main_window", "unlock_or_login_wechat", "rerun_helper_preflight"]`
 - result: `ready=false`, and no task was published.
 
+Validated structured window-count preflight on 2026-06-27:
+
+- evidence:
+  `/tmp/plato-computer-use-smoke/helper-app-readiness-preflight-window-count-20260627.json`
+- result:
+  - `wechatAppSuccess=false`
+  - `wechatAppPhase=window_readiness`
+  - `wechatAppDiagnostics.process_exists=true`
+  - `wechatAppDiagnostics.window_count=0`
+- interpretation: WeChat is running, but it has no automatable main window.
+  Open the WeChat main window or chat list, then rerun helper-backed preflight
+  before publishing a task.
+
 ### 6.3 Helper-Backed Contact Resolution Progress
 
 Attempted on 2026-06-27 with `response=reject` and no `--allow-send`:
