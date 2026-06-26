@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import type {
   ProductRecoveryAction,
@@ -39,6 +39,7 @@ import {
   type SessionLifecycleDialog,
 } from "./useMainPageSessionLifecycle";
 import { useMainPageSelectionState } from "./useMainPageSelectionState";
+import { useMainPageSnapshotEffects } from "./useMainPageSnapshotEffects";
 import { useMainPageSnapshotQuery } from "./useMainPageSnapshotQuery";
 
 export type {
@@ -282,54 +283,20 @@ export function useMainPageController({
     setUiNotice,
   });
 
-  useEffect(() => {
-    const currentSnapshot = snapshotDataRef.current;
-
-    if (!currentSnapshot) {
-      return;
-    }
-
-    const routeTaskNodeId = initialTaskNodeIdRef.current;
-    const nextSelectedTaskNodeId =
-      routeTaskNodeId !== null &&
-      currentSnapshot.snapshot.taskTree?.nodes.some(
-        (node) => node.id === routeTaskNodeId,
-      )
-        ? routeTaskNodeId
-        : currentSnapshot.metadata.initialSelectedTaskNodeId;
-    initialTaskNodeIdRef.current = null;
-    resetSelection(nextSelectedTaskNodeId);
-    resetInputDraft();
-    resetCommandErrorState();
-    setUiNotice(null);
-    resetSessionDialog();
-    clearEventError();
-  }, [
+  useMainPageSnapshotEffects({
+    activeWorkspaceId,
     clearEventError,
+    hydrateRuntimeInputSnapshot,
+    initialTaskNodeIdRef,
     resetCommandErrorState,
     resetInputDraft,
-    resetSessionDialog,
     resetSelection,
+    resetSessionDialog,
+    setUiNotice,
+    snapshotData,
+    snapshotDataRef,
     snapshotIdentity,
-  ]);
-
-  useEffect(() => {
-    const currentSnapshot = snapshotData?.snapshot;
-
-    if (!currentSnapshot) {
-      return;
-    }
-
-    hydrateRuntimeInputSnapshot({
-      messages: currentSnapshot.messages,
-      sessionId: currentSnapshot.session.id,
-      workspaceId: activeWorkspaceId,
-    });
-  }, [
-    activeWorkspaceId,
-    hydrateRuntimeInputSnapshot,
-    snapshotData?.snapshot,
-  ]);
+  });
 
   return {
     activeSessionId,
