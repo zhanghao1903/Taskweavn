@@ -23,6 +23,7 @@ import type {
 } from "./runtime/adapter";
 import { useMainPageCommandErrorState } from "./useMainPageCommandErrorState";
 import { useMainPageInputRuntimeState } from "./useMainPageInputRuntimeState";
+import { useMainPageSessionIdentityState } from "./useMainPageSessionIdentityState";
 import { useMainPageUiNoticeState } from "./useMainPageUiNoticeState";
 import { runtimeInputModeFor } from "./mainPageRuntimeInput";
 import {
@@ -175,12 +176,19 @@ export function useMainPageController({
     setSelectedTaskNodeId,
     setSelectionTarget,
   } = useMainPageSelectionState(clearUiNotice);
-  const [activeSessionId, setActiveSessionId] = useState<string | null>(
-    adapter.sessionId,
-  );
-  const [activeWorkspaceId, setActiveWorkspaceId] = useState<WorkspaceId | null>(
-    adapter.workspaceId ?? null,
-  );
+  const {
+    activeSessionId,
+    activeWorkspaceId,
+    adoptSessionId,
+    adoptWorkspaceId,
+    selectSession,
+    setActiveSessionId,
+    setActiveWorkspaceId,
+  } = useMainPageSessionIdentityState({
+    initialSessionId: adapter.sessionId,
+    initialWorkspaceId: adapter.workspaceId ?? null,
+    setUiNotice,
+  });
   const {
     activeRuntimeInputMode,
     changeInputDraft,
@@ -224,18 +232,18 @@ export function useMainPageController({
   });
 
   useEffect(() => {
-    if (!snapshotData || activeSessionId !== null) {
+    if (!snapshotData) {
       return;
     }
-    setActiveSessionId(snapshotData.snapshot.session.id);
-  }, [activeSessionId, snapshotData]);
+    adoptSessionId(snapshotData.snapshot.session.id);
+  }, [adoptSessionId, snapshotData]);
 
   useEffect(() => {
-    if (activeWorkspaceId !== null || workspaceCatalog === null) {
+    if (workspaceCatalog === null) {
       return;
     }
-    setActiveWorkspaceId(workspaceCatalog.currentWorkspaceId);
-  }, [activeWorkspaceId, workspaceCatalog]);
+    adoptWorkspaceId(workspaceCatalog.currentWorkspaceId);
+  }, [adoptWorkspaceId, workspaceCatalog]);
 
   const {
     answerAskMutation,
@@ -331,20 +339,6 @@ export function useMainPageController({
     cancelAskMutation.reset();
     inputMutation.reset();
     publishTaskTreeMutation.reset();
-  }
-
-  function handleSessionSelect(
-    session: SessionSummary,
-    currentSessionId: string,
-  ) {
-    const nextWorkspaceId = session.workspaceId ?? activeWorkspaceId;
-    if (session.id === currentSessionId && nextWorkspaceId === activeWorkspaceId) {
-      setUiNotice("This session is already open.");
-      return;
-    }
-
-    setActiveWorkspaceId(nextWorkspaceId ?? null);
-    setActiveSessionId(session.id);
   }
 
   function handleInputSubmit({
@@ -574,7 +568,7 @@ export function useMainPageController({
       resolveConfirmation: handleConfirmationDecision,
       retryTask: handleRetryTask,
       stopTask: handleStopTask,
-      selectSession: handleSessionSelect,
+      selectSession,
       selectTaskPlan: selectionActions.selectTaskPlan,
       selectTask: selectionActions.selectTask,
       showFileChanges: selectionActions.showFileChanges,
