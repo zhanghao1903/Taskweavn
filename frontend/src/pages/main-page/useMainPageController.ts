@@ -59,6 +59,10 @@ import {
   useMainPageRuntimeInputCommands,
   type InputSubmitContext,
 } from "./useMainPageRuntimeInputCommands";
+import {
+  useMainPageSessionDialogState,
+  type SessionLifecycleDialog,
+} from "./useMainPageSessionDialogState";
 import { useMainPageSessionLifecycleCommands } from "./useMainPageSessionLifecycleCommands";
 import {
   useMainPageTaskLifecycleCommands,
@@ -83,31 +87,11 @@ export type {
   PublishTaskTreeContext,
 } from "./useMainPagePlanCommands";
 export type { InputSubmitContext } from "./useMainPageRuntimeInputCommands";
+export type { SessionLifecycleDialog } from "./useMainPageSessionDialogState";
 export type {
   RetryTaskContext,
   StopTaskContext,
 } from "./useMainPageTaskLifecycleCommands";
-
-export type SessionLifecycleDialog =
-  | {
-      mode: "idle";
-    }
-  | {
-      draftName: string;
-      error: string | null;
-      mode: "create";
-    }
-  | {
-      draftName: string;
-      error: string | null;
-      mode: "rename";
-      session: SessionSummary;
-    }
-  | {
-      error: string | null;
-      mode: "delete";
-      session: SessionSummary;
-    };
 
 export type MainPageController = {
   activeSessionId: string | null;
@@ -231,9 +215,15 @@ export function useMainPageController({
   >([]);
   const [activeRuntimeInputMode, setActiveRuntimeInputMode] =
     useState<RuntimeInputMode | null>(null);
-  const [sessionDialog, setSessionDialog] = useState<SessionLifecycleDialog>({
-    mode: "idle",
-  });
+  const {
+    changeSessionDialogDraft,
+    closeSessionDialog,
+    openCreateSessionDialog,
+    openDeleteSessionDialog,
+    openRenameSessionDialog,
+    sessionDialog,
+    setSessionDialogError,
+  } = useMainPageSessionDialogState();
   const [activeSessionId, setActiveSessionId] = useState<string | null>(
     adapter.sessionId,
   );
@@ -474,7 +464,7 @@ export function useMainPageController({
     renameSessionMutation,
   } = useMainPageSessionLifecycleCommands({
     adapter,
-    closeSessionDialog: () => setSessionDialog({ mode: "idle" }),
+    closeSessionDialog,
     refetchSnapshot,
     refetchWorkspaceCatalog,
     setActiveSessionId,
@@ -510,9 +500,9 @@ export function useMainPageController({
     setTaskTreeCommandError(null);
     clearCommandRecoveryActions();
     setUiNotice(null);
-    setSessionDialog({ mode: "idle" });
+    closeSessionDialog();
     clearEventError();
-  }, [clearEventError, snapshotIdentity]);
+  }, [clearEventError, closeSessionDialog, snapshotIdentity]);
 
   function handleStateChange(nextStateId: MainPageStateId) {
     setStateId(nextStateId);
@@ -527,7 +517,7 @@ export function useMainPageController({
     setTaskTreeCommandError(null);
     clearCommandRecoveryActions();
     setUiNotice(null);
-    setSessionDialog({ mode: "idle" });
+    closeSessionDialog();
     clearEventError();
     resolveConfirmationMutation.reset();
     answerAuthoringAskBatchMutation.reset();
@@ -583,42 +573,15 @@ export function useMainPageController({
       return;
     }
 
-    setSessionDialog({
-      draftName: "New session",
-      error: null,
-      mode: "create",
-    });
+    openCreateSessionDialog();
   }
 
   function handleRenameSession(session: SessionSummary) {
-    setSessionDialog({
-      draftName: session.name,
-      error: null,
-      mode: "rename",
-      session,
-    });
+    openRenameSessionDialog(session);
   }
 
   function handleDeleteSession(session: SessionSummary) {
-    setSessionDialog({
-      error: null,
-      mode: "delete",
-      session,
-    });
-  }
-
-  function handleSessionDialogDraftChange(draftName: string) {
-    setSessionDialog((current) => {
-      if (current.mode !== "create" && current.mode !== "rename") {
-        return current;
-      }
-
-      return {
-        ...current,
-        draftName,
-        error: null,
-      };
-    });
+    openDeleteSessionDialog(session);
   }
 
   function handleSessionDialogCancel() {
@@ -630,7 +593,7 @@ export function useMainPageController({
       return;
     }
 
-    setSessionDialog({ mode: "idle" });
+    closeSessionDialog();
   }
 
   function handleSessionDialogSubmit() {
@@ -667,19 +630,6 @@ export function useMainPageController({
       name: trimmed,
       sessionId: sessionDialog.session.id,
       workspaceId: sessionDialog.session.workspaceId ?? activeWorkspaceId,
-    });
-  }
-
-  function setSessionDialogError(message: string) {
-    setSessionDialog((current) => {
-      if (current.mode === "idle") {
-        return current;
-      }
-
-      return {
-        ...current,
-        error: message,
-      };
     });
   }
 
@@ -883,7 +833,7 @@ export function useMainPageController({
       archivePlan: handleArchivePlan,
       cancelSessionDialog: handleSessionDialogCancel,
       cancelAsk: handleCancelAsk,
-      changeSessionDialogDraft: handleSessionDialogDraftChange,
+      changeSessionDialogDraft,
       changeInputDraft: setInputDraft,
       changeState: handleStateChange,
       createSession: handleCreateSession,
