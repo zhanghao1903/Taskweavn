@@ -191,6 +191,25 @@ Added on 2026-06-27:
 - If `wechatAppSuccess=false`, the smoke exits before task creation. This keeps
   known app/window blockers out of the send pipeline.
 
+Validated negative preflight on 2026-06-27:
+
+- helper manifest:
+  `/tmp/plato-computer-use-smoke/computer-use-helper.json`
+- evidence:
+  `/tmp/plato-computer-use-smoke/helper-app-readiness-preflight-20260627.json`
+- sidecar/helper readiness:
+  - `computerUseBackend=helper`
+  - `computerUseStatus=ok`
+  - `packageReadinessStatus=ready`
+  - `computerUseReady=true`
+  - `helperStatus=ready`
+- WeChat app readiness:
+  - `wechatAppStatus=needs_user`
+  - `wechatAppSuccess=false`
+  - `wechatAppPhase=window_readiness`
+  - `wechatAppSummary=WeChat main window is unavailable; open the main WeChat window before sending.`
+- result: `ready=false`, and no task was published.
+
 ### 6.3 Helper-Backed Contact Resolution Progress
 
 Attempted on 2026-06-27 with `response=reject` and no `--allow-send`:
