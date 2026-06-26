@@ -255,6 +255,27 @@ Fresh helper/sidecar preflight repeated the same blocker on 2026-06-27:
   task until the operator opens/unlocks the main WeChat window and preflight
   returns `ready=true`.
 
+Structured stale-helper-manifest preflight on 2026-06-27:
+
+- evidence:
+  `/tmp/plato-computer-use-smoke/helper-app-readiness-preflight-manifest-structured-20260627.json`
+- result:
+  - `sidecarOk=true`
+  - `computerUseBackend=helper`
+  - `computerUseStatus=failed`
+  - `helperManifest.endpoint=http://127.0.0.1:57319`
+  - `helperManifest.bundleId=com.taskweavn.plato.computer-use-helper.dev`
+  - `helperManifest.pid=27864`
+  - `wechatAppSuccess=false`
+  - `wechatAppPhase=helper_app_readiness`
+  - `wechatAppFailureKind=helper_app_unavailable`
+  - `wechatAppSummary=Request failed for POST /v1/apps/wechat/readiness: <urlopen error [Errno 61] Connection refused>`
+- interpretation: the sidecar can run, but the helper manifest points to a
+  dead helper endpoint. No task should be published. Relaunch the helper or
+  regenerate the manifest, then rerun helper-backed preflight. The preflight
+  evidence now preserves safe helper manifest identity while excluding
+  `tokenRef` and token values.
+
 ### 6.3 Helper-Backed Contact Resolution Progress
 
 Attempted on 2026-06-27 with `response=reject` and no `--allow-send`:

@@ -232,6 +232,11 @@ def test_manual_wechat_smoke_preflight_checks_helper_wechat_app_readiness(
         "WeChat Desktop is open and its main window is automation-ready."
     )
     assert result.wechat_app_diagnostics == {"windowSummary": "Fake window ready."}
+    assert result.helper_manifest == {
+        "endpoint": helper.endpoint,
+        "bundleId": "com.taskweavn.plato.computer-use-helper.dev",
+        "apiVersion": "plato.computer_use_helper.v1",
+    }
     assert helper.requests == [
         ("POST", "/v1/apps/wechat/readiness", "Bearer helper-token")
     ]
@@ -291,6 +296,88 @@ def test_manual_wechat_smoke_preflight_fails_on_helper_wechat_window_blocker(
         "rerun_helper_preflight",
     )
     assert result.wechat_app_diagnostics == {"error": "cannot get window 1"}
+    assert result.helper_manifest == {
+        "endpoint": helper.endpoint,
+        "bundleId": "com.taskweavn.plato.computer-use-helper.dev",
+        "apiVersion": "plato.computer_use_helper.v1",
+    }
+
+
+def test_manual_wechat_smoke_preflight_structures_helper_request_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load_script()
+    adapter = FakeWeChatDesktopAdapter(contact_resolution=_resolved_contact())
+
+    def fail_helper_readiness(config: object) -> object:
+        raise module.SmokeError(
+            "Request failed for POST /v1/apps/wechat/readiness: connection refused",
+            details={"token": "must-not-leak", "reason": "connection refused"},
+        )
+
+    monkeypatch.setattr(module, "_helper_wechat_app_readiness", fail_helper_readiness)
+    helper_manifest_path = tmp_path / "stale-helper.json"
+    helper_manifest_path.write_text(
+        json.dumps(
+            {
+                "endpoint": "http://127.0.0.1:9",
+                "bundleId": "com.taskweavn.plato.computer-use-helper.dev",
+                "version": "0.1.0",
+                "apiVersion": "plato.computer_use_helper.v1",
+                "pid": 12345,
+                "tokenRef": "must-not-leak",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with _fake_wechat_sidecar(tmp_path, adapter=adapter) as base_url:
+        result = module.run_preflight(
+            module.SmokeConfig(
+                base_url=base_url,
+                session_id="",
+                contact="",
+                message="",
+                idempotency_key="manual-smoke-preflight",
+                response="reject",
+                allow_send=False,
+                timeout_seconds=2.0,
+                poll_seconds=0.01,
+                preflight_only=True,
+                helper_manifest=helper_manifest_path,
+            )
+        )
+
+    assert result.ready is False
+    assert result.computer_use_ready is True
+    assert result.computer_use_helper == {
+        "bundleId": "com.taskweavn.plato.computer-use-helper.dev",
+        "version": "0.1.0",
+        "apiVersion": "plato.computer_use_helper.v1",
+        "path": "/Applications/Plato Computer Use Helper Dev.app",
+        "signingMode": "development-app",
+    }
+    assert result.wechat_app_status == "failed"
+    assert result.wechat_app_success is False
+    assert result.wechat_app_phase == "helper_app_readiness"
+    assert result.wechat_app_failure_kind == "helper_app_unavailable"
+    assert result.wechat_app_recovery_actions == (
+        "start_or_relaunch_helper",
+        "rerun_helper_preflight",
+    )
+    assert result.helper_manifest == {
+        "endpoint": "http://127.0.0.1:9",
+        "bundleId": "com.taskweavn.plato.computer-use-helper.dev",
+        "version": "0.1.0",
+        "apiVersion": "plato.computer_use_helper.v1",
+        "pid": 12345,
+    }
+    assert result.wechat_app_diagnostics == {
+        "error": "Request failed for POST /v1/apps/wechat/readiness: connection refused",
+        "details": {"reason": "connection refused"},
+    }
+    assert "must-not-leak" not in json.dumps(result.as_dict(), ensure_ascii=False)
 
 
 def test_manual_wechat_smoke_evidence_output_redacts_contact_and_message(
@@ -570,6 +657,7 @@ class _FakeHelperContext:
         self._thread = threading.Thread(target=server.serve_forever, daemon=True)
         self._state_dir = tmp_path / "helper"
         self.manifest_path = self._state_dir / "computer-use-helper.json"
+        self.endpoint = ""
         self.requests = server.state.requests
 
     def __enter__(self) -> _FakeHelperContext:
@@ -579,10 +667,11 @@ class _FakeHelperContext:
         self._thread.start()
         host, port = self._server.server_address[:2]
         host_text = host.decode("utf-8") if isinstance(host, bytes) else str(host)
+        self.endpoint = f"http://{host_text}:{port}"
         self.manifest_path.write_text(
             json.dumps(
                 {
-                    "endpoint": f"http://{host_text}:{port}",
+                    "endpoint": self.endpoint,
                     "tokenRef": str(token_path),
                     "bundleId": "com.taskweavn.plato.computer-use-helper.dev",
                     "apiVersion": "plato.computer_use_helper.v1",

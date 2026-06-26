@@ -27,6 +27,7 @@ from typing import Any, Literal
 WECHAT_SEND_TASK_TYPE = "communication.wechat.send_message"
 WECHAT_SEND_CAPABILITY = "communication.wechat_desktop_send"
 _HELPER_IDENTITY_KEYS = ("bundleId", "version", "apiVersion", "path", "signingMode")
+_HELPER_MANIFEST_KEYS = ("endpoint", "bundleId", "version", "apiVersion", "pid")
 _SENSITIVE_KEY_PARTS = ("api_key", "authorization", "password", "secret", "token")
 
 ResponseMode = Literal["reject", "confirm", "prompt"]
@@ -86,6 +87,7 @@ class PreflightResult:
     computer_use_backend: str | None = None
     computer_use_helper: dict[str, object] | None = None
     computer_use_diagnostics: dict[str, object] | None = None
+    helper_manifest: dict[str, object] | None = None
     helper_status: str | None = None
     failure_kind: str | None = None
     wechat_app_status: str | None = None
@@ -127,6 +129,7 @@ class PreflightResult:
             "computerUseBackend": self.computer_use_backend,
             "computerUseHelper": self.computer_use_helper,
             "computerUseDiagnostics": self.computer_use_diagnostics,
+            "helperManifest": self.helper_manifest,
             "helperStatus": self.helper_status,
             "failureKind": self.failure_kind,
             "wechatAppStatus": self.wechat_app_status,
@@ -247,7 +250,61 @@ def _with_helper_wechat_app_readiness(
 ) -> PreflightResult:
     if config.helper_manifest is None:
         return result
-    payload = _helper_wechat_app_readiness(config)
+    helper_manifest: dict[str, object] | None = None
+    try:
+        helper_manifest = _safe_helper_manifest(
+            _read_helper_manifest(config.helper_manifest.expanduser())
+        )
+    except SmokeError as exc:
+        return replace(
+            result,
+            helper_manifest=None,
+            wechat_app_status="failed",
+            wechat_app_success=False,
+            wechat_app_phase="helper_manifest",
+            wechat_app_summary=str(exc),
+            wechat_app_failure_kind="helper_manifest_unavailable",
+            wechat_app_setup_hint=(
+                "Start or relaunch Plato Computer Use Helper, then rerun "
+                "helper-backed preflight before publishing a WeChat task."
+            ),
+            wechat_app_recovery_actions=(
+                "start_or_relaunch_helper",
+                "rerun_helper_preflight",
+            ),
+            wechat_app_diagnostics=_safe_diagnostics(
+                {
+                    "error": str(exc),
+                    "details": exc.details,
+                }
+            ),
+        )
+    try:
+        payload = _helper_wechat_app_readiness(config)
+    except SmokeError as exc:
+        return replace(
+            result,
+            helper_manifest=helper_manifest,
+            wechat_app_status="failed",
+            wechat_app_success=False,
+            wechat_app_phase="helper_app_readiness",
+            wechat_app_summary=str(exc),
+            wechat_app_failure_kind="helper_app_unavailable",
+            wechat_app_setup_hint=(
+                "Start or relaunch Plato Computer Use Helper, then rerun "
+                "helper-backed preflight before publishing a WeChat task."
+            ),
+            wechat_app_recovery_actions=(
+                "start_or_relaunch_helper",
+                "rerun_helper_preflight",
+            ),
+            wechat_app_diagnostics=_safe_diagnostics(
+                {
+                    "error": str(exc),
+                    "details": exc.details,
+                }
+            ),
+        )
     diagnostics = payload.get("diagnostics")
     app_status = _optional_str(payload, "status")
     app_success = _optional_bool(payload, "success")
@@ -255,6 +312,7 @@ def _with_helper_wechat_app_readiness(
         app_success = app_status == "ready"
     return replace(
         result,
+        helper_manifest=helper_manifest,
         wechat_app_status=app_status,
         wechat_app_success=app_success,
         wechat_app_phase=_optional_str(payload, "phase"),
@@ -607,6 +665,19 @@ def _safe_helper_identity(value: object) -> dict[str, object] | None:
         raw = value.get(key)
         if isinstance(raw, str) and raw:
             safe[key] = raw[:500]
+    return safe or None
+
+
+def _safe_helper_manifest(value: object) -> dict[str, object] | None:
+    if not isinstance(value, Mapping):
+        return None
+    safe: dict[str, object] = {}
+    for key in _HELPER_MANIFEST_KEYS:
+        raw = value.get(key)
+        if isinstance(raw, str) and raw:
+            safe[key] = raw[:500]
+        elif isinstance(raw, int):
+            safe[key] = raw
     return safe or None
 
 
