@@ -5,11 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 
 from taskweavn.runtime_config import (
-    DefaultRuntimeConfigMutationService,
-    RuntimeConfigMutationServiceConfig,
     RuntimeConfigPatch,
     RuntimeConfigScope,
-    SqliteRuntimeConfigChangeStore,
 )
 from taskweavn.server import (
     HttpApiRequest,
@@ -35,6 +32,7 @@ from tests.fixtures.ui_http_transport import (
     _ExecutionTriggerGateway,
     _QueryGateway,
     _runtime_config_actor,
+    _runtime_config_transport_fixture,
     _runtime_config_ts,
     _RuntimeInputRouter,
     _SessionLifecycleGateway,
@@ -350,20 +348,10 @@ def test_runtime_config_changes_route_returns_scoped_history(
         requested_at=_runtime_config_ts(),
     )
 
-    with SqliteRuntimeConfigChangeStore(tmp_path / "runtime-config.db") as store:
-        service = DefaultRuntimeConfigMutationService(
-            RuntimeConfigMutationServiceConfig(store=store)
-        )
-        change = service.apply_patch(patch)
-        transport = _transport(
-            runtime_config_gateway=DefaultRuntimeConfigGateway.from_process_inputs(
-                {},
-                workspace_id="workspace-1",
-                change_store=store,
-            )
-        )
+    with _runtime_config_transport_fixture(tmp_path / "runtime-config.db") as fixture:
+        change = fixture.service.apply_patch(patch)
 
-        response = transport.handle(
+        response = fixture.transport.handle(
             HttpApiRequest(
                 method="GET",
                 path="/api/v1/runtime/config/changes?workspaceId=workspace-1",
@@ -398,21 +386,11 @@ def test_runtime_config_snapshot_route_returns_snapshot_record(
         requested_at=_runtime_config_ts(),
     )
 
-    with SqliteRuntimeConfigChangeStore(tmp_path / "runtime-config.db") as store:
-        service = DefaultRuntimeConfigMutationService(
-            RuntimeConfigMutationServiceConfig(store=store)
-        )
-        change = service.apply_patch(patch)
+    with _runtime_config_transport_fixture(tmp_path / "runtime-config.db") as fixture:
+        change = fixture.service.apply_patch(patch)
         assert change.resulting_config_hash is not None
-        transport = _transport(
-            runtime_config_gateway=DefaultRuntimeConfigGateway.from_process_inputs(
-                {},
-                workspace_id="workspace-1",
-                change_store=store,
-            )
-        )
 
-        response = transport.handle(
+        response = fixture.transport.handle(
             HttpApiRequest(
                 method="GET",
                 path=(
@@ -449,20 +427,8 @@ def test_runtime_config_snapshot_route_returns_not_found_for_missing_hash() -> N
 def test_runtime_config_patch_route_accepts_and_persists_change(
     tmp_path: Path,
 ) -> None:
-    with SqliteRuntimeConfigChangeStore(tmp_path / "runtime-config.db") as store:
-        service = DefaultRuntimeConfigMutationService(
-            RuntimeConfigMutationServiceConfig(store=store)
-        )
-        transport = _transport(
-            runtime_config_gateway=DefaultRuntimeConfigGateway.from_process_inputs(
-                {},
-                workspace_id="workspace-1",
-                change_store=store,
-            ),
-            runtime_config_mutation_service=service,
-        )
-
-        response = transport.handle(
+    with _runtime_config_transport_fixture(tmp_path / "runtime-config.db") as fixture:
+        response = fixture.transport.handle(
             HttpApiRequest(
                 method="PATCH",
                 path="/api/v1/runtime/config",
@@ -480,7 +446,7 @@ def test_runtime_config_patch_route_accepts_and_persists_change(
         )
         body = _dict_body(response.body)
 
-        changes = store.list_changes(
+        changes = fixture.store.list_changes(
             RuntimeConfigScope(level="workspace", workspace_id="workspace-1")
         )
 
@@ -505,20 +471,8 @@ def test_runtime_config_patch_route_accepts_and_persists_change(
 def test_runtime_config_patch_route_records_no_op(
     tmp_path: Path,
 ) -> None:
-    with SqliteRuntimeConfigChangeStore(tmp_path / "runtime-config.db") as store:
-        service = DefaultRuntimeConfigMutationService(
-            RuntimeConfigMutationServiceConfig(store=store)
-        )
-        transport = _transport(
-            runtime_config_gateway=DefaultRuntimeConfigGateway.from_process_inputs(
-                {},
-                workspace_id="workspace-1",
-                change_store=store,
-            ),
-            runtime_config_mutation_service=service,
-        )
-
-        response = transport.handle(
+    with _runtime_config_transport_fixture(tmp_path / "runtime-config.db") as fixture:
+        response = fixture.transport.handle(
             HttpApiRequest(
                 method="PATCH",
                 path="/api/v1/runtime/config",
@@ -545,20 +499,8 @@ def test_runtime_config_patch_route_records_no_op(
 def test_runtime_config_patch_route_rejects_partial_by_default(
     tmp_path: Path,
 ) -> None:
-    with SqliteRuntimeConfigChangeStore(tmp_path / "runtime-config.db") as store:
-        service = DefaultRuntimeConfigMutationService(
-            RuntimeConfigMutationServiceConfig(store=store)
-        )
-        transport = _transport(
-            runtime_config_gateway=DefaultRuntimeConfigGateway.from_process_inputs(
-                {},
-                workspace_id="workspace-1",
-                change_store=store,
-            ),
-            runtime_config_mutation_service=service,
-        )
-
-        response = transport.handle(
+    with _runtime_config_transport_fixture(tmp_path / "runtime-config.db") as fixture:
+        response = fixture.transport.handle(
             HttpApiRequest(
                 method="PATCH",
                 path="/api/v1/runtime/config",
@@ -593,20 +535,8 @@ def test_runtime_config_patch_route_rejects_partial_by_default(
 def test_runtime_config_patch_route_allows_explicit_partial_acceptance(
     tmp_path: Path,
 ) -> None:
-    with SqliteRuntimeConfigChangeStore(tmp_path / "runtime-config.db") as store:
-        service = DefaultRuntimeConfigMutationService(
-            RuntimeConfigMutationServiceConfig(store=store)
-        )
-        transport = _transport(
-            runtime_config_gateway=DefaultRuntimeConfigGateway.from_process_inputs(
-                {},
-                workspace_id="workspace-1",
-                change_store=store,
-            ),
-            runtime_config_mutation_service=service,
-        )
-
-        response = transport.handle(
+    with _runtime_config_transport_fixture(tmp_path / "runtime-config.db") as fixture:
+        response = fixture.transport.handle(
             HttpApiRequest(
                 method="PATCH",
                 path="/api/v1/runtime/config",
@@ -646,20 +576,8 @@ def test_runtime_config_patch_route_supports_dry_run_without_persistence(
     tmp_path: Path,
 ) -> None:
     scope = RuntimeConfigScope(level="workspace", workspace_id="workspace-1")
-    with SqliteRuntimeConfigChangeStore(tmp_path / "runtime-config.db") as store:
-        service = DefaultRuntimeConfigMutationService(
-            RuntimeConfigMutationServiceConfig(store=store)
-        )
-        transport = _transport(
-            runtime_config_gateway=DefaultRuntimeConfigGateway.from_process_inputs(
-                {},
-                workspace_id="workspace-1",
-                change_store=store,
-            ),
-            runtime_config_mutation_service=service,
-        )
-
-        response = transport.handle(
+    with _runtime_config_transport_fixture(tmp_path / "runtime-config.db") as fixture:
+        response = fixture.transport.handle(
             HttpApiRequest(
                 method="PATCH",
                 path="/api/v1/runtime/config",
@@ -674,7 +592,7 @@ def test_runtime_config_patch_route_supports_dry_run_without_persistence(
             )
         )
         body = _dict_body(response.body)
-        changes = store.list_changes(scope)
+        changes = fixture.store.list_changes(scope)
 
     assert response.status_code == 200
     assert body["ok"] is True
@@ -695,27 +613,15 @@ def test_runtime_config_patch_route_replays_matching_idempotency_key(
         },
         "values": {"logging.level": "DEBUG"},
     }
-    with SqliteRuntimeConfigChangeStore(tmp_path / "runtime-config.db") as store:
-        service = DefaultRuntimeConfigMutationService(
-            RuntimeConfigMutationServiceConfig(store=store)
-        )
-        transport = _transport(
-            runtime_config_gateway=DefaultRuntimeConfigGateway.from_process_inputs(
-                {},
-                workspace_id="workspace-1",
-                change_store=store,
-            ),
-            runtime_config_mutation_service=service,
-        )
-
-        first_response = transport.handle(
+    with _runtime_config_transport_fixture(tmp_path / "runtime-config.db") as fixture:
+        first_response = fixture.transport.handle(
             HttpApiRequest(
                 method="PATCH",
                 path="/api/v1/runtime/config",
                 body=request_body,
             )
         )
-        replay_response = transport.handle(
+        replay_response = fixture.transport.handle(
             HttpApiRequest(
                 method="PATCH",
                 path="/api/v1/runtime/config",
@@ -724,7 +630,7 @@ def test_runtime_config_patch_route_replays_matching_idempotency_key(
         )
         first_body = _dict_body(first_response.body)
         replay_body = _dict_body(replay_response.body)
-        changes = store.list_changes(
+        changes = fixture.store.list_changes(
             RuntimeConfigScope(level="workspace", workspace_id="workspace-1")
         )
 
@@ -739,20 +645,8 @@ def test_runtime_config_patch_route_replays_matching_idempotency_key(
 def test_runtime_config_patch_route_rejects_idempotency_conflict(
     tmp_path: Path,
 ) -> None:
-    with SqliteRuntimeConfigChangeStore(tmp_path / "runtime-config.db") as store:
-        service = DefaultRuntimeConfigMutationService(
-            RuntimeConfigMutationServiceConfig(store=store)
-        )
-        transport = _transport(
-            runtime_config_gateway=DefaultRuntimeConfigGateway.from_process_inputs(
-                {},
-                workspace_id="workspace-1",
-                change_store=store,
-            ),
-            runtime_config_mutation_service=service,
-        )
-
-        transport.handle(
+    with _runtime_config_transport_fixture(tmp_path / "runtime-config.db") as fixture:
+        fixture.transport.handle(
             HttpApiRequest(
                 method="PATCH",
                 path="/api/v1/runtime/config",
@@ -766,7 +660,7 @@ def test_runtime_config_patch_route_rejects_idempotency_conflict(
                 },
             )
         )
-        response = transport.handle(
+        response = fixture.transport.handle(
             HttpApiRequest(
                 method="PATCH",
                 path="/api/v1/runtime/config",
@@ -808,19 +702,8 @@ def test_runtime_config_patch_route_requires_mutation_service() -> None:
 
 
 def test_runtime_config_patch_route_requires_idempotency_key() -> None:
-    with SqliteRuntimeConfigChangeStore(":memory:") as store:
-        transport = _transport(
-            runtime_config_gateway=DefaultRuntimeConfigGateway.from_process_inputs(
-                {},
-                workspace_id="workspace-1",
-                change_store=store,
-            ),
-            runtime_config_mutation_service=DefaultRuntimeConfigMutationService(
-                RuntimeConfigMutationServiceConfig(store=store)
-            ),
-        )
-
-        response = transport.handle(
+    with _runtime_config_transport_fixture(":memory:") as fixture:
+        response = fixture.transport.handle(
             HttpApiRequest(
                 method="PATCH",
                 path="/api/v1/runtime/config",
