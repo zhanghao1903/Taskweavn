@@ -1059,6 +1059,16 @@ readiness is already not ready. This makes Settings/conversation diagnostics
 more accurate and prevents publishing a WeChat task from a misleading helper
 ready state.
 
+2026-06-27 update 8: helper readiness now includes runtime identity diagnostics
+and uses them to produce a more accurate development recovery hint. Evidence
+`/tmp/plato-computer-use-backend-20260627g/preflight-runtime-identity-hint-20260627.json`
+shows `runtimeIdentity.mode=external_python_for_app`,
+`effectiveExecutable=.../.venv/bin/python`, and
+`declaredHelperPath=.../Plato Computer Use Helper Dev.app`. The current dev
+scaffold is therefore not yet a helper-owned TCC subject for the Python
+computer-use backend; development may grant the external Python runtime, while
+release acceptance still requires an embedded/packaged helper executable.
+
 ### H5: Release Packaging
 
 - helper bundled with Plato installer；
@@ -1080,7 +1090,7 @@ Helper boundary is accepted when:
 
 ## 18. Open Questions
 
-1. 第一版 helper 用 Python embedded executable、PyInstaller、Briefcase、还是 Swift/Node wrapper？
+1. 第一版 helper 用 Python embedded executable、PyInstaller、Briefcase、还是 Swift/Node wrapper？Latest evidence favors a packaged helper-owned executable because the dev shell/Python wrapper is reported as `external_python_for_app`.
 2. helper 是否放在 `/Applications` 还是 Application Support？
 3. dev helper 是否使用独立 bundle id？
 4. release 前是否必须 Apple Developer signing/notarization？

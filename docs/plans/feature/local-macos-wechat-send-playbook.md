@@ -412,6 +412,32 @@ Validated helper System Events probe gating on 2026-06-27:
   `computerUseReady=true` state and gives Settings / conversation a direct
   recovery hint before any task is published.
 
+Validated runtime identity hint on 2026-06-27:
+
+- generated dev helper app:
+  `/tmp/plato-computer-use-backend-20260627g/Plato Computer Use Helper Dev.app`
+- manifest:
+  `/tmp/plato-computer-use-backend-20260627g/computer-use-helper.json`
+- evidence:
+  `/tmp/plato-computer-use-backend-20260627g/preflight-runtime-identity-hint-20260627.json`
+- sidecar/helper state:
+  - `computerUseStatus=not_available`
+  - `packageReadinessStatus=automation_not_authorized`
+  - `helperStatus=automation_not_authorized`
+  - `failureKind=helper_system_events_probe_failed`
+- runtime identity:
+  - `computerUseDiagnostics.diagnostics.runtimeIdentity.mode=external_python_for_app`
+  - `computerUseDiagnostics.diagnostics.runtimeIdentity.effectiveExecutable=/Users/zhanghao/.codex/worktrees/e05a/Taskweavn/.venv/bin/python`
+  - `computerUseDiagnostics.diagnostics.runtimeIdentity.declaredHelperPath=/private/tmp/plato-computer-use-backend-20260627g/Plato Computer Use Helper Dev.app`
+- setup hint:
+  - `Development helper is currently running computer-use through an external Python runtime. Grant or refresh macOS Accessibility and Automation permissions for that Python runtime, or use a packaged helper-owned executable, then restart the helper and rerun helper-backed preflight before publishing a computer-use task.`
+- interpretation: the dev `.app` scaffold is useful for loopback transport,
+  manifest identity, and launcher testing, but it still delegates computer-use
+  execution to the configured Python runtime. In development, macOS may require
+  granting permissions to that Python runtime. Product/release acceptance still
+  requires a packaged helper-owned executable so the permission subject is the
+  helper app itself.
+
 ### 6.3 Helper-Backed Contact Resolution Progress
 
 Attempted on 2026-06-27 with `response=reject` and no `--allow-send`:

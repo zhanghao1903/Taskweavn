@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import secrets
+import sys
 from dataclasses import dataclass
 from os import getpid
 from pathlib import Path
@@ -38,6 +39,13 @@ _SYSTEM_EVENTS_SETUP_HINT = (
     "Grant or refresh macOS Accessibility and Automation permissions for "
     "Plato Computer Use Helper, restart the helper, then rerun helper-backed "
     "preflight before publishing a computer-use task."
+)
+_SYSTEM_EVENTS_EXTERNAL_PYTHON_SETUP_HINT = (
+    "Development helper is currently running computer-use through an external "
+    "Python runtime. Grant or refresh macOS Accessibility and Automation "
+    "permissions for that Python runtime, or use a packaged helper-owned "
+    "executable, then restart the helper and rerun helper-backed preflight "
+    "before publishing a computer-use task."
 )
 _SYSTEM_EVENTS_RECOVERY_ACTIONS = (
     "open_macos_privacy_accessibility",
@@ -260,6 +268,7 @@ class ComputerUseHelperTransport:
         )
         body = _observation_to_helper_body(observation, request_id=request_id)
         body["helper"] = _info_body(self._config.info)
+        _apply_runtime_identity_diagnostics(body, self._config.info)
         if (
             body.get("status") == "ready"
             and self._config.system_events_probe_enabled
@@ -677,12 +686,67 @@ def _apply_system_events_probe_result(
     body["summary"] = summary
     body["failureKind"] = "helper_system_events_probe_failed"
     body["phase"] = "helper_system_events_probe"
-    body["setupHint"] = _SYSTEM_EVENTS_SETUP_HINT
+    setup_hint = _system_events_setup_hint(body)
+    body["setupHint"] = setup_hint
     body["recoveryActions"] = list(_SYSTEM_EVENTS_RECOVERY_ACTIONS)
     metadata["failure_kind"] = "helper_system_events_probe_failed"
     metadata["phase"] = "helper_system_events_probe"
-    metadata["setup_hint"] = _SYSTEM_EVENTS_SETUP_HINT
+    metadata["setup_hint"] = setup_hint
     metadata["recovery_actions"] = list(_SYSTEM_EVENTS_RECOVERY_ACTIONS)
+
+
+def _apply_runtime_identity_diagnostics(
+    body: dict[str, Any],
+    info: ComputerUseHelperInfo,
+) -> None:
+    diagnostics = _dict_value(body.get("diagnostics"))
+    diagnostics["runtimeIdentity"] = _runtime_identity_diagnostics(info)
+    body["diagnostics"] = diagnostics
+    metadata = _dict_value(body.get("metadata"))
+    metadata["diagnostics"] = diagnostics
+    body["metadata"] = metadata
+
+
+def _runtime_identity_diagnostics(info: ComputerUseHelperInfo) -> dict[str, str]:
+    effective_executable = sys.executable
+    diagnostics = {
+        "effectiveExecutable": effective_executable,
+        "mode": "direct_python",
+    }
+    if info.path is None:
+        return diagnostics
+
+    diagnostics["declaredHelperPath"] = info.path
+    helper_path = Path(info.path).expanduser()
+    effective_path = Path(effective_executable).expanduser()
+    if _is_path_inside(effective_path, helper_path):
+        diagnostics["mode"] = "helper_owned_executable"
+    elif helper_path.suffix == ".app":
+        diagnostics["mode"] = "external_python_for_app"
+        diagnostics["warning"] = (
+            "macOS may treat the external Python runtime, not the helper app "
+            "bundle, as the active permission subject in development."
+        )
+    return diagnostics
+
+
+def _is_path_inside(path: Path, parent: Path) -> bool:
+    try:
+        path.resolve().relative_to(parent.resolve())
+    except (OSError, ValueError):
+        return False
+    return True
+
+
+def _system_events_setup_hint(body: dict[str, Any]) -> str:
+    diagnostics = _dict_value(body.get("diagnostics"))
+    runtime_identity = diagnostics.get("runtimeIdentity")
+    if (
+        isinstance(runtime_identity, dict)
+        and runtime_identity.get("mode") == "external_python_for_app"
+    ):
+        return _SYSTEM_EVENTS_EXTERNAL_PYTHON_SETUP_HINT
+    return _SYSTEM_EVENTS_SETUP_HINT
 
 
 def _system_events_probe_diagnostics(

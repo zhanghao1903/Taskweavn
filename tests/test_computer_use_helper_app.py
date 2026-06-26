@@ -53,6 +53,7 @@ def test_build_computer_use_helper_app_writes_dev_bundle(tmp_path: Path) -> None
     assert launch_config["mode"] == "development"
     assert launch_config["manifestPath"] == str(manifest_path)
     assert launch_config["tokenPath"] == str(token_path)
+    assert launch_config["pythonExecutable"] == "/usr/bin/python3"
     assert launch_config["computerUseBackend"] == "macos"
     assert launch_config["computerUseAllowedApps"] == ["WeChat", "TextEdit"]
     assert launch_config["apiVersion"] == "plato.computer_use_helper.v1"
@@ -71,7 +72,9 @@ def test_build_computer_use_helper_app_writes_dev_bundle(tmp_path: Path) -> None
     assert "Bundle ID: `com.taskweavn.plato.computer-use-helper.dev`" in permission_guide
     assert "Computer-use backend: `macos`" in permission_guide
     assert "Allowed apps: `WeChat, TextEdit`" in permission_guide
+    assert "Development Python runtime: `/usr/bin/python3`" in permission_guide
     assert "Grant Accessibility permission to this helper app" in permission_guide
+    assert "external_python_for_app" in permission_guide
 
 
 def test_build_computer_use_helper_app_rejects_recursive_backend(

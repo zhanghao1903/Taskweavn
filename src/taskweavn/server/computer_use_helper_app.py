@@ -155,6 +155,7 @@ def _write_launch_config(
         "apiVersion": config.api_version,
         "signingMode": config.signing_mode,
         "manifestPath": str(manifest_path),
+        "pythonExecutable": config.python_executable,
         "host": config.host,
         "port": config.port,
         "computerUseBackend": normalized_backend,
@@ -245,10 +246,18 @@ computer-use actions.
 - Signing mode: `{config.signing_mode}`
 - Computer-use backend: `{config.computer_use_backend.strip().lower()}`
 - Allowed apps: `{allowed_apps}`
+- Development Python runtime: `{config.python_executable}`
 
 Grant Accessibility permission to this helper app, not to Plato, when using the
 helper-backed computer-use provider. If the helper is rebuilt with a different
 bundle ID, path, or signing identity, macOS may require permission again.
+
+Development note: this scaffold launches the helper through the configured
+Python runtime. Until release packaging provides a helper-owned packaged
+executable, macOS may report or enforce permissions against that Python runtime.
+If readiness reports `external_python_for_app`, grant Accessibility and
+Automation permissions to the reported Python runtime or use a packaged helper
+build.
 
 The helper listens only on loopback and publishes a startup-token manifest for
 Plato to discover. Do not share the manifest token.

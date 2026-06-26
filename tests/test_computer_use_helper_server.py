@@ -138,6 +138,44 @@ def test_helper_server_readiness_degrades_when_system_events_probe_fails() -> No
     assert [action.operation for action in backend.actions] == ["readiness", "observe"]
 
 
+def test_helper_server_readiness_warns_when_dev_app_uses_external_python() -> None:
+    backend = ScriptedComputerUseBackend(
+        responses=[
+            _observation(
+                operation="readiness",
+                status="ok",
+                summary="helper package ready",
+                metadata={"readiness": {"status": "ready"}},
+            ),
+            _observation(
+                operation="observe",
+                status="failed",
+                summary="macOS computer-use operation failed: TimeoutExpired",
+            ),
+        ]
+    )
+
+    with build_computer_use_helper_server(
+        backend=backend,
+        helper_config=ComputerUseHelperTransportConfig(
+            info=ComputerUseHelperInfo(
+                path="/Applications/Plato Computer Use Helper Dev.app",
+                signing_mode="development-app",
+            )
+        ),
+    ) as server:
+        response = _request(server, "GET", "/v1/readiness")
+
+    assert response.status == 200
+    runtime_identity = response.json["diagnostics"]["runtimeIdentity"]
+    assert runtime_identity["mode"] == "external_python_for_app"
+    assert runtime_identity["declaredHelperPath"].endswith(
+        "Plato Computer Use Helper Dev.app"
+    )
+    assert "external Python runtime" in response.json["setupHint"]
+    assert response.json["metadata"]["setup_hint"] == response.json["setupHint"]
+
+
 def test_helper_server_forwards_operation_from_http_client() -> None:
     backend = ScriptedComputerUseBackend(
         responses=[

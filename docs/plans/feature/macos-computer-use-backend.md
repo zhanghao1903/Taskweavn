@@ -286,6 +286,12 @@ Implementation status as of 2026-06-27:
 - Settings readiness now exposes a `computerUse` section sourced from the
   selected backend. Enabled-but-not-ready computer-use degrades readiness with
   a `computer_use.not_ready` warning and safe recovery actions.
+- Helper readiness now reports runtime identity diagnostics. Current dev helper
+  evidence shows `runtimeIdentity.mode=external_python_for_app`, with the
+  effective executable set to the workspace `.venv/bin/python` while the
+  declared helper path is the generated `.app`. This makes the live TCC subject
+  gap explicit: development can grant the external Python runtime, but release
+  acceptance requires a packaged helper-owned executable.
 - Helper manifests now include `apiVersion`, and the Plato-side helper adapter
   validates configured expected bundle id / API version before trusting helper
   readiness or operation responses. Mismatches surface as `helper_untrusted` or
