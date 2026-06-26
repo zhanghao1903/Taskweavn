@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import type {
   SessionSummary,
@@ -19,6 +19,13 @@ export type MainPageSessionIdentityState = {
   selectSession: (session: SessionSummary, currentSessionId: string) => void;
   setActiveSessionId: (sessionId: string | null) => void;
   setActiveWorkspaceId: (workspaceId: WorkspaceId | null) => void;
+};
+
+export type UseMainPageSessionIdentityAdoptionOptions = {
+  adoptSessionId: (sessionId: string) => void;
+  adoptWorkspaceId: (workspaceId: WorkspaceId) => void;
+  catalogWorkspaceId: WorkspaceId | null;
+  snapshotSessionId: string | null;
 };
 
 export function useMainPageSessionIdentityState({
@@ -68,4 +75,25 @@ export function useMainPageSessionIdentityState({
     setActiveSessionId,
     setActiveWorkspaceId,
   };
+}
+
+export function useMainPageSessionIdentityAdoption({
+  adoptSessionId,
+  adoptWorkspaceId,
+  catalogWorkspaceId,
+  snapshotSessionId,
+}: UseMainPageSessionIdentityAdoptionOptions) {
+  useEffect(() => {
+    if (snapshotSessionId === null) {
+      return;
+    }
+    adoptSessionId(snapshotSessionId);
+  }, [adoptSessionId, snapshotSessionId]);
+
+  useEffect(() => {
+    if (catalogWorkspaceId === null) {
+      return;
+    }
+    adoptWorkspaceId(catalogWorkspaceId);
+  }, [adoptWorkspaceId, catalogWorkspaceId]);
 }
