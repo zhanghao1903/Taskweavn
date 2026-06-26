@@ -331,6 +331,30 @@ packaged executable 必须遵守同一个启动契约：
 真实发送消息，而是：同一份 `helper-launch.json` 在 dev wrapper 和 packaged
 executable 下生成相同 helper argv，并发布同形态 manifest。
 
+当前最小 PyInstaller build seam：
+
+```bash
+uv run taskweavn computer-use-helper-executable \
+  --output-dir dist/computer-use-helper \
+  --build-dir build/computer-use-helper \
+  --spec-dir build/computer-use-helper/spec \
+  --collect-submodules taskweavn
+```
+
+该命令要求所选 `--python-executable` 中已安装 PyInstaller。它不会联网安装依赖；
+如果 PyInstaller 不可用，必须明确失败并提示安装。成功后输出
+`dist/computer-use-helper/PlatoComputerUseHelper`，再通过
+`taskweavn computer-use-helper-app --packaged-executable-path ...` 打进 `.app`。
+
+如果 helper executable 需要包含独立发布的 `macos-computer-use` 包，可以使用：
+
+```bash
+uv run taskweavn computer-use-helper-executable \
+  --collect-submodules taskweavn,macos_computer_use
+```
+
+该路径仍是 unsigned local build seam，不等于 release-grade helper app。
+
 ## 7. Helper 启动模式
 
 ### 7.1 Manual Run Mode

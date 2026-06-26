@@ -262,6 +262,18 @@ def test_computer_use_helper_app_help_exposes_build_options() -> None:
     assert "--computer-use-backend" in result.output
 
 
+def test_computer_use_helper_executable_help_exposes_build_options() -> None:
+    runner = CliRunner()
+    result = runner.invoke(app, ["computer-use-helper-executable", "--help"])
+
+    assert result.exit_code == 0
+    assert "--output-dir" in result.output
+    assert "--build-dir" in result.output
+    assert "--spec-dir" in result.output
+    assert "--collect-submodules" in result.output
+    assert "--hidden-imports" in result.output
+
+
 def test_computer_use_helper_app_builds_dev_bundle(tmp_path: Path) -> None:
     runner = CliRunner()
     app_path = tmp_path / "Plato Computer Use Helper Dev.app"

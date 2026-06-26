@@ -277,6 +277,12 @@ Implementation status as of 2026-06-27:
   `taskweavn.server.computer_use_helper_app_entrypoint` reads
   `.app/Contents/Resources/helper-launch.json` from its executable path and
   launches the helper CLI with the same arguments as the dev wrapper.
+- A PyInstaller build seam is now available through
+  `taskweavn computer-use-helper-executable`. It builds the shared helper app
+  entrypoint into `PlatoComputerUseHelper` when PyInstaller is installed in the
+  selected Python runtime, and fails with an explicit missing-PyInstaller error
+  otherwise. This is the first concrete helper-owned executable build path; it
+  still does not sign, notarize, or run a real helper smoke by itself.
 - Helper backend now supports explicit opt-in auto-launch from a configured
   helper app path, waits for the helper manifest before connecting, and waits
   for a refreshed manifest when recovering from a stale endpoint. This is

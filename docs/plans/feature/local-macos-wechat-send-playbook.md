@@ -448,6 +448,12 @@ Validated runtime identity hint on 2026-06-27:
   read `.app/Contents/Resources/helper-launch.json` and launch the helper API
   with the same arguments as the dev wrapper. This keeps packaged helper smoke
   comparable with dev wrapper smoke.
+- local build command:
+  `uv run taskweavn computer-use-helper-executable --collect-submodules taskweavn`
+  produces `dist/computer-use-helper/PlatoComputerUseHelper` when PyInstaller is
+  installed in the selected Python runtime. For a backend that imports the
+  external macOS package, use
+  `--collect-submodules taskweavn,macos_computer_use`.
 
 ### 6.3 Helper-Backed Contact Resolution Progress
 

@@ -58,6 +58,11 @@ from taskweavn.server import (
     build_main_page_sidecar_app,
     prepare_computer_use_helper_server,
 )
+from taskweavn.server.computer_use_helper_executable import (
+    ComputerUseHelperExecutableBuildConfig,
+    ComputerUseHelperExecutableBuildError,
+    build_computer_use_helper_executable,
+)
 from taskweavn.server.computer_use_runtime import (
     ComputerUseRuntimeSelection,
     build_computer_use_runtime,
@@ -522,6 +527,88 @@ def computer_use_helper_app(
         "[computer-use-helper-app] "
         f"bundleId={result.bundle_id} version={result.version} "
         f"apiVersion={result.api_version}"
+    )
+
+
+@app.command("computer-use-helper-executable")
+def computer_use_helper_executable(
+    output_dir: Annotated[
+        Path,
+        typer.Option(
+            "--output-dir",
+            help="Directory where PyInstaller should write PlatoComputerUseHelper.",
+        ),
+    ] = Path("dist/computer-use-helper"),
+    build_dir: Annotated[
+        Path,
+        typer.Option("--build-dir", help="PyInstaller work directory."),
+    ] = Path("build/computer-use-helper"),
+    spec_dir: Annotated[
+        Path,
+        typer.Option("--spec-dir", help="PyInstaller spec output directory."),
+    ] = Path("build/computer-use-helper/spec"),
+    executable_name: Annotated[
+        str,
+        typer.Option("--executable-name", help="Name of the helper executable."),
+    ] = "PlatoComputerUseHelper",
+    python_executable: Annotated[
+        Path,
+        typer.Option(
+            "--python-executable",
+            help="Python runtime that provides PyInstaller and Taskweavn.",
+        ),
+    ] = Path(sys.executable),
+    entrypoint_path: Annotated[
+        Path | None,
+        typer.Option(
+            "--entrypoint-path",
+            help="Override helper executable entrypoint script path.",
+        ),
+    ] = None,
+    collect_submodules: Annotated[
+        str,
+        typer.Option(
+            "--collect-submodules",
+            help=(
+                "Comma-separated modules passed to PyInstaller "
+                "--collect-submodules."
+            ),
+        ),
+    ] = "taskweavn",
+    hidden_imports: Annotated[
+        str | None,
+        typer.Option(
+            "--hidden-imports",
+            help="Comma-separated modules passed to PyInstaller --hidden-import.",
+        ),
+    ] = None,
+) -> None:
+    """Build the helper-owned executable used by Plato Computer Use Helper.app."""
+
+    config_kwargs: dict[str, Any] = {
+        "output_dir": output_dir,
+        "build_dir": build_dir,
+        "spec_dir": spec_dir,
+        "executable_name": executable_name,
+        "python_executable": str(python_executable.expanduser()),
+        "collect_submodules": _parse_comma_separated(collect_submodules),
+        "hidden_imports": _parse_comma_separated(hidden_imports),
+    }
+    if entrypoint_path is not None:
+        config_kwargs["entrypoint_path"] = entrypoint_path.expanduser()
+
+    try:
+        result = build_computer_use_helper_executable(
+            ComputerUseHelperExecutableBuildConfig(**config_kwargs)
+        )
+    except ComputerUseHelperExecutableBuildError as exc:
+        typer.secho(str(exc), fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from exc
+
+    typer.echo(f"[computer-use-helper-executable] executable={result.executable_path}")
+    typer.echo(
+        "[computer-use-helper-executable] "
+        f"command={' '.join(result.command)}"
     )
 
 
@@ -1272,6 +1359,10 @@ def _build_cli_computer_use_runtime(
 
 
 def _parse_computer_use_allowed_apps(value: str | None) -> tuple[str, ...]:
+    return _parse_comma_separated(value)
+
+
+def _parse_comma_separated(value: str | None) -> tuple[str, ...]:
     if value is None:
         return ()
     return tuple(part.strip() for part in value.split(",") if part.strip())
