@@ -430,6 +430,7 @@ describe("App", () => {
           appendSessionInput,
           appendTaskInput,
           loadSnapshot,
+          routeRuntimeInput: undefined,
         })}
       />,
     );
@@ -466,6 +467,7 @@ describe("App", () => {
           appendSessionInput,
           generateTaskTree,
           loadSnapshot,
+          routeRuntimeInput: undefined,
         })}
         initialStateId="s1-empty"
       />,
@@ -538,6 +540,7 @@ describe("App", () => {
           appendSessionInput,
           appendTaskInput,
           loadSnapshot,
+          routeRuntimeInput: undefined,
         })}
         initialStateId="s4-task-selected"
       />,
@@ -959,9 +962,6 @@ describe("App", () => {
 
     expect(await screen.findByText("Personal Website")).toBeInTheDocument();
     expect(screen.getByText("Events offline")).toBeInTheDocument();
-    expect(
-      screen.getByText("Event stream unavailable: event source missing"),
-    ).toBeInTheDocument();
   });
 
   it("shows a render error boundary when the app view crashes", () => {

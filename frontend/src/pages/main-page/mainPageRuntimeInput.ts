@@ -9,6 +9,7 @@ import type { InputTarget } from "./mainPageUiTypes";
 import type { MainPageInputCommandMode } from "./mainPageViewModel";
 
 export function buildRuntimeInputRouteRequest({
+  commandId,
   content,
   mode,
   sessionId,
@@ -16,6 +17,7 @@ export function buildRuntimeInputRouteRequest({
   target,
   taskNodeId,
 }: {
+  commandId?: string;
   content: string;
   mode: RuntimeInputRouteRequest["mode"];
   sessionId: string;
@@ -32,7 +34,7 @@ export function buildRuntimeInputRouteRequest({
         : "session";
 
   return {
-    commandId: `route-input-${Date.now()}`,
+    commandId: commandId ?? createRuntimeInputCommandId(),
     sessionId,
     content,
     mode,
@@ -47,6 +49,10 @@ export function buildRuntimeInputRouteRequest({
       activeConfirmationId: snapshot?.pendingConfirmations[0]?.id ?? null,
     },
   };
+}
+
+export function createRuntimeInputCommandId(): string {
+  return `route-input-${Date.now()}`;
 }
 
 export function runtimeInputActivity(
