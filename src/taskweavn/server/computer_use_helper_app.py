@@ -53,6 +53,7 @@ class ComputerUseHelperAppBuildResult:
     executable_path: Path
     info_plist_path: Path
     launch_config_path: Path
+    permission_guide_path: Path
     manifest_path: Path
     token_path: Path | None
     bundle_id: str
@@ -83,6 +84,7 @@ def build_computer_use_helper_app(
     token_path = None if config.token_path is None else config.token_path.expanduser()
     info_plist_path = contents_dir / "Info.plist"
     launch_config_path = resources_dir / "helper-launch.json"
+    permission_guide_path = resources_dir / "permission-guide.md"
     executable_path = macos_dir / config.executable_name
 
     _write_info_plist(config=config, path=info_plist_path)
@@ -97,12 +99,14 @@ def build_computer_use_helper_app(
         config=config,
         executable_path=executable_path,
     )
+    _write_permission_guide(config=config, path=permission_guide_path)
 
     return ComputerUseHelperAppBuildResult(
         app_path=app_path,
         executable_path=executable_path,
         info_plist_path=info_plist_path,
         launch_config_path=launch_config_path,
+        permission_guide_path=permission_guide_path,
         manifest_path=manifest_path,
         token_path=token_path,
         bundle_id=config.bundle_id,
@@ -222,6 +226,35 @@ PY
     executable_path.parent.mkdir(parents=True, exist_ok=True)
     executable_path.write_text(script, encoding="utf-8")
     executable_path.chmod(0o755)
+
+
+def _write_permission_guide(
+    *,
+    config: ComputerUseHelperAppConfig,
+    path: Path,
+) -> None:
+    allowed_apps = ", ".join(config.computer_use_allowed_apps) or "none configured"
+    payload = f"""# {config.display_name} Permission Guide
+
+This helper app is the macOS Accessibility permission subject for Plato
+computer-use actions.
+
+- Bundle ID: `{config.bundle_id}`
+- Version: `{config.version}`
+- API version: `{config.api_version}`
+- Signing mode: `{config.signing_mode}`
+- Computer-use backend: `{config.computer_use_backend.strip().lower()}`
+- Allowed apps: `{allowed_apps}`
+
+Grant Accessibility permission to this helper app, not to Plato, when using the
+helper-backed computer-use provider. If the helper is rebuilt with a different
+bundle ID, path, or signing identity, macOS may require permission again.
+
+The helper listens only on loopback and publishes a startup-token manifest for
+Plato to discover. Do not share the manifest token.
+"""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(payload, encoding="utf-8")
 
 
 __all__ = [

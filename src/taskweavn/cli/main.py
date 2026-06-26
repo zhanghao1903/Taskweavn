@@ -498,6 +498,9 @@ def computer_use_helper_app(
     typer.echo(f"[computer-use-helper-app] executable={result.executable_path}")
     typer.echo(f"[computer-use-helper-app] infoPlist={result.info_plist_path}")
     typer.echo(f"[computer-use-helper-app] launchConfig={result.launch_config_path}")
+    typer.echo(
+        f"[computer-use-helper-app] permissionGuide={result.permission_guide_path}"
+    )
     typer.echo(f"[computer-use-helper-app] manifest={result.manifest_path}")
     typer.echo(f"[computer-use-helper-app] tokenRef={result.token_path}")
     typer.echo(

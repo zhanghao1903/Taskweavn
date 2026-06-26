@@ -36,6 +36,7 @@ def test_build_computer_use_helper_app_writes_dev_bundle(tmp_path: Path) -> None
     assert result.token_path == token_path
     assert result.info_plist_path.exists()
     assert result.launch_config_path.exists()
+    assert result.permission_guide_path.exists()
     assert result.executable_path.exists()
     assert result.executable_path.stat().st_mode & stat.S_IXUSR
 
@@ -64,6 +65,13 @@ def test_build_computer_use_helper_app_writes_dev_bundle(tmp_path: Path) -> None
     assert "--helper-bundle-id" in launcher
     assert "--helper-signing-mode" in launcher
     assert "/usr/bin/python3" in launcher
+
+    permission_guide = result.permission_guide_path.read_text(encoding="utf-8")
+    assert "# Plato Computer Use Helper Dev Permission Guide" in permission_guide
+    assert "Bundle ID: `com.taskweavn.plato.computer-use-helper.dev`" in permission_guide
+    assert "Computer-use backend: `macos`" in permission_guide
+    assert "Allowed apps: `WeChat, TextEdit`" in permission_guide
+    assert "Grant Accessibility permission to this helper app" in permission_guide
 
 
 def test_build_computer_use_helper_app_rejects_recursive_backend(
