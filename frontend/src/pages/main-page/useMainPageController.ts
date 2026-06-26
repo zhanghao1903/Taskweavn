@@ -67,6 +67,7 @@ import {
   type ArchivePlanContext,
   type PublishTaskTreeContext,
 } from "./useMainPagePlanCommands";
+import { useMainPageSessionLifecycleCommands } from "./useMainPageSessionLifecycleCommands";
 import {
   useMainPageTaskLifecycleCommands,
   type RetryTaskContext,
@@ -632,83 +633,19 @@ export function useMainPageController({
     setUiNotice,
   });
 
-  const createSessionMutation = useMutation({
-    mutationFn: async ({
-      name,
-      workspaceId,
-    }: {
-      name: string;
-      workspaceId: WorkspaceId | null;
-    }) =>
-      adapter.createSession(
-        {
-          name,
-        },
-        workspaceId,
-      ),
-    onError: () => {
-      setSessionDialogError("Create session failed. Please retry.");
-    },
-    onSuccess: (result) => {
-      const nextSessionId = result.sessionId ?? result.session?.id ?? null;
-      if (nextSessionId === null) {
-        setSessionDialogError("Created session was unavailable. Please retry.");
-        return;
-      }
-
-      if (result.session?.workspaceId) {
-        setActiveWorkspaceId(result.session.workspaceId);
-      }
-      setActiveSessionId(nextSessionId);
-      setUiNotice(`Created session ${result.session?.name ?? nextSessionId}.`);
-      setSessionDialog({ mode: "idle" });
-      refetchWorkspaceCatalog();
-    },
-  });
-
-  const renameSessionMutation = useMutation({
-    mutationFn: async ({
-      name,
-      sessionId,
-      workspaceId,
-    }: {
-      name: string;
-      sessionId: string;
-      workspaceId: WorkspaceId | null;
-    }) =>
-      adapter.renameSession({
-        name,
-        sessionId,
-      }, workspaceId),
-    onError: () => {
-      setSessionDialogError("Rename session failed. Please retry.");
-    },
-    onSuccess: (result) => {
-      setUiNotice(`Renamed session to ${result.session?.name ?? "new name"}.`);
-      setSessionDialog({ mode: "idle" });
-      refetchWorkspaceCatalog();
-      void refetchSnapshot();
-    },
-  });
-
-  const deleteSessionMutation = useMutation({
-    mutationFn: async ({
-      sessionId,
-      workspaceId,
-    }: {
-      sessionId: string;
-      workspaceId: WorkspaceId | null;
-    }) => adapter.deleteSession(sessionId, workspaceId),
-    onError: () => {
-      setSessionDialogError("Delete session failed. Please retry.");
-    },
-    onSuccess: (result) => {
-      const nextSessionId = result.nextSessionId ?? null;
-      setActiveSessionId(nextSessionId);
-      setUiNotice("Session deleted.");
-      setSessionDialog({ mode: "idle" });
-      refetchWorkspaceCatalog();
-    },
+  const {
+    createSessionMutation,
+    deleteSessionMutation,
+    renameSessionMutation,
+  } = useMainPageSessionLifecycleCommands({
+    adapter,
+    closeSessionDialog: () => setSessionDialog({ mode: "idle" }),
+    refetchSnapshot,
+    refetchWorkspaceCatalog,
+    setActiveSessionId,
+    setActiveWorkspaceId,
+    setSessionDialogError,
+    setUiNotice,
   });
 
   useEffect(() => {
