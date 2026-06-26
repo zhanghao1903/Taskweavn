@@ -43,6 +43,8 @@ class ComputerUseHelperBackendConfig:
     endpoint: str | None = None
     token: str | None = None
     endpoint_manifest_path: Path | None = None
+    expected_bundle_id: str | None = None
+    expected_api_version: str | None = "plato.computer_use_helper.v1"
     allowed_apps: tuple[str, ...] = ()
     allow_coordinate_click: bool = False
     allow_screenshot: bool = False
@@ -63,6 +65,13 @@ class ComputerUseHelperBackendConfig:
             endpoint=os.environ.get("PLATO_COMPUTER_USE_HELPER_ENDPOINT"),
             token=os.environ.get("PLATO_COMPUTER_USE_HELPER_TOKEN"),
             endpoint_manifest_path=Path(manifest).expanduser() if manifest else None,
+            expected_bundle_id=os.environ.get(
+                "PLATO_COMPUTER_USE_HELPER_EXPECTED_BUNDLE_ID"
+            ),
+            expected_api_version=os.environ.get(
+                "PLATO_COMPUTER_USE_HELPER_EXPECTED_API_VERSION",
+                "plato.computer_use_helper.v1",
+            ),
             allowed_apps=allowed_apps,
             allow_coordinate_click=allow_coordinate_click,
             allow_screenshot=allow_screenshot,
@@ -80,6 +89,7 @@ class ComputerUseHelperBackend(ComputerUseBackend):
     ) -> None:
         self._config = config or ComputerUseHelperBackendConfig.from_environment()
         self._setup_error: str | None = None
+        self._setup_failure_kind = "helper_not_available"
         self._client = client or self._load_client()
 
     def _load_client(self) -> ComputerUseHelperClientProtocol | None:
@@ -93,6 +103,15 @@ class ComputerUseHelperBackend(ComputerUseBackend):
                 return None
             except ValueError as exc:
                 self._setup_error = str(exc)
+                return None
+            manifest_error = _helper_identity_error(
+                manifest,
+                expected_bundle_id=self._config.expected_bundle_id,
+                expected_api_version=self._config.expected_api_version,
+            )
+            if manifest_error is not None:
+                self._setup_error = manifest_error.message
+                self._setup_failure_kind = manifest_error.failure_kind
                 return None
             endpoint = endpoint or _string(manifest.get("endpoint"))
             token = token or _string(manifest.get("token"))
@@ -123,7 +142,11 @@ class ComputerUseHelperBackend(ComputerUseBackend):
 
     def readiness(self, *, action_id: str | None = None) -> ComputerUseObservation:
         if self._client is None:
-            return _helper_unavailable(action_id=action_id, setup_error=self._setup_error)
+            return _helper_unavailable(
+                action_id=action_id,
+                setup_error=self._setup_error,
+                failure_kind=self._setup_failure_kind,
+            )
         try:
             response = self._client.readiness()
         except Exception as exc:  # noqa: BLE001 - helper boundary must sanitize.
@@ -139,6 +162,8 @@ class ComputerUseHelperBackend(ComputerUseBackend):
             operation="readiness",
             action_id=action_id,
             response=response,
+            expected_bundle_id=self._config.expected_bundle_id,
+            expected_api_version=self._config.expected_api_version,
         )
 
     def execute(self, action: ComputerUseAction) -> ComputerUseObservation:
@@ -149,6 +174,7 @@ class ComputerUseHelperBackend(ComputerUseBackend):
                 action_id=action.event_id,
                 operation=action.operation,
                 setup_error=self._setup_error,
+                failure_kind=self._setup_failure_kind,
             )
         try:
             response = self._client.execute(action)
@@ -165,6 +191,8 @@ class ComputerUseHelperBackend(ComputerUseBackend):
             operation=action.operation,
             action_id=action.event_id,
             response=response,
+            expected_bundle_id=self._config.expected_bundle_id,
+            expected_api_version=self._config.expected_api_version,
         )
 
 
@@ -284,6 +312,7 @@ def _helper_unavailable(
     *,
     action_id: str | None,
     setup_error: str | None,
+    failure_kind: str = "helper_not_available",
     operation: ComputerUseOperation = "readiness",
 ) -> ComputerUseObservation:
     return ComputerUseObservation(
@@ -294,10 +323,17 @@ def _helper_unavailable(
         summary="Plato Computer Use Helper is not available.",
         metadata={
             "provider": "helper",
-            "failure_kind": "helper_not_available",
+            "failure_kind": failure_kind,
             "setup_hint": setup_error or "Configure and start Plato Computer Use Helper.",
         },
     )
+
+
+@dataclass(frozen=True)
+class _HelperIdentityError:
+    message: str
+    failure_kind: str
+    helper_status: str
 
 
 def _helper_response_to_observation(
@@ -305,7 +341,29 @@ def _helper_response_to_observation(
     operation: ComputerUseOperation,
     action_id: str | None,
     response: Mapping[str, Any],
+    expected_bundle_id: str | None,
+    expected_api_version: str | None,
 ) -> ComputerUseObservation:
+    identity_error = _helper_identity_error(
+        response.get("helper") if isinstance(response.get("helper"), dict) else response,
+        expected_bundle_id=expected_bundle_id,
+        expected_api_version=expected_api_version,
+    )
+    if identity_error is not None:
+        return ComputerUseObservation(
+            action_id=action_id,
+            success=False,
+            operation=operation,
+            status="not_available",
+            summary="Plato Computer Use Helper identity check failed.",
+            metadata={
+                "provider": "helper",
+                "helper_status": identity_error.helper_status,
+                "failure_kind": identity_error.failure_kind,
+                "setup_hint": identity_error.message,
+                "helper": _helper_identity_metadata(response),
+            },
+        )
     helper_status = _string(response.get("status")) or "failed"
     status = _map_helper_status(helper_status)
     metadata = _metadata_from_response(response)
@@ -341,6 +399,9 @@ def _metadata_from_response(response: Mapping[str, Any]) -> dict[str, Any]:
         value = response.get(source_key)
         if value is not None:
             metadata[target_key] = value
+    helper = response.get("helper")
+    if isinstance(helper, dict):
+        metadata["helper"] = _helper_identity_metadata(helper)
     return metadata
 
 
@@ -356,6 +417,7 @@ def _map_helper_status(status: str) -> ComputerUseStatus:
         "helper_not_installed",
         "helper_not_running",
         "helper_untrusted",
+        "helper_version_mismatch",
         "missing_accessibility",
         "missing_screen_recording",
         "automation_not_authorized",
@@ -373,6 +435,63 @@ def _summary_from_response(response: Mapping[str, Any], helper_status: str) -> s
     if helper_status == "ready":
         return "Plato Computer Use Helper is ready."
     return f"Plato Computer Use Helper returned {helper_status}."
+
+
+def _helper_identity_error(
+    raw: object,
+    *,
+    expected_bundle_id: str | None,
+    expected_api_version: str | None,
+) -> _HelperIdentityError | None:
+    if expected_bundle_id is None and expected_api_version is None:
+        return None
+    if not isinstance(raw, Mapping):
+        return _HelperIdentityError(
+            message="helper identity metadata is missing",
+            failure_kind="helper_untrusted",
+            helper_status="helper_untrusted",
+        )
+    bundle_id = _string(raw.get("bundleId")) or _string(raw.get("bundle_id"))
+    api_version = _string(raw.get("apiVersion")) or _string(raw.get("api_version"))
+    if expected_bundle_id is not None and bundle_id != expected_bundle_id:
+        return _HelperIdentityError(
+            message=(
+                "helper bundle id mismatch: "
+                f"expected {expected_bundle_id}, got {bundle_id or 'unknown'}"
+            ),
+            failure_kind="helper_untrusted",
+            helper_status="helper_untrusted",
+        )
+    if expected_api_version is not None and api_version != expected_api_version:
+        return _HelperIdentityError(
+            message=(
+                "helper API version mismatch: "
+                f"expected {expected_api_version}, got {api_version or 'unknown'}"
+            ),
+            failure_kind="helper_version_mismatch",
+            helper_status="helper_version_mismatch",
+        )
+    return None
+
+
+def _helper_identity_metadata(raw: Mapping[str, Any]) -> dict[str, str]:
+    helper = raw.get("helper")
+    source = helper if isinstance(helper, dict) else raw
+    metadata: dict[str, str] = {}
+    for source_key, target_key in (
+        ("bundleId", "bundleId"),
+        ("bundle_id", "bundleId"),
+        ("version", "version"),
+        ("apiVersion", "apiVersion"),
+        ("api_version", "apiVersion"),
+        ("path", "path"),
+        ("signingMode", "signingMode"),
+        ("signing_mode", "signingMode"),
+    ):
+        value = _string(source.get(source_key))
+        if value is not None:
+            metadata[target_key] = value
+    return metadata
 
 
 def _string(value: Any) -> str | None:

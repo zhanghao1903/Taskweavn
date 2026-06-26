@@ -352,7 +352,8 @@ Helper 只监听 loopback：
   "tokenRef": "stored in owner-only file",
   "pid": 12345,
   "bundleId": "com.taskweavn.plato.computer-use-helper.dev",
-  "version": "0.1.0"
+  "version": "0.1.0",
+  "apiVersion": "plato.computer_use_helper.v1"
 }
 ```
 
@@ -884,6 +885,10 @@ Helper 返回：
   `/api/v1/settings/readiness` 的 `computerUse` section；启用但不可用时
   Settings readiness 会降级为 `degraded` 并追加 `computer_use.not_ready`
   warning；
+- helper manifest 现在写入 `apiVersion`，Plato-side helper adapter 会校验
+  configured expected bundle id / expected API version；manifest、readiness 或
+  operation identity mismatch 会转成 `helper_untrusted` /
+  `helper_version_mismatch` evidence，而不是继续执行；
 - 尚未实现真实 `Plato Computer Use Helper.app` macOS `.app` wrapper、
   stable TCC identity、Settings UI 细节展示和 release packaging。
 
@@ -916,6 +921,7 @@ Helper 返回：
 - helper client；（implemented）
 - capability registry integration；（implemented through execution env registry）
 - Settings readiness projection；（backend projection implemented; final UI copy/details pending）
+- helper identity / API version validation；（implemented for manifest, readiness, and operation responses）
 - Router/Execution error evidence。（partially implemented; continue to refine evidence display）
 
 ### H4: WeChat Draft/Send Through Helper

@@ -267,6 +267,10 @@ Implementation status as of 2026-06-27:
 - Settings readiness now exposes a `computerUse` section sourced from the
   selected backend. Enabled-but-not-ready computer-use degrades readiness with
   a `computer_use.not_ready` warning and safe recovery actions.
+- Helper manifests now include `apiVersion`, and the Plato-side helper adapter
+  validates configured expected bundle id / API version before trusting helper
+  readiness or operation responses. Mismatches surface as `helper_untrusted` or
+  `helper_version_mismatch` evidence.
 - The actual `Plato Computer Use Helper.app` macOS wrapper, stable TCC identity,
   Settings UI details, and release packaging are still pending.
 

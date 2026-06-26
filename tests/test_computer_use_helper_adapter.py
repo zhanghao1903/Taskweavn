@@ -48,7 +48,10 @@ def test_helper_backend_maps_ready_readiness() -> None:
             {
                 "status": "ready",
                 "summary": "Helper ready.",
-                "helper": {"bundleId": "com.taskweavn.plato.computer-use-helper.dev"},
+                "helper": {
+                    "bundleId": "com.taskweavn.plato.computer-use-helper.dev",
+                    "apiVersion": "plato.computer_use_helper.v1",
+                },
             }
         )
     )
@@ -69,6 +72,7 @@ def test_helper_backend_maps_missing_accessibility_to_not_available() -> None:
             {
                 "status": "missing_accessibility",
                 "summary": "Accessibility permission is missing.",
+                "helper": {"apiVersion": "plato.computer_use_helper.v1"},
                 "diagnostics": {"checkedByProcessPath": "/Applications/Helper.app"},
             }
         )
@@ -84,6 +88,30 @@ def test_helper_backend_maps_missing_accessibility_to_not_available() -> None:
     )
 
 
+def test_helper_backend_rejects_unexpected_readiness_api_version() -> None:
+    backend = ComputerUseHelperBackend(
+        client=FakeHelperClient(
+            {
+                "status": "ready",
+                "summary": "Helper ready.",
+                "helper": {
+                    "bundleId": "com.taskweavn.plato.computer-use-helper.dev",
+                    "apiVersion": "plato.computer_use_helper.v2",
+                },
+            }
+        )
+    )
+
+    observation = backend.readiness()
+
+    assert observation.success is False
+    assert observation.status == "not_available"
+    assert observation.metadata["helper_status"] == "helper_version_mismatch"
+    assert observation.metadata["failure_kind"] == "helper_version_mismatch"
+    assert "API version mismatch" in observation.metadata["setup_hint"]
+    assert observation.metadata["helper"]["apiVersion"] == "plato.computer_use_helper.v2"
+
+
 def test_helper_backend_maps_operation_result_evidence_and_failure_kind() -> None:
     client = FakeHelperClient(
         {
@@ -94,6 +122,7 @@ def test_helper_backend_maps_operation_result_evidence_and_failure_kind() -> Non
             "risk": {"level": "high", "requiresConfirmation": True},
             "evidence": {"safeSummary": "Draft is present."},
             "metadata": {"targetApp": "WeChat"},
+            "helper": {"apiVersion": "plato.computer_use_helper.v1"},
         }
     )
     backend = ComputerUseHelperBackend(client=client)
@@ -178,6 +207,7 @@ def test_helper_backend_loads_endpoint_and_token_ref_from_manifest(tmp_path: Pat
             {
                 "endpoint": "http://127.0.0.1:49321",
                 "tokenRef": str(token_path),
+                "apiVersion": "plato.computer_use_helper.v1",
             }
         ),
         encoding="utf-8",
@@ -188,3 +218,30 @@ def test_helper_backend_loads_endpoint_and_token_ref_from_manifest(tmp_path: Pat
     )
 
     assert backend._client is not None
+
+
+def test_helper_backend_rejects_manifest_bundle_mismatch(tmp_path: Path) -> None:
+    manifest_path = tmp_path / "helper.json"
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "endpoint": "http://127.0.0.1:49321",
+                "bundleId": "com.example.untrusted-helper",
+                "apiVersion": "plato.computer_use_helper.v1",
+            }
+        ),
+        encoding="utf-8",
+    )
+    backend = ComputerUseHelperBackend(
+        config=ComputerUseHelperBackendConfig(
+            endpoint_manifest_path=manifest_path,
+            expected_bundle_id="com.taskweavn.plato.computer-use-helper.dev",
+        )
+    )
+
+    observation = backend.readiness()
+
+    assert observation.success is False
+    assert observation.status == "not_available"
+    assert observation.metadata["failure_kind"] == "helper_untrusted"
+    assert "bundle id mismatch" in observation.metadata["setup_hint"]

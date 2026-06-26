@@ -42,12 +42,14 @@ class ComputerUseHelperManifest:
     pid: int | None = None
     bundle_id: str = "com.taskweavn.plato.computer-use-helper.dev"
     version: str = "0.1.0"
+    api_version: str = "plato.computer_use_helper.v1"
 
     def to_dict(self) -> dict[str, Any]:
         data: dict[str, Any] = {
             "endpoint": self.endpoint,
             "bundleId": self.bundle_id,
             "version": self.version,
+            "apiVersion": self.api_version,
         }
         if self.token_ref is not None:
             data["tokenRef"] = self.token_ref
@@ -196,12 +198,12 @@ class ComputerUseHelperTransport:
         except ValueError as exc:
             return _error_response(400, "bad_request", str(exc))
         observation = self._backend.execute(action)
-        return _json_response(
-            _observation_to_helper_body(
-                observation,
-                request_id=_string(body.get("requestId")) or action.event_id,
-            )
+        response = _observation_to_helper_body(
+            observation,
+            request_id=_string(body.get("requestId")) or action.event_id,
         )
+        response["helper"] = _info_body(self._config.info)
+        return _json_response(response)
 
 
 def build_computer_use_helper_server(
@@ -247,6 +249,7 @@ def prepare_computer_use_helper_server(
         pid=getpid(),
         bundle_id=config.info.bundle_id,
         version=config.info.version,
+        api_version=config.info.api_version,
     )
     write_helper_manifest(config.manifest_path, manifest)
     return ComputerUseHelperServerHandle(
@@ -298,6 +301,9 @@ def read_helper_manifest(path: Path) -> ComputerUseHelperManifest:
         or _string(raw.get("bundle_id"))
         or "com.taskweavn.plato.computer-use-helper.dev",
         version=_string(raw.get("version")) or "0.1.0",
+        api_version=_string(raw.get("apiVersion"))
+        or _string(raw.get("api_version"))
+        or "plato.computer_use_helper.v1",
     )
 
 

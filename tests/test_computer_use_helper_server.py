@@ -202,6 +202,7 @@ def test_prepare_helper_server_writes_token_manifest_and_serves(
     assert manifest.endpoint == helper.base_url
     assert manifest.pid is not None
     assert manifest.bundle_id == "com.taskweavn.plato.computer-use-helper.dev"
+    assert manifest.api_version == "plato.computer_use_helper.v1"
     assert response["status"] == "ready"
     assert response["helper"]["path"] == "/dev/Plato Computer Use Helper Dev.app"
 
