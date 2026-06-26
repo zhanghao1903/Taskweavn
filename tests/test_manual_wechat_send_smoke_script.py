@@ -231,6 +231,11 @@ def test_manual_wechat_smoke_preflight_fails_on_helper_wechat_window_blocker(
         "summary": "WeChat main window is unavailable.",
         "failureKind": "needs_user",
         "phase": "window_readiness",
+        "setupHint": "Open the WeChat main window.",
+        "recoveryActions": [
+            "open_wechat_main_window",
+            "rerun_helper_preflight",
+        ],
         "diagnostics": {"error": "cannot get window 1"},
     }
 
@@ -261,6 +266,11 @@ def test_manual_wechat_smoke_preflight_fails_on_helper_wechat_window_blocker(
     assert result.wechat_app_phase == "window_readiness"
     assert result.wechat_app_failure_kind == "needs_user"
     assert result.wechat_app_summary == "WeChat main window is unavailable."
+    assert result.wechat_app_setup_hint == "Open the WeChat main window."
+    assert result.wechat_app_recovery_actions == (
+        "open_wechat_main_window",
+        "rerun_helper_preflight",
+    )
     assert result.wechat_app_diagnostics == {"error": "cannot get window 1"}
 
 

@@ -59,6 +59,8 @@ def test_resolve_contact_fails_before_search_when_wechat_window_unavailable(
             "WeChat main window is unavailable; open the main WeChat window before sending."
         ),
         "error": "Can’t get front window",
+        "setupHint": macos_driver.WECHAT_MAIN_WINDOW_SETUP_HINT,
+        "recoveryActions": ",".join(macos_driver.WECHAT_MAIN_WINDOW_RECOVERY_ACTIONS),
     }
     assert len(calls) == 1
 

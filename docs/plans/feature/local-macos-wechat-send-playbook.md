@@ -210,6 +210,17 @@ Validated negative preflight on 2026-06-27:
   - `wechatAppSummary=WeChat main window is unavailable; open the main WeChat window before sending.`
 - result: `ready=false`, and no task was published.
 
+Validated recovery-action preflight on 2026-06-27:
+
+- evidence:
+  `/tmp/plato-computer-use-smoke/helper-app-readiness-preflight-recovery-actions-20260627.json`
+- result:
+  - `wechatAppSuccess=false`
+  - `wechatAppPhase=window_readiness`
+  - `wechatAppSetupHint=Open the WeChat main window or chat list, make sure WeChat is logged in and unlocked, then rerun helper-backed preflight before publishing a task.`
+  - `wechatAppRecoveryActions=["open_wechat_main_window", "unlock_or_login_wechat", "rerun_helper_preflight"]`
+- result: `ready=false`, and no task was published.
+
 ### 6.3 Helper-Backed Contact Resolution Progress
 
 Attempted on 2026-06-27 with `response=reject` and no `--allow-send`:

@@ -89,6 +89,8 @@ class PreflightResult:
     wechat_app_phase: str | None = None
     wechat_app_summary: str | None = None
     wechat_app_failure_kind: str | None = None
+    wechat_app_setup_hint: str | None = None
+    wechat_app_recovery_actions: tuple[str, ...] = ()
     wechat_app_diagnostics: dict[str, object] | None = None
 
     @property
@@ -126,6 +128,8 @@ class PreflightResult:
             "wechatAppPhase": self.wechat_app_phase,
             "wechatAppSummary": self.wechat_app_summary,
             "wechatAppFailureKind": self.wechat_app_failure_kind,
+            "wechatAppSetupHint": self.wechat_app_setup_hint,
+            "wechatAppRecoveryActions": list(self.wechat_app_recovery_actions),
             "wechatAppDiagnostics": self.wechat_app_diagnostics,
             "ready": self.ready,
         }
@@ -248,6 +252,8 @@ def _with_helper_wechat_app_readiness(
         wechat_app_phase=_optional_str(payload, "phase"),
         wechat_app_summary=_optional_str(payload, "summary"),
         wechat_app_failure_kind=_optional_str(payload, "failureKind"),
+        wechat_app_setup_hint=_optional_str(payload, "setupHint"),
+        wechat_app_recovery_actions=_optional_str_tuple(payload, "recoveryActions"),
         wechat_app_diagnostics=(
             dict(diagnostics) if isinstance(diagnostics, dict) else None
         ),
@@ -576,6 +582,13 @@ def _optional_str(payload: dict[str, Any], key: str) -> str | None:
 def _optional_bool(payload: dict[str, Any], key: str) -> bool | None:
     value = payload.get(key)
     return value if isinstance(value, bool) else None
+
+
+def _optional_str_tuple(payload: dict[str, Any], key: str) -> tuple[str, ...]:
+    value = payload.get(key)
+    if not isinstance(value, list | tuple):
+        return ()
+    return tuple(item for item in value if isinstance(item, str) and item)
 
 
 def _sidecar_computer_use_readiness(config: SmokeConfig) -> dict[str, Any]:

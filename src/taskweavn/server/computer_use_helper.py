@@ -827,7 +827,8 @@ def _wechat_operation_failure_body(
     result: WeChatOperationResult,
     helper_info: ComputerUseHelperInfo,
 ) -> dict[str, Any]:
-    return {
+    diagnostics = result.metadata or {}
+    body: dict[str, Any] = {
         "requestId": request_id,
         "operation": operation,
         "status": _wechat_status(result.status),
@@ -842,9 +843,18 @@ def _wechat_operation_failure_body(
             "observationRef": result.observation_ref,
             "redaction": "no_raw_chat_history",
         },
-        "diagnostics": result.metadata or {},
+        "diagnostics": diagnostics,
         "helper": _info_body(helper_info),
     }
+    setup_hint = _string(diagnostics.get("setupHint")) or _string(
+        diagnostics.get("setup_hint")
+    )
+    if setup_hint is not None:
+        body["setupHint"] = setup_hint
+    recovery_actions = _recovery_actions_from_diagnostics(diagnostics)
+    if recovery_actions:
+        body["recoveryActions"] = list(recovery_actions)
+    return body
 
 
 def _wechat_app_readiness_body(
@@ -1115,6 +1125,15 @@ def _string_tuple(value: Any) -> tuple[str, ...]:
     if not isinstance(value, list | tuple):
         return ()
     return tuple(item for item in value if isinstance(item, str) and item)
+
+
+def _recovery_actions_from_diagnostics(
+    diagnostics: dict[str, str],
+) -> tuple[str, ...]:
+    value = diagnostics.get("recoveryActions") or diagnostics.get("recovery_actions")
+    if value is None:
+        return ()
+    return tuple(item.strip() for item in value.split(",") if item.strip())
 
 
 def _int(value: Any) -> int | None:

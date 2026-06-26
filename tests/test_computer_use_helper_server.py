@@ -214,7 +214,11 @@ def test_helper_server_wechat_readiness_reports_window_blocker() -> None:
         window_readiness_result=WeChatOperationResult(
             status="needs_user",
             summary="WeChat main window is unavailable.",
-            metadata={"error": "cannot get window 1"},
+            metadata={
+                "error": "cannot get window 1",
+                "setupHint": "Open the WeChat main window.",
+                "recoveryActions": "open_wechat_main_window,rerun_helper_preflight",
+            },
         )
     )
     with build_computer_use_helper_server(wechat_adapter=adapter) as server:
@@ -231,7 +235,16 @@ def test_helper_server_wechat_readiness_reports_window_blocker() -> None:
     assert response.json["success"] is False
     assert response.json["phase"] == "window_readiness"
     assert response.json["summary"] == "WeChat main window is unavailable."
-    assert response.json["diagnostics"] == {"error": "cannot get window 1"}
+    assert response.json["diagnostics"] == {
+        "error": "cannot get window 1",
+        "setupHint": "Open the WeChat main window.",
+        "recoveryActions": "open_wechat_main_window,rerun_helper_preflight",
+    }
+    assert response.json["setupHint"] == "Open the WeChat main window."
+    assert response.json["recoveryActions"] == [
+        "open_wechat_main_window",
+        "rerun_helper_preflight",
+    ]
 
 
 def test_helper_server_wechat_send_confirmed_rejects_missing_proof() -> None:

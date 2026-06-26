@@ -9,6 +9,16 @@ import subprocess
 import time
 from dataclasses import dataclass
 
+WECHAT_MAIN_WINDOW_SETUP_HINT = (
+    "Open the WeChat main window or chat list, make sure WeChat is logged in "
+    "and unlocked, then rerun helper-backed preflight before publishing a task."
+)
+WECHAT_MAIN_WINDOW_RECOVERY_ACTIONS = (
+    "open_wechat_main_window",
+    "unlock_or_login_wechat",
+    "rerun_helper_preflight",
+)
+
 
 @dataclass(frozen=True)
 class WeChatContactSearchResult:
@@ -284,7 +294,9 @@ class MacOSWeChatSearchDriver:
             return WeChatWindowReadinessResult(
                 status="needs_user",
                 summary="WeChat main window readiness AppleScript failed.",
-                diagnostics={"stderr": _bounded(result.stderr)},
+                diagnostics=_with_window_recovery_metadata(
+                    {"stderr": _bounded(result.stderr)}
+                ),
             )
         fields = _parse_result_fields(result.stdout)
         if fields.get("status") == "ready":
@@ -299,7 +311,7 @@ class MacOSWeChatSearchDriver:
                 fields.get("reason")
                 or "WeChat main window is unavailable; open the main WeChat window before sending."
             ),
-            diagnostics=_diagnostics(fields),
+            diagnostics=_with_window_recovery_metadata(_diagnostics(fields) or {}),
         )
 
 
@@ -816,6 +828,14 @@ def _diagnostics(fields: dict[str, str]) -> dict[str, str]:
         key: _bounded(value, 500)
         for key, value in fields.items()
         if key not in {"status", "display_name", "stable_hint", "observation_ref"}
+    }
+
+
+def _with_window_recovery_metadata(values: dict[str, str]) -> dict[str, str]:
+    return {
+        **values,
+        "setupHint": WECHAT_MAIN_WINDOW_SETUP_HINT,
+        "recoveryActions": ",".join(WECHAT_MAIN_WINDOW_RECOVERY_ACTIONS),
     }
 
 
