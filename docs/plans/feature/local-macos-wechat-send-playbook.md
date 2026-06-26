@@ -201,22 +201,26 @@ Mitigation added on 2026-06-27:
   bounded window-readiness retry before returning `needs_user`.
 - The driver also sends a bounded macOS `reopen` event before activation so a
   running app has a chance to restore its main window.
+- The helper-backed WeChat runtime now calls the helper generic `open_app`
+  operation during `open_or_focus`, so task evidence records the real helper
+  open/focus result instead of a fixed delegated placeholder.
 
 Validated checks:
 
 - `uv run pytest tests/test_wechat_macos_driver.py tests/test_wechat_desktop_adapter.py tests/test_wechat_send_execution.py tests/test_wechat_send_runtime.py tests/test_manual_wechat_send_smoke_script.py`
 - helper-backed preflight evidence:
-  `/tmp/plato-computer-use-smoke/helper-preflight-after-reopen.json`
+  `/tmp/plato-computer-use-smoke/helper-preflight-after-real-open.json`
 
 Current helper-backed reject/no-send blocker after mitigation:
 
-- session id: `b5d5d227`
+- session id: `38ddf4e3`
 - idempotency key:
-  `manual-wechat-helper-reject-20260627-reopen-01`
-- execution id: `exec_3929e990aea251e7b43897fff066bbe0`
+  `manual-wechat-helper-reject-20260627-real-open-01`
+- execution id: `exec_ed27daff35ba5f829bc69c699f1837a9`
 - failure evidence:
-  `/tmp/plato-computer-use-smoke/helper-reject-nosend-reopen.json`
+  `/tmp/plato-computer-use-smoke/helper-reject-nosend-real-open.json`
 - terminal status: `failed` before confirmation
+- open/focus evidence: `Opened app: WeChat`, status `ok`
 - error code: `wechat_contact_needs_user`
 - error message:
   `WeChat main window is unavailable; open the main WeChat window before sending.`

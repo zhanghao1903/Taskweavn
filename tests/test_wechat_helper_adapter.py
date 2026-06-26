@@ -23,6 +23,7 @@ from taskweavn.integrations.wechat_desktop import (
 )
 from taskweavn.interaction import AgentMessage, InProcessMessageBus, SqliteMessageStream
 from taskweavn.task import InMemoryTaskBus
+from taskweavn.types.computer_use import ComputerUseAction
 
 
 def test_wechat_runtime_uses_helper_wechat_api_for_draft_and_send(
@@ -39,8 +40,12 @@ def test_wechat_runtime_uses_helper_wechat_api_for_draft_and_send(
     assert first.status == "waiting_for_user"
     assert second.status == "done"
     assert second.result_ref is not None
+    assert len(helper_client.open_calls) == 1
     assert len(helper_client.draft_calls) == 1
     assert len(helper_client.send_calls) == 1
+    open_call = helper_client.open_calls[0]
+    assert open_call["path"] == "/v1/operations/open-app"
+    assert open_call["target"] == "WeChat"
     draft_call = helper_client.draft_calls[0]
     assert draft_call["path"] == "/v1/apps/wechat/draft-message"
     assert draft_call["contact_display_name"] == "文件传输助手"
@@ -144,6 +149,7 @@ def _respond_to_confirmation(
 
 @dataclass
 class _FakeWeChatHelperClient:
+    open_calls: list[dict[str, Any]] = field(default_factory=list)
     draft_calls: list[dict[str, Any]] = field(default_factory=list)
     send_calls: list[dict[str, Any]] = field(default_factory=list)
 
@@ -152,6 +158,24 @@ class _FakeWeChatHelperClient:
             "status": "ready",
             "success": True,
             "summary": "Helper ready.",
+        }
+
+    def execute(self, action: ComputerUseAction) -> Mapping[str, Any]:
+        self.open_calls.append(
+            {
+                "path": "/v1/operations/open-app",
+                "request_id": action.event_id,
+                "operation": action.operation,
+                "target": action.target,
+            }
+        )
+        return {
+            "requestId": action.event_id,
+            "operation": action.operation,
+            "status": "ok",
+            "success": True,
+            "summary": "Opened app: WeChat",
+            "metadata": {"app": "WeChat"},
         }
 
     def wechat_draft_message(

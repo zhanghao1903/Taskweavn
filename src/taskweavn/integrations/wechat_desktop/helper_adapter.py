@@ -15,6 +15,7 @@ from taskweavn.integrations.wechat_desktop.models import (
     WeChatContactResolutionStatus,
     WeChatDraftState,
     WeChatOperationResult,
+    WeChatOperationStatus,
     WeChatReadiness,
     WeChatReadinessStatus,
     WeChatSendAttemptResult,
@@ -23,12 +24,15 @@ from taskweavn.integrations.wechat_desktop.models import (
     wechat_message_hash,
     wechat_message_preview,
 )
+from taskweavn.types.computer_use import ComputerUseAction
 
 
 class WeChatHelperHttpClient(Protocol):
     """Subset of helper client APIs used by the WeChat runtime adapter."""
 
     def readiness(self) -> Mapping[str, Any]: ...
+
+    def execute(self, action: ComputerUseAction) -> Mapping[str, Any]: ...
 
     def wechat_draft_message(
         self,
@@ -98,11 +102,23 @@ class WeChatDesktopHelperAdapter:
         )
 
     def open_or_focus(self) -> WeChatOperationResult:
-        return WeChatOperationResult(
-            status="ok",
-            summary="WeChat open/focus is delegated to helper draft-message.",
-            metadata={"delegated_to_helper": "true"},
-        )
+        try:
+            response = self.client.execute(
+                ComputerUseAction(
+                    operation="open_app",
+                    instruction="Open or focus WeChat Desktop before drafting.",
+                    target=self.app_name,
+                    timeout_seconds=10.0,
+                    metadata={"target_app": self.app_name},
+                )
+            )
+        except Exception as exc:  # noqa: BLE001 - helper boundary is sanitized.
+            return WeChatOperationResult(
+                status="failed",
+                summary=f"WeChat helper open/focus failed: {type(exc).__name__}",
+                metadata={"error": str(exc), "phase": "helper_open_app"},
+            )
+        return _operation_result_from_response(response)
 
     def resolve_contact(
         self,
@@ -347,6 +363,50 @@ def _send_status(
     if status in {"not_sent", "failed", "not_available", "needs_user", "blocked"}:
         return "not_sent"
     return "failed"
+
+
+def _operation_result_from_response(response: Mapping[str, Any]) -> WeChatOperationResult:
+    status = _string(response.get("status")) or "failed"
+    return WeChatOperationResult(
+        status=_operation_status(status),
+        summary=_summary(response, "WeChat helper open/focus completed."),
+        observation_ref=_string(response.get("requestId")),
+        text_extract=_string(response.get("textExtract")),
+        metadata=_operation_metadata(response),
+    )
+
+
+def _operation_status(status: str) -> WeChatOperationStatus:
+    if status in {"ok", "ready"}:
+        return "ok"
+    if status in {"needs_user", "blocked"}:
+        return "needs_user"
+    if status in {"not_available", "missing_accessibility", "helper_untrusted"}:
+        return "not_available"
+    return "failed"
+
+
+def _operation_metadata(response: Mapping[str, Any]) -> dict[str, str] | None:
+    values: dict[str, str] = {}
+    raw_metadata = response.get("metadata")
+    if isinstance(raw_metadata, Mapping):
+        values.update(
+            {
+                key: value
+                for key, value in raw_metadata.items()
+                if isinstance(key, str) and isinstance(value, str)
+            }
+        )
+    for source_key, target_key in (
+        ("failureKind", "failure_kind"),
+        ("phase", "phase"),
+        ("snapshotId", "snapshot_id"),
+    ):
+        value = _string(response.get(source_key))
+        if value is not None:
+            values[target_key] = value
+    values["helper_status"] = status if (status := _string(response.get("status"))) else ""
+    return {key: value for key, value in values.items() if value} or None
 
 
 def _evidence_observation_ref(response: Mapping[str, Any]) -> str | None:
