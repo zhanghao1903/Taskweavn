@@ -344,6 +344,40 @@ Validated stale-manifest refresh and classified window-timeout evidence on
   blocker is the WeChat window geometry AX query timing out. No task should be
   published until preflight reaches `wechatAppSuccess=true`.
 
+Validated observe fallback classification on 2026-06-27:
+
+- generated dev helper app:
+  `/tmp/plato-computer-use-backend-20260627e/Plato Computer Use Helper Dev.app`
+- manifest:
+  `/tmp/plato-computer-use-backend-20260627e/computer-use-helper.json`
+- evidence:
+  `/tmp/plato-computer-use-backend-20260627e/preflight-observe-fallback-20260627.json`
+- sidecar/helper state:
+  - `sidecarOk=true`
+  - `computerUseBackend=helper`
+  - `computerUseStatus=ok`
+  - `packageReadinessStatus=ready`
+  - `computerUseReady=true`
+  - `helperStatus=ready`
+  - `helperManifest.endpoint=http://127.0.0.1:65144`
+  - `helperManifest.pid=8611`
+- WeChat app readiness:
+  - `wechatAppSuccess=false`
+  - `wechatAppPhase=window_readiness`
+  - `wechatAppFailureKind=applescript_timeout`
+  - `wechatAppDiagnostics.script_phase=window_geometry`
+  - `wechatAppDiagnostics.fallback=observe`
+  - `wechatAppDiagnostics.fallback_status=failed`
+  - `wechatAppDiagnostics.fallback_summary=macOS computer-use operation failed: TimeoutExpired`
+- interpretation: generic helper `observe` fallback now runs after the
+  WeChat-specific window geometry probe times out, but it also times out inside
+  the helper context. This means helper discovery, manifest refresh, HTTP
+  transport, package readiness, and WeChat process lookup are not the current
+  blockers. The remaining blocker is helper-context System Events / Apple
+  Events / AX access for window observation. Treat `computerUseReady=true` as
+  package-level readiness only; do not publish a WeChat send task until
+  `wechatAppSuccess=true`.
+
 ### 6.3 Helper-Backed Contact Resolution Progress
 
 Attempted on 2026-06-27 with `response=reject` and no `--allow-send`:

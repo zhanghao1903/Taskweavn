@@ -1036,6 +1036,17 @@ remaining failure is classified as `applescript_timeout` at both top-level
 means helper discovery, process lookup, and stale manifest refresh are working,
 but the AX window geometry query still times out.
 
+2026-06-27 update 6: WeChat readiness now attempts a generic helper `observe`
+fallback after the WeChat-specific window geometry probe times out. The latest
+preflight evidence
+`/tmp/plato-computer-use-backend-20260627e/preflight-observe-fallback-20260627.json`
+shows the fallback is invoked, but it also times out while asking System Events
+for the frontmost app/window. This narrows the live blocker to helper-context
+System Events / Apple Events / AX access, not stale helper manifest recovery,
+HTTP transport, package readiness, or WeChat process lookup. Product readiness
+must continue to distinguish package-level `computerUseReady=true` from
+app-specific `wechatAppSuccess=true`.
+
 ### H5: Release Packaging
 
 - helper bundled with Plato installer；

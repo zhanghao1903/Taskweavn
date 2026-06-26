@@ -275,7 +275,12 @@ Implementation status as of 2026-06-27:
   `development-app` signing mode through readiness/manifest metadata. Local
   non-send preflight verified generated app auto-launch, stale manifest refresh,
   helper readiness, and WeChat readiness failure classification through
-  `wechatAppFailureKind=applescript_timeout`.
+  `wechatAppFailureKind=applescript_timeout`. A later no-send preflight verified
+  that the generic helper `observe` fallback runs after WeChat window geometry
+  timeout, but the fallback also times out in the helper context. For now,
+  `computerUseReady=true` is package-level readiness only; app-specific readiness
+  such as `wechatAppSuccess=true` remains required before publishing a WeChat
+  task.
 - Settings readiness now exposes a `computerUse` section sourced from the
   selected backend. Enabled-but-not-ready computer-use degrades readiness with
   a `computer_use.not_ready` warning and safe recovery actions.
