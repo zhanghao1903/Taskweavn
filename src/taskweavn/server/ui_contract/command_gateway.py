@@ -7,6 +7,14 @@ from taskweavn.server.ui_contract.command_ask_helpers import (
     cancel_ask_command,
     defer_ask_command,
 )
+from taskweavn.server.ui_contract.command_authoring_helpers import (
+    authoring_context_is_superseded,
+    latest_raw_task,
+    raw_task_all_asks_answered,
+    raw_task_ready_for_planning,
+    resolve_publish_draft_tree_id,
+    session_has_published_task_tree,
+)
 from taskweavn.server.ui_contract.command_mapping import (
     _child_idempotency_key,
     _command_bad_request_response,
@@ -16,7 +24,6 @@ from taskweavn.server.ui_contract.command_mapping import (
     _guidance_mode,
     _merge_prompt_task_tree_results,
     _plan_publish_command_result,
-    _synthetic_task_tree_id,
     _task_node_patch,
     _TaskTreeIdentityError,
     _update_affected_scopes,
@@ -53,7 +60,6 @@ from taskweavn.server.ui_contract.refs import (
     ObjectRef,
 )
 from taskweavn.task.ask_service import TaskAskCommandService
-from taskweavn.task.authoring import RawTask
 from taskweavn.task.collaborator_api import (
     CollaboratorApiAdapter,
     RawTaskAskAnswerSubmission,
@@ -128,7 +134,8 @@ class DefaultUiCommandGateway:
             object_refs: tuple[ObjectRef, ...] = ()
             affected_objects: tuple[AffectedObjectRef, ...] = ()
             if request.payload.raw_task_id is not None:
-                if not self._raw_task_ready_for_planning(
+                if not raw_task_ready_for_planning(
+                    self._raw_task_store,
                     request.session_id,
                     request.payload.raw_task_id,
                 ):
@@ -176,7 +183,10 @@ class DefaultUiCommandGateway:
                     ),
                 )
                 if raw_result.accepted:
-                    raw_task = self._latest_raw_task(request.session_id)
+                    raw_task = latest_raw_task(
+                        self._raw_task_store,
+                        request.session_id,
+                    )
                     if raw_task is not None and not raw_task.ready_for_planning:
                         result = raw_result
                     else:
@@ -276,7 +286,10 @@ class DefaultUiCommandGateway:
             if plan_response is not None:
                 return plan_response
 
-            draft_tree_id = self._resolve_publish_draft_tree_id(request)
+            draft_tree_id = resolve_publish_draft_tree_id(
+                self._authoring_state_store,
+                request,
+            )
             tree_ref = ObjectRef(kind="draft_tree", id=draft_tree_id)
             result = self._collaborator.publish_task_tree(
                 session_id=request.session_id,
@@ -614,7 +627,11 @@ class DefaultUiCommandGateway:
         request: CommandRequest[AnswerAuthoringAskBatchPayload],
     ) -> CommandResponse:
         try:
-            if self._authoring_context_is_superseded(request.session_id):
+            if authoring_context_is_superseded(
+                self._authoring_state_store,
+                self._task_projection,
+                request.session_id,
+            ):
                 raw_ref = ObjectRef(kind="raw_task", id=raw_task_id)
                 ask_refs = tuple(
                     ObjectRef(kind="raw_task_ask", id=answer.ask_id)
@@ -669,7 +686,8 @@ class DefaultUiCommandGateway:
                 ),
                 idempotency_key=request.idempotency_key,
             )
-            if result.accepted and self._raw_task_all_asks_answered(
+            if result.accepted and raw_task_all_asks_answered(
+                self._raw_task_store,
                 request.session_id,
                 raw_task_id,
             ):
@@ -736,7 +754,10 @@ class DefaultUiCommandGateway:
                 )
                 return _command_response(request, result)
 
-            if not self._session_has_published_task_tree(request.session_id):
+            if not session_has_published_task_tree(
+                self._task_projection,
+                request.session_id,
+            ):
                 result = CoreCommandResult(
                     status="rejected",
                     message="authoring state repair requires an existing TaskTree",
@@ -793,99 +814,3 @@ class DefaultUiCommandGateway:
 
     def _resolve_task_ref(self, session_id: str, task_node_id: str) -> TaskRef:
         return self._task_ref_resolver.resolve(session_id, task_node_id)
-
-    def _latest_raw_task(self, session_id: str) -> RawTask | None:
-        if self._raw_task_store is None:
-            return None
-        raw_tasks = self._raw_task_store.list_for_session(session_id)
-        return raw_tasks[-1] if raw_tasks else None
-
-    def _raw_task_ready_for_planning(self, session_id: str, raw_task_id: str) -> bool:
-        if self._raw_task_store is None:
-            return True
-        raw_task = self._raw_task_store.get(session_id, raw_task_id)
-        return raw_task is not None and raw_task.ready_for_planning
-
-    def _raw_task_all_asks_answered(self, session_id: str, raw_task_id: str) -> bool:
-        if self._raw_task_store is None:
-            return False
-        raw_task = self._raw_task_store.get(session_id, raw_task_id)
-        if raw_task is None or not raw_task.asks:
-            return False
-        answered_ask_ids = {answer.ask_id for answer in raw_task.answers}
-        return all(ask.ask_id in answered_ask_ids for ask in raw_task.asks)
-
-    def _authoring_context_is_superseded(
-        self,
-        session_id: str,
-    ) -> bool:
-        if self._authoring_state_store is None:
-            return self._session_has_published_task_tree(session_id)
-        active = self._authoring_state_store.get_active(session_id)
-        if active.active_state in {"draft_tree", "published", "cancelled"}:
-            return True
-        return active.active_state == "raw_task" and self._session_has_published_task_tree(
-            session_id
-        )
-
-    def _session_has_published_task_tree(self, session_id: str) -> bool:
-        if self._task_projection is None:
-            return False
-        try:
-            tree = self._task_projection.list_task_tree(
-                session_id,
-                include_drafts=False,
-                include_published=True,
-            )
-        except Exception:  # noqa: BLE001 - stale detection must not crash commands.
-            return False
-        return bool(tree.nodes)
-
-    def _resolve_publish_draft_tree_id(
-        self,
-        request: CommandRequest[PublishTaskTreePayload],
-    ) -> str:
-        provided = request.payload.task_tree_id
-        if self._authoring_state_store is None:
-            if provided is None:
-                raise _TaskTreeIdentityError(
-                    "publish requires a draft tree id when active authoring state is unavailable",
-                    reason="missing_task_tree_identity",
-                    session_id=request.session_id,
-                )
-            if provided == _synthetic_task_tree_id(request.session_id):
-                raise _TaskTreeIdentityError(
-                    "synthetic task tree id cannot be published without active authoring state",
-                    reason="synthetic_task_tree_identity_unresolved",
-                    session_id=request.session_id,
-                    provided_task_tree_id=provided,
-                )
-            return provided
-
-        active = self._authoring_state_store.get_active(request.session_id)
-        active_id = active.active_draft_tree_id
-        if (
-            active.active_state == "published"
-            and active_id is not None
-            and request.idempotency_key is not None
-            and provided in {None, active_id, _synthetic_task_tree_id(request.session_id)}
-        ):
-            return active_id
-        if active.active_state != "draft_tree" or active_id is None:
-            raise _TaskTreeIdentityError(
-                "publish requires an active draft tree",
-                reason="no_active_draft_tree",
-                session_id=request.session_id,
-                active_state=active.active_state,
-            )
-
-        if provided in {None, active_id, _synthetic_task_tree_id(request.session_id)}:
-            return active_id
-
-        raise _TaskTreeIdentityError(
-            "publish draft tree identity does not match the active draft tree",
-            reason="invalid_task_tree_identity",
-            session_id=request.session_id,
-            provided_task_tree_id=provided,
-            active_draft_tree_id=active_id,
-        )
