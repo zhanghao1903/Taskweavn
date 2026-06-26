@@ -168,6 +168,11 @@ def test_macos_backend_maps_ready_readiness_to_ok_observation() -> None:
     assert observation.status == "ok"
     assert observation.operation == "readiness"
     assert observation.metadata["readiness"]["status"] == "ready"
+    diagnostics = observation.metadata["diagnostics"]
+    assert diagnostics["checkedByProcessPath"]
+    assert diagnostics["adapterProcessExecutable"]
+    assert diagnostics["adapterArgv0"]
+    assert diagnostics["packageClientClass"].endswith(".FakeMacOSClient")
 
 
 def test_macos_backend_maps_missing_accessibility_to_not_available() -> None:

@@ -934,6 +934,10 @@ Helper 返回：
   configured expected bundle id / expected API version；manifest、readiness 或
   operation identity mismatch 会转成 `helper_untrusted` /
   `helper_version_mismatch` evidence，而不是继续执行；
+- macOS backend readiness 现在会在 diagnostics 中报告实际执行 package/AX
+  调用的进程路径、launcher argv0 和 package client class；这让 helper `.app`
+  identity 与 dev Python runtime identity 可以同时被 Settings、Conversation
+  evidence 和 diagnostic bundle 使用；
 - 尚未实现 release-grade `Plato Computer Use Helper.app`：当前 dev scaffold
   仍通过配置的 Python runtime 启动 repo 内 helper CLI，stable TCC identity
   仍需通过 helper-owned packaged/embedded executable 验证；Settings UI 细节展示

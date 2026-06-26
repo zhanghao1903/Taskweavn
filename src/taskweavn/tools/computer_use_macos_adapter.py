@@ -8,6 +8,7 @@ hosts and in CI.
 from __future__ import annotations
 
 import importlib
+import sys
 from dataclasses import dataclass
 from typing import Any, Protocol, cast
 
@@ -142,13 +143,17 @@ class MacOSComputerUseBackend(ComputerUseBackend):
         summary = f"macOS computer-use readiness: {readiness_status}."
         if setup_hint:
             summary = f"{summary} {setup_hint}"
+        readiness_payload = _to_dict(readiness)
         return ComputerUseObservation(
             action_id=action_id,
             success=status == "ok",
             operation="readiness",
             status=status,
             summary=summary,
-            metadata={"readiness": _to_dict(readiness)},
+            metadata={
+                "readiness": readiness_payload,
+                "diagnostics": _readiness_diagnostics(readiness_payload, self._client),
+            },
         )
 
     def execute(self, action: ComputerUseAction) -> ComputerUseObservation:
@@ -300,6 +305,27 @@ def _to_dict(value: Any) -> dict[str, Any]:
     if isinstance(value, dict):
         return value
     return {"value": str(value)}
+
+
+def _readiness_diagnostics(
+    readiness: dict[str, Any],
+    client: MacOSComputerUseClientProtocol | None,
+) -> dict[str, str]:
+    diagnostics: dict[str, str] = {}
+    raw_diagnostics = readiness.get("diagnostics")
+    if isinstance(raw_diagnostics, dict):
+        for key, value in raw_diagnostics.items():
+            if isinstance(key, str) and isinstance(value, str) and value:
+                diagnostics[key] = value[:500]
+    diagnostics.setdefault("checkedByProcessPath", sys.executable)
+    diagnostics["adapterProcessExecutable"] = sys.executable
+    if sys.argv:
+        diagnostics["adapterArgv0"] = sys.argv[0][:500]
+    if client is not None:
+        diagnostics["packageClientClass"] = (
+            f"{client.__class__.__module__}.{client.__class__.__qualname__}"
+        )[:500]
+    return diagnostics
 
 
 def _map_readiness_status(readiness_status: str) -> ComputerUseStatus:
