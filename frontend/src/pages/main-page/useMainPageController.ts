@@ -22,6 +22,7 @@ import type {
   MainPageRuntimeSnapshot,
 } from "./runtime/adapter";
 import { useMainPageCommandErrorState } from "./useMainPageCommandErrorState";
+import { useMainPageInputRuntimeState } from "./useMainPageInputRuntimeState";
 import { runtimeInputModeFor } from "./mainPageRuntimeInput";
 import {
   useMainPageCommandMutations,
@@ -143,7 +144,6 @@ export function useMainPageController({
   initialTaskNodeId = null,
 }: UseMainPageControllerOptions): MainPageController {
   const [stateId, setStateId] = useState<MainPageStateId>(initialStateId);
-  const [inputDraft, setInputDraft] = useState("");
   const [uiNotice, setUiNotice] = useState<string | null>(null);
   const clearUiNotice = useCallback(() => {
     setUiNotice(null);
@@ -177,17 +177,24 @@ export function useMainPageController({
     setSelectedTaskNodeId,
     setSelectionTarget,
   } = useMainPageSelectionState(clearUiNotice);
-  const [runtimeActivityItems, setRuntimeActivityItems] = useState<
-    SessionActivityItemView[]
-  >([]);
-  const [activeRuntimeInputMode, setActiveRuntimeInputMode] =
-    useState<RuntimeInputMode | null>(null);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(
     adapter.sessionId,
   );
   const [activeWorkspaceId, setActiveWorkspaceId] = useState<WorkspaceId | null>(
     adapter.workspaceId ?? null,
   );
+  const {
+    activeRuntimeInputMode,
+    changeInputDraft,
+    inputDraft,
+    resetInputDraft,
+    runtimeActivityItems,
+    setActiveRuntimeInputMode,
+    setRuntimeActivityItems,
+  } = useMainPageInputRuntimeState({
+    activeSessionId,
+    activeWorkspaceId,
+  });
   const {
     initialTaskNodeIdRef,
     isSnapshotError,
@@ -232,10 +239,6 @@ export function useMainPageController({
     setActiveWorkspaceId(workspaceCatalog.currentWorkspaceId);
   }, [activeWorkspaceId, workspaceCatalog]);
 
-  useEffect(() => {
-    setRuntimeActivityItems([]);
-  }, [activeSessionId, activeWorkspaceId]);
-
   const {
     answerAskMutation,
     answerAuthoringAskBatchMutation,
@@ -260,7 +263,7 @@ export function useMainPageController({
     setDetailOverride,
     setExecutionAskCommandError,
     setInputCommandError,
-    setInputDraft,
+    setInputDraft: changeInputDraft,
     setRuntimeActivityItems,
     setSelectedTaskNodeId,
     setSelectionTarget,
@@ -300,7 +303,7 @@ export function useMainPageController({
         : currentSnapshot.metadata.initialSelectedTaskNodeId;
     initialTaskNodeIdRef.current = null;
     resetSelection(nextSelectedTaskNodeId);
-    setInputDraft("");
+    resetInputDraft();
     resetCommandErrorState();
     setUiNotice(null);
     resetSessionDialog();
@@ -308,6 +311,7 @@ export function useMainPageController({
   }, [
     clearEventError,
     resetCommandErrorState,
+    resetInputDraft,
     resetSessionDialog,
     resetSelection,
     snapshotIdentity,
@@ -316,7 +320,7 @@ export function useMainPageController({
   function handleStateChange(nextStateId: MainPageStateId) {
     setStateId(nextStateId);
     resetSelection();
-    setInputDraft("");
+    resetInputDraft();
     resetCommandErrorState();
     setUiNotice(null);
     resetSessionLifecycle();
@@ -562,7 +566,7 @@ export function useMainPageController({
       cancelAsk: handleCancelAsk,
       changeSessionDialogDraft:
         sessionLifecycle.actions.changeSessionDialogDraft,
-      changeInputDraft: setInputDraft,
+      changeInputDraft,
       changeState: handleStateChange,
       createSession: sessionLifecycle.actions.createSession,
       deleteSession: sessionLifecycle.actions.deleteSession,
