@@ -158,6 +158,8 @@ class WeChatHelperAdapter(Protocol):
         message_preview: str,
     ) -> WeChatSendAttemptResult: ...
 
+    def window_readiness(self) -> WeChatOperationResult: ...
+
 
 class ComputerUseHelperTransport:
     """Framework-neutral route handler for the helper local API."""
@@ -206,6 +208,13 @@ class ComputerUseHelperTransport:
             "v1",
             "apps",
             "wechat",
+            "readiness",
+        ):
+            return self._wechat_app_readiness_response(request.body)
+        if request.method == "POST" and parts == (
+            "v1",
+            "apps",
+            "wechat",
             "draft-message",
         ):
             return self._wechat_draft_response(request.body)
@@ -239,6 +248,59 @@ class ComputerUseHelperTransport:
         body = _observation_to_helper_body(observation, request_id=request_id)
         body["helper"] = _info_body(self._config.info)
         return body
+
+    def _wechat_app_readiness_response(
+        self,
+        body: dict[str, Any] | None,
+    ) -> HttpApiResponse:
+        if self._wechat_adapter is None:
+            return _json_response(
+                _wechat_not_available_body(
+                    request_id=_request_id(body),
+                    operation="wechat.readiness",
+                    helper_info=self._config.info,
+                )
+            )
+        readiness = self._wechat_adapter.readiness()
+        if readiness.status != "ready":
+            return _json_response(
+                _wechat_readiness_body(
+                    request_id=_request_id(body),
+                    operation="wechat.readiness",
+                    readiness=readiness,
+                    helper_info=self._config.info,
+                )
+            )
+        opened = self._wechat_adapter.open_or_focus()
+        if opened.status != "ok":
+            return _json_response(
+                _wechat_operation_failure_body(
+                    request_id=_request_id(body),
+                    operation="wechat.readiness",
+                    phase="open_app",
+                    result=opened,
+                    helper_info=self._config.info,
+                )
+            )
+        window = self._wechat_adapter.window_readiness()
+        if window.status != "ok":
+            return _json_response(
+                _wechat_operation_failure_body(
+                    request_id=_request_id(body),
+                    operation="wechat.readiness",
+                    phase="window_readiness",
+                    result=window,
+                    helper_info=self._config.info,
+                )
+            )
+        return _json_response(
+            _wechat_app_readiness_body(
+                request_id=_request_id(body),
+                opened=opened,
+                window=window,
+                helper_info=self._config.info,
+            )
+        )
 
     def _operation_response(
         self,
@@ -781,6 +843,38 @@ def _wechat_operation_failure_body(
             "redaction": "no_raw_chat_history",
         },
         "diagnostics": result.metadata or {},
+        "helper": _info_body(helper_info),
+    }
+
+
+def _wechat_app_readiness_body(
+    *,
+    request_id: str | None,
+    opened: WeChatOperationResult,
+    window: WeChatOperationResult,
+    helper_info: ComputerUseHelperInfo,
+) -> dict[str, Any]:
+    summary = "WeChat Desktop is open and its main window is automation-ready."
+    return {
+        "requestId": request_id,
+        "operation": "wechat.readiness",
+        "status": "ready",
+        "success": True,
+        "summary": summary,
+        "phase": "window_readiness",
+        "evidence": {
+            "kind": "computer_use_operation",
+            "safeSummary": summary,
+            "targetApp": "WeChat",
+            "observationRef": window.observation_ref or opened.observation_ref,
+            "redaction": "no_raw_chat_history",
+        },
+        "diagnostics": {
+            "openSummary": opened.summary,
+            "windowSummary": window.summary,
+            **(opened.metadata or {}),
+            **(window.metadata or {}),
+        },
         "helper": _info_body(helper_info),
     }
 

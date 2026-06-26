@@ -37,6 +37,12 @@ class FakeWeChatDesktopAdapter:
             summary="Fake WeChat focused.",
         )
     )
+    window_readiness_result: WeChatOperationResult = field(
+        default_factory=lambda: WeChatOperationResult(
+            status="ok",
+            summary="Fake WeChat main window is ready.",
+        )
+    )
     contact_resolution: WeChatContactResolution = field(
         default_factory=lambda: WeChatContactResolution(status="not_found")
     )
@@ -52,6 +58,10 @@ class FakeWeChatDesktopAdapter:
     def open_or_focus(self) -> WeChatOperationResult:
         self.calls.append(("open_or_focus", None))
         return self.open_result
+
+    def window_readiness(self) -> WeChatOperationResult:
+        self.calls.append(("window_readiness", None))
+        return self.window_readiness_result
 
     def resolve_contact(
         self,

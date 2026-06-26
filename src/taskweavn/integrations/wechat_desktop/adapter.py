@@ -12,6 +12,7 @@ from taskweavn.integrations.wechat_desktop.macos_driver import (
     WeChatContactSearchResult,
     WeChatInputFocusResult,
     WeChatMessageSubmitResult,
+    WeChatWindowReadinessResult,
 )
 from taskweavn.integrations.wechat_desktop.models import (
     WeChatContactCandidate,
@@ -70,6 +71,13 @@ class WeChatContactSearchDriver(Protocol):
         timeout_seconds: float,
     ) -> WeChatMessageSubmitResult: ...
 
+    def window_readiness(
+        self,
+        *,
+        app_name: str,
+        timeout_seconds: float,
+    ) -> WeChatWindowReadinessResult: ...
+
 
 @dataclass(frozen=True)
 class WeChatDesktopAdapter:
@@ -123,6 +131,22 @@ class WeChatDesktopAdapter:
             )
         )
         return _operation_result_from_observation(observation)
+
+    def window_readiness(self) -> WeChatOperationResult:
+        if self.contact_search_driver is None:
+            return WeChatOperationResult(
+                status="not_available",
+                summary="WeChat window readiness requires the macOS search driver.",
+            )
+        result = self.contact_search_driver.window_readiness(
+            app_name=self.config.app_name,
+            timeout_seconds=max(self.config.default_timeout_seconds, 10.0),
+        )
+        return WeChatOperationResult(
+            status=_operation_status_from_driver_status(result.status),
+            summary=result.summary,
+            metadata=result.diagnostics,
+        )
 
     def resolve_contact(
         self,
@@ -449,6 +473,16 @@ def _operation_result_from_observation(
         text_extract=observation.text_extract,
         metadata=_string_map(observation.metadata),
     )
+
+
+def _operation_status_from_driver_status(status: str) -> WeChatOperationStatus:
+    if status == "ready":
+        return "ok"
+    if status in {"needs_user", "blocked"}:
+        return "needs_user"
+    if status == "not_available":
+        return "not_available"
+    return "failed"
 
 
 def _readiness_status_from_computer_use(
