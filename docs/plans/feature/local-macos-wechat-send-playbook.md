@@ -39,7 +39,33 @@ workflow.
 
 ## 3. Start The Sidecar
 
-Use a Python environment that can import the local `macos-computer-use` package:
+Preferred helper-backed path:
+
+```bash
+uv run taskweavn plato-sidecar \
+  --workspace ./plato-workspace \
+  --port 0 \
+  --computer-use-backend helper \
+  --computer-use-allowed-apps WeChat \
+  --computer-use-helper-manifest "$HOME/Library/Application Support/PlatoDev/computer-use-helper.json"
+```
+
+If the helper app should be launched by Plato, add the explicit opt-in helper
+path and auto-launch flag:
+
+```bash
+uv run taskweavn plato-sidecar \
+  --workspace ./plato-workspace \
+  --port 0 \
+  --computer-use-backend helper \
+  --computer-use-allowed-apps WeChat \
+  --computer-use-helper-manifest "$HOME/Library/Application Support/PlatoDev/computer-use-helper.json" \
+  --computer-use-helper-app-path "/Applications/Plato Computer Use Helper Dev.app" \
+  --computer-use-helper-auto-launch
+```
+
+Legacy direct macOS backend path remains useful for package-level diagnosis
+only. It does not validate the helper TCC identity:
 
 ```bash
 uv run taskweavn plato-sidecar \
@@ -53,7 +79,10 @@ Record the printed local base URL.
 
 ## 4. Preflight
 
-Run preflight before any real WeChat task:
+Run preflight before any real WeChat task. The script reads the running
+sidecar's `/api/v1/settings/readiness` response, so it validates the configured
+runtime path (`helper` or `macos`) instead of checking an unrelated local Python
+process:
 
 ```bash
 uv run python scripts/manual_wechat_send_smoke.py \
@@ -65,9 +94,10 @@ uv run python scripts/manual_wechat_send_smoke.py \
 Required result:
 
 - `sidecarOk=true`
+- `computerUseBackend="helper"` for the preferred helper-backed path
 - `computerUseStatus="ok"`
 - `packageReadinessStatus="ready"`
-- `accessibilityTrusted=true`
+- `helperStatus="ready"` for helper-backed path
 - `ready=true`
 
 If preflight is not ready, do not run a send smoke.

@@ -4,7 +4,7 @@ import importlib.util
 import json
 import sys
 import threading
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from types import ModuleType
@@ -118,24 +118,16 @@ def test_manual_wechat_smoke_preflight_passes_with_ready_sidecar(
                 timeout_seconds=2.0,
                 poll_seconds=0.01,
                 preflight_only=True,
-            ),
-            readiness_checker=lambda: {
-                "status": "ok",
-                "metadata": {
-                    "readiness": {
-                        "status": "ready",
-                        "accessibility_trusted": True,
-                        "setup_hint": None,
-                    }
-                },
-            },
+            )
         )
 
     assert result.ready is True
     assert result.sidecar_name == "Plato Sidecar"
     assert result.computer_use_status == "ok"
     assert result.package_readiness_status == "ready"
-    assert result.accessibility_trusted is True
+    assert result.computer_use_ready is True
+    assert result.computer_use_backend == "helper"
+    assert result.helper_status == "ready"
 
 
 def test_manual_wechat_smoke_preflight_fails_when_accessibility_is_missing(
@@ -159,21 +151,23 @@ def test_manual_wechat_smoke_preflight_fails_when_accessibility_is_missing(
                 preflight_only=True,
             ),
             readiness_checker=lambda: {
-                "status": "needs_user",
-                "metadata": {
-                    "readiness": {
-                        "status": "needs_manual_setup",
-                        "accessibility_trusted": False,
-                        "setup_hint": "Grant Accessibility permission.",
-                    }
-                },
+                "backend": "helper",
+                "ready": False,
+                "status": "missing_accessibility",
+                "operationStatus": "needs_user",
+                "helperStatus": "missing_accessibility",
+                "failureKind": "missing_accessibility",
+                "setupHint": "Grant Accessibility permission.",
             },
         )
 
     assert result.ready is False
+    assert result.computer_use_ready is False
     assert result.computer_use_status == "needs_user"
-    assert result.package_readiness_status == "needs_manual_setup"
-    assert result.accessibility_trusted is False
+    assert result.package_readiness_status == "missing_accessibility"
+    assert result.computer_use_backend == "helper"
+    assert result.helper_status == "missing_accessibility"
+    assert result.failure_kind == "missing_accessibility"
 
 
 def test_manual_wechat_smoke_evidence_output_redacts_contact_and_message(
@@ -298,6 +292,20 @@ class _FakeSidecarState:
     task_bus: InMemoryTaskBus
     message_bus: InProcessMessageBus
     session_id: str = "session-1"
+    computer_use_readiness: dict[str, Any] = field(
+        default_factory=lambda: {
+            "enabled": True,
+            "backend": "helper",
+            "allowedApps": ["WeChat"],
+            "configured": True,
+            "ready": True,
+            "status": "ready",
+            "operationStatus": "ok",
+            "helperStatus": "ready",
+            "summary": "Plato Computer Use Helper is ready.",
+            "recoveryActions": [],
+        }
+    )
 
 
 class _FakeSidecarServer(ThreadingHTTPServer):
@@ -390,6 +398,21 @@ class _FakeSidecarHandler(BaseHTTPRequestHandler):
                     "ok": True,
                     "data": {
                         "pendingConfirmations": _pending_confirmations(server.state),
+                    },
+                    "error": None,
+                },
+            )
+            return
+
+        if self.command == "GET" and path == "/api/v1/settings/readiness":
+            self._write_json(
+                200,
+                {
+                    "ok": True,
+                    "data": {
+                        "schemaVersion": "plato.settings_readiness.v1",
+                        "status": "ready",
+                        "computerUse": server.state.computer_use_readiness,
                     },
                     "error": None,
                 },

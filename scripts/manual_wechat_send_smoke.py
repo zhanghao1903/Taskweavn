@@ -79,15 +79,20 @@ class PreflightResult:
     package_readiness_status: str | None
     accessibility_trusted: bool | None
     setup_hint: str | None
+    computer_use_ready: bool | None = None
+    computer_use_backend: str | None = None
+    helper_status: str | None = None
+    failure_kind: str | None = None
 
     @property
     def ready(self) -> bool:
-        return (
-            self.sidecar_ok
-            and self.computer_use_status == "ok"
-            and self.package_readiness_status == "ready"
-            and self.accessibility_trusted is True
-        )
+        if not self.sidecar_ok:
+            return False
+        if self.computer_use_ready is not None:
+            return self.computer_use_ready
+        if self.package_readiness_status == "ready":
+            return True
+        return self.computer_use_status == "ok" and self.accessibility_trusted is True
 
     def as_dict(self) -> dict[str, object]:
         return {
@@ -97,6 +102,10 @@ class PreflightResult:
             "packageReadinessStatus": self.package_readiness_status,
             "accessibilityTrusted": self.accessibility_trusted,
             "setupHint": self.setup_hint,
+            "computerUseReady": self.computer_use_ready,
+            "computerUseBackend": self.computer_use_backend,
+            "helperStatus": self.helper_status,
+            "failureKind": self.failure_kind,
             "ready": self.ready,
         }
 
@@ -136,13 +145,21 @@ def run_preflight(
 ) -> PreflightResult:
     health = _request_json(config.base_url, "GET", "/api/v1/health")
     health_data = _require_data(health, "health")
-    readiness_observation = (
-        readiness_checker() if readiness_checker is not None else _local_macos_readiness()
+    readiness_payload = (
+        readiness_checker()
+        if readiness_checker is not None
+        else _sidecar_computer_use_readiness(config)
     )
-    if not isinstance(readiness_observation, dict):
-        raise SmokeError("local macOS readiness result was not an object.")
+    if not isinstance(readiness_payload, dict):
+        raise SmokeError("computer-use readiness result was not an object.")
 
-    metadata = readiness_observation.get("metadata")
+    if "ready" in readiness_payload or "backend" in readiness_payload:
+        return _preflight_from_sidecar_readiness(
+            health_data=health_data,
+            computer_use=readiness_payload,
+        )
+
+    metadata = readiness_payload.get("metadata")
     readiness = {}
     if isinstance(metadata, dict):
         raw_readiness = metadata.get("readiness")
@@ -152,10 +169,39 @@ def run_preflight(
     return PreflightResult(
         sidecar_ok=True,
         sidecar_name=_optional_str(health_data, "name"),
-        computer_use_status=_optional_str(readiness_observation, "status"),
+        computer_use_status=_optional_str(readiness_payload, "status"),
         package_readiness_status=_optional_str(readiness, "status"),
         accessibility_trusted=_optional_bool(readiness, "accessibility_trusted"),
         setup_hint=_optional_str(readiness, "setup_hint"),
+    )
+
+
+def _preflight_from_sidecar_readiness(
+    *,
+    health_data: dict[str, Any],
+    computer_use: dict[str, Any],
+) -> PreflightResult:
+    diagnostics = computer_use.get("diagnostics")
+    readiness = {}
+    if isinstance(diagnostics, dict):
+        raw_readiness = diagnostics.get("readiness")
+        if isinstance(raw_readiness, dict):
+            readiness = raw_readiness
+
+    operation_status = _optional_str(computer_use, "operationStatus")
+    status = _optional_str(computer_use, "status")
+    return PreflightResult(
+        sidecar_ok=True,
+        sidecar_name=_optional_str(health_data, "name"),
+        computer_use_status=operation_status or status,
+        package_readiness_status=status,
+        accessibility_trusted=_optional_bool(readiness, "accessibility_trusted"),
+        setup_hint=_optional_str(computer_use, "setupHint")
+        or _optional_str(readiness, "setup_hint"),
+        computer_use_ready=_optional_bool(computer_use, "ready"),
+        computer_use_backend=_optional_str(computer_use, "backend"),
+        helper_status=_optional_str(computer_use, "helperStatus"),
+        failure_kind=_optional_str(computer_use, "failureKind"),
     )
 
 
@@ -446,29 +492,13 @@ def _optional_bool(payload: dict[str, Any], key: str) -> bool | None:
     return value if isinstance(value, bool) else None
 
 
-def _local_macos_readiness() -> dict[str, Any]:
-    try:
-        from taskweavn.server.computer_use_runtime import build_computer_use_runtime
-        from taskweavn.types import ComputerUseAction
-    except Exception as exc:  # noqa: BLE001 - script boundary should report setup gap.
-        raise SmokeError(
-            "Unable to import Taskweavn macOS computer-use runtime.",
-            details={"error": f"{type(exc).__name__}: {exc}"},
-        ) from exc
-
-    runtime = build_computer_use_runtime(
-        backend_name="macos",
-        allowed_apps="WeChat",
-    )
-    if runtime.backend is None:
-        raise SmokeError("macOS computer-use backend is not configured.")
-    observation = runtime.backend.execute(
-        ComputerUseAction(
-            operation="readiness",
-            instruction="Check macOS computer-use readiness only.",
-        )
-    )
-    return observation.model_dump(mode="json")
+def _sidecar_computer_use_readiness(config: SmokeConfig) -> dict[str, Any]:
+    readiness = _request_json(config.base_url, "GET", "/api/v1/settings/readiness")
+    data = _require_data(readiness, "settings readiness")
+    computer_use = data.get("computerUse")
+    if not isinstance(computer_use, dict):
+        raise SmokeError("settings readiness response did not include computerUse.")
+    return computer_use
 
 
 def _parse_args() -> SmokeConfig:

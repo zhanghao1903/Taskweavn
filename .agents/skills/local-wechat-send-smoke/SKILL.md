@@ -23,7 +23,19 @@ evidence. It is not a bulk messaging, remote ExecutionEnv, or LAN API workflow.
 
 ## Deterministic Flow
 
-1. Start the local sidecar:
+1. Start the local sidecar. Prefer the helper-backed path when validating the
+   macOS backend product path:
+
+   ```bash
+   uv run taskweavn plato-sidecar \
+     --workspace ./plato-workspace \
+     --port 0 \
+     --computer-use-backend helper \
+     --computer-use-allowed-apps WeChat \
+     --computer-use-helper-manifest "$HOME/Library/Application Support/PlatoDev/computer-use-helper.json"
+   ```
+
+   Use direct `macos` backend only for package-level diagnosis:
 
    ```bash
    uv run taskweavn plato-sidecar \
@@ -42,8 +54,9 @@ evidence. It is not a bulk messaging, remote ExecutionEnv, or LAN API workflow.
      --evidence-output /tmp/plato-wechat-preflight-<run>.json
    ```
 
-   Required: `ready=true`, `computerUseStatus="ok"`,
-   `packageReadinessStatus="ready"`, and `accessibilityTrusted=true`.
+   Required for helper-backed path: `ready=true`,
+   `computerUseBackend="helper"`, `computerUseStatus="ok"`,
+   `packageReadinessStatus="ready"`, and `helperStatus="ready"`.
 
 3. Create or select a smoke session.
 
