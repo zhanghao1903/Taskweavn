@@ -294,7 +294,7 @@ class PlatoUiHttpTransport:
             if route_name == "settings_readiness_recheck":
                 return _settings_readiness_recheck_response(
                     request,
-                    self._settings_config_gateway or self._settings_readiness_gateway,
+                    self._settings_readiness_gateway or self._settings_config_gateway,
                 )
             if route_name == "settings_config":
                 return _settings_config_response(

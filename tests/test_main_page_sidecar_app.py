@@ -271,6 +271,73 @@ def test_main_page_sidecar_app_exposes_settings_readiness_without_secret(
     assert "sk-sidecar-readiness-secret" not in response.text
 
 
+def test_main_page_sidecar_settings_readiness_projects_computer_use(
+    tmp_path: Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("LLM_PROVIDER", "litellm")
+    monkeypatch.setenv("LLM_API_KEY", "sk-sidecar-readiness-secret")
+    monkeypatch.setenv("LLM_MODEL", "deepseek-v4-pro")
+    backend = ScriptedComputerUseBackend(
+        (
+            ComputerUseObservation(
+                operation="readiness",
+                status="ok",
+                summary="Plato Computer Use Helper is ready.",
+                metadata={"provider": "helper", "helper_status": "ready"},
+            ),
+            ComputerUseObservation(
+                operation="readiness",
+                status="ok",
+                summary="Plato Computer Use Helper is still ready.",
+                metadata={"provider": "helper", "helper_status": "ready"},
+            ),
+        )
+    )
+
+    app = build_main_page_sidecar_app(
+        MainPageSidecarConfig(
+            workspace_root=tmp_path,
+            port=0,
+            enable_computer_use_tool=True,
+            computer_use_backend_name="helper",
+            computer_use_allowed_apps=("WeChat",),
+        ),
+        MainPageSidecarDependencies(
+            llm=_StubLLM(),
+            computer_use_backend=backend,
+        ),
+    )
+    try:
+        response = _request(app, "GET", "/api/v1/settings/readiness")
+        recheck = _request(app, "POST", "/api/v1/settings/readiness/recheck")
+    finally:
+        app.close()
+
+    computer_use = response.json["data"]["computerUse"]
+    rechecked_computer_use = recheck.json["data"]["computerUse"]
+    assert response.status == 200
+    assert response.json["ok"] is True
+    assert response.json["data"]["status"] == "ready"
+    assert computer_use["enabled"] is True
+    assert computer_use["backend"] == "helper"
+    assert computer_use["allowedApps"] == ["WeChat"]
+    assert computer_use["ready"] is True
+    assert computer_use["status"] == "ready"
+    assert computer_use["helperStatus"] == "ready"
+    assert recheck.status == 200
+    assert rechecked_computer_use["ready"] is True
+    assert rechecked_computer_use["summary"] == (
+        "Plato Computer Use Helper is still ready."
+    )
+    assert [action.operation for action in backend.actions] == [
+        "readiness",
+        "readiness",
+    ]
+    assert "sk-sidecar-readiness-secret" not in response.text
+    assert "sk-sidecar-readiness-secret" not in recheck.text
+
+
 def test_main_page_sidecar_app_saves_settings_config_and_refreshes_readiness(
     tmp_path: Any,
     monkeypatch: pytest.MonkeyPatch,

@@ -52,6 +52,9 @@ from taskweavn.server.computer_use_runtime import (
     build_execution_env_registry,
     build_execution_plane_runtime_handlers,
 )
+from taskweavn.server.computer_use_settings_readiness import (
+    ComputerUseSettingsReadinessGateway,
+)
 from taskweavn.server.diagnostics_export import DefaultDiagnosticExportGateway
 from taskweavn.server.main_page_agent import build_agent_loop_resident_default_agent
 from taskweavn.server.main_page_audit_events import (
@@ -491,6 +494,16 @@ def build_main_page_workspace_runtime(
         runtime_read_only_inquiry_settings = (
             runtime_read_only_inquiry_settings_from_config(runtime_config)
         )
+        settings_readiness_gateway: SettingsReadinessGateway = (
+            dependencies.settings_readiness_gateway or settings_config_gateway
+        )
+        settings_readiness_gateway = ComputerUseSettingsReadinessGateway(
+            inner=settings_readiness_gateway,
+            enabled=runtime_computer_use_settings.enabled,
+            backend_name=runtime_computer_use_settings.backend,
+            allowed_apps=runtime_computer_use_settings.allowed_apps,
+            backend=dependencies.computer_use_backend,
+        )
         recover_interrupted_running_tasks_on_startup(
             task_bus=task_bus,
             session_ids=(session.id for session in session_manager.list()),
@@ -729,9 +742,7 @@ def build_main_page_workspace_runtime(
                 ask_recovery,
                 task_stop_recovery,
             ),
-            settings_readiness_gateway=(
-                dependencies.settings_readiness_gateway or settings_config_gateway
-            ),
+            settings_readiness_gateway=settings_readiness_gateway,
             settings_config_gateway=settings_config_gateway,
             diagnostic_export_gateway=DefaultDiagnosticExportGateway(
                 workspace_root=config.workspace_root,

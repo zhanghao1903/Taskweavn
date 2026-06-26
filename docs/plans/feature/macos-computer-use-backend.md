@@ -1,6 +1,6 @@
 # macOS Computer-Use Backend
 
-> Status: in progress / helper provider client and dev launcher implemented
+> Status: in progress / helper provider client, dev launcher, and Settings readiness projection implemented
 >
 > Last Updated: 2026-06-19
 >
@@ -264,8 +264,11 @@ Implementation status as of 2026-06-27:
   `/v1/readiness`, and bounded generic operation endpoints over loopback.
 - A dev helper launcher now generates a startup token, writes a tokenRef-based
   owner-only manifest, and serves the helper API over loopback.
+- Settings readiness now exposes a `computerUse` section sourced from the
+  selected backend. Enabled-but-not-ready computer-use degrades readiness with
+  a `computer_use.not_ready` warning and safe recovery actions.
 - The actual `Plato Computer Use Helper.app` macOS wrapper, stable TCC identity,
-  Settings readiness projection, and release packaging are still pending.
+  Settings UI details, and release packaging are still pending.
 
 ### M0. Package Boundary And Skeleton
 

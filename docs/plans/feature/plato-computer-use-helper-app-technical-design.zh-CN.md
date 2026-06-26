@@ -1,6 +1,6 @@
 # Plato Computer Use Helper.app 技术方案
 
-> Status: in progress / Plato-side helper client and dev launcher implemented
+> Status: in progress / Plato-side helper client, dev launcher, and Settings readiness projection implemented
 >
 > Last Updated: 2026-06-26
 >
@@ -880,8 +880,12 @@ Helper 返回：
   启动 loopback helper API，并通过 `taskweavn computer-use-helper` 手动运行；
 - 已将 helper readiness、failure kind、phase、risk、evidence、diagnostics
   映射回 `ComputerUseObservation.metadata`；
+- 已将 computer-use/backend readiness 投射到
+  `/api/v1/settings/readiness` 的 `computerUse` section；启用但不可用时
+  Settings readiness 会降级为 `degraded` 并追加 `computer_use.not_ready`
+  warning；
 - 尚未实现真实 `Plato Computer Use Helper.app` macOS `.app` wrapper、
-  stable TCC identity、Settings readiness projection 和 release packaging。
+  stable TCC identity、Settings UI 细节展示和 release packaging。
 
 ### H0: Decision And Contract
 
@@ -908,11 +912,11 @@ Helper 返回：
 
 ### H3: Plato Adapter To Helper
 
-- runtime config `provider="helper"`；
-- helper client；
-- capability registry integration；
-- Settings readiness projection；
-- Router/Execution error evidence。
+- runtime config `provider="helper"`；（implemented）
+- helper client；（implemented）
+- capability registry integration；（implemented through execution env registry）
+- Settings readiness projection；（backend projection implemented; final UI copy/details pending）
+- Router/Execution error evidence。（partially implemented; continue to refine evidence display）
 
 ### H4: WeChat Draft/Send Through Helper
 
