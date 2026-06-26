@@ -30,11 +30,16 @@ export type UseMainPageSnapshotQueryOptions = {
   stateId: MainPageStateId;
 };
 
+export type SnapshotRefetchResult = {
+  data?: MainPageRuntimeSnapshot;
+  status: string;
+};
+
 export type MainPageSnapshotQueryController = {
   initialTaskNodeIdRef: MutableRefObject<TaskNodeId | null>;
   isSnapshotError: boolean;
   isSnapshotPending: boolean;
-  refetchSnapshot: () => Promise<unknown>;
+  refetchSnapshot: () => Promise<SnapshotRefetchResult>;
   refetchWorkspaceCatalog: () => void;
   snapshotData: MainPageRuntimeSnapshot | undefined;
   snapshotDataRef: MutableRefObject<MainPageRuntimeSnapshot | undefined>;
@@ -62,7 +67,7 @@ export function useMainPageSnapshotQuery({
   });
   const workspaceCatalog = workspaceCatalogQuery.data ?? null;
 
-  const snapshotQuery = useQuery({
+  const snapshotQuery = useQuery<MainPageRuntimeSnapshot>({
     queryKey: mainPageSnapshotQueryKey(
       adapter,
       stateId,
