@@ -407,10 +407,15 @@ def prepare_computer_use_helper_server(
     to run it in-thread or foreground via the returned handle.
     """
 
+    from taskweavn.server.computer_use_helper_wechat import (
+        build_default_wechat_helper_adapter,
+    )
+
     auth_token = config.auth_token or secrets.token_urlsafe(32)
     token_path = config.token_path or config.manifest_path.with_suffix(".token")
     server = build_computer_use_helper_server(
         backend=backend,
+        wechat_adapter=build_default_wechat_helper_adapter(backend),
         helper_config=ComputerUseHelperTransportConfig(
             auth_token=auth_token,
             info=config.info,

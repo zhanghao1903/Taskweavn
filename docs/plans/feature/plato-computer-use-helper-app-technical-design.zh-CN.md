@@ -978,8 +978,9 @@ Helper 返回：
 - draft-message API；（implemented at helper transport boundary with fake adapter tests）
 - send-confirmed API；（implemented at helper transport boundary; missing/mismatch proof rejected before send）
 - Plato-side helper HTTP client envelope methods；（implemented）
+- helper process default WeChat adapter assembly；（implemented when a computer-use backend is configured）
 - preserve existing send-boundary idempotency；（implemented in runtime wiring tests; real helper smoke pending）
-- real reject/no-send smoke。（pending; requires helper runtime wiring and explicit manual authorization）
+- real reject/no-send smoke。（pending; requires explicit manual authorization）
 
 2026-06-27 update: the repo-local helper transport now exposes
 `POST /v1/apps/wechat/draft-message` and
@@ -996,6 +997,13 @@ existing draft -> confirmation -> send-boundary flow, but the helper-backed
 adapter routes draft and confirmed send through the app-specific helper client
 methods. This is covered by runtime-level fake helper tests; real reject/no-send
 and confirm/send-once helper app smokes remain pending.
+
+2026-06-27 update 3: `prepare_computer_use_helper_server` now mounts a
+helper-owned `WeChatDesktopAdapter` by default whenever the helper process has a
+configured computer-use backend. This closes the previous gap where
+Plato could connect to helper-specific WeChat endpoints but a real helper
+process would return "WeChat adapter not configured". Coverage is still
+structural/fake-driver based; real helper app smoke remains pending.
 
 ### H5: Release Packaging
 

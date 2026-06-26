@@ -6,10 +6,13 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
 
+import pytest
+
 from taskweavn.integrations.wechat_desktop import (
     FakeWeChatDesktopAdapter,
     WeChatContactCandidate,
     WeChatContactResolution,
+    WeChatInputFocusResult,
 )
 from taskweavn.server import (
     ComputerUseHelperInfo,
@@ -317,6 +320,98 @@ def test_prepare_helper_server_writes_token_manifest_and_serves(
     assert manifest.api_version == "plato.computer_use_helper.v1"
     assert response["status"] == "ready"
     assert response["helper"]["path"] == "/dev/Plato Computer Use Helper Dev.app"
+
+
+def test_prepare_helper_server_mounts_wechat_adapter_when_backend_configured(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _FakeMacOSWeChatSearchDriver:
+        def focus_message_input(
+            self,
+            *,
+            app_name: str,
+            contact_display_name: str,
+            timeout_seconds: float,
+        ) -> WeChatInputFocusResult:
+            assert app_name == "WeChat"
+            assert contact_display_name == "文件传输助手"
+            assert timeout_seconds > 0
+            return WeChatInputFocusResult(
+                status="focused",
+                summary="Fake WeChat input focused.",
+                observation_ref="fake-wechat-input",
+            )
+
+    monkeypatch.setattr(
+        "taskweavn.server.computer_use_helper_wechat.MacOSWeChatSearchDriver",
+        _FakeMacOSWeChatSearchDriver,
+    )
+    backend = ScriptedComputerUseBackend(
+        responses=[
+            _observation(
+                operation="readiness",
+                status="ok",
+                summary="helper backend is ready",
+                metadata={"readiness": {"status": "ready"}},
+            ),
+            _observation(
+                operation="open_app",
+                status="ok",
+                summary="WeChat focused.",
+            ),
+            _observation(
+                operation="observe",
+                status="ok",
+                summary="WeChat contact observed.",
+                metadata={
+                    "contact_candidates": [
+                        {
+                            "display_name": "文件传输助手",
+                            "stable_hint": "wechat:search:文件传输助手",
+                            "confidence": 1.0,
+                        }
+                    ]
+                },
+            ),
+            _observation(
+                operation="type_text",
+                status="ok",
+                summary="WeChat draft typed.",
+            ),
+        ]
+    )
+    helper = prepare_computer_use_helper_server(
+        backend=backend,
+        config=ComputerUseHelperServerConfig(
+            manifest_path=tmp_path / "computer-use-helper.json",
+            info=ComputerUseHelperInfo(path="/dev/Plato Computer Use Helper Dev.app"),
+        ),
+    )
+
+    try:
+        helper.start_in_thread()
+        response = _request(
+            helper.server,
+            "POST",
+            "/v1/apps/wechat/draft-message",
+            headers={"authorization": f"Bearer {helper.auth_token}"},
+            body=_wechat_draft_body(),
+        )
+    finally:
+        helper.close()
+
+    assert response.status == 200
+    assert response.json["status"] == "ok"
+    assert response.json["operation"] == "wechat.draft_message"
+    assert response.json["draftState"]["contactSummary"] == "文件传输助手"
+    assert response.json["failureKind"] is None
+    assert [action.operation for action in backend.actions] == [
+        "readiness",
+        "open_app",
+        "observe",
+        "type_text",
+    ]
 
 
 @dataclass(frozen=True)
