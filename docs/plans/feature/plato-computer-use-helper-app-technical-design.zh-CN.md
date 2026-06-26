@@ -917,6 +917,13 @@ Helper 返回：
 - 已新增 helper app opt-in auto-launch：helper backend 可在 manifest 缺失时
   启动配置的 `.app` 并轮询 manifest；该行为必须通过
   `PLATO_COMPUTER_USE_HELPER_AUTO_LAUNCH=1` 或 CLI flag 显式开启；
+- 已修正 dev `.app` launcher 的 helper identity 传递：通过 `.app` 启动时，
+  `/v1/readiness` 和 manifest identity 会报告 `.app` path、dev bundle id、
+  version、apiVersion 和 `development-app` signing mode，而不是 Python
+  executable；
+- 本地非发送 smoke 已验证：生成 dev `.app`、auto-launch、manifest discovery、
+  macOS backend `/v1/readiness` 返回 `ready`，且 helper identity path 为
+  `Plato Computer Use Helper Dev.app`；
 - 已将 helper readiness、failure kind、phase、risk、evidence、diagnostics
   映射回 `ComputerUseObservation.metadata`；
 - 已将 computer-use/backend readiness 投射到
@@ -952,7 +959,7 @@ Helper 返回：
 - build `.app`；（dev scaffold implemented）
 - fixed dev bundle id；（dev `Info.plist` implemented）
 - helper startup；（dev CLI + manifest implemented）
-- readiness from helper process；（requires running generated app manually）
+- readiness from helper process；（dev app auto-launch smoke passed locally）
 - optional helper app auto-launch；（implemented; explicit opt-in only）
 - Accessibility prompt guidance。
 

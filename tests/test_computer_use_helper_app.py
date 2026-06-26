@@ -55,10 +55,14 @@ def test_build_computer_use_helper_app_writes_dev_bundle(tmp_path: Path) -> None
     assert launch_config["computerUseBackend"] == "macos"
     assert launch_config["computerUseAllowedApps"] == ["WeChat", "TextEdit"]
     assert launch_config["apiVersion"] == "plato.computer_use_helper.v1"
+    assert launch_config["signingMode"] == "development-app"
 
     launcher = result.executable_path.read_text(encoding="utf-8")
     assert "helper-launch.json" in launcher
     assert "computer-use-helper" in launcher
+    assert "--helper-path" in launcher
+    assert "--helper-bundle-id" in launcher
+    assert "--helper-signing-mode" in launcher
     assert "/usr/bin/python3" in launcher
 
 

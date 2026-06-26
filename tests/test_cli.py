@@ -229,6 +229,8 @@ def test_computer_use_helper_help_exposes_manifest_and_backend_options() -> None
     assert result.exit_code == 0
     assert "--manifest-path" in result.output
     assert "--computer-use-backend" in result.output
+    assert "--helper-path" in result.output
+    assert "--helper-bundle-id" in result.output
 
 
 def test_computer_use_helper_rejects_recursive_helper_backend(tmp_path: Path) -> None:

@@ -310,6 +310,44 @@ def computer_use_helper(
             help="Comma-separated app allowlist for helper operations.",
         ),
     ] = None,
+    helper_path: Annotated[
+        Path | None,
+        typer.Option(
+            "--helper-path",
+            help=(
+                "Identity path reported by the helper. Generated dev apps pass "
+                "their .app path; direct CLI defaults to the Python executable."
+            ),
+        ),
+    ] = None,
+    helper_bundle_id: Annotated[
+        str,
+        typer.Option(
+            "--helper-bundle-id",
+            help="Bundle id reported by the helper identity metadata.",
+        ),
+    ] = "com.taskweavn.plato.computer-use-helper.dev",
+    helper_version: Annotated[
+        str,
+        typer.Option(
+            "--helper-version",
+            help="Version reported by the helper identity metadata.",
+        ),
+    ] = __version__,
+    helper_api_version: Annotated[
+        str,
+        typer.Option(
+            "--helper-api-version",
+            help="API version reported by the helper identity metadata.",
+        ),
+    ] = "plato.computer_use_helper.v1",
+    helper_signing_mode: Annotated[
+        str,
+        typer.Option(
+            "--helper-signing-mode",
+            help="Signing mode reported by the helper identity metadata.",
+        ),
+    ] = "development-cli",
 ) -> None:
     """Start the dev Plato Computer Use Helper loopback API."""
 
@@ -328,8 +366,15 @@ def computer_use_helper(
             host=host,
             port=port,
             info=ComputerUseHelperInfo(
-                path=sys.executable,
-                signing_mode="development-cli",
+                bundle_id=helper_bundle_id,
+                version=helper_version,
+                api_version=helper_api_version,
+                path=(
+                    sys.executable
+                    if helper_path is None
+                    else str(helper_path.expanduser())
+                ),
+                signing_mode=helper_signing_mode,
             ),
         ),
     )

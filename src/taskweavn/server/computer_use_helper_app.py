@@ -22,6 +22,7 @@ DEFAULT_COMPUTER_USE_HELPER_BUNDLE_ID = (
 )
 DEFAULT_COMPUTER_USE_HELPER_DISPLAY_NAME = "Plato Computer Use Helper Dev"
 DEFAULT_COMPUTER_USE_HELPER_EXECUTABLE = "PlatoComputerUseHelper"
+DEFAULT_COMPUTER_USE_HELPER_SIGNING_MODE = "development-app"
 
 
 @dataclass(frozen=True)
@@ -37,6 +38,7 @@ class ComputerUseHelperAppConfig:
     executable_name: str = DEFAULT_COMPUTER_USE_HELPER_EXECUTABLE
     version: str = "0.1.0"
     api_version: str = DEFAULT_COMPUTER_USE_HELPER_API_VERSION
+    signing_mode: str = DEFAULT_COMPUTER_USE_HELPER_SIGNING_MODE
     host: str = "127.0.0.1"
     port: int = 0
     computer_use_backend: str = "disabled"
@@ -147,6 +149,7 @@ def _write_launch_config(
         "bundleId": config.bundle_id,
         "version": config.version,
         "apiVersion": config.api_version,
+        "signingMode": config.signing_mode,
         "manifestPath": str(manifest_path),
         "host": config.host,
         "port": config.port,
@@ -181,6 +184,7 @@ executable_path = Path(sys.argv[1]).resolve()
 contents_dir = executable_path.parents[1]
 launch_config_path = contents_dir / "Resources" / "helper-launch.json"
 config = json.loads(launch_config_path.read_text(encoding="utf-8"))
+app_path = contents_dir.parent
 
 argv = [
     "taskweavn",
@@ -193,6 +197,16 @@ argv = [
     str(config["port"]),
     "--computer-use-backend",
     config["computerUseBackend"],
+    "--helper-path",
+    str(app_path),
+    "--helper-bundle-id",
+    config["bundleId"],
+    "--helper-version",
+    config["version"],
+    "--helper-api-version",
+    config["apiVersion"],
+    "--helper-signing-mode",
+    config["signingMode"],
 ]
 token_path = config.get("tokenPath")
 if token_path:

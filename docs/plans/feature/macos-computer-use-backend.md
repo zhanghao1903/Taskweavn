@@ -270,6 +270,10 @@ Implementation status as of 2026-06-27:
 - Helper backend now supports explicit opt-in auto-launch from a configured
   helper app path and waits for the helper manifest before connecting. This is
   disabled by default and does not grant macOS permissions.
+- Dev helper app identity propagation now reports the `.app` path and
+  `development-app` signing mode through readiness/manifest metadata. A local
+  non-send smoke verified generated app auto-launch, manifest discovery, and
+  macOS backend readiness.
 - Settings readiness now exposes a `computerUse` section sourced from the
   selected backend. Enabled-but-not-ready computer-use degrades readiness with
   a `computer_use.not_ready` warning and safe recovery actions.
