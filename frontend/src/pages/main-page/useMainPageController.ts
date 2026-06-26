@@ -1,4 +1,4 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 
 import type {
@@ -12,7 +12,6 @@ import type {
   TaskNodeId,
   WorkspaceId,
 } from "../../shared/api/types";
-import { productRecoveryActionsFromApiError } from "../../shared/api/productErrors";
 import {
   summarizeMainPageSnapshot,
 } from "../../shared/api/traceSummary";
@@ -24,10 +23,8 @@ import {
 import type {
   DetailOverride,
   EventConnectionStatus,
-  InputTarget,
   MainPageSelectionTarget,
 } from "./mainPageUiTypes";
-import type { MainPageInputCommandMode } from "./mainPageViewModel";
 import type { MainPageStateId } from "./mockPlatoApi";
 import type {
   MainPageAdapter,
@@ -37,15 +34,6 @@ import {
   mainPageSnapshotIdentity,
   mainPageSnapshotQueryKey,
 } from "./runtime/adapter";
-import {
-  buildRuntimeInputRouteRequest,
-  prependRuntimeActivityItems,
-  runtimeInputActivity,
-  runtimeInputModeFor,
-  runtimeInputNotice,
-  runtimeInputUserActivity,
-} from "./mainPageRuntimeInput";
-import { handleCommandResponse } from "./runtime/commandRefresh";
 import {
   useMainPageAuthoringCommands,
   type AnswerAuthoringAskBatchContext,
@@ -67,6 +55,10 @@ import {
   type ArchivePlanContext,
   type PublishTaskTreeContext,
 } from "./useMainPagePlanCommands";
+import {
+  useMainPageRuntimeInputCommands,
+  type InputSubmitContext,
+} from "./useMainPageRuntimeInputCommands";
 import { useMainPageSessionLifecycleCommands } from "./useMainPageSessionLifecycleCommands";
 import {
   useMainPageTaskLifecycleCommands,
@@ -90,17 +82,11 @@ export type {
   ArchivePlanContext,
   PublishTaskTreeContext,
 } from "./useMainPagePlanCommands";
+export type { InputSubmitContext } from "./useMainPageRuntimeInputCommands";
 export type {
   RetryTaskContext,
   StopTaskContext,
 } from "./useMainPageTaskLifecycleCommands";
-
-export type InputSubmitContext = {
-  mode: MainPageInputCommandMode;
-  sessionId: string;
-  target: InputTarget;
-  taskNodeId: TaskNodeId | null;
-};
 
 export type SessionLifecycleDialog =
   | {
@@ -439,171 +425,20 @@ export function useMainPageController({
     setUiNotice,
   });
 
-  const inputMutation = useMutation({
-    mutationFn: async ({
-      content,
-      mode,
-      sessionId,
-      target,
-      taskNodeId,
-    }: {
-      content: string;
-      mode: MainPageInputCommandMode;
-      sessionId: string;
-      target: InputTarget;
-      taskNodeId: TaskNodeId | null;
-    }) => {
-      const commandId = `append-${target}-${Date.now()}`;
-
-      if (mode === "append_task_input" && taskNodeId) {
-        return adapter.appendTaskInput(sessionId, taskNodeId, {
-          commandId,
-          sessionId,
-          payload: {
-            content,
-            mode: "guidance",
-          },
-        }, activeWorkspaceId);
-      }
-
-      if (mode === "generate_task_tree") {
-        return adapter.generateTaskTree({
-          commandId: `generate-task-tree-${Date.now()}`,
-          sessionId,
-          payload: {
-            prompt: content,
-          },
-        }, activeWorkspaceId);
-      }
-
-      return adapter.appendSessionInput({
-        commandId,
-        sessionId,
-        payload: {
-          content,
-          mode: "global_guidance",
-        },
-      }, activeWorkspaceId);
-    },
-    onError: () => {
-      setInputCommandError("Input submission failed. Please retry.");
-    },
-    onSuccess: (response) => {
-      const result = handleCommandResponse(
-        response,
-        "Input submission was rejected.",
-      );
-
-      if (result.errorMessage) {
-        setInputCommandError(result.errorMessage, result.recoveryActions);
-        return;
-      }
-
-      setInputCommandError(null);
-      setInputDraft("");
-      if (result.shouldRefetch) {
-        void refetchSnapshot();
-      }
-    },
-  });
-
-  const runtimeInputMutation = useMutation({
-    mutationFn: async ({
-      content,
-      routeMode,
-      sessionId,
-      target,
-      taskNodeId,
-    }: {
-      content: string;
-      routeMode: RuntimeInputMode;
-      sessionId: string;
-      target: InputTarget;
-      taskNodeId: TaskNodeId | null;
-    }) => {
-      if (adapter.routeRuntimeInput === undefined) {
-        throw new Error("Runtime input router is unavailable.");
-      }
-
-      const request = buildRuntimeInputRouteRequest({
-        content,
-        mode: routeMode,
-        sessionId,
-        snapshot: snapshotDataRef.current?.snapshot ?? null,
-        target,
-        taskNodeId,
-      });
-      const response = await adapter.routeRuntimeInput(
-        request,
-        activeWorkspaceId,
-      );
-      return { request, response };
-    },
-    onError: () => {
-      setInputCommandError("Question routing failed. Please retry.");
-    },
-    onSettled: () => {
-      setActiveRuntimeInputMode(null);
-    },
-    onSuccess: ({ request, response }) => {
-      if (!response.ok || response.data === null) {
-        setInputCommandError(
-          response.error?.message ?? "Question could not be answered.",
-          productRecoveryActionsFromApiError(response.error),
-        );
-        return;
-      }
-
-      const routeResult = response.data;
-      if (routeResult.commandResponse !== null && routeResult.commandResponse !== undefined) {
-        const commandResult = handleCommandResponse(
-          routeResult.commandResponse,
-          "Runtime input command was rejected.",
-        );
-
-        if (commandResult.errorMessage) {
-          setInputCommandError(
-            commandResult.errorMessage,
-            commandResult.recoveryActions,
-          );
-          return;
-        }
-
-        setInputCommandError(null);
-        setInputDraft("");
-        setUiNotice(routeResult.outcome.userMessage);
-        if (commandResult.shouldRefetch) {
-          void refetchSnapshot();
-        }
-        return;
-      }
-
-      if (
-        routeResult.outcome.status === "answered" ||
-        routeResult.outcome.status === "dispatched"
-      ) {
-        const runtimeActivity = runtimeInputActivity(routeResult);
-        const runtimeActivities = [
-          runtimeInputUserActivity(request, routeResult),
-          ...(runtimeActivity === null ? [] : [runtimeActivity]),
-        ];
-        if (runtimeActivities.length > 0) {
-          setRuntimeActivityItems((items) =>
-            prependRuntimeActivityItems(items, runtimeActivities),
-          );
-        }
-        setInputCommandError(null);
-        setInputDraft("");
-        setUiNotice(runtimeInputNotice(routeResult));
-        void refetchSnapshot();
-        return;
-      }
-
-      setInputCommandError(
-        routeResult.outcome.userMessage,
-        routeResult.outcome.recoveryActions,
-      );
-    },
+  const {
+    isInputSubmitting,
+    resetInputCommands,
+    submitInput,
+  } = useMainPageRuntimeInputCommands({
+    activeWorkspaceId,
+    adapter,
+    getSnapshot: () => snapshotDataRef.current,
+    refetchSnapshot,
+    setActiveRuntimeInputMode,
+    setInputCommandError,
+    setInputDraft,
+    setRuntimeActivityItems,
+    setUiNotice,
   });
 
   const {
@@ -700,7 +535,7 @@ export function useMainPageController({
     answerAskMutation.reset();
     deferAskMutation.reset();
     cancelAskMutation.reset();
-    inputMutation.reset();
+    resetInputCommands();
     publishTaskTreeMutation.reset();
     createSessionMutation.reset();
     renameSessionMutation.reset();
@@ -860,22 +695,7 @@ export function useMainPageController({
       return;
     }
 
-    setInputCommandError(null);
-    setUiNotice(null);
-    if (adapter.routeRuntimeInput !== undefined) {
-      const routeMode = runtimeInputModeFor(content, mode);
-      setActiveRuntimeInputMode(routeMode);
-      runtimeInputMutation.mutate({
-        content,
-        routeMode,
-        sessionId,
-        target,
-        taskNodeId,
-      });
-      return;
-    }
-
-    inputMutation.mutate({
+    submitInput({
       content,
       mode,
       sessionId,
@@ -1035,7 +855,7 @@ export function useMainPageController({
     isAnsweringAsk: answerAskMutation.isPending,
     isCancellingAsk: cancelAskMutation.isPending,
     isDeferringAsk: deferAskMutation.isPending,
-    isInputSubmitting: inputMutation.isPending || runtimeInputMutation.isPending,
+    isInputSubmitting,
     isPublishingTaskTree: publishTaskTreeMutation.isPending,
     isArchivingPlan: archivePlanMutation.isPending,
     isRepairingAuthoringState: repairAuthoringStateMutation.isPending,
