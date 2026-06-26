@@ -5,7 +5,6 @@ import type {
   AnswerAuthoringAskItemPayload,
   ProductRecoveryAction,
 } from "../../shared/api/platoApi";
-import { productRecoveryActionsFromApiError } from "../../shared/api/productErrors";
 import type {
   AskId,
   ConfirmationActionView,
@@ -27,19 +26,13 @@ import type {
   InputTarget,
   MainPageSelectionTarget,
 } from "./mainPageUiTypes";
-import {
-  buildRuntimeInputRouteRequest,
-  prependRuntimeActivityItems,
-  runtimeInputActivity,
-  runtimeInputNotice,
-  runtimeInputUserActivity,
-} from "./mainPageRuntimeInput";
 import type { MainPageInputCommandMode } from "./mainPageViewModel";
 import { handleCommandResponse } from "./runtime/commandRefresh";
 import type {
   MainPageAdapter,
   MainPageRuntimeSnapshot,
 } from "./runtime/adapter";
+import { useMainPageRuntimeInputMutation } from "./useMainPageRuntimeInputMutation";
 
 const mainPageCommandLogger = createFrontendLogger("main-page");
 
@@ -479,106 +472,16 @@ export function useMainPageCommandMutations({
     },
   });
 
-  const runtimeInputMutation = useMutation({
-    mutationFn: async ({
-      content,
-      routeMode,
-      sessionId,
-      target,
-      taskNodeId,
-    }: {
-      content: string;
-      routeMode: RuntimeInputMode;
-      sessionId: string;
-      target: InputTarget;
-      taskNodeId: TaskNodeId | null;
-    }) => {
-      if (adapter.routeRuntimeInput === undefined) {
-        throw new Error("Runtime input router is unavailable.");
-      }
-
-      const request = buildRuntimeInputRouteRequest({
-        content,
-        mode: routeMode,
-        sessionId,
-        snapshot: getSnapshotData()?.snapshot ?? null,
-        target,
-        taskNodeId,
-      });
-      const response = await adapter.routeRuntimeInput(
-        request,
-        activeWorkspaceId,
-      );
-      return { request, response };
-    },
-    onError: () => {
-      setInputCommandError("Question routing failed. Please retry.");
-    },
-    onSettled: () => {
-      setActiveRuntimeInputMode(null);
-    },
-    onSuccess: ({ request, response }) => {
-      if (!response.ok || response.data === null) {
-        setInputCommandError(
-          response.error?.message ?? "Question could not be answered.",
-          productRecoveryActionsFromApiError(response.error),
-        );
-        return;
-      }
-
-      const routeResult = response.data;
-      if (
-        routeResult.commandResponse !== null &&
-        routeResult.commandResponse !== undefined
-      ) {
-        const commandResult = handleCommandResponse(
-          routeResult.commandResponse,
-          "Runtime input command was rejected.",
-        );
-
-        if (commandResult.errorMessage) {
-          setInputCommandError(
-            commandResult.errorMessage,
-            commandResult.recoveryActions,
-          );
-          return;
-        }
-
-        setInputCommandError(null);
-        setInputDraft("");
-        setUiNotice(routeResult.outcome.userMessage);
-        if (commandResult.shouldRefetch) {
-          void refetchSnapshot();
-        }
-        return;
-      }
-
-      if (
-        routeResult.outcome.status === "answered" ||
-        routeResult.outcome.status === "dispatched"
-      ) {
-        const runtimeActivity = runtimeInputActivity(routeResult);
-        const runtimeActivities = [
-          runtimeInputUserActivity(request, routeResult),
-          ...(runtimeActivity === null ? [] : [runtimeActivity]),
-        ];
-        if (runtimeActivities.length > 0) {
-          setRuntimeActivityItems((items) =>
-            prependRuntimeActivityItems(items, runtimeActivities),
-          );
-        }
-        setInputCommandError(null);
-        setInputDraft("");
-        setUiNotice(runtimeInputNotice(routeResult));
-        void refetchSnapshot();
-        return;
-      }
-
-      setInputCommandError(
-        routeResult.outcome.userMessage,
-        routeResult.outcome.recoveryActions,
-      );
-    },
+  const runtimeInputMutation = useMainPageRuntimeInputMutation({
+    activeWorkspaceId,
+    adapter,
+    getSnapshotData,
+    refetchSnapshot,
+    setActiveRuntimeInputMode,
+    setInputCommandError,
+    setInputDraft,
+    setRuntimeActivityItems,
+    setUiNotice,
   });
 
   const publishTaskTreeMutation = useMutation({
