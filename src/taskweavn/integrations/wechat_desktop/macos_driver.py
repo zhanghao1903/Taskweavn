@@ -325,13 +325,36 @@ def _run_osascript(script: str, timeout_seconds: float) -> subprocess.CompletedP
 def _window_readiness_script(app_name: str) -> str:
     return f"""
 set appName to {_applescript_string(app_name)}
+my activateTarget(appName)
+delay 0.5
+set windowSummary to my firstWindowSummary(appName)
+if windowSummary starts with "status=ready" then return windowSummary
+my activateTarget(appName)
+delay 1.0
+return my firstWindowSummary(appName)
+
+on activateTarget(appName)
+  try
+    tell application appName to reopen
+  end try
+  try
+    tell application appName to activate
+  end try
+  tell application "System Events"
+    if exists process appName then
+      tell process appName
+        set frontmost to true
+      end tell
+    end if
+  end tell
+end activateTarget
+
+on firstWindowSummary(appName)
 tell application "System Events"
   if not (exists process appName) then
     return "status=needs_user" & linefeed & "reason=target app is not running"
   end if
   tell process appName
-    set frontmost to true
-    delay 0.2
     try
       set windowPosition to position of window 1
       set windowSize to size of window 1
@@ -341,6 +364,7 @@ tell application "System Events"
     end try
   end tell
 end tell
+end firstWindowSummary
 """
 
 

@@ -153,6 +153,10 @@ class WeChatDesktopAdapter:
             )
         )
         if observation.status != "ok":
+            if _should_try_driver_after_observe_failure(observation):
+                driver_resolution = self._resolve_contact_with_driver(task_input)
+                if driver_resolution is not None:
+                    return driver_resolution
             return WeChatContactResolution(
                 status=_contact_status_from_observation(observation),
                 candidates=(),
@@ -495,6 +499,25 @@ def _contact_status_from_observation(
     ):
         return "needs_user"
     return "failed"
+
+
+def _should_try_driver_after_observe_failure(
+    observation: ComputerUseObservation,
+) -> bool:
+    """Let the app-specific driver recover from focus races.
+
+    Generic observe can fail when the helper process or Codex remains frontmost
+    immediately after open_app. The macOS WeChat driver owns the deterministic
+    app focus/search sequence, so it should get one bounded chance before the
+    adapter reports the contact as blocked.
+    """
+
+    signals = (
+        observation.summary,
+        _string_metadata(observation, "failure_kind") or "",
+        _string_metadata(observation, "phase") or "",
+    )
+    return any("frontmost" in signal.lower() for signal in signals)
 
 
 def _candidate_tuple(raw: Any) -> tuple[WeChatContactCandidate, ...]:

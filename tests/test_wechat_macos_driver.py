@@ -8,6 +8,14 @@ from taskweavn.integrations.wechat_desktop import macos_driver
 from taskweavn.integrations.wechat_desktop.macos_driver import MacOSWeChatSearchDriver
 
 
+def test_window_readiness_script_reopens_and_activates_wechat() -> None:
+    script = macos_driver._window_readiness_script("WeChat")
+
+    assert "tell application appName to reopen" in script
+    assert "tell application appName to activate" in script
+    assert "firstWindowSummary(appName)" in script
+
+
 def test_resolve_contact_fails_before_search_when_wechat_window_unavailable(
     monkeypatch: MonkeyPatch,
 ) -> None:

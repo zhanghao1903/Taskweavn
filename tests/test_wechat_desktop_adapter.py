@@ -281,6 +281,63 @@ def test_wechat_resolve_contact_uses_search_driver_when_observe_has_no_candidate
         ]
 
 
+def test_wechat_resolve_contact_uses_search_driver_when_observe_loses_frontmost() -> None:
+    backend = ScriptedComputerUseBackend(
+        responses=[
+            _observation(
+                operation="observe",
+                status="needs_user",
+                summary="Target app is not frontmost: expected WeChat, got Codex.",
+                metadata={"failure_kind": "target_not_frontmost"},
+            )
+        ]
+    )
+    driver = FakeSearchDriver()
+    adapter = WeChatDesktopAdapter(backend, contact_search_driver=driver)
+
+    resolution = adapter.resolve_contact(
+        WeChatSendTaskInput(contact_display_name="张三", message_text="你好")
+    )
+
+    assert resolution.status == "resolved"
+    assert resolution.selected is not None
+    assert resolution.selected.display_name == "张三"
+    assert resolution.observation_ref == "wechat-search-selected"
+    assert driver.calls == [
+        (
+            "resolve_contact",
+            {
+                "app_name": "WeChat",
+                "contact_display_name": "张三",
+                "timeout_seconds": 40.0,
+            },
+        )
+    ]
+
+
+def test_wechat_resolve_contact_does_not_use_search_driver_for_permission_failure() -> None:
+    backend = ScriptedComputerUseBackend(
+        responses=[
+            _observation(
+                operation="observe",
+                status="not_available",
+                summary="Accessibility permission is missing.",
+                metadata={"failure_kind": "missing_accessibility"},
+            )
+        ]
+    )
+    driver = FakeSearchDriver()
+    adapter = WeChatDesktopAdapter(backend, contact_search_driver=driver)
+
+    resolution = adapter.resolve_contact(
+        WeChatSendTaskInput(contact_display_name="张三", message_text="你好")
+    )
+
+    assert resolution.status == "needs_user"
+    assert resolution.reason == "Accessibility permission is missing."
+    assert driver.calls == []
+
+
 def test_wechat_resolve_contact_maps_search_driver_needs_user() -> None:
     backend = ScriptedComputerUseBackend(
         responses=[_observation(operation="observe", metadata={"contact_candidates": []})]

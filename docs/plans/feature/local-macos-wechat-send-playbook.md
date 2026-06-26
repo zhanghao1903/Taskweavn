@@ -175,7 +175,7 @@ Validated on 2026-06-27 with `computer-use-backend=helper`:
 This validates the Plato sidecar -> helper backend readiness path. It does not
 validate WeChat contact resolution, draft insertion, or send.
 
-### 6.3 Current Helper-Backed Reject/No-Send Blocker
+### 6.3 Helper-Backed Contact Resolution Progress
 
 Attempted on 2026-06-27 with `response=reject` and no `--allow-send`:
 
@@ -190,9 +190,42 @@ Attempted on 2026-06-27 with `response=reject` and no `--allow-send`:
 - error message:
   `Target app is not frontmost: expected WeChat, got Codex.`
 
+No message was sent. The task did not reach the confirmation boundary.
+
+Mitigation added on 2026-06-27:
+
+- When generic `observe` fails because the target app is not frontmost, the
+  WeChat adapter now gives the bounded macOS WeChat search driver one recovery
+  attempt before reporting contact resolution as blocked.
+- The driver window readiness script now activates WeChat and performs one
+  bounded window-readiness retry before returning `needs_user`.
+- The driver also sends a bounded macOS `reopen` event before activation so a
+  running app has a chance to restore its main window.
+
+Validated checks:
+
+- `uv run pytest tests/test_wechat_macos_driver.py tests/test_wechat_desktop_adapter.py tests/test_wechat_send_execution.py tests/test_wechat_send_runtime.py tests/test_manual_wechat_send_smoke_script.py`
+- helper-backed preflight evidence:
+  `/tmp/plato-computer-use-smoke/helper-preflight-after-reopen.json`
+
+Current helper-backed reject/no-send blocker after mitigation:
+
+- session id: `b5d5d227`
+- idempotency key:
+  `manual-wechat-helper-reject-20260627-reopen-01`
+- execution id: `exec_3929e990aea251e7b43897fff066bbe0`
+- failure evidence:
+  `/tmp/plato-computer-use-smoke/helper-reject-nosend-reopen.json`
+- terminal status: `failed` before confirmation
+- error code: `wechat_contact_needs_user`
+- error message:
+  `WeChat main window is unavailable; open the main WeChat window before sending.`
+- diagnostics:
+  `System Events` could not get `window 1 of process "WeChat"`.
+
 No message was sent. The task did not reach the confirmation boundary. Before
 the next reject/no-send attempt, manually open the WeChat main window and ensure
-it is frontmost, then use a fresh idempotency key.
+it has a visible chat/search window, then use a fresh idempotency key.
 
 ## 7. Implementation Invariants
 
@@ -209,7 +242,8 @@ it is frontmost, then use a fresh idempotency key.
 | Failure | Meaning | Rule |
 |---|---|---|
 | preflight not ready | Runtime or permissions unavailable. | Fix setup before any task. |
-| helper preflight ready but WeChat not frontmost | Helper/TCC path is ready, but the app-specific contact driver cannot safely operate. | Manually open/focus WeChat main window and rerun reject/no-send with a fresh key. |
+| helper preflight ready but WeChat not frontmost | Helper/TCC path is ready, but generic observe lost the focus race. | The adapter falls back to the bounded WeChat driver. If it still fails, inspect contact-resolution evidence. |
+| WeChat process has no window 1 | WeChat is running, but no automatable main window is visible. | Manually open the WeChat main window/chat list and rerun reject/no-send with a fresh key. |
 | contact resolution failed | Controlled contact was not selected. | Open WeChat main window and rerun reject/no-send first. |
 | draft failed | Input was not safely written. | Do not confirm; inspect evidence. |
 | `wechat_send_unknown` | Send boundary may have side effects. | No automatic retry; manual review only. |
