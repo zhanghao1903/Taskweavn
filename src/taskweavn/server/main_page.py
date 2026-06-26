@@ -26,17 +26,8 @@ from taskweavn.core import (
     WorkspaceLayout,
 )
 from taskweavn.execution_plane import (
-    WECHAT_SEND_CAPABILITY,
     EmbeddedTaskApiService,
-    InMemoryExecutionEnvRegistry,
     SqliteExecutionPlaneStore,
-    SqliteWeChatSendBoundaryStore,
-    WeChatSendRuntimeHandler,
-    default_local_execution_env,
-)
-from taskweavn.integrations.wechat_desktop import (
-    MacOSWeChatSearchDriver,
-    WeChatDesktopAdapter,
 )
 from taskweavn.interaction import (
     AskStore,
@@ -57,6 +48,10 @@ from taskweavn.runtime_config import (
 )
 from taskweavn.server.ask_recovery import DefaultAskRecoveryService
 from taskweavn.server.client_logs import FileClientErrorLogSink
+from taskweavn.server.computer_use_runtime import (
+    build_execution_env_registry,
+    build_execution_plane_runtime_handlers,
+)
 from taskweavn.server.diagnostics_export import DefaultDiagnosticExportGateway
 from taskweavn.server.main_page_agent import build_agent_loop_resident_default_agent
 from taskweavn.server.main_page_audit_events import (
@@ -86,7 +81,6 @@ from taskweavn.server.read_only_inquiry_diagnostics import (
     DefaultDiagnosticSupportContextProvider,
 )
 from taskweavn.server.runtime_config_consumers import (
-    RuntimeComputerUseSettings,
     runtime_computer_use_settings_from_config,
     runtime_context_settings_from_config,
     runtime_execution_settings_from_config,
@@ -538,7 +532,7 @@ def build_main_page_workspace_runtime(
         execution_plane_store = SqliteExecutionPlaneStore(
             layout.meta_dir / "execution_plane.sqlite"
         )
-        execution_plane_runtime_handlers = _execution_plane_runtime_handlers(
+        execution_plane_runtime_handlers = build_execution_plane_runtime_handlers(
             layout=layout,
             task_bus=task_bus,
             message_bus=message_bus,
@@ -550,7 +544,7 @@ def build_main_page_workspace_runtime(
         execution_plane_service = EmbeddedTaskApiService(
             task_bus=task_bus,
             store=execution_plane_store,
-            env_registry=_execution_env_registry(
+            env_registry=build_execution_env_registry(
                 computer_use_settings=runtime_computer_use_settings,
             ),
             summary_store=result_summary_store,
@@ -1101,55 +1095,6 @@ def _default_capability_catalog() -> StaticCapabilityCatalog:
             "testing",
             "research",
         )
-    )
-
-
-def _execution_env_registry(
-    *,
-    computer_use_settings: RuntimeComputerUseSettings,
-) -> InMemoryExecutionEnvRegistry:
-    capabilities: tuple[str, ...] = ("execute", "testing")
-    tool_pool: tuple[str, ...] = ()
-    if computer_use_settings.enabled:
-        capabilities = (*capabilities, "computer_use", WECHAT_SEND_CAPABILITY)
-        tool_pool = (*tool_pool, "computer_use", "wechat_desktop")
-    return InMemoryExecutionEnvRegistry(
-        (
-            default_local_execution_env(
-                capabilities=capabilities,
-                tool_pool=tool_pool,
-            ),
-        )
-    )
-
-
-def _execution_plane_runtime_handlers(
-    *,
-    layout: WorkspaceLayout,
-    task_bus: SqliteTaskBus,
-    message_bus: InProcessMessageBus,
-    message_stream: SqliteMessageStream,
-    execution_plane_store: SqliteExecutionPlaneStore,
-    computer_use_settings: RuntimeComputerUseSettings,
-    computer_use_backend: ComputerUseBackend | None,
-) -> tuple[WeChatSendRuntimeHandler, ...]:
-    if not computer_use_settings.enabled or computer_use_backend is None:
-        return ()
-    wechat_boundary_store = SqliteWeChatSendBoundaryStore(
-        layout.meta_dir / "wechat_send_boundaries.sqlite"
-    )
-    return (
-        WeChatSendRuntimeHandler(
-            task_bus=task_bus,
-            message_bus=message_bus,
-            message_stream=message_stream,
-            execution_store=execution_plane_store,
-            boundary_store=wechat_boundary_store,
-            adapter=WeChatDesktopAdapter(
-                computer_use_backend,
-                contact_search_driver=MacOSWeChatSearchDriver(),
-            ),
-        ),
     )
 
 
