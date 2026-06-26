@@ -48,11 +48,13 @@ from taskweavn.observability.formatting import event_to_pretty
 from taskweavn.runtime.local import LocalRuntime
 from taskweavn.server import (
     DEFAULT_PLATO_SIDECAR_PORT,
+    ComputerUseHelperAppConfig,
     ComputerUseHelperInfo,
     ComputerUseHelperServerConfig,
     MainPageSidecarConfig,
     MainPageSidecarDependencies,
     WorkspaceRegistryEntry,
+    build_computer_use_helper_app,
     build_main_page_sidecar_app,
     prepare_computer_use_helper_server,
 )
@@ -321,6 +323,116 @@ def computer_use_helper(
         typer.echo("\n[computer-use-helper] stopping")
     finally:
         helper.close()
+
+
+@app.command("computer-use-helper-app")
+def computer_use_helper_app(
+    app_path: Annotated[
+        Path,
+        typer.Option(
+            "--app-path",
+            help="Destination .app path for the dev Plato Computer Use Helper.",
+        ),
+    ] = Path("~/Applications/Plato Computer Use Helper Dev.app"),
+    manifest_path: Annotated[
+        Path,
+        typer.Option(
+            "--manifest-path",
+            envvar="PLATO_COMPUTER_USE_HELPER_MANIFEST",
+            help="Manifest path the generated helper app will publish at runtime.",
+        ),
+    ] = Path("~/Library/Application Support/PlatoDev/computer-use-helper.json"),
+    token_path: Annotated[
+        Path | None,
+        typer.Option(
+            "--token-path",
+            envvar="PLATO_COMPUTER_USE_HELPER_TOKEN_FILE",
+            help="Token path the generated helper app will publish at runtime.",
+        ),
+    ] = None,
+    python_executable: Annotated[
+        Path,
+        typer.Option(
+            "--python-executable",
+            help=(
+                "Python runtime used by the dev helper app wrapper. "
+                "Release packaging must replace this with an embedded runtime."
+            ),
+        ),
+    ] = Path(sys.executable),
+    bundle_id: Annotated[
+        str,
+        typer.Option(
+            "--bundle-id",
+            help="Bundle identifier for the generated dev helper app.",
+        ),
+    ] = "com.taskweavn.plato.computer-use-helper.dev",
+    version_value: Annotated[
+        str,
+        typer.Option("--version", help="Version written into Info.plist."),
+    ] = __version__,
+    host: Annotated[
+        str,
+        typer.Option("--host", help="Loopback host for the helper API."),
+    ] = "127.0.0.1",
+    port: Annotated[
+        int,
+        typer.Option("--port", help="Port for the helper API; use 0 for a free port."),
+    ] = 0,
+    computer_use_backend: Annotated[
+        str,
+        typer.Option(
+            "--computer-use-backend",
+            help=(
+                "Backend the helper app will launch. Valid values for dev: "
+                "disabled, macos."
+            ),
+        ),
+    ] = "disabled",
+    computer_use_allowed_apps: Annotated[
+        str | None,
+        typer.Option(
+            "--computer-use-allowed-apps",
+            envvar="PLATO_COMPUTER_USE_ALLOWED_APPS",
+            help="Comma-separated app allowlist for helper operations.",
+        ),
+    ] = None,
+) -> None:
+    """Build a dev macOS .app scaffold for Plato Computer Use Helper."""
+
+    normalized_backend = computer_use_backend.strip().lower()
+    if normalized_backend == "helper":
+        raise typer.BadParameter(
+            "helper app cannot recursively launch helper backend",
+            param_hint="--computer-use-backend",
+        )
+    result = build_computer_use_helper_app(
+        ComputerUseHelperAppConfig(
+            app_path=app_path,
+            manifest_path=manifest_path,
+            token_path=token_path,
+            python_executable=str(python_executable.expanduser()),
+            bundle_id=bundle_id,
+            version=version_value,
+            host=host,
+            port=port,
+            computer_use_backend=normalized_backend,
+            computer_use_allowed_apps=_parse_computer_use_allowed_apps(
+                computer_use_allowed_apps
+            ),
+        )
+    )
+    typer.echo(f"[computer-use-helper-app] app={result.app_path}")
+    typer.echo(f"[computer-use-helper-app] executable={result.executable_path}")
+    typer.echo(f"[computer-use-helper-app] infoPlist={result.info_plist_path}")
+    typer.echo(f"[computer-use-helper-app] launchConfig={result.launch_config_path}")
+    typer.echo(f"[computer-use-helper-app] manifest={result.manifest_path}")
+    typer.echo(f"[computer-use-helper-app] tokenRef={result.token_path}")
+    typer.echo(
+        "[computer-use-helper-app] "
+        f"bundleId={result.bundle_id} version={result.version} "
+        f"apiVersion={result.api_version}"
+    )
 
 
 def _settings_backed_llm_factory(
@@ -1028,6 +1140,12 @@ def _build_cli_computer_use_runtime(
             str(exc),
             param_hint="--computer-use-backend",
         ) from exc
+
+
+def _parse_computer_use_allowed_apps(value: str | None) -> tuple[str, ...]:
+    if value is None:
+        return ()
+    return tuple(part.strip() for part in value.split(",") if part.strip())
 
 
 def _plato_frontend_env(*, base_url: str) -> dict[str, str]:

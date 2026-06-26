@@ -1,6 +1,6 @@
 # macOS Computer-Use Backend
 
-> Status: in progress / helper provider client, dev launcher, and Settings readiness projection implemented
+> Status: in progress / helper provider client, dev launcher, dev `.app` scaffold, and Settings readiness projection implemented
 >
 > Last Updated: 2026-06-19
 >
@@ -264,6 +264,9 @@ Implementation status as of 2026-06-27:
   `/v1/readiness`, and bounded generic operation endpoints over loopback.
 - A dev helper launcher now generates a startup token, writes a tokenRef-based
   owner-only manifest, and serves the helper API over loopback.
+- A dev helper `.app` scaffold builder now writes `Info.plist`, fixed dev
+  bundle id, launcher config, and `Contents/MacOS/PlatoComputerUseHelper` via
+  `taskweavn computer-use-helper-app`.
 - Settings readiness now exposes a `computerUse` section sourced from the
   selected backend. Enabled-but-not-ready computer-use degrades readiness with
   a `computer_use.not_ready` warning and safe recovery actions.
@@ -271,8 +274,9 @@ Implementation status as of 2026-06-27:
   validates configured expected bundle id / API version before trusting helper
   readiness or operation responses. Mismatches surface as `helper_untrusted` or
   `helper_version_mismatch` evidence.
-- The actual `Plato Computer Use Helper.app` macOS wrapper, stable TCC identity,
-  Settings UI details, and release packaging are still pending.
+- Release-grade `Plato Computer Use Helper.app`, stable TCC identity validation
+  from a helper-owned packaged/embedded executable, Settings UI details, and
+  release packaging are still pending.
 
 ### M0. Package Boundary And Skeleton
 

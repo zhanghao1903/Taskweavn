@@ -1,6 +1,6 @@
 # Plato Computer Use Helper.app 技术方案
 
-> Status: in progress / Plato-side helper client, dev launcher, and Settings readiness projection implemented
+> Status: in progress / Plato-side helper client, dev launcher, dev `.app` scaffold, and Settings readiness projection implemented
 >
 > Last Updated: 2026-06-26
 >
@@ -286,6 +286,22 @@ Plato Computer Use Helper.app
 2. 用户给 helper dev app 授权；
 3. Electron dev app 通过配置连接 helper；
 4. helper 通过配置加载本地 editable `macos-computer-use` 或 bundled package。
+
+当前 repo 内 dev scaffold 可用命令：
+
+```bash
+uv run taskweavn computer-use-helper-app \
+  --app-path "$HOME/Applications/Plato Computer Use Helper Dev.app" \
+  --manifest-path "$HOME/Library/Application Support/PlatoDev/computer-use-helper.json" \
+  --token-path "$HOME/Library/Application Support/PlatoDev/computer-use-helper.token" \
+  --computer-use-backend disabled
+```
+
+需要真实 macOS backend 时，将 `--computer-use-backend` 改为 `macos` 并设置
+`--computer-use-allowed-apps`。该 scaffold 是开发中间态：它生成稳定 dev
+bundle id 和 `.app` 文件结构，但 launcher 仍通过配置的 Python runtime 调用 repo
+内 helper CLI。正式 release 仍必须替换为 helper-owned packaged/embedded
+executable。
 
 ## 7. Helper 启动模式
 
@@ -879,6 +895,10 @@ Helper 返回：
   operation endpoint，用 fake/scripted backend 做 CI 验证；
 - 已新增 dev helper launcher，可生成 startup token、写入 tokenRef manifest、
   启动 loopback helper API，并通过 `taskweavn computer-use-helper` 手动运行；
+- 已新增 dev helper `.app` scaffold builder：`taskweavn computer-use-helper-app`
+  会生成 `Plato Computer Use Helper Dev.app` 的 `Info.plist`、固定 dev
+  bundle id、launcher config 和 `Contents/MacOS/PlatoComputerUseHelper`
+  wrapper；
 - 已将 helper readiness、failure kind、phase、risk、evidence、diagnostics
   映射回 `ComputerUseObservation.metadata`；
 - 已将 computer-use/backend readiness 投射到
@@ -889,8 +909,10 @@ Helper 返回：
   configured expected bundle id / expected API version；manifest、readiness 或
   operation identity mismatch 会转成 `helper_untrusted` /
   `helper_version_mismatch` evidence，而不是继续执行；
-- 尚未实现真实 `Plato Computer Use Helper.app` macOS `.app` wrapper、
-  stable TCC identity、Settings UI 细节展示和 release packaging。
+- 尚未实现 release-grade `Plato Computer Use Helper.app`：当前 dev scaffold
+  仍通过配置的 Python runtime 启动 repo 内 helper CLI，stable TCC identity
+  仍需通过 helper-owned packaged/embedded executable 验证；Settings UI 细节展示
+  和 release packaging 仍 pending。
 
 ### H0: Decision And Contract
 
@@ -909,10 +931,10 @@ Helper 返回：
 
 ### H2: macOS Dev App Wrapper
 
-- build `.app`；（pending）
-- fixed dev bundle id；（logical dev id implemented; real `.app` bundle pending）
+- build `.app`；（dev scaffold implemented）
+- fixed dev bundle id；（dev `Info.plist` implemented）
 - helper startup；（dev CLI + manifest implemented）
-- readiness from helper process；
+- readiness from helper process；（requires running generated app manually）
 - Accessibility prompt guidance。
 
 ### H3: Plato Adapter To Helper

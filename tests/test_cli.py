@@ -238,6 +238,49 @@ def test_computer_use_helper_rejects_recursive_helper_backend(tmp_path: Path) ->
     assert "recursively run inside helper" in result.output
 
 
+def test_computer_use_helper_app_help_exposes_build_options() -> None:
+    runner = CliRunner()
+    result = runner.invoke(app, ["computer-use-helper-app", "--help"])
+
+    assert result.exit_code == 0
+    assert "--app-path" in result.output
+    assert "--manifest-path" in result.output
+    assert "--python-executable" in result.output
+    assert "--computer-use-backend" in result.output
+
+
+def test_computer_use_helper_app_builds_dev_bundle(tmp_path: Path) -> None:
+    runner = CliRunner()
+    app_path = tmp_path / "Plato Computer Use Helper Dev.app"
+    manifest_path = tmp_path / "computer-use-helper.json"
+    token_path = tmp_path / "computer-use-helper.token"
+
+    result = runner.invoke(
+        app,
+        [
+            "computer-use-helper-app",
+            "--app-path",
+            str(app_path),
+            "--manifest-path",
+            str(manifest_path),
+            "--token-path",
+            str(token_path),
+            "--python-executable",
+            sys.executable,
+            "--computer-use-backend",
+            "disabled",
+            "--computer-use-allowed-apps",
+            "WeChat,TextEdit",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "[computer-use-helper-app] app=" in result.output
+    assert app_path.joinpath("Contents", "Info.plist").exists()
+    assert app_path.joinpath("Contents", "Resources", "helper-launch.json").exists()
+    assert app_path.joinpath("Contents", "MacOS", "PlatoComputerUseHelper").exists()
+
+
 def test_plato_dev_rejects_missing_frontend_dir(tmp_path: Path) -> None:
     runner = CliRunner()
     result = runner.invoke(
