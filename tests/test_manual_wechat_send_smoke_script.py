@@ -170,6 +170,100 @@ def test_manual_wechat_smoke_preflight_fails_when_accessibility_is_missing(
     assert result.failure_kind == "missing_accessibility"
 
 
+def test_manual_wechat_smoke_preflight_checks_helper_wechat_app_readiness(
+    tmp_path: Path,
+) -> None:
+    module = _load_script()
+    adapter = FakeWeChatDesktopAdapter(contact_resolution=_resolved_contact())
+    helper_response = {
+        "requestId": "wechat-ready-1",
+        "operation": "wechat.readiness",
+        "status": "ready",
+        "success": True,
+        "summary": "WeChat Desktop is open and its main window is automation-ready.",
+        "phase": "window_readiness",
+        "diagnostics": {"windowSummary": "Fake window ready."},
+    }
+
+    with (
+        _fake_wechat_sidecar(tmp_path, adapter=adapter) as base_url,
+        _fake_wechat_helper(tmp_path, response=helper_response) as helper,
+    ):
+        result = module.run_preflight(
+            module.SmokeConfig(
+                base_url=base_url,
+                session_id="",
+                contact="",
+                message="",
+                idempotency_key="manual-smoke-preflight",
+                response="reject",
+                allow_send=False,
+                timeout_seconds=2.0,
+                poll_seconds=0.01,
+                preflight_only=True,
+                helper_manifest=helper.manifest_path,
+            )
+        )
+
+    assert result.ready is True
+    assert result.wechat_app_status == "ready"
+    assert result.wechat_app_success is True
+    assert result.wechat_app_phase == "window_readiness"
+    assert result.wechat_app_summary == (
+        "WeChat Desktop is open and its main window is automation-ready."
+    )
+    assert result.wechat_app_diagnostics == {"windowSummary": "Fake window ready."}
+    assert helper.requests == [
+        ("POST", "/v1/apps/wechat/readiness", "Bearer helper-token")
+    ]
+
+
+def test_manual_wechat_smoke_preflight_fails_on_helper_wechat_window_blocker(
+    tmp_path: Path,
+) -> None:
+    module = _load_script()
+    adapter = FakeWeChatDesktopAdapter(contact_resolution=_resolved_contact())
+    helper_response = {
+        "requestId": "wechat-ready-2",
+        "operation": "wechat.readiness",
+        "status": "needs_user",
+        "success": False,
+        "summary": "WeChat main window is unavailable.",
+        "failureKind": "needs_user",
+        "phase": "window_readiness",
+        "diagnostics": {"error": "cannot get window 1"},
+    }
+
+    with (
+        _fake_wechat_sidecar(tmp_path, adapter=adapter) as base_url,
+        _fake_wechat_helper(tmp_path, response=helper_response) as helper,
+    ):
+        result = module.run_preflight(
+            module.SmokeConfig(
+                base_url=base_url,
+                session_id="",
+                contact="",
+                message="",
+                idempotency_key="manual-smoke-preflight",
+                response="reject",
+                allow_send=False,
+                timeout_seconds=2.0,
+                poll_seconds=0.01,
+                preflight_only=True,
+                helper_manifest=helper.manifest_path,
+            )
+        )
+
+    assert result.ready is False
+    assert result.computer_use_ready is True
+    assert result.wechat_app_status == "needs_user"
+    assert result.wechat_app_success is False
+    assert result.wechat_app_phase == "window_readiness"
+    assert result.wechat_app_failure_kind == "needs_user"
+    assert result.wechat_app_summary == "WeChat main window is unavailable."
+    assert result.wechat_app_diagnostics == {"error": "cannot get window 1"}
+
+
 def test_manual_wechat_smoke_evidence_output_redacts_contact_and_message(
     tmp_path: Path,
 ) -> None:
@@ -395,6 +489,109 @@ def _fake_wechat_sidecar(
         message_bus=message_bus,
     )
     return _FakeSidecarContext(server)
+
+
+@dataclass
+class _FakeHelperState:
+    response: dict[str, Any]
+    token: str = "helper-token"
+    requests: list[tuple[str, str, str | None]] = field(default_factory=list)
+
+
+class _FakeHelperServer(ThreadingHTTPServer):
+    state: _FakeHelperState
+
+
+def _fake_wechat_helper(
+    tmp_path: Path,
+    *,
+    response: dict[str, Any],
+) -> _FakeHelperContext:
+    server = _FakeHelperServer(("127.0.0.1", 0), _FakeHelperHandler)
+    server.state = _FakeHelperState(response=response)
+    return _FakeHelperContext(server, tmp_path)
+
+
+class _FakeHelperContext:
+    def __init__(self, server: _FakeHelperServer, tmp_path: Path) -> None:
+        self._server = server
+        self._thread = threading.Thread(target=server.serve_forever, daemon=True)
+        self._state_dir = tmp_path / "helper"
+        self.manifest_path = self._state_dir / "computer-use-helper.json"
+        self.requests = server.state.requests
+
+    def __enter__(self) -> _FakeHelperContext:
+        self._state_dir.mkdir(parents=True, exist_ok=True)
+        token_path = self._state_dir / "computer-use-helper.token"
+        token_path.write_text(self._server.state.token, encoding="utf-8")
+        self._thread.start()
+        host, port = self._server.server_address[:2]
+        host_text = host.decode("utf-8") if isinstance(host, bytes) else str(host)
+        self.manifest_path.write_text(
+            json.dumps(
+                {
+                    "endpoint": f"http://{host_text}:{port}",
+                    "tokenRef": str(token_path),
+                    "bundleId": "com.taskweavn.plato.computer-use-helper.dev",
+                    "apiVersion": "plato.computer_use_helper.v1",
+                },
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
+        return self
+
+    def __exit__(self, *exc_info: object) -> None:
+        self._server.shutdown()
+        self._thread.join(timeout=2.0)
+        self._server.server_close()
+
+
+class _FakeHelperHandler(BaseHTTPRequestHandler):
+    def do_POST(self) -> None:
+        self._handle()
+
+    def log_message(self, format: str, *args: object) -> None:
+        return
+
+    def _handle(self) -> None:
+        server = cast(_FakeHelperServer, self.server)
+        path = urlsplit(self.path).path
+        auth = self.headers.get("authorization")
+        server.state.requests.append((self.command, path, auth))
+        if auth != f"Bearer {server.state.token}":
+            self._write_json(
+                401,
+                {
+                    "error": {
+                        "code": "permission_denied",
+                        "message": "invalid helper token",
+                    }
+                },
+            )
+            return
+        if self.command == "POST" and path == "/v1/apps/wechat/readiness":
+            self._read_body()
+            self._write_json(200, server.state.response)
+            return
+        self._write_json(404, {"error": {"code": "not_found"}})
+
+    def _read_body(self) -> dict[str, Any] | None:
+        length = int(self.headers.get("Content-Length", "0"))
+        if length <= 0:
+            return None
+        raw = self.rfile.read(length)
+        parsed = json.loads(raw.decode("utf-8"))
+        assert isinstance(parsed, dict)
+        return parsed
+
+    def _write_json(self, status_code: int, body: object) -> None:
+        payload = json.dumps(body, ensure_ascii=False, default=str).encode("utf-8")
+        self.send_response(status_code)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(payload)))
+        self.end_headers()
+        self.wfile.write(payload)
 
 
 class _FakeSidecarContext:

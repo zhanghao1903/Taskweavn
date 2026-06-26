@@ -51,12 +51,16 @@ evidence. It is not a bulk messaging, remote ExecutionEnv, or LAN API workflow.
    uv run python scripts/manual_wechat_send_smoke.py \
      --base-url http://127.0.0.1:<sidecar-port> \
      --preflight-only \
+     --helper-manifest "$HOME/Library/Application Support/PlatoDev/computer-use-helper.json" \
      --evidence-output /tmp/plato-wechat-preflight-<run>.json
    ```
 
    Required for helper-backed path: `ready=true`,
    `computerUseBackend="helper"`, `computerUseStatus="ok"`,
-   `packageReadinessStatus="ready"`, and `helperStatus="ready"`.
+   `packageReadinessStatus="ready"`, `helperStatus="ready"`,
+   `wechatAppSuccess=true`, and `wechatAppPhase="window_readiness"`.
+   The helper manifest check may open or focus WeChat; it must pass before
+   publishing a WeChat task.
 
 3. Create or select a smoke session.
 

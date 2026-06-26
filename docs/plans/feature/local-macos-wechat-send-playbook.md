@@ -82,12 +82,15 @@ Record the printed local base URL.
 Run preflight before any real WeChat task. The script reads the running
 sidecar's `/api/v1/settings/readiness` response, so it validates the configured
 runtime path (`helper` or `macos`) instead of checking an unrelated local Python
-process:
+process. For the preferred helper-backed path, pass the helper manifest as well;
+this performs an explicit WeChat app/window readiness probe through the helper
+and may open or focus WeChat:
 
 ```bash
 uv run python scripts/manual_wechat_send_smoke.py \
   --base-url http://127.0.0.1:<sidecar-port> \
   --preflight-only \
+  --helper-manifest "$HOME/Library/Application Support/PlatoDev/computer-use-helper.json" \
   --evidence-output /tmp/plato-wechat-preflight-<run>.json
 ```
 
@@ -98,6 +101,8 @@ Required result:
 - `computerUseStatus="ok"`
 - `packageReadinessStatus="ready"`
 - `helperStatus="ready"` for helper-backed path
+- `wechatAppSuccess=true` for helper-backed WeChat send smoke
+- `wechatAppPhase="window_readiness"` for helper-backed WeChat send smoke
 - `ready=true`
 
 If preflight is not ready, do not run a send smoke.
@@ -174,6 +179,17 @@ Validated on 2026-06-27 with `computer-use-backend=helper`:
 
 This validates the Plato sidecar -> helper backend readiness path. It does not
 validate WeChat contact resolution, draft insertion, or send.
+
+### 6.2.1 Helper-Backed WeChat App Readiness Preflight
+
+Added on 2026-06-27:
+
+- `scripts/manual_wechat_send_smoke.py --preflight-only --helper-manifest ...`
+  now also calls helper `POST /v1/apps/wechat/readiness`.
+- The app readiness probe validates that WeChat can be opened/focused and that
+  its main window is automation-ready before publishing a task.
+- If `wechatAppSuccess=false`, the smoke exits before task creation. This keeps
+  known app/window blockers out of the send pipeline.
 
 ### 6.3 Helper-Backed Contact Resolution Progress
 

@@ -20,7 +20,7 @@ import urllib.error
 import urllib.request
 import uuid
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, Literal
 
@@ -42,6 +42,7 @@ class SmokeConfig:
     timeout_seconds: float
     poll_seconds: float
     preflight_only: bool = False
+    helper_manifest: Path | None = None
     evidence_output: Path | None = None
 
 
@@ -83,16 +84,30 @@ class PreflightResult:
     computer_use_backend: str | None = None
     helper_status: str | None = None
     failure_kind: str | None = None
+    wechat_app_status: str | None = None
+    wechat_app_success: bool | None = None
+    wechat_app_phase: str | None = None
+    wechat_app_summary: str | None = None
+    wechat_app_failure_kind: str | None = None
+    wechat_app_diagnostics: dict[str, object] | None = None
 
     @property
     def ready(self) -> bool:
         if not self.sidecar_ok:
             return False
+        if self.wechat_app_success is False:
+            return False
         if self.computer_use_ready is not None:
-            return self.computer_use_ready
-        if self.package_readiness_status == "ready":
-            return True
-        return self.computer_use_status == "ok" and self.accessibility_trusted is True
+            base_ready = self.computer_use_ready
+        elif self.package_readiness_status == "ready":
+            base_ready = True
+        else:
+            base_ready = (
+                self.computer_use_status == "ok" and self.accessibility_trusted is True
+            )
+        if self.wechat_app_success is True:
+            return base_ready
+        return base_ready
 
     def as_dict(self) -> dict[str, object]:
         return {
@@ -106,6 +121,12 @@ class PreflightResult:
             "computerUseBackend": self.computer_use_backend,
             "helperStatus": self.helper_status,
             "failureKind": self.failure_kind,
+            "wechatAppStatus": self.wechat_app_status,
+            "wechatAppSuccess": self.wechat_app_success,
+            "wechatAppPhase": self.wechat_app_phase,
+            "wechatAppSummary": self.wechat_app_summary,
+            "wechatAppFailureKind": self.wechat_app_failure_kind,
+            "wechatAppDiagnostics": self.wechat_app_diagnostics,
             "ready": self.ready,
         }
 
@@ -155,10 +176,11 @@ def run_preflight(
         raise SmokeError("computer-use readiness result was not an object.")
 
     if "ready" in readiness_payload or "backend" in readiness_payload:
-        return _preflight_from_sidecar_readiness(
+        result = _preflight_from_sidecar_readiness(
             health_data=health_data,
             computer_use=readiness_payload,
         )
+        return _with_helper_wechat_app_readiness(config, result)
 
     metadata = readiness_payload.get("metadata")
     readiness = {}
@@ -167,7 +189,7 @@ def run_preflight(
         if isinstance(raw_readiness, dict):
             readiness = raw_readiness
 
-    return PreflightResult(
+    result = PreflightResult(
         sidecar_ok=True,
         sidecar_name=_optional_str(health_data, "name"),
         computer_use_status=_optional_str(readiness_payload, "status"),
@@ -175,6 +197,7 @@ def run_preflight(
         accessibility_trusted=_optional_bool(readiness, "accessibility_trusted"),
         setup_hint=_optional_str(readiness, "setup_hint"),
     )
+    return _with_helper_wechat_app_readiness(config, result)
 
 
 def _preflight_from_sidecar_readiness(
@@ -206,6 +229,31 @@ def _preflight_from_sidecar_readiness(
     )
 
 
+def _with_helper_wechat_app_readiness(
+    config: SmokeConfig,
+    result: PreflightResult,
+) -> PreflightResult:
+    if config.helper_manifest is None:
+        return result
+    payload = _helper_wechat_app_readiness(config)
+    diagnostics = payload.get("diagnostics")
+    app_status = _optional_str(payload, "status")
+    app_success = _optional_bool(payload, "success")
+    if app_success is None and app_status is not None:
+        app_success = app_status == "ready"
+    return replace(
+        result,
+        wechat_app_status=app_status,
+        wechat_app_success=app_success,
+        wechat_app_phase=_optional_str(payload, "phase"),
+        wechat_app_summary=_optional_str(payload, "summary"),
+        wechat_app_failure_kind=_optional_str(payload, "failureKind"),
+        wechat_app_diagnostics=(
+            dict(diagnostics) if isinstance(diagnostics, dict) else None
+        ),
+    )
+
+
 def write_evidence_output(
     config: SmokeConfig,
     *,
@@ -223,6 +271,7 @@ def write_evidence_output(
             "response": config.response,
             "allowSend": config.allow_send,
             "preflightOnly": config.preflight_only,
+            "helperManifestProvided": config.helper_manifest is not None,
             "contactProvided": bool(config.contact),
             "messageChars": len(config.message),
         },
@@ -464,9 +513,12 @@ def _request_json(
     method: str,
     path: str,
     body: dict[str, object] | None = None,
+    extra_headers: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     encoded_body = None
     headers = {"Accept": "application/json"}
+    if extra_headers:
+        headers.update(extra_headers)
     if body is not None:
         encoded_body = json.dumps(body, ensure_ascii=False).encode("utf-8")
         headers["Content-Type"] = "application/json"
@@ -535,6 +587,68 @@ def _sidecar_computer_use_readiness(config: SmokeConfig) -> dict[str, Any]:
     return computer_use
 
 
+def _helper_wechat_app_readiness(config: SmokeConfig) -> dict[str, Any]:
+    if config.helper_manifest is None:
+        raise SmokeError("helper manifest is required for helper WeChat app readiness.")
+    manifest_path = config.helper_manifest.expanduser()
+    manifest = _read_helper_manifest(manifest_path)
+    endpoint = _required_manifest_str(manifest, "endpoint", manifest_path)
+    token = _optional_str(manifest, "token")
+    token_ref = _optional_str(manifest, "tokenRef") or _optional_str(
+        manifest,
+        "token_ref",
+    )
+    if token is None and token_ref is not None:
+        token = _read_helper_token(manifest_path, token_ref)
+
+    headers = {"Authorization": f"Bearer {token}"} if token else None
+    return _request_json(
+        endpoint,
+        "POST",
+        "/v1/apps/wechat/readiness",
+        {
+            "requestId": f"manual-wechat-preflight-{uuid.uuid4().hex}",
+        },
+        extra_headers=headers,
+    )
+
+
+def _read_helper_manifest(path: Path) -> dict[str, Any]:
+    try:
+        parsed = json.loads(path.read_text(encoding="utf-8"))
+    except OSError as exc:
+        raise SmokeError(f"helper manifest unavailable: {path}") from exc
+    except json.JSONDecodeError as exc:
+        raise SmokeError(f"helper manifest was not JSON: {path}") from exc
+    if not isinstance(parsed, dict):
+        raise SmokeError("helper manifest must be a JSON object.")
+    return parsed
+
+
+def _read_helper_token(manifest_path: Path, token_ref: str) -> str:
+    token_path = Path(token_ref).expanduser()
+    if not token_path.is_absolute():
+        token_path = manifest_path.parent / token_path
+    try:
+        token = token_path.read_text(encoding="utf-8").strip()
+    except OSError as exc:
+        raise SmokeError(f"helper token unavailable: {token_path}") from exc
+    if not token:
+        raise SmokeError(f"helper token is empty: {token_path}")
+    return token
+
+
+def _required_manifest_str(
+    manifest: dict[str, Any],
+    key: str,
+    path: Path,
+) -> str:
+    value = _optional_str(manifest, key)
+    if value is None:
+        raise SmokeError(f"helper manifest {path} requires {key}.")
+    return value
+
+
 def _parse_args() -> SmokeConfig:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--base-url", required=True, help="Running Plato sidecar base URL.")
@@ -545,6 +659,15 @@ def _parse_args() -> SmokeConfig:
         "--preflight-only",
         action="store_true",
         help="Check sidecar and local macOS readiness without publishing a task.",
+    )
+    parser.add_argument(
+        "--helper-manifest",
+        type=Path,
+        help=(
+            "Optional Plato Computer Use Helper manifest. With --preflight-only, "
+            "also checks WeChat app/window readiness through the helper; this may "
+            "open or focus WeChat."
+        ),
     )
     parser.add_argument(
         "--idempotency-key",
@@ -588,6 +711,7 @@ def _parse_args() -> SmokeConfig:
         timeout_seconds=args.timeout_seconds,
         poll_seconds=args.poll_seconds,
         preflight_only=args.preflight_only,
+        helper_manifest=args.helper_manifest,
         evidence_output=args.evidence_output,
     )
 
