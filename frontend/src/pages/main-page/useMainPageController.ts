@@ -333,11 +333,14 @@ export function useMainPageController({
     clearEventError();
   }, [
     clearEventError,
+    initialTaskNodeIdRef,
     resetCommandErrorState,
     resetInputDraft,
     resetSessionDialog,
     resetSelection,
     setPendingRuntimeClarification,
+    setUiNotice,
+    snapshotDataRef,
     snapshotIdentity,
   ]);
 

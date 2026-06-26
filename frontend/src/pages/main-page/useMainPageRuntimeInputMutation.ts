@@ -14,9 +14,8 @@ import type { InputTarget } from "./mainPageUiTypes";
 import {
   buildRuntimeInputRouteRequest,
   prependRuntimeActivityItems,
-  runtimeInputActivity,
   runtimeInputNotice,
-  runtimeInputUserActivity,
+  runtimeInputRouteActivities,
 } from "./mainPageRuntimeInput";
 import { handleCommandResponse } from "./runtime/commandRefresh";
 import type {
@@ -172,6 +171,7 @@ export function useMainPageRuntimeInputMutation({
         sessionId: request.sessionId,
         workspaceId: activeWorkspaceId,
       });
+      setInputDraft("");
     },
     onSettled: () => {
       setActiveRuntimeInputMode(null);
@@ -235,11 +235,7 @@ export function useMainPageRuntimeInputMutation({
         routeResult.outcome.status === "dispatched"
       ) {
         setPendingRuntimeClarification(null);
-        const runtimeActivity = runtimeInputActivity(routeResult);
-        const runtimeActivities = [
-          runtimeInputUserActivity(request, routeResult),
-          ...(runtimeActivity === null ? [] : [runtimeActivity]),
-        ];
+        const runtimeActivities = runtimeInputRouteActivities(request, routeResult);
         if (runtimeActivities.length > 0) {
           reconcileRuntimeInputSubmit(request.commandId);
           setRuntimeActivityItems((items) =>
@@ -265,6 +261,14 @@ export function useMainPageRuntimeInputMutation({
       setPendingRuntimeClarification(
         routeResult.outcome.pendingClarification ?? null,
       );
+      const runtimeActivities = runtimeInputRouteActivities(request, routeResult);
+      if (runtimeActivities.length > 0) {
+        reconcileRuntimeInputSubmit(request.commandId);
+        setRuntimeActivityItems((items) =>
+          prependRuntimeActivityItems(items, runtimeActivities),
+        );
+      }
+      void refetchSnapshot();
     },
   });
 }

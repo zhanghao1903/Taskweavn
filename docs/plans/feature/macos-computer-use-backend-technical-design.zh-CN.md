@@ -9,6 +9,7 @@
 > Related:
 > [macOS Computer-Use Capability Package](macos-computer-use-package.md),
 > [Package Technical Design](macos-computer-use-package-technical-design.zh-CN.md),
+> [Plato Computer Use Helper.app Technical Design](plato-computer-use-helper-app-technical-design.zh-CN.md),
 > [Local Computer-Use Tool Foundation](local-computer-use-tool.md),
 > [Remote WeChat Message Task PRD](../../product/remote-wechat-message-task-prd.md),
 > [Tool Capability Layer](../../architecture/tool-capability-layer.md),

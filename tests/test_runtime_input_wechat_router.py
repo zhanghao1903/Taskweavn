@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any, cast
 
 from taskweavn.contract_revision import (
@@ -11,10 +12,25 @@ from taskweavn.contract_revision import (
     InMemoryContractCommandIdempotencyStore,
     InMemoryGuidanceFactStore,
 )
-from taskweavn.execution_plane.models import TaskExecution, TaskRequest, utcnow
+from taskweavn.execution_plane.errors import ExecutionPlaneError
+from taskweavn.execution_plane.models import (
+    TaskError,
+    TaskExecution,
+    TaskRequest,
+    utcnow,
+)
+from taskweavn.interaction import InProcessMessageBus, SqliteMessageStream
 from taskweavn.server import HttpApiRequest, PlatoUiHttpTransport
+from taskweavn.server.runtime_input_activity import (
+    ROUTER_REPLY_TITLE,
+    ROUTER_TRACE_TITLE,
+    USER_INPUT_TITLE,
+    MessageBusRuntimeInputActivityPublisher,
+)
 from taskweavn.server.runtime_input_llm_router import (
     RouterPlannerResult,
+    RouterTaskPolicyDraft,
+    RouterTaskRequestDraft,
     RuntimeInputRouteProposal,
 )
 from taskweavn.server.runtime_input_router import DefaultRuntimeInputRouter
@@ -38,6 +54,10 @@ from taskweavn.server.ui_contract.commands import (
     ResolveConfirmationPayload,
     RetryTaskPayload,
     StopTaskPayload,
+)
+from taskweavn.server.ui_contract.mapping import map_agent_message_view
+from taskweavn.server.ui_contract.session_activity_projection import (
+    DefaultSessionActivityProjectionService,
 )
 from taskweavn.server.ui_contract.view_models import ConfirmationActionView
 from taskweavn.task.plan_models import PlanTaskNode
@@ -121,6 +141,167 @@ def test_router_publishes_wechat_send_task_to_execution_plane_when_available() -
     assert commands.calls == []
 
 
+def test_router_capability_missing_is_conversation_visible(tmp_path: Path) -> None:
+    stream = SqliteMessageStream(tmp_path / "messages.sqlite")
+    bus = InProcessMessageBus(stream)
+    query = _QueryGateway()
+    commands = _CommandGateway()
+    execution_plane = _ExecutionPlaneService(
+        error=ExecutionPlaneError(
+            "capability_not_available",
+            "WeChat desktop send capability is not enabled in this environment.",
+            retryable=True,
+        )
+    )
+    router = _router(
+        query,
+        commands,
+        execution_plane_service=execution_plane,
+        route_planner=_wechat_planner("你好"),
+        activity_publisher=MessageBusRuntimeInputActivityPublisher(bus),
+    )
+    request = _request(
+        command_id="route-wechat-capability-missing",
+        content='给微信的文件传输助手发送"你好"',
+    )
+
+    try:
+        response = router.route(request)
+        duplicate = router.route(request)
+
+        messages = tuple(
+            map_agent_message_view(message)
+            for message in stream.list_for_session(request.session_id)
+        )
+        timeline = DefaultSessionActivityProjectionService().project(
+            session_id=request.session_id,
+            messages=messages,
+        )
+    finally:
+        bus.close()
+        stream.close()
+
+    assert response.ok is True
+    assert duplicate.ok is True
+    assert response.data is not None
+    assert response.data.outcome.status == "rejected"
+    assert response.data.outcome.user_message == (
+        "当前执行环境不支持微信发送能力。没有发送消息。\n"
+        "错误代码：capability_not_available\n"
+        "错误信息：WeChat desktop send capability is not enabled in this environment."
+    )
+    assert [message.title for message in messages] == [
+        USER_INPUT_TITLE,
+        ROUTER_TRACE_TITLE,
+        ROUTER_REPLY_TITLE,
+        "Runtime input routed",
+    ]
+    assert messages[0].body == request.content
+    reply = messages[2]
+    assert reply.kind == "error"
+    assert reply.body.startswith("当前执行环境不支持微信发送能力。没有发送消息。")
+    assert "错误代码：capability_not_available" in reply.body
+    assert (
+        "错误信息：WeChat desktop send capability is not enabled in this environment."
+        in reply.body
+    )
+    assert "建议的恢复操作" in reply.body
+    assert "打开设置，检查 provider、权限或本地运行配置" in reply.body
+    assert "完成本地环境配置或授权后重试命令" in reply.body
+    assert reply.conversation_render is not None
+    assert reply.conversation_render.render_kind == "text"
+    assert reply.conversation_render.text is not None
+    assert reply.conversation_render.text.body == reply.body
+    item_by_kind = {item.kind: item for item in timeline.items}
+    assert item_by_kind["user_input"].body == request.content
+    assert item_by_kind["recovery_note"].body == reply.body
+    assert len(execution_plane.requests) == 0
+    assert commands.calls == []
+
+
+def test_router_immediate_wechat_execution_failure_is_conversation_visible(
+    tmp_path: Path,
+) -> None:
+    stream = SqliteMessageStream(tmp_path / "messages.sqlite")
+    bus = InProcessMessageBus(stream)
+    query = _QueryGateway()
+    commands = _CommandGateway()
+    task_error = TaskError(
+        error_ref="error:wechat-runtime:exec-wechat-1:wechat_not_ready",
+        execution_id="exec-wechat-1",
+        code="wechat_not_ready",
+        message=(
+            "macOS computer-use readiness: missing_accessibility. "
+            "Grant Accessibility permission to the Python process or host app."
+        ),
+        retryable=True,
+        recovery_hint="Review local Accessibility permissions, then start a new task.",
+        evidence_refs=("evidence:wechat-runtime:exec-wechat-1:readiness",),
+        created_at=NOW,
+    )
+    execution_plane = _ExecutionPlaneService(
+        status="failed",
+        task_error=task_error,
+    )
+    router = _router(
+        query,
+        commands,
+        execution_plane_service=execution_plane,
+        route_planner=_wechat_planner("你好"),
+        activity_publisher=MessageBusRuntimeInputActivityPublisher(bus),
+    )
+    request = _request(
+        command_id="route-wechat-readiness-failed",
+        content='给微信的文件传输助手发送"你好"',
+    )
+
+    try:
+        response = router.route(request)
+        messages = tuple(
+            map_agent_message_view(message)
+            for message in stream.list_for_session(request.session_id)
+        )
+        timeline = DefaultSessionActivityProjectionService().project(
+            session_id=request.session_id,
+            messages=messages,
+        )
+    finally:
+        bus.close()
+        stream.close()
+
+    assert response.ok is True
+    assert response.data is not None
+    assert response.data.outcome.status == "rejected"
+    assert "错误代码：wechat_not_ready" in response.data.outcome.user_message
+    assert "错误信息：macOS computer-use readiness: missing_accessibility" in (
+        response.data.outcome.user_message
+    )
+    assert "恢复建议：Review local Accessibility permissions" in (
+        response.data.outcome.user_message
+    )
+    assert response.data.outcome.recovery_actions == (
+        "open_settings",
+        "retry_command",
+    )
+    assert [message.title for message in messages] == [
+        USER_INPUT_TITLE,
+        ROUTER_TRACE_TITLE,
+        ROUTER_REPLY_TITLE,
+        "WeChat send task failed",
+    ]
+    reply = messages[2]
+    assert reply.kind == "error"
+    assert "错误代码：wechat_not_ready" in reply.body
+    assert "建议的恢复操作" in reply.body
+    assert "打开设置，检查 provider、权限或本地运行配置。" in reply.body
+    item_by_title = {item.title: item for item in timeline.items}
+    assert "错误信息：macOS computer-use readiness: missing_accessibility" in (
+        item_by_title["WeChat send task failed"].body
+    )
+    assert len(execution_plane.requests) == 1
+    assert commands.calls == []
+
+
 def test_router_uses_planner_wechat_task_request_draft_for_execution_plane() -> None:
     query = _QueryGateway()
     commands = _CommandGateway()
@@ -134,19 +315,7 @@ def test_router_uses_planner_wechat_task_request_draft_for_execution_plane() -> 
             visible_reasoning_summary="Router skill created a WeChat task draft.",
             user_message="I will create a confirmation-gated WeChat task.",
             activated_skill_ids=("internal:router-wechat-send",),
-            task_request_draft={
-                "taskType": "communication.wechat.send_message",
-                "instructions": "Send one confirmation-gated WeChat message.",
-                "input": {
-                    "contactDisplayName": "文件传输助手",
-                    "messageText": "LLM proposal path",
-                },
-                "policy": {
-                    "requiredCapability": "communication.wechat_desktop_send",
-                    "requiresHumanConfirmation": True,
-                    "riskLevel": "high",
-                },
-            },
+            task_request_draft=_wechat_task_request_draft("LLM proposal path"),
         )
     )
     router = _router(
@@ -326,6 +495,7 @@ def _router(
     handler: _TaskNodeCommandHandler | None = None,
     execution_plane_service: _ExecutionPlaneService | None = None,
     route_planner: _Planner | None = None,
+    activity_publisher: Any | None = None,
 ) -> DefaultRuntimeInputRouter:
     service = (
         None
@@ -343,6 +513,7 @@ def _router(
         contract_revision_service=service,
         execution_plane_service=cast(Any, execution_plane_service),
         route_planner=route_planner,
+        activity_publisher=activity_publisher,
     )
 
 
@@ -356,29 +527,37 @@ def _wechat_planner(message_text: str) -> _Planner:
             visible_reasoning_summary="Router skill created a WeChat task draft.",
             user_message="I will create a confirmation-gated WeChat task.",
             activated_skill_ids=("internal:router-wechat-send",),
-            task_request_draft={
-                "taskType": "communication.wechat.send_message",
-                "instructions": "Send one confirmation-gated WeChat message.",
-                "input": {
-                    "contactDisplayName": "文件传输助手",
-                    "messageText": message_text,
-                },
-                "policy": {
-                    "requiredCapability": "communication.wechat_desktop_send",
-                    "requiresHumanConfirmation": True,
-                    "riskLevel": "high",
-                },
-            },
+            task_request_draft=_wechat_task_request_draft(message_text),
         )
+    )
+
+
+def _wechat_task_request_draft(message_text: str) -> RouterTaskRequestDraft:
+    return RouterTaskRequestDraft(
+        task_type="communication.wechat.send_message",
+        instructions="Send one confirmation-gated WeChat message.",
+        input={
+            "contactDisplayName": "文件传输助手",
+            "messageText": message_text,
+        },
+        policy=RouterTaskPolicyDraft(
+            required_capability="communication.wechat_desktop_send",
+            requires_human_confirmation=True,
+            risk_level="high",
+        ),
     )
 
 
 @dataclass
 class _ExecutionPlaneService:
     status: str = "pending"
+    error: ExecutionPlaneError | None = None
+    task_error: TaskError | None = None
     requests: list[TaskRequest] = field(default_factory=list)
 
     def publish_task(self, request: TaskRequest) -> TaskExecution:
+        if self.error is not None:
+            raise self.error
         self.requests.append(request)
         now = utcnow()
         return TaskExecution(
@@ -393,7 +572,22 @@ class _ExecutionPlaneService:
             env_id="local",
             created_at=now,
             updated_at=now,
+            completed_at=now if self.status in {"done", "failed", "cancelled"} else None,
+            error_ref=(
+                self.task_error.error_ref
+                if self.status == "failed" and self.task_error is not None
+                else None
+            ),
             session_id=cast(str, request.metadata["sessionId"]),
+        )
+
+    def get_error(self, error_ref: str) -> TaskError:
+        if self.task_error is not None and self.task_error.error_ref == error_ref:
+            return self.task_error
+        raise ExecutionPlaneError(
+            "result_not_found",
+            f"Task error {error_ref!r} was not found.",
+            retryable=False,
         )
 
 

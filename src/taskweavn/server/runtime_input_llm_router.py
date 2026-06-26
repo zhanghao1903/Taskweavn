@@ -9,11 +9,12 @@ from hashlib import sha256
 from pathlib import Path
 from typing import Any, Literal, Protocol
 
-from pydantic import Field, field_validator, model_validator
+from pydantic import Field, ValidationError, field_validator, model_validator
 
 from taskweavn.llm.contracts import ChatResponse
 from taskweavn.llm.logging import log_agent_llm_input, log_agent_llm_output
 from taskweavn.observability import LogContext, get_object_logger
+from taskweavn.prompts import RUNTIME_INPUT_ROUTER_SYSTEM_PROMPT
 from taskweavn.server.ui_contract.base import UiContractModel
 from taskweavn.server.ui_contract.read_only_inquiry import ReadOnlyInquiryRef
 from taskweavn.server.ui_contract.runtime_input import (
@@ -238,6 +239,7 @@ class LLMRuntimeInputRoutePlanner:
 
     llm: Any
     timeout_seconds: float | None = 30.0
+    max_output_repair_attempts: int = 1
     skill_prompt_context: RouterSkillPromptContext = field(
         default_factory=lambda: build_builtin_router_skill_prompt_context()
     )
@@ -303,29 +305,6 @@ class LLMRuntimeInputRoutePlanner:
                     context=log_context,
                 )
             raw_content = _response_content(response)
-            proposal = RuntimeInputRouteProposal.model_validate(
-                _json_object(raw_content)
-            )
-            _log_router_proposal(proposal, context=log_context)
-            warning = validate_route_proposal(
-                proposal,
-                allowed_dispatch_targets=allowed_dispatch_targets,
-                active_ask=active_ask,
-                active_confirmation=active_confirmation,
-            )
-            if warning is not None:
-                _log_router_validation(
-                    status="invalid",
-                    warning=warning,
-                    context=log_context,
-                )
-                return RouterPlannerResult(status="invalid", warning=warning)
-            _log_router_validation(
-                status="valid",
-                warning=None,
-                context=log_context,
-            )
-            return RouterPlannerResult(status="planned", proposal=proposal)
         except Exception as exc:  # noqa: BLE001 - Router must fail closed.
             _log_router_fallback(
                 reason="planner_unavailable",
@@ -336,6 +315,140 @@ class LLMRuntimeInputRoutePlanner:
                 status="unavailable",
                 warning=f"router planner unavailable: {type(exc).__name__}",
             )
+
+        return _parse_validate_or_repair(
+            raw_content,
+            base_messages=messages,
+            metadata=metadata,
+            llm=self.llm,
+            timeout_seconds=self.timeout_seconds,
+            max_output_repair_attempts=self.max_output_repair_attempts,
+            allowed_dispatch_targets=allowed_dispatch_targets,
+            active_ask=active_ask,
+            active_confirmation=active_confirmation,
+            context=log_context,
+        )
+
+
+def _parse_validate_or_repair(
+    raw_content: str,
+    *,
+    base_messages: list[dict[str, str]],
+    metadata: dict[str, Any],
+    llm: Any,
+    timeout_seconds: float | None,
+    max_output_repair_attempts: int,
+    allowed_dispatch_targets: tuple[RuntimeInputDispatchTarget, ...],
+    active_ask: bool,
+    active_confirmation: bool,
+    context: LogContext,
+) -> RouterPlannerResult:
+    attempt = 0
+    current_content = raw_content
+    while True:
+        result = _parse_and_validate_proposal(
+            current_content,
+            allowed_dispatch_targets=allowed_dispatch_targets,
+            active_ask=active_ask,
+            active_confirmation=active_confirmation,
+            context=context,
+        )
+        if result.status == "planned":
+            return result
+        if attempt >= max(0, max_output_repair_attempts):
+            _log_router_fallback(
+                reason="planner_unavailable",
+                warning=result.warning or "router output validation failed",
+                context=context,
+            )
+            return RouterPlannerResult(
+                status="unavailable",
+                warning=(
+                    "router planner unavailable: "
+                    f"{result.warning or 'output validation failed'}"
+                ),
+            )
+        attempt += 1
+        repair_messages = _repair_messages(
+            base_messages,
+            previous_content=current_content,
+            warning=result.warning or "output validation failed",
+        )
+        try:
+            repair_metadata = {**metadata, "output_repair_attempt": attempt}
+            log_agent_llm_input(
+                agent_kind="router",
+                request_purpose="runtime_input.route.repair",
+                messages=repair_messages,
+                tools=None,
+                metadata=repair_metadata,
+                context=context,
+            )
+            response = llm.chat(
+                messages=repair_messages,
+                tools=None,
+                metadata=repair_metadata,
+                timeout_seconds=timeout_seconds,
+            )
+            if isinstance(response, ChatResponse):
+                log_agent_llm_output(
+                    agent_kind="router",
+                    request_purpose="runtime_input.route.repair",
+                    response=response,
+                    metadata=repair_metadata,
+                    context=context,
+                )
+            current_content = _response_content(response)
+        except Exception as exc:  # noqa: BLE001 - Router must fail closed.
+            _log_router_fallback(
+                reason="planner_unavailable",
+                warning=f"{type(exc).__name__}",
+                context=context,
+            )
+            return RouterPlannerResult(
+                status="unavailable",
+                warning=f"router planner unavailable: {type(exc).__name__}",
+            )
+
+
+def _parse_and_validate_proposal(
+    raw_content: str,
+    *,
+    allowed_dispatch_targets: tuple[RuntimeInputDispatchTarget, ...],
+    active_ask: bool,
+    active_confirmation: bool,
+    context: LogContext,
+) -> RouterPlannerResult:
+    try:
+        proposal = RuntimeInputRouteProposal.model_validate(_json_object(raw_content))
+    except Exception as exc:  # noqa: BLE001 - any malformed output fails closed.
+        warning = _validation_warning(exc)
+        _log_router_validation(
+            status="invalid",
+            warning=warning,
+            context=context,
+        )
+        return RouterPlannerResult(status="invalid", warning=warning)
+    _log_router_proposal(proposal, context=context)
+    warning = validate_route_proposal(
+        proposal,
+        allowed_dispatch_targets=allowed_dispatch_targets,
+        active_ask=active_ask,
+        active_confirmation=active_confirmation,
+    )
+    if warning is not None:
+        _log_router_validation(
+            status="invalid",
+            warning=warning,
+            context=context,
+        )
+        return RouterPlannerResult(status="invalid", warning=warning)
+    _log_router_validation(
+        status="valid",
+        warning=None,
+        context=context,
+    )
+    return RouterPlannerResult(status="planned", proposal=proposal)
 
 
 def validate_route_proposal(
@@ -504,40 +617,188 @@ def _messages(
         "activeConfirmation": active_confirmation,
         "allowedDispatchTargets": list(allowed_dispatch_targets),
         "routerSkills": skill_prompt_context.to_prompt_payload(),
-        "outputSchema": {
-            "format": "json_object",
-            "readOnlyRefs": "optional refs with kind=file or diff and safe workspace-relative path",
-            "taskRequestDraft": (
-                "required for execution_handoff; WeChat sends must include "
-                "taskType=communication.wechat.send_message, input.contactDisplayName, "
-                "input.messageText, policy.requiredCapability="
-                "communication.wechat_desktop_send, "
-                "policy.requiresHumanConfirmation=true, policy.riskLevel=high"
-            ),
-            "commandDraft": (
-                "required for existing_command; enabled kinds: stop_task, retry_task"
-            ),
-        },
+        "outputSchema": _router_output_schema_payload(),
     }
     return [
         {
             "role": "system",
-            "content": (
-                "You are Plato's Runtime Input Router planner. Return only JSON. "
-                "Use the routerSkills payload as capability semantics and examples. "
-                "You may classify user input and request read-only refs, but you "
-                "must not execute tools, mutate files, or invent backend commands. "
-                "Use read_only_inquiry for questions that can be answered from "
-                "session/task facts or safe workspace file/diff context. Use "
-                "execution_handoff only when the user asks Plato to create, edit, "
-                "run, or produce workspace-changing work. Do not include hidden "
-                "chain-of-thought; visibleReasoningSummary must be a short user-safe "
-                "summary."
-            ),
+            "content": RUNTIME_INPUT_ROUTER_SYSTEM_PROMPT,
         },
         {
             "role": "user",
             "content": json.dumps(payload, ensure_ascii=False, sort_keys=True),
+        },
+    ]
+
+
+def _router_output_schema_payload() -> dict[str, Any]:
+    return {
+        "format": "json_object",
+        "requiredTopLevelKeys": [
+            "intent",
+            "dispatchTarget",
+            "sideEffect",
+            "confidence",
+            "visibleReasoningSummary",
+            "userMessage",
+        ],
+        "optionalTopLevelKeys": [
+            "scopeKind",
+            "needsClarification",
+            "clarification",
+            "readOnlyRefs",
+            "activatedSkillIds",
+            "commandDraft",
+            "taskRequestDraft",
+            "askAnswerDraft",
+            "confirmationResponseDraft",
+            "requestedReadOnlyContext",
+        ],
+        "forbiddenTopLevelKeys": [
+            "route",
+            "primaryIntent",
+            "assignment",
+            "allowedDispatchTargets",
+            "safety",
+        ],
+        "intents": [
+            "question",
+            "guidance",
+            "command",
+            "ask_answer",
+            "confirmation_response",
+            "execution_request",
+            "clarification",
+            "unsupported",
+        ],
+        "dispatchTargets": [
+            "read_only_inquiry",
+            "record_guidance",
+            "existing_command",
+            "execution_handoff",
+            "clarification",
+            "unsupported",
+        ],
+        "sideEffectByDispatchTarget": {
+            "read_only_inquiry": "no_effect",
+            "clarification": "no_effect",
+            "unsupported": "no_effect",
+            "record_guidance": "context_effect",
+            "existing_command": "state_effect",
+            "execution_handoff": "state_effect",
+        },
+        "confidenceValues": ["low", "medium", "high"],
+        "mutationSafetyRules": [
+            "Do not use low confidence for mutating dispatch targets.",
+            "If required information is missing, use dispatchTarget=clarification.",
+            "If capability is unsupported or target set is ambiguous, use unsupported.",
+        ],
+        "taskRequestDraft": {
+            "requiredFor": "execution_handoff",
+            "wechatSendRequiredShape": {
+                "taskType": "communication.wechat.send_message",
+                "instructions": "Send one confirmation-gated WeChat message.",
+                "input": {
+                    "contactDisplayName": "one WeChat contact display name",
+                    "messageText": "exact message text",
+                },
+                "policy": {
+                    "requiredCapability": "communication.wechat_desktop_send",
+                    "requiresHumanConfirmation": True,
+                    "riskLevel": "high",
+                },
+            },
+        },
+        "canonicalExamples": [
+            {
+                "intent": "execution_request",
+                "dispatchTarget": "execution_handoff",
+                "scopeKind": "session",
+                "sideEffect": "state_effect",
+                "confidence": "high",
+                "visibleReasoningSummary": (
+                    "User requests one confirmation-gated WeChat message."
+                ),
+                "userMessage": (
+                    "I will create a WeChat send task and ask for confirmation."
+                ),
+                "activatedSkillIds": ["internal:router-wechat-send"],
+                "taskRequestDraft": {
+                    "taskType": "communication.wechat.send_message",
+                    "instructions": "Send one confirmation-gated WeChat message.",
+                    "input": {
+                        "contactDisplayName": "文件传输助手",
+                        "messageText": "你好",
+                    },
+                    "policy": {
+                        "requiredCapability": "communication.wechat_desktop_send",
+                        "requiresHumanConfirmation": True,
+                        "riskLevel": "high",
+                    },
+                },
+            },
+            {
+                "intent": "question",
+                "dispatchTarget": "read_only_inquiry",
+                "scopeKind": "session",
+                "sideEffect": "no_effect",
+                "confidence": "high",
+                "visibleReasoningSummary": "User asks for an answer only.",
+                "userMessage": "I can answer without changing product state.",
+            },
+            {
+                "intent": "clarification",
+                "dispatchTarget": "clarification",
+                "scopeKind": "session",
+                "sideEffect": "no_effect",
+                "confidence": "high",
+                "visibleReasoningSummary": "Required information is missing.",
+                "userMessage": "Please provide the missing information.",
+                "needsClarification": True,
+                "clarification": {
+                    "title": "More information needed",
+                    "body": "Please provide the target and content.",
+                    "questions": [
+                        {
+                            "id": "missing-target",
+                            "label": "Target",
+                            "inputHint": "Who should Plato act on?",
+                            "required": True,
+                        }
+                    ],
+                },
+            },
+        ],
+    }
+
+
+def _repair_messages(
+    base_messages: list[dict[str, str]],
+    *,
+    previous_content: str,
+    warning: str,
+) -> list[dict[str, str]]:
+    return [
+        *base_messages,
+        {
+            "role": "assistant",
+            "content": _truncate_text(previous_content, 2400)[0],
+        },
+        {
+            "role": "user",
+            "content": json.dumps(
+                {
+                    "repairInstruction": (
+                        "Your previous output failed Router validation. "
+                        "Return a corrected RuntimeInputRouteProposal JSON object only. "
+                        "Do not include markdown, comments, or non-contract keys."
+                    ),
+                    "validationError": warning,
+                    "requiredContract": _router_output_schema_payload(),
+                },
+                ensure_ascii=False,
+                sort_keys=True,
+            ),
         },
     ]
 
@@ -712,6 +973,18 @@ def _truncate_text(text: str, max_chars: int) -> tuple[str, bool]:
 
 def _short_hash(value: str) -> str:
     return sha256(value.encode("utf-8")).hexdigest()[:12]
+
+
+def _validation_warning(exc: Exception) -> str:
+    if isinstance(exc, ValidationError):
+        parts: list[str] = []
+        for error in exc.errors(include_input=False)[:8]:
+            loc = ".".join(str(part) for part in error.get("loc", ())) or "<root>"
+            msg = str(error.get("msg", "invalid"))
+            parts.append(f"{loc}: {msg}")
+        suffix = "" if len(exc.errors()) <= 8 else "; ..."
+        return "schema validation failed: " + "; ".join(parts) + suffix
+    return f"output parse failed: {type(exc).__name__}"
 
 
 def _json_object(content: str) -> dict[str, Any]:

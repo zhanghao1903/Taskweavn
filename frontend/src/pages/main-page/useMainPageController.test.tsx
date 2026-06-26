@@ -255,6 +255,7 @@ describe("useMainPageController", () => {
       expect(routeRuntimeInput).toHaveBeenCalledTimes(1);
     });
     expect(result.current.activeRuntimeInputMode).toBe("ask");
+    expect(result.current.inputDraft).toBe("");
     expect(result.current.runtimeActivityItems).toHaveLength(2);
     expect(result.current.runtimeActivityItems[0]).toMatchObject({
       body: "明天世界杯有哪些比赛？",
@@ -416,6 +417,68 @@ describe("useMainPageController", () => {
       expect(result.current.uiNotice).toBe("Guidance was recorded.");
     });
     expect(result.current.inputError).toBe(null);
+  });
+
+  it("surfaces rejected runtime input as conversation-visible Router reply", async () => {
+    const routeRuntimeInput = vi.fn<RouteRuntimeInputCommand>(
+      async (request) => rejectedRuntimeInputResponse(request),
+    );
+    const loadSnapshot = vi.fn<LoadMainPageSnapshot>(loadImmediateSnapshot);
+
+    const { result } = renderMainPageController({
+      adapter: testAdapter({
+        loadSnapshot,
+        routeRuntimeInput,
+      }),
+      initialStateId: "s3-draft-ready",
+    });
+
+    await waitFor(() => {
+      expect(result.current.snapshotData?.metadata.id).toBe("s3-draft-ready");
+    });
+
+    act(() => {
+      result.current.actions.changeInputDraft("给微信的文件传输助手发送“你好”");
+    });
+    act(() => {
+      result.current.actions.submitInput({
+        mode: "append_session_input",
+        sessionId: "session-website-plan",
+        target: "session",
+        taskNodeId: null,
+      });
+    });
+
+    await waitFor(() => {
+      expect(result.current.inputError).toBe(
+        "当前执行环境不支持微信发送能力。没有发送消息。",
+      );
+    });
+    expect(result.current.inputDraft).toBe("");
+
+    expect(result.current.runtimeActivityItems).toMatchObject([
+      {
+        body: "给微信的文件传输助手发送“你好”",
+        kind: "user_input",
+        title: "User input",
+      },
+      {
+        body: expect.stringContaining("建议的恢复操作"),
+        kind: "recovery_note",
+        sourceId: expect.stringContaining("decision-route-input-"),
+        title: "Router reply",
+      },
+      {
+        body: "当前执行环境不支持微信发送能力。没有发送消息。",
+        kind: "recovery_note",
+        title: "Runtime input routed",
+      },
+    ]);
+    expect(result.current.runtimeActivityItems[1]?.body).toContain(
+      "解决问题后再次运行命令。",
+    );
+    expect(result.current.inputRecoveryActions).toEqual(["retry_command"]);
+    expect(loadSnapshot).toHaveBeenCalledTimes(2);
   });
 
   it("submits a manual retry command for the selected failed task", async () => {
@@ -1579,6 +1642,62 @@ function needsClarificationRuntimeInputResponse(
         },
       },
       activity: null,
+      commandResponse: null,
+      inquiryResult: null,
+      generatedAt: now,
+    },
+    error: null,
+    cursor: null,
+    generatedAt: now,
+  };
+}
+
+function rejectedRuntimeInputResponse(
+  request: RuntimeInputRouteRequest,
+): QueryResponse<RuntimeInputRouteResult> {
+  const now = "2026-06-14T00:00:00Z";
+
+  return {
+    requestId: `request-${request.commandId}`,
+    ok: true,
+    data: {
+      sessionId: request.sessionId,
+      decision: {
+        id: `decision-${request.commandId}`,
+        intent: "execution_request",
+        scope: {
+          kind: request.selection.scopeKind,
+          planId: request.selection.planId ?? null,
+          taskNodeId: request.selection.taskNodeId ?? null,
+        },
+        confidence: "high",
+        sideEffect: "execution_request",
+        dispatchTarget: "execution_handoff",
+        explanation:
+          "Input published a bounded, confirmation-gated WeChat send task through Execution Plane.",
+        relatedRefs: [],
+      },
+      outcome: {
+        status: "rejected",
+        userMessage: "当前执行环境不支持微信发送能力。没有发送消息。",
+        recoveryActions: ["retry_command"],
+      },
+      activity: {
+        id: `activity-${request.commandId}`,
+        sessionId: request.sessionId,
+        kind: "recovery_note",
+        title: "Runtime input routed",
+        body: "当前执行环境不支持微信发送能力。没有发送消息。",
+        occurredAt: now,
+        scopeKind: request.selection.scopeKind,
+        planId: request.selection.planId ?? null,
+        taskNodeId: request.selection.taskNodeId ?? null,
+        sideEffect: "state_effect",
+        relatedRefs: [],
+        sourceKind: "router",
+        sourceId: `decision-${request.commandId}`,
+        disclosureLevel: "public",
+      },
       commandResponse: null,
       inquiryResult: null,
       generatedAt: now,

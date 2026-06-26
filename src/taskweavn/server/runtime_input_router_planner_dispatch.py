@@ -12,6 +12,7 @@ from taskweavn.server.runtime_input_llm_router import (
 from taskweavn.server.runtime_input_router_task_drafts import (
     wechat_resolution_from_task_request_draft,
 )
+from taskweavn.server.runtime_input_wechat import WeChatSendResolution
 from taskweavn.server.ui_contract.envelopes import QueryResponse
 from taskweavn.server.ui_contract.runtime_input import (
     RuntimeInputDispatchTarget,
@@ -40,7 +41,7 @@ class PlannerDispatchHandlers:
     record_guidance: Callable[[RuntimeInputRouteRequest], PlannerDispatchResponse]
     create_execution_task: Callable[[RuntimeInputRouteRequest], PlannerDispatchResponse]
     create_wechat_send_execution_task: Callable[
-        [RuntimeInputRouteRequest, object],
+        [RuntimeInputRouteRequest, WeChatSendResolution],
         PlannerDispatchResponse,
     ]
     stop_selected_task: Callable[

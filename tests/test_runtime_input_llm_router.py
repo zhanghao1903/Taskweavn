@@ -7,6 +7,7 @@ from typing import Any
 
 from taskweavn.llm.contracts import ChatResponse
 from taskweavn.observability import configure_session_logging
+from taskweavn.prompts import RUNTIME_INPUT_ROUTER_SYSTEM_PROMPT
 from taskweavn.server.runtime_input_llm_router import (
     LLMRuntimeInputRoutePlanner,
     RuntimeInputRouteProposal,
@@ -141,6 +142,103 @@ def test_llm_runtime_input_route_planner_includes_builtin_router_skills() -> Non
     )
     assert "communication.wechat.send_message" in wechat_skill["outputContract"]
     assert "Required slots" in wechat_skill["instructionExcerpt"]
+
+
+def test_llm_runtime_input_route_planner_uses_contract_prompt() -> None:
+    llm = _StubLLM(
+        {
+            "intent": "question",
+            "dispatchTarget": "read_only_inquiry",
+            "sideEffect": "no_effect",
+            "confidence": "high",
+            "visibleReasoningSummary": "Answer from session facts.",
+            "userMessage": "I can answer this without changing files.",
+        }
+    )
+    planner = LLMRuntimeInputRoutePlanner(llm=llm)
+
+    result = planner.plan(
+        _request("现在任务进展怎么样？"),
+        allowed_dispatch_targets=("read_only_inquiry",),
+        active_ask=False,
+        active_confirmation=False,
+    )
+
+    assert result.status == "planned"
+    system_prompt = llm.calls[0]["messages"][0]["content"]
+    assert system_prompt == RUNTIME_INPUT_ROUTER_SYSTEM_PROMPT
+    assert "RuntimeInputRouteProposal" in system_prompt
+    assert "forbidden extra fields" in system_prompt
+    payload = json.loads(llm.calls[0]["messages"][1]["content"])
+    assert "requiredTopLevelKeys" in payload["outputSchema"]
+    assert "canonicalExamples" in payload["outputSchema"]
+
+
+def test_llm_runtime_input_route_planner_repairs_schema_mismatched_wechat_output() -> None:
+    invalid_payload = {
+        "route": "execution_handoff",
+        "primaryIntent": "execution_request",
+        "allowedDispatchTargets": ["execution_handoff"],
+        "assignment": "execution_handoff",
+        "visibleReasoningSummary": (
+            "用户要求通过微信给文件传输助手发送消息“你好”，属于需要微信发送能力的执行请求。"
+        ),
+        "taskRequestDraft": {
+            "taskType": "communication.wechat.send_message",
+            "instructions": "Send one confirmation-gated WeChat message.",
+            "input": {
+                "contactDisplayName": "文件传输助手",
+                "messageText": "你好",
+            },
+            "policy": {
+                "requiredCapability": "communication.wechat_desktop_send",
+                "requiresHumanConfirmation": True,
+                "riskLevel": "high",
+            },
+        },
+        "sideEffect": "workspace_and_external",
+        "safety": {
+            "requiresHumanConfirmation": True,
+            "riskLevel": "high",
+            "message": "WeChat send operation requires user confirmation.",
+        },
+    }
+    valid_payload = {
+        "intent": "execution_request",
+        "dispatchTarget": "execution_handoff",
+        "scopeKind": "session",
+        "sideEffect": "state_effect",
+        "confidence": "high",
+        "visibleReasoningSummary": (
+            "用户要求通过微信给文件传输助手发送一条需要确认的消息。"
+        ),
+        "userMessage": "I will create a WeChat send task and ask for confirmation.",
+        "activatedSkillIds": ["internal:router-wechat-send"],
+        "taskRequestDraft": invalid_payload["taskRequestDraft"],
+    }
+    llm = _SequenceStubLLM([invalid_payload, valid_payload])
+    planner = LLMRuntimeInputRoutePlanner(llm=llm)
+
+    result = planner.plan(
+        _request("给微信的文件传输助手发送“你好”"),
+        allowed_dispatch_targets=("execution_handoff", "clarification", "unsupported"),
+        active_ask=False,
+        active_confirmation=False,
+    )
+
+    assert result.status == "planned"
+    assert result.proposal is not None
+    assert result.proposal.dispatch_target == "execution_handoff"
+    assert result.proposal.side_effect == "state_effect"
+    assert result.proposal.task_request_draft is not None
+    assert result.proposal.task_request_draft.input["contactDisplayName"] == (
+        "文件传输助手"
+    )
+    assert len(llm.calls) == 2
+    repair_payload = json.loads(llm.calls[1]["messages"][-1]["content"])
+    assert "validationError" in repair_payload
+    assert "route" in repair_payload["validationError"]
+    assert llm.calls[1]["metadata"]["output_repair_attempt"] == 1
 
 
 def test_llm_runtime_input_route_planner_fails_closed_for_invalid_json() -> None:
@@ -599,4 +697,33 @@ class _RawStubLLM:
             content=self.content,
             tool_calls=[],
             raw_assistant_message={"role": "assistant", "content": self.content},
+        )
+
+
+@dataclass
+class _SequenceStubLLM:
+    payloads: list[dict[str, Any]]
+    calls: list[dict[str, Any]] = field(default_factory=list)
+
+    def chat(
+        self,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]] | None = None,
+        *,
+        metadata: dict[str, Any] | None = None,
+        **kwargs: Any,
+    ) -> ChatResponse:
+        self.calls.append(
+            {
+                "messages": messages,
+                "tools": tools,
+                "metadata": metadata,
+                **kwargs,
+            }
+        )
+        payload = self.payloads[min(len(self.calls) - 1, len(self.payloads) - 1)]
+        return ChatResponse(
+            content=json.dumps(payload),
+            tool_calls=[],
+            raw_assistant_message={"role": "assistant", "content": "json"},
         )

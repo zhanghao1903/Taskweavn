@@ -17,6 +17,7 @@ from taskweavn.server.ui_contract.view_models import (
 
 READ_ONLY_INQUIRY_ACTIVITY_TITLE = "Read-only question answered"
 ROUTER_TRACE_TITLE = "Router interpretation"
+ROUTER_REPLY_TITLE = "Router reply"
 ROUTER_QUESTION_TITLE = "Router question"
 USER_INPUT_TITLE = "User input"
 
@@ -60,6 +61,9 @@ class MessageBusRuntimeInputActivityPublisher:
     ) -> None:
         self._publish(_user_input_message(request))
         self._publish(_router_trace_message(request, decision, outcome))
+        reply_message = _router_reply_message(request, decision, outcome)
+        if reply_message is not None:
+            self._publish(reply_message)
         question_message = _question_card_message(request, decision, outcome)
         if question_message is not None:
             self._publish(question_message)
@@ -181,6 +185,62 @@ def _router_trace_message(
     )
 
 
+def _router_reply_message(
+    request: RuntimeInputRouteRequest,
+    decision: RuntimeInputRouteDecision,
+    outcome: RuntimeInputOutcome,
+) -> AgentMessage | None:
+    if outcome.status not in {"rejected", "unsupported"}:
+        return None
+    body = _router_reply_body(outcome)
+    return AgentMessage(
+        message_id=f"runtime-input-reply-{request.command_id}",
+        session_id=request.session_id,
+        task_id=decision.scope.task_node_id,
+        agent_id="router",
+        message_type="informational",
+        content=body,
+        context={
+            "title": ROUTER_REPLY_TITLE,
+            "ui_kind": "error",
+            "activity_related_refs": [
+                ref.to_contract_dict() for ref in decision.related_refs
+            ],
+            "runtime_input_decision_id": decision.id,
+            "runtime_input_outcome_status": outcome.status,
+            "conversation_render": _text_render(
+                title=ROUTER_REPLY_TITLE,
+                body=body,
+            ),
+        },
+        related_action_id=decision.id,
+    )
+
+
+def _router_reply_body(outcome: RuntimeInputOutcome) -> str:
+    suggestions = _recovery_suggestions(outcome.recovery_actions)
+    if not suggestions:
+        return outcome.user_message
+    lines = [outcome.user_message, "", "建议的恢复操作："]
+    lines.extend(f"- {suggestion}" for suggestion in suggestions)
+    return "\n".join(lines)
+
+
+def _recovery_suggestions(actions: tuple[str, ...]) -> tuple[str, ...]:
+    labels = {
+        "answer_ask": "回答当前待处理问题后继续。",
+        "edit_input": "修改输入，补充必要信息后重新发送。",
+        "export_diagnostics": "导出诊断包，用于排查本地运行环境问题。",
+        "open_audit": "打开审计视图查看相关证据。",
+        "open_settings": "打开设置，检查 provider、权限或本地运行配置。",
+        "refresh_snapshot": "刷新当前会话状态后再试。",
+        "retry_command": "完成本地环境配置或授权后重试命令。",
+        "retry_task": "重试受影响的任务。",
+        "wait_for_events": "等待后台事件同步完成后再试。",
+    }
+    return tuple(labels[action] for action in actions if action in labels)
+
+
 def _question_card_message(
     request: RuntimeInputRouteRequest,
     decision: RuntimeInputRouteDecision,
@@ -279,6 +339,7 @@ __all__ = [
     "MessageBusRuntimeInputActivityPublisher",
     "READ_ONLY_INQUIRY_ACTIVITY_TITLE",
     "ROUTER_QUESTION_TITLE",
+    "ROUTER_REPLY_TITLE",
     "ROUTER_TRACE_TITLE",
     "RuntimeInputActivityPublisher",
     "USER_INPUT_TITLE",

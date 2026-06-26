@@ -11,7 +11,7 @@ from taskweavn.contract_revision.models import (
 )
 from taskweavn.contract_revision.service import ContractRevisionCommandService
 from taskweavn.execution_plane.errors import ExecutionPlaneError
-from taskweavn.execution_plane.models import TaskExecution
+from taskweavn.execution_plane.models import TaskError, TaskExecution
 from taskweavn.execution_plane.service import TaskApiService
 from taskweavn.server.read_only_inquiry import (
     DefaultReadOnlyInquiryService,
@@ -51,6 +51,7 @@ from taskweavn.server.ui_contract.gateway_protocols import (
     UiCommandGateway,
     UiQueryGateway,
 )
+from taskweavn.server.ui_contract.product_errors import ProductRecoveryAction
 from taskweavn.server.ui_contract.read_only_inquiry import (
     ReadOnlyInquiryRef,
     ReadOnlyInquiryRefKind,
@@ -359,12 +360,8 @@ class DefaultRuntimeInputRouter:
         except ExecutionPlaneError as exc:
             outcome = RuntimeInputOutcome(
                 status="rejected",
-                user_message=(
-                    "微信发送任务未能创建。没有发送消息。"
-                    if exc.code != "capability_not_available"
-                    else "当前执行环境不支持微信发送能力。没有发送消息。"
-                ),
-                recovery_actions=("retry_command",) if exc.retryable else ("edit_input",),
+                user_message=_wechat_publish_error_user_message(exc),
+                recovery_actions=_wechat_publish_error_recovery_actions(exc),
             )
             return self._result(
                 request,
@@ -379,15 +376,30 @@ class DefaultRuntimeInputRouter:
                 publish_activity=True,
             )
 
+        task_error = _wechat_execution_error(self.execution_plane_service, execution)
         outcome = RuntimeInputOutcome(
-            status="dispatched",
-            user_message=_wechat_execution_user_message(execution),
+            status="rejected" if execution.status == "failed" else "dispatched",
+            user_message=_wechat_execution_user_message(execution, task_error),
+            recovery_actions=_wechat_execution_recovery_actions(task_error),
         )
         return self._result(
             request,
             decision,
             outcome,
-            activity=_wechat_execution_activity(request, decision, execution, outcome),
+            activity=_wechat_execution_activity(
+                request,
+                decision,
+                execution,
+                outcome,
+                activity_kind=(
+                    "recovery_note" if execution.status == "failed" else "task_created"
+                ),
+                title=(
+                    "WeChat send task failed"
+                    if execution.status == "failed"
+                    else "WeChat send task created"
+                ),
+            ),
         )
 
     def _active_ask(self, request: RuntimeInputRouteRequest) -> AskRequestView | None:
@@ -1289,12 +1301,15 @@ def _wechat_execution_activity(
     decision: RuntimeInputRouteDecision,
     execution: TaskExecution,
     outcome: RuntimeInputOutcome,
+    *,
+    activity_kind: SessionActivityItemKind = "task_created",
+    title: str = "WeChat send task created",
 ) -> SessionActivityItemView:
     return SessionActivityItemView(
         id=f"activity:{decision.id}",
         session_id=request.session_id,
-        kind="task_created",
-        title="WeChat send task created",
+        kind=activity_kind,
+        title=title,
         body=outcome.user_message,
         scope_kind=decision.scope.kind,
         plan_id=decision.scope.plan_id,
@@ -1308,14 +1323,77 @@ def _wechat_execution_activity(
     )
 
 
-def _wechat_execution_user_message(execution: TaskExecution) -> str:
+def _wechat_execution_user_message(
+    execution: TaskExecution,
+    error: TaskError | None = None,
+) -> str:
     if execution.status == "waiting_for_user":
         return "微信发送任务已创建，正在等待用户确认。"
     if execution.status == "failed":
-        return "微信发送任务已创建但未完成。请查看错误和证据。"
+        if error is None:
+            return "微信发送任务失败。没有发送消息。请查看错误和证据。"
+        lines = [
+            "微信发送任务失败。没有发送消息。",
+            f"错误代码：{error.code}",
+            f"错误信息：{error.message}",
+        ]
+        if error.recovery_hint is not None:
+            lines.append(f"恢复建议：{error.recovery_hint}")
+        return "\n".join(lines)
     if execution.status == "done":
         return "微信发送任务已完成。"
     return "微信发送任务已创建；真正发送前仍需要用户确认。"
+
+
+def _wechat_publish_error_user_message(error: ExecutionPlaneError) -> str:
+    summary = (
+        "当前执行环境不支持微信发送能力。没有发送消息。"
+        if error.code == "capability_not_available"
+        else "微信发送任务未能创建。没有发送消息。"
+    )
+    lines = [
+        summary,
+        f"错误代码：{error.code}",
+        f"错误信息：{error.message}",
+    ]
+    recovery_hint = error.details.get("recoveryHint") or error.details.get(
+        "recovery_hint"
+    )
+    if isinstance(recovery_hint, str) and recovery_hint:
+        lines.append(f"恢复建议：{recovery_hint}")
+    return "\n".join(lines)
+
+
+def _wechat_publish_error_recovery_actions(
+    error: ExecutionPlaneError,
+) -> tuple[ProductRecoveryAction, ...]:
+    if error.retryable and error.code == "capability_not_available":
+        return ("open_settings", "retry_command")
+    if error.retryable:
+        return ("retry_command",)
+    return ("edit_input",)
+
+
+def _wechat_execution_recovery_actions(
+    error: TaskError | None,
+) -> tuple[ProductRecoveryAction, ...]:
+    if error is None:
+        return ("open_audit",)
+    if error.retryable:
+        return ("open_settings", "retry_command")
+    return ("open_audit",)
+
+
+def _wechat_execution_error(
+    service: TaskApiService | None,
+    execution: TaskExecution,
+) -> TaskError | None:
+    if execution.status != "failed" or execution.error_ref is None or service is None:
+        return None
+    try:
+        return service.get_error(execution.error_ref)
+    except ExecutionPlaneError:
+        return None
 
 
 def _contract_activity_kind(
