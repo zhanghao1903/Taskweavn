@@ -51,6 +51,7 @@ def test_build_computer_use_helper_app_writes_dev_bundle(tmp_path: Path) -> None
     launch_config = json.loads(result.launch_config_path.read_text(encoding="utf-8"))
     assert launch_config["schemaVersion"] == 1
     assert launch_config["mode"] == "development"
+    assert launch_config["launcherMode"] == "external-python-wrapper"
     assert launch_config["manifestPath"] == str(manifest_path)
     assert launch_config["tokenPath"] == str(token_path)
     assert launch_config["pythonExecutable"] == "/usr/bin/python3"
@@ -73,8 +74,53 @@ def test_build_computer_use_helper_app_writes_dev_bundle(tmp_path: Path) -> None
     assert "Computer-use backend: `macos`" in permission_guide
     assert "Allowed apps: `WeChat, TextEdit`" in permission_guide
     assert "Development Python runtime: `/usr/bin/python3`" in permission_guide
+    assert "Launcher mode: `external-python-wrapper`" in permission_guide
     assert "Grant Accessibility permission to this helper app" in permission_guide
     assert "external_python_for_app" in permission_guide
+
+
+def test_build_computer_use_helper_app_can_copy_packaged_executable(
+    tmp_path: Path,
+) -> None:
+    app_path = tmp_path / "Plato Computer Use Helper Dev.app"
+    manifest_path = tmp_path / "state" / "computer-use-helper.json"
+    packaged_executable = tmp_path / "dist" / "PlatoComputerUseHelper"
+    packaged_executable.parent.mkdir(parents=True)
+    packaged_executable.write_text("#!/bin/sh\necho packaged-helper\n", encoding="utf-8")
+    packaged_executable.chmod(0o755)
+
+    result = build_computer_use_helper_app(
+        ComputerUseHelperAppConfig(
+            app_path=app_path,
+            manifest_path=manifest_path,
+            packaged_executable_path=packaged_executable,
+            computer_use_backend="macos",
+            computer_use_allowed_apps=("WeChat",),
+        )
+    )
+
+    assert result.executable_path.read_text(encoding="utf-8") == (
+        "#!/bin/sh\necho packaged-helper\n"
+    )
+    assert result.executable_path.stat().st_mode & stat.S_IXUSR
+    launch_config = json.loads(result.launch_config_path.read_text(encoding="utf-8"))
+    assert launch_config["launcherMode"] == "packaged-executable"
+    assert launch_config["packagedExecutableSource"] == str(packaged_executable)
+    permission_guide = result.permission_guide_path.read_text(encoding="utf-8")
+    assert "Launcher mode: `packaged-executable`" in permission_guide
+
+
+def test_build_computer_use_helper_app_requires_existing_packaged_executable(
+    tmp_path: Path,
+) -> None:
+    with pytest.raises(ValueError, match="packaged helper executable not found"):
+        build_computer_use_helper_app(
+            ComputerUseHelperAppConfig(
+                app_path=tmp_path / "Plato Computer Use Helper Dev.app",
+                manifest_path=tmp_path / "computer-use-helper.json",
+                packaged_executable_path=tmp_path / "missing-helper",
+            )
+        )
 
 
 def test_build_computer_use_helper_app_rejects_recursive_backend(

@@ -432,6 +432,16 @@ def computer_use_helper_app(
             ),
         ),
     ] = Path(sys.executable),
+    packaged_executable_path: Annotated[
+        Path | None,
+        typer.Option(
+            "--packaged-executable-path",
+            help=(
+                "Existing helper-owned executable to copy into Contents/MacOS "
+                "instead of generating the dev Python wrapper."
+            ),
+        ),
+    ] = None,
     bundle_id: Annotated[
         str,
         typer.Option(
@@ -484,6 +494,11 @@ def computer_use_helper_app(
             manifest_path=manifest_path,
             token_path=token_path,
             python_executable=str(python_executable.expanduser()),
+            packaged_executable_path=(
+                None
+                if packaged_executable_path is None
+                else packaged_executable_path.expanduser()
+            ),
             bundle_id=bundle_id,
             version=version_value,
             host=host,

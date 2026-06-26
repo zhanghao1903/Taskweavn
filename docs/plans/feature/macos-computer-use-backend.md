@@ -267,6 +267,12 @@ Implementation status as of 2026-06-27:
 - A dev helper `.app` scaffold builder now writes `Info.plist`, fixed dev
   bundle id, launcher config, and `Contents/MacOS/PlatoComputerUseHelper` via
   `taskweavn computer-use-helper-app`.
+- The dev helper `.app` scaffold builder can now copy an existing
+  helper-owned executable into `Contents/MacOS/PlatoComputerUseHelper` with
+  `--packaged-executable-path`. Without that option it still generates the
+  external Python wrapper. This creates the packaging seam for a later
+  PyInstaller/embedded-runtime helper build, but does not itself build or sign
+  the executable.
 - Helper backend now supports explicit opt-in auto-launch from a configured
   helper app path, waits for the helper manifest before connecting, and waits
   for a refreshed manifest when recovering from a stale endpoint. This is

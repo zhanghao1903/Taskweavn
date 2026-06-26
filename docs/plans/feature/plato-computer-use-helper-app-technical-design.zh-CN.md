@@ -298,10 +298,25 @@ uv run taskweavn computer-use-helper-app \
 ```
 
 需要真实 macOS backend 时，将 `--computer-use-backend` 改为 `macos` 并设置
-`--computer-use-allowed-apps`。该 scaffold 是开发中间态：它生成稳定 dev
-bundle id 和 `.app` 文件结构，但 launcher 仍通过配置的 Python runtime 调用 repo
-内 helper CLI。正式 release 仍必须替换为 helper-owned packaged/embedded
-executable。
+`--computer-use-allowed-apps`。如果已经有 helper-owned executable，例如后续由
+PyInstaller、Briefcase、embedded Python 或 Swift/Node wrapper 产出的
+`PlatoComputerUseHelper`，可以额外传入：
+
+```bash
+uv run taskweavn computer-use-helper-app \
+  --app-path "$HOME/Applications/Plato Computer Use Helper Dev.app" \
+  --manifest-path "$HOME/Library/Application Support/PlatoDev/computer-use-helper.json" \
+  --packaged-executable-path "/path/to/PlatoComputerUseHelper" \
+  --computer-use-backend macos \
+  --computer-use-allowed-apps WeChat,TextEdit
+```
+
+该模式会把给定 executable 复制到 `.app/Contents/MacOS`，并在
+`helper-launch.json` 中记录 `launcherMode=packaged-executable`。未提供
+`--packaged-executable-path` 时仍使用 `launcherMode=external-python-wrapper`：
+它生成稳定 dev bundle id 和 `.app` 文件结构，但 launcher 通过配置的 Python
+runtime 调用 repo 内 helper CLI。正式 release 仍必须提供可签名、可公证的
+helper-owned packaged/embedded executable。
 
 ## 7. Helper 启动模式
 

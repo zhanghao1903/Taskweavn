@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import shlex
+import shutil
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -33,6 +34,7 @@ class ComputerUseHelperAppConfig:
     manifest_path: Path
     token_path: Path | None = None
     python_executable: str = sys.executable
+    packaged_executable_path: Path | None = None
     bundle_id: str = DEFAULT_COMPUTER_USE_HELPER_BUNDLE_ID
     display_name: str = DEFAULT_COMPUTER_USE_HELPER_DISPLAY_NAME
     executable_name: str = DEFAULT_COMPUTER_USE_HELPER_EXECUTABLE
@@ -95,10 +97,16 @@ def build_computer_use_helper_app(
         token_path=token_path,
         normalized_backend=normalized_backend,
     )
-    _write_launcher_script(
-        config=config,
-        executable_path=executable_path,
-    )
+    if config.packaged_executable_path is not None:
+        _copy_packaged_executable(
+            source_path=config.packaged_executable_path.expanduser(),
+            executable_path=executable_path,
+        )
+    else:
+        _write_launcher_script(
+            config=config,
+            executable_path=executable_path,
+        )
     _write_permission_guide(config=config, path=permission_guide_path)
 
     return ComputerUseHelperAppBuildResult(
@@ -150,6 +158,11 @@ def _write_launch_config(
     payload: dict[str, Any] = {
         "schemaVersion": 1,
         "mode": "development",
+        "launcherMode": (
+            "packaged-executable"
+            if config.packaged_executable_path is not None
+            else "external-python-wrapper"
+        ),
         "bundleId": config.bundle_id,
         "version": config.version,
         "apiVersion": config.api_version,
@@ -161,11 +174,27 @@ def _write_launch_config(
         "computerUseBackend": normalized_backend,
         "computerUseAllowedApps": list(config.computer_use_allowed_apps),
     }
+    if config.packaged_executable_path is not None:
+        payload["packagedExecutableSource"] = str(
+            config.packaged_executable_path.expanduser()
+        )
     if token_path is not None:
         payload["tokenPath"] = str(token_path)
 
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+
+def _copy_packaged_executable(
+    *,
+    source_path: Path,
+    executable_path: Path,
+) -> None:
+    if not source_path.exists() or not source_path.is_file():
+        raise ValueError(f"packaged helper executable not found: {source_path}")
+    executable_path.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(source_path, executable_path)
+    executable_path.chmod(executable_path.stat().st_mode | 0o755)
 
 
 def _write_launcher_script(
@@ -235,6 +264,11 @@ def _write_permission_guide(
     path: Path,
 ) -> None:
     allowed_apps = ", ".join(config.computer_use_allowed_apps) or "none configured"
+    launcher_mode = (
+        "packaged-executable"
+        if config.packaged_executable_path is not None
+        else "external-python-wrapper"
+    )
     payload = f"""# {config.display_name} Permission Guide
 
 This helper app is the macOS Accessibility permission subject for Plato
@@ -247,17 +281,18 @@ computer-use actions.
 - Computer-use backend: `{config.computer_use_backend.strip().lower()}`
 - Allowed apps: `{allowed_apps}`
 - Development Python runtime: `{config.python_executable}`
+- Launcher mode: `{launcher_mode}`
 
 Grant Accessibility permission to this helper app, not to Plato, when using the
 helper-backed computer-use provider. If the helper is rebuilt with a different
 bundle ID, path, or signing identity, macOS may require permission again.
 
 Development note: this scaffold launches the helper through the configured
-Python runtime. Until release packaging provides a helper-owned packaged
-executable, macOS may report or enforce permissions against that Python runtime.
-If readiness reports `external_python_for_app`, grant Accessibility and
-Automation permissions to the reported Python runtime or use a packaged helper
-build.
+Python runtime unless `packaged-executable` launcher mode is used. Until release
+packaging provides a helper-owned packaged executable, macOS may report or
+enforce permissions against that Python runtime. If readiness reports
+`external_python_for_app`, grant Accessibility and Automation permissions to the
+reported Python runtime or use a packaged helper build.
 
 The helper listens only on loopback and publishes a startup-token manifest for
 Plato to discover. Do not share the manifest token.

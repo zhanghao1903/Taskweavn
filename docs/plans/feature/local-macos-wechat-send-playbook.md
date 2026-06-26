@@ -437,6 +437,12 @@ Validated runtime identity hint on 2026-06-27:
   granting permissions to that Python runtime. Product/release acceptance still
   requires a packaged helper-owned executable so the permission subject is the
   helper app itself.
+- packaging seam: `taskweavn computer-use-helper-app` now supports
+  `--packaged-executable-path /path/to/PlatoComputerUseHelper`. That mode copies
+  the provided helper-owned executable into `.app/Contents/MacOS` and records
+  `launcherMode=packaged-executable` in `helper-launch.json`. The command does
+  not build, sign, or notarize that executable; it only packages an already-built
+  binary into the helper app scaffold.
 
 ### 6.3 Helper-Backed Contact Resolution Progress
 

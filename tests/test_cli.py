@@ -258,6 +258,7 @@ def test_computer_use_helper_app_help_exposes_build_options() -> None:
     assert "--app-path" in result.output
     assert "--manifest-path" in result.output
     assert "--python-executable" in result.output
+    assert "--packaged-executable-path" in result.output
     assert "--computer-use-backend" in result.output
 
 
@@ -293,6 +294,48 @@ def test_computer_use_helper_app_builds_dev_bundle(tmp_path: Path) -> None:
     assert app_path.joinpath("Contents", "Resources", "helper-launch.json").exists()
     assert app_path.joinpath("Contents", "Resources", "permission-guide.md").exists()
     assert app_path.joinpath("Contents", "MacOS", "PlatoComputerUseHelper").exists()
+
+
+def test_computer_use_helper_app_can_copy_packaged_executable(
+    tmp_path: Path,
+) -> None:
+    runner = CliRunner()
+    app_path = tmp_path / "Plato Computer Use Helper Dev.app"
+    manifest_path = tmp_path / "computer-use-helper.json"
+    packaged_executable = tmp_path / "dist" / "PlatoComputerUseHelper"
+    packaged_executable.parent.mkdir(parents=True)
+    packaged_executable.write_text("#!/bin/sh\necho helper\n", encoding="utf-8")
+    packaged_executable.chmod(0o755)
+
+    result = runner.invoke(
+        app,
+        [
+            "computer-use-helper-app",
+            "--app-path",
+            str(app_path),
+            "--manifest-path",
+            str(manifest_path),
+            "--packaged-executable-path",
+            str(packaged_executable),
+            "--computer-use-backend",
+            "macos",
+            "--computer-use-allowed-apps",
+            "WeChat",
+        ],
+    )
+
+    assert result.exit_code == 0
+    copied_executable = app_path.joinpath(
+        "Contents", "MacOS", "PlatoComputerUseHelper"
+    )
+    assert copied_executable.read_text(encoding="utf-8") == "#!/bin/sh\necho helper\n"
+    launch_config = json.loads(
+        app_path.joinpath("Contents", "Resources", "helper-launch.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert launch_config["launcherMode"] == "packaged-executable"
+    assert launch_config["packagedExecutableSource"] == str(packaged_executable)
 
 
 def test_plato_dev_rejects_missing_frontend_dir(tmp_path: Path) -> None:
