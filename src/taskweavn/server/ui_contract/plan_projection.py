@@ -109,6 +109,7 @@ class DefaultPlanProjectionService:
             source_kind="plan_store",
             source_ref=ObjectRef(kind="plan", id=plan.plan_id),
             version=plan.version,
+            archived_at=plan.archived_at,
         )
 
 

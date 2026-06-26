@@ -139,6 +139,7 @@ export type MainPageAuditEntryViewModel = {
 
 export type MainPageTaskWorkspaceViewModel = {
   activePlan: MainPageSnapshot["activePlan"];
+  archivedPlans: NonNullable<MainPageSnapshot["archivedPlans"]>;
   allMessages: SessionMessageView[];
   authoringDiagnostic: MainPageAuthoringDiagnosticViewModel | null;
   fileChangeSummary: FileChangeSummaryView | null;
@@ -380,6 +381,7 @@ export function buildMainPageViewModel({
     },
     taskWorkspace: {
       activePlan: snapshot.activePlan ?? null,
+      archivedPlans: snapshot.archivedPlans ?? [],
       allMessages: snapshot.messages,
       authoringDiagnostic: authoringDiagnosticViewFor(snapshot.planning),
       fileChangeSummary,

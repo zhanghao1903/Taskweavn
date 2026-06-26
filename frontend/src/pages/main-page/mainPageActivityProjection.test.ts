@@ -37,6 +37,23 @@ describe("mainPageActivityProjection", () => {
       sourceKind: "router",
     });
   });
+
+  it("projects archived plan messages as plan update activity", () => {
+    const activity = activityItemsFromMessages([
+      message({
+        body: "**Stored plan**\n\nStored durable plan summary.",
+        id: "message-archived-plan",
+        title: "Plan archived",
+      }),
+    ]);
+
+    expect(activity[0]).toMatchObject({
+      id: "activity:message:message-archived-plan",
+      kind: "plan_updated",
+      scopeKind: "session",
+      title: "Plan archived",
+    });
+  });
 });
 
 function message(

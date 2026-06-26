@@ -464,6 +464,9 @@ def test_get_session_snapshot_suppresses_legacy_projection_for_archived_plan() -
         objective="Use durable plan facts.",
         summary="Stored durable plan summary.",
         status="archived",
+        created_at=NOW,
+        updated_at=NOW,
+        archived_at=NOW,
     )
     plan_node = PlanTaskNode(
         task_node_id="node-stored",
@@ -495,6 +498,12 @@ def test_get_session_snapshot_suppresses_legacy_projection_for_archived_plan() -
     assert response.ok is True
     assert response.data is not None
     assert response.data.active_plan is None
+    assert len(response.data.archived_plans) == 1
+    archived_view = response.data.archived_plans[0]
+    assert archived_view.id == "plan-stored"
+    assert archived_view.archived_at == NOW
+    assert archived_view.task_tree_projection is not None
+    assert archived_view.task_tree_projection.nodes[0].id == "node-stored"
     assert response.data.task_tree is None
     assert response.data.result is None
     assert response.data.file_change_summary is None
@@ -515,6 +524,9 @@ def test_get_session_snapshot_suppresses_legacy_projection_for_archived_legacy_p
         objective="Archived legacy task tree.",
         summary="Archived legacy task tree.",
         status="archived",
+        created_at=NOW,
+        updated_at=NOW,
+        archived_at=NOW,
     )
     plan_node = PlanTaskNode(
         task_node_id="node-legacy",
@@ -546,6 +558,12 @@ def test_get_session_snapshot_suppresses_legacy_projection_for_archived_legacy_p
     assert response.ok is True
     assert response.data is not None
     assert response.data.active_plan is None
+    assert len(response.data.archived_plans) == 1
+    archived_view = response.data.archived_plans[0]
+    assert archived_view.id == "plan:legacy:session-1"
+    assert archived_view.archived_at == NOW
+    assert archived_view.task_tree_projection is not None
+    assert archived_view.task_tree_projection.nodes[0].id == "node-legacy"
     assert response.data.task_tree is None
     assert response.data.result is None
     assert response.data.file_change_summary is None

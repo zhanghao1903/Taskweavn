@@ -119,6 +119,16 @@ class UiEventSourceError(RuntimeError):
     """Raised when a UI event source cannot persist or replay events."""
 
 
+def event_source_cursor_provider(
+    event_source: UiEventSource,
+) -> UiEventCursorProvider | None:
+    """Adapt an event source into a snapshot cursor provider when supported."""
+
+    if isinstance(event_source, UiEventCursorProvider):
+        return event_source
+    return None
+
+
 class SqliteUiEventSource:
     """Workspace-backed UI event source.
 
@@ -328,6 +338,7 @@ __all__ = [
     "UiEventSourceError",
     "UiEventSource",
     "UiEventStore",
+    "event_source_cursor_provider",
     "sse_frame",
     "sse_stream",
 ]

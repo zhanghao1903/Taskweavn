@@ -1151,14 +1151,6 @@ async function evaluateWithDomHelpers(window, expression) {
   );
 }
 
-function findHrefScript(label) {
-  return `(() => {
-    ${domHelperSource()}
-    const element = findElementByText("a", ${JSON.stringify(label)});
-    return element ? element.getAttribute("href") : null;
-  })()`;
-}
-
 function domHelperSource() {
   return `
     function findElementByText(selector, text) {
