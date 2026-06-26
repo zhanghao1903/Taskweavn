@@ -7,7 +7,6 @@ import type {
   WorkspaceCatalogResult,
 } from "../../shared/api/platoApi";
 import type {
-  ConfirmationActionView,
   AskId,
   RuntimeInputMode,
   SessionActivityItemView,
@@ -49,6 +48,10 @@ import {
   runtimeInputUserActivity,
 } from "./mainPageRuntimeInput";
 import { handleCommandResponse } from "./runtime/commandRefresh";
+import {
+  useMainPageConfirmationCommands,
+  type ConfirmationDecisionContext,
+} from "./useMainPageConfirmationCommands";
 import { useMainPageEventSubscription } from "./useMainPageEventSubscription";
 import {
   useMainPageTaskLifecycleCommands,
@@ -57,6 +60,12 @@ import {
 } from "./useMainPageTaskLifecycleCommands";
 
 const mainPageLogger = createFrontendLogger("main-page");
+
+export type { ConfirmationDecisionContext } from "./useMainPageConfirmationCommands";
+export type {
+  RetryTaskContext,
+  StopTaskContext,
+} from "./useMainPageTaskLifecycleCommands";
 
 export type InputSubmitContext = {
   mode: MainPageInputCommandMode;
@@ -73,12 +82,6 @@ export type PublishTaskTreeContext = {
 export type ArchivePlanContext = {
   expectedVersion?: number | null;
   planId: string;
-  sessionId: string;
-};
-
-export type ConfirmationDecisionContext = {
-  confirmation: ConfirmationActionView | undefined;
-  decision: string;
   sessionId: string;
 };
 
@@ -415,45 +418,13 @@ export function useMainPageController({
     });
   }, [activeSessionId, adapter.runtimeKind, snapshotData, stateId]);
 
-  const resolveConfirmationMutation = useMutation({
-    mutationFn: async ({
-      confirmation,
-      decision,
-      sessionId,
-    }: {
-      confirmation: ConfirmationActionView;
-      decision: string;
-      sessionId: string;
-    }) =>
-      adapter.resolveConfirmation(sessionId, confirmation.id, {
-        commandId: `resolve-${confirmation.id}-${decision}`,
-        sessionId,
-        payload: {
-          value: decision,
-        },
-      }, activeWorkspaceId),
-    onError: () => {
-      setConfirmationCommandError("Confirmation failed. Please retry.");
-    },
-    onSuccess: (response) => {
-      const result = handleCommandResponse(
-        response,
-        "Confirmation was rejected.",
-      );
-
-      if (result.errorMessage) {
-        setConfirmationCommandError(
-          result.errorMessage,
-          result.recoveryActions,
-        );
-        return;
-      }
-
-      setConfirmationCommandError(null);
-      if (result.shouldRefetch) {
-        void refetchSnapshot();
-      }
-    },
+  const {
+    resolveConfirmationMutation,
+  } = useMainPageConfirmationCommands({
+    activeWorkspaceId,
+    adapter,
+    refetchSnapshot,
+    setConfirmationCommandError,
   });
 
   const answerAuthoringAskBatchMutation = useMutation({
