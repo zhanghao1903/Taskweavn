@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type {
   MainPageSnapshot,
+  PlanView,
   SessionActivityItemView,
   TaskNodeId,
 } from "../../shared/api/types";
@@ -339,7 +340,88 @@ describe("MainPageWorkbench layout", () => {
     expect(
       screen.queryByLabelText("Collapsed Plan & Progress"),
     ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", {
+        name: "Open archived plan from Conversation",
+      }),
+    ).not.toBeInTheDocument();
     expect(screen.getByText("No conversation yet")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "View audit" })).toBeInTheDocument();
+  });
+
+  it("exposes archived plan and Audit entries from Conversation-only state", async () => {
+    const user = userEvent.setup();
+    const { snapshot } = getMainPageMockSnapshot("s15-read-only-answer");
+    const archivedPlan = archivedPlanView(snapshot.session.id);
+    const viewModel = buildViewModel("s15-read-only-answer", {
+      snapshot: {
+        ...snapshot,
+        archivedPlans: [archivedPlan],
+      },
+    });
+
+    renderWorkbench(viewModel);
+
+    expect(screen.queryByLabelText("Plan & Progress workspace"))
+      .not.toBeInTheDocument();
+
+    const auditLink = screen.getByRole("link", { name: "View audit" });
+    expect(auditLink).toHaveAttribute(
+      "href",
+      "/sessions/session-website-plan/audit?entry=from_session&returnFocus=session&returnSessionId=session-website-plan",
+    );
+
+    await user.click(
+      screen.getByRole("button", {
+        name: "Open archived plan from Conversation",
+      }),
+    );
+
+    const archivedPlansPanel = screen.getByLabelText("Archived Plans");
+    expect(archivedPlansPanel).toBeInTheDocument();
+    expect(screen.queryByLabelText("Session activity"))
+      .not.toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "Open plan" })).toHaveLength(1);
+    expect(archivedPlansPanel.querySelector("time")).toHaveAttribute(
+      "datetime",
+      "2026-05-17T10:24:00+08:00",
+    );
+
+    await user.click(screen.getByRole("button", { name: "Open plan" }));
+
+    const archivedWorkspace = screen.getByLabelText(
+      "Archived Plan & Progress workspace",
+    );
+    expect(within(archivedWorkspace).getByText("Stored plan"))
+      .toBeInTheDocument();
+    expect(
+      within(archivedWorkspace).getByText(/Stored durable plan summary/),
+    ).toBeInTheDocument();
+    expect(within(archivedWorkspace).getByText("Stored task"))
+      .toBeInTheDocument();
+    expect(screen.getByRole("complementary", { name: "Details" }))
+      .toBeInTheDocument();
+    expect(
+      within(screen.getByRole("complementary", { name: "Details" }))
+        .getByRole("heading", { name: "Stored plan" }),
+    ).toBeInTheDocument();
+
+    const storedTaskButton = within(archivedWorkspace)
+      .getByText("Stored task")
+      .closest("button");
+    if (storedTaskButton === null) {
+      throw new Error("Expected archived task button.");
+    }
+
+    await user.click(storedTaskButton);
+
+    const detailPanel = screen.getByRole("complementary", { name: "Details" });
+    expect(
+      within(detailPanel).getByRole("heading", { name: "Stored task" }),
+    ).toBeInTheDocument();
+    expect(
+      within(detailPanel).getAllByText("Use stored PlanTaskNode."),
+    ).toHaveLength(2);
   });
 
   it("opens session activity in the detail column when detail is otherwise hidden", async () => {
@@ -821,6 +903,93 @@ function activityItem(
     taskNodeId: "task-visual-direction",
     title: "Activity loaded",
     ...overrides,
+  };
+}
+
+function archivedPlanView(sessionId: string): PlanView {
+  const taskNode = {
+    acceptanceCriteria: [],
+    badges: {
+      directFileChangeCount: 0,
+      pendingConfirmationCount: 0,
+      subtreeFileChangeCount: 0,
+      unreadMessageCount: 0,
+    },
+    depth: 0,
+    displayIndex: 1,
+    execution: "done" as const,
+    id: "node-stored",
+    instructions: "Use stored PlanTaskNode.",
+    intent: "Use stored PlanTaskNode.",
+    interruptionRequested: false,
+    orderIndex: 0,
+    parentId: null,
+    permissions: {
+      canAppendGuidance: false,
+      canCancel: false,
+      canEdit: false,
+      canPublish: false,
+      canResolveConfirmation: false,
+      canRetry: false,
+    },
+    planId: "plan-stored",
+    resultRef: null,
+    status: "done" as const,
+    summary: "Stored task summary.",
+    taskIndex: "1",
+    taskRef: { id: "draft-stored", kind: "draft" as const },
+    title: "Stored task",
+    version: 1,
+  };
+
+  return {
+    archivedAt: "2026-05-17T10:24:00+08:00",
+    executionRollup: {
+      blockedByConfirmation: 0,
+      cancelled: 0,
+      done: 1,
+      failed: 0,
+      notStarted: 0,
+      pending: 0,
+      running: 0,
+      total: 1,
+      unknown: 0,
+    },
+    finalization: {
+      required: false,
+      status: "done",
+      warnings: [],
+    },
+    id: "plan-stored",
+    objective: "Use durable plan facts.",
+    outcome: null,
+    permissions: {
+      canAppendGuidance: false,
+      canCreateTaskNode: false,
+      canDeleteTaskNode: false,
+      canEdit: false,
+      canPublish: false,
+      canRequestExecution: false,
+    },
+    sessionId,
+    sourceKind: "plan_store",
+    sourceRef: { id: "plan-stored", kind: "plan" },
+    status: "cancelled",
+    summary: "Stored durable plan summary.",
+    taskCount: 1,
+    taskNodeIds: ["node-stored"],
+    taskNodes: [taskNode],
+    taskTreeProjection: {
+      id: "plan-stored",
+      nodes: [taskNode],
+      sessionId,
+      status: "completed",
+      summary: "Stored durable plan summary.",
+      title: "Stored plan",
+      version: 1,
+    },
+    title: "Stored plan",
+    version: 1,
   };
 }
 

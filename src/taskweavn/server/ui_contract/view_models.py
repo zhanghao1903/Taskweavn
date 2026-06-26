@@ -309,6 +309,7 @@ class PlanView(UiContractModel):
     ] = "synthetic"
     source_ref: ObjectRef | None = None
     version: int = Field(default=1, ge=1)
+    archived_at: datetime | None = None
 
     @model_validator(mode="after")
     def _validate_task_identity(self) -> PlanView:

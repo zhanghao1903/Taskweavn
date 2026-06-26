@@ -13,6 +13,7 @@ import type {
   SessionActivityItemView,
   SessionActivityRefView,
   SessionMessageView,
+  TaskNodeId,
 } from "../../shared/api/types";
 import { Button, Panel } from "../../shared/components";
 import { useUiText } from "../../shared/ui-text";
@@ -20,6 +21,7 @@ import {
   ActivityOverlay,
   type ActivityOverlayStatusMessage,
 } from "./ActivityOverlay";
+import { ArchivedPlansPanel } from "./ArchivedPlansPanel";
 import { ConfirmationDock } from "./ConfirmationDock";
 import { ConversationLayer } from "./ConversationLayer";
 import { ContextInputPanel } from "./ContextInputPanel";
@@ -31,7 +33,10 @@ import { MainPageWorkspaceHeader } from "./MainPageWorkspaceHeader";
 import { TaskTreePanel } from "./TaskTreePanel";
 import { AuthoringAskWorkArea } from "./interaction/AuthoringAskWorkArea";
 import { activityItemsFromMessages } from "./mainPageActivityProjection";
-import type { MainPageViewModel } from "./mainPageViewModel";
+import type {
+  MainPageDetailView,
+  MainPageViewModel,
+} from "./mainPageViewModel";
 import type { MainPageController } from "./useMainPageController";
 import type {
   ExportDiagnosticBundle,
@@ -92,6 +97,12 @@ export function MainPageWorkbench({
 }: MainPageWorkbenchProps) {
   const uiText = useUiText();
   const [isActivityOverlayOpen, setIsActivityOverlayOpen] = useState(false);
+  const [isArchivedPlansPanelOpen, setIsArchivedPlansPanelOpen] =
+    useState(false);
+  const [selectedArchivedPlanId, setSelectedArchivedPlanId] =
+    useState<string | null>(null);
+  const [selectedArchivedPlanTaskNodeId, setSelectedArchivedPlanTaskNodeId] =
+    useState<TaskNodeId | null>(null);
   const [activityItems, setActivityItems] = useState<
     SessionActivityItemView[]
   >([]);
@@ -114,8 +125,36 @@ export function MainPageWorkbench({
       runtimeActivityItems.length > 0 ||
       loadSessionActivity !== undefined);
   const showsActivityPanel = isActivityOverlayOpen && hasActivity;
-  const hasDetailColumn = viewModel.detail.kind !== "note" || showsActivityPanel;
-  const showsDetailPanel = viewModel.detail.kind !== "note" && !showsActivityPanel;
+  const fallbackActivityItems = useMemo(
+    () => activityItemsFromMessages(viewModel.taskWorkspace.allMessages),
+    [viewModel.taskWorkspace.allMessages],
+  );
+  const archivedPlans = viewModel.taskWorkspace.archivedPlans;
+  const selectedArchivedPlan =
+    archivedPlans.find((plan) => plan.id === selectedArchivedPlanId) ?? null;
+  const archivedPlanDetail =
+    selectedArchivedPlan?.taskTreeProjection
+      ? archivedPlanDetailView(
+          selectedArchivedPlan,
+          selectedArchivedPlanTaskNodeId,
+        )
+      : null;
+  const showsArchivedPlansPanel =
+    isArchivedPlansPanelOpen && archivedPlans.length > 0;
+  const showsArchivedPlanDetailPanel =
+    archivedPlanDetail !== null &&
+    !showsActivityPanel &&
+    !showsArchivedPlansPanel;
+  const hasDetailColumn =
+    viewModel.detail.kind !== "note" ||
+    showsActivityPanel ||
+    showsArchivedPlansPanel ||
+    showsArchivedPlanDetailPanel;
+  const showsDetailPanel =
+    viewModel.detail.kind !== "note" &&
+    !showsActivityPanel &&
+    !showsArchivedPlansPanel &&
+    !showsArchivedPlanDetailPanel;
   const pageClassName = !hasDetailColumn
     ? `${styles.page} ${styles.pageWithoutDetail}`
     : styles.page;
@@ -144,10 +183,6 @@ export function MainPageWorkbench({
     viewModel.sidebar.activeSession.workspaceId ??
     activeWorkspaceId ??
     null;
-  const fallbackActivityItems = useMemo(
-    () => activityItemsFromMessages(viewModel.taskWorkspace.allMessages),
-    [viewModel.taskWorkspace.allMessages],
-  );
   const overlayActivityItems =
     loadSessionActivity === undefined
       ? mergeActivityItems(runtimeActivityItems, fallbackActivityItems)
@@ -198,7 +233,21 @@ export function MainPageWorkbench({
 
   useEffect(() => {
     setIsPlanLayerExpanded(hasPlanLayer);
+    setIsActivityOverlayOpen(false);
+    setIsArchivedPlansPanelOpen(false);
+    setSelectedArchivedPlanId(null);
+    setSelectedArchivedPlanTaskNodeId(null);
   }, [hasPlanLayer, viewModel.sessionId]);
+
+  useEffect(() => {
+    if (
+      selectedArchivedPlanId !== null &&
+      !archivedPlans.some((plan) => plan.id === selectedArchivedPlanId)
+    ) {
+      setSelectedArchivedPlanId(null);
+      setSelectedArchivedPlanTaskNodeId(null);
+    }
+  }, [archivedPlans, selectedArchivedPlanId]);
 
   useEffect(() => {
     if (!isActivityOverlayOpen || loadSessionActivity === undefined) {
@@ -256,6 +305,9 @@ export function MainPageWorkbench({
     }
     actions.showResult();
     setIsActivityOverlayOpen(false);
+    setIsArchivedPlansPanelOpen(false);
+    setSelectedArchivedPlanId(null);
+    setSelectedArchivedPlanTaskNodeId(null);
   }
 
   function showActivityFiles(taskNodeId: string | null) {
@@ -264,12 +316,18 @@ export function MainPageWorkbench({
     }
     actions.showFileChanges();
     setIsActivityOverlayOpen(false);
+    setIsArchivedPlansPanelOpen(false);
+    setSelectedArchivedPlanId(null);
+    setSelectedArchivedPlanTaskNodeId(null);
   }
 
   function showActivityAudit(ref: SessionActivityRefView) {
     const href = ref.href ?? viewModel.workspace.auditEntry.href;
     window.location.assign(href);
     setIsActivityOverlayOpen(false);
+    setIsArchivedPlansPanelOpen(false);
+    setSelectedArchivedPlanId(null);
+    setSelectedArchivedPlanTaskNodeId(null);
   }
 
   async function exportActivityDiagnostic() {
@@ -337,7 +395,10 @@ export function MainPageWorkbench({
             messages={latestActivityMessages}
             onOpenActivity={
               hasActivity
-                ? () => setIsActivityOverlayOpen(true)
+                ? () => {
+                    setIsArchivedPlansPanelOpen(false);
+                    setIsActivityOverlayOpen(true);
+                  }
                 : undefined
             }
             selectedTask={viewModel.taskWorkspace.selectedTask}
@@ -373,6 +434,18 @@ export function MainPageWorkbench({
       taskTree={viewModel.taskWorkspace.taskTree}
     />
   ) : null;
+  const archivedPlanProgressLayer =
+    selectedArchivedPlan?.taskTreeProjection ? (
+      <TaskTreePanel
+        isTaskPlanSelected={selectedArchivedPlanTaskNodeId === null}
+        onRetryTask={() => undefined}
+        onSelectTaskPlan={() => setSelectedArchivedPlanTaskNodeId(null)}
+        onSelectTask={setSelectedArchivedPlanTaskNodeId}
+        onStopTask={() => undefined}
+        selectedTaskNodeId={selectedArchivedPlanTaskNodeId}
+        taskTree={selectedArchivedPlan.taskTreeProjection}
+      />
+    ) : null;
   const collapsePlanAction = (
     <button
       className={styles.planProgressCollapseButton}
@@ -399,10 +472,55 @@ export function MainPageWorkbench({
         </span>
       </button>
     ) : null;
+  const showConversationPlanEntry =
+    !hasPlanLayer &&
+    archivedPlans.length > 0;
+  const conversationPlanAction = showConversationPlanEntry ? (
+    <Button
+      aria-label="Open archived plan from Conversation"
+      onClick={() => {
+        setIsActivityOverlayOpen(false);
+        setIsArchivedPlansPanelOpen(true);
+        setSelectedArchivedPlanId(null);
+        setSelectedArchivedPlanTaskNodeId(null);
+      }}
+      size="sm"
+      variant="secondary"
+    >
+      Plan
+    </Button>
+  ) : null;
+  const conversationAuditAction =
+    !hasPlanLayer || !isPlanLayerExpanded ? (
+      viewModel.workspace.auditEntry.isEnabled ? (
+        <Button asChild size="sm" variant="secondary">
+          <a href={viewModel.workspace.auditEntry.href}>
+            {viewModel.workspace.auditEntry.label}
+          </a>
+        </Button>
+      ) : (
+        <Button
+          disabled
+          size="sm"
+          title={viewModel.workspace.auditEntry.disabledReason ?? undefined}
+          variant="secondary"
+        >
+          {viewModel.workspace.auditEntry.label}
+        </Button>
+      )
+    ) : null;
+  const conversationHeaderActions = (
+    <>
+      {collapsedPlanTopbarAction}
+      {conversationPlanAction}
+      {conversationAuditAction}
+    </>
+  );
 
   function renderWorkspaceHeader(
     statusActions: ReactNode = null,
     actionSlot: ReactNode = null,
+    title = viewModel.workspace.title,
   ) {
     return (
       <MainPageWorkspaceHeader
@@ -424,7 +542,7 @@ export function MainPageWorkbench({
         }
         sessionName={viewModel.sidebar.activeSession.name}
         statuses={viewModel.topBar.statuses}
-        title={viewModel.workspace.title}
+        title={title}
         statusActions={statusActions}
         uiNotice={viewModel.workspace.uiNotice}
       />
@@ -457,10 +575,17 @@ export function MainPageWorkbench({
       {viewModel.mainWorkArea.kind !== "authoringAsk" ? (
         <ConversationLayer
           className={styles.conversationWorkspace}
-          headerActions={collapsedPlanTopbarAction}
+          headerActions={conversationHeaderActions}
           messages={conversationMessages}
           onOpenActivity={
-            hasActivity ? () => setIsActivityOverlayOpen(true) : undefined
+            hasActivity
+              ? () => {
+                  setIsArchivedPlansPanelOpen(false);
+                  setSelectedArchivedPlanId(null);
+                  setSelectedArchivedPlanTaskNodeId(null);
+                  setIsActivityOverlayOpen(true);
+                }
+              : undefined
           }
           totalActivityCount={totalActivityCount}
         />
@@ -493,6 +618,42 @@ export function MainPageWorkbench({
           {renderWorkspaceHeader(collapsePlanAction, archivePlanAction)}
           <div className={styles.planProgressWorkspaceBody}>
             {planProgressLayer}
+          </div>
+        </Panel>
+      ) : null}
+
+      {!hasPlanLayer && selectedArchivedPlan !== null ? (
+        <Panel
+          as="section"
+          className={`${styles.workspace} ${styles.planWorkspace}`}
+          aria-label="Archived Plan & Progress workspace"
+        >
+          {renderWorkspaceHeader(
+            <button
+              className={styles.planProgressCollapseButton}
+              onClick={() => {
+                setSelectedArchivedPlanId(null);
+                setSelectedArchivedPlanTaskNodeId(null);
+              }}
+              type="button"
+            >
+              Back to conversation
+            </button>,
+            null,
+            "Plan & Progress",
+          )}
+          <div className={styles.planProgressWorkspaceBody}>
+            {archivedPlanProgressLayer ?? (
+              <TaskTreePanel
+                isTaskPlanSelected
+                onRetryTask={() => undefined}
+                onSelectTaskPlan={() => undefined}
+                onSelectTask={() => undefined}
+                onStopTask={() => undefined}
+                selectedTaskNodeId={null}
+                taskTree={null}
+              />
+            )}
           </div>
         </Panel>
       ) : null}
@@ -596,12 +757,31 @@ export function MainPageWorkbench({
         />
       ) : null}
 
+      {showsArchivedPlanDetailPanel ? (
+        <MainPageDetailPanel
+          detail={archivedPlanDetail}
+          onAnswerAsk={() => undefined}
+          onCancelAsk={() => undefined}
+          onConfirmationDecision={() => undefined}
+          onDeferAsk={() => undefined}
+          onRetryTask={() => undefined}
+          onStopTask={() => undefined}
+          onShowFileChanges={actions.showFileChanges}
+          onShowResult={actions.showResult}
+          loadTokenUsageSummary={loadTokenUsageSummary}
+          sessionId={viewModel.sessionId}
+          workspaceId={resolvedWorkspaceId}
+        />
+      ) : null}
+
       {showsActivityPanel ? (
         <ActivityOverlay
           errorMessage={activityError}
           isLoading={isActivityLoading}
           items={overlayActivityItems}
-          onClose={() => setIsActivityOverlayOpen(false)}
+          onClose={() => {
+            setIsActivityOverlayOpen(false);
+          }}
           onOpenAudit={
             viewModel.workspace.auditEntry.isEnabled
               ? showActivityAudit
@@ -618,15 +798,34 @@ export function MainPageWorkbench({
           onOpenPlan={() => {
             actions.selectTaskPlan();
             setIsActivityOverlayOpen(false);
+            setIsArchivedPlansPanelOpen(false);
+            setSelectedArchivedPlanId(null);
+            setSelectedArchivedPlanTaskNodeId(null);
           }}
           onOpenResult={showActivityResult}
           onOpenTask={(taskNodeId) => {
             actions.selectTask(taskNodeId);
             setIsActivityOverlayOpen(false);
+            setIsArchivedPlansPanelOpen(false);
+            setSelectedArchivedPlanId(null);
+            setSelectedArchivedPlanTaskNodeId(null);
           }}
           onRetry={() => setActivityLoadKey((key) => key + 1)}
           selectedTask={viewModel.taskWorkspace.selectedTask}
           statusMessage={activityStatusMessage}
+        />
+      ) : null}
+
+      {showsArchivedPlansPanel ? (
+        <ArchivedPlansPanel
+          auditHref={viewModel.workspace.auditEntry.href}
+          items={archivedPlans}
+          onClose={() => setIsArchivedPlansPanelOpen(false)}
+          onOpenPlan={(planId) => {
+            setSelectedArchivedPlanId(planId);
+            setSelectedArchivedPlanTaskNodeId(null);
+            setIsArchivedPlansPanelOpen(false);
+          }}
         />
       ) : null}
 
@@ -852,4 +1051,51 @@ function canArchivePlan(plan: PlanView): boolean {
     plan.sourceKind === "plan_store" ||
     plan.sourceKind === "legacy_published_task_tree"
   );
+}
+
+function archivedPlanDetailView(
+  plan: PlanView,
+  selectedTaskNodeId: TaskNodeId | null,
+): MainPageDetailView {
+  const taskTree = plan.taskTreeProjection;
+  if (taskTree === null || taskTree === undefined) {
+    return {
+      body: "Archived plan details are unavailable.",
+      header: {
+        body: plan.summary,
+        eyebrow: "PLAN",
+        title: plan.title,
+      },
+      kind: "note",
+    };
+  }
+
+  const selectedTask =
+    selectedTaskNodeId === null
+      ? undefined
+      : taskTree.nodes.find((node) => node.id === selectedTaskNodeId);
+
+  if (selectedTask !== undefined) {
+    return {
+      header: {
+        body: selectedTask.summary,
+        eyebrow: "TASK",
+        title: selectedTask.title,
+      },
+      isRetryingTask: false,
+      isStoppingTask: false,
+      kind: "task",
+      selectedTask,
+    };
+  }
+
+  return {
+    header: {
+      body: plan.summary,
+      eyebrow: "PLAN",
+      title: plan.title,
+    },
+    kind: "plan",
+    taskTree,
+  };
 }

@@ -405,6 +405,7 @@ export type PlanView = {
     | "synthetic";
   sourceRef?: ObjectRef | null;
   version: number;
+  archivedAt?: string | null;
 };
 
 export type MessageKind = "informational" | "actionable" | "response" | "error";
@@ -1298,6 +1299,7 @@ export type MainPageSnapshot = {
   session: SessionSummary;
   planning?: PlanningView;
   activePlan?: PlanView | null;
+  archivedPlans?: PlanView[];
   taskTree: TaskTreeView | null;
   messages: SessionMessageView[];
   pendingConfirmations: ConfirmationActionView[];

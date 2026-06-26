@@ -65,6 +65,9 @@ export function activityItemsFromMessages(
 function activityKindFromMessage(
   message: SessionMessageView,
 ): SessionActivityItemKind {
+  if (message.title === "Plan archived") {
+    return "plan_updated";
+  }
   if (message.title === readOnlyInquiryActivityTitle) {
     return "answer";
   }

@@ -47,6 +47,7 @@ class MainPageSnapshot(UiContractModel):
     session: SessionSummary
     planning: PlanningView | None = None
     active_plan: PlanView | None = None
+    archived_plans: tuple[PlanView, ...] = ()
     task_tree: TaskTreeView | None = None
     messages: tuple[SessionMessageView, ...] = ()
     pending_confirmations: tuple[ConfirmationActionView, ...] = ()
