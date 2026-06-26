@@ -34,6 +34,17 @@ from taskweavn.types import ComputerUseAction, ComputerUseObservation
 from taskweavn.types.computer_use import ComputerUseOperation
 
 _JSON_HEADERS = {"content-type": "application/json"}
+_SYSTEM_EVENTS_SETUP_HINT = (
+    "Grant or refresh macOS Accessibility and Automation permissions for "
+    "Plato Computer Use Helper, restart the helper, then rerun helper-backed "
+    "preflight before publishing a computer-use task."
+)
+_SYSTEM_EVENTS_RECOVERY_ACTIONS = (
+    "open_macos_privacy_accessibility",
+    "open_macos_privacy_automation",
+    "restart_helper",
+    "rerun_helper_preflight",
+)
 _OPERATION_BY_PATH: dict[tuple[str, ...], ComputerUseOperation] = {
     ("v1", "operations", "observe"): "observe",
     ("v1", "operations", "open-app"): "open_app",
@@ -86,6 +97,8 @@ class ComputerUseHelperTransportConfig:
 
     auth_token: str | None = None
     info: ComputerUseHelperInfo = ComputerUseHelperInfo()
+    system_events_probe_enabled: bool = True
+    system_events_probe_timeout_seconds: float = 2.0
 
 
 @dataclass(frozen=True)
@@ -247,6 +260,25 @@ class ComputerUseHelperTransport:
         )
         body = _observation_to_helper_body(observation, request_id=request_id)
         body["helper"] = _info_body(self._config.info)
+        if (
+            body.get("status") == "ready"
+            and self._config.system_events_probe_enabled
+        ):
+            probe = self._backend.execute(
+                ComputerUseAction(
+                    operation="observe",
+                    instruction=(
+                        "Probe Plato Computer Use Helper System Events and "
+                        "Accessibility access by observing the frontmost window."
+                    ),
+                    timeout_seconds=max(
+                        0.5,
+                        self._config.system_events_probe_timeout_seconds,
+                    ),
+                    metadata={"phase": "helper_system_events_probe"},
+                )
+            )
+            _apply_system_events_probe_result(body, probe)
         return body
 
     def _wechat_app_readiness_response(
@@ -620,6 +652,83 @@ def _observation_to_helper_body(
         if value is not None:
             body[body_key] = value
     return body
+
+
+def _apply_system_events_probe_result(
+    body: dict[str, Any],
+    probe: ComputerUseObservation,
+) -> None:
+    diagnostics = _dict_value(body.get("diagnostics"))
+    diagnostics["systemEventsProbe"] = _system_events_probe_diagnostics(probe)
+    body["diagnostics"] = diagnostics
+    metadata = _dict_value(body.get("metadata"))
+    metadata["diagnostics"] = diagnostics
+    body["metadata"] = metadata
+
+    if probe.success and probe.status == "ok":
+        return
+
+    summary = (
+        "Plato Computer Use Helper package is ready, but macOS UI observation "
+        f"failed: {probe.summary}"
+    )
+    body["status"] = "automation_not_authorized"
+    body["success"] = False
+    body["summary"] = summary
+    body["failureKind"] = "helper_system_events_probe_failed"
+    body["phase"] = "helper_system_events_probe"
+    body["setupHint"] = _SYSTEM_EVENTS_SETUP_HINT
+    body["recoveryActions"] = list(_SYSTEM_EVENTS_RECOVERY_ACTIONS)
+    metadata["failure_kind"] = "helper_system_events_probe_failed"
+    metadata["phase"] = "helper_system_events_probe"
+    metadata["setup_hint"] = _SYSTEM_EVENTS_SETUP_HINT
+    metadata["recovery_actions"] = list(_SYSTEM_EVENTS_RECOVERY_ACTIONS)
+
+
+def _system_events_probe_diagnostics(
+    probe: ComputerUseObservation,
+) -> dict[str, Any]:
+    diagnostics: dict[str, Any] = {
+        "operation": probe.operation,
+        "status": probe.status,
+        "success": probe.success,
+        "summary": probe.summary,
+    }
+    if probe.text_extract is not None:
+        diagnostics["textExtract"] = probe.text_extract[:500]
+    probe_metadata = _probe_metadata(probe.metadata)
+    if probe_metadata:
+        diagnostics["metadata"] = probe_metadata
+    return diagnostics
+
+
+def _probe_metadata(metadata: dict[str, Any]) -> dict[str, Any]:
+    allowed_keys = {
+        "diagnostics",
+        "error",
+        "failure_kind",
+        "phase",
+        "setup_hint",
+        "setupHint",
+    }
+    safe: dict[str, Any] = {}
+    for key, value in metadata.items():
+        if key not in allowed_keys:
+            continue
+        if isinstance(value, str):
+            safe[key] = value[:500]
+        elif isinstance(value, bool | int | float):
+            safe[key] = value
+        elif isinstance(value, dict):
+            safe[key] = {
+                str(nested_key)[:80]: str(nested_value)[:500]
+                for nested_key, nested_value in list(value.items())[:10]
+            }
+    return safe
+
+
+def _dict_value(value: object) -> dict[str, Any]:
+    return dict(value) if isinstance(value, dict) else {}
 
 
 def _helper_status(observation: ComputerUseObservation) -> str:

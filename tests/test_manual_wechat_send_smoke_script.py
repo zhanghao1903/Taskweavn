@@ -189,6 +189,69 @@ def test_manual_wechat_smoke_preflight_fails_when_accessibility_is_missing(
     assert result.failure_kind == "missing_accessibility"
 
 
+def test_manual_wechat_smoke_preflight_skips_helper_app_when_package_not_ready(
+    tmp_path: Path,
+) -> None:
+    module = _load_script()
+    adapter = FakeWeChatDesktopAdapter(contact_resolution=_resolved_contact())
+    helper_response = {
+        "requestId": "wechat-ready-unreachable",
+        "operation": "wechat.readiness",
+        "status": "ready",
+        "success": True,
+        "summary": "should not be requested",
+    }
+
+    with (
+        _fake_wechat_sidecar(tmp_path, adapter=adapter) as base_url,
+        _fake_wechat_helper(tmp_path, response=helper_response) as helper,
+    ):
+        result = module.run_preflight(
+            module.SmokeConfig(
+                base_url=base_url,
+                session_id="",
+                contact="",
+                message="",
+                idempotency_key="manual-smoke-preflight",
+                response="reject",
+                allow_send=False,
+                timeout_seconds=2.0,
+                poll_seconds=0.01,
+                preflight_only=True,
+                helper_manifest=helper.manifest_path,
+            ),
+            readiness_checker=lambda: {
+                "backend": "helper",
+                "ready": False,
+                "status": "automation_not_authorized",
+                "operationStatus": "not_available",
+                "helperStatus": "automation_not_authorized",
+                "failureKind": "helper_system_events_probe_failed",
+                "setupHint": "Grant Accessibility and Automation permissions.",
+            },
+        )
+
+    assert result.ready is False
+    assert result.wechat_app_status == "skipped"
+    assert result.wechat_app_success is False
+    assert result.wechat_app_phase == "helper_package_readiness"
+    assert result.wechat_app_failure_kind == "helper_system_events_probe_failed"
+    assert result.wechat_app_setup_hint == (
+        "Grant Accessibility and Automation permissions."
+    )
+    assert result.wechat_app_recovery_actions == (
+        "fix_helper_readiness",
+        "rerun_helper_preflight",
+    )
+    assert result.wechat_app_diagnostics == {
+        "computerUseStatus": "not_available",
+        "packageReadinessStatus": "automation_not_authorized",
+        "helperStatus": "automation_not_authorized",
+        "failureKind": "helper_system_events_probe_failed",
+    }
+    assert helper.requests == []
+
+
 def test_manual_wechat_smoke_preflight_checks_helper_wechat_app_readiness(
     tmp_path: Path,
 ) -> None:

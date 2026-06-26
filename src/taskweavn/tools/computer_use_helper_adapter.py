@@ -702,6 +702,10 @@ def _metadata_from_response(response: Mapping[str, Any]) -> dict[str, Any]:
         ("failure_kind", "failure_kind"),
         ("phase", "phase"),
         ("risk", "risk"),
+        ("setupHint", "setup_hint"),
+        ("setup_hint", "setup_hint"),
+        ("recoveryActions", "recovery_actions"),
+        ("recovery_actions", "recovery_actions"),
         ("evidence", "evidence"),
         ("diagnostics", "diagnostics"),
     ):

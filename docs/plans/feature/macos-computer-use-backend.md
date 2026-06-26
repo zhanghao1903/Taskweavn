@@ -278,9 +278,11 @@ Implementation status as of 2026-06-27:
   `wechatAppFailureKind=applescript_timeout`. A later no-send preflight verified
   that the generic helper `observe` fallback runs after WeChat window geometry
   timeout, but the fallback also times out in the helper context. For now,
-  `computerUseReady=true` is package-level readiness only; app-specific readiness
-  such as `wechatAppSuccess=true` remains required before publishing a WeChat
-  task.
+  helper readiness performs that generic System Events / Accessibility probe
+  directly and degrades to `packageReadinessStatus=automation_not_authorized`
+  with `failureKind=helper_system_events_probe_failed` before running
+  app-specific WeChat readiness. App-specific readiness such as
+  `wechatAppSuccess=true` remains required before publishing a WeChat task.
 - Settings readiness now exposes a `computerUse` section sourced from the
   selected backend. Enabled-but-not-ready computer-use degrades readiness with
   a `computer_use.not_ready` warning and safe recovery actions.

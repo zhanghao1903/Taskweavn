@@ -378,6 +378,40 @@ Validated observe fallback classification on 2026-06-27:
   package-level readiness only; do not publish a WeChat send task until
   `wechatAppSuccess=true`.
 
+Validated helper System Events probe gating on 2026-06-27:
+
+- generated dev helper app:
+  `/tmp/plato-computer-use-backend-20260627f/Plato Computer Use Helper Dev.app`
+- manifest:
+  `/tmp/plato-computer-use-backend-20260627f/computer-use-helper.json`
+- evidence:
+  `/tmp/plato-computer-use-backend-20260627f/preflight-helper-system-events-probe-skip-app-20260627.json`
+- sidecar/helper state:
+  - `sidecarOk=true`
+  - `computerUseBackend=helper`
+  - `computerUseStatus=not_available`
+  - `packageReadinessStatus=automation_not_authorized`
+  - `computerUseReady=false`
+  - `helperStatus=automation_not_authorized`
+  - `failureKind=helper_system_events_probe_failed`
+  - `helperManifest.endpoint=http://127.0.0.1:49963`
+  - `helperManifest.pid=20262`
+- helper System Events probe:
+  - `computerUseDiagnostics.diagnostics.systemEventsProbe.operation=observe`
+  - `computerUseDiagnostics.diagnostics.systemEventsProbe.status=failed`
+  - `computerUseDiagnostics.diagnostics.systemEventsProbe.summary=macOS computer-use operation failed: TimeoutExpired`
+  - `setupHint=Grant or refresh macOS Accessibility and Automation permissions for Plato Computer Use Helper, restart the helper, then rerun helper-backed preflight before publishing a computer-use task.`
+- WeChat app readiness:
+  - `wechatAppStatus=skipped`
+  - `wechatAppPhase=helper_package_readiness`
+  - `wechatAppFailureKind=helper_system_events_probe_failed`
+- interpretation: helper readiness now performs a generic System Events /
+  Accessibility `observe` probe before app-specific WeChat readiness. When the
+  helper cannot observe the frontmost window, preflight fails at package/helper
+  readiness and skips the WeChat app-level probe. This prevents a misleading
+  `computerUseReady=true` state and gives Settings / conversation a direct
+  recovery hint before any task is published.
+
 ### 6.3 Helper-Backed Contact Resolution Progress
 
 Attempted on 2026-06-27 with `response=reject` and no `--allow-send`:

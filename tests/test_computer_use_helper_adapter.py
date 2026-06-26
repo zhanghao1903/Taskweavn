@@ -104,6 +104,59 @@ def test_helper_backend_maps_missing_accessibility_to_not_available() -> None:
     )
 
 
+def test_helper_backend_maps_system_events_probe_failure_recovery_metadata() -> None:
+    backend = ComputerUseHelperBackend(
+        client=FakeHelperClient(
+            {
+                "status": "automation_not_authorized",
+                "summary": (
+                    "Plato Computer Use Helper package is ready, but macOS UI "
+                    "observation failed: TimeoutExpired"
+                ),
+                "failureKind": "helper_system_events_probe_failed",
+                "phase": "helper_system_events_probe",
+                "setupHint": "Grant Accessibility and Automation permissions.",
+                "recoveryActions": [
+                    "open_macos_privacy_accessibility",
+                    "open_macos_privacy_automation",
+                    "restart_helper",
+                    "rerun_helper_preflight",
+                ],
+                "diagnostics": {
+                    "systemEventsProbe": {
+                        "status": "failed",
+                        "metadata": {"failure_kind": "applescript_timeout"},
+                    }
+                },
+                "helper": {"apiVersion": "plato.computer_use_helper.v1"},
+            }
+        )
+    )
+
+    observation = backend.readiness()
+
+    assert observation.success is False
+    assert observation.status == "not_available"
+    assert observation.metadata["helper_status"] == "automation_not_authorized"
+    assert observation.metadata["failure_kind"] == "helper_system_events_probe_failed"
+    assert observation.metadata["phase"] == "helper_system_events_probe"
+    assert observation.metadata["setup_hint"] == (
+        "Grant Accessibility and Automation permissions."
+    )
+    assert observation.metadata["recovery_actions"] == [
+        "open_macos_privacy_accessibility",
+        "open_macos_privacy_automation",
+        "restart_helper",
+        "rerun_helper_preflight",
+    ]
+    assert (
+        observation.metadata["diagnostics"]["systemEventsProbe"]["metadata"][
+            "failure_kind"
+        ]
+        == "applescript_timeout"
+    )
+
+
 def test_helper_backend_rejects_unexpected_readiness_api_version() -> None:
     backend = ComputerUseHelperBackend(
         client=FakeHelperClient(

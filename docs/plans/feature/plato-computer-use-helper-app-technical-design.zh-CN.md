@@ -1047,6 +1047,18 @@ HTTP transport, package readiness, or WeChat process lookup. Product readiness
 must continue to distinguish package-level `computerUseReady=true` from
 app-specific `wechatAppSuccess=true`.
 
+2026-06-27 update 7: helper readiness now runs the generic System Events /
+Accessibility `observe` probe directly. The latest evidence
+`/tmp/plato-computer-use-backend-20260627f/preflight-helper-system-events-probe-skip-app-20260627.json`
+returns `computerUseStatus=not_available`,
+`packageReadinessStatus=automation_not_authorized`,
+`helperStatus=automation_not_authorized`, and
+`failureKind=helper_system_events_probe_failed`; the smoke script skips
+app-specific WeChat readiness with `wechatAppStatus=skipped` because package
+readiness is already not ready. This makes Settings/conversation diagnostics
+more accurate and prevents publishing a WeChat task from a misleading helper
+ready state.
+
 ### H5: Release Packaging
 
 - helper bundled with Plato installer；

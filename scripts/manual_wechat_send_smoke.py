@@ -279,6 +279,33 @@ def _with_helper_wechat_app_readiness(
                 }
             ),
         )
+    if not result.ready:
+        return replace(
+            result,
+            helper_manifest=helper_manifest,
+            wechat_app_status="skipped",
+            wechat_app_success=False,
+            wechat_app_phase="helper_package_readiness",
+            wechat_app_summary=(
+                "Skipped WeChat app readiness because helper package readiness "
+                "is not ready."
+            ),
+            wechat_app_failure_kind=result.failure_kind or "helper_not_ready",
+            wechat_app_setup_hint=result.setup_hint
+            or "Fix helper readiness, then rerun helper-backed preflight.",
+            wechat_app_recovery_actions=(
+                "fix_helper_readiness",
+                "rerun_helper_preflight",
+            ),
+            wechat_app_diagnostics=_safe_diagnostics(
+                {
+                    "computerUseStatus": result.computer_use_status,
+                    "packageReadinessStatus": result.package_readiness_status,
+                    "helperStatus": result.helper_status,
+                    "failureKind": result.failure_kind,
+                }
+            ),
+        )
     try:
         payload = _helper_wechat_app_readiness(config)
     except SmokeError as exc:

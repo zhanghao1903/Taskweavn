@@ -91,8 +91,51 @@ def test_helper_server_readiness_maps_backend_observation() -> None:
     assert response.json["success"] is True
     assert response.json["summary"] == "helper process can observe frontmost app"
     assert response.json["diagnostics"]["checkedByProcessPath"] == "/Helper"
+    assert response.json["diagnostics"]["systemEventsProbe"]["status"] == "ok"
     assert response.json["helper"]["bundleId"].endswith("computer-use-helper.dev")
-    assert backend.actions[0].operation == "readiness"
+    assert [action.operation for action in backend.actions] == ["readiness", "observe"]
+
+
+def test_helper_server_readiness_degrades_when_system_events_probe_fails() -> None:
+    backend = ScriptedComputerUseBackend(
+        responses=[
+            _observation(
+                operation="readiness",
+                status="ok",
+                summary="helper package ready",
+                metadata={"readiness": {"status": "ready"}},
+            ),
+            _observation(
+                operation="observe",
+                status="failed",
+                summary="macOS computer-use operation failed: TimeoutExpired",
+                metadata={
+                    "failure_kind": "applescript_timeout",
+                    "error": "osascript timed out after 2.0 seconds",
+                },
+            ),
+        ]
+    )
+
+    with build_computer_use_helper_server(backend=backend) as server:
+        response = _request(server, "GET", "/v1/readiness")
+
+    assert response.status == 200
+    assert response.json["status"] == "automation_not_authorized"
+    assert response.json["success"] is False
+    assert response.json["failureKind"] == "helper_system_events_probe_failed"
+    assert response.json["phase"] == "helper_system_events_probe"
+    assert "Accessibility and Automation permissions" in response.json["setupHint"]
+    assert response.json["recoveryActions"] == [
+        "open_macos_privacy_accessibility",
+        "open_macos_privacy_automation",
+        "restart_helper",
+        "rerun_helper_preflight",
+    ]
+    probe = response.json["diagnostics"]["systemEventsProbe"]
+    assert probe["status"] == "failed"
+    assert probe["metadata"]["failure_kind"] == "applescript_timeout"
+    assert [action.operation for action in backend.actions] == ["readiness", "observe"]
 
 
 def test_helper_server_forwards_operation_from_http_client() -> None:
