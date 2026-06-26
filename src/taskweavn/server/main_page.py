@@ -26,17 +26,8 @@ from taskweavn.core import (
     WorkspaceLayout,
 )
 from taskweavn.execution_plane import (
-    WECHAT_SEND_CAPABILITY,
     EmbeddedTaskApiService,
-    InMemoryExecutionEnvRegistry,
     SqliteExecutionPlaneStore,
-    SqliteWeChatSendBoundaryStore,
-    WeChatSendRuntimeHandler,
-    default_local_execution_env,
-)
-from taskweavn.integrations.wechat_desktop import (
-    MacOSWeChatSearchDriver,
-    WeChatDesktopAdapter,
 )
 from taskweavn.interaction import (
     AskStore,
@@ -47,7 +38,6 @@ from taskweavn.interaction import (
 from taskweavn.llm.agent_config import AgentLlmRole
 from taskweavn.llm.agent_resolver import SettingsBackedAgentLlmResolver
 from taskweavn.observability import LogContext
-from taskweavn.observability.main_page_trace import main_page_trace
 from taskweavn.runtime_config import (
     DefaultRuntimeConfigMutationService,
     EffectiveRuntimeConfig,
@@ -58,13 +48,17 @@ from taskweavn.runtime_config import (
 )
 from taskweavn.server.ask_recovery import DefaultAskRecoveryService
 from taskweavn.server.client_logs import FileClientErrorLogSink
+from taskweavn.server.computer_use_runtime import (
+    build_execution_env_registry,
+    build_execution_plane_runtime_handlers,
+)
 from taskweavn.server.diagnostics_export import DefaultDiagnosticExportGateway
 from taskweavn.server.main_page_agent import build_agent_loop_resident_default_agent
 from taskweavn.server.main_page_audit_events import (
     FRONTEND_ERROR_LOG_FILENAME,
     AuditEventClientErrorLogSink,
     AuditEventCommandGateway,
-    emit_task_lifecycle_task_node_changed,
+    task_lifecycle_event_callback,
     ui_event_store,
 )
 from taskweavn.server.main_page_logging import configure_sidecar_logging
@@ -73,6 +67,7 @@ from taskweavn.server.main_page_sessions import (
     MainPageTaskRefResolver,
     resolve_configured_session,
 )
+from taskweavn.server.main_page_usage import task_plan_resolver
 from taskweavn.server.multi_workspace import (
     MultiWorkspacePlatoUiHttpTransport,
     WorkspaceRegistryEntry,
@@ -87,7 +82,6 @@ from taskweavn.server.read_only_inquiry_diagnostics import (
     DefaultDiagnosticSupportContextProvider,
 )
 from taskweavn.server.runtime_config_consumers import (
-    RuntimeComputerUseSettings,
     runtime_computer_use_settings_from_config,
     runtime_context_settings_from_config,
     runtime_execution_settings_from_config,
@@ -112,6 +106,7 @@ from taskweavn.server.sidecar import (
 from taskweavn.server.task_stop_recovery import (
     CompositeSnapshotRecoveryService,
     DefaultTaskStopRecoveryService,
+    recover_interrupted_running_tasks_on_startup,
 )
 from taskweavn.server.task_timeline import WorkspaceTaskInteractionTimelineService
 from taskweavn.server.ui_command_idempotency import (
@@ -129,9 +124,8 @@ from taskweavn.server.ui_contract import (
 from taskweavn.server.ui_contract.ask_projection import DefaultAskProjectionService
 from taskweavn.server.ui_events import (
     SqliteUiEventSource,
-    UiEventCursorProvider,
     UiEventSource,
-    UiEventStore,
+    event_source_cursor_provider,
 )
 from taskweavn.server.ui_http import PlatoUiHttpTransport, SidecarAuth
 from taskweavn.server.ui_http_settings import (
@@ -177,7 +171,6 @@ from taskweavn.task import (
     SqliteTaskBus,
     SqliteTaskExecutionSummaryStore,
     StaticCapabilityCatalog,
-    TaskDomain,
     TaskExecutionSummaryStore,
     TaskExecutionSummaryViewStore,
     TaskExecutionTickResult,
@@ -292,7 +285,7 @@ class MainPageWorkspaceRuntime:
             ),
             result_summary_store=self.result_summary_store,
             message_bus=self.message_bus,
-            on_task_lifecycle_committed=_task_lifecycle_event_callback(
+            on_task_lifecycle_committed=task_lifecycle_event_callback(
                 ui_event_store(self.event_source),
                 plan_lifecycle_sync=self.plan_lifecycle_sync,
             ),
@@ -498,11 +491,13 @@ def build_main_page_workspace_runtime(
         runtime_read_only_inquiry_settings = (
             runtime_read_only_inquiry_settings_from_config(runtime_config)
         )
-        _recover_interrupted_running_tasks(
+        recover_interrupted_running_tasks_on_startup(
             task_bus=task_bus,
-            session_manager=session_manager,
-            event_store=event_store,
-            plan_lifecycle_sync=plan_lifecycle_sync,
+            session_ids=(session.id for session in session_manager.list()),
+            on_task_recovered=task_lifecycle_event_callback(
+                event_store,
+                plan_lifecycle_sync=plan_lifecycle_sync,
+            ),
         )
         default_agent = dependencies.default_agent
         if default_agent is None and config.enable_default_agent:
@@ -530,7 +525,7 @@ def build_main_page_workspace_runtime(
             enabled=runtime_execution_settings.execution_dispatcher_enabled,
             result_summary_store=result_summary_store,
             message_bus=message_bus,
-            on_task_lifecycle_committed=_task_lifecycle_event_callback(
+            on_task_lifecycle_committed=task_lifecycle_event_callback(
                 event_store,
                 plan_lifecycle_sync=plan_lifecycle_sync,
             ),
@@ -538,7 +533,7 @@ def build_main_page_workspace_runtime(
         execution_plane_store = SqliteExecutionPlaneStore(
             layout.meta_dir / "execution_plane.sqlite"
         )
-        execution_plane_runtime_handlers = _execution_plane_runtime_handlers(
+        execution_plane_runtime_handlers = build_execution_plane_runtime_handlers(
             layout=layout,
             task_bus=task_bus,
             message_bus=message_bus,
@@ -550,7 +545,7 @@ def build_main_page_workspace_runtime(
         execution_plane_service = EmbeddedTaskApiService(
             task_bus=task_bus,
             store=execution_plane_store,
-            env_registry=_execution_env_registry(
+            env_registry=build_execution_env_registry(
                 computer_use_settings=runtime_computer_use_settings,
             ),
             summary_store=result_summary_store,
@@ -628,7 +623,7 @@ def build_main_page_workspace_runtime(
             authoring_state_store=authoring_state_store,
             raw_task_store=raw_task_store,
             ask_projection=DefaultAskProjectionService(ask_store),
-            snapshot_cursor_provider=_snapshot_cursor_provider(event_source),
+            snapshot_cursor_provider=event_source_cursor_provider(event_source),
             plan_store=plan_store,
         )
         core_command_gateway = DefaultUiCommandGateway(
@@ -657,14 +652,14 @@ def build_main_page_workspace_runtime(
             ask_store=ask_store,
             task_bus=task_bus,
             execution_trigger_gateway=execution_dispatcher,
-            on_task_lifecycle_committed=_task_lifecycle_event_callback(
+            on_task_lifecycle_committed=task_lifecycle_event_callback(
                 event_store,
                 plan_lifecycle_sync=plan_lifecycle_sync,
             ),
         )
         task_stop_recovery = DefaultTaskStopRecoveryService(
             task_bus=task_bus,
-            on_task_lifecycle_committed=_task_lifecycle_event_callback(
+            on_task_lifecycle_committed=task_lifecycle_event_callback(
                 event_store,
                 plan_lifecycle_sync=plan_lifecycle_sync,
             ),
@@ -1009,13 +1004,13 @@ def _workspace_agent_llms(
 ) -> _WorkspaceAgentLlms:
     shared_llm = _workspace_llm_if_configured(config.workspace_root, dependencies)
     workspace_id = config.current_workspace_id or "current"
-    task_plan_resolver = _task_plan_resolver(task_bus)
+    plan_resolver = task_plan_resolver(task_bus)
     if shared_llm is not None:
         usage_llm = UsageRecordingLLM(
             shared_llm,
             workspace_id=workspace_id,
             sink=token_usage_store,
-            task_plan_resolver=task_plan_resolver,
+            task_plan_resolver=plan_resolver,
         )
         return _WorkspaceAgentLlms(
             execution=usage_llm,
@@ -1029,7 +1024,7 @@ def _workspace_agent_llms(
         base_env=os.environ,
         workspace_id=workspace_id,
         usage_sink=token_usage_store,
-        task_plan_resolver=task_plan_resolver,
+        task_plan_resolver=plan_resolver,
     )
 
     def client(role: AgentLlmRole) -> Any:
@@ -1102,127 +1097,6 @@ def _default_capability_catalog() -> StaticCapabilityCatalog:
             "research",
         )
     )
-
-
-def _execution_env_registry(
-    *,
-    computer_use_settings: RuntimeComputerUseSettings,
-) -> InMemoryExecutionEnvRegistry:
-    capabilities: tuple[str, ...] = ("execute", "testing")
-    tool_pool: tuple[str, ...] = ()
-    if computer_use_settings.enabled:
-        capabilities = (*capabilities, "computer_use", WECHAT_SEND_CAPABILITY)
-        tool_pool = (*tool_pool, "computer_use", "wechat_desktop")
-    return InMemoryExecutionEnvRegistry(
-        (
-            default_local_execution_env(
-                capabilities=capabilities,
-                tool_pool=tool_pool,
-            ),
-        )
-    )
-
-
-def _execution_plane_runtime_handlers(
-    *,
-    layout: WorkspaceLayout,
-    task_bus: SqliteTaskBus,
-    message_bus: InProcessMessageBus,
-    message_stream: SqliteMessageStream,
-    execution_plane_store: SqliteExecutionPlaneStore,
-    computer_use_settings: RuntimeComputerUseSettings,
-    computer_use_backend: ComputerUseBackend | None,
-) -> tuple[WeChatSendRuntimeHandler, ...]:
-    if not computer_use_settings.enabled or computer_use_backend is None:
-        return ()
-    wechat_boundary_store = SqliteWeChatSendBoundaryStore(
-        layout.meta_dir / "wechat_send_boundaries.sqlite"
-    )
-    return (
-        WeChatSendRuntimeHandler(
-            task_bus=task_bus,
-            message_bus=message_bus,
-            message_stream=message_stream,
-            execution_store=execution_plane_store,
-            boundary_store=wechat_boundary_store,
-            adapter=WeChatDesktopAdapter(
-                computer_use_backend,
-                contact_search_driver=MacOSWeChatSearchDriver(),
-            ),
-        ),
-    )
-
-
-def _task_lifecycle_event_callback(
-    event_store: UiEventStore | None,
-    *,
-    plan_lifecycle_sync: PlanTaskNodeLifecycleSync | None = None,
-) -> Callable[[TaskDomain], None]:
-    def emit(task: TaskDomain) -> None:
-        if plan_lifecycle_sync is not None:
-            with contextlib.suppress(Exception):
-                plan_lifecycle_sync.sync_task(task)
-        emit_task_lifecycle_task_node_changed(
-            event_store,
-            session_id=task.session_id,
-            task_id=task.task_id,
-        )
-
-    return emit
-
-
-def _task_plan_resolver(
-    task_bus: SqliteTaskBus,
-) -> Callable[[str | None, str | None], str | None]:
-    def resolve(session_id: str | None, task_node_id: str | None) -> str | None:
-        if session_id is None or task_node_id is None:
-            return None
-        with contextlib.suppress(Exception):
-            task = task_bus.get(session_id, task_node_id)
-            if task is not None:
-                return task.root_id
-        return None
-
-    return resolve
-
-
-def _snapshot_cursor_provider(
-    event_source: UiEventSource,
-) -> UiEventCursorProvider | None:
-    if isinstance(event_source, UiEventCursorProvider):
-        return event_source
-    return None
-
-
-def _recover_interrupted_running_tasks(
-    *,
-    task_bus: SqliteTaskBus,
-    session_manager: SessionManager,
-    event_store: UiEventStore | None,
-    plan_lifecycle_sync: PlanTaskNodeLifecycleSync | None = None,
-) -> None:
-    sessions = session_manager.list()
-    main_page_trace(
-        "sidecar.recover_interrupted_running.scan_start",
-        session_count=len(sessions),
-    )
-    for session in sessions:
-        recovered_tasks = task_bus.recover_interrupted_running_tasks(session.id)
-        main_page_trace(
-            "sidecar.recover_interrupted_running.session_result",
-            recovered_task_ids=tuple(task.task_id for task in recovered_tasks),
-            recovered_task_count=len(recovered_tasks),
-            session_id=session.id,
-        )
-        for task in recovered_tasks:
-            if plan_lifecycle_sync is not None:
-                with contextlib.suppress(Exception):
-                    plan_lifecycle_sync.sync_task(task)
-            emit_task_lifecycle_task_node_changed(
-                event_store,
-                session_id=task.session_id,
-                task_id=task.task_id,
-            )
 
 
 __all__ = [

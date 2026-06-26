@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Protocol
@@ -102,6 +102,33 @@ class DefaultTaskStopRecoveryService:
         return result
 
 
+def recover_interrupted_running_tasks_on_startup(
+    *,
+    task_bus: TaskBus,
+    session_ids: Iterable[str],
+    on_task_recovered: Callable[[TaskDomain], None] | None = None,
+) -> None:
+    """Recover interrupted running Tasks once during sidecar startup."""
+
+    session_id_tuple = tuple(session_ids)
+    main_page_trace(
+        "sidecar.recover_interrupted_running.scan_start",
+        session_count=len(session_id_tuple),
+    )
+    for session_id in session_id_tuple:
+        recovered_tasks = task_bus.recover_interrupted_running_tasks(session_id)
+        main_page_trace(
+            "sidecar.recover_interrupted_running.session_result",
+            recovered_task_ids=tuple(task.task_id for task in recovered_tasks),
+            recovered_task_count=len(recovered_tasks),
+            session_id=session_id,
+        )
+        if on_task_recovered is None:
+            continue
+        for task in recovered_tasks:
+            on_task_recovered(task)
+
+
 def _needs_recovery(
     task: TaskDomain,
     *,
@@ -131,4 +158,5 @@ __all__ = [
     "DEFAULT_STOP_RECOVERY_GRACE",
     "DefaultTaskStopRecoveryService",
     "TaskStopRecoveryResult",
+    "recover_interrupted_running_tasks_on_startup",
 ]

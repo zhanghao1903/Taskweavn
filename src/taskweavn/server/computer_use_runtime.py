@@ -5,6 +5,22 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass
 
+from taskweavn.core import WorkspaceLayout
+from taskweavn.execution_plane import (
+    WECHAT_SEND_CAPABILITY,
+    InMemoryExecutionEnvRegistry,
+    SqliteExecutionPlaneStore,
+    SqliteWeChatSendBoundaryStore,
+    WeChatSendRuntimeHandler,
+    default_local_execution_env,
+)
+from taskweavn.integrations.wechat_desktop import (
+    MacOSWeChatSearchDriver,
+    WeChatDesktopAdapter,
+)
+from taskweavn.interaction import InProcessMessageBus, SqliteMessageStream
+from taskweavn.server.runtime_config_consumers import RuntimeComputerUseSettings
+from taskweavn.task import SqliteTaskBus
 from taskweavn.tools import (
     ComputerUseBackend,
     MacOSComputerUseBackend,
@@ -72,8 +88,63 @@ def parse_computer_use_allowed_apps(
     return tuple(app.strip() for app in raw if app.strip())
 
 
+def build_execution_env_registry(
+    *,
+    computer_use_settings: RuntimeComputerUseSettings,
+) -> InMemoryExecutionEnvRegistry:
+    """Build the execution environment registry for the local sidecar."""
+
+    capabilities: tuple[str, ...] = ("execute", "testing")
+    tool_pool: tuple[str, ...] = ()
+    if computer_use_settings.enabled:
+        capabilities = (*capabilities, "computer_use", WECHAT_SEND_CAPABILITY)
+        tool_pool = (*tool_pool, "computer_use", "wechat_desktop")
+    return InMemoryExecutionEnvRegistry(
+        (
+            default_local_execution_env(
+                capabilities=capabilities,
+                tool_pool=tool_pool,
+            ),
+        )
+    )
+
+
+def build_execution_plane_runtime_handlers(
+    *,
+    layout: WorkspaceLayout,
+    task_bus: SqliteTaskBus,
+    message_bus: InProcessMessageBus,
+    message_stream: SqliteMessageStream,
+    execution_plane_store: SqliteExecutionPlaneStore,
+    computer_use_settings: RuntimeComputerUseSettings,
+    computer_use_backend: ComputerUseBackend | None,
+) -> tuple[WeChatSendRuntimeHandler, ...]:
+    """Build optional execution-plane runtime handlers for computer-use tools."""
+
+    if not computer_use_settings.enabled or computer_use_backend is None:
+        return ()
+    wechat_boundary_store = SqliteWeChatSendBoundaryStore(
+        layout.meta_dir / "wechat_send_boundaries.sqlite"
+    )
+    return (
+        WeChatSendRuntimeHandler(
+            task_bus=task_bus,
+            message_bus=message_bus,
+            message_stream=message_stream,
+            execution_store=execution_plane_store,
+            boundary_store=wechat_boundary_store,
+            adapter=WeChatDesktopAdapter(
+                computer_use_backend,
+                contact_search_driver=MacOSWeChatSearchDriver(),
+            ),
+        ),
+    )
+
+
 __all__ = [
     "ComputerUseRuntimeSelection",
+    "build_execution_env_registry",
+    "build_execution_plane_runtime_handlers",
     "build_computer_use_runtime",
     "parse_computer_use_allowed_apps",
 ]
