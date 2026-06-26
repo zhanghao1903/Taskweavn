@@ -208,48 +208,14 @@ set -eu
 exec {python_executable} - "$0" <<'PY'
 from __future__ import annotations
 
-import json
 import sys
 from pathlib import Path
 
 from taskweavn.cli.main import app
+from taskweavn.server.computer_use_helper_app_entrypoint import build_helper_app_cli_argv
 
 executable_path = Path(sys.argv[1]).resolve()
-contents_dir = executable_path.parents[1]
-launch_config_path = contents_dir / "Resources" / "helper-launch.json"
-config = json.loads(launch_config_path.read_text(encoding="utf-8"))
-app_path = contents_dir.parent
-
-argv = [
-    "taskweavn",
-    "computer-use-helper",
-    "--manifest-path",
-    config["manifestPath"],
-    "--host",
-    str(config["host"]),
-    "--port",
-    str(config["port"]),
-    "--computer-use-backend",
-    config["computerUseBackend"],
-    "--helper-path",
-    str(app_path),
-    "--helper-bundle-id",
-    config["bundleId"],
-    "--helper-version",
-    config["version"],
-    "--helper-api-version",
-    config["apiVersion"],
-    "--helper-signing-mode",
-    config["signingMode"],
-]
-token_path = config.get("tokenPath")
-if token_path:
-    argv.extend(["--token-path", token_path])
-allowed_apps = config.get("computerUseAllowedApps") or []
-if allowed_apps:
-    argv.extend(["--computer-use-allowed-apps", ",".join(allowed_apps)])
-
-sys.argv = argv
+sys.argv = build_helper_app_cli_argv(executable_path)
 app()
 PY
 """

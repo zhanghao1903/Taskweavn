@@ -13,6 +13,7 @@ from taskweavn.server.computer_use_helper_app import (
     ComputerUseHelperAppConfig,
     build_computer_use_helper_app,
 )
+from taskweavn.server.computer_use_helper_app_entrypoint import build_helper_app_cli_argv
 
 
 def test_build_computer_use_helper_app_writes_dev_bundle(tmp_path: Path) -> None:
@@ -61,11 +62,8 @@ def test_build_computer_use_helper_app_writes_dev_bundle(tmp_path: Path) -> None
     assert launch_config["signingMode"] == "development-app"
 
     launcher = result.executable_path.read_text(encoding="utf-8")
-    assert "helper-launch.json" in launcher
-    assert "computer-use-helper" in launcher
-    assert "--helper-path" in launcher
-    assert "--helper-bundle-id" in launcher
-    assert "--helper-signing-mode" in launcher
+    assert "build_helper_app_cli_argv" in launcher
+    assert "taskweavn.server.computer_use_helper_app_entrypoint" in launcher
     assert "/usr/bin/python3" in launcher
 
     permission_guide = result.permission_guide_path.read_text(encoding="utf-8")
@@ -77,6 +75,53 @@ def test_build_computer_use_helper_app_writes_dev_bundle(tmp_path: Path) -> None
     assert "Launcher mode: `external-python-wrapper`" in permission_guide
     assert "Grant Accessibility permission to this helper app" in permission_guide
     assert "external_python_for_app" in permission_guide
+
+
+def test_helper_app_entrypoint_builds_cli_argv_from_launch_config(
+    tmp_path: Path,
+) -> None:
+    app_path = tmp_path / "Plato Computer Use Helper Dev.app"
+    manifest_path = tmp_path / "state" / "computer-use-helper.json"
+    token_path = tmp_path / "state" / "computer-use-helper.token"
+
+    result = build_computer_use_helper_app(
+        ComputerUseHelperAppConfig(
+            app_path=app_path,
+            manifest_path=manifest_path,
+            token_path=token_path,
+            python_executable="/usr/bin/python3",
+            port=49152,
+            computer_use_backend="macos",
+            computer_use_allowed_apps=("WeChat", "TextEdit"),
+        )
+    )
+
+    assert build_helper_app_cli_argv(result.executable_path) == [
+        "taskweavn",
+        "computer-use-helper",
+        "--manifest-path",
+        str(manifest_path),
+        "--host",
+        "127.0.0.1",
+        "--port",
+        "49152",
+        "--computer-use-backend",
+        "macos",
+        "--helper-path",
+        str(app_path),
+        "--helper-bundle-id",
+        "com.taskweavn.plato.computer-use-helper.dev",
+        "--helper-version",
+        "0.1.0",
+        "--helper-api-version",
+        "plato.computer_use_helper.v1",
+        "--helper-signing-mode",
+        "development-app",
+        "--token-path",
+        str(token_path),
+        "--computer-use-allowed-apps",
+        "WeChat,TextEdit",
+    ]
 
 
 def test_build_computer_use_helper_app_can_copy_packaged_executable(

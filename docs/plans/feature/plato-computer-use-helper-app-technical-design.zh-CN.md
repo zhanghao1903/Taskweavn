@@ -318,6 +318,19 @@ uv run taskweavn computer-use-helper-app \
 runtime 调用 repo 内 helper CLI。正式 release 仍必须提供可签名、可公证的
 helper-owned packaged/embedded executable。
 
+packaged executable 必须遵守同一个启动契约：
+
+- executable 路径位于 `<App>.app/Contents/MacOS/PlatoComputerUseHelper`；
+- 启动时读取 `<App>.app/Contents/Resources/helper-launch.json`；
+- 使用 `taskweavn.server.computer_use_helper_app_entrypoint` 中的
+  `build_helper_app_cli_argv()` 生成 helper CLI 参数；
+- 等价启动 `taskweavn computer-use-helper`，并传递 manifest、token、backend、
+  helper identity、allowed apps 等字段。
+
+因此未来 PyInstaller / embedded Python / Swift wrapper 的第一条验收不是
+真实发送消息，而是：同一份 `helper-launch.json` 在 dev wrapper 和 packaged
+executable 下生成相同 helper argv，并发布同形态 manifest。
+
 ## 7. Helper 启动模式
 
 ### 7.1 Manual Run Mode

@@ -443,6 +443,11 @@ Validated runtime identity hint on 2026-06-27:
   `launcherMode=packaged-executable` in `helper-launch.json`. The command does
   not build, sign, or notarize that executable; it only packages an already-built
   binary into the helper app scaffold.
+- executable contract: the copied binary should use
+  `taskweavn.server.computer_use_helper_app_entrypoint` or equivalent logic to
+  read `.app/Contents/Resources/helper-launch.json` and launch the helper API
+  with the same arguments as the dev wrapper. This keeps packaged helper smoke
+  comparable with dev wrapper smoke.
 
 ### 6.3 Helper-Backed Contact Resolution Progress
 
