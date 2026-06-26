@@ -247,6 +247,36 @@ def test_helper_server_wechat_readiness_reports_window_blocker() -> None:
     ]
 
 
+def test_helper_server_wechat_readiness_promotes_window_failure_kind() -> None:
+    adapter = FakeWeChatDesktopAdapter(
+        window_readiness_result=WeChatOperationResult(
+            status="needs_user",
+            summary="WeChat main window readiness AppleScript timed out.",
+            metadata={
+                "phase": "window_readiness",
+                "failure_kind": "applescript_timeout",
+                "returncode": "124",
+                "stderr": "osascript timed out after 10.0s",
+            },
+        )
+    )
+    with build_computer_use_helper_server(wechat_adapter=adapter) as server:
+        response = _request(
+            server,
+            "POST",
+            "/v1/apps/wechat/readiness",
+            body={"requestId": "wechat-ready-timeout"},
+        )
+
+    assert response.status == 200
+    assert response.json["status"] == "needs_user"
+    assert response.json["success"] is False
+    assert response.json["phase"] == "window_readiness"
+    assert response.json["failureKind"] == "applescript_timeout"
+    assert response.json["diagnostics"]["failure_kind"] == "applescript_timeout"
+    assert response.json["diagnostics"]["returncode"] == "124"
+
+
 def test_helper_server_wechat_send_confirmed_rejects_missing_proof() -> None:
     adapter = FakeWeChatDesktopAdapter(contact_resolution=_wechat_resolution())
     with build_computer_use_helper_server(wechat_adapter=adapter) as server:

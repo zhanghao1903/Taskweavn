@@ -441,6 +441,83 @@ def test_helper_backend_relaunches_when_existing_manifest_endpoint_is_stale(
     assert observation.summary == "Helper relaunched."
 
 
+def test_helper_backend_waits_for_refreshed_manifest_after_stale_endpoint(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app_path = tmp_path / "Plato Computer Use Helper Dev.app"
+    app_path.mkdir()
+    manifest_path = tmp_path / "helper.json"
+    stale_manifest = {
+        "endpoint": "http://127.0.0.1:9",
+        "bundleId": "com.taskweavn.plato.computer-use-helper.dev",
+        "apiVersion": "plato.computer_use_helper.v1",
+        "pid": 111,
+    }
+    fresh_manifest = {
+        "endpoint": "http://127.0.0.1:49323",
+        "bundleId": "com.taskweavn.plato.computer-use-helper.dev",
+        "apiVersion": "plato.computer_use_helper.v1",
+        "pid": 222,
+    }
+    manifest_path.write_text(json.dumps(stale_manifest), encoding="utf-8")
+    launches: list[Path] = []
+    sleeps: list[float] = []
+    manifests_seen: list[Mapping[str, Any]] = []
+
+    def launcher(path: Path) -> None:
+        launches.append(path)
+
+    def sleep(seconds: float) -> None:
+        sleeps.append(seconds)
+        manifest_path.write_text(json.dumps(fresh_manifest), encoding="utf-8")
+
+    backend = ComputerUseHelperBackend(
+        client=FailingHelperClient(),
+        config=ComputerUseHelperBackendConfig(
+            endpoint_manifest_path=manifest_path,
+            helper_app_path=app_path,
+            helper_auto_launch=True,
+            helper_launch_timeout_seconds=1.0,
+            helper_launch_poll_interval_seconds=0.01,
+            helper_app_launcher=launcher,
+            expected_bundle_id="com.taskweavn.plato.computer-use-helper.dev",
+        ),
+    )
+
+    def client_from_manifest(
+        manifest: Mapping[str, Any],
+        *,
+        endpoint_override: str | None = None,
+        token_override: str | None = None,
+    ) -> FakeHelperClient:
+        assert endpoint_override is None
+        assert token_override is None
+        manifests_seen.append(manifest)
+        return FakeHelperClient(
+            {
+                "status": "ready",
+                "summary": "Helper relaunched from refreshed manifest.",
+                "helper": {
+                    "bundleId": "com.taskweavn.plato.computer-use-helper.dev",
+                    "apiVersion": "plato.computer_use_helper.v1",
+                },
+            }
+        )
+
+    monkeypatch.setattr("taskweavn.tools.computer_use_helper_adapter.time.sleep", sleep)
+    monkeypatch.setattr(backend, "_client_from_manifest", client_from_manifest)
+
+    observation = backend.readiness()
+
+    assert launches == [app_path]
+    assert sleeps == [0.05]
+    assert manifests_seen == [fresh_manifest]
+    assert observation.success is True
+    assert observation.status == "ok"
+    assert observation.summary == "Helper relaunched from refreshed manifest."
+
+
 def test_helper_backend_reports_missing_helper_app_for_auto_launch(
     tmp_path: Path,
 ) -> None:

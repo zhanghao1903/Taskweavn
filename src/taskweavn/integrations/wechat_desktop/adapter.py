@@ -138,14 +138,72 @@ class WeChatDesktopAdapter:
                 status="not_available",
                 summary="WeChat window readiness requires the macOS search driver.",
             )
-        result = self.contact_search_driver.window_readiness(
+        driver_result = self.contact_search_driver.window_readiness(
             app_name=self.config.app_name,
             timeout_seconds=max(self.config.default_timeout_seconds, 10.0),
         )
+        result = WeChatOperationResult(
+            status=_operation_status_from_driver_status(driver_result.status),
+            summary=driver_result.summary,
+            metadata=driver_result.diagnostics,
+        )
+        if _should_fallback_to_observe_for_window_readiness(result):
+            return self._observe_window_readiness_after_driver_timeout(result)
+        return result
+
+    def _observe_window_readiness_after_driver_timeout(
+        self,
+        result: WeChatOperationResult,
+    ) -> WeChatOperationResult:
+        observation = self._execute(
+            ComputerUseAction(
+                operation="observe",
+                instruction=(
+                    "Observe WeChat frontmost window after the AX window "
+                    "geometry readiness probe timed out."
+                ),
+                target=self.config.app_name,
+                timeout_seconds=min(self.config.default_timeout_seconds, 5.0),
+                metadata={
+                    "target_app": self.config.app_name,
+                    "phase": "window_readiness_fallback",
+                },
+            )
+        )
+        fallback = _operation_result_from_observation(observation)
+        metadata = {
+            **(result.metadata or {}),
+            "fallback": "observe",
+            "fallback_status": observation.status,
+            "fallback_summary": observation.summary,
+        }
+        metadata.update(_string_map(observation.metadata))
+        window_title = _string_metadata(observation, "window_title")
+        if fallback.status == "ok" and window_title:
+            return WeChatOperationResult(
+                status="ok",
+                summary="WeChat main window is observable through fallback observe.",
+                observation_ref=observation.event_id,
+                text_extract=observation.text_extract,
+                metadata=metadata,
+            )
+        if fallback.status == "ok":
+            return WeChatOperationResult(
+                status="needs_user",
+                summary=(
+                    "WeChat is frontmost but no observable main window title was found; "
+                    "open the main WeChat chat window before sending."
+                ),
+                observation_ref=observation.event_id,
+                text_extract=observation.text_extract,
+                metadata=metadata,
+            )
         return WeChatOperationResult(
-            status=_operation_status_from_driver_status(result.status),
-            summary=result.summary,
-            metadata=result.diagnostics,
+            status=fallback.status,
+            summary=fallback.summary,
+            observation_ref=fallback.observation_ref,
+            text_extract=fallback.text_extract,
+            metadata=metadata,
         )
 
     def resolve_contact(
@@ -483,6 +541,17 @@ def _operation_status_from_driver_status(status: str) -> WeChatOperationStatus:
     if status == "not_available":
         return "not_available"
     return "failed"
+
+
+def _should_fallback_to_observe_for_window_readiness(
+    result: WeChatOperationResult,
+) -> bool:
+    metadata = result.metadata or {}
+    return (
+        result.status == "needs_user"
+        and metadata.get("failure_kind") == "applescript_timeout"
+        and metadata.get("script_phase") == "window_geometry"
+    )
 
 
 def _readiness_status_from_computer_use(

@@ -289,7 +289,42 @@ class MacOSWeChatSearchDriver:
                 summary="WeChat window readiness is only available on macOS.",
             )
 
-        result = _run_osascript(_window_readiness_script(app_name), timeout_seconds)
+        process_result = _run_osascript(
+            _window_process_readiness_script(app_name),
+            min(timeout_seconds, 3.0),
+        )
+        if process_result.returncode != 0:
+            is_timeout = process_result.returncode == 124
+            return WeChatWindowReadinessResult(
+                status="needs_user",
+                summary=(
+                    "WeChat process readiness AppleScript timed out."
+                    if is_timeout
+                    else "WeChat process readiness AppleScript failed."
+                ),
+                diagnostics=_window_readiness_failure_diagnostics(
+                    process_result,
+                    timeout_seconds=min(timeout_seconds, 3.0),
+                    script_phase="process_lookup",
+                ),
+            )
+        process_fields = _parse_result_fields(process_result.stdout)
+        if process_fields.get("status") != "ready":
+            return WeChatWindowReadinessResult(
+                status="needs_user",
+                summary=(
+                    process_fields.get("reason")
+                    or "WeChat process is unavailable; open WeChat before sending."
+                ),
+                diagnostics=_with_window_recovery_metadata(
+                    _diagnostics(process_fields) or {}
+                ),
+            )
+
+        result = _run_osascript(
+            _window_geometry_readiness_script(app_name),
+            timeout_seconds,
+        )
         if result.returncode != 0:
             is_timeout = result.returncode == 124
             return WeChatWindowReadinessResult(
@@ -302,6 +337,7 @@ class MacOSWeChatSearchDriver:
                 diagnostics=_window_readiness_failure_diagnostics(
                     result,
                     timeout_seconds=timeout_seconds,
+                    script_phase="window_geometry",
                 ),
             )
         fields = _parse_result_fields(result.stdout)
@@ -341,31 +377,25 @@ def _run_osascript(script: str, timeout_seconds: float) -> subprocess.CompletedP
 
 
 def _window_readiness_script(app_name: str) -> str:
+    return _window_geometry_readiness_script(app_name)
+
+
+def _window_process_readiness_script(app_name: str) -> str:
     return f"""
 set appName to {_applescript_string(app_name)}
-my activateTarget(appName)
-delay 0.5
-set windowSummary to my firstWindowSummary(appName)
-if windowSummary starts with "status=ready" then return windowSummary
-my activateTarget(appName)
-delay 1.0
-return my firstWindowSummary(appName)
+tell application "System Events"
+  if not (exists process appName) then
+    return "status=needs_user" & linefeed & "reason=target app is not running" & linefeed & "process_exists=false" & linefeed & "window_count=0"
+  end if
+  return "status=ready" & linefeed & "process_exists=true"
+end tell
+"""
 
-on activateTarget(appName)
-  try
-    tell application appName to reopen
-  end try
-  try
-    tell application appName to activate
-  end try
-  tell application "System Events"
-    if exists process appName then
-      tell process appName
-        set frontmost to true
-      end tell
-    end if
-  end tell
-end activateTarget
+
+def _window_geometry_readiness_script(app_name: str) -> str:
+    return f"""
+set appName to {_applescript_string(app_name)}
+return my firstWindowSummary(appName)
 
 on firstWindowSummary(appName)
 tell application "System Events"
@@ -377,13 +407,7 @@ tell application "System Events"
     if windowCount is 0 then
       return "status=needs_user" & linefeed & "reason=WeChat main window is unavailable; open the main WeChat window before sending." & linefeed & "process_exists=true" & linefeed & "window_count=0"
     end if
-    try
-      set windowPosition to position of window 1
-      set windowSize to size of window 1
-      return "status=ready" & linefeed & "process_exists=true" & linefeed & "window_count=" & windowCount & linefeed & "window_position=" & (windowPosition as text) & linefeed & "window_size=" & (windowSize as text)
-    on error errMsg
-      return "status=needs_user" & linefeed & "reason=WeChat main window is unavailable; open the main WeChat window before sending." & linefeed & "process_exists=true" & linefeed & "window_count=" & windowCount & linefeed & "error=" & errMsg
-    end try
+    return "status=ready" & linefeed & "process_exists=true" & linefeed & "window_count=" & windowCount
   end tell
 end tell
 end firstWindowSummary
@@ -853,6 +877,7 @@ def _window_readiness_failure_diagnostics(
     result: subprocess.CompletedProcess[str],
     *,
     timeout_seconds: float,
+    script_phase: str,
 ) -> dict[str, str]:
     failure_kind = (
         "applescript_timeout" if result.returncode == 124 else "applescript_error"
@@ -860,6 +885,7 @@ def _window_readiness_failure_diagnostics(
     return _with_window_recovery_metadata(
         {
             "phase": "window_readiness",
+            "script_phase": script_phase,
             "failure_kind": failure_kind,
             "returncode": str(result.returncode),
             "timeout_seconds": f"{timeout_seconds:.1f}",

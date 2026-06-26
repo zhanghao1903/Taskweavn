@@ -834,7 +834,7 @@ def _wechat_operation_failure_body(
         "status": _wechat_status(result.status),
         "success": False,
         "summary": result.summary,
-        "failureKind": _wechat_failure_kind(result.status),
+        "failureKind": _operation_failure_kind(result),
         "phase": phase,
         "evidence": {
             "kind": "computer_use_operation",
@@ -1096,6 +1096,14 @@ def _wechat_failure_kind(status: str) -> str:
     if status == "needs_user":
         return "needs_user"
     return status
+
+
+def _operation_failure_kind(result: WeChatOperationResult) -> str:
+    if result.metadata:
+        failure_kind = result.metadata.get("failure_kind")
+        if isinstance(failure_kind, str) and failure_kind:
+            return failure_kind
+    return _wechat_failure_kind(result.status)
 
 
 def _attempt_failure_kind(attempt: WeChatSendAttemptResult) -> str:

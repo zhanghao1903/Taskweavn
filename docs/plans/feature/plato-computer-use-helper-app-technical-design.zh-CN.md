@@ -1025,6 +1025,17 @@ backend in `.venv/bin/python`; this remains dev-only and release packaging still
 must provide a helper-owned packaged/embedded executable for stable TCC
 identity.
 
+2026-06-27 update 5: helper auto-launch now treats manifest refresh as part of
+stale endpoint recovery. When a sidecar reconnect attempt fails against an old
+manifest endpoint, relaunch waits until the helper manifest changes before
+rebuilding the helper client. The latest helper-backed preflight reached
+`computerUseStatus=ok`, `helperStatus=ready`, and WeChat `window_readiness`; the
+remaining failure is classified as `applescript_timeout` at both top-level
+`failureKind` and diagnostics. The WeChat readiness script now reports a
+`script_phase`; the latest evidence shows `script_phase=window_geometry`, which
+means helper discovery, process lookup, and stale manifest refresh are working,
+but the AX window geometry query still times out.
+
 ### H5: Release Packaging
 
 - helper bundled with Plato installer；

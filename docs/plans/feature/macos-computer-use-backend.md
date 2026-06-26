@@ -268,12 +268,14 @@ Implementation status as of 2026-06-27:
   bundle id, launcher config, and `Contents/MacOS/PlatoComputerUseHelper` via
   `taskweavn computer-use-helper-app`.
 - Helper backend now supports explicit opt-in auto-launch from a configured
-  helper app path and waits for the helper manifest before connecting. This is
+  helper app path, waits for the helper manifest before connecting, and waits
+  for a refreshed manifest when recovering from a stale endpoint. This is
   disabled by default and does not grant macOS permissions.
 - Dev helper app identity propagation now reports the `.app` path and
-  `development-app` signing mode through readiness/manifest metadata. A local
-  non-send smoke verified generated app auto-launch, manifest discovery, and
-  macOS backend readiness.
+  `development-app` signing mode through readiness/manifest metadata. Local
+  non-send preflight verified generated app auto-launch, stale manifest refresh,
+  helper readiness, and WeChat readiness failure classification through
+  `wechatAppFailureKind=applescript_timeout`.
 - Settings readiness now exposes a `computerUse` section sourced from the
   selected backend. Enabled-but-not-ready computer-use degrades readiness with
   a `computer_use.not_ready` warning and safe recovery actions.

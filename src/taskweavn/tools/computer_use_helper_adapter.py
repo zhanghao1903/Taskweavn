@@ -194,6 +194,7 @@ class ComputerUseHelperBackend(ComputerUseBackend):
         manifest = self._launch_helper_and_read_manifest(
             manifest_path=self._config.endpoint_manifest_path,
             initial_error=initial_error,
+            require_refreshed_manifest=True,
         )
         if manifest is None:
             return None
@@ -228,6 +229,7 @@ class ComputerUseHelperBackend(ComputerUseBackend):
         return self._launch_helper_and_read_manifest(
             manifest_path=manifest_path,
             initial_error=initial_error,
+            require_refreshed_manifest=False,
         )
 
     def _launch_helper_and_read_manifest(
@@ -235,6 +237,7 @@ class ComputerUseHelperBackend(ComputerUseBackend):
         *,
         manifest_path: Path,
         initial_error: Exception,
+        require_refreshed_manifest: bool,
     ) -> dict[str, Any] | None:
         assert self._config.helper_app_path is not None
         app_path = self._config.helper_app_path.expanduser()
@@ -242,6 +245,12 @@ class ComputerUseHelperBackend(ComputerUseBackend):
             self._setup_failure_kind = "helper_not_installed"
             self._setup_error = f"helper app not found: {app_path}"
             return None
+        previous_manifest: dict[str, Any] | None = None
+        if require_refreshed_manifest:
+            try:
+                previous_manifest = _read_manifest(manifest_path)
+            except (OSError, ValueError):
+                previous_manifest = None
         launcher = self._config.helper_app_launcher or _default_helper_app_launcher
         try:
             launcher(app_path)
@@ -257,7 +266,16 @@ class ComputerUseHelperBackend(ComputerUseBackend):
         last_error = initial_error
         while True:
             try:
-                return _read_manifest(manifest_path)
+                manifest = _read_manifest(manifest_path)
+                if (
+                    not require_refreshed_manifest
+                    or previous_manifest is None
+                    or manifest != previous_manifest
+                ):
+                    return manifest
+                last_error = RuntimeError(
+                    "helper app has not refreshed stale manifest yet"
+                )
             except (OSError, ValueError) as exc:
                 last_error = exc
             if time.monotonic() >= deadline:

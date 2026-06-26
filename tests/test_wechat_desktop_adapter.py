@@ -14,6 +14,7 @@ from taskweavn.integrations.wechat_desktop import (
     WeChatMessageSubmitResult,
     WeChatSendActionFingerprint,
     WeChatSendTaskInput,
+    WeChatWindowReadinessResult,
     wechat_message_hash,
 )
 from taskweavn.tools import ScriptedComputerUseBackend
@@ -42,10 +43,15 @@ class FakeSearchDriver:
     def __init__(
         self,
         *,
+        window_result: WeChatWindowReadinessResult | None = None,
         search_result: WeChatContactSearchResult | None = None,
         focus_result: WeChatInputFocusResult | None = None,
         submit_result: WeChatMessageSubmitResult | None = None,
     ) -> None:
+        self.window_result = window_result or WeChatWindowReadinessResult(
+            status="ready",
+            summary="window ready",
+        )
         self.search_result = search_result or WeChatContactSearchResult(
             status="resolved",
             summary="selected",
@@ -69,6 +75,23 @@ class FakeSearchDriver:
             },
         )
         self.calls: list[tuple[str, dict[str, object]]] = []
+
+    def window_readiness(
+        self,
+        *,
+        app_name: str,
+        timeout_seconds: float,
+    ) -> WeChatWindowReadinessResult:
+        self.calls.append(
+            (
+                "window_readiness",
+                {
+                    "app_name": app_name,
+                    "timeout_seconds": timeout_seconds,
+                },
+            )
+        )
+        return self.window_result
 
     def resolve_contact(
         self,
@@ -180,6 +203,93 @@ def test_wechat_open_or_focus_uses_configured_app_name() -> None:
     assert result.status == "ok"
     assert backend.actions[0].operation == "open_app"
     assert backend.actions[0].target == "WeChat Beta"
+
+
+def test_wechat_window_readiness_falls_back_to_observe_after_geometry_timeout() -> None:
+    backend = ScriptedComputerUseBackend(
+        responses=[
+            _observation(
+                operation="observe",
+                summary="Frontmost app: WeChat. Window: 文件传输助手.",
+                metadata={
+                    "frontmost_app": "WeChat",
+                    "window_title": "文件传输助手",
+                },
+                text_extract="Frontmost app: WeChat. Window: 文件传输助手.",
+            )
+        ]
+    )
+    driver = FakeSearchDriver(
+        window_result=WeChatWindowReadinessResult(
+            status="needs_user",
+            summary="WeChat main window readiness AppleScript timed out.",
+            diagnostics={
+                "phase": "window_readiness",
+                "script_phase": "window_geometry",
+                "failure_kind": "applescript_timeout",
+            },
+        )
+    )
+    adapter = WeChatDesktopAdapter(backend, contact_search_driver=driver)
+
+    result = adapter.window_readiness()
+
+    assert result.status == "ok"
+    assert result.summary == "WeChat main window is observable through fallback observe."
+    assert result.text_extract == "Frontmost app: WeChat. Window: 文件传输助手."
+    assert result.metadata == {
+        "phase": "window_readiness",
+        "script_phase": "window_geometry",
+        "failure_kind": "applescript_timeout",
+        "fallback": "observe",
+        "fallback_status": "ok",
+        "fallback_summary": "Frontmost app: WeChat. Window: 文件传输助手.",
+        "frontmost_app": "WeChat",
+        "window_title": "文件传输助手",
+    }
+    assert backend.actions[0].operation == "observe"
+    assert backend.actions[0].target == "WeChat"
+    assert backend.actions[0].metadata["phase"] == "window_readiness_fallback"
+
+
+def test_wechat_window_readiness_fallback_requires_window_title() -> None:
+    backend = ScriptedComputerUseBackend(
+        responses=[
+            _observation(
+                operation="observe",
+                summary="Frontmost app: WeChat.",
+                metadata={
+                    "frontmost_app": "WeChat",
+                    "window_title": "",
+                },
+                text_extract="Frontmost app: WeChat.",
+            )
+        ]
+    )
+    driver = FakeSearchDriver(
+        window_result=WeChatWindowReadinessResult(
+            status="needs_user",
+            summary="WeChat main window readiness AppleScript timed out.",
+            diagnostics={
+                "phase": "window_readiness",
+                "script_phase": "window_geometry",
+                "failure_kind": "applescript_timeout",
+            },
+        )
+    )
+    adapter = WeChatDesktopAdapter(backend, contact_search_driver=driver)
+
+    result = adapter.window_readiness()
+
+    assert result.status == "needs_user"
+    assert result.summary == (
+        "WeChat is frontmost but no observable main window title was found; "
+        "open the main WeChat chat window before sending."
+    )
+    assert result.metadata is not None
+    assert result.metadata["fallback"] == "observe"
+    assert result.metadata["frontmost_app"] == "WeChat"
+    assert result.metadata["window_title"] == ""
 
 
 def test_wechat_resolve_contact_selects_single_high_confidence_candidate() -> None:

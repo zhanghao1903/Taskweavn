@@ -312,6 +312,38 @@ Validated helper auto-launch preflight on 2026-06-27:
   packaged/embedded executable before treating Helper.app as the final TCC
   permission subject.
 
+Validated stale-manifest refresh and classified window-timeout evidence on
+2026-06-27:
+
+- generated dev helper app:
+  `/tmp/plato-computer-use-backend-20260627/Plato Computer Use Helper Dev.app`
+- manifest:
+  `/tmp/plato-computer-use-backend-20260627/computer-use-helper.json`
+- evidence:
+  `/tmp/plato-computer-use-backend-20260627c/preflight-window-phase-diagnostics-20260627.json`
+- sidecar/helper state:
+  - `sidecarOk=true`
+  - `computerUseBackend=helper`
+  - `computerUseStatus=ok`
+  - `packageReadinessStatus=ready`
+  - `computerUseReady=true`
+  - `helperStatus=ready`
+  - `helperManifest.endpoint=http://127.0.0.1:63596`
+  - `helperManifest.pid=95020`
+- WeChat app readiness:
+  - `wechatAppSuccess=false`
+  - `wechatAppPhase=window_readiness`
+  - `wechatAppSummary=WeChat main window readiness AppleScript timed out.`
+  - `wechatAppFailureKind=applescript_timeout`
+  - `wechatAppDiagnostics.failure_kind=applescript_timeout`
+  - `wechatAppDiagnostics.script_phase=window_geometry`
+  - `wechatAppDiagnostics.returncode=124`
+  - `wechatAppDiagnostics.timeout_seconds=10.0`
+- interpretation: helper auto-launch now refreshes a stale manifest instead of
+  reconnecting to a dead endpoint. Process lookup succeeds and the remaining
+  blocker is the WeChat window geometry AX query timing out. No task should be
+  published until preflight reaches `wechatAppSuccess=true`.
+
 ### 6.3 Helper-Backed Contact Resolution Progress
 
 Attempted on 2026-06-27 with `response=reject` and no `--allow-send`:
