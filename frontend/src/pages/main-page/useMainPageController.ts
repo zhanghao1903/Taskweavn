@@ -7,7 +7,6 @@ import type {
   WorkspaceCatalogResult,
 } from "../../shared/api/platoApi";
 import type {
-  AskId,
   RuntimeInputMode,
   SessionActivityItemView,
   SessionSummary,
@@ -54,6 +53,12 @@ import {
 } from "./useMainPageConfirmationCommands";
 import { useMainPageEventSubscription } from "./useMainPageEventSubscription";
 import {
+  useMainPageExecutionAskCommands,
+  type AnswerExecutionAskContext,
+  type CancelExecutionAskContext,
+  type DeferExecutionAskContext,
+} from "./useMainPageExecutionAskCommands";
+import {
   useMainPageTaskLifecycleCommands,
   type RetryTaskContext,
   type StopTaskContext,
@@ -62,6 +67,11 @@ import {
 const mainPageLogger = createFrontendLogger("main-page");
 
 export type { ConfirmationDecisionContext } from "./useMainPageConfirmationCommands";
+export type {
+  AnswerExecutionAskContext,
+  CancelExecutionAskContext,
+  DeferExecutionAskContext,
+} from "./useMainPageExecutionAskCommands";
 export type {
   RetryTaskContext,
   StopTaskContext,
@@ -92,25 +102,6 @@ export type AnswerAuthoringAskBatchContext = {
 };
 
 export type RepairAuthoringStateContext = {
-  sessionId: string;
-};
-
-export type AnswerExecutionAskContext = {
-  askId: AskId;
-  selectedOptionIds: string[];
-  sessionId: string;
-  text?: string | null;
-};
-
-export type DeferExecutionAskContext = {
-  askId: AskId;
-  reason?: string | null;
-  sessionId: string;
-};
-
-export type CancelExecutionAskContext = {
-  askId: AskId;
-  reason: string;
   sessionId: string;
 };
 
@@ -496,115 +487,16 @@ export function useMainPageController({
     },
   });
 
-  const answerAskMutation = useMutation({
-    mutationFn: async ({
-      askId,
-      selectedOptionIds,
-      sessionId,
-      text,
-    }: AnswerExecutionAskContext) =>
-      adapter.answerAsk(sessionId, askId, {
-        commandId: `answer-ask-${askId}-${Date.now()}`,
-        sessionId,
-        payload: {
-          selectedOptionIds,
-          text: text ?? null,
-        },
-      }, activeWorkspaceId),
-    onError: () => {
-      setExecutionAskCommandError("Answer submission failed. Please retry.");
-    },
-    onSuccess: (response) => {
-      const result = handleCommandResponse(
-        response,
-        "Answer submission was rejected.",
-      );
-
-      if (result.errorMessage) {
-        setExecutionAskCommandError(
-          result.errorMessage,
-          result.recoveryActions,
-        );
-        if (result.shouldRefetch) {
-          void refetchSnapshot();
-        }
-        return;
-      }
-
-      setExecutionAskCommandError(null);
-      setUiNotice("Answer submitted.");
-      if (result.shouldRefetch) {
-        void refetchSnapshot();
-      }
-    },
-  });
-
-  const deferAskMutation = useMutation({
-    mutationFn: async ({ askId, reason, sessionId }: DeferExecutionAskContext) =>
-      adapter.deferAsk(sessionId, askId, {
-        commandId: `defer-ask-${askId}-${Date.now()}`,
-        sessionId,
-        payload: {
-          reason: reason ?? null,
-        },
-      }, activeWorkspaceId),
-    onError: () => {
-      setExecutionAskCommandError("Defer failed. Please retry.");
-    },
-    onSuccess: (response) => {
-      const result = handleCommandResponse(
-        response,
-        "Defer was rejected.",
-      );
-
-      if (result.errorMessage) {
-        setExecutionAskCommandError(
-          result.errorMessage,
-          result.recoveryActions,
-        );
-        return;
-      }
-
-      setExecutionAskCommandError(null);
-      setUiNotice("Question deferred.");
-      if (result.shouldRefetch) {
-        void refetchSnapshot();
-      }
-    },
-  });
-
-  const cancelAskMutation = useMutation({
-    mutationFn: async ({ askId, reason, sessionId }: CancelExecutionAskContext) =>
-      adapter.cancelAsk(sessionId, askId, {
-        commandId: `cancel-ask-${askId}-${Date.now()}`,
-        sessionId,
-        payload: {
-          reason,
-        },
-      }, activeWorkspaceId),
-    onError: () => {
-      setExecutionAskCommandError("Cancel failed. Please retry.");
-    },
-    onSuccess: (response) => {
-      const result = handleCommandResponse(
-        response,
-        "Cancel was rejected.",
-      );
-
-      if (result.errorMessage) {
-        setExecutionAskCommandError(
-          result.errorMessage,
-          result.recoveryActions,
-        );
-        return;
-      }
-
-      setExecutionAskCommandError(null);
-      setUiNotice("Question cancelled.");
-      if (result.shouldRefetch) {
-        void refetchSnapshot();
-      }
-    },
+  const {
+    answerAskMutation,
+    cancelAskMutation,
+    deferAskMutation,
+  } = useMainPageExecutionAskCommands({
+    activeWorkspaceId,
+    adapter,
+    refetchSnapshot,
+    setExecutionAskCommandError,
+    setUiNotice,
   });
 
   const inputMutation = useMutation({
