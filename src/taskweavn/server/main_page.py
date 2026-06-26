@@ -124,8 +124,8 @@ from taskweavn.server.ui_contract import (
 from taskweavn.server.ui_contract.ask_projection import DefaultAskProjectionService
 from taskweavn.server.ui_events import (
     SqliteUiEventSource,
-    UiEventCursorProvider,
     UiEventSource,
+    event_source_cursor_provider,
 )
 from taskweavn.server.ui_http import PlatoUiHttpTransport, SidecarAuth
 from taskweavn.server.ui_http_settings import (
@@ -623,7 +623,7 @@ def build_main_page_workspace_runtime(
             authoring_state_store=authoring_state_store,
             raw_task_store=raw_task_store,
             ask_projection=DefaultAskProjectionService(ask_store),
-            snapshot_cursor_provider=_snapshot_cursor_provider(event_source),
+            snapshot_cursor_provider=event_source_cursor_provider(event_source),
             plan_store=plan_store,
         )
         core_command_gateway = DefaultUiCommandGateway(
@@ -1097,14 +1097,6 @@ def _default_capability_catalog() -> StaticCapabilityCatalog:
             "research",
         )
     )
-
-
-def _snapshot_cursor_provider(
-    event_source: UiEventSource,
-) -> UiEventCursorProvider | None:
-    if isinstance(event_source, UiEventCursorProvider):
-        return event_source
-    return None
 
 
 __all__ = [
