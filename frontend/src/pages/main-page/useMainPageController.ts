@@ -9,10 +9,7 @@ import type {
 import type {
   ConfirmationActionView,
   AskId,
-  MainPageSnapshot,
   RuntimeInputMode,
-  RuntimeInputRouteRequest,
-  RuntimeInputRouteResult,
   SessionActivityItemView,
   SessionSummary,
   TaskNodeId,
@@ -22,7 +19,6 @@ import { productRecoveryActionsFromApiError } from "../../shared/api/productErro
 import {
   summarizeCommandResponse,
   summarizeMainPageSnapshot,
-  summarizeUiEvent,
 } from "../../shared/api/traceSummary";
 import {
   createFrontendLogger,
@@ -45,8 +41,16 @@ import {
   mainPageSnapshotIdentity,
   mainPageSnapshotQueryKey,
 } from "./runtime/adapter";
+import {
+  buildRuntimeInputRouteRequest,
+  prependRuntimeActivityItems,
+  runtimeInputActivity,
+  runtimeInputModeFor,
+  runtimeInputNotice,
+  runtimeInputUserActivity,
+} from "./mainPageRuntimeInput";
 import { handleCommandResponse } from "./runtime/commandRefresh";
-import { resyncEventKey, routeMainPageEvent } from "./runtime/eventRouter";
+import { useMainPageEventSubscription } from "./useMainPageEventSubscription";
 
 const mainPageLogger = createFrontendLogger("main-page");
 
@@ -259,16 +263,12 @@ export function useMainPageController({
   const [sessionDialog, setSessionDialog] = useState<SessionLifecycleDialog>({
     mode: "idle",
   });
-  const [eventError, setEventError] = useState<string | null>(null);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(
     adapter.sessionId,
   );
   const [activeWorkspaceId, setActiveWorkspaceId] = useState<WorkspaceId | null>(
     adapter.workspaceId ?? null,
   );
-  const [eventConnectionStatus, setEventConnectionStatus] =
-    useState<EventConnectionStatus>("disconnected");
-
   const workspaceCatalogQuery = useQuery({
     enabled: adapter.loadWorkspaceCatalog !== undefined,
     queryKey: ["main-page", "workspaces", adapter.runtimeKind],
@@ -293,8 +293,6 @@ export function useMainPageController({
   const snapshotData = snapshotQuery.data;
   const snapshotDataRef = useRef(snapshotData);
   const initialTaskNodeIdRef = useRef<TaskNodeId | null>(initialTaskNodeId);
-  const lastEventCursorRef = useRef<string | null>(null);
-  const lastResyncEventKeyRef = useRef<string | null>(null);
   snapshotDataRef.current = snapshotData;
   const snapshotIdentity = snapshotData
     ? mainPageSnapshotIdentity(
@@ -306,6 +304,17 @@ export function useMainPageController({
       )
     : null;
   const refetchSnapshot = snapshotQuery.refetch;
+  const {
+    clearEventError,
+    eventConnectionStatus,
+    eventError,
+  } = useMainPageEventSubscription({
+    activeWorkspaceId,
+    adapter,
+    refetchSnapshot,
+    resetKey: snapshotIdentity,
+    snapshotData,
+  });
 
   function refetchWorkspaceCatalog() {
     if (adapter.loadWorkspaceCatalog === undefined) {
@@ -1108,121 +1117,8 @@ export function useMainPageController({
     clearCommandRecoveryActions();
     setUiNotice(null);
     setSessionDialog({ mode: "idle" });
-    setEventError(null);
-    lastEventCursorRef.current = null;
-    lastResyncEventKeyRef.current = null;
-  }, [snapshotIdentity]);
-
-  useEffect(() => {
-    if (!snapshotData) {
-      return undefined;
-    }
-
-    mainPageLogger.info("events.subscribe.start", {
-      runtimeKind: adapter.runtimeKind,
-      sessionId: snapshotData.snapshot.session.id,
-    });
-
-    let active = true;
-    setEventConnectionStatus("connected");
-
-    let unsubscribe: (() => void) | null = null;
-    try {
-      unsubscribe = adapter.subscribeSessionEvents(
-        snapshotData.snapshot.session.id,
-        snapshotData.snapshot.cursor,
-        (event) => {
-          mainPageLogger.debug("events.received", {
-            ...summarizeUiEvent(event),
-          });
-
-          if (event.cursor === lastEventCursorRef.current) {
-            mainPageLogger.info("events.cursor.duplicate_ignored", {
-              event: summarizeUiEvent(event),
-            });
-            return;
-          }
-          lastEventCursorRef.current = event.cursor;
-
-          const nextResyncEventKey = resyncEventKey(event);
-          if (nextResyncEventKey !== null) {
-            if (nextResyncEventKey === lastResyncEventKeyRef.current) {
-              mainPageLogger.info("events.resync.duplicate_ignored", {
-                event: summarizeUiEvent(event),
-              });
-              return;
-            }
-            lastResyncEventKeyRef.current = nextResyncEventKey;
-          }
-
-          const action = routeMainPageEvent(event);
-          mainPageLogger.info("events.route", {
-            action,
-            event: summarizeUiEvent(event),
-          });
-          if (action.kind === "ignore") {
-            return;
-          }
-
-          if (action.errorMessage) {
-            setEventError(action.errorMessage);
-          }
-          setEventConnectionStatus(action.status);
-          mainPageLogger.info("snapshot.refetch.request", {
-            event: summarizeUiEvent(event),
-            reason: "event",
-          });
-          void refetchSnapshot()
-            .then((queryResult) => {
-              mainPageLogger.info("snapshot.refetch.result", {
-                event: summarizeUiEvent(event),
-                hasData: queryResult.data !== undefined,
-                reason: "event",
-                snapshot:
-                  queryResult.data === undefined
-                    ? null
-                    : summarizeMainPageSnapshot(queryResult.data.snapshot),
-                status: queryResult.status,
-              });
-            })
-            .catch((error) => {
-              mainPageLogger.error("snapshot.refetch.failed", {
-                error: toLoggableError(error),
-                event: summarizeUiEvent(event),
-                reason: "event",
-              });
-            })
-            .finally(() => {
-              if (active) {
-                setEventConnectionStatus("connected");
-              }
-            });
-        },
-        activeWorkspaceId,
-      );
-    } catch (error) {
-      mainPageLogger.error("events.subscribe.failed", {
-        error: toLoggableError(error),
-        runtimeKind: adapter.runtimeKind,
-        sessionId: snapshotData.snapshot.session.id,
-      });
-      setEventConnectionStatus("disconnected");
-      setEventError(
-        error instanceof Error
-          ? `Event stream unavailable: ${error.message}`
-          : "Event stream unavailable.",
-      );
-    }
-
-    return () => {
-      active = false;
-      mainPageLogger.info("events.subscribe.stop", {
-        runtimeKind: adapter.runtimeKind,
-        sessionId: snapshotData.snapshot.session.id,
-      });
-      unsubscribe?.();
-    };
-  }, [activeWorkspaceId, adapter, refetchSnapshot, snapshotData]);
+    clearEventError();
+  }, [clearEventError, snapshotIdentity]);
 
   function handleStateChange(nextStateId: MainPageStateId) {
     setStateId(nextStateId);
@@ -1238,7 +1134,7 @@ export function useMainPageController({
     clearCommandRecoveryActions();
     setUiNotice(null);
     setSessionDialog({ mode: "idle" });
-    setEventError(null);
+    clearEventError();
     resolveConfirmationMutation.reset();
     answerAuthoringAskBatchMutation.reset();
     repairAuthoringStateMutation.reset();
@@ -1629,173 +1525,4 @@ export function useMainPageController({
       publishTaskTree: handlePublishTaskTree,
     },
   };
-}
-
-function shouldRouteReadOnlyQuestion(content: string): boolean {
-  const trimmed = content.trim();
-  if (!trimmed) {
-    return false;
-  }
-
-  if (trimmed.includes("?") || trimmed.includes("？")) {
-    return true;
-  }
-
-  const lower = trimmed.toLowerCase();
-  const englishQuestionPrefixes = [
-    "what ",
-    "why ",
-    "how ",
-    "where ",
-    "when ",
-    "who ",
-    "which ",
-    "can ",
-    "could ",
-    "should ",
-    "is ",
-    "are ",
-    "do ",
-    "does ",
-    "did ",
-  ];
-  if (englishQuestionPrefixes.some((prefix) => lower.startsWith(prefix))) {
-    return true;
-  }
-
-  return [
-    "什么",
-    "为什么",
-    "为何",
-    "如何",
-    "怎么",
-    "是否",
-    "吗",
-    "哪",
-    "能不能",
-  ].some((marker) => trimmed.includes(marker));
-}
-
-function buildRuntimeInputRouteRequest({
-  content,
-  mode,
-  sessionId,
-  snapshot,
-  target,
-  taskNodeId,
-}: {
-  content: string;
-  mode: RuntimeInputRouteRequest["mode"];
-  sessionId: string;
-  snapshot: MainPageSnapshot | null;
-  target: InputTarget;
-  taskNodeId: TaskNodeId | null;
-}): RuntimeInputRouteRequest {
-  const activePlan = snapshot?.activePlan ?? null;
-  const scopeKind =
-    target === "task" && taskNodeId !== null
-      ? "task"
-      : target === "plan" && activePlan !== null
-        ? "plan"
-        : "session";
-
-  return {
-    commandId: `route-input-${Date.now()}`,
-    sessionId,
-    content,
-    mode,
-    selection: {
-      scopeKind,
-      planId: scopeKind === "session" ? null : activePlan?.id ?? null,
-      taskNodeId: scopeKind === "task" ? taskNodeId : null,
-      refs: [],
-    },
-    clientState: {
-      activeAskId: snapshot?.activeAsk?.id ?? null,
-      activeConfirmationId: snapshot?.pendingConfirmations[0]?.id ?? null,
-    },
-  };
-}
-
-function runtimeInputModeFor(
-  content: string,
-  mode: MainPageInputCommandMode,
-): NonNullable<RuntimeInputRouteRequest["mode"]> {
-  if (shouldRouteReadOnlyQuestion(content)) {
-    return "ask";
-  }
-
-  if (mode === "generate_task_tree") {
-    return "change";
-  }
-
-  if (
-    mode === "append_plan_input" ||
-    mode === "append_session_input" ||
-    mode === "append_task_input"
-  ) {
-    return "guide";
-  }
-
-  return "auto";
-}
-
-function runtimeInputNotice(result: RuntimeInputRouteResult): string {
-  const answer = result.inquiryResult?.answer;
-  const message =
-    answer === null || answer === undefined
-      ? result.outcome.userMessage
-      : answer.title
-        ? `${answer.title}: ${answer.body}`
-        : answer.body;
-
-  return compactNotice(message);
-}
-
-function runtimeInputActivity(
-  result: RuntimeInputRouteResult,
-): SessionActivityItemView | null {
-  return result.activity ?? result.inquiryResult?.activity ?? null;
-}
-
-function runtimeInputUserActivity(
-  request: RuntimeInputRouteRequest,
-  result: RuntimeInputRouteResult,
-): SessionActivityItemView {
-  return {
-    id: `activity:runtime-input:${request.commandId}:user_input`,
-    sessionId: request.sessionId,
-    kind: "user_input",
-    title: "User input",
-    body: request.content,
-    occurredAt: result.generatedAt,
-    scopeKind: result.decision.scope.kind,
-    planId: result.decision.scope.planId ?? null,
-    taskNodeId: result.decision.scope.taskNodeId ?? null,
-    sideEffect: "context_effect",
-    relatedRefs: result.decision.relatedRefs,
-    sourceKind: "router",
-    sourceId: request.commandId,
-    disclosureLevel: "public",
-  };
-}
-
-function prependRuntimeActivityItems(
-  items: SessionActivityItemView[],
-  nextItems: SessionActivityItemView[],
-): SessionActivityItemView[] {
-  const nextIds = new Set(nextItems.map((item) => item.id));
-  return [
-    ...nextItems,
-    ...items.filter((candidate) => !nextIds.has(candidate.id)),
-  ].slice(0, 20);
-}
-
-function compactNotice(message: string): string {
-  const maxLength = 360;
-  if (message.length <= maxLength) {
-    return message;
-  }
-
-  return `${message.slice(0, maxLength - 3)}...`;
 }

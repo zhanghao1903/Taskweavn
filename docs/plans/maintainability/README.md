@@ -1,7 +1,7 @@
 # Maintainability Plans
 
 > Status: active planning category
-> Last Updated: 2026-06-01
+> Last Updated: 2026-06-25
 > Scope: refactor, module-boundary cleanup, large-file split, and architecture hygiene work.
 
 Maintainability plans are executable work packages for reducing delivery risk
@@ -31,4 +31,5 @@ feature, UI, or architecture document before implementing that behavior.
 
 | File | Purpose |
 |---|---|
+| [post-product-1-1-maintainability-plan.md](post-product-1-1-maintainability-plan.md) | Short post-Product 1.1 cleanup plan focused on zero-behavior slices for Main Page, UI contract, sidecar assembly, and large tests. |
 | [ui-backend-large-file-split-plan.md](ui-backend-large-file-split-plan.md) | Split current UI/backend hotspots while preserving Audit/Main Page behavior and public contracts. |
