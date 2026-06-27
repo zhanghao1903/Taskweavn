@@ -232,8 +232,16 @@ def _recovery_suggestions(actions: tuple[str, ...]) -> tuple[str, ...]:
         "edit_input": "修改输入，补充必要信息后重新发送。",
         "export_diagnostics": "导出诊断包，用于排查本地运行环境问题。",
         "open_audit": "打开审计视图查看相关证据。",
+        "open_macos_privacy_accessibility": (
+            "打开 macOS 隐私与安全性 > 辅助功能，为 Plato Computer Use Helper 授权。"
+        ),
+        "open_macos_privacy_automation": (
+            "打开 macOS 隐私与安全性 > 自动化，为 Plato Computer Use Helper 授权。"
+        ),
         "open_settings": "打开设置，检查 provider、权限或本地运行配置。",
         "refresh_snapshot": "刷新当前会话状态后再试。",
+        "rerun_helper_preflight": "重新运行 helper 就绪预检，确认权限已生效。",
+        "restart_helper": "重启 Plato Computer Use Helper 后再检查。",
         "retry_command": "完成本地环境配置或授权后重试命令。",
         "retry_task": "重试受影响的任务。",
         "wait_for_events": "等待后台事件同步完成后再试。",

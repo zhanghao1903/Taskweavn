@@ -151,6 +151,13 @@ def test_router_capability_missing_is_conversation_visible(tmp_path: Path) -> No
             "capability_not_available",
             "WeChat desktop send capability is not enabled in this environment.",
             retryable=True,
+            details={
+                "recoveryActions": [
+                    "open_macos_privacy_accessibility",
+                    "restart_helper",
+                    "rerun_helper_preflight",
+                ],
+            },
         )
     )
     router = _router(
@@ -190,6 +197,11 @@ def test_router_capability_missing_is_conversation_visible(tmp_path: Path) -> No
         "错误代码：capability_not_available\n"
         "错误信息：WeChat desktop send capability is not enabled in this environment."
     )
+    assert response.data.outcome.recovery_actions == (
+        "open_macos_privacy_accessibility",
+        "restart_helper",
+        "rerun_helper_preflight",
+    )
     assert [message.title for message in messages] == [
         USER_INPUT_TITLE,
         ROUTER_TRACE_TITLE,
@@ -206,8 +218,9 @@ def test_router_capability_missing_is_conversation_visible(tmp_path: Path) -> No
         in reply.body
     )
     assert "建议的恢复操作" in reply.body
-    assert "打开设置，检查 provider、权限或本地运行配置" in reply.body
-    assert "完成本地环境配置或授权后重试命令" in reply.body
+    assert "打开 macOS 隐私与安全性 > 辅助功能" in reply.body
+    assert "重启 Plato Computer Use Helper 后再检查" in reply.body
+    assert "重新运行 helper 就绪预检，确认权限已生效" in reply.body
     assert reply.conversation_render is not None
     assert reply.conversation_render.render_kind == "text"
     assert reply.conversation_render.text is not None

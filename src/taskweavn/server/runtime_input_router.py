@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal, Protocol
+from typing import Any, Literal, Protocol, cast, get_args
 
 from taskweavn.contract_revision.models import (
     ContractCommandRequest,
@@ -85,6 +85,11 @@ from taskweavn.server.ui_http_commands import (
     _retry_task_with_optional_dispatch,
 )
 from taskweavn.task import ExecutionTriggerGateway
+
+
+_VALID_PRODUCT_RECOVERY_ACTIONS: frozenset[str] = frozenset(
+    get_args(ProductRecoveryAction)
+)
 
 
 class RuntimeInputRouter(Protocol):
@@ -1367,11 +1372,42 @@ def _wechat_publish_error_user_message(error: ExecutionPlaneError) -> str:
 def _wechat_publish_error_recovery_actions(
     error: ExecutionPlaneError,
 ) -> tuple[ProductRecoveryAction, ...]:
+    detail_actions = _product_recovery_actions_from_details(error.details)
+    if detail_actions:
+        return detail_actions
     if error.retryable and error.code == "capability_not_available":
         return ("open_settings", "retry_command")
     if error.retryable:
         return ("retry_command",)
     return ("edit_input",)
+
+
+def _product_recovery_actions_from_details(
+    details: dict[str, Any],
+) -> tuple[ProductRecoveryAction, ...]:
+    raw_actions = details.get("recoveryActions")
+    if raw_actions is None:
+        raw_actions = details.get("recovery_actions")
+
+    if isinstance(raw_actions, str):
+        candidates = [action.strip() for action in raw_actions.split(",")]
+    elif isinstance(raw_actions, (list, tuple)):
+        candidates = [action for action in raw_actions if isinstance(action, str)]
+    else:
+        return ()
+
+    actions: list[ProductRecoveryAction] = []
+    for candidate in candidates:
+        if candidate not in _VALID_PRODUCT_RECOVERY_ACTIONS:
+            continue
+        action = cast(ProductRecoveryAction, candidate)
+        if action in actions:
+            continue
+        actions.append(action)
+
+    if len(actions) > 1 and "none" in actions:
+        actions = [action for action in actions if action != "none"]
+    return tuple(actions)
 
 
 def _wechat_execution_recovery_actions(
