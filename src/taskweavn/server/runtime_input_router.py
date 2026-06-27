@@ -86,7 +86,6 @@ from taskweavn.server.ui_http_commands import (
 )
 from taskweavn.task import ExecutionTriggerGateway
 
-
 _VALID_PRODUCT_RECOVERY_ACTIONS: frozenset[str] = frozenset(
     get_args(ProductRecoveryAction)
 )
@@ -119,6 +118,13 @@ class DefaultRuntimeInputRouter:
         active_ask = self._active_ask(request)
         active_confirmation = self._active_confirmation(request)
 
+        if request.mode == "ask":
+            return self._answer_read_only_inquiry(request)
+        if request.mode == "guide":
+            return self._record_guidance(request)
+        if request.mode == "change":
+            return self._create_execution_task(request)
+
         planned = self._route_planner_result(
             request,
             active_ask=active_ask,
@@ -127,12 +133,6 @@ class DefaultRuntimeInputRouter:
         if planned is not None:
             return planned
 
-        if request.mode == "ask":
-            return self._answer_read_only_inquiry(request)
-        if request.mode == "guide":
-            return self._record_guidance(request)
-        if request.mode == "change":
-            return self._create_execution_task(request)
         return self._unsupported(
             request,
             intent="unsupported",

@@ -211,3 +211,7 @@ export function useMainPageCommandMutations({
     stopTaskMutation,
   };
 }
+
+export type MainPageCommandMutations = ReturnType<
+  typeof useMainPageCommandMutations
+>;
