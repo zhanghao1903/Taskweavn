@@ -290,6 +290,26 @@ Validated failure-kind projection on 2026-06-27:
   stable helper app, but preflight evidence now has a stable structured
   failure kind for UI recovery, logs, and operator triage.
 
+Validated sidecar Settings readiness projection on 2026-06-27:
+
+- sidecar command used the helper-backed runtime with the stable helper app:
+  `computer-use-backend=helper`, `computer-use-helper-auto-launch`, and
+  `computer-use-helper-manifest=$HOME/Library/Application Support/PlatoDev/computer-use-helper.json`
+- evidence:
+  `/tmp/plato-sidecar-settings-readiness-helper-20260627.json`
+- response highlights:
+  - `computerUse.backend=helper`
+  - `computerUse.ready=false`
+  - `computerUse.status=missing_accessibility`
+  - `computerUse.failureKind=missing_accessibility`
+  - `computerUse.permissionSubject.helperAppPath=~/Applications/Plato Computer Use Helper Dev.app`
+  - `computerUse.recoveryActions` and `computer_use.not_ready.recoveryActions`
+    both contain helper-specific recovery actions
+- interpretation: Settings/UI can now tell the operator exactly which helper
+  app needs permission refresh and which recovery actions are available. The
+  remaining blocker is macOS TCC authorization, not sidecar readiness
+  projection.
+
 ### 6.2.1 Helper-Backed WeChat App Readiness Preflight
 
 Added on 2026-06-27:

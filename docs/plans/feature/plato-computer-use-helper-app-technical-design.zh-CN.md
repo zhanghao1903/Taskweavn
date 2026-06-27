@@ -1267,6 +1267,17 @@ helper path still fails at `missing_accessibility`, but now exposes
 `failureKind=missing_accessibility` at the top level and inside helper
 observation metadata.
 
+2026-06-27 update 12: sidecar-level Settings readiness was verified against
+the stable helper app with evidence
+`/tmp/plato-sidecar-settings-readiness-helper-20260627.json`. The HTTP response
+now exposes `computerUse.status=missing_accessibility`,
+`computerUse.failureKind=missing_accessibility`, helper-specific
+`computerUse.recoveryActions`, `computer_use.not_ready.recoveryActions`, and a
+frontend-safe `computerUse.permissionSubject` pointing at
+`~/Applications/Plato Computer Use Helper Dev.app`. This confirms the UI-facing
+diagnostic contract is wired through the actual sidecar endpoint; the remaining
+blocker is external macOS TCC authorization, not Settings projection.
+
 ### H5: Release Packaging
 
 - helper bundled with Plato installer；
