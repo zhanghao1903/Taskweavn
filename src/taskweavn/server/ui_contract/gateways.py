@@ -2,38 +2,26 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
-from typing import Literal, cast
-
-from taskweavn.core.session import Session
-from taskweavn.interaction import AskStatus
 from taskweavn.server.ui_contract.ask_projection import AskProjectionService
+from taskweavn.server.ui_contract.ask_read_helpers import (
+    active_ask,
+    get_ask_response,
+    list_asks_response,
+    pending_asks,
+)
 from taskweavn.server.ui_contract.audit_disclosure import (
     DefaultAuditPayloadDisclosureService,
 )
 from taskweavn.server.ui_contract.audit_projection import (
     WorkspaceAuditConfigProvider,
     WorkspaceAuditLogProvider,
-    _audit_entry_context,
-    _audit_entry_kind,
-    _audit_filter_kind,
-    _audit_filters,
-    _audit_overview,
-    _audit_page_state,
-    _audit_record_detail,
-    _audit_record_kind,
-    _audit_records_from_projection,
-    _audit_return_target,
-    _audit_scope,
-    _AuditProjectionBundle,
-    _effective_config,
-    _evidence_detail,
-    _filter_audit_records,
-    _normalize_audit_record_task_identity,
-    _page_audit_records,
-    _related_logs,
-    _require_audit_record,
-    _require_evidence_ref,
+)
+from taskweavn.server.ui_contract.audit_read_helpers import (
+    AuditReadDependencies,
+    get_audit_record_detail_response,
+    get_audit_snapshot_response,
+    get_evidence_detail_response,
+    list_audit_records_response,
 )
 from taskweavn.server.ui_contract.authoring_answer_projection import (
     project_authoring_ask_answer_message_view,
@@ -68,14 +56,22 @@ from taskweavn.server.ui_contract.gateway_providers import (
     StaticWorkflowProvider,
     WorkspaceAuditEventProvider,
 )
-from taskweavn.server.ui_contract.mapping import (
-    map_agent_message_view,
-    map_confirmation_action_view,
-    map_file_change_summary_view,
-    map_result_card_view,
-    map_session_message_view,
-    map_task_tree_view,
+from taskweavn.server.ui_contract.main_page_read_helpers import (
+    _archived_plan_messages,
+    _confirmations_from_tree,
+    _derive_session_status,
+    _file_change_summary_from_tree,
+    _list_main_page_plan_tree,
+    _map_optional_task_tree,
+    _merge_messages,
+    _messages_from_tree,
+    _planning_from_raw_task,
+    _request_id,
+    _result_from_tree,
+    _session_summary,
+    _snapshot_cursor,
 )
+from taskweavn.server.ui_contract.mapping import map_agent_message_view
 from taskweavn.server.ui_contract.plan_projection import (
     DefaultPlanProjectionService,
     PlanProjectionService,
@@ -84,7 +80,6 @@ from taskweavn.server.ui_contract.plan_read_helpers import (
     active_plan_read_context,
     active_stored_plan,
     archived_plan_views,
-    audit_task_read_context,
     file_change_summary_from_plan_nodes,
     result_from_plan_nodes,
 )
@@ -96,42 +91,19 @@ from taskweavn.server.ui_contract.view_models import (
     AskListResult,
     AskRequestView,
     AuditLinkView,
-    AuditPageRequestView,
-    AuditPermissions,
     AuditRecordDetail,
     AuditRecordsResult,
-    ConfirmationActionView,
-    ConfirmationOptionView,
     EvidenceDetail,
-    FileChangeSummaryView,
-    PlanningAskView,
-    PlanningDiagnosticView,
-    PlanningState,
     PlanningView,
-    PlanView,
-    ProjectSummary,
-    ResultCardView,
     SessionActivityTimelineResult,
     SessionMessageView,
-    SessionStatus,
-    SessionSummary,
     TaskTreeView,
-    WorkflowSummary,
 )
 from taskweavn.task.authoring import RawTask
 from taskweavn.task.plan_stores import PlanStore
 from taskweavn.task.projection import TaskProjectionService
 from taskweavn.task.stores import AuthoringStateStore, RawTaskStore
 from taskweavn.task.timeline import TaskInteractionTimelineService
-from taskweavn.task.views import (
-    ConfirmationActionView as CoreConfirmationActionView,
-)
-from taskweavn.task.views import (
-    SessionMessageView as CoreSessionMessageView,
-)
-from taskweavn.task.views import (
-    TaskTreeView as CoreTaskTreeView,
-)
 
 __all__ = [
     "AuditConfigProvider",
@@ -206,6 +178,21 @@ class DefaultUiQueryGateway:
         self._plan_projection = plan_projection or DefaultPlanProjectionService()
         self._plan_store = plan_store
         self._activity_projection = DefaultSessionActivityProjectionService()
+        self._audit_read_deps = AuditReadDependencies(
+            session_reader=self._session_reader,
+            task_projection=self._task_projection,
+            authoring_state_store=self._authoring_state_store,
+            plan_store=self._plan_store,
+            plan_projection=self._plan_projection,
+            project_provider=self._project_provider,
+            workflow_provider=self._workflow_provider,
+            task_timeline_service=self._task_timeline_service,
+            audit_event_provider=self._audit_event_provider,
+            audit_config_provider=self._audit_config_provider,
+            audit_log_provider=self._audit_log_provider,
+            audit_payload_disclosure_service=self._audit_payload_disclosure_service,
+            session_messages=self._session_messages,
+        )
 
     def get_session_snapshot(
         self,
@@ -253,8 +240,15 @@ class DefaultUiQueryGateway:
             )
             confirmations = _confirmations_from_tree(source_tree, session_id=session.id)
             planning = self._planning(session.id, task_tree=task_tree)
-            pending_asks = self._pending_asks(session.id)
-            active_ask = self._active_ask(session.id, task_tree=task_tree)
+            pending_ask_views = pending_asks(
+                session.id,
+                ask_projection=self._ask_projection,
+            )
+            active_ask_view = active_ask(
+                session.id,
+                ask_projection=self._ask_projection,
+                task_tree=task_tree,
+            )
             result = (
                 result_from_plan_nodes(
                     plan_context.stored_plan_nodes,
@@ -300,7 +294,7 @@ class DefaultUiQueryGateway:
                     task_tree=task_tree,
                     confirmations=confirmations,
                     messages=messages,
-                    active_ask=active_ask,
+                    active_ask=active_ask_view,
                     planning=planning,
                 ),
             )
@@ -323,8 +317,8 @@ class DefaultUiQueryGateway:
                 task_tree=task_tree,
                 messages=messages,
                 pending_confirmations=confirmations,
-                pending_asks=pending_asks,
-                active_ask=active_ask,
+                pending_asks=pending_ask_views,
+                active_ask=active_ask_view,
                 result=result,
                 file_change_summary=file_change_summary,
                 audit_links=self._audit_links(session.id),
@@ -391,9 +385,13 @@ class DefaultUiQueryGateway:
                 self._session_messages(session.id),
             )
             confirmations = _confirmations_from_tree(source_tree, session_id=session.id)
-            pending_asks = self._pending_asks(session.id)
-            active_ask = self._active_ask(
+            pending_ask_views = pending_asks(
                 session.id,
+                ask_projection=self._ask_projection,
+            )
+            active_ask_view = active_ask(
+                session.id,
+                ask_projection=self._ask_projection,
                 task_tree=plan_context.task_tree,
             )
             result = (
@@ -439,8 +437,8 @@ class DefaultUiQueryGateway:
                     plan_projection=self._plan_projection,
                 ),
                 task_tree=plan_context.task_tree,
-                pending_asks=pending_asks,
-                active_ask=active_ask,
+                pending_asks=pending_ask_views,
+                active_ask=active_ask_view,
                 confirmations=confirmations,
                 result=result,
                 file_change_summary=file_change_summary,
@@ -482,55 +480,16 @@ class DefaultUiQueryGateway:
         task_node_id: str | None = None,
         request_id: str | None = None,
     ) -> QueryResponse[AskListResult]:
-        try:
-            if self._ask_projection is None:
-                return QueryResponse[AskListResult](
-                    request_id=request_id or _request_id("asks", session_id),
-                    ok=True,
-                    data=AskListResult(session_id=session_id),
-                    error=None,
-                )
-            session = self._session_reader.get(session_id)
-            if session is None:
-                return QueryResponse[AskListResult](
-                    request_id=request_id or _request_id("asks", session_id),
-                    ok=False,
-                    data=None,
-                    error=not_found("session not found", session_id=session_id),
-                )
-            task_tree = _map_optional_task_tree(
-                _list_main_page_plan_tree(self._task_projection, session.id),
-                authoring_state_store=self._authoring_state_store,
-            )
-            result = self._ask_projection.list_asks(
-                session.id,
-                statuses=_ask_statuses(status),
-                task_id=task_node_id,
-                task_tree=task_tree,
-            )
-            return QueryResponse[AskListResult](
-                request_id=request_id or _request_id("asks", session.id),
-                ok=True,
-                data=result,
-                error=None,
-            )
-        except ValueError as exc:
-            return QueryResponse[AskListResult](
-                request_id=request_id or _request_id("asks", session_id),
-                ok=False,
-                data=None,
-                error=bad_request(str(exc), session_id=session_id),
-            )
-        except Exception as exc:
-            return QueryResponse[AskListResult](
-                request_id=request_id or _request_id("asks", session_id),
-                ok=False,
-                data=None,
-                error=internal_error(
-                    "Unable to load ASK list",
-                    error_type=type(exc).__name__,
-                ),
-            )
+        return list_asks_response(
+            session_id,
+            ask_projection=self._ask_projection,
+            authoring_state_store=self._authoring_state_store,
+            request_id=request_id,
+            session_reader=self._session_reader,
+            status=status,
+            task_node_id=task_node_id,
+            task_projection=self._task_projection,
+        )
 
     def get_ask(
         self,
@@ -539,34 +498,12 @@ class DefaultUiQueryGateway:
         *,
         request_id: str | None = None,
     ) -> QueryResponse[AskRequestView]:
-        try:
-            ask = None if self._ask_projection is None else self._ask_projection.get_ask(
-                session_id,
-                ask_id,
-            )
-            if ask is None:
-                return QueryResponse[AskRequestView](
-                    request_id=request_id or _request_id("ask", ask_id),
-                    ok=False,
-                    data=None,
-                    error=not_found("ASK not found", session_id=session_id, ask_id=ask_id),
-                )
-            return QueryResponse[AskRequestView](
-                request_id=request_id or _request_id("ask", ask_id),
-                ok=True,
-                data=ask,
-                error=None,
-            )
-        except Exception as exc:
-            return QueryResponse[AskRequestView](
-                request_id=request_id or _request_id("ask", ask_id),
-                ok=False,
-                data=None,
-                error=internal_error(
-                    "Unable to load ASK",
-                    error_type=type(exc).__name__,
-                ),
-            )
+        return get_ask_response(
+            session_id,
+            ask_id,
+            ask_projection=self._ask_projection,
+            request_id=request_id,
+        )
 
     def get_audit_snapshot(
         self,
@@ -581,123 +518,18 @@ class DefaultUiQueryGateway:
         cursor: str | None = None,
         request_id: str | None = None,
     ) -> QueryResponse[AuditPageSnapshot]:
-        try:
-            checked_filter = _audit_filter_kind(filter_kind)
-            checked_entry = _audit_entry_kind(entry, task_node_id=task_node_id)
-            bundle = self._audit_projection(session_id, task_node_id=task_node_id)
-            filtered = _filter_audit_records(
-                bundle.records,
-                filter_kind=checked_filter,
-                kind=None,
-                from_time=None,
-                to_time=None,
-            )
-            page_records, next_cursor = _page_audit_records(
-                filtered,
-                limit=limit,
-                cursor=cursor,
-            )
-            should_include_detail = (
-                record_id is not None if include_detail is None else include_detail
-            )
-            related_logs = _related_logs(
-                bundle.session,
-                task_node_id=bundle.record_task_node_id,
-                record_id=record_id,
-                log_provider=self._audit_log_provider,
-            )
-            selected_record = (
-                _audit_record_detail(
-                    _require_audit_record(bundle.records, record_id),
-                    session=bundle.session,
-                    log_provider=self._audit_log_provider,
-                    payload_disclosure_service=self._audit_payload_disclosure_service,
-                    include_evidence=True,
-                    include_sanitized_payload=False,
-                )
-                if record_id is not None and should_include_detail
-                else None
-            )
-            snapshot = AuditPageSnapshot(
-                request=AuditPageRequestView(
-                    filter=checked_filter,
-                    record_id=record_id,
-                    include_detail=should_include_detail,
-                    limit=limit,
-                    cursor=cursor,
-                ),
-                scope=_audit_scope(
-                    bundle.session.id,
-                    task_node_id=task_node_id,
-                    selected_task=bundle.selected_task,
-                ),
-                entry_context=_audit_entry_context(
-                    bundle.session.id,
-                    entry=checked_entry,
-                    task_node_id=task_node_id,
-                    selected_task=bundle.selected_task,
-                    filter_kind=checked_filter,
-                    record_id=record_id,
-                ),
-                return_target=_audit_return_target(
-                    bundle.session_summary,
-                    task_node_id=task_node_id,
-                    record_id=record_id,
-                ),
-                project=bundle.project,
-                workflow=bundle.workflow,
-                session=bundle.session_summary,
-                selected_task=bundle.selected_task,
-                overview=_audit_overview(bundle.records),
-                filters=_audit_filters(bundle.records),
-                records=page_records,
-                selected_record=selected_record,
-                effective_config=_effective_config(
-                    bundle.session,
-                    bundle.records,
-                    self._audit_config_provider,
-                ),
-                related_logs=related_logs,
-                permissions=AuditPermissions(
-                    can_open_related_logs=any(link.enabled for link in related_logs),
-                ),
-                page_state=_audit_page_state(bundle.records, filtered),
-                cursor=next_cursor,
-            )
-            return QueryResponse[AuditPageSnapshot](
-                request_id=request_id or _request_id("audit.snapshot", session_id),
-                ok=True,
-                data=snapshot,
-                error=None,
-                cursor=snapshot.cursor,
-            )
-        except LookupError as exc:
-            return QueryResponse[AuditPageSnapshot](
-                request_id=request_id or _request_id("audit.snapshot", session_id),
-                ok=False,
-                data=None,
-                error=not_found(str(exc), session_id=session_id),
-                cursor=None,
-            )
-        except ValueError as exc:
-            return QueryResponse[AuditPageSnapshot](
-                request_id=request_id or _request_id("audit.snapshot", session_id),
-                ok=False,
-                data=None,
-                error=bad_request(str(exc), session_id=session_id),
-                cursor=None,
-            )
-        except Exception as exc:
-            return QueryResponse[AuditPageSnapshot](
-                request_id=request_id or _request_id("audit.snapshot", session_id),
-                ok=False,
-                data=None,
-                error=internal_error(
-                    "Unable to load audit snapshot",
-                    error_type=type(exc).__name__,
-                ),
-                cursor=None,
-            )
+        return get_audit_snapshot_response(
+            session_id,
+            cursor=cursor,
+            deps=self._audit_read_deps,
+            entry=entry,
+            filter_kind=filter_kind,
+            include_detail=include_detail,
+            limit=limit,
+            record_id=record_id,
+            request_id=request_id,
+            task_node_id=task_node_id,
+        )
 
     def list_audit_records(
         self,
@@ -713,61 +545,19 @@ class DefaultUiQueryGateway:
         include_hidden_reasons: bool = False,
         request_id: str | None = None,
     ) -> QueryResponse[AuditRecordsResult]:
-        try:
-            del include_hidden_reasons
-            checked_filter = _audit_filter_kind(filter_kind)
-            checked_kind = _audit_record_kind(kind)
-            bundle = self._audit_projection(session_id, task_node_id=task_node_id)
-            filtered = _filter_audit_records(
-                bundle.records,
-                filter_kind=checked_filter,
-                kind=checked_kind,
-                from_time=from_time,
-                to_time=to_time,
-            )
-            page_records, next_cursor = _page_audit_records(
-                filtered,
-                limit=limit,
-                cursor=cursor,
-            )
-            return QueryResponse[AuditRecordsResult](
-                request_id=request_id or _request_id("audit.records", session_id),
-                ok=True,
-                data=AuditRecordsResult(
-                    records=page_records,
-                    next_cursor=next_cursor,
-                    total_count=len(filtered),
-                ),
-                error=None,
-                cursor=next_cursor,
-            )
-        except LookupError as exc:
-            return QueryResponse[AuditRecordsResult](
-                request_id=request_id or _request_id("audit.records", session_id),
-                ok=False,
-                data=None,
-                error=not_found(str(exc), session_id=session_id),
-                cursor=None,
-            )
-        except ValueError as exc:
-            return QueryResponse[AuditRecordsResult](
-                request_id=request_id or _request_id("audit.records", session_id),
-                ok=False,
-                data=None,
-                error=bad_request(str(exc), session_id=session_id),
-                cursor=None,
-            )
-        except Exception as exc:
-            return QueryResponse[AuditRecordsResult](
-                request_id=request_id or _request_id("audit.records", session_id),
-                ok=False,
-                data=None,
-                error=internal_error(
-                    "Unable to list audit records",
-                    error_type=type(exc).__name__,
-                ),
-                cursor=None,
-            )
+        return list_audit_records_response(
+            session_id,
+            cursor=cursor,
+            deps=self._audit_read_deps,
+            filter_kind=filter_kind,
+            from_time=from_time,
+            include_hidden_reasons=include_hidden_reasons,
+            kind=kind,
+            limit=limit,
+            request_id=request_id,
+            task_node_id=task_node_id,
+            to_time=to_time,
+        )
 
     def get_audit_record_detail(
         self,
@@ -778,42 +568,14 @@ class DefaultUiQueryGateway:
         include_sanitized_payload: bool = False,
         request_id: str | None = None,
     ) -> QueryResponse[AuditRecordDetail]:
-        try:
-            bundle = self._audit_projection(session_id, task_node_id=None)
-            record = _require_audit_record(bundle.records, record_id)
-            return QueryResponse[AuditRecordDetail](
-                request_id=request_id or _request_id("audit.record", record_id),
-                ok=True,
-                data=_audit_record_detail(
-                    record,
-                    session=bundle.session,
-                    log_provider=self._audit_log_provider,
-                    payload_disclosure_service=self._audit_payload_disclosure_service,
-                    include_evidence=include_evidence,
-                    include_sanitized_payload=include_sanitized_payload,
-                ),
-                error=None,
-                cursor=None,
-            )
-        except LookupError as exc:
-            return QueryResponse[AuditRecordDetail](
-                request_id=request_id or _request_id("audit.record", record_id),
-                ok=False,
-                data=None,
-                error=not_found(str(exc), session_id=session_id, record_id=record_id),
-                cursor=None,
-            )
-        except Exception as exc:
-            return QueryResponse[AuditRecordDetail](
-                request_id=request_id or _request_id("audit.record", record_id),
-                ok=False,
-                data=None,
-                error=internal_error(
-                    "Unable to load audit record detail",
-                    error_type=type(exc).__name__,
-                ),
-                cursor=None,
-            )
+        return get_audit_record_detail_response(
+            session_id,
+            record_id,
+            deps=self._audit_read_deps,
+            include_evidence=include_evidence,
+            include_sanitized_payload=include_sanitized_payload,
+            request_id=request_id,
+        )
 
     def get_evidence_detail(
         self,
@@ -823,138 +585,18 @@ class DefaultUiQueryGateway:
         include_sanitized_payload: bool = False,
         request_id: str | None = None,
     ) -> QueryResponse[EvidenceDetail]:
-        try:
-            bundle = self._audit_projection(session_id, task_node_id=None)
-            record, evidence_ref = _require_evidence_ref(bundle.records, evidence_id)
-            return QueryResponse[EvidenceDetail](
-                request_id=request_id or _request_id("audit.evidence", evidence_id),
-                ok=True,
-                data=_evidence_detail(
-                    record,
-                    evidence_ref,
-                    session=bundle.session,
-                    payload_disclosure_service=self._audit_payload_disclosure_service,
-                    include_sanitized_payload=include_sanitized_payload,
-                ),
-                error=None,
-                cursor=None,
-            )
-        except LookupError as exc:
-            return QueryResponse[EvidenceDetail](
-                request_id=request_id or _request_id("audit.evidence", evidence_id),
-                ok=False,
-                data=None,
-                error=not_found(str(exc), session_id=session_id, evidence_id=evidence_id),
-                cursor=None,
-            )
-        except Exception as exc:
-            return QueryResponse[EvidenceDetail](
-                request_id=request_id or _request_id("audit.evidence", evidence_id),
-                ok=False,
-                data=None,
-                error=internal_error(
-                    "Unable to load evidence detail",
-                    error_type=type(exc).__name__,
-                ),
-                cursor=None,
-            )
-
-    def _audit_projection(
-        self,
-        session_id: str,
-        *,
-        task_node_id: str | None,
-    ) -> _AuditProjectionBundle:
-        session = self._session_reader.get(session_id)
-        if session is None:
-            raise LookupError("session not found")
-
-        source_tree = self._task_projection.list_task_tree(session.id)
-        task_tree = _map_optional_task_tree(
-            source_tree,
-            authoring_state_store=self._authoring_state_store,
-        )
-        stored_plan = active_stored_plan(
-            session.id,
-            plan_store=self._plan_store,
-            authoring_state_store=self._authoring_state_store,
-        )
-        audit_context = audit_task_read_context(
-            task_node_id=task_node_id,
-            legacy_task_tree=task_tree,
-            stored_plan=stored_plan,
-            plan_projection=self._plan_projection,
-        )
-        task_tree = audit_context.task_tree
-        selected_task = audit_context.selected_task
-        if task_node_id is not None and selected_task is None:
-            raise LookupError("task not found")
-
-        project = self._project_provider.get_project()
-        workflow = self._workflow_provider.get_workflow(session)
-        confirmations = _confirmations_from_tree(source_tree, session_id=session.id)
-        messages = _merge_messages(
-            _messages_from_tree(source_tree),
-            self._session_messages(session.id),
-        )
-        session_summary = _session_summary(
-            session,
-            project=project,
-            workflow=workflow,
-            status=_derive_session_status(
-                session,
-                task_tree=task_tree,
-                confirmations=confirmations,
-                messages=messages,
-            ),
-        )
-        records = _audit_records_from_projection(
-            source_tree,
-            session_id=session.id,
-            task_node_id=audit_context.record_source_task_node_id,
-            messages=messages,
-            task_projection=self._task_projection,
-            task_timeline_service=self._task_timeline_service,
-            event_provider=self._audit_event_provider,
-            config_provider=self._audit_config_provider,
-            log_provider=self._audit_log_provider,
-            session=session,
-        )
-        records = _normalize_audit_record_task_identity(
-            records,
-            task_node_ids_by_legacy_id=audit_context.task_node_ids_by_legacy_id,
-        )
-        return _AuditProjectionBundle(
-            session=session,
-            session_summary=session_summary,
-            project=project,
-            workflow=workflow,
-            source_tree=source_tree,
-            task_tree=task_tree,
-            selected_task=selected_task,
-            record_task_node_id=audit_context.record_task_node_id,
-            records=records,
+        return get_evidence_detail_response(
+            session_id,
+            evidence_id,
+            deps=self._audit_read_deps,
+            include_sanitized_payload=include_sanitized_payload,
+            request_id=request_id,
         )
 
     def _audit_links(self, session_id: str) -> tuple[AuditLinkView, ...]:
         if self._audit_link_provider is None:
             return ()
         return self._audit_link_provider.list_for_session(session_id)
-
-    def _pending_asks(self, session_id: str) -> tuple[AskRequestView, ...]:
-        if self._ask_projection is None:
-            return ()
-        return self._ask_projection.pending_asks(session_id)
-
-    def _active_ask(
-        self,
-        session_id: str,
-        *,
-        task_tree: TaskTreeView | None,
-    ) -> AskRequestView | None:
-        if self._ask_projection is None:
-            return None
-        return self._ask_projection.active_ask(session_id, task_tree=task_tree)
 
     def _planning(
         self,
@@ -1008,353 +650,3 @@ class DefaultUiQueryGateway:
             )
             for message in self._session_message_provider.list_for_session(session_id)
         )
-
-
-def _map_optional_task_tree(
-    source: CoreTaskTreeView,
-    *,
-    authoring_state_store: AuthoringStateStore | None = None,
-) -> TaskTreeView | None:
-    if not source.nodes:
-        return None
-    tree_id = None
-    if authoring_state_store is not None and _is_draft_tree(source):
-        active = authoring_state_store.get_active(source.session_id)
-        if active.active_state == "draft_tree" and active.active_draft_tree_id is not None:
-            tree_id = active.active_draft_tree_id
-    return map_task_tree_view(source, tree_id=tree_id)
-
-
-def _list_main_page_plan_tree(
-    task_projection: TaskProjectionService,
-    session_id: str,
-) -> CoreTaskTreeView:
-    plan_tree = cast(
-        Callable[[str], CoreTaskTreeView] | None,
-        getattr(task_projection, "list_plan_tree", None),
-    )
-    if plan_tree is not None:
-        return plan_tree(session_id)
-    return task_projection.list_task_tree(session_id)
-
-
-def _is_draft_tree(source: CoreTaskTreeView) -> bool:
-    return all(node.task_ref.kind == "draft" for node in source.nodes)
-
-
-def _planning_from_raw_task(
-    raw_task: RawTask,
-    *,
-    task_tree: TaskTreeView | None = None,
-    dirty_authoring_state: bool = False,
-    authoring_state_cancelled: bool = False,
-) -> PlanningView:
-    answered_ask_ids = {answer.ask_id for answer in raw_task.answers}
-    ask_status: Literal["pending", "superseded"] = (
-        "superseded" if task_tree is not None else "pending"
-    )
-    return PlanningView(
-        state=(
-            _planning_state_for_task_tree(task_tree)
-            if task_tree is not None
-            else _planning_state(raw_task)
-        ),
-        source_raw_task_id=raw_task.raw_task_id,
-        title=_planning_title(raw_task),
-        summary=raw_task.intent_summary or raw_task.user_input,
-        asks=tuple(
-            PlanningAskView(
-                id=ask.ask_id,
-                question=ask.question,
-                reason=ask.reason,
-                required=ask.required,
-                options=tuple(
-                    ConfirmationOptionView(
-                        value=option.value,
-                        label=option.label,
-                    )
-                    for option in ask.options
-                ),
-                status="answered" if ask.ask_id in answered_ask_ids else ask_status,
-            )
-            for ask in raw_task.asks
-        ),
-        validation=None,
-        diagnostics=_planning_diagnostics(
-            dirty_authoring_state=dirty_authoring_state,
-            authoring_state_cancelled=authoring_state_cancelled,
-        ),
-    )
-
-
-def _planning_diagnostics(
-    *,
-    dirty_authoring_state: bool,
-    authoring_state_cancelled: bool,
-) -> tuple[PlanningDiagnosticView, ...]:
-    diagnostics: list[PlanningDiagnosticView] = []
-    if dirty_authoring_state:
-        diagnostics.append(
-            PlanningDiagnosticView(
-                code="dirty_authoring_state",
-                severity="warning",
-                message=(
-                    "Authoring ASK state is still active even though a TaskTree "
-                    "already exists."
-                ),
-            )
-        )
-    if authoring_state_cancelled:
-        diagnostics.append(
-            PlanningDiagnosticView(
-                code="authoring_state_cancelled",
-                severity="info",
-                message=(
-                    "The previous authoring flow was closed; RawTask facts are "
-                    "kept for traceability."
-                ),
-            )
-        )
-    return tuple(diagnostics)
-
-
-def _planning_state_for_task_tree(task_tree: TaskTreeView) -> PlanningState:
-    if task_tree.status == "draft":
-        return "draft_ready"
-    return "published"
-
-
-def _planning_state(raw_task: RawTask) -> PlanningState:
-    if raw_task.status == "created":
-        return "capturing_input"
-    if raw_task.status == "awaiting_user":
-        return "awaiting_user"
-    if raw_task.status == "ready_to_plan":
-        return "ready_to_plan"
-    if raw_task.status == "assessing":
-        return "assessing"
-    if raw_task.status == "rejected":
-        return "rejected"
-    return "unknown"
-
-
-def _planning_title(raw_task: RawTask) -> str:
-    if raw_task.status == "awaiting_user":
-        return "Planning questions"
-    if raw_task.intent_summary is not None:
-        return raw_task.intent_summary
-    return "Understanding goal"
-
-
-def _messages_from_tree(source: CoreTaskTreeView) -> tuple[SessionMessageView, ...]:
-    messages: list[CoreSessionMessageView] = []
-    seen: set[str] = set()
-    for node in source.nodes:
-        if node.latest_message is None or node.latest_message.message_id in seen:
-            continue
-        messages.append(node.latest_message)
-        seen.add(node.latest_message.message_id)
-    messages.sort(key=lambda message: (message.created_at, message.message_id))
-    return tuple(map_session_message_view(message) for message in messages)
-
-
-def _archived_plan_messages(
-    plans: Sequence[PlanView],
-) -> tuple[SessionMessageView, ...]:
-    return tuple(
-        SessionMessageView(
-            id=f"message:archived-plan:{plan.id}:{plan.version}",
-            session_id=plan.session_id,
-            kind="informational",
-            title="Plan archived",
-            body=_archived_plan_message_body(plan),
-        )
-        for plan in plans
-    )
-
-
-def _archived_plan_message_body(plan: PlanView) -> str:
-    lines = [
-        f"**{plan.title}**",
-        "",
-        plan.summary,
-        "",
-        f"{plan.task_count} task{'s' if plan.task_count != 1 else ''} moved to Session history.",
-    ]
-    if plan.task_nodes:
-        lines.extend(("", "Tasks:"))
-        lines.extend(
-            f"- Task {node.display_index}: {node.title} ({node.status})"
-            for node in plan.task_nodes
-        )
-    return "\n".join(lines)
-
-
-def _merge_messages(
-    *groups: Sequence[SessionMessageView],
-) -> tuple[SessionMessageView, ...]:
-    by_id: dict[str, SessionMessageView] = {}
-    for group in groups:
-        for message in group:
-            # Later groups are intentionally richer. In the default snapshot path,
-            # task-tree latest messages come first and raw session MessageStream
-            # messages come second, preserving execution context titles/kinds.
-            by_id[message.id] = message
-    return tuple(
-        sorted(
-            by_id.values(),
-            key=lambda message: (message.created_at, message.id),
-        )
-    )
-
-
-def _confirmations_from_tree(
-    source: CoreTaskTreeView,
-    *,
-    session_id: str,
-) -> tuple[ConfirmationActionView, ...]:
-    confirmations: list[CoreConfirmationActionView] = []
-    seen: set[str] = set()
-    for node in source.nodes:
-        if node.confirmation is None or node.confirmation.confirmation_id in seen:
-            continue
-        confirmations.append(node.confirmation)
-        seen.add(node.confirmation.confirmation_id)
-    return tuple(
-        map_confirmation_action_view(confirmation, session_id=session_id)
-        for confirmation in confirmations
-    )
-
-
-def _result_from_tree(
-    source: CoreTaskTreeView,
-    *,
-    session_id: str,
-    task_projection: TaskProjectionService,
-) -> ResultCardView | None:
-    for node in reversed(source.nodes):
-        if node.task_ref.kind != "published":
-            continue
-        if (
-            node.status not in {"done", "failed"}
-            and node.result_ref is None
-            and node.error_ref is None
-        ):
-            continue
-        try:
-            detail = task_projection.get_task_detail(session_id, node.task_ref)
-        except LookupError:
-            continue
-        if detail.result_summary is not None:
-            return map_result_card_view(detail.result_summary, session_id=session_id)
-    return None
-
-
-def _file_change_summary_from_tree(
-    source: CoreTaskTreeView,
-    *,
-    session_id: str,
-    task_projection: TaskProjectionService,
-) -> FileChangeSummaryView | None:
-    candidates = [
-        node
-        for node in source.nodes
-        if node.task_ref.kind == "published" and node.badges.subtree_file_change_count > 0
-    ]
-    root_candidates = [node for node in candidates if node.parent_ref is None]
-    for node in reversed(root_candidates or candidates):
-        try:
-            detail = task_projection.get_task_detail(session_id, node.task_ref)
-        except LookupError:
-            continue
-        if detail.file_changes:
-            return map_file_change_summary_view(
-                detail.file_changes,
-                session_id=session_id,
-                task_ref=node.task_ref,
-                recursive=True,
-            )
-    return None
-
-
-def _derive_session_status(
-    session: Session,
-    *,
-    task_tree: TaskTreeView | None,
-    confirmations: Sequence[ConfirmationActionView],
-    messages: Sequence[SessionMessageView],
-    active_ask: AskRequestView | None = None,
-    planning: PlanningView | None = None,
-) -> SessionStatus:
-    if active_ask is not None:
-        return "waiting_user"
-    if planning is not None and any(ask.status == "pending" for ask in planning.asks):
-        return "waiting_user"
-    if confirmations:
-        return "waiting_user"
-    if task_tree is not None:
-        if any(node.execution == "waiting_for_user" for node in task_tree.nodes):
-            return "waiting_user"
-        if task_tree.status == "draft":
-            return "draft_ready"
-        if task_tree.status == "published":
-            return "running"
-        if task_tree.status == "running":
-            return "running"
-        if task_tree.status == "completed":
-            return "completed"
-        if task_tree.status == "failed":
-            return "failed"
-    if session.status == "awaiting_user":
-        return "waiting_user"
-    if session.status == "finished":
-        return "completed"
-    if messages:
-        return "understanding"
-    return "new"
-
-
-def _ask_statuses(status: str | None) -> tuple[AskStatus, ...] | None:
-    if status is None or not status.strip():
-        return None
-    allowed: set[AskStatus] = {"pending", "answered", "deferred", "cancelled", "expired"}
-    statuses: list[AskStatus] = []
-    for raw in status.split(","):
-        value = raw.strip()
-        if value not in allowed:
-            raise ValueError(f"unsupported ASK status filter: {value!r}")
-        statuses.append(value)
-    return tuple(statuses)
-
-
-def _session_summary(
-    session: Session,
-    *,
-    project: ProjectSummary,
-    workflow: WorkflowSummary,
-    status: SessionStatus,
-) -> SessionSummary:
-    return SessionSummary(
-        id=session.id,
-        project_id=project.id,
-        workflow_id=workflow.id,
-        name=session.name,
-        status=status,
-        created_at=session.created_at,
-        updated_at=session.last_active_at,
-        workspace_label="Isolated session workspace",
-    )
-
-
-def _snapshot_cursor(
-    session: Session,
-    *,
-    cursor_provider: SnapshotCursorProvider | None = None,
-) -> str | None:
-    if cursor_provider is not None:
-        return cursor_provider.latest_cursor(session.id)
-    return f"snapshot:{session.id}:{session.last_active_at.isoformat()}"
-
-
-def _request_id(prefix: str, subject: str) -> str:
-    return f"{prefix}:{subject}"
