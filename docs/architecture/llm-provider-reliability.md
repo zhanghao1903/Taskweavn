@@ -4,6 +4,7 @@
 > Last Updated: 2026-06-24
 > Scope: server core execution line, Router/read-only inquiry, and Agent LLM resolver
 > Related Plan: [LLM provider retry thinking](../plans/feature/llm-provider-retry-thinking.md)
+> Related Release: [LLM Provider Reliability](../releases/llm-provider-reliability.md)
 > Related Roadmap: [Phase 3B — Reliability And Observability](../roadmap.md#phase-3b--reliability-and-observability)
 > Related Product 1.1: [Agent LLM Config And Router LLM](../plans/feature/agent-llm-config-and-router-llm.md), [Runtime Input Router Contract](../plans/feature/runtime-input-router-contract.md), [Read-Only Inquiry Context](../plans/feature/read-only-inquiry-context.md)
 
@@ -17,7 +18,7 @@ usage, and input/output logging discipline as execution calls.
 
 ## 1. Background
 
-TaskWeavn currently treats the LLM layer as a thin adapter:
+TaskWeavn originally treated the LLM layer as a thin adapter:
 
 - `LLMClient.complete()` delegates to `openhands.sdk.LLM`.
 - `LLMClient.chat()` calls `litellm.completion(...)` directly.
@@ -26,9 +27,16 @@ TaskWeavn currently treats the LLM layer as a thin adapter:
 - DeepSeek thinking mode is not supported;
 - OpenRouter provider routing is not pinned, so the same model can be routed to different upstream providers.
 
-This is acceptable for early experiments, but not for TaskWeavn's next phase. The system is moving toward long-running Task execution, user confirmations, Collaborator Agent planning, and multi-step server workflows. In that world, LLM transport must become reliable, observable, configurable, and provider-aware.
+This was acceptable for early experiments, but not for long-running Task
+execution, user confirmations, Collaborator Agent planning, Runtime Input
+Router calls, read-only inquiry, and multi-step server workflows. In that world,
+LLM transport must be reliable, observable, configurable, and provider-aware.
 
-This document defines the server-side technical design for the implemented roadmap item: **LLM Provider abstraction, automatic retry, DeepSeek thinking, and OpenRouter provider routing**.
+This document is now the current architecture baseline for the implemented
+roadmap item: **LLM Provider abstraction, automatic retry, DeepSeek thinking,
+and OpenRouter provider routing**. Historical slice details and validation live
+in the [feature plan](../plans/feature/llm-provider-retry-thinking.md) and
+[release record](../releases/llm-provider-reliability.md).
 
 ---
 
@@ -38,57 +46,63 @@ Current implementation:
 
 ```text
 src/taskweavn/llm/client.py
-  ToolCall
-  ChatResponse
-  LLMClient
-  tool_schema_from_action
-  parse_tool_arguments
+  LLMClient facade and backward-compatible action/tool helpers
+src/taskweavn/llm/contracts.py
+  LLMProvider, ProviderCapabilities, ChatRequest, ChatResponse, LLMUsage,
+  RetryPolicy, RetryRecord, ThinkingConfig, ProviderRoutingConfig
+src/taskweavn/llm/errors.py
+  typed provider errors and retry classifications
+src/taskweavn/llm/retry.py
+  BaseLLMProvider retry loop and retry record collection
+src/taskweavn/llm/providers/
+  LiteLLMProvider, DeepSeekProvider, OpenRouterProvider, OpenAI-compatible helpers
+src/taskweavn/llm/config.py
+  env-driven provider and client construction
+src/taskweavn/llm/agent_config.py
+  role-aware Agent LLM configuration models
+src/taskweavn/llm/agent_resolver.py
+  Settings-backed role resolver for execution, collaborator, router,
+  read_only_inquiry, audit, and summary roles
+src/taskweavn/llm/logging.py
+  LLM request/response/retry metadata logging helpers
 ```
 
-Current `LLMClient.chat(...)` shape:
+Current `LLMClient.chat(...)` remains the application-facing compatibility
+entry point:
 
-```python
-response = litellm.completion(
-    model=self._model,
-    api_key=self._api_key,
-    messages=messages,
-    tools=tools,
-)
+```text
+LLMClient.chat(...)
+  -> selected LLMProvider
+  -> provider retry/capability checks
+  -> ChatResponse with content, tool calls, provider metadata, retry records,
+     usage, and raw assistant message preservation
 ```
 
-Current response object:
+Current v1 baseline:
 
-```python
-@dataclass(frozen=True)
-class ChatResponse:
-    content: str
-    tool_calls: list[ToolCall]
-    raw_assistant_message: dict[str, Any]
-```
-
-Current limitations:
-
-| Limitation | Impact |
+| Area | Current fact |
 |---|---|
-| no provider abstraction | DeepSeek/OpenRouter/OpenAI/Anthropic behavior will keep leaking into `LLMClient` |
-| no retry policy | transient 429/5xx/network errors can end a long-running task |
-| no error classification | auth/config/schema/capability errors are indistinguishable from transient failures |
-| no provider metadata | cannot audit actual provider, request id, usage, retry count |
-| no `reasoning_content` support | DeepSeek thinking + tool calls can fail or lose context |
-| no routing config | OpenRouter can load-balance to varying providers, reducing cache stability |
+| Provider boundary | `LLMClient` delegates chat calls to an `LLMProvider`; LiteLLM remains the compatibility default. |
+| Retry | Provider-level retry uses typed failure classification and records retry attempts. |
+| DeepSeek | DeepSeek provider supports OpenAI-compatible thinking config and preserves `reasoning_content` when required. |
+| OpenRouter | OpenRouter provider can serialize provider routing config such as fallback and parameter requirements. |
+| Observability | Provider, model, retry, routing, thinking, usage, and request metadata are available for logging and diagnostics-safe summaries. |
+| Role config | Product 1.1 runtime uses Settings-backed Agent LLM profiles for execution, collaborator, router, read-only inquiry, audit, and summary roles. |
 
 ---
 
-## 3. Goals
+## 3. V1 Capability Boundary
 
-1. Introduce a provider boundary under `LLMClient`.
-2. Keep `LLMClient` as the facade used by AgentLoop, AuditAgent, RiskAssessor, and future Agents.
-3. Add provider-level automatic retry with explicit error classification.
-4. Add DeepSeek provider using the OpenAI-compatible SDK path.
+1. Keep a provider boundary under `LLMClient`.
+2. Keep `LLMClient` as the facade used by AgentLoop, AuditAgent, RiskAssessor,
+   Runtime Input Router, read-only inquiry, and future Agents.
+3. Run provider-level automatic retry with explicit error classification.
+4. Support DeepSeek provider behavior through the OpenAI-compatible SDK path.
 5. Support DeepSeek thinking mode and preserve `reasoning_content` where required.
 6. Support OpenRouter provider routing configuration.
-7. Preserve the legacy LiteLLM path as the default until users opt into a specific provider.
-8. Make provider metadata observable without waiting for the full logging-system redesign.
+7. Preserve the legacy LiteLLM path as the default compatibility provider.
+8. Make provider metadata observable through configurable logging and
+   diagnostics-safe summaries.
 
 ---
 
@@ -650,7 +664,8 @@ llm:
 
 ## 13. Observability
 
-This feature should not wait for the full configurable logging system, but it must emit useful structured fields through the current `llm` channel.
+LLM provider reliability now integrates with the configurable logging system.
+LLM logs should use the `llm` category and remain summary-safe by default.
 
 ### 13.1 Request log fields
 
@@ -690,176 +705,14 @@ This feature should not wait for the full configurable logging system, but it mu
 - has_reasoning_content;
 - raw provider metadata summary.
 
-Prompt and full response should remain summary-level by default. Full payload belongs to the configurable logging plan.
+Prompt and full response should remain hidden by default. Full payload belongs
+behind explicit logging profile/configuration and redaction policy.
 
 ---
 
-## 14. Migration Plan
+## 14. Compatibility Notes
 
-### Slice 1: contracts and errors
-
-Files:
-
-- `src/taskweavn/llm/contracts.py`
-- `src/taskweavn/llm/errors.py`
-
-Add:
-
-- `LLMProvider`;
-- request/config models;
-- extended response fields;
-- typed error hierarchy.
-
-Acceptance:
-
-- no behavior change;
-- contract tests pass;
-- existing imports from `taskweavn.llm.client` still work.
-
-### Slice 2: retry base provider
-
-Files:
-
-- `src/taskweavn/llm/retry.py`
-- `tests/test_llm_retry_policy.py`
-
-Add:
-
-- `BaseLLMProvider`;
-- retry loop;
-- classification hooks;
-- retry record collection.
-
-Acceptance:
-
-- retryable errors retry;
-- auth/request/capability errors do not retry;
-- exhausted retries raise `LLMRetryExhaustedError`.
-
-### Slice 3: LiteLLMProvider and facade migration
-
-Files:
-
-- `src/taskweavn/llm/providers/litellm.py`
-- `src/taskweavn/llm/client.py`
-- `src/taskweavn/llm/config.py`
-
-Acceptance:
-
-- default behavior remains compatible;
-- `LLMClient.from_env()` supports `LLM_PROVIDER`;
-- current `tests/test_llm.py` still passes.
-
-### Slice 4: DeepSeekProvider
-
-Files:
-
-- `src/taskweavn/llm/providers/deepseek.py`
-- `tests/test_deepseek_provider.py`
-
-Acceptance:
-
-- thinking request maps to DeepSeek fields;
-- response parses `reasoning_content`;
-- tool-call assistant message preserves `reasoning_content`;
-- unsupported model/tool combination fails fast;
-- tests use fake SDK/client objects, no real network.
-
-### Slice 5: OpenRouter routing
-
-Files:
-
-- `src/taskweavn/llm/providers/openrouter.py`
-- `tests/test_openrouter_routing_config.py`
-
-Acceptance:
-
-- `ProviderRoutingConfig` serializes correctly;
-- `allow_fallbacks=false` is represented in provider body;
-- `require_parameters=true` is represented;
-- route metadata is logged.
-
-### Slice 6: docs and integration
-
-Files:
-
-- `docs/plans/feature/llm-provider-retry-thinking.md`
-- `docs/architecture/reference.md`
-- user-facing config docs, if present.
-
-Acceptance:
-
-- docs explain DeepSeek thinking config;
-- docs explain OpenRouter provider pinning;
-- roadmap/release docs can be updated after implementation.
-
----
-
-## 15. Test Plan
-
-### 15.1 Unit tests
-
-| Test file | Coverage |
-|---|---|
-| `tests/test_llm_contracts.py` | request/config validation, serialization, compatibility |
-| `tests/test_llm_retry_policy.py` | retry loop and classification |
-| `tests/test_litellm_provider.py` | legacy behavior wrapper |
-| `tests/test_deepseek_provider.py` | thinking fields, reasoning parsing, tool-call preservation |
-| `tests/test_openrouter_routing_config.py` | routing body construction |
-| `tests/test_llm.py` | current facade behavior remains stable |
-
-### 15.2 Critical cases
-
-| Case | Expected |
-|---|---|
-| first call 429, second succeeds | returns response with `retry_count=1` |
-| repeated 500 until max attempts | raises `LLMRetryExhaustedError` |
-| invalid API key | no retry |
-| invalid request schema | no retry |
-| context too long | no retry, classification `CONTEXT_LIMIT` |
-| thinking enabled response | `reasoning_content` is available |
-| thinking + tool calls | `raw_assistant_message` includes `reasoning_content` and `tool_calls` |
-| `deepseek-reasoner` with tools | raises `LLMCapabilityError` |
-| OpenRouter fixed provider | body includes provider routing fields |
-| no provider env set | legacy default remains compatible |
-
-### 15.3 Manual smoke tests
-
-DeepSeek thinking:
-
-```text
-LLM_PROVIDER=deepseek
-LLM_MODEL=deepseek-v4-pro
-LLM_THINKING_ENABLED=true
-```
-
-Run a simple tool-calling prompt. Verify:
-
-- tool call works;
-- follow-up LLM call does not 400;
-- log shows `has_reasoning_content=true`.
-
-OpenRouter fixed provider:
-
-```text
-LLM_PROVIDER=openrouter
-LLM_MODEL=deepseek/deepseek-r1
-OPENROUTER_PROVIDER_ONLY=deepinfra/turbo
-OPENROUTER_ALLOW_FALLBACKS=false
-OPENROUTER_REQUIRE_PARAMETERS=true
-```
-
-Verify:
-
-- provider routing object is present;
-- logs show routing summary;
-- repeated calls use the same configured route unless the request fails.
-
----
-
-## 16. Compatibility Notes
-
-### 16.1 Existing callers
+### 14.1 Existing callers
 
 Existing callers should continue to use:
 
@@ -869,7 +722,7 @@ response = llm.chat(messages, tools)
 
 They should not construct providers directly unless they are tests or advanced configuration code.
 
-### 16.2 AgentLoop
+### 14.2 AgentLoop
 
 AgentLoop already appends `response.raw_assistant_message` to the message history. That is good. The key implementation requirement is that provider-specific fields required for future requests must be preserved in `raw_assistant_message`.
 
@@ -884,7 +737,7 @@ For DeepSeek thinking + tool calls, that means:
 }
 ```
 
-### 16.3 AuditAgent and LLMRiskAssessor
+### 14.3 AuditAgent and LLMRiskAssessor
 
 AuditAgent and LLMRiskAssessor should not change in the first migration except for benefiting from retry and provider metadata.
 
@@ -896,28 +749,68 @@ Later, they may use cheaper/different provider configs:
 
 ---
 
-## 17. Open Questions
+## 15. Implementation History And Release Record
 
-| Question | Default for first implementation |
+This architecture document no longer owns the execution slice plan. The
+provider boundary, retry layer, DeepSeek support, and OpenRouter routing
+foundation were accepted as the Phase 3B LLM provider reliability release.
+
+Authoritative history:
+
+- Implementation plan and slice detail:
+  [LLM provider retry thinking](../plans/feature/llm-provider-retry-thinking.md).
+- Accepted release summary, shipped surface, validation, and follow-ups:
+  [Release: LLM Provider Reliability](../releases/llm-provider-reliability.md).
+
+The accepted v1 baseline includes:
+
+- `LLMProvider` protocol and shared request/response/config contracts;
+- typed LLM provider errors with retry classification;
+- `BaseLLMProvider` retry loop for retryable and rate-limit failures;
+- LiteLLM compatibility provider as the default path;
+- DeepSeek provider through the OpenAI-compatible SDK path;
+- DeepSeek thinking config and `reasoning_content` preservation;
+- DeepSeek model capability guards for tool-call and thinking combinations;
+- OpenRouter provider routing request-body support;
+- env-driven provider construction through `LLMClient.from_env(...)`;
+- direct `openai` dependency for the DeepSeek provider path.
+
+## 16. Validation Boundary
+
+The accepted release record captured the implementation validation:
+
+```bash
+uv run ruff check src tests
+uv run mypy src tests
+uv run pytest
+```
+
+Current focused regression areas include:
+
+| Area | Tests |
 |---|---|
-| Should `openai` become a direct dependency? | Yes, if DeepSeek provider imports it directly. Do not rely on transitive LiteLLM dependency. |
-| Should thinking default to DeepSeek provider default? | No. TaskWeavn should preserve current behavior and require explicit enablement. |
-| Should reasoning be visible in UI? | No. Store/preserve it, but do not expose by default. |
-| Should OpenRouter fallback default be disabled globally? | Only when routing config is explicitly provided. Without config, preserve OpenRouter default. |
-| Should provider retry include cross-provider fallback? | No. Keep first version single-provider retry. |
-| Should streaming be supported now? | No. Leave a future streaming contract, but keep synchronous chat first. |
+| Facade compatibility | `test_llm.py` |
+| Provider contracts | `test_llm_contracts.py` |
+| Retry policy | `test_llm_retry_policy.py` |
+| Provider behavior | `test_llm_providers.py` |
+| Role resolver | `test_agent_llm_resolver.py`, `test_agent_llm_config.py` |
+| Runtime input / inquiry callers | `test_runtime_input_llm_router.py`, `test_read_only_inquiry_answer_provider.py` |
+| Risk and audit callers | `test_interaction_risk_llm.py`, `test_audit_runtime_config_provider.py` |
 
----
+Future changes to provider behavior should run the focused tests for the touched
+boundary, plus the full gate when behavior crosses provider contracts, runtime
+input, read-only inquiry, Agent LLM resolver, audit, or diagnostics.
 
-## 18. Completion Criteria
+## 17. Follow-Up Boundaries
 
-This technical design is implemented when:
+These are not v1 blockers. They are future boundaries to keep explicit:
 
-- `LLMClient` delegates chat calls to an `LLMProvider`;
-- legacy LiteLLM behavior remains available;
-- provider-level retry works with typed failure classification;
-- DeepSeek thinking mode can run tool calls while preserving `reasoning_content`;
-- unsupported model/capability combinations fail before network calls where possible;
-- OpenRouter routing config can pin provider behavior;
-- LLM logs include provider, retry, thinking, routing, and usage metadata;
-- tests cover retry, provider selection, DeepSeek thinking, and OpenRouter routing.
+| Boundary | Current decision |
+|---|---|
+| External provider docs | DeepSeek/OpenRouter constraints were checked on 2026-05-11; re-check official docs before changing provider behavior. |
+| Reasoning visibility | Preserve reasoning metadata where providers require it, but do not expose raw reasoning in UI by default. |
+| Thinking default | Thinking remains explicit opt-in; provider defaults must not silently change TaskWeavn behavior. |
+| OpenRouter fallback | Preserve OpenRouter default behavior unless routing config explicitly pins or disables fallbacks. |
+| Cross-provider fallback | Not part of v1; retry remains single-provider unless a later policy design accepts fallback semantics. |
+| Streaming | Not part of v1; keep synchronous chat as the baseline until a streaming transport/UI contract exists. |
+| Credentialed smoke | Live DeepSeek/OpenRouter integration tests require test secrets and network policy; keep unit tests fake-client/offline-first. |

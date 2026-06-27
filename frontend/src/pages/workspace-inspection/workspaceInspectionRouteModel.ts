@@ -1,4 +1,5 @@
 import type { SessionId, TaskNodeId, WorkspaceId } from "../../shared/api/types";
+import type { RouteReturnFocus } from "../../app/routes";
 
 export type WorkspaceInspectionViewMode = "status" | "file" | "diff";
 
@@ -11,6 +12,7 @@ export type WorkspaceInspectionRouteContext = {
   evidenceId: string | null;
   mode: WorkspaceInspectionViewMode;
   path: string | null;
+  returnFocus: RouteReturnFocus | null;
   returnSessionId: SessionId | null;
   returnTaskNodeId: TaskNodeId | null;
   sessionId: SessionId | null;
@@ -38,12 +40,26 @@ export function parseWorkspaceInspectionLocation(
     evidenceId,
     mode: normalizeMode(params.get("view"), path, evidenceId),
     path,
+    returnFocus: parseReturnFocus(params.get("returnFocus")),
     returnSessionId: params.get("returnSessionId"),
     returnTaskNodeId: params.get("returnTaskNodeId"),
     sessionId: params.get("sessionId"),
     taskNodeId: params.get("taskNodeId"),
     workspaceId: decodeURIComponent(match[1]),
   };
+}
+
+function parseReturnFocus(value: string | null): RouteReturnFocus | null {
+  if (
+    value === "session" ||
+    value === "task" ||
+    value === "confirmation" ||
+    value === "result" ||
+    value === "file_change"
+  ) {
+    return value;
+  }
+  return null;
 }
 
 function normalizeMode(

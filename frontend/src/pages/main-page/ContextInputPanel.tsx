@@ -1,5 +1,5 @@
 import { LoaderCircle, SendHorizontal } from "lucide-react";
-import type { FormEvent } from "react";
+import type { FormEvent, Ref } from "react";
 
 import type { ProductRecoveryAction } from "../../shared/api/platoApi";
 import { Button, Panel, Text } from "../../shared/components";
@@ -12,6 +12,7 @@ export type ContextInputPanelProps = {
   draft: string;
   error: string | null;
   input: MainPageInputViewModel;
+  inputRef?: Ref<HTMLInputElement>;
   isFloating?: boolean;
   isSubmitting?: boolean;
   isRecoveryActionEnabled?: (action: ProductRecoveryAction) => boolean;
@@ -25,6 +26,7 @@ export function ContextInputPanel({
   draft,
   error,
   input,
+  inputRef,
   isFloating = false,
   isSubmitting = false,
   isRecoveryActionEnabled,
@@ -107,6 +109,7 @@ export function ContextInputPanel({
           disabled={input.disabled}
           onChange={(event) => onDraftChange(event.currentTarget.value)}
           placeholder={inputPlaceholder}
+          ref={inputRef}
           value={draft}
         />
         <Button

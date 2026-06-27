@@ -1,4 +1,9 @@
-import type { ElementType, HTMLAttributes, ReactNode } from "react";
+import {
+  forwardRef,
+  type ElementType,
+  type HTMLAttributes,
+  type ReactNode,
+} from "react";
 
 import { cx } from "../../utils/cx";
 import styles from "./Panel.module.css";
@@ -14,21 +19,25 @@ export type PanelProps = HTMLAttributes<HTMLElement> & {
   tone?: PanelTone;
 };
 
-export function Panel({
-  actions,
-  as: Component = "section",
-  children,
-  className,
-  icon,
-  title,
-  titleId,
-  tone = "surface",
-  ...props
-}: PanelProps) {
+export const Panel = forwardRef<HTMLElement, PanelProps>(function Panel(
+  {
+    actions,
+    as: Component = "section",
+    children,
+    className,
+    icon,
+    title,
+    titleId,
+    tone = "surface",
+    ...props
+  },
+  ref,
+) {
   return (
     <Component
       aria-labelledby={titleId}
       className={cx(styles.panel, styles[tone], className)}
+      ref={ref}
       {...props}
     >
       {(title || actions) && (
@@ -47,4 +56,4 @@ export function Panel({
       {children}
     </Component>
   );
-}
+});

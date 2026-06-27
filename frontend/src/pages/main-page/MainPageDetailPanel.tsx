@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { ReactNode, Ref } from "react";
 import { useState } from "react";
 import { CircleStop, RotateCcw } from "lucide-react";
 
@@ -33,6 +33,9 @@ import styles from "./MainPage.module.css";
 
 export type MainPageDetailPanelProps = {
   detail: MainPageDetailView;
+  detailFocusRef?: Ref<HTMLElement>;
+  executionAskFocusRef?: Ref<HTMLElement>;
+  fileChangesFocusRef?: Ref<HTMLElement>;
   onAnswerAsk: (payload: AnswerAskPayload) => void;
   onCancelAsk: (payload: CancelAskPayload) => void;
   onConfirmationDecision: (decision: string) => void;
@@ -57,6 +60,9 @@ type TaskDetail = Extract<MainPageDetailView, { kind: "task" }>;
 
 export function MainPageDetailPanel({
   detail,
+  detailFocusRef,
+  executionAskFocusRef,
+  fileChangesFocusRef,
   onAnswerAsk,
   onCancelAsk,
   onConfirmationDecision,
@@ -80,6 +86,8 @@ export function MainPageDetailPanel({
       as="aside"
       className={styles.detailPanel}
       aria-label="Details"
+      ref={detailFocusRef}
+      tabIndex={-1}
     >
       <Text variant="eyebrow">{header.eyebrow}</Text>
       <Text as="h2" className={styles.detailHeaderTitle} variant="heading">
@@ -90,6 +98,8 @@ export function MainPageDetailPanel({
       </Text>
       <DetailContent
         detail={detail}
+        executionAskFocusRef={executionAskFocusRef}
+        fileChangesFocusRef={fileChangesFocusRef}
         onAnswerAsk={onAnswerAsk}
         onCancelAsk={onCancelAsk}
         onConfirmationDecision={onConfirmationDecision}
@@ -108,6 +118,8 @@ export function MainPageDetailPanel({
 
 type DetailContentProps = {
   detail: MainPageDetailView;
+  executionAskFocusRef?: Ref<HTMLElement>;
+  fileChangesFocusRef?: Ref<HTMLElement>;
   onAnswerAsk: (payload: AnswerAskPayload) => void;
   onCancelAsk: (payload: CancelAskPayload) => void;
   onConfirmationDecision: (decision: string) => void;
@@ -123,6 +135,8 @@ type DetailContentProps = {
 
 function DetailContent({
   detail,
+  executionAskFocusRef,
+  fileChangesFocusRef,
   onAnswerAsk,
   onCancelAsk,
   onConfirmationDecision,
@@ -140,6 +154,7 @@ function DetailContent({
       return (
         <ExecutionAskDetailPanel
           detail={detail}
+          focusRef={executionAskFocusRef}
           onAnswer={onAnswerAsk}
           onCancel={onCancelAsk}
           onDefer={onDeferAsk}
@@ -158,6 +173,7 @@ function DetailContent({
       return (
         <ResultSummaryPanel
           detail={detail}
+          fileChangesFocusRef={fileChangesFocusRef}
           onShowFileChanges={onShowFileChanges}
           workspaceId={workspaceId}
         />
@@ -166,6 +182,7 @@ function DetailContent({
       return (
         <FileChangeSummaryPanel
           detail={detail}
+          focusRef={fileChangesFocusRef}
           onShowResult={onShowResult}
           workspaceId={workspaceId}
         />
@@ -260,12 +277,14 @@ function ConfirmationResolvedPanel({
 
 type ResultSummaryPanelProps = {
   detail: ResultDetail;
+  fileChangesFocusRef?: Ref<HTMLElement>;
   onShowFileChanges: () => void;
   workspaceId?: WorkspaceId | null;
 };
 
 function ResultSummaryPanel({
   detail,
+  fileChangesFocusRef,
   onShowFileChanges,
   workspaceId,
 }: ResultSummaryPanelProps) {
@@ -349,6 +368,7 @@ function ResultSummaryPanel({
       {detail.fileChangeSummary && (
         <WorkspaceChangesPreview
           fileChangeSummary={detail.fileChangeSummary}
+          focusRef={fileChangesFocusRef}
           onShowFileChanges={onShowFileChanges}
           workspaceId={resolvedWorkspaceId}
         />
@@ -359,17 +379,24 @@ function ResultSummaryPanel({
 
 function WorkspaceChangesPreview({
   fileChangeSummary,
+  focusRef,
   onShowFileChanges,
   workspaceId,
 }: {
   fileChangeSummary: FileChangeSummaryView;
+  focusRef?: Ref<HTMLElement>;
   onShowFileChanges: () => void;
   workspaceId: WorkspaceId;
 }) {
   const fileCount = fileChangeSummary.changedFiles.length;
 
   return (
-    <section className={styles.resultWorkspaceChanges} aria-label="Workspace changes">
+    <section
+      className={styles.resultWorkspaceChanges}
+      aria-label="Workspace changes"
+      ref={focusRef}
+      tabIndex={-1}
+    >
       <div className={styles.detailTitleRow}>
         <Text as="strong" variant="label">
           Workspace changes
@@ -387,6 +414,7 @@ function WorkspaceChangesPreview({
             file.ownerTaskNodeId ?? fileChangeSummary.taskNodeId ?? undefined;
           const routeContext = {
             path: file.path,
+            returnFocus: "file_change" as const,
             returnSessionId: fileChangeSummary.sessionId,
             returnTaskNodeId: taskNodeId ?? undefined,
             sessionId: fileChangeSummary.sessionId,
@@ -437,12 +465,14 @@ function WorkspaceChangesPreview({
 
 type FileChangeSummaryPanelProps = {
   detail: FileChangesDetail;
+  focusRef?: Ref<HTMLElement>;
   onShowResult: () => void;
   workspaceId?: WorkspaceId | null;
 };
 
 function FileChangeSummaryPanel({
   detail,
+  focusRef,
   onShowResult,
   workspaceId,
 }: FileChangeSummaryPanelProps) {
@@ -450,7 +480,12 @@ function FileChangeSummaryPanel({
   const resolvedWorkspaceId = workspaceId ?? "current";
 
   return (
-    <Panel className={styles.detailBox} tone="muted">
+    <Panel
+      className={styles.detailBox}
+      ref={focusRef}
+      tabIndex={-1}
+      tone="muted"
+    >
       <div className={styles.detailTitleRow}>
         <Text as="strong" variant="label">
           Changed files
@@ -475,6 +510,7 @@ function FileChangeSummaryPanel({
             file.ownerTaskNodeId ?? detail.fileChangeSummary.taskNodeId ?? undefined;
           const routeContext = {
             path: file.path,
+            returnFocus: "file_change" as const,
             returnSessionId: detail.fileChangeSummary.sessionId,
             returnTaskNodeId: taskNodeId ?? undefined,
             sessionId: detail.fileChangeSummary.sessionId,

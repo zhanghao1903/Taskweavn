@@ -45,7 +45,9 @@ describeSidecarE2E("Audit result/evidence real sidecar E2E", () => {
       },
       { timeout: 10_000 },
     );
-    expect(screen.getAllByText(`Run ${requiredEnv.taskId}`).length).toBeGreaterThan(0);
+    expect(
+      await screen.findAllByText(`Run ${requiredEnv.taskId}`, {}, { timeout: 10_000 }),
+    ).not.toHaveLength(0);
 
     await act(async () => {
       navigateApp(

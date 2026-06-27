@@ -37,7 +37,7 @@ export type MainPageCommandActions = {
   resolveConfirmation: (context: ConfirmationDecisionContext) => void;
   retryTask: (context: RetryTaskContext) => void;
   stopTask: (context: StopTaskContext) => void;
-  submitInput: (context: InputSubmitContext) => void;
+  submitInput: (context: InputSubmitContext) => string | null;
 };
 
 export type MainPageCommandPendingState = {
@@ -137,11 +137,11 @@ export function useMainPageCommandActions({
     sessionId,
     target,
     taskNodeId,
-  }: InputSubmitContext) {
+  }: InputSubmitContext): string | null {
     const content = inputDraft.trim();
 
     if (!content) {
-      return;
+      return null;
     }
 
     setInputCommandError(null);
@@ -158,7 +158,7 @@ export function useMainPageCommandActions({
         target,
         taskNodeId,
       });
-      return;
+      return commandId;
     }
 
     inputMutation.mutate({
@@ -168,6 +168,7 @@ export function useMainPageCommandActions({
       target,
       taskNodeId,
     });
+    return null;
   }
 
   function handlePublishTaskTree({

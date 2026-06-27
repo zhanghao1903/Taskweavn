@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { ReactNode, RefObject, UIEventHandler } from "react";
 
 import type { SessionMessageView } from "../../shared/api/types";
 import { Button, Panel, Text } from "../../shared/components";
@@ -7,18 +7,26 @@ import { SessionMessageCard } from "./SessionMessageCard";
 import styles from "./MainPage.module.css";
 
 export type ConversationLayerProps = {
+  bottomSentinelRef?: RefObject<HTMLDivElement | null>;
   className?: string;
   headerActions?: ReactNode;
+  messageListRef?: RefObject<HTMLDivElement | null>;
   messages: readonly SessionMessageView[];
-  onOpenActivity?: () => void;
+  onOpenActivity?: (trigger: HTMLElement) => void;
+  onMessageListScroll?: UIEventHandler<HTMLDivElement>;
+  rootRef?: RefObject<HTMLElement | null>;
   totalActivityCount: number;
 };
 
 export function ConversationLayer({
+  bottomSentinelRef,
   className,
   headerActions = null,
+  messageListRef,
   messages,
+  onMessageListScroll,
   onOpenActivity,
+  rootRef,
   totalActivityCount,
 }: ConversationLayerProps) {
   return (
@@ -26,6 +34,8 @@ export function ConversationLayer({
       as="section"
       className={cx(styles.conversationLayer, className)}
       aria-label="Conversation"
+      ref={rootRef}
+      tabIndex={-1}
       tone="surface"
     >
       <div className={styles.conversationHeader}>
@@ -37,7 +47,11 @@ export function ConversationLayer({
         <div className={styles.conversationHeaderActions}>
           {headerActions}
           {onOpenActivity ? (
-            <Button onClick={onOpenActivity} size="sm" variant="secondary">
+            <Button
+              onClick={(event) => onOpenActivity(event.currentTarget)}
+              size="sm"
+              variant="secondary"
+            >
               Activity {totalActivityCount}
             </Button>
           ) : null}
@@ -45,10 +59,21 @@ export function ConversationLayer({
       </div>
 
       {messages.length > 0 ? (
-        <div className={styles.conversationMessageList}>
+        <div
+          className={styles.conversationMessageList}
+          data-plato-conversation-list="true"
+          onScroll={onMessageListScroll}
+          ref={messageListRef}
+        >
           {messages.map((message) => (
             <SessionMessageCard key={message.id} message={message} />
           ))}
+          <div
+            aria-hidden="true"
+            className={styles.conversationBottomSentinel}
+            data-plato-conversation-end="true"
+            ref={bottomSentinelRef}
+          />
         </div>
       ) : (
         <div className={styles.emptyState}>

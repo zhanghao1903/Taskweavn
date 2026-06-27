@@ -5,6 +5,7 @@ import {
   listMainPageStateOptions,
   type MainPageStateId,
 } from "../pages/main-page/mockPlatoApi";
+import type { MainPageRouteFocusTarget } from "../pages/main-page/runtime/mainPageFocusScrollRuntime";
 import type { MainPageAdapter } from "../pages/main-page/runtime/adapter";
 import type { SessionId, TaskNodeId, WorkspaceId } from "../shared/api/types";
 import {
@@ -56,12 +57,14 @@ export function MainPageRoute({
       auditRouteAvailable={auditRouteAvailable}
       initialStateId={initialStateId ?? routeInitialStateId}
       initialTaskNodeId={routeContext.taskNodeId}
+      routeFocusTarget={routeContext.focusTarget}
       workspaceRuntime={workspaceEntryRuntime}
     />
   );
 }
 
 type MainPageRouteContext = {
+  focusTarget?: MainPageRouteFocusTarget | null;
   sessionId?: SessionId | null;
   stateId?: MainPageStateId;
   taskNodeId?: TaskNodeId | null;
@@ -72,11 +75,41 @@ function parseMainPageRoute(pathname: string, search: string): MainPageRouteCont
   const params = new URLSearchParams(search);
   const sessionId = parseSessionId(pathname);
   return {
+    focusTarget: parseRouteFocusTarget(params),
     sessionId,
     stateId: parseStateId(params.get("stateId") ?? params.get("state")),
     taskNodeId: parseNonEmpty(params.get("taskNodeId")) as TaskNodeId | undefined,
     workspaceId: parseNonEmpty(params.get("workspaceId")) as WorkspaceId | undefined,
   };
+}
+
+function parseRouteFocusTarget(
+  params: URLSearchParams,
+): MainPageRouteFocusTarget | null {
+  const returnFocus = parseNonEmpty(params.get("returnFocus"));
+  if (returnFocus === "ask") {
+    return "ask_card";
+  }
+  if (returnFocus === "composer") {
+    return "input_composer";
+  }
+  if (returnFocus === "session") {
+    return "conversation";
+  }
+  if (returnFocus === "result") {
+    return "detail_panel";
+  }
+  if (returnFocus === "file_change") {
+    return "file_changes";
+  }
+  if (
+    returnFocus === "task" ||
+    returnFocus === "confirmation" ||
+    parseNonEmpty(params.get("taskNodeId"))
+  ) {
+    return "selected_task";
+  }
+  return null;
 }
 
 function parseSessionId(pathname: string): SessionId | undefined {

@@ -1,3 +1,4 @@
+import type { Ref } from "react";
 import { CircleStop, RotateCcw } from "lucide-react";
 
 import type { TaskNodeCardView, TaskNodeId } from "../../shared/api/types";
@@ -11,6 +12,7 @@ export type TaskNodeCardProps = {
   onRetryTask: (nodeId: TaskNodeId) => void;
   onSelectTask: (nodeId: TaskNodeId) => void;
   onStopTask: (nodeId: TaskNodeId) => void;
+  selectButtonRef?: Ref<HTMLButtonElement>;
 };
 
 export function TaskNodeCard({
@@ -19,6 +21,7 @@ export function TaskNodeCard({
   onRetryTask,
   onSelectTask,
   onStopTask,
+  selectButtonRef,
 }: TaskNodeCardProps) {
   const statusPresentation = selectTaskNodeDimensionPresentation(node);
   const isRunning = node.execution === "running" || node.status === "running";
@@ -38,6 +41,7 @@ export function TaskNodeCard({
       <button
         className={styles.taskSelectButton}
         onClick={() => onSelectTask(node.id)}
+        ref={selectButtonRef}
         type="button"
       >
         <span className={styles.taskIndex}>Task {displayIndex}</span>

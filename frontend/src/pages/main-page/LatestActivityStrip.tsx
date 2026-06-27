@@ -9,7 +9,7 @@ import styles from "./MainPage.module.css";
 export type LatestActivityStripProps = {
   isMessageScoped: boolean;
   messages: SessionMessageView[];
-  onOpenActivity?: () => void;
+  onOpenActivity?: (trigger: HTMLElement) => void;
   selectedTask: TaskNodeCardView | undefined;
   totalMessageCount: number;
   visibleMessageCount: number;
@@ -55,7 +55,7 @@ export function LatestActivityStrip({
           <Button
             aria-label={`${openActivityLabel} (${activityCountLabel})`}
             className={styles.latestActivityButton}
-            onClick={onOpenActivity}
+            onClick={(event) => onOpenActivity(event.currentTarget)}
             size="sm"
             variant="secondary"
           >

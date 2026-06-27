@@ -90,6 +90,7 @@ describe("route builders", () => {
     expect(
       buildWorkspaceInspectionRoute({
         path: "src/App.tsx",
+        returnFocus: "file_change",
         returnSessionId: "session-1",
         returnTaskNodeId: "task-1",
         sessionId: "session-1",
@@ -98,7 +99,7 @@ describe("route builders", () => {
         workspaceId: "workspace/a",
       }),
     ).toBe(
-      "/workspaces/workspace%2Fa/inspection?path=src%2FApp.tsx&returnSessionId=session-1&returnTaskNodeId=task-1&sessionId=session-1&taskNodeId=task-1&view=diff",
+      "/workspaces/workspace%2Fa/inspection?path=src%2FApp.tsx&returnFocus=file_change&returnSessionId=session-1&returnTaskNodeId=task-1&sessionId=session-1&taskNodeId=task-1&view=diff",
     );
   });
 
