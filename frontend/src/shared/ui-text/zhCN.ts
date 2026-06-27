@@ -482,9 +482,27 @@ export const zhCN: UiTextCatalog = {
         description: "打开本地 provider 设置。",
         label: "打开设置",
       },
+      open_macos_privacy_accessibility: {
+        description:
+          "打开 macOS 隐私与安全性设置，为 helper 授予辅助功能权限。",
+        label: "打开辅助功能权限",
+      },
+      open_macos_privacy_automation: {
+        description:
+          "打开 macOS 隐私与安全性设置，为 helper 授予自动化权限。",
+        label: "打开自动化权限",
+      },
       refresh_snapshot: {
         description: "刷新会话视图以获取最新状态。",
         label: "刷新会话",
+      },
+      rerun_helper_preflight: {
+        description: "重新运行 helper 就绪预检。",
+        label: "重新预检 helper",
+      },
+      restart_helper: {
+        description: "权限变更后重启 Plato Computer Use Helper。",
+        label: "重启 helper",
       },
       retry_command: {
         description: "解决问题后再次运行命令。",
@@ -589,6 +607,14 @@ export const zhCN: UiTextCatalog = {
       blockingIssues: "阻塞问题",
       checkingSetup: "正在检查设置",
       completeFirstRunSetup: "完成首次运行设置",
+      computerUseAccessibility: "辅助功能已授权",
+      computerUseBackend: "Backend",
+      computerUseExecutable: "实际执行程序",
+      computerUseFailureKind: "失败类型",
+      computerUseHelperApp: "Helper 应用",
+      computerUseReadiness: "Computer-use 就绪状态",
+      computerUseRecoveryActions: "恢复操作",
+      computerUseStatus: "状态",
       configured: "已配置",
       degradedReady: "全局设置已就绪，但存在警告。",
       diagnosticsAvailable: "诊断包导出可用",
@@ -672,7 +698,11 @@ export const zhCN: UiTextCatalog = {
       none: "没有可用的恢复操作。",
       open_audit: "查看审计证据。",
       open_settings: "配置本地 provider 设置。",
+      open_macos_privacy_accessibility: "打开 helper 的 macOS 辅助功能权限。",
+      open_macos_privacy_automation: "打开 helper 的 macOS 自动化权限。",
       refresh_snapshot: "完成配置变更后重试。",
+      rerun_helper_preflight: "重新运行 helper 就绪预检。",
+      restart_helper: "重启 Plato Computer Use Helper。",
       retry_command: "完成配置变更后重试。",
       retry_task: "重试受影响的任务。",
       wait_for_events: "等待 sidecar 事件后再重试。",

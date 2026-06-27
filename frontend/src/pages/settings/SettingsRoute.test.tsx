@@ -49,6 +49,44 @@ describe("SettingsRoute", () => {
     expect(document.body).not.toHaveTextContent("sk-existing-secret");
   });
 
+  it("shows computer-use helper readiness and recovery details", async () => {
+    const user = userEvent.setup();
+
+    renderWithQueryClient(
+      <SettingsRoute
+        api={settingsApi({
+          readiness: settingsReadiness({
+            computerUse: computerUseReadiness(),
+            ready: true,
+          }),
+        })}
+        runtimeEnv={{ VITE_PLATO_API_MODE: "http" }}
+      />,
+    );
+
+    await user.click(await screen.findByRole("button", { name: "Retry check" }));
+
+    const readiness = await screen.findByRole("region", {
+      name: "Computer-use readiness",
+    });
+
+    expect(readiness).toHaveTextContent("Plato Computer Use Helper is not ready.");
+    expect(readiness).toHaveTextContent("helper");
+    expect(readiness).toHaveTextContent("missing_accessibility");
+    expect(readiness).toHaveTextContent(
+      "/Users/zhanghao/Applications/Plato Computer Use Helper Dev.app",
+    );
+    expect(readiness).toHaveTextContent(
+      "/Users/zhanghao/Applications/Plato Computer Use Helper Dev.app/Contents/MacOS/PlatoComputerUseHelper",
+    );
+    expect(readiness).toHaveTextContent("false");
+    expect(readiness).toHaveTextContent(
+      "Open macOS Accessibility permissions for the helper.",
+    );
+    expect(readiness).toHaveTextContent("Restart Plato Computer Use Helper.");
+    expect(readiness).toHaveTextContent("Rerun helper readiness preflight.");
+  });
+
   it("renders as a dismissible modal when requested", async () => {
     const user = userEvent.setup();
     globalThis.history.pushState(null, "", "/settings?returnTo=/sessions/live");
@@ -813,8 +851,10 @@ function settingsConfig({
 }
 
 function settingsReadiness({
+  computerUse,
   ready,
 }: {
+  computerUse?: SettingsReadinessReport["computerUse"];
   ready: boolean;
 }): SettingsReadinessReport {
   return {
@@ -864,10 +904,56 @@ function settingsReadiness({
       selectedProfile: null,
       selectedProfileKnown: true,
     },
+    computerUse: computerUse ?? null,
     schemaVersion: "plato.settings_readiness.v1",
     status: ready ? "ready" : "needs_configuration",
     warnings: [],
     workspaceRootLabel: "workspace://current",
+  };
+}
+
+function computerUseReadiness(): NonNullable<SettingsReadinessReport["computerUse"]> {
+  return {
+    allowedApps: ["WeChat"],
+    backend: "helper",
+    configured: true,
+    enabled: true,
+    failureKind: "missing_accessibility",
+    helper: {
+      apiVersion: "v1",
+      bundleId: "com.taskweavn.plato.ComputerUseHelper.dev",
+      path: "/Users/zhanghao/Applications/Plato Computer Use Helper Dev.app",
+      signingMode: "ad-hoc",
+      version: "0.1.0",
+    },
+    helperStatus: "missing_accessibility",
+    operationStatus: "not_available",
+    permissionSubject: {
+      accessibilityTrusted: false,
+      effectiveExecutable:
+        "/Users/zhanghao/Applications/Plato Computer Use Helper Dev.app/Contents/MacOS/PlatoComputerUseHelper",
+      helperAppPath: "/Users/zhanghao/Applications/Plato Computer Use Helper Dev.app",
+      helperBundleId: "com.taskweavn.plato.ComputerUseHelper.dev",
+      helperStatus: "missing_accessibility",
+      operatorInstruction:
+        "Grant or refresh macOS Accessibility and Automation permissions for /Users/zhanghao/Applications/Plato Computer Use Helper Dev.app, restart the helper, then rerun helper readiness before publishing a computer-use task.",
+      packageReadinessStatus: "missing_accessibility",
+      recoveryActions: [
+        "open_macos_privacy_accessibility",
+        "restart_helper",
+        "rerun_helper_preflight",
+      ],
+      runtimeMode: "helper_owned_executable",
+    },
+    ready: false,
+    recoveryActions: [
+      "open_macos_privacy_accessibility",
+      "restart_helper",
+      "rerun_helper_preflight",
+    ],
+    setupHint: null,
+    status: "missing_accessibility",
+    summary: "Plato Computer Use Helper is not ready.",
   };
 }
 

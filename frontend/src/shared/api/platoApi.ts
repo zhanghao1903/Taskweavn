@@ -307,6 +307,43 @@ export type SettingsReadinessDiagnostics = {
   cliCommandTemplate: string;
 };
 
+export type SettingsReadinessComputerUseHelper = {
+  apiVersion?: string | null;
+  bundleId?: string | null;
+  path?: string | null;
+  signingMode?: string | null;
+  version?: string | null;
+};
+
+export type SettingsReadinessComputerUsePermissionSubject = {
+  accessibilityTrusted?: boolean | null;
+  effectiveExecutable?: string | null;
+  helperAppPath?: string | null;
+  helperBundleId?: string | null;
+  helperStatus?: string | null;
+  operatorInstruction?: string | null;
+  packageReadinessStatus?: string | null;
+  recoveryActions?: ProductRecoveryAction[];
+  runtimeMode?: string | null;
+};
+
+export type SettingsReadinessComputerUse = {
+  allowedApps: string[];
+  backend: string;
+  configured: boolean;
+  enabled: boolean;
+  failureKind?: string | null;
+  helper?: SettingsReadinessComputerUseHelper | null;
+  helperStatus?: string | null;
+  operationStatus?: string | null;
+  permissionSubject?: SettingsReadinessComputerUsePermissionSubject | null;
+  ready: boolean;
+  recoveryActions: ProductRecoveryAction[];
+  setupHint?: string | null;
+  status: string;
+  summary: string;
+};
+
 export type SettingsReadinessReport = {
   schemaVersion: "plato.settings_readiness.v1";
   generatedAt: string;
@@ -316,6 +353,7 @@ export type SettingsReadinessReport = {
   llm: SettingsReadinessLlm;
   logging: SettingsReadinessLogging;
   diagnostics: SettingsReadinessDiagnostics;
+  computerUse?: SettingsReadinessComputerUse | null;
   blockingIssues: SettingsReadinessIssue[];
   warnings: SettingsReadinessIssue[];
 };

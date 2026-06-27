@@ -23,6 +23,10 @@ export type ProductRecoveryAction =
   | "wait_for_events"
   | "open_audit"
   | "open_settings"
+  | "open_macos_privacy_accessibility"
+  | "open_macos_privacy_automation"
+  | "restart_helper"
+  | "rerun_helper_preflight"
   | "export_diagnostics"
   | "none";
 

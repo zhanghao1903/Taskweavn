@@ -483,6 +483,14 @@ export type UiTextCatalog = {
       blockingIssues: string;
       checkingSetup: string;
       completeFirstRunSetup: string;
+      computerUseAccessibility: string;
+      computerUseBackend: string;
+      computerUseExecutable: string;
+      computerUseFailureKind: string;
+      computerUseHelperApp: string;
+      computerUseReadiness: string;
+      computerUseRecoveryActions: string;
+      computerUseStatus: string;
       configured: string;
       degradedReady: string;
       diagnosticsAvailable: string;

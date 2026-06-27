@@ -26,6 +26,7 @@ import {
   type UiTextCatalog,
 } from "../../shared/ui-text";
 import { formatRecoveryAction, settingsProviderLabel } from "./settingsCopy";
+import { SettingsComputerUseReadiness } from "./SettingsComputerUseReadiness";
 import { SettingsDataManagementTab } from "./SettingsDataManagementTab";
 import { SettingsRuntimeBehaviorTab } from "./SettingsRuntimeBehaviorTab";
 import { SettingsUsageInformationTab } from "./SettingsUsageInformationTab";
@@ -703,6 +704,7 @@ export function SettingsRoute({
             <WorkspaceGitSettingsPanel bridge={workspaceBridge} />
             <SaveStatus state={saveState} />
             <ReadinessIssues readiness={readiness} />
+            <SettingsComputerUseReadiness readiness={readiness} />
             <div className={styles.footerActions}>
               <Button
                 disabled={
