@@ -21,7 +21,7 @@ import {
 } from "./mockPlatoApi";
 import type { MainPageStateId } from "./mockPlatoApi";
 import type { MainPageAdapter } from "./runtime/adapter";
-import type { MainPageFocusTarget } from "./runtime/mainPageFocusScrollRuntime";
+import type { MainPageRouteFocusTarget } from "./runtime/mainPageFocusScrollRuntime";
 import { useMainPageController } from "./useMainPageController";
 import styles from "./MainPage.module.css";
 
@@ -32,7 +32,7 @@ export type MainPageProps = {
   auditRouteAvailable?: boolean;
   initialStateId?: MainPageStateId;
   initialTaskNodeId?: string | null;
-  routeFocusTarget?: MainPageFocusTarget | null;
+  routeFocusTarget?: MainPageRouteFocusTarget | null;
   workspaceRuntime?: MainPageWorkspaceRuntime | null;
 };
 

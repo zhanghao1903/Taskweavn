@@ -5,7 +5,7 @@ import {
   listMainPageStateOptions,
   type MainPageStateId,
 } from "../pages/main-page/mockPlatoApi";
-import type { MainPageFocusTarget } from "../pages/main-page/runtime/mainPageFocusScrollRuntime";
+import type { MainPageRouteFocusTarget } from "../pages/main-page/runtime/mainPageFocusScrollRuntime";
 import type { MainPageAdapter } from "../pages/main-page/runtime/adapter";
 import type { SessionId, TaskNodeId, WorkspaceId } from "../shared/api/types";
 import {
@@ -64,7 +64,7 @@ export function MainPageRoute({
 }
 
 type MainPageRouteContext = {
-  focusTarget?: MainPageFocusTarget | null;
+  focusTarget?: MainPageRouteFocusTarget | null;
   sessionId?: SessionId | null;
   stateId?: MainPageStateId;
   taskNodeId?: TaskNodeId | null;
@@ -85,7 +85,7 @@ function parseMainPageRoute(pathname: string, search: string): MainPageRouteCont
 
 function parseRouteFocusTarget(
   params: URLSearchParams,
-): MainPageFocusTarget | null {
+): MainPageRouteFocusTarget | null {
   const returnFocus = parseNonEmpty(params.get("returnFocus"));
   if (returnFocus === "ask") {
     return "ask_card";

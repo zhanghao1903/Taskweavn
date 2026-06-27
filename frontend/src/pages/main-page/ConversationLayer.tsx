@@ -1,4 +1,4 @@
-import type { ReactNode, Ref, UIEventHandler } from "react";
+import type { ReactNode, RefObject, UIEventHandler } from "react";
 
 import type { SessionMessageView } from "../../shared/api/types";
 import { Button, Panel, Text } from "../../shared/components";
@@ -7,19 +7,19 @@ import { SessionMessageCard } from "./SessionMessageCard";
 import styles from "./MainPage.module.css";
 
 export type ConversationLayerProps = {
-  bottomAnchorRef?: Ref<HTMLDivElement>;
+  bottomSentinelRef?: RefObject<HTMLDivElement | null>;
   className?: string;
   headerActions?: ReactNode;
-  messageListRef?: Ref<HTMLDivElement>;
+  messageListRef?: RefObject<HTMLDivElement | null>;
   messages: readonly SessionMessageView[];
-  onMessageListScroll?: UIEventHandler<HTMLDivElement>;
   onOpenActivity?: (trigger: HTMLElement) => void;
-  rootRef?: Ref<HTMLElement>;
+  onMessageListScroll?: UIEventHandler<HTMLDivElement>;
+  rootRef?: RefObject<HTMLElement | null>;
   totalActivityCount: number;
 };
 
 export function ConversationLayer({
-  bottomAnchorRef,
+  bottomSentinelRef,
   className,
   headerActions = null,
   messageListRef,
@@ -70,9 +70,9 @@ export function ConversationLayer({
           ))}
           <div
             aria-hidden="true"
-            className={styles.conversationMessageListEnd}
+            className={styles.conversationBottomSentinel}
             data-plato-conversation-end="true"
-            ref={bottomAnchorRef}
+            ref={bottomSentinelRef}
           />
         </div>
       ) : (

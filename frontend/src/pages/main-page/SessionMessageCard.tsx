@@ -30,6 +30,8 @@ export function SessionMessageCard({ message }: SessionMessageCardProps) {
           : styles.systemConversationMessage,
         userIntent?.className,
       )}
+      data-session-message-id={message.id}
+      tabIndex={-1}
     >
       <div className={styles.conversationMessageMeta}>
         {userIntent ? (
@@ -130,7 +132,7 @@ function QuestionCard({ card }: { card: ConversationQuestionCardView }) {
   const isPending = card.status === "pending";
 
   return (
-    <div className={styles.conversationQuestionCard}>
+    <div className={styles.conversationQuestionCard} data-router-ask-card>
       <div className={styles.conversationQuestionHeader}>
         <strong>{card.title}</strong>
         <Badge size="sm" tone={isPending ? "warning" : "neutral"}>

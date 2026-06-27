@@ -18,7 +18,10 @@ import type {
 } from "../../shared/api/types";
 import { Button, Panel } from "../../shared/components";
 import { useUiText } from "../../shared/ui-text";
-import { ActivityOverlay } from "./ActivityOverlay";
+import {
+  ActivityOverlay,
+  type ActivityOverlayStatusMessage,
+} from "./ActivityOverlay";
 import { ArchivedPlansPanel } from "./ArchivedPlansPanel";
 import { ConfirmationDock } from "./ConfirmationDock";
 import { ConversationLayer } from "./ConversationLayer";
@@ -31,22 +34,19 @@ import { MainPageWorkspaceHeader } from "./MainPageWorkspaceHeader";
 import { TaskTreePanel } from "./TaskTreePanel";
 import { AuthoringAskWorkArea } from "./interaction/AuthoringAskWorkArea";
 import { activityItemsFromMessages } from "./mainPageActivityProjection";
+import { newestActivityItemId } from "./useMainPageOverlayRuntime";
 import type {
   MainPageDetailView,
   MainPageViewModel,
 } from "./mainPageViewModel";
-import { useMainPageFocusScrollRuntime } from "./useMainPageFocusScrollRuntime";
-import {
-  newestActivityItemId,
-  useMainPageOverlayRuntime,
-} from "./useMainPageOverlayRuntime";
 import type { MainPageController } from "./useMainPageController";
+import { useMainPageFocusScrollRuntime } from "./useMainPageFocusScrollRuntime";
 import type {
   ExportDiagnosticBundle,
   LoadSessionActivity,
   LoadTokenUsageSummary,
 } from "./runtime/adapter";
-import type { MainPageFocusTarget } from "./runtime/mainPageFocusScrollRuntime";
+import type { MainPageRouteFocusTarget } from "./runtime/mainPageFocusScrollRuntime";
 import styles from "./MainPage.module.css";
 
 const DEFAULT_DETAIL_WIDTH = 380;
@@ -75,7 +75,7 @@ export type MainPageWorkbenchProps = {
   exportDiagnosticBundle?: ExportDiagnosticBundle;
   loadSessionActivity?: LoadSessionActivity;
   loadTokenUsageSummary?: LoadTokenUsageSummary;
-  routeFocusTarget?: MainPageFocusTarget | null;
+  routeFocusTarget?: MainPageRouteFocusTarget | null;
 };
 
 export function MainPageWorkbench({
@@ -102,53 +102,52 @@ export function MainPageWorkbench({
   routeFocusTarget = null,
 }: MainPageWorkbenchProps) {
   const uiText = useUiText();
+  const [isActivityOverlayOpen, setIsActivityOverlayOpen] = useState(false);
+  const [isArchivedPlansPanelOpen, setIsArchivedPlansPanelOpen] =
+    useState(false);
+  const [selectedArchivedPlanId, setSelectedArchivedPlanId] =
+    useState<string | null>(null);
+  const [selectedArchivedPlanTaskNodeId, setSelectedArchivedPlanTaskNodeId] =
+    useState<TaskNodeId | null>(null);
+  const [activityItems, setActivityItems] = useState<
+    SessionActivityItemView[]
+  >([]);
+  const [activityError, setActivityError] = useState<string | null>(null);
+  const [activityLoadKey, setActivityLoadKey] = useState(0);
+  const [isActivityLoading, setIsActivityLoading] = useState(false);
   const hasPlanLayer =
     viewModel.taskWorkspace.taskTree !== null ||
     viewModel.taskWorkspace.isGeneratingTaskPlan;
   const [isPlanLayerExpanded, setIsPlanLayerExpanded] =
     useState(hasPlanLayer);
+  const [activityStatusMessage, setActivityStatusMessage] =
+    useState<ActivityOverlayStatusMessage | null>(null);
+  const [isExportingActivityDiagnostic, setIsExportingActivityDiagnostic] =
+    useState(false);
   const [detailWidth, setDetailWidth] = useState(DEFAULT_DETAIL_WIDTH);
+  const contextInputRef = useRef<HTMLInputElement>(null);
   const hasActivity =
     viewModel.mainWorkArea.kind !== "authoringAsk" &&
     (viewModel.taskWorkspace.allMessages.length > 0 ||
       runtimeActivityItems.length > 0 ||
       loadSessionActivity !== undefined);
+  const showsActivityPanel = isActivityOverlayOpen && hasActivity;
   const fallbackActivityItems = useMemo(
     () => activityItemsFromMessages(viewModel.taskWorkspace.allMessages),
     [viewModel.taskWorkspace.allMessages],
   );
   const archivedPlans = viewModel.taskWorkspace.archivedPlans;
-  const archivedPlanIds = useMemo(
-    () => archivedPlans.map((plan) => plan.id),
-    [archivedPlans],
-  );
-  const resolvedWorkspaceId =
-    viewModel.workspace.workspaceId ??
-    viewModel.sidebar.activeSession.workspaceId ??
-    activeWorkspaceId ??
-    null;
-  const overlayRuntime = useMainPageOverlayRuntime({
-    archivedPlanIds,
-    loadActivityErrorMessage: uiText.main.activity.descriptions.loadError,
-    loadSessionActivity,
-    resolvedWorkspaceId,
-    sessionId: viewModel.sessionId,
-  });
-  const overlayState = overlayRuntime.state;
-  const showsActivityPanel =
-    overlayState.activeOverlay === "activity" && hasActivity;
   const selectedArchivedPlan =
-    archivedPlans.find((plan) => plan.id === overlayState.selectedArchivedPlanId) ??
-    null;
+    archivedPlans.find((plan) => plan.id === selectedArchivedPlanId) ?? null;
   const archivedPlanDetail =
     selectedArchivedPlan?.taskTreeProjection
       ? archivedPlanDetailView(
           selectedArchivedPlan,
-          overlayState.selectedArchivedPlanTaskNodeId,
+          selectedArchivedPlanTaskNodeId,
         )
       : null;
   const showsArchivedPlansPanel =
-    overlayState.activeOverlay === "archived_plans" && archivedPlans.length > 0;
+    isArchivedPlansPanelOpen && archivedPlans.length > 0;
   const showsArchivedPlanDetailPanel =
     archivedPlanDetail !== null &&
     !showsActivityPanel &&
@@ -186,16 +185,19 @@ export function MainPageWorkbench({
     viewModel.mainWorkArea.kind !== "authoringAsk" &&
     (viewModel.taskWorkspace.messages.length > 0 ||
       visibleTransientMessages.length > 0);
+  const resolvedWorkspaceId =
+    viewModel.workspace.workspaceId ??
+    viewModel.sidebar.activeSession.workspaceId ??
+    activeWorkspaceId ??
+    null;
   const overlayActivityItems =
     loadSessionActivity === undefined
       ? mergeActivityItems(runtimeActivityItems, fallbackActivityItems)
-      : mergeActivityItems(runtimeActivityItems, overlayState.activityItems);
-  const selectedActivityItemId =
-    overlayState.selectedActivityItemId ??
-    newestActivityItemId(
-      overlayActivityItems,
-      viewModel.taskWorkspace.selectedTask?.id ?? null,
-    );
+      : mergeActivityItems(runtimeActivityItems, activityItems);
+  const selectedActivityItemId = newestActivityItemId(
+    overlayActivityItems,
+    viewModel.taskWorkspace.selectedTask?.id ?? null,
+  );
   const conversationMessages = useMemo(
     () =>
       mergeMessages(
@@ -205,19 +207,21 @@ export function MainPageWorkbench({
     [transientMessages, viewModel.taskWorkspace.allMessages],
   );
   const focusScrollRuntime = useMainPageFocusScrollRuntime({
-    conversationMessageCount: conversationMessages.length,
     inputDisabled: viewModel.input.disabled,
+    inputError,
+    inputRef: contextInputRef,
+    isInputSubmitting,
+    messages: conversationMessages,
+    sessionId: viewModel.sessionId,
+    workspaceId: resolvedWorkspaceId,
   });
+  const {
+    focusContextInput,
+    focusTarget,
+    scrollTargetIntoView,
+  } = focusScrollRuntime;
   const handledRouteFocusRequestRef = useRef<string | null>(null);
   const showFileChangesRef = useRef(actions.showFileChanges);
-  const previousInputSubmittingRef = useRef(isInputSubmitting);
-  const [composerFocusRequestCount, setComposerFocusRequestCount] = useState(0);
-  const activeAskFocusIdentity =
-    viewModel.mainWorkArea.kind === "authoringAsk"
-      ? `authoring:${viewModel.mainWorkArea.authoringAsk.rawTaskId}`
-      : viewModel.detail.kind === "executionAsk"
-        ? `execution:${viewModel.detail.ask.id}`
-        : null;
   const latestActivityMessages = useMemo(
     () =>
       mergeMessages(
@@ -235,6 +239,12 @@ export function MainPageWorkbench({
       ? `${viewModel.taskWorkspace.taskTree.nodes.length} tasks · ${viewModel.taskWorkspace.taskTree.status}`
       : "Generating plan";
   const activePlan = viewModel.taskWorkspace.activePlan;
+  const activeAskFocusIdentity =
+    viewModel.mainWorkArea.kind === "authoringAsk"
+      ? `authoring:${viewModel.mainWorkArea.authoringAsk.rawTaskId}`
+      : viewModel.detail.kind === "executionAsk"
+        ? `execution:${viewModel.detail.ask.id}`
+        : null;
   const showArchivePlan = activePlan != null && canArchivePlan(activePlan);
   const archivePlanAction =
     showArchivePlan && activePlan != null ? (
@@ -256,7 +266,21 @@ export function MainPageWorkbench({
 
   useEffect(() => {
     setIsPlanLayerExpanded(hasPlanLayer);
+    setIsActivityOverlayOpen(false);
+    setIsArchivedPlansPanelOpen(false);
+    setSelectedArchivedPlanId(null);
+    setSelectedArchivedPlanTaskNodeId(null);
   }, [hasPlanLayer, viewModel.sessionId]);
+
+  useEffect(() => {
+    if (
+      selectedArchivedPlanId !== null &&
+      !archivedPlans.some((plan) => plan.id === selectedArchivedPlanId)
+    ) {
+      setSelectedArchivedPlanId(null);
+      setSelectedArchivedPlanTaskNodeId(null);
+    }
+  }, [archivedPlans, selectedArchivedPlanId]);
 
   useEffect(() => {
     showFileChangesRef.current = actions.showFileChanges;
@@ -291,59 +315,39 @@ export function MainPageWorkbench({
 
     const timeoutId = window.setTimeout(() => {
       if (routeFocusTarget === "input_composer") {
-        focusScrollRuntime.focusContextInput("route_restored");
+        focusContextInput("route_restored");
+        return;
+      }
+
+      if (routeFocusTarget === "overlay_trigger") {
+        focusTarget("overlay_trigger", "route_restored");
         return;
       }
 
       if (routeFocusTarget === "ask_card") {
-        focusScrollRuntime.scrollTargetIntoView("ask_card", "route_restored");
-        focusScrollRuntime.focusTarget("ask_card", "route_restored");
+        scrollTargetIntoView("ask_card", "route_restored");
+        focusTarget("ask_card", "route_restored");
         return;
       }
 
-      if (routeFocusTarget === "conversation") {
-        focusScrollRuntime.scrollTargetIntoView(
-          "conversation",
-          "route_restored",
-        );
-        focusScrollRuntime.focusTarget("conversation", "route_restored");
+      if (routeFocusTarget === "selected_task") {
+        if (viewModel.taskWorkspace.selectedTaskNodeId !== null) {
+          scrollTargetIntoView("selected_task", "route_restored");
+          focusTarget("selected_task", "route_restored");
+        }
         return;
       }
 
-      if (routeFocusTarget === "detail_panel") {
-        focusScrollRuntime.scrollTargetIntoView(
-          "detail_panel",
-          "route_restored",
-        );
-        focusScrollRuntime.focusTarget("detail_panel", "route_restored");
-        return;
-      }
-
-      if (routeFocusTarget === "file_changes") {
-        focusScrollRuntime.scrollTargetIntoView(
-          "file_changes",
-          "route_restored",
-        );
-        focusScrollRuntime.focusTarget("file_changes", "route_restored");
-        return;
-      }
-
-      if (
-        routeFocusTarget === "selected_task" &&
-        viewModel.taskWorkspace.selectedTaskNodeId !== null
-      ) {
-        focusScrollRuntime.scrollTargetIntoView(
-          "selected_task",
-          "route_restored",
-        );
-        focusScrollRuntime.focusTarget("selected_task", "route_restored");
-      }
+      scrollTargetIntoView(routeFocusTarget, "route_restored");
+      focusTarget(routeFocusTarget, "route_restored");
     }, 0);
 
     return () => window.clearTimeout(timeoutId);
   }, [
-    focusScrollRuntime,
+    focusContextInput,
+    focusTarget,
     routeFocusTarget,
+    scrollTargetIntoView,
     viewModel.sessionId,
     viewModel.taskWorkspace.selectedTaskNodeId,
   ]);
@@ -354,39 +358,16 @@ export function MainPageWorkbench({
     }
 
     const timeoutId = window.setTimeout(() => {
-      focusScrollRuntime.scrollTargetIntoView("ask_card", "ask_presented");
-      focusScrollRuntime.focusTarget("ask_card", "ask_presented");
+      scrollTargetIntoView("ask_card", "ask_presented");
+      focusTarget("ask_card", "ask_presented");
     }, 0);
 
     return () => window.clearTimeout(timeoutId);
-  }, [activeAskFocusIdentity, focusScrollRuntime]);
-
-  useEffect(() => {
-    if (composerFocusRequestCount === 0) {
-      return;
-    }
-
-    const timeoutId = window.setTimeout(() => {
-      focusScrollRuntime.focusContextInput("input_submitted");
-    }, 0);
-
-    return () => window.clearTimeout(timeoutId);
-  }, [composerFocusRequestCount, focusScrollRuntime]);
-
-  useEffect(() => {
-    const previousIsInputSubmitting = previousInputSubmittingRef.current;
-    previousInputSubmittingRef.current = isInputSubmitting;
-
-    if (!previousIsInputSubmitting && !isInputSubmitting) {
-      return;
-    }
-
-    const timeoutId = window.setTimeout(() => {
-      focusScrollRuntime.focusContextInput("input_submitted");
-    }, 0);
-
-    return () => window.clearTimeout(timeoutId);
-  }, [focusScrollRuntime, isInputSubmitting]);
+  }, [
+    activeAskFocusIdentity,
+    focusTarget,
+    scrollTargetIntoView,
+  ]);
 
   useEffect(() => {
     if (!showsActivityPanel || selectedActivityItemId === null) {
@@ -394,42 +375,107 @@ export function MainPageWorkbench({
     }
 
     const timeoutId = window.setTimeout(() => {
-      focusScrollRuntime.scrollTargetIntoView(
-        "selected_activity",
-        "overlay_opened",
-      );
-      focusScrollRuntime.focusTarget("selected_activity", "overlay_opened");
+      scrollTargetIntoView("selected_activity", "overlay_opened");
+      focusTarget("selected_activity", "overlay_opened");
     }, 0);
 
     return () => window.clearTimeout(timeoutId);
   }, [
-    focusScrollRuntime,
+    focusTarget,
+    overlayActivityItems.length,
+    scrollTargetIntoView,
     selectedActivityItemId,
     showsActivityPanel,
-    overlayActivityItems.length,
   ]);
 
-  function openActivityOverlay(
-    trigger: HTMLElement | null = null,
-    selectedItemId = selectedActivityItemId,
-  ) {
-    if (trigger) {
+  useEffect(() => {
+    if (!isActivityOverlayOpen || loadSessionActivity === undefined) {
+      return;
+    }
+
+    let isCancelled = false;
+    setIsActivityLoading(true);
+    setActivityError(null);
+
+    void loadSessionActivity(
+      {
+        limit: 100,
+        sessionId: viewModel.sessionId,
+      },
+      resolvedWorkspaceId,
+    )
+      .then((timeline) => {
+        if (isCancelled) {
+          return;
+        }
+        setActivityItems(timeline.items);
+      })
+      .catch((error: unknown) => {
+        if (isCancelled) {
+          return;
+        }
+        setActivityError(
+          error instanceof Error
+            ? error.message
+            : uiText.main.activity.descriptions.loadError,
+        );
+      })
+      .finally(() => {
+        if (!isCancelled) {
+          setIsActivityLoading(false);
+        }
+      });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [
+    activityLoadKey,
+    isActivityOverlayOpen,
+    loadSessionActivity,
+    resolvedWorkspaceId,
+    uiText.main.activity.descriptions.loadError,
+    viewModel.sessionId,
+  ]);
+
+  function openActivityOverlay(trigger: HTMLElement | null = null) {
+    if (trigger !== null) {
       focusScrollRuntime.captureOverlayTriggerElement(trigger);
     } else {
       focusScrollRuntime.captureOverlayTrigger();
     }
-    overlayRuntime.actions.openActivity(selectedItemId);
+    setIsArchivedPlansPanelOpen(false);
+    setSelectedArchivedPlanId(null);
+    setSelectedArchivedPlanTaskNodeId(null);
+    setIsActivityOverlayOpen(true);
+  }
+
+  function openArchivedPlans(trigger: HTMLElement | null = null) {
+    if (trigger !== null) {
+      focusScrollRuntime.captureOverlayTriggerElement(trigger);
+    } else {
+      focusScrollRuntime.captureOverlayTrigger();
+    }
+    setIsActivityOverlayOpen(false);
+    setIsArchivedPlansPanelOpen(true);
+    setSelectedArchivedPlanId(null);
+    setSelectedArchivedPlanTaskNodeId(null);
   }
 
   function closeOverlayAndReturnFocus() {
-    overlayRuntime.actions.closeOverlay();
+    setIsActivityOverlayOpen(false);
+    setIsArchivedPlansPanelOpen(false);
     window.setTimeout(() => {
       focusScrollRuntime.focusTarget("overlay_trigger", "overlay_closed");
     }, 0);
   }
 
-  function closeOverlay() {
-    overlayRuntime.actions.closeOverlay();
+  function closeArchivedPlanAndReturnFocus() {
+    setSelectedArchivedPlanId(null);
+    setSelectedArchivedPlanTaskNodeId(null);
+    window.setTimeout(() => {
+      focusScrollRuntime.focusTarget("overlay_trigger", "overlay_closed");
+    }, 0);
   }
 
   function showActivityResult(taskNodeId: string | null) {
@@ -437,7 +483,10 @@ export function MainPageWorkbench({
       actions.selectTask(taskNodeId);
     }
     actions.showResult();
-    closeOverlay();
+    setIsActivityOverlayOpen(false);
+    setIsArchivedPlansPanelOpen(false);
+    setSelectedArchivedPlanId(null);
+    setSelectedArchivedPlanTaskNodeId(null);
   }
 
   function showActivityFiles(taskNodeId: string | null) {
@@ -445,39 +494,48 @@ export function MainPageWorkbench({
       actions.selectTask(taskNodeId);
     }
     actions.showFileChanges();
-    closeOverlay();
+    setIsActivityOverlayOpen(false);
+    setIsArchivedPlansPanelOpen(false);
+    setSelectedArchivedPlanId(null);
+    setSelectedArchivedPlanTaskNodeId(null);
   }
 
   function showActivityAudit(ref: SessionActivityRefView) {
     const href = ref.href ?? viewModel.workspace.auditEntry.href;
     window.location.assign(href);
-    closeOverlay();
+    setIsActivityOverlayOpen(false);
+    setIsArchivedPlansPanelOpen(false);
+    setSelectedArchivedPlanId(null);
+    setSelectedArchivedPlanTaskNodeId(null);
   }
 
   async function exportActivityDiagnostic() {
-    if (
-      exportDiagnosticBundle === undefined ||
-      overlayState.isExportingActivityDiagnostic
-    ) {
+    if (exportDiagnosticBundle === undefined || isExportingActivityDiagnostic) {
       return;
     }
 
-    overlayRuntime.actions.startDiagnosticExport(
-      uiText.settings.actions.exportingDiagnostics,
-    );
+    setActivityStatusMessage({
+      body: uiText.settings.actions.exportingDiagnostics,
+      tone: "info",
+    });
+    setIsExportingActivityDiagnostic(true);
 
     try {
       const result = await exportDiagnosticBundle(
         viewModel.sessionId,
         resolvedWorkspaceId,
       );
-      overlayRuntime.actions.succeedDiagnosticExport(
-        `${uiText.diagnostics.labels.bundleReady}: ${result.bundleId}`,
-      );
+      setActivityStatusMessage({
+        body: `${uiText.diagnostics.labels.bundleReady}: ${result.bundleId}`,
+        tone: "info",
+      });
     } catch {
-      overlayRuntime.actions.failDiagnosticExport(
-        uiText.settings.messages.diagnosticExportFailed,
-      );
+      setActivityStatusMessage({
+        body: uiText.settings.messages.diagnosticExportFailed,
+        tone: "danger",
+      });
+    } finally {
+      setIsExportingActivityDiagnostic(false);
     }
   }
 
@@ -515,9 +573,7 @@ export function MainPageWorkbench({
             isMessageScoped={viewModel.taskWorkspace.isMessageScoped}
             messages={latestActivityMessages}
             onOpenActivity={
-              hasActivity
-                ? (trigger) => openActivityOverlay(trigger)
-                : undefined
+              hasActivity ? openActivityOverlay : undefined
             }
             selectedTask={viewModel.taskWorkspace.selectedTask}
             totalMessageCount={totalActivityCount}
@@ -556,14 +612,12 @@ export function MainPageWorkbench({
   const archivedPlanProgressLayer =
     selectedArchivedPlan?.taskTreeProjection ? (
       <TaskTreePanel
-        isTaskPlanSelected={
-          overlayState.selectedArchivedPlanTaskNodeId === null
-        }
+        isTaskPlanSelected={selectedArchivedPlanTaskNodeId === null}
         onRetryTask={() => undefined}
-        onSelectTaskPlan={overlayRuntime.actions.selectArchivedPlanOverview}
-        onSelectTask={overlayRuntime.actions.selectArchivedPlanTask}
+        onSelectTaskPlan={() => setSelectedArchivedPlanTaskNodeId(null)}
+        onSelectTask={setSelectedArchivedPlanTaskNodeId}
         onStopTask={() => undefined}
-        selectedTaskNodeId={overlayState.selectedArchivedPlanTaskNodeId}
+        selectedTaskNodeId={selectedArchivedPlanTaskNodeId}
         taskTree={selectedArchivedPlan.taskTreeProjection}
       />
     ) : null;
@@ -599,10 +653,7 @@ export function MainPageWorkbench({
   const conversationPlanAction = showConversationPlanEntry ? (
     <Button
       aria-label="Open archived plan from Conversation"
-      onClick={(event) => {
-        focusScrollRuntime.captureOverlayTriggerElement(event.currentTarget);
-        overlayRuntime.actions.openArchivedPlans();
-      }}
+      onClick={(event) => openArchivedPlans(event.currentTarget)}
       size="sm"
       variant="secondary"
     >
@@ -693,17 +744,13 @@ export function MainPageWorkbench({
 
       {viewModel.mainWorkArea.kind !== "authoringAsk" ? (
         <ConversationLayer
-          bottomAnchorRef={focusScrollRuntime.conversationBottomAnchorRef}
+          bottomSentinelRef={focusScrollRuntime.bottomSentinelRef}
           className={styles.conversationWorkspace}
           headerActions={conversationHeaderActions}
-          messageListRef={focusScrollRuntime.conversationMessageListRef}
+          messageListRef={focusScrollRuntime.messageListRef}
           messages={conversationMessages}
-          onMessageListScroll={focusScrollRuntime.onConversationScroll}
-          onOpenActivity={
-            hasActivity
-              ? (trigger) => openActivityOverlay(trigger)
-              : undefined
-          }
+          onMessageListScroll={focusScrollRuntime.onMessageListScroll}
+          onOpenActivity={hasActivity ? openActivityOverlay : undefined}
           rootRef={focusScrollRuntime.conversationRootRef}
           totalActivityCount={totalActivityCount}
         />
@@ -750,7 +797,7 @@ export function MainPageWorkbench({
           {renderWorkspaceHeader(
             <button
               className={styles.planProgressCollapseButton}
-              onClick={closeOverlayAndReturnFocus}
+              onClick={closeArchivedPlanAndReturnFocus}
               type="button"
             >
               Back to conversation
@@ -897,8 +944,8 @@ export function MainPageWorkbench({
 
       {showsActivityPanel ? (
         <ActivityOverlay
-          errorMessage={overlayState.activityError}
-          isLoading={overlayState.isActivityLoading}
+          errorMessage={activityError}
+          isLoading={isActivityLoading}
           items={overlayActivityItems}
           onClose={closeOverlayAndReturnFocus}
           onOpenAudit={
@@ -916,12 +963,18 @@ export function MainPageWorkbench({
           onOpenFiles={showActivityFiles}
           onOpenPlan={() => {
             actions.selectTaskPlan();
-            closeOverlay();
+            setIsActivityOverlayOpen(false);
+            setIsArchivedPlansPanelOpen(false);
+            setSelectedArchivedPlanId(null);
+            setSelectedArchivedPlanTaskNodeId(null);
           }}
           onOpenResult={showActivityResult}
           onOpenTask={(taskNodeId) => {
             actions.selectTask(taskNodeId);
-            closeOverlay();
+            setIsActivityOverlayOpen(false);
+            setIsArchivedPlansPanelOpen(false);
+            setSelectedArchivedPlanId(null);
+            setSelectedArchivedPlanTaskNodeId(null);
             window.setTimeout(() => {
               focusScrollRuntime.scrollTargetIntoView(
                 "selected_task",
@@ -930,11 +983,11 @@ export function MainPageWorkbench({
               focusScrollRuntime.focusTarget("selected_task", "overlay_closed");
             }, 0);
           }}
-          onRetry={overlayRuntime.actions.retryActivity}
+          onRetry={() => setActivityLoadKey((key) => key + 1)}
           selectedActivityItemId={selectedActivityItemId}
           selectedActivityItemRef={focusScrollRuntime.selectedActivityItemRef}
           selectedTask={viewModel.taskWorkspace.selectedTask}
-          statusMessage={overlayState.activityStatusMessage}
+          statusMessage={activityStatusMessage}
         />
       ) : null}
 
@@ -943,7 +996,11 @@ export function MainPageWorkbench({
           auditHref={viewModel.workspace.auditEntry.href}
           items={archivedPlans}
           onClose={closeOverlayAndReturnFocus}
-          onOpenPlan={overlayRuntime.actions.openArchivedPlan}
+          onOpenPlan={(planId) => {
+            setSelectedArchivedPlanId(planId);
+            setSelectedArchivedPlanTaskNodeId(null);
+            setIsArchivedPlansPanelOpen(false);
+          }}
         />
       ) : null}
 
@@ -964,18 +1021,20 @@ export function MainPageWorkbench({
         draft={inputDraft}
         error={inputError}
         input={viewModel.input}
-        inputRef={focusScrollRuntime.contextInputRef}
+        inputRef={contextInputRef}
         isSubmitting={isInputSubmitting}
         recoveryActions={inputRecoveryActions}
         onDraftChange={actions.changeInputDraft}
         onSubmit={() => {
-          setComposerFocusRequestCount((count) => count + 1);
-          actions.submitInput({
+          const commandId = actions.submitInput({
             mode: viewModel.input.mode,
             sessionId: viewModel.sessionId,
             target: viewModel.input.target,
             taskNodeId: viewModel.input.taskNodeId,
           });
+          if (commandId !== null) {
+            focusScrollRuntime.notifyRuntimeInputSubmitStarted(commandId);
+          }
         }}
       />
     </main>

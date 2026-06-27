@@ -30,7 +30,7 @@ import type {
   ExportDiagnosticBundle,
   LoadSessionActivity,
 } from "./runtime/adapter";
-import type { MainPageFocusTarget } from "./runtime/mainPageFocusScrollRuntime";
+import type { MainPageRouteFocusTarget } from "./runtime/mainPageFocusScrollRuntime";
 import type { MainPageController } from "./useMainPageController";
 
 describe("MainPageWorkbench layout", () => {
@@ -1028,7 +1028,7 @@ function renderWorkbench(
     runtimeActivityItems?: readonly SessionActivityItemView[];
     workspaceCatalog?: WorkspaceCatalogResult | null;
     workspaceRuntime?: MainPageWorkspaceRuntime | null;
-    routeFocusTarget?: MainPageFocusTarget | null;
+    routeFocusTarget?: MainPageRouteFocusTarget | null;
   } = {},
 ) {
   render(
