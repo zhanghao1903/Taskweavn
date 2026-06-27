@@ -10,6 +10,7 @@ import type {
 } from "../../shared/api/types";
 import type {
   DiagnosticBundleExportResult,
+  ProductRecoveryAction,
   WorkspaceCatalogResult,
 } from "../../shared/api/platoApi";
 import { writeWorkspaceGitInitializeOnOpenPreference } from "../../shared/workspace/workspaceGitPreference";
@@ -67,6 +68,30 @@ describe("MainPageWorkbench layout", () => {
     expect(inputForm).not.toBeNull();
     expect(inputForm).toHaveClass(styles.contextInput);
     expect(inputForm).not.toHaveClass(styles.floatingContextInput);
+  });
+
+  it("routes helper recovery actions from the input error to Settings", async () => {
+    const user = userEvent.setup();
+    const viewModel = buildViewModel("s1-empty");
+
+    renderWorkbench(viewModel, buildActions(), {
+      inputError: "Computer-use helper needs Accessibility permission.",
+      inputRecoveryActions: ["open_macos_privacy_accessibility", "edit_input"],
+    });
+
+    expect(
+      screen.getByText("Computer-use helper needs Accessibility permission."),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Edit input")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Edit input" }),
+    ).not.toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole("button", { name: "Open Accessibility settings" }),
+    );
+
+    expect(globalThis.location.pathname).toBe("/settings");
   });
 
   it("renders pending confirmations above the context input", async () => {
@@ -854,6 +879,8 @@ function renderWorkbench(
   options: {
     activeWorkspaceId?: MainPageController["activeWorkspaceId"];
     exportDiagnosticBundle?: ExportDiagnosticBundle;
+    inputError?: string | null;
+    inputRecoveryActions?: ProductRecoveryAction[];
     loadSessionActivity?: LoadSessionActivity;
     runtimeActivityItems?: readonly SessionActivityItemView[];
     workspaceCatalog?: WorkspaceCatalogResult | null;
@@ -865,8 +892,8 @@ function renderWorkbench(
       actions={actions}
       activeWorkspaceId={options.activeWorkspaceId ?? null}
       inputDraft=""
-      inputError={null}
-      inputRecoveryActions={[]}
+      inputError={options.inputError ?? null}
+      inputRecoveryActions={options.inputRecoveryActions ?? []}
       isArchivingPlan={false}
       isCreatingSession={false}
       isDeletingSession={false}
