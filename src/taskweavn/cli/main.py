@@ -528,6 +528,7 @@ def computer_use_helper_app(
         f"bundleId={result.bundle_id} version={result.version} "
         f"apiVersion={result.api_version}"
     )
+    typer.echo(f"[computer-use-helper-app] signed={result.signed}")
 
 
 @app.command("computer-use-helper-executable")

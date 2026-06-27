@@ -1278,6 +1278,29 @@ frontend-safe `computerUse.permissionSubject` pointing at
 diagnostic contract is wired through the actual sidecar endpoint; the remaining
 blocker is external macOS TCC authorization, not Settings projection.
 
+2026-06-27 update 13: helper restart recovery was verified with
+`/tmp/plato-helper-preflight-20260627-after-restart.json`: the old helper PID
+was terminated, the helper auto-launched with a fresh manifest PID, and
+readiness still returned `missing_accessibility`. Follow-up inspection of the
+installed dev helper app showed `codesign -dv` reporting an executable-derived
+identifier (`PlatoComputerUseHelper-...`), `Info.plist=not bound`, and
+`Sealed Resources=none`, despite the Info.plist containing
+`CFBundleIdentifier=com.taskweavn.plato.computer-use-helper.dev`. This is a
+TCC identity-quality issue: macOS may not bind Accessibility permission to the
+intended bundle id if the full `.app` bundle is not signed. The dev helper app
+builder now ad-hoc signs the full bundle after writing Info.plist, resources,
+and the helper executable. The expected validation is that a rebuilt helper
+shows the bundle id as the codesign identifier and Info.plist is bound into the
+signature before rerunning TCC authorization/preflight.
+
+Validation after rebuilding the local dev helper showed the expected signature
+shape: `Identifier=com.taskweavn.plato.computer-use-helper.dev`,
+`Info.plist entries=13`, and sealed resources present. The follow-up helper
+preflight evidence `/tmp/plato-helper-preflight-20260627-signed.json` still
+returned `missing_accessibility`, which means the code-signing identity issue
+is fixed but the local macOS TCC grant must be refreshed for the newly signed
+helper before the backend can be accepted as ready.
+
 ### H5: Release Packaging
 
 - helper bundled with Plato installer；

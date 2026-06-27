@@ -9,8 +9,10 @@ paths, and launch configuration can be tested before release packaging exists.
 from __future__ import annotations
 
 import json
+import platform
 import shlex
 import shutil
+import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -61,6 +63,8 @@ class ComputerUseHelperAppBuildResult:
     bundle_id: str
     version: str
     api_version: str
+    signed: bool
+    signing_command: tuple[str, ...] | None = None
 
 
 def build_computer_use_helper_app(
@@ -108,6 +112,7 @@ def build_computer_use_helper_app(
             executable_path=executable_path,
         )
     _write_permission_guide(config=config, path=permission_guide_path)
+    signing_command = _codesign_helper_app(app_path)
 
     return ComputerUseHelperAppBuildResult(
         app_path=app_path,
@@ -120,6 +125,8 @@ def build_computer_use_helper_app(
         bundle_id=config.bundle_id,
         version=config.version,
         api_version=config.api_version,
+        signed=signing_command is not None,
+        signing_command=signing_command,
     )
 
 
@@ -167,6 +174,7 @@ def _write_launch_config(
         "version": config.version,
         "apiVersion": config.api_version,
         "signingMode": config.signing_mode,
+        "bundleSigning": "adhoc-bundle",
         "manifestPath": str(manifest_path),
         "pythonExecutable": config.python_executable,
         "host": config.host,
@@ -244,6 +252,7 @@ computer-use actions.
 - Version: `{config.version}`
 - API version: `{config.api_version}`
 - Signing mode: `{config.signing_mode}`
+- Bundle signing: `adhoc-bundle`
 - Computer-use backend: `{config.computer_use_backend.strip().lower()}`
 - Allowed apps: `{allowed_apps}`
 - Development Python runtime: `{config.python_executable}`
@@ -260,11 +269,44 @@ enforce permissions against that Python runtime. If readiness reports
 `external_python_for_app`, grant Accessibility and Automation permissions to the
 reported Python runtime or use a packaged helper build.
 
+The dev scaffold ad-hoc signs the full `.app` bundle so Info.plist and
+`CFBundleIdentifier` are bound into the code signature. If the helper is rebuilt
+at a different path or with a different identity, macOS may require the
+Accessibility permission to be refreshed.
+
 The helper listens only on loopback and publishes a startup-token manifest for
 Plato to discover. Do not share the manifest token.
 """
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(payload, encoding="utf-8")
+
+
+def _codesign_helper_app(app_path: Path) -> tuple[str, ...] | None:
+    if platform.system() != "Darwin":
+        return None
+    codesign_path = shutil.which("codesign")
+    if codesign_path is None:
+        return None
+    command = (
+        codesign_path,
+        "--force",
+        "--deep",
+        "--sign",
+        "-",
+        "--timestamp=none",
+        str(app_path),
+    )
+    try:
+        subprocess.run(
+            command,
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        raise ValueError(f"failed to codesign helper app: {app_path}") from exc
+    return command
 
 
 __all__ = [

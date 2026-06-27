@@ -302,6 +302,7 @@ def test_computer_use_helper_app_builds_dev_bundle(tmp_path: Path) -> None:
     assert result.exit_code == 0
     assert "[computer-use-helper-app] app=" in result.output
     assert "[computer-use-helper-app] permissionGuide=" in result.output
+    assert "[computer-use-helper-app] signed=" in result.output
     assert app_path.joinpath("Contents", "Info.plist").exists()
     assert app_path.joinpath("Contents", "Resources", "helper-launch.json").exists()
     assert app_path.joinpath("Contents", "Resources", "permission-guide.md").exists()

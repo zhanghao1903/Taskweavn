@@ -40,6 +40,7 @@ def test_build_computer_use_helper_app_writes_dev_bundle(tmp_path: Path) -> None
     assert result.permission_guide_path.exists()
     assert result.executable_path.exists()
     assert result.executable_path.stat().st_mode & stat.S_IXUSR
+    assert isinstance(result.signed, bool)
 
     with result.info_plist_path.open("rb") as handle:
         plist = load_plist(handle)
@@ -60,6 +61,7 @@ def test_build_computer_use_helper_app_writes_dev_bundle(tmp_path: Path) -> None
     assert launch_config["computerUseAllowedApps"] == ["WeChat", "TextEdit"]
     assert launch_config["apiVersion"] == "plato.computer_use_helper.v1"
     assert launch_config["signingMode"] == "development-app"
+    assert launch_config["bundleSigning"] == "adhoc-bundle"
 
     launcher = result.executable_path.read_text(encoding="utf-8")
     assert "build_helper_app_cli_argv" in launcher
@@ -73,7 +75,9 @@ def test_build_computer_use_helper_app_writes_dev_bundle(tmp_path: Path) -> None
     assert "Allowed apps: `WeChat, TextEdit`" in permission_guide
     assert "Development Python runtime: `/usr/bin/python3`" in permission_guide
     assert "Launcher mode: `external-python-wrapper`" in permission_guide
+    assert "Bundle signing: `adhoc-bundle`" in permission_guide
     assert "Grant Accessibility permission to this helper app" in permission_guide
+    assert "ad-hoc signs the full `.app` bundle" in permission_guide
     assert "external_python_for_app" in permission_guide
 
 
