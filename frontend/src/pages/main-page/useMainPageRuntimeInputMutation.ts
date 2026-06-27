@@ -207,6 +207,16 @@ export function useMainPageRuntimeInputMutation({
         );
 
         if (commandResult.errorMessage) {
+          const runtimeActivities = runtimeInputRouteActivities(
+            request,
+            routeResult,
+          );
+          if (runtimeActivities.length > 0) {
+            reconcileRuntimeInputSubmit(request.commandId);
+            setRuntimeActivityItems((items) =>
+              prependRuntimeActivityItems(items, runtimeActivities),
+            );
+          }
           rejectRuntimeInputSubmit({
             commandId: request.commandId,
             message: commandResult.errorMessage,

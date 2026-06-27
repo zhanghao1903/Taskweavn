@@ -481,6 +481,61 @@ describe("useMainPageController", () => {
     expect(loadSnapshot).toHaveBeenCalledTimes(2);
   });
 
+  it("keeps command-response rejections visible as user input and Router reply", async () => {
+    const routeRuntimeInput = vi.fn<RouteRuntimeInputCommand>(
+      async (request) => commandRejectedRuntimeInputResponse(request),
+    );
+
+    const { result } = renderMainPageController({
+      adapter: testAdapter({
+        routeRuntimeInput,
+      }),
+      initialStateId: "s3-draft-ready",
+    });
+
+    await waitFor(() => {
+      expect(result.current.snapshotData?.metadata.id).toBe("s3-draft-ready");
+    });
+
+    act(() => {
+      result.current.actions.changeInputDraft("给微信的文件传输助手发送“你好”");
+    });
+    act(() => {
+      result.current.actions.submitInput({
+        mode: "append_session_input",
+        sessionId: "session-website-plan",
+        target: "session",
+        taskNodeId: null,
+      });
+    });
+
+    await waitFor(() => {
+      expect(result.current.inputError).toContain("capability_not_available");
+    });
+
+    expect(result.current.runtimeActivityItems).toMatchObject([
+      {
+        body: "给微信的文件传输助手发送“你好”",
+        kind: "user_input",
+        title: "User input",
+      },
+      {
+        body: expect.stringContaining("当前执行环境不支持微信发送能力"),
+        kind: "recovery_note",
+        title: "Router reply",
+      },
+      {
+        body: expect.stringContaining("当前执行环境不支持微信发送能力"),
+        kind: "recovery_note",
+        title: "Runtime input routed",
+      },
+    ]);
+    expect(result.current.inputRecoveryActions).toEqual([
+      "open_settings",
+      "retry_command",
+    ]);
+  });
+
   it("submits a manual retry command for the selected failed task", async () => {
     const retryTask = vi.fn<RetryTaskCommand>(async (sessionId, taskNodeId, request) =>
       acceptedCommandResponse({
@@ -1699,6 +1754,68 @@ function rejectedRuntimeInputResponse(
         disclosureLevel: "public",
       },
       commandResponse: null,
+      inquiryResult: null,
+      generatedAt: now,
+    },
+    error: null,
+    cursor: null,
+    generatedAt: now,
+  };
+}
+
+function commandRejectedRuntimeInputResponse(
+  request: RuntimeInputRouteRequest,
+): QueryResponse<RuntimeInputRouteResult> {
+  const now = "2026-06-14T00:00:00Z";
+  const message =
+    "当前执行环境不支持微信发送能力。没有发送消息。 错误代码：capability_not_available 错误信息：no execution environment can satisfy the requested capability";
+
+  return {
+    requestId: `request-${request.commandId}`,
+    ok: true,
+    data: {
+      sessionId: request.sessionId,
+      decision: {
+        id: `decision-${request.commandId}`,
+        intent: "execution_request",
+        scope: {
+          kind: request.selection.scopeKind,
+          planId: request.selection.planId ?? null,
+          taskNodeId: request.selection.taskNodeId ?? null,
+        },
+        confidence: "high",
+        sideEffect: "execution_request",
+        dispatchTarget: "execution_handoff",
+        explanation:
+          "Input published a bounded, confirmation-gated WeChat send task through Execution Plane.",
+        relatedRefs: [],
+      },
+      outcome: {
+        status: "rejected",
+        userMessage: message,
+        recoveryActions: ["open_settings", "retry_command"],
+      },
+      activity: {
+        id: `activity-${request.commandId}`,
+        sessionId: request.sessionId,
+        kind: "recovery_note",
+        title: "Runtime input routed",
+        body: message,
+        occurredAt: now,
+        scopeKind: request.selection.scopeKind,
+        planId: request.selection.planId ?? null,
+        taskNodeId: request.selection.taskNodeId ?? null,
+        sideEffect: "state_effect",
+        relatedRefs: [],
+        sourceKind: "router",
+        sourceId: `decision-${request.commandId}`,
+        disclosureLevel: "public",
+      },
+      commandResponse: rejectedCommandResponse({
+        commandId: request.commandId,
+        message,
+        recoveryActions: ["open_settings", "retry_command"],
+      }),
       inquiryResult: null,
       generatedAt: now,
     },
