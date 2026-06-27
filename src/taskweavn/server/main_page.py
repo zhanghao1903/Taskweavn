@@ -3,12 +3,11 @@
 from __future__ import annotations
 
 import contextlib
-import os
 import threading
 from collections.abc import Callable
 from dataclasses import dataclass, field, replace
 from pathlib import Path
-from typing import Any, cast
+from typing import cast
 
 from taskweavn.contract_revision import (
     ContractCommandIdempotencyStore,
@@ -35,8 +34,6 @@ from taskweavn.interaction import (
     SqliteAskStore,
     SqliteMessageStream,
 )
-from taskweavn.llm.agent_config import AgentLlmRole
-from taskweavn.llm.agent_resolver import SettingsBackedAgentLlmResolver
 from taskweavn.observability import LogContext
 from taskweavn.runtime_config import (
     DefaultRuntimeConfigMutationService,
@@ -61,13 +58,16 @@ from taskweavn.server.main_page_audit_events import (
     task_lifecycle_event_callback,
     ui_event_store,
 )
+from taskweavn.server.main_page_llm_helpers import (
+    read_only_inquiry_web_search_provider,
+    workspace_agent_llms,
+)
 from taskweavn.server.main_page_logging import configure_sidecar_logging
 from taskweavn.server.main_page_sessions import (
     MainPageSessionLifecycleGateway,
     MainPageTaskRefResolver,
     resolve_configured_session,
 )
-from taskweavn.server.main_page_usage import task_plan_resolver
 from taskweavn.server.multi_workspace import (
     MultiWorkspacePlatoUiHttpTransport,
     WorkspaceRegistryEntry,
@@ -95,7 +95,6 @@ from taskweavn.server.runtime_input_llm_router import LLMRuntimeInputRoutePlanne
 from taskweavn.server.runtime_input_router import DefaultRuntimeInputRouter
 from taskweavn.server.settings_config import (
     DefaultSettingsConfigGateway,
-    effective_web_search_settings,
     file_settings_config_store_for,
 )
 from taskweavn.server.sidecar import (
@@ -176,8 +175,7 @@ from taskweavn.task import (
     TaskExecutionTickResult,
 )
 from taskweavn.tools import ComputerUseBackend
-from taskweavn.usage import SqliteTokenUsageStore, UsageRecordingLLM
-from taskweavn.web_retrieval import TavilyWebSearchProvider, WebSearchProvider
+from taskweavn.usage import SqliteTokenUsageStore
 from taskweavn.workspace_inspection import DefaultWorkspaceInspectionGateway
 
 DEFAULT_PLATO_SIDECAR_PORT = 52789
@@ -405,7 +403,7 @@ def build_main_page_workspace_runtime(
             workspace_root=config.workspace_root,
             global_settings_root=config.global_settings_root,
         )
-        agent_llms = _workspace_agent_llms(
+        agent_llms = workspace_agent_llms(
             config,
             dependencies,
             settings_store=settings_store,
@@ -681,7 +679,7 @@ def build_main_page_workspace_runtime(
                 diagnostic_support_provider=diagnostic_support_provider,
                 answer_provider=GuardedLLMReadOnlyInquiryAnswerProvider(
                     agent_llms.read_only_inquiry,
-                    web_search_provider=_read_only_inquiry_web_search_provider(
+                    web_search_provider=read_only_inquiry_web_search_provider(
                         settings_store
                     ),
                 ),
@@ -984,80 +982,6 @@ def _runtime_config_process_values(config: MainPageSidecarConfig) -> dict[str, o
     if config.logging_profile is not None:
         values["logging.profile"] = config.logging_profile
     return values
-
-
-@dataclass(frozen=True)
-class _WorkspaceAgentLlms:
-    execution: Any
-    collaborator: Any
-    read_only_inquiry: Any
-    router: Any
-
-
-def _workspace_agent_llms(
-    config: MainPageSidecarConfig,
-    dependencies: MainPageSidecarDependencies,
-    *,
-    settings_store: Any,
-    token_usage_store: SqliteTokenUsageStore,
-    task_bus: SqliteTaskBus,
-) -> _WorkspaceAgentLlms:
-    shared_llm = _workspace_llm_if_configured(config.workspace_root, dependencies)
-    workspace_id = config.current_workspace_id or "current"
-    plan_resolver = task_plan_resolver(task_bus)
-    if shared_llm is not None:
-        usage_llm = UsageRecordingLLM(
-            shared_llm,
-            workspace_id=workspace_id,
-            sink=token_usage_store,
-            task_plan_resolver=plan_resolver,
-        )
-        return _WorkspaceAgentLlms(
-            execution=usage_llm,
-            collaborator=usage_llm,
-            read_only_inquiry=usage_llm,
-            router=usage_llm,
-        )
-
-    resolver = SettingsBackedAgentLlmResolver(
-        settings_store=settings_store,
-        base_env=os.environ,
-        workspace_id=workspace_id,
-        usage_sink=token_usage_store,
-        task_plan_resolver=plan_resolver,
-    )
-
-    def client(role: AgentLlmRole) -> Any:
-        return resolver.client_for(role)
-
-    return _WorkspaceAgentLlms(
-        execution=client("execution_agent"),
-        collaborator=client("collaborator"),
-        read_only_inquiry=client("read_only_inquiry"),
-        router=client("runtime_input_router"),
-    )
-
-
-def _workspace_llm_if_configured(
-    workspace_root: Path,
-    dependencies: MainPageSidecarDependencies,
-) -> CollaboratorLLM | None:
-    if dependencies.llm_factory is not None:
-        return dependencies.llm_factory(workspace_root)
-    return dependencies.llm
-
-
-def _read_only_inquiry_web_search_provider(
-    settings_store: Any,
-) -> WebSearchProvider | None:
-    settings = effective_web_search_settings(
-        config=settings_store.read_config(),
-        base_env=os.environ,
-        store=settings_store,
-    )
-    if settings.status != "ready" or settings.provider != "tavily":
-        return None
-    return TavilyWebSearchProvider(api_key=settings.api_key or "")
 
 
 def _authoring_stores(
