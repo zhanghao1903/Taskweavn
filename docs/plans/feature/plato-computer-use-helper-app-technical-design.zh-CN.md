@@ -392,6 +392,33 @@ uv run taskweavn computer-use-helper-executable \
 readiness。后续仍需要验证 helper auto-launch + sidecar readiness 投射，以及
 无发送的 app-specific readiness/smoke。
 
+2026-06-27 sidecar auto-launch + Settings readiness 验证结果：
+
+- 重新构建 packaged executable：
+  `/tmp/plato-helper-executable-smoke-macos-v2/dist/PlatoComputerUseHelper`；
+- 使用 `taskweavn computer-use-helper-app --packaged-executable-path ...`
+  生成临时 helper `.app`，配置 `computer-use-backend=macos` 与
+  `computer-use-allowed-apps=WeChat,TextEdit`；
+- 先独立验证 LaunchServices 冷启动：本机 PyInstaller onefile helper 约 55
+  秒后发布 manifest；
+- 因此 helper backend 默认 manifest 等待时间从 10 秒提高到 90 秒，并新增：
+  - `PLATO_COMPUTER_USE_HELPER_LAUNCH_TIMEOUT_SECONDS`
+  - `PLATO_COMPUTER_USE_HELPER_LAUNCH_POLL_INTERVAL_SECONDS`
+- 启动 Plato sidecar，使用 `computer-use-backend=helper`、
+  `--computer-use-helper-app-path` 和 `--computer-use-helper-auto-launch`；
+- sidecar 成功 auto-launch helper，Settings readiness 中：
+  - `computerUse.backend=helper`
+  - `computerUse.allowedApps=["WeChat", "TextEdit"]`
+  - `runtimeIdentity.mode=helper_owned_executable`
+  - `runtimeIdentity.effectiveExecutable` 指向
+    `.app/Contents/MacOS/PlatoComputerUseHelper`
+  - manifest 已发布；
+- 当前临时 helper `.app` 未授权 Accessibility，因此 readiness 合理返回
+  `missing_accessibility`，并显示 helper-specific recovery hint，不再提示授权
+  Python process；
+- evidence:
+  `/tmp/plato-sidecar-helper-autolaunch-macos-v2/sidecar-helper-autolaunch-readiness-evidence.json`。
+
 ## 7. Helper 启动模式
 
 ### 7.1 Manual Run Mode

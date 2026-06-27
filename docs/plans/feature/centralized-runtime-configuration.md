@@ -119,6 +119,8 @@ without changing behavior.
 | Read-only inquiry LLM | enabled | `MainPageSidecarConfig.enable_read_only_inquiry_llm`, `PLATO_ENABLE_READ_ONLY_INQUIRY_LLM` |
 | Computer-use backend | `disabled` | CLI/packaged sidecar `--computer-use-backend`, `PLATO_COMPUTER_USE_BACKEND` |
 | Computer-use allowed apps | empty allowlist unless passed | `PLATO_COMPUTER_USE_ALLOWED_APPS` / sidecar args |
+| Computer-use helper launch timeout | `90` seconds | `PLATO_COMPUTER_USE_HELPER_LAUNCH_TIMEOUT_SECONDS` |
+| Computer-use helper launch poll interval | `0.2` seconds | `PLATO_COMPUTER_USE_HELPER_LAUNCH_POLL_INTERVAL_SECONDS` |
 | Computer-use coordinate click | `false` | `build_computer_use_runtime(... allow_coordinate_click=False)` |
 | Computer-use screen recording requirement | `false` | `build_computer_use_runtime(... screen_recording_required=False)` |
 | Computer-use max text chars | `4000` | `MacOSComputerUseBackendConfig.max_text_chars` |

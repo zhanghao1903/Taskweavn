@@ -298,6 +298,19 @@ Implementation status as of 2026-06-27:
   the helper-owned executable can satisfy the real macOS backend readiness path
   on the current machine. Evidence was written outside the repo at
   `/tmp/plato-helper-macos-readiness/macos-readiness-evidence.json`.
+- Sidecar auto-launch now waits up to 90 seconds for a helper app manifest by
+  default, with env overrides for launch timeout and poll interval. This is
+  required for PyInstaller onefile cold starts: local LaunchServices smoke
+  measured about 55 seconds before the rebuilt helper published its manifest.
+- A sidecar readiness-only smoke with a rebuilt packaged helper executable
+  verified the full Plato-side auto-launch path: sidecar started with
+  `computer-use-backend=helper`, auto-launched a helper `.app` packaged with
+  `computer-use-backend=macos`, observed a published helper manifest, and
+  projected `runtimeIdentity.mode=helper_owned_executable` through Settings
+  readiness. The current temporary helper app is not granted Accessibility, so
+  the final readiness status is correctly `missing_accessibility` with a
+  helper-specific recovery hint. Evidence was written outside the repo at
+  `/tmp/plato-sidecar-helper-autolaunch-macos-v2/sidecar-helper-autolaunch-readiness-evidence.json`.
 - Helper backend now supports explicit opt-in auto-launch from a configured
   helper app path, waits for the helper manifest before connecting, and waits
   for a refreshed manifest when recovering from a stale endpoint. This is

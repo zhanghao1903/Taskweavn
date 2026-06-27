@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import http.client
 import json
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
@@ -136,6 +137,46 @@ def test_helper_server_readiness_degrades_when_system_events_probe_fails() -> No
     assert probe["status"] == "failed"
     assert probe["metadata"]["failure_kind"] == "applescript_timeout"
     assert [action.operation for action in backend.actions] == ["readiness", "observe"]
+
+
+def test_helper_server_readiness_rewrites_permission_hint_for_helper_owned_executable() -> None:
+    backend = ScriptedComputerUseBackend(
+        responses=[
+            _observation(
+                operation="readiness",
+                status="not_available",
+                summary=(
+                    "macOS computer-use readiness: missing_accessibility. "
+                    "Grant Accessibility permission to the Python process or host app."
+                ),
+                metadata={"failure_kind": "missing_accessibility"},
+            )
+        ]
+    )
+
+    with build_computer_use_helper_server(
+        backend=backend,
+        helper_config=ComputerUseHelperTransportConfig(
+            info=ComputerUseHelperInfo(
+                path=str(Path(sys.executable).parent),
+                signing_mode="development-app",
+            )
+        ),
+    ) as server:
+        response = _request(server, "GET", "/v1/readiness")
+
+    assert response.status == 200
+    assert response.json["status"] == "missing_accessibility"
+    assert response.json["success"] is False
+    assert "Plato Computer Use Helper" in response.json["summary"]
+    assert "Python process" not in response.json["summary"]
+    assert response.json["setupHint"] == response.json["metadata"]["setup_hint"]
+    assert response.json["recoveryActions"] == [
+        "open_macos_privacy_accessibility",
+        "open_macos_privacy_automation",
+        "restart_helper",
+        "rerun_helper_preflight",
+    ]
 
 
 def test_helper_server_readiness_warns_when_dev_app_uses_external_python() -> None:

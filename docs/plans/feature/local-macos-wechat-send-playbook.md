@@ -472,6 +472,22 @@ Validated runtime identity hint on 2026-06-27:
   - evidence:
     `/tmp/plato-helper-macos-readiness/macos-readiness-evidence.json`;
   - no WeChat send occurred.
+- 2026-06-27 sidecar auto-launch readiness-only smoke:
+  - rebuilt packaged executable:
+    `/tmp/plato-helper-executable-smoke-macos-v2/dist/PlatoComputerUseHelper`;
+  - generated a temp helper `.app` with `computer-use-backend=macos` and
+    `computer-use-allowed-apps=WeChat,TextEdit`;
+  - sidecar started with `computer-use-backend=helper`,
+    `--computer-use-helper-app-path`, and `--computer-use-helper-auto-launch`;
+  - helper backend now waits up to 90 seconds for manifest publication because
+    local PyInstaller onefile LaunchServices cold start measured about 55
+    seconds;
+  - Settings readiness projected
+    `runtimeIdentity.mode=helper_owned_executable`, manifest publication, and
+    helper-specific `missing_accessibility` recovery copy;
+  - evidence:
+    `/tmp/plato-sidecar-helper-autolaunch-macos-v2/sidecar-helper-autolaunch-readiness-evidence.json`;
+  - no WeChat send occurred.
 
 ### 6.3 Helper-Backed Contact Resolution Progress
 

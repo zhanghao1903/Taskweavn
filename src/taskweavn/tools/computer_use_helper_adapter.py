@@ -49,7 +49,7 @@ class ComputerUseHelperBackendConfig:
     endpoint_manifest_path: Path | None = None
     helper_app_path: Path | None = None
     helper_auto_launch: bool = False
-    helper_launch_timeout_seconds: float = 10.0
+    helper_launch_timeout_seconds: float = 90.0
     helper_launch_poll_interval_seconds: float = 0.2
     helper_app_launcher: HelperAppLauncher | None = None
     expected_bundle_id: str | None = None
@@ -81,6 +81,14 @@ class ComputerUseHelperBackendConfig:
             helper_auto_launch=_env_bool(
                 "PLATO_COMPUTER_USE_HELPER_AUTO_LAUNCH",
                 default=False,
+            ),
+            helper_launch_timeout_seconds=_env_float(
+                "PLATO_COMPUTER_USE_HELPER_LAUNCH_TIMEOUT_SECONDS",
+                default=90.0,
+            ),
+            helper_launch_poll_interval_seconds=_env_float(
+                "PLATO_COMPUTER_USE_HELPER_LAUNCH_POLL_INTERVAL_SECONDS",
+                default=0.2,
             ),
             expected_bundle_id=os.environ.get(
                 "PLATO_COMPUTER_USE_HELPER_EXPECTED_BUNDLE_ID"
@@ -827,6 +835,19 @@ def _env_bool(name: str, *, default: bool) -> bool:
     if normalized in {"0", "false", "no", "off"}:
         return False
     return default
+
+
+def _env_float(name: str, *, default: float) -> float:
+    raw_value = os.environ.get(name)
+    if raw_value is None:
+        return default
+    try:
+        value = float(raw_value)
+    except ValueError:
+        return default
+    if value < 0:
+        return default
+    return value
 
 
 __all__ = [

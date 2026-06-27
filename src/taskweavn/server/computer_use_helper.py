@@ -269,6 +269,7 @@ class ComputerUseHelperTransport:
         body = _observation_to_helper_body(observation, request_id=request_id)
         body["helper"] = _info_body(self._config.info)
         _apply_runtime_identity_diagnostics(body, self._config.info)
+        _apply_readiness_permission_hint(body)
         if (
             body.get("status") == "ready"
             and self._config.system_events_probe_enabled
@@ -704,6 +705,24 @@ def _apply_runtime_identity_diagnostics(
     body["diagnostics"] = diagnostics
     metadata = _dict_value(body.get("metadata"))
     metadata["diagnostics"] = diagnostics
+    body["metadata"] = metadata
+
+
+def _apply_readiness_permission_hint(body: dict[str, Any]) -> None:
+    status = body.get("status")
+    if status not in {
+        "automation_not_authorized",
+        "missing_accessibility",
+        "missing_screen_recording",
+    }:
+        return
+    setup_hint = _system_events_setup_hint(body)
+    body["summary"] = f"macOS computer-use readiness: {status}. {setup_hint}"
+    body["setupHint"] = setup_hint
+    body["recoveryActions"] = list(_SYSTEM_EVENTS_RECOVERY_ACTIONS)
+    metadata = _dict_value(body.get("metadata"))
+    metadata["setup_hint"] = setup_hint
+    metadata["recovery_actions"] = list(_SYSTEM_EVENTS_RECOVERY_ACTIONS)
     body["metadata"] = metadata
 
 

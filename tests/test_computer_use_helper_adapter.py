@@ -599,12 +599,16 @@ def test_helper_backend_reads_auto_launch_environment(
     monkeypatch.setenv("PLATO_COMPUTER_USE_HELPER_MANIFEST", str(manifest_path))
     monkeypatch.setenv("PLATO_COMPUTER_USE_HELPER_APP_PATH", str(app_path))
     monkeypatch.setenv("PLATO_COMPUTER_USE_HELPER_AUTO_LAUNCH", "1")
+    monkeypatch.setenv("PLATO_COMPUTER_USE_HELPER_LAUNCH_TIMEOUT_SECONDS", "45")
+    monkeypatch.setenv("PLATO_COMPUTER_USE_HELPER_LAUNCH_POLL_INTERVAL_SECONDS", "0.5")
 
     config = ComputerUseHelperBackendConfig.from_environment()
 
     assert config.endpoint_manifest_path == manifest_path
     assert config.helper_app_path == app_path
     assert config.helper_auto_launch is True
+    assert config.helper_launch_timeout_seconds == 45
+    assert config.helper_launch_poll_interval_seconds == 0.5
 
 
 def test_helper_backend_rejects_manifest_bundle_mismatch(tmp_path: Path) -> None:
