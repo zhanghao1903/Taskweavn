@@ -107,8 +107,25 @@ def test_computer_use_readiness_degrades_when_enabled_backend_is_not_ready() -> 
                     "helper_status": "missing_accessibility",
                     "failure_kind": "missing_accessibility",
                     "setup_hint": "Enable Accessibility for Plato Computer Use Helper.",
+                    "readiness": {
+                        "status": "missing_accessibility",
+                        "accessibility_trusted": False,
+                    },
+                    "recovery_actions": [
+                        "open_macos_privacy_accessibility",
+                        "restart_helper",
+                        "rerun_helper_preflight",
+                    ],
                     "diagnostics": {
                         "bundle_id": "com.taskweavn.plato.computer-use-helper.dev",
+                        "runtimeIdentity": {
+                            "mode": "helper_owned_executable",
+                            "effectiveExecutable": (
+                                "/Applications/Plato Computer Use Helper Dev.app/"
+                                "Contents/MacOS/PlatoComputerUseHelper"
+                            ),
+                            "token": "must-not-leak",
+                        },
                         "token": "must-not-leak",
                     },
                     "helper": {
@@ -148,6 +165,29 @@ def test_computer_use_readiness_degrades_when_enabled_backend_is_not_ready() -> 
     assert computer_use["helper"] == {
         "bundleId": "com.taskweavn.plato.computer-use-helper.dev",
         "path": "/Applications/Plato Computer Use Helper Dev.app",
+    }
+    assert computer_use["permissionSubject"] == {
+        "helperBundleId": "com.taskweavn.plato.computer-use-helper.dev",
+        "helperAppPath": "/Applications/Plato Computer Use Helper Dev.app",
+        "runtimeMode": "helper_owned_executable",
+        "effectiveExecutable": (
+            "/Applications/Plato Computer Use Helper Dev.app/"
+            "Contents/MacOS/PlatoComputerUseHelper"
+        ),
+        "accessibilityTrusted": False,
+        "packageReadinessStatus": "missing_accessibility",
+        "helperStatus": "missing_accessibility",
+        "recoveryActions": [
+            "open_macos_privacy_accessibility",
+            "restart_helper",
+            "rerun_helper_preflight",
+        ],
+        "operatorInstruction": (
+            "Grant or refresh macOS Accessibility and Automation permissions "
+            "for /Applications/Plato Computer Use Helper Dev.app, restart the "
+            "helper, then rerun helper readiness before publishing a "
+            "computer-use task."
+        ),
     }
     assert report["warnings"] == [
         {

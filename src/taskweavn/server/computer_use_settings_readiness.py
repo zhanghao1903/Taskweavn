@@ -123,6 +123,7 @@ def _readiness_from_observation(
     failure_kind = _string(metadata.get("failure_kind"))
     setup_hint = _string(metadata.get("setup_hint"))
     helper_identity = _safe_helper_identity(metadata.get("helper"))
+    permission_subject = _permission_subject(metadata)
 
     base["operationStatus"] = observation.status
     base["ready"] = observation.success and observation.status == "ok"
@@ -136,6 +137,8 @@ def _readiness_from_observation(
         base["setupHint"] = setup_hint
     if helper_identity:
         base["helper"] = helper_identity
+    if permission_subject:
+        base["permissionSubject"] = permission_subject
     diagnostics = _safe_metadata(metadata)
     if diagnostics:
         base["diagnostics"] = diagnostics
@@ -187,6 +190,59 @@ def _safe_helper_identity(value: object) -> dict[str, str]:
         if isinstance(raw, str) and raw:
             safe[key] = raw[:500]
     return safe
+
+
+def _permission_subject(metadata: Mapping[str, Any]) -> dict[str, Any]:
+    helper = metadata.get("helper")
+    diagnostics = metadata.get("diagnostics")
+    readiness = metadata.get("readiness")
+    if not isinstance(helper, Mapping) and not isinstance(diagnostics, Mapping):
+        return {}
+    helper_map = helper if isinstance(helper, Mapping) else {}
+    diagnostics_map = diagnostics if isinstance(diagnostics, Mapping) else {}
+    runtime_identity = diagnostics_map.get("runtimeIdentity")
+    runtime_identity_map = (
+        runtime_identity if isinstance(runtime_identity, Mapping) else {}
+    )
+    readiness_map = readiness if isinstance(readiness, Mapping) else {}
+    helper_app_path = _string(helper_map.get("path"))
+    effective_executable = _string(runtime_identity_map.get("effectiveExecutable"))
+    operator_target = helper_app_path or effective_executable
+    subject: dict[str, Any] = {
+        "helperBundleId": _string(helper_map.get("bundleId")),
+        "helperAppPath": helper_app_path,
+        "runtimeMode": _string(runtime_identity_map.get("mode")),
+        "effectiveExecutable": effective_executable,
+        "accessibilityTrusted": _bool_or_none(
+            readiness_map.get("accessibility_trusted")
+        ),
+        "packageReadinessStatus": _string(readiness_map.get("status")),
+        "helperStatus": _string(metadata.get("helper_status")),
+        "recoveryActions": list(_string_tuple(metadata.get("recovery_actions"))),
+    }
+    if operator_target:
+        subject["operatorInstruction"] = (
+            "Grant or refresh macOS Accessibility and Automation permissions "
+            f"for {operator_target}, restart the helper, then rerun helper "
+            "readiness before publishing a computer-use task."
+        )
+    return {
+        key: value
+        for key, value in subject.items()
+        if value is not None and value != [] and value != ""
+    }
+
+
+def _bool_or_none(value: object) -> bool | None:
+    return value if isinstance(value, bool) else None
+
+
+def _string_tuple(value: object) -> tuple[str, ...]:
+    if isinstance(value, str):
+        return tuple(item.strip() for item in value.split(",") if item.strip())
+    if isinstance(value, (list, tuple)):
+        return tuple(item for item in value if isinstance(item, str) and item)
+    return ()
 
 
 def _string(value: object) -> str | None:

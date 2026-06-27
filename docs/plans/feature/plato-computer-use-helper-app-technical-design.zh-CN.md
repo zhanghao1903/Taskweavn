@@ -1247,6 +1247,13 @@ refreshed the manifest to a new PID, and readiness reached
 stale-manifest recovery and narrows the remaining blocker to macOS TCC
 authorization for the stable dev helper app.
 
+2026-06-27 update 10: Settings readiness now projects a frontend-safe
+`computerUse.permissionSubject` summary from helper readiness metadata. The
+field includes helper bundle id, helper app path, runtime mode, effective
+executable, accessibility trust state, package/helper readiness status, and
+safe recovery actions. This lets Settings/UI diagnostics point at the exact
+macOS TCC permission subject without exposing helper tokens.
+
 ### H5: Release Packaging
 
 - helper bundled with Plato installer；

@@ -267,6 +267,9 @@ Validated permission-subject evidence on 2026-06-27:
   - `recoveryActions`
 - result remains `missing_accessibility`; no task was published and no WeChat
   message was sent.
+- Settings readiness also projects the same safe summary as
+  `computerUse.permissionSubject`, so UI diagnostics can point to the exact
+  macOS permission subject without exposing helper tokens.
 
 ### 6.2.1 Helper-Backed WeChat App Readiness Preflight
 
