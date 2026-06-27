@@ -7,7 +7,16 @@ from typing import Literal, cast
 
 from taskweavn.core.session import Session
 from taskweavn.interaction import AskStatus
-from taskweavn.server.ui_contract.gateway_protocols import SnapshotCursorProvider
+from taskweavn.server.ui_contract.ask_projection import AskProjectionService
+from taskweavn.server.ui_contract.envelopes import QueryResponse
+from taskweavn.server.ui_contract.errors import internal_error, not_found
+from taskweavn.server.ui_contract.gateway_protocols import (
+    AuditLinkProvider,
+    ProjectProvider,
+    SessionReader,
+    SnapshotCursorProvider,
+    WorkflowProvider,
+)
 from taskweavn.server.ui_contract.mapping import (
     map_confirmation_action_view,
     map_file_change_summary_view,
@@ -15,8 +24,18 @@ from taskweavn.server.ui_contract.mapping import (
     map_session_message_view,
     map_task_tree_view,
 )
+from taskweavn.server.ui_contract.plan_projection import PlanProjectionService
+from taskweavn.server.ui_contract.plan_read_helpers import (
+    active_plan_read_context,
+    active_stored_plan,
+    archived_plan_views,
+    file_change_summary_from_plan_nodes,
+    result_from_plan_nodes,
+)
+from taskweavn.server.ui_contract.snapshots import MainPageSnapshot
 from taskweavn.server.ui_contract.view_models import (
     AskRequestView,
+    AuditLinkView,
     ConfirmationActionView,
     ConfirmationOptionView,
     FileChangeSummaryView,
@@ -34,8 +53,9 @@ from taskweavn.server.ui_contract.view_models import (
     WorkflowSummary,
 )
 from taskweavn.task.authoring import RawTask
+from taskweavn.task.plan_stores import PlanStore
 from taskweavn.task.projection import TaskProjectionService
-from taskweavn.task.stores import AuthoringStateStore
+from taskweavn.task.stores import AuthoringStateStore, RawTaskStore
 from taskweavn.task.views import (
     ConfirmationActionView as CoreConfirmationActionView,
 )
@@ -45,6 +65,238 @@ from taskweavn.task.views import (
 from taskweavn.task.views import (
     TaskTreeView as CoreTaskTreeView,
 )
+
+
+def get_session_snapshot_query(
+    session_id: str,
+    *,
+    ask_projection: AskProjectionService | None,
+    audit_link_provider: AuditLinkProvider | None,
+    authoring_state_store: AuthoringStateStore | None,
+    plan_projection: PlanProjectionService,
+    plan_store: PlanStore | None,
+    project_provider: ProjectProvider,
+    raw_task_store: RawTaskStore | None,
+    request_id: str | None,
+    session_messages: Callable[[str], tuple[SessionMessageView, ...]],
+    session_reader: SessionReader,
+    snapshot_cursor_provider: SnapshotCursorProvider | None,
+    task_projection: TaskProjectionService,
+    workflow_provider: WorkflowProvider,
+) -> QueryResponse[MainPageSnapshot]:
+    try:
+        session = session_reader.get(session_id)
+        if session is None:
+            return QueryResponse[MainPageSnapshot](
+                request_id=request_id or _request_id("snapshot", session_id),
+                ok=False,
+                data=None,
+                error=not_found("session not found", session_id=session_id),
+                cursor=None,
+            )
+
+        source_tree = _list_main_page_plan_tree(task_projection, session.id)
+        task_tree = _map_optional_task_tree(
+            source_tree,
+            authoring_state_store=authoring_state_store,
+        )
+        stored_plan = active_stored_plan(
+            session.id,
+            plan_store=plan_store,
+            authoring_state_store=authoring_state_store,
+        )
+        plan_context = active_plan_read_context(
+            task_tree,
+            stored_plan=stored_plan,
+            plan_projection=plan_projection,
+        )
+        active_plan = plan_context.active_plan
+        task_tree = plan_context.task_tree
+        archived_plans = archived_plan_views(
+            session.id,
+            plan_store=plan_store,
+            plan_projection=plan_projection,
+        )
+        messages = _merge_messages(
+            _messages_from_tree(source_tree),
+            session_messages(session.id),
+            _archived_plan_messages(archived_plans),
+        )
+        confirmations = _confirmations_from_tree(source_tree, session_id=session.id)
+        planning = _planning_for_session(
+            session.id,
+            task_tree=task_tree,
+            authoring_state_store=authoring_state_store,
+            raw_task_store=raw_task_store,
+        )
+        pending_asks = (
+            () if ask_projection is None else ask_projection.pending_asks(session.id)
+        )
+        active_ask = (
+            None
+            if ask_projection is None
+            else ask_projection.active_ask(session.id, task_tree=task_tree)
+        )
+        result = (
+            result_from_plan_nodes(
+                plan_context.stored_plan_nodes,
+                session_id=session.id,
+                task_projection=task_projection,
+            )
+            if plan_context.stored_plan_nodes is not None
+            else None
+        )
+        if result is None and plan_context.legacy_fallback_allowed:
+            result = _result_from_tree(
+                source_tree,
+                session_id=session.id,
+                task_projection=task_projection,
+            )
+        file_change_summary = (
+            file_change_summary_from_plan_nodes(
+                plan_context.stored_plan_nodes,
+                session_id=session.id,
+                task_projection=task_projection,
+            )
+            if plan_context.stored_plan_nodes is not None
+            else None
+        )
+        if file_change_summary is None and plan_context.legacy_fallback_allowed:
+            file_change_summary = _file_change_summary_from_tree(
+                source_tree,
+                session_id=session.id,
+                task_projection=task_projection,
+            )
+        project = project_provider.get_project()
+        workflow = workflow_provider.get_workflow(session)
+        workflows = workflow_provider.list_workflows()
+        session_summary = _session_summary(
+            session,
+            project=project,
+            workflow=workflow,
+            status=_derive_session_status(
+                session,
+                task_tree=task_tree,
+                confirmations=confirmations,
+                messages=messages,
+                active_ask=active_ask,
+                planning=planning,
+            ),
+        )
+        snapshot = MainPageSnapshot(
+            project=project,
+            workflows=workflows,
+            workflow=workflow,
+            sessions=tuple(
+                _session_summary(
+                    candidate,
+                    project=project,
+                    workflow=workflow,
+                    status=(
+                        "new"
+                        if candidate.id != session.id
+                        else session_summary.status
+                    ),
+                )
+                for candidate in session_reader.list()
+            ),
+            session=session_summary,
+            planning=planning,
+            active_plan=active_plan,
+            archived_plans=archived_plans,
+            task_tree=task_tree,
+            messages=messages,
+            pending_confirmations=confirmations,
+            pending_asks=pending_asks,
+            active_ask=active_ask,
+            result=result,
+            file_change_summary=file_change_summary,
+            audit_links=_audit_links(audit_link_provider, session.id),
+            cursor=_snapshot_cursor(
+                session,
+                cursor_provider=snapshot_cursor_provider,
+            ),
+        )
+        return QueryResponse[MainPageSnapshot](
+            request_id=request_id or _request_id("snapshot", session.id),
+            ok=True,
+            data=snapshot,
+            error=None,
+            cursor=snapshot.cursor,
+        )
+    except Exception as exc:
+        return QueryResponse[MainPageSnapshot](
+            request_id=request_id or _request_id("snapshot", session_id),
+            ok=False,
+            data=None,
+            error=internal_error(
+                "Unable to load session snapshot",
+                error_type=type(exc).__name__,
+            ),
+            cursor=None,
+        )
+
+
+def _audit_links(
+    audit_link_provider: AuditLinkProvider | None,
+    session_id: str,
+) -> tuple[AuditLinkView, ...]:
+    if audit_link_provider is None:
+        return ()
+    return audit_link_provider.list_for_session(session_id)
+
+
+def _planning_for_session(
+    session_id: str,
+    *,
+    authoring_state_store: AuthoringStateStore | None,
+    raw_task_store: RawTaskStore | None,
+    task_tree: TaskTreeView | None,
+) -> PlanningView | None:
+    active = (
+        authoring_state_store.get_active(session_id)
+        if authoring_state_store is not None
+        else None
+    )
+    raw_task = _active_raw_task(
+        session_id,
+        authoring_state_store=authoring_state_store,
+        raw_task_store=raw_task_store,
+    )
+    if raw_task is None:
+        return None
+    return _planning_from_raw_task(
+        raw_task,
+        task_tree=task_tree,
+        dirty_authoring_state=(
+            task_tree is not None
+            and active is not None
+            and active.active_state == "raw_task"
+        ),
+        authoring_state_cancelled=(
+            task_tree is not None
+            and active is not None
+            and active.active_state == "cancelled"
+        ),
+    )
+
+
+def _active_raw_task(
+    session_id: str,
+    *,
+    authoring_state_store: AuthoringStateStore | None,
+    raw_task_store: RawTaskStore | None,
+) -> RawTask | None:
+    if raw_task_store is None:
+        return None
+    if authoring_state_store is not None:
+        active = authoring_state_store.get_active(session_id)
+        if active.active_raw_task_id is not None:
+            raw_task = raw_task_store.get(session_id, active.active_raw_task_id)
+            if raw_task is not None:
+                return raw_task
+    raw_tasks = raw_task_store.list_for_session(session_id)
+    return raw_tasks[-1] if raw_tasks else None
 
 
 def _map_optional_task_tree(
