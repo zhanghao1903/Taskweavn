@@ -686,6 +686,8 @@ def _helper_response_to_observation(
     metadata = _metadata_from_response(response)
     metadata["helper_status"] = helper_status
     metadata["provider"] = "helper"
+    if status != "ok" and not _string(metadata.get("failure_kind")):
+        metadata["failure_kind"] = _failure_kind_from_helper_status(helper_status)
     return ComputerUseObservation(
         action_id=action_id,
         success=status == "ok",
@@ -747,6 +749,23 @@ def _map_helper_status(status: str) -> ComputerUseStatus:
     }:
         return "not_available"
     return "failed"
+
+
+def _failure_kind_from_helper_status(status: str) -> str:
+    if status in {
+        "not_available",
+        "helper_not_installed",
+        "helper_not_running",
+        "helper_untrusted",
+        "helper_version_mismatch",
+        "missing_accessibility",
+        "missing_screen_recording",
+        "automation_not_authorized",
+        "app_not_allowed",
+        "app_not_installed",
+    }:
+        return status
+    return "helper_request_failed"
 
 
 def _summary_from_response(response: Mapping[str, Any], helper_status: str) -> str:

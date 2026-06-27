@@ -277,6 +277,19 @@ Validated permission-subject evidence on 2026-06-27:
 - `scripts/manual_wechat_send_smoke.py --preflight-only` preserves the same
   field as `computerUsePermissionSubject` in its evidence output.
 
+Validated failure-kind projection on 2026-06-27:
+
+- evidence:
+  `/tmp/plato-helper-preflight-failure-kind-20260627.json`
+- result remains no-send and not ready:
+  - `ready=false`
+  - `packageReadinessStatus=missing_accessibility`
+  - `failureKind=missing_accessibility`
+  - `helperObservation.metadata.failure_kind=missing_accessibility`
+- interpretation: the remaining blocker is still macOS TCC permission for the
+  stable helper app, but preflight evidence now has a stable structured
+  failure kind for UI recovery, logs, and operator triage.
+
 ### 6.2.1 Helper-Backed WeChat App Readiness Preflight
 
 Added on 2026-06-27:

@@ -144,16 +144,19 @@ class MacOSComputerUseBackend(ComputerUseBackend):
         if setup_hint:
             summary = f"{summary} {setup_hint}"
         readiness_payload = _to_dict(readiness)
+        metadata: dict[str, Any] = {
+            "readiness": readiness_payload,
+            "diagnostics": _readiness_diagnostics(readiness_payload, self._client),
+        }
+        if status != "ok":
+            metadata["failure_kind"] = readiness_status
         return ComputerUseObservation(
             action_id=action_id,
             success=status == "ok",
             operation="readiness",
             status=status,
             summary=summary,
-            metadata={
-                "readiness": readiness_payload,
-                "diagnostics": _readiness_diagnostics(readiness_payload, self._client),
-            },
+            metadata=metadata,
         )
 
     def execute(self, action: ComputerUseAction) -> ComputerUseObservation:

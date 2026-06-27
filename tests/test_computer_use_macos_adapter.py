@@ -184,6 +184,7 @@ def test_macos_backend_maps_missing_accessibility_to_not_available() -> None:
     assert observation.success is False
     assert observation.status == "not_available"
     assert "missing_accessibility" in observation.summary
+    assert observation.metadata["failure_kind"] == "missing_accessibility"
 
 
 def test_macos_backend_maps_observe_result_metadata() -> None:

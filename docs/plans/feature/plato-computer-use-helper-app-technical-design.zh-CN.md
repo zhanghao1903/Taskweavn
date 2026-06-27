@@ -1258,6 +1258,15 @@ diagnostics only when helper metadata does not include a recovery action list.
 This lets Settings/UI diagnostics point at the exact macOS TCC permission
 subject without exposing helper tokens.
 
+2026-06-27 update 11: macOS backend readiness now emits
+`failure_kind=<readiness.status>` whenever package readiness is not ready, and
+Plato-side helper readiness derives the same fallback from helper status when
+older helper responses omit `failureKind`. The helper-only preflight evidence
+`/tmp/plato-helper-preflight-failure-kind-20260627.json` confirms the stable
+helper path still fails at `missing_accessibility`, but now exposes
+`failureKind=missing_accessibility` at the top level and inside helper
+observation metadata.
+
 ### H5: Release Packaging
 
 - helper bundled with Plato installer；

@@ -99,6 +99,7 @@ def test_helper_backend_maps_missing_accessibility_to_not_available() -> None:
     assert observation.success is False
     assert observation.status == "not_available"
     assert observation.metadata["helper_status"] == "missing_accessibility"
+    assert observation.metadata["failure_kind"] == "missing_accessibility"
     assert observation.metadata["diagnostics"]["checkedByProcessPath"].endswith(
         "Helper.app"
     )
