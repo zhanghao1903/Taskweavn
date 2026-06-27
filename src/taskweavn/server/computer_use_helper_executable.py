@@ -42,7 +42,7 @@ class ComputerUseHelperExecutableBuildConfig:
             "computer_use_helper_app_entrypoint.py"
         )
     )
-    collect_submodules: tuple[str, ...] = ("taskweavn",)
+    collect_submodules: tuple[str, ...] = ("taskweavn", "macos_computer_use")
     hidden_imports: tuple[str, ...] = ()
     clean: bool = True
     noconfirm: bool = True
@@ -161,4 +161,3 @@ def build_computer_use_helper_executable(
         stdout=completed.stdout,
         stderr=completed.stderr,
     )
-

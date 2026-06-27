@@ -58,6 +58,7 @@ class ComputerUseHelperBackendConfig:
     allow_coordinate_click: bool = False
     allow_screenshot: bool = False
     timeout_seconds: float = 10.0
+    app_operation_timeout_seconds: float = 90.0
 
     @classmethod
     def from_environment(
@@ -89,6 +90,10 @@ class ComputerUseHelperBackendConfig:
             helper_launch_poll_interval_seconds=_env_float(
                 "PLATO_COMPUTER_USE_HELPER_LAUNCH_POLL_INTERVAL_SECONDS",
                 default=0.2,
+            ),
+            app_operation_timeout_seconds=_env_float(
+                "PLATO_COMPUTER_USE_HELPER_APP_OPERATION_TIMEOUT_SECONDS",
+                default=90.0,
             ),
             expected_bundle_id=os.environ.get(
                 "PLATO_COMPUTER_USE_HELPER_EXPECTED_BUNDLE_ID"
@@ -186,6 +191,7 @@ class ComputerUseHelperBackend(ComputerUseBackend):
             allow_coordinate_click=self._config.allow_coordinate_click,
             allow_screenshot=self._config.allow_screenshot,
             timeout_seconds=self._config.timeout_seconds,
+            app_operation_timeout_seconds=self._config.app_operation_timeout_seconds,
         )
 
     def _relaunch_helper_and_reload_client(
@@ -437,6 +443,7 @@ class ComputerUseHelperHttpClient:
         allow_coordinate_click: bool,
         allow_screenshot: bool,
         timeout_seconds: float = 10.0,
+        app_operation_timeout_seconds: float = 90.0,
         transport: HelperTransport | None = None,
     ) -> None:
         self._endpoint = endpoint.rstrip("/") + "/"
@@ -445,6 +452,7 @@ class ComputerUseHelperHttpClient:
         self._allow_coordinate_click = allow_coordinate_click
         self._allow_screenshot = allow_screenshot
         self._timeout_seconds = timeout_seconds
+        self._app_operation_timeout_seconds = app_operation_timeout_seconds
         self._transport = transport
 
     def readiness(self) -> Mapping[str, Any]:
@@ -483,7 +491,12 @@ class ComputerUseHelperHttpClient:
             },
             "policy": self._policy(requires_confirmation_before_send=True),
         }
-        return self._request("POST", "/v1/apps/wechat/draft-message", payload)
+        return self._request(
+            "POST",
+            "/v1/apps/wechat/draft-message",
+            payload,
+            timeout_seconds=self._app_operation_timeout_seconds,
+        )
 
     def wechat_send_confirmed(
         self,
@@ -517,7 +530,12 @@ class ComputerUseHelperHttpClient:
             },
             "policy": self._policy(requires_confirmation_before_send=False),
         }
-        return self._request("POST", "/v1/apps/wechat/send-confirmed", payload)
+        return self._request(
+            "POST",
+            "/v1/apps/wechat/send-confirmed",
+            payload,
+            timeout_seconds=self._app_operation_timeout_seconds,
+        )
 
     def _payload(self, action: ComputerUseAction) -> dict[str, Any]:
         caller = {
@@ -560,6 +578,8 @@ class ComputerUseHelperHttpClient:
         method: str,
         path: str,
         payload: dict[str, Any] | None,
+        *,
+        timeout_seconds: float | None = None,
     ) -> dict[str, Any]:
         if self._transport is not None:
             return self._transport(method, path, payload)
@@ -572,7 +592,10 @@ class ComputerUseHelperHttpClient:
             headers["Authorization"] = f"Bearer {self._token}"
         request = Request(url, data=body, headers=headers, method=method)
         try:
-            with urlopen(request, timeout=self._timeout_seconds) as response:  # noqa: S310
+            with urlopen(  # noqa: S310
+                request,
+                timeout=timeout_seconds or self._timeout_seconds,
+            ) as response:
                 raw = response.read().decode("utf-8")
         except HTTPError as exc:
             detail = exc.read().decode("utf-8", errors="replace")

@@ -18,6 +18,7 @@ WECHAT_MAIN_WINDOW_RECOVERY_ACTIONS = (
     "unlock_or_login_wechat",
     "rerun_helper_preflight",
 )
+CURRENT_CHAT_FOCUS_TIMEOUT_SECONDS = 12.0
 
 
 @dataclass(frozen=True)
@@ -100,6 +101,30 @@ class MacOSWeChatSearchDriver:
                 diagnostics=readiness.diagnostics,
             )
 
+        current_chat = _run_osascript(
+            _current_chat_focus_script(app_name, normalized),
+            min(timeout_seconds, CURRENT_CHAT_FOCUS_TIMEOUT_SECONDS),
+        )
+        current_chat_diagnostics = _current_chat_result_diagnostics(current_chat)
+        if current_chat.returncode == 0:
+            current_chat_fields = _parse_result_fields(current_chat.stdout)
+            if current_chat_fields.get("status") == "resolved":
+                display_name = current_chat_fields.get("display_name") or normalized
+                return WeChatContactSearchResult(
+                    status="resolved",
+                    summary=f"WeChat contact already selected: {display_name}.",
+                    display_name=display_name,
+                    stable_hint=(
+                        current_chat_fields.get("stable_hint")
+                        or f"wechat:current-chat:{display_name}"
+                    ),
+                    observation_ref=current_chat_fields.get("observation_ref"),
+                    diagnostics=_diagnostics(current_chat_fields),
+                )
+            current_chat_diagnostics = _prefix_diagnostics(
+                "current_chat_", _diagnostics(current_chat_fields)
+            )
+
         prepare = _run_osascript(
             _contact_prepare_search_script(app_name, normalized), timeout_seconds
         )
@@ -107,7 +132,10 @@ class MacOSWeChatSearchDriver:
             return WeChatContactSearchResult(
                 status="needs_user",
                 summary="WeChat main window/search readiness AppleScript failed.",
-                diagnostics={"stderr": _bounded(prepare.stderr)},
+                diagnostics=_merge_diagnostics(
+                    {"stderr": _bounded(prepare.stderr)},
+                    current_chat_diagnostics,
+                ),
             )
         prepare_fields = _parse_result_fields(prepare.stdout)
         if prepare_fields.get("status") != "ready":
@@ -117,7 +145,10 @@ class MacOSWeChatSearchDriver:
                     prepare_fields.get("reason")
                     or "WeChat search input could not be prepared safely."
                 ),
-                diagnostics=_diagnostics(prepare_fields),
+                diagnostics=_merge_diagnostics(
+                    _diagnostics(prepare_fields),
+                    current_chat_diagnostics,
+                ),
             )
 
         time.sleep(3.0)
@@ -128,7 +159,10 @@ class MacOSWeChatSearchDriver:
             return WeChatContactSearchResult(
                 status="needs_user",
                 summary="WeChat contact selection AppleScript failed.",
-                diagnostics={"stderr": _bounded(result.stderr)},
+                diagnostics=_merge_diagnostics(
+                    {"stderr": _bounded(result.stderr)},
+                    current_chat_diagnostics,
+                ),
             )
         fields = _parse_result_fields(result.stdout)
         status = fields.get("status", "failed")
@@ -153,7 +187,10 @@ class MacOSWeChatSearchDriver:
             status="needs_user",
             summary=fields.get("reason") or "WeChat search focus could not be verified.",
             observation_ref=fields.get("observation_ref"),
-            diagnostics=_diagnostics(fields),
+            diagnostics=_merge_diagnostics(
+                _diagnostics(fields),
+                current_chat_diagnostics,
+            ),
         )
 
     def focus_message_input(
@@ -584,6 +621,85 @@ end replaceText
 """
 
 
+def _current_chat_focus_script(app_name: str, contact_display_name: str) -> str:
+    return f"""
+set appName to {_applescript_string(app_name)}
+set contactName to {_applescript_string(contact_display_name)}
+tell application "System Events"
+  if not (exists process appName) then error "target app is not running"
+  tell process appName
+    set frontmost to true
+  end tell
+  set focusText to my focusedElementSummary(appName)
+  if my isSearchFocus(focusText) then
+    return "status=not_current_chat" & linefeed & "reason=focused element is search" & linefeed & "focus=" & focusText
+  end if
+  if focusText contains contactName then
+    return "status=resolved" & linefeed & "display_name=" & contactName & linefeed & "stable_hint=wechat:current-chat:" & contactName & linefeed & "observation_ref=wechat-current-chat-focus" & linefeed & "focus=" & focusText
+  end if
+  return "status=not_current_chat" & linefeed & "reason=focused chat did not match contact" & linefeed & "focus=" & focusText
+end tell
+
+on focusedElementSummary(appName)
+  set parts to {{}}
+  tell application "System Events"
+    tell process appName
+      try
+        set focusedElement to value of attribute "AXFocusedUIElement"
+        try
+          set end of parts to role of focusedElement as text
+        end try
+        try
+          set end of parts to name of focusedElement as text
+        end try
+        try
+          set end of parts to description of focusedElement as text
+        end try
+        try
+          set end of parts to value of focusedElement as text
+        end try
+      end try
+    end tell
+  end tell
+  return my joinParts(parts, " ")
+end focusedElementSummary
+
+on isSearchFocus(focusText)
+  set lowerText to my lowerASCII(focusText)
+  if lowerText contains "search" then return true
+  if focusText contains "搜索" then return true
+  if focusText contains "查找" then return true
+  return false
+end isSearchFocus
+
+on joinParts(parts, separator)
+  set AppleScript's text item delimiters to separator
+  set joined to parts as text
+  set AppleScript's text item delimiters to ""
+  return joined
+end joinParts
+
+on lowerASCII(inputText)
+  set outputText to inputText
+  set upperLetters to "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+  set lowerLetters to "abcdefghijklmnopqrstuvwxyz"
+  repeat with i from 1 to length of upperLetters
+    set outputText to my replaceText(character i of upperLetters, character i of lowerLetters, outputText)
+  end repeat
+  return outputText
+end lowerASCII
+
+on replaceText(searchText, replacementText, sourceText)
+  set AppleScript's text item delimiters to searchText
+  set textItems to text items of sourceText
+  set AppleScript's text item delimiters to replacementText
+  set replacedText to textItems as text
+  set AppleScript's text item delimiters to ""
+  return replacedText
+end replaceText
+"""
+
+
 def _contact_select_result_script(app_name: str, contact_display_name: str) -> str:
     return f"""
 set appName to {_applescript_string(app_name)}
@@ -863,6 +979,34 @@ def _diagnostics(fields: dict[str, str]) -> dict[str, str]:
         for key, value in fields.items()
         if key not in {"status", "display_name", "stable_hint", "observation_ref"}
     }
+
+
+def _current_chat_result_diagnostics(
+    result: subprocess.CompletedProcess[str],
+) -> dict[str, str]:
+    if result.returncode == 0:
+        return _prefix_diagnostics(
+            "current_chat_", _diagnostics(_parse_result_fields(result.stdout))
+        )
+    failure_kind = (
+        "applescript_timeout" if result.returncode == 124 else "applescript_error"
+    )
+    return {
+        "current_chat_failure_kind": failure_kind,
+        "current_chat_returncode": str(result.returncode),
+        "current_chat_stderr": _bounded(result.stderr),
+    }
+
+
+def _prefix_diagnostics(prefix: str, diagnostics: dict[str, str]) -> dict[str, str]:
+    return {f"{prefix}{key}": value for key, value in diagnostics.items()}
+
+
+def _merge_diagnostics(
+    primary: dict[str, str],
+    secondary: dict[str, str],
+) -> dict[str, str]:
+    return {**secondary, **primary}
 
 
 def _with_window_recovery_metadata(values: dict[str, str]) -> dict[str, str]:

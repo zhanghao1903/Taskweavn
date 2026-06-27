@@ -579,14 +579,15 @@ Validated runtime identity hint on 2026-06-27:
   with the same arguments as the dev wrapper. This keeps packaged helper smoke
   comparable with dev wrapper smoke.
 - local build command:
-  `uv run taskweavn computer-use-helper-executable --collect-submodules taskweavn`
+  `uv run taskweavn computer-use-helper-executable`
   produces `dist/computer-use-helper/PlatoComputerUseHelper` when PyInstaller is
-  installed in the selected Python runtime. For a backend that imports the
-  external macOS package, use
-  `--collect-submodules taskweavn,macos_computer_use`.
+  installed in the selected Python runtime. The default command collects both
+  `taskweavn` and `macos_computer_use`; omitting the external macOS package
+  produces a helper-owned executable that starts but reports
+  `ModuleNotFoundError: No module named 'macos_computer_use'` on readiness.
 - 2026-06-27 packaged executable smoke:
   - command:
-    `uv run --group packaging taskweavn computer-use-helper-executable --collect-submodules taskweavn,macos_computer_use`
+    `uv run --group packaging taskweavn computer-use-helper-executable`
   - packaged into a temp helper `.app` with
     `--packaged-executable-path`;
   - direct executable launch published manifest and token;
@@ -707,6 +708,303 @@ No message was sent. The task did not reach the confirmation boundary. Before
 the next reject/no-send attempt, manually open the WeChat main window and ensure
 it has a visible chat/search window, then use a fresh idempotency key.
 
+### 6.4 Helper-Owned Executable TCC Refresh And Current-Chat Fast Path
+
+Validated on 2026-06-27 after refreshing macOS Accessibility permission for the
+stable helper app:
+
+- helper-only preflight evidence:
+  `/tmp/plato-helper-preflight-after-tcc-refresh.json`;
+- result:
+  `helperReady=true`,
+  `packageReadinessStatus=ready`,
+  `accessibilityTrusted=true`,
+  `helperStatus=ready`,
+  `runtimeIdentity.mode=helper_owned_executable`;
+- permission subject:
+  `~/Applications/Plato Computer Use Helper Dev.app`;
+- no WeChat send occurred.
+
+Follow-up helper-backed preflight:
+
+- evidence:
+  `/tmp/plato-wechat-preflight-after-helper-timeout-fix.json`;
+- result:
+  `computerUseBackend=helper`,
+  `computerUseStatus=ok`,
+  `packageReadinessStatus=ready`,
+  `helperStatus=ready`,
+  `wechatAppStatus=ready`,
+  `wechatAppSuccess=true`,
+  `wechatAppPhase=window_readiness`;
+- no WeChat send occurred.
+
+Reject/no-send smoke after the Plato-side helper HTTP timeout fix:
+
+- session id: `dc9d3cad`;
+- idempotency key:
+  `reject-smoke-20260627-helper-timeout-fixed-01`;
+- evidence:
+  `/tmp/plato-wechat-reject-smoke-after-helper-timeout-fix.json`;
+- result:
+  the request no longer failed at the old 10 second helper HTTP timeout;
+- remaining failure:
+  `wechat_contact_needs_user`, contact resolution summary
+  `search focus not verified`;
+- diagnostics:
+  WeChat was already focused on the target chat input:
+  `AXTextArea 文件传输助手 文本输入区`;
+- interpretation:
+  the deterministic resolver needed a bounded fast path for "target chat is
+  already selected" before forcing the search-box workflow.
+
+Mitigation added on 2026-06-27:
+
+- Plato-side helper HTTP client now uses
+  `PLATO_COMPUTER_USE_HELPER_APP_OPERATION_TIMEOUT_SECONDS` for app-specific
+  helper APIs. WeChat draft/send defaults to 90 seconds; readiness and generic
+  single-operation calls keep the shorter helper timeout.
+- The macOS WeChat resolver now accepts the already-selected target chat input
+  before entering the search flow.
+- Focused tests pass, including helper timeout selection and current-chat
+  resolution.
+
+Packaging verification without overwriting the stable TCC path:
+
+- built current-source helper executable:
+  `/tmp/plato-helper-current-source-20260627/dist/PlatoComputerUseHelper`;
+- built temporary packaged helper app:
+  `/tmp/plato-helper-current-source-20260627/Plato Computer Use Helper Dev.app`;
+- static verification:
+  bundle id `com.taskweavn.plato.computer-use-helper.dev`, Mach-O arm64,
+  ad-hoc signed, `launcherMode=packaged-executable`,
+  `computerUseBackend=macos`, `computerUseAllowedApps=["WeChat"]`.
+
+Live validation gap:
+
+- the installed stable helper app at
+  `~/Applications/Plato Computer Use Helper Dev.app` was not overwritten during
+  this pass;
+- therefore the current-chat resolver fast path is implemented and packaged in
+  the temporary app, but not yet live-verified through the stable authorized
+  helper app;
+- before the next live reject/no-send attempt, rebuild/install the stable helper
+  app from the current source, refresh Accessibility if macOS invalidates the
+  ad-hoc identity, then rerun helper-only preflight, helper-backed WeChat
+  preflight, and reject/no-send with a fresh idempotency key.
+
+### 6.5 Stable Helper Rebuild With Bundled macOS Package
+
+Validated on 2026-06-27 while installing the current-source helper to the stable
+TCC path:
+
+- initial stable helper CDHash:
+  `14d22497420899b8968d01eeedb571a6cb21686c`;
+- current-source temporary helper CDHash:
+  `6db2e2290cb2d23e4b53ff43776292757d82bdde`;
+- interpretation:
+  the installed stable helper was stale and did not include the latest
+  current-chat resolver fast path.
+
+First stable reinstall attempt exposed a packaging gap:
+
+- evidence:
+  `/tmp/plato-helper-preflight-after-stable-reinstall.json`;
+- result:
+  `helperStatus=not_available`;
+- error:
+  `ModuleNotFoundError: No module named 'macos_computer_use'`;
+- root cause:
+  helper executable was built with only `--collect-submodules taskweavn`.
+
+Mitigation added:
+
+- `ComputerUseHelperExecutableBuildConfig.collect_submodules` now defaults to
+  `("taskweavn", "macos_computer_use")`;
+- CLI `taskweavn computer-use-helper-executable` now defaults to
+  `--collect-submodules taskweavn --collect-submodules macos_computer_use`;
+- focused tests cover the default PyInstaller command.
+
+Second stable reinstall used the corrected default build:
+
+```bash
+uv run taskweavn computer-use-helper-executable \
+  --output-dir /tmp/plato-helper-current-source-20260627b/dist \
+  --build-dir /tmp/plato-helper-current-source-20260627b/build \
+  --spec-dir /tmp/plato-helper-current-source-20260627b/spec
+
+uv run taskweavn computer-use-helper-app \
+  --app-path "$HOME/Applications/Plato Computer Use Helper Dev.app" \
+  --packaged-executable-path /tmp/plato-helper-current-source-20260627b/dist/PlatoComputerUseHelper \
+  --manifest-path "$HOME/Library/Application Support/PlatoDev/computer-use-helper.json" \
+  --token-path "$HOME/Library/Application Support/PlatoDev/computer-use-helper.token" \
+  --computer-use-backend macos \
+  --computer-use-allowed-apps WeChat
+```
+
+Post-reinstall helper-only preflight:
+
+- evidence:
+  `/tmp/plato-helper-preflight-after-bundled-macos-package.json`;
+- result:
+  `helperStatus=missing_accessibility`,
+  `packageReadinessStatus=missing_accessibility`,
+  `accessibilityTrusted=false`,
+  `runtimeIdentity.mode=helper_owned_executable`;
+- package import now succeeds:
+  `packageClientClass=macos_computer_use.client.MacOSComputerUseClient`;
+- current blocker:
+  macOS invalidated Accessibility trust after replacing the ad-hoc signed helper
+  executable. Toggle/refresh Accessibility for
+  `~/Applications/Plato Computer Use Helper Dev.app`, restart helper, then rerun
+  helper-only preflight before any helper-backed WeChat preflight.
+
+Repeated helper-only preflight after resume:
+
+- evidence:
+  `/tmp/plato-helper-preflight-after-tcc-resume.json`;
+- repeated evidence:
+  `/tmp/plato-helper-preflight-after-tcc-resume-2.json`;
+- result remains:
+  `helperStatus=missing_accessibility`,
+  `packageReadinessStatus=missing_accessibility`,
+  `accessibilityTrusted=false`;
+- positive evidence:
+  `runtimeIdentity.mode=helper_owned_executable`,
+  `packageClientClass=macos_computer_use.client.MacOSComputerUseClient`,
+  helper signature `status=ok`;
+- interpretation:
+  the current blocker is only the macOS TCC Accessibility grant for the replaced
+  helper executable. Do not proceed to helper-backed WeChat preflight or
+  reject/no-send until this preflight reports `helperReady=true`.
+
+Follow-up after TCC refresh and helper-backed reject/no-send attempt:
+
+- helper-only evidence after refresh:
+  `/tmp/plato-helper-preflight-after-tcc-resume-3.json`;
+- result:
+  `helperReady=true`,
+  `packageReadinessStatus=ready`,
+  `accessibilityTrusted=true`,
+  `runtimeIdentity.mode=helper_owned_executable`;
+- helper-backed WeChat preflight evidence:
+  `/tmp/plato-wechat-preflight-after-tcc-resume-3.json`;
+- result:
+  `computerUseBackend=helper`,
+  `computerUseStatus=ok`,
+  `wechatAppStatus=ready`,
+  `wechatAppSuccess=true`,
+  `wechatAppPhase=window_readiness`;
+- reject/no-send evidence:
+  `/tmp/plato-wechat-reject-smoke-after-tcc-resume-3.json`;
+- execution id:
+  `exec_065e8768a3185ece92b09308b5dd6953`;
+- result:
+  failed before confirmation with `wechat_contact_needs_user`;
+- contact-resolution evidence:
+  `summary=search focus not verified`,
+  `focus=AXTextArea 文件传输助手 文本输入区`;
+- interpretation:
+  WeChat was already focused on the requested target chat input, but the
+  current-chat fast path did not resolve because its AppleScript timeout was
+  capped at 3 seconds. Direct diagnostics showed the same script resolved at 12
+  seconds.
+
+Mitigation added:
+
+- current-chat fast path timeout increased to a bounded 12 seconds;
+- current-chat AppleScript failure/timeout diagnostics are merged into later
+  contact-resolution failures so future evidence can distinguish "fast path
+  timed out" from "search focus failed".
+
+Post-mitigation helper reinstall:
+
+- rebuilt helper executable:
+  `/tmp/plato-helper-current-source-20260627c/dist/PlatoComputerUseHelper`;
+- reinstalled stable helper app:
+  `~/Applications/Plato Computer Use Helper Dev.app`;
+- helper-only evidence:
+  `/tmp/plato-helper-preflight-after-current-chat-timeout-fix.json`;
+- result:
+  `helperStatus=missing_accessibility`,
+  `packageReadinessStatus=missing_accessibility`,
+  `accessibilityTrusted=false`;
+- interpretation:
+  macOS invalidated Accessibility trust again after the ad-hoc signed helper
+  executable changed. Refresh TCC for the stable helper app, then rerun
+  helper-only preflight before helper-backed WeChat preflight.
+
+Post-TCC-refresh validation after current-chat timeout fix:
+
+- helper-only evidence:
+  `/tmp/plato-helper-preflight-after-current-chat-timeout-fix-resume.json`;
+- result:
+  `helperReady=true`,
+  `packageReadinessStatus=ready`,
+  `accessibilityTrusted=true`,
+  `runtimeIdentity.mode=helper_owned_executable`;
+- helper-backed WeChat preflight evidence:
+  `/tmp/plato-wechat-preflight-after-current-chat-timeout-fix.json`;
+- result:
+  `computerUseBackend=helper`,
+  `helperStatus=ready`,
+  `wechatAppStatus=ready`,
+  `wechatAppPhase=window_readiness`;
+- reject/no-send evidence:
+  `/tmp/plato-wechat-reject-smoke-after-current-chat-timeout-fix.json`;
+- execution id:
+  `exec_9cff6365d18159f5af9d639dac07cdcb`;
+- result:
+  `finalStatus=failed`,
+  `errorCode=wechat_send_rejected`,
+  `terminalReplayStatus=failed`,
+  `terminalReplaySameExecution=true`;
+- contact-resolution evidence:
+  `summary=WeChat contact resolved: 文件传输助手.`,
+  `observationRef=wechat-current-chat-focus`,
+  `focus=AXTextArea 文件传输助手 文本输入区`;
+- draft/confirmation evidence:
+  `summary=WeChat message was drafted without sending.`,
+  `confirmationId=ac83899225474aacae74a4ccb0d50f4a`;
+- send-boundary evidence:
+  `sendBoundaryStatus=not_sent`;
+- interpretation:
+  the helper-backed current-chat path is now validated through the confirmation
+  gate. No message was sent because the smoke intentionally rejected the
+  confirmation and did not use `--allow-send`.
+
+Controlled confirm/send-once validation:
+
+- preflight evidence:
+  `/tmp/plato-wechat-preflight-before-confirm-send-20260627.json`;
+- session id:
+  `c68b344f`;
+- idempotency key:
+  `confirm-send-20260627-current-chat-timeout-fixed-c68b344f-01`;
+- confirm/send evidence:
+  `/tmp/plato-wechat-confirm-smoke-after-current-chat-timeout-fix-20260627.json`;
+- execution id:
+  `exec_574f99f681895441b68b6aa40476f411`;
+- confirmation id:
+  `2d83d1b8008645328e361c51d4a36518`;
+- result:
+  `finalStatus=done`,
+  `resultKind=wechat_send_result`,
+  `terminalReplayStatus=done`,
+  `terminalReplaySameExecution=true`;
+- send evidence:
+  `sendBoundaryStatus=sent`,
+  `send_method=keyboard_return`,
+  `send_attempted=true`,
+  `confirmed_by_user=true`;
+- result summary:
+  `WeChat message sent after confirmation to 文件传输助手.`;
+- note:
+  contact-resolution diagnostics recorded the previously focused chat input
+  contents before the draft phase. The later draft/send evidence references the
+  current message hash and confirms the submitted message was the current
+  confirm-send smoke text.
+
 ## 7. Implementation Invariants
 
 - Clear existing input before typing a fresh draft.
@@ -722,8 +1020,10 @@ it has a visible chat/search window, then use a fresh idempotency key.
 | Failure | Meaning | Rule |
 |---|---|---|
 | preflight not ready | Runtime or permissions unavailable. | Fix setup before any task. |
+| helper reports `ModuleNotFoundError: macos_computer_use` | Helper executable was built without the external macOS package. | Rebuild with the default `taskweavn computer-use-helper-executable` command; it must collect `taskweavn` and `macos_computer_use`. |
 | helper preflight ready but WeChat not frontmost | Helper/TCC path is ready, but generic observe lost the focus race. | The adapter falls back to the bounded WeChat driver. If it still fails, inspect contact-resolution evidence. |
 | WeChat process has no window 1 | WeChat is running, but no automatable main window is visible. | Manually open the WeChat main window/chat list and rerun reject/no-send with a fresh key. |
+| Stable helper app is stale | Source code changed after the app was installed, so live helper behavior does not include the latest driver fixes. | Rebuild/install the stable helper app, refresh Accessibility if required, then rerun helper-only and helper-backed preflight before another task. |
 | contact resolution failed | Controlled contact was not selected. | Open WeChat main window and rerun reject/no-send first. |
 | draft failed | Input was not safely written. | Do not confirm; inspect evidence. |
 | `wechat_send_unknown` | Send boundary may have side effects. | No automatic retry; manual review only. |

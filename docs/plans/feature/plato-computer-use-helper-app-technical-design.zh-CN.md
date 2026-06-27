@@ -337,8 +337,7 @@ executable 下生成相同 helper argv，并发布同形态 manifest。
 uv run taskweavn computer-use-helper-executable \
   --output-dir dist/computer-use-helper \
   --build-dir build/computer-use-helper \
-  --spec-dir build/computer-use-helper/spec \
-  --collect-submodules taskweavn
+  --spec-dir build/computer-use-helper/spec
 ```
 
 该命令要求所选 `--python-executable` 中已安装 PyInstaller。它不会联网安装依赖；
@@ -346,21 +345,17 @@ uv run taskweavn computer-use-helper-executable \
 `dist/computer-use-helper/PlatoComputerUseHelper`，再通过
 `taskweavn computer-use-helper-app --packaged-executable-path ...` 打进 `.app`。
 
-如果 helper executable 需要包含独立发布的 `macos-computer-use` 包，可以使用：
-
-```bash
-uv run taskweavn computer-use-helper-executable \
-  --collect-submodules taskweavn,macos_computer_use
-```
+默认 build seam 会收集 `taskweavn` 和 `macos_computer_use` submodules。该
+默认值是 macOS backend 的必要条件，因为 helper-owned executable 不能依赖
+Plato 进程或外部 shell 环境临时注入 `macos_computer_use`。
 
 该路径仍是 unsigned local build seam，不等于 release-grade helper app。
 
 2026-06-27 验证结果：
 
 - 已新增 `packaging` dependency group，包含 PyInstaller；
-- `uv run --group packaging taskweavn computer-use-helper-executable
-  --collect-submodules taskweavn,macos_computer_use` 可构建
-  `PlatoComputerUseHelper`；
+- `uv run --group packaging taskweavn computer-use-helper-executable` 可构建
+  包含 `taskweavn` 和 `macos_computer_use` 的 `PlatoComputerUseHelper`；
 - 使用 `taskweavn computer-use-helper-app --packaged-executable-path ...`
   可把该 executable 打进临时 `.app`；
 - 直接启动 `.app/Contents/MacOS/PlatoComputerUseHelper` 可发布 manifest 和
@@ -518,6 +513,10 @@ Plato 启动时：
 - `PLATO_COMPUTER_USE_HELPER_AUTO_LAUNCH=1` 或
   `--computer-use-helper-auto-launch` 才会在 manifest 缺失或 manifest
   endpoint stale 时尝试 `open -gj` 启动 `.app`；
+- `PLATO_COMPUTER_USE_HELPER_APP_OPERATION_TIMEOUT_SECONDS` 配置
+  app-specific helper API 的 HTTP 等待时间；WeChat draft/send 路径会经过
+  open/focus、联系人解析、输入框聚焦和草稿写入，不能复用普通 readiness /
+  single-operation 的短 timeout；
 - 默认不会在普通 readiness 检查中偷偷启动 helper app。
 
 auto-launch 只负责启动 `.app`、等待 manifest 出现或刷新 stale manifest

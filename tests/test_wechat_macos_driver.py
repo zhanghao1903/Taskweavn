@@ -196,6 +196,17 @@ def test_resolve_contact_continues_to_search_after_wechat_window_ready(
             return subprocess.CompletedProcess(
                 ["osascript", "-e", script],
                 0,
+                stdout=(
+                    "status=not_current_chat\n"
+                    "reason=focused element is search\n"
+                    "focus=搜索 文件传输助手"
+                ),
+                stderr="",
+            )
+        if len(calls) == 4:
+            return subprocess.CompletedProcess(
+                ["osascript", "-e", script],
+                0,
                 stdout="status=ready\nfocus=搜索 文件传输助手",
                 stderr="",
             )
@@ -229,7 +240,142 @@ def test_resolve_contact_continues_to_search_after_wechat_window_ready(
 
     assert result.status == "resolved"
     assert result.display_name == "文件传输助手"
-    assert len(calls) == 4
+    assert len(calls) == 5
+
+
+def test_resolve_contact_accepts_already_selected_chat_input(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    calls: list[str] = []
+    timeouts: list[float] = []
+
+    def fake_run_osascript(
+        script: str, timeout_seconds: float
+    ) -> subprocess.CompletedProcess[str]:
+        timeouts.append(timeout_seconds)
+        calls.append(script)
+        if len(calls) == 1:
+            return subprocess.CompletedProcess(
+                ["osascript", "-e", script],
+                0,
+                stdout="status=ready\nprocess_exists=true",
+                stderr="",
+            )
+        if len(calls) == 2:
+            return subprocess.CompletedProcess(
+                ["osascript", "-e", script],
+                0,
+                stdout=(
+                    "status=ready\n"
+                    "process_exists=true\n"
+                    "window_count=1\n"
+                    "window_position=0, 0\n"
+                    "window_size=1200, 800"
+                ),
+                stderr="",
+            )
+        return subprocess.CompletedProcess(
+            ["osascript", "-e", script],
+            0,
+            stdout=(
+                "status=resolved\n"
+                "display_name=文件传输助手\n"
+                "stable_hint=wechat:current-chat:文件传输助手\n"
+                "observation_ref=wechat-current-chat-focus\n"
+                "focus=AXTextArea 文件传输助手 文本输入区"
+            ),
+            stderr="",
+        )
+
+    monkeypatch.setattr(
+        "taskweavn.integrations.wechat_desktop.macos_driver.platform.system",
+        lambda: "Darwin",
+    )
+    monkeypatch.setattr(macos_driver, "_run_osascript", fake_run_osascript)
+
+    result = MacOSWeChatSearchDriver().resolve_contact(
+        app_name="WeChat",
+        contact_display_name="文件传输助手",
+        timeout_seconds=40.0,
+    )
+
+    assert result.status == "resolved"
+    assert result.display_name == "文件传输助手"
+    assert result.stable_hint == "wechat:current-chat:文件传输助手"
+    assert result.observation_ref == "wechat-current-chat-focus"
+    assert result.diagnostics == {"focus": "AXTextArea 文件传输助手 文本输入区"}
+    assert len(calls) == 3
+    assert timeouts[-1] == 12.0
+
+
+def test_resolve_contact_includes_current_chat_timeout_diagnostics(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    calls: list[str] = []
+
+    def fake_run_osascript(
+        script: str, timeout_seconds: float
+    ) -> subprocess.CompletedProcess[str]:
+        calls.append(script)
+        if len(calls) == 1:
+            return subprocess.CompletedProcess(
+                ["osascript", "-e", script],
+                0,
+                stdout="status=ready\nprocess_exists=true",
+                stderr="",
+            )
+        if len(calls) == 2:
+            return subprocess.CompletedProcess(
+                ["osascript", "-e", script],
+                0,
+                stdout=(
+                    "status=ready\n"
+                    "process_exists=true\n"
+                    "window_count=1\n"
+                    "window_position=0, 0\n"
+                    "window_size=1200, 800"
+                ),
+                stderr="",
+            )
+        if len(calls) == 3:
+            return subprocess.CompletedProcess(
+                ["osascript", "-e", script],
+                124,
+                stdout="",
+                stderr=f"osascript timed out after {timeout_seconds:.1f}s",
+            )
+        return subprocess.CompletedProcess(
+            ["osascript", "-e", script],
+            0,
+            stdout=(
+                "status=needs_user\n"
+                "reason=search focus not verified\n"
+                "focus=AXTextArea 文件传输助手 文本输入区"
+            ),
+            stderr="",
+        )
+
+    monkeypatch.setattr(
+        "taskweavn.integrations.wechat_desktop.macos_driver.platform.system",
+        lambda: "Darwin",
+    )
+    monkeypatch.setattr(macos_driver, "_run_osascript", fake_run_osascript)
+
+    result = MacOSWeChatSearchDriver().resolve_contact(
+        app_name="WeChat",
+        contact_display_name="文件传输助手",
+        timeout_seconds=40.0,
+    )
+
+    assert result.status == "needs_user"
+    assert result.summary == "search focus not verified"
+    assert result.diagnostics == {
+        "current_chat_failure_kind": "applescript_timeout",
+        "current_chat_returncode": "124",
+        "current_chat_stderr": "osascript timed out after 12.0s",
+        "reason": "search focus not verified",
+        "focus": "AXTextArea 文件传输助手 文本输入区",
+    }
 
 
 def test_submit_message_reports_keyboard_submit_metadata(

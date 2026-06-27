@@ -52,6 +52,25 @@ def test_build_pyinstaller_command_uses_helper_entrypoint(tmp_path: Path) -> Non
     )
 
 
+def test_build_pyinstaller_command_collects_macos_package_by_default(
+    tmp_path: Path,
+) -> None:
+    config = ComputerUseHelperExecutableBuildConfig(
+        output_dir=tmp_path / "dist",
+        build_dir=tmp_path / "build",
+        spec_dir=tmp_path / "spec",
+        python_executable="/opt/python/bin/python3",
+        entrypoint_path=tmp_path / "entrypoint.py",
+    )
+
+    command = build_pyinstaller_command(config)
+
+    assert _collect_submodule_values(command) == [
+        "taskweavn",
+        "macos_computer_use",
+    ]
+
+
 def test_build_computer_use_helper_executable_requires_pyinstaller(
     tmp_path: Path,
 ) -> None:
@@ -126,6 +145,14 @@ def test_build_computer_use_helper_executable_returns_output_path(
     assert calls[1] == result.command
 
 
+def _collect_submodule_values(command: tuple[str, ...]) -> list[str]:
+    return [
+        command[index + 1]
+        for index, value in enumerate(command)
+        if value == "--collect-submodules"
+    ]
+
+
 def test_build_computer_use_helper_executable_requires_expected_output(
     tmp_path: Path,
 ) -> None:
@@ -151,4 +178,3 @@ def test_build_computer_use_helper_executable_requires_expected_output(
             ),
             runner=runner,
         )
-

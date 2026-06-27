@@ -575,7 +575,7 @@ def computer_use_helper_executable(
                 "--collect-submodules."
             ),
         ),
-    ] = "taskweavn",
+    ] = "taskweavn,macos_computer_use",
     hidden_imports: Annotated[
         str | None,
         typer.Option(

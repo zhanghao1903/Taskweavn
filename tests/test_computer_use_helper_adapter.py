@@ -12,6 +12,7 @@ from taskweavn.tools import (
     ComputerUseHelperBackendConfig,
     ComputerUseHelperHttpClient,
 )
+from taskweavn.tools import computer_use_helper_adapter as helper_adapter_module
 from taskweavn.types import ComputerUseAction
 
 
@@ -355,6 +356,59 @@ def test_helper_http_client_builds_wechat_send_confirmed_envelope() -> None:
     assert payload["policy"]["requiresConfirmationBeforeSend"] is False
 
 
+def test_helper_http_client_uses_longer_timeout_for_wechat_app_operations(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    timeouts: list[float] = []
+
+    class FakeResponse:
+        def __enter__(self) -> FakeResponse:
+            return self
+
+        def __exit__(self, *_args: object) -> None:
+            return None
+
+        def read(self) -> bytes:
+            return b'{"status":"ok","summary":"ok"}'
+
+    def fake_urlopen(_request: object, *, timeout: float) -> FakeResponse:
+        timeouts.append(timeout)
+        return FakeResponse()
+
+    monkeypatch.setattr(helper_adapter_module, "urlopen", fake_urlopen)
+
+    client = ComputerUseHelperHttpClient(
+        endpoint="http://127.0.0.1:49321",
+        token="secret",
+        allowed_apps=("WeChat",),
+        allow_coordinate_click=False,
+        allow_screenshot=False,
+        timeout_seconds=7.0,
+        app_operation_timeout_seconds=77.0,
+    )
+
+    client.readiness()
+    client.wechat_draft_message(
+        request_id="draft-1",
+        idempotency_key="idem-1",
+        caller={"sessionId": "session-1", "taskExecutionId": "exec-1"},
+        contact_display_name="文件传输助手",
+        message_text="你好",
+    )
+    client.wechat_send_confirmed(
+        request_id="send-1",
+        idempotency_key="idem-1",
+        caller={"sessionId": "session-1", "taskExecutionId": "exec-1"},
+        action_fingerprint_payload={"execution_id": "exec-1"},
+        action_fingerprint="fingerprint-1",
+        contact_summary="文件传输助手",
+        message_preview="你好",
+        confirmation_id="confirm-1",
+    )
+
+    assert timeouts == [7.0, 77.0, 77.0]
+
+
 def test_helper_backend_loads_endpoint_and_token_ref_from_manifest(tmp_path: Path) -> None:
     token_path = tmp_path / "token.txt"
     token_path.write_text("token-from-file\n", encoding="utf-8")
@@ -602,6 +656,7 @@ def test_helper_backend_reads_auto_launch_environment(
     monkeypatch.setenv("PLATO_COMPUTER_USE_HELPER_AUTO_LAUNCH", "1")
     monkeypatch.setenv("PLATO_COMPUTER_USE_HELPER_LAUNCH_TIMEOUT_SECONDS", "45")
     monkeypatch.setenv("PLATO_COMPUTER_USE_HELPER_LAUNCH_POLL_INTERVAL_SECONDS", "0.5")
+    monkeypatch.setenv("PLATO_COMPUTER_USE_HELPER_APP_OPERATION_TIMEOUT_SECONDS", "77")
 
     config = ComputerUseHelperBackendConfig.from_environment()
 
@@ -610,6 +665,7 @@ def test_helper_backend_reads_auto_launch_environment(
     assert config.helper_auto_launch is True
     assert config.helper_launch_timeout_seconds == 45
     assert config.helper_launch_poll_interval_seconds == 0.5
+    assert config.app_operation_timeout_seconds == 77
 
 
 def test_helper_backend_rejects_manifest_bundle_mismatch(tmp_path: Path) -> None:
