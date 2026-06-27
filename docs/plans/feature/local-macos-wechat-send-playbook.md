@@ -488,6 +488,23 @@ Validated runtime identity hint on 2026-06-27:
   - evidence:
     `/tmp/plato-sidecar-helper-autolaunch-macos-v2/sidecar-helper-autolaunch-readiness-evidence.json`;
   - no WeChat send occurred.
+- 2026-06-27 stable dev helper install/readiness smoke:
+  - installed/updated helper app at the stable TCC path:
+    `~/Applications/Plato Computer Use Helper Dev.app`;
+  - configured stable manifest/token paths under:
+    `~/Library/Application Support/PlatoDev/`;
+  - packaged helper executable copied from:
+    `/tmp/plato-helper-executable-smoke-macos-v2/dist/PlatoComputerUseHelper`;
+  - helper app launch config uses `computer-use-backend=macos` and
+    `computer-use-allowed-apps=WeChat,TextEdit`;
+  - helper-backed readiness evidence:
+    `/tmp/plato-stable-helper-autolaunch-readiness-evidence.json`;
+  - readiness reached helper-owned executable identity:
+    `runtimeIdentity.mode=helper_owned_executable`;
+  - readiness currently returns `missing_accessibility`, which means the next
+    manual step is to grant Accessibility/Automation to the stable helper app
+    path above, restart the helper, and rerun helper-backed preflight;
+  - no WeChat send occurred.
 
 ### 6.3 Helper-Backed Contact Resolution Progress
 
