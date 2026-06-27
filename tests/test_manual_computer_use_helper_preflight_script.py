@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import subprocess
 import sys
 from pathlib import Path
 from types import ModuleType
@@ -131,6 +132,12 @@ def test_helper_preflight_writes_evidence(tmp_path: Path) -> None:
     )
     evidence = tmp_path / "preflight.json"
     helper_app_path = str((tmp_path / "Helper.app").expanduser())
+    helper_signature = {
+        "checked": True,
+        "status": "ok",
+        "identifier": module.DEFAULT_EXPECTED_BUNDLE_ID,
+    }
+    module._helper_signature_diagnostics = lambda _config: helper_signature
 
     exit_code = module._run(
         module.HelperPreflightConfig(
@@ -145,6 +152,7 @@ def test_helper_preflight_writes_evidence(tmp_path: Path) -> None:
     assert payload["kind"] == "computer_use_helper_preflight"
     assert payload["checkWeChatApp"] is False
     assert payload["result"]["ready"] is True
+    assert payload["result"]["helperSignature"] == helper_signature
     assert payload["result"]["permissionSubject"] == {
         "expectedBundleId": module.DEFAULT_EXPECTED_BUNDLE_ID,
         "helperAppPath": helper_app_path,
@@ -155,6 +163,7 @@ def test_helper_preflight_writes_evidence(tmp_path: Path) -> None:
         "accessibilityTrusted": None,
         "packageReadinessStatus": "ready",
         "helperStatus": None,
+        "signature": helper_signature,
         "recoveryActions": [],
         "operatorInstruction": (
             "Grant or refresh macOS Accessibility and Automation permissions "
@@ -214,6 +223,92 @@ def test_helper_preflight_restart_helper_terminates_matching_manifest_pid(
         "bundleId": module.DEFAULT_EXPECTED_BUNDLE_ID,
         "waitedForExit": True,
     }
+
+
+def test_helper_preflight_signature_diagnostics_parse_codesign_output(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    module = _load_script()
+    monkeypatch.setattr(module.shutil, "which", lambda _name: "/usr/bin/codesign")
+
+    def fake_run(args: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        assert args == [
+            "/usr/bin/codesign",
+            "-dv",
+            "--verbose=4",
+            str(tmp_path / "Helper.app"),
+        ]
+        assert kwargs["check"] is False
+        assert kwargs["capture_output"] is True
+        assert kwargs["text"] is True
+        assert kwargs["timeout"] == 10
+        return subprocess.CompletedProcess(
+            args=args,
+            returncode=0,
+            stdout="",
+            stderr=(
+                "Executable=/tmp/Helper.app/Contents/MacOS/Helper\n"
+                "Identifier=com.taskweavn.plato.computer-use-helper.dev\n"
+                "Signature=adhoc\n"
+                "Info.plist entries=13\n"
+                "TeamIdentifier=not set\n"
+                "Sealed Resources version=2 rules=13 files=2\n"
+            ),
+        )
+
+    monkeypatch.setattr(module.subprocess, "run", fake_run)
+
+    result = module._helper_signature_diagnostics(
+        module.HelperPreflightConfig(helper_app_path=tmp_path / "Helper.app")
+    )
+
+    assert result == {
+        "checked": True,
+        "appPath": str(tmp_path / "Helper.app"),
+        "expectedBundleId": module.DEFAULT_EXPECTED_BUNDLE_ID,
+        "status": "ok",
+        "returnCode": 0,
+        "identifier": module.DEFAULT_EXPECTED_BUNDLE_ID,
+        "identifierMatchesExpected": True,
+        "infoPlistBound": True,
+        "sealedResources": True,
+        "signature": "adhoc",
+        "teamIdentifier": "not set",
+    }
+
+
+def test_helper_preflight_signature_diagnostics_reports_unbound_plist(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    module = _load_script()
+    monkeypatch.setattr(module.shutil, "which", lambda _name: "/usr/bin/codesign")
+    monkeypatch.setattr(
+        module.subprocess,
+        "run",
+        lambda *args, **kwargs: subprocess.CompletedProcess(
+            args=args[0],
+            returncode=0,
+            stdout="",
+            stderr=(
+                "Identifier=PlatoComputerUseHelper-abc\n"
+                "Signature=adhoc\n"
+                "Info.plist=not bound\n"
+                "Sealed Resources=none\n"
+            ),
+        ),
+    )
+
+    result = module._helper_signature_diagnostics(
+        module.HelperPreflightConfig(helper_app_path=tmp_path / "Helper.app")
+    )
+
+    assert result["status"] == "mismatch"
+    assert result["identifier"] == "PlatoComputerUseHelper-abc"
+    assert result["identifierMatchesExpected"] is False
+    assert result["infoPlistBound"] is False
+    assert result["sealedResources"] is False
 
 
 def test_helper_preflight_restart_helper_refuses_bundle_mismatch(

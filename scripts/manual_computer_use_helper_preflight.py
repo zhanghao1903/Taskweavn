@@ -13,6 +13,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shutil
 import signal
 import subprocess
 import sys
@@ -140,6 +141,7 @@ def _run(config: HelperPreflightConfig) -> int:
         result = run_helper_preflight(config)
     except HelperPreflightError as exc:
         payload = {"error": str(exc), "details": exc.details, "ready": False}
+        payload["helperSignature"] = _helper_signature_diagnostics(config)
         payload["permissionSubject"] = _permission_subject_from_payload(
             config,
             payload,
@@ -151,6 +153,7 @@ def _run(config: HelperPreflightConfig) -> int:
         return 1
 
     payload = result.as_dict()
+    payload["helperSignature"] = _helper_signature_diagnostics(config)
     payload["permissionSubject"] = _permission_subject_from_payload(config, payload)
     if helper_restart is not None:
         payload["helperRestart"] = helper_restart
@@ -465,6 +468,7 @@ def _permission_subject_from_payload(
     helper_metadata = _dict(metadata.get("helper"))
     helper_manifest = _dict(payload.get("helperManifest"))
     runtime_identity = _dict(payload.get("runtimeIdentity"))
+    helper_signature = _dict(payload.get("helperSignature"))
     return {
         "expectedBundleId": config.expected_bundle_id,
         "helperAppPath": helper_app_path,
@@ -484,6 +488,7 @@ def _permission_subject_from_payload(
         "helperStatus": payload.get("helperStatus")
         if isinstance(payload.get("helperStatus"), str)
         else None,
+        "signature": helper_signature or None,
         "recoveryActions": list(_string_tuple(payload.get("recoveryActions"))),
         "operatorInstruction": (
             "Grant or refresh macOS Accessibility and Automation permissions "
@@ -491,6 +496,74 @@ def _permission_subject_from_payload(
             "helper-only preflight before publishing a computer-use task."
         ),
     }
+
+
+def _helper_signature_diagnostics(config: HelperPreflightConfig) -> dict[str, Any]:
+    app_path = str(config.helper_app_path.expanduser())
+    base: dict[str, Any] = {
+        "checked": False,
+        "appPath": app_path,
+        "expectedBundleId": config.expected_bundle_id,
+    }
+    if sys.platform != "darwin":
+        return {**base, "status": "skipped", "reason": "not_macos"}
+
+    codesign_path = shutil.which("codesign")
+    if codesign_path is None:
+        return {**base, "status": "skipped", "reason": "codesign_unavailable"}
+
+    try:
+        result = subprocess.run(
+            [codesign_path, "-dv", "--verbose=4", app_path],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        return {
+            **base,
+            "checked": True,
+            "status": "failed",
+            "reason": "codesign_failed",
+            "error": str(exc),
+        }
+
+    output = "\n".join(part for part in (result.stdout, result.stderr) if part)
+    identifier = _parse_codesign_value(output, "Identifier")
+    info_plist_bound = "Info.plist entries=" in output and (
+        "Info.plist=not bound" not in output
+    )
+    sealed_resources = "Sealed Resources version=" in output
+    identifier_matches_expected = identifier == config.expected_bundle_id
+    status = (
+        "ok"
+        if result.returncode == 0
+        and identifier_matches_expected
+        and info_plist_bound
+        and sealed_resources
+        else "mismatch"
+    )
+    return {
+        **base,
+        "checked": True,
+        "status": status,
+        "returnCode": result.returncode,
+        "identifier": identifier,
+        "identifierMatchesExpected": identifier_matches_expected,
+        "infoPlistBound": info_plist_bound,
+        "sealedResources": sealed_resources,
+        "signature": _parse_codesign_value(output, "Signature"),
+        "teamIdentifier": _parse_codesign_value(output, "TeamIdentifier"),
+    }
+
+
+def _parse_codesign_value(output: str, key: str) -> str | None:
+    prefix = f"{key}="
+    for line in output.splitlines():
+        if line.startswith(prefix):
+            return line[len(prefix) :].strip()
+    return None
 
 
 def _open_permission_settings(recovery_actions: tuple[str, ...]) -> dict[str, Any]:

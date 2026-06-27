@@ -1301,6 +1301,14 @@ returned `missing_accessibility`, which means the code-signing identity issue
 is fixed but the local macOS TCC grant must be refreshed for the newly signed
 helper before the backend can be accepted as ready.
 
+2026-06-27 update 14: helper-only preflight now records a bounded
+`helperSignature` diagnostic and mirrors it inside `permissionSubject.signature`.
+The diagnostic runs `codesign -dv --verbose=4` when available and reports:
+expected bundle id, codesign identifier, identifier match, Info.plist binding,
+sealed resources, signature mode, and TeamIdentifier. This separates two
+previously conflated failures: an invalid helper bundle identity versus a valid
+helper identity that still lacks a refreshed macOS TCC Accessibility grant.
+
 ### H5: Release Packaging
 
 - helper bundled with Plato installer；
