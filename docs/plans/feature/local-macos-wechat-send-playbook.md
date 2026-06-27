@@ -79,12 +79,32 @@ Record the printed local base URL.
 
 ## 4. Preflight
 
-Run preflight before any real WeChat task. The script reads the running
-sidecar's `/api/v1/settings/readiness` response, so it validates the configured
-runtime path (`helper` or `macos`) instead of checking an unrelated local Python
-process. For the preferred helper-backed path, pass the helper manifest as well;
-this performs an explicit WeChat app/window readiness probe through the helper
-and may open or focus WeChat:
+Run preflight before any real WeChat task.
+
+First validate the stable helper app directly. This does not require a running
+sidecar and does not publish a task:
+
+```bash
+uv run python scripts/manual_computer_use_helper_preflight.py \
+  --helper-manifest "$HOME/Library/Application Support/PlatoDev/computer-use-helper.json" \
+  --helper-app-path "$HOME/Applications/Plato Computer Use Helper Dev.app" \
+  --evidence-output /tmp/plato-helper-preflight-<run>.json
+```
+
+Required helper-only result before continuing:
+
+- `helperReady=true`
+- `packageReadinessStatus="ready"`
+- `accessibilityTrusted=true`
+- `runtimeIdentity.mode="helper_owned_executable"`
+- `ready=true`
+
+After helper-only readiness is ready, run sidecar preflight. The script reads the
+running sidecar's `/api/v1/settings/readiness` response, so it validates the
+configured runtime path (`helper` or `macos`) instead of checking an unrelated
+local Python process. For the preferred helper-backed path, pass the helper
+manifest as well; this performs an explicit WeChat app/window readiness probe
+through the helper and may open or focus WeChat:
 
 ```bash
 uv run python scripts/manual_wechat_send_smoke.py \
@@ -505,6 +525,21 @@ Validated runtime identity hint on 2026-06-27:
     manual step is to grant Accessibility/Automation to the stable helper app
     path above, restart the helper, and rerun helper-backed preflight;
   - no WeChat send occurred.
+- 2026-06-27 stable helper-only preflight script:
+  - added `scripts/manual_computer_use_helper_preflight.py`;
+  - command:
+    `uv run python scripts/manual_computer_use_helper_preflight.py --helper-manifest "$HOME/Library/Application Support/PlatoDev/computer-use-helper.json" --helper-app-path "$HOME/Applications/Plato Computer Use Helper Dev.app" --evidence-output /tmp/plato-helper-preflight-stable-20260627.json`;
+  - evidence:
+    `/tmp/plato-helper-preflight-stable-20260627.json`;
+  - result:
+    `helperReady=false`,
+    `packageReadinessStatus=missing_accessibility`,
+    `runtimeIdentity.mode=helper_owned_executable`;
+  - interpretation: the helper-only preflight entrypoint is working; the
+    remaining local blocker is macOS Accessibility/Automation permission for the
+    stable helper app, not helper packaging, manifest publication, or helper
+    identity;
+  - no WeChat app readiness was requested and no WeChat send occurred.
 
 ### 6.3 Helper-Backed Contact Resolution Progress
 
