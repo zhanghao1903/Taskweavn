@@ -457,6 +457,15 @@ export type SettingsConfigUpdateResult = {
   readiness: SettingsReadinessReport;
 };
 
+export type SettingsRecoveryActionResult = {
+  action: ProductRecoveryAction;
+  returnCode?: number | null;
+  schemaVersion: "plato.settings_recovery_action.v1";
+  status: "opened";
+  summary: string;
+  url: string;
+};
+
 export type RuntimeConfigScope = {
   level: "global" | "workspace" | "session" | "task" | "agent_run" | "process";
   workspaceId?: string | null;
@@ -524,6 +533,9 @@ export type RuntimeConfigEffective = {
 export type PlatoApi = {
   getSettingsReadiness(): Promise<QueryResponse<SettingsReadinessReport>>;
   recheckSettingsReadiness(): Promise<QueryResponse<SettingsReadinessReport>>;
+  executeSettingsRecoveryAction(
+    action: ProductRecoveryAction,
+  ): Promise<QueryResponse<SettingsRecoveryActionResult>>;
   getSettingsConfig(): Promise<QueryResponse<SettingsConfigSummary>>;
   getRuntimeConfigEffective(): Promise<QueryResponse<RuntimeConfigEffective>>;
   updateSettingsConfig(
@@ -720,6 +732,12 @@ export function createHttpPlatoApi(options: HttpPlatoApiOptions): PlatoApi {
       return client.postJson<QueryResponse<SettingsReadinessReport>>(
         "/api/v1/settings/readiness/recheck",
         {},
+      );
+    },
+    executeSettingsRecoveryAction(action) {
+      return client.postJson<QueryResponse<SettingsRecoveryActionResult>>(
+        "/api/v1/settings/recovery-action",
+        { action },
       );
     },
     getSettingsConfig() {

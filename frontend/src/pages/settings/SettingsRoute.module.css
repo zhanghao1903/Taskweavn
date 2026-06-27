@@ -273,6 +273,12 @@
   line-height: 18px;
 }
 
+.recoveryActionButtons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .checkboxField {
   display: inline-flex;
   min-width: 0;

@@ -1042,6 +1042,20 @@ function acceptedCommandResponse(commandId: string): CommandResponse {
 
 function appSettingsApi(): SettingsRouteApi {
   return {
+    executeSettingsRecoveryAction: vi.fn(async (action) => ({
+      data: {
+        action,
+        returnCode: 0,
+        schemaVersion: "plato.settings_recovery_action.v1" as const,
+        status: "opened" as const,
+        summary: "Opened macOS System Settings.",
+        url: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility",
+      },
+      error: null,
+      generatedAt: "2026-06-06T09:00:00Z",
+      ok: true,
+      requestId: "settings-recovery-action",
+    })),
     exportDiagnosticBundle: vi.fn(async () => ({
       data: null,
       error: null,

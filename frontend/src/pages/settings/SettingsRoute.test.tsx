@@ -11,6 +11,7 @@ import type {
   RuntimeConfigEffective,
   SettingsConfigSummary,
   SettingsConfigUpdateResult,
+  SettingsRecoveryActionResult,
   SettingsReadinessReport,
 } from "../../shared/api/platoApi";
 import type {
@@ -51,15 +52,16 @@ describe("SettingsRoute", () => {
 
   it("shows computer-use helper readiness and recovery details", async () => {
     const user = userEvent.setup();
+    const api = settingsApi({
+      readiness: settingsReadiness({
+        computerUse: computerUseReadiness(),
+        ready: true,
+      }),
+    });
 
     renderWithQueryClient(
       <SettingsRoute
-        api={settingsApi({
-          readiness: settingsReadiness({
-            computerUse: computerUseReadiness(),
-            ready: true,
-          }),
-        })}
+        api={api}
         runtimeEnv={{ VITE_PLATO_API_MODE: "http" }}
       />,
     );
@@ -80,11 +82,21 @@ describe("SettingsRoute", () => {
       "/Users/zhanghao/Applications/Plato Computer Use Helper Dev.app/Contents/MacOS/PlatoComputerUseHelper",
     );
     expect(readiness).toHaveTextContent("false");
-    expect(readiness).toHaveTextContent(
-      "Open macOS Accessibility permissions for the helper.",
+    await user.click(
+      within(readiness).getByRole("button", {
+        name: "Open macOS Accessibility permissions for the helper.",
+      }),
+    );
+    expect(api.executeSettingsRecoveryAction).toHaveBeenCalledWith(
+      "open_macos_privacy_accessibility",
     );
     expect(readiness).toHaveTextContent("Restart Plato Computer Use Helper.");
-    expect(readiness).toHaveTextContent("Rerun helper readiness preflight.");
+    await user.click(
+      within(readiness).getByRole("button", {
+        name: "Rerun helper readiness preflight.",
+      }),
+    );
+    expect(api.recheckSettingsReadiness).toHaveBeenCalledTimes(2);
   });
 
   it("renders as a dismissible modal when requested", async () => {
@@ -542,6 +554,16 @@ function settingsApi({
   updateError?: Error;
 } = {}): SettingsRouteApi {
   return {
+    executeSettingsRecoveryAction: vi.fn(async (action) =>
+      okResponse({
+        action,
+        returnCode: 0,
+        schemaVersion: "plato.settings_recovery_action.v1",
+        status: "opened",
+        summary: "Opened macOS System Settings.",
+        url: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility",
+      } satisfies SettingsRecoveryActionResult),
+    ),
     exportDiagnosticBundle: vi.fn(async () => okResponse(diagnosticExport())),
     getRuntimeConfigEffective: vi.fn(async () => okResponse(runtimeConfig)),
     getSettingsConfig: vi.fn(async () => okResponse(config)),

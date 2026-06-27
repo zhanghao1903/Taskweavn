@@ -9,6 +9,7 @@ import { ApiClientError } from "../../shared/api/client";
 import type {
   DiagnosticBundleExportResult,
   PlatoApi,
+  ProductRecoveryAction,
   SettingsConfigSummary,
   SettingsConfigUpdateResult,
   SettingsReadinessReport,
@@ -54,6 +55,7 @@ import styles from "./SettingsRoute.module.css";
 export type SettingsRouteApi = Pick<
   PlatoApi,
   | "exportDiagnosticBundle"
+  | "executeSettingsRecoveryAction"
   | "getRuntimeConfigEffective"
   | "getSettingsConfig"
   | "getTokenUsageSummary"
@@ -320,6 +322,30 @@ export function SettingsRoute({
         error: null,
         kind: "error",
         message: uiText.settings.messages.readinessRecheckFailed,
+      });
+    }
+  }
+
+  async function handleComputerUseRecoveryAction(action: ProductRecoveryAction) {
+    if (settingsApi === null) {
+      return;
+    }
+
+    if (action === "rerun_helper_preflight") {
+      await recheckReadiness();
+      return;
+    }
+
+    setSaveState({ kind: "rechecking" });
+    try {
+      await settingsApi.executeSettingsRecoveryAction(action);
+      setSaveState({ kind: "success" });
+    } catch (error) {
+      const apiError = apiErrorFromUnknown(error);
+      setSaveState({
+        error: apiError,
+        kind: "error",
+        message: apiError?.message ?? uiText.settings.messages.readinessRecheckFailed,
       });
     }
   }
@@ -704,7 +730,13 @@ export function SettingsRoute({
             <WorkspaceGitSettingsPanel bridge={workspaceBridge} />
             <SaveStatus state={saveState} />
             <ReadinessIssues readiness={readiness} />
-            <SettingsComputerUseReadiness readiness={readiness} />
+            <SettingsComputerUseReadiness
+              isRecoveryActionPending={saveState.kind === "rechecking"}
+              onRecoveryAction={(action) =>
+                void handleComputerUseRecoveryAction(action)
+              }
+              readiness={readiness}
+            />
             <div className={styles.footerActions}>
               <Button
                 disabled={

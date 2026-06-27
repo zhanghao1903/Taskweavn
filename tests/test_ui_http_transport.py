@@ -75,6 +75,9 @@ def test_root_route_returns_sidecar_api_hint() -> None:
     assert body["data"]["settings_readiness_recheck_url"] == (
         "/api/v1/settings/readiness/recheck"
     )
+    assert body["data"]["settings_recovery_action_url"] == (
+        "/api/v1/settings/recovery-action"
+    )
     assert body["data"]["snapshot_url_template"] == (
         "/api/v1/sessions/{sessionId}/snapshot"
     )
@@ -92,6 +95,24 @@ def test_health_route_returns_sidecar_identity() -> None:
     assert response.status_code == 200
     assert body["ok"] is True
     assert body["data"] == {"name": "Plato Sidecar", "version": "0.1.0"}
+
+
+def test_settings_recovery_action_route_rejects_non_executable_action() -> None:
+    transport = _transport()
+
+    response = transport.handle(
+        HttpApiRequest(
+            method="POST",
+            path="/api/v1/settings/recovery-action",
+            body={"action": "restart_helper"},
+        )
+    )
+    body = _dict_body(response.body)
+
+    assert response.status_code == 400
+    assert body["ok"] is False
+    assert body["error"]["code"] == "bad_request"
+    assert body["error"]["details"]["action"] == "restart_helper"
 
 
 def test_runtime_input_route_returns_router_result() -> None:

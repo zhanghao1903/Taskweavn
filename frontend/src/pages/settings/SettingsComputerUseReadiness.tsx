@@ -2,13 +2,18 @@ import type {
   ProductRecoveryAction,
   SettingsReadinessReport,
 } from "../../shared/api/platoApi";
+import { Button } from "../../shared/components";
 import { useUiText } from "../../shared/ui-text";
 import { formatRecoveryAction } from "./settingsCopy";
 import styles from "./SettingsRoute.module.css";
 
 export function SettingsComputerUseReadiness({
+  isRecoveryActionPending = false,
+  onRecoveryAction,
   readiness,
 }: {
+  isRecoveryActionPending?: boolean;
+  onRecoveryAction?: (action: ProductRecoveryAction) => void;
   readiness: SettingsReadinessReport | null;
 }) {
   const uiText = useUiText();
@@ -23,6 +28,10 @@ export function SettingsComputerUseReadiness({
     ...computerUse.recoveryActions,
     ...(permissionSubject?.recoveryActions ?? []),
   ]).filter((action) => action !== "none");
+  const actionableRecoveryActions = recoveryActions.filter(isActionableRecoveryAction);
+  const manualRecoveryActions = recoveryActions.filter(
+    (action) => !isActionableRecoveryAction(action),
+  );
 
   return (
     <section
@@ -68,13 +77,32 @@ export function SettingsComputerUseReadiness({
           <div>
             <dt>{uiText.settings.labels.computerUseRecoveryActions}</dt>
             <dd>
-              {recoveryActions
+              {manualRecoveryActions
                 .map((action) => formatRecoveryAction(action, uiText))
                 .join(" ")}
             </dd>
           </div>
         ) : null}
       </dl>
+      {actionableRecoveryActions.length > 0 ? (
+        <div
+          aria-label={uiText.settings.labels.computerUseRecoveryActions}
+          className={styles.recoveryActionButtons}
+        >
+          {actionableRecoveryActions.map((action) => (
+            <Button
+              disabled={isRecoveryActionPending}
+              key={action}
+              onClick={() => onRecoveryAction?.(action)}
+              size="sm"
+              type="button"
+              variant="secondary"
+            >
+              {formatRecoveryAction(action, uiText)}
+            </Button>
+          ))}
+        </div>
+      ) : null}
       {permissionSubject?.operatorInstruction ? (
         <p className={styles.helperText}>{permissionSubject.operatorInstruction}</p>
       ) : null}
@@ -90,4 +118,12 @@ function uniqueRecoveryActions(
     seen.add(action);
   }
   return [...seen];
+}
+
+function isActionableRecoveryAction(action: ProductRecoveryAction): boolean {
+  return (
+    action === "open_macos_privacy_accessibility" ||
+    action === "open_macos_privacy_automation" ||
+    action === "rerun_helper_preflight"
+  );
 }

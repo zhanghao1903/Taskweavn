@@ -74,6 +74,7 @@ from taskweavn.server.ui_http_settings import (
     SettingsConfigGateway,
     SettingsReadinessGateway,
     _settings_config_response,
+    _settings_recovery_action_response,
     _settings_readiness_recheck_response,
     _settings_readiness_response,
 )
@@ -248,6 +249,9 @@ class PlatoUiHttpTransport:
                             "settings_readiness_recheck_url": (
                                 "/api/v1/settings/readiness/recheck"
                             ),
+                            "settings_recovery_action_url": (
+                                "/api/v1/settings/recovery-action"
+                            ),
                             "snapshot_url_template": (
                                 "/api/v1/sessions/{sessionId}/snapshot"
                             ),
@@ -296,6 +300,8 @@ class PlatoUiHttpTransport:
                     request,
                     self._settings_readiness_gateway or self._settings_config_gateway,
                 )
+            if route_name == "settings_recovery_action":
+                return _settings_recovery_action_response(request)
             if route_name == "settings_config":
                 return _settings_config_response(
                     request,
