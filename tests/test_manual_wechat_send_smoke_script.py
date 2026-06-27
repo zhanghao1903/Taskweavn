@@ -177,6 +177,24 @@ def test_manual_wechat_smoke_preflight_fails_when_accessibility_is_missing(
                 "helperStatus": "missing_accessibility",
                 "failureKind": "missing_accessibility",
                 "setupHint": "Grant Accessibility permission.",
+                "permissionSubject": {
+                    "helperBundleId": "com.taskweavn.plato.computer-use-helper.dev",
+                    "helperAppPath": "/Applications/Plato Computer Use Helper Dev.app",
+                    "runtimeMode": "helper_owned_executable",
+                    "effectiveExecutable": (
+                        "/Applications/Plato Computer Use Helper Dev.app/"
+                        "Contents/MacOS/PlatoComputerUseHelper"
+                    ),
+                    "accessibilityTrusted": False,
+                    "packageReadinessStatus": "missing_accessibility",
+                    "helperStatus": "missing_accessibility",
+                    "recoveryActions": [
+                        "open_macos_privacy_accessibility",
+                        "restart_helper",
+                    ],
+                    "operatorInstruction": "Grant Accessibility permission.",
+                    "token": "must-not-leak",
+                },
             },
         )
 
@@ -187,6 +205,24 @@ def test_manual_wechat_smoke_preflight_fails_when_accessibility_is_missing(
     assert result.computer_use_backend == "helper"
     assert result.helper_status == "missing_accessibility"
     assert result.failure_kind == "missing_accessibility"
+    assert result.computer_use_permission_subject == {
+        "helperBundleId": "com.taskweavn.plato.computer-use-helper.dev",
+        "helperAppPath": "/Applications/Plato Computer Use Helper Dev.app",
+        "runtimeMode": "helper_owned_executable",
+        "effectiveExecutable": (
+            "/Applications/Plato Computer Use Helper Dev.app/"
+            "Contents/MacOS/PlatoComputerUseHelper"
+        ),
+        "accessibilityTrusted": False,
+        "packageReadinessStatus": "missing_accessibility",
+        "helperStatus": "missing_accessibility",
+        "recoveryActions": [
+            "open_macos_privacy_accessibility",
+            "restart_helper",
+        ],
+        "operatorInstruction": "Grant Accessibility permission.",
+    }
+    assert "must-not-leak" not in json.dumps(result.as_dict(), ensure_ascii=False)
 
 
 def test_manual_wechat_smoke_preflight_skips_helper_app_when_package_not_ready(

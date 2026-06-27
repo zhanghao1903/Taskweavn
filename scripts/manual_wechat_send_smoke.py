@@ -86,6 +86,7 @@ class PreflightResult:
     computer_use_ready: bool | None = None
     computer_use_backend: str | None = None
     computer_use_helper: dict[str, object] | None = None
+    computer_use_permission_subject: dict[str, object] | None = None
     computer_use_diagnostics: dict[str, object] | None = None
     helper_manifest: dict[str, object] | None = None
     helper_status: str | None = None
@@ -128,6 +129,7 @@ class PreflightResult:
             "computerUseReady": self.computer_use_ready,
             "computerUseBackend": self.computer_use_backend,
             "computerUseHelper": self.computer_use_helper,
+            "computerUsePermissionSubject": self.computer_use_permission_subject,
             "computerUseDiagnostics": self.computer_use_diagnostics,
             "helperManifest": self.helper_manifest,
             "helperStatus": self.helper_status,
@@ -238,6 +240,9 @@ def _preflight_from_sidecar_readiness(
         computer_use_ready=_optional_bool(computer_use, "ready"),
         computer_use_backend=_optional_str(computer_use, "backend"),
         computer_use_helper=_safe_helper_identity(computer_use.get("helper")),
+        computer_use_permission_subject=_safe_diagnostics(
+            computer_use.get("permissionSubject")
+        ),
         computer_use_diagnostics=_safe_diagnostics(diagnostics),
         helper_status=_optional_str(computer_use, "helperStatus"),
         failure_kind=_optional_str(computer_use, "failureKind"),
