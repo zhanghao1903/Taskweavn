@@ -9,6 +9,16 @@ export type MainPageFocusTarget =
   | { kind: "composer" }
   | { kind: "ask_card"; messageId: string };
 
+export type MainPageRouteFocusTarget =
+  | "ask_card"
+  | "conversation"
+  | "detail_panel"
+  | "file_changes"
+  | "input_composer"
+  | "overlay_trigger"
+  | "selected_activity"
+  | "selected_task";
+
 export type MainPageScrollTarget =
   | { kind: "bottom" }
   | { kind: "message"; messageId: string };
@@ -20,6 +30,18 @@ export type MainPageFocusScrollReason =
   | "ask_card_created"
   | "submit_settled"
   | "submit_failed";
+
+export type MainPageRouteFocusReason =
+  | "ask_presented"
+  | "overlay_closed"
+  | "overlay_opened"
+  | "route_restored";
+
+export type MainPageRouteScrollReason =
+  | "ask_presented"
+  | "overlay_closed"
+  | "overlay_opened"
+  | "route_restored";
 
 export type MainPageFocusRequest = {
   id: number;
@@ -94,6 +116,22 @@ export type MainPageScrollMetrics = {
   scrollHeight: number;
   scrollTop: number;
 };
+
+export type MainPageRouteFocusScrollEffectRequest =
+  | {
+      reason: MainPageRouteFocusReason;
+      target: MainPageRouteFocusTarget;
+      type: "target.focus";
+    }
+  | {
+      behavior: ScrollBehavior;
+      reason: MainPageRouteScrollReason;
+      target: Exclude<
+        MainPageRouteFocusTarget,
+        "input_composer" | "overlay_trigger"
+      >;
+      type: "target.scroll_into_view";
+    };
 
 export function createInitialFocusScrollRuntimeState({
   messageListSignature = "",
@@ -248,6 +286,43 @@ export function appendedMessages(
 ): SessionMessageView[] {
   const previousIds = new Set(previousMessages.map((message) => message.id));
   return nextMessages.filter((message) => !previousIds.has(message.id));
+}
+
+export function requestRouteTargetFocus({
+  inputDisabled = false,
+  reason,
+  target,
+}: {
+  inputDisabled?: boolean;
+  reason: MainPageRouteFocusReason;
+  target: MainPageRouteFocusTarget;
+}): MainPageRouteFocusScrollEffectRequest | null {
+  if (target === "input_composer" && inputDisabled) {
+    return null;
+  }
+
+  return {
+    reason,
+    target,
+    type: "target.focus",
+  };
+}
+
+export function requestRouteTargetScroll({
+  behavior = "smooth",
+  reason,
+  target,
+}: {
+  behavior?: ScrollBehavior;
+  reason: MainPageRouteScrollReason;
+  target: Exclude<MainPageRouteFocusTarget, "input_composer" | "overlay_trigger">;
+}): MainPageRouteFocusScrollEffectRequest {
+  return {
+    behavior,
+    reason,
+    target,
+    type: "target.scroll_into_view",
+  };
 }
 
 function reduceMessagesChanged(

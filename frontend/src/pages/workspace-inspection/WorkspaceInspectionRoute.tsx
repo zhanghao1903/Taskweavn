@@ -213,6 +213,7 @@ function InspectionShell({
   const returnPath =
     context?.returnSessionId || context?.sessionId
       ? buildMainSessionFallbackRoute({
+          returnFocus: context.returnFocus ?? undefined,
           sessionId: context.returnSessionId ?? context.sessionId ?? "",
           taskNodeId: context.returnTaskNodeId ?? context.taskNodeId ?? undefined,
           workspaceId: context.workspaceId,
@@ -264,6 +265,7 @@ function InspectionTabs({ context }: { context: WorkspaceInspectionRouteContext 
       <a
         aria-current={context.mode === "status" ? "page" : undefined}
         href={buildWorkspaceInspectionRoute({
+          returnFocus: context.returnFocus ?? undefined,
           returnSessionId: context.returnSessionId ?? undefined,
           returnTaskNodeId: context.returnTaskNodeId ?? undefined,
           sessionId: context.sessionId ?? undefined,
@@ -280,6 +282,7 @@ function InspectionTabs({ context }: { context: WorkspaceInspectionRouteContext 
             aria-current={context.mode === "file" ? "page" : undefined}
             href={buildWorkspaceInspectionRoute({
               path: filePath,
+              returnFocus: context.returnFocus ?? undefined,
               returnSessionId: context.returnSessionId ?? undefined,
               returnTaskNodeId: context.returnTaskNodeId ?? undefined,
               sessionId: context.sessionId ?? undefined,
@@ -294,6 +297,7 @@ function InspectionTabs({ context }: { context: WorkspaceInspectionRouteContext 
             aria-current={context.mode === "diff" ? "page" : undefined}
             href={buildWorkspaceInspectionRoute({
               path: filePath,
+              returnFocus: context.returnFocus ?? undefined,
               returnSessionId: context.returnSessionId ?? undefined,
               returnTaskNodeId: context.returnTaskNodeId ?? undefined,
               sessionId: context.sessionId ?? undefined,
@@ -404,6 +408,7 @@ function ChangedFileRow({
   const uiText = useUiText();
   const baseRoute = {
     path: file.relativePath,
+    returnFocus: context.returnFocus ?? "file_change",
     returnSessionId: context.returnSessionId ?? context.sessionId ?? undefined,
     returnTaskNodeId: context.returnTaskNodeId ?? context.taskNodeId ?? undefined,
     sessionId: context.sessionId ?? undefined,

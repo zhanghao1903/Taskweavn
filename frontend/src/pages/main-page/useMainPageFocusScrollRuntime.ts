@@ -19,9 +19,16 @@ import {
   isNearBottomMetrics,
   mainPageFocusScrollRuntimeReducer,
   messageListSignature,
+  requestRouteTargetFocus,
+  requestRouteTargetScroll,
+  type MainPageRouteFocusReason,
+  type MainPageRouteFocusTarget,
+  type MainPageRouteScrollReason,
+  type MainPageRouteFocusScrollEffectRequest,
 } from "./runtime/mainPageFocusScrollRuntime";
 
 export type UseMainPageFocusScrollRuntimeOptions = {
+  inputDisabled: boolean;
   inputError: string | null;
   inputRef: RefObject<HTMLInputElement | null>;
   isInputSubmitting: boolean;
@@ -31,13 +38,34 @@ export type UseMainPageFocusScrollRuntimeOptions = {
 };
 
 export type UseMainPageFocusScrollRuntimeResult = {
+  askCardRef: RefObject<HTMLElement | null>;
   bottomSentinelRef: RefObject<HTMLDivElement | null>;
+  captureOverlayTrigger: () => void;
+  captureOverlayTriggerElement: (trigger: HTMLElement | null) => void;
+  conversationRootRef: RefObject<HTMLElement | null>;
+  detailPanelRef: RefObject<HTMLElement | null>;
+  fileChangesRef: RefObject<HTMLElement | null>;
+  focusContextInput: (reason: MainPageRouteFocusReason) => void;
+  focusTarget: (
+    target: MainPageRouteFocusTarget,
+    reason: MainPageRouteFocusReason,
+  ) => void;
   messageListRef: RefObject<HTMLDivElement | null>;
   notifyRuntimeInputSubmitStarted: (commandId?: string | null) => void;
   onMessageListScroll: UIEventHandler<HTMLDivElement>;
+  scrollTargetIntoView: (
+    target: Exclude<
+      MainPageRouteFocusTarget,
+      "input_composer" | "overlay_trigger"
+    >,
+    reason: MainPageRouteScrollReason,
+  ) => void;
+  selectedActivityItemRef: RefObject<HTMLLIElement | null>;
+  selectedTaskCardRef: RefObject<HTMLButtonElement | null>;
 };
 
 export function useMainPageFocusScrollRuntime({
+  inputDisabled,
   inputError,
   inputRef,
   isInputSubmitting,
@@ -60,6 +88,13 @@ export function useMainPageFocusScrollRuntime({
   );
   const bottomSentinelRef = useRef<HTMLDivElement>(null);
   const messageListRef = useRef<HTMLDivElement>(null);
+  const askCardRef = useRef<HTMLElement | null>(null);
+  const conversationRootRef = useRef<HTMLElement | null>(null);
+  const detailPanelRef = useRef<HTMLElement | null>(null);
+  const fileChangesRef = useRef<HTMLElement | null>(null);
+  const overlayTriggerRef = useRef<HTMLElement | null>(null);
+  const selectedActivityItemRef = useRef<HTMLLIElement | null>(null);
+  const selectedTaskCardRef = useRef<HTMLButtonElement | null>(null);
   const currentMessageListSignature = useMemo(
     () => messageListSignature(messages),
     [messages],
@@ -70,6 +105,59 @@ export function useMainPageFocusScrollRuntime({
   const previousMessageListSignatureRef = useRef(initialMessageListSignature);
   const wasInputSubmittingRef = useRef(isInputSubmitting);
   const previousInputErrorRef = useRef(inputError);
+
+  const resolveRouteTargetElement = useCallback(
+    (target: MainPageRouteFocusTarget): HTMLElement | null => {
+      switch (target) {
+        case "ask_card":
+          return askCardRef.current;
+        case "conversation":
+          return conversationRootRef.current;
+        case "detail_panel":
+          return detailPanelRef.current;
+        case "file_changes":
+          return fileChangesRef.current ?? detailPanelRef.current;
+        case "input_composer":
+          return inputRef.current;
+        case "overlay_trigger":
+          return overlayTriggerRef.current;
+        case "selected_activity":
+          return selectedActivityItemRef.current;
+        case "selected_task":
+          return selectedTaskCardRef.current;
+      }
+    },
+    [inputRef],
+  );
+
+  const applyRouteEffectRequest = useCallback(
+    (request: MainPageRouteFocusScrollEffectRequest | null) => {
+      if (request === null) {
+        return;
+      }
+
+      switch (request.type) {
+        case "target.focus": {
+          const target = resolveRouteTargetElement(request.target);
+          const focusable = shouldFocusRouteTargetElement(request.target)
+            ? target
+            : findFocusableTarget(target);
+          focusElement(focusable);
+          return;
+        }
+
+        case "target.scroll_into_view": {
+          const target = resolveRouteTargetElement(request.target);
+          target?.scrollIntoView?.({
+            block: "center",
+            behavior: request.behavior,
+          });
+          return;
+        }
+      }
+    },
+    [resolveRouteTargetElement],
+  );
 
   useEffect(() => {
     latestMessagesRef.current = messages;
@@ -216,15 +304,76 @@ export function useMainPageFocusScrollRuntime({
         commandId,
         type: "runtime_input.submit_started",
       });
+      if (!inputDisabled) {
+        focusElement(inputRef.current);
+      }
+    },
+    [inputDisabled, inputRef],
+  );
+
+  const focusTarget = useCallback(
+    (target: MainPageRouteFocusTarget, reason: MainPageRouteFocusReason) => {
+      applyRouteEffectRequest(
+        requestRouteTargetFocus({
+          inputDisabled,
+          reason,
+          target,
+        }),
+      );
+    },
+    [applyRouteEffectRequest, inputDisabled],
+  );
+
+  const focusContextInput = useCallback(
+    (reason: MainPageRouteFocusReason) => {
+      focusTarget("input_composer", reason);
+    },
+    [focusTarget],
+  );
+
+  const scrollTargetIntoView = useCallback(
+    (
+      target: Exclude<
+        MainPageRouteFocusTarget,
+        "input_composer" | "overlay_trigger"
+      >,
+      reason: MainPageRouteScrollReason,
+    ) => {
+      applyRouteEffectRequest(requestRouteTargetScroll({ reason, target }));
+    },
+    [applyRouteEffectRequest],
+  );
+
+  const captureOverlayTriggerElement = useCallback(
+    (trigger: HTMLElement | null) => {
+      overlayTriggerRef.current = trigger;
     },
     [],
   );
 
+  const captureOverlayTrigger = useCallback(() => {
+    const activeElement = document.activeElement;
+    captureOverlayTriggerElement(
+      activeElement instanceof HTMLElement ? activeElement : null,
+    );
+  }, [captureOverlayTriggerElement]);
+
   return {
+    askCardRef,
     bottomSentinelRef,
+    captureOverlayTrigger,
+    captureOverlayTriggerElement,
+    conversationRootRef,
+    detailPanelRef,
+    fileChangesRef,
+    focusContextInput,
+    focusTarget,
     messageListRef,
     notifyRuntimeInputSubmitStarted,
     onMessageListScroll,
+    scrollTargetIntoView,
+    selectedActivityItemRef,
+    selectedTaskCardRef,
   };
 }
 
@@ -239,6 +388,35 @@ function findMessageElement(
 
 function focusElement(element: HTMLElement | null): void {
   element?.focus({ preventScroll: true });
+}
+
+function findFocusableTarget(target: HTMLElement | null): HTMLElement | null {
+  if (target === null) {
+    return null;
+  }
+
+  const activeChild = target.querySelector<HTMLElement>(
+    [
+      "[data-router-ask-answer-control]:not(:disabled)",
+      "textarea:not(:disabled)",
+      "input:not(:disabled)",
+      "button:not(:disabled)",
+      "select:not(:disabled)",
+      "a[href]",
+      "[tabindex]:not([tabindex='-1'])",
+    ].join(","),
+  );
+
+  return activeChild ?? target;
+}
+
+function shouldFocusRouteTargetElement(target: MainPageRouteFocusTarget): boolean {
+  return (
+    target === "conversation" ||
+    target === "detail_panel" ||
+    target === "file_changes" ||
+    target === "selected_activity"
+  );
 }
 
 function preferredScrollBehavior(): ScrollBehavior {

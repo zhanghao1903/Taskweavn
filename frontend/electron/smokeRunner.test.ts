@@ -317,9 +317,27 @@ function renderMainPage() {
       <h1>Diagnostics smoke</h1>
       <a href="/sessions/session-1/audit">View audit</a>
       <button type="button">Retry</button>
+      <div data-plato-conversation-list="true">
+        <div data-plato-conversation-end="true"></div>
+      </div>
+      <label>
+        Context message
+        <input aria-label="Context message" type="text" />
+      </label>
+      <button type="button">Send message</button>
       <p>Run task-1</p>
     </main>
   `;
+  const input = document.querySelector<HTMLInputElement>(
+    'input[aria-label="Context message"]',
+  );
+  const sendButton = getButton("Send message");
+  sendButton.addEventListener("click", () => {
+    if (input?.value) {
+      document.body.insertAdjacentHTML("beforeend", `<p>${input.value}</p>`);
+    }
+    input?.focus();
+  });
   const retryButton = getButton("Retry");
   retryButton.addEventListener("click", () => {
     document.body.insertAdjacentHTML(
@@ -335,10 +353,11 @@ function renderMainPage() {
       "beforeend",
       `
         <p>Read-only question answered</p>
-        <button type="button">Activity</button>
+        <button aria-label="Activity 1" type="button">Activity</button>
       `,
     );
-    getButton("Activity").addEventListener("click", () => {
+    const activityButton = getButton("Activity");
+    activityButton.addEventListener("click", () => {
       const guidanceHtml = routeGuidanceRecorded
         ? "<p>Guidance recorded</p>"
         : "";
@@ -355,20 +374,36 @@ function renderMainPage() {
       const unsupportedHtml = routeUnsupported
         ? "<p>I could not route this input safely yet.</p>"
         : "";
-      document.body.insertAdjacentHTML(
-        "beforeend",
-        `
-          <p>${routeInquiryAnswerText}</p>
-          ${guidanceHtml}
-          ${askHtml}
-          ${confirmationClarificationHtml}
-          ${confirmationHtml}
-          ${executionHtml}
-          ${unsupportedHtml}
-          <button type="button">Export diagnostics</button>
-          <a href="/sessions/session-1/audit?recordId=record-log.jsonl&evidenceId=evidence-log-jsonl">Open audit</a>
-        `,
-      );
+      document.querySelector("#activity-overlay")?.remove();
+      const overlay = document.createElement("aside");
+      overlay.id = "activity-overlay";
+      overlay.setAttribute("aria-label", "Session activity");
+      overlay.setAttribute("role", "dialog");
+      overlay.innerHTML = `
+        <ol>
+          <li data-activity-item-id="activity-1" tabindex="-1">
+            <p>${routeInquiryAnswerText}</p>
+            ${guidanceHtml}
+            ${askHtml}
+            ${confirmationClarificationHtml}
+            ${confirmationHtml}
+            ${executionHtml}
+            ${unsupportedHtml}
+          </li>
+        </ol>
+        <button type="button">Close</button>
+        <button type="button">Export diagnostics</button>
+        <a href="/sessions/session-1/audit?recordId=record-log.jsonl&evidenceId=evidence-log-jsonl">Open audit</a>
+      `;
+      document.body.append(overlay);
+      overlay
+        .querySelector<HTMLElement>("[data-activity-item-id]")
+        ?.focus();
+      const closeButton = getButton("Close");
+      closeButton.addEventListener("click", () => {
+        overlay.remove();
+        activityButton.focus();
+      });
       getButton("Export diagnostics").addEventListener("click", () => {
         document.body.insertAdjacentHTML("beforeend", "<p>Bundle ready</p>");
       });

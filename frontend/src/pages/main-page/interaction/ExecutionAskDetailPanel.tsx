@@ -1,3 +1,4 @@
+import type { Ref } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { LoaderCircle } from "lucide-react";
 
@@ -21,6 +22,7 @@ type ExecutionAskDetail = Extract<
 
 export type ExecutionAskDetailPanelProps = {
   detail: ExecutionAskDetail;
+  focusRef?: Ref<HTMLElement>;
   onAnswer: (payload: AnswerAskPayload) => void;
   onCancel: (payload: CancelAskPayload) => void;
   onDefer: (payload: DeferAskPayload) => void;
@@ -37,6 +39,7 @@ type DraftsByAskId = Record<string, ExecutionAskDraft>;
 
 export function ExecutionAskDetailPanel({
   detail,
+  focusRef,
   onAnswer,
   onCancel,
   onDefer,
@@ -102,7 +105,12 @@ export function ExecutionAskDetailPanel({
   }
 
   return (
-    <section className={styles.root} data-ask-id={ask.id}>
+    <section
+      className={styles.root}
+      data-ask-id={ask.id}
+      ref={focusRef}
+      tabIndex={-1}
+    >
       <div className={styles.titleRow}>
         <Text as="strong" variant="label">
           {askText.labels.taskInputRequired}

@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import type { Ref } from "react";
+import { forwardRef, useMemo, useState } from "react";
 
 import type {
   SessionActivityItemKind,
@@ -32,6 +33,8 @@ export type ActivityOverlayProps = {
   onOpenResult?: (taskNodeId: string | null) => void;
   onOpenTask?: (taskNodeId: string) => void;
   onRetry?: () => void;
+  selectedActivityItemId?: string | null;
+  selectedActivityItemRef?: Ref<HTMLLIElement>;
   selectedTask: TaskNodeCardView | undefined;
   statusMessage?: ActivityOverlayStatusMessage | null;
 };
@@ -48,6 +51,8 @@ export function ActivityOverlay({
   onOpenResult,
   onOpenTask,
   onRetry,
+  selectedActivityItemId = null,
+  selectedActivityItemRef,
   selectedTask,
   statusMessage = null,
 }: ActivityOverlayProps) {
@@ -161,35 +166,32 @@ export function ActivityOverlay({
         </div>
       ) : (
         <ol className={styles.timeline}>
-          {visibleItems.map((item) => (
-            <ActivityItem
-              item={item}
-              key={item.id}
-              onOpenAudit={onOpenAudit}
-              onOpenDiagnostic={onOpenDiagnostic}
-              onOpenFiles={onOpenFiles}
-              onOpenPlan={onOpenPlan}
-              onOpenReader={() => setReaderItem(item)}
-              onOpenResult={onOpenResult}
-              onOpenTask={onOpenTask}
-            />
-          ))}
+          {visibleItems.map((item, index) => {
+            const isSelectedActivity =
+              item.id === selectedActivityItemId ||
+              (selectedActivityItemId === null && index === 0);
+            return (
+              <ActivityItem
+                item={item}
+                key={item.id}
+                onOpenAudit={onOpenAudit}
+                onOpenDiagnostic={onOpenDiagnostic}
+                onOpenFiles={onOpenFiles}
+                onOpenPlan={onOpenPlan}
+                onOpenReader={() => setReaderItem(item)}
+                onOpenResult={onOpenResult}
+                onOpenTask={onOpenTask}
+                ref={isSelectedActivity ? selectedActivityItemRef : undefined}
+              />
+            );
+          })}
         </ol>
       )}
     </aside>
   );
 }
 
-function ActivityItem({
-  item,
-  onOpenAudit,
-  onOpenDiagnostic,
-  onOpenFiles,
-  onOpenPlan,
-  onOpenReader,
-  onOpenResult,
-  onOpenTask,
-}: {
+type ActivityItemProps = {
   item: SessionActivityItemView;
   onOpenAudit?: (ref: SessionActivityRefView) => void;
   onOpenDiagnostic?: (ref: SessionActivityRefView) => void;
@@ -198,7 +200,18 @@ function ActivityItem({
   onOpenReader: () => void;
   onOpenResult?: (taskNodeId: string | null) => void;
   onOpenTask?: (taskNodeId: string) => void;
-}) {
+};
+
+const ActivityItem = forwardRef<HTMLLIElement, ActivityItemProps>(function ActivityItem({
+  item,
+  onOpenAudit,
+  onOpenDiagnostic,
+  onOpenFiles,
+  onOpenPlan,
+  onOpenReader,
+  onOpenResult,
+  onOpenTask,
+}, ref) {
   const uiText = useUiText();
   const kind = activityKindPresentation(item.kind, uiText);
   const scopeLabel = activityScopeLabel(item, uiText);
@@ -207,7 +220,12 @@ function ActivityItem({
     item.kind === "plan_updated" && item.title === "Plan archived";
 
   return (
-    <li className={cx(styles.activityItem, activityItemKindClass(item.kind))}>
+    <li
+      className={cx(styles.activityItem, activityItemKindClass(item.kind))}
+      data-activity-item-id={item.id}
+      ref={ref}
+      tabIndex={-1}
+    >
       <div className={styles.itemHeader}>
         <Badge size="sm" tone={kind.tone}>
           {kind.label}
@@ -253,7 +271,7 @@ function ActivityItem({
       </div>
     </li>
   );
-}
+});
 
 function RelatedRefs({
   item,

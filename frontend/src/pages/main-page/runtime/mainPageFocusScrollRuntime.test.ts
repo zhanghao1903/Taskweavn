@@ -7,6 +7,8 @@ import {
   isNearBottomMetrics,
   mainPageFocusScrollRuntimeReducer,
   messageListSignature,
+  requestRouteTargetFocus,
+  requestRouteTargetScroll,
 } from "./mainPageFocusScrollRuntime";
 
 describe("mainPageFocusScrollRuntime", () => {
@@ -186,6 +188,41 @@ describe("mainPageFocusScrollRuntime", () => {
         scrollTop: 500,
       }),
     ).toBe(false);
+  });
+
+  it("requests static route target focus without replacing submit reducer targets", () => {
+    expect(
+      requestRouteTargetFocus({
+        reason: "route_restored",
+        target: "selected_task",
+      }),
+    ).toEqual({
+      reason: "route_restored",
+      target: "selected_task",
+      type: "target.focus",
+    });
+
+    expect(
+      requestRouteTargetFocus({
+        inputDisabled: true,
+        reason: "route_restored",
+        target: "input_composer",
+      }),
+    ).toBeNull();
+  });
+
+  it("requests static route target scrolling for inspectable panels", () => {
+    expect(
+      requestRouteTargetScroll({
+        reason: "route_restored",
+        target: "file_changes",
+      }),
+    ).toEqual({
+      behavior: "smooth",
+      reason: "route_restored",
+      target: "file_changes",
+      type: "target.scroll_into_view",
+    });
   });
 });
 

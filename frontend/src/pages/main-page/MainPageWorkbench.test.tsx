@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -24,6 +30,7 @@ import type {
   ExportDiagnosticBundle,
   LoadSessionActivity,
 } from "./runtime/adapter";
+import type { MainPageRouteFocusTarget } from "./runtime/mainPageFocusScrollRuntime";
 import type { MainPageController } from "./useMainPageController";
 
 describe("MainPageWorkbench layout", () => {
@@ -67,6 +74,113 @@ describe("MainPageWorkbench layout", () => {
     expect(inputForm).not.toBeNull();
     expect(inputForm).toHaveClass(styles.contextInput);
     expect(inputForm).not.toHaveClass(styles.floatingContextInput);
+  });
+
+  it("returns focus to the composer after submitting runtime input", async () => {
+    const user = userEvent.setup();
+    const actions = buildActions();
+    const viewModel = buildViewModel("s1-empty");
+
+    renderWorkbench(viewModel, actions, {
+      inputDraft: "Check whether this is finished.",
+    });
+
+    const input = screen.getByLabelText("Context message");
+    await user.click(screen.getByRole("button", { name: "Send message" }));
+
+    expect(actions.submitInput).toHaveBeenCalledWith({
+      mode: viewModel.input.mode,
+      sessionId: viewModel.sessionId,
+      target: viewModel.input.target,
+      taskNodeId: viewModel.input.taskNodeId,
+    });
+    expect(input).toHaveFocus();
+  });
+
+  it("focuses the selected task when returning from a route with task context", async () => {
+    const viewModel = buildViewModel("s3-draft-ready", {
+      selectedTaskNodeId: "task-visual-direction",
+    });
+
+    renderWorkbench(viewModel, buildActions(), {
+      routeFocusTarget: "selected_task",
+    });
+
+    const selectedTaskButton = screen
+      .getAllByText("Visual direction")
+      .map((element) => element.closest("button"))
+      .find((element): element is HTMLButtonElement => element !== null);
+
+    expect(selectedTaskButton).not.toBeNull();
+    await waitFor(() => expect(selectedTaskButton).toHaveFocus());
+  });
+
+  it("focuses the conversation when returning from a session-scoped route", async () => {
+    const viewModel = buildViewModel("s8-completed");
+
+    renderWorkbench(viewModel, buildActions(), {
+      routeFocusTarget: "conversation",
+    });
+
+    await waitFor(() =>
+      expect(screen.getByLabelText("Conversation")).toHaveFocus(),
+    );
+  });
+
+  it("does not let consumed route-return focus steal composer focus after submit", async () => {
+    const user = userEvent.setup();
+    const actions = buildActions();
+    const viewModel = buildViewModel("s1-empty");
+
+    renderWorkbench(viewModel, actions, {
+      inputDraft: "Follow up after route return.",
+      routeFocusTarget: "conversation",
+    });
+
+    await waitFor(() =>
+      expect(screen.getByLabelText("Conversation")).toHaveFocus(),
+    );
+
+    await user.click(screen.getByRole("button", { name: "Send message" }));
+
+    expect(actions.submitInput).toHaveBeenCalled();
+    await waitFor(() =>
+      expect(screen.getByLabelText("Context message")).toHaveFocus(),
+    );
+  });
+
+  it("focuses file changes when returning from file or diff inspection", async () => {
+    const actions = buildActions();
+    const viewModel = buildViewModel("s9-file-changes");
+
+    renderWorkbench(viewModel, actions, {
+      routeFocusTarget: "file_changes",
+    });
+
+    expect(actions.showFileChanges).toHaveBeenCalled();
+
+    const fileChangesPanel = screen.getByText("Changed files").closest("section");
+    expect(fileChangesPanel).not.toBeNull();
+    await waitFor(() => expect(fileChangesPanel).toHaveFocus());
+  });
+
+  it("moves focus into the execution ASK card when it is presented", async () => {
+    const viewModel = buildViewModel("s14-execution-ask", {
+      selectedTaskNodeId: "task-implementation",
+    });
+
+    renderWorkbench(viewModel);
+
+    const askCard = document.querySelector<HTMLElement>(
+      "[data-ask-id='ask-deployment-target']",
+    );
+
+    expect(askCard).not.toBeNull();
+    await waitFor(() => {
+      const activeElement = document.activeElement;
+      expect(activeElement).toBeInstanceOf(HTMLElement);
+      expect(askCard).toContainElement(activeElement as HTMLElement);
+    });
   });
 
   it("renders pending confirmations above the context input", async () => {
@@ -371,11 +485,11 @@ describe("MainPageWorkbench layout", () => {
       "/sessions/session-website-plan/audit?entry=from_session&returnFocus=session&returnSessionId=session-website-plan",
     );
 
-    await user.click(
-      screen.getByRole("button", {
-        name: "Open archived plan from Conversation",
-      }),
-    );
+    const planTrigger = screen.getByRole("button", {
+      name: "Open archived plan from Conversation",
+    });
+
+    await user.click(planTrigger);
 
     const archivedPlansPanel = screen.getByLabelText("Archived Plans");
     expect(archivedPlansPanel).toBeInTheDocument();
@@ -386,6 +500,14 @@ describe("MainPageWorkbench layout", () => {
       "datetime",
       "2026-05-17T10:24:00+08:00",
     );
+
+    await user.click(
+      within(archivedPlansPanel).getByRole("button", { name: "Close" }),
+    );
+
+    await waitFor(() => expect(planTrigger).toHaveFocus());
+
+    await user.click(planTrigger);
 
     await user.click(screen.getByRole("button", { name: "Open plan" }));
 
@@ -461,6 +583,51 @@ describe("MainPageWorkbench layout", () => {
       },
       null,
     );
+  });
+
+  it("focuses selected activity and returns focus to the overlay trigger", async () => {
+    const user = userEvent.setup();
+    const loadSessionActivity = vi.fn<LoadSessionActivity>(async () => ({
+      generatedAt: "2026-06-14T00:00:00.000Z",
+      items: [
+        activityItem({
+          id: "activity-plan-updated",
+          kind: "plan_updated",
+          taskNodeId: "task-visual-direction",
+          title: "Plan updated",
+        }),
+      ],
+      sessionId: "session-website-plan",
+      totalCount: 1,
+    }));
+    const viewModel = buildViewModel("s3-draft-ready", {
+      selectedTaskNodeId: "task-visual-direction",
+    });
+
+    renderWorkbench(viewModel, buildActions(), { loadSessionActivity });
+
+    const activityTrigger = screen.getByRole("button", {
+      name: /Open task updates/i,
+    });
+
+    await user.click(activityTrigger);
+
+    await screen.findByLabelText("Task updates");
+    await waitFor(() => {
+      expect(document.activeElement).toHaveAttribute(
+        "data-activity-item-id",
+        "activity-plan-updated",
+      );
+    });
+
+    await user.click(
+      within(screen.getByRole("dialog", { name: "Task updates" })).getByRole(
+        "button",
+        { name: "Close" },
+      ),
+    );
+
+    await waitFor(() => expect(activityTrigger).toHaveFocus());
   });
 
   it("shows read-only answer state in Conversation without adding task rows", () => {
@@ -855,22 +1022,26 @@ function renderWorkbench(
     activeWorkspaceId?: MainPageController["activeWorkspaceId"];
     exportDiagnosticBundle?: ExportDiagnosticBundle;
     loadSessionActivity?: LoadSessionActivity;
+    inputDraft?: string;
+    inputError?: string | null;
+    isInputSubmitting?: boolean;
     runtimeActivityItems?: readonly SessionActivityItemView[];
     workspaceCatalog?: WorkspaceCatalogResult | null;
     workspaceRuntime?: MainPageWorkspaceRuntime | null;
+    routeFocusTarget?: MainPageRouteFocusTarget | null;
   } = {},
 ) {
   render(
     <MainPageWorkbench
       actions={actions}
       activeWorkspaceId={options.activeWorkspaceId ?? null}
-      inputDraft=""
-      inputError={null}
+      inputDraft={options.inputDraft ?? ""}
+      inputError={options.inputError ?? null}
       inputRecoveryActions={[]}
       isArchivingPlan={false}
       isCreatingSession={false}
       isDeletingSession={false}
-      isInputSubmitting={false}
+      isInputSubmitting={options.isInputSubmitting ?? false}
       isRepairingAuthoringState={false}
       isRenamingSession={false}
       sessionDialog={{ mode: "idle" }}
@@ -878,6 +1049,7 @@ function renderWorkbench(
       runtimeActivityItems={options.runtimeActivityItems}
       exportDiagnosticBundle={options.exportDiagnosticBundle}
       loadSessionActivity={options.loadSessionActivity}
+      routeFocusTarget={options.routeFocusTarget}
       workspaceCatalog={options.workspaceCatalog ?? null}
       workspaceRuntime={options.workspaceRuntime ?? null}
     />,

@@ -128,6 +128,7 @@ function Harness({
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const focusScrollRuntime = useMainPageFocusScrollRuntime({
+    inputDisabled: false,
     inputError,
     inputRef,
     isInputSubmitting,
