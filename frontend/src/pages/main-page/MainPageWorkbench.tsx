@@ -865,15 +865,15 @@ export function MainPageWorkbench({
         recoveryActions={inputRecoveryActions}
         onDraftChange={actions.changeInputDraft}
         onSubmit={() => {
-          if (inputDraft.trim()) {
-            focusScrollRuntime.notifyRuntimeInputSubmitStarted();
-          }
-          actions.submitInput({
+          const commandId = actions.submitInput({
             mode: viewModel.input.mode,
             sessionId: viewModel.sessionId,
             target: viewModel.input.target,
             taskNodeId: viewModel.input.taskNodeId,
           });
+          if (commandId !== null) {
+            focusScrollRuntime.notifyRuntimeInputSubmitStarted(commandId);
+          }
         }}
       />
     </main>
