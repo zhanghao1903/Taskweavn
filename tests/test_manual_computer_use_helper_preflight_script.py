@@ -146,6 +146,108 @@ def test_helper_preflight_writes_evidence(tmp_path: Path) -> None:
     assert payload["result"]["ready"] is True
 
 
+def test_helper_preflight_restart_helper_terminates_matching_manifest_pid(
+    tmp_path: Path,
+) -> None:
+    module = _load_script()
+    _patch_backend(
+        module,
+        ComputerUseObservation(
+            operation="readiness",
+            status="ok",
+            success=True,
+            summary="helper ready",
+            metadata={"readiness": {"status": "ready"}},
+        ),
+    )
+    manifest = tmp_path / "computer-use-helper.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "endpoint": "http://127.0.0.1:49152",
+                "bundleId": module.DEFAULT_EXPECTED_BUNDLE_ID,
+                "pid": 12345,
+            }
+        ),
+        encoding="utf-8",
+    )
+    killed: list[tuple[int, int]] = []
+    module.os.kill = lambda pid, sig: killed.append((pid, sig))
+    module._wait_for_pid_exit = lambda pid, timeout_seconds: True
+    evidence = tmp_path / "preflight.json"
+
+    exit_code = module._run(
+        module.HelperPreflightConfig(
+            helper_manifest=manifest,
+            helper_app_path=tmp_path / "Helper.app",
+            restart_helper=True,
+            evidence_output=evidence,
+        )
+    )
+
+    assert exit_code == 0
+    assert killed == [(12345, module.signal.SIGTERM)]
+    payload = json.loads(evidence.read_text(encoding="utf-8"))
+    assert payload["result"]["helperRestart"] == {
+        "attempted": True,
+        "terminated": True,
+        "reason": "sigterm_sent",
+        "pid": 12345,
+        "bundleId": module.DEFAULT_EXPECTED_BUNDLE_ID,
+        "waitedForExit": True,
+    }
+
+
+def test_helper_preflight_restart_helper_refuses_bundle_mismatch(
+    tmp_path: Path,
+) -> None:
+    module = _load_script()
+    _patch_backend(
+        module,
+        ComputerUseObservation(
+            operation="readiness",
+            status="ok",
+            success=True,
+            summary="helper ready",
+            metadata={"readiness": {"status": "ready"}},
+        ),
+    )
+    manifest = tmp_path / "computer-use-helper.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "endpoint": "http://127.0.0.1:49152",
+                "bundleId": "com.example.other-helper",
+                "pid": 12345,
+            }
+        ),
+        encoding="utf-8",
+    )
+    killed: list[tuple[int, int]] = []
+    module.os.kill = lambda pid, sig: killed.append((pid, sig))
+    evidence = tmp_path / "preflight.json"
+
+    exit_code = module._run(
+        module.HelperPreflightConfig(
+            helper_manifest=manifest,
+            helper_app_path=tmp_path / "Helper.app",
+            restart_helper=True,
+            evidence_output=evidence,
+        )
+    )
+
+    assert exit_code == 0
+    assert killed == []
+    payload = json.loads(evidence.read_text(encoding="utf-8"))
+    assert payload["result"]["helperRestart"] == {
+        "attempted": True,
+        "terminated": False,
+        "reason": "bundle_id_mismatch",
+        "bundleId": "com.example.other-helper",
+        "expectedBundleId": module.DEFAULT_EXPECTED_BUNDLE_ID,
+    }
+
+
 def test_helper_preflight_opens_permission_settings_only_when_requested(
     tmp_path: Path,
 ) -> None:

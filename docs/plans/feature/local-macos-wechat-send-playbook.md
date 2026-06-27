@@ -142,6 +142,22 @@ uv run python scripts/manual_computer_use_helper_preflight.py \
 This command may open System Settings. It does not publish a task and does not
 send a WeChat message.
 
+After granting permissions, rerun helper-only preflight with an explicit helper
+restart. This sends `SIGTERM` only to the PID recorded in the helper manifest
+and only if the manifest bundle id matches the expected stable helper bundle id:
+
+```bash
+uv run python scripts/manual_computer_use_helper_preflight.py \
+  --helper-manifest "$HOME/Library/Application Support/PlatoDev/computer-use-helper.json" \
+  --helper-app-path "$HOME/Applications/Plato Computer Use Helper Dev.app" \
+  --restart-helper \
+  --helper-restart-wait-seconds 10 \
+  --evidence-output /tmp/plato-helper-preflight-restart-<run>.json
+```
+
+This command may restart the local helper process. It still does not publish a
+task and does not send a WeChat message.
+
 ## 5. Controlled Confirm/Send Once
 
 Create or select a smoke session, then run one fresh idempotency key:
@@ -214,6 +230,25 @@ Validated on 2026-06-27 with `computer-use-backend=helper`:
 
 This validates the Plato sidecar -> helper backend readiness path. It does not
 validate WeChat contact resolution, draft insertion, or send.
+
+Validated helper-only restart recovery on 2026-06-27:
+
+- command:
+  `scripts/manual_computer_use_helper_preflight.py --restart-helper --helper-restart-wait-seconds 10`
+- evidence:
+  `/tmp/plato-helper-preflight-restart-wait-20260627.json`
+- restart result:
+  - previous manifest PID was stale: `process_not_found`
+  - helper backend auto-launched the stable helper app
+  - manifest refreshed to PID `39083`
+  - `runtimeIdentity.mode=helper_owned_executable`
+- readiness result:
+  - `packageReadinessStatus=missing_accessibility`
+  - `accessibilityTrusted=false`
+  - `ready=false`
+- conclusion: restart / stale-manifest recovery is working. The remaining
+  blocker is macOS Accessibility / Automation authorization for
+  `~/Applications/Plato Computer Use Helper Dev.app`.
 
 ### 6.2.1 Helper-Backed WeChat App Readiness Preflight
 

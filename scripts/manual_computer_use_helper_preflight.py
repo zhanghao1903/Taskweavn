@@ -12,8 +12,11 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import signal
 import subprocess
 import sys
+import time
 import urllib.error
 import urllib.request
 import uuid
@@ -53,6 +56,8 @@ class HelperPreflightConfig:
     timeout_seconds: float = 10.0
     check_wechat_app: bool = False
     open_permission_settings: bool = False
+    restart_helper: bool = False
+    helper_restart_wait_seconds: float = 5.0
     evidence_output: Path | None = None
 
 
@@ -128,15 +133,22 @@ def main() -> int:
 
 
 def _run(config: HelperPreflightConfig) -> int:
+    helper_restart = (
+        _restart_helper_from_manifest(config) if config.restart_helper else None
+    )
     try:
         result = run_helper_preflight(config)
     except HelperPreflightError as exc:
         payload = {"error": str(exc), "details": exc.details, "ready": False}
+        if helper_restart is not None:
+            payload["helperRestart"] = helper_restart
         _write_evidence(config, payload)
         print(json.dumps(payload, ensure_ascii=False, indent=2))
         return 1
 
     payload = result.as_dict()
+    if helper_restart is not None:
+        payload["helperRestart"] = helper_restart
     if config.open_permission_settings and not result.ready:
         payload["permissionSettings"] = _open_permission_settings(
             result.recovery_actions + result.wechat_app_recovery_actions
@@ -463,6 +475,99 @@ def _open_permission_settings(recovery_actions: tuple[str, ...]) -> dict[str, An
     }
 
 
+def _restart_helper_from_manifest(config: HelperPreflightConfig) -> dict[str, Any]:
+    manifest_path = config.helper_manifest.expanduser()
+    try:
+        manifest = _read_helper_manifest(manifest_path)
+    except HelperPreflightError as exc:
+        return {
+            "attempted": True,
+            "terminated": False,
+            "reason": "manifest_unavailable",
+            "error": str(exc),
+        }
+
+    bundle_id = _optional_str(manifest, "bundleId")
+    if bundle_id != config.expected_bundle_id:
+        return {
+            "attempted": True,
+            "terminated": False,
+            "reason": "bundle_id_mismatch",
+            "bundleId": bundle_id,
+            "expectedBundleId": config.expected_bundle_id,
+        }
+
+    pid = manifest.get("pid")
+    if not isinstance(pid, int) or pid <= 0:
+        return {
+            "attempted": True,
+            "terminated": False,
+            "reason": "manifest_pid_unavailable",
+            "bundleId": bundle_id,
+        }
+
+    try:
+        os.kill(pid, signal.SIGTERM)
+    except ProcessLookupError:
+        return {
+            "attempted": True,
+            "terminated": False,
+            "reason": "process_not_found",
+            "pid": pid,
+            "bundleId": bundle_id,
+        }
+    except PermissionError as exc:
+        return {
+            "attempted": True,
+            "terminated": False,
+            "reason": "permission_denied",
+            "pid": pid,
+            "bundleId": bundle_id,
+            "error": str(exc),
+        }
+    except OSError as exc:
+        return {
+            "attempted": True,
+            "terminated": False,
+            "reason": "termination_failed",
+            "pid": pid,
+            "bundleId": bundle_id,
+            "error": str(exc),
+        }
+
+    exited = _wait_for_pid_exit(
+        pid,
+        timeout_seconds=config.helper_restart_wait_seconds,
+    )
+    return {
+        "attempted": True,
+        "terminated": True,
+        "reason": "sigterm_sent",
+        "pid": pid,
+        "bundleId": bundle_id,
+        "waitedForExit": exited,
+    }
+
+
+def _wait_for_pid_exit(
+    pid: int,
+    *,
+    timeout_seconds: float,
+    poll_interval_seconds: float = 0.1,
+) -> bool:
+    deadline = time.monotonic() + max(0.0, timeout_seconds)
+    while True:
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            return True
+        except PermissionError:
+            return False
+        if time.monotonic() >= deadline:
+            return False
+        time.sleep(max(0.05, poll_interval_seconds))
+
+
 def _open_settings_url(
     url: str,
     *,
@@ -528,6 +633,22 @@ def _parse_args() -> HelperPreflightConfig:
             "Security panes. This is best-effort and never sends a message."
         ),
     )
+    parser.add_argument(
+        "--restart-helper",
+        action="store_true",
+        help=(
+            "Before preflight, send SIGTERM to the helper PID recorded in the "
+            "manifest, but only when the manifest bundle id matches the expected "
+            "helper bundle id. The helper backend may then auto-launch the stable "
+            "helper app and refresh the manifest."
+        ),
+    )
+    parser.add_argument(
+        "--helper-restart-wait-seconds",
+        type=float,
+        default=5.0,
+        help="Maximum time to wait for the old helper PID to exit after SIGTERM.",
+    )
     parser.add_argument("--timeout-seconds", type=float, default=10.0)
     parser.add_argument("--evidence-output", type=Path)
     args = parser.parse_args()
@@ -541,6 +662,8 @@ def _parse_args() -> HelperPreflightConfig:
         timeout_seconds=args.timeout_seconds,
         check_wechat_app=args.check_wechat_app,
         open_permission_settings=args.open_permission_settings,
+        restart_helper=args.restart_helper,
+        helper_restart_wait_seconds=args.helper_restart_wait_seconds,
         evidence_output=args.evidence_output,
     )
 
