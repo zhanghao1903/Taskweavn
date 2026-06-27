@@ -325,6 +325,19 @@ export type SettingsReadinessComputerUsePermissionSubject = {
   packageReadinessStatus?: string | null;
   recoveryActions?: ProductRecoveryAction[];
   runtimeMode?: string | null;
+  signature?: {
+    appPath?: string | null;
+    checked?: boolean | null;
+    expectedBundleId?: string | null;
+    identifier?: string | null;
+    identifierMatchesExpected?: boolean | null;
+    infoPlistBound?: boolean | null;
+    reason?: string | null;
+    sealedResources?: boolean | null;
+    signature?: string | null;
+    status?: string | null;
+    teamIdentifier?: string | null;
+  } | null;
 };
 
 export type SettingsReadinessComputerUse = {

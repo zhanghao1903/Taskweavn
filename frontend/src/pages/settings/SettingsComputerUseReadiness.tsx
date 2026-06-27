@@ -24,6 +24,7 @@ export function SettingsComputerUseReadiness({
   }
 
   const permissionSubject = computerUse.permissionSubject ?? null;
+  const signatureSummary = formatSignatureSummary(permissionSubject?.signature ?? null);
   const recoveryActions = uniqueRecoveryActions([
     ...computerUse.recoveryActions,
     ...(permissionSubject?.recoveryActions ?? []),
@@ -73,6 +74,12 @@ export function SettingsComputerUseReadiness({
             <dd>{String(permissionSubject.accessibilityTrusted)}</dd>
           </div>
         ) : null}
+        {signatureSummary ? (
+          <div>
+            <dt>{uiText.settings.labels.computerUseSignature}</dt>
+            <dd>{signatureSummary}</dd>
+          </div>
+        ) : null}
         {recoveryActions.length > 0 ? (
           <div>
             <dt>{uiText.settings.labels.computerUseRecoveryActions}</dt>
@@ -108,6 +115,27 @@ export function SettingsComputerUseReadiness({
       ) : null}
     </section>
   );
+}
+
+function formatSignatureSummary(
+  signature: NonNullable<
+    NonNullable<SettingsReadinessReport["computerUse"]>["permissionSubject"]
+  >["signature"] = null,
+): string | null {
+  if (!signature) {
+    return null;
+  }
+  const parts = [
+    signature.status ? `status=${signature.status}` : null,
+    signature.identifier ? `identifier=${signature.identifier}` : null,
+    typeof signature.infoPlistBound === "boolean"
+      ? `infoPlistBound=${String(signature.infoPlistBound)}`
+      : null,
+    typeof signature.sealedResources === "boolean"
+      ? `sealedResources=${String(signature.sealedResources)}`
+      : null,
+  ].filter((part): part is string => Boolean(part));
+  return parts.length > 0 ? parts.join(" ") : null;
 }
 
 function uniqueRecoveryActions(

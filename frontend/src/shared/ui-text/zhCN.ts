@@ -614,6 +614,7 @@ export const zhCN: UiTextCatalog = {
       computerUseHelperApp: "Helper 应用",
       computerUseReadiness: "Computer-use 就绪状态",
       computerUseRecoveryActions: "恢复操作",
+      computerUseSignature: "Helper 签名",
       computerUseStatus: "状态",
       configured: "已配置",
       degradedReady: "全局设置已就绪，但存在警告。",

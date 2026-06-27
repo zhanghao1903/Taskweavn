@@ -1309,6 +1309,15 @@ sealed resources, signature mode, and TeamIdentifier. This separates two
 previously conflated failures: an invalid helper bundle identity versus a valid
 helper identity that still lacks a refreshed macOS TCC Accessibility grant.
 
+2026-06-27 update 15: Settings readiness now accepts sanitized helper signature
+metadata from helper readiness observations and projects it into
+`computerUse.permissionSubject.signature`. The Settings UI displays a compact
+signature summary (`status`, `identifier`, `infoPlistBound`, and
+`sealedResources`) beside the TCC readiness fields. This makes the production
+diagnostic path match the manual helper preflight evidence: users and support
+can see whether the helper app identity is structurally correct before asking
+for a TCC permission refresh.
+
 ### H5: Release Packaging
 
 - helper bundled with Plato installer；

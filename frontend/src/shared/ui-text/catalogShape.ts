@@ -490,6 +490,7 @@ export type UiTextCatalog = {
       computerUseHelperApp: string;
       computerUseReadiness: string;
       computerUseRecoveryActions: string;
+      computerUseSignature: string;
       computerUseStatus: string;
       configured: string;
       degradedReady: string;

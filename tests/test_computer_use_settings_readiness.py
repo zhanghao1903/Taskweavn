@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+import subprocess
 from typing import Any
 
+import pytest
+
+import taskweavn.server.computer_use_settings_readiness as readiness_module
 from taskweavn.server.computer_use_settings_readiness import (
     ComputerUseSettingsReadinessGateway,
     build_computer_use_settings_readiness,
@@ -126,6 +130,23 @@ def test_computer_use_readiness_degrades_when_enabled_backend_is_not_ready() -> 
                             ),
                             "token": "must-not-leak",
                         },
+                        "helperSignature": {
+                            "checked": True,
+                            "status": "ok",
+                            "appPath": "/Applications/Plato Computer Use Helper Dev.app",
+                            "expectedBundleId": (
+                                "com.taskweavn.plato.computer-use-helper.dev"
+                            ),
+                            "identifier": (
+                                "com.taskweavn.plato.computer-use-helper.dev"
+                            ),
+                            "identifierMatchesExpected": True,
+                            "infoPlistBound": True,
+                            "sealedResources": True,
+                            "signature": "adhoc",
+                            "teamIdentifier": "not set",
+                            "tokenRef": "must-not-leak",
+                        },
                         "token": "must-not-leak",
                     },
                     "helper": {
@@ -182,6 +203,18 @@ def test_computer_use_readiness_degrades_when_enabled_backend_is_not_ready() -> 
         "accessibilityTrusted": False,
         "packageReadinessStatus": "missing_accessibility",
         "helperStatus": "missing_accessibility",
+        "signature": {
+            "checked": True,
+            "status": "ok",
+            "appPath": "/Applications/Plato Computer Use Helper Dev.app",
+            "expectedBundleId": "com.taskweavn.plato.computer-use-helper.dev",
+            "identifier": "com.taskweavn.plato.computer-use-helper.dev",
+            "identifierMatchesExpected": True,
+            "infoPlistBound": True,
+            "sealedResources": True,
+            "signature": "adhoc",
+            "teamIdentifier": "not set",
+        },
         "recoveryActions": [
             "open_macos_privacy_accessibility",
             "restart_helper",
@@ -209,3 +242,92 @@ def test_computer_use_readiness_degrades_when_enabled_backend_is_not_ready() -> 
     ]
     assert "secret" not in computer_use["diagnostics"]
     assert "must-not-leak" not in str(computer_use)
+
+
+def test_computer_use_readiness_computes_helper_signature_when_metadata_omits_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(readiness_module.sys, "platform", "darwin")
+    monkeypatch.setattr(readiness_module.shutil, "which", lambda name: "/usr/bin/codesign")
+
+    def fake_run(
+        args: list[str],
+        *,
+        check: bool,
+        capture_output: bool,
+        text: bool,
+        timeout: int,
+    ) -> subprocess.CompletedProcess[str]:
+        assert args == [
+            "/usr/bin/codesign",
+            "-dv",
+            "--verbose=4",
+            "/Applications/Plato Computer Use Helper Dev.app",
+        ]
+        assert check is False
+        assert capture_output is True
+        assert text is True
+        assert timeout == 10
+        return subprocess.CompletedProcess(
+            args=args,
+            returncode=0,
+            stdout="",
+            stderr=(
+                "Identifier=com.taskweavn.plato.computer-use-helper.dev\n"
+                "Info.plist entries=13\n"
+                "Sealed Resources version=2 rules=13 files=3\n"
+                "Signature=adhoc\n"
+                "TeamIdentifier=not set\n"
+            ),
+        )
+
+    monkeypatch.setattr(readiness_module.subprocess, "run", fake_run)
+    backend = ScriptedComputerUseBackend(
+        (
+                ComputerUseObservation(
+                    operation="readiness",
+                    success=False,
+                    status="not_available",
+                summary="Accessibility permission is missing.",
+                metadata={
+                    "helper_status": "missing_accessibility",
+                    "readiness": {
+                        "status": "missing_accessibility",
+                        "accessibility_trusted": False,
+                    },
+                    "diagnostics": {
+                        "runtimeIdentity": {
+                            "mode": "helper_owned_executable",
+                            "effectiveExecutable": (
+                                "/Applications/Plato Computer Use Helper Dev.app/"
+                                "Contents/MacOS/PlatoComputerUseHelper"
+                            ),
+                        },
+                    },
+                    "helper": {
+                        "bundleId": "com.taskweavn.plato.computer-use-helper.dev",
+                        "path": "/Applications/Plato Computer Use Helper Dev.app",
+                    },
+                },
+            ),
+        )
+    )
+
+    readiness = build_computer_use_settings_readiness(
+        enabled=True,
+        backend_name="helper",
+        backend=backend,
+    )
+
+    assert readiness["permissionSubject"]["signature"] == {
+        "checked": True,
+        "appPath": "/Applications/Plato Computer Use Helper Dev.app",
+        "expectedBundleId": "com.taskweavn.plato.computer-use-helper.dev",
+        "status": "ok",
+        "identifier": "com.taskweavn.plato.computer-use-helper.dev",
+        "identifierMatchesExpected": True,
+        "infoPlistBound": True,
+        "sealedResources": True,
+        "signature": "adhoc",
+        "teamIdentifier": "not set",
+    }

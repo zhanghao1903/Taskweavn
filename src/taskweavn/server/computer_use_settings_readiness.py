@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import shutil
+import subprocess
+import sys
 from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any, Protocol
@@ -15,6 +18,7 @@ _SAFE_METADATA_KEYS = (
     "diagnostics",
     "failure_kind",
     "helper_status",
+    "helper_signature",
     "phase",
     "provider",
     "setup_hint",
@@ -210,10 +214,17 @@ def _permission_subject(metadata: Mapping[str, Any]) -> dict[str, Any]:
     )
     readiness_map = readiness if isinstance(readiness, Mapping) else {}
     helper_app_path = _string(helper_map.get("path"))
+    helper_bundle_id = _string(helper_map.get("bundleId"))
+    signature = _helper_signature(
+        metadata,
+        diagnostics_map,
+        helper_app_path=helper_app_path,
+        expected_bundle_id=helper_bundle_id,
+    )
     effective_executable = _string(runtime_identity_map.get("effectiveExecutable"))
     operator_target = helper_app_path or effective_executable
     subject: dict[str, Any] = {
-        "helperBundleId": _string(helper_map.get("bundleId")),
+        "helperBundleId": helper_bundle_id,
         "helperAppPath": helper_app_path,
         "runtimeMode": _string(runtime_identity_map.get("mode")),
         "effectiveExecutable": effective_executable,
@@ -222,6 +233,7 @@ def _permission_subject(metadata: Mapping[str, Any]) -> dict[str, Any]:
         ),
         "packageReadinessStatus": _string(readiness_map.get("status")),
         "helperStatus": _string(metadata.get("helper_status")),
+        "signature": signature,
         "recoveryActions": list(_string_tuple(metadata.get("recovery_actions"))),
     }
     if operator_target:
@@ -235,6 +247,134 @@ def _permission_subject(metadata: Mapping[str, Any]) -> dict[str, Any]:
         for key, value in subject.items()
         if value is not None and value != [] and value != ""
     }
+
+
+def _helper_signature(
+    metadata: Mapping[str, Any],
+    diagnostics: Mapping[str, Any],
+    *,
+    helper_app_path: str | None,
+    expected_bundle_id: str | None,
+) -> dict[str, Any] | None:
+    raw = (
+        metadata.get("helperSignature")
+        or metadata.get("helper_signature")
+        or diagnostics.get("helperSignature")
+        or diagnostics.get("helper_signature")
+    )
+    if isinstance(raw, Mapping):
+        return _safe_helper_signature(raw)
+    return _helper_signature_from_app_path(
+        helper_app_path=helper_app_path,
+        expected_bundle_id=expected_bundle_id,
+    )
+
+
+def _safe_helper_signature(raw: Mapping[str, Any]) -> dict[str, Any] | None:
+    safe: dict[str, Any] = {}
+    for key in (
+        "checked",
+        "status",
+        "appPath",
+        "expectedBundleId",
+        "identifier",
+        "identifierMatchesExpected",
+        "infoPlistBound",
+        "sealedResources",
+        "signature",
+        "teamIdentifier",
+        "reason",
+    ):
+        value = raw.get(key)
+        if isinstance(value, (bool, int, float)) or (
+            isinstance(value, str) and value
+        ):
+            safe[key] = _safe_value(value)
+    return safe or None
+
+
+def _helper_signature_from_app_path(
+    *,
+    helper_app_path: str | None,
+    expected_bundle_id: str | None,
+) -> dict[str, Any] | None:
+    if not helper_app_path:
+        return None
+
+    base: dict[str, Any] = {
+        "checked": False,
+        "appPath": helper_app_path,
+    }
+    if expected_bundle_id:
+        base["expectedBundleId"] = expected_bundle_id
+    if sys.platform != "darwin":
+        return {**base, "status": "skipped", "reason": "not_macos"}
+
+    codesign_path = shutil.which("codesign")
+    if codesign_path is None:
+        return {**base, "status": "skipped", "reason": "codesign_unavailable"}
+
+    try:
+        result = subprocess.run(
+            [codesign_path, "-dv", "--verbose=4", helper_app_path],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return {
+            **base,
+            "checked": True,
+            "status": "failed",
+            "reason": "codesign_failed",
+        }
+
+    output = "\n".join(part for part in (result.stdout, result.stderr) if part)
+    identifier = _parse_codesign_value(output, "Identifier")
+    signature = _parse_codesign_value(output, "Signature")
+    team_identifier = _parse_codesign_value(output, "TeamIdentifier")
+    identifier_matches_expected = (
+        identifier == expected_bundle_id if expected_bundle_id else None
+    )
+    info_plist_bound = (
+        "Info.plist entries=" in output and "Info.plist=not bound" not in output
+    )
+    sealed_resources = "Sealed Resources version=" in output
+    status = (
+        "ok"
+        if result.returncode == 0
+        and identifier_matches_expected is not False
+        and info_plist_bound
+        and sealed_resources
+        else "mismatch"
+    )
+    payload: dict[str, Any] = {
+        **base,
+        "checked": True,
+        "status": status,
+        "identifier": identifier,
+        "identifierMatchesExpected": identifier_matches_expected,
+        "infoPlistBound": info_plist_bound,
+        "sealedResources": sealed_resources,
+        "signature": signature,
+        "teamIdentifier": team_identifier,
+    }
+    if result.returncode != 0:
+        payload["reason"] = "codesign_nonzero"
+    return {
+        key: value
+        for key, value in payload.items()
+        if value is not None and value != ""
+    }
+
+
+def _parse_codesign_value(output: str, key: str) -> str | None:
+    prefix = f"{key}="
+    for line in output.splitlines():
+        if line.startswith(prefix):
+            return line.removeprefix(prefix)[:500]
+    return None
 
 
 def _bool_or_none(value: object) -> bool | None:

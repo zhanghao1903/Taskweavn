@@ -629,6 +629,7 @@ export const enUS: UiTextCatalog = {
       computerUseHelperApp: "Helper app",
       computerUseReadiness: "Computer-use readiness",
       computerUseRecoveryActions: "Recovery actions",
+      computerUseSignature: "Helper signature",
       computerUseStatus: "Status",
       configured: "configured",
       degradedReady: "Global setup is ready with warnings.",

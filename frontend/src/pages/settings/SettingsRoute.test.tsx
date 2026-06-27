@@ -82,6 +82,9 @@ describe("SettingsRoute", () => {
       "/Users/zhanghao/Applications/Plato Computer Use Helper Dev.app/Contents/MacOS/PlatoComputerUseHelper",
     );
     expect(readiness).toHaveTextContent("false");
+    expect(readiness).toHaveTextContent(
+      "status=ok identifier=com.taskweavn.plato.computer-use-helper.dev infoPlistBound=true sealedResources=true",
+    );
     await user.click(
       within(readiness).getByRole("button", {
         name: "Open macOS Accessibility permissions for the helper.",
@@ -971,6 +974,14 @@ function computerUseReadiness(): NonNullable<SettingsReadinessReport["computerUs
         "rerun_helper_preflight",
       ],
       runtimeMode: "helper_owned_executable",
+      signature: {
+        checked: true,
+        identifier: "com.taskweavn.plato.computer-use-helper.dev",
+        identifierMatchesExpected: true,
+        infoPlistBound: true,
+        sealedResources: true,
+        status: "ok",
+      },
     },
     ready: false,
     recoveryActions: [
