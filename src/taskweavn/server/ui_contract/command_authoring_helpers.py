@@ -3,12 +3,22 @@
 from __future__ import annotations
 
 from taskweavn.server.ui_contract.command_mapping import (
+    _command_response,
     _synthetic_task_tree_id,
     _TaskTreeIdentityError,
 )
-from taskweavn.server.ui_contract.commands import PublishTaskTreePayload
-from taskweavn.server.ui_contract.envelopes import CommandRequest
+from taskweavn.server.ui_contract.commands import (
+    AnswerAuthoringAskBatchPayload,
+    PublishTaskTreePayload,
+)
+from taskweavn.server.ui_contract.envelopes import CommandRequest, CommandResponse
+from taskweavn.server.ui_contract.refs import (
+    AffectedObjectRef,
+    AffectedScope,
+    ObjectRef,
+)
 from taskweavn.task.authoring import RawTask
+from taskweavn.task.commands import CommandResult as CoreCommandResult
 from taskweavn.task.projection import TaskProjectionService
 from taskweavn.task.stores import AuthoringStateStore, RawTaskStore
 
@@ -46,6 +56,91 @@ def raw_task_all_asks_answered(
         return False
     answered_ask_ids = {answer.ask_id for answer in raw_task.answers}
     return all(ask.ask_id in answered_ask_ids for ask in raw_task.asks)
+
+
+def stale_authoring_context_response(
+    raw_task_id: str,
+    request: CommandRequest[AnswerAuthoringAskBatchPayload],
+) -> CommandResponse:
+    raw_ref = ObjectRef(kind="raw_task", id=raw_task_id)
+    ask_refs = authoring_ask_refs(request)
+    result = CoreCommandResult(
+        status="rejected",
+        message=(
+            "stale_authoring_context: authoring ASK was superseded "
+            "by the active TaskTree"
+        ),
+    )
+    return _command_response(
+        request,
+        result,
+        object_refs=(raw_ref, *ask_refs),
+        affected_objects=(
+            AffectedObjectRef(
+                ref=raw_ref,
+                impact="superseded",
+                reason="stale_authoring_context",
+            ),
+            *(
+                AffectedObjectRef(
+                    ref=ask_ref,
+                    impact="superseded",
+                    reason="stale_authoring_context",
+                )
+                for ask_ref in ask_refs
+            ),
+        ),
+        suggested_queries=("session.snapshot", "session.messages", "task.tree"),
+        affected_scopes=(
+            AffectedScope(kind="session"),
+            AffectedScope(kind="messages"),
+            AffectedScope(kind="task_tree"),
+        ),
+    )
+
+
+def answered_authoring_ask_batch_response(
+    raw_task_id: str,
+    request: CommandRequest[AnswerAuthoringAskBatchPayload],
+    result: CoreCommandResult,
+) -> CommandResponse:
+    raw_ref = ObjectRef(kind="raw_task", id=raw_task_id)
+    ask_refs = authoring_ask_refs(request)
+    return _command_response(
+        request,
+        result,
+        object_refs=(raw_ref, *ask_refs),
+        affected_objects=(
+            AffectedObjectRef(
+                ref=raw_ref,
+                impact="changed",
+                reason="RawTask authoring ASK answers were submitted.",
+            ),
+            *(
+                AffectedObjectRef(
+                    ref=ask_ref,
+                    impact="changed",
+                    reason="RawTask authoring ASK was answered.",
+                )
+                for ask_ref in ask_refs
+            ),
+        ),
+        suggested_queries=("session.snapshot", "session.messages", "task.tree"),
+        affected_scopes=(
+            AffectedScope(kind="session"),
+            AffectedScope(kind="messages"),
+            AffectedScope(kind="task_tree"),
+        ),
+    )
+
+
+def authoring_ask_refs(
+    request: CommandRequest[AnswerAuthoringAskBatchPayload],
+) -> tuple[ObjectRef, ...]:
+    return tuple(
+        ObjectRef(kind="raw_task_ask", id=answer.ask_id)
+        for answer in request.payload.answers
+    )
 
 
 def authoring_context_is_superseded(
@@ -132,10 +227,13 @@ def resolve_publish_draft_tree_id(
 
 
 __all__ = [
+    "answered_authoring_ask_batch_response",
     "authoring_context_is_superseded",
+    "authoring_ask_refs",
     "latest_raw_task",
     "raw_task_all_asks_answered",
     "raw_task_ready_for_planning",
     "resolve_publish_draft_tree_id",
     "session_has_published_task_tree",
+    "stale_authoring_context_response",
 ]
