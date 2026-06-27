@@ -459,11 +459,17 @@ export type SettingsConfigUpdateResult = {
 
 export type SettingsRecoveryActionResult = {
   action: ProductRecoveryAction;
+  bundleId?: string | null;
+  manifestPath?: string | null;
+  pid?: number | null;
+  reason?: string | null;
   returnCode?: number | null;
   schemaVersion: "plato.settings_recovery_action.v1";
-  status: "opened";
+  status: "opened" | "restarted";
   summary: string;
-  url: string;
+  terminated?: boolean | null;
+  url?: string | null;
+  waitedForExit?: boolean | null;
 };
 
 export type RuntimeConfigScope = {

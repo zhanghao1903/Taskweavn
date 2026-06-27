@@ -90,7 +90,12 @@ describe("SettingsRoute", () => {
     expect(api.executeSettingsRecoveryAction).toHaveBeenCalledWith(
       "open_macos_privacy_accessibility",
     );
-    expect(readiness).toHaveTextContent("Restart Plato Computer Use Helper.");
+    await user.click(
+      within(readiness).getByRole("button", {
+        name: "Restart Plato Computer Use Helper.",
+      }),
+    );
+    expect(api.executeSettingsRecoveryAction).toHaveBeenCalledWith("restart_helper");
     await user.click(
       within(readiness).getByRole("button", {
         name: "Rerun helper readiness preflight.",

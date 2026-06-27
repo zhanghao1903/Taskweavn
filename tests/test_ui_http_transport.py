@@ -104,7 +104,7 @@ def test_settings_recovery_action_route_rejects_non_executable_action() -> None:
         HttpApiRequest(
             method="POST",
             path="/api/v1/settings/recovery-action",
-            body={"action": "restart_helper"},
+            body={"action": "erase_disk"},
         )
     )
     body = _dict_body(response.body)
@@ -112,7 +112,7 @@ def test_settings_recovery_action_route_rejects_non_executable_action() -> None:
     assert response.status_code == 400
     assert body["ok"] is False
     assert body["error"]["code"] == "bad_request"
-    assert body["error"]["details"]["action"] == "restart_helper"
+    assert body["error"]["details"]["action"] == "erase_disk"
 
 
 def test_runtime_input_route_returns_router_result() -> None:
