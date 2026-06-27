@@ -140,6 +140,10 @@ def _run(config: HelperPreflightConfig) -> int:
         result = run_helper_preflight(config)
     except HelperPreflightError as exc:
         payload = {"error": str(exc), "details": exc.details, "ready": False}
+        payload["permissionSubject"] = _permission_subject_from_payload(
+            config,
+            payload,
+        )
         if helper_restart is not None:
             payload["helperRestart"] = helper_restart
         _write_evidence(config, payload)
@@ -147,6 +151,7 @@ def _run(config: HelperPreflightConfig) -> int:
         return 1
 
     payload = result.as_dict()
+    payload["permissionSubject"] = _permission_subject_from_payload(config, payload)
     if helper_restart is not None:
         payload["helperRestart"] = helper_restart
     if config.open_permission_settings and not result.ready:
@@ -448,6 +453,44 @@ def _write_evidence(config: HelperPreflightConfig, payload: dict[str, Any]) -> N
         json.dumps(evidence, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
+
+
+def _permission_subject_from_payload(
+    config: HelperPreflightConfig,
+    payload: dict[str, Any],
+) -> dict[str, Any]:
+    helper_app_path = str(config.helper_app_path.expanduser())
+    helper_observation = _dict(payload.get("helperObservation"))
+    metadata = _dict(helper_observation.get("metadata"))
+    helper_metadata = _dict(metadata.get("helper"))
+    helper_manifest = _dict(payload.get("helperManifest"))
+    runtime_identity = _dict(payload.get("runtimeIdentity"))
+    return {
+        "expectedBundleId": config.expected_bundle_id,
+        "helperAppPath": helper_app_path,
+        "manifestBundleId": _optional_str(helper_manifest, "bundleId"),
+        "helperBundleId": _optional_str(helper_metadata, "bundleId"),
+        "runtimeMode": _optional_str(runtime_identity, "mode"),
+        "effectiveExecutable": _optional_str(
+            runtime_identity,
+            "effectiveExecutable",
+        ),
+        "accessibilityTrusted": payload.get("accessibilityTrusted")
+        if isinstance(payload.get("accessibilityTrusted"), bool)
+        else None,
+        "packageReadinessStatus": payload.get("packageReadinessStatus")
+        if isinstance(payload.get("packageReadinessStatus"), str)
+        else None,
+        "helperStatus": payload.get("helperStatus")
+        if isinstance(payload.get("helperStatus"), str)
+        else None,
+        "recoveryActions": list(_string_tuple(payload.get("recoveryActions"))),
+        "operatorInstruction": (
+            "Grant or refresh macOS Accessibility and Automation permissions "
+            f"for {helper_app_path}, restart the helper, then rerun "
+            "helper-only preflight before publishing a computer-use task."
+        ),
+    }
 
 
 def _open_permission_settings(recovery_actions: tuple[str, ...]) -> dict[str, Any]:

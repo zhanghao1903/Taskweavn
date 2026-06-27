@@ -97,6 +97,7 @@ Required helper-only result before continuing:
 - `packageReadinessStatus="ready"`
 - `accessibilityTrusted=true`
 - `runtimeIdentity.mode="helper_owned_executable"`
+- `permissionSubject.effectiveExecutable` points to the stable helper executable
 - `ready=true`
 
 After helper-only readiness is ready, run sidecar preflight. The script reads the
@@ -245,10 +246,27 @@ Validated helper-only restart recovery on 2026-06-27:
 - readiness result:
   - `packageReadinessStatus=missing_accessibility`
   - `accessibilityTrusted=false`
+  - `permissionSubject.effectiveExecutable` points to
+    `~/Applications/Plato Computer Use Helper Dev.app/Contents/MacOS/PlatoComputerUseHelper`
   - `ready=false`
 - conclusion: restart / stale-manifest recovery is working. The remaining
   blocker is macOS Accessibility / Automation authorization for
   `~/Applications/Plato Computer Use Helper Dev.app`.
+
+Validated permission-subject evidence on 2026-06-27:
+
+- evidence:
+  `/tmp/plato-helper-preflight-permission-subject-v2-20260627.json`
+- `permissionSubject` now exposes:
+  - `helperAppPath`
+  - `manifestBundleId`
+  - `helperBundleId`
+  - `runtimeMode`
+  - `effectiveExecutable`
+  - `packageReadinessStatus`
+  - `recoveryActions`
+- result remains `missing_accessibility`; no task was published and no WeChat
+  message was sent.
 
 ### 6.2.1 Helper-Backed WeChat App Readiness Preflight
 

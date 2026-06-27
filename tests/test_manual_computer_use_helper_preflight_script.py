@@ -130,6 +130,7 @@ def test_helper_preflight_writes_evidence(tmp_path: Path) -> None:
         ),
     )
     evidence = tmp_path / "preflight.json"
+    helper_app_path = str((tmp_path / "Helper.app").expanduser())
 
     exit_code = module._run(
         module.HelperPreflightConfig(
@@ -144,6 +145,23 @@ def test_helper_preflight_writes_evidence(tmp_path: Path) -> None:
     assert payload["kind"] == "computer_use_helper_preflight"
     assert payload["checkWeChatApp"] is False
     assert payload["result"]["ready"] is True
+    assert payload["result"]["permissionSubject"] == {
+        "expectedBundleId": module.DEFAULT_EXPECTED_BUNDLE_ID,
+        "helperAppPath": helper_app_path,
+        "manifestBundleId": None,
+        "helperBundleId": None,
+        "runtimeMode": None,
+        "effectiveExecutable": None,
+        "accessibilityTrusted": None,
+        "packageReadinessStatus": "ready",
+        "helperStatus": None,
+        "recoveryActions": [],
+        "operatorInstruction": (
+            "Grant or refresh macOS Accessibility and Automation permissions "
+            f"for {helper_app_path}, restart the helper, then rerun "
+            "helper-only preflight before publishing a computer-use task."
+        ),
+    }
 
 
 def test_helper_preflight_restart_helper_terminates_matching_manifest_pid(
