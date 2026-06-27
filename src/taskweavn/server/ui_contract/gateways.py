@@ -76,6 +76,9 @@ from taskweavn.server.ui_contract.plan_read_helpers import (
     file_change_summary_from_plan_nodes,
     result_from_plan_nodes,
 )
+from taskweavn.server.ui_contract.query_activity_helpers import (
+    list_session_activity_query,
+)
 from taskweavn.server.ui_contract.query_ask_helpers import get_ask_query, list_asks_query
 from taskweavn.server.ui_contract.query_snapshot_helpers import (
     _archived_plan_messages,
@@ -344,119 +347,20 @@ class DefaultUiQueryGateway:
         cursor: str | None = None,
         request_id: str | None = None,
     ) -> QueryResponse[SessionActivityTimelineResult]:
-        try:
-            session = self._session_reader.get(session_id)
-            if session is None:
-                return QueryResponse[SessionActivityTimelineResult](
-                    request_id=request_id or _request_id("activity", session_id),
-                    ok=False,
-                    data=None,
-                    error=not_found("session not found", session_id=session_id),
-                    cursor=None,
-                )
-
-            source_tree = _list_main_page_plan_tree(self._task_projection, session.id)
-            task_tree = _map_optional_task_tree(
-                source_tree,
-                authoring_state_store=self._authoring_state_store,
-            )
-            stored_plan = active_stored_plan(
-                session.id,
-                plan_store=self._plan_store,
-                authoring_state_store=self._authoring_state_store,
-            )
-            plan_context = active_plan_read_context(
-                task_tree,
-                stored_plan=stored_plan,
-                plan_projection=self._plan_projection,
-            )
-            messages = _merge_messages(
-                _messages_from_tree(source_tree),
-                self._session_messages(session.id),
-            )
-            confirmations = _confirmations_from_tree(source_tree, session_id=session.id)
-            pending_asks = self._pending_asks(session.id)
-            active_ask = self._active_ask(
-                session.id,
-                task_tree=plan_context.task_tree,
-            )
-            result = (
-                result_from_plan_nodes(
-                    plan_context.stored_plan_nodes,
-                    session_id=session.id,
-                    task_projection=self._task_projection,
-                )
-                if plan_context.stored_plan_nodes is not None
-                else None
-            )
-            if result is None and plan_context.legacy_fallback_allowed:
-                result = _result_from_tree(
-                    source_tree,
-                    session_id=session.id,
-                    task_projection=self._task_projection,
-                )
-            file_change_summary = (
-                file_change_summary_from_plan_nodes(
-                    plan_context.stored_plan_nodes,
-                    session_id=session.id,
-                    task_projection=self._task_projection,
-                )
-                if plan_context.stored_plan_nodes is not None
-                else None
-            )
-            if (
-                file_change_summary is None
-                and plan_context.legacy_fallback_allowed
-            ):
-                file_change_summary = _file_change_summary_from_tree(
-                    source_tree,
-                    session_id=session.id,
-                    task_projection=self._task_projection,
-                )
-            activity = self._activity_projection.project(
-                session_id=session.id,
-                messages=messages,
-                active_plan=plan_context.active_plan,
-                archived_plans=archived_plan_views(
-                    session.id,
-                    plan_store=self._plan_store,
-                    plan_projection=self._plan_projection,
-                ),
-                task_tree=plan_context.task_tree,
-                pending_asks=pending_asks,
-                active_ask=active_ask,
-                confirmations=confirmations,
-                result=result,
-                file_change_summary=file_change_summary,
-                limit=limit,
-                cursor=cursor,
-            )
-            return QueryResponse[SessionActivityTimelineResult](
-                request_id=request_id or _request_id("activity", session_id),
-                ok=True,
-                data=activity,
-                error=None,
-                cursor=activity.next_cursor,
-            )
-        except ValueError as exc:
-            return QueryResponse[SessionActivityTimelineResult](
-                request_id=request_id or _request_id("activity", session_id),
-                ok=False,
-                data=None,
-                error=bad_request(str(exc), session_id=session_id),
-                cursor=None,
-            )
-        except Exception as exc:  # noqa: BLE001 - gateway returns typed errors.
-            return QueryResponse[SessionActivityTimelineResult](
-                request_id=request_id or _request_id("activity", session_id),
-                ok=False,
-                data=None,
-                error=internal_error(
-                    "failed to build session activity timeline",
-                    error_type=type(exc).__name__,
-                ),
-                cursor=None,
-            )
+        return list_session_activity_query(
+            session_id,
+            activity_projection=self._activity_projection,
+            ask_projection=self._ask_projection,
+            authoring_state_store=self._authoring_state_store,
+            cursor=cursor,
+            limit=limit,
+            plan_projection=self._plan_projection,
+            plan_store=self._plan_store,
+            request_id=request_id,
+            session_messages=self._session_messages,
+            session_reader=self._session_reader,
+            task_projection=self._task_projection,
+        )
 
     def list_asks(
         self,
