@@ -454,6 +454,15 @@ Validated runtime identity hint on 2026-06-27:
   installed in the selected Python runtime. For a backend that imports the
   external macOS package, use
   `--collect-submodules taskweavn,macos_computer_use`.
+- 2026-06-27 packaged executable smoke:
+  - command:
+    `uv run --group packaging taskweavn computer-use-helper-executable --collect-submodules taskweavn,macos_computer_use`
+  - packaged into a temp helper `.app` with
+    `--packaged-executable-path`;
+  - direct executable launch published manifest and token;
+  - authenticated `/v1/readiness` returned
+    `runtimeIdentity.mode=helper_owned_executable`;
+  - backend was `disabled`, so no macOS UI operation or WeChat send occurred.
 
 ### 6.3 Helper-Backed Contact Resolution Progress
 

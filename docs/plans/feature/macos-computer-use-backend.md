@@ -283,6 +283,13 @@ Implementation status as of 2026-06-27:
   selected Python runtime, and fails with an explicit missing-PyInstaller error
   otherwise. This is the first concrete helper-owned executable build path; it
   still does not sign, notarize, or run a real helper smoke by itself.
+- PyInstaller is now tracked in the `packaging` dependency group. Local smoke
+  built `PlatoComputerUseHelper` with
+  `--collect-submodules taskweavn,macos_computer_use`, packaged it into a temp
+  helper `.app`, launched the executable directly, authenticated against the
+  helper API, and verified readiness diagnostics report
+  `runtimeIdentity.mode=helper_owned_executable` with `effectiveExecutable`
+  pointing at `.app/Contents/MacOS/PlatoComputerUseHelper`.
 - Helper backend now supports explicit opt-in auto-launch from a configured
   helper app path, waits for the helper manifest before connecting, and waits
   for a refreshed manifest when recovering from a stale endpoint. This is

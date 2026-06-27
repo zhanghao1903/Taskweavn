@@ -355,6 +355,23 @@ uv run taskweavn computer-use-helper-executable \
 
 该路径仍是 unsigned local build seam，不等于 release-grade helper app。
 
+2026-06-27 验证结果：
+
+- 已新增 `packaging` dependency group，包含 PyInstaller；
+- `uv run --group packaging taskweavn computer-use-helper-executable
+  --collect-submodules taskweavn,macos_computer_use` 可构建
+  `PlatoComputerUseHelper`；
+- 使用 `taskweavn computer-use-helper-app --packaged-executable-path ...`
+  可把该 executable 打进临时 `.app`；
+- 直接启动 `.app/Contents/MacOS/PlatoComputerUseHelper` 可发布 manifest 和
+  token；
+- 带 token 调用 `/v1/readiness` 返回
+  `runtimeIdentity.mode=helper_owned_executable`，且 `effectiveExecutable`
+  指向 `.app/Contents/MacOS/PlatoComputerUseHelper`；
+- 本次 smoke 使用 `computer-use-backend=disabled`，只验证 packaged executable
+  启动与 helper API identity，不验证 macOS Accessibility readiness 或 WeChat
+  发送。
+
 ## 7. Helper 启动模式
 
 ### 7.1 Manual Run Mode
