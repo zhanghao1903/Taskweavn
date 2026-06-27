@@ -1,26 +1,10 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import type {
-  ProductRecoveryAction,
-  WorkspaceCatalogResult,
-} from "../../shared/api/platoApi";
-import type {
-  RuntimeInputMode,
-  SessionActivityItemView,
-  SessionSummary,
-  TaskNodeId,
-  WorkspaceId,
-} from "../../shared/api/types";
-import type {
-  DetailOverride,
-  EventConnectionStatus,
-  MainPageSelectionTarget,
-} from "./mainPageUiTypes";
-import type { MainPageStateId } from "./mockPlatoApi";
-import type {
-  MainPageAdapter,
-  MainPageRuntimeSnapshot,
-} from "./runtime/adapter";
+  MainPageController,
+  UseMainPageControllerOptions,
+} from "./mainPageControllerTypes";
+import { useMainPageCommandActions } from "./useMainPageCommandActions";
 import { useMainPageCommandErrorState } from "./useMainPageCommandErrorState";
 import { useMainPageInputRuntimeState } from "./useMainPageInputRuntimeState";
 import {
@@ -28,30 +12,11 @@ import {
   useMainPageSessionIdentityState,
 } from "./useMainPageSessionIdentityState";
 import { useMainPageUiNoticeState } from "./useMainPageUiNoticeState";
-import {
-  createRuntimeInputCommandId,
-  runtimeInputModeFor,
-} from "./mainPageRuntimeInput";
-import {
-  useMainPageCommandMutations,
-  type AnswerAuthoringAskBatchContext,
-  type AnswerExecutionAskContext,
-  type ArchivePlanContext,
-  type CancelExecutionAskContext,
-  type ConfirmationDecisionContext,
-  type DeferExecutionAskContext,
-  type InputSubmitContext,
-  type PublishTaskTreeContext,
-  type RepairAuthoringStateContext,
-  type RetryTaskContext,
-  type StopTaskContext,
-} from "./useMainPageCommandMutations";
+import { useMainPageCommandMutations } from "./useMainPageCommandMutations";
 import { useMainPageEventSubscription } from "./useMainPageEventSubscription";
-import {
-  useMainPageSessionLifecycle,
-  type SessionLifecycleDialog,
-} from "./useMainPageSessionLifecycle";
+import { useMainPageSessionLifecycle } from "./useMainPageSessionLifecycle";
 import { useMainPageSelectionState } from "./useMainPageSelectionState";
+import { useMainPageSnapshotEffects } from "./useMainPageSnapshotEffects";
 import { useMainPageSnapshotQuery } from "./useMainPageSnapshotQuery";
 
 export type {
@@ -67,91 +32,18 @@ export type {
   RetryTaskContext,
   StopTaskContext,
 } from "./useMainPageCommandMutations";
+export type {
+  MainPageController,
+  UseMainPageControllerOptions,
+} from "./mainPageControllerTypes";
 export type { SessionLifecycleDialog } from "./useMainPageSessionLifecycle";
-
-export type MainPageController = {
-  activeSessionId: string | null;
-  activeWorkspaceId: WorkspaceId | null;
-  authoringAskError: string | null;
-  authoringAskRecoveryActions: ProductRecoveryAction[];
-  confirmationError: string | null;
-  confirmationRecoveryActions: ProductRecoveryAction[];
-  detailOverride: DetailOverride;
-  eventConnectionStatus: EventConnectionStatus;
-  eventError: string | null;
-  inputDraft: string;
-  inputError: string | null;
-  inputRecoveryActions: ProductRecoveryAction[];
-  isCreatingSession: boolean;
-  isDeletingSession: boolean;
-  isAnsweringAuthoringAsk: boolean;
-  executionAskError: string | null;
-  executionAskRecoveryActions: ProductRecoveryAction[];
-  isAnsweringAsk: boolean;
-  isCancellingAsk: boolean;
-  isDeferringAsk: boolean;
-  isInputSubmitting: boolean;
-  isPublishingTaskTree: boolean;
-  isArchivingPlan: boolean;
-  isRepairingAuthoringState: boolean;
-  isRenamingSession: boolean;
-  isRetryingTask: boolean;
-  isStoppingTask: boolean;
-  isResolvingConfirmation: boolean;
-  activeRuntimeInputMode: RuntimeInputMode | null;
-  selectionTarget: MainPageSelectionTarget;
-  sessionDialog: SessionLifecycleDialog;
-  isSnapshotError: boolean;
-  isSnapshotPending: boolean;
-  selectedTaskNodeId: TaskNodeId | null;
-  snapshotData: MainPageRuntimeSnapshot | undefined;
-  snapshotError: unknown;
-  stateId: MainPageStateId;
-  taskTreeCommandError: string | null;
-  taskTreeCommandRecoveryActions: ProductRecoveryAction[];
-  uiNotice: string | null;
-  runtimeActivityItems: SessionActivityItemView[];
-  workspaceCatalog: WorkspaceCatalogResult | null;
-  actions: {
-    cancelSessionDialog: () => void;
-    changeSessionDialogDraft: (draftName: string) => void;
-    changeInputDraft: (draft: string) => void;
-    changeState: (nextStateId: MainPageStateId) => void;
-    createSession: (workspaceId?: WorkspaceId | null) => void;
-    deleteSession: (session: SessionSummary) => void;
-    answerAuthoringAskBatch: (context: AnswerAuthoringAskBatchContext) => void;
-    archivePlan: (context: ArchivePlanContext) => void;
-    repairAuthoringState: (context: RepairAuthoringStateContext) => void;
-    answerAsk: (context: AnswerExecutionAskContext) => void;
-    cancelAsk: (context: CancelExecutionAskContext) => void;
-    deferAsk: (context: DeferExecutionAskContext) => void;
-    renameSession: (session: SessionSummary) => void;
-    resolveConfirmation: (context: ConfirmationDecisionContext) => void;
-    retryTask: (context: RetryTaskContext) => void;
-    stopTask: (context: StopTaskContext) => void;
-    selectSession: (session: SessionSummary, currentSessionId: string) => void;
-    selectTaskPlan: () => void;
-    selectTask: (nodeId: TaskNodeId) => void;
-    showFileChanges: () => void;
-    showResult: () => void;
-    submitSessionDialog: () => void;
-    submitInput: (context: InputSubmitContext) => void;
-    publishTaskTree: (context: PublishTaskTreeContext) => void;
-  };
-};
-
-export type UseMainPageControllerOptions = {
-  adapter: MainPageAdapter;
-  initialStateId: MainPageStateId;
-  initialTaskNodeId?: TaskNodeId | null;
-};
 
 export function useMainPageController({
   adapter,
   initialStateId,
   initialTaskNodeId = null,
 }: UseMainPageControllerOptions): MainPageController {
-  const [stateId, setStateId] = useState<MainPageStateId>(initialStateId);
+  const [stateId, setStateId] = useState(initialStateId);
   const { clearUiNotice, setUiNotice, uiNotice } = useMainPageUiNoticeState();
   const {
     authoringAskError,
@@ -249,20 +141,7 @@ export function useMainPageController({
     snapshotData,
   });
 
-  const {
-    answerAskMutation,
-    answerAuthoringAskBatchMutation,
-    archivePlanMutation,
-    cancelAskMutation,
-    deferAskMutation,
-    inputMutation,
-    publishTaskTreeMutation,
-    repairAuthoringStateMutation,
-    resolveConfirmationMutation,
-    retryTaskMutation,
-    runtimeInputMutation,
-    stopTaskMutation,
-  } = useMainPageCommandMutations({
+  const commandMutations = useMainPageCommandMutations({
     activeWorkspaceId,
     adapter,
     getSnapshotData: () => snapshotDataRef.current,
@@ -300,241 +179,40 @@ export function useMainPageController({
     resetSessionDialog,
     resetSessionLifecycle,
   } = sessionLifecycle;
-
-  useEffect(() => {
-    const currentSnapshot = snapshotDataRef.current;
-
-    if (!currentSnapshot) {
-      return;
-    }
-
-    const routeTaskNodeId = initialTaskNodeIdRef.current;
-    const nextSelectedTaskNodeId =
-      routeTaskNodeId !== null &&
-      currentSnapshot.snapshot.taskTree?.nodes.some(
-        (node) => node.id === routeTaskNodeId,
-      )
-        ? routeTaskNodeId
-        : currentSnapshot.metadata.initialSelectedTaskNodeId;
-    initialTaskNodeIdRef.current = null;
-    resetSelection(nextSelectedTaskNodeId);
-    resetInputDraft();
-    resetCommandErrorState();
-    setUiNotice(null);
-    resetSessionDialog();
-    clearEventError();
-  }, [
+  const commandActions = useMainPageCommandActions({
     clearEventError,
+    commandMutations,
+    inputDraft,
     resetCommandErrorState,
     resetInputDraft,
-    resetSessionDialog,
     resetSelection,
-    snapshotIdentity,
-  ]);
+    resetSessionLifecycle,
+    routeRuntimeInputAvailable: adapter.routeRuntimeInput !== undefined,
+    setActiveRuntimeInputMode,
+    setAuthoringAskCommandError,
+    setConfirmationCommandError,
+    setExecutionAskCommandError,
+    setInputCommandError,
+    setStateId,
+    setTaskTreeCommandError,
+    setTaskTreeCommandFailure,
+    setUiNotice,
+  });
 
-  useEffect(() => {
-    const currentSnapshot = snapshotData?.snapshot;
-
-    if (!currentSnapshot) {
-      return;
-    }
-
-    hydrateRuntimeInputSnapshot({
-      messages: currentSnapshot.messages,
-      sessionId: currentSnapshot.session.id,
-      workspaceId: activeWorkspaceId,
-    });
-  }, [
+  useMainPageSnapshotEffects({
     activeWorkspaceId,
+    clearEventError,
     hydrateRuntimeInputSnapshot,
-    snapshotData?.snapshot,
-  ]);
-
-  function handleStateChange(nextStateId: MainPageStateId) {
-    setStateId(nextStateId);
-    resetSelection();
-    resetInputDraft();
-    resetCommandErrorState();
-    setUiNotice(null);
-    resetSessionLifecycle();
-    clearEventError();
-    resolveConfirmationMutation.reset();
-    answerAuthoringAskBatchMutation.reset();
-    repairAuthoringStateMutation.reset();
-    answerAskMutation.reset();
-    deferAskMutation.reset();
-    cancelAskMutation.reset();
-    inputMutation.reset();
-    publishTaskTreeMutation.reset();
-  }
-
-  function handleInputSubmit({
-    mode,
-    sessionId,
-    target,
-    taskNodeId,
-  }: InputSubmitContext) {
-    const content = inputDraft.trim();
-
-    if (!content) {
-      return;
-    }
-
-    setInputCommandError(null);
-    setUiNotice(null);
-    if (adapter.routeRuntimeInput !== undefined) {
-      const commandId = createRuntimeInputCommandId();
-      const routeMode = runtimeInputModeFor(content, mode);
-      setActiveRuntimeInputMode(routeMode);
-      runtimeInputMutation.mutate({
-        commandId,
-        content,
-        routeMode,
-        sessionId,
-        target,
-        taskNodeId,
-      });
-      return;
-    }
-
-    inputMutation.mutate({
-      content,
-      mode,
-      sessionId,
-      target,
-      taskNodeId,
-    });
-  }
-
-  function handlePublishTaskTree({
-    sessionId,
-    taskTreeId,
-  }: PublishTaskTreeContext) {
-    if (taskTreeId === null) {
-      setTaskTreeCommandFailure("No draft task plan is available to publish.");
-      return;
-    }
-
-    setTaskTreeCommandFailure(null);
-    setUiNotice(null);
-    publishTaskTreeMutation.mutate({
-      sessionId,
-      taskTreeId,
-    });
-  }
-
-  function handleArchivePlan(context: ArchivePlanContext) {
-    setTaskTreeCommandFailure(null);
-    setUiNotice(null);
-    archivePlanMutation.mutate(context);
-  }
-
-  function handleConfirmationDecision({
-    confirmation,
-    decision,
-    sessionId,
-  }: ConfirmationDecisionContext) {
-    if (!confirmation) {
-      setConfirmationCommandError("No pending confirmation is available.");
-      return;
-    }
-
-    setConfirmationCommandError(null);
-    setUiNotice(null);
-    resolveConfirmationMutation.mutate({
-      confirmation,
-      decision,
-      sessionId,
-    });
-  }
-
-  function handleAnswerAuthoringAskBatch({
-    answers,
-    rawTaskId,
-    sessionId,
-  }: AnswerAuthoringAskBatchContext) {
-    if (answers.length === 0) {
-      setAuthoringAskCommandError("Answer at least one authoring question.");
-      return;
-    }
-
-    setAuthoringAskCommandError(null);
-    setUiNotice(null);
-    answerAuthoringAskBatchMutation.mutate({
-      answers,
-      rawTaskId,
-      sessionId,
-    });
-  }
-
-  function handleRepairAuthoringState({
-    sessionId,
-  }: RepairAuthoringStateContext) {
-    setTaskTreeCommandError(null);
-    setUiNotice(null);
-    repairAuthoringStateMutation.mutate({
-      sessionId,
-    });
-  }
-
-  function handleAnswerAsk({
-    askId,
-    selectedOptionIds,
-    sessionId,
-    text,
-  }: AnswerExecutionAskContext) {
-    if (selectedOptionIds.length === 0 && !text?.trim()) {
-      setExecutionAskCommandError("Answer the question before submitting.");
-      return;
-    }
-
-    setExecutionAskCommandError(null);
-    setUiNotice(null);
-    answerAskMutation.mutate({
-      askId,
-      selectedOptionIds,
-      sessionId,
-      text,
-    });
-  }
-
-  function handleDeferAsk({ askId, reason, sessionId }: DeferExecutionAskContext) {
-    setExecutionAskCommandError(null);
-    setUiNotice(null);
-    deferAskMutation.mutate({
-      askId,
-      reason,
-      sessionId,
-    });
-  }
-
-  function handleCancelAsk({ askId, reason, sessionId }: CancelExecutionAskContext) {
-    setExecutionAskCommandError(null);
-    setUiNotice(null);
-    cancelAskMutation.mutate({
-      askId,
-      reason,
-      sessionId,
-    });
-  }
-
-  function handleRetryTask({ sessionId, taskNodeId }: RetryTaskContext) {
-    setTaskTreeCommandFailure(null);
-    setUiNotice(null);
-    retryTaskMutation.mutate({
-      sessionId,
-      taskNodeId,
-    });
-  }
-
-  function handleStopTask({ sessionId, taskNodeId }: StopTaskContext) {
-    setTaskTreeCommandFailure(null);
-    setUiNotice(null);
-    stopTaskMutation.mutate({
-      sessionId,
-      taskNodeId,
-    });
-  }
+    initialTaskNodeIdRef,
+    resetCommandErrorState,
+    resetInputDraft,
+    resetSelection,
+    resetSessionDialog,
+    setUiNotice,
+    snapshotData,
+    snapshotDataRef,
+    snapshotIdentity,
+  });
 
   return {
     activeSessionId,
@@ -551,20 +229,23 @@ export function useMainPageController({
     inputRecoveryActions,
     isCreatingSession: sessionLifecycle.isCreatingSession,
     isDeletingSession: sessionLifecycle.isDeletingSession,
-    isAnsweringAuthoringAsk: answerAuthoringAskBatchMutation.isPending,
+    isAnsweringAuthoringAsk:
+      commandActions.pending.isAnsweringAuthoringAsk,
     executionAskError,
     executionAskRecoveryActions,
-    isAnsweringAsk: answerAskMutation.isPending,
-    isCancellingAsk: cancelAskMutation.isPending,
-    isDeferringAsk: deferAskMutation.isPending,
-    isInputSubmitting: inputMutation.isPending || runtimeInputMutation.isPending,
-    isPublishingTaskTree: publishTaskTreeMutation.isPending,
-    isArchivingPlan: archivePlanMutation.isPending,
-    isRepairingAuthoringState: repairAuthoringStateMutation.isPending,
+    isAnsweringAsk: commandActions.pending.isAnsweringAsk,
+    isCancellingAsk: commandActions.pending.isCancellingAsk,
+    isDeferringAsk: commandActions.pending.isDeferringAsk,
+    isInputSubmitting: commandActions.pending.isInputSubmitting,
+    isPublishingTaskTree: commandActions.pending.isPublishingTaskTree,
+    isArchivingPlan: commandActions.pending.isArchivingPlan,
+    isRepairingAuthoringState:
+      commandActions.pending.isRepairingAuthoringState,
     isRenamingSession: sessionLifecycle.isRenamingSession,
-    isRetryingTask: retryTaskMutation.isPending,
-    isStoppingTask: stopTaskMutation.isPending,
-    isResolvingConfirmation: resolveConfirmationMutation.isPending,
+    isRetryingTask: commandActions.pending.isRetryingTask,
+    isStoppingTask: commandActions.pending.isStoppingTask,
+    isResolvingConfirmation:
+      commandActions.pending.isResolvingConfirmation,
     activeRuntimeInputMode,
     selectionTarget,
     sessionDialog: sessionLifecycle.sessionDialog,
@@ -580,31 +261,31 @@ export function useMainPageController({
     runtimeActivityItems,
     workspaceCatalog,
     actions: {
-      answerAuthoringAskBatch: handleAnswerAuthoringAskBatch,
-      answerAsk: handleAnswerAsk,
-      archivePlan: handleArchivePlan,
+      answerAuthoringAskBatch: commandActions.actions.answerAuthoringAskBatch,
+      answerAsk: commandActions.actions.answerAsk,
+      archivePlan: commandActions.actions.archivePlan,
       cancelSessionDialog: sessionLifecycle.actions.cancelSessionDialog,
-      cancelAsk: handleCancelAsk,
+      cancelAsk: commandActions.actions.cancelAsk,
       changeSessionDialogDraft:
         sessionLifecycle.actions.changeSessionDialogDraft,
       changeInputDraft,
-      changeState: handleStateChange,
+      changeState: commandActions.actions.changeState,
       createSession: sessionLifecycle.actions.createSession,
       deleteSession: sessionLifecycle.actions.deleteSession,
-      repairAuthoringState: handleRepairAuthoringState,
-      deferAsk: handleDeferAsk,
+      repairAuthoringState: commandActions.actions.repairAuthoringState,
+      deferAsk: commandActions.actions.deferAsk,
       renameSession: sessionLifecycle.actions.renameSession,
-      resolveConfirmation: handleConfirmationDecision,
-      retryTask: handleRetryTask,
-      stopTask: handleStopTask,
+      resolveConfirmation: commandActions.actions.resolveConfirmation,
+      retryTask: commandActions.actions.retryTask,
+      stopTask: commandActions.actions.stopTask,
       selectSession,
       selectTaskPlan: selectionActions.selectTaskPlan,
       selectTask: selectionActions.selectTask,
       showFileChanges: selectionActions.showFileChanges,
       showResult: selectionActions.showResult,
       submitSessionDialog: sessionLifecycle.actions.submitSessionDialog,
-      submitInput: handleInputSubmit,
-      publishTaskTree: handlePublishTaskTree,
+      submitInput: commandActions.actions.submitInput,
+      publishTaskTree: commandActions.actions.publishTaskTree,
     },
   };
 }

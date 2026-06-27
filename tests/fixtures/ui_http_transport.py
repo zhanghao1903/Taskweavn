@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
@@ -9,6 +11,8 @@ from typing import Any
 from taskweavn.runtime_config import (
     DefaultRuntimeConfigMutationService,
     RuntimeConfigActor,
+    RuntimeConfigMutationServiceConfig,
+    SqliteRuntimeConfigChangeStore,
 )
 from taskweavn.server import (
     InMemoryUiCommandResponseIdempotencyStore,
@@ -659,6 +663,13 @@ class _DiagnosticExportGateway:
         }
 
 
+@dataclass(frozen=True)
+class _RuntimeConfigTransportFixture:
+    service: DefaultRuntimeConfigMutationService
+    store: SqliteRuntimeConfigChangeStore
+    transport: PlatoUiHttpTransport
+
+
 def _transport(
     *,
     query: _QueryGateway | None = None,
@@ -694,6 +705,32 @@ def _transport(
         runtime_config_gateway=runtime_config_gateway,
         runtime_config_mutation_service=runtime_config_mutation_service,
     )
+
+
+@contextmanager
+def _runtime_config_transport_fixture(
+    db_path: Any,
+    *,
+    process_inputs: dict[str, object] | None = None,
+    workspace_id: str = "workspace-1",
+) -> Iterator[_RuntimeConfigTransportFixture]:
+    with SqliteRuntimeConfigChangeStore(db_path) as store:
+        service = DefaultRuntimeConfigMutationService(
+            RuntimeConfigMutationServiceConfig(store=store)
+        )
+        transport = _transport(
+            runtime_config_gateway=DefaultRuntimeConfigGateway.from_process_inputs(
+                process_inputs or {},
+                workspace_id=workspace_id,
+                change_store=store,
+            ),
+            runtime_config_mutation_service=service,
+        )
+        yield _RuntimeConfigTransportFixture(
+            service=service,
+            store=store,
+            transport=transport,
+        )
 
 
 def _accepted(command_id: str) -> CommandResponse:

@@ -78,6 +78,11 @@ from taskweavn.server.ui_http_settings import (
     _settings_readiness_response,
 )
 from taskweavn.server.ui_http_sse import _sse_response
+from taskweavn.server.ui_http_trace_helpers import (
+    path_without_query,
+    safe_query,
+    snapshot_response_summary,
+)
 from taskweavn.server.ui_http_usage import (
     TokenUsageSummaryGateway,
     _usage_token_summary_response,
@@ -209,8 +214,8 @@ class PlatoUiHttpTransport:
             main_page_trace(
                 "http.route.request",
                 method=request.method.upper(),
-                path=_path_without_query(request.path),
-                query=_safe_query(request.query),
+                path=path_without_query(request.path),
+                query=safe_query(request.query),
                 route=route_name,
                 session_id=route.session_id or None,
                 task_node_id=route.task_node_id or None,
@@ -402,7 +407,7 @@ class PlatoUiHttpTransport:
                 main_page_trace(
                     "http.snapshot.response",
                     session_id=route.session_id,
-                    **_snapshot_response_summary(snapshot_response),
+                    **snapshot_response_summary(snapshot_response),
                 )
                 return _contract_response(snapshot_response)
             if route_name == "session_activity":
@@ -870,61 +875,6 @@ class PlatoUiHttpTransport:
             ),
             request_id=_request_id_hint(request),
         )
-
-
-def _safe_query(query: dict[str, str]) -> dict[str, str]:
-    return {
-        key: "<redacted>" if "token" in key.lower() or key == "cursor" else value
-        for key, value in query.items()
-    }
-
-
-def _path_without_query(path: str) -> str:
-    return path.split("?", 1)[0]
-
-
-def _snapshot_response_summary(response: Any) -> dict[str, Any]:
-    data = getattr(response, "data", None)
-    error = getattr(response, "error", None)
-    summary: dict[str, Any] = {
-        "ok": getattr(response, "ok", None),
-        "request_id": getattr(response, "request_id", None),
-    }
-    if error is not None:
-        summary["error_code"] = getattr(error, "code", None)
-        summary["error_message"] = getattr(error, "message", None)
-        return summary
-    if data is None:
-        return summary
-
-    session = getattr(data, "session", None)
-    task_tree = getattr(data, "task_tree", None)
-    nodes = tuple(getattr(task_tree, "nodes", ()) or ())
-    summary.update(
-        {
-            "session_status": getattr(session, "status", None),
-            "task_node_count": len(nodes),
-            "task_nodes": tuple(_task_node_summary(node) for node in nodes),
-            "task_tree_status": getattr(task_tree, "status", None),
-        }
-    )
-    return summary
-
-
-def _task_node_summary(node: Any) -> dict[str, Any]:
-    return {
-        "error_ref": getattr(node, "error_ref", None),
-        "execution": getattr(node, "execution", None),
-        "id": getattr(node, "id", None),
-        "interruption_requested": getattr(node, "interruption_requested", None),
-        "status": getattr(node, "status", None),
-        "title": _short_text(getattr(node, "title", "")),
-    }
-
-
-def _short_text(value: Any, *, limit: int = 80) -> str:
-    text = str(value)
-    return text if len(text) <= limit else f"{text[:limit]}..."
 
 
 __all__ = [

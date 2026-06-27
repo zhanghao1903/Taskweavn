@@ -10,6 +10,11 @@ from dataclasses import dataclass
 from typing import Any, cast
 
 from taskweavn.llm.contracts import ChatResponse, ToolCall
+from taskweavn.server import (
+    MainPageSidecarConfig,
+    MainPageSidecarDependencies,
+    build_main_page_sidecar_app,
+)
 from taskweavn.task import TaskDomain, TaskRunResult
 
 
@@ -148,6 +153,23 @@ class _FakeDefaultAgent:
 @dataclass(frozen=True)
 class _LLMResponse:
     content: str
+
+
+def _build_stubbed_sidecar_app(
+    workspace_root: Any,
+    *,
+    llm: Any | None = None,
+    **config_kwargs: Any,
+) -> Any:
+    config_values = {
+        "workspace_root": workspace_root,
+        "port": 0,
+        **config_kwargs,
+    }
+    return build_main_page_sidecar_app(
+        MainPageSidecarConfig(**config_values),
+        MainPageSidecarDependencies(llm=_StubLLM() if llm is None else llm),
+    )
 
 
 def _request(
