@@ -18,34 +18,12 @@ from taskweavn.server.runtime_input_router import RuntimeInputRouter
 from taskweavn.server.transport import HttpApiRequest, HttpApiResponse
 from taskweavn.server.ui_command_idempotency import UiCommandResponseIdempotencyStore
 from taskweavn.server.ui_contract import (
-    AnswerAskPayload,
-    AnswerAuthoringAskBatchPayload,
     ApiError,
-    AppendSessionInputPayload,
-    AppendTaskInputPayload,
-    ArchivePlanPayload,
-    CancelAskPayload,
-    CommandRequest,
-    DeferAskPayload,
-    DispatchExecutionPayload,
-    GenerateTaskTreePayload,
-    PublishTaskTreePayload,
-    RepairAuthoringStatePayload,
-    ResolveConfirmationPayload,
-    RetryTaskPayload,
-    StopTaskPayload,
     UiCommandGateway,
     UiQueryGateway,
-    UpdateTaskNodePayload,
 )
 from taskweavn.server.ui_events import ResyncOnlyEventSource, UiEventSource
-from taskweavn.server.ui_http_commands import (
-    _answer_ask_with_resume_dispatch,
-    _command_response,
-    _dispatch_execution,
-    _publish_task_tree_with_optional_dispatch,
-    _retry_task_with_optional_dispatch,
-)
+from taskweavn.server.ui_http_command_routes import _command_route_response
 from taskweavn.server.ui_http_execution_plane import _execution_plane_response
 from taskweavn.server.ui_http_inspection import (
     WorkspaceInspectionGateway,
@@ -58,10 +36,7 @@ from taskweavn.server.ui_http_lifecycle import (
     _session_lifecycle_response,
 )
 from taskweavn.server.ui_http_queries import _query_route_response
-from taskweavn.server.ui_http_query_params import (
-    _parse_command_request,
-    _request_query,
-)
+from taskweavn.server.ui_http_query_params import _request_query
 from taskweavn.server.ui_http_responses import (
     _contract_response,
     _error_response,
@@ -324,255 +299,15 @@ class PlatoUiHttpTransport:
                     route_name=route_name,
                     session_id=route.session_id,
                 )
-            if route_name == "append_session_input":
-                append_session_request = _parse_command_request(
-                    request,
-                    route.session_id,
-                    CommandRequest[AppendSessionInputPayload],
-                )
-                if isinstance(append_session_request, HttpApiResponse):
-                    return append_session_request
-                return _command_response(
-                    route,
-                    append_session_request,
-                    lambda: self._command_gateway.append_session_input(
-                        append_session_request
-                    ),
-                    self._command_idempotency_store,
-                )
-            if route_name == "generate_task_tree":
-                generate_request = _parse_command_request(
-                    request,
-                    route.session_id,
-                    CommandRequest[GenerateTaskTreePayload],
-                )
-                if isinstance(generate_request, HttpApiResponse):
-                    return generate_request
-                return _command_response(
-                    route,
-                    generate_request,
-                    lambda: self._command_gateway.generate_task_tree(generate_request),
-                    self._command_idempotency_store,
-                )
-            if route_name == "answer_authoring_ask_batch":
-                answer_authoring_request = _parse_command_request(
-                    request,
-                    route.session_id,
-                    CommandRequest[AnswerAuthoringAskBatchPayload],
-                )
-                if isinstance(answer_authoring_request, HttpApiResponse):
-                    return answer_authoring_request
-                return _command_response(
-                    route,
-                    answer_authoring_request,
-                    lambda: self._command_gateway.answer_authoring_ask_batch(
-                        route.raw_task_id,
-                        answer_authoring_request,
-                    ),
-                    self._command_idempotency_store,
-                )
-            if route_name == "repair_authoring_state":
-                repair_authoring_request = _parse_command_request(
-                    request,
-                    route.session_id,
-                    CommandRequest[RepairAuthoringStatePayload],
-                )
-                if isinstance(repair_authoring_request, HttpApiResponse):
-                    return repair_authoring_request
-                return _command_response(
-                    route,
-                    repair_authoring_request,
-                    lambda: self._command_gateway.repair_authoring_state(
-                        repair_authoring_request
-                    ),
-                    self._command_idempotency_store,
-                )
-            if route_name == "update_task_node":
-                update_request = _parse_command_request(
-                    request,
-                    route.session_id,
-                    CommandRequest[UpdateTaskNodePayload],
-                )
-                if isinstance(update_request, HttpApiResponse):
-                    return update_request
-                return _command_response(
-                    route,
-                    update_request,
-                    lambda: self._command_gateway.update_task_node(
-                        route.task_node_id,
-                        update_request,
-                    ),
-                    self._command_idempotency_store,
-                )
-            if route_name == "append_task_input":
-                append_task_request = _parse_command_request(
-                    request,
-                    route.session_id,
-                    CommandRequest[AppendTaskInputPayload],
-                )
-                if isinstance(append_task_request, HttpApiResponse):
-                    return append_task_request
-                return _command_response(
-                    route,
-                    append_task_request,
-                    lambda: self._command_gateway.append_task_input(
-                        route.task_node_id,
-                        append_task_request,
-                    ),
-                    self._command_idempotency_store,
-                )
-            if route_name == "publish_task_tree":
-                publish_request = _parse_command_request(
-                    request,
-                    route.session_id,
-                    CommandRequest[PublishTaskTreePayload],
-                )
-                if isinstance(publish_request, HttpApiResponse):
-                    return publish_request
-                return _command_response(
-                    route,
-                    publish_request,
-                    lambda: _publish_task_tree_with_optional_dispatch(
-                        self._command_gateway,
-                        self._execution_trigger_gateway,
-                        publish_request,
-                    ),
-                    self._command_idempotency_store,
-                )
-            if route_name == "archive_plan":
-                archive_request = _parse_command_request(
-                    request,
-                    route.session_id,
-                    CommandRequest[ArchivePlanPayload],
-                )
-                if isinstance(archive_request, HttpApiResponse):
-                    return archive_request
-                return _command_response(
-                    route,
-                    archive_request,
-                    lambda: self._command_gateway.archive_plan(
-                        route.plan_id,
-                        archive_request,
-                    ),
-                    self._command_idempotency_store,
-                )
-            if route_name == "retry_task":
-                retry_request = _parse_command_request(
-                    request,
-                    route.session_id,
-                    CommandRequest[RetryTaskPayload],
-                )
-                if isinstance(retry_request, HttpApiResponse):
-                    return retry_request
-                return _command_response(
-                    route,
-                    retry_request,
-                    lambda: _retry_task_with_optional_dispatch(
-                        self._command_gateway,
-                        self._execution_trigger_gateway,
-                        route.task_node_id,
-                        retry_request,
-                    ),
-                    self._command_idempotency_store,
-                )
-            if route_name == "stop_task":
-                stop_request = _parse_command_request(
-                    request,
-                    route.session_id,
-                    CommandRequest[StopTaskPayload],
-                )
-                if isinstance(stop_request, HttpApiResponse):
-                    return stop_request
-                return _command_response(
-                    route,
-                    stop_request,
-                    lambda: self._command_gateway.stop_task(
-                        route.task_node_id,
-                        stop_request,
-                    ),
-                    self._command_idempotency_store,
-                )
-            if route_name == "dispatch_execution":
-                dispatch_request = _parse_command_request(
-                    request,
-                    route.session_id,
-                    CommandRequest[DispatchExecutionPayload],
-                )
-                if isinstance(dispatch_request, HttpApiResponse):
-                    return dispatch_request
-                return _command_response(
-                    route,
-                    dispatch_request,
-                    lambda: _dispatch_execution(
-                        self._execution_trigger_gateway,
-                        dispatch_request,
-                    ),
-                    self._command_idempotency_store,
-                )
-            if route_name == "resolve_confirmation":
-                resolve_request = _parse_command_request(
-                    request,
-                    route.session_id,
-                    CommandRequest[ResolveConfirmationPayload],
-                )
-                if isinstance(resolve_request, HttpApiResponse):
-                    return resolve_request
-                return _command_response(
-                    route,
-                    resolve_request,
-                    lambda: self._command_gateway.resolve_confirmation(
-                        route.confirmation_id,
-                        resolve_request,
-                    ),
-                    self._command_idempotency_store,
-                )
-            if route_name == "answer_ask":
-                answer_request = _parse_command_request(
-                    request,
-                    route.session_id,
-                    CommandRequest[AnswerAskPayload],
-                )
-                if isinstance(answer_request, HttpApiResponse):
-                    return answer_request
-                return _command_response(
-                    route,
-                    answer_request,
-                    lambda: _answer_ask_with_resume_dispatch(
-                        self._command_gateway,
-                        self._execution_trigger_gateway,
-                        route.ask_id,
-                        answer_request,
-                    ),
-                    self._command_idempotency_store,
-                )
-            if route_name == "defer_ask":
-                defer_request = _parse_command_request(
-                    request,
-                    route.session_id,
-                    CommandRequest[DeferAskPayload],
-                )
-                if isinstance(defer_request, HttpApiResponse):
-                    return defer_request
-                return _command_response(
-                    route,
-                    defer_request,
-                    lambda: self._command_gateway.defer_ask(route.ask_id, defer_request),
-                    self._command_idempotency_store,
-                )
-            if route_name == "cancel_ask":
-                cancel_request = _parse_command_request(
-                    request,
-                    route.session_id,
-                    CommandRequest[CancelAskPayload],
-                )
-                if isinstance(cancel_request, HttpApiResponse):
-                    return cancel_request
-                return _command_response(
-                    route,
-                    cancel_request,
-                    lambda: self._command_gateway.cancel_ask(route.ask_id, cancel_request),
-                    self._command_idempotency_store,
-                )
+            command_route_response = _command_route_response(
+                request,
+                route,
+                command_gateway=self._command_gateway,
+                command_idempotency_store=self._command_idempotency_store,
+                execution_trigger_gateway=self._execution_trigger_gateway,
+            )
+            if command_route_response is not None:
+                return command_route_response
             if route_name == "client_error_log":
                 if request.body is None:
                     return _error_response(
