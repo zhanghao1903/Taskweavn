@@ -4,6 +4,7 @@
 > Last Updated: 2026-06-24
 > Scope: server core execution line, local sidecar, Router/read-only inquiry, Agent LLM logs, diagnostics
 > Related Plan: [Configurable logging feature plan](../plans/feature/configurable-logging-system.md)
+> Related Release: [Configurable Logging System](../releases/configurable-logging-system.md)
 > Related Architecture: [Architecture Reference](reference.md)
 
 Product 1.1 alignment: logging now supports the local sidecar runtime, diagnostic
@@ -16,7 +17,7 @@ usage, retry, routing, and diagnostics-safe summaries.
 
 ## 1. 背景
 
-TaskWeavn 当前日志系统位于 `src/taskweavn/observability/setup.py`，能力很轻：
+TaskWeavn 早期日志系统位于 `src/taskweavn/observability/setup.py`，能力很轻：
 
 ```text
 taskweavn.tool        -> <log_dir>/tool.log
@@ -32,7 +33,7 @@ configure_logging(log_dir, level=logging.INFO) -> dict[str, Path]
 get_channel_logger(channel) -> logging.Logger
 ```
 
-这足够支撑早期开发，但已经不够支撑接下来的服务端核心线：
+这足够支撑早期开发，但不足以支撑后续服务端核心线：
 
 - LLM provider 已经有 retry、provider、request_id、usage 等调试元数据；
 - Session-scoped execution 架构会引入 Task、TaskBus、Agent、Publisher、ASK
@@ -41,20 +42,23 @@ get_channel_logger(channel) -> logging.Logger
 - 长会话需要稳定归档目录和 manifest；
 - CLI 体验不能要求用户直接读巨大 JSON。
 
-本设计定义下一阶段实现边界：**可配置、可继承、可热更新、可归档的结构化日志系统**。
+当前 v1 已经把这条线升级为**可配置、可继承、可热更新、可归档的结构化日志系统**。
+本文保留当前架构事实、公共 API、模块边界和约束；历史实施切片与验收记录以
+[feature plan](../plans/feature/configurable-logging-system.md) 和
+[release record](../releases/configurable-logging-system.md) 为准。
 
 ---
 
-## 2. 设计目标
+## 2. V1 能力边界
 
-1. 保留现有 `configure_logging()` / `get_channel_logger()` 兼容入口。
-2. 增加新的 object-aware logger API，日志调用点声明 category、event、context、payload。
+1. 保留 `configure_logging()` / `get_channel_logger()` 兼容入口。
+2. 提供 object-aware logger API，日志调用点声明 category、event、context、payload。
 3. 支持全局配置与 Session 级覆盖。
 4. 支持 category 级日志级别、payload 模式和 sink 路由。
-5. 支持运行中热更新，不重复 handler、不丢失当前调用。
+5. 支持同进程运行中热更新，不重复 handler、不丢失当前调用。
 6. 支持 Session 日志归档目录与 `manifest.json`。
 7. 默认落盘 JSONL，展示层提供 pretty renderer。
-8. LLM / Tool / Action / Observation 第一批迁移；Bus / Task / Agent 接口先预留。
+8. LLM / Tool / Action / Observation / Bus / Gate / Wait / Sandbox 等核心对象已有第一批集成。
 
 ---
 
@@ -818,21 +822,21 @@ DEFAULT_REDACT_KEYS = {
 
 ---
 
-## 13. Integration Plan
+## 13. Current Integrations
 
 ### 13.1 Current Emitters
 
-当前日志点：
+当前主要日志点：
 
-| 当前模块 | 当前 category | 迁移方式 |
+| 当前模块 | 当前 category | 当前边界 |
 |---|---|---|
-| `core/event_stream.py` | `action` / `observation` | 用 `ObjectLogger` 写 `emit` event，context 带 event/action/observation id。 |
-| `core/sqlite_event_stream.py` | `action` / `observation` | 同上，并补 task_id if available。 |
-| `runtime/local.py` | `tool` | 用 `tool` + `runtime` category，区分 `invoke` / `result`。 |
-| `llm/providers/*` | `llm` | 用 `llm` category，记录 provider/model/retry/usage/request_id。 |
-| `llm/retry.py` | `llm` | retry 事件写 `retry`。 |
-| `audit/agent.py` | stdlib module logger | 通过 bridge 或迁移到 `audit` category。 |
-| `runtime/sandbox.py` | stdlib module logger | 通过 bridge 或迁移到 `sandbox` category。 |
+| `core/event_stream.py` | `action` / `observation` | EventStream action / observation emission writes structured object logs with event/action/observation ids. |
+| `core/sqlite_event_stream.py` | `action` / `observation` | SQLite-backed event emission follows the same category/event taxonomy and adds task/session context when available. |
+| `runtime/local.py` | `tool` / `runtime` | Tool invocation, result, and failure logs are split by stable event names. |
+| `llm/providers/*` | `llm` | Provider/model/retry/usage/request metadata is logged without exposing prompts by default. |
+| `llm/retry.py` | `llm` | Retry attempts and exhaustion are emitted as structured retry/failure events. |
+| `audit/agent.py` | `audit` | Audit operations use the logging taxonomy directly or through the compatibility bridge where older call sites remain. |
+| `runtime/sandbox.py` | `sandbox` | Sandbox lifecycle, execution, and cleanup records use the `sandbox` category. |
 
 ### 13.2 LLM Event Payload
 
@@ -940,118 +944,43 @@ uv run taskweavn logging render ./logs/sessions/debug-llm-run/llm.jsonl --limit 
 
 ---
 
-## 16. Implementation Slices
+## 16. Implementation History And Release Record
 
-### Slice 1 — Models And Defaults
+This architecture document no longer owns the execution slice plan. The v1
+implementation was accepted as the Phase 3B configurable logging release.
 
-产出：
+Authoritative history:
 
-- `levels.py`
-- `models.py`
-- 默认 config builder：
-  - `build_legacy_logging_config(log_dir, level)`
-  - `build_session_logging_config(log_dir, level)`
+- Implementation plan and slice detail:
+  [Configurable logging feature plan](../plans/feature/configurable-logging-system.md).
+- Accepted release summary, shipped surface, validation, and follow-ups:
+  [Release: Configurable Logging System](../releases/configurable-logging-system.md).
 
-测试：
+The accepted v1 baseline includes:
 
-- level parsing；
-- invalid category / sink / template；
-- config freeze；
-- default config path；
-- patch merge；
-- session override resolution。
+- logging config models, levels, profiles, category rules, sink config, and
+  structured event/context models;
+- `LoggingManager`, `ObjectLogger`, file/console/null sinks, lazy payload
+  evaluation, and redaction;
+- backward-compatible `configure_logging()` / `get_channel_logger()` bridge and
+  legacy channel file names;
+- session archive layout with `manifest.json`, category file map, config hash,
+  templates, and close markers;
+- same-process logging control surface and CLI archive inspection commands;
+- first core integrations across Action, Observation, Tool, Runtime, LLM,
+  Audit, Bus, Gate, Wait, and Sandbox categories.
 
-### Slice 2 — Manager, Sinks, ObjectLogger
+## 17. Validation Boundary
 
-产出：
+The accepted release record captured the implementation validation:
 
-- `LoggingManager`
-- `ObjectLogger`
-- `FileSink`
-- `ConsoleSink`
-- `NullSink`
-- lazy payload behavior；
-- redaction。
+```bash
+uv run ruff check src tests
+uv run mypy src tests
+uv run pytest
+```
 
-测试：
-
-- `OFF` 不构造 payload；
-- DEBUG 未启用不构造 lazy data；
-- apply config 不重复 writer；
-- hot swap 后新日志去新 sink；
-- redaction。
-
-### Slice 3 — Compatibility Layer
-
-产出：
-
-- `configure_logging()` 内部转新 manager；
-- `get_channel_logger()` 安装 bridge handler；
-- legacy file path 兼容；
-- JSONL 保留 `msg` alias。
-
-测试：
-
-- 当前 `tests/test_observability.py` 继续通过；
-- stdlib logger `extra={"data": ...}` 进入新 JSONL；
-- unknown channel 仍抛 `ValueError`。
-
-### Slice 4 — Archive And Session Manifest
-
-产出：
-
-- `LogArchiveManifest`
-- `write_session_manifest()` / `close_session_archive()`
-- session path template。
-- dynamic path `templates` for future task/agent sinks.
-
-测试：
-
-- manifest 创建；
-- close 后写 `closed_at`；
-- session file map 可被读取；
-- dynamic task/agent path templates do not pollute concrete `files`.
-- missing context fallback。
-
-### Slice 5 — First Object Migration
-
-产出：
-
-- EventStream action/observation；
-- Runtime/tool；
-- LLM provider/retry；
-- Audit/Sandbox bridge 接入。
-
-测试：
-
-- 每个核心 category 至少一个端到端日志；
-- LLM retry records 进入 `llm` 日志；
-- tool DEBUG/full 行为；
-- action/observation context 包含 event/action/observation id。
-
-### Slice 6 — CLI Profiles And Config File
-
-产出：
-
-- `--logging-profile`
-- `--log-level`
-- `--logging-config`
-- JSON `LoggingConfig` loader。
-- `taskweavn logging profiles`
-- `taskweavn logging manifest`
-- `taskweavn logging render`
-
-测试：
-
-- CLI profile debug-llm；
-- CLI level default override；
-- invalid profile/config/level error；
-- JSON config load；
-- archive inspection command behavior。
-
----
-
-## 16. Test Matrix
+Current focused regression areas include:
 
 | Area | Tests |
 |---|---|
@@ -1061,43 +990,23 @@ uv run taskweavn logging render ./logs/sessions/debug-llm-run/llm.jsonl --limit 
 | Archive | `test_logging_archive.py` |
 | Control | `test_logging_control.py` |
 | Event taxonomy | `test_logging_event_taxonomy.py` |
-| CLI | `test_cli.py` |
+| Runtime config | `test_runtime_config_logging_consumer.py` |
 | LLM integration | `test_llm_providers.py`, `test_llm_retry_policy.py`, `test_llm_contracts.py` |
 
-Full gate:
+Future changes to the logging architecture should run the focused tests for the
+touched boundary, plus the full gate when behavior crosses observability,
+runtime, LLM, CLI, and diagnostics.
 
-```bash
-uv run ruff check src tests
-uv run mypy src tests
-uv run pytest
-```
+## 18. Follow-Up Boundaries
 
----
+These are not v1 blockers. They are future boundaries to keep explicit:
 
-## 17. Open Questions
-
-| Question | Recommendation |
+| Boundary | Current decision |
 |---|---|
-| YAML dependency now or later? | Later. V1 supports JSON `LoggingConfig`; YAML belongs in a broader configuration subsystem. |
-| Keep old `msg` forever? | Keep during Phase 3B; deprecate only after docs/tests migrate to `event`. |
-| Should logs live under `.taskweavn` or `logs/`? | CLI default remains `./logs`; workspace-integrated UI can later choose `.taskweavn/logs`. |
-| Do we need background expiry thread? | No for v1; opportunistic cleanup is simpler and testable. |
-| Should EventStream mirror all logs? | No. Logs can reference event ids, but EventStream remains the fact source. |
-| Should default archive split by task/agent? | No for v1. Use session/category files and manifest `templates` for future dynamic sinks. |
-
----
-
-## 18. Acceptance Criteria
-
-This technical design is implemented when:
-
-- existing logging API keeps working;
-- new `ObjectLogger` supports lazy payload and structured context;
-- logging config supports global/session/category effective rules;
-- `OFF` prevents payload construction;
-- hot update swaps config without duplicate handlers;
-- session archive manifest exists and supports dynamic `templates`;
-- LLM retry/provider metadata can be logged at summary/full levels;
-- core object logs use documented event names;
-- docs explain user-facing logging profile and config options;
-- tests cover config models, manager, compatibility, archive, control, CLI, event taxonomy, and first object integrations.
+| YAML config | V1 supports JSON `LoggingConfig`; YAML belongs in a broader configuration subsystem. |
+| Legacy `msg` alias | Keep while older tests and tooling still read `msg`; deprecate only after consumers migrate to `event`. |
+| Log location | CLI default remains `./logs`; workspace-integrated UI may later choose `.taskweavn/logs`. |
+| Background expiry | No v1 background expiry thread; cleanup should remain explicit or opportunistic until there is a real retention requirement. |
+| EventStream mirroring | Do not mirror every log into EventStream. Logs may reference event ids, but EventStream remains the fact source. |
+| Task/Agent archive indexes | Keep session/category archives for v1; add task/agent indexes only after TaskBus and Agent template semantics require them. |
+| Cross-process hot update | Same-process `LoggingControlService` is current. Cross-process update needs a daemon/server control plane. |
