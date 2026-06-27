@@ -413,7 +413,7 @@ describe("MainPageDetailPanel", () => {
     expect(screen.queryByText("task-implementation")).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Open file" })).toHaveAttribute(
       "href",
-      "/workspaces/ws-a/inspection?path=src%2FApp.tsx&returnSessionId=session-website-plan&returnTaskNodeId=task-implementation&sessionId=session-website-plan&taskNodeId=task-implementation&view=file",
+      "/workspaces/ws-a/inspection?path=src%2FApp.tsx&returnFocus=file_change&returnSessionId=session-website-plan&returnTaskNodeId=task-implementation&sessionId=session-website-plan&taskNodeId=task-implementation&view=file",
     );
     expect(screen.getByRole("link", { name: "View diff" })).toHaveAttribute(
       "href",
@@ -559,7 +559,7 @@ describe("MainPageDetailPanel", () => {
     expect(within(workspaceChanges).getByText("src/App.tsx")).toBeInTheDocument();
     expect(within(workspaceChanges).getByRole("link", { name: "Open file" })).toHaveAttribute(
       "href",
-      "/workspaces/ws-a/inspection?path=src%2FApp.tsx&returnSessionId=session-website-plan&returnTaskNodeId=task-implementation&sessionId=session-website-plan&taskNodeId=task-implementation&view=file",
+      "/workspaces/ws-a/inspection?path=src%2FApp.tsx&returnFocus=file_change&returnSessionId=session-website-plan&returnTaskNodeId=task-implementation&sessionId=session-website-plan&taskNodeId=task-implementation&view=file",
     );
     expect(within(workspaceChanges).getByRole("link", { name: "View diff" })).toHaveAttribute(
       "href",

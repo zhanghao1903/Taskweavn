@@ -223,6 +223,7 @@ function WorkspaceEvidenceLinks({
   const resolvedWorkspaceId = workspaceId ?? "current";
   const routeContext = {
     path: record.filePath,
+    returnFocus: "file_change" as const,
     returnSessionId: sessionId ?? undefined,
     returnTaskNodeId: record.taskNodeId ?? undefined,
     sessionId: sessionId ?? undefined,

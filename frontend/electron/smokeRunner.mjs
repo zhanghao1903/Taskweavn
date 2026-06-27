@@ -626,6 +626,7 @@ async function smokeReadOnlyInquiryActivity(
   await waitForText(window, "Read-only question answered", {
     label: "Main Page read-only inquiry Activity strip",
   });
+  await smokeMainPageInteractionRuntime(window);
   await clickByText(window, "button", "Activity");
   await clickByText(window, "button", "All activity", { optional: true });
   await waitForText(window, expectedAnswerText, {
@@ -666,6 +667,110 @@ async function smokeReadOnlyInquiryActivity(
     label: "Read-only inquiry Audit evidence focus",
   });
   await assertBodyDoesNotContain(window, fixture.workspaceDir, "workspace root");
+}
+
+async function smokeMainPageInteractionRuntime(window) {
+  const focusMessage = `Electron focus acceptance ${Date.now()}`;
+  await setLabeledControlValue(window, "Context message", focusMessage);
+  await waitForControlValue(window, "Context message", focusMessage, {
+    label: "Composer draft before focus acceptance submit",
+  });
+  await waitFor(
+    window,
+    "Composer submit enabled for focus acceptance",
+    `(() => {
+      const button = findElementByText("button", "Send message");
+      return button !== null && !button.disabled;
+    })()`,
+    5_000,
+  );
+  await clickByText(window, "button", "Send message");
+  await waitForFocusedControl(window, "Context message", {
+    label: "Composer focus after submit",
+  });
+  await waitForText(window, focusMessage, {
+    label: "Pending submitted input visible in Conversation",
+  });
+  await waitFor(
+    window,
+    "Composer submit ready after focus acceptance",
+    `(() => {
+      const button = findElementByText("button", "Send message");
+      return button !== null && button.getAttribute("aria-busy") !== "true";
+    })()`,
+    20_000,
+  );
+  await smokeOverlayFocusRuntime(window);
+
+  const initialMetrics = await getConversationScrollMetrics(window);
+  const isScrollable =
+    initialMetrics.scrollHeight > initialMetrics.clientHeight + 160;
+  if (!isScrollable) {
+    return;
+  }
+
+  await setConversationScrollTop(window, 0);
+  const beforeMetrics = await getConversationScrollMetrics(window);
+  const scrollMessage = `Electron scroll stability ${Date.now()}`;
+  await setLabeledControlValue(window, "Context message", scrollMessage);
+  await waitForControlValue(window, "Context message", scrollMessage, {
+    label: "Composer draft before scroll stability submit",
+  });
+  await waitFor(
+    window,
+    "Composer submit enabled for scroll stability",
+    `(() => {
+      const button = findElementByText("button", "Send message");
+      return button !== null && !button.disabled;
+    })()`,
+    5_000,
+  );
+  await clickByText(window, "button", "Send message");
+  await waitForFocusedControl(window, "Context message", {
+    label: "Composer focus after scroll stability submit",
+  });
+  await waitForText(window, scrollMessage, {
+    label: "Pending input visible without forcing history reader to bottom",
+  });
+  const afterMetrics = await getConversationScrollMetrics(window);
+
+  if (beforeMetrics.scrollTop <= 8 && afterMetrics.scrollTop > 120) {
+    throw new Error(
+      `Conversation scrolled unexpectedly while reading history: before=${JSON.stringify(
+        beforeMetrics,
+      )} after=${JSON.stringify(afterMetrics)}`,
+    );
+  }
+}
+
+async function smokeOverlayFocusRuntime(window) {
+  await clickByText(window, "button", "Activity");
+  await waitFor(
+    window,
+    "Activity overlay selected item focus",
+    `(() => {
+      const active = document.activeElement;
+      return active instanceof HTMLElement &&
+        active.hasAttribute("data-activity-item-id");
+    })()`,
+    10_000,
+  );
+  await clickByText(window, "button", "Close");
+  await waitFor(
+    window,
+    "Activity overlay close returned focus",
+    `(() => {
+      const active = document.activeElement;
+      if (!(active instanceof HTMLElement)) return false;
+      const accessible = [
+        active.getAttribute("aria-label"),
+        active.getAttribute("title"),
+        active.textContent
+      ].filter(Boolean).join(" ").replace(/\\s+/g, " ").trim();
+      return active.tagName === "BUTTON" && accessible.includes("Activity");
+    })()`,
+    5_000,
+  );
 }
 
 async function postRuntimeInputRoute(window, { baseUrl, fixture }, payload) {
@@ -940,6 +1045,57 @@ async function waitForControlValue(
     })()`,
     timeoutMs,
   );
+}
+
+async function waitForFocusedControl(
+  window,
+  label,
+  { label: waitLabel, timeoutMs = DEFAULT_TIMEOUT_MS } = {},
+) {
+  await waitFor(
+    window,
+    waitLabel ?? `focused control ${label}`,
+    `(() => {
+      const control = findControlByLabel(${JSON.stringify(label)});
+      return control !== null && document.activeElement === control;
+    })()`,
+    timeoutMs,
+  );
+}
+
+async function getConversationScrollMetrics(window) {
+  const metrics = await evaluate(
+    window,
+    `(() => {
+      const list = document.querySelector("[data-plato-conversation-list='true']");
+      if (!list) return null;
+      return {
+        clientHeight: list.clientHeight,
+        scrollHeight: list.scrollHeight,
+        scrollTop: list.scrollTop
+      };
+    })()`,
+  );
+  if (metrics === null) {
+    throw new Error("Conversation message list is unavailable");
+  }
+  return metrics;
+}
+
+async function setConversationScrollTop(window, scrollTop) {
+  const changed = await evaluate(
+    window,
+    `(() => {
+      const list = document.querySelector("[data-plato-conversation-list='true']");
+      if (!list) return false;
+      list.scrollTop = ${JSON.stringify(scrollTop)};
+      list.dispatchEvent(new Event("scroll", { bubbles: true }));
+      return true;
+    })()`,
+  );
+  if (changed !== true) {
+    throw new Error("Could not set Conversation scroll position");
+  }
 }
 
 async function assertBodyDoesNotContain(window, text, label) {

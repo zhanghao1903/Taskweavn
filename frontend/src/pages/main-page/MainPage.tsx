@@ -21,6 +21,7 @@ import {
 } from "./mockPlatoApi";
 import type { MainPageStateId } from "./mockPlatoApi";
 import type { MainPageAdapter } from "./runtime/adapter";
+import type { MainPageFocusTarget } from "./runtime/mainPageFocusScrollRuntime";
 import { useMainPageController } from "./useMainPageController";
 import styles from "./MainPage.module.css";
 
@@ -31,6 +32,7 @@ export type MainPageProps = {
   auditRouteAvailable?: boolean;
   initialStateId?: MainPageStateId;
   initialTaskNodeId?: string | null;
+  routeFocusTarget?: MainPageFocusTarget | null;
   workspaceRuntime?: MainPageWorkspaceRuntime | null;
 };
 
@@ -39,6 +41,7 @@ export function MainPage({
   auditRouteAvailable = true,
   initialStateId = defaultMainPageStateId,
   initialTaskNodeId = null,
+  routeFocusTarget = null,
   workspaceRuntime = null,
 }: MainPageProps = {}) {
   const uiText = useUiText();
@@ -225,6 +228,7 @@ export function MainPage({
       isArchivingPlan={isArchivingPlan}
       isRepairingAuthoringState={isRepairingAuthoringState}
       isRenamingSession={isRenamingSession}
+      routeFocusTarget={routeFocusTarget}
       sessionDialog={sessionDialog}
       utilitySlot={utilitySlot}
       viewModel={viewModel}

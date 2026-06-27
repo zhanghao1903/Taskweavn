@@ -477,7 +477,7 @@ describe("AuditPageRoute", () => {
 
     expect(globalThis.location.pathname).toBe("/sessions/session-return");
     expect(globalThis.location.search).toBe(
-      "?taskNodeId=task-return&workspaceId=workspace-return",
+      "?returnFocus=task&taskNodeId=task-return&workspaceId=workspace-return",
     );
   });
 

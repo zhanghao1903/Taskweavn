@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { ReactNode, Ref } from "react";
 
 import type {
   TaskNodeId,
@@ -21,6 +21,7 @@ export type TaskTreePanelProps = {
   onSelectTaskPlan: () => void;
   onSelectTask: (nodeId: TaskNodeId) => void;
   onStopTask: (nodeId: TaskNodeId) => void;
+  selectedTaskRef?: Ref<HTMLButtonElement>;
   selectedTaskNodeId: TaskNodeId | null;
   taskTree: TaskTreeView | null;
 };
@@ -36,6 +37,7 @@ export function TaskTreePanel({
   onSelectTaskPlan,
   onSelectTask,
   onStopTask,
+  selectedTaskRef,
   selectedTaskNodeId,
   taskTree,
 }: TaskTreePanelProps) {
@@ -96,6 +98,9 @@ export function TaskTreePanel({
               onRetryTask={onRetryTask}
               onSelectTask={onSelectTask}
               onStopTask={onStopTask}
+              selectButtonRef={
+                node.id === selectedTaskNodeId ? selectedTaskRef : undefined
+              }
             />
           ))}
         </div>

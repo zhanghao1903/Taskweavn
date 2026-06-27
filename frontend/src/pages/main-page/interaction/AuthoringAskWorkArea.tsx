@@ -1,4 +1,4 @@
-import type { FormEvent } from "react";
+import type { FormEvent, Ref } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { LoaderCircle } from "lucide-react";
 
@@ -19,6 +19,7 @@ export type AuthoringAskSubmitContext = {
 };
 
 export type AuthoringAskWorkAreaProps = {
+  focusRef?: Ref<HTMLElement>;
   onSubmit: (context: AuthoringAskSubmitContext) => void;
   view: MainPageAuthoringAskViewModel;
 };
@@ -31,6 +32,7 @@ type AnswerDraft = {
 type DraftsByAskId = Record<string, AnswerDraft>;
 
 export function AuthoringAskWorkArea({
+  focusRef,
   onSubmit,
   view,
 }: AuthoringAskWorkAreaProps) {
@@ -92,6 +94,8 @@ export function AuthoringAskWorkArea({
       aria-label="Authoring questions"
       className={styles.root}
       onSubmit={handleSubmit}
+      ref={focusRef as Ref<HTMLFormElement>}
+      tabIndex={-1}
     >
       <header className={styles.header}>
         <div className={styles.titleGroup}>

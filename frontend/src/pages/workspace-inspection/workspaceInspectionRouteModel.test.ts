@@ -12,6 +12,7 @@ describe("workspace inspection route model", () => {
       evidenceId: null,
       mode: "status",
       path: null,
+      returnFocus: null,
       returnSessionId: null,
       returnTaskNodeId: null,
       sessionId: null,
@@ -24,12 +25,13 @@ describe("workspace inspection route model", () => {
     expect(
       parseWorkspaceInspectionLocation(
         "/workspaces/ws%2Fa/inspection",
-        "?view=diff&path=src%2FApp.tsx&sessionId=session-1&taskNodeId=task-1",
+        "?view=diff&path=src%2FApp.tsx&returnFocus=file_change&sessionId=session-1&taskNodeId=task-1",
       ),
     ).toEqual({
       evidenceId: null,
       mode: "diff",
       path: "src/App.tsx",
+      returnFocus: "file_change",
       returnSessionId: null,
       returnTaskNodeId: null,
       sessionId: "session-1",

@@ -24,12 +24,19 @@ export const routes = {
 
 export type AppRoute = (typeof routes)[keyof typeof routes];
 
+export type RouteReturnFocus =
+  | "session"
+  | "task"
+  | "confirmation"
+  | "result"
+  | "file_change";
+
 export type AuditRouteQuery = {
   entry?: AuditEntryKind;
   evidenceId?: EvidenceId;
   filter?: AuditFilterKind;
   recordId?: AuditRecordId;
-  returnFocus?: "session" | "task" | "confirmation" | "result" | "file_change";
+  returnFocus?: RouteReturnFocus;
   returnSessionId?: SessionId;
   returnTaskNodeId?: TaskNodeId;
   workspaceId?: WorkspaceId;
@@ -38,6 +45,7 @@ export type AuditRouteQuery = {
 export type WorkspaceInspectionRouteQuery = {
   evidenceId?: string;
   path?: string;
+  returnFocus?: RouteReturnFocus;
   returnSessionId?: SessionId;
   returnTaskNodeId?: TaskNodeId;
   sessionId?: SessionId;
@@ -68,11 +76,13 @@ export function buildMainSessionRoute(params: {
 }
 
 export function buildMainSessionFallbackRoute(params: {
+  returnFocus?: RouteReturnFocus;
   sessionId: SessionId;
   taskNodeId?: TaskNodeId;
   workspaceId?: WorkspaceId;
 }): string {
   return withQuery(`/sessions/${segment(params.sessionId)}`, {
+    returnFocus: params.returnFocus,
     taskNodeId: params.taskNodeId,
     workspaceId: params.workspaceId,
   });
@@ -115,6 +125,7 @@ export function buildWorkspaceInspectionRoute(params: {
   return withQuery(`/workspaces/${segment(params.workspaceId)}/inspection`, {
     evidenceId: params.evidenceId,
     path: params.path,
+    returnFocus: params.returnFocus,
     returnSessionId: params.returnSessionId,
     returnTaskNodeId: params.returnTaskNodeId,
     sessionId: params.sessionId,

@@ -25,11 +25,11 @@ describe("WorkspaceInspectionRoute", () => {
     expect(screen.getByText("src/App.tsx")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Open file" })).toHaveAttribute(
       "href",
-      expect.stringContaining("view=file"),
+      expect.stringContaining("returnFocus=file_change"),
     );
     expect(screen.getByRole("link", { name: "View diff" })).toHaveAttribute(
       "href",
-      expect.stringContaining("view=diff"),
+      expect.stringContaining("returnFocus=file_change"),
     );
   });
 
@@ -83,7 +83,7 @@ describe("WorkspaceInspectionRoute", () => {
         location={{
           pathname: "/workspaces/ws-a/inspection",
           search:
-            "?view=file&path=src%2FApp.tsx&returnSessionId=session-1&returnTaskNodeId=task-1",
+            "?view=file&path=src%2FApp.tsx&returnFocus=file_change&returnSessionId=session-1&returnTaskNodeId=task-1",
         }}
       />,
     );
@@ -92,7 +92,9 @@ describe("WorkspaceInspectionRoute", () => {
     await user.click(screen.getByRole("button", { name: "Return" }));
 
     expect(globalThis.location.pathname).toBe("/sessions/session-1");
-    expect(globalThis.location.search).toBe("?taskNodeId=task-1&workspaceId=ws-a");
+    expect(globalThis.location.search).toBe(
+      "?returnFocus=file_change&taskNodeId=task-1&workspaceId=ws-a",
+    );
   });
 
   it("renders structured diff hunks", async () => {

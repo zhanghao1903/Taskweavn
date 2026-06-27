@@ -126,6 +126,7 @@ export function buildAuditLocation(
 
 export function buildAuditReturnLocation(route: ParsedAuditRoute): string {
   return buildMainSessionFallbackRoute({
+    returnFocus: route.returnFocus,
     sessionId: route.returnSessionId ?? route.request.sessionId,
     taskNodeId: route.returnTaskNodeId ?? route.request.taskNodeId,
     workspaceId: route.workspaceId,

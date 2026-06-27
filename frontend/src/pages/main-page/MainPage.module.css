@@ -800,10 +800,15 @@
   align-content: start;
   gap: var(--plato-space-6);
   overflow: auto;
+  overflow-anchor: none;
   padding: var(--plato-space-1) var(--plato-space-3) 0 0;
   padding-bottom: calc(
     var(--plato-inputbar-height) + var(--plato-layout-gap)
   );
+}
+
+.conversationMessageListEnd {
+  block-size: 1px;
 }
 
 .archivedPlansPanel {

@@ -19,7 +19,7 @@ describe("AuditRecordDetailPanel", () => {
     expect(screen.getByText("Workspace evidence")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Open file" })).toHaveAttribute(
       "href",
-      "/workspaces/ws-a/inspection?path=src%2FApp.tsx&returnSessionId=session-1&returnTaskNodeId=task-1&sessionId=session-1&taskNodeId=task-1&view=file",
+      "/workspaces/ws-a/inspection?path=src%2FApp.tsx&returnFocus=file_change&returnSessionId=session-1&returnTaskNodeId=task-1&sessionId=session-1&taskNodeId=task-1&view=file",
     );
     expect(screen.getByRole("link", { name: "View diff" })).toHaveAttribute(
       "href",
