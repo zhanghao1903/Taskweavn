@@ -806,6 +806,10 @@
   );
 }
 
+.conversationBottomSentinel {
+  min-height: 1px;
+}
+
 .archivedPlansPanel {
   display: grid;
   min-width: 0;
@@ -1302,6 +1306,12 @@
   min-width: 0;
   max-width: min(78%, 720px);
   gap: var(--plato-space-2);
+}
+
+.conversationMessage:focus-visible {
+  border-radius: 8px;
+  outline: none;
+  box-shadow: var(--plato-shadow-focus);
 }
 
 .systemConversationMessage {

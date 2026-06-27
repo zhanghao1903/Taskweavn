@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { ReactNode, RefObject, UIEventHandler } from "react";
 
 import type { SessionMessageView } from "../../shared/api/types";
 import { Button, Panel, Text } from "../../shared/components";
@@ -7,17 +7,23 @@ import { SessionMessageCard } from "./SessionMessageCard";
 import styles from "./MainPage.module.css";
 
 export type ConversationLayerProps = {
+  bottomSentinelRef?: RefObject<HTMLDivElement | null>;
   className?: string;
   headerActions?: ReactNode;
+  messageListRef?: RefObject<HTMLDivElement | null>;
   messages: readonly SessionMessageView[];
   onOpenActivity?: () => void;
+  onMessageListScroll?: UIEventHandler<HTMLDivElement>;
   totalActivityCount: number;
 };
 
 export function ConversationLayer({
+  bottomSentinelRef,
   className,
   headerActions = null,
+  messageListRef,
   messages,
+  onMessageListScroll,
   onOpenActivity,
   totalActivityCount,
 }: ConversationLayerProps) {
@@ -45,10 +51,19 @@ export function ConversationLayer({
       </div>
 
       {messages.length > 0 ? (
-        <div className={styles.conversationMessageList}>
+        <div
+          className={styles.conversationMessageList}
+          onScroll={onMessageListScroll}
+          ref={messageListRef}
+        >
           {messages.map((message) => (
             <SessionMessageCard key={message.id} message={message} />
           ))}
+          <div
+            aria-hidden="true"
+            className={styles.conversationBottomSentinel}
+            ref={bottomSentinelRef}
+          />
         </div>
       ) : (
         <div className={styles.emptyState}>

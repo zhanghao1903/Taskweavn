@@ -1,6 +1,7 @@
 import {
   useEffect,
   useMemo,
+  useRef,
   useState,
   type CSSProperties,
   type PointerEvent,
@@ -38,6 +39,7 @@ import type {
   MainPageViewModel,
 } from "./mainPageViewModel";
 import type { MainPageController } from "./useMainPageController";
+import { useMainPageFocusScrollRuntime } from "./useMainPageFocusScrollRuntime";
 import type {
   ExportDiagnosticBundle,
   LoadSessionActivity,
@@ -119,6 +121,7 @@ export function MainPageWorkbench({
   const [isExportingActivityDiagnostic, setIsExportingActivityDiagnostic] =
     useState(false);
   const [detailWidth, setDetailWidth] = useState(DEFAULT_DETAIL_WIDTH);
+  const contextInputRef = useRef<HTMLInputElement>(null);
   const hasActivity =
     viewModel.mainWorkArea.kind !== "authoringAsk" &&
     (viewModel.taskWorkspace.allMessages.length > 0 ||
@@ -195,6 +198,14 @@ export function MainPageWorkbench({
       ),
     [transientMessages, viewModel.taskWorkspace.allMessages],
   );
+  const focusScrollRuntime = useMainPageFocusScrollRuntime({
+    inputError,
+    inputRef: contextInputRef,
+    isInputSubmitting,
+    messages: conversationMessages,
+    sessionId: viewModel.sessionId,
+    workspaceId: resolvedWorkspaceId,
+  });
   const latestActivityMessages = useMemo(
     () =>
       mergeMessages(
@@ -574,9 +585,12 @@ export function MainPageWorkbench({
 
       {viewModel.mainWorkArea.kind !== "authoringAsk" ? (
         <ConversationLayer
+          bottomSentinelRef={focusScrollRuntime.bottomSentinelRef}
           className={styles.conversationWorkspace}
           headerActions={conversationHeaderActions}
+          messageListRef={focusScrollRuntime.messageListRef}
           messages={conversationMessages}
+          onMessageListScroll={focusScrollRuntime.onMessageListScroll}
           onOpenActivity={
             hasActivity
               ? () => {
@@ -846,17 +860,21 @@ export function MainPageWorkbench({
         draft={inputDraft}
         error={inputError}
         input={viewModel.input}
+        inputRef={contextInputRef}
         isSubmitting={isInputSubmitting}
         recoveryActions={inputRecoveryActions}
         onDraftChange={actions.changeInputDraft}
-        onSubmit={() =>
-          actions.submitInput({
+        onSubmit={() => {
+          const commandId = actions.submitInput({
             mode: viewModel.input.mode,
             sessionId: viewModel.sessionId,
             target: viewModel.input.target,
             taskNodeId: viewModel.input.taskNodeId,
-          })
-        }
+          });
+          if (commandId !== null) {
+            focusScrollRuntime.notifyRuntimeInputSubmitStarted(commandId);
+          }
+        }}
       />
     </main>
   );
