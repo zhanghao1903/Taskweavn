@@ -270,6 +270,10 @@ Validated permission-subject evidence on 2026-06-27:
 - Settings readiness also projects the same safe summary as
   `computerUse.permissionSubject`, so UI diagnostics can point to the exact
   macOS permission subject without exposing helper tokens.
+- Settings readiness and the `computer_use.not_ready` warning now also reuse
+  helper-provided `recoveryActions` as top-level recovery actions, so the UI can
+  present specific next steps such as opening the macOS Accessibility pane,
+  restarting the helper, and rerunning helper preflight.
 - `scripts/manual_wechat_send_smoke.py --preflight-only` preserves the same
   field as `computerUsePermissionSubject` in its evidence output.
 

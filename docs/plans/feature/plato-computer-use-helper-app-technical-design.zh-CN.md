@@ -1251,8 +1251,12 @@ authorization for the stable dev helper app.
 `computerUse.permissionSubject` summary from helper readiness metadata. The
 field includes helper bundle id, helper app path, runtime mode, effective
 executable, accessibility trust state, package/helper readiness status, and
-safe recovery actions. This lets Settings/UI diagnostics point at the exact
-macOS TCC permission subject without exposing helper tokens.
+safe recovery actions. `computerUse.recoveryActions` and
+`computer_use.not_ready.recoveryActions` now use the same helper-specific
+actions when helper readiness provides them, falling back to generic Settings
+diagnostics only when helper metadata does not include a recovery action list.
+This lets Settings/UI diagnostics point at the exact macOS TCC permission
+subject without exposing helper tokens.
 
 ### H5: Release Packaging
 

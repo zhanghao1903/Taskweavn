@@ -162,6 +162,11 @@ def test_computer_use_readiness_degrades_when_enabled_backend_is_not_ready() -> 
     assert computer_use["setupHint"] == (
         "Enable Accessibility for Plato Computer Use Helper."
     )
+    assert computer_use["recoveryActions"] == [
+        "open_macos_privacy_accessibility",
+        "restart_helper",
+        "rerun_helper_preflight",
+    ]
     assert computer_use["helper"] == {
         "bundleId": "com.taskweavn.plato.computer-use-helper.dev",
         "path": "/Applications/Plato Computer Use Helper Dev.app",
@@ -194,7 +199,11 @@ def test_computer_use_readiness_degrades_when_enabled_backend_is_not_ready() -> 
             "code": "computer_use.not_ready",
             "severity": "warning",
             "message": "Accessibility permission is missing.",
-            "recoveryActions": ["open_settings", "export_diagnostics"],
+            "recoveryActions": [
+                "open_macos_privacy_accessibility",
+                "restart_helper",
+                "rerun_helper_preflight",
+            ],
             "envVars": (),
         }
     ]

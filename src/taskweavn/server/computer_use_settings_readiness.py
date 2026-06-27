@@ -122,6 +122,7 @@ def _readiness_from_observation(
     helper_status = _string(metadata.get("helper_status"))
     failure_kind = _string(metadata.get("failure_kind"))
     setup_hint = _string(metadata.get("setup_hint"))
+    recovery_actions = _string_tuple(metadata.get("recovery_actions"))
     helper_identity = _safe_helper_identity(metadata.get("helper"))
     permission_subject = _permission_subject(metadata)
 
@@ -144,15 +145,18 @@ def _readiness_from_observation(
         base["diagnostics"] = diagnostics
     if base["ready"]:
         base["recoveryActions"] = []
+    elif recovery_actions:
+        base["recoveryActions"] = list(recovery_actions)
     return base
 
 
 def _computer_use_warning(computer_use: Mapping[str, Any]) -> dict[str, Any]:
+    recovery_actions = _string_tuple(computer_use.get("recoveryActions"))
     return {
         "code": _WARNING_CODE,
         "severity": "warning",
         "message": str(computer_use.get("summary") or "Computer-use is not ready."),
-        "recoveryActions": list(_RECOVERY_ACTIONS),
+        "recoveryActions": list(recovery_actions or _RECOVERY_ACTIONS),
         "envVars": (),
     }
 
