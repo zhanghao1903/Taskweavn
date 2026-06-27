@@ -1,7 +1,7 @@
 # Post Product 1.1 Maintainability Plan
 
-> Status: proposed
-> Last Updated: 2026-06-25
+> Status: executed; follow-up only
+> Last Updated: 2026-06-27
 > Scope: zero-behavior maintainability work after Product 1.1 P1 closure
 > Product behavior: no user-facing behavior change
 
@@ -18,20 +18,25 @@ before the next major product slice.
 
 ## 2. Current Signals
 
-Current line-count signals checked on 2026-06-25:
+Current line-count signals checked on 2026-06-27 after the post-Product 1.1
+maintenance PR series and PR #172:
 
-| Area | File | Lines | Risk |
-|---|---|---:|---|
-| Main Page controller | `frontend/src/pages/main-page/useMainPageController.ts` | 1801 | high |
-| UI contract gateway | `src/taskweavn/server/ui_contract/gateways.py` | 1360 | high |
-| Main Page sidecar assembly | `src/taskweavn/server/main_page.py` | 1240 | high |
-| Command gateway | `src/taskweavn/server/ui_contract/command_gateway.py` | 1068 | medium/high |
-| Frontend API contract | `frontend/src/shared/api/types.ts` | 1344 | high |
-| Transport tests | `tests/test_ui_http_transport.py` | 2529 | blocked-size test hotspot |
-| Sidecar tests | `tests/test_main_page_sidecar_app.py` | 2302 | blocked-size test hotspot |
+| Area | File | 2026-06-25 | 2026-06-27 | Current risk |
+|---|---|---:|---:|---|
+| Main Page controller | `frontend/src/pages/main-page/useMainPageController.ts` | 1801 | 291 | low |
+| UI contract gateway | `src/taskweavn/server/ui_contract/gateways.py` | 1360 | 640 | low/medium |
+| Main Page sidecar assembly | `src/taskweavn/server/main_page.py` | 1240 | 1038 | medium |
+| Command gateway | `src/taskweavn/server/ui_contract/command_gateway.py` | 1068 | 983 | medium |
+| Frontend API contract | `frontend/src/shared/api/types.ts` | 1344 | 1262 | high |
+| Transport tests | `tests/test_ui_http_transport.py` | 2529 | 1182 | medium/high |
+| Sidecar tests | `tests/test_main_page_sidecar_app.py` | 2302 | 1657 | high |
+| Main Page controller tests | `frontend/src/pages/main-page/useMainPageController.test.tsx` | n/a | 770 | low/medium |
+| Plato API tests | `frontend/src/shared/api/platoApi.test.ts` | n/a | 1165 | medium/high |
 
-The problem is concentrated in a few boundary files. A broad rewrite is not
-appropriate; small zero-behavior slices are.
+The highest-risk frontend controller boundary has been reduced substantially.
+No broad rewrite is warranted before the next product slice. Remaining
+high-signal follow-ups should be triggered by actual product work touching the
+remaining hotspots, not by line count alone.
 
 ## 3. Rules
 
@@ -44,13 +49,13 @@ appropriate; small zero-behavior slices are.
 
 ## 4. Priority Slices
 
-| Order | Slice | Goal | Suggested validation |
+| Order | Slice | Goal | Status |
 |---:|---|---|---|
-| 1 | Main Page controller split | Move event subscription, command dispatch, input state, plan overlay, and conversation helpers out of `useMainPageController.ts`; keep the hook as composition. | `npm run test -- useMainPageController MainPageWorkbench MainPageRoute` |
-| 2 | UI contract gateway continuation | Continue splitting `gateways.py` into protocol/provider/projection/disclosure modules while keeping re-exports. | `uv run pytest tests/test_ui_query_gateway.py tests/test_ui_command_gateway.py` |
-| 3 | Test fixture extraction | Move large repeated fixtures/builders out of `test_ui_http_transport.py` and `test_main_page_sidecar_app.py`. | affected pytest files only |
-| 4 | Main Page sidecar assembly slimming | Move logging, resident AgentLoop setup, session lifecycle helpers, and audit event wrappers out of `main_page.py`. | `uv run pytest tests/test_main_page_sidecar_app.py` |
-| 5 | Frontend API type split | Split `frontend/src/shared/api/types.ts` by domain only after API contract churn slows. | `npm run test -- platoApi` plus typecheck/lint |
+| 1 | Main Page controller split | Move event subscription, command dispatch, input state, plan overlay, and conversation helpers out of `useMainPageController.ts`; keep the hook as composition. | Done for the current maintenance window. |
+| 2 | UI contract gateway continuation | Continue splitting `gateways.py` into protocol/provider/projection/disclosure modules while keeping re-exports. | Done enough for current window; continue only when product work touches this boundary. |
+| 3 | Test fixture extraction | Move large repeated fixtures/builders out of `test_ui_http_transport.py` and `test_main_page_sidecar_app.py`. | Partially done; PR #172 reduced transport tests and is merged. |
+| 4 | Main Page sidecar assembly slimming | Move logging, resident AgentLoop setup, session lifecycle helpers, and audit event wrappers out of `main_page.py`. | Partially done; remaining work should be demand-driven. |
+| 5 | Frontend API type split | Split `frontend/src/shared/api/types.ts` by domain only after API contract churn slows. | Started; avoid further churn until API contract stabilizes. |
 
 ## 5. Non-goals
 
@@ -72,9 +77,14 @@ A maintainability slice is accepted only when:
 5. the PR description names the boundary moved and the boundary intentionally
    left in place.
 
-## 7. Recommended First PR
+## 7. Closure Guidance
 
-Start with the Main Page controller split. It is the largest production hotspot
-and is likely to receive more product work. The first PR should extract only
-pure helpers and narrow hooks; it should not change rendering, routing, command
-semantics, or snapshot behavior.
+Treat this maintenance window as closed for Product 1.1 unless a future product
+slice directly touches one of the remaining hotspots. Future maintainability
+work should stay demand-driven and narrow:
+
+1. split before adding behavior to files over 1200 lines;
+2. prefer test fixture extraction when tests block iteration speed;
+3. keep compatibility facades until imports have moved;
+4. do not start another broad cleanup window without a concrete product
+   delivery risk.
