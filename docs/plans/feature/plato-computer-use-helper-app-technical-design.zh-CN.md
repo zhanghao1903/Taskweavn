@@ -372,6 +372,26 @@ uv run taskweavn computer-use-helper-executable \
   启动与 helper API identity，不验证 macOS Accessibility readiness 或 WeChat
   发送。
 
+2026-06-27 macOS backend readiness-only 验证结果：
+
+- 使用同一个 `PlatoComputerUseHelper` packaged executable；
+- 通过 `taskweavn computer-use-helper-app --packaged-executable-path ...`
+  生成临时 helper `.app`，并配置 `computer-use-backend=macos`、
+  `computer-use-allowed-apps=WeChat,TextEdit`；
+- 直接启动 `.app/Contents/MacOS/PlatoComputerUseHelper`；
+- 带 token 调用 `/v1/readiness`；
+- 返回 `status=ready`、`success=true`、`summary="macOS computer-use
+  readiness: ready."`；
+- diagnostics 中 `runtimeIdentity.mode=helper_owned_executable`，且
+  `effectiveExecutable` 指向
+  `.app/Contents/MacOS/PlatoComputerUseHelper`；
+- evidence:
+  `/tmp/plato-helper-macos-readiness/macos-readiness-evidence.json`。
+
+这证明当前机器上 helper-owned executable 已经可以承载真实 macOS backend
+readiness。后续仍需要验证 helper auto-launch + sidecar readiness 投射，以及
+无发送的 app-specific readiness/smoke。
+
 ## 7. Helper 启动模式
 
 ### 7.1 Manual Run Mode

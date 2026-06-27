@@ -290,6 +290,14 @@ Implementation status as of 2026-06-27:
   helper API, and verified readiness diagnostics report
   `runtimeIdentity.mode=helper_owned_executable` with `effectiveExecutable`
   pointing at `.app/Contents/MacOS/PlatoComputerUseHelper`.
+- A follow-up readiness-only smoke packaged the same helper-owned executable
+  with `computer-use-backend=macos` and `WeChat,TextEdit` allowlist, launched
+  it directly, authenticated against `/v1/readiness`, and received
+  `status=ready`, `success=true`, `summary="macOS computer-use readiness:
+  ready."`, and `runtimeIdentity.mode=helper_owned_executable`. This verifies
+  the helper-owned executable can satisfy the real macOS backend readiness path
+  on the current machine. Evidence was written outside the repo at
+  `/tmp/plato-helper-macos-readiness/macos-readiness-evidence.json`.
 - Helper backend now supports explicit opt-in auto-launch from a configured
   helper app path, waits for the helper manifest before connecting, and waits
   for a refreshed manifest when recovering from a stale endpoint. This is

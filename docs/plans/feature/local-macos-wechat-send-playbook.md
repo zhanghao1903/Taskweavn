@@ -463,6 +463,15 @@ Validated runtime identity hint on 2026-06-27:
   - authenticated `/v1/readiness` returned
     `runtimeIdentity.mode=helper_owned_executable`;
   - backend was `disabled`, so no macOS UI operation or WeChat send occurred.
+- 2026-06-27 macOS backend readiness-only smoke:
+  - packaged the same helper-owned executable with `computer-use-backend=macos`
+    and `computer-use-allowed-apps=WeChat,TextEdit`;
+  - direct executable launch published manifest and token;
+  - authenticated `/v1/readiness` returned `status=ready`, `success=true`,
+    and `runtimeIdentity.mode=helper_owned_executable`;
+  - evidence:
+    `/tmp/plato-helper-macos-readiness/macos-readiness-evidence.json`;
+  - no WeChat send occurred.
 
 ### 6.3 Helper-Backed Contact Resolution Progress
 
