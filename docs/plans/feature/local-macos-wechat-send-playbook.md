@@ -127,6 +127,21 @@ Required result:
 
 If preflight is not ready, do not run a send smoke.
 
+If helper-only preflight reports `missing_accessibility`, open the relevant
+macOS permission panes through the preflight script, grant permissions to the
+stable helper app, restart the helper, and rerun helper-only preflight:
+
+```bash
+uv run python scripts/manual_computer_use_helper_preflight.py \
+  --helper-manifest "$HOME/Library/Application Support/PlatoDev/computer-use-helper.json" \
+  --helper-app-path "$HOME/Applications/Plato Computer Use Helper Dev.app" \
+  --open-permission-settings \
+  --evidence-output /tmp/plato-helper-preflight-permission-recovery-<run>.json
+```
+
+This command may open System Settings. It does not publish a task and does not
+send a WeChat message.
+
 ## 5. Controlled Confirm/Send Once
 
 Create or select a smoke session, then run one fresh idempotency key:

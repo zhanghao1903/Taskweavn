@@ -12,10 +12,12 @@ from __future__ import annotations
 
 import argparse
 import json
+import subprocess
 import sys
 import urllib.error
 import urllib.request
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -29,6 +31,12 @@ DEFAULT_HELPER_MANIFEST_PATH = Path(
 )
 DEFAULT_EXPECTED_BUNDLE_ID = "com.taskweavn.plato.computer-use-helper.dev"
 DEFAULT_EXPECTED_API_VERSION = "plato.computer_use_helper.v1"
+MACOS_ACCESSIBILITY_SETTINGS_URL = (
+    "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
+)
+MACOS_AUTOMATION_SETTINGS_URL = (
+    "x-apple.systempreferences:com.apple.preference.security?Privacy_Automation"
+)
 _SAFE_MANIFEST_KEYS = ("endpoint", "bundleId", "version", "apiVersion", "pid")
 
 
@@ -44,6 +52,7 @@ class HelperPreflightConfig:
     allowed_apps: tuple[str, ...] = ("WeChat", "TextEdit")
     timeout_seconds: float = 10.0
     check_wechat_app: bool = False
+    open_permission_settings: bool = False
     evidence_output: Path | None = None
 
 
@@ -128,6 +137,10 @@ def _run(config: HelperPreflightConfig) -> int:
         return 1
 
     payload = result.as_dict()
+    if config.open_permission_settings and not result.ready:
+        payload["permissionSettings"] = _open_permission_settings(
+            result.recovery_actions + result.wechat_app_recovery_actions
+        )
     _write_evidence(config, payload)
     print(json.dumps(payload, ensure_ascii=False, indent=2))
     return 0 if result.ready else 1
@@ -425,6 +438,44 @@ def _write_evidence(config: HelperPreflightConfig, payload: dict[str, Any]) -> N
     )
 
 
+def _open_permission_settings(recovery_actions: tuple[str, ...]) -> dict[str, Any]:
+    urls: list[str] = []
+    if "open_macos_privacy_accessibility" in recovery_actions:
+        urls.append(MACOS_ACCESSIBILITY_SETTINGS_URL)
+    if "open_macos_privacy_automation" in recovery_actions:
+        urls.append(MACOS_AUTOMATION_SETTINGS_URL)
+    if not urls:
+        urls.append(MACOS_ACCESSIBILITY_SETTINGS_URL)
+
+    opened: list[str] = []
+    errors: list[dict[str, str]] = []
+    for url in urls:
+        try:
+            _open_settings_url(url)
+        except Exception as exc:  # noqa: BLE001 - manual recovery must be sanitized.
+            errors.append({"url": url, "error": str(exc)})
+        else:
+            opened.append(url)
+    return {
+        "attempted": True,
+        "opened": opened,
+        "errors": errors,
+    }
+
+
+def _open_settings_url(
+    url: str,
+    *,
+    runner: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
+) -> None:
+    runner(
+        ["/usr/bin/open", url],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+
 def _parse_args() -> HelperPreflightConfig:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -469,6 +520,14 @@ def _parse_args() -> HelperPreflightConfig:
             "WeChat, but it does not send a message."
         ),
     )
+    parser.add_argument(
+        "--open-permission-settings",
+        action="store_true",
+        help=(
+            "When preflight is not ready, open the relevant macOS Privacy & "
+            "Security panes. This is best-effort and never sends a message."
+        ),
+    )
     parser.add_argument("--timeout-seconds", type=float, default=10.0)
     parser.add_argument("--evidence-output", type=Path)
     args = parser.parse_args()
@@ -481,6 +540,7 @@ def _parse_args() -> HelperPreflightConfig:
         allowed_apps=_parse_allowed_apps(args.allowed_apps),
         timeout_seconds=args.timeout_seconds,
         check_wechat_app=args.check_wechat_app,
+        open_permission_settings=args.open_permission_settings,
         evidence_output=args.evidence_output,
     )
 

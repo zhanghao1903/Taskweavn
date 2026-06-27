@@ -146,6 +146,91 @@ def test_helper_preflight_writes_evidence(tmp_path: Path) -> None:
     assert payload["result"]["ready"] is True
 
 
+def test_helper_preflight_opens_permission_settings_only_when_requested(
+    tmp_path: Path,
+) -> None:
+    module = _load_script()
+    _patch_backend(
+        module,
+        ComputerUseObservation(
+            operation="readiness",
+            status="not_available",
+            success=False,
+            summary="missing permissions",
+            metadata={
+                "readiness": {"status": "missing_accessibility"},
+                "recovery_actions": [
+                    "open_macos_privacy_accessibility",
+                    "open_macos_privacy_automation",
+                ],
+            },
+        ),
+    )
+    opened: list[str] = []
+
+    def fake_open_settings_url(url: str) -> None:
+        opened.append(url)
+
+    module._open_settings_url = fake_open_settings_url
+    evidence = tmp_path / "preflight.json"
+
+    exit_code = module._run(
+        module.HelperPreflightConfig(
+            helper_manifest=tmp_path / "computer-use-helper.json",
+            helper_app_path=tmp_path / "Helper.app",
+            open_permission_settings=True,
+            evidence_output=evidence,
+        )
+    )
+
+    assert exit_code == 1
+    assert opened == [
+        module.MACOS_ACCESSIBILITY_SETTINGS_URL,
+        module.MACOS_AUTOMATION_SETTINGS_URL,
+    ]
+    payload = json.loads(evidence.read_text(encoding="utf-8"))
+    assert payload["result"]["permissionSettings"] == {
+        "attempted": True,
+        "opened": opened,
+        "errors": [],
+    }
+
+
+def test_helper_preflight_does_not_open_permission_settings_by_default(
+    tmp_path: Path,
+) -> None:
+    module = _load_script()
+    _patch_backend(
+        module,
+        ComputerUseObservation(
+            operation="readiness",
+            status="not_available",
+            success=False,
+            summary="missing permissions",
+            metadata={
+                "readiness": {"status": "missing_accessibility"},
+                "recovery_actions": ["open_macos_privacy_accessibility"],
+            },
+        ),
+    )
+    opened: list[str] = []
+    module._open_settings_url = opened.append
+    evidence = tmp_path / "preflight.json"
+
+    exit_code = module._run(
+        module.HelperPreflightConfig(
+            helper_manifest=tmp_path / "computer-use-helper.json",
+            helper_app_path=tmp_path / "Helper.app",
+            evidence_output=evidence,
+        )
+    )
+
+    assert exit_code == 1
+    assert opened == []
+    payload = json.loads(evidence.read_text(encoding="utf-8"))
+    assert "permissionSettings" not in payload["result"]
+
+
 def _patch_backend(
     module: ModuleType,
     observation: ComputerUseObservation,
