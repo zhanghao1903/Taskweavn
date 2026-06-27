@@ -2,9 +2,21 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
-from urllib.parse import unquote
-
+from taskweavn.server.ui_contract.command_ask_helpers import (
+    answer_ask_command,
+    cancel_ask_command,
+    defer_ask_command,
+)
+from taskweavn.server.ui_contract.command_authoring_helpers import (
+    answered_authoring_ask_batch_response,
+    authoring_context_is_superseded,
+    latest_raw_task,
+    raw_task_all_asks_answered,
+    raw_task_ready_for_planning,
+    resolve_publish_draft_tree_id,
+    session_has_published_task_tree,
+    stale_authoring_context_response,
+)
 from taskweavn.server.ui_contract.command_mapping import (
     _child_idempotency_key,
     _command_bad_request_response,
@@ -14,11 +26,16 @@ from taskweavn.server.ui_contract.command_mapping import (
     _guidance_mode,
     _merge_prompt_task_tree_results,
     _plan_publish_command_result,
-    _synthetic_task_tree_id,
     _task_node_patch,
     _TaskTreeIdentityError,
     _update_affected_scopes,
     _update_suggested_queries,
+)
+from taskweavn.server.ui_contract.command_plan_helpers import (
+    archived_legacy_plan_from_task_tree,
+    archived_plan,
+    is_legacy_plan_id,
+    normalize_plan_id,
 )
 from taskweavn.server.ui_contract.commands import (
     AnswerAskPayload,
@@ -40,17 +57,11 @@ from taskweavn.server.ui_contract.envelopes import CommandRequest, CommandRespon
 from taskweavn.server.ui_contract.gateway_protocols import TaskRefResolver
 from taskweavn.server.ui_contract.mapping import map_task_tree_view
 from taskweavn.server.ui_contract.refs import (
-    AffectedObjectImpact,
     AffectedObjectRef,
     AffectedScope,
     ObjectRef,
 )
-from taskweavn.server.ui_contract.view_models import (
-    TaskNodeCardView,
-    TaskTreeView,
-)
 from taskweavn.task.ask_service import TaskAskCommandService
-from taskweavn.task.authoring import RawTask
 from taskweavn.task.collaborator_api import (
     CollaboratorApiAdapter,
     RawTaskAskAnswerSubmission,
@@ -59,7 +70,7 @@ from taskweavn.task.commands import CommandResult as CoreCommandResult
 from taskweavn.task.commands import TaskCommandService
 from taskweavn.task.models import TaskRef
 from taskweavn.task.plan_commands import PlanLifecycleCommandService
-from taskweavn.task.plan_models import Plan, PlanFinalizationState, PlanTaskNode
+from taskweavn.task.plan_models import Plan
 from taskweavn.task.plan_publisher import PlanPublisher, PublishPlanCommand
 from taskweavn.task.plan_stores import PlanStore
 from taskweavn.task.projection import TaskProjectionService
@@ -125,7 +136,8 @@ class DefaultUiCommandGateway:
             object_refs: tuple[ObjectRef, ...] = ()
             affected_objects: tuple[AffectedObjectRef, ...] = ()
             if request.payload.raw_task_id is not None:
-                if not self._raw_task_ready_for_planning(
+                if not raw_task_ready_for_planning(
+                    self._raw_task_store,
                     request.session_id,
                     request.payload.raw_task_id,
                 ):
@@ -173,7 +185,10 @@ class DefaultUiCommandGateway:
                     ),
                 )
                 if raw_result.accepted:
-                    raw_task = self._latest_raw_task(request.session_id)
+                    raw_task = latest_raw_task(
+                        self._raw_task_store,
+                        request.session_id,
+                    )
                     if raw_task is not None and not raw_task.ready_for_planning:
                         result = raw_result
                     else:
@@ -273,7 +288,10 @@ class DefaultUiCommandGateway:
             if plan_response is not None:
                 return plan_response
 
-            draft_tree_id = self._resolve_publish_draft_tree_id(request)
+            draft_tree_id = resolve_publish_draft_tree_id(
+                self._authoring_state_store,
+                request,
+            )
             tree_ref = ObjectRef(kind="draft_tree", id=draft_tree_id)
             result = self._collaborator.publish_task_tree(
                 session_id=request.session_id,
@@ -367,10 +385,10 @@ class DefaultUiCommandGateway:
             active = self._authoring_state_store.get_active(session_id)
             if active.active_plan_id is not None:
                 plan = self._plan_store.get_plan(session_id, active.active_plan_id)
-                if plan is not None and not _archived_plan(plan):
+                if plan is not None and not archived_plan(plan):
                     return plan
         plan = self._plan_store.get_active_plan(session_id)
-        return None if _archived_plan(plan) else plan
+        return None if archived_plan(plan) else plan
 
     def archive_plan(
         self,
@@ -378,8 +396,8 @@ class DefaultUiCommandGateway:
         request: CommandRequest[ArchivePlanPayload],
     ) -> CommandResponse:
         try:
-            plan_id = _normalize_plan_id(plan_id)
-            if _is_legacy_plan_id(request.session_id, plan_id):
+            plan_id = normalize_plan_id(plan_id)
+            if is_legacy_plan_id(request.session_id, plan_id):
                 result = self._archive_legacy_plan(plan_id, request)
             else:
                 if self._plan_lifecycle_commands is None:
@@ -436,7 +454,7 @@ class DefaultUiCommandGateway:
                 message="Legacy Plan archive requires PlanStore and TaskProjection",
             )
         existing = self._plan_store.get_plan(request.session_id, plan_id)
-        if _archived_plan(existing):
+        if archived_plan(existing):
             return CoreCommandResult(
                 command_id=request.command_id,
                 status="accepted",
@@ -458,7 +476,7 @@ class DefaultUiCommandGateway:
                 message="only completed or failed legacy plans can be archived",
             )
 
-        plan, nodes = _archived_legacy_plan_from_task_tree(
+        plan, nodes = archived_legacy_plan_from_task_tree(
             task_tree,
             expected_version=request.expected_version,
         )
@@ -601,29 +619,7 @@ class DefaultUiCommandGateway:
         request: CommandRequest[AnswerAskPayload],
     ) -> CommandResponse:
         try:
-            if self._ask_commands is None:
-                return _command_response(
-                    request,
-                    CoreCommandResult(
-                        status="rejected",
-                        message="ASK command service is not configured",
-                    ),
-                )
-            result = self._ask_commands.answer_ask(
-                request.session_id,
-                ask_id,
-                selected_option_ids=request.payload.selected_option_ids,
-                text=request.payload.text,
-                idempotency_key=request.idempotency_key,
-                command_id=request.command_id,
-            )
-            return _ask_command_response(
-                request,
-                result,
-                ask_id=ask_id,
-                impact="changed",
-                reason="ASK was answered.",
-            )
+            return answer_ask_command(self._ask_commands, ask_id, request)
         except Exception as exc:
             return _command_exception_response(request, exc)
 
@@ -633,49 +629,12 @@ class DefaultUiCommandGateway:
         request: CommandRequest[AnswerAuthoringAskBatchPayload],
     ) -> CommandResponse:
         try:
-            if self._authoring_context_is_superseded(request.session_id):
-                raw_ref = ObjectRef(kind="raw_task", id=raw_task_id)
-                ask_refs = tuple(
-                    ObjectRef(kind="raw_task_ask", id=answer.ask_id)
-                    for answer in request.payload.answers
-                )
-                result = CoreCommandResult(
-                    status="rejected",
-                    message=(
-                        "stale_authoring_context: authoring ASK was superseded "
-                        "by the active TaskTree"
-                    ),
-                )
-                return _command_response(
-                    request,
-                    result,
-                    object_refs=(raw_ref, *ask_refs),
-                    affected_objects=(
-                        AffectedObjectRef(
-                            ref=raw_ref,
-                            impact="superseded",
-                            reason="stale_authoring_context",
-                        ),
-                        *(
-                            AffectedObjectRef(
-                                ref=ask_ref,
-                                impact="superseded",
-                                reason="stale_authoring_context",
-                            )
-                            for ask_ref in ask_refs
-                        ),
-                    ),
-                    suggested_queries=(
-                        "session.snapshot",
-                        "session.messages",
-                        "task.tree",
-                    ),
-                    affected_scopes=(
-                        AffectedScope(kind="session"),
-                        AffectedScope(kind="messages"),
-                        AffectedScope(kind="task_tree"),
-                    ),
-                )
+            if authoring_context_is_superseded(
+                self._authoring_state_store,
+                self._task_projection,
+                request.session_id,
+            ):
+                return stale_authoring_context_response(raw_task_id, request)
             result = self._collaborator.answer_raw_task_asks(
                 session_id=request.session_id,
                 raw_task_id=raw_task_id,
@@ -688,7 +647,8 @@ class DefaultUiCommandGateway:
                 ),
                 idempotency_key=request.idempotency_key,
             )
-            if result.accepted and self._raw_task_all_asks_answered(
+            if result.accepted and raw_task_all_asks_answered(
+                self._raw_task_store,
                 request.session_id,
                 raw_task_id,
             ):
@@ -701,36 +661,10 @@ class DefaultUiCommandGateway:
                     ),
                 )
                 result = _merge_prompt_task_tree_results(result, tree_result)
-            raw_ref = ObjectRef(kind="raw_task", id=raw_task_id)
-            ask_refs = tuple(
-                ObjectRef(kind="raw_task_ask", id=answer.ask_id)
-                for answer in request.payload.answers
-            )
-            return _command_response(
+            return answered_authoring_ask_batch_response(
+                raw_task_id,
                 request,
                 result,
-                object_refs=(raw_ref, *ask_refs),
-                affected_objects=(
-                    AffectedObjectRef(
-                        ref=raw_ref,
-                        impact="changed",
-                        reason="RawTask authoring ASK answers were submitted.",
-                    ),
-                    *(
-                        AffectedObjectRef(
-                            ref=ask_ref,
-                            impact="changed",
-                            reason="RawTask authoring ASK was answered.",
-                        )
-                        for ask_ref in ask_refs
-                    ),
-                ),
-                suggested_queries=("session.snapshot", "session.messages", "task.tree"),
-                affected_scopes=(
-                    AffectedScope(kind="session"),
-                    AffectedScope(kind="messages"),
-                    AffectedScope(kind="task_tree"),
-                ),
             )
         except Exception as exc:
             return _command_exception_response(request, exc)
@@ -755,7 +689,10 @@ class DefaultUiCommandGateway:
                 )
                 return _command_response(request, result)
 
-            if not self._session_has_published_task_tree(request.session_id):
+            if not session_has_published_task_tree(
+                self._task_projection,
+                request.session_id,
+            ):
                 result = CoreCommandResult(
                     status="rejected",
                     message="authoring state repair requires an existing TaskTree",
@@ -796,28 +733,7 @@ class DefaultUiCommandGateway:
         request: CommandRequest[DeferAskPayload],
     ) -> CommandResponse:
         try:
-            if self._ask_commands is None:
-                return _command_response(
-                    request,
-                    CoreCommandResult(
-                        status="rejected",
-                        message="ASK command service is not configured",
-                    ),
-                )
-            result = self._ask_commands.defer_ask(
-                request.session_id,
-                ask_id,
-                reason=request.payload.reason,
-                idempotency_key=request.idempotency_key,
-                command_id=request.command_id,
-            )
-            return _ask_command_response(
-                request,
-                result,
-                ask_id=ask_id,
-                impact="changed",
-                reason="ASK was deferred.",
-            )
+            return defer_ask_command(self._ask_commands, ask_id, request)
         except Exception as exc:
             return _command_exception_response(request, exc)
 
@@ -827,242 +743,9 @@ class DefaultUiCommandGateway:
         request: CommandRequest[CancelAskPayload],
     ) -> CommandResponse:
         try:
-            if self._ask_commands is None:
-                return _command_response(
-                    request,
-                    CoreCommandResult(
-                        status="rejected",
-                        message="ASK command service is not configured",
-                    ),
-                )
-            result = self._ask_commands.cancel_ask(
-                request.session_id,
-                ask_id,
-                reason=request.payload.reason,
-                idempotency_key=request.idempotency_key,
-                command_id=request.command_id,
-            )
-            return _ask_command_response(
-                request,
-                result,
-                ask_id=ask_id,
-                impact="changed",
-                reason="ASK was cancelled.",
-            )
+            return cancel_ask_command(self._ask_commands, ask_id, request)
         except Exception as exc:
             return _command_exception_response(request, exc)
 
     def _resolve_task_ref(self, session_id: str, task_node_id: str) -> TaskRef:
         return self._task_ref_resolver.resolve(session_id, task_node_id)
-
-    def _latest_raw_task(self, session_id: str) -> RawTask | None:
-        if self._raw_task_store is None:
-            return None
-        raw_tasks = self._raw_task_store.list_for_session(session_id)
-        return raw_tasks[-1] if raw_tasks else None
-
-    def _raw_task_ready_for_planning(self, session_id: str, raw_task_id: str) -> bool:
-        if self._raw_task_store is None:
-            return True
-        raw_task = self._raw_task_store.get(session_id, raw_task_id)
-        return raw_task is not None and raw_task.ready_for_planning
-
-    def _raw_task_all_asks_answered(self, session_id: str, raw_task_id: str) -> bool:
-        if self._raw_task_store is None:
-            return False
-        raw_task = self._raw_task_store.get(session_id, raw_task_id)
-        if raw_task is None or not raw_task.asks:
-            return False
-        answered_ask_ids = {answer.ask_id for answer in raw_task.answers}
-        return all(ask.ask_id in answered_ask_ids for ask in raw_task.asks)
-
-    def _authoring_context_is_superseded(
-        self,
-        session_id: str,
-    ) -> bool:
-        if self._authoring_state_store is None:
-            return self._session_has_published_task_tree(session_id)
-        active = self._authoring_state_store.get_active(session_id)
-        if active.active_state in {"draft_tree", "published", "cancelled"}:
-            return True
-        return active.active_state == "raw_task" and self._session_has_published_task_tree(
-            session_id
-        )
-
-    def _session_has_published_task_tree(self, session_id: str) -> bool:
-        if self._task_projection is None:
-            return False
-        try:
-            tree = self._task_projection.list_task_tree(
-                session_id,
-                include_drafts=False,
-                include_published=True,
-            )
-        except Exception:  # noqa: BLE001 - stale detection must not crash commands.
-            return False
-        return bool(tree.nodes)
-
-    def _resolve_publish_draft_tree_id(
-        self,
-        request: CommandRequest[PublishTaskTreePayload],
-    ) -> str:
-        provided = request.payload.task_tree_id
-        if self._authoring_state_store is None:
-            if provided is None:
-                raise _TaskTreeIdentityError(
-                    "publish requires a draft tree id when active authoring state is unavailable",
-                    reason="missing_task_tree_identity",
-                    session_id=request.session_id,
-                )
-            if provided == _synthetic_task_tree_id(request.session_id):
-                raise _TaskTreeIdentityError(
-                    "synthetic task tree id cannot be published without active authoring state",
-                    reason="synthetic_task_tree_identity_unresolved",
-                    session_id=request.session_id,
-                    provided_task_tree_id=provided,
-                )
-            return provided
-
-        active = self._authoring_state_store.get_active(request.session_id)
-        active_id = active.active_draft_tree_id
-        if (
-            active.active_state == "published"
-            and active_id is not None
-            and request.idempotency_key is not None
-            and provided in {None, active_id, _synthetic_task_tree_id(request.session_id)}
-        ):
-            return active_id
-        if active.active_state != "draft_tree" or active_id is None:
-            raise _TaskTreeIdentityError(
-                "publish requires an active draft tree",
-                reason="no_active_draft_tree",
-                session_id=request.session_id,
-                active_state=active.active_state,
-            )
-
-        if provided in {None, active_id, _synthetic_task_tree_id(request.session_id)}:
-            return active_id
-
-        raise _TaskTreeIdentityError(
-            "publish draft tree identity does not match the active draft tree",
-            reason="invalid_task_tree_identity",
-            session_id=request.session_id,
-            provided_task_tree_id=provided,
-            active_draft_tree_id=active_id,
-        )
-
-
-def _ask_command_response[T](
-    request: CommandRequest[T],
-    result: CoreCommandResult,
-    *,
-    ask_id: str,
-    impact: AffectedObjectImpact,
-    reason: str,
-) -> CommandResponse:
-    ask_ref = ObjectRef(kind="ask", id=ask_id)
-    return _command_response(
-        request,
-        result,
-        object_refs=(ask_ref,),
-        affected_objects=(
-            AffectedObjectRef(
-                ref=ask_ref,
-                impact=impact,
-                reason=reason,
-            ),
-        ),
-        suggested_queries=("session.snapshot", "asks", "task.tree", "task.detail"),
-        affected_scopes=(
-            AffectedScope(kind="asks"),
-            AffectedScope(kind="task_tree"),
-            *(
-                AffectedScope(kind="task_detail", task_ref=task_ref)
-                for task_ref in result.affected_task_refs
-            ),
-        ),
-    )
-
-
-def _archived_plan(plan: Plan | None) -> bool:
-    return plan is not None and (
-        plan.status == "archived" or plan.archived_at is not None
-    )
-
-
-def _legacy_plan_id(session_id: str) -> str:
-    return f"plan:legacy:{session_id}"
-
-
-def _normalize_plan_id(plan_id: str) -> str:
-    return unquote(plan_id)
-
-
-def _is_legacy_plan_id(session_id: str, plan_id: str) -> bool:
-    return plan_id == _legacy_plan_id(session_id)
-
-
-def _archived_legacy_plan_from_task_tree(
-    task_tree: TaskTreeView,
-    *,
-    expected_version: int | None,
-) -> tuple[Plan, tuple[PlanTaskNode, ...]]:
-    now = datetime.now(UTC)
-    plan = Plan(
-        plan_id=_legacy_plan_id(task_tree.session_id),
-        session_id=task_tree.session_id,
-        title=task_tree.title,
-        objective=task_tree.summary or task_tree.title,
-        summary=task_tree.summary or task_tree.title,
-        status="archived",
-        version=expected_version or task_tree.version,
-        finalization=PlanFinalizationState(status="skipped", required=False),
-        created_at=now,
-        updated_at=now,
-        archived_at=now,
-    )
-    nodes = tuple(
-        _archived_legacy_plan_node(
-            node,
-            plan_id=plan.plan_id,
-            session_id=plan.session_id,
-            order_index=index,
-            now=now,
-        )
-        for index, node in enumerate(task_tree.nodes)
-    )
-    return plan, nodes
-
-
-def _archived_legacy_plan_node(
-    node: TaskNodeCardView,
-    *,
-    plan_id: str,
-    session_id: str,
-    order_index: int,
-    now: datetime,
-) -> PlanTaskNode:
-    task_ref = node.task_ref
-    return PlanTaskNode(
-        task_node_id=node.id,
-        plan_id=plan_id,
-        session_id=session_id,
-        task_index=node.task_index or str(order_index + 1),
-        order_index=order_index,
-        title=node.title,
-        intent=node.intent or node.title,
-        summary=node.summary or node.title,
-        instructions=node.instructions or "",
-        acceptance_criteria=node.acceptance_criteria,
-        readiness="published" if task_ref is not None and task_ref.kind == "published" else "draft",
-        execution=node.execution,
-        draft_ref=task_ref if task_ref is not None and task_ref.kind == "draft" else None,
-        published_ref=(
-            task_ref if task_ref is not None and task_ref.kind == "published" else None
-        ),
-        result_ref=node.result_ref,
-        error_ref=node.error_ref,
-        version=node.version,
-        created_at=now,
-        updated_at=now,
-    )
