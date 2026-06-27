@@ -1,30 +1,10 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import type {
-  ProductRecoveryAction,
-  WorkspaceCatalogResult,
-} from "../../shared/api/platoApi";
-import type {
-  RuntimeInputMode,
-  SessionActivityItemView,
-  SessionSummary,
-  TaskNodeId,
-  WorkspaceId,
-} from "../../shared/api/types";
-import type {
-  DetailOverride,
-  EventConnectionStatus,
-  MainPageSelectionTarget,
-} from "./mainPageUiTypes";
-import type { MainPageStateId } from "./mockPlatoApi";
-import type {
-  MainPageAdapter,
-  MainPageRuntimeSnapshot,
-} from "./runtime/adapter";
-import {
-  useMainPageCommandActions,
-  type MainPageCommandActions,
-} from "./useMainPageCommandActions";
+  MainPageController,
+  UseMainPageControllerOptions,
+} from "./mainPageControllerTypes";
+import { useMainPageCommandActions } from "./useMainPageCommandActions";
 import { useMainPageCommandErrorState } from "./useMainPageCommandErrorState";
 import { useMainPageInputRuntimeState } from "./useMainPageInputRuntimeState";
 import {
@@ -34,11 +14,9 @@ import {
 import { useMainPageUiNoticeState } from "./useMainPageUiNoticeState";
 import { useMainPageCommandMutations } from "./useMainPageCommandMutations";
 import { useMainPageEventSubscription } from "./useMainPageEventSubscription";
-import {
-  useMainPageSessionLifecycle,
-  type SessionLifecycleDialog,
-} from "./useMainPageSessionLifecycle";
+import { useMainPageSessionLifecycle } from "./useMainPageSessionLifecycle";
 import { useMainPageSelectionState } from "./useMainPageSelectionState";
+import { useMainPageSnapshotEffects } from "./useMainPageSnapshotEffects";
 import { useMainPageSnapshotQuery } from "./useMainPageSnapshotQuery";
 
 export type {
@@ -54,79 +32,18 @@ export type {
   RetryTaskContext,
   StopTaskContext,
 } from "./useMainPageCommandMutations";
+export type {
+  MainPageController,
+  UseMainPageControllerOptions,
+} from "./mainPageControllerTypes";
 export type { SessionLifecycleDialog } from "./useMainPageSessionLifecycle";
-
-export type MainPageController = {
-  activeSessionId: string | null;
-  activeWorkspaceId: WorkspaceId | null;
-  authoringAskError: string | null;
-  authoringAskRecoveryActions: ProductRecoveryAction[];
-  confirmationError: string | null;
-  confirmationRecoveryActions: ProductRecoveryAction[];
-  detailOverride: DetailOverride;
-  eventConnectionStatus: EventConnectionStatus;
-  eventError: string | null;
-  inputDraft: string;
-  inputError: string | null;
-  inputRecoveryActions: ProductRecoveryAction[];
-  isCreatingSession: boolean;
-  isDeletingSession: boolean;
-  isAnsweringAuthoringAsk: boolean;
-  executionAskError: string | null;
-  executionAskRecoveryActions: ProductRecoveryAction[];
-  isAnsweringAsk: boolean;
-  isCancellingAsk: boolean;
-  isDeferringAsk: boolean;
-  isInputSubmitting: boolean;
-  isPublishingTaskTree: boolean;
-  isArchivingPlan: boolean;
-  isRepairingAuthoringState: boolean;
-  isRenamingSession: boolean;
-  isRetryingTask: boolean;
-  isStoppingTask: boolean;
-  isResolvingConfirmation: boolean;
-  activeRuntimeInputMode: RuntimeInputMode | null;
-  selectionTarget: MainPageSelectionTarget;
-  sessionDialog: SessionLifecycleDialog;
-  isSnapshotError: boolean;
-  isSnapshotPending: boolean;
-  selectedTaskNodeId: TaskNodeId | null;
-  snapshotData: MainPageRuntimeSnapshot | undefined;
-  snapshotError: unknown;
-  stateId: MainPageStateId;
-  taskTreeCommandError: string | null;
-  taskTreeCommandRecoveryActions: ProductRecoveryAction[];
-  uiNotice: string | null;
-  runtimeActivityItems: SessionActivityItemView[];
-  workspaceCatalog: WorkspaceCatalogResult | null;
-  actions: MainPageCommandActions & {
-    cancelSessionDialog: () => void;
-    changeSessionDialogDraft: (draftName: string) => void;
-    changeInputDraft: (draft: string) => void;
-    createSession: (workspaceId?: WorkspaceId | null) => void;
-    deleteSession: (session: SessionSummary) => void;
-    renameSession: (session: SessionSummary) => void;
-    selectSession: (session: SessionSummary, currentSessionId: string) => void;
-    selectTaskPlan: () => void;
-    selectTask: (nodeId: TaskNodeId) => void;
-    showFileChanges: () => void;
-    showResult: () => void;
-    submitSessionDialog: () => void;
-  };
-};
-
-export type UseMainPageControllerOptions = {
-  adapter: MainPageAdapter;
-  initialStateId: MainPageStateId;
-  initialTaskNodeId?: TaskNodeId | null;
-};
 
 export function useMainPageController({
   adapter,
   initialStateId,
   initialTaskNodeId = null,
 }: UseMainPageControllerOptions): MainPageController {
-  const [stateId, setStateId] = useState<MainPageStateId>(initialStateId);
+  const [stateId, setStateId] = useState(initialStateId);
   const { clearUiNotice, setUiNotice, uiNotice } = useMainPageUiNoticeState();
   const {
     authoringAskError,
@@ -282,54 +199,20 @@ export function useMainPageController({
     setUiNotice,
   });
 
-  useEffect(() => {
-    const currentSnapshot = snapshotDataRef.current;
-
-    if (!currentSnapshot) {
-      return;
-    }
-
-    const routeTaskNodeId = initialTaskNodeIdRef.current;
-    const nextSelectedTaskNodeId =
-      routeTaskNodeId !== null &&
-      currentSnapshot.snapshot.taskTree?.nodes.some(
-        (node) => node.id === routeTaskNodeId,
-      )
-        ? routeTaskNodeId
-        : currentSnapshot.metadata.initialSelectedTaskNodeId;
-    initialTaskNodeIdRef.current = null;
-    resetSelection(nextSelectedTaskNodeId);
-    resetInputDraft();
-    resetCommandErrorState();
-    setUiNotice(null);
-    resetSessionDialog();
-    clearEventError();
-  }, [
+  useMainPageSnapshotEffects({
+    activeWorkspaceId,
     clearEventError,
+    hydrateRuntimeInputSnapshot,
+    initialTaskNodeIdRef,
     resetCommandErrorState,
     resetInputDraft,
-    resetSessionDialog,
     resetSelection,
+    resetSessionDialog,
+    setUiNotice,
+    snapshotData,
+    snapshotDataRef,
     snapshotIdentity,
-  ]);
-
-  useEffect(() => {
-    const currentSnapshot = snapshotData?.snapshot;
-
-    if (!currentSnapshot) {
-      return;
-    }
-
-    hydrateRuntimeInputSnapshot({
-      messages: currentSnapshot.messages,
-      sessionId: currentSnapshot.session.id,
-      workspaceId: activeWorkspaceId,
-    });
-  }, [
-    activeWorkspaceId,
-    hydrateRuntimeInputSnapshot,
-    snapshotData?.snapshot,
-  ]);
+  });
 
   return {
     activeSessionId,
