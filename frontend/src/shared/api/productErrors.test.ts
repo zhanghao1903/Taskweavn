@@ -47,21 +47,21 @@ describe("product error recovery metadata", () => {
       normalizeProductRecoveryActions([
         "open_macos_privacy_accessibility",
         "restart_helper",
-        "rerun_helper_preflight",
+        "rerun_readiness_check",
       ]),
     ).toEqual([
       "open_macos_privacy_accessibility",
       "restart_helper",
-      "rerun_helper_preflight",
+      "rerun_readiness_check",
     ]);
   });
 
   it("extracts ApiError details from query and HTTP client failures", () => {
     const error = apiError({ recoveryActions: ["open_settings"] });
 
-    expect(productRecoveryActionsFromUnknown(new ApiResponseError(error, "fallback"))).toEqual([
-      "open_settings",
-    ]);
+    expect(
+      productRecoveryActionsFromUnknown(new ApiResponseError(error, "fallback")),
+    ).toEqual(["open_settings"]);
     expect(
       apiErrorFromUnknown(
         new ApiClientError({

@@ -63,6 +63,8 @@ from taskweavn.tools import (
     Tool,
     WebFetchTool,
     WebSearchTool,
+    WeChatDesktopTool,
+    WeChatDesktopToolConfig,
     Workspace,
     WriteFileTool,
 )
@@ -91,6 +93,7 @@ def build_agent_loop_resident_default_agent(
     web_fetch_provider: WebFetchProvider | None = None,
     enable_computer_use_tool: bool = False,
     computer_use_backend: ComputerUseBackend | None = None,
+    wechat_desktop_tool_config: WeChatDesktopToolConfig | None = None,
     contract_guidance_store: GuidanceFactStore | None = None,
 ) -> AgentLoopResidentDefaultAgent:
     """Build the resident Default Agent used by the fixed-route sidecar bridge."""
@@ -133,6 +136,7 @@ def build_agent_loop_resident_default_agent(
             web_fetch_provider=web_fetch_provider,
             enable_computer_use_tool=enable_computer_use_tool,
             computer_use_backend=computer_use_backend,
+            wechat_desktop_tool_config=wechat_desktop_tool_config,
         ),
         context_builder_factory=context_builder_factory,
         result_summary_store=result_summary_store,
@@ -233,6 +237,7 @@ class _SessionAgentLoopRunner:
     web_fetch_provider: WebFetchProvider | None = None
     enable_computer_use_tool: bool = False
     computer_use_backend: ComputerUseBackend | None = None
+    wechat_desktop_tool_config: WeChatDesktopToolConfig | None = None
 
     def run(self, task: str, *, task_id: str | None = None) -> LoopResult:
         from taskweavn.core.loop import AgentLoop
@@ -282,6 +287,7 @@ class _SessionAgentLoopRunner:
             tools.append(web_fetch_tool)
         if self.enable_computer_use_tool:
             tools.append(ComputerUseTool(self.computer_use_backend))
+            tools.append(WeChatDesktopTool(config=self.wechat_desktop_tool_config))
         if self.ask_store is not None and self.task_bus is not None and task_id is not None:
             tools.append(
                 AskUserTool(
@@ -519,6 +525,9 @@ def _execution_guidance(
             "Do not send external messages, click irreversible controls, or expose "
             "private screen contents unless task policy and user confirmation allow it.",
             "Prefer observe/wait before mutation-like computer_use operations.",
+            "For WeChat Desktop tasks, prefer the semantic wechat_desktop tool over "
+            "raw computer_use. Use focus_contact and draft_message before requesting "
+            "confirmation; call submit_draft only after authorization.",
         )
     return ExecutionGuidance(project_rules=rules)
 
@@ -546,7 +555,7 @@ def _allowed_tools(
     if include_web_fetch:
         tools = (*tools, "web_fetch")
     if include_computer_use:
-        tools = (*tools, "computer_use")
+        tools = (*tools, "computer_use", "wechat_desktop")
     if include_ask_user:
         tools = (*tools, "ask_user")
     if include_request_confirmation:

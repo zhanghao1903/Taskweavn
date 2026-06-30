@@ -84,6 +84,52 @@ def test_embedded_service_rejects_capability_without_compatible_env() -> None:
     assert exc_info.value.retryable is True
 
 
+def test_embedded_service_publishes_wechat_task_without_runtime_handler() -> None:
+    bus = InMemoryTaskBus()
+    service = EmbeddedTaskApiService(
+        task_bus=bus,
+        env_registry=InMemoryExecutionEnvRegistry(
+            (
+                default_local_execution_env(
+                    capabilities=("communication.wechat_desktop_send",),
+                    tool_pool=("computer_use", "wechat_desktop"),
+                ),
+            )
+        ),
+    )
+
+    execution = service.publish_task(
+        TaskRequest.model_validate(
+            {
+                "idempotencyKey": "wechat-runtime-required",
+                "requester": {"kind": "external_app", "id": "local-test"},
+                "taskType": "communication.wechat.send_message",
+                "intent": "Send a WeChat message.",
+                "input": {
+                    "contactDisplayName": "文件传输助手",
+                    "messageText": "你好",
+                },
+                "policy": {
+                    "requiredCapability": "communication.wechat_desktop_send",
+                    "allowedTools": ["computer_use", "wechat_desktop"],
+                    "requiresHumanConfirmation": True,
+                    "riskLevel": "high",
+                },
+                "metadata": {"sessionId": "session-1"},
+            }
+        )
+    )
+
+    assert execution.status == "pending"
+    [task] = bus.list_for_session("session-1")
+    assert task.required_capability == "communication.wechat_desktop_send"
+    assert task.dispatch_constraints is not None
+    assert task.dispatch_constraints.metadata["execution_plane_allowed_tools"] == [
+        "computer_use",
+        "wechat_desktop",
+    ]
+
+
 def test_embedded_service_reflects_taskbus_completion_and_exposes_result_evidence() -> None:
     bus = InMemoryTaskBus()
     service = EmbeddedTaskApiService(task_bus=bus)

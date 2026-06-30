@@ -74,9 +74,9 @@ from taskweavn.server.ui_http_settings import (
     SettingsConfigGateway,
     SettingsReadinessGateway,
     _settings_config_response,
-    _settings_recovery_action_response,
     _settings_readiness_recheck_response,
     _settings_readiness_response,
+    _settings_recovery_action_response,
 )
 from taskweavn.server.ui_http_sse import _sse_response
 from taskweavn.server.ui_http_trace_helpers import (

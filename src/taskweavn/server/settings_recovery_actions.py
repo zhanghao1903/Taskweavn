@@ -157,7 +157,7 @@ class SettingsRecoveryActionExecutor:
             "action": "restart_helper",
             "status": "restarted",
             "summary": (
-                "Restarted Plato Computer Use Helper. Rerun helper readiness "
+                "Restarted the app-control helper. Rerun helper readiness "
                 "preflight before publishing a computer-use task."
             ),
             "manifestPath": str(manifest_path),

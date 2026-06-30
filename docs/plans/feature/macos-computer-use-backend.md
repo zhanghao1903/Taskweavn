@@ -1,14 +1,18 @@
 # macOS Computer-Use Backend
 
-> Status: in progress / helper provider client, dev launcher, dev `.app` scaffold, and Settings readiness projection implemented
+> Status: Historical backend plan. Repo-local helper provider/client and dev
+> launcher work were retired by
+> [App-Control Tool Package Migration](app-control-tool-package-migration.zh-CN.md).
+> The active backend consumes the published `computer-use-macos` package through
+> `MacOSComputerUseBackend` and optional package helper configuration.
 >
 > Last Updated: 2026-06-19
 >
 > Related:
 > [Local Computer-Use Tool Foundation](local-computer-use-tool.md),
-> [macOS Computer-Use Capability Package](macos-computer-use-package.md),
-> [Technical Design](macos-computer-use-backend-technical-design.zh-CN.md),
-> [Plato Computer Use Helper.app Technical Design](plato-computer-use-helper-app-technical-design.zh-CN.md),
+> [App-Control Tool Package Migration](app-control-tool-package-migration.zh-CN.md),
+> [App-Control Tool Package Smoke Runbook](app-control-tool-package-smoke-runbook.zh-CN.md),
+> [Historical Technical Design](macos-computer-use-backend-technical-design.zh-CN.md),
 > [Remote WeChat Message Task PRD](../../product/remote-wechat-message-task-prd.md),
 > [Tool Capability Layer](../../architecture/tool-capability-layer.md),
 > [Confirmation UI Spec](../../ux/confirmation-ui-spec.md),
@@ -39,13 +43,20 @@ distribution work.
 ## 2. Product Decision
 
 Build the real macOS capability as an opt-in, permission-gated standalone
-package first. The Taskweavn/Plato macOS backend is a consumer adapter over
-that package, not the source of the OS automation implementation.
+package first. This section records the original single-package backend plan.
+The active implementation consumes the published `computer-use-macos` package,
+not repo-local helper/runtime code.
 
-Working package name:
+Historical package name:
 
 ```text
 macos-computer-use
+```
+
+Current package name:
+
+```text
+computer-use-macos
 ```
 
 Plato should later depend on the released package and map package results into

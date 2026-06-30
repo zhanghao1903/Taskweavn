@@ -101,7 +101,7 @@ describe("SettingsRoute", () => {
     expect(api.executeSettingsRecoveryAction).toHaveBeenCalledWith("restart_helper");
     await user.click(
       within(readiness).getByRole("button", {
-        name: "Rerun helper readiness preflight.",
+        name: "Recheck local computer-use readiness.",
       }),
     );
     expect(api.recheckSettingsReadiness).toHaveBeenCalledTimes(2);
@@ -966,12 +966,12 @@ function computerUseReadiness(): NonNullable<SettingsReadinessReport["computerUs
       helperBundleId: "com.taskweavn.plato.ComputerUseHelper.dev",
       helperStatus: "missing_accessibility",
       operatorInstruction:
-        "Grant or refresh macOS Accessibility and Automation permissions for /Users/zhanghao/Applications/Plato Computer Use Helper Dev.app, restart the helper, then rerun helper readiness before publishing a computer-use task.",
+        "Grant or refresh macOS Accessibility and Automation permissions for /Users/zhanghao/Applications/Plato Computer Use Helper Dev.app, restart the helper, then recheck local computer-use readiness before publishing a computer-use task.",
       packageReadinessStatus: "missing_accessibility",
       recoveryActions: [
         "open_macos_privacy_accessibility",
         "restart_helper",
-        "rerun_helper_preflight",
+        "rerun_readiness_check",
       ],
       runtimeMode: "helper_owned_executable",
       signature: {
@@ -987,7 +987,7 @@ function computerUseReadiness(): NonNullable<SettingsReadinessReport["computerUs
     recoveryActions: [
       "open_macos_privacy_accessibility",
       "restart_helper",
-      "rerun_helper_preflight",
+      "rerun_readiness_check",
     ],
     setupHint: null,
     status: "missing_accessibility",

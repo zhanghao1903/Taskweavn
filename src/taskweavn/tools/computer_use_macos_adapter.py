@@ -1,88 +1,78 @@
-"""Adapter from Plato's computer-use contract to macos-computer-use.
+"""Adapter from Plato's computer-use contract to ``computer-use-macos``.
 
-The external package is optional. Import failures are represented as sanitized
-``not_available`` observations so the default runtime remains safe on non-macOS
-hosts and in CI.
+The package boundary is protocol-first: Plato sends ``ToolCommand`` envelopes
+and receives ``ToolObservation`` facts. Product authorization, task lifecycle,
+and UI projection stay outside the package.
 """
 
 from __future__ import annotations
 
-import importlib
 import sys
+import time
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Protocol, cast
 
+from app_control_protocol import AppControlClient, ToolCommand, ToolObservation
+from app_control_protocol.json_types import JsonValue, to_json_value
+from computer_use_macos import (
+    click_command,
+    hotkey_command,
+    observe_command,
+    open_app_command,
+    press_key_command,
+    readiness_command,
+    type_text_command,
+    wait_command,
+)
+
+from taskweavn.integrations.app_control import (
+    AppControlClientFactory,
+    AppControlClientFactoryConfig,
+    RecordingToolObserver,
+    app_control_observation_to_computer_use,
+)
+from taskweavn.observability import emit_computer_use_api, monotonic_ms
 from taskweavn.tools.computer_use import ComputerUseBackend
 from taskweavn.types.computer_use import (
     ComputerUseAction,
     ComputerUseObservation,
-    ComputerUseStatus,
 )
 
 
 class MacOSComputerUseClientProtocol(Protocol):
-    """Subset of the external package client used by Plato."""
+    """Subset of the new package client used by Plato."""
 
-    def readiness(self) -> Any: ...
-
-    def open_app(self, app: str, *, timeout: float = 10.0) -> Any: ...
-
-    def observe(
+    def run_command(
         self,
+        command: ToolCommand | dict[str, Any],
         *,
-        target_app: str | None = None,
-        timeout: float = 5.0,
-    ) -> Any: ...
-
-    def type_text(
-        self,
-        text: str,
-        *,
-        target_app: str | None = None,
-        timeout: float = 5.0,
-    ) -> Any: ...
-
-    def click(
-        self,
-        target: str,
-        *,
-        target_app: str | None = None,
-        snapshot_id: str | None = None,
-        timeout: float = 5.0,
-        confirmed: bool = False,
-        role_hints: tuple[str, ...] = ("AXButton",),
-        aliases: tuple[str, ...] = (),
-        max_nodes: int = 200,
-        max_depth: int = 6,
-        lookup_timeout: float | None = None,
-        click_timeout: float | None = None,
-        post_click_observe: bool = True,
-    ) -> Any: ...
-
-    def press_key(
-        self,
-        keys: tuple[str, ...],
-        *,
-        target_app: str | None = None,
-        timeout: float = 5.0,
-    ) -> Any: ...
-
-    def wait(self, *, seconds: float = 1.0) -> Any: ...
+        observer: object | None = None,
+    ) -> ToolObservation: ...
 
 
 @dataclass(frozen=True)
 class MacOSComputerUseBackendConfig:
-    """Runtime options passed to ``macos-computer-use`` when available."""
+    """Runtime options passed to ``computer-use-macos``."""
 
     allowed_apps: tuple[str, ...] = ()
     enabled: bool = True
+    backend: str = "direct"
     allow_coordinate_click: bool = False
     screen_recording_required: bool = False
     max_text_chars: int = 4_000
+    timeout_ms: int = 10_000
+    allowed_app_bundle_ids: dict[str, str] | None = None
+    helper_manifest_path: Path | None = None
+    helper_app_path: Path | None = None
+    helper_bundle_id: str | None = None
+    helper_endpoint: str | None = None
+    helper_token: str | None = None
+    helper_auto_launch: bool = False
 
 
 class MacOSComputerUseBackend(ComputerUseBackend):
-    """Plato backend adapter over the optional macOS package."""
+    """Plato backend adapter over the published macOS package."""
 
     def __init__(
         self,
@@ -92,152 +82,201 @@ class MacOSComputerUseBackend(ComputerUseBackend):
     ) -> None:
         self._config = config or MacOSComputerUseBackendConfig()
         self._import_error: str | None = None
-        self._client: MacOSComputerUseClientProtocol | None
-        if client is not None:
-            self._client = client
-            return
-        self._client = self._load_client()
+        self._client: MacOSComputerUseClientProtocol | None = client
+        if client is None and self._config.enabled:
+            self._client = self._load_client()
 
     def _load_client(self) -> MacOSComputerUseClientProtocol | None:
         try:
-            module = importlib.import_module("macos_computer_use")
-            client_cls = module.MacOSComputerUseClient
-            return cast(
-                MacOSComputerUseClientProtocol,
-                client_cls(
+            factory = AppControlClientFactory(
+                AppControlClientFactoryConfig(
+                    backend=self._config.backend,
                     allowed_apps=self._config.allowed_apps,
-                    enabled=self._config.enabled,
+                    allowed_app_bundle_ids=self._config.allowed_app_bundle_ids,
                     allow_coordinate_click=self._config.allow_coordinate_click,
                     screen_recording_required=self._config.screen_recording_required,
-                    max_text_chars=self._config.max_text_chars,
-                ),
+                    timeout_ms=self._config.timeout_ms,
+                    helper_manifest_path=self._config.helper_manifest_path,
+                    helper_app_path=self._config.helper_app_path,
+                    helper_bundle_id=self._config.helper_bundle_id,
+                    helper_endpoint=self._config.helper_endpoint,
+                    helper_token=self._config.helper_token,
+                    helper_auto_launch=self._config.helper_auto_launch,
+                )
             )
-        except Exception as exc:  # noqa: BLE001 - optional dependency boundary.
+            return cast(MacOSComputerUseClientProtocol, factory.create_client())
+        except Exception as exc:  # noqa: BLE001 - optional package boundary.
             self._import_error = f"{type(exc).__name__}: {exc}"
             return None
 
     def readiness(self, *, action_id: str | None = None) -> ComputerUseObservation:
-        if self._client is None:
-            return ComputerUseObservation(
-                action_id=action_id,
-                success=False,
-                operation="readiness",
-                status="not_available",
-                summary="macOS computer-use package is not available.",
-                metadata={"error": self._import_error or "package import failed"},
-            )
-        try:
-            readiness = self._client.readiness()
-        except Exception as exc:  # noqa: BLE001 - sanitize package boundary.
-            return ComputerUseObservation(
-                action_id=action_id,
-                success=False,
-                operation="readiness",
-                status="failed",
-                summary=f"macOS computer-use readiness failed: {type(exc).__name__}",
-                metadata={"error": str(exc)},
-            )
-        readiness_status = _enum_value(getattr(readiness, "status", "error"))
-        status = _map_readiness_status(readiness_status)
-        setup_hint = getattr(readiness, "setup_hint", None)
-        summary = f"macOS computer-use readiness: {readiness_status}."
-        if setup_hint:
-            summary = f"{summary} {setup_hint}"
-        readiness_payload = _to_dict(readiness)
-        metadata: dict[str, Any] = {
-            "readiness": readiness_payload,
-            "diagnostics": _readiness_diagnostics(readiness_payload, self._client),
+        action_kwargs: dict[str, object] = {
+            "operation": "readiness",
+            "instruction": "Check macOS app-control readiness.",
         }
-        if status != "ok":
-            metadata["failure_kind"] = readiness_status
-        return ComputerUseObservation(
-            action_id=action_id,
-            success=status == "ok",
-            operation="readiness",
-            status=status,
-            summary=summary,
-            metadata=metadata,
+        if action_id is not None:
+            action_kwargs["event_id"] = action_id
+        return self.execute(
+            ComputerUseAction.model_validate(action_kwargs)
         )
 
     def execute(self, action: ComputerUseAction) -> ComputerUseObservation:
-        if action.operation == "readiness":
-            return self.readiness(action_id=action.event_id)
+        started_at = time.monotonic()
         if self._client is None:
-            return ComputerUseObservation(
+            observation = ComputerUseObservation(
                 action_id=action.event_id,
                 success=False,
                 operation=action.operation,
                 status="not_available",
                 summary="macOS computer-use package is not available.",
-                metadata={"error": self._import_error or "package import failed"},
+                metadata={"error": self._import_error or "package client creation failed"},
             )
+            _emit_computer_use_log(
+                action=action,
+                observation=observation,
+                started_at=started_at,
+                backend=self._config.backend,
+                package_events=(),
+            )
+            return observation
+        command = _action_to_command(action, max_text_chars=self._config.max_text_chars)
+        observer = RecordingToolObserver()
         try:
-            result = self._execute_with_client(action)
+            result = self._client.run_command(command, observer=observer)
         except Exception as exc:  # noqa: BLE001 - sanitize package boundary.
-            return ComputerUseObservation(
+            observation = ComputerUseObservation(
                 action_id=action.event_id,
                 success=False,
                 operation=action.operation,
                 status="failed",
                 summary=f"macOS computer-use operation failed: {type(exc).__name__}",
-                metadata={"error": str(exc)},
+                metadata={
+                    "error": str(exc),
+                    "adapterProcessExecutable": sys.executable,
+                    "tool_events": _tool_event_summaries(observer.events),
+                },
             )
-        return _result_to_observation(action, result)
-
-    def _execute_with_client(self, action: ComputerUseAction) -> Any:
-        assert self._client is not None
-        if action.operation == "open_app":
-            assert action.target is not None
-            return self._client.open_app(action.target, timeout=action.timeout_seconds)
-        if action.operation == "observe":
-            return self._client.observe(
-                target_app=_target_app(action),
-                timeout=action.timeout_seconds,
+            _emit_computer_use_log(
+                action=action,
+                observation=observation,
+                started_at=started_at,
+                backend=self._config.backend,
+                package_events=observer.events,
             )
-        if action.operation == "type_text":
-            assert action.text is not None
-            return self._client.type_text(
-                action.text,
-                target_app=_target_app(action),
-                timeout=action.timeout_seconds,
-            )
-        if action.operation == "click":
-            assert action.target is not None
-            return self._client.click(
-                action.target,
-                target_app=_target_app(action),
-                snapshot_id=_string_metadata(action, "snapshot_id"),
-                timeout=action.timeout_seconds,
-                confirmed=_bool_metadata(action, "confirmed_by_user"),
-                role_hints=_tuple_metadata(
-                    action,
-                    "role_hints",
-                    default=("AXButton",),
-                ),
-                aliases=_tuple_metadata(action, "aliases"),
-                max_nodes=_int_metadata(action, "max_nodes", default=200),
-                max_depth=_int_metadata(action, "max_depth", default=6),
-                lookup_timeout=_float_metadata(action, "lookup_timeout"),
-                click_timeout=_float_metadata(action, "click_timeout"),
-                post_click_observe=_bool_metadata(
-                    action,
-                    "post_click_observe",
-                    default=True,
-                ),
-            )
-        if action.operation == "press_key":
-            return self._client.press_key(
-                action.keys,
-                target_app=_target_app(action),
-                timeout=action.timeout_seconds,
-            )
-        if action.operation == "wait":
-            return self._client.wait(seconds=action.timeout_seconds)
-        return _UnsupportedResult(
-            status="not_available",
+            return observation
+        observation = app_control_observation_to_computer_use(
+            result,
+            action_id=action.event_id,
             operation=action.operation,
-            summary=f"macOS computer-use package does not support {action.operation}.",
         )
+        observation.metadata.setdefault("diagnostics", _diagnostics(self._client))
+        observation.metadata["tool_events"] = _tool_event_summaries(observer.events)
+        _emit_computer_use_log(
+            action=action,
+            observation=observation,
+            started_at=started_at,
+            backend=self._config.backend,
+            package_events=observer.events,
+        )
+        return observation
+
+
+def _action_to_command(action: ComputerUseAction, *, max_text_chars: int) -> ToolCommand:
+    timeout_ms = max(1, int(action.timeout_seconds * 1000))
+    metadata = _command_metadata(action)
+    command_id = action.event_id
+    bundle_id = _string_metadata(action, "bundle_id")
+    target_app = _target_app(action)
+    if action.operation == "readiness":
+        return readiness_command(
+            command_id=command_id,
+            timeout_ms=timeout_ms,
+            metadata=metadata,
+        )
+    if action.operation == "open_app":
+        assert action.target is not None
+        return open_app_command(
+            action.target,
+            bundle_id=bundle_id,
+            command_id=command_id,
+            timeout_ms=timeout_ms,
+            metadata=metadata,
+        )
+    if action.operation == "observe":
+        return observe_command(
+            target_app=target_app,
+            bundle_id=bundle_id,
+            include_visible_text=_bool_metadata(action, "include_visible_text"),
+            command_id=command_id,
+            timeout_ms=timeout_ms,
+            metadata=metadata,
+        )
+    if action.operation == "type_text":
+        assert action.text is not None
+        return type_text_command(
+            action.text[:max_text_chars],
+            target_app=target_app,
+            bundle_id=bundle_id,
+            command_id=command_id,
+            timeout_ms=timeout_ms,
+            metadata=metadata,
+        )
+    if action.operation == "click":
+        return click_command(
+            action.target,
+            target_app=target_app,
+            bundle_id=bundle_id,
+            selector=_dict_metadata(action, "selector"),
+            coordinates=_coordinates(action),
+            snapshot_id=_string_metadata(action, "snapshot_id"),
+            command_id=command_id,
+            timeout_ms=timeout_ms,
+            metadata=metadata,
+        )
+    if action.operation == "press_key":
+        if len(action.keys) > 1:
+            return hotkey_command(
+                action.keys,
+                target_app=target_app,
+                bundle_id=bundle_id,
+                command_id=command_id,
+                timeout_ms=timeout_ms,
+                metadata=metadata,
+            )
+        return press_key_command(
+            action.keys[0],
+            target_app=target_app,
+            bundle_id=bundle_id,
+            command_id=command_id,
+            timeout_ms=timeout_ms,
+            metadata=metadata,
+        )
+    if action.operation == "wait":
+        return wait_command(
+            seconds=action.timeout_seconds,
+            command_id=command_id,
+            timeout_ms=timeout_ms,
+            metadata=metadata,
+        )
+    raise ValueError(f"unsupported computer-use operation: {action.operation}")
+
+
+def _command_metadata(action: ComputerUseAction) -> dict[str, JsonValue]:
+    metadata: dict[str, JsonValue] = {
+        "platoActionId": action.event_id,
+        "platoOperation": action.operation,
+    }
+    for key, value in action.metadata.items():
+        if key in {
+            "target_app",
+            "bundle_id",
+            "selector",
+            "snapshot_id",
+            "include_visible_text",
+        }:
+            continue
+        metadata[key] = to_json_value(value)
+    return metadata
 
 
 def _target_app(action: ComputerUseAction) -> str | None:
@@ -251,143 +290,130 @@ def _string_metadata(action: ComputerUseAction, key: str) -> str | None:
     return value if isinstance(value, str) and value else None
 
 
-def _bool_metadata(
-    action: ComputerUseAction,
-    key: str,
-    *,
-    default: bool = False,
-) -> bool:
+def _bool_metadata(action: ComputerUseAction, key: str) -> bool | None:
     value = action.metadata.get(key)
-    return value if isinstance(value, bool) else default
+    return value if isinstance(value, bool) else None
 
 
-def _tuple_metadata(
-    action: ComputerUseAction,
-    key: str,
-    *,
-    default: tuple[str, ...] = (),
-) -> tuple[str, ...]:
+def _dict_metadata(action: ComputerUseAction, key: str) -> dict[str, JsonValue] | None:
     value = action.metadata.get(key)
-    if not isinstance(value, list | tuple):
-        return default
-    values = tuple(item.strip() for item in value if isinstance(item, str) and item.strip())
-    return values or default
+    if not isinstance(value, dict):
+        return None
+    return {str(item_key): to_json_value(item_value) for item_key, item_value in value.items()}
 
 
-def _int_metadata(
-    action: ComputerUseAction,
-    key: str,
-    *,
-    default: int,
-) -> int:
-    value = action.metadata.get(key)
-    if isinstance(value, int):
-        return value
-    return default
+def _coordinates(action: ComputerUseAction) -> tuple[int, int] | None:
+    if action.x is None or action.y is None:
+        return None
+    return (action.x, action.y)
 
 
-def _float_metadata(action: ComputerUseAction, key: str) -> float | None:
-    value = action.metadata.get(key)
-    if isinstance(value, int | float):
-        return float(value)
-    return None
-
-
-def _enum_value(value: Any) -> str:
-    enum_value = getattr(value, "value", value)
-    return enum_value if isinstance(enum_value, str) else str(enum_value)
-
-
-def _to_dict(value: Any) -> dict[str, Any]:
-    if value is None:
-        return {}
-    if hasattr(value, "to_dict"):
-        raw = value.to_dict()
-        if isinstance(raw, dict):
-            return raw
-    if isinstance(value, dict):
-        return value
-    return {"value": str(value)}
-
-
-def _readiness_diagnostics(
-    readiness: dict[str, Any],
-    client: MacOSComputerUseClientProtocol | None,
-) -> dict[str, str]:
-    diagnostics: dict[str, str] = {}
-    raw_diagnostics = readiness.get("diagnostics")
-    if isinstance(raw_diagnostics, dict):
-        for key, value in raw_diagnostics.items():
-            if isinstance(key, str) and isinstance(value, str) and value:
-                diagnostics[key] = value[:500]
-    diagnostics.setdefault("checkedByProcessPath", sys.executable)
-    diagnostics["adapterProcessExecutable"] = sys.executable
+def _diagnostics(client: AppControlClient | MacOSComputerUseClientProtocol) -> dict[str, str]:
+    diagnostics = {
+        "checkedByProcessPath": sys.executable,
+        "adapterProcessExecutable": sys.executable,
+        "packageClientClass": (
+            f"{client.__class__.__module__}.{client.__class__.__qualname__}"
+        )[:500],
+    }
     if sys.argv:
         diagnostics["adapterArgv0"] = sys.argv[0][:500]
-    if client is not None:
-        diagnostics["packageClientClass"] = (
-            f"{client.__class__.__module__}.{client.__class__.__qualname__}"
-        )[:500]
     return diagnostics
 
 
-def _map_readiness_status(readiness_status: str) -> ComputerUseStatus:
-    if readiness_status == "ready":
-        return "ok"
-    if readiness_status == "needs_manual_setup":
-        return "needs_user"
-    if readiness_status == "error":
-        return "failed"
-    return "not_available"
-
-
-def _map_result_status(status: str) -> ComputerUseStatus:
-    if status == "ok":
-        return "ok"
-    if status == "blocked":
-        return "blocked"
-    if status == "needs_user":
-        return "needs_user"
-    if status == "not_available":
-        return "not_available"
-    if status == "failed":
-        return "failed"
-    return "failed"
-
-
-def _result_to_observation(
+def _emit_computer_use_log(
+    *,
     action: ComputerUseAction,
-    result: Any,
-) -> ComputerUseObservation:
-    status = _map_result_status(_enum_value(getattr(result, "status", "failed")))
-    metadata = _to_dict(getattr(result, "metadata", {}))
-    metadata["package_status"] = _enum_value(getattr(result, "status", "failed"))
-    metadata["package_operation"] = _enum_value(
-        getattr(result, "operation", action.operation)
-    )
-    snapshot_id = getattr(result, "snapshot_id", None)
-    if isinstance(snapshot_id, str) and snapshot_id:
-        metadata["snapshot_id"] = snapshot_id
-    risk = getattr(result, "risk", None)
-    if risk is not None:
-        metadata["risk"] = _to_dict(risk)
-    return ComputerUseObservation(
-        action_id=action.event_id,
-        success=status == "ok",
+    observation: ComputerUseObservation,
+    started_at: float,
+    backend: str,
+    package_events: tuple[dict[str, Any], ...] | list[dict[str, Any]],
+) -> None:
+    emit_computer_use_api(
+        session_id=_metadata_string(action.metadata, "sessionId", "session_id"),
+        task_id=_metadata_string(action.metadata, "taskId", "task_id"),
+        execution_id=_metadata_string(action.metadata, "executionId", "execution_id"),
+        workspace_id=_metadata_string(action.metadata, "workspaceId", "workspace_id"),
         operation=action.operation,
-        status=status,
-        summary=str(getattr(result, "summary", "macOS computer-use operation result.")),
-        text_extract=getattr(result, "text_extract", None),
-        metadata=metadata,
+        phase="command.observe",
+        status=observation.status,
+        success=observation.success,
+        safe_summary=(
+            f"macOS computer-use {action.operation} completed with status "
+            f"{observation.status}."
+        ),
+        backend=backend,
+        request_id=action.event_id,
+        duration_ms=monotonic_ms(started_at),
+        timeout_seconds=action.timeout_seconds,
+        failure_kind=_metadata_string(observation.metadata, "failure_kind"),
+        error_message=_metadata_string(observation.metadata, "message")
+        or _metadata_string(observation.metadata, "error"),
+        recovery_hint=_metadata_string(observation.metadata, "recovery_hint"),
+        click_attempted=_bool_nested_metadata(observation.metadata, "evidence", "clickAttempted"),
+        idempotency_key=_metadata_string(action.metadata, "idempotencyKey", "idempotency_key"),
+        message_text=action.text,
+        message_chars=len(action.text) if action.text is not None else None,
+        metadata={
+            "packageEventCount": len(package_events),
+            "packageEvents": _tool_event_summaries(package_events),
+            "protocol": observation.metadata.get("protocol", {}),
+            "diagnostics": observation.metadata.get("diagnostics", {}),
+        },
     )
 
 
-@dataclass(frozen=True)
-class _UnsupportedResult:
-    status: ComputerUseStatus
-    operation: str
-    summary: str
-    metadata: dict[str, Any] | None = None
+def _metadata_string(metadata: dict[str, Any], *keys: str) -> str | None:
+    for key in keys:
+        value = metadata.get(key)
+        if isinstance(value, str) and value:
+            return value
+    return None
+
+
+def _bool_nested_metadata(
+    metadata: dict[str, Any],
+    parent_key: str,
+    child_key: str,
+) -> bool | None:
+    parent = metadata.get(parent_key)
+    if not isinstance(parent, dict):
+        return None
+    value = parent.get(child_key)
+    return value if isinstance(value, bool) else None
+
+
+def _tool_event_summaries(
+    events: tuple[dict[str, Any], ...] | list[dict[str, Any]],
+    *,
+    limit: int = 20,
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for event in events[:limit]:
+        data = event.get("data")
+        rows.append(
+            {
+                "schema": event.get("schema"),
+                "commandId": event.get("commandId"),
+                "seq": event.get("seq"),
+                "type": event.get("type"),
+                "phase": event.get("phase"),
+                "status": event.get("status"),
+                "summary": _bounded_string(event.get("summary")),
+                "dataKeys": sorted(str(key) for key in data) if isinstance(data, dict) else [],
+            }
+        )
+    if len(events) > limit:
+        rows.append({"truncated": len(events) - limit})
+    return rows
+
+
+def _bounded_string(value: object, *, limit: int = 240) -> str | None:
+    if not isinstance(value, str) or not value:
+        return None
+    if len(value) <= limit:
+        return value
+    return f"{value[: limit - 1]}..."
 
 
 __all__ = [

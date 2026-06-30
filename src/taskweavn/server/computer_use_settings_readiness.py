@@ -239,8 +239,8 @@ def _permission_subject(metadata: Mapping[str, Any]) -> dict[str, Any]:
     if operator_target:
         subject["operatorInstruction"] = (
             "Grant or refresh macOS Accessibility and Automation permissions "
-            f"for {operator_target}, restart the helper, then rerun helper "
-            "readiness before publishing a computer-use task."
+            f"for {operator_target}, restart the helper, then recheck local "
+            "computer-use readiness before publishing a computer-use task."
         )
     return {
         key: value

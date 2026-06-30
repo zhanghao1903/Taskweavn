@@ -69,7 +69,10 @@ def _parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
     parser.add_argument(
         "--computer-use-helper-app-path",
         default=os.environ.get("PLATO_COMPUTER_USE_HELPER_APP_PATH"),
-        help="Path to Plato Computer Use Helper.app for opt-in auto-launch.",
+        help=(
+            "Path to the app-control helper .app provided by the computer-use "
+            "backend for opt-in auto-launch."
+        ),
     )
     parser.add_argument(
         "--computer-use-helper-auto-launch",
@@ -152,6 +155,7 @@ def _serve(args: argparse.Namespace) -> int:
         ),
         MainPageSidecarDependencies(
             computer_use_backend=computer_use_runtime.backend,
+            app_control_config=computer_use_runtime.app_control_config,
         ),
     )
     try:

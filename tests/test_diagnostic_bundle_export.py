@@ -97,6 +97,8 @@ def test_diagnostic_bundle_export_writes_redacted_manifest_and_sections(
     assert "secret-value" not in bundle_text
     assert "raw prompt should not ship" not in bundle_text
     assert "不要发送到诊断包" not in bundle_text
+    assert "helper-token-should-not-ship" not in bundle_text
+    assert "微信日志原文不要进诊断包" not in bundle_text
     assert str(layout.root) not in bundle_text
     assert "workspace://current" in bundle_text
     assert "<redacted>" in bundle_text
@@ -112,6 +114,8 @@ def test_diagnostic_bundle_export_writes_redacted_manifest_and_sections(
     assert {
         "runtime_input_router_proposal",
         "runtime_input_router_validation",
+        "runtime_action",
+        "computer_use_api",
     } <= runtime_events
     proposal_row = next(
         row
@@ -129,6 +133,16 @@ def test_diagnostic_bundle_export_writes_redacted_manifest_and_sections(
     ]
     assert proposal_row["dataSummary"]["confidence"] == "high"
     assert validation_row["dataSummary"]["status"] == "accepted"
+    computer_use_row = next(
+        row for row in runtime_log_rows if row["event"] == "computer_use_api"
+    )
+    assert computer_use_row["dataSummary"]["schema"] == (
+        "plato.runtime_observability.v1"
+    )
+    assert computer_use_row["dataSummary"]["messageHash"].startswith("sha256:")
+    assert computer_use_row["dataSummary"]["messageChars"] == 12
+    assert computer_use_row["dataSummary"]["failureKind"] == "contact_not_found"
+    assert computer_use_row["dataSummary"]["redaction"]["helperToken"] == "<redacted>"
 
     tasks = json.loads((result.bundle_dir / "session/tasks.json").read_text(encoding="utf-8"))
     assert tasks["tasks"][0]["taskId"] == "task-1"
@@ -674,6 +688,67 @@ def _write_logs(layout: WorkspaceLayout, session: Session) -> None:
                             "request_id": "route-1",
                             "status": "accepted",
                             "reason": "proposal validated",
+                        },
+                    }
+                ),
+                json.dumps(
+                    {
+                        "ts": NOW.isoformat(),
+                        "level": "DEBUG",
+                        "category": "runtime",
+                        "event": "runtime_action",
+                        "message": "WeChat desktop tool started focus_contact",
+                        "context": {"session_id": session.id, "task_id": "task-1"},
+                        "data": {
+                            "schema": "plato.runtime_observability.v1",
+                            "recordType": "runtime_action",
+                            "taskType": "communication.wechat.send_message",
+                            "runtime": "wechat_desktop_tool",
+                            "envId": "local_macos_app_control",
+                            "requiredCapability": "communication.wechat_desktop_send",
+                            "phase": "command.dispatch",
+                            "operation": "focus_contact",
+                            "status": "started",
+                            "success": True,
+                            "safeSummary": "Focus contact before drafting.",
+                            "messageHash": "sha256:abc123",
+                            "messageChars": 12,
+                            "redaction": {"message": "hash_and_length_only"},
+                        },
+                    }
+                ),
+                json.dumps(
+                    {
+                        "ts": NOW.isoformat(),
+                        "level": "ERROR",
+                        "category": "runtime",
+                        "event": "computer_use_api",
+                        "message": "WeChat contact could not be resolved",
+                        "context": {"session_id": session.id, "task_id": "task-1"},
+                        "data": {
+                            "schema": "plato.runtime_observability.v1",
+                            "recordType": "computer_use_api",
+                            "backend": "helper",
+                            "operation": "wechat.draft_message",
+                            "phase": "resolve_contact",
+                            "status": "failed",
+                            "success": False,
+                            "safeSummary": "WeChat contact could not be resolved.",
+                            "failureKind": "contact_not_found",
+                            "messageHash": "sha256:def456",
+                            "messageChars": 12,
+                            "contactDisplayName": "文件传输助手",
+                            "helperToken": "helper-token-should-not-ship",
+                            "metadata": {
+                                "stderr": "safe excerpt only",
+                                "messageBody": "微信日志原文不要进诊断包",
+                            },
+                            "redaction": {
+                                "helperToken": "not_logged",
+                                "rawRequestBody": "not_logged",
+                                "rawResponseBody": "not_logged",
+                                "message": "hash_and_length_only",
+                            },
                         },
                     }
                 ),

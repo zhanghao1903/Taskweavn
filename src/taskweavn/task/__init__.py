@@ -194,12 +194,12 @@ from taskweavn.task.pipeline import (
     PipelineTaskLoader,
     PipelineTaskSpec,
 )
-from taskweavn.task.plan_from_draft import build_plan_from_draft_tree
 from taskweavn.task.plan_commands import (
     ARCHIVEABLE_PLAN_STATUSES,
     DefaultPlanLifecycleCommandService,
     PlanLifecycleCommandService,
 )
+from taskweavn.task.plan_from_draft import build_plan_from_draft_tree
 from taskweavn.task.plan_lifecycle import PlanTaskNodeLifecycleSync
 from taskweavn.task.plan_models import (
     Plan,

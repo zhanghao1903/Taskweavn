@@ -1,7 +1,7 @@
 # UI Natural-Language WeChat Send Task Technical Design
 
 状态：completed
-最后更新：2026-06-24
+最后更新：2026-06-28
 
 ## 0. 当前实现状态
 
@@ -14,8 +14,9 @@
 - Runtime Input Router 在 LLM planner 前优先处理确定性 WeChat send。
 - Router 在存在 Execution Plane service 时发布
   `communication.wechat.send_message` `TaskRequest`。
-- Router 在没有 Execution Plane service 时可回退为创建 contract-revision
-  execution TaskNode。
+- Router 在没有 Execution Plane service 或 TaskRequest publish 失败时
+  fail closed：返回结构化 Router reply / recovery note，不创建普通
+  contract-revision execution TaskNode。
 - workspace-scoped HTTP runtime-input route 已覆盖 Main Page API 路径到
   Execution Plane WeChat TaskRequest 的 handoff。
 - fake runtime integration 已覆盖自然语言 route 后的 reject/no-send 与
@@ -110,13 +111,20 @@ Main Page ContextInputBar
   -> WeChatSendIntentResolver
   -> WeChatSendTaskRequestBuilder
   -> TaskApiService / EmbeddedExecutionPlaneService
-  -> WeChatSendRuntimeHandler
-  -> Confirmation lifecycle
+  -> TaskBus
+  -> Agent loop
+  -> package-backed wechat_desktop / computer_use tools
+  -> Confirmation lifecycle when policy requires final submit authorization
   -> Result/Error/Evidence stores
   -> MainPageSnapshot projection
 ```
 
-Router 不直接调用 computer-use tool。Router 只负责分类、提取 slot、创建结构化 execution request。真正执行仍由 Execution Plane 和 WeChat runtime 承担。
+Router 不直接调用 computer-use tool。Router 只负责分类、提取 slot、创建结构化 execution request。真正执行由 TaskBus、Agent loop、runtime skill，以及 package-backed `wechat_desktop` / `computer_use` tools 承担。
+
+WeChat send 不能降级成普通 `general` TaskNode。只要 Router proposal /
+dispatch 含 `taskType=communication.wechat.send_message`，就必须进入
+Execution Plane TaskRequest publish 边界；如果该边界不可用或 publish 被拒绝，
+Router 必须返回 rejected outcome，并且不创建 Plan/TaskBus/contract task。
 
 ## 4. 支持的首批输入模式
 

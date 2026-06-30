@@ -28,6 +28,7 @@
     "outcome": {
       "status": "unsupported",
       "userMessage": "Answer-only workspace inquiry is not available yet. No product or workspace state changed.",
+      "pendingClarification": null,
       "recoveryActions": [
         "edit_input"
       ]

@@ -180,6 +180,15 @@ wheels = [
 ]
 
 [[package]]
+name = "app-control-protocol"
+version = "0.1.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/68/88/f0ce3c1909496ba3eb9f80bb9b97fefff0be1f8e9a91ce4e164bd04fab02/app_control_protocol-0.1.0.tar.gz", hash = "sha256:126cf74b101023aa94b700522bcfa7b9f0752db627963133546ea54e7ef0850a", size = 26215, upload-time = "2026-06-29T13:08:56.172Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/78/8a/fd406abbd25b2e0bf13f961892a42f3db3612169ec7db00edd7c4153d994/app_control_protocol-0.1.0-py3-none-any.whl", hash = "sha256:d483da3361d06fbc73029d24221f3711ec2d998bb5ddce1c55fde743e89ec76d", size = 25861, upload-time = "2026-06-29T13:08:53.982Z" },
+]
+
+[[package]]
 name = "attrs"
 version = "26.1.0"
 source = { registry = "https://pypi.org/simple" }
@@ -417,6 +426,18 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/d8/53/6f443c9a4a8358a93a6792e2acffb9d9d5cb0a5cfd8802644b7b1c9a02e4/colorama-0.4.6.tar.gz", hash = "sha256:08695f5cb7ed6e0531a20572697297273c47b8cae5a63ffc6d6ed5c201be6e44", size = 27697, upload-time = "2022-10-25T02:36:22.414Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/d1/d6/3965ed04c63042e047cb6a3e6ed1a63a35087b6a609aa3a15ed8ac56c221/colorama-0.4.6-py2.py3-none-any.whl", hash = "sha256:4f1d9991f5acc0ca119f9d443620b77f9d6b33703e51011c16baf57afb285fc6", size = 25335, upload-time = "2022-10-25T02:36:20.889Z" },
+]
+
+[[package]]
+name = "computer-use-macos"
+version = "0.1.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "app-control-protocol" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/3d/82/1b3d9c52ccb2d096ceb7c8f5471631300f885c8634b4d1ab85f0088fd4bf/computer_use_macos-0.1.0.tar.gz", hash = "sha256:fc20b3e6cf0f0eb7154941bf1ac5abafb5d6ead5956de2cb18ad1c6e92602de0", size = 60484, upload-time = "2026-06-29T13:09:09.993Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/f9/a0/09c0326b5229dfef9bc11b84be2a643e8ea9549bebbce85aaeb7eba2a826/computer_use_macos-0.1.0-py3-none-any.whl", hash = "sha256:01524334be720c762ca0e250af472dea4d9d87c215fd2b6619e481d15253cd0d", size = 56369, upload-time = "2026-06-29T13:09:07.512Z" },
 ]
 
 [[package]]
@@ -2947,6 +2968,8 @@ name = "taskweavn"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "app-control-protocol" },
+    { name = "computer-use-macos", marker = "sys_platform == 'darwin'" },
     { name = "docker" },
     { name = "openai" },
     { name = "openhands-sdk" },
@@ -2955,6 +2978,7 @@ dependencies = [
     { name = "pyyaml" },
     { name = "typer", version = "0.23.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.15'" },
     { name = "typer", version = "0.25.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.15'" },
+    { name = "wechat-desktop-tool" },
 ]
 
 [package.dev-dependencies]
@@ -2970,12 +2994,15 @@ packaging = [
 
 [package.metadata]
 requires-dist = [
+    { name = "app-control-protocol", specifier = ">=0.1.0,<0.2.0" },
+    { name = "computer-use-macos", marker = "sys_platform == 'darwin'", specifier = ">=0.1.0,<0.2.0" },
     { name = "docker", specifier = ">=7.0.0" },
     { name = "openai", specifier = ">=2.0.0" },
     { name = "openhands-sdk", specifier = ">=1.19.0" },
     { name = "pydantic", specifier = ">=2.10" },
     { name = "pyyaml", specifier = ">=6.0" },
     { name = "typer", specifier = ">=0.12.0" },
+    { name = "wechat-desktop-tool", specifier = ">=0.1.0,<0.2.0" },
 ]
 
 [package.metadata.requires-dev]
@@ -3284,6 +3311,18 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/c2/b6/b9afed2afadddaf5ebb2afa801abf4b0868f42f8539bfe4b071b5266c9fe/websockets-16.0-cp314-cp314t-win32.whl", hash = "sha256:5a4b4cc550cb665dd8a47f868c8d04c8230f857363ad3c9caf7a0c3bf8c61ca6", size = 178085, upload-time = "2026-01-10T09:23:33.816Z" },
     { url = "https://files.pythonhosted.org/packages/9f/3e/28135a24e384493fa804216b79a6a6759a38cc4ff59118787b9fb693df93/websockets-16.0-cp314-cp314t-win_amd64.whl", hash = "sha256:b14dc141ed6d2dde437cddb216004bcac6a1df0935d79656387bd41632ba0bbd", size = 178531, upload-time = "2026-01-10T09:23:35.016Z" },
     { url = "https://files.pythonhosted.org/packages/6f/28/258ebab549c2bf3e64d2b0217b973467394a9cea8c42f70418ca2c5d0d2e/websockets-16.0-py3-none-any.whl", hash = "sha256:1637db62fad1dc833276dded54215f2c7fa46912301a24bd94d45d46a011ceec", size = 171598, upload-time = "2026-01-10T09:23:45.395Z" },
+]
+
+[[package]]
+name = "wechat-desktop-tool"
+version = "0.1.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "app-control-protocol" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/f9/0d/63d53b933082840086a01b4f90eb9614ec57e9bc04de7936f633c9ab3f00/wechat_desktop_tool-0.1.0.tar.gz", hash = "sha256:f7b39931771edc49ab8537d742d2e532b18dc90a289d761511bb4bbb104803e1", size = 27637, upload-time = "2026-06-29T13:09:24.373Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/00/71/963303c440a51fc5bc515f4df420e9054600ebacbf44b2a68c1f11415f9a/wechat_desktop_tool-0.1.0-py3-none-any.whl", hash = "sha256:f0687cdc62b5eedc22ec84337ae21922dea40db2501d92f30f3ce1842e983998", size = 21918, upload-time = "2026-06-29T13:09:22.647Z" },
 ]
 
 [[package]]

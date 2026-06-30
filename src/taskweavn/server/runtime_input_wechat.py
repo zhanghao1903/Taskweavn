@@ -13,9 +13,7 @@ from taskweavn.execution_plane.models import (
     TaskRequest,
     TaskRequester,
 )
-
-WECHAT_SEND_TASK_TYPE = "communication.wechat.send_message"
-WECHAT_SEND_CAPABILITY = "communication.wechat_desktop_send"
+from taskweavn.wechat_task_types import WECHAT_SEND_CAPABILITY, WECHAT_SEND_TASK_TYPE
 
 WeChatSendResolutionStatus = Literal["ready"]
 
@@ -29,7 +27,7 @@ class WeChatSendResolution:
     message_text: str | None = None
 
 
-def wechat_send_execution_payload(resolution: WeChatSendResolution) -> dict[str, object]:
+def wechat_send_task_payload(resolution: WeChatSendResolution) -> dict[str, object]:
     if resolution.status != "ready":
         raise ValueError("WeChat send execution payload requires ready resolution")
     assert resolution.contact_display_name is not None
@@ -125,6 +123,6 @@ __all__ = [
     "WECHAT_SEND_CAPABILITY",
     "WECHAT_SEND_TASK_TYPE",
     "WeChatSendResolution",
-    "wechat_send_execution_payload",
+    "wechat_send_task_payload",
     "wechat_send_task_request",
 ]

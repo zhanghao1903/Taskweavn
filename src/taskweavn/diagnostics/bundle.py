@@ -72,14 +72,20 @@ _ABSOLUTE_PATH_VALUE = "<redacted:absolute_path>"
 _SAFE_ID_RE = re.compile(r"[^A-Za-z0-9_.:-]+")
 _KEY_NORMALIZE_RE = re.compile(r"[^a-z0-9]+")
 _OMIT_EXACT_KEYS = {
+    "accessibilitytree",
+    "clipboard",
     "content",
     "developerprompt",
     "input",
+    "messagebody",
     "messages",
     "prompt",
     "raw",
+    "rawrequestbody",
+    "rawresponsebody",
     "request",
     "response",
+    "screenshot",
     "stack",
     "stacktrace",
     "systemprompt",

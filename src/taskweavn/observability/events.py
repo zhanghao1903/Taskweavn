@@ -22,6 +22,9 @@ LOG_EVENTS_BY_CATEGORY: dict[LogCategory, tuple[str, ...]] = {
     "agent": (),
     "session": (),
     "runtime": (
+        "computer_use_api",
+        "runtime_action",
+        "runtime_observation",
         "runtime_input_router_config",
         "runtime_input_router_dispatch",
         "runtime_input_router_fallback",

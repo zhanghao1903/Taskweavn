@@ -153,6 +153,6 @@ function isActionableRecoveryAction(action: ProductRecoveryAction): boolean {
     action === "open_macos_privacy_accessibility" ||
     action === "open_macos_privacy_automation" ||
     action === "restart_helper" ||
-    action === "rerun_helper_preflight"
+    action === "rerun_readiness_check"
   );
 }

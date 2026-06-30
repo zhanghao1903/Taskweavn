@@ -21,6 +21,7 @@ from taskweavn.server.read_only_inquiry import (
 )
 from taskweavn.server.runtime_input_activity import RuntimeInputActivityPublisher
 from taskweavn.server.runtime_input_llm_router import (
+    RouterTaskRequestDraft,
     RuntimeInputRoutePlanner,
     RuntimeInputRouteProposal,
 )
@@ -31,9 +32,11 @@ from taskweavn.server.runtime_input_router_planner_dispatch import (
     PlannerDispatchHandlers,
     route_planner_result,
 )
+from taskweavn.server.runtime_input_router_task_drafts import (
+    wechat_resolution_from_task_request_draft,
+)
 from taskweavn.server.runtime_input_wechat import (
     WeChatSendResolution,
-    wechat_send_execution_payload,
     wechat_send_task_request,
 )
 from taskweavn.server.ui_contract.commands import (
@@ -123,6 +126,13 @@ class DefaultRuntimeInputRouter:
         if request.mode == "guide":
             return self._record_guidance(request)
         if request.mode == "change":
+            planned = self._route_planner_result(
+                request,
+                active_ask=active_ask,
+                active_confirmation=active_confirmation,
+            )
+            if planned is not None:
+                return planned
             return self._create_execution_task(request)
 
         planned = self._route_planner_result(
@@ -213,7 +223,14 @@ class DefaultRuntimeInputRouter:
     def _create_execution_task(
         self,
         request: RuntimeInputRouteRequest,
+        task_request_draft: RouterTaskRequestDraft | None = None,
     ) -> QueryResponse[RuntimeInputRouteResult]:
+        if task_request_draft is not None:
+            wechat_resolution = wechat_resolution_from_task_request_draft(
+                task_request_draft
+            )
+            if wechat_resolution is not None:
+                return self._create_wechat_send_task_request(request, wechat_resolution)
         if self.contract_revision_service is None:
             return self._unsupported(
                 request,
@@ -247,7 +264,7 @@ class DefaultRuntimeInputRouter:
                 plan_id=plan_id,
                 source="runtime_input",
                 router_decision_id=decision.id,
-                payload={"intent": request.content},
+                payload=_execution_task_payload(request, task_request_draft),
             )
         )
         accepted = command_result.status in {"accepted", "noop"}
@@ -270,72 +287,47 @@ class DefaultRuntimeInputRouter:
             publish_activity=not accepted,
         )
 
-    def _create_wechat_send_execution_task(
+    def _create_wechat_send_task_request(
         self,
         request: RuntimeInputRouteRequest,
         resolution: WeChatSendResolution,
     ) -> QueryResponse[RuntimeInputRouteResult]:
         if self.execution_plane_service is not None:
-            return self._publish_wechat_send_execution_task(request, resolution)
-        if self.contract_revision_service is None:
-            return self._unsupported(
-                request,
-                intent="execution_request",
-                dispatch_target="execution_handoff",
-                side_effect="state_effect",
-                explanation="WeChat send handoff is unavailable without command service.",
-                user_message=(
-                    "微信发送任务需要通过执行任务创建流程处理。当前流程不可用，"
-                    "没有创建任务，也没有发送消息。"
-                ),
-            )
-        plan_id = request.selection.plan_id
-        scope_kind: Literal["plan", "session"] = "plan" if plan_id is not None else "session"
+            return self._publish_wechat_send_task_request(request, resolution)
         decision = self._decision(
             request,
             intent="execution_request",
             dispatch_target="execution_handoff",
-            side_effect="state_effect",
+            side_effect="execution_request",
             explanation=(
-                "Input created a bounded, confirmation-gated WeChat send execution task."
+                "Router recognized a bounded WeChat send request but no "
+                "Execution Plane service is available."
             ),
             related_refs=_selection_refs(request),
         )
-        command_result = self.contract_revision_service.execute(
-            ContractCommandRequest(
-                command_id=request.command_id,
-                idempotency_key=request.command_id,
-                command_kind="create_execution_task",
-                workspace_id=request.workspace_id or "current",
-                session_id=request.session_id,
-                scope_kind=scope_kind,
-                plan_id=plan_id,
-                source="runtime_input",
-                router_decision_id=decision.id,
-                payload=wechat_send_execution_payload(resolution),
-            )
+        outcome = RuntimeInputOutcome(
+            status="rejected",
+            user_message=(
+                "当前执行环境不支持微信发送能力。没有发送消息。\n"
+                "错误代码：execution_plane_unavailable\n"
+                "错误信息：Runtime Input Router 没有可用的 Execution Plane service，"
+                "不能创建 communication.wechat.send_message 任务。"
+            ),
+            recovery_actions=("open_settings", "retry_command"),
         )
-        accepted = command_result.status in {"accepted", "noop"}
         return self._result(
             request,
             decision,
-            RuntimeInputOutcome(
-                status="dispatched" if accepted else "rejected",
-                user_message=(
-                    "微信发送任务已创建；真正发送前仍需要用户确认。"
-                    if accepted
-                    else "微信发送任务未能创建。没有发送消息。"
-                ),
-                recovery_actions=() if accepted else ("edit_input",),
+            outcome,
+            activity=self._activity(
+                request,
+                decision,
+                outcome,
+                activity_kind="recovery_note",
             ),
-            activity=_activity_from_contract_result(request, decision, command_result)
-            if command_result.activity is not None
-            else None,
-            activity_kind="task_created" if accepted else "recovery_note",
-            publish_activity=not accepted,
         )
 
-    def _publish_wechat_send_execution_task(
+    def _publish_wechat_send_task_request(
         self,
         request: RuntimeInputRouteRequest,
         resolution: WeChatSendResolution,
@@ -382,6 +374,12 @@ class DefaultRuntimeInputRouter:
             )
 
         task_error = _wechat_execution_error(self.execution_plane_service, execution)
+        if self.execution_trigger_gateway is not None and execution.status == "pending":
+            self.execution_trigger_gateway.request_dispatch(
+                execution.session_id,
+                reason="publish_start_immediately",
+                request_id=execution.request_id,
+            )
         outcome = RuntimeInputOutcome(
             status="rejected" if execution.status == "failed" else "dispatched",
             user_message=_wechat_execution_user_message(execution, task_error),
@@ -875,7 +873,6 @@ class DefaultRuntimeInputRouter:
             ),
             record_guidance=self._record_guidance,
             create_execution_task=self._create_execution_task,
-            create_wechat_send_execution_task=self._create_wechat_send_execution_task,
             stop_selected_task=(
                 lambda request, proposal: self._stop_selected_task(
                     request,
@@ -1227,6 +1224,26 @@ def _selection_refs(
     if request.selection.task_node_id is not None:
         refs.append(_ref("task", request.selection.task_node_id, "Task"))
     return tuple(refs)
+
+
+def _execution_task_payload(
+    request: RuntimeInputRouteRequest,
+    task_request_draft: RouterTaskRequestDraft | None,
+) -> dict[str, object]:
+    if task_request_draft is None:
+        return {"intent": request.content}
+
+    payload: dict[str, object] = {
+        "intent": request.content,
+        "instructions": task_request_draft.instructions,
+        "required_capability": task_request_draft.policy.required_capability,
+        "constraints": (f"Task type: {task_request_draft.task_type}",),
+        "acceptance_criteria": ("Complete the requested execution handoff.",),
+    }
+    if task_request_draft.title is not None:
+        payload["title"] = task_request_draft.title
+        payload["summary"] = task_request_draft.title
+    return payload
 
 
 def _inquiry_refs(

@@ -26,6 +26,7 @@ from taskweavn.server.ui_contract.runtime_input import (
 )
 from taskweavn.server.ui_contract.view_models import SessionActivitySideEffect
 from taskweavn.skills.registry import SkillRegistry, SkillRegistryConfig, SkillRootConfig
+from taskweavn.wechat_task_types import WECHAT_SEND_CAPABILITY, WECHAT_SEND_TASK_TYPE
 
 RouterPlannerStatus = Literal["planned", "unavailable", "invalid"]
 RouterCommandKind = Literal[
@@ -41,8 +42,8 @@ RouterCommandKind = Literal[
 RouterTaskRiskLevel = Literal["low", "medium", "high"]
 RouterConfirmationResolution = Literal["confirmed", "rejected"]
 RouterReadOnlyContextKind = Literal["session_summary", "task_detail", "file", "diff"]
-_WECHAT_SEND_TASK_TYPE = "communication.wechat.send_message"
-_WECHAT_SEND_CAPABILITY = "communication.wechat_desktop_send"
+_WECHAT_SEND_TASK_TYPE = WECHAT_SEND_TASK_TYPE
+_WECHAT_SEND_CAPABILITY = WECHAT_SEND_CAPABILITY
 _RUNTIME_SKILLS_ROOT = Path(__file__).resolve().parents[1] / "runtime_skills"
 _ENABLED_COMMAND_DRAFT_KINDS = {"stop_task", "retry_task"}
 _WECHAT_BULK_MARKERS = ("、", "，", ",", "和", "及", "以及")
@@ -430,19 +431,19 @@ def _parse_and_validate_proposal(
         )
         return RouterPlannerResult(status="invalid", warning=warning)
     _log_router_proposal(proposal, context=context)
-    warning = validate_route_proposal(
+    proposal_warning = validate_route_proposal(
         proposal,
         allowed_dispatch_targets=allowed_dispatch_targets,
         active_ask=active_ask,
         active_confirmation=active_confirmation,
     )
-    if warning is not None:
+    if proposal_warning is not None:
         _log_router_validation(
             status="invalid",
-            warning=warning,
+            warning=proposal_warning,
             context=context,
         )
-        return RouterPlannerResult(status="invalid", warning=warning)
+        return RouterPlannerResult(status="invalid", warning=proposal_warning)
     _log_router_validation(
         status="valid",
         warning=None,

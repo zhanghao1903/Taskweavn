@@ -511,9 +511,9 @@ export const enUS: UiTextCatalog = {
         description: "Refresh the session view to get the latest state.",
         label: "Refresh session",
       },
-      rerun_helper_preflight: {
-        description: "Run the helper readiness preflight again.",
-        label: "Rerun helper preflight",
+      rerun_readiness_check: {
+        description: "Run the local computer-use readiness check again.",
+        label: "Recheck readiness",
       },
       restart_helper: {
         description: "Restart Plato Computer Use Helper after changing permissions.",
@@ -722,7 +722,7 @@ export const enUS: UiTextCatalog = {
       open_macos_privacy_automation:
         "Open macOS Automation permissions for the helper.",
       refresh_snapshot: "Retry after configuration changes.",
-      rerun_helper_preflight: "Rerun helper readiness preflight.",
+      rerun_readiness_check: "Recheck local computer-use readiness.",
       restart_helper: "Restart Plato Computer Use Helper.",
       retry_command: "Retry after configuration changes.",
       retry_task: "Retry the affected Task.",

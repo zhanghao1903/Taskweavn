@@ -1,6 +1,10 @@
 # Plato Computer Use Helper.app 技术方案
 
-> Status: in progress / Plato-side helper client, dev launcher, dev `.app` scaffold, and Settings readiness projection implemented
+> Status: Deprecated for implementation. Plato-side helper client/server/app
+> builders were retired by
+> [App-Control Tool Package Migration](app-control-tool-package-migration.zh-CN.md).
+> Helper lifecycle now belongs to the published `computer-use-macos` package;
+> Plato keeps only helper-mode configuration and readiness projection.
 >
 > Last Updated: 2026-06-26
 >

@@ -12,6 +12,9 @@ dependencies = [
     "pydantic>=2.10",
     "docker>=7.0.0",
     "pyyaml>=6.0",
+    "app-control-protocol>=0.1.0,<0.2.0",
+    "computer-use-macos>=0.1.0,<0.2.0; sys_platform == 'darwin'",
+    "wechat-desktop-tool>=0.1.0,<0.2.0",
 ]
 
 [project.scripts]

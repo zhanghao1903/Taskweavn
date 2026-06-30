@@ -331,7 +331,7 @@ export function SettingsRoute({
       return;
     }
 
-    if (action === "rerun_helper_preflight") {
+    if (action === "rerun_readiness_check") {
       await recheckReadiness();
       return;
     }

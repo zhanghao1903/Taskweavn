@@ -496,9 +496,9 @@ export const zhCN: UiTextCatalog = {
         description: "刷新会话视图以获取最新状态。",
         label: "刷新会话",
       },
-      rerun_helper_preflight: {
-        description: "重新运行 helper 就绪预检。",
-        label: "重新预检 helper",
+      rerun_readiness_check: {
+        description: "重新检查本地 computer-use 就绪状态。",
+        label: "重新检查就绪状态",
       },
       restart_helper: {
         description: "权限变更后重启 Plato Computer Use Helper。",
@@ -702,7 +702,7 @@ export const zhCN: UiTextCatalog = {
       open_macos_privacy_accessibility: "打开 helper 的 macOS 辅助功能权限。",
       open_macos_privacy_automation: "打开 helper 的 macOS 自动化权限。",
       refresh_snapshot: "完成配置变更后重试。",
-      rerun_helper_preflight: "重新运行 helper 就绪预检。",
+      rerun_readiness_check: "重新检查本地 computer-use 就绪状态。",
       restart_helper: "重启 Plato Computer Use Helper。",
       retry_command: "完成配置变更后重试。",
       retry_task: "重试受影响的任务。",

@@ -1,15 +1,18 @@
 # macOS Computer-Use Backend 技术方案
 
-> Status: proposed / pending implementation
+> Status: Historical backend technical design. The repo-local helper/backend
+> implementation described here was retired by
+> [App-Control Tool Package Migration](app-control-tool-package-migration.zh-CN.md).
+> 当前实现通过 `computer-use-macos` 包和 `MacOSComputerUseBackend` 接入。
 >
 > Last Updated: 2026-06-19
 >
 > Feature Plan: [macOS Computer-Use Backend](macos-computer-use-backend.md)
 >
 > Related:
-> [macOS Computer-Use Capability Package](macos-computer-use-package.md),
-> [Package Technical Design](macos-computer-use-package-technical-design.zh-CN.md),
-> [Plato Computer Use Helper.app Technical Design](plato-computer-use-helper-app-technical-design.zh-CN.md),
+> [App-Control Tool Package Migration](app-control-tool-package-migration.zh-CN.md),
+> [App-Control Tool Package Smoke Runbook](app-control-tool-package-smoke-runbook.zh-CN.md),
+> [Historical macOS Computer-Use Capability Package](macos-computer-use-package.md),
 > [Local Computer-Use Tool Foundation](local-computer-use-tool.md),
 > [Remote WeChat Message Task PRD](../../product/remote-wechat-message-task-prd.md),
 > [Tool Capability Layer](../../architecture/tool-capability-layer.md),
@@ -22,10 +25,9 @@
 
 本方案定义真实 macOS `computer_use` backend 的最小可执行设计。
 
-关键修订：真实 macOS 能力应先实现为独立可发布的
-`macos-computer-use` Python 包。Taskweavn/Plato 内部的 macOS backend 只是
-adapter，负责把包结果接入 `ComputerUseObservation`、confirmation、
-EventStream 和 Audit。
+关键修订：本方案记录的是旧的单包 backend 设计。当前实现已迁移到
+`computer-use-macos` 包；Taskweavn/Plato 内部的 macOS backend 只是 adapter，
+负责把包结果接入 `ComputerUseObservation`、runtime logs、EventStream 和 Audit。
 
 目标不是立刻完成 WeChat 自动发消息，而是先建立一个安全边界清晰的
 本机桌面自动化 backend：
@@ -33,9 +35,8 @@ EventStream 和 Audit。
 ```text
 AgentLoop
   -> computer_use tool
-  -> policy/readiness gate
-  -> PlatoMacOSComputerUseAdapter
-  -> macos_computer_use.MacOSComputerUseClient
+  -> MacOSComputerUseBackend
+  -> computer-use-macos ComputerUseClient
   -> observe/open_app/click/type_text
   -> sanitized ComputerUseObservation
 ```

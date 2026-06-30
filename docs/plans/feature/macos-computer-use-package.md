@@ -1,13 +1,18 @@
 # macOS Computer-Use Capability Package
 
-> Status: proposed / package-first planning
+> Status: Historical package plan. The original single-package
+> `macos-computer-use` design was superseded by the published package suite:
+> `app-control-protocol`, `computer-use-macos`, and `wechat-desktop-tool`.
+> Current Plato migration work is tracked in
+> [App-Control Tool Package Migration](app-control-tool-package-migration.zh-CN.md).
 >
 > Last Updated: 2026-06-19
 >
 > Related:
 > [Local Computer-Use Tool Foundation](local-computer-use-tool.md),
-> [macOS Computer-Use Backend](macos-computer-use-backend.md),
-> [Technical Design](macos-computer-use-package-technical-design.zh-CN.md),
+> [App-Control Tool Package Migration](app-control-tool-package-migration.zh-CN.md),
+> [App-Control Tool Package Smoke Runbook](app-control-tool-package-smoke-runbook.zh-CN.md),
+> [Historical Technical Design](macos-computer-use-package-technical-design.zh-CN.md),
 > [Remote WeChat Message Task PRD](../../product/remote-wechat-message-task-prd.md),
 > [Tool Capability Layer](../../architecture/tool-capability-layer.md),
 > [Confirmation UI Spec](../../ux/confirmation-ui-spec.md),
@@ -35,6 +40,8 @@ be harder to:
 ## 2. Product Decision
 
 Build the macOS computer-use capability as a standalone Python package first.
+This section records the original single-package decision. It is no longer the
+active package boundary.
 
 Working package name:
 
@@ -46,6 +53,14 @@ Python import package:
 
 ```python
 import macos_computer_use
+```
+
+Current package boundary:
+
+```text
+app-control-protocol  -> shared ToolCommand / ToolObservation / ToolEvent
+computer-use-macos    -> macOS app-control primitives and helper transport
+wechat-desktop-tool   -> WeChat semantic desktop commands
 ```
 
 Plato should later consume this package through a normal package dependency and

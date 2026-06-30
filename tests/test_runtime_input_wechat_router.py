@@ -65,7 +65,7 @@ from taskweavn.task.plan_models import PlanTaskNode
 NOW = datetime(2026, 6, 24, 10, 0, tzinfo=UTC)
 
 
-def test_router_creates_confirmation_gated_wechat_execution_task() -> None:
+def test_router_rejects_wechat_send_when_execution_plane_unavailable() -> None:
     query = _QueryGateway()
     commands = _CommandGateway()
     handler = _TaskNodeCommandHandler()
@@ -80,6 +80,7 @@ def test_router_creates_confirmation_gated_wechat_execution_task() -> None:
         _request(
             command_id="route-wechat-send",
             content="给微信的文件传输助手发送测试消息",
+            mode="change",
         )
     )
 
@@ -87,29 +88,32 @@ def test_router_creates_confirmation_gated_wechat_execution_task() -> None:
     assert response.data is not None
     assert response.data.decision.intent == "execution_request"
     assert response.data.decision.dispatch_target == "execution_handoff"
-    assert response.data.decision.side_effect == "state_effect"
-    assert response.data.outcome.status == "dispatched"
-    assert response.data.outcome.user_message == "微信发送任务已创建；真正发送前仍需要用户确认。"
+    assert response.data.decision.side_effect == "execution_request"
+    assert response.data.outcome.status == "rejected"
+    assert response.data.outcome.user_message == (
+        "当前执行环境不支持微信发送能力。没有发送消息。\n"
+        "错误代码：execution_plane_unavailable\n"
+        "错误信息：Runtime Input Router 没有可用的 Execution Plane service，"
+        "不能创建 communication.wechat.send_message 任务。"
+    )
+    assert response.data.outcome.recovery_actions == ("open_settings", "retry_command")
+    assert response.data.activity is not None
+    assert response.data.activity.kind == "recovery_note"
+    assert response.data.activity.title == "Runtime input routed"
     assert commands.calls == []
-    assert len(handler.payloads) == 1
-    payload = handler.payloads[0]
-    assert payload.title == "Send WeChat message to 文件传输助手"
-    assert payload.required_capability == "communication.wechat_desktop_send"
-    assert "Task type: communication.wechat.send_message" in payload.instructions
-    assert "Contact: 文件传输助手" in payload.instructions
-    assert "Message: Plato 本地发送测试" in payload.instructions
-    assert "Do not send without user confirmation." in payload.constraints
-    assert "The final send is gated by user confirmation." in payload.acceptance_criteria
+    assert handler.payloads == []
 
 
 def test_router_publishes_wechat_send_task_to_execution_plane_when_available() -> None:
     query = _QueryGateway()
     commands = _CommandGateway()
-    execution_plane = _ExecutionPlaneService(status="waiting_for_user")
+    execution_plane = _ExecutionPlaneService(status="pending")
+    trigger = _ExecutionTriggerGateway()
     router = _router(
         query,
         commands,
         execution_plane_service=execution_plane,
+        execution_trigger_gateway=trigger,
         route_planner=_wechat_planner("hello"),
     )
 
@@ -117,6 +121,7 @@ def test_router_publishes_wechat_send_task_to_execution_plane_when_available() -
         _request(
             command_id="route-wechat-send",
             content="给微信文件传输助手发送消息",
+            mode="change",
         )
     )
 
@@ -126,7 +131,7 @@ def test_router_publishes_wechat_send_task_to_execution_plane_when_available() -
     assert response.data.decision.dispatch_target == "execution_handoff"
     assert response.data.decision.side_effect == "execution_request"
     assert response.data.outcome.status == "dispatched"
-    assert response.data.outcome.user_message == "微信发送任务已创建，正在等待用户确认。"
+    assert response.data.outcome.user_message == "微信发送任务已创建；真正发送前仍需要用户确认。"
     assert response.data.activity is not None
     assert response.data.activity.kind == "task_created"
     assert response.data.activity.title == "WeChat send task created"
@@ -138,6 +143,13 @@ def test_router_publishes_wechat_send_task_to_execution_plane_when_available() -
     assert task_request.input["messageText"] == "hello"
     assert task_request.policy.requires_human_confirmation is True
     assert task_request.policy.required_capability == "communication.wechat_desktop_send"
+    assert trigger.calls == [
+        {
+            "session_id": "session-1",
+            "reason": "publish_start_immediately",
+            "request_id": "runtime-input:session-1:route-wechat-send",
+        }
+    ]
     assert commands.calls == []
 
 
@@ -155,7 +167,7 @@ def test_router_capability_missing_is_conversation_visible(tmp_path: Path) -> No
                 "recoveryActions": [
                     "open_macos_privacy_accessibility",
                     "restart_helper",
-                    "rerun_helper_preflight",
+                    "rerun_readiness_check",
                 ],
             },
         )
@@ -200,7 +212,7 @@ def test_router_capability_missing_is_conversation_visible(tmp_path: Path) -> No
     assert response.data.outcome.recovery_actions == (
         "open_macos_privacy_accessibility",
         "restart_helper",
-        "rerun_helper_preflight",
+        "rerun_readiness_check",
     )
     assert [message.title for message in messages] == [
         USER_INPUT_TITLE,
@@ -220,7 +232,7 @@ def test_router_capability_missing_is_conversation_visible(tmp_path: Path) -> No
     assert "建议的恢复操作" in reply.body
     assert "打开 macOS 隐私与安全性 > 辅助功能" in reply.body
     assert "重启 Plato Computer Use Helper 后再检查" in reply.body
-    assert "重新运行 helper 就绪预检，确认权限已生效" in reply.body
+    assert "重新检查本地 computer-use 就绪状态，确认权限已生效" in reply.body
     assert reply.conversation_render is not None
     assert reply.conversation_render.render_kind == "text"
     assert reply.conversation_render.text is not None
@@ -318,7 +330,8 @@ def test_router_immediate_wechat_execution_failure_is_conversation_visible(
 def test_router_uses_planner_wechat_task_request_draft_for_execution_plane() -> None:
     query = _QueryGateway()
     commands = _CommandGateway()
-    execution_plane = _ExecutionPlaneService(status="waiting_for_user")
+    execution_plane = _ExecutionPlaneService(status="pending")
+    trigger = _ExecutionTriggerGateway()
     planner = _Planner(
         RuntimeInputRouteProposal(
             intent="execution_request",
@@ -335,6 +348,7 @@ def test_router_uses_planner_wechat_task_request_draft_for_execution_plane() -> 
         query,
         commands,
         execution_plane_service=execution_plane,
+        execution_trigger_gateway=trigger,
         route_planner=planner,
     )
 
@@ -359,6 +373,13 @@ def test_router_uses_planner_wechat_task_request_draft_for_execution_plane() -> 
     assert task_request.input["messageText"] == "LLM proposal path"
     assert task_request.policy.requires_human_confirmation is True
     assert task_request.policy.risk_level == "high"
+    assert trigger.calls == [
+        {
+            "session_id": "session-1",
+            "reason": "publish_start_immediately",
+            "request_id": "runtime-input:session-1:route-wechat-llm",
+        }
+    ]
     assert commands.calls == []
 
 
@@ -488,17 +509,21 @@ def _request(
     content: str,
     command_id: str = "route-1",
     active_confirmation_id: str | None = None,
+    mode: str | None = None,
 ) -> RuntimeInputRouteRequest:
-    return RuntimeInputRouteRequest(
-        command_id=command_id,
-        session_id="session-1",
-        workspace_id="workspace-1",
-        content=content,
-        selection=RuntimeInputSelection(scope_kind="session"),
-        client_state=RuntimeInputClientState(
+    request_kwargs: dict[str, Any] = {
+        "command_id": command_id,
+        "session_id": "session-1",
+        "workspace_id": "workspace-1",
+        "content": content,
+        "selection": RuntimeInputSelection(scope_kind="session"),
+        "client_state": RuntimeInputClientState(
             active_confirmation_id=active_confirmation_id,
         ),
-    )
+    }
+    if mode is not None:
+        request_kwargs["mode"] = mode
+    return RuntimeInputRouteRequest(**request_kwargs)
 
 
 def _router(
@@ -507,6 +532,7 @@ def _router(
     *,
     handler: _TaskNodeCommandHandler | None = None,
     execution_plane_service: _ExecutionPlaneService | None = None,
+    execution_trigger_gateway: Any | None = None,
     route_planner: _Planner | None = None,
     activity_publisher: Any | None = None,
 ) -> DefaultRuntimeInputRouter:
@@ -525,6 +551,7 @@ def _router(
         command_gateway=cast(Any, commands),
         contract_revision_service=service,
         execution_plane_service=cast(Any, execution_plane_service),
+        execution_trigger_gateway=execution_trigger_gateway,
         route_planner=route_planner,
         activity_publisher=activity_publisher,
     )
@@ -602,6 +629,27 @@ class _ExecutionPlaneService:
             f"Task error {error_ref!r} was not found.",
             retryable=False,
         )
+
+
+@dataclass
+class _ExecutionTriggerGateway:
+    calls: list[dict[str, str]] = field(default_factory=list)
+
+    def request_dispatch(
+        self,
+        session_id: str,
+        *,
+        reason: str,
+        request_id: str | None = None,
+    ) -> object:
+        self.calls.append(
+            {
+                "session_id": session_id,
+                "reason": reason,
+                "request_id": request_id or "",
+            }
+        )
+        return object()
 
 
 @dataclass

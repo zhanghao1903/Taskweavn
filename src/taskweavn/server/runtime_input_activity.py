@@ -240,7 +240,7 @@ def _recovery_suggestions(actions: tuple[str, ...]) -> tuple[str, ...]:
         ),
         "open_settings": "打开设置，检查 provider、权限或本地运行配置。",
         "refresh_snapshot": "刷新当前会话状态后再试。",
-        "rerun_helper_preflight": "重新运行 helper 就绪预检，确认权限已生效。",
+        "rerun_readiness_check": "重新检查本地 computer-use 就绪状态，确认权限已生效。",
         "restart_helper": "重启 Plato Computer Use Helper 后再检查。",
         "retry_command": "完成本地环境配置或授权后重试命令。",
         "retry_task": "重试受影响的任务。",

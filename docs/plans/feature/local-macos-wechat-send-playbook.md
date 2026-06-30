@@ -1,6 +1,10 @@
 # Local macOS WeChat Send Playbook
 
-> Status: Accepted local smoke playbook
+> Status: Deprecated historical playbook. The repo-local
+> `WeChatSendRuntimeHandler`, helper HTTP protocol, and manual smoke scripts
+> referenced below were retired by
+> [App-Control Tool Package Migration](app-control-tool-package-migration.zh-CN.md).
+> Use the package-backed `wechat_desktop` Agent tool path instead.
 >
 > Last Updated: 2026-06-27
 >
@@ -13,14 +17,24 @@
 
 ## 1. Scope
 
-This playbook runs the local macOS WeChat send MVP through Plato's local
-Execution Plane path:
+This historical playbook ran the local macOS WeChat send MVP through Plato's
+retired local Execution Plane path:
 
 ```text
-local sidecar -> Task API -> WeChatSendRuntimeHandler
+local sidecar -> Task API -> retired deterministic WeChat runtime
   -> macOS computer-use adapter -> WeChat Desktop adapter
   -> draft -> confirmation -> keyboard Return submit
   -> result/evidence -> same-key terminal replay
+```
+
+Current smoke execution uses
+[App-Control Tool Package Smoke Runbook](app-control-tool-package-smoke-runbook.zh-CN.md):
+
+```text
+manual_wechat_desktop_tool_smoke.py
+  -> wechat-desktop-tool
+  -> computer-use-macos direct/helper backend
+  -> draft/observe or explicitly authorized submit
 ```
 
 It is only for controlled local smoke testing. It is not a bulk messaging,
@@ -348,7 +362,7 @@ Validated recovery-action preflight on 2026-06-27:
   - `wechatAppSuccess=false`
   - `wechatAppPhase=window_readiness`
   - `wechatAppSetupHint=Open the WeChat main window or chat list, make sure WeChat is logged in and unlocked, then rerun helper-backed preflight before publishing a task.`
-  - `wechatAppRecoveryActions=["open_wechat_main_window", "unlock_or_login_wechat", "rerun_helper_preflight"]`
+  - `wechatAppRecoveryActions=["open_wechat_main_window", "unlock_or_login_wechat", "rerun_readiness_check"]`
 - result: `ready=false`, and no task was published.
 
 Validated structured window-count preflight on 2026-06-27:
@@ -1020,7 +1034,7 @@ Controlled confirm/send-once validation:
 | Failure | Meaning | Rule |
 |---|---|---|
 | preflight not ready | Runtime or permissions unavailable. | Fix setup before any task. |
-| helper reports `ModuleNotFoundError: macos_computer_use` | Helper executable was built without the external macOS package. | Rebuild with the default `taskweavn computer-use-helper-executable` command; it must collect `taskweavn` and `macos_computer_use`. |
+| helper reports missing package modules | Helper executable was built without the required package-backed app-control dependencies. | Rebuild the helper with the package suite dependencies available: `app-control-protocol`, `computer-use-macos`, and `wechat-desktop-tool`. |
 | helper preflight ready but WeChat not frontmost | Helper/TCC path is ready, but generic observe lost the focus race. | The adapter falls back to the bounded WeChat driver. If it still fails, inspect contact-resolution evidence. |
 | WeChat process has no window 1 | WeChat is running, but no automatable main window is visible. | Manually open the WeChat main window/chat list and rerun reject/no-send with a fresh key. |
 | Stable helper app is stale | Source code changed after the app was installed, so live helper behavior does not include the latest driver fixes. | Rebuild/install the stable helper app, refresh Accessibility if required, then rerun helper-only and helper-backed preflight before another task. |

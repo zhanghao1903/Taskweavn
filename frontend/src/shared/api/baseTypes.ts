@@ -26,7 +26,7 @@ export type ProductRecoveryAction =
   | "open_macos_privacy_accessibility"
   | "open_macos_privacy_automation"
   | "restart_helper"
-  | "rerun_helper_preflight"
+  | "rerun_readiness_check"
   | "export_diagnostics"
   | "none";
 

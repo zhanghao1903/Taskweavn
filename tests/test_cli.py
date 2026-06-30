@@ -73,6 +73,16 @@ def test_cli_import_does_not_cycle_diagnostics_and_server() -> None:
     assert "taskweavn" in result.stdout
 
 
+def test_cli_help_does_not_expose_retired_computer_use_helper_builders() -> None:
+    runner = CliRunner()
+    result = runner.invoke(app, ["--help"])
+
+    assert result.exit_code == 0
+    assert "computer-use-helper-app" not in result.output
+    assert "computer-use-helper-executable" not in result.output
+    assert "manual_computer_use_helper_preflight" not in result.output
+
+
 def test_autonomy_unknown_preset_rejected(tmp_path: Path) -> None:
     runner = CliRunner()
     result = runner.invoke(
@@ -218,137 +228,9 @@ def test_plato_sidecar_help_exposes_helper_launch_options() -> None:
 
     assert result.exit_code == 0
     assert "endpoint manifest" in result.output
-    assert "opt-in auto-launch" in result.output
+    assert "app-control helper" in result.output
+    assert "auto-launch" in result.output
     assert "manifest is missing" in result.output
-
-
-def test_computer_use_helper_help_exposes_manifest_and_backend_options() -> None:
-    runner = CliRunner()
-    result = runner.invoke(app, ["computer-use-helper", "--help"])
-
-    assert result.exit_code == 0
-    assert "--manifest-path" in result.output
-    assert "--computer-use-backend" in result.output
-    assert "--helper-path" in result.output
-    assert "--helper-bundle-id" in result.output
-
-
-def test_computer_use_helper_rejects_recursive_helper_backend(tmp_path: Path) -> None:
-    runner = CliRunner()
-    result = runner.invoke(
-        app,
-        [
-            "computer-use-helper",
-            "--manifest-path",
-            str(tmp_path / "computer-use-helper.json"),
-            "--computer-use-backend",
-            "helper",
-        ],
-    )
-
-    assert result.exit_code != 0
-    assert "recursively run inside helper" in result.output
-
-
-def test_computer_use_helper_app_help_exposes_build_options() -> None:
-    runner = CliRunner()
-    result = runner.invoke(app, ["computer-use-helper-app", "--help"])
-
-    assert result.exit_code == 0
-    assert "--app-path" in result.output
-    assert "--manifest-path" in result.output
-    assert "--python-executable" in result.output
-    assert "--packaged-executable-path" in result.output
-    assert "--computer-use-backend" in result.output
-
-
-def test_computer_use_helper_executable_help_exposes_build_options() -> None:
-    runner = CliRunner()
-    result = runner.invoke(app, ["computer-use-helper-executable", "--help"])
-
-    assert result.exit_code == 0
-    assert "--output-dir" in result.output
-    assert "--build-dir" in result.output
-    assert "--spec-dir" in result.output
-    assert "--collect-submodules" in result.output
-    assert "--hidden-imports" in result.output
-
-
-def test_computer_use_helper_app_builds_dev_bundle(tmp_path: Path) -> None:
-    runner = CliRunner()
-    app_path = tmp_path / "Plato Computer Use Helper Dev.app"
-    manifest_path = tmp_path / "computer-use-helper.json"
-    token_path = tmp_path / "computer-use-helper.token"
-
-    result = runner.invoke(
-        app,
-        [
-            "computer-use-helper-app",
-            "--app-path",
-            str(app_path),
-            "--manifest-path",
-            str(manifest_path),
-            "--token-path",
-            str(token_path),
-            "--python-executable",
-            sys.executable,
-            "--computer-use-backend",
-            "disabled",
-            "--computer-use-allowed-apps",
-            "WeChat,TextEdit",
-        ],
-    )
-
-    assert result.exit_code == 0
-    assert "[computer-use-helper-app] app=" in result.output
-    assert "[computer-use-helper-app] permissionGuide=" in result.output
-    assert "[computer-use-helper-app] signed=" in result.output
-    assert app_path.joinpath("Contents", "Info.plist").exists()
-    assert app_path.joinpath("Contents", "Resources", "helper-launch.json").exists()
-    assert app_path.joinpath("Contents", "Resources", "permission-guide.md").exists()
-    assert app_path.joinpath("Contents", "MacOS", "PlatoComputerUseHelper").exists()
-
-
-def test_computer_use_helper_app_can_copy_packaged_executable(
-    tmp_path: Path,
-) -> None:
-    runner = CliRunner()
-    app_path = tmp_path / "Plato Computer Use Helper Dev.app"
-    manifest_path = tmp_path / "computer-use-helper.json"
-    packaged_executable = tmp_path / "dist" / "PlatoComputerUseHelper"
-    packaged_executable.parent.mkdir(parents=True)
-    packaged_executable.write_text("#!/bin/sh\necho helper\n", encoding="utf-8")
-    packaged_executable.chmod(0o755)
-
-    result = runner.invoke(
-        app,
-        [
-            "computer-use-helper-app",
-            "--app-path",
-            str(app_path),
-            "--manifest-path",
-            str(manifest_path),
-            "--packaged-executable-path",
-            str(packaged_executable),
-            "--computer-use-backend",
-            "macos",
-            "--computer-use-allowed-apps",
-            "WeChat",
-        ],
-    )
-
-    assert result.exit_code == 0
-    copied_executable = app_path.joinpath(
-        "Contents", "MacOS", "PlatoComputerUseHelper"
-    )
-    assert copied_executable.read_text(encoding="utf-8") == "#!/bin/sh\necho helper\n"
-    launch_config = json.loads(
-        app_path.joinpath("Contents", "Resources", "helper-launch.json").read_text(
-            encoding="utf-8"
-        )
-    )
-    assert launch_config["launcherMode"] == "packaged-executable"
-    assert launch_config["packagedExecutableSource"] == str(packaged_executable)
 
 
 def test_plato_dev_rejects_missing_frontend_dir(tmp_path: Path) -> None:

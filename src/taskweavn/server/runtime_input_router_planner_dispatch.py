@@ -6,13 +6,10 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from taskweavn.server.runtime_input_llm_router import (
+    RouterTaskRequestDraft,
     RuntimeInputRoutePlanner,
     RuntimeInputRouteProposal,
 )
-from taskweavn.server.runtime_input_router_task_drafts import (
-    wechat_resolution_from_task_request_draft,
-)
-from taskweavn.server.runtime_input_wechat import WeChatSendResolution
 from taskweavn.server.ui_contract.envelopes import QueryResponse
 from taskweavn.server.ui_contract.runtime_input import (
     RuntimeInputDispatchTarget,
@@ -39,9 +36,8 @@ class PlannerDispatchHandlers:
         PlannerDispatchResponse,
     ]
     record_guidance: Callable[[RuntimeInputRouteRequest], PlannerDispatchResponse]
-    create_execution_task: Callable[[RuntimeInputRouteRequest], PlannerDispatchResponse]
-    create_wechat_send_execution_task: Callable[
-        [RuntimeInputRouteRequest, WeChatSendResolution],
+    create_execution_task: Callable[
+        [RuntimeInputRouteRequest, RouterTaskRequestDraft | None],
         PlannerDispatchResponse,
     ]
     stop_selected_task: Callable[
@@ -181,10 +177,7 @@ def _dispatch_execution_handoff(
                 "No product or workspace state changed."
             ),
         )
-    wechat_resolution = wechat_resolution_from_task_request_draft(task_request_draft)
-    if wechat_resolution is not None:
-        return handlers.create_wechat_send_execution_task(request, wechat_resolution)
-    return handlers.create_execution_task(request)
+    return handlers.create_execution_task(request, task_request_draft)
 
 
 def _dispatch_existing_command(

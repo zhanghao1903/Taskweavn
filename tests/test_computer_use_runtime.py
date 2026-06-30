@@ -4,14 +4,15 @@ from pathlib import Path
 
 import pytest
 
-from taskweavn.integrations.wechat_desktop import WeChatDesktopHelperAdapter
+from taskweavn.execution_plane import LOCAL_MACOS_APP_CONTROL_ENV_ID
 from taskweavn.server.computer_use_runtime import (
     build_computer_use_runtime,
-    build_wechat_runtime_adapter,
+    build_execution_env_registry,
     parse_computer_use_allowed_apps,
+    resolve_computer_use_runtime,
 )
-from taskweavn.tools import ComputerUseHelperBackend, MacOSComputerUseBackend
-from taskweavn.types import ComputerUseAction
+from taskweavn.server.runtime_config_consumers import RuntimeComputerUseSettings
+from taskweavn.tools import MacOSComputerUseBackend
 
 
 def test_parse_computer_use_allowed_apps_from_csv() -> None:
@@ -50,6 +51,23 @@ def test_build_computer_use_runtime_supports_macos_backend() -> None:
     assert isinstance(runtime.backend, MacOSComputerUseBackend)
 
 
+def test_resolve_computer_use_runtime_builds_backend_from_settings() -> None:
+    runtime = resolve_computer_use_runtime(
+        computer_use_settings=RuntimeComputerUseSettings(
+            enabled=True,
+            backend="macos",
+            allowed_apps=("WeChat",),
+            config_hash="hash-1",
+        ),
+        computer_use_backend=None,
+    )
+
+    assert runtime.enabled is True
+    assert runtime.backend_name == "macos"
+    assert runtime.allowed_apps == ("WeChat",)
+    assert isinstance(runtime.backend, MacOSComputerUseBackend)
+
+
 def test_build_computer_use_runtime_supports_helper_backend() -> None:
     runtime = build_computer_use_runtime(
         backend_name="helper",
@@ -61,7 +79,11 @@ def test_build_computer_use_runtime_supports_helper_backend() -> None:
     assert runtime.enabled is True
     assert runtime.backend_name == "helper"
     assert runtime.allowed_apps == ("WeChat", "TextEdit")
-    assert isinstance(runtime.backend, ComputerUseHelperBackend)
+    assert isinstance(runtime.backend, MacOSComputerUseBackend)
+    assert runtime.app_control_config is not None
+    assert runtime.app_control_config.backend == "helper"
+    assert runtime.app_control_config.helper_endpoint == "http://127.0.0.1:49321"
+    assert runtime.app_control_config.helper_token == "test-token"
 
 
 def test_build_computer_use_runtime_passes_helper_launch_config(
@@ -77,10 +99,11 @@ def test_build_computer_use_runtime_passes_helper_launch_config(
         helper_auto_launch=True,
     )
 
-    assert isinstance(runtime.backend, ComputerUseHelperBackend)
-    assert runtime.backend._config.endpoint_manifest_path == manifest_path
-    assert runtime.backend._config.helper_app_path == app_path
-    assert runtime.backend._config.helper_auto_launch is True
+    assert isinstance(runtime.backend, MacOSComputerUseBackend)
+    assert runtime.app_control_config is not None
+    assert runtime.app_control_config.helper_manifest_path == manifest_path
+    assert runtime.app_control_config.helper_app_path == app_path
+    assert runtime.app_control_config.helper_auto_launch is True
 
 
 def test_build_computer_use_runtime_rejects_unknown_backend() -> None:
@@ -88,23 +111,55 @@ def test_build_computer_use_runtime_rejects_unknown_backend() -> None:
         build_computer_use_runtime(backend_name="browser")
 
 
-def test_build_wechat_runtime_adapter_uses_helper_wechat_api_client() -> None:
-    helper_backend = ComputerUseHelperBackend(client=_FakeHelperWeChatClient())
+def test_build_execution_env_registry_uses_local_macos_app_control_when_enabled() -> None:
+    registry = build_execution_env_registry(
+        computer_use_settings=RuntimeComputerUseSettings(
+            enabled=True,
+            backend="helper",
+            allowed_apps=("WeChat",),
+            config_hash="hash-1",
+        )
+    )
 
-    adapter = build_wechat_runtime_adapter(helper_backend)
+    [env] = registry.list()
 
-    assert isinstance(adapter, WeChatDesktopHelperAdapter)
+    assert env.env_id == LOCAL_MACOS_APP_CONTROL_ENV_ID
+    assert env.display_name == "Local macOS App Control"
+    assert "computer_use" in env.capabilities
+    assert "communication.wechat_desktop_send" in env.capabilities
+    assert "wechat_desktop" in env.tool_pool
 
 
-class _FakeHelperWeChatClient:
-    def readiness(self) -> dict[str, object]:
-        return {"status": "ready", "summary": "ready"}
+def test_build_execution_env_registry_does_not_advertise_wechat_without_runtime() -> None:
+    registry = build_execution_env_registry(
+        computer_use_settings=RuntimeComputerUseSettings(
+            enabled=True,
+            backend="helper",
+            allowed_apps=("WeChat",),
+            config_hash="hash-1",
+        ),
+        computer_use_available=False,
+    )
 
-    def execute(self, action: ComputerUseAction) -> dict[str, object]:
-        return {"status": "ok", "summary": action.instruction}
+    [env] = registry.list()
 
-    def wechat_draft_message(self, **kwargs: object) -> dict[str, object]:
-        return {"status": "ok", "summary": "drafted"}
+    assert env.env_id == "local-default"
+    assert "computer_use" not in env.capabilities
+    assert "communication.wechat_desktop_send" not in env.capabilities
+    assert "wechat_desktop" not in env.tool_pool
 
-    def wechat_send_confirmed(self, **kwargs: object) -> dict[str, object]:
-        return {"status": "sent", "summary": "sent"}
+
+def test_build_execution_env_registry_keeps_default_env_when_disabled() -> None:
+    registry = build_execution_env_registry(
+        computer_use_settings=RuntimeComputerUseSettings(
+            enabled=False,
+            backend="disabled",
+            allowed_apps=(),
+            config_hash="hash-1",
+        )
+    )
+
+    [env] = registry.list()
+
+    assert env.env_id == "local-default"
+    assert "communication.wechat_desktop_send" not in env.capabilities

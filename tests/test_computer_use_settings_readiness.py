@@ -7,7 +7,6 @@ from typing import Any
 
 import pytest
 
-import taskweavn.server.computer_use_settings_readiness as readiness_module
 from taskweavn.server.computer_use_settings_readiness import (
     ComputerUseSettingsReadinessGateway,
     build_computer_use_settings_readiness,
@@ -64,7 +63,7 @@ def test_computer_use_readiness_reports_ready_backend() -> None:
                     "helper": {
                         "bundleId": "com.taskweavn.plato.computer-use-helper.dev",
                         "version": "0.1.0",
-                        "apiVersion": "plato.computer_use_helper.v1",
+                        "apiVersion": "app_control.helper.v1",
                         "path": "/Applications/Plato Computer Use Helper Dev.app",
                         "signingMode": "development-app",
                         "tokenRef": "must-not-leak",
@@ -90,7 +89,7 @@ def test_computer_use_readiness_reports_ready_backend() -> None:
     assert readiness["helper"] == {
         "bundleId": "com.taskweavn.plato.computer-use-helper.dev",
         "version": "0.1.0",
-        "apiVersion": "plato.computer_use_helper.v1",
+        "apiVersion": "app_control.helper.v1",
         "path": "/Applications/Plato Computer Use Helper Dev.app",
         "signingMode": "development-app",
     }
@@ -118,7 +117,7 @@ def test_computer_use_readiness_degrades_when_enabled_backend_is_not_ready() -> 
                     "recovery_actions": [
                         "open_macos_privacy_accessibility",
                         "restart_helper",
-                        "rerun_helper_preflight",
+                        "rerun_readiness_check",
                     ],
                     "diagnostics": {
                         "bundle_id": "com.taskweavn.plato.computer-use-helper.dev",
@@ -186,7 +185,7 @@ def test_computer_use_readiness_degrades_when_enabled_backend_is_not_ready() -> 
     assert computer_use["recoveryActions"] == [
         "open_macos_privacy_accessibility",
         "restart_helper",
-        "rerun_helper_preflight",
+        "rerun_readiness_check",
     ]
     assert computer_use["helper"] == {
         "bundleId": "com.taskweavn.plato.computer-use-helper.dev",
@@ -218,13 +217,13 @@ def test_computer_use_readiness_degrades_when_enabled_backend_is_not_ready() -> 
         "recoveryActions": [
             "open_macos_privacy_accessibility",
             "restart_helper",
-            "rerun_helper_preflight",
+            "rerun_readiness_check",
         ],
         "operatorInstruction": (
             "Grant or refresh macOS Accessibility and Automation permissions "
             "for /Applications/Plato Computer Use Helper Dev.app, restart the "
-            "helper, then rerun helper readiness before publishing a "
-            "computer-use task."
+            "helper, then recheck local computer-use readiness before "
+            "publishing a computer-use task."
         ),
     }
     assert report["warnings"] == [
@@ -235,7 +234,7 @@ def test_computer_use_readiness_degrades_when_enabled_backend_is_not_ready() -> 
             "recoveryActions": [
                 "open_macos_privacy_accessibility",
                 "restart_helper",
-                "rerun_helper_preflight",
+                "rerun_readiness_check",
             ],
             "envVars": (),
         }
@@ -247,8 +246,14 @@ def test_computer_use_readiness_degrades_when_enabled_backend_is_not_ready() -> 
 def test_computer_use_readiness_computes_helper_signature_when_metadata_omits_it(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(readiness_module.sys, "platform", "darwin")
-    monkeypatch.setattr(readiness_module.shutil, "which", lambda name: "/usr/bin/codesign")
+    monkeypatch.setattr(
+        "taskweavn.server.computer_use_settings_readiness.sys.platform",
+        "darwin",
+    )
+    monkeypatch.setattr(
+        "taskweavn.server.computer_use_settings_readiness.shutil.which",
+        lambda name: "/usr/bin/codesign",
+    )
 
     def fake_run(
         args: list[str],
@@ -281,13 +286,16 @@ def test_computer_use_readiness_computes_helper_signature_when_metadata_omits_it
             ),
         )
 
-    monkeypatch.setattr(readiness_module.subprocess, "run", fake_run)
+    monkeypatch.setattr(
+        "taskweavn.server.computer_use_settings_readiness.subprocess.run",
+        fake_run,
+    )
     backend = ScriptedComputerUseBackend(
         (
-                ComputerUseObservation(
-                    operation="readiness",
-                    success=False,
-                    status="not_available",
+            ComputerUseObservation(
+                operation="readiness",
+                success=False,
+                status="not_available",
                 summary="Accessibility permission is missing.",
                 metadata={
                     "helper_status": "missing_accessibility",

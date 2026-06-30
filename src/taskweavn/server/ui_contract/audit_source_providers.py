@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import re
 from collections.abc import Sequence
 from datetime import UTC, datetime
@@ -32,6 +33,13 @@ from taskweavn.server.ui_contract.view_models import (
 )
 
 _ID_SAFE_RE = re.compile(r"[^A-Za-z0-9_.:-]+")
+_RUNTIME_OBSERVABILITY_EVENTS = {
+    "runtime_action",
+    "runtime_observation",
+    "computer_use_api",
+}
+_RUNTIME_OBSERVABILITY_SCHEMA = "plato.runtime_observability.v1"
+_MAX_RUNTIME_LOG_AUDIT_RECORDS = 100
 
 
 class WorkspaceAuditConfigProvider:
@@ -117,6 +125,14 @@ class WorkspaceAuditLogProvider:
             if path.suffix.lower() not in {".jsonl", ".log"}:
                 continue
             records.append(_log_record_from_path(session, path, task_node_id))
+            if path.name == "runtime.jsonl":
+                records.extend(
+                    _runtime_log_records_from_path(
+                        session,
+                        path,
+                        task_node_id=task_node_id,
+                    )
+                )
         return tuple(records)
 
     def related_logs(
@@ -413,6 +429,153 @@ def _log_record_from_path(
         ),
         flags=AuditRecordFlags(partial=True),
     )
+
+
+def _runtime_log_records_from_path(
+    session: Session,
+    path: Path,
+    *,
+    task_node_id: str | None,
+) -> tuple[AuditRecord, ...]:
+    records: list[AuditRecord] = []
+    try:
+        lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError:
+        return ()
+    for line_index, line in enumerate(lines, start=1):
+        if len(records) >= _MAX_RUNTIME_LOG_AUDIT_RECORDS:
+            break
+        row = _parse_json_object(line)
+        if row is None:
+            continue
+        record = _runtime_log_record_from_row(
+            session,
+            path,
+            line_index=line_index,
+            row=row,
+            task_node_id=task_node_id,
+        )
+        if record is not None:
+            records.append(record)
+    return tuple(records)
+
+
+def _runtime_log_record_from_row(
+    session: Session,
+    path: Path,
+    *,
+    line_index: int,
+    row: dict[str, object],
+    task_node_id: str | None,
+) -> AuditRecord | None:
+    event = _string(row.get("event"))
+    data = row.get("data")
+    if event not in _RUNTIME_OBSERVABILITY_EVENTS or not isinstance(data, dict):
+        return None
+    if data.get("schema") != _RUNTIME_OBSERVABILITY_SCHEMA:
+        return None
+    context = row.get("context")
+    context_task_id = (
+        _string(context.get("task_id"))
+        or _string(context.get("taskId"))
+        if isinstance(context, dict)
+        else None
+    )
+    if task_node_id is not None and context_task_id != task_node_id:
+        return None
+
+    record_task_node_id = context_task_id or task_node_id
+    operation = _string(data.get("operation")) or "unknown_operation"
+    status = _string(data.get("status")) or "unknown"
+    success = data.get("success")
+    safe_summary = _string(data.get("safeSummary")) or _string(row.get("message"))
+    record_id = (
+        f"record-log-runtime-{_safe_token(event)}-"
+        f"{line_index:04d}-{_safe_token(operation)}"
+    )
+    evidence_id = f"evidence-{record_id}"
+    package_event_count = _package_event_count(data)
+    evidence_summary = (
+        f"Runtime log line {line_index} in {path.name}; operation={operation}; "
+        f"status={status}; packageEventCount={package_event_count}."
+    )
+    failure_kind = _string(data.get("failureKind"))
+    recovery_hint = _string(data.get("recoveryHint"))
+    summary_parts = [
+        safe_summary or f"{event} recorded {operation} with status {status}.",
+    ]
+    if failure_kind:
+        summary_parts.append(f"failureKind={failure_kind}.")
+    if recovery_hint:
+        summary_parts.append(f"recoveryHint={recovery_hint}.")
+
+    return AuditRecord(
+        id=record_id,
+        scope=AuditLogEvidenceScope(
+            session_id=session.id,
+            evidence_id=evidence_id,
+            task_node_id=record_task_node_id,
+        ),
+        kind="log_evidence",
+        filter_kind="logs",
+        title=_runtime_log_title(event, operation, status),
+        summary=" ".join(summary_parts),
+        actor="tool" if event in {"runtime_observation", "computer_use_api"} else "system",
+        source_label="Runtime log",
+        occurred_at=_row_timestamp(row),
+        severity="warning" if success is False else "info",
+        confidence="high",
+        completeness="partial",
+        task_node_id=record_task_node_id,
+        evidence_refs=(
+            EvidenceRef(
+                id=evidence_id,
+                kind="log_excerpt",
+                label=path.name,
+                summary=evidence_summary,
+                redacted=True,
+            ),
+        ),
+        flags=AuditRecordFlags(partial=True, redacted=True),
+    )
+
+
+def _runtime_log_title(event: str, operation: str, status: str) -> str:
+    if event == "computer_use_api":
+        return f"Computer-use API {operation}: {status}"
+    if event == "runtime_observation":
+        return f"Runtime observation {operation}: {status}"
+    return f"Runtime action {operation}: {status}"
+
+
+def _parse_json_object(line: str) -> dict[str, object] | None:
+    try:
+        value = json.loads(line)
+    except json.JSONDecodeError:
+        return None
+    return value if isinstance(value, dict) else None
+
+
+def _row_timestamp(row: dict[str, object]) -> datetime:
+    value = _string(row.get("ts"))
+    if value is None:
+        return datetime.now(UTC)
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return datetime.now(UTC)
+
+
+def _package_event_count(data: dict[object, object]) -> int:
+    metadata = data.get("metadata")
+    if not isinstance(metadata, dict):
+        return 0
+    value = metadata.get("packageEventCount")
+    return value if isinstance(value, int) and value >= 0 else 0
+
+
+def _string(value: object) -> str | None:
+    return value if isinstance(value, str) and value else None
 
 
 def _read_session_log_manifest(session: Session) -> LogArchiveManifest | None:

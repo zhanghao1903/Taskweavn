@@ -51,6 +51,11 @@ function parseArgs(args) {
   let rendererPort = null;
   let sidecarTimeoutMs = null;
   let workspace = path.join(repoRoot, "plato-workspace");
+  let computerUseBackend = null;
+  let computerUseAllowedApps = null;
+  let computerUseHelperManifest = null;
+  let computerUseHelperAppPath = null;
+  let computerUseHelperAutoLaunch = null;
 
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
@@ -89,6 +94,50 @@ function parseArgs(args) {
       index += 1;
       continue;
     }
+    if (arg === "--computer-use-backend") {
+      const value = args[index + 1];
+      if (!value) {
+        throw new Error("--computer-use-backend requires a backend name");
+      }
+      computerUseBackend = value;
+      index += 1;
+      continue;
+    }
+    if (arg === "--computer-use-allowed-apps") {
+      const value = args[index + 1];
+      if (!value) {
+        throw new Error("--computer-use-allowed-apps requires a comma-separated value");
+      }
+      computerUseAllowedApps = value;
+      index += 1;
+      continue;
+    }
+    if (arg === "--computer-use-helper-manifest") {
+      const value = args[index + 1];
+      if (!value) {
+        throw new Error("--computer-use-helper-manifest requires a path");
+      }
+      computerUseHelperManifest = path.resolve(value);
+      index += 1;
+      continue;
+    }
+    if (arg === "--computer-use-helper-app-path") {
+      const value = args[index + 1];
+      if (!value) {
+        throw new Error("--computer-use-helper-app-path requires a path");
+      }
+      computerUseHelperAppPath = path.resolve(value);
+      index += 1;
+      continue;
+    }
+    if (arg === "--computer-use-helper-auto-launch") {
+      computerUseHelperAutoLaunch = "1";
+      continue;
+    }
+    if (arg === "--no-computer-use-helper-auto-launch") {
+      computerUseHelperAutoLaunch = "0";
+      continue;
+    }
     throw new Error(`unknown option for electron:dev: ${arg}`);
   }
 
@@ -104,6 +153,11 @@ function parseArgs(args) {
     rendererPort,
     sidecarTimeoutMs,
     workspace,
+    computerUseBackend,
+    computerUseAllowedApps,
+    computerUseHelperManifest,
+    computerUseHelperAppPath,
+    computerUseHelperAutoLaunch,
   };
 }
 
@@ -120,6 +174,17 @@ Options:
   --renderer-port <number>    Vite dev-server port. Defaults to a free port.
   --sidecar-timeout-ms <n>    Sidecar health timeout. Defaults to 20000.
   --open-devtools             Open detached Electron devtools.
+  --computer-use-backend <n>  Optional sidecar backend: disabled, helper, macos.
+  --computer-use-allowed-apps <csv>
+                              Comma-separated app allowlist, e.g. WeChat,TextEdit.
+  --computer-use-helper-manifest <path>
+                              Helper endpoint manifest path for helper backend.
+  --computer-use-helper-app-path <path>
+                              Helper app path for opt-in auto-launch.
+  --computer-use-helper-auto-launch
+                              Launch helper when its manifest is missing.
+  --no-computer-use-helper-auto-launch
+                              Disable helper auto-launch.
   --help                      Show this help.`);
 }
 
@@ -158,9 +223,30 @@ function startElectron(rendererUrl) {
   if (options.sidecarTimeoutMs !== null) {
     env.PLATO_ELECTRON_SIDECAR_TIMEOUT_MS = String(options.sidecarTimeoutMs);
   }
+  if (options.computerUseBackend !== null) {
+    env.PLATO_COMPUTER_USE_BACKEND = options.computerUseBackend;
+  }
+  if (options.computerUseAllowedApps !== null) {
+    env.PLATO_COMPUTER_USE_ALLOWED_APPS = options.computerUseAllowedApps;
+  }
+  if (options.computerUseHelperManifest !== null) {
+    env.PLATO_COMPUTER_USE_HELPER_MANIFEST = options.computerUseHelperManifest;
+  }
+  if (options.computerUseHelperAppPath !== null) {
+    env.PLATO_COMPUTER_USE_HELPER_APP_PATH = options.computerUseHelperAppPath;
+  }
+  if (options.computerUseHelperAutoLaunch !== null) {
+    env.PLATO_COMPUTER_USE_HELPER_AUTO_LAUNCH =
+      options.computerUseHelperAutoLaunch;
+  }
 
   console.log(`[plato-electron-dev] renderer=${rendererUrl}`);
   console.log(`[plato-electron-dev] workspace=${options.workspace}`);
+  if (options.computerUseBackend !== null) {
+    console.log(
+      `[plato-electron-dev] computerUseBackend=${options.computerUseBackend}`,
+    );
+  }
   console.log("[plato-electron-dev] launching Electron");
 
   return spawn(electronBin, [path.join(frontendRoot, "electron", "main.mjs")], {

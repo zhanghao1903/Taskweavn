@@ -169,8 +169,8 @@ def default_runtime_config_keys() -> tuple[RuntimeConfigKey, ...]:
             source_hints=("built_in_default", "environment", "process_input"),
             restart_required=True,
             description=(
-                "Path to the Plato Computer Use Helper endpoint manifest. "
-                "Used when computer_use.backend is helper."
+                "Path to the app-control helper endpoint manifest. Used when "
+                "computer_use.backend is helper."
             ),
         ),
         RuntimeConfigKey(
@@ -183,7 +183,7 @@ def default_runtime_config_keys() -> tuple[RuntimeConfigKey, ...]:
             source_hints=("built_in_default", "environment", "process_input"),
             restart_required=True,
             description=(
-                "Direct Plato Computer Use Helper endpoint override for development."
+                "Direct app-control helper endpoint override for development."
             ),
         ),
         RuntimeConfigKey(
