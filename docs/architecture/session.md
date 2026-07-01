@@ -1,6 +1,6 @@
 # Session 架构设计
 
-> 多 Agent 协作架构的核心抽象 · v1.3 · 2026-06-24
+> 多 Agent 协作架构的核心抽象 · v1.4 · 2026-07-02
 >
 > 2026-05-17 review note: 本文中的 `Workspace` 曾指 **Session Workspace / 执行工作区**，不是产品 UI 中用户长期管理的 `Project`。
 >
@@ -8,7 +8,7 @@
 >
 > 2026-06-19 fact note: 当前实现采用 workspace-root-as-agent-cwd。一个 workspace root 可拥有多个 Session；Session 的元数据隔离在 `.plato/sessions/<session_id>/`，但 Agent 看到的项目文件根目录是 workspace root。Session 是会话、投影、执行状态和审计的隔离边界，不再等同于独占文件工作区。
 >
-> 2026-06-24 Product 1.1 alignment: Session 现在也是 durable Conversation / Activity、Router decision/outcome、read-only inquiry result、workspace inspection evidence links、token usage projection、Audit/diagnostics linkage 的归属边界。Workspace root 仍共享项目文件；Session 隔离的是运行事实、会话投影和审计证据。
+> 2026-06-24 Product 1.1 alignment: Session 现在也是 durable Conversation / Activity、Router decision/outcome、read-only inquiry result、workspace inspection evidence links、token usage projection、Audit/diagnostics linkage、Plan archive / archived Plan projection 的归属边界。Workspace root 仍共享项目文件；Session 隔离的是运行事实、会话投影和审计证据。
 
 ---
 
@@ -101,10 +101,12 @@ Session
         └── TaskNode / PublishedTask
 ```
 
-Product 1.0 Main Page 当前投影一个 active Plan / TaskTree。PlanStore 已支持
-按 Session 列出多个 Plan 并区分 active non-archived Plan；完整历史 Plan
-入口和 archive command 是后续 UI/API 工作。Execution side 仍通过
-PublishedTask + TaskBus 表达实际可执行工作。
+Product 1.1 Main Page 当前投影一个 active Plan / TaskTree，并通过 Session
+snapshot / Activity projection 暴露 archived Plans。PlanStore 支持按 Session
+列出多个 Plan 并区分 active non-archived Plan；Plan archive 已有 command /
+HTTP route，归档后 Plan 从 active work 移入 Session history，Conversation
+和 Activity 保留 `Plan archived` 边界。Execution side 仍通过 PublishedTask +
+TaskBus 表达实际可执行工作。
 
 ---
 

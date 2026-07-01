@@ -1,10 +1,10 @@
 # UI And Backend Communication
 
 > Status: active architecture boundary
-> Last Updated: 2026-06-24
+> Last Updated: 2026-07-02
 > Related: [Plato Frontend Technical Design](../product/plato-frontend-technical-design.md), [Figma UI Baseline](../product/plato-figma-ui-baseline.md), [UI API Interfaces](../plans/ui/ui-api-interfaces.md), [Task Domain/UI Model Separation](task-domain-ui-model-separation.md), [Authoring Domain](authoring-domain.md), [TaskBus](bus.md)
 >
-> Product 1.1 alignment: This boundary now includes Router-first Main Page input, durable Conversation / Activity replay, read-only inquiry, command-backed ASK/confirmation/guidance/execution handoff, workspace inspection routes, token usage projection, Audit/Diagnostics linkage, and local sidecar settings-backed runtime.
+> Product 1.1 alignment: This boundary now includes Router-first Main Page input, durable Conversation / Activity replay, read-only inquiry, command-backed ASK/confirmation/guidance/execution handoff, Plan archive / archived Plan projection, workspace inspection routes, token usage projection, Audit/Diagnostics linkage, and local sidecar settings-backed runtime.
 
 ---
 
@@ -18,8 +18,8 @@ work 投影：
 - Runtime Input Router 将输入解释为 read-only answer、ASK/confirmation
   resolution、guidance、Direct Task、Plan-required work、stop/retry 等命令。
 - 系统将 task-like 输入转成 RawTask / DraftTaskTree / Plan / PublishedTask。
-- UI 展示 Session conversation、active Plan / TaskNode、ASK、确认动作、
-  Activity、文件变更、结果摘要和 Audit 入口。
+- UI 展示 Session conversation、active Plan / TaskNode、archived Plan history、
+  ASK、确认动作、Activity、文件变更、结果摘要和 Audit 入口。
 - 用户可以在 Session 级对话，也可以选中 Task 后进行 task-scoped 输入。
 
 这意味着 UI 与后端之间需要一套稳定通信契约，而不是临时暴露内部 service 或 SQLite 结构。
@@ -251,7 +251,7 @@ class QueryResponse[T](BaseModel):
 
 | API 语义 | 返回 | 来源 |
 |---|---|---|
-| `getSessionSnapshot(session_id)` | `MainPageSnapshot` | SessionManager + MessageStream + PlanStore + TaskStore + AskStore projection |
+| `getSessionSnapshot(session_id)` | `MainPageSnapshot` | SessionManager + MessageStream + PlanStore active / archived Plan projection + TaskStore + AskStore projection |
 | `getSessionOverview(session_id)` | `SessionOverview` | SessionManager + MessageStream + TaskStore projection |
 | `listTaskTrees(session_id, filters)` | `TaskTreeView` | TaskProjectionService / PlanProjectionService |
 | `getTaskCard(session_id, task_ref)` | `TaskCardView` | TaskProjectionService |
@@ -394,6 +394,7 @@ class RefreshHint(BaseModel):
 | `cancelAsk` | 取消 execution ASK | AskStore first, then TaskBus fail policy |
 | `resolveConfirmation` | 处理确认动作 | TaskCommandService + MessageStream |
 | `publishTaskTree` | 发布 draft tree 到 TaskBus | CollaboratorApiAdapter + TaskPublisher |
+| `archivePlan` | 将完成/终态 Plan 从 active work 移入 Session history | `DefaultPlanLifecycleCommandService` + PlanStore + MessageStream |
 | `assignTask` | Routing Agent 分配 pending Task 给 Execution Agent | Routing Agent + TaskBus assignment command |
 | `requestTaskInterrupt` | 用户或系统请求停止 Task | TaskCommandService + TaskBus interrupt intent |
 | `cancelTask` | 取消 draft/pending Task | draft: AuthoringCommandService; pending: TaskBus terminal update |
@@ -647,6 +648,7 @@ UI 可以为一次用户点击生成稳定 idempotency key，避免刷新/重试
 | Assignment and execution status | Product 1.0 fixed-route dispatch + TaskBus claim/complete/fail/wait/retry/interrupt lifecycle; Product 1.1+ Routing Agent assignment commands |
 | Interruption | TaskBus interrupt intent + Agent/runtime cooperative safe points |
 | Runtime input | `RuntimeInputRouter`, read-only inquiry, command gateway |
+| Plan archive and archived Plan projection | `DefaultPlanLifecycleCommandService`, PlanStore archive, Main Page snapshot archivedPlans, Session Activity projection |
 | HTTP/SSE transport | `ui_http.py`, `ui_http_routes.py`, `UiEventStore` |
 | Logs/diagnostics | Configurable logging and archives |
 
@@ -657,17 +659,19 @@ layer.
 
 ## 11. Current Implemented Baseline
 
-The Product 1.0 sidecar baseline now includes:
+The Product 1.1 local sidecar baseline now includes:
 
 - Gateway protocol and envelope models under `src/taskweavn/server/ui_contract/`.
 - Main Page snapshot query with Session, active Plan, Task tree, messages,
-  Activity, pending ASK, confirmations, results, file summaries, and audit
-  links.
+  archived Plans, Activity, pending ASK, confirmations, results, file summaries,
+  and audit links.
 - HTTP route matching under `/api/v1/sessions/{session_id}/...`.
 - Session-scoped `UiEventStore` and SSE replay where retained events are
   available.
 - Runtime input routing for ASK/confirmation/read-only/guidance/Direct Task
   handoff/stop/retry.
+- Plan archive command and archived Plan history projection through snapshot,
+  Conversation, and Activity boundaries.
 - Execution ASK query and command endpoints.
 - Task retry and cooperative stop commands.
 - Snapshot-time recovery hooks for stale stopping and answered-but-not-continued
@@ -682,6 +686,7 @@ POST /api/v1/sessions/{session_id}/runtime-input/route
 POST /api/v1/sessions/{session_id}/input
 POST /api/v1/sessions/{session_id}/task-tree/generate
 POST /api/v1/sessions/{session_id}/task-tree/publish
+POST /api/v1/sessions/{session_id}/plans/{plan_id}/archive
 POST /api/v1/sessions/{session_id}/authoring/raw-tasks/{raw_task_id}/asks/answers
 GET  /api/v1/sessions/{session_id}/asks
 GET  /api/v1/sessions/{session_id}/asks/{ask_id}
@@ -706,7 +711,7 @@ notes.
 3. 多用户/多浏览器同时连接同一个 Session 时，是否需要 user identity 和 presence？
 4. WebSocket 何时升级：多人协作、浏览器端 agent worker，还是高频日志流？
 5. 任务执行日志是否走同一 SSE channel，还是单独 debug/log channel？
-6. Plan archive command、Session history query、archived Plan detail projection 的 API 是否单独成组？
+6. Archived Plan 的深层 detail / deep-link 是否需要在 snapshot projection 之外增加专用 query route？
 
 ---
 
