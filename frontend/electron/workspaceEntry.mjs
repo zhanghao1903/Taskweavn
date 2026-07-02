@@ -233,6 +233,12 @@ export function summarizeWorkspace(
 }
 
 function normalizeStoredState(raw) {
+  const schemaVersion =
+    typeof raw?.schemaVersion === "number" ? raw.schemaVersion : null;
+  const hasExplicitCurrentPath =
+    raw !== null &&
+    typeof raw === "object" &&
+    Object.prototype.hasOwnProperty.call(raw, "currentPath");
   const currentPath =
     typeof raw?.currentPath === "string" && raw.currentPath.length > 0
       ? normalizeWorkspacePath(raw.currentPath)
@@ -253,10 +259,12 @@ function normalizeStoredState(raw) {
   const activePaths = workspaces
     .filter((record) => record.archived !== true)
     .map((record) => record.path);
-  const safeCurrentPath =
-    currentPath !== null && activePaths.includes(currentPath)
-      ? currentPath
-      : activePaths[0] ?? null;
+  const safeCurrentPath = safeStoredCurrentPath({
+    activePaths,
+    currentPath,
+    hasExplicitCurrentPath,
+    schemaVersion,
+  });
 
   return {
     currentPath: safeCurrentPath,
@@ -265,6 +273,21 @@ function normalizeStoredState(raw) {
     schemaVersion: STORE_SCHEMA_VERSION,
     workspaces,
   };
+}
+
+function safeStoredCurrentPath({
+  activePaths,
+  currentPath,
+  hasExplicitCurrentPath,
+  schemaVersion,
+}) {
+  if (currentPath !== null && activePaths.includes(currentPath)) {
+    return currentPath;
+  }
+  if (schemaVersion === STORE_SCHEMA_VERSION && hasExplicitCurrentPath) {
+    return null;
+  }
+  return activePaths[0] ?? null;
 }
 
 function normalizePreferences(raw) {

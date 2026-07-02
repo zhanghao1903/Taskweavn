@@ -24,6 +24,12 @@ const npmBin = process.platform === "win32" ? "npm.cmd" : "npm";
 const finderLikePath =
   process.platform === "darwin" ? "/usr/bin:/bin:/usr/sbin:/sbin" : process.env.PATH;
 const smokeUiLocale = "en-US";
+const smokeConfiguredEnv = {
+  DEEPSEEK_API_KEY: "test-sidecar-readiness-key",
+  LLM_API_KEY: "test-sidecar-readiness-key",
+  LLM_MODEL: "deepseek-v4-pro",
+  LLM_PROVIDER: "deepseek",
+};
 const smokeRunnerPath = path.join(frontendRoot, "electron", "smokeRunner.mjs");
 const electronBin =
   process.platform === "win32"
@@ -290,6 +296,8 @@ async function seedWorkspaceEntryWorkspace({ kind }) {
   const userDataDir = path.join(runDir, "user-data-workspace-entry");
   const workspaceDir = path.join(runDir, "workspace-entry-project");
   const readyFile = path.join(runDir, "workspace-entry-seed-ready.json");
+  const workspaceRegistry = workspaceRegistryForWorkspace(workspaceDir);
+  const workspaceId = workspaceRegistry[0].workspaceId;
   mkdirSync(userDataDir, { recursive: true });
   mkdirSync(workspaceDir, { recursive: true });
   seedChild = spawn(
@@ -303,6 +311,8 @@ async function seedWorkspaceEntryWorkspace({ kind }) {
       workspaceDir,
       "--ready-file",
       readyFile,
+      "--workspace-registry-json",
+      JSON.stringify(workspaceRegistry),
       kind === "first-run" ? "--first-run-unconfigured" : "--first-run-configured",
     ],
     {
@@ -322,20 +332,14 @@ async function seedWorkspaceEntryWorkspace({ kind }) {
   const workspaceName = path.basename(workspaceDir);
   writeFileSync(
     path.join(userDataDir, "workspace-entry.json"),
-    `${JSON.stringify(
-      {
-        currentPath: null,
-        recentPaths: [workspaceDir],
-      },
-      null,
-      2,
-    )}\n`,
+    `${JSON.stringify(workspaceEntrySeedStore(workspaceDir), null, 2)}\n`,
     "utf8",
   );
   return {
     ...sidecarInfo,
     userDataDir,
     workspaceDir,
+    workspaceId,
     workspaceName,
   };
 }
@@ -352,14 +356,7 @@ function seedWorkspaceGitInitWorkspace() {
   );
   writeFileSync(
     path.join(userDataDir, "workspace-entry.json"),
-    `${JSON.stringify(
-      {
-        currentPath: null,
-        recentPaths: [workspaceDir],
-      },
-      null,
-      2,
-    )}\n`,
+    `${JSON.stringify(workspaceEntrySeedStore(workspaceDir), null, 2)}\n`,
     "utf8",
   );
   return {
@@ -369,21 +366,33 @@ function seedWorkspaceGitInitWorkspace() {
   };
 }
 
+function workspaceEntrySeedStore(workspaceDir) {
+  return {
+    currentPath: null,
+    preferences: {
+      initializeGitOnOpen: null,
+    },
+    schemaVersion: 3,
+    workspaces: [
+      {
+        addedAt: null,
+        archived: false,
+        archivedAt: null,
+        lastOpenedAt: null,
+        path: workspaceDir,
+      },
+    ],
+  };
+}
+
 async function seedLauncherWorkspace({ kind, packagedDefaultWorkspace }) {
   const userDataDir = path.join(runDir, "user-data");
   const workspaceDir = packagedDefaultWorkspace
     ? path.join(userDataDir, "workspace")
     : path.join(runDir, "workspace-launcher");
   const readyFile = path.join(runDir, "launcher-seed-ready.json");
-  const workspaceSummary = summarizeWorkspace(workspaceDir, workspaceDir);
-  const workspaceRegistry = [
-    {
-      isCurrent: true,
-      label: workspaceSummary.name,
-      rootPath: workspaceDir,
-      workspaceId: workspaceSummary.id,
-    },
-  ];
+  const workspaceRegistry = workspaceRegistryForWorkspace(workspaceDir);
+  const workspaceId = workspaceRegistry[0].workspaceId;
   mkdirSync(workspaceDir, { recursive: true });
   const firstRunFlag =
     kind === "first-run" ? "--first-run-unconfigured" : "--first-run-configured";
@@ -420,8 +429,20 @@ async function seedLauncherWorkspace({ kind, packagedDefaultWorkspace }) {
     ...sidecarInfo,
     userDataDir,
     workspaceDir,
-    workspaceId: workspaceSummary.id,
+    workspaceId,
   };
+}
+
+function workspaceRegistryForWorkspace(workspaceDir) {
+  const workspaceSummary = summarizeWorkspace(workspaceDir, workspaceDir);
+  return [
+    {
+      isCurrent: true,
+      label: workspaceSummary.name,
+      rootPath: workspaceDir,
+      workspaceId: workspaceSummary.id,
+    },
+  ];
 }
 
 function createStartupDiagnosticsFixture() {
@@ -529,6 +550,7 @@ function startDevElectronWorkspaceEntrySmoke({ rendererUrl, sidecarInfo }) {
 
   const env = {
     ...process.env,
+    ...smokeConfiguredEnv,
     PLATO_ELECTRON_DISABLE_EVENTS: "1",
     PLATO_ELECTRON_RENDERER_URL: rendererUrl,
     PLATO_ELECTRON_REPO_ROOT: repoRoot,
@@ -557,6 +579,7 @@ function startDevElectronWorkspaceGitInitSmoke({ rendererUrl, sidecarInfo }) {
 
   const env = {
     ...process.env,
+    ...smokeConfiguredEnv,
     PLATO_ELECTRON_DISABLE_EVENTS: "1",
     PLATO_ELECTRON_RENDERER_URL: rendererUrl,
     PLATO_ELECTRON_REPO_ROOT: repoRoot,
