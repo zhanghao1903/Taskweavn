@@ -8,6 +8,7 @@ import {
   MarkdownContent,
   type BadgeTone,
 } from "../../shared/components";
+import { useUiText, type UiTextCatalog } from "../../shared/ui-text";
 import { cx } from "../../shared/utils/cx";
 import { selectMessageKindPresentation } from "./mainPageSelectors";
 import styles from "./MainPage.module.css";
@@ -17,9 +18,15 @@ export type SessionMessageCardProps = {
 };
 
 export function SessionMessageCard({ message }: SessionMessageCardProps) {
-  const kindPresentation = selectMessageKindPresentation(message.kind);
+  const uiText = useUiText();
+  const kindPresentation = selectMessageKindPresentation(
+    message.kind,
+    uiText.main,
+  );
   const isUserMessage = isUserAuthoredMessage(message);
-  const userIntent = isUserMessage ? selectUserMessageIntent(message) : null;
+  const userIntent = isUserMessage
+    ? selectUserMessageIntent(message, uiText)
+    : null;
 
   return (
     <article
@@ -43,10 +50,12 @@ export function SessionMessageCard({ message }: SessionMessageCardProps) {
             {kindPresentation.label}
           </Badge>
         )}
-        <span>{isUserMessage ? "You" : message.title}</span>
+        <span>{isUserMessage ? uiText.main.detail.labels.userYou : message.title}</span>
         {!isUserMessage ? (
           <span>
-            {message.taskNodeId ? "Task activity" : "Session activity"}
+            {message.taskNodeId
+              ? uiText.main.detail.labels.taskActivity
+              : uiText.main.detail.labels.sessionActivity}
           </span>
         ) : null}
         <time
@@ -57,12 +66,15 @@ export function SessionMessageCard({ message }: SessionMessageCardProps) {
           {formatConversationTime(message.createdAt)}
         </time>
       </div>
-      {renderConversationContent(message)}
+      {renderConversationContent(message, uiText)}
     </article>
   );
 }
 
-function renderConversationContent(message: SessionMessageView) {
+function renderConversationContent(
+  message: SessionMessageView,
+  uiText: UiTextCatalog,
+) {
   const render = message.conversationRender;
   if (
     render === null ||
@@ -73,11 +85,11 @@ function renderConversationContent(message: SessionMessageView) {
   }
 
   if (render.renderKind === "router_trace" && render.routerTrace) {
-    return <RouterTrace trace={render.routerTrace} />;
+    return <RouterTrace trace={render.routerTrace} uiText={uiText} />;
   }
 
   if (render.renderKind === "question_card" && render.questionCard) {
-    return <QuestionCard card={render.questionCard} />;
+    return <QuestionCard card={render.questionCard} uiText={uiText} />;
   }
 
   if (render.renderKind === "text" && render.text) {
@@ -98,29 +110,35 @@ function renderMarkdownMessageBody(body: string) {
   );
 }
 
-function RouterTrace({ trace }: { trace: ConversationRouterTraceView }) {
+function RouterTrace({
+  trace,
+  uiText,
+}: {
+  trace: ConversationRouterTraceView;
+  uiText: UiTextCatalog;
+}) {
   return (
     <div className={styles.routerTraceCard}>
       <p>{trace.explanation}</p>
       <dl>
         <div>
-          <dt>Intent</dt>
+          <dt>{uiText.main.detail.labels.routerIntent}</dt>
           <dd>{formatToken(trace.intent)}</dd>
         </div>
         <div>
-          <dt>Scope</dt>
+          <dt>{uiText.main.detail.labels.routerScope}</dt>
           <dd>{formatToken(trace.scopeKind)}</dd>
         </div>
         <div>
-          <dt>Effect</dt>
+          <dt>{uiText.main.activity.labels.effect}</dt>
           <dd>{formatToken(trace.sideEffect)}</dd>
         </div>
         <div>
-          <dt>Dispatch</dt>
+          <dt>{uiText.main.detail.labels.routerDispatch}</dt>
           <dd>{formatToken(trace.dispatchTarget)}</dd>
         </div>
         <div>
-          <dt>Outcome</dt>
+          <dt>{uiText.main.detail.labels.routerOutcome}</dt>
           <dd>{formatToken(trace.outcomeStatus)}</dd>
         </div>
       </dl>
@@ -128,7 +146,13 @@ function RouterTrace({ trace }: { trace: ConversationRouterTraceView }) {
   );
 }
 
-function QuestionCard({ card }: { card: ConversationQuestionCardView }) {
+function QuestionCard({
+  card,
+  uiText,
+}: {
+  card: ConversationQuestionCardView;
+  uiText: UiTextCatalog;
+}) {
   const isPending = card.status === "pending";
 
   return (
@@ -146,11 +170,16 @@ function QuestionCard({ card }: { card: ConversationQuestionCardView }) {
             <label key={question.id}>
               <span>
                 {question.label}
-                {question.required ? "" : " (optional)"}
+                {question.required
+                  ? ""
+                  : ` (${uiText.main.interaction.ask.labels.optional})`}
               </span>
               <textarea
                 disabled
-                placeholder={question.inputHint ?? "Answer in the input box."}
+                placeholder={
+                  question.inputHint ??
+                  uiText.main.detail.messages.answerPlaceholder
+                }
                 rows={2}
               />
             </label>
@@ -181,7 +210,10 @@ function isUserAuthoredMessage(message: SessionMessageView): boolean {
   return message.title.trim().toLocaleLowerCase().startsWith("user ");
 }
 
-function selectUserMessageIntent(message: SessionMessageView): UserMessageIntent {
+function selectUserMessageIntent(
+  message: SessionMessageView,
+  uiText: UiTextCatalog,
+): UserMessageIntent {
   const text = `${message.title}\n${message.body}`.toLocaleLowerCase();
 
   if (
@@ -191,7 +223,7 @@ function selectUserMessageIntent(message: SessionMessageView): UserMessageIntent
   ) {
     return {
       className: styles.userAnswerConversationMessage,
-      label: "Answer",
+      label: uiText.main.activity.kinds.answer,
       tone: "success",
     };
   }
@@ -203,14 +235,14 @@ function selectUserMessageIntent(message: SessionMessageView): UserMessageIntent
   ) {
     return {
       className: styles.userActionConversationMessage,
-      label: "Action",
+      label: uiText.main.detail.labels.userAction,
       tone: "warning",
     };
   }
 
   return {
     className: styles.userInputConversationMessage,
-    label: "Input",
+    label: uiText.main.detail.labels.userLabel,
     tone: "blue",
   };
 }

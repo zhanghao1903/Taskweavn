@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import type { TaskNodeCardView } from "../../shared/api/types";
+import { UiTextProvider } from "../../shared/ui-text";
 import { MainPageDetailPanel } from "./MainPageDetailPanel";
 import type { MainPageDetailView } from "./mainPageViewModel";
 
@@ -416,6 +417,41 @@ describe("MainPageDetailPanel", () => {
       "/workspaces/ws-a/inspection?path=src%2FApp.tsx&returnFocus=file_change&returnSessionId=session-website-plan&returnTaskNodeId=task-implementation&sessionId=session-website-plan&taskNodeId=task-implementation&view=file",
     );
     expect(screen.getByRole("link", { name: "View diff" })).toHaveAttribute(
+      "href",
+      expect.stringContaining("view=diff"),
+    );
+  });
+
+  it("renders file change details with zh-CN UI text", () => {
+    render(
+      <UiTextProvider locale="zh-CN">
+        <MainPageDetailPanel
+          detail={fileChangesDetail}
+          onAnswerAsk={vi.fn()}
+          onCancelAsk={vi.fn()}
+          onConfirmationDecision={vi.fn()}
+          onDeferAsk={vi.fn()}
+          onRetryTask={vi.fn()}
+          onShowFileChanges={vi.fn()}
+          onShowResult={vi.fn()}
+          onStopTask={vi.fn()}
+          workspaceId="ws-a"
+        />
+      </UiTextProvider>,
+    );
+
+    expect(
+      screen.getByRole("complementary", { name: "详情" }),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText("变更文件")).toHaveLength(2);
+    expect(screen.getByText("1 个文件")).toBeInTheDocument();
+    expect(screen.getByText("包含子任务")).toBeInTheDocument();
+    expect(screen.getByText("修改")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "打开文件" })).toHaveAttribute(
+      "href",
+      expect.stringContaining("view=file"),
+    );
+    expect(screen.getByRole("link", { name: "查看 Diff" })).toHaveAttribute(
       "href",
       expect.stringContaining("view=diff"),
     );

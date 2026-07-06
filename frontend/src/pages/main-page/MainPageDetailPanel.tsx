@@ -21,6 +21,7 @@ import {
   Panel,
   Text,
 } from "../../shared/components";
+import { useUiText, type UiTextCatalog } from "../../shared/ui-text";
 import { buildWorkspaceInspectionRoute } from "../../app/routes";
 import { ConfirmationDetailPanel } from "./interaction/ConfirmationDetailPanel";
 import { ExecutionAskDetailPanel } from "./interaction/ExecutionAskDetailPanel";
@@ -58,6 +59,56 @@ type FileChangesDetail = Extract<MainPageDetailView, { kind: "fileChanges" }>;
 type PlanDetail = Extract<MainPageDetailView, { kind: "plan" }>;
 type TaskDetail = Extract<MainPageDetailView, { kind: "task" }>;
 
+function localizedDetailHeader(
+  detail: MainPageDetailView,
+  uiText: UiTextCatalog,
+): MainPageDetailView["header"] {
+  const shouldLocalizeSystemCopy =
+    uiText.main.detail.labels.changedFiles !== "Changed files";
+
+  if (detail.kind === "fileChanges") {
+    if (!shouldLocalizeSystemCopy) {
+      return detail.header;
+    }
+
+    const fileCount = detail.fileChangeSummary.changedFiles.length;
+    return {
+      body: uiText.main.detail.messages.fileCountChanged({
+        count: fileCount,
+      }),
+      eyebrow: uiText.main.detail.labels.fileChanges,
+      title: uiText.main.detail.labels.changedFiles,
+    };
+  }
+
+  if (detail.kind === "executionAsk") {
+    return {
+      ...detail.header,
+      eyebrow: uiText.main.detail.labels.taskInput,
+    };
+  }
+
+  if (detail.kind === "task" && detail.header.eyebrow === "Task") {
+    return {
+      ...detail.header,
+      eyebrow: uiText.audit.labels.task,
+    };
+  }
+
+  if (detail.kind === "plan") {
+    return {
+      ...detail.header,
+      eyebrow:
+        detail.header.eyebrow === "Plan" ||
+        detail.header.eyebrow === "Draft task plan"
+          ? uiText.main.detail.labels.plan
+          : detail.header.eyebrow,
+    };
+  }
+
+  return detail.header;
+}
+
 export function MainPageDetailPanel({
   detail,
   detailFocusRef,
@@ -75,17 +126,19 @@ export function MainPageDetailPanel({
   sessionId,
   workspaceId,
 }: MainPageDetailPanelProps) {
+  const uiText = useUiText();
+
   if (detail.kind === "note") {
     return null;
   }
 
-  const { header } = detail;
+  const header = localizedDetailHeader(detail, uiText);
 
   return (
     <Panel
       as="aside"
       className={styles.detailPanel}
-      aria-label="Details"
+      aria-label={uiText.main.detail.labels.details}
       ref={detailFocusRef}
       tabIndex={-1}
     >
@@ -223,6 +276,7 @@ function PlanDetailPanel({
   sessionId?: SessionId | null;
   workspaceId?: WorkspaceId | null;
 }) {
+  const uiText = useUiText();
   const taskCount = detail.taskTree.nodes.length;
 
   return (
@@ -239,21 +293,20 @@ function PlanDetailPanel({
         />
       ) : null}
       <Panel
-        aria-label="Plan interaction"
+        aria-label={uiText.main.detail.labels.planInteraction}
         className={styles.detailBox}
         tone="muted"
       >
         <div className={styles.detailTitleRow}>
           <Text as="strong" variant="label">
-            Plan interaction
+            {uiText.main.detail.labels.planInteraction}
           </Text>
           <Badge size="sm" tone="blue">
-            {taskCount === 1 ? "1 task" : `${taskCount} tasks`}
+            {uiText.main.detail.messages.taskCount({ count: taskCount })}
           </Badge>
         </div>
         <Text variant="muted">
-          Input now refines the whole plan. Select a task to inspect or guide one
-          Task.
+          {uiText.main.detail.messages.planInteractionBody}
         </Text>
       </Panel>
     </>
@@ -265,10 +318,12 @@ function ConfirmationResolvedPanel({
 }: {
   detail: ConfirmationResolvedDetail;
 }) {
+  const uiText = useUiText();
+
   return (
     <Panel className={styles.detailBox} tone="muted">
       <Text as="strong" variant="label">
-        Confirmation resolved
+        {uiText.main.activity.kinds.confirmationResolved}
       </Text>
       <Text variant="muted">{confirmationResolutionText[detail.decision]}</Text>
     </Panel>
@@ -288,6 +343,7 @@ function ResultSummaryPanel({
   onShowFileChanges,
   workspaceId,
 }: ResultSummaryPanelProps) {
+  const uiText = useUiText();
   const [isReaderOpen, setIsReaderOpen] = useState(false);
   const sections = detail.result.sections ?? [];
   const shouldShowReader =
@@ -299,14 +355,18 @@ function ResultSummaryPanel({
       <Panel
         className={styles.detailBox}
         tone="muted"
-        aria-label="Full result"
+        aria-label={uiText.main.detail.labels.fullResult}
       >
         <div className={styles.detailTitleRow}>
           <Text as="strong" variant="label">
-            Full result
+            {uiText.main.detail.labels.fullResult}
           </Text>
           <Badge size="sm" tone="blue">
-            {sections.length > 0 ? `${sections.length} sections` : "Summary"}
+            {sections.length > 0
+              ? uiText.main.detail.messages.sectionsAvailable({
+                  count: sections.length,
+                })
+              : uiText.main.detail.labels.summary}
           </Badge>
         </div>
         <MarkdownContent source={detail.result.summary} variant="detail" />
@@ -317,7 +377,9 @@ function ResultSummaryPanel({
                 <div className={styles.detailTitleRow}>
                   <strong>{section.title}</strong>
                   <Badge size="sm" tone="neutral">
-                    {section.kind ?? "text"}
+                    {uiText.main.detail.resultSectionKinds[
+                      section.kind ?? "text"
+                    ]}
                   </Badge>
                 </div>
                 <MarkdownContent source={section.body} variant="detail" />
@@ -327,10 +389,12 @@ function ResultSummaryPanel({
         )}
         <div className={styles.actionRow}>
           <Button onClick={() => setIsReaderOpen(false)}>
-            Back to summary
+            {uiText.main.detail.actions.backToSummary}
           </Button>
           {detail.fileChangeSummary && (
-            <Button onClick={onShowFileChanges}>View file changes</Button>
+            <Button onClick={onShowFileChanges}>
+              {uiText.main.detail.actions.viewFileChanges}
+            </Button>
           )}
         </div>
       </Panel>
@@ -341,10 +405,12 @@ function ResultSummaryPanel({
     <Panel className={styles.detailBox} tone="muted">
       <div className={styles.detailTitleRow}>
         <Text as="strong" variant="label">
-          Result summary
+          {uiText.main.detail.labels.resultSummary}
         </Text>
         <Badge size="sm" tone="blue">
-          {sections.length > 0 ? "Detailed" : "Summary"}
+          {sections.length > 0
+            ? uiText.main.detail.labels.detailed
+            : uiText.main.detail.labels.summary}
         </Badge>
       </div>
       <MarkdownContent
@@ -357,11 +423,13 @@ function ResultSummaryPanel({
         <div className={styles.resultReaderPrompt}>
           <Text variant="muted">
             {sections.length > 0
-              ? `${sections.length} sections available.`
-              : "Full result available."}
+              ? uiText.main.detail.messages.sectionsAvailable({
+                  count: sections.length,
+                })
+              : uiText.main.detail.messages.fullResultAvailable}
           </Text>
           <Button onClick={() => setIsReaderOpen(true)}>
-            View full result
+            {uiText.main.activity.actions.viewFullResult}
           </Button>
         </div>
       )}
@@ -388,27 +456,29 @@ function WorkspaceChangesPreview({
   onShowFileChanges: () => void;
   workspaceId: WorkspaceId;
 }) {
+  const uiText = useUiText();
   const fileCount = fileChangeSummary.changedFiles.length;
 
   return (
     <section
       className={styles.resultWorkspaceChanges}
-      aria-label="Workspace changes"
+      aria-label={uiText.main.detail.labels.workspaceChanges}
       ref={focusRef}
       tabIndex={-1}
     >
       <div className={styles.detailTitleRow}>
         <Text as="strong" variant="label">
-          Workspace changes
+          {uiText.main.detail.labels.workspaceChanges}
         </Text>
         <Badge size="sm" tone={fileCount > 0 ? "blue" : "neutral"}>
-          {fileCount === 1 ? "1 file" : `${fileCount} files`}
+          {uiText.main.detail.messages.fileCount({ count: fileCount })}
         </Badge>
       </div>
       <div className={styles.fileChangeList} role="list">
         {fileChangeSummary.changedFiles.map((file) => {
           const changePresentation = selectFileChangeTypePresentation(
             file.changeType,
+            uiText.main,
           );
           const taskNodeId =
             file.ownerTaskNodeId ?? fileChangeSummary.taskNodeId ?? undefined;
@@ -441,7 +511,7 @@ function WorkspaceChangesPreview({
                     view: "file",
                   })}
                 >
-                  Open file
+                  {uiText.main.detail.actions.openFile}
                 </a>
                 <a
                   href={buildWorkspaceInspectionRoute({
@@ -449,7 +519,7 @@ function WorkspaceChangesPreview({
                     view: "diff",
                   })}
                 >
-                  View diff
+                  {uiText.main.detail.actions.viewDiff}
                 </a>
               </div>
             </article>
@@ -457,7 +527,9 @@ function WorkspaceChangesPreview({
         })}
       </div>
       <div className={styles.actionRow}>
-        <Button onClick={onShowFileChanges}>View file changes</Button>
+        <Button onClick={onShowFileChanges}>
+          {uiText.main.detail.actions.viewFileChanges}
+        </Button>
       </div>
     </section>
   );
@@ -476,6 +548,7 @@ function FileChangeSummaryPanel({
   onShowResult,
   workspaceId,
 }: FileChangeSummaryPanelProps) {
+  const uiText = useUiText();
   const fileCount = detail.fileChangeSummary.changedFiles.length;
   const resolvedWorkspaceId = workspaceId ?? "current";
 
@@ -488,15 +561,15 @@ function FileChangeSummaryPanel({
     >
       <div className={styles.detailTitleRow}>
         <Text as="strong" variant="label">
-          Changed files
+          {uiText.main.detail.labels.changedFiles}
         </Text>
         <div className={styles.badgeGroup}>
           <Badge size="sm" tone={fileCount > 0 ? "blue" : "neutral"}>
-            {fileCount === 1 ? "1 file" : `${fileCount} files`}
+            {uiText.main.detail.messages.fileCount({ count: fileCount })}
           </Badge>
           {detail.fileChangeSummary.recursive ? (
             <Badge size="sm" tone="neutral">
-              Includes child tasks
+              {uiText.main.detail.labels.includesChildTasks}
             </Badge>
           ) : null}
         </div>
@@ -505,6 +578,7 @@ function FileChangeSummaryPanel({
         {detail.fileChangeSummary.changedFiles.map((file) => {
           const changePresentation = selectFileChangeTypePresentation(
             file.changeType,
+            uiText.main,
           );
           const taskNodeId =
             file.ownerTaskNodeId ?? detail.fileChangeSummary.taskNodeId ?? undefined;
@@ -537,7 +611,7 @@ function FileChangeSummaryPanel({
                     view: "file",
                   })}
                 >
-                  Open file
+                  {uiText.main.detail.actions.openFile}
                 </a>
                 <a
                   href={buildWorkspaceInspectionRoute({
@@ -545,7 +619,7 @@ function FileChangeSummaryPanel({
                     view: "diff",
                   })}
                 >
-                  View diff
+                  {uiText.main.detail.actions.viewDiff}
                 </a>
               </div>
             </article>
@@ -554,7 +628,9 @@ function FileChangeSummaryPanel({
       </div>
       {detail.result && (
         <div className={styles.actionRow}>
-          <Button onClick={onShowResult}>View result</Button>
+          <Button onClick={onShowResult}>
+            {uiText.main.detail.actions.viewResult}
+          </Button>
         </div>
       )}
     </Panel>
@@ -576,6 +652,7 @@ function TaskDetailPanel({
   sessionId?: SessionId | null;
   workspaceId?: WorkspaceId | null;
 }) {
+  const uiText = useUiText();
   const isRunning =
     detail.selectedTask.execution === "running" ||
     detail.selectedTask.status === "running";
@@ -618,26 +695,28 @@ function TaskDetailPanel({
       ) : null}
       {hasStructuredDetails && (
         <Panel
-          aria-label="Task details"
+          aria-label={uiText.main.detail.labels.taskDetails}
           className={styles.detailBox}
           data-task-node-id={detail.selectedTask.id}
           tone="muted"
         >
           <Text as="strong" variant="label">
-            Task details
+            {uiText.main.detail.labels.taskDetails}
           </Text>
           {shouldShowIntent && (
-            <TaskDetailSection title="Intent">{intent}</TaskDetailSection>
+            <TaskDetailSection title={uiText.main.detail.labels.intent}>
+              {intent}
+            </TaskDetailSection>
           )}
           {instructions && (
-            <TaskDetailSection title="Instructions">
+            <TaskDetailSection title={uiText.main.detail.labels.instructions}>
               {instructions}
             </TaskDetailSection>
           )}
           {acceptanceCriteria.length > 0 && (
             <div className={styles.taskDetailSection}>
               <Text as="strong" variant="label">
-                Acceptance criteria
+                {uiText.main.detail.labels.acceptanceCriteria}
               </Text>
               <ul className={styles.taskDetailList}>
                 {acceptanceCriteria.map((criterion) => (
@@ -650,13 +729,13 @@ function TaskDetailPanel({
       )}
       {(showPublishedStopAction || showRetryAction) && (
         <Panel
-          aria-label="Task actions"
+          aria-label={uiText.main.detail.labels.taskActions}
           className={styles.detailBox}
           data-task-node-id={detail.selectedTask.id}
           tone="muted"
         >
           <Text as="strong" variant="label">
-            Task actions
+            {uiText.main.detail.labels.taskActions}
           </Text>
           {showPublishedStopAction && (
             <div className={styles.actionRow}>
@@ -666,7 +745,9 @@ function TaskDetailPanel({
                 variant="danger"
               >
                 <CircleStop size={14} aria-hidden="true" />
-                {detail.isStoppingTask || isStopping ? "Stopping" : "Stop"}
+                {detail.isStoppingTask || isStopping
+                  ? uiText.main.detail.actions.stopping
+                  : uiText.main.detail.actions.stop}
               </Button>
             </div>
           )}
@@ -678,7 +759,9 @@ function TaskDetailPanel({
                 variant="primary"
               >
                 <RotateCcw size={14} aria-hidden="true" />
-                {detail.isRetryingTask ? "Retrying" : "Retry"}
+                {detail.isRetryingTask
+                  ? uiText.main.detail.actions.retrying
+                  : uiText.main.detail.actions.retry}
               </Button>
             </div>
           )}
