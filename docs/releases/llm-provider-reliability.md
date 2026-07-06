@@ -53,6 +53,9 @@ Focused coverage:
 
 ## Follow-Ups
 
-- Feed retry records, provider names, request IDs, and usage into the configurable logging plan.
-- Move env-based provider settings into hierarchical global/session config.
+- Done / superseded by [Configurable Logging System](configurable-logging-system.md):
+  retry records, provider names, request IDs, and usage now flow through the
+  LLM/configurable-logging integration.
+- Continue consolidating env-based provider settings into Settings-backed
+  role/global/session configuration where product surfaces need it.
 - Add credential-backed integration tests for DeepSeek and OpenRouter once test secrets and network policy are settled.

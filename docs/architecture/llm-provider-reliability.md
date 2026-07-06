@@ -112,7 +112,8 @@ Current v1 baseline:
 - Do not implement streaming UI.
 - Do not implement cross-provider fallback in the first version.
 - Do not implement model selection, cost optimization, or quota policy here.
-- Do not replace the later configurable logging system.
+- Do not make the LLM layer own configurable logging policy; provider metadata
+  is emitted through the accepted configurable logging baseline.
 - Do not expose raw reasoning to users by default.
 
 ---
@@ -611,7 +612,9 @@ Default policy:
 
 ### 12.1 Environment variables
 
-First version supports env vars:
+The compatibility baseline supports env vars. Product 1.1 role-specific runtime
+calls are resolved through Settings-backed Agent LLM profiles before falling
+back to environment defaults where applicable.
 
 | Env var | Meaning |
 |---|---|
@@ -629,7 +632,10 @@ First version supports env vars:
 | `OPENROUTER_ALLOW_FALLBACKS` | `true` / `false` |
 | `OPENROUTER_REQUIRE_PARAMETERS` | `true` / `false` |
 
-### 12.2 Future config file shape
+### 12.2 Deferred config surface
+
+The broader hierarchical config shape remains a deferred configuration-system
+boundary, not the current provider runtime contract:
 
 ```yaml
 llm:
