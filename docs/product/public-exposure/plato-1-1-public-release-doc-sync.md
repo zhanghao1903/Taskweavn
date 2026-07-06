@@ -1,13 +1,14 @@
 # Plato 1.1 Public Release Docs Sync
 
-> Status: Product 1.1 P1 external-doc sync package
-> Last Updated: 2026-06-24
+> Status: Product 1.1 formal public release docs sync package
+> Last Updated: 2026-07-06
 > Target public repository: `zhanghao1903/plato-public`
 > Scope: release/user docs only; no private source, logs, workspaces, or
 > diagnostics payloads
 
-This document defines the approved package for mirroring Product 1.1 beta
-evidence and known limitations into the public Plato repository.
+This document defines the approved package for mirroring Product 1.1 formal
+release evidence, safe claims, and known limitations into the public Plato
+repository.
 
 It does not directly change `zhanghao1903/plato-public`. The purpose is to make
 the public sync explicit, reviewable, and safe before a separate public-repo PR.
@@ -18,6 +19,8 @@ Use these private repository sources when preparing the public update:
 
 | Source | Public use |
 |---|---|
+| [`../../releases/product-1-1-formal-release-notes.md`](../../releases/product-1-1-formal-release-notes.md) | Formal Product 1.1 release summary, public artifact metadata, validation commands, known limitations, and safe public claims. |
+| [`../plato-1-1-feature-test-report-2026-07-02.md`](../plato-1-1-feature-test-report-2026-07-02.md) | Formal `1.1` local release QA report, including core path pass evidence, Workspace Picker follow-up fixed on `main`, and optional LLM smoke limitation. |
 | [`../plato-1-1-p0-release-evidence-2026-06-20.md`](../plato-1-1-p0-release-evidence-2026-06-20.md) | Product 1.1 beta release evidence summary, validation categories, known limitations, and next work. |
 | [`../../releases/product-1-1-runtime-input-router-release-evidence.md`](../../releases/product-1-1-runtime-input-router-release-evidence.md) | Runtime Input Router beta behavior, route matrix summary, packaged/mounted installer evidence, and deferred signing/notarization. |
 | [`../plato-1-1-open-work.md`](../plato-1-1-open-work.md) | P1/P2 boundary and active follow-up list. |
@@ -37,8 +40,8 @@ The public PR should update or add only public-safe docs:
 
 | Public target | Required change |
 |---|---|
-| `README.md` | Update release/status summary to mention Product 1.1 beta capability scope without implying full public availability beyond published artifacts. |
-| `docs/release-status.md` or equivalent | Add Product 1.1 beta evidence summary, tested surfaces, artifact status, SHA/checksum if publicly distributed, and known limitations. |
+| `README.md` | Update release/status summary to mention the formal Product 1.1 local macOS release scope without implying production-hardening beyond published evidence. |
+| `docs/release-status.md` or equivalent | Add Product 1.1 formal evidence summary, tested surfaces, artifact status, SHA/checksum if publicly distributed, and known limitations. |
 | `docs/user-guide.md` or equivalent | Add user-facing explanation of Session conversation, Plan/Direct Task behavior, ASK/confirmation, Audit, diagnostics, and workspace inspection. |
 | `docs/trust-and-audit.md` or equivalent | Add Product 1.1 Audit/Activity/diagnostics evidence behavior and safety boundaries. |
 | `docs/architecture-overview.md` or equivalent | Refresh high-level architecture only where public docs already discuss Plato's planes. Avoid private implementation internals. |
@@ -52,18 +55,20 @@ rewritten product docs, not copied internal records.
 Public docs may claim:
 
 - Plato is a Session-first, Task-aware AI workbench.
-- Product 1.1 beta focuses on runtime input routing, durable Conversation /
+- Product 1.1 formal local release focuses on runtime input routing, durable Conversation /
   Activity, command-backed state changes, Audit/diagnostics evidence, packaged
   local desktop validation, and workspace inspection.
 - The Main Page supports question-like input, guidance, Direct Task / Plan
   routing, ASK/confirmation, and task execution visibility.
-- Product 1.1 has beta-level evidence for configured local sidecar/Electron
-  paths and selected packaged app smoke paths.
+- Product 1.1 has formal local-release evidence for the configured
+  sidecar/Electron route matrix, packaged app smoke, formal DMG verification,
+  mounted installer smoke, first-run path, startup diagnostics, sidecar restart
+  replay, and Workspace Picker smoke restored on `main`.
 - Signing and notarization are not yet complete unless a later public release
   artifact proves otherwise.
-- P1 follow-ups remain active for public docs sync, sidecar restart replay,
-  stop/cancel polish, token budget boundaries, localization polish, web
-  retrieval hardening, and diagnostics depth.
+- P1/follow-up work remains active for optional LLM-rendered inquiry smoke
+  split/fix, public docs publication, signed/notarized distribution, richer
+  visual evidence, web retrieval hardening, and diagnostics depth.
 
 ## 4. Claims That Must Be Avoided
 
@@ -73,6 +78,9 @@ Public docs must not claim:
 - Hosted cloud execution, remote worker fleets, or authenticated browser
   automation are available.
 - Signed/notarized macOS distribution is complete without accepted evidence.
+- Optional LLM-rendered read-only inquiry smoke is fully green. Public docs may
+  say the deterministic LLM answer rendered in QA, but must also say the full
+  script still needs split/fix before being claimed as accepted smoke evidence.
 - Web retrieval is a full browsing/research system.
 - Skills, MCP, multimodal file ingestion, custom Agent protocol, Result
   Packaging Agent, or `task_after` are public Product 1.1 capabilities unless a
@@ -84,13 +92,13 @@ Public docs must not claim:
 
 The public known-limitations section should include:
 
-- Local beta distribution remains unsigned/not notarized until Apple Developer
+- Local macOS distribution remains unsigned/not notarized until Apple Developer
   credentials and Gatekeeper acceptance exist.
-- Product 1.1 beta is validated against controlled local workspace scenarios,
+- Product 1.1 is validated against controlled local workspace scenarios,
   not broad customer data.
-- Conversation/Activity replay and sidecar restart replay require beta-depth
-  evidence beyond the P0 route matrix unless the dedicated sidecar replay PR is
-  merged and accepted.
+- Optional LLM-rendered read-only inquiry smoke remains beta-depth follow-up:
+  answer rendering is evidenced, but retry-recovery completion is not accepted
+  as green smoke yet.
 - Web retrieval is opt-in, provider-dependent, public-web-only, and bounded.
 - Stop/cancel semantics, token-budget warnings, localization polish, richer
   diagnostics descriptors, broader citation/result UI, and public support docs
@@ -120,7 +128,8 @@ This private sync package is complete when:
 - public target files are identified;
 - source-of-truth private docs are listed;
 - allowed claims and forbidden claims are explicit;
-- Product 1.1 beta known limitations are ready to copy into public docs;
+- Product 1.1 formal release known limitations are ready to copy into public
+  docs;
 - the public PR checklist can be followed without re-reading private planning
   history.
 
