@@ -382,6 +382,11 @@ export const zhCN: UiTextCatalog = {
         conversationEmpty: "暂无对话",
         fileCount: ({ count }) => `${count} 个文件`,
         fileCountChanged: ({ count }) => `${count} 个文件已变更。`,
+        confirmationResolution: {
+          confirmed: "确认已接受。Plato 可以从此任务继续。",
+          revise: "已记录修订请求。任务范围输入现在会优化此任务。",
+          skipped: "确认已跳过。Plato 不会执行此操作。",
+        },
         fullResultAvailable: "完整结果可查看。",
         guidancePlaceholderPlan: "让 Plato 优化整体计划。",
         guidancePlaceholderSession: "描述目标，或为此会话补充指导。",
@@ -456,6 +461,7 @@ export const zhCN: UiTextCatalog = {
           published: "已发布",
           unknown: "未知",
         },
+        primaryExecutionRunning: "执行中",
         readOnly: "只读",
         session: {
           completed: "已完成",

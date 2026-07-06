@@ -6,6 +6,7 @@ import type {
   SessionMessageView,
   TaskNodeCardView,
 } from "../../shared/api/types";
+import { enUS, zhCN } from "../../shared/ui-text";
 import {
   buildTaskScopedProjection,
   isTaskNodeInScope,
@@ -208,6 +209,43 @@ describe("main page selectors", () => {
     ).toEqual({
       label: "Stale",
       tone: "warning",
+    });
+
+    const runningState = getMainPageMockSnapshot("s6-running");
+    const runningTaskTree = runningState.snapshot.taskTree;
+    if (runningTaskTree === null || runningTaskTree.executionRollup == null) {
+      throw new Error("Expected s6-running to include a TaskTree execution rollup.");
+    }
+    const runningSnapshot = {
+      ...runningState.snapshot,
+      pendingConfirmations: [],
+      taskTree: {
+        ...runningTaskTree,
+        executionRollup: {
+          ...runningTaskTree.executionRollup,
+          blockedByConfirmation: 0,
+        },
+      },
+    };
+    expect(
+      selectMainPagePrimaryStatusPresentation(
+        runningSnapshot,
+        runningState.metadata,
+        enUS.main,
+      ),
+    ).toEqual({
+      label: "Executing",
+      tone: "blue",
+    });
+    expect(
+      selectMainPagePrimaryStatusPresentation(
+        runningSnapshot,
+        runningState.metadata,
+        zhCN.main,
+      ),
+    ).toEqual({
+      label: "执行中",
+      tone: "blue",
     });
   });
 

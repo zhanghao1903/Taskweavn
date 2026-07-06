@@ -393,6 +393,14 @@ export const enUS: UiTextCatalog = {
         fileCount: ({ count }) => (count === 1 ? "1 file" : `${count} files`),
         fileCountChanged: ({ count }) =>
           count === 1 ? "1 file changed." : `${count} files changed.`,
+        confirmationResolution: {
+          confirmed:
+            "The confirmation was accepted. Plato can continue from this task.",
+          revise:
+            "A revision request was captured. Task-scoped input now refines this task.",
+          skipped:
+            "The confirmation was skipped. Plato will not perform this action.",
+        },
         fullResultAvailable: "Full result available.",
         guidancePlaceholderPlan: "Ask Plato to refine the overall plan.",
         guidancePlaceholderSession:
@@ -469,6 +477,7 @@ export const enUS: UiTextCatalog = {
           published: "Published",
           unknown: "Unknown",
         },
+        primaryExecutionRunning: "Executing",
         readOnly: "Read-only",
         session: {
           completed: "Completed",

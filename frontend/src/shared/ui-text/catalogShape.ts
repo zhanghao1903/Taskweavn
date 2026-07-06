@@ -332,6 +332,10 @@ export type UiTextCatalog = {
         conversationEmpty: string;
         fileCount: UiTextTemplate<{ count: number }>;
         fileCountChanged: UiTextTemplate<{ count: number }>;
+        confirmationResolution: Record<
+          "confirmed" | "revise" | "skipped",
+          string
+        >;
         fullResultAvailable: string;
         guidancePlaceholderPlan: string;
         guidancePlaceholderSession: string;
@@ -353,6 +357,7 @@ export type UiTextCatalog = {
         messageKind: Record<MessageKind, string>;
         planning: Record<PlanningState, string>;
         readiness: Record<TaskNodeReadiness, string>;
+        primaryExecutionRunning: string;
         readOnly: string;
         session: Record<SessionStatus, string>;
         stale: string;

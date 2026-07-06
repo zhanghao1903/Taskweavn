@@ -25,7 +25,6 @@ import { useUiText, type UiTextCatalog } from "../../shared/ui-text";
 import { buildWorkspaceInspectionRoute } from "../../app/routes";
 import { ConfirmationDetailPanel } from "./interaction/ConfirmationDetailPanel";
 import { ExecutionAskDetailPanel } from "./interaction/ExecutionAskDetailPanel";
-import { confirmationResolutionText } from "./mainPageCopy";
 import { selectFileChangeTypePresentation } from "./mainPageSelectors";
 import type { MainPageDetailView } from "./mainPageViewModel";
 import { MainPageTokenUsageSummaryCard } from "./MainPageTokenUsageSummaryCard";
@@ -325,7 +324,9 @@ function ConfirmationResolvedPanel({
       <Text as="strong" variant="label">
         {uiText.main.activity.kinds.confirmationResolved}
       </Text>
-      <Text variant="muted">{confirmationResolutionText[detail.decision]}</Text>
+      <Text variant="muted">
+        {uiText.main.detail.messages.confirmationResolution[detail.decision]}
+      </Text>
     </Panel>
   );
 }

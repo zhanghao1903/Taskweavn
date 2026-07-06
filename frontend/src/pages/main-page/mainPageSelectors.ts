@@ -488,7 +488,7 @@ export function selectMainPagePrimaryStatusPresentation(
 
   if ((executionRollup?.running ?? 0) > 0) {
     return {
-      label: uiText?.detail.status.execution.running ?? "Executing",
+      label: uiText?.detail.status.primaryExecutionRunning ?? "Executing",
       tone: "blue",
     };
   }

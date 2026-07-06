@@ -508,6 +508,42 @@ describe("MainPageDetailPanel", () => {
     expect(screen.queryByText(/TaskNode/)).not.toBeInTheDocument();
   });
 
+  it("renders resolved confirmation details with zh-CN UI text", () => {
+    render(
+      <UiTextProvider locale="zh-CN">
+        <MainPageDetailPanel
+          detail={{
+            decision: "revise",
+            header: {
+              body: "A revision request was captured.",
+              eyebrow: "Confirmation",
+              title: "Revision requested",
+            },
+            kind: "confirmationResolved",
+          }}
+          onAnswerAsk={vi.fn()}
+          onCancelAsk={vi.fn()}
+          onConfirmationDecision={vi.fn()}
+          onDeferAsk={vi.fn()}
+          onRetryTask={vi.fn()}
+          onShowFileChanges={vi.fn()}
+          onShowResult={vi.fn()}
+          onStopTask={vi.fn()}
+        />
+      </UiTextProvider>,
+    );
+
+    expect(screen.getByText("确认已处理")).toBeInTheDocument();
+    expect(
+      screen.getByText("已记录修订请求。任务范围输入现在会优化此任务。"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(
+        "A revision request was captured. Task-scoped input now refines this task.",
+      ),
+    ).not.toBeInTheDocument();
+  });
+
   it("keeps result sections out of the default result card", () => {
     render(
       <MainPageDetailPanel
