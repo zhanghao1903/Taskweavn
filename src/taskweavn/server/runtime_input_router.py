@@ -298,7 +298,11 @@ class DefaultRuntimeInputRouter:
                 ),
                 recovery_actions=() if accepted else ("edit_input",),
             ),
-            activity=_activity_from_contract_result(request, decision, command_result)
+            activity=_activity_from_contract_result(
+                request,
+                decision,
+                command_result,
+            )
             if command_result.activity is not None
             else None,
             activity_kind="task_created" if accepted else "recovery_note",
@@ -1082,21 +1086,40 @@ def _activity_from_contract_result(
     command_result: ContractCommandResult,
 ) -> SessionActivityItemView:
     assert command_result.activity is not None
+    scope = _contract_result_activity_scope(decision, command_result)
     return SessionActivityItemView(
         id=f"activity:{decision.id}",
         session_id=request.session_id,
         kind=_contract_activity_kind(command_result),
         title=command_result.activity.title,
         body=command_result.activity.body,
-        scope_kind=decision.scope.kind,
-        plan_id=decision.scope.plan_id,
-        task_node_id=decision.scope.task_node_id,
+        scope_kind=scope.kind,
+        plan_id=scope.plan_id,
+        task_node_id=scope.task_node_id,
         side_effect=command_result.side_effect,
         related_refs=command_result.activity.related_refs,
         source_kind="router",
         source_id=decision.id,
         disclosure_level=command_result.activity.disclosure_level,
     )
+
+
+def _contract_result_activity_scope(
+    decision: RuntimeInputRouteDecision,
+    command_result: ContractCommandResult,
+) -> RuntimeInputDecisionScope:
+    if command_result.task_node_id is not None:
+        return RuntimeInputDecisionScope(
+            kind="task",
+            plan_id=command_result.plan_id or decision.scope.plan_id,
+            task_node_id=command_result.task_node_id,
+        )
+    if command_result.plan_id is not None:
+        return RuntimeInputDecisionScope(
+            kind="plan",
+            plan_id=command_result.plan_id,
+        )
+    return decision.scope
 
 
 def _contract_activity_kind(

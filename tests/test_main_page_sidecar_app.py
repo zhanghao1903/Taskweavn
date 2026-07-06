@@ -29,6 +29,9 @@ from taskweavn.server import (
 from taskweavn.task import (
     DraftTaskNode,
     InMemoryDraftTaskStore,
+    Plan,
+    PlanTaskNode,
+    SqlitePlanStore,
     SqliteTaskBus,
     SqliteTaskExecutionSummaryStore,
     TaskRef,
@@ -1647,11 +1650,40 @@ def test_main_page_task_ref_resolver_prefers_draft_then_published(tmp_path: Any)
     )
     draft_id = tree.root_nodes[0].draft_task_id
     task_bus = SqliteTaskBus(tmp_path / "tasks.sqlite")
+    plan_store = SqlitePlanStore(tmp_path / "plans.sqlite")
     try:
-        resolver = MainPageTaskRefResolver(draft_store=draft_store, task_bus=task_bus)
+        plan = Plan(
+            session_id="session-1",
+            title="Runtime execution",
+            objective="Fix courseware pagination",
+            summary="Fix courseware pagination",
+            status="published",
+        )
+        plan_node = PlanTaskNode(
+            task_node_id="plan-node-1",
+            plan_id=plan.plan_id,
+            session_id="session-1",
+            task_index="1",
+            order_index=0,
+            title="Add pagination",
+            intent="Add pagination",
+            summary="Add pagination",
+            readiness="published",
+            published_ref=TaskRef.published("published-task-1"),
+        )
+        plan_store.create_plan(plan, (plan_node,))
+        resolver = MainPageTaskRefResolver(
+            draft_store=draft_store,
+            task_bus=task_bus,
+            plan_store=plan_store,
+        )
 
         assert resolver.resolve("session-1", draft_id) == TaskRef.draft(draft_id)
+        assert resolver.resolve("session-1", "plan-node-1") == TaskRef.published(
+            "published-task-1"
+        )
         with pytest.raises(LookupError, match="not found"):
             resolver.resolve("session-1", "missing")
     finally:
+        plan_store.close()
         task_bus.close()

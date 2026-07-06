@@ -723,10 +723,18 @@ def test_router_change_mode_dispatches_execution_task_command() -> None:
     assert response.data.decision.intent == "execution_request"
     assert response.data.decision.dispatch_target == "execution_handoff"
     assert response.data.decision.side_effect == "state_effect"
+    assert response.data.decision.scope.kind == "session"
+    assert response.data.decision.scope.task_node_id is None
     assert response.data.outcome.status == "dispatched"
     assert response.data.activity is not None
     assert response.data.activity.kind == "task_created"
     assert response.data.activity.title == "Execution work created"
+    assert response.data.activity.scope_kind == "task"
+    assert response.data.activity.task_node_id == "task-exec-1"
+    assert [ref.id for ref in response.data.activity.related_refs] == [
+        "plan-1",
+        "task-exec-1",
+    ]
     assert response.data.command_response is None
     assert commands.calls == []
     assert task_node_handler.calls == [

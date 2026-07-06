@@ -1623,6 +1623,47 @@ def test_retry_task_wraps_published_failed_task_command() -> None:
     )
 
 
+def test_retry_task_uses_resolved_published_task_ref() -> None:
+    commands = _TaskCommands(
+        CoreCommandResult(
+            command_id="backend-retry",
+            status="accepted",
+            message="task retry queued",
+            affected_task_refs=(TaskRef.published("published-task-1"),),
+        )
+    )
+    gateway = _gateway(
+        task_commands=commands,
+        resolver=_Resolver({"plan-node-1": TaskRef.published("published-task-1")}),
+    )
+    request = CommandRequest[RetryTaskPayload](
+        command_id="retry-plan-node",
+        session_id="session-1",
+        payload=RetryTaskPayload(
+            instruction="Try again after the task node mapping fix",
+            start_immediately=False,
+        ),
+    )
+
+    response = gateway.retry_task("plan-node-1", request)
+
+    assert response.ok is True
+    assert commands.calls == [
+        (
+            "retry_task",
+            {
+                "session_id": "session-1",
+                "task_id": "published-task-1",
+                "instruction": "Try again after the task node mapping fix",
+            },
+        )
+    ]
+    assert response.result is not None
+    body = response.result.model_dump(mode="json")
+    assert {"kind": "published_task", "id": "published-task-1"} in body["objectRefs"]
+    assert {"kind": "published_task", "id": "plan-node-1"} not in body["objectRefs"]
+
+
 def test_retry_task_rejects_draft_task_ref() -> None:
     commands = _TaskCommands()
     gateway = _gateway(
