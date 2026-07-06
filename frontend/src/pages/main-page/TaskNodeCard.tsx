@@ -3,6 +3,7 @@ import { CircleStop, RotateCcw } from "lucide-react";
 
 import type { TaskNodeCardView, TaskNodeId } from "../../shared/api/types";
 import { Badge, Button } from "../../shared/components";
+import type { UiTextCatalog } from "../../shared/ui-text";
 import { selectTaskNodeDimensionPresentation } from "./mainPageSelectors";
 import styles from "./MainPage.module.css";
 
@@ -13,6 +14,7 @@ export type TaskNodeCardProps = {
   onSelectTask: (nodeId: TaskNodeId) => void;
   onStopTask: (nodeId: TaskNodeId) => void;
   selectButtonRef?: Ref<HTMLButtonElement>;
+  uiText?: UiTextCatalog["main"];
 };
 
 export function TaskNodeCard({
@@ -22,8 +24,9 @@ export function TaskNodeCard({
   onSelectTask,
   onStopTask,
   selectButtonRef,
+  uiText,
 }: TaskNodeCardProps) {
-  const statusPresentation = selectTaskNodeDimensionPresentation(node);
+  const statusPresentation = selectTaskNodeDimensionPresentation(node, uiText);
   const isRunning = node.execution === "running" || node.status === "running";
   const displayIndex = node.displayIndex ?? node.orderIndex + 1;
   const isStopping = Boolean(
@@ -44,7 +47,10 @@ export function TaskNodeCard({
         ref={selectButtonRef}
         type="button"
       >
-        <span className={styles.taskIndex}>Task {displayIndex}</span>
+        <span className={styles.taskIndex}>
+          {uiText?.detail.labels.taskTarget({ index: displayIndex }) ??
+            `Task ${displayIndex}`}
+        </span>
         <span className={styles.taskText}>
           <strong className={styles.listCardTitle} title={node.title}>
             {node.title}
@@ -67,7 +73,9 @@ export function TaskNodeCard({
             variant="danger"
           >
             <CircleStop size={14} aria-hidden="true" />
-            {isStopping ? "Stopping" : "Stop"}
+            {isStopping
+              ? uiText?.detail.actions.stopping ?? "Stopping"
+              : uiText?.detail.actions.stop ?? "Stop"}
           </Button>
         ) : null}
         {node.permissions.canRetry ? (
@@ -78,7 +86,7 @@ export function TaskNodeCard({
             variant="primary"
           >
             <RotateCcw size={14} aria-hidden="true" />
-            Retry
+            {uiText?.detail.actions.retry ?? "Retry"}
           </Button>
         ) : null}
       </div>

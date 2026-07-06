@@ -14,6 +14,7 @@ import type {
   WorkspaceId,
 } from "../../shared/api/types";
 import type { ProductRecoveryAction } from "../../shared/api/platoApi";
+import type { UiTextCatalog } from "../../shared/ui-text";
 import {
   buildAuditSessionRoute,
   buildAuditTaskRoute,
@@ -222,6 +223,7 @@ export type BuildMainPageViewModelInput = {
   snapshot: MainPageSnapshot;
   taskTreeCommandError: string | null;
   taskTreeCommandRecoveryActions: ProductRecoveryAction[];
+  uiText?: UiTextCatalog["main"];
   uiNotice: string | null;
   workspaceId?: WorkspaceId | null;
 };
@@ -254,6 +256,7 @@ export function buildMainPageViewModel({
   snapshot,
   taskTreeCommandError,
   taskTreeCommandRecoveryActions,
+  uiText,
   uiNotice,
   workspaceId,
 }: BuildMainPageViewModelInput): MainPageViewModel {
@@ -325,6 +328,7 @@ export function buildMainPageViewModel({
     hasConfirmationFocus,
     detailOverride,
     taskTree: snapshot.taskTree,
+    uiText,
   });
   const auditEntry = auditEntryFor({
     activeConfirmation,
@@ -337,6 +341,7 @@ export function buildMainPageViewModel({
     selectedTask,
     sessionId: snapshot.session.id,
     sessionPermissions: snapshot.permissions,
+    uiText,
     workspaceId,
   });
 
@@ -408,8 +413,8 @@ export function buildMainPageViewModel({
         snapshot.session.name,
       ],
       statuses: [
-        selectMainPagePrimaryStatusPresentation(snapshot, metadata),
-        selectEventConnectionStatusPresentation(eventConnectionStatus),
+        selectMainPagePrimaryStatusPresentation(snapshot, metadata, uiText),
+        selectEventConnectionStatusPresentation(eventConnectionStatus, uiText),
       ],
     },
     workspace: {
@@ -423,7 +428,9 @@ export function buildMainPageViewModel({
       taskTreeId: snapshot.taskTree?.id ?? null,
       title:
         authoringAsk?.title ??
-        (snapshot.taskTree === null ? "Start a new session" : "Plan & Progress"),
+        (snapshot.taskTree === null
+          ? "Start a new session"
+          : uiText?.detail.labels.planProgress ?? "Plan & Progress"),
       uiNotice,
       workspaceId: workspaceId ?? snapshot.session.workspaceId ?? null,
     },
@@ -489,6 +496,7 @@ function auditEntryFor({
   selectedTask,
   sessionId,
   sessionPermissions,
+  uiText,
   workspaceId,
 }: {
   activeConfirmation: ConfirmationActionView | undefined;
@@ -501,6 +509,7 @@ function auditEntryFor({
   selectedTask: TaskNodeCardView | undefined;
   sessionId: string;
   sessionPermissions: MainPageSnapshot["permissions"];
+  uiText?: UiTextCatalog["main"];
   workspaceId?: WorkspaceId | null;
 }): MainPageAuditEntryViewModel {
   const route = auditRouteFor({
@@ -528,7 +537,7 @@ function auditEntryFor({
         ? null
         : "Audit is not available for this view yet."),
     isEnabled: auditRouteAvailable && permissionReason === null,
-    label: "View audit",
+    label: uiText?.detail.actions.viewAudit ?? "View audit",
   };
 }
 
@@ -843,6 +852,7 @@ function inputViewFor({
   sessionPermissions,
   selectedTask,
   taskTree,
+  uiText,
 }: {
   detailOverride: DetailOverride;
   hasAuthoringAsk: boolean;
@@ -853,6 +863,7 @@ function inputViewFor({
   sessionPermissions: MainPageSnapshot["permissions"];
   selectedTask: TaskNodeCardView | undefined;
   taskTree: MainPageSnapshot["taskTree"];
+  uiText?: UiTextCatalog["main"];
 }): MainPageInputViewModel {
   const scope = inputScopeFor({
     detailOverride,
@@ -860,6 +871,7 @@ function inputViewFor({
     metadata,
     selectedTask,
     taskTree,
+    uiText,
   });
 
   const availability = inputAvailabilityFor({
@@ -975,44 +987,89 @@ function inputScopeFor({
   metadata,
   selectedTask,
   taskTree,
+  uiText,
 }: {
   detailOverride: DetailOverride;
   hasConfirmationFocus: boolean;
   metadata: MainPageStateMetadata;
   selectedTask: TaskNodeCardView | undefined;
   taskTree: MainPageSnapshot["taskTree"];
+  uiText?: UiTextCatalog["main"];
 }): MainPageInputScopeView {
   if (hasConfirmationFocus || detailOverride !== "auto") {
-    return {
+    return localizedInputScope({
       description: metadata.inputScope.description ?? null,
       label: metadata.inputScope.label,
       placeholder: metadata.inputScope.placeholder,
-    };
+    }, uiText);
   }
 
   if (selectedTask) {
     return {
       description: null,
-      label: `Writing to ${taskIndexLabel(selectedTask)}`,
-      placeholder: "Add guidance for this task.",
+      label: `Writing to ${taskIndexLabel(selectedTask, uiText)}`,
+      placeholder:
+        uiText?.detail.messages.guidancePlaceholderTask ??
+        "Add guidance for this task.",
     };
   }
 
   if (taskTree) {
     return {
       description: null,
-      label: "Writing to plan",
-      placeholder: "Ask Plato to refine the overall plan.",
+      label: `Writing to ${uiText?.detail.labels.planTarget ?? "plan"}`,
+      placeholder:
+        uiText?.detail.messages.guidancePlaceholderPlan ??
+        "Ask Plato to refine the overall plan.",
     };
   }
 
-  return {
+  return localizedInputScope({
     description: metadata.inputScope.description ?? null,
     label: metadata.inputScope.label,
     placeholder: metadata.inputScope.placeholder,
-  };
+  }, uiText);
 }
 
-function taskIndexLabel(task: TaskNodeCardView): string {
-  return `Task ${task.displayIndex ?? task.orderIndex + 1}`;
+function localizedInputScope(
+  scope: MainPageInputScopeView,
+  uiText?: UiTextCatalog["main"],
+): MainPageInputScopeView {
+  if (!uiText) {
+    return scope;
+  }
+
+  if (scope.label === "Writing to selected task") {
+    return {
+      ...scope,
+      label: `Writing to ${uiText.detail.labels.selectedTaskTarget}`,
+      placeholder: uiText.detail.messages.guidancePlaceholderTask,
+    };
+  }
+
+  if (scope.label === "Writing to session") {
+    return {
+      ...scope,
+      label: `Writing to ${uiText.detail.labels.sessionTarget}`,
+      placeholder: uiText.detail.messages.guidancePlaceholderSession,
+    };
+  }
+
+  if (scope.label === "Writing to plan") {
+    return {
+      ...scope,
+      label: `Writing to ${uiText.detail.labels.planTarget}`,
+      placeholder: uiText.detail.messages.guidancePlaceholderPlan,
+    };
+  }
+
+  return scope;
+}
+
+function taskIndexLabel(
+  task: TaskNodeCardView,
+  uiText?: UiTextCatalog["main"],
+): string {
+  const index = task.displayIndex ?? task.orderIndex + 1;
+  return uiText?.detail.labels.taskTarget({ index }) ?? `Task ${index}`;
 }

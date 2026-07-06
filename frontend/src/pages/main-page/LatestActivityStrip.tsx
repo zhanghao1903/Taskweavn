@@ -3,6 +3,7 @@ import type {
   TaskNodeCardView,
 } from "../../shared/api/types";
 import { Button } from "../../shared/components";
+import { useUiText } from "../../shared/ui-text";
 import { selectMessageKindPresentation } from "./mainPageSelectors";
 import styles from "./MainPage.module.css";
 
@@ -23,28 +24,37 @@ export function LatestActivityStrip({
   totalMessageCount,
   visibleMessageCount,
 }: LatestActivityStripProps) {
+  const uiText = useUiText();
   const latestMessage = messages.at(-1);
 
   if (!latestMessage) {
     return null;
   }
 
-  const kindPresentation = selectMessageKindPresentation(latestMessage.kind);
+  const kindPresentation = selectMessageKindPresentation(
+    latestMessage.kind,
+    uiText.main,
+  );
   const activityCountLabel =
     isMessageScoped && visibleMessageCount !== totalMessageCount
-      ? `Activity ${visibleMessageCount}/${totalMessageCount}`
-      : `Activity ${totalMessageCount}`;
+      ? `${uiText.main.activity.labels.activity} ${visibleMessageCount}/${totalMessageCount}`
+      : uiText.main.activity.labels.activityCount({
+          count: totalMessageCount,
+        });
   const scopeLabel = latestMessage.taskNodeId
     ? selectedTask
-      ? "Current task"
-      : "Task activity"
-    : "Session activity";
+      ? uiText.main.activity.labels.currentTask
+      : uiText.main.detail.labels.taskActivity
+    : uiText.main.detail.labels.sessionActivity;
   const openActivityLabel = selectedTask
-    ? "Open task updates"
-    : "Open session activity";
+    ? uiText.main.detail.actions.openTaskUpdates
+    : uiText.main.detail.actions.openSessionActivity;
 
   return (
-    <aside className={styles.latestActivityStrip} aria-label="Latest activity">
+    <aside
+      className={styles.latestActivityStrip}
+      aria-label={uiText.main.detail.labels.latestActivity}
+    >
       <span className={styles.latestActivityDot} aria-hidden="true" />
       <div className={styles.latestActivityContent}>
         <span>{latestActivityLabel(scopeLabel, kindPresentation.label)}</span>
