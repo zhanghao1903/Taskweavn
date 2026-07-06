@@ -10,7 +10,7 @@ from taskweavn.server.main_page_audit_events import (
     emit_config_manifest_audit_records_changed,
 )
 from taskweavn.server.ui_events import UiEventStore
-from taskweavn.task import DraftTaskStore, SqliteTaskBus, TaskRef
+from taskweavn.task import DraftTaskStore, PlanTaskNodeStore, SqliteTaskBus, TaskRef
 
 
 @dataclass(frozen=True)
@@ -19,6 +19,7 @@ class MainPageTaskRefResolver:
 
     draft_store: DraftTaskStore
     task_bus: SqliteTaskBus
+    plan_store: PlanTaskNodeStore | None = None
 
     def resolve(self, session_id: str, task_node_id: str) -> TaskRef:
         draft_node = self.draft_store.get_node(session_id, task_node_id)
@@ -26,6 +27,10 @@ class MainPageTaskRefResolver:
             return TaskRef.draft(task_node_id)
         if self.task_bus.get(session_id, task_node_id) is not None:
             return TaskRef.published(task_node_id)
+        if self.plan_store is not None:
+            plan_node = self.plan_store.get_task_node(session_id, task_node_id)
+            if plan_node is not None and plan_node.published_ref is not None:
+                return plan_node.published_ref
         raise LookupError(f"task node {task_node_id!r} not found")
 
 

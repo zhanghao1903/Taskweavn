@@ -630,6 +630,7 @@ def build_main_page_workspace_runtime(
             task_ref_resolver=MainPageTaskRefResolver(
                 draft_store=draft_store,
                 task_bus=task_bus,
+                plan_store=plan_store,
             ),
             authoring_state_store=authoring_state_store,
             raw_task_store=raw_task_store,
