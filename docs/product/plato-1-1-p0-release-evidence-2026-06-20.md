@@ -1,10 +1,12 @@
 # Plato Product 1.1 P0 Release Evidence - 2026-06-20
 
-> Status: active evidence package
+> Status: beta evidence baseline with formal `1.1` source-of-truth addendum
 >
 > Baseline branch: `main`
 >
 > Baseline commit: `135a853`
+>
+> Formal release addendum: `main` at `b8d7290`
 >
 > Scope: Product 1.1 P0 closure evidence for Runtime Input Router,
 > Contract Revision Command Skills, durable Conversation / Activity, Router
@@ -38,6 +40,20 @@ Product 1.1 beta evidence scope:
 | Electron acceptance | Passed for configured P0 route matrix | Real Electron / sidecar evidence covers all P0 route classes and no-mutation guarantees. |
 | Audit / Diagnostics closure | Passed for P0 route matrix | Router decisions, downstream command ids, Activity ids, Audit refs, and diagnostic descriptors are linked and redacted. |
 | Release evidence | Passed for Product 1.1 beta P0 | This evidence package links each accepted feature to tests, smoke output, packaged app and mounted `1.1-beta` installer evidence, known limitations, and release notes. |
+
+As of 2026-07-06, this document is the Product 1.1 beta P0 evidence baseline.
+The current formal `1.1` local release evidence source-of-truth is layered on
+top of it by:
+
+- [Plato Product 1.1 Feature Test Report - 2026-07-02](plato-1-1-feature-test-report-2026-07-02.md);
+- [Plato Product 1.1 Formal Release Notes](../releases/product-1-1-formal-release-notes.md).
+
+The 2026-07-02 QA report validated the formal `1.1` DMG core local release path
+and found `F-2026-07-02-001` / `F-2026-07-02-002`. `F-2026-07-02-001` is fixed
+on `main` by `841cfd6 fix(electron): restore workspace picker smoke
+acceptance`. `F-2026-07-02-002` remains beta-depth evidence: the deterministic
+LLM answer rendered, but the full optional LLM smoke still needs a split or
+retry-recovery fix before it can be claimed green.
 
 ## 3. P0 Acceptance Matrix
 
@@ -199,10 +215,13 @@ The mounted installer smoke passed:
 ## 8. Current Assessment
 
 Product 1.1 P0 is accepted for beta release evidence across the configured
-Electron app, packaged app, and mounted `1.1-beta` installer route matrix.
+Electron app, packaged app, and mounted `1.1-beta` installer route matrix. The
+formal `1.1` local release source-of-truth extends that baseline with formal
+DMG verification, mounted installer smoke, sidecar restart replay, and the
+Workspace Picker fix noted above.
 
-The main remaining risk is beta-depth polish, not P0 capability closure:
-sidecar restart replay, optional LLM-rendered inquiry smoke, public repository
+The main remaining risk is beta-depth/publication polish, not P0 capability
+closure: optional LLM-rendered inquiry smoke split/fix, public repository
 release-note sync, signed/notarized distribution, and richer screenshots.
 
 ## 9. Evidence Log
@@ -224,10 +243,12 @@ release-note sync, signed/notarized distribution, and richer screenshots.
 | 2026-06-20 | `1.1-beta` installer package | `npm run electron:package:installer -- --release-version 1.1-beta --include-smoke` | Pass: created `Plato-1.1-beta-macos-arm64.dmg`; release asset check `ok=true`, runtime `bundled-python`, `externalSymlinks=0`, signed `false`, notarized `false`. |
 | 2026-06-20 | `1.1-beta` mounted installer smoke | `npm run electron:smoke:installer -- --skip-package --installer ./dist-electron-installer/Plato-1.1-beta-macos-arm64.dmg` | Pass: mounted DMG configured route matrix, first-run Settings path, and startup diagnostics all passed through launcher-owned sidecar. |
 | 2026-06-20 | `1.1-beta` DMG SHA256 | `shasum -a 256 frontend/dist-electron-installer/Plato-1.1-beta-macos-arm64.dmg` | Pass: `fa67d9441d45537e6f59d674f03811fe10fcbf936da5986e12e6aef846e9406e`. |
+| 2026-07-02 | Formal `1.1` feature test report | [Plato Product 1.1 Feature Test Report - 2026-07-02](plato-1-1-feature-test-report-2026-07-02.md) | Core local release path passed for backend/frontend targeted tests, configured Electron route matrix, first-run path, sidecar restart replay, packaged smoke, formal DMG verification, and mounted installer smoke. Workspace Picker and optional LLM smoke follow-ups were found. |
+| 2026-07-03 | Workspace Picker acceptance fix | `841cfd6 fix(electron): restore workspace picker smoke acceptance` | `F-2026-07-02-001` is fixed on `main`; workspace-entry and workspace-git smoke should be treated as restored for current release evidence. |
 
 These checks close the Product 1.1 P0 route-matrix acceptance gate for the
-configured Electron sidecar, packaged app, mounted `1.1-beta` installer, and
-Router Audit / Diagnostics support path. Remaining evidence work is P1
-beta-depth confidence: sidecar restart replay, optional LLM-rendered read-only
-inquiry output, public release-note sync, signed/notarized distribution, and
-richer visual evidence.
+configured Electron sidecar, packaged app, mounted `1.1-beta` installer, formal
+`1.1` local release artifact, and Router Audit / Diagnostics support path.
+Remaining evidence work is P1/publication depth: optional LLM-rendered
+read-only inquiry smoke split/fix, public release-note sync, signed/notarized
+distribution, and richer visual evidence.

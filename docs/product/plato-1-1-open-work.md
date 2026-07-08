@@ -2,7 +2,7 @@
 
 > Status: active open-work index; Product 1.1 P1 beta-readiness accepted
 >
-> Last Updated: 2026-06-25
+> Last Updated: 2026-07-06
 >
 > Scope: Product 1.1 unfinished product work after the accepted workspace,
 > precision-tool, read-only inquiry, token-usage, and local Electron beta
@@ -29,6 +29,10 @@ The current Product 1.1 state is:
   packaged app, and mounted `1.1-beta` installer smoke pass the Runtime Input
   route matrix, Audit / Diagnostics closure, startup diagnostics, and first-run
   paths;
+- formal Product 1.1 release evidence now layers on top of the beta baseline:
+  the formal `1.1` DMG core local release path passed, Workspace Picker smoke
+  acceptance was restored on `main` by `841cfd6`, and optional LLM-rendered
+  read-only inquiry smoke remains beta-depth follow-up;
 - Product 1.1 P1 beta-depth work is accepted for this repository: sidecar
   restart replay confidence, web retrieval trust polish, stop/cancel wording,
   token budget warning, diagnostics descriptors, localization polish, and
@@ -83,8 +87,9 @@ Electron acceptance
   + release evidence
 ```
 
-That scope is now recorded for the configured Electron app, packaged app, and
-mounted `1.1-beta` installer. Public repository release-note sync and richer
+That scope is now recorded for the configured Electron app, packaged app,
+mounted `1.1-beta` installer, and formal `1.1` local release artifact. Public
+repository release-note sync, optional LLM inquiry smoke split/fix, and richer
 visual evidence remain useful release polish, but they are no longer P0
 capability blockers.
 
@@ -125,8 +130,8 @@ under beta distribution conditions:
 | P0-CRS-5 | Plan/TaskNode mutation commands | Implemented for patch/create/delete with version, editable-Plan, idempotency, and tombstone semantics. | Contract-changing requests use command-backed patch/create/delete operations with state, version, idempotency, and confirmation guards. | [Plan / TaskNode Contract Migration](../plans/feature/plan-tasknode-contract-migration.md), [Contract Revision Command Skills](../plans/feature/contract-revision-command-skills.md) |
 | P0-ACT-1 | Durable Router Conversation / Activity | Implemented on `main`; configured Electron smoke verifies durable Activity replay after renderer reload for read-only, guidance, ASK, confirmation, execution handoff, and unsupported routes. | Router decisions and outcomes are stored as durable Session content or equivalent facts, not only returned as transient route-result metadata. | [Session Conversation / Activity Timeline](../plans/feature/session-conversation-activity-timeline.md), [P0 Release Evidence](plato-1-1-p0-release-evidence-2026-06-20.md) |
 | P0-TRUST-1 | Audit and diagnostics linkage | Passed for the configured P0 route matrix. Router-specific diagnostic bundle descriptors and Router-specific Audit records/details exist; Electron smoke verifies Audit navigation, diagnostic export, `runtime_input` descriptors, and no absolute path leakage. | Routed input links to downstream command, Activity, Audit, and diagnostic refs without exposing prompts, provider payloads, raw logs, SQLite rows, secrets, or absolute paths. | [Runtime Input And Contract Revision Program](../plans/feature/runtime-input-and-contract-revision-program.md), [P0 Release Evidence](plato-1-1-p0-release-evidence-2026-06-20.md) |
-| P0-QA-1 | Real acceptance suite | Passed for configured Electron, packaged app, and mounted `1.1-beta` installer smoke. Sidecar restart replay remains beta-depth release confidence work. | Electron/sidecar acceptance covers question, guidance, ASK, confirmation, stop/retry, execution-request handoff, unsupported routes, and no-mutation guarantees. | [Product 1.1 QA Report](plato-1-1-real-local-qa-report-2026-06-11.md), [P0 Release Evidence](plato-1-1-p0-release-evidence-2026-06-20.md) |
-| P0-REL-1 | Release evidence package | Closed for Product 1.1 P0 beta evidence. The release evidence package links the route matrix, Audit / Diagnostics closure, packaged app, mounted `1.1-beta` installer smoke, SHA256, known limitations, and release record. Public repository release-note sync remains P1 external-doc polish. | Stable/beta release docs clearly show what Product 1.1 includes, what was verified, and what remains deferred. | [P0 Release Evidence](plato-1-1-p0-release-evidence-2026-06-20.md), [Product 1.1 Runtime Input Router Release Evidence](../releases/product-1-1-runtime-input-router-release-evidence.md), [Runtime Input And Contract Revision Program](../plans/feature/runtime-input-and-contract-revision-program.md) |
+| P0-QA-1 | Real acceptance suite | Passed for configured Electron, packaged app, mounted `1.1-beta` installer smoke, and formal `1.1` local release core path. Workspace Picker smoke was restored on `main` by `841cfd6`; optional LLM inquiry smoke remains beta-depth follow-up. | Electron/sidecar acceptance covers question, guidance, ASK, confirmation, stop/retry, execution-request handoff, unsupported routes, no-mutation guarantees, and formal artifact smoke. | [Product 1.1 QA Report](plato-1-1-real-local-qa-report-2026-06-11.md), [Product 1.1 Feature Test Report](plato-1-1-feature-test-report-2026-07-02.md), [P0 Release Evidence](plato-1-1-p0-release-evidence-2026-06-20.md) |
+| P0-REL-1 | Release evidence package | Closed for Product 1.1 P0 beta evidence and extended by formal `1.1` release evidence. The release evidence package links the route matrix, Audit / Diagnostics closure, packaged app, mounted installer smoke, SHA256, known limitations, formal release record, and Workspace Picker fix. Public repository release-note sync remains P1 external-doc polish. | Stable/beta/formal release docs clearly show what Product 1.1 includes, what was verified, and what remains deferred. | [P0 Release Evidence](plato-1-1-p0-release-evidence-2026-06-20.md), [Product 1.1 Feature Test Report](plato-1-1-feature-test-report-2026-07-02.md), [Product 1.1 Formal Release Notes](../releases/product-1-1-formal-release-notes.md), [Product 1.1 Runtime Input Router Release Evidence](../releases/product-1-1-runtime-input-router-release-evidence.md), [Runtime Input And Contract Revision Program](../plans/feature/runtime-input-and-contract-revision-program.md) |
 
 ### 4.4 P0 Non-Goals
 
@@ -188,7 +193,7 @@ The P0 milestone is accepted when:
    diagnostics export, and no-mutation guarantees.
 10. Done for P0: finish Product 1.1 release evidence by tying accepted routes
     to release docs, packaged-release evidence, mounted `1.1-beta` installer
-    smoke, SHA256, and known limitations.
+    smoke, formal `1.1` local release evidence, SHA256, and known limitations.
 
 ## 5. P1 Accepted Closure
 
@@ -209,8 +214,8 @@ The P0 milestone is accepted when:
 The next branches should be selected in this order:
 
 1. **External public repository publication**: copy the prepared Product 1.1
-   beta external release notes into the public repository release/user docs and
-   attach the beta artifact/checksum when publishing.
+   formal release notes and public-safe evidence into the public repository
+   release/user docs and attach the public artifact/checksum when publishing.
 2. **Signed / notarized distribution planning**: start only after Apple
    Developer credentials exist.
 3. **Next Product 1.1+ hardening scope**: open a new release scope for richer

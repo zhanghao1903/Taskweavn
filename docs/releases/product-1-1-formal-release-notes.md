@@ -2,7 +2,7 @@
 
 > Status: release candidate verified for public `v1.1`
 >
-> Last Updated: 2026-07-01
+> Last Updated: 2026-07-06
 >
 > Audience: public release readers, reviewers, and release operators
 >
@@ -167,6 +167,12 @@ Formal `1.1` release validation:
 - Targeted frontend runtime tests for the release-blocking scroll behavior:
   `npm run test -- src/pages/main-page/runtime/mainPageFocusScrollRuntime.test.ts src/pages/main-page/useMainPageFocusScrollRuntime.test.tsx src/pages/main-page/MainPageWorkbench.test.tsx`
 
+The internal QA source-of-truth for the formal local release is
+[Plato Product 1.1 Feature Test Report - 2026-07-02](../product/plato-1-1-feature-test-report-2026-07-02.md).
+That report records the core path pass, the Workspace Picker smoke regression
+that was later fixed on `main` by `841cfd6`, and the optional LLM-rendered
+read-only inquiry smoke that still needs split/fix before being claimed green.
+
 ## Known Limitations
 
 - The macOS DMG is unsigned and not notarized.
@@ -176,6 +182,9 @@ Formal `1.1` release validation:
   distribution, auto-update, and remote execution are outside this release.
 - Web retrieval remains configuration-dependent and should be documented as a
   capability foundation, not a universal default.
+- Optional LLM-rendered read-only inquiry smoke remains beta-depth evidence:
+  answer rendering is covered, but full smoke completion is not accepted as
+  green yet.
 - Some Product 1.1 surfaces are foundations that will continue to receive UX
   polish in later releases.
 
