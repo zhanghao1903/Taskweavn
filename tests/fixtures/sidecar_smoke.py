@@ -59,8 +59,8 @@ class SidecarSmokeFixture:
     app: MainPageSidecarApp
     session_id: str
     task_id: str
-    ask_id: str
-    confirmation_id: str
+    ask_id: str | None
+    confirmation_id: str | None
     log_record_id: str
     log_evidence_id: str
     diagnostics_log_href: str
@@ -110,6 +110,7 @@ def build_audit_sidecar_smoke_fixture(
     workspace_registry: tuple[WorkspaceRegistryEntry, ...] = (),
     llm: object | None = None,
     enable_read_only_inquiry_llm: bool = False,
+    include_runtime_input_interactions: bool = True,
 ) -> SidecarSmokeFixture:
     """Create a deterministic real-sidecar session for frontend integration checks."""
 
@@ -154,7 +155,8 @@ def build_audit_sidecar_smoke_fixture(
         if claimed is None:
             raise AssertionError("sidecar smoke task was not claimable")
         _seed_result_and_file_evidence(app, session_id, task)
-        _seed_runtime_input_interaction_state(app, session_id)
+        if include_runtime_input_interactions:
+            _seed_runtime_input_interaction_state(app, session_id)
         app.task_bus.fail(session_id, SMOKE_TASK_ID, error_ref=SMOKE_ERROR_REF)
         _write_frontend_error_log(app, session_id)
         diagnostics_log_href, log_evidence_id = _require_related_log_context(
@@ -165,8 +167,14 @@ def build_audit_sidecar_smoke_fixture(
             app=app,
             session_id=session_id,
             task_id=SMOKE_TASK_ID,
-            ask_id=SMOKE_ASK_ID,
-            confirmation_id=SMOKE_CONFIRMATION_ID,
+            ask_id=(
+                SMOKE_ASK_ID if include_runtime_input_interactions else None
+            ),
+            confirmation_id=(
+                SMOKE_CONFIRMATION_ID
+                if include_runtime_input_interactions
+                else None
+            ),
             log_record_id=SMOKE_LOG_RECORD_ID,
             log_evidence_id=log_evidence_id,
             diagnostics_log_href=diagnostics_log_href,
@@ -563,6 +571,8 @@ def _serve_existing_workspace(args: argparse.Namespace) -> int:
 
 
 def _ready_payload(fixture: SidecarSmokeFixture) -> dict[str, object]:
+    if fixture.ask_id is None or fixture.confirmation_id is None:
+        raise ValueError("sidecar ready payload requires seeded interactions")
     return {
         "baseUrl": fixture.base_url,
         "diagnosticExportUrl": fixture.diagnostic_export_url,

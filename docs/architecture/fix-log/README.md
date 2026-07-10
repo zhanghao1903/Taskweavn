@@ -330,8 +330,8 @@ backend:  254 passed in 20.86s
 frontend: 33 passed across 4 files in 1.56s
 ~~~
 
-完整测试基线仍以 `fix-log/review.md` 为准，包含其记录的既有失败和
-sidecar E2E sandbox limitation。
+完整测试基线仍以 `fix-log/review.md` 为准。该记录保留校准时发现的失败，并补充了
+同日按顺序修复后的 backend、frontend、sidecar E2E、lint 和 build 复跑结果。
 
 ---
 

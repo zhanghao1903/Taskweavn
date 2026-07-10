@@ -243,3 +243,37 @@ Validation completed on 2026-07-10:
 - `session.md` remains the final non-README architecture calibration target.
 - README should be updated only after every document set and completion audit is
   finished.
+
+## 10. Baseline Follow-Up Record
+
+After the architecture calibration was committed independently as `2173573`,
+the recorded baseline issues were handled in document order on 2026-07-10:
+
+1. The two read-only inquiry acceptance tests now opt out of unrelated pending
+   ASK and confirmation state added later to the shared sidecar fixture. The
+   production Router and its active-ASK precedence were not changed.
+2. `main_page_snapshot.min.json` now includes the three current model defaults
+   missing from the golden fixture: `activePlan.archivedAt`, `archivedPlans`,
+   and message `conversationRender`.
+3. The App resync test now holds the refetch with a test-controlled promise
+   instead of relying on an 80 ms wall-clock observation window.
+4. The sidecar E2E command was retried outside the filesystem sandbox so its
+   child `uv` processes could read the existing user cache.
+
+Follow-up validation:
+
+- targeted inquiry and related sidecar checks: `14 passed`;
+- backend contract/model/plan checks: `23 passed`;
+- frontend shared contract fixture: `7 passed`;
+- resync test: 8 concurrent targeted runs passed;
+- complete App test file: `35 passed`;
+- complete backend suite: `1510 passed, 10 skipped in 47.87s`;
+- complete frontend suite: `558 passed, 6 skipped` across 78 files in `8.15s`;
+- sidecar-backed E2E: 5 files and 6 tests passed;
+- frontend lint: 0 errors and 2 pre-existing Fast Refresh warnings;
+- frontend TypeScript/Vite build: passed with the existing chunk-size warning;
+- Ruff on the changed Python test files: passed.
+
+This closes the four recorded local baseline issues. It does not close the
+separate finding that GitHub CI runs a narrower matrix than the repository
+supports.

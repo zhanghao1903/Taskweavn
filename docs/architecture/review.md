@@ -247,8 +247,8 @@ Product 1.0 Frontend Integration
 它不等于完整 backend pytest、frontend unit tests、ESLint、TypeScript/Vite build、Ruff、
 Mypy、packaging smoke 的统一 PR gate。
 
-本次校准实际运行完整 suites，结果进一步证明“有测试资产”和“当前 baseline 全绿”
-不是同一件事：
+本次校准首次运行完整 suites，证明“有测试资产”和“未经验证就假定 baseline 全绿”
+不是同一件事。当时发现：
 
 - backend：`1507 passed, 10 skipped, 3 failed`；三项定向复跑仍失败；
   - 两项 read-only inquiry sidecar acceptance 把期望的 `answered` 路由成
@@ -257,8 +257,23 @@ Mypy、packaging smoke 的统一 PR gate。
 - frontend：`557 passed, 6 skipped, 1 failed`；失败的 resync transient-state test
   定向复跑通过，表现为 full-suite 时序不稳定。
 
-这些失败不是文档变更造成的，但属于当前架构/release confidence 事实。完整 CI gate
-应先稳定并强制这些 suites，而不是只增加更多测试文件。
+这些失败不是文档变更造成的。事实校准提交 `2173573` 完成后，同日按上述顺序完成
+follow-up：
+
+- read-only inquiry acceptance 与共享 sidecar fixture 中后来加入的 pending ASK 隔离，
+  保留 active ASK 优先级这一既有 Router 语义；
+- canonical snapshot fixture 补齐当前模型已经序列化的 `archivedAt`、
+  `archivedPlans` 和 `conversationRender` 字段；
+- resync test 用测试控制的 pending refetch 取代固定 `80ms` 观察窗口；
+- backend 完整复跑为 `1510 passed, 10 skipped`；
+- frontend 完整复跑为 `558 passed, 6 skipped`；
+- sidecar E2E 在允许子进程读取既有 uv cache 后为 `5 files passed, 6 tests passed`；
+- frontend lint 为 0 errors、2 个既有 Fast Refresh warnings，build 通过并保留既有
+  chunk-size warning。
+
+因此 2026-07-10 的这些已知 baseline failures 已收敛，但完整 CI gate 仍未覆盖上述
+完整矩阵。后续重点是把这些 suites 变成持续 required checks，而不是只增加更多测试
+文件。
 
 建议至少建立：
 
