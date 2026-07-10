@@ -1,512 +1,515 @@
-# 多 Agent 协作架构设计
+# 多 Agent 协作架构：现行事实与扩展边界
 
-> 版本 v1.1 · 2026-06-24
->
-> Status: historical architecture concept reference
->
-> Product 1.1 alignment: 本文保留多 Agent 协作的早期理念来源。当前 Product 1.1 已落地的是 Runtime Input Router、task-scoped Default Agent execution、Agent LLM resolver、read-only inquiry 和 command-backed contract revision；完整 Agent Manager、dynamic assignment、custom Agent protocol 仍是后续扩展。当前事实以 [overview.md](overview.md)、[agent.md](agent.md)、[task.md](task.md) 和 [bus.md](bus.md) 为准。
+> Status: fact-calibrated current architecture baseline
+> Last Updated: 2026-07-10
+> Original preserved as:
+> `docs/architecture/multi-agent-collaboration.original.md`
+> Related:
+> [Overview](overview.md),
+> [Agent](agent.md),
+> [Task](task.md),
+> [TaskBus](bus.md),
+> [Interaction Layer](interaction-layer.md),
+> [Collaborator Authoring](collaborator-agent-task-authoring.md),
+> [Execution Plane](taskbus-service-multi-execution-env.md),
+> [ADR-0011](../decisions/ADR-0011-routing-agent-assignment-and-cooperative-interruption.md),
+> [ADR-0012](../decisions/ADR-0012-taskbus-centered-agent-assignment-convergence.md)
 
----
+## 1. 文档目的与结论
 
-## 目录
+本文只描述代码库当前已经成立的多 Agent 相关事实，并把已接受但尚未实现的
+扩展方向单独列出。
 
-1. [设计核心理念](#1-设计核心理念)
-2. [消息流模型：用户协作的基础](#2-消息流模型用户协作的基础)
-3. [自主度系统](#3-自主度系统)
-4. [对话式编排设计](#4-对话式编排设计)
-5. [约束驱动的 UI 编排](#5-约束驱动的-ui-编排)
-6. [核心数据结构](#6-核心数据结构)
-7. [系统整体架构](#7-系统整体架构)
-8. [渐进式约束演进路线](#8-渐进式约束演进路线)
-9. [关键设计权衡](#9-关键设计权衡)
+当前 Plato / TaskWeavn **不是一个已经实现的多 Agent 图运行时**。现行执行闭环是：
 
----
-
-## 1. 设计核心理念
-
-### 1.1 两个核心原则
-
-本架构围绕两个核心理念展开，它们共同决定了多 agent 与用户协作的方式：
-
-**原则一：消息流替代打断（Stream over Interrupt）**
-
-传统 human-in-the-loop 系统依赖"暂停-等待-恢复"的阻塞式打断模型，系统主导节奏，用户被迫响应。本架构将其替换为**消息流模型**：agent 向消息流发送请求，用户可以回应，也可以不回应，agent 的等待行为由自主度配置决定。用户始终是主动方，不被系统打断。
-
-**原则二：约束驱动的用户编排（Constraint-driven Orchestration）**
-
-不强迫用户理解图结构，而是让 LLM 作为编排设计者，在约束边界内生成合法的 agent 协作图。用户通过自然语言描述意图，通过 UI 进行局部微调。约束本身是可版本化、可演进的，随着系统成熟度提升逐步松绑。
-
-### 1.2 核心转变
-
-```
-旧模型                          新模型
-──────────────────────────────────────────────────────
-interrupt → pause → resume      消息流 + 响应等待策略
-用户填写编排配置                  对话描述意图 → LLM 生成草稿
-约束是事后校验                    约束是生成时上下文
-自由度是默认，限制是补丁           约束是默认，松绑需要数据依据
+```text
+Published Task
+  -> TaskBus
+  -> FixedRouteExecutionDispatcher
+  -> FixedRouteTaskExecutor
+  -> Resident Default Agent boundary
+  -> task-scoped AgentLoop
+  -> TaskBus complete / fail / wait
 ```
 
----
+代码库同时存在若干名称中带有 Agent、Router 或 Execution Env 的边界，但它们不
+共同构成动态多 Agent 调度系统：
 
-## 2. 消息流模型：用户协作的基础
+- Collaborator 负责命令驱动的任务编写，不领取 Published Task；
+- Runtime Input Router 负责用户输入分类和命令分发，不分配 Execution Agent；
+- Read-only Inquiry 负责有界只读回答，不执行 workspace mutation；
+- Agent LLM role 负责选择模型配置，不创建 Agent instance；
+- ExecutionEnv registry 负责本地能力兼容检查，不管理远程 worker；
+- `Orchestrator` 只有占位 Protocol 和 `NullOrchestrator`，没有真实调度实现或调用路径。
 
-### 2.1 模型概述
+因此，本文使用“多 Agent”时必须区分：
 
-Agent 执行过程中产生的所有与用户相关的通信，统一流向一条**消息流（Message Stream）**。用户可以实时观看、随时介入，但从不被强制阻塞。
+1. **当前存在的多个专用服务角色**；
+2. **当前唯一的固定路线执行 Agent**；
+3. **未来 Router + Agent Manager + 多 Execution Agent 的目标架构**。
 
+## 2. 当前角色地图
+
+| 名称 | 当前实现 | 是否是 TaskBus 执行 Agent | 当前边界 |
+|---|---|---:|---|
+| Default Agent | `AgentLoopResidentDefaultAgent` | 是 | 固定 identity `default_agent`；每个 Task 创建 task-scoped runner / AgentLoop |
+| Collaborator | `DefaultCollaboratorAuthoringService`、profile runner、authoring commands | 否 | 生成 RawTask / Plan / DraftTaskTree proposal，并通过命令服务持久化 |
+| Runtime Input Router | `DefaultRuntimeInputRouter` + 可选 LLM route planner | 否 | 分类用户输入，分发 inquiry、guidance、ASK、confirmation、stop/retry 或 execution handoff |
+| Read-only Inquiry | `DefaultReadOnlyInquiryService` + answer provider | 否 | 基于允许的产品事实、诊断和 workspace 只读上下文回答问题 |
+| Agent LLM roles | 六个 `AgentLlmRole` 字符串 | 否 | 按角色解析 provider/model profile；不实例化 runtime Agent |
+| Local runtime handler | `EmbeddedTaskRuntimeHandler` 实现 | 否 | 为特定 Task type 执行受控本地流程，不是通用 Agent protocol |
+| `Orchestrator` | Protocol + `NullOrchestrator` | 否 | 未接入生产路径；`submit()` 在空实现中抛出 `NotImplementedError` |
+
+### 2.1 Default Agent 是当前唯一通用执行者
+
+Main Page sidecar 在 workspace runtime 装配时创建一个 resident Default Agent
+adapter。这个 adapter 提供稳定执行入口，但不会在 Task 之间保留同一个
+`AgentLoop`：
+
+```text
+AgentLoopResidentDefaultAgent.run(task)
+  -> loop_factory(task)
+  -> new task-scoped _SessionAgentLoopRunner
+  -> AgentLoop.run(rendered context, task_id)
+  -> TaskRunResult
 ```
-┌─ Agent 执行层 ──────────────────────────────────────┐
-│  Planner → Executor → Auditor → ...                 │
-│      ↓          ↓         ↓                         │
-└──────────────────────────────────────────────────────┘
-              ↓  ↓  ↓
-┌─ Message Stream ────────────────────────────────────┐
-│  [INFO]  Planner: 已生成执行计划，共 5 步             │
-│  [ASK]   Executor: 即将删除文件 config.py，确认？    │
-│  [INFO]  Executor: 已修改 auth.py (第 42 行)         │
-│  [WARN]  Auditor: 发现潜在安全漏洞，建议人工复查      │
-└──────────────────────────────────────────────────────┘
-              ↑
-         用户随时可回复，也可不回复
+
+TaskBus、Context Manager、AskStore、MessageStream、Event/Audit stores 保存系统
+事实。Agent 对象的跨任务私有内存不是事实权威。
+
+### 2.2 Collaborator 是 authoring actor，不是执行 worker
+
+`CollaboratorAgentTemplate` 确实存在，但它是内置 Collaborator 的 metadata：
+
+- template id 是 `system.collaborator`；
+- capability 是 `task_authoring`；
+- command protocol 是 `authoring.v1`；
+- 默认 `llm_visible_tool_pools` 为空；
+- registry 是 session-scoped 的 Collaborator metadata registry，不是通用 AgentPool。
+
+真实变更由 `CollaboratorAuthoringService` 生成结构化 proposal，再提交给
+`AuthoringCommandService`。Workspace-informed authoring 只暴露有界 read/search
+工具；`write_file`、`run_command`、`shell` 和 `execute_code` 明确不在其允许工具中。
+
+Collaborator 到执行层的“协作”发生在持久化 contract 上：
+
+```text
+user input
+  -> Collaborator proposal
+  -> AuthoringCommandService
+  -> RawTask / Plan / DraftTaskTree facts
+  -> explicit publish
+  -> Published Task in TaskBus
 ```
 
-### 2.2 消息的两种类型
+这不是 Collaborator 向 Default Agent 发送私有消息，也不是运行时 handoff 协议。
 
-| 类型 | 含义 | Agent 行为 |
-|------|------|----------|
-| **Informational** | 告知用户 agent 做了什么 | 发送后继续执行，不等待 |
-| **Actionable** | 请求用户输入或确认 | 根据自主度配置决定等待策略 |
+### 2.3 Router 和 Inquiry 不是子 Agent 调度器
 
-### 2.3 消息结构
+Runtime Input Router 可以使用 LLM planner，但最终命令仍由确定性服务验证和提交。
+它操作的是 Main Page 输入 contract，不观察 Agent pool，也不写 assignment。
+
+Read-only Inquiry 可以使用单独的 LLM profile，并读取显式允许的上下文。它没有
+TaskBus claim、workspace 写工具或任务完成权限。两者的 `agent_id` 日志/消息标签
+不能解释为已经注册了可调度 Agent instance。
+
+## 3. 当前运行拓扑
+
+### 3.1 Main Page 输入与 authoring
+
+```text
+Main Page input
+  -> Runtime Input Router
+     -> read-only inquiry
+     -> record guidance / contract revision command
+     -> answer active ASK
+     -> resolve active confirmation
+     -> stop / retry selected Task
+     -> create execution Task contract
+     -> clarification / unsupported outcome
+
+Authoring path
+  -> Collaborator authoring profile
+  -> bounded workspace read/search when needed
+  -> structured proposal
+  -> AuthoringCommandService
+  -> Plan / TaskNode or legacy DraftTaskTree projection
+  -> explicit publish
+```
+
+### 3.2 普通 Published Task 执行
+
+```text
+publish or resume trigger
+  -> FixedRouteExecutionDispatcher.request_dispatch(session_id)
+  -> one dispatcher worker dequeues a Session
+  -> FixedRouteTaskExecutor selects one eligible pending Task
+  -> TaskBus.claim_next(
+       session_id,
+       capability=task.required_capability,
+       agent_id="default_agent",
+     )
+  -> Resident Default Agent runs the Task
+  -> TaskBus.complete / fail / wait_for_user / wait_for_confirmation
+```
+
+Dispatcher 会按 Session 合并重复 trigger，并在一个 worker thread 中依次 drain。
+一次 trigger 最多执行配置的 tick 数；只有前一个 tick `completed` 才继续下一项。
+它不保留跨 Task 的 AgentLoop，也不并行运行一组子 Agent。
+
+### 3.3 Execution Plane 路径
+
+`EmbeddedTaskApiService` 提供 service-shaped local Task API：
+
+```text
+TaskRequest
+  -> idempotency validation
+  -> local ExecutionEnv compatibility check
+  -> ordinary task: publish TaskDomain to TaskBus
+  -> selected task type: optional local EmbeddedTaskRuntimeHandler
+```
+
+普通 task type 最终仍进入固定 Default Agent 路线。特定 runtime handler（当前包括
+受控的本地 WeChat send 路径）是 task-type extension seam，不是 Agent Manager。
+
+## 4. Task 分配与 claim 的当前事实
+
+### 4.1 TaskDomain 没有 assignment 状态
+
+当前 `TaskDomain` 有：
+
+- `required_capability`：单值字符串；
+- `dispatch_constraints`：未来 dispatch intent / metadata；
+- `claimed_by`：claim 成功后的执行事实；
+- `status`：`pending`、`running`、`waiting_for_user`、`done`、`failed`。
+
+当前没有：
+
+- `assigned_agent_id`；
+- `assigned_by` / `assigned_at`；
+- assignment rationale / version；
+- 单独的 `assigned` 状态；
+- `claim_assigned()` 或 `AssignmentCommand` 实现。
+
+`TaskDispatchConstraints.required_agent_id`、`preferred_agent_id` 和
+`required_capabilities` 可以随发布结果保存，但当前 `claim_next()` 不读取这些字段。
+
+### 4.2 `claim_next()` 的真实匹配条件
+
+In-memory 和 SQLite TaskBus 都只检查：
+
+1. Session 相同；
+2. Task 是 `pending`；
+3. `required_capability` 与调用参数精确相等；
+4. root Task 可执行，或 parent Task 已经 `done`；
+5. 候选按 `created_at`、`order_index`、`task_id` 排序。
+
+claim 成功后写入 `running`、调用方传入的 `claimed_by` 和 `started_at`。
+TaskBus 不检查 agent registry、agent health、tool inventory、成本或历史成功率。
+
+### 4.3 当前串行性来自 dispatcher，不是完整调度协议
+
+Main Page 产品路径使用一个 dispatcher worker，所以通常形成串行执行 lane。但
+TaskBus Protocol 本身没有“同一 Session 只能有一个 running Task”的全局 guard；
+其他调用方重复调用 `claim_next()` 时，可能领取另一个 eligible pending Task。
+
+SQLite claim 使用当前 `SqliteTaskBus` 实例的进程内 `RLock`。代码没有分布式
+compare-and-swap、lease、fencing token 或跨进程 worker ownership 协议。
+
+## 5. 当前协作媒介
+
+### 5.1 Durable contract，而不是 Agent 私有对话
+
+当前角色之间通过各自权威存储产生的事实衔接：
+
+| 协作内容 | 权威边界 |
+|---|---|
+| 未发布任务理解与草稿 | RawTask / Plan / TaskNode / DraftTask stores |
+| Published Task 生命周期 | TaskBus |
+| 用户 ASK | AskStore + TaskBus waiting linkage |
+| confirmation | MessageStream response + TaskBus waiting linkage |
+| 用户可见消息 | SQLite MessageStream |
+| 执行证据 | EventStream、result/error summary、audit projection |
+| 下一次执行上下文 | Session Context Manager |
+| service-level execution request | Execution Plane store + TaskBus |
+
+没有一个 Agent 可以通过修改另一个 Agent 的内存来推进这些事实。
+
+### 5.2 MessageStream 是用户交互面，不是 agent-to-agent mailbox
+
+`AgentMessage.message_type` 当前有三类：
+
+- `informational`；
+- `actionable`；
+- `response`。
+
+消息包含 `session_id`、可选 `task_id`、`agent_id`、可选
+`parent_message_id`、内容、context、action options、response 字段和时间。SQLite
+stream 持久化消息；`InProcessMessageBus` 是当前唯一 bus 实现，live subscription
+只接收订阅之后发布的消息。
+
+这些消息服务于用户会话、ASK/confirmation 和 UI projection。当前没有：
+
+- Agent mailbox 地址协议；
+- Agent-to-Agent request/response schema；
+- delegation id、handoff token 或 child-run correlation；
+- 多 Agent result aggregation protocol；
+- Agent 间 backpressure、delivery acknowledgement 或 retry contract。
+
+### 5.3 ASK 和 confirmation 会真实阻塞 Task
+
+当前 Main Page 显式工具 `ask_user` 和 `request_confirmation` 可以把运行中的 Task
+变为 `waiting_for_user`，结束当前 task-scoped run。回答后 Task 回到 `pending`，再由
+dispatcher 重新 claim。这不是“消息永远不打断执行”的模型。
+
+通用 CLI 路径可以选择装配 `AutonomyGate` 和 `WaitCoordinator`；Main Page Default
+Agent 没有把所有普通工具动作统一接入该 gate。Autonomy presets 的存在也不等于
+已经实现 per-Agent 图节点自主度配置或 Main Page 自主度编排 UI。
+
+## 6. Agent 生命周期与状态所有权
+
+### 6.1 当前执行生命周期
+
+```text
+workspace runtime assembly
+  -> build resident Default Agent adapter
+  -> dispatcher receives trigger
+  -> adapter creates task-scoped runner
+  -> Context Manager builds run input
+  -> AgentLoop executes tools / asks / confirmations
+  -> adapter maps LoopResult to TaskRunResult
+  -> executor commits TaskBus lifecycle
+  -> run-local stack is released
+```
+
+`claimed_by="default_agent"` 是 Task 执行记录，不是通用实例注册表中的外键。
+
+### 6.2 当前不存在的生命周期管理
+
+代码库没有通用：
+
+- Agent Manager；
+- Agent template/instance registry；
+- Agent process pool 或 warm pool；
+- spawn、health check、drain、terminate lifecycle；
+- capacity / load / cost scheduler；
+- child Agent ownership tree；
+- Agent version、permission profile 与 Task assignment 的运行时校验链。
+
+Collaborator 的 metadata registry 和 ExecutionEnv registry 都不能替代上述边界。
+
+### 6.3 `Orchestrator` 仍是占位
+
+`src/taskweavn/orchestration/protocol.py` 定义：
 
 ```python
-@dataclass
-class AgentMessage:
-    id: str
-    agent_id: str
-    message_type: Literal["informational", "actionable"]
-    content: str
-    context: dict               # 相关代码片段、文件路径等
-    action_options: list[str]   # 仅 actionable 类型，提供给用户的选项
-    requires_response: bool
-    created_at: datetime
-    timeout_seconds: float | None
+class Orchestrator(Protocol):
+    def submit(self, action: BaseAction) -> BaseObservation: ...
+    def shutdown(self) -> None: ...
 ```
 
-### 2.4 "完全不打断"状态
+当前只有 `NullOrchestrator`，其 `submit()` 抛出 `NotImplementedError`。除模块导出外，
+生产代码和测试没有调用点。因此不能把它写成已运行的 planner/executor 编排层。
 
-当用户将自主度设为最高时，所有 Actionable 消息都配置了超时自动 proceed，消息流退化为**只读执行日志**。用户随时可以查看，但没有任何消息阻塞 agent 执行。
+## 7. Capability、工具与执行环境
 
-```
-自主度 = 1.0  →  消息流 = 执行日志  →  用户完全不被打断
-自主度 = 0.0  →  消息流 = 协作频道  →  每个关键决策用户都参与
-```
+### 7.1 Capability 是验证与 claim 键
 
-这是用户的主动选择，系统只负责如实呈现任务质量与自主度的关系。
+Main Page 默认 authoring catalog 当前包含：
 
----
-
-## 3. 自主度系统
-
-### 3.1 自主度的真实含义
-
-自主度不是一个魔法数字，而是对"agent 遇到不确定时如何行动"的精确描述。核心是两个维度：
-
-- **触发维度**：什么情况下 agent 认为需要用户介入
-- **等待维度**：发出请求后，等多久、等不到时怎么办
-
-### 3.2 AutonomyBehavior 配置
-
-```python
-@dataclass
-class AutonomyBehavior:
-    # 触发维度：何时向消息流发送 Actionable 消息
-    trigger: Literal[
-        "never",            # 从不，所有消息都是 Informational
-        "on_risk",          # 仅高风险操作（文件删除、执行命令等）
-        "on_uncertainty",   # LLM 置信度低于阈值时
-        "always",           # 每个关键操作都请求确认
-    ]
-    confidence_threshold: float  # 0.0~1.0，仅 on_uncertainty 生效
-
-    # 等待维度：Actionable 消息发出后的等待策略
-    wait_timeout: float | None   # 秒，None = 无限等待
-    timeout_action: Literal[
-        "wait",              # 继续等待（低自主度默认）
-        "proceed_default",   # 超时后用最保守选择继续
-        "proceed_confident", # 超时后用 LLM 最高置信选择继续
-        "skip",              # 跳过该动作
-    ]
-    notify_on_proceed: bool      # 超时自行决定后是否告知用户
+```text
+general, writing, coding, testing, research
 ```
 
-### 3.3 预设自主度档位
+`StaticCapabilityCatalog` 和 `StaticAgentCapabilityCatalog` 用于 authoring / publish
+validation。它们不是动态 Agent descriptor registry。
 
-| 档位 | trigger | wait_timeout | timeout_action | 适合场景 |
-|------|---------|--------------|----------------|---------|
-| **全自主** | never | — | — | 批处理、可回滚任务 |
-| **风险确认** | on_risk | 300s | proceed_default | 日常使用默认 |
-| **协作模式** | on_uncertainty | None | wait | 复杂、高影响任务 |
-| **全确认** | always | None | wait | 学习、审计场景 |
+Default Agent 的具体工具由 sidecar assembly 直接构造并挂载到 `LocalRuntime`，不是
+由图节点从全局 `ToolRegistry` 动态选择。当前代码没有旧文档描述的
+`ToolRegistry.tools`、`compatible_tools` 或 Agent graph tool-set compiler。
 
-### 3.4 AutonomyGate：决策入口
+### 7.2 ExecutionEnv 只做本地兼容选择
 
-每个 agent 在执行操作前经过 AutonomyGate，统一判断是否需要发送消息：
+`InMemoryExecutionEnvRegistry` 支持 `upsert/get/list/find_compatible`。兼容条件是：
 
-```python
-class AutonomyGate:
-    def check(
-        self,
-        action: CodeAction,
-        confidence: float,
-        behavior: AutonomyBehavior,
-    ) -> GateDecision:
-        if behavior.trigger == "never":
-            return GateDecision.PROCEED
-        if action.is_high_risk and behavior.trigger in ("on_risk", "always"):
-            return GateDecision.SEND_ACTIONABLE
-        if confidence < behavior.confidence_threshold:
-            return GateDecision.SEND_ACTIONABLE
-        return GateDecision.PROCEED
+- env 状态是 `online`；
+- env capabilities 包含 request 的 `required_capability`；
+- 非空 `allowed_tools` 是 env tool pool 的子集。
+
+sidecar 当前构造本地 `local-default` env。虽然 DTO 中已经有
+`last_heartbeat_at`、`active_execution_id`、`TaskLease`、`claimed` 和
+`lease_expired` 等字段/状态，但当前 service 没有 remote env registration、claim、
+lease issue/renew/revoke/expire 或 heartbeat endpoint。
+
+## 8. UI 与 API 的当前表面
+
+Main Page 当前展示 Plan/Task tree、执行状态、ASK、confirmation、消息、结果、错误、
+activity、audit 和 stop/retry 操作。
+
+当前 `TaskNodeCardView` 不包含 assignment、assigned Agent、`claimed_by` 或 Agent
+health 字段。前端没有：
+
+- Agent graph editor；
+- Agent palette 或 node/edge 配置；
+- AgentPool / worker 列表；
+- Task assignment / reassignment 控件；
+- per-node autonomy slider；
+- parallel branch monitor；
+- multi-Agent handoff timeline。
+
+Execution Plane HTTP routes 可以 publish/query/cancel/retry/list events/read
+result/error/evidence，但这些是本地 sidecar API。它们没有暴露 Agent Manager 或
+remote worker control plane。
+
+## 9. 并发、隔离与恢复边界
+
+### 9.1 当前保证
+
+- workspace runtime 把执行工具限制在选定 workspace root；
+- Task、ASK、message、context、event 和 authoring facts 通过 Session/workspace id
+  隔离；
+- fixed-route dispatcher 合并同一 Session 的重复 trigger；
+- child Task 只有在 parent `done` 后才能 claim；
+- retry 在同一 Task identity 上回到 `pending`，并清除当前 claim/wait/result/error/
+  interruption runtime facts；
+- running interruption 采用 cooperative safe-point 语义；
+- startup recovery 可以收敛带 interruption intent 的 stale running Task。
+
+### 9.2 当前没有的保证
+
+- 多个 workspace writer Agent 的锁、branch 或 merge 协议；
+- 同一 Task 的分布式 exactly-once execution；
+- Agent lease、heartbeat 和 stale worker reclaim；
+- 并行子任务 result merge / conflict resolution；
+- Agent crash 后恢复 run-local LLM transcript 的通用协议；
+- 跨 store 的 Task/message/ASK 原子事务。
+
+任何真正的并行多 Agent 写入都必须先定义 workspace ownership、隔离、合并和可重放
+冲突处理，不能仅通过增加 worker 数量实现。
+
+## 10. 已接受但尚未实现的 dynamic routing 方向
+
+ADR-0011 和 ADR-0012 接受的目标是 TaskBus-centered convergence：
+
+```text
+pending unassigned Task
+  -> Router observes Task + Agent descriptors
+  -> Routing Agent policy proposes AssignmentCommand
+  -> TaskBus validates and stores assignment fact
+  -> Agent Manager observes pending assigned Task
+  -> Agent Manager creates/selects runtime instance
+  -> assigned Agent claims Task
+  -> Agent run reports complete / fail / wait
 ```
 
-### 3.5 质量与自主度的 Tradeoff
+该方向的约束包括：
+
+- Router 决定 assignment strategy，但不拥有 Task lifecycle；
+- TaskBus 继续是 Published Task lifecycle 和 assignment fact authority；
+- Agent Manager 创建/选择 runtime instance，但不成为第二个 Task store；
+- assignment 指向 Agent identity/template/capability，不直接指向临时 run；
+- 初始方案不增加单独 `assigned` status；
+- retry 清除 assignment 和本次 runtime facts，再进入 routing；
+- 初始 dynamic routing 可使用每个 TaskBus 一个 Router loop 和 Agent Manager loop；
+- stale pending sweep、assigned-only claim 和 projection UI 需要与 assignment 一起落地；
+- 第一版 UI 只投影 assignment，不提供手工 reassignment。
+
+以上是已接受设计，不是当前代码事实。当前仓库搜索不到生产
+`AssignmentCommand`、`assigned_agent_id`、`claim_assigned` 或 Agent Manager 实现。
+
+## 11. 实现 dynamic multi-Agent 前的最低前置条件
+
+1. 在 TaskBus command/model/store 中加入可审计 assignment facts 和幂等语义。
+2. 定义 Agent descriptor、template identity、runtime instance 和 run id 的稳定关系。
+3. 实现 Router observation/command loop，并明确 deterministic fallback。
+4. 实现 Agent Manager health/lifecycle loop 和 assigned-only claim validation。
+5. 定义 capability、tools、permissions、workspace scope 与 Agent identity 的联合校验。
+6. 为本地并行或远程执行增加 lease、heartbeat、fencing 和 stale recovery。
+7. 为同 workspace 写入定义串行、隔离 branch 或 merge contract。
+8. 定义 Agent-to-Agent delegation、result、failure、cancellation 和 audit schema。
+9. 扩展 UI contract 与 projection，先显示 assignment/health，再考虑 reassignment。
+10. 增加跨进程并发、重复 delivery、worker crash 和恢复测试。
+
+## 12. 当前非事实清单
+
+| 旧概念或目标 | 当前状态 |
+|---|---|
+| Planner -> Executor -> Auditor graph 已运行 | 未实现 |
+| LLM `OrchestrationDesigner` 生成合法 Agent DAG | 未实现 |
+| `OrchestrationDraft` / `ConstraintProfile` / `OrchestrationConfig` | 代码中不存在 |
+| Auto-pilot / Co-pilot / Manual / Audit-Focus 编排 preset | 未实现；不要与 CLI autonomy presets 混同 |
+| 所有 Agent 动作都经过 Main Page `AutonomyGate` | 不成立 |
+| 最高自主度时所有 actionable 都不会阻塞 | 不成立；显式 ASK/confirmation 可使 Task waiting |
+| MessageStream 是 Agent 间通信总线 | 不成立；它是用户交互和投影边界 |
+| ToolRegistry 按 Agent type 动态分配工具 | 未实现 |
+| 动态 Agent assignment / reassignment | 未实现 |
+| 通用 child Agent spawn / handoff / aggregation | 未实现 |
+| 多 Agent 并行写同一 workspace | 未实现，也没有冲突合并协议 |
+| remote multi-ExecutionEnv worker pool | 未实现 |
+| `Orchestrator` 已接入运行路径 | 不成立；仅占位 Protocol |
+
+## 13. 代码事实索引
+
+执行与 TaskBus：
+
+- `src/taskweavn/task/execution.py`
+- `src/taskweavn/task/models.py`
+- `src/taskweavn/task/bus.py`
+- `src/taskweavn/task/sqlite_bus.py`
+- `src/taskweavn/server/main_page.py`
+- `src/taskweavn/server/main_page_agent.py`
+
+专用角色：
+
+- `src/taskweavn/task/collaborator.py`
+- `src/taskweavn/task/collaborator_loop.py`
+- `src/taskweavn/task/collaborator_profile_runner.py`
+- `src/taskweavn/task/collaborator_workspace_context.py`
+- `src/taskweavn/server/runtime_input_router.py`
+- `src/taskweavn/server/runtime_input_llm_router.py`
+- `src/taskweavn/server/read_only_inquiry.py`
+- `src/taskweavn/server/read_only_inquiry_answer_provider.py`
+- `src/taskweavn/llm/agent_config.py`
+
+交互与扩展边界：
+
+- `src/taskweavn/interaction/message.py`
+- `src/taskweavn/interaction/bus.py`
+- `src/taskweavn/interaction/sqlite_message_stream.py`
+- `src/taskweavn/interaction/autonomy.py`
+- `src/taskweavn/interaction/gate.py`
+- `src/taskweavn/orchestration/protocol.py`
+- `src/taskweavn/execution_plane/models.py`
+- `src/taskweavn/execution_plane/env_registry.py`
+- `src/taskweavn/execution_plane/embedded_service.py`
+
+UI contract：
+
+- `src/taskweavn/task/views.py`
+- `src/taskweavn/server/ui_contract/view_models.py`
+- `frontend/src/shared/api/types.ts`
+- `frontend/src/pages/main-page/TaskNodeCard.tsx`
+- `frontend/src/pages/main-page/MainPageDetailPanel.tsx`
+
+关键测试：
+
+- `tests/test_fixed_route_task_executor.py`
+- `tests/test_task_bus_lifecycle.py`
+- `tests/test_sqlite_task_bus.py`
+- `tests/test_collaborator_authoring_service.py`
+- `tests/test_collaborator_authoring_loop_contract.py`
+- `tests/test_runtime_input_router.py`
+- `tests/test_execution_plane_service.py`
+- `tests/test_main_page_sidecar_app.py`
+
+## 14. 校准原则
 
-系统应在 UI 中明确呈现这一权衡，而不是隐藏它：
+后续修改本文时，应分别证明：
 
-```
-自主度高  ████████░░
-  ✓ 执行不被打断，速度快
-  ✓ 用户认知负担低
-  ✗ 歧义场景 agent 自行猜测
-  ✗ 错误可能在用户不知情时累积
+1. 名称是否只是 role/profile/metadata，还是可领取 Task 的 runtime Agent；
+2. 设计是否已由 model、store、command、service、assembly、UI 和 tests 贯通；
+3. assignment、claim、run 和 result 分别由哪个权威边界持有；
+4. 并行执行是否已有 workspace isolation、lease 和 recovery；
+5. ADR 的 accepted direction 是否已经进入生产代码。
 
-自主度低  ██░░░░░░░░
-  ✓ 关键决策用户全程参与
-  ✓ 错误率低，可控性强
-  ✗ 需要用户持续关注消息流
-  ✗ 任务速度依赖用户响应时间
-```
-
-选择权完全在用户，系统不做道德评判。
-
----
-
-## 4. 对话式编排设计
-
-### 4.1 LLM 作为编排设计者
-
-用户不需要理解图结构。用户描述意图，**Orchestration Designer**（一个 meta-agent）在约束边界内生成合法的 agent 协作图，用户只需选择和微调。
-
-```
-用户自然语言意图
-       ↓
-Orchestration Designer (meta-agent)
-  输入：用户意图 + ConstraintProfile + ToolRegistry
-  输出：OrchestrationDraft（合法图结构 + 节点配置）
-       ↓
-UI 渲染图结构
-       ↓
-用户局部微调（选择题，不是填空题）
-```
-
-**关键原则：约束不是事后校验，而是生成时的上下文。** LLM 在约束边界内生成，输出天然合法，不会出现"UI 允许但后端拒绝"的不一致。
-
-### 4.2 生成的三个阶段
-
-**阶段一：意图解析**
-
-```
-用户: "我想要一个能审计代码安全漏洞并自动修复的系统"
-
-解析输出:
-  核心能力: [代码读取, 漏洞分析, 修复执行, 验证回环]
-  风险识别: 修复执行 = 高风险，需要用户确认
-  约束映射: 需要 auditor 节点，需要修复前 interrupt
-```
-
-**阶段二：约束内图生成**
-
-LLM 接收 ConstraintProfile 作为 prompt 上下文，在合法拓扑范围内生成图结构，无需后端 validator 二次校验。
-
-**阶段三：能力分配**
-
-每个 agent 节点从 ToolRegistry 中**选择**工具子集，不能生成或引入 Registry 之外的工具。工具集是系统的安全底线。
-
-### 4.3 OrchestrationDraft 结构
-
-```python
-@dataclass
-class OrchestrationDraft:
-    nodes: list[AgentNodeDraft]
-    edges: list[EdgeDraft]
-    rationale: str                    # LLM 解释设计理由，展示给用户
-
-@dataclass
-class AgentNodeDraft:
-    id: str
-    agent_type: AgentType
-    display_name: str
-    description: str                  # 此节点在本编排中的职责
-    tool_set: list[ToolRef]           # 从 ToolRegistry 选出的子集
-    autonomy_behavior: AutonomyBehavior
-    suggested_alternatives: list[AgentType]  # 用户可替换的备选类型
-```
-
-`suggested_alternatives` 让节点替换成为**选择题**，用户不需要知道有哪些 agent 类型。
-
-### 4.4 对话即 Diff，不是全量重生成
-
-用户对草稿的反馈触发局部修改，而不是重新生成整张图：
-
-```
-用户: "让 executor 更自主一点"
-
-DraftPatch:
-  target_node: "executor"
-  changes:
-    autonomy_behavior.trigger: "on_uncertainty" → "on_risk"
-    autonomy_behavior.confidence_threshold: 0.7 → 0.4
-  reason: "降低打断频率，遇到不确定时优先尝试而非询问"
-```
-
-UI 高亮变更节点，用户看到的是 diff，不需要每次重新理解整张图。
-
-### 4.5 ToolRegistry：封闭的工具集
-
-```python
-class ToolRegistry:
-    tools: dict[ToolId, ToolSpec]
-    compatible_tools: dict[AgentType, list[ToolId]]  # 预定义兼容关系
-
-    def suggest_for(
-        self,
-        agent_type: AgentType,
-        intent_keywords: list[str],
-    ) -> list[ToolSpec]:
-        # 从 compatible_tools 按相关性排序返回
-        # LLM 从此列表选择，不能引入列表外工具
-```
-
----
-
-## 5. 约束驱动的 UI 编排
-
-### 5.1 分层配置模型
-
-```
-Layer 3: 自定义 DAG（高级用户）
-  用户在约束范围内自由连接 agent 节点，调整任意参数
-
-Layer 2: Preset + 参数调节（中级用户）
-  选择最佳实践模板，通过旋钮调整关键参数
-
-Layer 1: Preset 直选（普通用户）
-  Auto-pilot / Co-pilot / Manual / Audit-Focus
-```
-
-三层最终 normalize 到同一个 `OrchestrationConfig`，系统内部无差别处理。
-
-### 5.2 ConstraintProfile：约束是一等公民
-
-```python
-@dataclass
-class ConstraintProfile:
-    version: str
-
-    # 节点维度：用户能放哪些 agent
-    allowed_agent_types: set[AgentType]
-
-    # 连接维度：允许哪些边
-    allowed_edges: list[EdgeRule]         # (src_type, dst_type, condition)
-    forbidden_patterns: list[Pattern]     # 如：禁止 executor→executor 直连
-
-    # 组合维度：整体约束
-    required_nodes: set[AgentType]        # 如：auditor 永远必须存在
-    max_parallel_branches: int
-
-    # 元信息：每条约束的存在理由
-    rationale: dict[str, str]             # constraint_key → 失败模式描述
-```
-
-`rationale` 不是注释，是**松绑决策的输入**：知道移除某条约束是在赌什么失败模式。
-
-### 5.3 约束在 UI 中的体现
-
-约束不是报错墙，而是**自然的边界感**：
-
-- 节点 palette 只显示 `allowed_agent_types`，被禁止的节点根本不存在，不是灰掉
-- 连接线拖拽时实时校验 `allowed_edges`，非法连接在拖拽过程中弹开，不是提交时报错
-- 参数面板只渲染当前约束层级开放的配置项，其他参数用系统默认值静默填充
-
-### 5.4 内置最佳实践 Preset
-
-| Preset | 拓扑 | 自主度默认 | 适合场景 |
-|--------|------|-----------|---------|
-| **Auto-pilot** | sequential | 高（on_risk） | 批量处理，不需要陪跑 |
-| **Co-pilot** | hierarchical | 中（on_uncertainty） | 日常开发辅助 |
-| **Manual** | sequential | 低（always） | 学习、敏感操作 |
-| **Audit-Focus** | DAG + 回流 | 中 | 代码审计 + 自动修复 |
-
-Preset 是**只读模板**，用户选择 Preset 实际上 fork 出一个 snapshot，修改发生在 fork 上，随时可以 diff 或 reset。
-
----
-
-## 6. 核心数据结构
-
-### 6.1 完整配置层级
-
-```
-OrchestrationConfig
-├── preset: OrchestrationPreset | None
-├── constraint_profile: ConstraintProfile
-├── nodes: list[AgentNodeConfig]
-│   ├── id, agent_type, display_name
-│   ├── tool_set: list[ToolRef]
-│   └── autonomy_behavior: AutonomyBehavior
-│       ├── trigger
-│       ├── confidence_threshold
-│       ├── wait_timeout
-│       ├── timeout_action
-│       └── notify_on_proceed
-└── edges: list[EdgeConfig]
-    ├── src, dst
-    └── condition: EdgeCondition | None
-```
-
-### 6.2 消息流结构
-
-```
-MessageStream
-└── messages: list[AgentMessage]
-    ├── id, agent_id, created_at
-    ├── message_type: "informational" | "actionable"
-    ├── content, context
-    ├── action_options: list[str]
-    ├── requires_response: bool
-    └── response: UserResponse | AutoResponse | None
-        ├── source: "user" | "timeout_default" | "timeout_confident"
-        ├── value: str
-        └── responded_at: datetime
-```
-
----
-
-## 7. 系统整体架构
-
-```
-┌─ 用户层 ──────────────────────────────────────────────────────┐
-│                                                               │
-│  ┌─ 编排设计（一次性）─────────┐   ┌─ 任务执行（实时）──────┐  │
-│  │ 对话描述意图                │   │ 消息流面板             │  │
-│  │ 查看/调整 OrchestrationDraft│   │ [INFO] agent 动作日志  │  │
-│  │ 配置自主度旋钮              │   │ [ASK]  确认请求        │  │
-│  └─────────────────────────────┘   │ [WARN] 异常通知        │  │
-│                                    └────────────────────────┘  │
-└───────────────────────────────────────────────────────────────┘
-         ↑ Draft                              ↑↓ Messages
-┌─ 编排层 ──────────────────────────────────────────────────────┐
-│                                                               │
-│  OrchestrationDesigner          MessageStream                 │
-│  (meta-agent)                   + AutonomyGate               │
-│    ├── 意图解析                                               │
-│    ├── 约束内图生成                                           │
-│    └── 工具集匹配               ConstraintValidator           │
-│                                 (加载时静态分析)              │
-└───────────────────────────────────────────────────────────────┘
-         ↑ ConstraintProfile              ↑ OrchestrationConfig
-┌─ 执行层 ──────────────────────────────────────────────────────┐
-│                                                               │
-│  Agent Graph Runtime                                          │
-│    ├── Planner Agent                                          │
-│    ├── Executor Agent  ──→ AutonomyGate ──→ MessageStream     │
-│    ├── Auditor Agent                                          │
-│    └── [用户自定义节点]                                       │
-│                                                               │
-│  ToolRegistry (封闭工具集)                                    │
-└───────────────────────────────────────────────────────────────┘
-```
-
----
-
-## 8. 渐进式约束演进路线
-
-约束不是永久限制，而是有数据依据的阶段性护栏。
-
-### 松绑决策框架
-
-```
-松绑一条约束需要同时满足：
-
-1. 成功率数据    当前约束下 N 次执行，成功率 > threshold
-2. 失败归因      当前失败案例中，该约束不是根因
-3. 用户收益估算  松绑后可解锁的 use case 数量与重要性
-4. 降级路径      失败率上升时，如何快速回收该自由度
-
-指标：约束价值密度 = Δ失败率 / Δ可表达 use case 数
-     优先松绑价值密度低的约束（限制多、收益少）
-```
-
-### 三阶段演进
-
-**v1：高护栏（当前）**
-- 允许节点：Planner / Executor / Auditor（三种固定）
-- 允许连接：两条固定边 + 可选回流边
-- 并行分支：禁止
-- 暴露参数：仅 autonomy_behavior + tool 开关
-- 目标：成功率 > 90%，用户 0 学习成本
-
-**v2：松绑拓扑**
-- 开放并行分支（max = 2）
-- 开放自定义节点名称
-- LLM 可生成 DAG 而不只是 sequential
-- 依据：v1 成功率数据 + 失败归因不指向拓扑问题
-
-**v3：松绑工具**
-- 开放自定义工具接入（用户提供 Tool spec）
-- 开放 ToolRegistry 动态扩展
-- 依据：用户反馈中最高频"希望有但没有"的工具类型
-
----
-
-## 9. 关键设计权衡
-
-### 9.1 灵活性 vs 成功率
-
-早期约束严格牺牲灵活性，换取高成功率。这是**主动选择**，不是技术限制。随着数据积累，有依据地松绑，不做功能堆砌。
-
-### 9.2 用户控制 vs 系统复杂度
-
-把打断控制权交给用户，意味着系统需要处理"用户不回应"的各种超时情形。`AutonomyBehavior.timeout_action` 的四种策略覆盖了主要场景，复杂度可控。
-
-### 9.3 LLM 生成 vs 用户手动
-
-对话式生成的最大风险是 LLM 误解意图。缓解策略：
-- Draft 生成后展示 `rationale`，用户可以验证意图是否被正确理解
-- 迭代用 Patch 而非全量重生成，每次变更范围小、可审查
-- 最终编排在 UI 中完全可见，用户随时可以直接调整
-
-### 9.4 消息流 vs 传统打断
-
-消息流模型的代价是：用户需要主动关注流，而不是被动被提醒。缓解策略：
-- 支持通知推送（Actionable 消息可触发系统通知）
-- 消息流支持过滤（用户可只看 Actionable，隐藏 Informational）
-- 流内消息提供快捷操作，降低响应成本
-
----
-
-## 附录：本文涉及的核心类型速查
-
-| 类型 | 职责 |
-|------|------|
-| `AutonomyBehavior` | 定义 agent 自主度：触发条件 + 等待策略 |
-| `AutonomyGate` | 每次操作前的自主度决策入口 |
-| `AgentMessage` | 消息流中的单条消息，Informational 或 Actionable |
-| `MessageStream` | 全局消息流，agent 与用户协作的唯一通道 |
-| `ConstraintProfile` | 当前版本的编排约束集合，含 rationale |
-| `OrchestrationDesigner` | meta-agent，将用户意图转化为合法 OrchestrationDraft |
-| `OrchestrationDraft` | LLM 生成的编排草稿，含图结构 + 节点配置 + rationale |
-| `DraftPatch` | 用户反馈触发的局部修改，对话迭代的最小单元 |
-| `ToolRegistry` | 封闭工具集，LLM 只能选择不能创造 |
-| `OrchestrationPreset` | 内置最佳实践模板，用户 fork 后修改 |
+只有完整证据链成立后，才能把 future multi-Agent 方向改写为 current fact。

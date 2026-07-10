@@ -1,1012 +1,595 @@
-# Configurable Logging System Technical Design
+# Configurable Logging System
 
-> Status: implemented v1
-> Last Updated: 2026-06-24
-> Scope: server core execution line, local sidecar, Router/read-only inquiry, Agent LLM logs, diagnostics
-> Related Plan: [Configurable logging feature plan](../plans/feature/configurable-logging-system.md)
-> Related Release: [Configurable Logging System](../releases/configurable-logging-system.md)
-> Related Architecture: [Architecture Reference](reference.md)
+> Status: fact-calibrated current architecture
+>
+> Last verified: 2026-07-10
+>
+> Original document:
+> [configurable-logging-system.original.md](configurable-logging-system.original.md)
+>
+> Verification record:
+> [fix-log/configurable-logging-system.md](fix-log/configurable-logging-system.md)
+>
+> Related implementation history:
+> [feature plan](../plans/feature/configurable-logging-system.md) and
+> [release record](../releases/configurable-logging-system.md)
 
-Product 1.1 alignment: logging now supports the local sidecar runtime, diagnostic
-bundles, workspace inspection summaries, token usage analytics, Runtime Input
-Router, and Agent LLM calls. LLM observability is split conceptually into
-input/output logs for prompt/response payloads and metadata logs for provider,
-usage, retry, routing, and diagnostics-safe summaries.
+## 1. Purpose
 
----
+Taskweavn has an implemented process-local structured logging system. It
+provides category-based rules, context, JSONL/pretty sinks, session archives,
+profiles, same-process control APIs, and a compatibility bridge for the early
+four-channel logger.
 
-## 1. 背景
+This document describes current behavior. In particular, it distinguishes:
 
-TaskWeavn 早期日志系统位于 `src/taskweavn/observability/setup.py`，能力很轻：
+- the structured backend logging manager;
+- the sidecar-specific archive layout;
+- Main Page trace logging, which is a separate helper;
+- frontend console/error logging, which is a separate TypeScript system;
+- diagnostic bundles, which read and sanitize selected log summaries.
 
-```text
-taskweavn.tool        -> <log_dir>/tool.log
-taskweavn.action      -> <log_dir>/action.log
-taskweavn.observation -> <log_dir>/observation.log
-taskweavn.llm         -> <log_dir>/llm.log
-```
+Logs are diagnostic material. They are not the source of truth for Task,
+TaskBus, EventStream, MessageStream, Plan, Audit, or runtime configuration.
 
-现有接口：
+## 2. Implemented Module Boundary
 
-```python
-configure_logging(log_dir, level=logging.INFO) -> dict[str, Path]
-get_channel_logger(channel) -> logging.Logger
-```
-
-这足够支撑早期开发，但不足以支撑后续服务端核心线：
-
-- LLM provider 已经有 retry、provider、request_id、usage 等调试元数据；
-- Session-scoped execution 架构会引入 Task、TaskBus、Agent、Publisher、ASK
-  等对象；
-- 用户测试需要按 Session / category 动态打开 DEBUG；
-- 长会话需要稳定归档目录和 manifest；
-- CLI 体验不能要求用户直接读巨大 JSON。
-
-当前 v1 已经把这条线升级为**可配置、可继承、可热更新、可归档的结构化日志系统**。
-本文保留当前架构事实、公共 API、模块边界和约束；历史实施切片与验收记录以
-[feature plan](../plans/feature/configurable-logging-system.md) 和
-[release record](../releases/configurable-logging-system.md) 为准。
-
----
-
-## 2. V1 能力边界
-
-1. 保留 `configure_logging()` / `get_channel_logger()` 兼容入口。
-2. 提供 object-aware logger API，日志调用点声明 category、event、context、payload。
-3. 支持全局配置与 Session 级覆盖。
-4. 支持 category 级日志级别、payload 模式和 sink 路由。
-5. 支持同进程运行中热更新，不重复 handler、不丢失当前调用。
-6. 支持 Session 日志归档目录与 `manifest.json`。
-7. 默认落盘 JSONL，展示层提供 pretty renderer。
-8. LLM / Tool / Action / Observation / Bus / Gate / Wait / Sandbox 等核心对象已有第一批集成。
-
----
-
-## 3. 非目标
-
-- 不实现完整 OpenTelemetry / metrics / tracing；这些属于更大的 observability 计划。
-- 不实现集中式日志服务，例如 Loki / ELK / Datadog。
-- 不实现多进程并发写同一日志文件的强一致协议。
-- 不在第一版实现 UI 日志面板。
-- 不把日志变成事实源。EventStream / MessageStream 仍是系统状态事实源。
-- 不在第一版完成所有对象的深度接入；第一版先完成系统骨架和高价值对象。
-
----
-
-## 4. 核心决策
-
-| # | 决策 | 理由 |
-|---|---|---|
-| D1 | JSONL 是权威落盘格式，pretty 是展示格式 | JSONL 支持查询、过滤、UI 聚合；pretty 适合人读但不适合作为事实记录。 |
-| D2 | 保留 stdlib logging 兼容桥，但新代码优先用 `ObjectLogger` | 现有调用点可渐进迁移，避免一次性重写所有日志。 |
-| D3 | 第一版实现 global/session/category，object override 只做模型和匹配接口预留 | 控制实现规模，同时不堵 Task / Agent 后续扩展。 |
-| D4 | `OFF` 是 TaskWeavn 自己的 level，不映射为 stdlib level | `OFF` 表示完全不构造 payload，不只是过滤输出。 |
-| D5 | Lazy payload 是强制 API 能力 | DEBUG/full payload 可能包含大 prompt、响应、文件清单，未启用时不能构造。 |
-| D6 | 热更新通过 immutable snapshot 原子替换 | emit 路径读快照，update 路径构造新快照再 swap，避免半更新状态。 |
-| D7 | Session manifest 是归档入口 | UI、测试人员、归档脚本都应该从 manifest 找日志，而不是猜文件名。 |
-
----
-
-## 5. 模块布局
-
-当前 `src/taskweavn/observability/` 模块布局：
+The structured backend implementation lives in
+`src/taskweavn/observability/`:
 
 ```text
-src/taskweavn/observability/
-  __init__.py
-  setup.py          # 兼容入口：configure_logging / get_channel_logger
-  context.py        # ambient LogContext propagation
-  control.py        # same-process UI/server hot-update surface
-  events.py         # stable category -> event-name taxonomy
-  levels.py         # LogLevel / TRACE / OFF
-  models.py         # Pydantic config/event/context models
-  manager.py        # LoggingManager, snapshot, hot update, manifest helpers
-  logger.py         # ObjectLogger public API
-  sinks.py          # FileSink / ConsoleSink / NullSink
-  formatting.py     # JSONL formatter + pretty renderer
-  bridge.py         # stdlib logging -> LogEvent adapter
-  redaction.py      # redaction hooks
+levels.py                  LogLevel normalization and severity comparison
+models.py                  event, context, rule, sink, profile, config, manifest
+context.py                 ContextVar-backed ambient LogContext
+logger.py                  category-bound ObjectLogger
+manager.py                 process-wide LoggingManager and archive helpers
+sinks.py                   file, console, and null sinks
+formatting.py              JSONL and pretty rendering
+redaction.py               recursive key-based data redaction
+events.py                  declared category/event taxonomy
+bridge.py                  stdlib logging compatibility handler
+setup.py                   legacy and session configuration entry points
+control.py                 same-process profile/level/archive service
+runtime_config_consumer.py live logging.level ConfigBus consumer
+main_page_trace.py         separate environment-controlled trace helper
 ```
 
-第一版把 archive/manifest helpers 放在 `manager.py` 内，避免过早拆分一个很薄的 `archive.py`。公共边界保持如下：
+Sidecar integration is owned by
+`src/taskweavn/server/main_page_logging.py`. Frontend logging is owned by
+`frontend/src/shared/logging/frontendLogger.ts`. Diagnostic export is owned by
+`src/taskweavn/diagnostics/bundle.py`.
 
-- `models.py` 不依赖 manager；
-- `logger.py` 只通过全局 manager 发事件；
-- `setup.py` 只负责兼容和默认配置；
-- `control.py` 是同进程 UI / server 调试接口；
-- `events.py` 是事件命名约束入口；
-- `bridge.py` 是旧 logger 到新系统的迁移层。
+## 3. Data Model
 
----
+### 3.1 Levels
 
-## 6. 类型设计
-
-### 6.1 LogLevel
-
-```python
-LogLevel = Literal[
-    "TRACE",
-    "DEBUG",
-    "INFO",
-    "WARNING",
-    "ERROR",
-    "CRITICAL",
-    "OFF",
-]
-```
-
-规则：
-
-- `TRACE` 自定义为 `5`，低于 stdlib `DEBUG=10`。
-- `OFF` 不进入 stdlib level 比较，直接让 manager 返回 disabled。
-- 解析时大小写不敏感，内部统一大写。
-
-### 6.2 LogCategory
-
-```python
-LogCategory = Literal[
-    "action",
-    "observation",
-    "llm",
-    "task",
-    "tool",
-    "bus",
-    "agent",
-    "session",
-    "runtime",
-    "sandbox",
-    "audit",
-    "risk",
-    "gate",
-    "wait",
-    "config",
-]
-```
-
-第一版核心迁移 category：
-
-- `action`
-- `observation`
-- `llm`
-- `tool`
-- `runtime`
-- `config`
-
-预留 category：
-
-- `task`
-- `bus`
-- `agent`
-- `session`
-- `sandbox`
-- `audit`
-- `risk`
-- `gate`
-- `wait`
-
-### 6.3 LogContext
-
-```python
-class LogContext(BaseModel):
-    model_config = ConfigDict(extra="forbid", frozen=True)
-
-    session_id: str | None = None
-    task_id: str | None = None
-    agent_id: str | None = None
-    trace_id: str | None = None
-
-    action_id: str | None = None
-    observation_id: str | None = None
-    message_id: str | None = None
-
-    tool_name: str | None = None
-    model: str | None = None
-    provider: str | None = None
-    provider_request_id: str | None = None
-
-    workspace_root: str | None = None
-```
-
-设计约束：
-
-- context 只放可索引、可过滤、可关联的字段；
-- 大 payload 不进入 context；
-- `workspace_root` 第一版可以只在 summary/debug 中出现，避免长期索引用户绝对路径。
-
-### 6.4 LogEvent
-
-```python
-class LogEvent(BaseModel):
-    model_config = ConfigDict(extra="forbid", frozen=True)
-
-    ts: datetime
-    level: LogLevel
-    category: LogCategory
-    event: str
-    message: str
-    context: LogContext = LogContext()
-    data: dict[str, Any] = Field(default_factory=dict)
-
-    schema_version: Literal["1"] = "1"
-```
-
-JSONL envelope：
-
-```json
-{
-  "ts": "2026-05-12T21:00:00+08:00",
-  "level": "INFO",
-  "category": "llm",
-  "event": "request",
-  "message": "LLM request",
-  "context": {
-    "session_id": "s1",
-    "task_id": "t1",
-    "model": "deepseek-chat",
-    "provider": "deepseek"
-  },
-  "data": {
-    "message_count": 6,
-    "tool_count": 5
-  },
-  "schema_version": "1"
-}
-```
-
-兼容旧测试和旧工具时，可以额外保留 `msg` 字段作为 `event` 的别名，但新代码读取 `event`。
-
-### 6.5 Sink Config
-
-```python
-class RotationConfig(BaseModel):
-    model_config = ConfigDict(extra="forbid", frozen=True)
-
-    max_bytes: int | None = 10 * 1024 * 1024
-    backup_count: int = 5
-
-
-class LogSinkConfig(BaseModel):
-    model_config = ConfigDict(extra="forbid", frozen=True)
-
-    name: str
-    type: Literal["file", "console", "null"]
-    path_template: str | None = None
-    format: Literal["jsonl", "pretty"] = "jsonl"
-    rotation: RotationConfig | None = None
-```
-
-路径模板可用变量：
+The closed level set is:
 
 ```text
-{archive_root}
-{category}
-{session_id}
-{task_id}
-{agent_id}
-{date}
+TRACE DEBUG INFO WARNING ERROR CRITICAL OFF
 ```
 
-### 6.6 Rule Config
+`TRACE` has numeric value 5. `OFF` is a sentinel that disables emission.
+String normalization is case-insensitive. Integers are mapped to the nearest
+defined severity band.
 
-```python
-PayloadMode = Literal["summary", "full", "off"]
+### 3.2 Categories
 
-
-class LogRule(BaseModel):
-    model_config = ConfigDict(extra="forbid", frozen=True)
-
-    category: LogCategory
-    level: LogLevel = "INFO"
-    sinks: tuple[str, ...] = ("session_file",)
-    payload_mode: PayloadMode = "summary"
-    redact: bool = True
-```
-
-`payload_mode` 含义：
-
-| Mode | 含义 |
-|---|---|
-| `summary` | 只写摘要、长度、hash、状态、耗时等轻量字段。 |
-| `full` | 写完整 payload，用于 DEBUG/测试。 |
-| `off` | 只保留 event/context，不写 data；或直接跳过 data 构造。 |
-
-### 6.7 Scope And Override
-
-```python
-class LogScope(BaseModel):
-    model_config = ConfigDict(extra="forbid", frozen=True)
-
-    session_id: str | None = None
-    task_id: str | None = None
-    agent_id: str | None = None
-    tool_name: str | None = None
-    model: str | None = None
-    provider: str | None = None
-
-
-class LogOverride(BaseModel):
-    model_config = ConfigDict(extra="forbid", frozen=True)
-
-    scope: LogScope
-    category: LogCategory
-    level: LogLevel | None = None
-    sinks: tuple[str, ...] | None = None
-    payload_mode: PayloadMode | None = None
-    expires_at: datetime | None = None
-```
-
-第一版实现：
-
-- `scope.session_id`
-- `category`
-- `level`
-- `payload_mode`
-
-其他字段先进入 schema 和匹配接口，后续 Task/Agent 接入时启用。
-
-### 6.8 Profile And Config
-
-```python
-class LoggingProfile(BaseModel):
-    model_config = ConfigDict(extra="forbid", frozen=True)
-
-    name: str
-    description: str
-    patch: LoggingConfigPatch
-
-
-class LoggingConfig(BaseModel):
-    model_config = ConfigDict(extra="forbid", frozen=True)
-
-    version: Literal["1"] = "1"
-    enabled: bool = True
-    default_level: LogLevel = "INFO"
-    archive_root: str
-    sinks: dict[str, LogSinkConfig]
-    rules: dict[LogCategory, LogRule]
-    profiles: dict[str, LoggingProfile] = Field(default_factory=dict)
-    session_overrides: dict[str, LoggingConfigPatch] = Field(default_factory=dict)
-    overrides: tuple[LogOverride, ...] = ()
-```
-
-`LoggingConfigPatch` 第一版可以只支持：
-
-- `default_level`
-- `rules`
-- `overrides`
-
-不需要做完整 JSON Patch。
-
----
-
-## 7. Public API
-
-### 7.1 新 API
-
-```python
-def get_object_logger(category: LogCategory) -> ObjectLogger: ...
-def get_logging_manager() -> LoggingManager: ...
-def configure_observability(config: LoggingConfig) -> LoggingManager: ...
-```
-
-`ObjectLogger`：
-
-```python
-class ObjectLogger:
-    category: LogCategory
-
-    def enabled(
-        self,
-        level: LogLevel,
-        *,
-        context: LogContext | None = None,
-    ) -> bool: ...
-
-    def log(
-        self,
-        level: LogLevel,
-        event: str,
-        *,
-        message: str | None = None,
-        context: LogContext | None = None,
-        data: Mapping[str, Any] | Callable[[], Mapping[str, Any]] | None = None,
-    ) -> None: ...
-
-    def trace(...): ...
-    def debug(...): ...
-    def info(...): ...
-    def warning(...): ...
-    def error(...): ...
-    def critical(...): ...
-```
-
-示例：
-
-```python
-logger = get_object_logger("llm")
-ctx = LogContext(session_id=session_id, task_id=task_id, model=model, provider=provider)
-
-logger.info(
-    "request",
-    context=ctx,
-    data={
-        "message_count": len(messages),
-        "tool_count": len(tools or []),
-    },
-)
-
-logger.debug(
-    "raw_response",
-    context=ctx,
-    data=lambda: {"response": raw_response},
-)
-```
-
-要求：
-
-- `debug` 未启用时，`lambda` 不执行；
-- `payload_mode=off` 时，`data` 不执行；
-- `payload_mode=summary` 时，调用点应传 summary data；
-- `payload_mode=full` 的 raw data 可以通过 `debug` 或显式 helper 提供。
-
-### 7.2 兼容 API
-
-必须保留：
-
-```python
-configure_logging(log_dir: Path | str, *, level: str | int = logging.INFO) -> dict[str, Path]
-get_channel_logger(channel: str) -> logging.Logger
-```
-
-兼容策略：
-
-1. `configure_logging(log_dir, level)` 生成一份 legacy-style `LoggingConfig`：
-   - `archive_root = log_dir`
-   - sink path = `{archive_root}/{category}.log`
-   - categories = 当前 `CHANNELS`
-   - format = `jsonl`
-2. `get_channel_logger(channel)` 仍返回 stdlib logger。
-3. stdlib logger 安装 `StructuredBridgeHandler`，把 `LogRecord` 转为 `LogEvent`：
-   - category = logger name suffix
-   - event = `record.getMessage()`
-   - message = `record.getMessage()`
-   - data = `record.data` if exists
-4. 旧 JSON 字段兼容：
-   - 新 envelope 包含 `event`
-   - 可保留 `msg` alias，降低现有测试迁移成本。
-
----
-
-## 8. LoggingManager
-
-### 8.1 职责
-
-```python
-class LoggingManager:
-    def apply_config(self, config: LoggingConfig) -> None: ...
-    def get_effective_rule(
-        self,
-        category: LogCategory,
-        context: LogContext | None = None,
-    ) -> EffectiveLogRule: ...
-    def is_enabled(
-        self,
-        category: LogCategory,
-        level: LogLevel,
-        context: LogContext | None = None,
-    ) -> bool: ...
-    def emit(self, event: LogEvent) -> None: ...
-    def apply_profile(self, session_id: str, profile_name: str) -> None: ...
-    def update_session_config(self, session_id: str, patch: LoggingConfigPatch) -> None: ...
-    def set_level(
-        self,
-        *,
-        session_id: str | None,
-        category: LogCategory,
-        level: LogLevel,
-        duration_seconds: float | None = None,
-    ) -> None: ...
-    def start_session(self, session_id: str, *, workspace_root: Path | None = None) -> None: ...
-    def close_session(self, session_id: str) -> None: ...
-```
-
-### 8.2 Snapshot
-
-热更新通过 immutable snapshot：
-
-```python
-@dataclass(frozen=True)
-class LoggingSnapshot:
-    config: LoggingConfig
-    config_hash: str
-    sinks: Mapping[str, LogSink]
-    created_at: datetime
-```
-
-Manager 内部：
-
-```python
-class LoggingManager:
-    _lock: RLock
-    _snapshot: LoggingSnapshot
-```
-
-更新流程：
+The current `LogCategory` set is:
 
 ```text
-1. validate new LoggingConfig
-2. render sink configs into new sink instances
-3. build new immutable LoggingSnapshot
-4. acquire manager lock
-5. old_snapshot = self._snapshot
-6. self._snapshot = new_snapshot
-7. release lock
-8. close old sinks outside lock
-9. emit config.updated using new snapshot
+action observation llm llm_io task tool bus agent session runtime
+sandbox audit risk gate wait config
 ```
 
-emit 流程：
+The category schema is broader than current producer coverage. `task`,
+`agent`, `session`, `runtime`, and `risk` have no declared ObjectLogger event
+names in `LOG_EVENTS_BY_CATEGORY` today. They remain valid rule, profile, sink,
+and manifest categories.
+
+`bus` ObjectLogger events currently come from the interaction
+`InProcessMessageBus`, not from the TaskBus lifecycle. TaskBus and execution
+paths currently use the separate `main_page_trace` helper for many runtime
+traces.
+
+### 3.3 Context and event
+
+`LogContext` is frozen and rejects extra fields. It supports:
 
 ```text
-1. snapshot = manager.current_snapshot()
-2. rule = resolve(snapshot.config, category, context)
-3. if disabled -> return
-4. build data lazily according to payload_mode
-5. redact
-6. construct LogEvent
-7. dispatch to rule.sinks
+session_id task_id agent_id trace_id action_id observation_id message_id
+tool_name model provider provider_request_id workspace_root
 ```
 
-### 8.3 Resolution Order
+`use_log_context` stores ambient context in a `ContextVar`. Explicit non-null
+event context fields override ambient fields.
+
+`LogEvent` contains:
 
 ```text
-temporary override, if not expired
-  > object override
-  > session rule
-  > global category rule
-  > default_level
+ts level category event message context data schema_version
 ```
 
-第一版实际实现：
+The JSONL formatter also writes legacy `msg`, whose value is the event name.
+`msg` is a compatibility alias; `event` is the structured event field.
+
+### 3.4 Configuration
+
+`LoggingConfig` is immutable and contains:
+
+- global enable flag and default level;
+- archive root;
+- named sink configurations;
+- category rules;
+- named profiles;
+- session patches;
+- ordered scoped overrides.
+
+`LogRule` contains category, level, sink names, `payload_mode`, and `redact`.
+`LogScope` can match session, task, agent, tool, model, and provider fields.
+`LogOverride` can replace level, sinks, or payload mode and can expire.
+
+The configuration loader accepts complete JSON `LoggingConfig` files. YAML is
+explicitly rejected by the current implementation.
+
+## 4. Logging Manager
+
+### 4.1 Process-wide singleton
+
+`get_logging_manager()` returns one module-level `LoggingManager`. ObjectLogger,
+the stdlib bridge, CLI session configuration, sidecar logging, runtime config,
+and logging control all use this singleton unless a test or direct library
+caller constructs a separate manager.
+
+`build_main_page_workspace_runtime` calls `configure_sidecar_logging`, which
+applies a configuration to that singleton. The current multi-workspace runtime
+does not allocate an independent logging manager per workspace.
+
+### 4.2 Snapshot replacement
+
+The manager owns a `LoggingSnapshot` containing an immutable config, concrete
+sinks, and creation time. `apply_config`:
+
+1. builds a complete new snapshot;
+2. swaps it under a re-entrant lock;
+3. closes old sinks;
+4. emits `config.updated` through the new snapshot.
+
+The built-in sinks have no long-lived file handle, so their `close` methods are
+currently no-ops. Snapshot replacement is atomic at the manager reference; it
+is not a cross-process configuration protocol.
+
+### 4.3 Rule resolution
+
+Effective rule resolution is:
+
+1. category rule, or a default rule with no sinks when absent;
+2. matching session patch, if the context has a session id;
+3. each matching, unexpired global override in tuple order.
+
+Later matching overrides can replace values set by earlier ones. Expired
+overrides are ignored at read time but are not removed by a background cleanup
+task.
+
+### 4.4 Emission and lazy data
+
+An event is skipped when:
+
+- `LoggingConfig.enabled` is false;
+- effective `payload_mode` is `off`;
+- the event level is below the effective level.
+
+When `data` is a callable, the manager invokes it only after those checks pass.
+This is the implemented lazy-payload guarantee. A rule with no configured or
+resolvable sink produces no output, but the manager currently evaluates and
+constructs the event before discovering that there is nowhere to dispatch it.
+
+There is an important current limitation: the manager does not transform data
+according to `summary` versus `full`. It does not pass the effective payload
+mode to the callable and does not remove fields for `summary`. Therefore:
+
+- `off` suppresses the entire event, not just `data`;
+- `summary` and `full` are stored in the effective rule;
+- call sites determine the actual payload shape;
+- changing only `summary` to `full` does not automatically add detail.
+
+Architecture and UI copy must not claim automatic summary/full payload
+selection until producers implement that behavior.
+
+## 5. Redaction Boundary
+
+When a rule has `redact: true`, `LoggingManager` recursively redacts `data`
+mapping values whose keys contain:
 
 ```text
-session/category override
-  > global category rule
-  > default_level
+api_key authorization cookie password secret token
 ```
 
-object-level override 保持在数据模型和 resolver 函数签名中，后续开启。
+Known token-usage counter keys such as `input_tokens` and `total_tokens` are
+excluded from token-key redaction.
 
-### 8.4 Expiring Overrides
+This is a narrow key-based boundary:
 
-带 `duration_seconds` 的临时 override 不需要后台线程。第一版采用 opportunistic cleanup：
+- string values are not scanned for embedded secrets;
+- `message` is not redacted;
+- `LogContext` is not redacted;
+- keys such as `content`, `messages`, `prompt`, `arguments`, and `payload` are
+  not removed by the logging redactor;
+- a rule can set `redact: false`;
+- frontend error files and Main Page trace files do not pass through this
+  manager redactor.
 
-- 每次 `get_effective_rule()` 时过滤已过期 override；
-- 每次 `set_level()` / `apply_profile()` 时顺手清理；
-- 测试可通过注入 clock 控制时间。
+Consequently, a raw log archive can contain sensitive input, output, file
+content, tool arguments, stack traces, or local paths. A diagnostic bundle has
+a stronger secondary sanitizer, but that does not retroactively make the raw
+archive safe to share.
 
----
+## 6. Sinks and Formats
 
-## 9. Sink Design
+### 6.1 File sink
 
-```python
-class LogSink(Protocol):
-    name: str
+`FileSink` renders a path per event, creates parent directories, takes an
+in-process lock, rotates if needed, opens the file in append mode, writes one
+line, and closes it.
 
-    def emit(self, event: LogEvent) -> None: ...
-    def close(self) -> None: ...
-```
-
-### 9.1 FileSink
-
-职责：
-
-- 渲染 path template；
-- 创建 parent directory；
-- 写 JSONL；
-- 可选 size-based rotation；
-- 每个 sink 内部自带 `Lock`，保证单进程多线程写一行日志不会交错。
-
-文件路径按事件 context 动态渲染：
+Supported path variables are:
 
 ```text
-{archive_root}/sessions/{session_id}/{category}.jsonl
-{archive_root}/global/{category}.jsonl
+archive_root category session_id task_id agent_id date
 ```
 
-缺失 `session_id` 时：
+Missing context values render as `_unknown`. The lock protects one sink
+instance within one process; there is no cross-process file-lock protocol.
 
-- 如果 path 需要 session_id，落到 `_unknown`；
-- 或使用 global sink；
-- 第一版推荐默认 `session_id="_unknown"`，并在 data 里标记 `missing_context=true`。
+Size-based rotation checks the current file size before writing. Backups use
+`.1` through the configured `backup_count`. The default session configuration
+uses 10 MiB and five backups.
 
-### 9.2 ConsoleSink
+### 6.2 Console and null sinks
 
-职责：
+`ConsoleSink` writes JSONL or pretty lines to stderr. `NullSink` discards
+events. Pretty output includes time, level, category/event, and selected
+context identifiers; it does not render the full data payload.
 
-- pretty render；
-- 默认写 stderr；
-- 不作为权威存储。
+### 6.3 JSONL authority
 
-### 9.3 NullSink
+JSONL is the persisted structured format in the built-in configurations.
+Pretty rendering is a display format for console and CLI inspection. It is not
+a separate fact store.
 
-用于：
+## 7. Built-in Configurations and Profiles
 
-- 测试；
-- `OFF` 或禁用配置；
-- benchmark。
+### 7.1 Legacy configuration
 
----
-
-## 10. Archive And Manifest
-
-默认目录：
+`configure_logging(log_dir, level)` preserves the old public API and four
+channel names:
 
 ```text
-<workspace>/.taskweavn/logs/
-  global/
-    config.jsonl
-  sessions/
-    <session_id>/
-      manifest.json
-      session.jsonl
-      action.jsonl
-      observation.jsonl
-      llm.jsonl
-      tool.jsonl
-      runtime.jsonl
-      config.jsonl
-      tasks/
-      agents/
+tool action observation llm
 ```
 
-CLI legacy `--log-dir ./logs` 的目录可以继续写：
+It configures `<log_dir>/<channel>.log`, installs a `StructuredLogHandler` on
+each stdlib logger, and delegates actual events through `LoggingManager`.
+`get_channel_logger` rejects unknown channel names.
+
+The compatibility handler is a `logging.FileHandler` subclass so old cleanup
+and tests still recognize it. It does not use the old `JSONLineFormatter` for
+the final write; it forwards to the structured manager.
+
+### 7.2 Session configuration
+
+`build_session_logging_config` creates:
+
+- `session_file` at
+  `{archive_root}/sessions/{session_id}/{category}.jsonl`;
+- `global_config_file` at
+  `{archive_root}/global/{category}.jsonl`;
+- rules for every category at the requested level;
+- `config` output to both session and global sinks;
+- six built-in profiles.
+
+Profiles are:
+
+| Profile | Current patch |
+| --- | --- |
+| `normal` | empty patch |
+| `quiet` | session default level `WARNING` |
+| `debug-llm` | `llm` at DEBUG/full |
+| `debug-tools` | `tool`, `runtime`, `sandbox` at DEBUG/full |
+| `debug-bus` | `bus`, `task`, `agent`, `gate`, `wait` at DEBUG/full |
+| `full-debug` | every category at DEBUG/full |
+
+`debug-llm` does not patch `llm_io`. Because `llm_io` already has the base
+INFO rule in the default configuration, the profile name is not a reliable
+privacy boundary for raw LLM I/O.
+
+### 7.3 Disabled configuration
+
+Before explicit configuration, and when sidecar session logging is disabled,
+the manager uses a config with `enabled: false`, no sinks, and no rules.
+
+## 8. Control and Runtime Configuration
+
+### 8.1 Same-process control service
+
+`LoggingControlService` implements:
+
+- list profiles;
+- read an effective category rule;
+- apply a session profile;
+- set a global or session category level, optionally with an expiry;
+- mark a generic session archive manifest closed.
+
+The service is a reusable Python API. Production source inspection found no
+sidecar HTTP route or production construction of `LoggingControlService`; its
+direct call sites are tests.
+
+### 8.2 Runtime Config consumer
+
+The runtime configuration catalog declares `logging.level` and
+`logging.profile` as live keys. The implemented
+`RuntimeConfigLoggingConsumer`, however, applies only `logging.level`.
+
+For a global/workspace event it sets every category globally. For a session
+event it appends a session-scoped level override for every category. Other
+accepted keys, including `logging.profile`, are reported as skipped by this
+consumer.
+
+### 8.3 Settings profile
+
+The Settings API can validate, store, and report `logging.selectedProfile`.
+Sidecar startup configuration can also provide `logging_profile`, which is
+applied when a session archive is initialized.
+
+The inspected settings-update path does not call `LoggingControlService`, and
+the Runtime Config logging consumer does not apply `logging.profile`. A stored
+Settings profile is therefore not evidence that the active process changed its
+session logging profile live. Product/engineering docs correctly keep live
+profile scope semantics deferred.
+
+## 9. Archive Layouts
+
+### 9.1 Generic CLI/runtime layout
+
+`configure_session_logging` uses the generic layout:
 
 ```text
-./logs/action.log
-./logs/observation.log
-./logs/tool.log
-./logs/llm.log
+<log-dir>/sessions/<session-id>/manifest.json
+<log-dir>/sessions/<session-id>/<category>.jsonl
+<log-dir>/global/config.jsonl
 ```
 
-但新 session-aware 配置推荐写 `.taskweavn/logs/sessions/<session_id>/...`。
+It can load a complete JSON config, apply one profile, and write a manifest.
+`LoggingManager.write_session_manifest` resolves configured file sinks into
+`files` and unresolved path templates into `templates`. The manifest also
+records config hash, optional active config path, rotation summary, and
+optional close time.
 
-### 10.1 Manifest Schema
+### 9.2 Plato sidecar layout
 
-```python
-class LogArchiveManifest(BaseModel):
-    model_config = ConfigDict(extra="forbid", frozen=True)
-
-    version: Literal["1"] = "1"
-    session_id: str
-    created_at: datetime
-    closed_at: datetime | None = None
-    config_hash: str
-    active_config_path: str | None = None
-    archive_root: str
-    files: dict[str, str] = Field(default_factory=dict)
-    templates: dict[str, str] = Field(default_factory=dict)
-    rotation: dict[str, Any] = Field(default_factory=dict)
-```
-
-`LoggingManager.write_session_manifest(session_id)` 创建或更新 manifest。
-
-`LoggingManager.close_session_archive(session_id)` 写 `closed_at` 并返回更新后的 manifest。
-
-### 10.2 Archive Reading Contract
-
-UI、测试工具和归档脚本应从 manifest 开始读取，而不是猜测文件名：
+`configure_sidecar_logging` rewrites sink paths to the workspace layout:
 
 ```text
-1. locate <archive_root>/sessions/<session_id>/manifest.json
-2. read files[category] to discover relative file paths
-3. stream JSONL by ts, category, event, context.session_id/task_id/action_id
-4. use config_hash to tell whether a run changed logging config mid-session
-5. if closed_at is null, treat archive as live/incomplete
+<workspace>/.plato/sessions/<session-id>/logs/<category>.jsonl
+<workspace>/.plato/sessions/<session-id>/logs/manifest.json
+<workspace>/.plato/logs/global/config.jsonl
 ```
 
-`files` 的 value 是相对 session 目录或 archive root 的展示路径。这样 UI 可以稳定展示 `llm.jsonl`、`tool.jsonl` 这类常规文件。
+The sidecar initializer runs for a configured existing session and for sessions
+created through the lifecycle gateway. Creating a manifest emits an Audit
+records invalidation when a UI event store is available.
 
-`templates` 用于描述 session manifest 无法枚举的动态路径，例如需要 `task_id` / `agent_id` 才能落定的文件。默认 profile 第一版不启用 task/agent 拆分，避免一个长会话产生过多小文件；但如果某个 session override 或未来 profile 启用了动态 sink，manifest 会把它列入 `templates`：
+The sidecar uses a custom manifest writer. It lists every `LOG_CATEGORIES`
+entry as `<category>.jsonl` even if no producer has written that file. The
+sidecar `config` rule writes only to the global config sink, so a listed session
+`config.jsonl` can be absent. Diagnostic export treats missing listed files as
+warnings.
 
-```json
-{
-  "llm": "tasks/{task_id}/llm.jsonl",
-  "bus": "agents/{agent_id}/bus.jsonl"
-}
-```
+Manifest closure is implemented by the generic manager/control service and
+covered by tests. No production sidecar lifecycle call currently marks the
+sidecar manifest `closed_at`.
 
-`rotation` 第一版只记录摘要：
+### 9.3 CLI archive compatibility
 
-```json
-{
-  "enabled": true,
-  "max_bytes": 10485760,
-  "backup_count": 5
-}
-```
+`taskweavn logging manifest --log-dir ...` assumes the generic
+`<log-dir>/sessions/<session-id>/manifest.json` layout. It is not a sidecar
+workspace-manifest resolver. `taskweavn logging render <file>` works with any
+explicit JSONL path, including a sidecar category file.
 
-如果后续切到按 task/agent 拆分文件，manifest schema 不需要推翻。运行前只能列出模板；运行后如果需要稳定枚举已出现的 task/agent 文件，可以再扩展一个 archive index，而不是让 session manifest 反复追加海量文件项。例如未来 index 可以记录：
+## 10. Current Structured Emitters
 
-```json
-{
-  "task.task-123.llm": "tasks/task-123/llm.jsonl",
-  "agent.planner.bus": "agents/planner/bus.jsonl"
-}
-```
+`LOG_EVENTS_BY_CATEGORY` is the declared ObjectLogger event taxonomy:
 
-权威数据仍是 JSONL；`taskweavn logging render` 只负责把一条 JSONL 渲染成人可读行，不作为稳定存储格式。
+| Category | Declared events and current source |
+| --- | --- |
+| `action` | `emit`; in-memory and SQLite EventStream append |
+| `observation` | `emit`; in-memory and SQLite EventStream append |
+| `llm` | `agent_input`, `agent_output`, `request`, `response`, `retry`; LLM helpers/providers/retry |
+| `llm_io` | `agent_input`, `agent_output`; application-level raw LLM I/O helpers |
+| `tool` | `invoke`, `result`; `LocalRuntime` |
+| `bus` | `close`, `publish`, `response_received`, `response_timeout`, `subscribe`, `wait_closed`; interaction MessageBus |
+| `audit` | `llm_failed`, `parse_failed`, `request`, `result`; Audit Agent |
+| `gate` | `decision`; autonomy gate |
+| `wait` | `bus_closed`, `got_response`, `got_response_after_wait`, `pending`, `timeout_proceed`, `timeout_skip`; wait coordinator |
+| `sandbox` | container, image, execute start/result/failure events; sandbox runtime |
+| `config` | `updated`, `profile_applied`, `level_set`, `session_archive_closed`; manager/control |
+| `task`, `agent`, `session`, `runtime`, `risk` | no declared ObjectLogger events |
 
----
+The taxonomy test statically verifies literal ObjectLogger calls against this
+map. It does not cover events emitted through ordinary stdlib loggers or the
+dynamic `main_page_trace(event, ...)` helper.
 
-## 11. Redaction
+## 11. Payload Reality
 
-第一版提供默认 key-based redaction：
+The current producer payloads do not uniformly implement the intended
+"lightweight INFO, full DEBUG" policy:
 
-```python
-DEFAULT_REDACT_KEYS = {
-    "api_key",
-    "token",
-    "authorization",
-    "password",
-    "secret",
-    "cookie",
-}
-```
+- `llm` request/response events contain provider, model, counts, usage, retry,
+  and other summary metadata.
+- `llm_io.agent_input` emits full message/tool structures at INFO.
+- `llm_io.agent_output` emits content, reasoning content, raw assistant
+  message data, and tool-call arguments at INFO.
+- Action and Observation EventStream `emit` events pass `event.to_dict()` at
+  INFO.
+- `tool.invoke` passes the full action payload at INFO; `tool.result` is a
+  summary.
 
-规则：
+These payloads still pass through key-based manager redaction when enabled, but
+content under ordinary keys is retained. The architecture must treat the raw
+archive as sensitive local data.
 
-- dict key 包含这些词时，值替换为 `"<redacted>"`；
-- list / tuple 递归处理；
-- Pydantic model 先 `model_dump(mode="json")` 再处理；
-- `payload_mode=summary` 默认不写 raw prompt / raw response；
-- `payload_mode=full` 也经过 redaction，除非显式配置 `redact=false`。
+## 12. Main Page Trace
 
----
+`main_page_trace` is not an ObjectLogger category. It:
 
-## 12. Event Naming Taxonomy
+- uses the stdlib logger `taskweavn.main_page.trace`;
+- is enabled by `PLATO_MAIN_PAGE_TRACE` unless set to a false-like value;
+- can mirror to stdout with `PLATO_MAIN_PAGE_TRACE_PRINT=1`;
+- can append direct JSONL with `PLATO_MAIN_PAGE_TRACE_FILE`;
+- suppresses a fixed set of high-frequency event names;
+- does not use `LoggingManager` rules, sinks, context models, or redaction.
 
-日志事件名是长期查询接口的一部分，不应随着内部函数名随意变化。第一版采用短动词或对象状态名：
+Runtime Config resolves the corresponding environment values into diagnostic
+keys, but that does not make this helper part of the structured logging
+manager.
 
-- `event` 使用 `snake_case`；
-- 不重复 category 前缀，例如 `llm` category 里写 `request`，不写 `llm_request`；
-- 同一生命周期尽量成对命名：`*_start` / `*_result` / `*_failed`；
-- 失败事件统一以 `failed` 结尾，自动恢复或重试事件单独写 `retry`；
-- 配置类事件使用过去式，表示配置已经生效，例如 `updated`、`profile_applied`、`level_set`；
-- `data` 可以演进，但 `category + event + context` 的语义要保持稳定。
+## 13. Frontend Logging and Client Errors
 
-代码侧的公共命名表位于 `taskweavn.observability.events.LOG_EVENTS_BY_CATEGORY`。核心对象通过 `ObjectLogger` 写入的事件必须先进入该表；测试会静态扫描调用点，防止新增事件名绕过文档。
-
-第一版核心事件表以当前已实现调用点为准：
-
-| Category | Event | 语义 |
-|---|---|---|
-| `action` | `emit` | Action 写入 EventStream。 |
-| `observation` | `emit` | Observation 写入 EventStream。 |
-| `tool` | `invoke` | Runtime 即将执行某个 Tool / Action。 |
-| `tool` | `result` | Tool 执行完成并返回 Observation。 |
-| `llm` | `request` | Provider 发送模型请求前后的摘要入口。 |
-| `llm` | `response` | Provider 返回模型响应摘要。 |
-| `llm` | `retry` | Provider/retry 层决定重试。 |
-| `audit` | `request` | AuditAgent 开始评估 Action。 |
-| `audit` | `result` | AuditAgent 产生审计结果。 |
-| `audit` | `llm_failed` | 审计 LLM 调用失败并降级。 |
-| `audit` | `parse_failed` | 审计结果解析失败并降级。 |
-| `bus` | `publish` | MessageBus 发布消息。 |
-| `bus` | `response_received` | 等待中的 response 已到达。 |
-| `bus` | `wait_closed` | Bus 关闭导致等待提前结束。 |
-| `bus` | `response_timeout` | 等待 response 超时。 |
-| `bus` | `subscribe` | 新订阅创建。 |
-| `bus` | `close` | Bus 关闭。 |
-| `gate` | `decision` | AutonomyGate 对 Action 做出 proceed/emit 决策。 |
-| `wait` | `pending` | async wait 不阻塞，Action 进入待响应状态。 |
-| `wait` | `got_response` | sync wait 收到用户响应。 |
-| `wait` | `got_response_after_wait` | timeout action 为 `wait` 时，二次无限等待后收到响应。 |
-| `wait` | `bus_closed` | 无限等待过程中 Bus 关闭，等待被折算为 skip。 |
-| `wait` | `timeout_proceed` | 超时后自动继续。 |
-| `wait` | `timeout_skip` | 超时后跳过。 |
-| `sandbox` | `container_started` | Docker sandbox container 启动完成。 |
-| `sandbox` | `container_remove_failed` | Docker sandbox container 清理失败。 |
-| `sandbox` | `execute_start` | Sandbox 即将执行命令。 |
-| `sandbox` | `execute_result` | Sandbox 命令执行完成。 |
-| `sandbox` | `execute_failed` | Sandbox 执行异常。 |
-| `sandbox` | `image_pull_start` | 开始拉取 sandbox image。 |
-| `sandbox` | `image_pull_failed` | sandbox image 拉取失败。 |
-| `sandbox` | `container_stopped` | Docker sandbox container 停止。 |
-| `config` | `updated` | 全局 logging snapshot 已替换。 |
-| `config` | `profile_applied` | Session profile 已生效。 |
-| `config` | `level_set` | category level override 已生效。 |
-| `config` | `session_archive_closed` | Session archive manifest 已关闭。 |
-
-后续新增对象日志时，先扩展本表，再改代码。这样测试人员和 UI 可以把 `event` 当成稳定筛选条件。
-
----
-
-## 13. Current Integrations
-
-### 13.1 Current Emitters
-
-当前主要日志点：
-
-| 当前模块 | 当前 category | 当前边界 |
-|---|---|---|
-| `core/event_stream.py` | `action` / `observation` | EventStream action / observation emission writes structured object logs with event/action/observation ids. |
-| `core/sqlite_event_stream.py` | `action` / `observation` | SQLite-backed event emission follows the same category/event taxonomy and adds task/session context when available. |
-| `runtime/local.py` | `tool` / `runtime` | Tool invocation, result, and failure logs are split by stable event names. |
-| `llm/providers/*` | `llm` | Provider/model/retry/usage/request metadata is logged without exposing prompts by default. |
-| `llm/retry.py` | `llm` | Retry attempts and exhaustion are emitted as structured retry/failure events. |
-| `audit/agent.py` | `audit` | Audit operations use the logging taxonomy directly or through the compatibility bridge where older call sites remain. |
-| `runtime/sandbox.py` | `sandbox` | Sandbox lifecycle, execution, and cleanup records use the `sandbox` category. |
-
-### 13.2 LLM Event Payload
-
-INFO summary：
-
-```json
-{
-  "message_count": 8,
-  "tool_count": 5,
-  "provider": "deepseek",
-  "model": "deepseek-chat",
-  "thinking_enabled": false
-}
-```
-
-DEBUG/full：
-
-```json
-{
-  "messages": [...],
-  "tools": [...],
-  "raw_response": {...}
-}
-```
-
-Retry：
-
-```json
-{
-  "attempt": 2,
-  "classification": "rate_limit",
-  "delay_seconds": 1.5,
-  "error": "429 ..."
-}
-```
-
-### 13.3 Tool / Runtime Payload
-
-INFO summary：
-
-```json
-{
-  "tool_name": "write_file",
-  "action_kind": "WriteFileAction",
-  "result_kind": "FileWriteObservation",
-  "success": true,
-  "duration_ms": 12.4
-}
-```
-
-DEBUG/full 可包含 action payload 和 observation payload。
-
----
-
-## 14. CLI And User Entry Points
-
-当前 CLI 入口：
+The frontend logger is a separate system with levels:
 
 ```text
---log-dir PATH                 # 保留
---logging-profile normal|quiet|debug-llm|debug-tools|debug-bus|full-debug
---logging-config PATH          # JSON LoggingConfig
---log-level LEVEL              # default category level
+debug info warn error silent
 ```
 
-示例：
+It selects level from local storage, `VITE_PLATO_LOG_LEVEL`, or a development
+/production default. Enabled entries are written to the browser console.
 
-```bash
-uv run taskweavn run \
-  --task "inspect docs" \
-  --workspace . \
-  --session-id debug-llm-run \
-  --logging-profile debug-llm \
-  --log-level INFO
+Only frontend `error` entries notify the configured sink. In HTTP mode, when a
+runtime session id is available, the sink posts the entry to:
+
+```text
+POST /api/v1/sessions/{sessionId}/client-logs/errors
 ```
 
-配置文件第一版使用 JSON，直接反序列化完整 `LoggingConfig`。YAML 暂不解析，因为当前项目不依赖 PyYAML；用户传入 `.yaml` / `.yml` 时会得到明确错误。跨进程热更新不是当前 CLI 的能力；运行中修改日志配置应走同进程 `LoggingControlService`。
+`FileClientErrorLogSink` appends the supplied payload to
+`frontend-errors.jsonl` with receive time and session id. The raw write path
+does not apply logging redaction. The sidecar wrapper emits an Audit-records
+invalidation after writing.
 
-归档检查命令：
+Frontend levels and backend `LoggingConfig` are not synchronized.
 
-```bash
-uv run taskweavn logging profiles
-uv run taskweavn logging manifest --log-dir ./logs --session-id debug-llm-run
-uv run taskweavn logging render ./logs/sessions/debug-llm-run/llm.jsonl --limit 50
+## 14. Diagnostic Export
+
+Diagnostic export is available through:
+
+- `taskweavn diagnostics export`;
+- `POST /api/v1/sessions/{sessionId}/diagnostics/export`;
+- Main Page, Settings, and the read-only Diagnostics handoff route in the
+  frontend.
+
+The frontend Diagnostics route exports and reports a bundle. It is not a full
+interactive log browser.
+
+The exporter reads the sidecar log manifest, tails a bounded number of rows per
+listed category, records missing/truncated warnings, and separately reads
+frontend errors. Bundle writes apply a stronger sanitizer that:
+
+- reuses secret-key redaction;
+- omits prompt/tool-argument/raw-payload-like keys;
+- redacts secret fragments inside strings;
+- normalizes absolute workspace paths;
+- truncates long strings;
+- labels each included file as redacted.
+
+This is a derived support artifact. It does not alter the source logs and does
+not become a system fact store.
+
+## 15. CLI and HTTP Surfaces
+
+Implemented logging CLI commands:
+
+```text
+taskweavn logging profiles
+taskweavn logging manifest --log-dir <dir> --session-id <id>
+taskweavn logging render <jsonl> --limit <n>
 ```
 
----
+The `taskweavn run` command accepts `--log-dir`, `--log-level`,
+`--logging-profile`, and `--logging-config`.
 
-## 15. Backward Compatibility
+HTTP-adjacent surfaces include settings readiness/config, Runtime Config
+schema/effective/explain/change/snapshot/patch routes, frontend client-error
+ingest, and diagnostic export. There is no general raw-log streaming or
+category-query HTTP API in the current route matcher.
 
-必须保持：
+## 16. Invariants
 
-- `from taskweavn.observability import CHANNELS, configure_logging, get_channel_logger`
-- `configure_logging(tmp_path / "logs")`
-- 旧文件名：`tool.log` / `action.log` / `observation.log` / `llm.log`
-- 旧调用点：`logger.info("event", extra={"data": payload})`
+1. Structured logs are diagnostics, not domain state.
+2. JSONL is the built-in persisted format; pretty is display-only.
+3. Event/category names should remain stable once consumers depend on them.
+4. Disabled events must not evaluate callable data.
+5. Session and scoped configuration resolution depends on populated
+   `LogContext`; missing session context routes default sink templates to
+   `_unknown`.
+6. A manifest is an index of expected/configured files, not proof that every
+   file exists or contains events.
+7. Raw archives and exported diagnostic bundles have different disclosure
+   policies.
+8. Frontend, Main Page trace, and structured backend logging are separate
+   channels unless an explicit adapter connects them.
 
-可以演进：
+## 17. Current Limits
 
-- JSONL 行可以增加字段；
-- tests 可以从只读 `msg` 迁移到读 `event`，但短期可保留 `msg` alias；
-- 新 object logger 不必返回 stdlib `logging.Logger`。
+1. `summary` and `full` do not automatically change producer payload shape.
+2. Raw `llm_io`, EventStream, and Tool payloads can be detailed at INFO.
+3. Key-based logging redaction does not sanitize messages, context, arbitrary
+   string values, prompt-like fields, or tool/file content.
+4. `LoggingControlService` has no production HTTP/UI control binding.
+5. Runtime Config applies `logging.level` live but not `logging.profile`.
+6. Settings can store a profile without proving it was applied to the active
+   process.
+7. The manager is process-wide and not isolated per workspace.
+8. Sidecar manifests can list category files that were never produced.
+9. Sidecar manifest closure is not wired to production lifecycle shutdown.
+10. Main Page trace and frontend error files bypass structured manager
+    redaction.
+11. No remote sink, centralized log service, OpenTelemetry pipeline,
+    cross-process hot update, retention daemon, or full log-browser API is
+    implemented.
 
-兼容策略降低风险：先让旧测试继续通过，再逐步迁移调用点。
+## 18. Source Map
 
----
+Primary backend sources:
 
-## 16. Implementation History And Release Record
+- `src/taskweavn/observability/levels.py`
+- `src/taskweavn/observability/models.py`
+- `src/taskweavn/observability/context.py`
+- `src/taskweavn/observability/logger.py`
+- `src/taskweavn/observability/manager.py`
+- `src/taskweavn/observability/sinks.py`
+- `src/taskweavn/observability/formatting.py`
+- `src/taskweavn/observability/redaction.py`
+- `src/taskweavn/observability/events.py`
+- `src/taskweavn/observability/bridge.py`
+- `src/taskweavn/observability/setup.py`
+- `src/taskweavn/observability/control.py`
+- `src/taskweavn/observability/runtime_config_consumer.py`
+- `src/taskweavn/observability/main_page_trace.py`
+- `src/taskweavn/server/main_page_logging.py`
+- `src/taskweavn/server/client_logs.py`
+- `src/taskweavn/diagnostics/bundle.py`
 
-This architecture document no longer owns the execution slice plan. The v1
-implementation was accepted as the Phase 3B configurable logging release.
+Primary frontend sources:
 
-Authoritative history:
+- `frontend/src/shared/logging/frontendLogger.ts`
+- `frontend/src/app/platoRuntime.ts`
+- `frontend/src/pages/diagnostics/DiagnosticsLogsRoute.tsx`
 
-- Implementation plan and slice detail:
-  [Configurable logging feature plan](../plans/feature/configurable-logging-system.md).
-- Accepted release summary, shipped surface, validation, and follow-ups:
-  [Release: Configurable Logging System](../releases/configurable-logging-system.md).
+## 19. Summary
 
-The accepted v1 baseline includes:
-
-- logging config models, levels, profiles, category rules, sink config, and
-  structured event/context models;
-- `LoggingManager`, `ObjectLogger`, file/console/null sinks, lazy payload
-  evaluation, and redaction;
-- backward-compatible `configure_logging()` / `get_channel_logger()` bridge and
-  legacy channel file names;
-- session archive layout with `manifest.json`, category file map, config hash,
-  templates, and close markers;
-- same-process logging control surface and CLI archive inspection commands;
-- first core integrations across Action, Observation, Tool, Runtime, LLM,
-  Audit, Bus, Gate, Wait, and Sandbox categories.
-
-## 17. Validation Boundary
-
-The accepted release record captured the implementation validation:
-
-```bash
-uv run ruff check src tests
-uv run mypy src tests
-uv run pytest
-```
-
-Current focused regression areas include:
-
-| Area | Tests |
-|---|---|
-| Models | `test_logging_models.py` |
-| Manager | `test_logging_manager.py` |
-| Compatibility | `test_observability.py` |
-| Archive | `test_logging_archive.py` |
-| Control | `test_logging_control.py` |
-| Event taxonomy | `test_logging_event_taxonomy.py` |
-| Runtime config | `test_runtime_config_logging_consumer.py` |
-| LLM integration | `test_llm_providers.py`, `test_llm_retry_policy.py`, `test_llm_contracts.py` |
-
-Future changes to the logging architecture should run the focused tests for the
-touched boundary, plus the full gate when behavior crosses observability,
-runtime, LLM, CLI, and diagnostics.
-
-## 18. Follow-Up Boundaries
-
-These are not v1 blockers. They are future boundaries to keep explicit:
-
-| Boundary | Current decision |
-|---|---|
-| YAML config | V1 supports JSON `LoggingConfig`; YAML belongs in a broader configuration subsystem. |
-| Legacy `msg` alias | Keep while older tests and tooling still read `msg`; deprecate only after consumers migrate to `event`. |
-| Log location | CLI default remains `./logs`; workspace-integrated UI may later choose `.taskweavn/logs`. |
-| Background expiry | No v1 background expiry thread; cleanup should remain explicit or opportunistic until there is a real retention requirement. |
-| EventStream mirroring | Do not mirror every log into EventStream. Logs may reference event ids, but EventStream remains the fact source. |
-| Task/Agent archive indexes | Keep session/category archives for v1; add task/agent indexes only after TaskBus and Agent template semantics require them. |
-| Cross-process hot update | Same-process `LoggingControlService` is current. Cross-process update needs a daemon/server control plane. |
+The configurable logging foundation is implemented and broadly useful, but
+its precise boundary is narrower than the old design implied. Category rules,
+profiles, sinks, manifests, legacy compatibility, same-process control, live
+level changes, frontend error ingest, and redacted diagnostic export exist.
+Automatic summary/full payload shaping, live profile application, per-workspace
+manager isolation, uniformly safe raw logs, and a full logs UI do not.
