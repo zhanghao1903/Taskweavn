@@ -18,7 +18,10 @@ from tests.fixtures.sidecar_smoke import (
 def test_read_only_inquiry_sidecar_acceptance_no_mutation(
     tmp_path: Path,
 ) -> None:
-    fixture = build_audit_sidecar_smoke_fixture(tmp_path)
+    fixture = build_audit_sidecar_smoke_fixture(
+        tmp_path,
+        include_runtime_input_interactions=False,
+    )
     target = tmp_path / SMOKE_INSPECTION_FILE_PATH
     before_content = target.read_text(encoding="utf-8")
     before_task = fixture.app.task_bus.get(fixture.session_id, fixture.task_id)
@@ -183,6 +186,7 @@ def test_read_only_inquiry_sidecar_acceptance_opt_in_llm_no_mutation(
         tmp_path,
         llm=llm,
         enable_read_only_inquiry_llm=True,
+        include_runtime_input_interactions=False,
     )
     target = tmp_path / SMOKE_INSPECTION_FILE_PATH
     before_content = target.read_text(encoding="utf-8")

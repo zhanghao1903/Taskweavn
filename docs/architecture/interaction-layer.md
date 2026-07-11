@@ -1,1069 +1,576 @@
-# Interaction Layer 技术设计
+# Interaction Layer 架构事实
 
-> 版本 v1.2 · 2026-06-24
+> Status: current implementation fact document
 >
-> Status: implemented historical baseline
+> Calibrated: 2026-07-10
 >
-> 关联文档：[多 Agent 协作架构设计](multi-agent-collaboration.md)
+> Original historical document:
+> [interaction-layer.original.md](interaction-layer.original.md)
 >
-> 本文档落实 Phase 3 的实现接口。架构理念见上方关联文档；本文档只解决"具体怎么做"。
+> Calibration record:
+> [fix-log/interaction-layer.md](fix-log/interaction-layer.md)
 
-> 2026-05-17 review note:
-> 本文是 Phase 3.1-3.8 interaction substrate 的历史技术设计，仍可用于理解
-> Action / Observation / EventStream / MessageStream、
-> `RiskAssessment`、`AutonomyBehavior`、`AgentMessage`、`MessageBus`、
-> `AutonomyGate` 和 `WaitCoordinator` 的底层来源。
->
-> 2026-06-24 Product 1.1 alignment:
-> 当前用户可见交互层已经上移到 Main Page Runtime Input Router、
-> Session Conversation / Activity、Audit 和 Diagnostics。本文不是当前 UI
-> 或 Router 合同的来源；当前合同以 [overview.md](overview.md)、
-> [contract-revision-and-execution-loops.md](contract-revision-and-execution-loops.md)
-> 和 [ui-backend-communication.md](ui-backend-communication.md) 为准。
+## 1. 文档目的
 
----
+本文描述当前仓库中已经存在并被实际装配的用户交互机制。它回答以下问题：
 
-## 目录
+- 缺少用户信息时，执行 Agent 如何创建 ASK 并暂停 Published Task；
+- 已知动作需要授权时，confirmation 如何持久化、展示和响应；
+- `AgentMessage`、`MessageStream` 和 `MessageBus` 分别承担什么职责；
+- 可选的 `AutonomyGate` 在哪里实际启用，哪些运行路径没有启用；
+- Main Page、Runtime Input Router、Activity 和 Session 状态如何读取这些事实；
+- 当前持久化、并发、幂等、恢复和续跑边界是什么。
 
-1. [背景与范围](#1-背景与范围)
-2. [设计原则](#2-设计原则)
-3. [关键决策一览](#3-关键决策一览)
-4. [核心数据结构](#4-核心数据结构)
-5. [核心组件](#5-核心组件)
-6. [控制流](#6-控制流)
-7. [持久化、并发、失败模式](#7-持久化并发失败模式)
-8. [与已有架构的衔接](#8-与已有架构的衔接)
-9. [Phase 3 切片重排](#9-phase-3-切片重排)
-10. [待定问题](#10-待定问题)
-11. [附录 A — 类型速查](#附录-a--类型速查)
-12. [附录 B — 风险基线参考表](#附录-b--风险基线参考表)
+本文不把历史 Phase 计划、候选 API 或未来跨进程实现写成当前能力。代码注释中的未来描述只有在存在调用点和测试时才作为现状。
 
----
+## 2. 当前结论
 
-## 1. 背景与范围
+当前系统没有一个统一的“交互对象”或统一状态机。至少有四个语义不同的机制：
 
-### 1.1 问题陈述
+| 机制 | 用户意图 | 后端事实权威 | 是否改变 Published Task 生命周期 | 当前主要入口 |
+| --- | --- | --- | --- | --- |
+| Authoring ASK | 在 TaskTree 生成前澄清规划意图 | RawTask / authoring store | 否 | Authoring ASK Work Area、批量回答命令 |
+| Execution ASK | 执行缺少用户拥有的信息 | `AskStore`，并由 `TaskBus` 记录等待关联 | 是，`running -> waiting_for_user` | `ask_user` 工具、ASK answer/defer/cancel 命令 |
+| Confirmation | 已知动作需要用户授权 | pending actionable `AgentMessage`；`TaskBus` 记录等待关联 | 是，`running -> waiting_for_user` | `request_confirmation` 工具、confirmation respond 命令 |
+| Optional autonomy gate | 普通工具动作按风险或不确定性自动询问 | actionable/response `AgentMessage`；运行中的内存 pending 队列 | 不使用 Published Task 等待关联 | 通用 CLI `taskweavn run --autonomy ...` |
 
-现有的单轮 `AgentLoop.run(task) -> LoopResult` 不支持：
+这四者可以共享 UI 基础控件，但不能共享后端权威语义：
 
-- 长程对话（任务跨数十轮、跨进程）
-- 用户在执行中介入（中途追加要求、纠偏、回应确认）
-- agent 之间协同（Phase 4 的多 agent 编排）
+- Authoring ASK 不属于 execution `AskStore`，也不暂停 `TaskBus`；
+- Execution ASK 不是普通 `AgentMessage` 行，`AskStore` 才拥有 ASK 状态；
+- confirmation 没有独立 Confirmation 表，其事实是 actionable/response 消息；
+- autonomy gate 是 AgentLoop 的可选执行策略，不是 Main Page 默认执行路径。
 
-直接的"暂停 / 等待用户输入 / 恢复"模型存在两个问题：
+## 3. 权威数据与持久化位置
 
-1. **打断不可配置** — 高自主度任务希望"我自己干，别问我"，低自主度希望"每一步都让我看一眼"，硬编码的 ask/finish 二元控制流支撑不了
-2. **多 agent 时退化** — 多个 agent 同时想问用户，"暂停整个 loop"语义模糊
+Main Page workspace runtime 使用 `WorkspaceLayout` 解析以下路径：
 
-### 1.2 本文档的范围
+| 事实 | 当前存储 | 写入者 / 权威 |
+| --- | --- | --- |
+| informational/actionable/response 消息 | `<workspace>/.plato/messages.sqlite` | `MessageBus.publish()` 支持的写路径；`SqliteMessageStream` 持久化 |
+| Execution ASK 请求与回答 | `<workspace>/.plato/asks.sqlite` | `AskStore` / `SqliteAskStore` |
+| Published Task 与等待关联 | `<workspace>/.plato/tasks.sqlite` | `TaskBus` / `SqliteTaskBus` |
+| Authoring ASK、RawTask、Draft TaskTree | `<workspace>/.plato/authoring.sqlite` | authoring domain stores |
+| AgentLoop action/observation 事件 | `<workspace>/.plato/sessions/<session-id>/events.sqlite` | per-session `SqliteEventStream` |
+| UI command 响应幂等 | `<workspace>/.plato/ui_commands.sqlite` | UI transport idempotency store |
+| UI event replay | `<workspace>/.plato/ui_events.sqlite` | sidecar UI event store |
 
-定义"agent 与用户、agent 与 agent 之间结构化通信"的实现层接口，覆盖：
+`Session Activity` 是从消息、ASK、confirmation、Plan、Task、result 和 file summary 等事实投影出的读模型，不是新的领域事实库。Runtime Input 活动也会通过 `MessageBus` 写入 informational 消息，再进入 Activity 投影。
 
-- 消息流（MessageStream）的事件类型与持久化
-- 自主度行为（AutonomyBehavior）的配置与生效路径
-- 自主度门禁（AutonomyGate）的决策模型
-- 风险评估（RiskAssessor）的量化与可扩展性
-- 消息总线（MessageBus）的发布/订阅与等待语义
+## 4. AgentMessage 与 MessageStream
 
-不在本文档范围（推到对应阶段或后续设计）：
+### 4.1 AgentMessage 模型
 
-- AgentInstance 抽象与多 agent 编排（Phase 4）
-- ConstraintProfile 与 OrchestrationDesigner（Phase 4）
-- ToolRegistry 形式化（Phase 4 起点）
-- Plan / RAG / Summarization（Phase 3 后段，本文档不展开）
+`AgentMessage` 是 frozen、`extra="forbid"` 的 Pydantic 模型。消息类型只有三种：
 
----
+- `informational`：通知或用户输入记录；
+- `actionable`：等待回应的交互提示；
+- `response`：对 actionable 的回应。
 
-## 2. 设计原则
+公共身份字段包括：
 
-| 原则 | 含义 | 落地体现 |
-|---|---|---|
-| **消息流替代打断** | agent 永远不"暂停整个流程"；它发消息，等待行为由 autonomy 决定 | `AutonomyBehavior` 决定阻塞/非阻塞，`MessageBus` 不是控制流原语 |
-| **风险量化而非二元** | 不存在"危险/不危险"的开关，只有 0.0–1.0 的连续值 | `RiskScore: float`，用户阈值，最佳实践默认 |
-| **静态下限 + 动态上调** | Action 类自带 `baseline_risk`，runtime 评估器只能让风险更高，不能更低 | `final_risk = max(baseline_risk, dynamic_risk)` |
-| **接口先于实现** | 每个组件先定义 Protocol，单进程实现是默认，跨进程实现可替换 | `MessageBus` Protocol、`RiskAssessor` Protocol |
-| **存储分流** | MessageStream 是用户产品体验，EventStream 是工程审计；分别建表 | 独立的 `messages.sqlite` |
-| **现有抽象不污染** | Phase 1/2 的 Action / Observation / EventStream 一行不改 | AgentMessage 是新家族 |
+- `message_id`；
+- `session_id`；
+- 可选 `task_id`；
+- `agent_id`；
+- 可选 `parent_message_id`；
+- `created_at`。
 
----
+与 actionable 相关的字段包括：
 
-## 3. 关键决策一览
+- `action_options`；
+- `requires_response`；
+- `timeout_seconds`；
+- `risk_assessment`；
+- `related_action_id`。
 
-| 决策 | 选定 | 理由 |
-|---|---|---|
-| **AgentInstance 抽象** | Phase 4 才引入 | Phase 3 单 agent 场景下，所有消息的 `agent_id` 都填 `"agent"`；不提前预埋复杂度 |
-| **风险判定** | runtime 实例级，类级提供下限 | 同一个 `RunCommand` 跑 `ls` 和 `rm -rf /` 风险不同，不能在类上一刀切 |
-| **风险量化** | float ∈ [0.0, 1.0]，用户配阈值，内置默认值 | 连续量便于策略演进；二元 flag 一旦定下来很难松绑 |
-| **MessageStream 存储** | 独立 SQLite，跟 EventStream 分表 | 用户消费的是消息流（产品层），EventStream 是审计层；混表会绑死两者演进节奏 |
-| **消息总线** | 真正的 pub/sub（不是轮询） | 用户回复要立刻唤醒等待中的 agent；轮询 latency 不可接受 |
-| **等待语义** | 双模式：sync wait / async ack | 低自主度等用户授权 = 阻塞；高自主度发完即继续，响应回流到下一次迭代 |
-| **`Session.status.awaiting_user`** | 保留枚举值，改为派生量 | 列表 UI 显示 "等用户"，但不影响 loop 控制流 |
+与 response 相关的字段包括：
 
----
+- `response_source`；
+- `response_value`。
 
-## 4. 核心数据结构
+当前模型只为 `risk_assessment` 提供了类型转换校验，没有按 `message_type` 强制以下业务约束：
 
-### 4.1 风险模型
+- actionable 必须 `requires_response=true`；
+- response 必须在模型构造时带 parent；
+- response value 必须属于 `action_options`；
+- informational 不能携带 actionable/response 字段。
 
-风险是连续值 `RiskScore: float ∈ [0.0, 1.0]`：
+这些约束的一部分在存储或命令服务中实现，剩余部分只是生产者约定。
 
-```
-0.0  完全无副作用，纯读取
-0.3  受限副作用（写 workspace 内文件、追加日志）
-0.5  受限副作用 + 不可逆（删除 workspace 内文件）
-0.7  跨边界副作用（沙箱外文件、网络请求）
-0.9  系统级影响（修改全局配置、安装包、kill 进程）
-1.0  灾难级（rm -rf /、修改系统服务、撤销不可能）
-```
+### 4.2 MessageStream 读接口
 
-附录 B 给出每种 Action 的基线参考。
+`MessageStream` 提供：
 
-#### 4.1.1 三层风险
+- `get(message_id)`；
+- 按 session、task、agent 列表读取；
+- `pending_actionable(session_id, task_id=...)`；
+- `response_for(message_id)`；
+- `thread(message_id)`；
+- `len(stream)`。
 
-```python
-@dataclass(frozen=True)
-class RiskAssessment:
-    baseline: float              # Action 类静态下限（编译期常量）
-    dynamic: float               # 运行时评估器给出的提升（默认 = baseline）
-    final: float                 # max(baseline, dynamic)，决策用这个
-    rationale: list[str]         # 评估依据，可累加
-    assessor: str                # 谁给的：'baseline' | 'llm' | 'audit' | <custom>
-```
+列表查询按 `(created_at ASC, insertion id ASC)` 排序。因此相同时间戳的消息仍有确定总序。
 
-**不变量**：
+`pending_actionable` 的当前定义是：
 
-- `final == max(baseline, dynamic)`
-- `dynamic >= baseline` 总是成立 — 评估器只能让风险更高
-- 多个评估器串行时，`final` 永不下降
+1. 同一 session 中 `message_type='actionable'`；
+2. 可选地按 `task_id` 收紧；
+3. 不存在以该消息为 parent 的 response 行。
 
-#### 4.1.2 BaselineRisk 在 Action 上的表达
+它不检查 `requires_response`。因此任何未被 response 回答的 actionable 都会被视为 pending，并可进入 confirmation 和 Session 状态投影。
 
-```python
-class BaseAction(BaseEvent):
-    # 已有字段...
+### 4.3 SQLite 写入约束
 
-    baseline_risk: ClassVar[float] = 0.0
-    """Action 类的静态下限。子类覆盖。"""
+`SqliteMessageStream._insert()` 当前验证：
 
-class CodeAction(BaseAction):
-    baseline_risk: ClassVar[float] = 0.5  # 任意代码执行
-    # ...
+- `message_id` 全表唯一；
+- response 必须带 `parent_message_id`；
+- parent 必须存在；
+- parent 必须是 actionable。
 
-class WriteFileAction(BaseAction):
-    baseline_risk: ClassVar[float] = 0.3
-    # ...
+当前没有验证：
 
-class ReadFileAction(BaseAction):
-    baseline_risk: ClassVar[float] = 0.0
-    # ...
-```
+- response 与 parent 的 `session_id`、`task_id` 一致；
+- 每个 actionable 最多只有一个 response；
+- response value 属于 parent 的 options。
 
-#### 4.1.3 RiskAssessor Protocol
+数据库也没有 `UNIQUE(parent_message_id)` 约束。因此不同写入者可以为同一 actionable 插入多条 response。`response_for()` 以 `(created_at, insertion id)` 最早的一条作为规范回答，后续 response 仍保留在表中。
 
-```python
-@runtime_checkable
-class RiskAssessor(Protocol):
-    """评估单次 Action 实例的动态风险。
+## 5. MessageBus
 
-    返回的 RiskAssessment.dynamic 必须 >= action.baseline_risk。
-    实现负责保证这一点（基类提供 helper）。
-    """
+### 5.1 当前实现
 
-    def assess(self, action: BaseAction, context: AssessmentContext) -> RiskAssessment: ...
+`MessageBus` Protocol 定义：
 
-@dataclass(frozen=True)
-class AssessmentContext:
-    """评估器看到的全部信息。"""
-    workspace_root: Path
-    session_id: str
-    recent_observations: list[BaseObservation]   # 最近 N 条 obs，提供决策上下文
-    recent_messages: list[AgentMessage]          # 最近 N 条 user/agent 消息
-```
+- `publish(message)`；
+- `subscribe(session_id, types=...)`；
+- `wait_for_response(message_id, timeout)`；
+- `stream` 只读视图。
 
-**默认实现**：
+仓库中当前唯一实现是 `InProcessMessageBus`。不存在已实现的 `SqliteMessageBus` 或 Redis bus。
 
-```python
-class BaselineOnlyAssessor:
-    """什么都不评估，只把 baseline 作为最终风险。"""
+`InProcessMessageBus` 使用一个 `threading.Condition` 协调：
 
-    def assess(self, action, context) -> RiskAssessment:
-        return RiskAssessment(
-            baseline=action.baseline_risk,
-            dynamic=action.baseline_risk,
-            final=action.baseline_risk,
-            rationale=["baseline only"],
-            assessor="baseline",
-        )
-```
+1. `publish()` 在 condition 锁内先调用 stream `_insert()`；
+2. 再把消息放入匹配订阅者的 deque；
+3. 最后 `notify_all()` 唤醒等待者。
 
-**可选实现**（Phase 3.7 或之后）：
+因此本进程内的等待者在收到通知前可以从 SQLite 读到已提交消息。
 
-- `LLMRiskAssessor` — 用一个轻量 LLM 看 action 内容（特别是 CodeAction.code、RunCommand.command）输出风险
-- `AuditRiskAssessor` — 复用 Phase 2.3 的 AuditAgent，对历史 verdict 加权
-- `CompositeAssessor` — 多评估器串联，`final = max(...)`
+### 5.2 等待与订阅语义
 
-### 4.2 AutonomyBehavior
+`wait_for_response`：
 
-完整字段（基于多 agent 协作文档 + 本文档新增的 wait_strategy）：
+- `timeout=None`：无限等待，除非 bus 被关闭；
+- `timeout=0`：非阻塞查询；
+- 正数：等待到 deadline；
+- bus 关闭且没有 response：返回 `None`。
 
-```python
-@dataclass(frozen=True)
-class AutonomyBehavior:
-    # ── 触发维度 ──────────────────────────────────────
-    trigger: Literal["never", "on_risk", "on_uncertainty", "always"] = "on_risk"
-    risk_threshold: float = 0.5
-    """trigger='on_risk' 时，final_risk >= 此阈值才发 actionable。"""
+订阅只收到订阅建立后的 future publish。读取历史必须先走 `MessageStream`，再附着 live subscription。
 
-    confidence_threshold: float = 0.5
-    """trigger='on_uncertainty' 时，LLM 置信度低于此值才发 actionable。"""
+订阅 deque 当前无上限，没有 backpressure 或 drop policy。bus 关闭会结束订阅并唤醒 response 等待者。
 
-    # ── 等待维度 ──────────────────────────────────────
-    wait_strategy: Literal["sync", "async"] = "sync"
-    """sync：阻塞 agent 线程直到响应或超时；
-       async：消息发出即继续，响应回流到下一次 ReAct 迭代。"""
+“MessageBus 是单写者”是受支持 API 和代码约定，不是 Python 级不可绕过能力；`SqliteMessageStream._insert()` 仍可被直接调用。
 
-    wait_timeout: float | None = 300.0
-    """sync 模式下，等待响应的最长秒数。None = 无限等待。
-       async 模式下被忽略。"""
+## 6. Execution ASK
 
-    timeout_action: Literal[
-        "wait", "proceed_default", "proceed_confident", "skip"
-    ] = "proceed_default"
-    """sync 模式下超时策略；async 模式下被忽略。"""
+### 6.1 领域对象
 
-    notify_on_proceed: bool = True
-    """timeout_action 自行决定后是否补一条 informational 消息告知用户。"""
+Execution ASK 的事实权威是 `AskStore`，不是 MessageStream。
+
+`AskRequest` 主要包含：
+
+- `ask_id`、`session_id`、可选 `task_id`、`agent_id`；
+- 主问题 `question` 与原因 `reason`；
+- 可选的 `questions` 子问题集合；
+- 建议选项；
+- `answer_type`：`free_text`、`single_choice`、`multi_choice`、`boolean`；
+- free-text 策略；
+- `blocking`；
+- 状态和各终态时间戳。
+
+ASK 状态为：
+
+- `pending`；
+- `answered`；
+- `deferred`；
+- `cancelled`；
+- `expired`。
+
+blocking ASK 必须有 `task_id`。Product 当前固定 `attachments_supported=false`，`AskAnswer` 也拒绝非空 attachments。
+
+一个 `AskRequest` 可以包含多个子问题，但仍由一个 `AskAnswer` 关闭；这不等于多个并行 execution ASK 组成的 group。
+
+### 6.2 创建与暂停流程
+
+Main Page Default Agent 在同时具有 `ask_store`、`task_bus` 和 `task_id` 时注册 `AskUserTool`。
+
+```text
+AgentLoop tool call: ask_user
+  -> AskUserTool creates AskRequest in AskStore
+  -> TaskBus.wait_for_user(..., ask_id)
+  -> Task status becomes waiting_for_user
+  -> tool returns AskUserObservation(status=waiting_for_user)
+  -> AgentLoop returns stop_reason=waiting_for_user
 ```
 
-#### 4.2.1 内置预设
+`TaskBus.wait_for_user` 只允许 `running` Task 进入等待状态。
 
-| 预设 | trigger | risk_threshold | wait_strategy | timeout | timeout_action | 适合 |
-|---|---|---|---|---|---|---|
-| `full_auto` | never | — | async | — | — | 批处理、可回滚 |
-| `risk_gated` | on_risk | 0.5 | sync | 300 | proceed_default | 日常默认 |
-| `careful` | on_risk | 0.3 | sync | 600 | proceed_default | 重要任务 |
-| `collaborative` | on_uncertainty | — | sync | None | wait | 复杂、高影响 |
-| `manual` | always | — | sync | None | wait | 学习、审计 |
+ASK 创建和 Task 状态更新属于两个数据库，没有跨库事务。如果 ASK 创建成功而 TaskBus 更新失败，ASK 行不会自动回滚。
 
-预设是 immutable 模板，用户 fork 出 snapshot 之后可改。
+### 6.3 回答、defer 与 cancel
 
-### 4.3 AgentMessage
+`DefaultTaskAskCommandService` 的顺序是：
 
-```python
-class AgentMessage(BaseModel):
-    """MessageStream 上的一条消息。
+1. 先调用 `AskStore` 持久化命令结果；
+2. 只有首次 `accepted` 才改变 Task 生命周期；
+3. answer 尝试把匹配的 waiting Task 恢复为 `pending`；
+4. defer/cancel 尝试把匹配的 waiting Task 标记为 `failed`；
+5. idempotent replay 不重复执行 Task 生命周期变化。
 
-    不是 BaseAction，也不是 BaseObservation —— 它是第三个事件家族。
-    """
+回答会验证：
 
-    model_config = ConfigDict(extra="forbid", frozen=True)
+- session、ASK、task 目标一致；
+- ASK 仍为 `pending`；
+- option id 存在；
+- answer type、选项数量和 free-text 策略匹配。
 
-    message_id: str = Field(default_factory=_new_id)
-    session_id: str
-    task_id: str | None = None
-    """同一次 AgentLoop.run() 内所有事件共享的 id；None 表示 session 级、非
-    任务态消息（如 resume 时的系统提示）。Phase 3 由 AgentLoop 进入 run() 时
-    生成，本 run 期间所有 message 与 event 都打上此值。"""
+SQLite store 在一个数据库事务内写 ASK 状态、唯一 answer 行和 ASK command idempotency 结果。幂等键作用域是 `(session_id, idempotency_key)`，结果分为 `accepted`、`replayed`、`rejected`。
 
-    agent_id: str = "agent"
-    """发起者：Phase 3 永远是 'agent'，Phase 4 起填具体 agent instance id。
-    用户回复（response 类型）此处填 'user'，其它人类操作员可填具名值。"""
+ASK Store 与 TaskBus 之间仍不是单事务。ASK 已回答但 Task resume 失败时，回答事实保持有效；命令结果会带 resume 失败或跳过说明。
 
-    parent_message_id: str | None = None
-    """如果本消息是对另一条 actionable 的回复，指向那条 message_id。"""
+### 6.4 续跑与恢复
 
-    message_type: Literal["informational", "actionable", "response"]
+HTTP execution ASK answer 路径在命令 accepted 后调用 `ExecutionTriggerGateway.request_dispatch(..., reason="ask_answer_resume")`。dispatch 失败不会回滚已经接受的 ASK answer。
 
-    content: str
-    context: dict[str, Any] = Field(default_factory=dict)
-    """结构化补充信息：相关文件路径、代码片段、风险评估等。"""
+下一次 Main Page AgentLoop 通过 `AskContextSource` 读取当前 Task 的 pending/answered ASK 事实；answered ASK 的回答会进入新运行的 Context Manager 输入。
 
-    # ── actionable 专属 ─────────────────────────────────
-    action_options: list[str] = Field(default_factory=list)
-    requires_response: bool = False
-    timeout_seconds: float | None = None
-    risk_assessment: RiskAssessment | None = None
-    related_action_id: str | None = None
-    """指向 EventStream 上的 BaseAction.event_id，把消息与底层动作钉在一起。"""
+snapshot 读取前还会 best-effort 调用 `DefaultAskRecoveryService`：
 
-    # ── response 专属 ───────────────────────────────────
-    response_source: Literal[
-        "user", "timeout_default", "timeout_confident", "timeout_skip", "auto_proceed"
-    ] | None = None
-    response_value: str | None = None
+- 对已 answered、blocking、具有 task_id 的 execution ASK；
+- 若 Task 仍在等待该 ASK，则先恢复为 pending；
+- 若 Task 已为 pending，则可以请求 execution dispatch；
+- 恢复异常不会让 snapshot 读取失败。
 
-    # ── 通用 ────────────────────────────────────────────
-    created_at: datetime = Field(default_factory=_utcnow)
+这是一种 ASK 专用的补偿路径，不是 ASK Store 与 TaskBus 的原子提交。
+
+## 7. Confirmation
+
+### 7.1 当前权威模型
+
+当前没有独立 `Confirmation` 数据表或 store。一个 confirmation 由以下事实组成：
+
+- pending actionable `AgentMessage` 是 confirmation 请求；
+- response `AgentMessage` 是回答；
+- Published Task 的 `waiting_for_confirmation_id` 关联当前等待对象。
+
+Task projection 会把给定 Task 的所有 pending actionable 消息转换为 `ConfirmationActionView`，并不要求消息具有独立 confirmation discriminator。
+
+### 7.2 创建与暂停流程
+
+Main Page Default Agent 在具有 `message_bus`、`task_bus` 和 `task_id` 时注册 `RequestConfirmationTool`。
+
+```text
+AgentLoop tool call: request_confirmation
+  -> RequestConfirmationTool publishes actionable AgentMessage
+  -> TaskBus.wait_for_confirmation(..., confirmation_id=message_id)
+  -> Task status becomes waiting_for_user
+  -> tool returns RequestConfirmationObservation(status=waiting_for_user)
+  -> AgentLoop returns stop_reason=waiting_for_user
 ```
 
-#### 4.3.1 三类消息的语义
-
-```
-informational
-  agent → user
-  agent 已完成或正在做某事，告知用户
-  不需要响应；持久化用于审计/回放
-  例："已修改 auth.py 第 42 行" / "正在分析 5 个候选方案"
-
-actionable
-  agent → user
-  agent 需要授权、确认、或选择
-  根据 autonomy_behavior 决定阻塞/非阻塞
-  必有 risk_assessment（驱动 trigger 判定）
-
-response
-  user → agent  或  系统超时自动生成
-  对 actionable 的回应
-  parent_message_id 指向被回应的 actionable
-  response_source 区分人工 vs 自动
-```
-
-### 4.4 MessageStream Protocol
-
-```python
-@runtime_checkable
-class MessageStream(Protocol):
-    """消息流的读接口。写走 MessageBus。
-
-    所有 list_* 默认按 created_at ASC + 自增 id ASC 排序，保证：
-      a) 时间序唯一确定
-      b) created_at 同毫秒时仍稳定（id 是单调自增的次序键）
-    """
-
-    def get(self, message_id: str) -> AgentMessage | None: ...
-
-    # ── 聚合查询 ────────────────────────────────────────────
-    def list_for_session(
-        self,
-        session_id: str,
-        *,
-        types: Iterable[str] | None = None,
-        since: datetime | None = None,
-        limit: int | None = None,
-    ) -> Iterator[AgentMessage]: ...
-
-    def list_for_task(
-        self,
-        task_id: str,
-        *,
-        types: Iterable[str] | None = None,
-        since: datetime | None = None,
-        limit: int | None = None,
-    ) -> Iterator[AgentMessage]:
-        """一次 AgentLoop.run() 内的全部消息，按时间序。
-
-        跨 session 也可查（Phase 4 多 agent 协作场景；Phase 3 必然单 session）。
-        """
-        ...
-
-    def list_for_agent(
-        self,
-        agent_id: str,
-        *,
-        session_id: str | None = None,
-        types: Iterable[str] | None = None,
-        since: datetime | None = None,
-        limit: int | None = None,
-    ) -> Iterator[AgentMessage]:
-        """某个 agent 发出的消息。session_id 收紧到具体会话；不传则跨会话。"""
-        ...
-
-    # ── 关系查询 ────────────────────────────────────────────
-    def pending_actionable(
-        self, session_id: str, *, task_id: str | None = None
-    ) -> list[AgentMessage]:
-        """未收到 response 的 actionable 消息。task_id 可进一步收紧到本次 run。"""
-        ...
-
-    def response_for(self, message_id: str) -> AgentMessage | None:
-        """快捷查询：某 actionable 的回应（user / 超时自动皆可）。"""
-        ...
-
-    def thread(self, message_id: str) -> list[AgentMessage]:
-        """取一条 actionable 及其所有回复（含撤回），按时间序。"""
-        ...
-```
-
-实现：`SqliteMessageStream`，独立 `messages.sqlite` 数据库（详见 §7）。
-
-#### 4.4.1 支持的访问路径
-
-下表把"用户/工程上想拿什么"映射到查询、再映射到承担它的索引。新增任何
-查询前，先确认它能落到现有索引上 —— 这是 §7.1 索引集合的不变量。
-
-| 想要 | 查询入口 | 承担索引 |
-|---|---|---|
-| 一个 session 的全部消息（时间序） | `list_for_session(sid)` | `idx_messages_session_created` |
-| 一个 session 内某 task 的消息（时间序） | `list_for_session(sid, ...)` 或 `list_for_task(tid)` | `idx_messages_session_task_created` |
-| 一个 task 的全部消息（跨 agent，Phase 4） | `list_for_task(tid)` | `idx_messages_task_created` |
-| 一个 session 内某 agent 的消息 | `list_for_agent(aid, session_id=sid)` | `idx_messages_session_agent_created` |
-| 某 agent 跨 session 的消息（Phase 4） | `list_for_agent(aid)` | `idx_messages_agent_created` |
-| 某 session 的待响应 actionable | `pending_actionable(sid)` | `idx_messages_session_type_created` + `idx_messages_parent` |
-| actionable 的回复线索 | `thread(mid)` | `idx_messages_parent` |
-| 跨流时间线（events ⊕ messages） | 应用层归并，按 `task_id` + `created_at` 排序 | `idx_messages_task_created` + 事件表 task_id 索引 |
-
-### 4.5 GateDecision
-
-AutonomyGate 的输出：
-
-```python
-@dataclass(frozen=True)
-class GateDecision:
-    verdict: Literal["proceed", "emit_actionable", "skip"]
-    """proceed: 直接执行 action，可能伴随 informational 通告
-       emit_actionable: 发 actionable 消息，sync 模式下还要等待
-       skip: 不执行该 action（autonomy 决定的）"""
-
-    inform_user: bool = False
-    """proceed 时是否发一条 informational 告知用户。"""
-
-    suggested_message: str | None = None
-    """emit_actionable 时建议的提问内容；None 时由 gate 模板填充。"""
-
-    risk_assessment: RiskAssessment
-    """决策依据，记录到日志和事件流。"""
-```
-
----
-
-## 5. 核心组件
-
-### 5.1 AutonomyGate
-
-每个 agent 在执行 Action 前唯一的"是否要打扰用户"决策点。
-
-```python
-class AutonomyGate:
-    def __init__(
-        self,
-        behavior: AutonomyBehavior,
-        assessor: RiskAssessor,
-        confidence_provider: ConfidenceProvider | None = None,
-    ): ...
-
-    def check(
-        self,
-        action: BaseAction,
-        context: AssessmentContext,
-    ) -> GateDecision: ...
-```
-
-#### 决策逻辑
-
-```
-1. 评估风险：assessment = assessor.assess(action, context)
-2. 按 trigger 分支：
-   - never:
-       proceed, inform_user = False
-   - on_risk:
-       if assessment.final >= behavior.risk_threshold:
-           emit_actionable
-       else:
-           proceed, inform_user = behavior.notify_on_proceed and risk > 0
-   - on_uncertainty:
-       confidence = confidence_provider.get(action) if available else 1.0
-       if confidence < behavior.confidence_threshold:
-           emit_actionable
-       else:
-           proceed
-   - always:
-       emit_actionable
-```
-
-`ConfidenceProvider` 是可选钩子（Phase 3 暂不实现，留接口）：从 LLM 输出的 logprobs 或显式 confidence 字段抽取。
-
-### 5.2 MessageBus
-
-真正的 pub/sub，不是轮询。
-
-```python
-@runtime_checkable
-class MessageBus(Protocol):
-    def publish(self, message: AgentMessage) -> None:
-        """持久化 + 通知所有订阅者。"""
-        ...
-
-    def subscribe(
-        self,
-        session_id: str,
-        *,
-        types: Iterable[str] | None = None,
-    ) -> Subscription:
-        """返回一个可读 Subscription；调用方在 with 块内收消息。"""
-        ...
-
-    def wait_for_response(
-        self,
-        message_id: str,
-        timeout: float | None,
-    ) -> AgentMessage | None:
-        """阻塞等待对某条 actionable 的 response；超时返回 None。"""
-        ...
-
-class Subscription(Protocol):
-    def __iter__(self) -> Iterator[AgentMessage]: ...
-    def close(self) -> None: ...
-    def __enter__(self) -> Subscription: ...
-    def __exit__(self, *exc) -> None: ...
-```
-
-#### 5.2.1 默认实现：`InProcessMessageBus`
-
-单进程下的真正总线：
-
-- 内部 `threading.Condition` 协调发布者和等待者
-- `publish()` 先写 SQLite，再 `condition.notify_all()`
-- `wait_for_response(message_id, timeout)` 走 `condition.wait_for(predicate, timeout)`，predicate 检查 SQLite 中是否已存在 `parent_message_id == message_id` 的 response 行
-- `subscribe()` 给 CLI 实时 view 用，内部维护一个增量游标 + 线程安全的队列
-
-**为什么 SQLite + Condition 而不是纯内存队列**：进程重启后，已发的消息能 replay；用户在 agent 思考期间打开 CLI 不丢消息；多进程实现可以平替（详见 §5.2.2）。
-
-#### 5.2.2 跨进程预留
-
-将来如果要"agent 是后台进程，CLI 是另一个进程"：
-
-- `SqliteMessageBus`（poll 版本）：每 N ms 查 SQLite 看新行；implements MessageBus protocol，只是 `wait_for_response` 用轮询。简单但有 latency。
-- `RedisMessageBus`：真正跨进程总线，pub/sub。
-
-`InProcessMessageBus` 是 Phase 3 唯一实现，但 Protocol 让升级零成本。
-
-### 5.3 等待协调器（Wait Coordinator）
-
-把 sync/async 等待语义封进单一组件，Loop 不直接用 Bus.wait_for_response：
-
-```python
-class WaitCoordinator:
-    """根据 AutonomyBehavior，将"已发 actionable"翻译成具体等待行为。"""
-
-    def __init__(self, bus: MessageBus, behavior: AutonomyBehavior): ...
-
-    def handle_actionable(
-        self,
-        message: AgentMessage,
-    ) -> WaitOutcome:
-        """
-        sync 模式：阻塞至 response 或 timeout，触发 timeout_action。
-        async 模式：立即返回 WaitOutcome.PENDING，调用方继续工作。
-        """
-        ...
-
-class WaitOutcome(Enum):
-    GOT_RESPONSE = "got_response"        # sync 模式拿到 response
-    TIMED_OUT_PROCEED = "timed_out_proceed"
-    TIMED_OUT_SKIP = "timed_out_skip"
-    PENDING = "pending"                  # async 模式：丢给后续迭代处理
-```
-
-### 5.4 Async 响应回流
-
-async 模式下，agent 不在原地等。响应到达后如何"找到"它？
-
-```
-Loop 每个 ReAct iter 开始时：
-  1. drained = bus.drain_pending_responses(session_id, since=last_check)
-  2. 每条 drained 转成一条 system message 注入 messages 列表
-     例："[user-response to 'should we use Tailwind?'] Yes, use Tailwind"
-  3. agent 在下一次 LLM 调用看到这些响应，自然把它们 fold 进推理
-```
-
-这跟 Phase 2.3 把 audit verdict 注成 system message 的模式一致 —— async 响应也是同一种"系统侧信道告诉模型一些事"。
-
----
-
-## 6. 控制流
-
-### 6.1 完整流程图
-
-```
-┌─ Loop iteration ─────────────────────────────────────────────┐
-│                                                              │
-│  1. drain_pending_responses → fold async responses           │
-│  2. llm.chat(messages) → tool_calls                          │
-│  3. for each tool_call:                                      │
-│       action = build_action(tool_call)                       │
-│                                                              │
-│       ┌─ AutonomyGate.check(action) ─────────────────┐       │
-│       │  decision.verdict ∈ {proceed, emit, skip}    │       │
-│       └────────────────────┬─────────────────────────┘       │
-│                            │                                 │
-│        ┌───────────────────┼────────────────────┐            │
-│        ▼                   ▼                    ▼            │
-│     proceed            emit_actionable        skip           │
-│        │                   │                    │            │
-│        │              bus.publish(msg)          │            │
-│        │                   │                    │            │
-│        │              wait_coord.handle()       │            │
-│        │              ┌────┴──────┐             │            │
-│        │              │           │             │            │
-│        │           sync         async           │            │
-│        │              │           │             │            │
-│        │       got/timeout    PENDING           │            │
-│        │              │           │             │            │
-│        ▼              ▼           ▼             ▼            │
-│   runtime.execute  proceed/skip  next iter   next iter       │
-│        │           per outcome                               │
-│        ▼                                                     │
-│   observation → EventStream                                  │
-│   (optional informational message after)                     │
-│                                                              │
-└──────────────────────────────────────────────────────────────┘
-```
-
-### 6.2 阻塞模式时序（sync wait）
-
-```
-Agent thread                MessageBus               CLI thread
-    │                           │                        │
-    │ check gate                │                        │
-    │                           │                        │
-    │ publish(actionable msg)   │                        │
-    │ ─────────────────────────▶│  ──── notify ────────▶ │
-    │                           │                        │ render to user
-    │ wait_for_response(id, T)  │                        │
-    │                           │                        │ user types reply
-    │                           │ ◀── publish(response) ─│
-    │                           │                        │
-    │ ◀──── (cond notified) ────│                        │
-    │                           │                        │
-    │ proceed with action       │                        │
-    │ runtime.execute()         │                        │
-    │ ...                       │                        │
-```
-
-### 6.3 非阻塞模式时序（async ack）
-
-```
-Agent thread                MessageBus               CLI thread
-    │                           │                        │
-    │ check gate                │                        │
-    │                           │                        │
-    │ publish(actionable msg)   │                        │
-    │ ─────────────────────────▶│  ──── notify ────────▶ │
-    │                           │                        │ render
-    │ continue immediately      │                        │
-    │                           │                        │
-    │ next ReAct iter           │                        │ user replies later
-    │ runtime.execute(...)      │ ◀── publish(response) ─│
-    │ ...                       │                        │
-    │                           │                        │
-    │ next ReAct iter           │                        │
-    │ drain_pending_responses() │                        │
-    │ ◀──── 1 response ─────────│                        │
-    │                           │                        │
-    │ inject as system msg      │                        │
-    │ llm.chat(... + sys msg)   │                        │
-```
-
-### 6.4 timeout 路径（sync 模式）
-
-```
-publish(actionable, timeout=300s)
-  ↓
-wait_for_response 阻塞 300 秒
-  ↓
-没回应 → timeout_action 决定：
-  wait               → 继续等（实际上 wait_timeout=None 才合理，否则不应进这里）
-  proceed_default    → 用最保守选项继续（"如何选最保守"由 action 类决定）
-  proceed_confident  → 用 LLM 最高置信选项继续（需要 ConfidenceProvider）
-  skip               → 跳过该 action，写一条 ErrorObservation
-  ↓
-若 notify_on_proceed=True，再发一条 informational 告知超时及选择
-```
-
-`proceed_default` 和 `proceed_confident` 的实现先用最简策略：
-
-- `proceed_default` = 假定 `action_options[0]`（option list 第一个）
-- `proceed_confident` = 跟 default 一样，等 ConfidenceProvider 落地后再分化
-
-### 6.5 LoopResult 变化
-
-```python
-# 旧
-@dataclass(frozen=True)
-class LoopResult:
-    final_answer: str
-    steps: int
-    finished: bool
-    stop_reason: str  # "agent_finish" | "no_tool_calls" | "max_steps"
-
-# 新
-@dataclass(frozen=True)
-class LoopResult:
-    final_answer: str
-    steps: int
-    finished: bool
-    stop_reason: str
-    # 不再加 awaiting_user —— loop 在 sync wait 内部处理，不向调用方暴露
-```
-
-`Session.status.awaiting_user` 变成派生量：
-
-```python
-def derive_status(session_id: str, manager: SessionManager, stream: MessageStream) -> SessionStatus:
-    stored = manager.require(session_id).status
-    if stored == "finished":
-        return "finished"
-    if stream.pending_actionable(session_id):
-        return "awaiting_user"
-    return "active"
-```
-
----
-
-## 7. 持久化、并发、失败模式
-
-### 7.1 messages.sqlite Schema
-
-独立数据库，路径 `<workspace>/.taskweavn/messages.sqlite`（workspace 级，不是
-session 级 —— 跨 session 协作时多个 session 共享同一份消息流读取能力，但行级
-带 `session_id` 隔离）。
-
-#### 7.1.1 设计目标
-
-消息表是用户产品体验的核心存储，相比 EventStream（审计层）有更高的读密集度。
-要支持四个维度的聚合：
-
-1. **session × 时间** — UI 主时间线："这个会话里发生过什么"
-2. **session × task × 时间** — "本次 run 期间发生了什么"（resume / 调试 / 总结）
-3. **task × 时间** — Phase 4 跨 agent 时，"这个任务里所有 agent 的对话"
-4. **agent × 时间** — Phase 4 时审视某个 agent 的全部输出（含跨会话）
-
-所有查询都带 ORDER BY，单调时序由 `(created_at, id)` 二元组保证（同毫秒打平时
-按自增 id 决胜，不依赖 wall clock 精度）。
-
-#### 7.1.2 表结构
-
-```sql
-CREATE TABLE IF NOT EXISTS messages (
-    id                    INTEGER PRIMARY KEY AUTOINCREMENT,    -- 入库次序，时间打平时的 tiebreaker
-    message_id            TEXT    NOT NULL UNIQUE,              -- 对外稳定 id（跨 session 全局唯一，见 Q7）
-    session_id            TEXT    NOT NULL,
-    task_id               TEXT,                                 -- 一次 run 的聚合 id；None 表示 session 级非任务态消息
-    agent_id              TEXT    NOT NULL,                     -- 'agent' | 'user' | <具名>
-    parent_message_id     TEXT,                                 -- response → actionable 的反向指针
-    message_type          TEXT    NOT NULL CHECK(message_type IN ('informational','actionable','response')),
-    content               TEXT    NOT NULL,
-    context_json          TEXT    NOT NULL DEFAULT '{}',
-    action_options_json   TEXT    NOT NULL DEFAULT '[]',
-    requires_response     INTEGER NOT NULL DEFAULT 0,
-    timeout_seconds       REAL,
-    risk_json             TEXT,                                 -- RiskAssessment 序列化（仅 actionable）
-    related_action_id     TEXT,                                 -- 指向 EventStream.event_id（仅 actionable）
-    response_source       TEXT,                                 -- 仅 response：user/timeout_*/auto_proceed
-    response_value        TEXT,                                 -- 仅 response
-    created_at            TEXT    NOT NULL                      -- ISO-8601 UTC
-);
-```
-
-#### 7.1.3 索引集
-
-每条索引都对应 §4.4.1 表里的一条访问路径。命名规范 `idx_messages_<聚合维度...>_<排序键>`。
-
-```sql
--- 主时间线（最常用）
-CREATE INDEX idx_messages_session_created
-    ON messages(session_id, created_at, id);
-
--- session 内 task 视图（resume / 单次 run 回放）
-CREATE INDEX idx_messages_session_task_created
-    ON messages(session_id, task_id, created_at, id);
-
--- 跨 session 的 task 视图（Phase 4 多 agent）
-CREATE INDEX idx_messages_task_created
-    ON messages(task_id, created_at, id);
-
--- session × agent 视图
-CREATE INDEX idx_messages_session_agent_created
-    ON messages(session_id, agent_id, created_at, id);
-
--- 跨 session 的 agent 视图（Phase 4）
-CREATE INDEX idx_messages_agent_created
-    ON messages(agent_id, created_at, id);
-
--- pending_actionable 加速：session × type，命中后再用 parent 索引反查
-CREATE INDEX idx_messages_session_type_created
-    ON messages(session_id, message_type, created_at, id);
-
--- thread / response_for / 撤回链路
-CREATE INDEX idx_messages_parent
-    ON messages(parent_message_id);
-
--- 通过 message_id 直接 get
--- 已由 UNIQUE 约束自带索引，无需重复
-```
-
-每个 list_* 查询的 ORDER BY 都形如 `ORDER BY created_at, id`，与索引最后两列
-对齐 —— SQLite 直接走索引序，不做额外排序。
-
-#### 7.1.4 写入规则
-
-- INSERT 由 `MessageBus.publish()` 唯一持有；外部代码不能直绕 bus 写表
-- `task_id` 在 INSERT 前必须由调用方确定（None 也合法）；不允许 INSERT 后回填
-- response 类型 INSERT 时校验 `parent_message_id` 必须指向已存在的 actionable
-- `(parent_message_id, message_type='response')` 不强制唯一 —— 允许撤回链路追加
-  （首条 user response 决定 actionable 结果，后续视为追加事实）；首条由应用
-  层通过 `MIN(created_at, id)` 取出，见 §7.3 `DuplicateResponseError`
-
-#### 7.1.5 task_id 在 EventStream 上的镜像
-
-跨流（events ⊕ messages）按 task 归并是核心场景（"本次 run 全貌"），因此
-EventStream 也补一个 `task_id` 列：
-
-```sql
-ALTER TABLE events ADD COLUMN task_id TEXT;
-CREATE INDEX idx_events_task_created ON events(task_id, timestamp, id);
-CREATE INDEX idx_events_session_task_created ON events(session_id, task_id, timestamp, id);
-```
-
-这是对 3.1 schema 的小扩展，不破坏 §8.1 "EventStream 协议不变"的承诺 —— Protocol
-方法签名一行不动，只是底层表多了一列与索引。AgentLoop.run() 进入时生成
-`task_id`，注入到 append 时的事件 metadata。
-
-PRAGMA：`journal_mode=WAL` + `synchronous=NORMAL`，跟 EventStream / ThoughtStore 一致。
-
-### 7.2 并发模型
-
-**Phase 3 假设**：单进程，多线程（agent 主循环 + CLI 输入 + 可能的后台计时器线程）。
-
-- SQLite 用 `check_same_thread=False`，每个线程拿同一个连接（autocommit 模式下每条语句独立事务）
-- `InProcessMessageBus` 用一把 `threading.Condition` 序列化所有发布与等待
-- 写入 SQLite 时按 `session_id` 不分锁 —— SQLite 自己保证 INSERT 的原子性
-
-**当未来要做多进程时**（不是 Phase 3 任务）：
-
-- `SqliteMessageBus` 用 polling on `id` 列（auto-increment 给出全序）
-- 或上 Redis / NATS
-
-### 7.3 失败模式
-
-| 失败 | 检测 | 恢复 |
-|---|---|---|
-| **Bus 进程崩溃** | 不适用（进程内，崩溃 = 整个 agent 崩溃） | session resume 时从 SQLite 重建 pending_actionable，loop 自动重新进入 wait |
-| **用户回复重复** | `parent_message_id` 已有 response 时拒绝第二次 | 第二次 publish 抛 `DuplicateResponseError`；CLI 显示 "已回应，被忽略" |
-| **超时与回复几乎同时** | 用 SQLite UNIQUE 约束 + 应用层 race 处理 | 先到的胜利；后到的写入失败时，应用层捕获并丢弃 |
-| **agent 在 wait 中收到新 user message（非回复）** | bus.subscribe 捕获 informational 类型的 user-originated msg | 注入下一次 LLM context；不打断当前 wait |
-| **session 重启后有未答 actionable** | resume 时检查 pending_actionable | 恢复 sync wait（等用户）；如果原本是 async，丢给 drain 处理 |
-
-### 7.4 用户撤回
-
-用户希望"刚才那条不算了"：
-
-```
-publish(message_type=response, parent_message_id=<actionable_id>,
-        response_source=user, response_value="<RETRACT>")
-```
-
-agent 收到 `<RETRACT>` 时按"用户拒绝授权"处理（等同 timeout_action=skip）。先用约定字符串，等需要再做正式 retract 字段。
-
----
-
-## 8. 与已有架构的衔接
-
-### 8.1 EventStream Protocol 不变，schema 微调
-
-- BaseAction / BaseObservation / EventStream Protocol / SqliteEventStream **接口** 一行不改
-- 底层表新增 `task_id TEXT` 列与对应索引（见 §7.1.5）—— Protocol 方法签名不变，
-  调用方无感知；老数据 `task_id` 为 NULL，依然可读
-- `SqliteEventStream.append()` 新增可选关键字 `task_id: str | None = None`，
-  旧调用方不传则保持 NULL
-- AgentMessage 是新家族，自己的存储、自己的索引
-- 关联：
-  - actionable 消息的 `related_action_id` 指向 EventStream 上的 `action.event_id`，
-    把"消息"钉到具体"动作"
-  - 同一次 run 的 events 与 messages 共享 `task_id`，replay 工具能跨流按时间序归并
-
-### 8.2 AgentLoop 改动
-
-```python
-@dataclass
-class AgentLoop:
-    # 已有
-    llm: LLMClient
-    runtime: Runtime
-    tools: list[Tool[Any, Any]]
-    event_stream: EventStream
-    thought_store: ThoughtStore
-    auditor: AuditAgent | None
-
-    # 新增（都有合理默认）
-    autonomy_behavior: AutonomyBehavior = field(default_factory=lambda: AutonomyBehavior())
-    message_bus: MessageBus | None = None
-    message_stream: MessageStream | None = None
-    risk_assessor: RiskAssessor = field(default_factory=BaselineOnlyAssessor)
-    session_id: str = "default"
-
-    # 内部派生
-    _gate: AutonomyGate = field(init=False)
-    _wait_coord: WaitCoordinator | None = field(init=False)
-```
-
-行为：
-
-- `message_bus is None` 时退化为 Phase 2 行为（gate 永远 proceed，无消息流）。便于回归测试和 CI。
-- `message_bus` 非 None 时启用完整流程；session_id 必填且对齐 SessionManager。
-
-**task_id 生命周期**：
-
-```python
-def run(self, instruction: str) -> LoopResult:
-    task_id = _new_id()                       # 入口生成
-    self._current_task_id = task_id           # 整段 run 共享
-    self.event_stream.append(                 # 首事件即带 task_id
-        TaskStartAction(instruction=instruction),
-        task_id=task_id,
-    )
-    try:
-        ...                                   # ReAct 循环；每次 append 与 publish 都带 task_id
-    finally:
-        self._current_task_id = None
-```
-
-- AgentLoop 内部的所有 `event_stream.append(...)` 与 `message_bus.publish(...)`
-  都从 `self._current_task_id` 取值；调用点无需关心
-- 一次 run 中如果触发自我递归（Phase 4 子任务派发），子任务用新的 task_id，
-  在 `parent_task_id` 上挂当前 id（schema 留位 —— Phase 3 不开此字段）
-
-### 8.3 Session 变化
-
-```python
-# session.py
-class Session:
-    # 新增 path 属性
-    @property
-    def messages_db_path(self) -> Path:
-        # 注意：messages 是 workspace 级，不是 session 级
-        return self.layout.workspace_messages_db
-```
-
-`WorkspaceLayout`：
-
-```python
-@property
-def workspace_messages_db(self) -> Path:
-    return self.meta_dir / "messages.sqlite"
-```
-
-### 8.4 CLI 改动（Phase 3 后段）
-
-CLI 的具体 UI 不在本文档定，但关键约束：
-
-- 必须支持非阻塞 stdin（用户输入 + agent 发消息要并发显示）
-- pending actionable 必须可枚举（`/pending` 命令）
-- 用户回复要能精准对到一条 actionable（默认回复"最新一条"，可显式 `/reply <id>`）
-
-实现栈倾向：`prompt_toolkit` 的 `Application` 模式（split layout：上方消息流、下方输入条），但允许第一版用纯 stdlib 实现。
-
----
-
-## 9. Phase 3 切片重排
-
-旧切片（已废）：
-
-```
-3.2 AskUser 工具 + 可恢复 loop（awaiting_user 终止状态）   ← 废
-3.3 CLI chat 交互式入口 + session list/show/resume        ← 重定义
-```
-
-新切片：
-
-| # | 名称 | 内容 | 验收 |
-|---|---|---|---|
-| **3.1** ✅ | Session/Workspace/SqliteEventStream | 已完成 | — |
-| **3.2** | Risk model + AutonomyBehavior | RiskScore / RiskAssessment / BaselineOnlyAssessor / AutonomyBehavior + 预设；BaseAction.baseline_risk；附录 B 标定 | 各 Action 类有合理 baseline；pytest 覆盖评估器接口 |
-| **3.3** | AgentMessage + MessageStream + SqliteMessageStream | AgentMessage Pydantic 模型（含 task_id）；MessageStream Protocol（含 list_for_session/list_for_task/list_for_agent/pending_actionable/thread）；独立 messages.sqlite + 完整索引集（§7.1.3）；EventStream 加 task_id 列与索引（§7.1.5） | round-trip 持久化；四个聚合维度（session/task/agent/时间）查询正确；同毫秒消息按入库 id 决胜稳定；pending_actionable 在有 / 无 task_id 收紧下都对；跨流按 task_id 归并样例通过 |
-| **3.4** | InProcessMessageBus（含 wait_for_response） | threading.Condition + SqliteMessageStream；publish/subscribe/wait_for_response；多线程压力测试 | 并发 publish/subscribe 无丢消息；wait_for_response 在 timeout / 响应到达 / spurious wake 下行为正确 |
-| **3.5** | AutonomyGate + WaitCoordinator | gate.check 决策矩阵；WaitOutcome；timeout_action 四分支 | 单元测试覆盖 trigger × wait_strategy × timeout_action 笛卡尔积关键格 |
-| **3.6** | AgentLoop 集成 + CLI 最小可用版 | loop 调 gate；async 模式 drain_pending_responses；CLI prompt_toolkit 双栏；`/pending`、`/reply` 命令 | 端到端：用户开 session → agent 想跑高风险代码 → CLI 弹确认 → 用户授权 → 继续 |
-| **3.7** | LLMRiskAssessor + 复用 AuditAgent | 用一个轻量 LLM 评估 CodeAction.code 的风险；CompositeAssessor | 已有审计样本回归：风险评估与人工标注一致率 > 80% |
-| **3.8** | session 派生 status + CLI session 子命令 | derive_status；`taskweavn list/show/resume <id>` | UI 列表正确显示 awaiting_user；resume 自动回到正确 wait 状态 |
-| **3.9** | PlanTool | workspace/.session/plan.md 读写工具；loop system message 注入 | LLM 维护 plan，进展可见；token 预算 < 500 |
-| **3.10** | shared/ append-only 协作 | shared/ 子目录约束；Workspace 跨根支持；按 session-id 命名 from-子目录 | session A 写 shared/from-A/x.json；session B 读到；A 不能写 from-B |
-| **3.11** | in-session RAG over EventStream | 索引 EventStream actions/observations/messages；BM25 / 向量；retrieve_relevant 工具 | 给定 query，召回准确率 > 70%（人工标注 20 例） |
-| **3.12** | cross-session RAG（可选） | 跨 session retrieve；隐私边界（默认能搜还是默认不能） | 待 3.11 完成后评估收益 |
-| **3.13** | Conversation summarization | 当 token 接近预算时压缩历史；保留关键决策与未答问题 | 长任务（50+ steps）token 不爆，关键事实不丢失 |
-
-每片都对应一个 commit / 子分支，每片都自带测试与门禁。3.2–3.6 是核心交互层，必须连续做完才完整可用；3.7 之后可独立排期。
-
----
-
-## 10. 待定问题
-
-| # | 问题 | 倾向 |
-|---|---|---|
-| Q1 | `proceed_default` 的具体语义 —— 哪个是"最保守"？ | Action 类提供 `default_safe_choice() -> str` 方法，由具体 Action 决定；CodeAction 默认拒绝执行 |
-| Q2 | `notify_on_proceed=False` 时，超时自决策的事实是否还要落 EventStream？ | 落，但不发 informational message；EventStream 是审计层，不可静默 |
-| Q3 | actionable 消息的 timeout 是 message-level 还是 behavior-level？ | message 可覆盖 behavior，缺省取 behavior；同一 session 内不同 action 可能合理需要不同 timeout |
-| Q4 | LLMRiskAssessor 用什么模型？跟 AuditAgent 共享一个还是独立？ | 独立配置（AUDIT_MODEL / RISK_MODEL），但允许指向同一个；评估比 audit 更频繁，建议更便宜的模型 |
-| Q5 | 消息流的"清理"策略 —— 跑了 1 万条 informational 怎么办？ | 不清理；3.11 RAG 解决"老消息怎么找"；存储成本可接受 |
-| Q6 | CLI 在 sync wait 期间能否接受新 user instruction（非回复）？ | 能。新 instruction 走 informational 类型从 user 发到 agent，下一次 LLM call 看到；不打断当前 wait |
-| Q7 | 同一个 message_id 是否要求全局唯一（跨 session）？ | 是。便于跨 session 引用与日志 trace |
-| Q8 | risk_threshold 和 confidence_threshold 是否需要独立的 telemetry，方便后续调优？ | 是，但不在 3.x 预算内；记 todo |
-
----
-
-## 附录 A — 类型速查
-
-| 类型 | 模块（计划）| 职责 |
-|---|---|---|
-| `RiskScore` | `taskweavn.interaction.risk` | float ∈ [0,1] alias |
-| `RiskAssessment` | `taskweavn.interaction.risk` | baseline + dynamic + final + rationale |
-| `RiskAssessor` (Protocol) | `taskweavn.interaction.risk` | `assess(action, context) -> RiskAssessment` |
-| `BaselineOnlyAssessor` | `taskweavn.interaction.risk` | 默认实现 |
-| `AssessmentContext` | `taskweavn.interaction.risk` | 评估器输入 |
-| `AutonomyBehavior` | `taskweavn.interaction.autonomy` | 自主度配置 |
-| `AutonomyGate` | `taskweavn.interaction.autonomy` | 决策入口 |
-| `GateDecision` | `taskweavn.interaction.autonomy` | 决策结果 |
-| `WaitCoordinator` | `taskweavn.interaction.autonomy` | sync/async 等待协调 |
-| `WaitOutcome` | `taskweavn.interaction.autonomy` | 等待结果枚举 |
-| `AgentMessage` | `taskweavn.interaction.message` | 消息流单条事件（含 task_id） |
-| `MessageStream` (Protocol) | `taskweavn.interaction.message` | 读接口 — list_for_session / list_for_task / list_for_agent / pending_actionable / thread |
-| `SqliteMessageStream` | `taskweavn.interaction.message` | 默认读实现 |
-| `MessageBus` (Protocol) | `taskweavn.interaction.bus` | 写接口 + 等待原语 |
-| `Subscription` (Protocol) | `taskweavn.interaction.bus` | 增量订阅 |
-| `InProcessMessageBus` | `taskweavn.interaction.bus` | 默认实现 |
-| `ConfidenceProvider` (Protocol) | `taskweavn.interaction.autonomy` | 可选钩子，Phase 3 不实现 |
-
-注：`taskweavn.interaction.*` 是新顶级包；不污染现有 `core` / `memory` / `audit`。
-
----
-
-## 附录 B — 风险基线参考表
-
-```
-0.0   ReadFileAction        纯读，无副作用
-0.0   ListDirAction         同上
-0.1   AgentFinishAction     仅控制流，不写不删
-0.3   WriteFileAction       写 workspace 内，可覆盖
-0.3   AskUserMessage        发消息（控制流，但消耗用户注意力）
-0.4   PlanWriteAction       写 plan.md（meta，影响后续推理）
-0.5   CodeAction            任意 Python 执行，受沙箱限制但可触达网络（如配置允许）
-0.5   RunCommandAction      shell 执行，类似上
-0.6   FileDeleteAction      删除 workspace 内文件，可逆性差
-0.7   SharedWriteAction     写 workspace/shared/ 内（影响其他 session）
-0.8   PackageInstallAction  改变运行环境（虽然在沙箱内）
-0.9   NetworkRequestAction  对外发起请求（如 Phase 4 引入）
-1.0   SystemModifyAction    修改沙箱外的系统配置（保留位，目前 Action 集合不允许）
-```
-
-baseline 是**类静态下限**；同样 `RunCommandAction("ls")` 和 `RunCommandAction("rm -rf /")` 类 baseline 都是 0.5，运行时由 LLMRiskAssessor 把后者抬到 0.95+。
-
-用户阈值的最佳实践默认（对应预设）：
-
-```
-full_auto         risk_threshold = 1.01   （永不触发）
-risk_gated        risk_threshold = 0.5    （写 / 执行级别开始问）
-careful           risk_threshold = 0.3    （写文件就开始问）
-collaborative     用 confidence，不用 risk threshold
-manual            risk_threshold = 0.0    （什么都问）
-```
-
-用户在自己的 session 里可以覆盖任何值。
-
----
-
-## 修订历史
-
-| 版本 | 日期 | 作者 | 改动 |
-|---|---|---|---|
-| v1.0 | 2026-05-08 | claude + zhanghao | 初版；落地多 agent 协作架构文档的 Phase 3 实现层 |
-| v1.1 | 2026-05-08 | claude + zhanghao | 消息表重设计：AgentMessage 新增 task_id；MessageStream Protocol 增加 list_for_task / list_for_agent / thread；§7.1 重写 schema、加 §7.1.1–7.1.5（设计目标、表结构、索引集、写入规则、EventStream task_id 镜像）；§4.4.1 列支持的访问路径与索引承担表；§8.1 与 §8.2 补 task_id 注入路径；3.3 切片验收点更新 |
+默认 options 为 `confirm`、`reject`。允许 session approval 时可以增加 `approve_session`，但当前类型契约明确说明：它只记录该值，不会自动绕过未来 confirmation。
+
+消息写入和 TaskBus 状态更新属于两个数据库。如果 actionable 已发布而 TaskBus 更新失败，该 actionable 不会自动回滚。
+
+### 7.3 回答与恢复 Task
+
+`DefaultTaskCommandService.resolve_confirmation()` 当前检查：
+
+- message bus 已配置；
+- confirmation id 存在；
+- parent 属于当前 session；
+- parent 是 actionable；
+- 尚无 canonical response；
+- value 非空。
+
+随后它先发布 response 消息，再尝试把匹配 `waiting_for_confirmation_id` 的 Published Task 恢复为 `pending`。
+
+当前命令不校验 value 是否属于 `action_options`，也不把 `reject` 解释为拒绝执行。任何非空值都可以关闭 confirmation 并恢复 Task。`approve_session` 也没有形成后续授权策略。
+
+UI transport 的 confirmation respond 路由本身没有调用 execution dispatch helper。与 ASK answer 路径不同，confirmation 被恢复为 pending 后仍需要后续 dispatcher trigger/tick 才会重新执行。
+
+当前 Context Manager 有 `AskContextSource`，但没有 MessageStream/confirmation response source。因此 response 的 `response_value` 不会作为结构化 confirmation 答案直接进入下一次 Main Page AgentLoop 上下文。不能把“已恢复 Task”解释为当前实现已经向 Agent 注入了所选授权值。
+
+当前也没有与 `DefaultAskRecoveryService` 对等的 confirmation snapshot recovery。response 已写入但 Task resume 失败时，没有专门的 confirmation 补偿器。
+
+## 8. Main Page 显式交互与 CLI Autonomy 的边界
+
+### 8.1 Main Page 默认路径
+
+Main Page `AgentLoop` 装配：
+
+- 注册 `ask_user` 和 `request_confirmation` 工具；
+- 不传 `gate`、`wait_coordinator` 或 AgentLoop interaction `bus` 字段；
+- 通过工具显式创建 ASK/confirmation；
+- 通过 blocking observation 结束当前 run；
+- 由 TaskBus、UI command 和 execution dispatcher 组织后续 run。
+
+因此 Main Page 不是“每个普通工具动作都自动经过 AutonomyGate”的运行模式。
+
+### 8.2 通用 CLI 可选路径
+
+通用 CLI `taskweavn run` 只有在传入 `--autonomy <preset>` 时才装配：
+
+- `SqliteMessageStream`；
+- `InProcessMessageBus`；
+- `RiskAssessor`；
+- `AutonomyGate`；
+- `WaitCoordinator`；
+- 读取 stdin response 的线程。
+
+该路径默认使用显式 `--messages-db`，否则使用 `<log-dir>/messages.sqlite`；它不自动等同于 Main Page 的 workspace `.plato/messages.sqlite`。
+
+### 8.3 AutonomyGate 决策
+
+`AutonomyGate` 是纯决策组件，不发布消息也不阻塞。它返回：
+
+- `PROCEED`；
+- `EMIT`。
+
+trigger 语义：
+
+| trigger | 当前行为 |
+| --- | --- |
+| `never` | 总是 proceed |
+| `always` | 总是 emit actionable |
+| `on_risk` | `assessment.final >= risk_threshold` 时 emit |
+| `on_uncertainty` | confidence 低于阈值时 emit |
+
+没有 `ConfidenceProvider` 时 confidence 固定为 `1.0`。CLI 当前构造 gate 时没有传 provider，因此 `collaborative` 的 `on_uncertainty` 预设不会触发询问。
+
+风险模型保证：
+
+- score 在 `[0, 1]`；
+- dynamic 不低于 action class baseline；
+- final 为 baseline 与 dynamic 的最大值；
+- `BaselineOnlyAssessor`、`LLMRiskAssessor`、`CompositeAssessor` 已实现；
+- LLM assessor 失败时回退到 baseline，不中断 loop。
+
+### 8.4 WaitCoordinator
+
+`WaitCoordinator` 只处理已经发布的 actionable。
+
+`sync`：
+
+- 收到 response：返回 `GOT_RESPONSE`；
+- timeout action 为 `wait`：继续无限等待；
+- `skip`：不执行 action；
+- `proceed_default`：选择第一个 option；
+- `proceed_confident`：当前也选择第一个 option，并没有 confidence-based 选择。
+
+`async`：
+
+- 立即返回 `PENDING`；
+- AgentLoop 把原 action 放入内存 `_pending_decisions`；
+- 后续 step 使用 `wait_for_response(timeout=0)` 轮询；
+- 非拒绝回复到达后才执行原 action；
+- run 结束后仍未解决的 pending entry 从内存丢弃，actionable 消息仍保留在 SQLite。
+
+timeout 自动 proceed/skip 时，coordinator 可以发布 informational notice，但不会写 response 行。因此原 actionable 仍满足 `pending_actionable` 查询，可能继续被投影为待用户处理。
+
+AgentLoop 把以下 response value 视为拒绝 token：`no`、`n`、`deny`、`reject`、`skip`、`cancel`、`abort`。其他值，包括空值，走 proceed。
+
+## 9. Task 与 Session 状态
+
+### 9.1 Published Task
+
+Published Task 执行状态包括：
+
+- `pending`；
+- `running`；
+- `waiting_for_user`；
+- `done`；
+- `failed`。
+
+当状态为 `waiting_for_user` 时，`TaskDomain` 强制恰好存在一个活动关联：
+
+- `waiting_for_ask_id`；或
+- `waiting_for_confirmation_id`。
+
+非等待状态不能保留上述关联或 `waiting_for_user_since`。
+
+ASK answer 和 confirmation response 的正常 resume 都把 Task 变回 `pending`，不是直接回到 `running`。后续 execution dispatcher 再 claim 并运行。
+
+### 9.2 Core Session 派生函数
+
+`core.session_status.derive_session_status()` 的规则是：
+
+1. stored `archived` 优先；
+2. MessageStream 有 pending actionable -> `awaiting_user`；
+3. EventStream 最后一个事件是 `AgentFinishObservation` -> `finished`；
+4. 否则 `active`。
+
+当前生产代码没有调用这个 core helper；它的直接调用点在测试中。
+
+### 9.3 Main Page Session 投影
+
+Main Page snapshot 使用独立的 `_derive_session_status()`，它依次考虑：
+
+- active execution ASK；
+- pending authoring ASK；
+- pending confirmations；
+- TaskTree 中 waiting/running/completed/failed 状态；
+- stored Session 状态；
+- 是否已有 messages。
+
+UI 状态词使用 `waiting_user`，与 Task 的 `waiting_for_user`、core Session 的 `awaiting_user` 不同。跨层比较必须显式映射，不能直接比较字符串。
+
+## 10. UI、HTTP、Runtime Input 与 Activity
+
+### 10.1 Query 与 command 面
+
+与当前交互层直接相关的 HTTP 路由包括：
+
+| Method | Route | 作用 |
+| --- | --- | --- |
+| GET | `/api/v1/sessions/{sessionId}/snapshot` | 读取 messages、pending confirmations、planning/pending/active ASK 等聚合状态 |
+| GET | `/api/v1/sessions/{sessionId}/activity` | 读取 Session Activity 投影 |
+| GET | `/api/v1/sessions/{sessionId}/asks` | execution ASK 列表 |
+| GET | `/api/v1/sessions/{sessionId}/asks/{askId}` | execution ASK 详情 |
+| POST | `/api/v1/sessions/{sessionId}/asks/{askId}/answer` | 回答 execution ASK，并在 accepted 后请求 dispatch |
+| POST | `/api/v1/sessions/{sessionId}/asks/{askId}/defer` | defer execution ASK |
+| POST | `/api/v1/sessions/{sessionId}/asks/{askId}/cancel` | cancel execution ASK |
+| POST | `/api/v1/sessions/{sessionId}/confirmations/{confirmationId}/respond` | 写 confirmation response 并尝试恢复 Task |
+| POST | `/api/v1/sessions/{sessionId}/authoring/raw-tasks/{rawTaskId}/asks/answers` | 批量回答 Authoring ASK |
+| POST | `/api/v1/sessions/{sessionId}/runtime-input/route` | 根据当前交互上下文路由统一输入 |
+
+Runtime Input Router 先查 active execution ASK，再查 active confirmation：
+
+- 有 active ASK 时，输入被路由为 ASK answer；
+- 无 ASK 但有 active confirmation 时，输入被解析为 confirmation response，无法确定时返回 clarification；
+- 没有活动交互时才继续 stop/retry/inquiry/guidance/change 等分类。
+
+### 10.2 Frontend
+
+当前前端已经存在：
+
+- `AuthoringAskWorkArea`；
+- `ExecutionAskDetailPanel`；
+- `ConfirmationDetailPanel`；
+- domain-neutral `ChoiceGroup`；
+- Main Page controller 中对应的本地 draft、pending、error 和 refetch 行为。
+
+前端不把 command accepted 当作最终领域事实。命令完成后仍通过 snapshot/refetch 收敛 ASK、confirmation 和 Task 状态。
+
+### 10.3 Activity 与 UI events
+
+Activity projection 会组合：
+
+- AgentMessage；
+- pending/active ASK；
+- confirmation；
+- Plan/Task/result/file summary；
+- Runtime Input 写入的活动消息。
+
+Activity 与 Audit 是不同读模型；用户交互 Activity 不能替代 action/observation 审计。
+
+后端 `UiEventType` 和 helper 声明了 `ask.created/answered/deferred/cancelled/expired`，但当前生产代码没有调用这些 ASK event helper，前端 `UiEventType` 也不包含 ASK event 类型。因此 ASK 的当前可靠收敛路径是 command response 加 snapshot/refetch，不应声明为完整的 ASK live-event 流。
+
+## 11. 并发、幂等与恢复边界
+
+| 场景 | 当前保证 | 当前限制 |
+| --- | --- | --- |
+| 同一 message id 重复 publish | SQLite unique 拒绝 | 不等于同一 actionable 只能有一个 response |
+| 同一 confirmation 的两个不同 response | `response_for` 选择最早一条 | pre-check 与 insert 非同一唯一约束，竞争时可以保留多条 response |
+| ASK 重复命令 | `(session_id, idempotency_key)` replay | 不带幂等键的重复命令按 ASK 当前状态拒绝 |
+| UI command 重放 | sidecar 有 workspace UI command response idempotency store | 只覆盖经过该 transport 且复用命令标识的调用 |
+| ASK create + Task wait | 每个 store 自身持久 | 无跨库事务，可能留下 pending ASK |
+| confirmation create + Task wait | message 与 Task 各自持久 | 无跨库事务，可能留下 pending actionable |
+| ASK answer + Task resume | ASK 先持久；snapshot recovery 可补偿 | 不是原子提交；dispatch 也可能失败 |
+| confirmation response + Task resume | response 先持久；匹配时恢复 Task | 没有 confirmation 专用恢复器；route 不自动 dispatch |
+| 进程重启 | messages、ASK、Task facts 保留 | Condition、subscription queue、CLI async pending queue 不保留 |
+| 多进程等待 | SQLite 行可被其他进程看到 | `InProcessMessageBus` 不会被其他进程 publish 唤醒 |
+
+## 12. 当前已知限制
+
+1. 只有 `InProcessMessageBus`；跨进程 SQLite polling bus 和 Redis bus 未实现。
+2. AgentMessage 缺少按 message type 的完整模型校验。
+3. MessageStream 不限制一个 actionable 只能有一个 response。
+4. `pending_actionable` 不检查 `requires_response`。
+5. Task projection 将所有 pending actionable 映射为 confirmation。
+6. confirmation value 不受 action options 约束；`reject` 也会恢复 Task。
+7. `approve_session` 不会形成后续免确认策略。
+8. confirmation respond 路由不会像 ASK answer 一样请求 execution dispatch。
+9. confirmation response value 不是当前 Context Manager source。
+10. confirmation 没有 ASK recovery 对等补偿器。
+11. ASK/message 与 Task 生命周期变化没有跨库事务。
+12. `on_uncertainty` 在无 ConfidenceProvider 时不会触发。
+13. `proceed_confident` 当前与 first-option default 相同。
+14. timeout 自决只写 informational notice，原 actionable 仍 pending。
+15. async autonomy pending action 只存在于当前 AgentLoop run 的内存。
+16. Main Page 默认 AgentLoop 不装配 AutonomyGate。
+17. Execution ASK attachment 当前不支持。
+18. ASK UI event helper 已定义，但生产 emit 与前端事件类型尚未闭合。
+
+## 13. 代码事实索引
+
+核心消息与 autonomy：
+
+- `src/taskweavn/interaction/message.py`
+- `src/taskweavn/interaction/sqlite_message_stream.py`
+- `src/taskweavn/interaction/bus.py`
+- `src/taskweavn/interaction/autonomy.py`
+- `src/taskweavn/interaction/gate.py`
+- `src/taskweavn/interaction/risk.py`
+- `src/taskweavn/interaction/wait.py`
+
+ASK 与 confirmation：
+
+- `src/taskweavn/interaction/ask.py`
+- `src/taskweavn/interaction/sqlite_ask_store.py`
+- `src/taskweavn/tools/ask.py`
+- `src/taskweavn/tools/confirmation.py`
+- `src/taskweavn/types/ask.py`
+- `src/taskweavn/types/confirmation.py`
+- `src/taskweavn/task/ask_service.py`
+- `src/taskweavn/task/commands.py`
+- `src/taskweavn/task/models.py`
+- `src/taskweavn/task/sqlite_bus.py`
+
+AgentLoop 与装配：
+
+- `src/taskweavn/core/loop.py`
+- `src/taskweavn/cli/main.py`
+- `src/taskweavn/server/main_page.py`
+- `src/taskweavn/server/main_page_agent.py`
+- `src/taskweavn/server/ask_recovery.py`
+
+UI contract 与前端：
+
+- `src/taskweavn/server/ui_http.py`
+- `src/taskweavn/server/ui_http_routes.py`
+- `src/taskweavn/server/ui_http_commands.py`
+- `src/taskweavn/server/runtime_input_router.py`
+- `src/taskweavn/server/ui_contract/command_gateway.py`
+- `src/taskweavn/server/ui_contract/query_snapshot_helpers.py`
+- `src/taskweavn/server/ui_contract/session_activity_projection.py`
+- `src/taskweavn/server/ui_contract/events.py`
+- `frontend/src/pages/main-page/interaction/AuthoringAskWorkArea.tsx`
+- `frontend/src/pages/main-page/interaction/ExecutionAskDetailPanel.tsx`
+- `frontend/src/pages/main-page/interaction/ConfirmationDetailPanel.tsx`
+
+## 14. 验证原则
+
+修改本架构事实时，至少覆盖：
+
+- AgentMessage 与 SQLite round trip、pending/response 语义；
+- MessageBus publish/subscribe/wait/close；
+- autonomy gate、risk assessor、WaitCoordinator、AgentLoop interaction；
+- ASK store、Task ASK service、TaskBus waiting 生命周期与 recovery；
+- confirmation tool/command、Main Page sidecar 真实装配；
+- query/command/runtime-input/activity 投影；
+- 前端 Authoring ASK、Execution ASK、Confirmation 和 controller 收敛行为。
+
+本次具体命令与结果记录在
+[fix-log/interaction-layer.md](fix-log/interaction-layer.md)。

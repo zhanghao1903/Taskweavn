@@ -1,123 +1,158 @@
-# TaskWeavn — 核心架构参考
+# TaskWeavn 核心架构参考
 
-> 版本 v1.1 · 2026-06-24
-> Status: implemented core substrate reference / partial current implementation map
->
-> 关联文档：
-> - [项目计划](../project/roadmap.md)
-> - [多 Agent 协作架构](multi-agent-collaboration.md)
-> - [Interaction Layer 技术设计](interaction-layer.md)
->
-> 本文档面向**贡献者**：当你在某一层工作时，需要快速搞清楚"周围有哪些抽象、它们之间如何契约、对象的生命周期是怎样的"。
->
-> 不重复设计动机（见上方关联文档）；只列 core substrate 中的实现对象、Protocol、对象生命周期。
-> 范围说明：本文最初截至 Phase 3.6a，仍适合理解 Action/Observation、Tool/Runtime、LLM provider、EventStream、MessageStream、AgentLoop 等底层 substrate。
-> Product 1.0 后续已经补齐 Authoring Domain、UI/backend contract、fixed-route execution bridge、result/error summary、Main Page projection、file summary projection 等事实。Product 1.1 又补齐 Runtime Input Router、durable Conversation / Activity、read-only inquiry、workspace inspection、precision file tools、token usage、Agent LLM resolver、web search/fetch 和 Execution Plane foundation。完整当前架构总览以 [overview.md](overview.md) 为准；Product 1.1 P0 证据以 [Product 1.1 Runtime Input Router Release Evidence](../releases/product-1-1-runtime-input-router-release-evidence.md) 为准。
+> Status: fact-calibrated current implementation reference
+> Last Updated: 2026-07-10
+> Original preserved as:
+> `docs/architecture/reference.original.md`
+> Verification record:
+> [fix-log/reference.md](fix-log/reference.md)
+> Related:
+> [Overview](overview.md),
+> [Agent](agent.md),
+> [Task](task.md),
+> [TaskBus](bus.md),
+> [Interaction Layer](interaction-layer.md),
+> [Context Manager](context-manager.md),
+> [LLM Reliability](llm-provider-reliability.md),
+> [Logging](configurable-logging-system.md)
 
----
+## 1. 范围与阅读规则
 
-## 目录
+本文面向需要修改 TaskWeavn Python 后端的贡献者，提供当前底层 substrate、对象
+生命周期和产品装配的快速参考。
 
-1. [分层与依赖](#1-分层与依赖)
-2. [Types — 类型化事件骨架](#2-types--类型化事件骨架)
-3. [Tools / Runtime — 执行层](#3-tools--runtime--执行层)
-4. [LLM — 模型客户端](#4-llm--模型客户端)
-5. [Memory / EventStream — 持久层](#5-memory--eventstream--持久层)
-6. [Audit — 审计层](#6-audit--审计层)
-7. [Interaction — 交互层](#7-interaction--交互层)
-8. [Workspace / Session — 工作区与会话](#8-workspace--session--工作区与会话)
-9. [Orchestration — 多 Agent 占位](#9-orchestration--多-agent-占位)
-10. [Core — AgentLoop 编排](#10-core--agentloop-编排)
-11. [Protocol 总表](#11-protocol-总表)
-12. [标识与命名空间](#12-标识与命名空间)
-13. [生命周期](#13-生命周期)
-14. [双流架构（events ⊕ messages）](#14-双流架构events--messages)
-15. [横切设计模式](#15-横切设计模式)
+本文不是整个仓库的自动生成 API 索引，也不声称列出所有 Protocol、模型或存储。
+当前代码已经远超早期 `types -> runtime -> core -> CLI` 范围，包含 Task authoring、
+Context Manager、Runtime Input Router、UI contract、Execution Plane、skills、usage、
+runtime config、workspace inspection 和 observability 等独立域。
 
----
+阅读时必须区分三类事实：
 
-## 1. 分层与依赖
+1. **substrate 能力存在**：类或 Protocol 已实现；
+2. **某个入口已装配**：Main Page sidecar 或 CLI 实际使用该能力；
+3. **产品闭环成立**：store、command、service、projection、UI 和 tests 已贯通。
 
-```
-                    ┌──────────────────────────────────────────┐
-                    │              CLI (typer)                 │
-                    └────────────────────┬─────────────────────┘
-                                         │
-                    ┌────────────────────▼─────────────────────┐
-                    │              Core                        │
-                    │   AgentLoop · Session · WorkspaceLayout  │
-                    └─┬──────┬──────────┬──────────┬────────┬──┘
-                      │      │          │          │        │
-       ┌──────────────▼┐ ┌───▼────┐ ┌───▼─────┐ ┌──▼───┐ ┌──▼──────────┐
-       │  Interaction  │ │ Audit  │ │ Memory  │ │ LLM  │ │ Orchestration│
-       │ gate · bus ·  │ │AuditAg │ │Thought  │ │Client│ │Orchestrator  │
-       │ wait · risk · │ │Verdict │ │Store    │ │      │ │ (Phase 4)    │
-       │ message       │ │        │ │         │ │      │ │              │
-       └─┬─────────────┘ └────────┘ └────────┬┘ └──────┘ └──────────────┘
-         │                                   │
-       ┌─▼─────────────────────────┐  ┌──────▼─────────────┐
-       │   EventStream + Tools     │  │   Runtime          │
-       │   tool · workspace · fs   │  │   LocalRuntime     │
-       └─┬─────────────────────────┘  └─┬──────────────────┘
-         │                              │
-       ┌─▼──────────────────────────────▼───┐
-       │   Types — BaseEvent/Action/Obs     │
-       │   ActionRegistry / ObsRegistry     │
-       └────────────────────────────────────┘
+一个类存在不等于 Main Page 已装配。典型例子：
+
+- `AutonomyGate`、`CodeActionTool`、`AuditAgent` 和 configurable ThoughtStore 在通用
+  CLI 路径可用；
+- Main Page Default Agent 不装配这四项，而使用显式 ASK/confirmation、直接
+  filesystem/shell tools、Context Manager 和 cooperative interruption；
+- `Orchestrator` 存在 Protocol，但没有真实实现或调用路径。
+
+## 2. 当前代码结构
+
+### 2.1 产品执行主路径
+
+```text
+React Main Page
+  -> local sidecar HTTP / SSE
+  -> Runtime Input Router or explicit command/query
+  -> Authoring / Contract Revision / Interaction / Task controls
+  -> Plan / TaskNode publish
+  -> TaskBus
+  -> FixedRouteExecutionDispatcher
+  -> FixedRouteTaskExecutor
+  -> resident Default Agent adapter
+  -> task-scoped AgentLoop
+  -> concrete tools + Context Manager + LLM
+  -> EventStream / TaskBus / MessageStream / result summaries / usage
 ```
 
-**依赖方向铁律**：箭头永远向下。
-- `types` 不依赖任何业务层。
-- `runtime` 只依赖 `types`。
-- `interaction` / `audit` / `memory` / `llm` 只依赖 `types` + `runtime`（如有）。
-- `core` 把上面所有层粘合成一次 `AgentLoop.run()`。
-- `cli` 只负责把命令行参数装配成 `core` 对象。
+普通 Execution Plane TaskRequest 也会映射到 TaskBus，再进入同一 fixed-route 路径；
+特定 task type 可以交给 local runtime handler。
 
-层与层之间通过 **Protocol** 解耦——所有跨层依赖都先写 Protocol，再给一个具体实现。
+### 2.2 包级职责
 
----
+| 包 | 当前职责 |
+|---|---|
+| `taskweavn.types` | typed Action / Observation 基类、注册表和通用事件类型 |
+| `taskweavn.runtime` | Action 到 Observation 的执行协议和进程内 dispatch |
+| `taskweavn.tools` | concrete Tool、workspace path policy、file/shell/web/computer-use/interaction adapters |
+| `taskweavn.core` | AgentLoop、EventStream、Session、WorkspaceLayout、loop profile seam |
+| `taskweavn.llm` | provider-neutral request/response、provider facade、retry、role-aware resolver |
+| `taskweavn.memory` | optional ThoughtStore side channel |
+| `taskweavn.audit` | optional CodeAction LLM audit substrate |
+| `taskweavn.interaction` | MessageStream、ASK、autonomy/risk primitives、in-process bus |
+| `taskweavn.context` | Session context collection、policy、render、checkpoint/delta persistence |
+| `taskweavn.task` | authoring、Plan/TaskNode、publish、Published Task lifecycle、projection、fixed execution |
+| `taskweavn.contract_revision` | typed guidance/task revision commands and durable activity |
+| `taskweavn.execution_plane` | service-level local Task API、env compatibility、selected runtime handlers |
+| `taskweavn.workspace_inspection` | bounded read/search/precision-file evidence |
+| `taskweavn.skills` | skill registry、policy、activation facts、context injection |
+| `taskweavn.runtime_config` | schema registry、resolved values、mutation ledger、same-process config bus |
+| `taskweavn.usage` | successful ChatResponse token-usage ledger |
+| `taskweavn.observability` | structured process-local logging and legacy channel bridge |
+| `taskweavn.server` | Main Page composition root、UI gateways、HTTP/SSE、recovery、diagnostics |
+| `taskweavn.cli` | standalone Typer entry point and optional substrate assembly |
 
-## 2. Types — 类型化事件骨架
+### 2.3 依赖关系不是全局层级铁律
+
+当前仓库使用 Protocol 隔离许多边界，但没有“所有跨层依赖必须先写 Protocol”或
+“箭头永远向下”的全局规则。例如 `core.loop` 直接组合 LLM、tools、audit、memory、
+observability 和 runtime；`server` 组合 Task、Context、Interaction、Execution Plane
+与 UI contracts。
+
+应以包的 authority、command/query 边界和 composition root 为依据，不应从旧的
+单向分层图推断当前依赖合法性。
+
+## 3. Typed Action / Observation Substrate
 
 模块：`taskweavn.types`
 
-### 2.1 BaseEvent / BaseAction / BaseObservation
+### 3.1 基类
 
-| 类型              | 定位                                    | 关键字段                                        |
-| ----------------- | --------------------------------------- | ----------------------------------------------- |
-| `BaseEvent`       | 一切上 EventStream 的对象               | `event_id`, `timestamp`, ClassVar `kind`        |
-| `BaseAction`      | 想发生的事（agent / user / system）     | `source`, ClassVar `baseline_risk` ∈ [0, 1]     |
-| `BaseObservation` | Action 执行后的结果                     | `action_id`（指回触发它的 Action）, `success`   |
+| 类型 | 当前字段/性质 |
+|---|---|
+| `BaseEvent` | Pydantic frozen model；`extra="forbid"`；`event_id`、UTC `timestamp`、ClassVar `kind` |
+| `BaseAction` | 增加 `source`；ClassVar `baseline_risk`；定义子类时校验 `[0,1]` |
+| `BaseObservation` | 增加可选 `action_id` 和 `success`；`action_id` 并非所有 Observation 都必填 |
 
-**契约**
-- 都是 Pydantic v2 frozen 模型，`extra="forbid"`，`validate_assignment=True`。
-- 子类用 `__init_subclass__` 自动注册到 `ActionRegistry` / `ObservationRegistry`，注册键就是 `kind`（默认类名，可显式指定）。如果某层只是抽象中间类，传 `register=False` 跳过。
-- `baseline_risk` 是**类常量**，子类必须保证 0 ≤ x ≤ 1，否则定义时就报错。
-- 序列化通过 `to_dict()`（dict）/ `to_json()`（字符串），其中 `kind` 是判别字段；反序列化走 registry 的 `deserialize()`。
+`to_dict()` / `to_json()` 会把 ClassVar `kind` 写入 payload。`kind` 是反序列化
+discriminator，不是独立事件 family。
 
-### 2.2 已有具体类型
+### 3.2 自动注册
 
-- `taskweavn.types.common` — `AgentFinishAction`、`AgentFinishObservation`、`ErrorObservation`
-- `taskweavn.types.code_action` — `CodeAction`、`CodeExecutionObservation`、`FileChange`、`TrackingConfig`
-- `taskweavn.tools.fs` — `ReadFileAction/WriteFileAction/ListDirAction` + 对应 Observation
-- `taskweavn.tools.shell` — `RunCommandAction` + Observation
-- `taskweavn.audit.agent` — `AuditObservation`（包了 LLM 输出 `AuditVerdict`）
+`BaseAction.__init_subclass__` 和 `BaseObservation.__init_subclass__` 默认把 concrete
+子类注册到：
 
-### 2.3 Registry
+- `ActionRegistry`；
+- `ObservationRegistry`。
 
-`_Registry[E]` 是一个泛型 dict，按 `kind` 字符串 → 类。两个全局实例：
-- `ActionRegistry`
-- `ObservationRegistry`
+规则：
 
-**用途**：SqliteEventStream 把行 JSON 反序列化成原类时只能拿到字符串 `kind`，需要 registry 找回 Python 类。**任何会被持久化的 Action/Observation 必须在导入路径上自动注册**——所以 `taskweavn.tools` 模块得在程序入口被 import 一次。
+- 默认 key 是类名，也可以在类定义时指定 `kind=`；
+- abstract/intermediate class 可传 `register=False`；
+- 同一个 kind 注册到不同 class 会抛 `ValueError`；
+- SQLite replay 前必须 import 定义 concrete event 的模块，否则 registry 无法找回
+  class；
+- registry 只覆盖 Action/Observation family，不是所有 domain event 的全局 schema
+  registry。
 
----
+### 3.3 当前事件家族
 
-## 3. Tools / Runtime — 执行层
+通用类型包括：
 
-### 3.1 Runtime Protocol
+- `AgentFinishAction` / `AgentFinishObservation`；
+- `AgentErrorObservation` / `ErrorObservation`；
+- `CodeAction` / `CodeExecutionObservation`；
+- `AskUserAction` / `AskUserObservation`；
+- `RequestConfirmationAction` / `RequestConfirmationObservation`；
+- `ComputerUseAction` / `ComputerUseObservation`。
 
-模块：`taskweavn.runtime.base`
+file、precision-file、shell、web search/fetch 的 Action/Observation 定义在各自 Tool
+模块中，import 时同样注册。TaskBus、UI events、runtime config changes 和 token usage
+不是 `BaseEvent` 子类；它们有各自 model/store。
+
+### 3.4 标识限制
+
+`event_id` 默认是 `uuid4().hex`，但 SQLite EventStream schema 当前没有
+`UNIQUE(event_id)` 约束。文档可以称其为应用生成标识，不能把数据库级全局唯一性写成
+已强制不变量。
+
+## 4. Runtime、Tool 与 Workspace
+
+### 4.1 Runtime Protocol
 
 ```python
 @runtime_checkable
@@ -125,104 +160,243 @@ class Runtime(Protocol):
     def execute(self, action: BaseAction) -> BaseObservation: ...
 ```
 
-**契约**
-- **永远不能 raise**——所有失败包成 `ErrorObservation`。这是整个 loop 不写 try/except 的前提。
-- 接受任意 `BaseAction`，返回任意 `BaseObservation`。具体路由由实现负责。
+Protocol 文档要求实现把失败转换为 Observation 而不是抛异常。当前
+`LocalRuntime.execute()` 实际执行该约束：
 
-### 3.2 LocalRuntime
+- 按 Action 的**精确 class**查找 executor；
+- 未注册时返回 `ErrorObservation(error_type="no_executor")`；
+- executor 抛异常时返回 `ErrorObservation(error_type="execution_error")`；
+- 重复注册同一 Action class 会静默覆盖；
+- invoke/result 通过 structured tool logger 记录。
 
-模块：`taskweavn.runtime.local`
+该 total-function 保证属于 Runtime execution boundary，不自动覆盖 Tool startup、
+EventStream append、ThoughtStore write 或其他 AgentLoop 依赖。
 
-进程内 Runtime，按 `type[BaseAction]` → `Executor` 字典分发。
-
-| 方法                                 | 说明                                                       |
-| ------------------------------------ | ---------------------------------------------------------- |
-| `register(action_type, executor)`    | 把 action 类绑定到一个 `Callable[[Action], Observation]`。 |
-| `execute(action)`                    | 找到 executor 调用，捕获所有异常 → `ErrorObservation`。     |
-
-**关键决策**：重复 `register` 同一个 `action_type` 会**静默替换**——简化工具组合，代价是失去重复检测。
-
-`tool` 频道的 logger 在 `invoke` 和 `result` 两个时刻打 JSON，便于事后审计。
-
-### 3.3 Tool 抽象基类
-
-模块：`taskweavn.tools.base`
+### 4.2 Tool 抽象
 
 ```python
 class Tool[ActionT: BaseAction, ObservationT: BaseObservation](ABC):
     name: ClassVar[str]
-    description: ClassVar[str]          # → LLM tool schema 的 description
+    description: ClassVar[str]
     action_type: ClassVar[type[BaseAction]]
     observation_type: ClassVar[type[BaseObservation]]
 
-    @abstractmethod
     def execute(self, action: ActionT) -> ObservationT: ...
-
-    def startup(self) -> None: ...      # 可重写：分配 per-task 资源
-    def shutdown(self) -> None: ...     # 可重写：释放
+    def startup(self) -> None: ...
+    def shutdown(self) -> None: ...
     def register(self, runtime: LocalRuntime) -> None: ...
 ```
 
-**Tool 把四件事打包**：Action 类型、Observation 类型、LLM 看到的 schema 信息、execute 函数。
+`Tool.execute()` 可以抛异常；LocalRuntime 负责归一化。`startup()` / `shutdown()` 是
+每次 `AgentLoop.run()` 的 hooks。
 
-**生命周期**（详见 §13）：`AgentLoop.run()` 进入时调用每个 tool 的 `startup()`，`finally` 块里调用 `shutdown()`。execute 期间任何异常由 Runtime 捕获，不会污染 startup/shutdown 配对。
+当前生命周期细节：
 
-### 3.4 Workspace（沙盒根）
+1. AgentLoop 按 tools 顺序调用全部 `startup()`；
+2. startup exception 不会转换为 LoopResult，会离开 `run()`；
+3. `finally` 会对 tools 列表中的**每个** Tool 尝试 `shutdown()`，包括 startup 尚未
+   执行或已失败的 Tool；
+4. 每个 shutdown exception 被 suppress；
+5. 因此要求 shutdown 幂等并容忍未完成 startup，但不能把它描述成严格的一一成功
+   配对。
 
-模块：`taskweavn.tools.workspace`
+### 4.3 Workspace path policy
 
-`Workspace(root)` 是所有文件系统工具的路径解析器：
-- `resolve(path)` 把传入路径（相对/绝对）解析到 `root` 之下；
-- 越界时抛 `PathOutsideWorkspaceError`。
+`Workspace(root)` 要求 root 已存在且是目录。`resolve(path)`：
 
-这是**纵深防御**，不是真正的安全边界（Phase 2.2 的 sandbox runtime 才是）。
+- 解析相对/绝对路径；
+- 拒绝逃出 root 的路径；
+- 拒绝 `.plato`、legacy `.taskweavn` 和 `.code-agent` metadata tree。
 
----
+这是 normal filesystem Tool 的 path policy，不是 OS sandbox。`RunCommandTool` 以
+workspace 为 cwd，但 Workspace 对象本身不能阻止任意子进程访问系统其他位置。
 
-## 4. LLM — Provider-backed 模型客户端
+### 4.4 Main Page 与 CLI Tool 集不同
 
-模块：`taskweavn.llm.client`、`taskweavn.llm.contracts`、`taskweavn.llm.providers`
+Main Page Default Agent 基础工具：
 
-| 对象                                       | 作用                                                       |
-| ------------------------------------------ | ---------------------------------------------------------- |
-| `LLMClient(model, api_key, provider=...)`  | 单一应用入口；`chat()` 走 provider，`complete()` / `count_tokens()` 暂保留 OpenHands 兼容路径。 |
-| `LLMProvider`                              | provider transport Protocol，统一 `chat()` / `complete()` / `count_tokens()` 边界。 |
-| `BaseLLMProvider`                          | provider 基类，提供错误分类、自动重试、retry record 注入。 |
-| `LiteLLMProvider`                          | 默认兼容 provider，维持原有 LiteLLM 行为。                 |
-| `DeepSeekProvider`                         | DeepSeek 官方 SDK / OpenAI-compatible 路径，支持 thinking mode 与 reasoning metadata。 |
-| `OpenRouterProvider`                       | OpenRouter provider routing provider，支持固定 provider / order / fallback policy。 |
-| `ChatRequest`                              | provider 输入对象，封装 messages、tools、thinking、routing、metadata。 |
-| `ChatResponse`                             | `content`、`tool_calls`、`raw_assistant_message`，并携带可选 `reasoning_content`、usage、provider、retry metadata。 |
-| `ToolCall`                                 | `id`、`name`、`arguments`（原始 JSON 字符串）。            |
-| `ThinkingConfig`                           | thinking 开关、effort、max_tokens 等配置。                 |
-| `ProviderRoutingConfig`                    | OpenRouter provider routing 配置。                         |
-| `RetryPolicy` / `RetryRecord`              | provider 层 retry 策略与尝试记录。                         |
-| `tool_schema_from_action(name, desc, T)`   | 从 Pydantic Action 类生成 OpenAI tool schema，剥掉 `event_id` / `timestamp` / `source`。 |
-| `parse_tool_arguments(raw)`                | 容错解析 tool_call 的 `arguments` JSON。                   |
+```text
+read_file
+read_file_range
+search_workspace
+replace_file_range
+append_file
+write_file
+list_dir
+run_command
+```
 
-**`chat()` 是 stateless 的**——会话历史由 `AgentLoop` 自己维护并每轮全量传入。provider 层只负责 LLM transport：请求构造、错误分类、自动重试、响应归一化和 provider metadata。工具执行、Action 执行、TaskBus 操作不在 provider retry 范围内。
+按配置可增加：
 
-`LLMClient.from_env(default_model)` 现在读取 provider 配置：
+- `web_search`；
+- `web_fetch`；
+- `computer_use`；
+- Published Task 绑定的 `ask_user`；
+- Published Task 绑定的 `request_confirmation`。
 
-- `LLM_PROVIDER=litellm|deepseek|openrouter`
-- `LLM_MODEL`
-- `LLM_API_KEY`
-- `DEEPSEEK_API_KEY` / `DEEPSEEK_BASE_URL`
-- `OPENROUTER_API_KEY`
-- `LLM_THINKING_ENABLED` / `LLM_THINKING_EFFORT`
-- `OPENROUTER_PROVIDER_ORDER` / `OPENROUTER_PROVIDER_ONLY` / `OPENROUTER_PROVIDER_IGNORE`
-- `OPENROUTER_ALLOW_FALLBACKS` / `OPENROUTER_REQUIRE_PARAMETERS`
-- `OPENROUTER_DATA_COLLECTION` / `OPENROUTER_ZDR`
+Standalone CLI 还固定装配 `CodeActionTool` (`run_code`)，并可选 audit、thoughts 和
+autonomy bundle。Main Page 不装配 `CodeActionTool`。
 
-长期方向：这些环境变量只是第一版入口，后续应迁移到全局/session 继承式配置系统。
+### 4.5 Sandbox substrate
 
----
+`CodeActionTool` 持有 `SandboxExecutor`：
 
-## 5. Memory / EventStream — 持久层
+- startup 创建 Docker container；
+- workspace bind mount 到 `/workspace`；
+- 默认 network mode 是 `none`；
+- 同一个 run 内复用 container，但每次 `docker exec` 使用新的 Python interpreter；
+- file state 可持续，Python globals 不持续；
+- side-effect snapshot 跳过受保护 metadata，并区分 declared/undeclared changes；
+- shutdown best-effort 删除 container。
 
-### 5.1 EventStream Protocol
+这是 CLI substrate，不是当前 Main Page 普通 filesystem/shell Tool 的安全边界。
 
-模块：`taskweavn.core.event_stream`
+## 5. AgentLoop
+
+模块：`taskweavn.core.loop`
+
+### 5.1 当前构造面
+
+```python
+@dataclass
+class AgentLoop:
+    llm: LLMClient
+    runtime: Runtime
+    tools: list[Tool[Any, Any]]
+    event_stream: EventStream = InMemoryEventStream()
+    thought_store: ThoughtStore = NullThoughtStore()
+    system_prompt: str = DEFAULT_SYSTEM_PROMPT
+    max_steps: int = 20
+    auditor: AuditAgent | None = None
+
+    session_id: str = "default"
+    workspace_root: Path | None = None
+    bus: MessageBus | None = None
+    gate: AutonomyGate | None = None
+    wait_coordinator: WaitCoordinator | None = None
+    context_provider: AgentLoopContextProvider | None = None
+    interrupt_checker: TaskInterruptChecker | None = None
+```
+
+### 5.2 装配校验
+
+`__post_init__` 当前验证：
+
+- Tool name 不能重复；
+- `agent_finish` 是 loop 保留 Tool name；
+- `gate` 与 `wait_coordinator` 必须同时存在或同时缺失；
+- gate 存在时必须有 `bus` 和 `workspace_root`。
+
+Context provider、interrupt checker、auditor 和 thought store 没有 bundle-level
+cross-validation。
+
+### 5.3 Run identity
+
+```python
+run(task: str, *, task_id: str | None = None) -> LoopResult
+```
+
+- 未传 `task_id` 时创建一个 uuid hex；
+- Main Page 传入 Published `TaskDomain.task_id`；
+- 每次调用还创建
+  `agent_loop:<task_id>:<uuid>` 形式的 internal `agent_run_id`；
+- EventStream concrete extension和 AgentMessage 只记录 `task_id`；
+- `agent_run_id` 进入 Context/LLM metadata 和 usage path，但不是当前 EventStream row
+  的字段。
+
+同一个 Published Task 在 ASK/confirmation resume、retry 或其他 rerun 后可以产生多次
+AgentLoop run。因此按 `task_id` 联结 events/messages 得到的是 Task-level timeline，
+不一定是精确一次 run。不能再把 `task_id` 定义成“一次 AgentLoop.run 的唯一 id”。
+
+### 5.4 主循环
+
+每个 step 的当前顺序是：
+
+1. 在 `step_start` 检查 cooperative interruption；
+2. drain 当前 run 内的 async autonomy pending decisions；
+3. 再次检查 interruption；
+4. 通过 Context Provider 准备 LLM messages/metadata；
+5. context error 生成 `AgentErrorObservation` 并停止；
+6. LLM 前检查 interruption；
+7. 记录 LLM input，调用 `llm.chat()`，记录 output；
+8. LLM error/timeout 生成 `AgentErrorObservation` 并停止；
+9. 有 response content 时写 ThoughtStore；
+10. 无 tool calls 时成功结束；
+11. `agent_finish` 生成 finish Action/Observation 并成功结束；
+12. 普通 tool call 解析为 Action；解析失败写 `ErrorObservation` 后继续；
+13. Tool 前检查 interruption；
+14. 可选 AutonomyGate 返回 proceed/skip/defer；
+15. proceed 时 append Action、Runtime.execute、append Observation；
+16. 可选 AuditAgent 只处理 CodeAction/CodeExecutionObservation；
+17. 成功的 ASK/confirmation waiting Observation 以 `waiting_for_user` 停止；
+18. Tool 后再次检查 interruption；
+19. step 用完后返回 `max_steps`。
+
+### 5.5 LoopResult
+
+```python
+@dataclass(frozen=True)
+class LoopResult:
+    final_answer: str
+    steps: int
+    finished: bool
+    stop_reason: str
+```
+
+当前源码产生这些 stop reason：
+
+| stop reason | `finished` | 含义 |
+|---|---:|---|
+| `no_tool_calls` | true | LLM 直接完成 |
+| `agent_finish` | true | LLM 调用保留 finish tool |
+| `max_steps` | false | step limit |
+| `waiting_for_user` | false | ASK/confirmation 已把 Task 置为 waiting |
+| `context_error` | false | Context Provider 失败 |
+| `llm_error` | false | provider/LLM 调用失败 |
+| `llm_timeout` | false | timeout-shaped LLM failure |
+| `interrupted` | false | cooperative stop 在 safe point 生效 |
+| `interrupt_check_error` | false | interruption source 本身失败 |
+
+`stop_reason` 是普通字符串，不是 Literal-validated closed enum。
+
+### 5.6 异常边界
+
+AgentLoop 会把 context、LLM 和 interruption-check failures 转成 LoopResult；
+LocalRuntime 会把 Tool execute failure 转成 ErrorObservation。但 `run()` 不是全局
+“永不抛”函数。以下依赖失败仍可能抛出：
+
+- Tool startup；
+- EventStream append；
+- ThoughtStore write；
+- 部分 MessageBus publish/wait 路径；
+- audit 之外的内部实现错误。
+
+Main Page 的 `FixedRouteTaskExecutor` 在更外层捕获 resident Agent exception，并把
+Task 失败事实提交给 TaskBus。该外层补偿不能改写 AgentLoop 自身的契约。
+
+### 5.7 Context 和 interruption
+
+Main Page 为 AgentLoop 装配 `SessionAgentLoopContextProvider`：
+
+- 每次 LLM call 前从 Task、Event、ASK、guidance、control 和 context store 构建输入；
+- 支持 persisted messages、delta/checkpoint 和 stable prefix metadata；
+- 生成 snapshot/trace/render hashes；
+- 把 `agent_run_id`、turn index、tools 和 pending decision count 传入 context request。
+
+Main Page 还装配 TaskBus-backed `TaskInterruptChecker`。它在 LLM/tool 边界的 cooperative
+safe points 读取 stop intent；不会 hard-kill 已经运行的 provider call 或 command。
+
+### 5.8 Loop profile seam
+
+`core.loop_profile` 定义 `AgentLoopProfile`、`AgentLoopProfileResult` 和
+`LoopTerminalAction`。该 Protocol 描述 profile-neutral prompt/terminal mapping seam，
+当前 Collaborator authoring 有自己的 profile/runner。
+
+它不是 `AgentLoop` dataclass 的 `profile` 字段，也不是通用多 Agent runtime。
+
+## 6. EventStream
+
+### 6.1 Protocol
 
 ```python
 @runtime_checkable
@@ -233,632 +407,488 @@ class EventStream(Protocol):
     def replay(self, *, since=None, kinds=None) -> Iterator[BaseEvent]: ...
 ```
 
-**契约**
-- 仅追加（append-only）——没有 update/delete 接口，事件就是历史。
-- 迭代必须返回快照，不能在外部迭代时被并发 append 撞到。
-- `replay(since=, kinds=)` 是带过滤的有序回放。
+这是 typed Action/Observation append/replay boundary。它不是 Published Task lifecycle、
+UI event replay、authoring audit 或 MessageStream 的统一 store。
 
-### 5.2 InMemoryEventStream
+### 6.2 In-memory implementation
 
-`list` + `Lock`。append 之后顺手通过 `action` / `observation` 频道 logger 打一行。
+`InMemoryEventStream`：
 
-### 5.3 SqliteEventStream
+- list + `Lock`；
+- append 后发 structured action/observation log；
+- iteration 在 lock 下复制 snapshot；
+- replay 使用 `timestamp > since` 和 kind filter。
 
-模块：`taskweavn.core.sqlite_event_stream`
+### 6.3 SQLite implementation
 
-| 关键点               | 说明                                                                                   |
-| -------------------- | -------------------------------------------------------------------------------------- |
-| 持久化粒度           | 每个 event 一行，`payload` 存 `to_dict()` JSON。                                        |
-| 反序列化             | 按 `family`（`"action"` / `"observation"`）路由到 `ActionRegistry` / `ObsRegistry`。   |
-| 模式演进             | Phase 3.3 加了 `task_id` 列；旧库通过 `_migrate_task_id_column()` 在打开时自动 ALTER。 |
-| 索引                 | `idx_events_kind`、`idx_events_timestamp`、`idx_events_task_created(task_id, ts, id)`。 |
-| 并发                 | autocommit + WAL，单连接 + 内部 `Lock` 串行化 append。                                  |
-| **协议外扩展**       | `append(event, *, task_id=None)` 比 Protocol 多一个 kwarg，AgentLoop 用 try/except TypeError 适配。 |
-| **协议外扩展**       | `iter_for_task(task_id)`：按 `task_id` 重放本次 run 的所有 event。                      |
+`SqliteEventStream`：
 
-### 5.4 ThoughtStore Protocol
+- 每个 Session 一个 `events.sqlite`；
+- 每行保存 `event_id`、`kind`、family、timestamp、JSON payload 和可选 `task_id`；
+- WAL + autocommit；
+- append 由 instance-local `Lock` 串行；
+- family 只接受 `BaseAction` / `BaseObservation`；
+- 通过 registry 反序列化；
+- 支持 `iter_for_task(task_id)` concrete extension；
+- 支持 context manager 和幂等 close。
 
-模块：`taskweavn.memory.thought_store`
+`EventStream.append()` Protocol 没有 `task_id` kwarg。AgentLoop 当前先尝试
+`append(event, task_id=...)`，捕获 `TypeError` 后退回 `append(event)`。这是 compatibility
+adapter，不是推荐所有 Protocol 扩展都使用异常探测。
+
+## 7. ThoughtStore
+
+### 7.1 当前实现
+
+`ThoughtStore` Protocol：
+
+- `write(record)`；
+- `iter_for_event(event_id)`；
+- `__len__()`。
+
+实现：
+
+- `NullThoughtStore`：默认 no-op；
+- `SqliteThoughtStore`：SQLite persistence，可按 phase allow-list 过滤。
+
+`ThoughtConfig` 从 `THOUGHTS_*` env/CLI 解析 enabled/backend/db/path/phases，
+`build_store()` 总是返回一个 store。
+
+### 7.2 装配与关联限制
+
+Standalone CLI 可选装配 SQLite ThoughtStore。Main Page Default Agent 没有传入
+ThoughtStore，使用 AgentLoop 默认 `NullThoughtStore`。
+
+当前 AgentLoop 在每个有 content 的 LLM response 上写：
 
 ```python
-@runtime_checkable
-class ThoughtStore(Protocol):
-    def write(self, record: ThoughtRecord) -> None: ...
-    def iter_for_event(self, event_id: str) -> Iterator[ThoughtRecord]: ...
-    def __len__(self) -> int: ...
+ThoughtRecord(event_id=f"step-{step}", phase="reason", ...)
 ```
 
-`ThoughtRecord` 是 Pydantic frozen 模型：`event_id`、`phase`、`content`、`timestamp`、`metadata`。
-**为什么不放 EventStream**：thought 体量大、并非每个消费者都关心。单独存，靠 `event_id` 关联回 EventStream 即可。
+这个 `event_id` 是 step label，不是已经 append 的 `BaseEvent.event_id`，并且可在不同
+run 中重复。因此旧文档所称“ThoughtRecord 总能通过 event_id 关联回 EventStream”不
+是当前 AgentLoop 保证。
 
-具体实现：
-- `NullThoughtStore` — 默认，丢弃所有写入；让消费者无脑 `self.thought_store.write(...)` 就行。
-- `SqliteThoughtStore`（`memory/sqlite_thought_store.py`）— 落盘版，按 `ThoughtConfig` 控制 phases 过滤。
-
-`ThoughtConfig`（`memory/config.py`）—— 从 env / CLI 装配 `enabled` / `backend` / `db_path` / `phases`。`build_store(cfg)` 返回 `ThoughtStore` 实例，loop 永远拿到一个非 None 对象。
-
----
-
-## 6. Audit — 审计层
+## 8. Audit Substrate
 
 模块：`taskweavn.audit.agent`
 
-| 对象                                       | 角色                                                                  |
-| ------------------------------------------ | --------------------------------------------------------------------- |
-| `AuditConfig(enabled, model, api_key)`     | 装配旋钮，`from_env()` 读 `AUDIT_*` env。                             |
-| `AuditAgent(llm, system_prompt)`           | 同步审计器；`from_config(cfg, fallback_llm=)` 是工厂。                |
-| `AuditVerdict`（Pydantic）                 | LLM 返回的 JSON 结构：`verdict`、`rationale`、`concerns`、`intent_met`、`scope_respected`。 |
-| `AuditObservation`（BaseObservation）      | 把 verdict 包装成 EventStream 事件，`action_id` 指回被审 Action。     |
-| `render_audit_system_message(audit)`       | 将 verdict 渲染成 `role=system` 文本，回灌进 LLM messages。           |
+### 8.1 CodeAction AuditAgent
 
-**铁律**
-- 同步执行，跟在每次 `CodeAction` 后面跑（其他 Action 不审）。
-- **绝不会让 loop 崩**——任何异常 / JSON 解析失败 → `verdict="inconclusive"`。
-- 默认关闭。
-- 模型可独立配置（`AUDIT_MODEL` / `AUDIT_API_KEY`），可以挂在更便宜的小模型上。
+`AuditAgent` 接受 `CodeAction + CodeExecutionObservation`，调用 LLM 解析
+`AuditVerdict`，返回 `AuditObservation`。内部 LLM/JSON/schema failure 转成
+`verdict="inconclusive"`，不会从 `audit()` 抛出。
 
----
+`AuditConfig` 默认 disabled，可读取 `AUDIT_ENABLED`、`AUDIT_MODEL`、
+`AUDIT_API_KEY`。Standalone CLI 可显式装配 auditor。
 
-## 7. Interaction — 交互层
+### 8.2 当前装配边界
 
-模块：`taskweavn.interaction`（Phase 3 主战场）
+- AgentLoop 只在 auditor 存在且 Action/Observation 类型精确匹配时调用 audit；
+- Main Page Default Agent 不传 `auditor`，所以此 CodeAction audit path 不在当前 Main
+  Page execution lane；
+- Main Page 也不装配 `CodeActionTool`；
+- Audit Page 还投影 EventStream、logs、runtime config、Task/ASK/confirmation 等更广
+  evidence，不能与这个单一 `AuditAgent` 类等同；
+- role-aware LLM config 中有 `audit_agent` role name，但 Main Page 当前只为 execution、
+  collaborator、read-only inquiry 和 runtime router 创建 clients。
 
-> 设计动机和决策细节见 [interaction-layer.md](interaction-layer.md)，本节只列对象表 + Protocol。
+## 9. LLM Boundary
 
-### 7.1 Risk
+### 9.1 Facade 与 provider
 
-```python
-@runtime_checkable
-class RiskAssessor(Protocol):
-    def assess(self, action: BaseAction, context: AssessmentContext) -> RiskAssessment: ...
+`LLMClient.chat()` 构造 `ChatRequest` 并调用 `LLMProvider.chat()`。当前 provider
+implementations 包括 LiteLLM、DeepSeek 和 OpenRouter。Provider contract 包含：
+
+- normalized ChatRequest/ChatResponse；
+- optional thinking/provider routing；
+- usage、reasoning、provider request metadata；
+- retry policy and records。
+
+直接 `LLMClient(...)` 未传 provider 时使用 LiteLLM provider；`LLMClient.from_env()`
+通过配置 loader 解析 provider，默认 model 是 `deepseek-v4-pro`。
+
+`complete()` 和 `count_tokens()` 仍走 lazy OpenHands compatibility client，不经过当前
+provider-backed `chat()` 的全部 retry/usage/routing path。
+
+### 9.2 Main Page wrappers
+
+未注入共享 LLM 时，Main Page 按 role 构造：
+
+```text
+UsageRecordingLLM
+  -> AgentConfiguredLLM
+  -> LazyLLMClient
+  -> LLMClient
+  -> provider
 ```
 
-| 对象                            | 关键字段 / 不变量                                                    |
-| ------------------------------- | -------------------------------------------------------------------- |
-| `AssessmentContext`             | `workspace_root: Path`、`session_id: str`。                          |
-| `RiskAssessment`                | `baseline ∈ [0,1]`、`dynamic ≥ baseline`、`final = max(...)`、`rationale: tuple[str,...]`、`assessor: str`。 |
-| `BaselineOnlyAssessor`          | 直接读 `action.baseline_risk`，不做动态评估。                        |
-| 链式组合（未来）                | `dynamic ≥ baseline` 是单调不变量，多 assessor max 链仍然单调。      |
+当前实际装配四个 role client：
 
-### 7.2 Autonomy 行为契约
+- `execution_agent`；
+- `collaborator`；
+- `read_only_inquiry`；
+- `runtime_input_router`。
 
-模块：`taskweavn.interaction.autonomy`
+注入 `dependencies.llm` / `llm_factory` 时，四个角色共享同一个
+`UsageRecordingLLM` wrapper，绕过 role resolver/provider profile selection。
 
-```python
-@dataclass(frozen=True)
-class AutonomyBehavior:
-    trigger: Literal["never", "on_risk", "on_uncertainty", "always"]
-    risk_threshold: float                     # on_risk 时用
-    confidence_threshold: float               # on_uncertainty 时用
-    wait_strategy: Literal["sync", "async"]
-    wait_timeout: float | None
-    timeout_action: Literal["wait", "proceed_default", "proceed_confident", "skip"]
-    notify_on_proceed: bool
+Provider 参数、retry、thinking、routing、usage 和敏感日志限制详见
+[LLM Reliability](llm-provider-reliability.md)。
+
+## 10. Interaction Boundary
+
+当前交互不是一个统一机制，而是四条相关路径：
+
+1. Authoring ASK；
+2. Published Task execution ASK；
+3. confirmation via actionable/response AgentMessage；
+4. standalone CLI 可选 AutonomyGate/WaitCoordinator。
+
+### 10.1 Message model
+
+`AgentMessage.message_type`：
+
+```text
+informational, actionable, response
 ```
 
-5 个预设：`full_auto` / `risk_gated`（默认）/ `careful` / `collaborative` / `manual`。
-通过 `AUTONOMY_PRESETS["risk_gated"]` 取，用 `dataclasses.replace(...)` 微调。
+主要字段包括 message/session/task/agent/parent identity、content/context、options、
+requires_response、timeout/risk/action linkage、response source/value 和 created_at。
 
-### 7.3 AutonomyGate
+`agent_id` 是开放字符串。当前会出现 `agent`、`user`、`system`、`router`、
+`runtime_input_router`、`read_only_inquiry`、`collaborator` 等标签；它不是固定三值 enum，
+也不是 Agent registry foreign key。
 
-模块：`taskweavn.interaction.gate`
+### 10.2 Message storage and bus
 
-```python
-class AutonomyGate:
-    def __init__(self, behavior, assessor, confidence_provider=None) -> None
-    def check(self, action, context) -> GateDecision
+- `SqliteMessageStream` 是 workspace-level durable store，按 `session_id` 过滤；
+- `InProcessMessageBus` 是当前唯一 MessageBus implementation；
+- bus subscription 只接收订阅后 publish 的消息；
+- 历史读取必须单独查询 stream；
+- 没有 atomic cursor-based “snapshot + attach” API，因此不能声称简单 replay-then-attach
+  自动消除所有 gap/duplicate race；
+- bus、Condition 和 live subscription 不跨进程恢复。
+
+### 10.3 Main Page 与 CLI
+
+Main Page 不装配 AutonomyGate。它通过 `AskUserTool` / `RequestConfirmationTool` 显式
+创建 durable interaction，并把 Task 置为 `waiting_for_user`。
+
+CLI 只有在传入 `--autonomy` 时才装配：
+
+```text
+SqliteMessageStream
+  + InProcessMessageBus
+  + RiskAssessor
+  + AutonomyGate
+  + WaitCoordinator
+  + stdin responder thread
 ```
 
-| 输出 | 含义 |
-| ---- | ---- |
-| `GateVerdict.PROCEED` | 直接执行；`inform_user` 决定是否发 informational 通知。 |
-| `GateVerdict.EMIT`    | 发 actionable，等待用户回应。                          |
+`pending_actionable`、multiple response、timeout self-decision、ASK/confirmation
+cross-store 原子性等限制详见 [Interaction Layer](interaction-layer.md)。
 
-`ConfidenceProvider`（Protocol，3.7+ 才有具体实现）—— `get(action) -> float ∈ [0,1]`，缺省 `1.0`（完全自信，所以 `on_uncertainty` 永远 PROCEED）。
+## 11. WorkspaceLayout 与 Session
 
-### 7.4 AgentMessage + MessageStream
+### 11.1 当前 layout
 
-模块：`taskweavn.interaction.message`
-
-```python
-class AgentMessage(BaseModel, frozen=True, extra="forbid"):
-    message_id: str
-    session_id: str
-    task_id: str | None
-    agent_id: str = "agent"          # "agent" / "user" / "system"
-    parent_message_id: str | None     # response 指向 actionable
-    message_type: Literal["informational", "actionable", "response"]
-    content: str
-    context: dict[str, Any]
-    action_options: list[str]         # actionable 专用
-    requires_response: bool
-    timeout_seconds: float | None     # per-message 覆盖
-    risk_assessment: RiskAssessment | None
-    related_action_id: str | None     # 指向触发它的 BaseAction.event_id
-    response_source: ResponseSource | None
-    response_value: str | None
-    created_at: datetime
+```text
+<workspace root>/
+├─ .plato/
+│  ├─ workspace.sqlite
+│  ├─ messages.sqlite
+│  ├─ tasks.sqlite
+│  ├─ authoring.sqlite
+│  ├─ asks.sqlite
+│  ├─ ui_commands.sqlite
+│  ├─ ui_events.sqlite
+│  ├─ results.sqlite
+│  ├─ inspection.sqlite
+│  ├─ usage.sqlite
+│  ├─ contract_revision.sqlite
+│  ├─ runtime_config.sqlite
+│  ├─ execution_plane.sqlite
+│  └─ sessions/
+│     └─ <session_id>/
+│        ├─ events.sqlite
+│        ├─ thoughts.sqlite       # path exists; store is optional
+│        ├─ context.sqlite
+│        ├─ plan.md               # legacy/path helper; may be absent
+│        └─ logs/
+├─ shared/
+└─ user project files...
 ```
 
-`ResponseSource` ∈ `{user, timeout_default, timeout_confident, timeout_skip, auto_proceed}`。
+不是所有 DB 都由 `WorkspaceLayout` 本身创建；它只提供 path math 和目录 bootstrap，
+consumer 打开 store 时建 schema。
 
-```python
-@runtime_checkable
-class MessageStream(Protocol):
-    def get(self, message_id) -> AgentMessage | None
-    def list_for_session(self, sid, *, types=, since=, limit=) -> Iterator[AgentMessage]
-    def list_for_task(self, task_id, ...) -> Iterator[AgentMessage]
-    def list_for_agent(self, agent_id, ...) -> Iterator[AgentMessage]
-    def pending_actionable(self, sid, *, task_id=None) -> list[AgentMessage]
-    def response_for(self, message_id) -> AgentMessage | None
-    def thread(self, message_id) -> list[AgentMessage]
-    def __len__(self) -> int
+关键事实：
+
+- `session_project_dir(session_id)` 当前忽略 session id 并返回 workspace root；
+- 不存在旧稿的 `sessions/<id>/<id>/` 独立 project root；
+- 多个 Session 可以操作同一 workspace files；事实 store 通过 workspace/session id
+  隔离；
+- `.plato/sessions/<id>` 只保存 Session metadata；
+- `bootstrap()` 可把 legacy `.taskweavn` 目录迁移到 `.plato`，并迁移 legacy
+  `.code-agent/logs`；
+- `bootstrap_session()` 幂等创建 Session metadata/log path。
+
+### 11.2 Session model and manager
+
+`Session` 是 frozen dataclass：
+
+```text
+id, name, workspace_root, created_at, last_active_at, status
 ```
 
-`SqliteMessageStream` 是默认实现，工作区级单库（`<workspace>/.taskweavn/messages.sqlite`），用 `session_id` 列做行级隔离。
+`new_session_id()` 当前生成 8 位 uuid hex。stored status 是：
 
-`pending_actionable` 用 `NOT EXISTS` 反 join 找"已发但未应答"的 actionable。
-
-### 7.5 MessageBus + Subscription
-
-模块：`taskweavn.interaction.bus`
-
-```python
-@runtime_checkable
-class MessageBus(Protocol):
-    def publish(self, message: AgentMessage) -> None
-    def subscribe(self, session_id, *, types=None) -> Subscription
-    def wait_for_response(self, message_id, timeout) -> AgentMessage | None
-    @property
-    def stream(self) -> MessageStream
-
-@runtime_checkable
-class Subscription(Protocol):
-    def __iter__(self) -> Iterator[AgentMessage]
-    def __next__(self) -> AgentMessage
-    def close(self) -> None
-    # 也是 context manager
+```text
+active, awaiting_user, finished, archived
 ```
 
-**InProcessMessageBus 实现要点**
-- 一个 `threading.Condition` 串起 publish / wait_for_response / subscription 三类等待者。
-- `publish` 在锁内 INSERT → 派发给匹配的订阅 → `notify_all`。
-- `wait_for_response` 用谓词重检 + `cond.wait(timeout=)`；timeout 到期返回 `None`，bus 关闭也返回 `None`。
-- Subscription 只看**订阅之后**发布的消息；要看历史 → 配合 `stream.list_for_session()` 走 replay-then-attach。
-- 关闭传递性：`bus.close()` → 标记所有 sub 关闭、所有等待者醒并返回 `None`。
+`SessionManager` 使用 workspace `workspace.sqlite`，WAL + autocommit，支持：
 
-### 7.6 WaitCoordinator
-
-模块：`taskweavn.interaction.wait`
-
-把"actionable 已发布"翻译成"loop 下一步该干什么"。
-
-```python
-class WaitOutcome(Enum):
-    GOT_RESPONSE = "got_response"
-    TIMED_OUT_PROCEED = "timed_out_proceed"
-    TIMED_OUT_SKIP = "timed_out_skip"
-    PENDING = "pending"          # async 专用
-
-@dataclass(frozen=True)
-class WaitResult:
-    outcome: WaitOutcome
-    response_value: str | None
-    response_source: ResponseSource | None
-    response: AgentMessage | None
-    notice: AgentMessage | None  # 若发了 timeout 自决策通知
+```text
+create, get, require, list, touch, rename, delete, mark_status, close
 ```
 
-`handle_actionable(message)` 的逻辑：
-- `wait_strategy="async"` → 立刻返回 `PENDING`。
-- `sync` → `bus.wait_for_response(...)`，按 `timeout_action` 分支：
-  - `wait` —— 永久等（再次 `wait_for_response(timeout=None)`，bus 关闭 → SKIP）。
-  - `proceed_default` —— 第一个 option 当合成应答。
-  - `proceed_confident` —— Phase 3 退化到 default（待 ConfidenceProvider 接入）。
-  - `skip` —— 跳过这个 action。
-- 当 `notify_on_proceed=True`，自决策时发一条 `informational` 通知（`auto_decision` 字段写明分支）。
+delete 会移除 registry row，并把 Session metadata directory 移到
+`.plato/deleted-sessions/`；不会删除 workspace project root。
 
----
+### 11.3 Status 有两套派生边界
 
-## 8. Workspace / Session — 工作区与会话
+`core.derive_session_status()` 按 archived override、pending actionable、last
+AgentFinishObservation、active 的顺序返回 core SessionStatus。当前直接调用点在测试中。
 
-### 8.1 WorkspaceLayout
+Main Page snapshot 使用自己的 UI status projection，输入包括 active execution ASK、
+authoring ASK、confirmations、Task tree、planning 和 messages，输出：
 
-模块：`taskweavn.core.workspace_layout`
-
-**纯路径数学**——不开任何文件，不连任何库。
-
-```
-<workspace_root>/
-├─ .taskweavn/
-│   ├─ workspace.sqlite           # session 注册表
-│   └─ messages.sqlite            # 工作区级消息（按 session_id 隔离）
-├─ shared/                         # 跨 session 协作（Phase 3.5+）
-└─ sessions/
-    └─ <session_id>/
-        ├─ .session/               # session 私有元数据
-        │   ├─ events.sqlite
-        │   ├─ thoughts.sqlite
-        │   ├─ plan.md
-        │   └─ logs/
-        └─ <session_id>/           # agent 工具实际操作的项目根
+```text
+new, understanding, draft_ready, running, waiting_user, completed, failed
 ```
 
-两层 `<session_id>/` 嵌套：外层放元数据，内层是 tool 真正解析路径的 root，从而 `.session/` 永远不会被 LLM 看见。
-
-`bootstrap()` / `bootstrap_session(id)` 都是幂等的。
-
-### 8.2 Session
-
-模块：`taskweavn.core.session`
-
-```python
-@dataclass(frozen=True)
-class Session:
-    id: str                   # 8 位 hex
-    name: str
-    workspace_root: Path
-    created_at: datetime
-    last_active_at: datetime
-    status: Literal["active", "awaiting_user", "finished", "archived"]
-```
-
-**纯被动数据**——所有路径属性都是 `WorkspaceLayout` 的派生 view（`events_db_path`、`messages_db_path`、`logs_dir` 等）。变更走 `SessionManager`。
-
-### 8.3 SessionManager
-
-模块：`taskweavn.core.session_manager`
-
-CRUD over `workspace.sqlite/sessions`：`create / get / require / list / touch / mark_status`。
-
-WAL + autocommit。`__enter__` / `__exit__` 关连接，幂等。
-
----
-
-## 9. Orchestration — 多 Agent 占位
-
-模块：`taskweavn.orchestration.protocol`
-
-```python
-@runtime_checkable
-class Orchestrator(Protocol):
-    def submit(self, action: BaseAction) -> BaseObservation
-    def shutdown(self) -> None
-
-class NullOrchestrator: ...   # submit 抛 NotImplementedError
-```
-
-**故意只有壳**：Phase 1 把多 agent 边界**形状**冻结下来，单 agent 核心日后无需重构。Phase 4 (E4) 才填实现。
-
----
-
-## 10. Core — AgentLoop 编排
-
-模块：`taskweavn.core.loop`
-
-```python
-@dataclass
-class AgentLoop:
-    # —— 必备 ——
-    llm: LLMClient
-    runtime: Runtime
-    tools: list[Tool]
-    event_stream: EventStream = InMemoryEventStream()
-    thought_store: ThoughtStore = NullThoughtStore()
-    system_prompt: str = DEFAULT_SYSTEM_PROMPT
-    max_steps: int = 20
-    auditor: AuditAgent | None = None
-
-    # —— 交互层（Phase 3.6，可选）——
-    session_id: str = "default"
-    workspace_root: Path | None = None
-    bus: MessageBus | None = None
-    gate: AutonomyGate | None = None
-    wait_coordinator: WaitCoordinator | None = None
-```
-
-### 10.1 装配不变量（`__post_init__`）
-
-- 工具名不能重复，且 `agent_finish` 是保留名。
-- 交互层包要么**全有要么全无**：`gate ⇔ wait_coordinator`；
-- 有 `gate` ⇒ 必须有 `bus`；
-- 有 `gate` ⇒ 必须有 `workspace_root`（assessor 需要）。
-
-### 10.2 LoopResult
-
-```python
-@dataclass(frozen=True)
-class LoopResult:
-    final_answer: str
-    steps: int
-    finished: bool                  # True 当且仅当 stop_reason ∈ {agent_finish, no_tool_calls}
-    stop_reason: Literal["agent_finish", "no_tool_calls", "max_steps"]
-```
-
-### 10.3 单步骤主循环（伪代码）
-
-```
-for step in 1..max_steps:
-    response = llm.chat(messages, tools=schemas)
-    record thought (if content)
-    append response to messages
-
-    if not response.tool_calls:
-        return no_tool_calls
-
-    for tool_call in response.tool_calls:
-        if tool_call.name == agent_finish:
-            emit AgentFinishAction + AgentFinishObservation
-            return agent_finish
-
-        action = build_action(tool_call)        # parse arguments
-        if isinstance(action, ErrorObservation):
-            emit error; continue
-
-        gate_skip = consult_gate(action)        # ← Phase 3.6 注入点
-        if gate_skip is not None:
-            emit action + skip_observation; continue
-
-        emit action
-        observation = runtime.execute(action)
-        emit observation
-        feed observation back to messages
-        maybe_audit(action, observation, messages)
-
-return max_steps
-```
-
-### 10.4 `_consult_gate` 路径
-
-```
-gate is None              → None（保持 3.6 之前的行为）
-verdict=PROCEED + inform  → publish informational; None
-verdict=PROCEED           → None
-verdict=EMIT
-  ├─ build actionable + bus.publish
-  ├─ wait_coordinator.handle_actionable
-  ├─ GOT_RESPONSE non-rejection → None
-  ├─ GOT_RESPONSE rejection ("no"/"deny"/...) → ErrorObservation("user_declined")
-  ├─ TIMED_OUT_PROCEED          → None
-  ├─ TIMED_OUT_SKIP             → ErrorObservation("autonomy_timeout_skip")
-  └─ PENDING                    → ErrorObservation("autonomy_pending")  *3.6b 才会真 drain*
-```
-
-拒绝词集（大小写不敏感）：`{"no","n","deny","reject","skip","cancel","abort"}`。
-
-### 10.5 `_append_event`：task_id 鸭子类型适配
-
-```python
-try:
-    self.event_stream.append(event, task_id=self._current_task_id)
-except TypeError:
-    self.event_stream.append(event)
-```
-
-EventStream Protocol 只有 `append(event)`。`SqliteEventStream` 多出一个 kwarg；用 try/except 让两者同时工作，而不必在 Protocol 里强加。
-
----
-
-## 11. Protocol 总表
-
-下表列出**所有 `runtime_checkable` Protocol**——任何跨层契约的入口。
-
-| Protocol             | 模块                                  | 关键方法                                                   | 默认实现                       |
-| -------------------- | ------------------------------------- | ---------------------------------------------------------- | ------------------------------ |
-| `Runtime`            | `runtime.base`                        | `execute(action) → observation`                            | `LocalRuntime`                 |
-| `EventStream`        | `core.event_stream`                   | `append`、`__iter__`、`__len__`、`replay`                  | `InMemoryEventStream` / `SqliteEventStream` |
-| `ThoughtStore`       | `memory.thought_store`                | `write`、`iter_for_event`、`__len__`                       | `NullThoughtStore` / `SqliteThoughtStore`    |
-| `MessageStream`      | `interaction.message`                 | `get`、`list_for_session/task/agent`、`pending_actionable`、`response_for`、`thread`、`__len__` | `SqliteMessageStream`          |
-| `MessageBus`         | `interaction.bus`                     | `publish`、`subscribe`、`wait_for_response`、`stream`      | `InProcessMessageBus`          |
-| `Subscription`       | `interaction.bus`                     | `__iter__`、`__next__`、`close` (+ ctx mgr)                | `_InProcessSubscription`       |
-| `RiskAssessor`       | `interaction.risk`                    | `assess(action, context) → RiskAssessment`                 | `BaselineOnlyAssessor`         |
-| `ConfidenceProvider` | `interaction.gate`                    | `get(action) → float ∈ [0,1]`                              | （无；Phase 3.7+）             |
-| `Orchestrator`       | `orchestration.protocol`              | `submit`、`shutdown`                                       | `NullOrchestrator`             |
-
-**约定**
-- 每个 Protocol 都 `@runtime_checkable`，以便测试用 `isinstance` 做形状校验。
-- 具体实现可以**多出**额外方法或 kwarg（例如 `SqliteEventStream.append` 多 `task_id`、`SqliteEventStream.iter_for_task`）；调用方根据是否有访问权决定是否使用，对 Protocol 类型的 caller 保持源码兼容。
-
----
-
-## 12. 标识与命名空间
-
-整个系统有**七种**ID，各管一摊。
-
-| ID                  | 作用域                  | 由谁生成                         | 谁会读                              |
-| ------------------- | ----------------------- | -------------------------------- | ----------------------------------- |
-| `event_id`          | 单个 BaseEvent          | `BaseEvent` default factory（uuid4 hex） | EventStream、ThoughtStore、关联 Observation |
-| `action_id`         | Observation 指向 Action | `BaseObservation` 字段，由 emitter 填 | EventStream consumer，audit         |
-| `kind`              | Action / Observation 类 | `__init_subclass__` 注册时       | EventStream 反序列化                |
-| `message_id`        | 单个 AgentMessage       | `AgentMessage` default factory   | MessageStream、`parent_message_id`、UI |
-| `parent_message_id` | response → actionable   | 应答消息发布者                   | `pending_actionable`、`thread`       |
-| `session_id`        | 一次会话                | `SessionManager.create()` 或 CLI 透传 | EventStream、MessageStream、AgentLoop |
-| `task_id`           | 一次 `AgentLoop.run()`  | `AgentLoop.run()` 入口（uuid4 hex） | EventStream、MessageStream（task 列） |
-
-**规则**
-- `event_id` 跨流唯一；`message_id` 跨流唯一。两者命名空间互不干涉。
-- `session_id` 是工作区级别的；同一工作区下 `messages.sqlite` 用它做行级隔离。
-- `task_id` 是 session 内的；用于把"一次 run 的 events + messages"重新拼起来（见 §14）。
-- `agent_id`（AgentMessage 字段）目前固定 `"agent"` / `"user"` / `"system"`；Phase 4 才填具体 agent 实例 id。
-
----
-
-## 13. 生命周期
-
-### 13.1 `AgentLoop.run(task)`
-
-```
-入口：
-  1. mint task_id = uuid4()
-  2. for tool in tools: tool.startup()        ← 顺序、串行
-执行：
-  3. _run_inner(task)                          ← 主循环（§10.3）
-退出（finally）：
-  4. for tool in tools: tool.shutdown()        ← 即使 startup 失败也跑
-  5. self._current_task_id = None
-```
-
-**关键性质**
-- 单线程、同步。所有阻塞（LLM 调用、`bus.wait_for_response`）都串行发生。
-- `task_id` 在整个 run 内一致，泄漏到 `_append_event` 和发出去的 AgentMessage。
-- tool startup/shutdown **永远成对**——shutdown 在 `contextlib.suppress(Exception)` 包里跑，不会掩盖主结果。
-- LoopResult 总是会返回，绝不抛；除非内部代码 bug。
-
-### 13.2 Tool 生命周期
-
-```
-register(runtime)                              ← 装配阶段，一次性
-  └→ runtime._executors[ActionT] = self.execute
-
-每次 AgentLoop.run():
-   startup()                                   ← per-task 资源（如 docker 容器）
-   …多次 execute(action)…
-   shutdown()                                  ← 必须幂等、容忍 startup 失败
-```
-
-无状态 tool（fs、shell）`startup`/`shutdown` 是 no-op。有状态 tool（`CodeActionTool`）在 startup 里准备容器，shutdown 里销毁。
-
-### 13.3 EventStream / MessageStream 资源
-
-| 实现                  | open                              | close                              |
-| --------------------- | --------------------------------- | ---------------------------------- |
-| `InMemoryEventStream` | 构造时（`list` + `Lock`）         | 无（GC）                           |
-| `SqliteEventStream`   | 构造时连接 + WAL + schema migrate | `close()` / `__exit__`             |
-| `SqliteMessageStream` | 同上                              | 同上                               |
-
-**约定**：所有 SQLite-backed 资源都实现了 `__enter__` / `__exit__`，CLI 装配代码用 `with` 管控生命周期。
-
-### 13.4 MessageBus / Subscription
-
-```
-bus = InProcessMessageBus(stream)               ← 与 stream 寿命解耦
-sub = bus.subscribe(session_id, types=[...])    ← 注册到 bus._subs
-with sub:
-    for msg in sub:                              ← __next__ 阻塞在 cond
-        ...
-# 退出 with → sub.close() → 从 bus._subs 中摘除并 cond.notify_all()
-
-bus.close()                                      ← 标记 closed
-                                                 → 所有等待者 / 订阅者醒
-                                                 → wait_for_response 返回 None
-                                                 → __next__ 抛 StopIteration
-```
-
-bus 关闭后 `publish` 会抛 `MessageStreamError`；`subscribe` 同样。
-
-### 13.5 Session 生命周期
-
-```
-SessionManager.create(name)
-  └→ status = "active"
-       │
-       ├─ AgentLoop.run() 中暂停等用户 → mark_status("awaiting_user")
-       ├─ AgentFinishAction → mark_status("finished")
-       └─ 用户手动归档（Phase 3.x）  → mark_status("archived")
-```
-
-`touch(session_id)` 把 `last_active_at` 推到 now，CLI list 命令按时序排序。
-
-> 注：session.status 的"派生 vs 显式存储"在 Phase 3.7 还在讨论；目前是 `SessionManager.mark_status` 显式驱动。
-
----
-
-## 14. 双流架构（events ⊕ messages）
-
-```
-                                ┌──────────────────────────┐
-        Action / Observation ──→│ EventStream              │  per-session events.sqlite
-                                │  (审计骨架)              │
-                                └──────────────────────────┘
-                                        ▲                ▲
-                                  task_id 标记      event_id 关联
-                                        │                │
-                                ┌───────┴─────────┐  ┌───┴─────────────────┐
-                                │ AgentLoop.run() │  │ AgentMessage         │  workspace 级 messages.sqlite
-                                └─────────────────┘  │  (用户面)            │
-                                                     └──────────────────────┘
-                                                           ▲
-                                                  task_id / session_id
-```
-
-**两条流，各管一摊**
-- **EventStream** = 审计 / 复盘 / replay；Action+Observation 全量；session 级单库。
-- **MessageStream** = 产品面、与用户/其他 agent 的对话；informational/actionable/response；工作区级单库（按 `session_id` 隔离）。
-
-**为什么不合一**
-- 两者节奏不同：events 一秒可能上百条，messages 一分钟一两条。
-- 受众不同：events 给系统看，messages 给人看。
-- 隔离便于演进：消息表加字段不影响事件表索引。
-
-**怎么 join 一次 run**
-```sql
--- 重建一次 AgentLoop.run() 的全貌
-SELECT * FROM events   WHERE task_id = ? ORDER BY timestamp, id;   -- session events.sqlite
-SELECT * FROM messages WHERE task_id = ? ORDER BY created_at, id;  -- workspace messages.sqlite
-```
-`SqliteEventStream.iter_for_task(task_id)` + `SqliteMessageStream.list_for_task(task_id)` 是这条 join 的程序入口。
-
----
-
-## 15. 横切设计模式
-
-### 15.1 Protocol + 具体实现 + kwarg 扩展
-
-最常见的扩展方式：在具体实现上**加** kwarg（如 `task_id`），但**不动 Protocol**。AgentLoop 用 try/except TypeError 适配。
-
-适用场景：新字段对老 Protocol 实现是可选的、不需要它就不应被强制实现。
-
-### 15.2 Frozen 数据类 + `dataclasses.replace`
-
-`AutonomyBehavior`、`RiskAssessment`、`Session`、`WorkspaceLayout` 都是 frozen dataclass。要"基于预设微调"——`replace(AUTONOMY_PRESETS["risk_gated"], wait_timeout=10.0)`，绝不原地改。
-
-Pydantic 模型同理：`model_config = ConfigDict(frozen=True, extra="forbid")` 是默认。
-
-### 15.3 "Total functions" / 永不抛
-
-- `Runtime.execute` 永不抛——失败 → `ErrorObservation`。
-- `AuditAgent.audit` 永不抛——失败 → `verdict="inconclusive"`。
-- `AgentLoop.run` 永不抛——失败要么 LoopResult，要么是真 bug。
-
-这个约定让上层不需要散落的 try/except，控制流变成**结果分支**而不是**异常分支**，更易测试。
-
-### 15.4 Channel logger
-
-`taskweavn.observability.setup.get_channel_logger(name)` 给每个频道（`tool` / `action` / `observation` / `audit` / `llm` 等）一个独立 logger，写到 `<log-dir>/<channel>.jsonl`。每个 EventStream / Runtime / LLMClient 在关键时刻都调一次，便于事后离线分析。
-
-### 15.5 风险单调
-
-> `dynamic ≥ baseline`，组合 assessor 用 `max` 链——单调不变量永远成立。
-
-这个性质让"加一个新 assessor"是**纯加法**，不必担心降低别人已经标的风险。
-
-### 15.6 Replay-then-attach（订阅一致性）
-
-Subscription 不重放历史。订阅前的消息靠 `MessageStream.list_for_*()` 获取，订阅之后才看 live 流。这种"先快照后增量"是常见的 pub/sub 一致性模式，避免订阅者错过/重复消息。
-
-### 15.7 Bundle 不变量
-
-交互层在 AgentLoop 上一组**全有或全无**字段：`gate ⇔ wait_coordinator`，`gate ⇒ bus`，`gate ⇒ workspace_root`。`__post_init__` 做体检，避免半装配状态在运行时出错。
-
----
-
-## 附：模块速查
-
-| 模块路径                             | 主要导出                                                                        |
-| ------------------------------------ | ------------------------------------------------------------------------------- |
-| `taskweavn.types`                   | `BaseEvent/Action/Observation`, `ActionRegistry/ObservationRegistry`, `ErrorObservation`, `AgentFinishAction/Observation`, `CodeAction/CodeExecutionObservation`, `FileChange`, `TrackingConfig` |
-| `taskweavn.runtime`                 | `Runtime`, `LocalRuntime`                                                       |
-| `taskweavn.tools`                   | `Tool`, `Workspace`, `ReadFileTool/WriteFileTool/ListDirTool`, `RunCommandTool`, `CodeActionTool` |
-| `taskweavn.llm`                     | `LLMClient`, `ChatResponse`, `ToolCall`, `tool_schema_from_action`              |
-| `taskweavn.memory`                  | `ThoughtStore`, `ThoughtRecord`, `NullThoughtStore`, `SqliteThoughtStore`, `ThoughtConfig`, `build_store` |
-| `taskweavn.audit`                   | `AuditAgent`, `AuditConfig`, `AuditObservation`, `AuditVerdict`, `render_audit_system_message` |
-| `taskweavn.interaction`             | 见 §7（risk / autonomy / gate / message / bus / wait 全集）                     |
-| `taskweavn.orchestration`           | `Orchestrator`, `NullOrchestrator`                                              |
-| `taskweavn.core`                    | `AgentLoop`, `LoopResult`, `LoopError`, `EventStream`, `InMemoryEventStream`, `SqliteEventStream`, `Session`, `SessionManager`, `WorkspaceLayout` |
-| `taskweavn.cli.main`                | `app`（Typer）, `run`, `version`                                                |
-| `taskweavn.observability`           | `configure_logging`, `get_channel_logger`                                       |
-
----
-
-> 文档维护：**任何新 Protocol、任何对生命周期的修改，必须在这里同步更新。**
-> 设计动机的争论可以放在对应阶段的 design 文档；本文是事实清单。
+不能把 core helper 规则当作 Main Page 当前状态算法。
+
+## 12. 上层产品域参考
+
+底层 substrate 只解释 Action/Observation/AgentLoop，不拥有完整产品事实。当前权威
+分工：
+
+| 事实/能力 | 当前 authority | 详细文档 |
+|---|---|---|
+| RawTask、Plan、TaskNode、draft authoring | authoring stores + AuthoringCommandService | [Authoring Domain](authoring-domain.md) |
+| command envelope、idempotency、effects | authoring command protocol | [Authoring Command Protocol](authoring-command-protocol.md) |
+| Published Task lifecycle | TaskBus | [TaskBus](bus.md) |
+| fixed-route execution | dispatcher/executor + Default Agent | [Agent](agent.md) |
+| Task/Plan UI projection | projection services + UI contract | [Task Domain/UI](task-domain-ui-model-separation.md) |
+| LLM context input | Session Context Manager | [Context Manager](context-manager.md) |
+| ASK/confirmation/messages | AskStore、MessageStream、TaskBus links | [Interaction Layer](interaction-layer.md) |
+| Main Page query/command/SSE | server UI contract/gateways | [UI/Backend](ui-backend-communication.md) |
+| Runtime Input Router/Contract Revision | deterministic router + commands | [Contract Revision](contract-revision-and-execution-loops.md) |
+| service-level local Task API | EmbeddedTaskApiService + Execution Plane store | [Execution Plane](taskbus-service-multi-execution-env.md) |
+| tool/capability/skill boundaries | concrete tools、catalogs、skill stores | [Tool Capability](tool-capability-layer.md) |
+| workspace evidence | workspace inspection stores/providers | [Workspace Protocol](workspace-communication-protocol.md) |
+| logging | LoggingManager and separate trace/frontend paths | [Logging](configurable-logging-system.md) |
+
+## 13. Protocol 参考
+
+### 13.1 Core substrate protocols（非穷举）
+
+| Protocol | 模块 | 关键方法/字段 | 当前 concrete path |
+|---|---|---|---|
+| `Runtime` | `runtime.base` | `execute(action)` | `LocalRuntime` |
+| `EventStream` | `core.event_stream` | append/iterate/len/replay | in-memory / SQLite |
+| `ThoughtStore` | `memory.thought_store` | write/iter_for_event/len | null / SQLite |
+| `LLMProvider` | `llm.contracts` | chat/complete/count_tokens | LiteLLM / DeepSeek / OpenRouter providers |
+| `MessageStream` | `interaction.message` | durable message queries | SQLite |
+| `MessageBus` | `interaction.bus` | publish/subscribe/wait/stream | in-process |
+| `Subscription` | `interaction.bus` | iterator/close/context manager | private in-process implementation |
+| `RiskAssessor` | `interaction.risk` | assess | baseline / LLM / composite |
+| `ConfidenceProvider` | `interaction.gate` | get(action) | no production concrete provider |
+| `TaskInterruptChecker` | `core.loop` | interrupt_for_task | Main Page TaskBus adapter |
+| `AgentLoopProfile` | `core.loop_profile` | prompt/terminal/rejection mapping | profile-specific implementations |
+| `Orchestrator` | `orchestration.protocol` | submit/shutdown | only `NullOrchestrator` |
+
+### 13.2 Domain protocols
+
+当前 repository 还有大量 runtime-checkable domain protocols，包括但不限于：
+
+- TaskBus、Task/Plan/Draft stores、publisher、command、projection；
+- ContextStore、ContextBuilder、AgentLoopContextProvider；
+- UiQueryGateway、UiCommandGateway 和 projection providers；
+- TaskApiService、ExecutionPlaneStore、ExecutionEnvRegistry；
+- RuntimeConfig stores/bus/mutation service；
+- SkillActivationStore；
+- usage/logging/web/computer-use adapters。
+
+因此，不再维护一个手写的“所有 Protocol 总表”。需要完整列表时应从源码或 generated
+API inventory 获取，避免静态文档再次把局部列表误称为全量。
+
+### 13.3 Protocol 使用原则
+
+- Protocol 只承诺声明的 surface；concrete extension 不能被 Protocol-typed caller
+  假定存在；
+- `@runtime_checkable` 只做结构存在检查，不验证参数/返回值语义；
+- 不是每个跨模块调用都必须引入 Protocol；只有存在替换、测试 seam 或 authority
+  boundary 时才值得抽象；
+- concrete implementation 的额外 kwarg 需要显式 adapter，不应默认依赖 catch-all
+  `TypeError`。
+
+## 14. 标识与事实权威
+
+| 标识 | 当前语义 | 注意事项 |
+|---|---|---|
+| `event_id` | 一个 typed Action/Observation id | Event SQLite schema 未设 UNIQUE |
+| `action_id` | Observation 指向 Action | 可为 None，loop-level error 常无 Action |
+| `kind` | typed event class discriminator | 依赖 registry import |
+| `message_id` | 一个 AgentMessage id | response 用 parent_message_id 关联 actionable |
+| `ask_id` | 一个 durable execution/authoring ASK id | ASK 与 confirmation 不是同一 store |
+| `session_id` | workspace 内 Session identity | core 默认生成 8 位 hex；API caller 也可携带已有 id |
+| `task_id` | Published Task id或 standalone run correlation | Main Page 可跨多个 AgentLoop run 复用 |
+| `agent_run_id` | 一个 AgentLoop invocation metadata id | 当前不是 EventStream row column |
+| `plan_id` / `task_node_id` | authoring/Plan contract identity | 不等于 Published Task id；有 lineage mapping |
+| `workspace_id` | UI/usage/multi-workspace routing identity | 与 filesystem root mapping 由 server registry 管理 |
+| `execution_id` | Execution Plane service execution identity | 映射到 TaskBus task id，不是 Agent instance id |
+
+ID 只用于关联；它不决定事实 authority。Task status 看 TaskBus，message response 看
+MessageStream，ASK status 看 AskStore，context snapshot 看 ContextStore，usage 看 usage
+ledger。
+
+## 15. 资源、并发与恢复
+
+### 15.1 SQLite resources
+
+EventStream、MessageStream、ThoughtStore、SessionManager 以及多数 domain SQLite store
+提供 close/context manager 或由 workspace runtime 统一关闭。它们通常使用 WAL、
+autocommit 和 process-local locks。
+
+这些锁不构成跨进程 transaction coordinator。Task、ASK、message、context、usage、
+UI event 分属不同 SQLite stores，多 store command 通常不是原子事务。
+
+### 15.2 AgentLoop and tools
+
+- AgentLoop synchronous、single-threaded；
+- provider call、Tool execution 和 sync wait 都占用当前 run；
+- async Autonomy pending queue 只存在当前 run 内存；
+- run 结束时 unresolved queue 丢失，durable actionable 仍在 MessageStream；
+- Tool shutdown best-effort；
+- cooperative interruption 只在明确 safe points 生效。
+
+### 15.3 Product dispatcher
+
+FixedRouteExecutionDispatcher：
+
+- 一个 background worker；
+- per-Session duplicate trigger coalescing；
+- 按 queue 依次 drain Sessions；
+- 不保留跨 Task AgentLoop；
+- startup/retry/publish/ASK-answer/manual 等 trigger 请求执行；
+- 不提供 distributed lease、heartbeat 或 hard cancellation。
+
+### 15.4 Recovery
+
+当前有针对部分跨-store/进程中断场景的 recovery：
+
+- execution ASK snapshot recovery；
+- interrupted running Task startup recovery；
+- durable Task/authoring/message/context/UI event stores；
+- Execution Plane idempotent request records。
+
+不存在通用 event-sourced 全系统 replay、confirmation 专用补偿器、Agent run checkpoint
+restore 或 remote worker recovery。
+
+## 16. Observability
+
+当前 backend logging 是 process-local `LoggingManager` + category-bound
+`ObjectLogger`，并保留 early channel logger compatibility bridge。它支持 structured
+rules、context、sinks、profiles、archives、redaction 和 same-process control。
+
+必须区分：
+
+- structured manager；
+- legacy channel API；
+- separate `main_page_trace` helper；
+- frontend TypeScript logger；
+- diagnostics bundle secondary sanitizer。
+
+日志不是 Task、EventStream、MessageStream、Audit、runtime config 或 usage 的事实权威。
+文件扩展、payload mode 和 redaction 限制详见专门的
+[Logging architecture](configurable-logging-system.md)。
+
+## 17. 当前非事实与常见误读
+
+| 旧断言/误读 | 当前事实 |
+|---|---|
+| 全仓库遵守一个向下依赖层级 | 没有该全局铁律；server 是跨域 composition root |
+| 文档中的 9 项是所有 runtime-checkable Protocol | 远非全量；Task/Context/UI/Execution Plane 等已有大量 Protocol |
+| workspace metadata 位于 `.taskweavn` | canonical metadata root 是 `.plato`，可迁移 legacy `.taskweavn` |
+| 每个 Session 有独立嵌套 project root | `session_project_dir()` 当前返回共享 workspace root |
+| `task_id` 唯一标识一次 AgentLoop run | Main Page 可复用 domain Task id；单次 run 有 internal `agent_run_id` |
+| EventStream + MessageStream 可重建全部产品状态 | 它们只覆盖 execution events/messages；Task、ASK、authoring、context 等有独立 stores |
+| AgentMessage.agent_id 只有 agent/user/system | 当前是开放字符串，多个服务角色会写入 |
+| ThoughtRecord.event_id 总指向 BaseEvent | 当前 AgentLoop 写 `step-N` label |
+| Tool startup/shutdown 永远成功配对 | startup 可抛；finally 对全部 Tool best-effort shutdown |
+| AgentLoop.run 永不抛 | 只归一化部分依赖错误；startup/store/bus 等仍可抛 |
+| AuditAgent 审计 Main Page 每次代码操作 | Main Page 不装配 CodeActionTool/AuditAgent |
+| Main Page 所有 Action 经过 AutonomyGate | Main Page gate 未装配；使用显式 ASK/confirmation |
+| replay 后 attach 自动无 gap/duplicate | 当前没有 atomic snapshot/cursor subscription contract |
+| Orchestrator 是多 Agent runtime | 只有 Null placeholder，无调用路径 |
+| SQLite instance locks 提供分布式安全 | 仅 process-local synchronization |
+
+## 18. 代码与测试索引
+
+Core substrate source：
+
+- `src/taskweavn/types/`
+- `src/taskweavn/runtime/`
+- `src/taskweavn/tools/`
+- `src/taskweavn/core/`
+- `src/taskweavn/llm/`
+- `src/taskweavn/memory/`
+- `src/taskweavn/audit/`
+- `src/taskweavn/interaction/`
+- `src/taskweavn/observability/`
+
+Product assembly source：
+
+- `src/taskweavn/server/main_page.py`
+- `src/taskweavn/server/main_page_agent.py`
+- `src/taskweavn/server/ui_contract/`
+- `src/taskweavn/task/`
+- `src/taskweavn/context/`
+- `src/taskweavn/contract_revision/`
+- `src/taskweavn/execution_plane/`
+- `src/taskweavn/runtime_config/`
+- `src/taskweavn/workspace_inspection/`
+- `src/taskweavn/skills/`
+- `src/taskweavn/usage/`
+
+核心验证测试：
+
+- `tests/test_types.py`
+- `tests/test_runtime.py`
+- `tests/test_tools_fs.py`
+- `tests/test_tools_shell.py`
+- `tests/test_workspace.py`
+- `tests/test_event_stream.py`
+- `tests/test_sqlite_event_stream.py`
+- `tests/test_thought_store.py`
+- `tests/test_thought_config.py`
+- `tests/test_sqlite_thought_store.py`
+- `tests/test_audit.py`
+- `tests/test_loop.py`
+- `tests/test_loop_interaction.py`
+- `tests/test_loop_profile_contract.py`
+- `tests/test_agent_message.py`
+- `tests/test_message_bus.py`
+- `tests/test_sqlite_message_stream.py`
+- `tests/test_wait_coordinator.py`
+- `tests/test_workspace_layout.py`
+- `tests/test_session_manager.py`
+- `tests/test_session_status.py`
+- `tests/test_main_page_sidecar_app.py`
+
+维护本文时，不应手工声称“全量”。先确认当前 source surface，再更新对应事实、入口装配
+差异和验证记录。

@@ -1,22 +1,28 @@
 # TaskBus 架构设计
 
-> 多 Agent 协作架构的核心抽象 · v1.5 · 2026-06-24
+> Published Task lifecycle authority · v1.6 · 2026-07-10
 >
-> 2026-05-31 scope note: TaskBus 在所有版本中都是 PublishedTask 生命周期权威。当前 Product 1.1 仍通过 fixed-route Default Agent bridge 使用 `claim_next -> complete / fail` 执行闭环。Router assignment、assigned-only claim、Agent Manager、stale pending sweep 和 assignment projection 是已接受的 later dynamic routing foundation，不是当前闭环阻塞项。
+> 2026-07-10 fact calibration: 当前 TaskBus 是 PublishedTask 生命周期权威，
+> 不是 EventStream 的物化视图，也不是 Router / Agent Manager。当前实现包括
+> `InMemoryTaskBus` 和 `SqliteTaskBus`，API 为 `publish`、`claim_next`、
+> `complete`、`fail`、`wait_for_user`、`wait_for_confirmation`、
+> `resume_after_user`、`resume_after_confirmation`、`skip`、`retry`、
+> `request_interrupt`、`recover_interrupted_running_tasks` 和查询方法。
 >
-> 2026-06-19 fact note: 当前 TaskBus API 还包括 `wait_for_user` / `resume_after_user`（durable ASK 阻塞点）、`retry`、`skip`、`request_interrupt` 和 interrupted running recovery。动态 assignment 仍是后续方向。
->
-> 2026-06-24 Product 1.1 alignment: Product 1.1 当前没有把 Router 变成 TaskBus scheduler。Runtime Input Router 处理用户输入和 Contract Revision；Execution Task 仍通过 fixed-route Default Agent / TaskBus lifecycle 推进。TaskBus v1 事实仍然有效；assignment fields 与 assigned-only claim 是后续 Agent Manager / Routing Agent 扩展边界。
+> 当前 Product 1.1 本地闭环通过 fixed-route Default Agent / embedded
+> Execution Plane 推进 TaskBus 生命周期。dynamic assignment、assigned-only
+> claim、Agent Manager、remote worker lease、stale pending sweep 和
+> TaskBus-sourced EventStream replay 都不是当前事实。
 
 ---
 
 ## 1. 定义
 
-**TaskBus 是已发布执行任务的中央传递媒介，是 Session 内 PublishedTask 流转的唯一通道。**
+**TaskBus 是已发布执行任务的生命周期权威。**
 
-TaskBus 不是一个被动的队列，而是 PublishedTask 的**状态权威 + 协作枢纽**。任何已发布执行任务的发布、领取、完成、失败都必须经过 TaskBus，它是执行任务状态的**唯一真理来源（Single Source of Truth）**。
-
-在 later dynamic routing 方向中，TaskBus 还会承担 assignment 执法和 stale pending 收敛职责；当前 Product 1.1 固定路线闭环不依赖这些 routing 能力。
+TaskBus 接收的对象是执行域的 `TaskDomain` / PublishedTask。它负责发布、
+领取、完成、失败、等待用户、等待确认、恢复、跳过、重试和协作式中断这些
+生命周期事实。
 
 TaskBus 不处理 Authoring Domain 对象：
 
@@ -25,279 +31,99 @@ RawTask
 DraftTaskTree
 RawTaskAsk
 CollaboratorProposal
+PlanTaskNode
 ```
 
-这些对象由 Authoring Domain 管理，经过用户确认和 `TaskPublisher` 转换后才产生 PublishedTask。
+这些对象由 Authoring / Plan / Publisher 边界管理。只有经过发布边界转换后
+形成的执行 Task 才进入 TaskBus。
 
 ```text
-TaskBus ≡ PublishedTask 状态权威 + 生命周期转换
+TaskBus = PublishedTask lifecycle state authority
 ```
 
-当 later dynamic routing 启用时，TaskBus 会在该状态权威之上增加 assignment validation 和 pending sweep。
+当前 TaskBus 也不是这些组件：
+
+| 不是 | 当前边界 |
+|------|----------|
+| Router | 不选择 Agent，不执行 LLM routing，不读取用户输入意图 |
+| Agent Manager | 不创建 Agent 实例，不维护 worker pool，不做 remote lease |
+| EventStream | 不从 EventStream 重建 Task 生命周期，也不把每个 TaskBus transition 写入 EventStream |
+| Workspace lock manager | 不直接操作文件系统；工作区串行写入由当前 fixed-route 执行路径约束 |
 
 ---
 
-## 2. 核心抽象
+## 2. 当前执行拓扑
 
-### 2.1 TaskBus 是生产-消费管道
+### 2.1 当前 Product 1.1 路径
 
-执行任务的发布者、执行桥、later dynamic routing Router、Agent Manager 和执行消费者通过 TaskBus 解耦，互不直接通信。当前 Product 1.1 路径更简单：
+普通 PublishedTask 的当前路径是固定路由：
 
 ```text
-TaskPublisher / Agent Tool
+TaskPublisher / PlanPublisher / API Publisher
+  -> TaskBus.publish
+  -> FixedRouteExecutionDispatcher
+  -> FixedRouteTaskExecutor.claim_next
+  -> Resident Default Agent task-scoped run
+  -> TaskBus.complete / fail / wait_for_user / wait_for_confirmation
+```
+
+本地 Execution Plane 已经存在，但它当前是 service facade，不是分布式调度器：
+
+```text
+TaskRequest
+  -> EmbeddedTaskApiService
+  -> ExecutionEnv compatibility check
+  -> TaskBus.publish
+  -> fixed-route dispatcher or runtime handler
+```
+
+普通 task type 会映射为 TaskBus Task。特定 task type 可以由本地
+`EmbeddedTaskRuntimeHandler` 处理，例如 WeChat send runtime。此类 runtime
+handler 可以使用 TaskBus 的 publish / wait / resume / claim / complete / fail
+能力，但它仍然不是 public Agent Manager，也不是 dynamic assignment。
+
+### 2.2 用户输入路径在 TaskBus 之前
+
+用户自然语言输入不会直接进入 TaskBus：
+
+```text
+UserMessage
+  -> Runtime Input Router / Contract Revision / Authoring
+  -> Draft or Plan artifact
+  -> publish command
   -> TaskBus
-  -> FixedRouteTaskExecutor
-  -> Resident Default Agent task-run
-  -> TaskBus complete / fail / wait_for_user
 ```
 
-Later dynamic routing 路径会增加 Router 和 Agent Manager：
+Runtime Input Router 处理用户输入和 Contract Revision。它不执行 TaskBus
+调度，也不把 pending Task 分配给 Agent。
 
-```
-┌───────────────┐ publish(PublishedTask) ┌─────────┐ assign(task, agent) ┌───────────────┐
-│ TaskPublisher │ ─────────────────────→ │ TaskBus │ ←────────────────── │ Router        │
-│ or Agent Tool │                         │         │                     │ + policy      │
-└───────────────┘                         │         │                     └───────────────┘
-                                          │         │ claim_assigned      ┌───────────────┐
-                                          │         │ ←────────────────── │ Agent Manager │
-                                          │         │                     └───────────────┘
-                                          │         │ complete/fail       ┌───────────────┐
-                                          │         │ ←────────────────── │ Agent Instance│
-                                          └─────────┘                     └───────────────┘
-```
+### 2.3 后续 dynamic routing 路径
 
-发布者不知道哪个 Agent 会执行，Execution Agent 不决定任务交接，Router 不直接改 Task 状态。**路由决策和状态权威分离**是 1.1+ 动态路由的核心。1.0 则通过固定默认 Agent 路线先关闭执行闭环。
-
-用户自然语言输入的路径在 TaskBus 之前：
+后续 dynamic routing 可以增加 Router 和 Agent Manager：
 
 ```text
-UserMessage -> RawTask -> DraftTaskTree -> TaskPublisher -> TaskBus
+TaskPublisher
+  -> TaskBus.publish
+  -> Router observes pending Task + Agent descriptors
+  -> TaskBus.assign                 # future
+  -> Agent Manager / Execution Agent # future
+  -> TaskBus.claim_assigned          # future
+  -> TaskBus.complete / fail
 ```
 
-### 2.2 TaskBus 串行执行
-
-这是本架构最强的约束之一：**任意时刻，TaskBus 内只有一个任务处于 running 状态**。
-
-```
-时间轴：
-   t0 ─── claim T1 ─── T1 running ─── T1 done ───┐
-                                                 ↓
-   t1 ─────────────────────── claim T2 ─── T2 running ─── T2 done
-
-NOT：
-   t0 ─── T1 running ───────────────────┐
-                                        │ 不允许
-   t1 ─── T2 running ───────────────────┘
-```
-
-为什么串行？
-
-```
-1. 单工作区约束的必然结果：并行写会冲突
-2. 调度极简：无锁、无 CAS、无心跳；later dynamic routing pending 健康由确定性 sweep 收敛
-3. 可观测性极佳：任意时刻系统状态明确
-4. LLM 不是 CPU：LLM 调用本身就是百毫秒~秒级，串行损失有限
-```
-
-### 2.3 TaskBus 是 assignment 执法者
-
-本节描述已接受的 later dynamic routing foundation。当前 Product 1.1 fixed-route execution 不需要 assignment fields 或 assigned-only claim。
-
-任务路由由 Router 负责。Router 可以包含 Routing Agent policy，但不要求所有路由流程都由 LLM Agent 完成。TaskBus 不内置完整路由策略，不做 LLM 推理，也不替高级用户决定路由策略。TaskBus 只验证和记录 Router 提交的 assignment：
-
-```
-Router:
-  inspect pending Tasks + available Agent descriptors
-  decide T1 -> agent-a
-  submit AssignmentCommand
-
-TaskBus:
-  validate T1 is pending
-  record assigned_agent_id="agent-a"
-  later allow only agent-a to claim T1
-```
-
-Router 可以使用硬路由、LLM Routing Agent、用户自定义策略或混合策略。TaskBus 不关心策略细节，只保证 assignment command 合法、可审计、可回放。
-
-### 2.3.1 TaskBus 收敛 stale pending
-
-本节同样属于 later dynamic routing convergence。当前 Product 1.1 fixed-route execution 不需要 stale pending sweep。
-
-TaskBus 不依赖 Router / Agent Manager 的回调来保证 pending Task 永不悬挂。later dynamic routing foundation 采用确定性扫描：
-
-```text
-sweep_stale_pending_tasks(now)
-  pending too long -> failed(dispatch_timeout)
-```
-
-这不是 TaskBus 接管路由策略，而是 TaskBus 维护自身事实账本健康：一个已发布 Task 不能无限停留在 pending。Router / Agent Manager 的具体失败细节由日志和 Audit 记录辅助定位。
-
-### 2.4 TaskBus 是任务状态权威
-
-任务状态变迁**必须**经过 TaskBus 的 API：
-
-Product 1.0 fixed-route path：
-
-```python
-bus.publish(task)              # pending
-bus.claim_next(...)            # pending -> running
-bus.wait_for_user(id, ask_id)  # running -> waiting_for_user
-bus.resume_after_user(id, ask) # waiting_for_user -> running
-bus.complete(id, result)       # running -> done
-bus.fail(id, error)            # running/waiting_for_user -> failed
-bus.retry(id)                  # failed -> pending
-bus.skip(id, reason)           # pending/running -> failed("skipped: ...")
-bus.request_interrupt(id, ...) # pending -> failed or running records intent
-```
-
-Later dynamic routing path 增加 assignment validation：
-
-```python
-bus.publish(task)        # pending
-bus.assign(id, agent)    # pending, records assignment
-bus.claim_assigned(id)   # pending → running
-bus.complete(id, result) # running → done（如无未完成子任务）
-bus.fail(id, error)      # running → failed
-```
-
-Agent 不能直接修改 Task 对象的状态。这种集中化让：
-- 状态转换的合法性在一处校验
-- EventStream 的写入在一处发生
-- 父子任务联动的逻辑在一处实现
+该路径是已接受方向，但当前代码没有 `assign`、`claim_assigned`、
+`assignment_index`、assigned-only claim 或 stale pending sweep。
 
 ---
 
-## 3. 核心属性
+## 3. 当前数据模型和存储
 
-| 属性 | 类型 | 说明 |
-|-----|------|-----|
-| `session_id` | `SessionId` | 所属 Session，绑定生命周期 |
-| `queue` | `Deque[Task]` | pending 任务等待区 |
-| `running_task` | `TaskId \| None` | 当前唯一执行中任务（约束 2 体现） |
-| `tasks_index` | `dict[TaskId, Task]` | 全部任务的索引（含终态），便于查询 |
-| `children_index` | `dict[TaskId, list[TaskId]]` | 父→子映射，用于 fan-in 判断 |
-| `event_stream` | `EventStream` | 状态变迁的事件落盘 |
-| `assignment_index` | `dict[TaskId, AgentId]` | 当前 pending/running Task 的 assignment 事实 |
+### 3.1 TaskBus API 表面
 
-Product 1.0 fixed-route execution 不要求 `assignment_index`。该字段是
-Product 1.1+ 动态路由的物化索引。
-
----
-
-## 4. 设计理念
-
-### 4.1 串行优于并发
-
-```
-并发的诱惑：
-  - 多任务并行能减少总耗时
-  - 多核 CPU 利用率高
-  - "现代系统就该并行"
-
-并发的代价：
-  - 锁、CAS、内存模型问题
-  - 心跳、超时、孤儿任务清理
-  - 工作区写冲突 → fork/merge/conflict
-  - 调试难度指数级增长
-  - LLM 任务里收益微薄（IO 不是瓶颈，LLM 本身才是）
-
-结论：在 LLM 主导的系统里，串行是**正确性优于性能**的合理选择。
-```
-
-并发能力作为**可松绑的约束**保留在未来发展点中（见第 7 节）。
-
-### 4.2 策略在 Router / Routing Agent policy，不在 TaskBus
-
-TaskBus 不应该承载完整路由策略。原因：
-
-1. 路由策略很难一次性做完整；
-2. 高级用户可能希望自定义路由策略；
-3. LLM routing、硬路由、成本路由、权限路由和 fallback 策略会并存；
-4. TaskBus 的职责是保证状态一致性，不是做智能调度。
-
-默认 Router 可以很保守，例如按 capability 做硬匹配和简单 fallback。需要 LLM 判断时，Router 内部可以调用 Routing Agent policy。未来可以替换成配置化或用户自定义 Router policy。
-
-### 4.3 无 Work Stealing，无亲和性调度
-
-```
-Work stealing  ─ 多个工作线程从队列里抢任务
-亲和性调度     ─ 把任务尽量给"上次执行过类似任务"的实例（提高 cache 命中）
-
-两者都依赖：
-  - 多个并发 worker
-  - 有状态的 worker（亲和性）
-  - 复杂调度策略
-
-本架构主动放弃这两个能力：
-  - 串行 → 单 worker 就够，没有 stealing 的必要
-  - 无状态 Agent → 没有 cache 可亲和
-```
-
-Cache 命中的损失通过**prompt 分层缓存**（system prefix 稳定）在 LLM API 层弥补，不依赖调度。
-
-### 4.4 总线是状态机的执法者
-
-任务状态机的所有转换都在 TaskBus 内实现，Agent 只能通过 TaskBus API 间接触发：
+当前 `TaskBus` Protocol 的生命周期方法是：
 
 ```python
-class TaskBus:
-    def assign(self, task_id: TaskId, agent_id: AgentId, *, assigned_by: AgentId) -> Task:
-        task = self.tasks_index[task_id]
-        if task.status != pending:
-            raise InvalidTransition("only pending tasks can be assigned")
-        task = task.with_assignment(agent_id, assigned_by=assigned_by)
-        self._emit(TaskAssigned(...))
-        return task
-
-    def claim_assigned(self, task_id: TaskId, agent_id: AgentId) -> Task | None:
-        if self.running_task is not None:
-            return None  # 串行约束的实现
-        task = self.tasks_index[task_id]
-        if task.assigned_agent_id == agent_id and self._parent_done(task):
-            task = task.with_status(running)
-            self.running_task = task.id
-            self._emit(TaskClaimed(...))
-            return task
-        return None
-
-    def complete(self, task_id: TaskId, result: TaskResult):
-        task = self.tasks_index[task_id]
-        if not self._all_children_done(task_id):
-            return  # 等待子任务，状态保持 running
-        task = task.with_status(done, result=result)
-        self.running_task = None
-        self._emit(TaskCompleted(...))
-        self._wake_waiters(task)
-```
-
-**所有状态合法性、子任务联动、事件发射都集中在一处。** 这是 TaskBus 复杂度的来源，但也是协作正确性的保证。
-
-### 4.5 总线即审计日志
-
-每次 publish / assign / claim / complete / fail / wait_for_user / resume /
-retry / skip / interrupt request 都应产生一个不可变事实，供 EventStream、
-Audit 或 UI projection 追踪：
-
-```
-TaskBus 事件序列          ↔        系统行为完整记录
-─────────────────────────────────────────────────
-TaskPublished(t1, cap=audit)     ↔  发布
-TaskAssigned(t1, agent=a1)       ↔  分配责任
-TaskClaimed(t1, agent_run=...)   ↔  开始执行
-TaskPublished(t2, parent=t1)     ↔  派生子任务
-TaskClaimed(t2, agent_run=...)   ↔  子任务开始
-TaskCompleted(t2, result=...)    ↔  子任务完成
-TaskCompleted(t1, result=...)    ↔  父任务完成
-```
-
-任何时刻的系统状态都可以由 EventStream 重建。**TaskBus 在内存里的状态是 EventStream 的物化视图。**
-
----
-
-## 5. 核心 API
-
-```python
-class TaskBus:
+class TaskBus(Protocol):
     def publish(self, task: TaskDomain) -> TaskDomain: ...
 
     def claim_next(
@@ -308,17 +134,51 @@ class TaskBus:
         agent_id: str,
     ) -> TaskDomain | None: ...
 
-    def complete(self, session_id: str, task_id: str, *, result_ref: str | None = None) -> TaskDomain: ...
+    def complete(
+        self,
+        session_id: str,
+        task_id: str,
+        *,
+        result_ref: str | None = None,
+    ) -> TaskDomain: ...
 
     def fail(self, session_id: str, task_id: str, *, error_ref: str) -> TaskDomain: ...
 
     def wait_for_user(self, session_id: str, task_id: str, *, ask_id: str) -> TaskDomain: ...
 
-    def resume_after_user(self, session_id: str, task_id: str, *, ask_id: str) -> TaskDomain: ...
+    def wait_for_confirmation(
+        self,
+        session_id: str,
+        task_id: str,
+        *,
+        confirmation_id: str,
+    ) -> TaskDomain: ...
+
+    def resume_after_user(
+        self,
+        session_id: str,
+        task_id: str,
+        *,
+        ask_id: str,
+    ) -> TaskDomain: ...
+
+    def resume_after_confirmation(
+        self,
+        session_id: str,
+        task_id: str,
+        *,
+        confirmation_id: str,
+    ) -> TaskDomain: ...
 
     def skip(self, session_id: str, task_id: str, *, reason: str) -> TaskDomain: ...
 
-    def retry(self, session_id: str, task_id: str, *, instruction: str | None = None) -> TaskDomain: ...
+    def retry(
+        self,
+        session_id: str,
+        task_id: str,
+        *,
+        instruction: str | None = None,
+    ) -> TaskDomain: ...
 
     def request_interrupt(
         self,
@@ -337,341 +197,407 @@ class TaskBus:
     def list_children(self, session_id: str, parent_id: str | None) -> list[TaskDomain]: ...
 ```
 
-Product 1.0 的 API 表面仍然保持小而集中：TaskBus 负责 PublishedTask
-状态转换、ASK blocking point、retry/skip、interrupt intent 和 recovery。
-Router / Routing Agent policy 的复杂策略不进入 TaskBus API；动态
-assignment API 是 Product 1.1+ 扩展。
+### 3.2 当前存储实现
 
----
+| 实现 | 当前事实 |
+|------|----------|
+| `InMemoryTaskBus` | 使用 `_tasks: dict[(session_id, task_id), TaskDomain]` 和 `_children` 映射；主要用于测试和内存场景 |
+| `SqliteTaskBus` | 使用 workspace-level SQLite `tasks` 表，`session_id` 隔离行；持久化 `status` 列和完整 `TaskDomain` JSON `payload` |
+| `TaskBus` Protocol | 生命周期命令和查询边界；不承诺 EventStream、assignment 或 global scheduler lock |
 
-## 6. Assignment And Claim Algorithm
+当前主应用装配为：
 
 ```python
-def assign(self, task_id: TaskId, agent_id: AgentId, *, assigned_by: AgentId) -> Task:
-    task = self.tasks_index[task_id]
-    if task.status != TaskStatus.pending:
-        raise InvalidTransition("only pending tasks can be assigned")
-
-    assigned = task.with_assignment(
-        assigned_agent_id=agent_id,
-        assigned_by=assigned_by,
-        assigned_at=now(),
-    )
-    self.tasks_index[task_id] = assigned
-    self._emit(TaskAssigned(task_id=task_id, agent_id=agent_id, assigned_by=assigned_by))
-    return assigned
-
-
-def claim_assigned(self, task_id: TaskId, agent_id: AgentId) -> Task | None:
-    # 串行约束
-    if self.running_task is not None:
-        return None
-
-    task = self.tasks_index[task_id]
-    if task.status != TaskStatus.pending:
-        return None
-    if task.assigned_agent_id != agent_id:
-        return None
-    if task.parent_id is not None:
-        parent = self.tasks_index[task.parent_id]
-        if parent.status != TaskStatus.done:
-            return None
-
-    running_task = task.with_status(TaskStatus.running)
-    self.running_task = running_task.id
-    self.tasks_index[running_task.id] = running_task
-    self._emit(TaskClaimed(task_id=task.id, agent_id=agent_id))
-    return running_task
+task_bus = SqliteTaskBus(layout.workspace_tasks_db)
 ```
 
-TaskBus 不扫描 Agent pool，也不选择 Agent。选择发生在 Router / Routing Agent policy；TaskBus 只验证状态、assignment、parent readiness 和串行约束。
+这意味着 TaskBus store 是 workspace-level，Task 行通过 `session_id` 隔离。它
+不是 `TaskBus(session_id, event_stream)` 形式的 session-private EventStream
+materialized view。
+
+### 3.3 TaskDomain 中与 TaskBus 相关的事实
+
+| 字段 | 当前用途 |
+|------|----------|
+| `session_id` / `task_id` | TaskBus 查询和唯一性作用域 |
+| `parent_id` / `root_id` | parent done 后 child 才能被 claim |
+| `status` | `pending` / `running` / `waiting_for_user` / `done` / `failed` |
+| `required_capability` | `claim_next` 的能力匹配条件 |
+| `dispatch_constraints` | 发布时附带的执行提示或 metadata；不是 assignment |
+| `claimed_by` / `started_at` | claim 成功后的执行事实 |
+| `waiting_for_ask_id` | ASK blocking point |
+| `waiting_for_confirmation_id` | confirmation blocking point |
+| `result_ref` / `error_ref` | 终态结果或错误引用 |
+| interrupt fields | 协作式停止意图和恢复记录 |
+
+当前没有 `assigned_agent_id`、`assigned_by`、`assigned_at` 或
+`assignment_index` 这样的 TaskBus assignment 事实。
 
 ---
 
-## 6.1 Cooperative Interruption
+## 4. 当前状态机
 
-TaskBus 接受停止请求，但不承诺立即停止 running Task。原因是安全点属于 Agent/runtime 能力：
+TaskBus 的当前状态集合是：
 
 ```text
-User requests stop
-  -> TaskBus records interrupt_requested
-  -> Execution Agent observes it
-  -> Agent stops at a safe point
-  -> Agent reports fail/cancelled outcome
+pending
+running
+waiting_for_user
+done
+failed
 ```
 
-规则：
+### 4.1 发布和 claim
 
-- `pending` Task 可以立即终止为 `failed`，error reason 使用 `cancelled:` 或 `skipped:` 前缀；
-- `running` Task 记录 interruption intent，UI 可投影为 "stopping"；
-- Execution Agent 在安全点调用 `fail(task_id, "cancelled: ...")` 或完成当前不可中断动作后再收尾；
-- hard cancellation 属于 runtime/tool best-effort，不由 TaskBus 直接 kill 进程或撤销外部动作。
+```text
+publish(task)
+  requires task.status == pending
+  persists TaskDomain
 
-这保证用户可以表达控制意图，同时不让 TaskBus 假装知道文件写入、shell 命令、外部 API 或 LLM 请求何时可以安全中断。
+claim_next(session_id, capability, agent_id)
+  requires capability and agent_id are non-empty
+  selects first pending task in session
+  requires task.required_capability == capability
+  requires parent is absent or parent.status == done
+  updates status -> running
+  sets claimed_by and started_at
+```
+
+Selection order is deterministic: `created_at`, then `order_index`, then
+`task_id`.
+
+### 4.2 Completion and failure
+
+```text
+complete
+  running -> done
+  records result_ref and completed_at
+
+fail
+  running/waiting_for_user -> failed
+  records error_ref and completed_at
+  clears waiting links
+```
+
+`complete` does not currently wait for children to finish. Parent-child
+readiness is enforced at claim time: a child is claimable only after its parent
+is `done`.
+
+### 4.3 ASK and confirmation blocking points
+
+```text
+wait_for_user
+  running -> waiting_for_user
+  records waiting_for_ask_id
+
+wait_for_confirmation
+  running -> waiting_for_user
+  records waiting_for_confirmation_id
+
+resume_after_user / resume_after_confirmation
+  waiting_for_user -> pending
+  requires matching active ask_id or confirmation_id
+  clears waiting link, claimed_by, started_at, result_ref, error_ref, completed_at
+```
+
+重要事实：resume 后回到 `pending`，不是直接回到 `running`。这让 resumed Task
+重新通过 `claim_next` 领取，可能由不同 `agent_id` 执行。
+
+### 4.4 Skip, retry, interrupt
+
+```text
+skip
+  pending/running -> failed
+  error_ref = "skipped: ..."
+
+retry
+  failed -> pending
+  preserves same task_id and queue position
+  clears result/error/wait/claim/interrupt lifecycle fields
+  may append retry instruction to intent
+
+request_interrupt
+  pending -> failed("cancelled: ...")
+  running -> remains running, records interrupt_requested intent
+
+recover_interrupted_running_tasks
+  running + interrupt_requested -> failed("cancelled: ...; safe_point=sidecar_recovery")
+```
+
+TaskBus records stop intent, but it does not kill a process, cancel an LLM
+request, undo file writes, or interrupt an external application directly.
+
+---
+
+## 5. 串行执行边界
+
+### 5.1 当前 product path 是串行的
+
+当前 fixed-route dispatcher 对同一个 Session 做 coalesced dispatch：
+
+```text
+request_dispatch(session_id)
+  -> pending session queue
+  -> _running_session_ids prevents duplicate concurrent drain for that session
+  -> _drain_session calls FixedRouteTaskExecutor.tick repeatedly
+  -> next tick only after prior tick returns completed
+```
+
+这给当前本地产品路径提供了单 Session 执行 lane。
+
+### 5.2 TaskBus API 本身不是全局 scheduler lock
+
+当前 TaskBus 没有 `running_task` 字段，也不会因为同一 Session 已经有
+`running` Task 就拒绝另一个 eligible pending root Task 的 `claim_next`。
+
+它实际验证的是：
+
+```text
+status == pending
+required_capability matches
+parent is absent or parent.status == done
+```
+
+因此，"当前系统一般串行执行" 是 fixed-route dispatcher / executor 路径的
+产品约束，不是 TaskBus 存储层的全局互斥语义。后续如果要让 TaskBus 自身承担
+多 worker lease、heartbeat 或 max concurrency enforcement，需要单独设计。
+
+### 5.3 为什么仍然偏向串行
+
+在单工作区、本地工具和 LLM 主导执行中，串行路径降低了文件写冲突、调试难度
+和恢复复杂度。并发应在具备 workspace isolation、conflict model、lease 和
+timeout 之后再引入。
+
+---
+
+## 6. Event、audit 和 projection 边界
+
+当前 TaskBus 生命周期真相在 TaskBus store 中：
+
+```text
+InMemoryTaskBus / SqliteTaskBus
+  -> current PublishedTask lifecycle facts
+```
+
+EventStream 仍然是 runtime action / observation / file evidence / replay 的
+重要审计层，但它不是当前 TaskBus 生命周期的 source of truth。
+
+当前相关读侧和审计侧包括：
+
+| 组件 | 当前作用 |
+|------|----------|
+| `TaskPublishAuditSink` | 记录 publish preview/published/rejected 等 service-level audit facts；明确还不是 EventStream event |
+| `TaskExecutionSummaryStore` | 保存执行结果或错误摘要，供 `result_ref` / `error_ref` 读取 |
+| `MessageStream` | 向用户投影执行完成、失败、等待等消息 |
+| `EventStreamFileChangeStore` | 从 session EventStream 投影工具产生的文件变更事实 |
+| `TaskInteractionTimelineService` | 把 draft、message、confirmation、event、file、summary 等读侧事实拼成 timeline |
+| `PlanTaskNodeLifecycleSync` | best-effort 将 TaskBus 生命周期同步回 PlanTaskNode execution |
+| `ExecutionPlaneStore` | 记录 Task API execution、idempotency、events、evidence、result/error |
+
+因此当前不能写成：
+
+```text
+EventStream -> replay -> TaskBus current state
+```
+
+更准确的关系是：
+
+```text
+TaskBus store owns PublishedTask lifecycle
+EventStream / MessageStream / ResultSummary / PublishAudit / ExecutionPlaneStore
+  provide audit, evidence, user-facing projection, and integration facts
+```
 
 ---
 
 ## 7. 与其他组件的关系
 
-Product 1.0 relationship:
+| 组件 | 当前关系 |
+|------|----------|
+| Session | TaskBus rows are scoped by `session_id`; main app uses a workspace-level SQLite TaskBus |
+| Authoring Domain | Raw/Draft/Ask/Proposal 不进入 TaskBus；publish boundary 负责转换 |
+| TaskPublisher / PlanPublisher | 负责把 validated draft/plan nodes 发布为 TaskBus Tasks |
+| EmbeddedTaskApiService | 普通 TaskRequest 映射到 TaskBus Task；保留 Execution Plane idempotency and evidence |
+| FixedRouteExecutionDispatcher | 当前本地自动执行入口，按 Session coalesce 并串行 drain |
+| FixedRouteTaskExecutor | 从 TaskBus claim eligible Task，运行 Default Agent，提交 terminal/waiting lifecycle |
+| Resident Default Agent | task-scoped AgentLoop runner，不持有 TaskBus 状态 |
+| ASK / confirmation tools | 运行中 Task 调用后进入 `waiting_for_user`，用户答复持久化后 resume 到 `pending` |
+| WeChat send runtime | local controlled runtime handler，使用 TaskBus 等待确认和领取目标 Task，但有自己的 boundary store/evidence |
+| Router / Routing Agent | 当前不调度 TaskBus；future dynamic routing 才提交 assignment |
+| EventStream | runtime evidence source and replay/audit layer，不是当前 TaskBus lifecycle store |
+| Workspace | TaskBus 不直接写 Workspace；串行执行路径降低写冲突 |
+
+---
+
+## 8. Dynamic routing foundation
+
+本节是 future design，不是当前实现事实。
+
+后续 dynamic routing 可以引入：
+
+```python
+class TaskBus:
+    def assign(self, task_id: str, agent_id: str, *, assigned_by: str) -> TaskDomain: ...
+    def claim_assigned(self, task_id: str, agent_id: str) -> TaskDomain | None: ...
+```
+
+需要同时补齐：
+
+| 能力 | 需要的新事实 |
+|------|--------------|
+| assignment | `assigned_agent_id`、`assigned_by`、`assigned_at`、assignment rationale/audit |
+| assigned-only claim | TaskBus 验证 caller agent 与 assignment 匹配 |
+| Agent Manager | worker/agent descriptor registry、health、lifecycle |
+| remote worker | lease、heartbeat、timeout、retry/recovery |
+| stale pending sweep | 明确定义 timeout、失败原因、audit record 和用户可见行为 |
+| concurrency | workspace isolation、max concurrency、conflict handling |
+
+在这些事实落地前，文档应避免把 Router assignment、stale pending sweep 或
+`claim_assigned` 写成当前 Product 1.1 行为。
+
+---
+
+## 9. 与 OS 调度器的对比
 
 ```text
-TaskPublisher / Agent Tool
-  -> TaskBus
-  -> FixedRouteTaskExecutor
-  -> Resident Default Agent
-  -> TaskBus complete / fail / wait_for_user
+                    OS scheduler                  Current TaskBus path
+---------------------------------------------------------------------------
+调度单位             thread / process              PublishedTask
+执行粒度             微秒到毫秒                     秒到分钟
+调度策略             抢占式 + priority + affinity   fixed-route capability claim
+并发度               多核并行                       product path serial per Session
+负载均衡             work stealing                  当前不需要
+就绪判定             资源 + signal                  parent.done + capability match
+状态机复杂度         多状态                         5 个 lifecycle status
+失败处理             signal / supervisor            failed terminal state; no auto parent propagation
+持久化               kernel/process state            TaskBus store plus read-side audit/evidence stores
 ```
 
-Later dynamic routing relationship:
-
-```
-                ┌────────────────────────────┐
-                │                            │
-   User ──┐     │  ┌──────────┐              │
-          ├───→ │  │ TaskBus  │ ←─── publish │
-   Agent ─┘     │  │          │              │
-                │  │  - queue │ ←─ assign    │ ── Router / policy
-                │  │  - index │ ←─ claim/    │
-                │  │  - state │     complete │ ── Execution Agent
-                │  └──────────┘              │
-                │       │                    │
-                │       │ emit               │
-                │       ↓                    │
-                │  EventStream               │
-                │       │                    │
-                │       │ snapshot           │
-                │       ↓                    │
-                │   持久化存储                │
-                └────────────────────────────┘
-```
-
-- **与 Session：** 每个 Session 独占一个 TaskBus 实例，绑定生命周期
-- **与 Task：** TaskBus 是 PublishedTask 的容器和状态权威
-- **与 Authoring Domain：** TaskBus 不接收 RawTask / DraftTaskTree；`TaskPublisher` 是两域边界
-- **与 FixedRouteTaskExecutor：** 当前 Product 1.1 中固定执行桥通过 `claim_next` 推进 eligible pending Task
-- **与 Router：** later dynamic routing 中 Router 观察 pending tasks 和 Agent registry，提交 assignment command；Routing Agent 是 Router 内部可插拔 policy。当前 Runtime Input Router 不执行 TaskBus 调度。
-- **与 Agent Manager / Execution Agent：** later dynamic routing 中 Agent Manager 创建实例并通过 `claim_assigned` 领取被分配给自己的任务；Execution Agent 通过 `complete/fail` 报告结果
-- **与 EventStream：** 每次状态变迁都向 EventStream 发射事件，EventStream 是真相，TaskBus 是物化视图
-- **与 Workspace：** TaskBus 不直接操作 Workspace，但通过"串行执行"保证 Workspace 访问无冲突
+TaskBus 优化的是本地执行正确性、可恢复性和可投影性，不是吞吐量最大化。
 
 ---
 
-## 8. 与 OS 调度器的对比
+## 10. 生命周期
 
-```
-                    OS 调度器                    TaskBus
-─────────────────────────────────────────────────────────────────
-调度单位             线程 / 进程                  Task
-执行粒度             微秒~毫秒                    百毫秒~分钟
-调度策略             抢占式 + 优先级 + 亲和性     Router policy + assignment validation
-并发度               多核并行                    严格串行
-负载均衡             work stealing               不需要
-就绪判定             资源 + 信号                 parent.done == True
-状态机复杂度         多种（运行/就绪/阻塞/...）   5 种（含 ASK blocking point）
-失败处理             信号 + supervisor           Task failed 不传播
+### 10.1 创建
+
+当前主应用创建 workspace-level SQLite TaskBus：
+
+```python
+task_bus = SqliteTaskBus(layout.workspace_tasks_db)
 ```
 
-OS 调度器是**复杂换吞吐量**，TaskBus 是**简洁换正确性**。两者优化目标完全不同——OS 任务粒度小，调度复杂度被任务数量摊薄；LLM 任务粒度大，调度复杂度的 ROI 极低。
+测试和局部服务可使用 `InMemoryTaskBus`。每个 Task 的 `session_id` 负责隔离
+不同 Session 的生命周期事实。
+
+### 10.2 活跃期
+
+活跃期内的主要循环是：
+
+```text
+1. publisher/API/runtime publishes pending Tasks
+2. fixed-route dispatcher requests execution for a Session
+3. FixedRouteTaskExecutor claims next eligible pending Task
+4. Resident Default Agent or runtime handler executes
+5. TaskBus records done / failed / waiting_for_user
+6. ASK/confirmation answer resumes waiting Task to pending
+7. retry / skip / interrupt command mutates lifecycle through TaskBus
+8. PlanTaskNodeLifecycleSync and UI projections observe committed facts
+```
+
+### 10.3 暂停和关闭
+
+当前没有 `bus.pause()` / `bus.resume()` API。
+
+`SqliteTaskBus.close()` 只关闭 SQLite connection。`FixedRouteExecutionDispatcher`
+有 `stop()` / `close()` 用于停止 worker thread。当前没有已经实现的
+"Session 关闭时拒绝 publish、等待 running、取消所有 pending、flush
+EventStream" 的 TaskBus 生命周期流程。
+
+这些能力如果需要，应作为 session/runtime lifecycle 设计单独落地。
 
 ---
 
-## 9. 生命周期
+## 11. 未来发展点
 
-### 9.1 创建
+### 11.1 能力匹配增强
 
-TaskBus 与 Session 同生：
+当前 TaskBus 使用单值 `required_capability` 匹配。只有当单值表达力被实证不足
+时，才应引入多能力或能力表达式：
 
-```
-Session 创建时：
-  bus = TaskBus(session_id=session.id, event_stream=session.event_stream)
-  session.bus = bus
-```
-
-无独立的"启动"步骤——创建即可用。
-
-### 9.2 活跃期
-
-TaskBus 在 Session active 期间持续接受任务：
-
-```
-持续循环：
-  Loop 1: 用户/Agent publish 任务
-  Loop 2: Product 1.0 fixed-route executor claim_next
-  Loop 3: Agent 完成、失败或创建 ASK → bus.complete / bus.fail / bus.wait_for_user
-  Loop 4: ASK answer/defer/cancel → bus.resume_after_user 或 bus.fail
-  Loop 5: retry/skip/interrupt command 通过 TaskBus 改变生命周期事实
-
-Product 1.1+ 动态路由会在 Loop 2 前增加 Router assign pending tasks 和
-Agent Manager claim_assigned。
+```python
+required_capabilities: tuple[str, ...]
+capability_match: Literal["all", "any"]
 ```
 
-期间 `running_task` 至多有一个，`queue` 长度可变。
+复杂评分、成本估计、历史成功率和 LLM 判断应留在 Router policy 中，不放入
+TaskBus lifecycle API。
 
-### 9.3 暂停
+### 11.2 Dynamic assignment
 
-未来的"暂停"语义（v2.x）：
+Router / Routing Agent 可以成为可插拔 policy，TaskBus 只验证 assignment
+command 合法性。该能力要和 Agent descriptor、audit、claim validation 一起
+设计，不能只添加一个字段。
 
+### 11.3 Remote execution env and lease
+
+ExecutionEnv registry 当前用于本地 compatibility check。要支持真正多执行环境，
+还需要：
+
+- remote worker identity
+- lease and renew
+- heartbeat
+- task timeout policy
+- idempotent result callback
+- evidence upload and authorization
+
+### 11.4 Concurrency
+
+并发不应只通过 `max_concurrent > 1` 开关打开。需要先具备：
+
+- workspace isolation or fork/sub-session model
+- conflict detection and merge policy
+- per-worker lease and recovery
+- UI projection for concurrent running Tasks
+- tests for cancellation and partial failure
+
+### 11.5 DAG dependencies
+
+当前只支持单 parent readiness。如果需要多依赖，应引入显式 DAG 模型：
+
+```python
+depends_on: tuple[str, ...]
 ```
-bus.pause()
-  - 已 running 的任务执行完毕后正常进入终态
-  - 新的 claim_assigned 返回 None
-  - publish 仍然接受（任务进入 pending 但不被领取）
 
-bus.resume()
-  - 恢复 claim_assigned 的正常行为
-```
-
-v1.x 不实现，因为没有典型用例。
-
-### 9.4 关闭
-
-Session 关闭时：
-
-```
-1. 拒绝新的 publish
-2. 等待 running_task 进入终态
-3. 把仍在 pending 的任务标记为 cancelled（或 abandoned）
-4. flush EventStream
-5. 释放索引内存
-```
-
-关闭后 TaskBus 不可用，与 Session 一同销毁。
+同时需要环检测、拓扑排序、就绪事件或可接受的扫描策略。
 
 ---
 
-## 10. 未来发展点
+## 12. 设计决策小结
 
-### 10.1 v1.x：能力匹配增强
-
-**多能力匹配**
-
-```python
-@dataclass
-class Task:
-    required_capabilities: list[str]  # 改为多值
-    capability_match: Literal["all", "any"] = "any"
-```
-
-让任务可以表达"需要 audit 或 review 任一能力的 Agent"。**当且仅当**单值匹配的表达力被实证不足时引入。
-
-**能力评分（放到 Router / Routing Agent policy）**
-
-TaskBus 不引入能力评分排序。如果需要评分、成本估计、历史成功率或 LLM 判断，应由 Router / Routing Agent policy 产生 assignment rationale，并通过 assignment command 落入 TaskBus。
-
-### 10.2 v2.x：并发执行
-
-**有限并发**
-
-```python
-class TaskBus:
-    max_concurrent: int = 1  # 默认 1，可配置
-```
-
-放宽串行约束，允许 N 个任务并发。**前提是 Workspace 隔离机制（sub-session 或 fork）已经就绪。**
-
-```
-v1：串行 + 单工作区
-v2：可配置并发 + sub-session 工作区
-```
-
-引入并发后需要新增：
-- 锁机制（或乐观并发）
-- 心跳与超时
-- Worker 健康检查
-
-这是真正的复杂度跃迁，必须有数据驱动（吞吐量瓶颈被实证）才做。
-
-### 10.3 v2.x：任务暂停与恢复
-
-**断点机制**
-
-```python
-bus.pause()
-bus.resume()
-```
-
-支持长时间运行的会话被暂停（如用户离开），恢复时从同一状态继续。这要求 TaskBus 状态完整可序列化——目前已经满足，只需暴露 API。
-
-### 10.4 v2.x：跨 Session 任务引用
-
-**只读引用**
-
-```python
-new_session.bus.import_artifact(
-    task_id=old_task_id,
-    from_session=old_session_id,
-)
-# 在 new_session 内可以创建依赖此 artifact 的新任务
-# 不复制整个任务树，仅引用最终 result
-```
-
-让历史会话的产物在新会话中可被引用，避免在一个 Session 内堆积所有内容。
-
-### 10.5 v3.x：DAG 化
-
-**真正的多依赖调度**
-
-如果 `artifact_refs` 模式被实证不够，需要真正的 DAG：
-
-```python
-@dataclass
-class Task:
-    parent_id: TaskId | None
-    depends_on: list[TaskId]  # 新增
-
-class TaskBus:
-    def claim_assigned(self, task_id: TaskId, agent_id: AgentId) -> Task | None:
-        # 升级为：所有 depends_on 都 done 才 ready
-        ...
-```
-
-需要的新基础设施：
-- 拓扑排序
-- 环检测
-- 就绪事件订阅（避免 O(N²) 扫描）
-- 死锁检测
-
-**只有在 v1.x 的 `artifact_refs` + 单 parent 模式被实证无法表达需求时才引入。**
-
-### 10.6 v3.x：流式任务
-
-**长生命周期任务**
-
-```python
-class StreamingTaskBus(TaskBus):
-    def publish_stream(self, task: StreamingTask) -> AsyncIterator[Artifact]:
-        ...
-```
-
-支持生产者-消费者管道（实时监控、流式数据处理）。这会**根本性挑战"无状态 Agent"**约束，引入需要重新评估整个架构基础。
+| 决策 | 当前选择 | 不作为当前事实的替代方案 | 理由 |
+|------|----------|--------------------------|------|
+| 状态权威 | TaskBus store | EventStream replay as TaskBus truth | 当前实现由 InMemory/SQLite TaskBus 持有生命周期 |
+| 执行路径 | fixed-route Default Agent / local runtime handler | dynamic Agent assignment | 当前代码没有 assignment API 或 Agent Manager |
+| Claim 规则 | capability + parent done + pending | assigned-only claim | 当前 `claim_next` 不读取 assignment |
+| 串行性 | fixed-route dispatcher per Session serial drain | TaskBus global `running_task` lock | 当前 TaskBus 无 global running guard |
+| ASK/confirmation resume | waiting -> pending | waiting -> running | 当前实现清除 claim/start 并重新 claim |
+| 中断 | cooperative intent in TaskBus | TaskBus hard kill | 安全点属于 Agent/runtime/tool |
+| Publish audit | dedicated audit sink | EventStream TaskBus events | 当前 publish audit 明确不是 EventStream event |
+| Pending timeout | no current stale pending sweep | automatic timeout failure | 当前仅有 interrupted running recovery |
+| Parent/child | child claim waits for parent done | complete waits for children | 当前 complete 只要求自身 running |
 
 ---
 
-## 11. 设计决策小结
+## 13. 总结
 
-| 决策 | 选择 | 替代方案 | 选择理由 |
-|------|------|---------|---------|
-| 路由策略 | Router / Routing Agent policy | TaskBus 内置 matcher | 策略可插拔，支持硬路由、LLM 路由和高级用户自定义 |
-| 并发度 | 严格串行 | 多 worker 并发 | 单工作区 + 调度极简 |
-| Assignment 权威 | TaskBus 验证并记录 | Router / Routing Agent 直接改状态 | 保持状态一致性和可审计性 |
-| 状态权威 | 集中在 TaskBus | 分散在各 Agent | 状态合法性、事件发射在一处实现 |
-| 中断 | Cooperative interruption | TaskBus 强杀运行中动作 | 安全点属于 Agent/runtime 能力 |
-| 失败传播 | 不自动传播 | 父任务自动失败 | 父任务可决定重试或捕获，灵活性更高 |
-| 持久化 | 通过 EventStream | TaskBus 自管 | TaskBus 是物化视图，EventStream 是真相 |
-| Work stealing | 不引入 | 多 worker 抢任务 | 串行架构下无意义 |
-| 心跳与超时 | 不引入 per-task timer；pending 用 sweep 收敛 | 检测孤儿任务 | 串行 + 同步执行下避免复杂 timer，pending 不无限悬挂 |
+TaskBus 的当前职责很窄：保存和验证 PublishedTask 生命周期事实。它把执行状态从
+Agent、Authoring、UI、Execution Plane 和 audit/read-side stores 中分离出来，
+让这些组件通过明确边界协作。
 
----
+后续 dynamic routing、remote worker、并发和 DAG 都应建立在这个事实之上：
 
-## 12. 总结
-
-**TaskBus 是执行架构的"心脏"**——所有已发布执行任务的流转、状态变迁、协作触发都汇聚于此。它的设计哲学是：
-
+```text
+先保持 TaskBus lifecycle truth 清楚，
+再把 routing / worker / concurrency / audit 扩展逐步接上。
 ```
-  做最少的事 ─ assignment 验证 + 状态机
-  做对所有事 ─ 串行 + 集中 + 事件溯源
-  为未来留路 ─ Router policy 可替换，单 worker 可扩为多 worker，单值依赖可扩为 DAG
-```
-
-简洁的 TaskBus 是整个执行架构能保持简洁的支点。Authoring Domain 承担用户意图、澄清、草案和可行性判断，正是为了让这颗心脏不要背上不属于它的生命周期。

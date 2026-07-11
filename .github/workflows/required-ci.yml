@@ -1,0 +1,142 @@
+name: Required CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: required-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend-tests:
+    name: Backend Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    env:
+      OPENHANDS_SUPPRESS_BANNER: "1"
+      PLATO_MAIN_PAGE_TRACE_PRINT: "0"
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install Python dependencies
+        run: uv sync --dev
+
+      - name: Run complete backend test suite
+        run: uv run pytest -q
+
+  frontend-validation:
+    name: Frontend Test, Lint, and Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Run complete frontend test suite
+        working-directory: frontend
+        run: npm test -- --reporter=dot
+
+      - name: Run frontend lint
+        working-directory: frontend
+        run: npm run lint
+
+      - name: Run frontend TypeScript and Vite build
+        working-directory: frontend
+        run: npm run build
+
+  sidecar-e2e:
+    name: Sidecar E2E Acceptance
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    env:
+      OPENHANDS_SUPPRESS_BANNER: "1"
+      PLATO_MAIN_PAGE_TRACE_PRINT: "0"
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install Python dependencies
+        run: uv sync --dev
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Run sidecar-backed frontend E2E
+        working-directory: frontend
+        run: npm run test:e2e:sidecar
+
+  required-ci:
+    name: Required CI Gate
+    if: ${{ always() }}
+    needs:
+      - backend-tests
+      - frontend-validation
+      - sidecar-e2e
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Require every validation job
+        env:
+          BACKEND_RESULT: ${{ needs.backend-tests.result }}
+          FRONTEND_RESULT: ${{ needs.frontend-validation.result }}
+          SIDECAR_E2E_RESULT: ${{ needs.sidecar-e2e.result }}
+        run: |
+          printf 'Backend Tests: %s\n' "$BACKEND_RESULT"
+          printf 'Frontend Test, Lint, and Build: %s\n' "$FRONTEND_RESULT"
+          printf 'Sidecar E2E Acceptance: %s\n' "$SIDECAR_E2E_RESULT"
+          test "$BACKEND_RESULT" = "success"
+          test "$FRONTEND_RESULT" = "success"
+          test "$SIDECAR_E2E_RESULT" = "success"
