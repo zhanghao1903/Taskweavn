@@ -148,3 +148,13 @@
 - `docs/engineering/runtime-input-router-api-contract.md`: deferred-capability section is older than current Runtime Input Router code and should be revised in its own pass.
 - `docs/architecture/agent.md`, `docs/architecture/task.md`, and `docs/architecture/bus.md`: still contain older fixed-route wording that should be checked against the Execution Plane foundation and current dispatcher/executor code.
 - `docs/architecture/taskbus-service-multi-execution-env.md`: already calls itself exploratory, but should be checked after the Execution Plane plan/API docs are calibrated.
+
+## PR #182 Review Follow-Up (2026-07-11)
+
+- Replaced the nonexistent `TaskFailure` result branch in the fixed-route flow
+  with the implemented `TaskRunResult` boundary.
+- Made the next transition explicit: `FixedRouteTaskExecutor` maps the run
+  result to `TaskBus.complete(...)` / `TaskBus.fail(...)`, or preserves the
+  interaction-committed `waiting_for_user` state already stored on `TaskDomain`.
+- Execution Plane `TaskResult` / `TaskError` remain separate service DTOs and are
+  not presented as the direct return type of the resident Default Agent.

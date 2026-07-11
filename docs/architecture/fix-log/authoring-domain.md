@@ -206,3 +206,12 @@
 - `git diff --check` passed.
 - `uv run pytest tests/test_task_authoring.py tests/test_authoring_command_service.py tests/test_in_memory_authoring_stores.py tests/test_sqlite_authoring_stores.py tests/test_plan_store.py tests/test_plan_publisher.py tests/test_plan_commands.py tests/test_plan_lifecycle.py tests/test_plan_view_contract.py tests/test_task_publisher.py tests/test_task_publish_service.py tests/test_task_publisher_input.py tests/test_ask_projection.py tests/test_ask_recovery.py tests/test_ui_command_gateway.py tests/test_ui_query_gateway.py tests/test_collaborator_api_adapter.py tests/test_collaborator_authoring_service.py`
   passed: 273 tests.
+
+## PR #182 Review Follow-Up (2026-07-11)
+
+- Removed `TaskClaim` and `TaskFailure` from the current Execution Domain object
+  list because neither model exists in current `src/`, frontend, or tests.
+- Replaced them with the implemented TaskBus/runtime facts `TaskDomain` and
+  `TaskRunResult`, plus the implemented Execution Plane DTOs `TaskExecution`,
+  `TaskResult`, and `TaskError`.
+- This is a documentation-only fact correction; no runtime contract changed.

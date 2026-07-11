@@ -320,3 +320,11 @@ Pre-push validation on 2026-07-11:
 - frontend lint: 0 errors and 2 pre-existing Fast Refresh warnings;
 - frontend TypeScript/Vite build: passed with the existing chunk-size warning;
 - sidecar-backed E2E: 5 files and 6 tests passed.
+
+## 12. PR #182 Review Follow-Up
+
+On 2026-07-11, the final evidence inventory was corrected to reference the
+current `.github/workflows/required-ci.yml`. The deleted
+`product-1-0-frontend-integration.yml` remains relevant only as the historical
+workflow described in Section 11 before replacement; it is no longer listed as
+a current evidence file. No architecture score or runtime claim changed.

@@ -496,7 +496,7 @@ docs 中明确识别。这个边界比“先画完整未来系统，再用 heade
 - `frontend/src/` API contracts、Main Page、Settings、Audit 和 E2E；
 - 20 个 accepted/historical ADR；
 - Product 1.1 formal/beta release evidence；
-- `.github/workflows/product-1-0-frontend-integration.yml`；
+- `.github/workflows/required-ci.yml`；
 - `frontend/package.json` scripts；
 - backend/frontend test inventory and current test runs。
 

@@ -1,7 +1,7 @@
 # Authoring Domain Architecture
 
 > Status: fact-calibrated current implementation / Plan migration compatibility
-> Last Updated: 2026-07-10
+> Last Updated: 2026-07-11
 > Original preserved as: `docs/architecture/authoring-domain.original.md`
 > Related ADR: [ADR-0008](../decisions/ADR-0008-authoring-domain-execution-boundary.md)
 > Related Plans:
@@ -68,7 +68,7 @@ and execution handoff. It is not itself the Authoring Domain store authority.
 | Domain | Current Responsibility | Current Core Objects | Authority |
 |---|---|---|---|
 | Authoring Domain | Capture uncertain intent, ask planning questions, generate editable work contracts, and publish confirmed work. | `RawTask`, `FeasibilityReport`, `RawTaskAsk`, `RawTaskAnswer`, `DraftTaskTree`, `DraftTaskNode`, `Plan`, `PlanTaskNode`, authoring command results. | Authoring stores, Plan stores, command services, UI projections. |
-| Execution Domain | Run confirmed executable tasks and produce results, file-change summaries, waits, retries, and failures. | `TaskDomain`, `TaskClaim`, `TaskResult`, `TaskFailure`, execution `AskRequest`, result/file/audit records. | TaskBus, execution services, execution ASK store, result stores. |
+| Execution Domain | Run confirmed executable tasks and produce results, file-change summaries, waits, retries, and failures. | `TaskDomain`, `TaskRunResult`, execution-plane `TaskExecution` / `TaskResult` / `TaskError`, execution `AskRequest`, result/file/audit records. | TaskBus, execution services, execution ASK store, result stores. |
 
 Two publish paths currently coexist:
 

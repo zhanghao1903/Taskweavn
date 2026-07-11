@@ -1,8 +1,8 @@
 # TaskWeavn Architecture Overview
 
 > Status: active architecture overview
-> Last Updated: 2026-07-10
-> Version: v1.5
+> Last Updated: 2026-07-11
+> Version: v1.5.1
 > Related Decisions: [ADR-0008](../decisions/ADR-0008-authoring-domain-execution-boundary.md), [ADR-0010](../decisions/ADR-0010-line-first-authoring-experience-for-1-0.md), [ADR-0011](../decisions/ADR-0011-routing-agent-assignment-and-cooperative-interruption.md), [ADR-0012](../decisions/ADR-0012-taskbus-centered-agent-assignment-convergence.md), [ADR-0020](../decisions/ADR-0020-execution-plane-as-service-task-api-boundary.md)
 
 This document is the current high-level architecture map for Plato / TaskWeavn.
@@ -268,7 +268,9 @@ TaskPublisher
   -> TaskBus
   -> FixedRouteTaskExecutor
   -> Resident Default Agent
-  -> TaskResult or TaskFailure
+  -> TaskRunResult
+  -> FixedRouteTaskExecutor maps to TaskBus complete / fail,
+     or preserves the interaction-committed waiting_for_user state
 ```
 
 The additive Task API path maps service-level requests into the same local
