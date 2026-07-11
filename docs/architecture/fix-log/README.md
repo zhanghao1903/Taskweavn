@@ -361,3 +361,15 @@ reason/evidence     -> fix log
 同时，它把唯一纯 future runtime memo `bus-v2.md` 明确标出，并对
 Execution Plane、workspace protocol、tool capability、Agent/Task/Bus 文档采用
 “implemented facts + explicit extension boundary”的准确分类。
+
+---
+
+## 10. Required CI Follow-Up
+
+2026-07-11 更新 active README 的验证日期和 CI 事实：
+
+- `.github/workflows/required-ci.yml` 现在对每个 PR 运行完整 backend tests、
+  frontend test/lint/build 和 sidecar E2E，并提供 `Required CI Gate` 聚合结果；
+- GitHub 对当前私有仓库的 `main` branch-protection API 返回套餐限制 403；
+- 因此 workflow coverage 已补齐，但 merge-blocking required enforcement 仍需
+  GitHub Pro 或 public repository 条件。

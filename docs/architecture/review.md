@@ -1,7 +1,7 @@
 # 当前架构评审与事实基线
 
 > Status: fact-calibrated architecture review
-> Last Updated: 2026-07-10
+> Last Updated: 2026-07-11
 > Original historical review:
 > `docs/architecture/review.original.md`
 > Verification record:
@@ -223,7 +223,7 @@ commit order 和 recovery invariant，再按 usage evidence 移除 legacy projec
 对当前单 sidecar fixed-route scope，这些是明确限制而不是立即故障。任何增加 worker、
 remote env 或 dynamic Agent 的工作，都必须先把这些隐含串行假设变成显式协议。
 
-### 3.7 Medium: 测试资产强，但 CI gate 明显窄于测试资产
+### 3.7 Medium: 请求的 CI matrix 已覆盖，required enforcement 受套餐阻塞
 
 2026-07-10 的静态/collection evidence：
 
@@ -234,7 +234,7 @@ remote env 或 dynamic Agent 的工作，都必须先把这些隐含串行假设
 - 多个 Electron dev/packaged/installer/launcher/restart smoke scripts；
 - release notes 记录了 DMG verify 和 installer smoke。
 
-GitHub Actions 当前只有一个 workflow：
+校准时 GitHub Actions 只有一个 workflow：
 
 ```text
 Product 1.0 Frontend Integration
@@ -244,8 +244,25 @@ Product 1.0 Frontend Integration
   -> five frontend E2E files
 ```
 
-它不等于完整 backend pytest、frontend unit tests、ESLint、TypeScript/Vite build、Ruff、
-Mypy、packaging smoke 的统一 PR gate。
+2026-07-11 的 follow-up 把它替换为 `.github/workflows/required-ci.yml`。当前
+`Required CI` 对每个 PR、`main` push 和手动触发运行：
+
+```text
+Backend Tests
+  -> uv run pytest -q
+Frontend Test, Lint, and Build
+  -> npm test -- --reporter=dot
+  -> npm run lint
+  -> npm run build
+Sidecar E2E Acceptance
+  -> npm run test:e2e:sidecar
+Required CI Gate
+  -> aggregate the three job results
+```
+
+PR 不再使用 paths filter，因此文档、后端、前端或 workflow 变化都会产生同一组稳定
+checks。Ruff、Mypy、macOS Electron/package smoke 和 credentialed provider/Desktop
+smoke 仍不在这个 requested baseline 内。
 
 本次校准首次运行完整 suites，证明“有测试资产”和“未经验证就假定 baseline 全绿”
 不是同一件事。当时发现：
@@ -271,17 +288,17 @@ follow-up：
 - frontend lint 为 0 errors、2 个既有 Fast Refresh warnings，build 通过并保留既有
   chunk-size warning。
 
-因此 2026-07-10 的这些已知 baseline failures 已收敛，但完整 CI gate 仍未覆盖上述
-完整矩阵。后续重点是把这些 suites 变成持续 required checks，而不是只增加更多测试
-文件。
+因此 2026-07-10 的已知 baseline failures 已收敛，2026-07-11 的 workflow 也已覆盖
+请求的持续验证矩阵。但仓库当前是私有仓库，GitHub branch-protection API 返回 403，
+明确要求 GitHub Pro 或把仓库改为 public；所以这些 checks 会运行并由聚合 gate
+汇总，却暂时不能由 GitHub 设置成阻止合并的 required status check。
 
-建议至少建立：
+剩余 CI/release 工作是：
 
-1. backend unit/integration-with-skips；
-2. frontend unit + lint + build；
-3. sidecar E2E；
-4. macOS-only Electron/package smoke；
-5. optional credentialed provider/Desktop smoke。
+1. 套餐或 visibility 条件满足后，把 `Required CI Gate` 加入 `main` branch protection；
+2. 增加 Ruff/Mypy 或明确它们属于 developer-only validation；
+3. 增加 macOS-only Electron/package smoke；
+4. 保留 optional credentialed provider/Desktop smoke。
 
 ### 3.8 Medium: Cost 可见性已落地，预算/配额仍未执行
 
@@ -416,7 +433,7 @@ docs 中明确识别。这个边界比“先画完整未来系统，再用 heade
 | Security / privacy / isolation | 5 | 15% | path/settings/confirmation 有基础；permission enforcement、shell isolation、raw logs 不足 |
 | Observability / audit / diagnostics | 7 | 10% | surface 丰富；redaction/payload/process-global 限制明显 |
 | LLM / context / cost governance | 6 | 10% | provider/context/usage 已落地；failure evidence、budget、consumer coverage 不完整 |
-| Tests / CI / release confidence | 7 | 10% | 测试资产和 smoke 强；CI matrix、signing/notarization 不完整 |
+| Tests / CI / release confidence | 7 | 10% | requested CI matrix 已落地；branch protection、macOS packaging、signing/notarization 未闭合 |
 | **加权总分** | **6.9 / 10** | 100% | local technical product 成立，production hardening 尚未闭合 |
 
 旧评审的 `6.7 -> 7.3` 不能与此分数直接比较：评价维度已经从“新颖性/完整性/直观性”
@@ -437,10 +454,9 @@ docs 中明确识别。这个边界比“先画完整未来系统，再用 heade
    - Execution Plane policy enforcement matrix；
    - `llm_io`/message/context/error sanitizer。
 3. **CI baseline**
-   - backend full tests；
-   - frontend test/lint/build；
-   - existing sidecar E2E；
-   - required checks on PR。
+   - 保持 `Required CI` 的 backend、frontend、sidecar E2E jobs 全绿；
+   - 套餐或 visibility 条件满足后 require `Required CI Gate`；
+   - 评估 Ruff/Mypy 和 macOS packaging checks。
 
 ### P1: 降低故障和迁移成本
 

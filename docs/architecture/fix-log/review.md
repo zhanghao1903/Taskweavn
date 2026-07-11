@@ -27,7 +27,9 @@
   - current GitHub Actions workflow and package scripts.
 - Missing or weak artifacts:
   - no generated architecture metrics/report;
-  - CI does not run the complete available test/lint/type/build matrix;
+  - at calibration time CI did not run the requested backend/frontend/E2E
+    matrix; a 2026-07-11 follow-up adds it, while branch-protection enforcement
+    remains unavailable on the current private-repository plan;
   - several cross-store guarantees remain documented as limitations rather than
     unified invariants.
 - Implementation allowed now: yes, for documentation-only review calibration.
@@ -110,10 +112,12 @@
 - Five frontend sidecar-backed E2E files.
 - Electron dev, packaged, installer, launcher, workspace, and restart smoke
   scripts in `frontend/scripts/`.
-- One GitHub Actions workflow:
-  `.github/workflows/product-1-0-frontend-integration.yml`.
-- That workflow invokes `npm run test:e2e:sidecar`, which starts configured and
-  unconfigured sidecar fixtures and runs the five E2E files.
+- The calibration-time GitHub Actions workflow was
+  `.github/workflows/product-1-0-frontend-integration.yml` and invoked only
+  `npm run test:e2e:sidecar`.
+- The 2026-07-11 follow-up replaces it with
+  `.github/workflows/required-ci.yml`, covering complete backend tests,
+  frontend test/lint/build, sidecar E2E, and an aggregate gate.
 
 ## 4. Historical Claims Reconciled
 
@@ -168,8 +172,9 @@
 17. Usage analytics records successful ChatResponse and has no budget enforcer.
 18. Frontend “Budget” is a static high-token warning at one million tokens.
 19. The repository has broad backend/frontend/E2E/smoke test assets.
-20. Current GitHub CI runs only the sidecar E2E workflow, not the full local
-    validation matrix.
+20. Current GitHub CI runs the requested backend, frontend, and sidecar E2E
+    matrix for every PR; GitHub plan limits prevent enforcing its aggregate
+    result through `main` branch protection.
 21. Formal Product 1.1 distribution is local macOS Apple Silicon, unsigned and
     not notarized.
 
@@ -274,6 +279,44 @@ Follow-up validation:
 - frontend TypeScript/Vite build: passed with the existing chunk-size warning;
 - Ruff on the changed Python test files: passed.
 
-This closes the four recorded local baseline issues. It does not close the
-separate finding that GitHub CI runs a narrower matrix than the repository
-supports.
+This closes the four recorded local baseline issues. The next follow-up closes
+the requested workflow coverage gap while recording the separate remote
+enforcement limitation.
+
+## 11. Required CI Follow-Up Record
+
+On 2026-07-11, the path-filtered sidecar-only workflow was replaced with
+`.github/workflows/required-ci.yml`.
+
+Current workflow facts:
+
+- trigger every pull request, every push to `main`, and manual dispatch;
+- `Backend Tests` installs the locked development environment and runs
+  `uv run pytest -q`;
+- `Frontend Test, Lint, and Build` runs the complete Vitest suite, ESLint, and
+  the TypeScript/Vite production build;
+- `Sidecar E2E Acceptance` installs both Python and Node dependencies and runs
+  `npm run test:e2e:sidecar`;
+- `Required CI Gate` uses `always()` and fails unless all three validation jobs
+  report `success`;
+- PR path filters were removed, so the stable gate is created for every PR.
+
+Remote enforcement fact:
+
+- the authenticated repository account has admin permission;
+- `main` branch-protection inspection returned HTTP 403 with GitHub's explicit
+  response: upgrade to GitHub Pro or make the private repository public;
+- the workflow therefore provides check results and one aggregate gate, but
+  GitHub cannot currently require that gate before merge;
+- once the plan or repository visibility changes, `Required CI Gate` is the
+  single context to add to `main` branch protection.
+
+Pre-push validation on 2026-07-11:
+
+- workflow YAML parsed successfully and structural assertions confirmed all
+  three triggers, four jobs, aggregate dependencies, and `always()` behavior;
+- complete backend suite: `1510 passed, 10 skipped in 47.63s`;
+- complete frontend suite: `558 passed, 6 skipped` across 78 files in `7.61s`;
+- frontend lint: 0 errors and 2 pre-existing Fast Refresh warnings;
+- frontend TypeScript/Vite build: passed with the existing chunk-size warning;
+- sidecar-backed E2E: 5 files and 6 tests passed.
