@@ -319,7 +319,9 @@ async function startWorkspaceSidecar(
       await showWorkspaceStartupShell(workspaceRoot);
     }
     await startSidecarForWorkspace(workspaceRoot, { showStartupShell: false });
-    await runSmokeIfRequested();
+    if (shouldRunSmokeAfterWorkspaceSidecar()) {
+      await runSmokeIfRequested();
+    }
   } catch (error) {
     await handleSidecarStartupFailure(error);
   }
@@ -672,6 +674,12 @@ async function runSmokeIfRequested() {
     );
     app.exit(1);
   }
+}
+
+function shouldRunSmokeAfterWorkspaceSidecar() {
+  return !["workspace-entry", "workspace-git-init"].includes(
+    process.env.PLATO_ELECTRON_SMOKE_KIND ?? "configured",
+  );
 }
 
 async function runStartupDiagnosticsSmokeIfRequested() {

@@ -1,510 +1,576 @@
-# Multi-Agent Collaboration Architecture
+# Multi-Agent Collaboration Architecture: Current Facts And Extension Boundary
 
-> [中文版](multi-agent-collaboration.md) · v1.1 · 2026-06-24
->
-> Status: historical architecture concept reference
->
-> Product 1.1 alignment: this document preserves the early multi-agent collaboration concept. Current Product 1.1 implements Runtime Input Router, task-scoped Default Agent execution, Agent LLM resolver, read-only inquiry, and command-backed contract revision. Full Agent Manager, dynamic assignment, and custom Agent protocol remain later extensions. Use [overview.md](overview.md), [agent.md](agent.md), [task.md](task.md), and [bus.md](bus.md) for current facts.
+> Status: fact-calibrated current architecture baseline
+> Last Updated: 2026-07-10
+> Chinese counterpart:
+> [multi-agent-collaboration.md](multi-agent-collaboration.md)
+> Original preserved as:
+> `docs/architecture/multi-agent-collaboration_en.original.md`
+> Related:
+> [Overview](overview.md),
+> [Agent](agent.md),
+> [Task](task.md),
+> [TaskBus](bus.md),
+> [Interaction Layer](interaction-layer.md),
+> [Collaborator Authoring](collaborator-agent-task-authoring.md),
+> [Execution Plane](taskbus-service-multi-execution-env.md),
+> [ADR-0011](../decisions/ADR-0011-routing-agent-assignment-and-cooperative-interruption.md),
+> [ADR-0012](../decisions/ADR-0012-taskbus-centered-agent-assignment-convergence.md)
 
----
+## 1. Purpose And Current Conclusion
 
-## Table of Contents
+This document records what the repository currently implements around
+multi-Agent collaboration. Accepted future design is kept separate from current
+runtime fact.
 
-1. [Core Design Principles](#1-core-design-principles)
-2. [Message Stream Model](#2-message-stream-model)
-3. [Autonomy System](#3-autonomy-system)
-4. [Conversation-driven Orchestration](#4-conversation-driven-orchestration)
-5. [Constraint-driven UI Orchestration](#5-constraint-driven-ui-orchestration)
-6. [Core Data Structures](#6-core-data-structures)
-7. [System Architecture Overview](#7-system-architecture-overview)
-8. [Progressive Constraint Evolution](#8-progressive-constraint-evolution)
-9. [Key Design Trade-offs](#9-key-design-trade-offs)
+Plato / TaskWeavn does **not** currently implement a multi-Agent graph runtime.
+The general Published Task execution path is fixed-route:
 
----
-
-## 1. Core Design Principles
-
-### 1.1 Two Core Principles
-
-The entire architecture is built around two orthogonal principles that together govern how agents and users collaborate.
-
-**Principle 1: Stream over Interrupt**
-
-Traditional human-in-the-loop systems rely on a "pause → wait → resume" blocking model where the system drives the pace and the user is forced to respond. This architecture replaces that with a **message stream model**: agents post requests to a stream; users can respond or not; what happens without a response is determined by the autonomy configuration. The user is always the active party.
-
-**Principle 2: Constraint-driven User Orchestration**
-
-Users are not forced to understand graph structures. Instead the LLM acts as the orchestration designer, generating a valid agent collaboration graph within constraint boundaries. Users describe intent in natural language and make local adjustments through the UI. The constraints themselves evolve as the system matures.
-
-### 1.2 The Core Shift
-
-```
-Old model                           New model
-──────────────────────────────────────────────────────────────
-interrupt → pause → resume          message stream + response policy
-user fills in orchestration config  describe intent → LLM generates draft
-constraints are post-hoc validators constraints are generation-time context
-flexibility is the default          constraints are the default; loosening needs data
+```text
+Published Task
+  -> TaskBus
+  -> FixedRouteExecutionDispatcher
+  -> FixedRouteTaskExecutor
+  -> resident Default Agent boundary
+  -> task-scoped AgentLoop
+  -> TaskBus complete / fail / wait
 ```
 
----
+The repository also contains components whose names include Agent, Router, or
+Execution Environment. They do not collectively form a dynamic multi-Agent
+scheduler:
 
-## 2. Message Stream Model
+- Collaborator performs command-backed task authoring and never claims a
+  Published Task.
+- Runtime Input Router classifies and dispatches Main Page input; it does not
+  assign Execution Agents.
+- Read-only Inquiry answers bounded questions and cannot mutate the workspace.
+- Agent LLM roles select model profiles and do not create runtime Agent
+  instances.
+- ExecutionEnv registry performs local compatibility checks and does not manage
+  remote workers.
+- `Orchestrator` is an unused placeholder Protocol with only a
+  `NullOrchestrator` implementation.
 
-### 2.1 Overview
+This document therefore distinguishes:
 
-All user-facing communication produced during agent execution flows into a single **Message Stream**. Users can observe in real time and intervene at any point, but are never forced to block.
+1. currently implemented specialized service roles;
+2. the one fixed-route general execution Agent;
+3. the future Router + Agent Manager + multiple Execution Agent architecture.
 
+## 2. Current Role Map
+
+| Name | Current implementation | Claims TaskBus work | Actual boundary |
+|---|---|---:|---|
+| Default Agent | `AgentLoopResidentDefaultAgent` | Yes | Stable `default_agent` identity; task-scoped runner / AgentLoop per Task |
+| Collaborator | Authoring service, profile runner, and command adapter | No | Proposes RawTask / Plan / DraftTaskTree changes and submits authoring commands |
+| Runtime Input Router | Deterministic router plus optional LLM route planner | No | Routes user input to inquiry, contract commands, interaction resolution, Task controls, or execution handoff |
+| Read-only Inquiry | Inquiry service and answer provider | No | Answers from explicitly allowed product, diagnostic, and read-only workspace context |
+| Agent LLM roles | Six `AgentLlmRole` values | No | Resolve provider/model configuration only |
+| Local runtime handler | `EmbeddedTaskRuntimeHandler` implementations | No | Handle selected local task types through a controlled service seam |
+| `Orchestrator` | Protocol and `NullOrchestrator` | No | Placeholder; not assembled or called by the product runtime |
+
+### 2.1 Default Agent
+
+Main Page sidecar assembly builds one resident Default Agent adapter for a
+workspace runtime. The adapter is a stable entry point, but it does not retain
+the same AgentLoop between Tasks:
+
+```text
+AgentLoopResidentDefaultAgent.run(task)
+  -> loop_factory(task)
+  -> task-scoped _SessionAgentLoopRunner
+  -> AgentLoop.run(rendered context, task_id)
+  -> TaskRunResult
 ```
-┌─ Agent Execution ────────────────────────────────────────────┐
-│  Planner → Executor → Auditor → ...                          │
-│      ↓          ↓         ↓                                  │
-└──────────────────────────────────────────────────────────────┘
-              ↓  ↓  ↓
-┌─ Message Stream ─────────────────────────────────────────────┐
-│  [INFO]  Planner: execution plan generated, 5 steps          │
-│  [ASK]   Executor: about to delete config.py — confirm?      │
-│  [INFO]  Executor: auth.py modified (line 42)                │
-│  [WARN]  Auditor: potential security vulnerability found      │
-└──────────────────────────────────────────────────────────────┘
-              ↑
-         user may respond at any time, or not at all
+
+TaskBus, Context Manager, AskStore, MessageStream, Event/Audit stores, and
+result summaries own durable facts. Cross-task private Agent memory is not a
+system authority.
+
+### 2.2 Collaborator
+
+`CollaboratorAgentTemplate` is real, but it is metadata for the built-in
+authoring role:
+
+- template id: `system.collaborator`;
+- capability: `task_authoring`;
+- command protocol: `authoring.v1`;
+- default LLM-visible tool pools: empty;
+- registry scope: Collaborator metadata per Session, not a general AgentPool.
+
+The authoring service asks an LLM for a structured proposal and submits the
+proposal through `AuthoringCommandService`. Workspace-informed authoring can
+use bounded read/search operations. The profile explicitly forbids
+`write_file`, `run_command`, `shell`, and `execute_code`.
+
+Its collaboration with execution is a durable contract transition:
+
+```text
+user input
+  -> Collaborator proposal
+  -> AuthoringCommandService
+  -> RawTask / Plan / DraftTaskTree facts
+  -> explicit publish
+  -> Published Task in TaskBus
 ```
 
-### 2.2 Two Message Types
+There is no private Collaborator-to-Default-Agent handoff message.
 
-| Type | Meaning | Agent behaviour |
-|------|---------|----------------|
-| **Informational** | Tells the user what the agent did | Sends and continues immediately |
-| **Actionable** | Requests user input or confirmation | Waits according to autonomy config |
+### 2.3 Runtime Input Router And Inquiry
 
-### 2.3 Message Structure
+Runtime Input Router may use an LLM route planner, but deterministic handlers
+still validate and submit state-changing commands. It routes Main Page input;
+it does not observe Agent availability or write Task assignment.
+
+Read-only Inquiry may have a separate LLM profile. It has no TaskBus claim
+authority and no workspace mutation tools. Message or log labels such as
+`runtime_input_router` and `read_only_inquiry` are not entries in a runtime
+Agent registry.
+
+## 3. Current Runtime Topology
+
+### 3.1 Input And Authoring
+
+```text
+Main Page input
+  -> Runtime Input Router
+     -> read-only inquiry
+     -> guidance / contract revision
+     -> answer active ASK
+     -> resolve active confirmation
+     -> stop / retry selected Task
+     -> execution handoff command
+     -> clarification / unsupported outcome
+
+Authoring
+  -> Collaborator profile
+  -> bounded workspace read/search when required
+  -> structured proposal
+  -> AuthoringCommandService
+  -> Plan / TaskNode or legacy DraftTaskTree projection
+  -> explicit publish
+```
+
+### 3.2 General Published Task Execution
+
+```text
+publish or resume trigger
+  -> FixedRouteExecutionDispatcher.request_dispatch(session_id)
+  -> one dispatcher worker dequeues a Session
+  -> FixedRouteTaskExecutor selects one eligible pending Task
+  -> TaskBus.claim_next(
+       session_id,
+       capability=task.required_capability,
+       agent_id="default_agent",
+     )
+  -> resident Default Agent runs the Task
+  -> TaskBus.complete / fail / wait_for_user / wait_for_confirmation
+```
+
+The dispatcher coalesces duplicate triggers per Session. One worker drains
+queued Sessions, and one trigger runs up to a configured tick limit. It
+continues to the next tick only when the previous tick completed. It neither
+keeps AgentLoop instances alive between Tasks nor executes a graph of child
+Agents.
+
+### 3.3 Embedded Execution Plane
+
+`EmbeddedTaskApiService` provides a local service-shaped Task API:
+
+```text
+TaskRequest
+  -> idempotency validation
+  -> local ExecutionEnv compatibility check
+  -> ordinary task: publish TaskDomain to TaskBus
+  -> selected task type: optional local EmbeddedTaskRuntimeHandler
+```
+
+Ordinary task types still use fixed-route Default Agent execution. Selected
+runtime handlers, including the controlled local WeChat send path, are
+task-type extensions rather than public Agents or an Agent Manager.
+
+## 4. Assignment And Claim Facts
+
+### 4.1 Current Task Model
+
+`TaskDomain` currently contains:
+
+- single-string `required_capability`;
+- optional `dispatch_constraints` for future dispatch intent and metadata;
+- `claimed_by`, written after claim;
+- status values `pending`, `running`, `waiting_for_user`, `done`, and `failed`.
+
+It does not contain:
+
+- `assigned_agent_id`;
+- `assigned_by` or `assigned_at`;
+- assignment rationale or version;
+- an `assigned` status;
+- implemented `AssignmentCommand` or `claim_assigned()` operations.
+
+`TaskDispatchConstraints` can carry `required_agent_id`, `preferred_agent_id`,
+and `required_capabilities`, but current `claim_next()` does not inspect those
+fields.
+
+### 4.2 Exact Claim Rules
+
+Both in-memory and SQLite TaskBus implementations require:
+
+1. matching Session;
+2. `pending` status;
+3. exact `required_capability` match;
+4. a root Task, or a parent whose status is `done`;
+5. candidate order by `created_at`, `order_index`, then `task_id`.
+
+A successful claim writes `running`, the caller-provided `claimed_by`, and
+`started_at`. TaskBus does not consult an Agent registry, Agent health, tool
+inventory, cost, load, or historical success.
+
+### 4.3 Where Serial Execution Comes From
+
+The Main Page product path is normally serial because the assembled
+fixed-route dispatcher uses one worker. TaskBus itself does not enforce one
+running Task per Session. Another caller can invoke `claim_next()` again and
+claim another eligible pending root.
+
+SQLite claim is protected by the current `SqliteTaskBus` instance's process
+local `RLock`. There is no distributed compare-and-swap, worker lease, fencing
+token, or stale ownership recovery protocol.
+
+## 5. Current Collaboration Surfaces
+
+### 5.1 Durable Facts, Not Shared Agent Memory
+
+| Collaboration subject | Authority |
+|---|---|
+| Unpublished intent and task structure | RawTask / Plan / TaskNode / DraftTask stores |
+| Published Task lifecycle | TaskBus |
+| Execution ASK | AskStore plus TaskBus waiting linkage |
+| Confirmation | MessageStream response plus TaskBus waiting linkage |
+| User-visible messages | SQLite MessageStream |
+| Execution evidence | EventStream, result/error summaries, audit projections |
+| Next run context | Session Context Manager |
+| Service-level execution request | Execution Plane store plus TaskBus |
+
+No role advances these facts by mutating another Agent object's private state.
+
+### 5.2 MessageStream Is Not An Agent Mailbox
+
+Current `AgentMessage.message_type` has **three** values:
+
+- `informational`;
+- `actionable`;
+- `response`.
+
+Messages carry Session identity, optional Task identity, an `agent_id` string,
+an optional response parent, body/context, action options, response fields, and
+a timestamp. `SqliteMessageStream` persists history. `InProcessMessageBus` is
+the only bus implementation, and live subscriptions deliver messages published
+after subscription starts.
+
+The stream supports user conversation, ASK/confirmation, and UI projection. It
+does not define:
+
+- Agent mailbox addressing;
+- Agent-to-Agent request/response schemas;
+- delegation ids, handoff tokens, or child-run correlation;
+- multi-Agent result aggregation;
+- delivery acknowledgement, retry, or backpressure between Agents.
+
+### 5.3 ASK And Confirmation Can Block A Task
+
+Main Page's explicit `ask_user` and `request_confirmation` tools can transition
+a running Task to `waiting_for_user` and end the current task-scoped run. A
+valid answer returns the Task to `pending`; a later dispatcher trigger claims
+it again.
+
+This is a real pause/wait/resume lifecycle. The old “never interrupted” claim is
+not a current guarantee.
+
+### 5.4 Autonomy Primitives Have A Narrower Boundary
+
+`AutonomyBehavior`, five code-level presets, `AutonomyGate`, and
+`WaitCoordinator` exist. The generic CLI can opt into that path. Main Page
+Default Agent assembly does not route every normal tool action through an
+AutonomyGate; it uses explicit ASK and confirmation tools instead.
+
+The existence of these primitives does not establish:
+
+- a numeric autonomy slider;
+- per-Agent graph-node autonomy configuration;
+- a Main Page autonomy preset selector;
+- confidence-based `proceed_confident` behavior for an Agent graph;
+- universal non-blocking action semantics.
+
+## 6. Agent Lifecycle And State Ownership
+
+### 6.1 Current Lifecycle
+
+```text
+workspace runtime assembly
+  -> build resident Default Agent adapter
+  -> dispatcher receives trigger
+  -> adapter creates task-scoped runner
+  -> Context Manager renders execution input
+  -> AgentLoop executes tools / asks / confirmations
+  -> adapter maps LoopResult to TaskRunResult
+  -> executor commits TaskBus lifecycle
+  -> run-local stack is released
+```
+
+`claimed_by="default_agent"` is a Task execution fact, not a foreign key into
+a general instance registry.
+
+### 6.2 Missing Lifecycle Components
+
+Current code has no general:
+
+- Agent Manager;
+- Agent template/instance registry;
+- warm Agent pool or process pool;
+- spawn, health, drain, or terminate lifecycle;
+- capacity, cost, or load scheduler;
+- child Agent ownership tree;
+- runtime validation chain joining Agent version, permission profile, and Task
+  assignment.
+
+The Collaborator metadata registry and ExecutionEnv registry do not provide
+these capabilities.
+
+### 6.3 Placeholder Orchestrator
+
+`src/taskweavn/orchestration/protocol.py` defines this shape:
 
 ```python
-@dataclass
-class AgentMessage:
-    id: str
-    agent_id: str
-    message_type: Literal["informational", "actionable"]
-    content: str
-    context: dict               # related code snippets, file paths, etc.
-    action_options: list[str]   # actionable only — options presented to user
-    requires_response: bool
-    created_at: datetime
-    timeout_seconds: float | None
+class Orchestrator(Protocol):
+    def submit(self, action: BaseAction) -> BaseObservation: ...
+    def shutdown(self) -> None: ...
 ```
 
-### 2.4 "Never Interrupted" State
+Only `NullOrchestrator` exists, and its `submit()` raises
+`NotImplementedError`. Repository search found no product or test caller beyond
+module exports. It is not a current planner/executor orchestration layer.
 
-When the user sets autonomy to maximum, every Actionable message has a timeout with automatic proceed, and the stream degrades to a **read-only execution log**. The user can inspect it at any time, but nothing blocks agent execution.
+## 7. Capabilities, Tools, And Execution Environments
 
-```
-autonomy = 1.0  →  stream = execution log   →  user never interrupted
-autonomy = 0.0  →  stream = collaboration   →  user participates in every key decision
-```
+### 7.1 Capability Catalogs
 
-This is the user's active choice. The system's only responsibility is to present the quality–autonomy trade-off clearly.
+The default Main Page authoring catalog currently contains:
 
----
-
-## 3. Autonomy System
-
-### 3.1 What Autonomy Really Means
-
-Autonomy is not a magic number — it is a precise description of "how the agent acts under uncertainty." There are two orthogonal dimensions:
-
-- **Trigger dimension**: when the agent considers user involvement necessary
-- **Wait dimension**: after sending a request, how long to wait and what to do on timeout
-
-### 3.2 AutonomyBehavior Configuration
-
-```python
-@dataclass
-class AutonomyBehavior:
-    # Trigger dimension: when to send an Actionable message
-    trigger: Literal[
-        "never",             # never; all messages are Informational
-        "on_risk",           # high-risk operations only (delete, exec, etc.)
-        "on_uncertainty",    # when LLM confidence falls below threshold
-        "always",            # every key action requests confirmation
-    ]
-    confidence_threshold: float  # 0.0–1.0; relevant only for on_uncertainty
-
-    # Wait dimension: what happens after an Actionable message is sent
-    wait_timeout: float | None   # seconds; None = wait indefinitely
-    timeout_action: Literal[
-        "wait",              # keep waiting (low-autonomy default)
-        "proceed_default",   # continue with the most conservative choice
-        "proceed_confident", # continue with the highest-confidence LLM choice
-        "skip",              # skip the action entirely
-    ]
-    notify_on_proceed: bool      # notify user when agent self-decides on timeout
+```text
+general, writing, coding, testing, research
 ```
 
-### 3.3 Preset Autonomy Levels
+`StaticCapabilityCatalog` and `StaticAgentCapabilityCatalog` support authoring
+and publish validation. They are not a dynamic Agent descriptor registry.
 
-| Level | trigger | wait_timeout | timeout_action | Best for |
-|-------|---------|--------------|----------------|---------|
-| **Full auto** | never | — | — | Batch jobs, reversible tasks |
-| **Risk confirm** | on_risk | 300s | proceed_default | Everyday default |
-| **Collaborative** | on_uncertainty | None | wait | Complex, high-impact tasks |
-| **Full confirm** | always | None | wait | Learning, audit scenarios |
+The sidecar directly constructs concrete Default Agent tools and mounts them in
+`LocalRuntime`. Current code has no global `ToolRegistry.tools`,
+`compatible_tools`, or Agent graph tool-set compiler of the form described by
+the original document.
 
-### 3.4 AutonomyGate: Decision Entry Point
+### 7.2 Local ExecutionEnv Compatibility
 
-Every agent passes through the AutonomyGate before executing an action:
+`InMemoryExecutionEnvRegistry` implements `upsert`, `get`, `list`, and
+`find_compatible`. An environment is compatible when:
 
-```python
-class AutonomyGate:
-    def check(
-        self,
-        action: CodeAction,
-        confidence: float,
-        behavior: AutonomyBehavior,
-    ) -> GateDecision:
-        if behavior.trigger == "never":
-            return GateDecision.PROCEED
-        if action.is_high_risk and behavior.trigger in ("on_risk", "always"):
-            return GateDecision.SEND_ACTIONABLE
-        if confidence < behavior.confidence_threshold:
-            return GateDecision.SEND_ACTIONABLE
-        return GateDecision.PROCEED
+- it is `online`;
+- its capabilities include the request's `required_capability`;
+- non-empty requested `allowed_tools` are a subset of its tool pool.
+
+Sidecar assembly creates the local `local-default` environment. Service DTOs
+already include `last_heartbeat_at`, `active_execution_id`, `TaskLease`,
+`claimed`, and `lease_expired` vocabulary, but the current service has no
+remote environment registration, claim, lease issue/renew/revoke/expire, or
+heartbeat endpoint.
+
+## 8. UI And API Surface
+
+Main Page currently displays Plan/Task structure, execution status, ASK,
+confirmation, messages, activity, results/errors, audit evidence, and stop/retry
+actions.
+
+`TaskNodeCardView` has no assignment, assigned Agent, `claimed_by`, or Agent
+health field. The frontend has no:
+
+- Agent graph editor;
+- Agent node palette or edge configuration;
+- AgentPool / worker list;
+- Task assignment or reassignment controls;
+- per-node autonomy slider;
+- parallel branch monitor;
+- multi-Agent handoff timeline.
+
+Local Execution Plane HTTP routes publish/query/cancel/retry Tasks and read
+events/results/errors/evidence. They do not expose an Agent Manager or remote
+worker control plane.
+
+## 9. Concurrency, Isolation, And Recovery
+
+### 9.1 Current Guarantees
+
+- execution tools are scoped to the selected workspace root;
+- Task, ASK, message, context, event, and authoring facts are isolated by
+  workspace/Session identifiers and stores;
+- the fixed-route dispatcher coalesces duplicate triggers for a Session;
+- a child Task cannot be claimed until its parent is `done`;
+- retry preserves Task identity while clearing current claim, wait, result,
+  error, and interruption runtime facts;
+- running interruption is cooperative and checked at runtime safe points;
+- startup recovery can converge stale running Tasks that already carry an
+  interruption request.
+
+### 9.2 Guarantees That Do Not Yet Exist
+
+- locking, branch isolation, or merge protocol for multiple workspace writers;
+- distributed exactly-once execution;
+- Agent lease, heartbeat, and stale worker reclaim;
+- parallel child result merge and conflict resolution;
+- general restoration of run-local LLM transcript after an Agent crash;
+- atomic transactions spanning Task, message, ASK, and context stores.
+
+Parallel multi-Agent workspace writes require an explicit ownership, isolation,
+merge, and replay contract before increasing worker count.
+
+## 10. Accepted Future Dynamic Routing Direction
+
+ADR-0011 and ADR-0012 accept a TaskBus-centered convergence model:
+
+```text
+pending unassigned Task
+  -> Router observes Task + Agent descriptors
+  -> Routing Agent policy proposes AssignmentCommand
+  -> TaskBus validates and stores assignment fact
+  -> Agent Manager observes pending assigned Task
+  -> Agent Manager creates/selects runtime instance
+  -> assigned Agent claims Task
+  -> Agent run reports complete / fail / wait
 ```
 
-### 3.5 Quality vs Autonomy Trade-off
-
-The UI should surface this trade-off explicitly rather than hiding it:
-
-```
-High autonomy  ████████░░
-  ✓ Execution uninterrupted, fast
-  ✓ Low cognitive load for user
-  ✗ Agent guesses on ambiguous situations
-  ✗ Errors may accumulate without user awareness
-
-Low autonomy   ██░░░░░░░░
-  ✓ User participates in every key decision
-  ✓ Low error rate, high controllability
-  ✗ Requires continuous attention from user
-  ✗ Task speed depends on user response time
-```
-
-The choice belongs entirely to the user; the system makes no judgement.
-
----
-
-## 4. Conversation-driven Orchestration
-
-### 4.1 LLM as Orchestration Designer
-
-Users do not need to understand graph structures. The **Orchestration Designer** (a meta-agent) translates user intent into a valid agent collaboration graph within constraint boundaries. Users only select and fine-tune.
-
-```
-User natural language intent
-        ↓
-OrchestrationDesigner (meta-agent)
-  Input:  user intent + ConstraintProfile + ToolRegistry
-  Output: OrchestrationDraft (valid graph + node configs + rationale)
-        ↓
-UI renders graph  ←→  user fine-tunes (multiple choice, not free text)
-```
-
-**Key principle: constraints are generation-time context, not post-hoc validators.** The LLM generates within constraint bounds; the output is valid by construction, eliminating "UI allows but backend rejects" inconsistencies.
-
-### 4.2 Three Generation Phases
-
-**Phase 1: Intent Parsing**
-
-```
-User: "I want a system that audits code for security vulnerabilities and auto-fixes them"
-
-Parsed output:
-  Core capabilities: [code reading, vuln analysis, fix execution, validation loop]
-  Risk identified:   fix execution = high-risk, requires user confirmation
-  Constraint map:    auditor node required; interrupt before fix
-```
-
-**Phase 2: Constraint-aware Graph Generation**
-
-The LLM receives the ConstraintProfile as prompt context and generates a graph topology within allowed bounds — no backend validator needed.
-
-**Phase 3: Capability Assignment**
-
-Each agent node **selects** tools from the ToolRegistry; it cannot generate or reference tools outside the Registry. The tool set is the system's security floor.
-
-### 4.3 Conversation as Diff, Not Full Regeneration
-
-User feedback on a draft triggers a local patch, not a full regeneration:
-
-```
-User: "make the executor more autonomous"
-
-DraftPatch:
-  target_node: "executor"
-  changes:
-    autonomy_behavior.trigger: "on_uncertainty" → "on_risk"
-    autonomy_behavior.confidence_threshold: 0.7 → 0.4
-  reason: "Reduce interruption frequency; executor tries first rather than asking"
-```
-
-The UI highlights the changed node. The user sees a diff, not an entirely new graph to re-understand.
-
-### 4.4 OrchestrationDraft Structure
-
-```python
-@dataclass
-class OrchestrationDraft:
-    nodes: list[AgentNodeDraft]
-    edges: list[EdgeDraft]
-    rationale: str                      # LLM explains the design; shown to user
-
-@dataclass
-class AgentNodeDraft:
-    id: str
-    agent_type: AgentType
-    display_name: str
-    description: str                    # this node's role within the orchestration
-    tool_set: list[ToolRef]             # subset selected from ToolRegistry
-    autonomy_behavior: AutonomyBehavior
-    suggested_alternatives: list[AgentType]  # types the user may swap this node to
-```
-
-`suggested_alternatives` turns node replacement into a **multiple-choice question** — users don't need to know what agent types exist.
-
-### 4.5 ToolRegistry: A Closed Tool Set
-
-```python
-class ToolRegistry:
-    tools: dict[ToolId, ToolSpec]
-    compatible_tools: dict[AgentType, list[ToolId]]  # predefined compatibility
-
-    def suggest_for(
-        self,
-        agent_type: AgentType,
-        intent_keywords: list[str],
-    ) -> list[ToolSpec]:
-        # returns compatible_tools sorted by relevance
-        # LLM selects from this list; cannot introduce tools outside it
-```
-
----
-
-## 5. Constraint-driven UI Orchestration
-
-### 5.1 Layered Configuration Model
-
-```
-Layer 3: Custom DAG (advanced users)
-  Freely connect agent nodes within constraint bounds, adjust any parameter
-
-Layer 2: Preset + parameter tuning (intermediate users)
-  Pick a best-practice template, adjust key parameters via sliders
-
-Layer 1: Preset selection (regular users)
-  Auto-pilot / Co-pilot / Manual / Audit-Focus
-
-All three layers normalise to the same OrchestrationConfig internally.
-```
-
-### 5.2 ConstraintProfile: Constraints as First-class Citizens
-
-```python
-@dataclass
-class ConstraintProfile:
-    version: str
-
-    # Node dimension: which agent types the user may place
-    allowed_agent_types: set[AgentType]
-
-    # Edge dimension: which connections are allowed
-    allowed_edges: list[EdgeRule]          # (src_type, dst_type, condition)
-    forbidden_patterns: list[Pattern]      # e.g. no executor→executor direct link
-
-    # Composition dimension: system-wide constraints
-    required_nodes: set[AgentType]         # e.g. auditor must always be present
-    max_parallel_branches: int
-
-    # Meta: why each constraint exists
-    rationale: dict[str, str]              # constraint_key → failure mode description
-```
-
-`rationale` is not a comment — it is **the input to loosening decisions**: it tells you what failure mode you're betting against when you remove a constraint.
-
-### 5.3 Constraints in the UI
-
-Constraints are **natural boundaries**, not error walls:
-
-- The node palette only shows `allowed_agent_types`; forbidden nodes simply do not exist (not greyed out)
-- Edge validation fires during drag; illegal connections snap back before the user releases the mouse
-- The parameter panel only renders exposed config items; everything else is silently filled with system defaults
-
-### 5.4 Built-in Presets
-
-| Preset | Topology | Default autonomy | Best for |
-|--------|----------|-----------------|---------|
-| **Auto-pilot** | sequential | high (on_risk) | Batch jobs, hands-off execution |
-| **Co-pilot** | hierarchical | medium (on_uncertainty) | Everyday development assistance |
-| **Manual** | sequential | low (always) | Learning, sensitive operations |
-| **Audit-Focus** | DAG + feedback loop | medium | Code audit + auto-fix |
-
-Presets are read-only templates. Selecting a preset forks a snapshot; modifications happen on the fork. The user can diff or reset to preset at any time.
-
----
-
-## 6. Core Data Structures
-
-### 6.1 Full Configuration Hierarchy
-
-```
-OrchestrationConfig
-├── preset: OrchestrationPreset | None
-├── constraint_profile: ConstraintProfile
-├── nodes: list[AgentNodeConfig]
-│   ├── id, agent_type, display_name
-│   ├── tool_set: list[ToolRef]
-│   └── autonomy_behavior: AutonomyBehavior
-│       ├── trigger
-│       ├── confidence_threshold
-│       ├── wait_timeout
-│       ├── timeout_action
-│       └── notify_on_proceed
-└── edges: list[EdgeConfig]
-    ├── src, dst
-    └── condition: EdgeCondition | None
-```
-
-### 6.2 Message Stream Structure
-
-```
-MessageStream
-└── messages: list[AgentMessage]
-    ├── id, agent_id, created_at
-    ├── message_type: "informational" | "actionable"
-    ├── content, context
-    ├── action_options: list[str]
-    ├── requires_response: bool
-    └── response: UserResponse | AutoResponse | None
-        ├── source: "user" | "timeout_default" | "timeout_confident"
-        ├── value: str
-        └── responded_at: datetime
-```
-
----
-
-## 7. System Architecture Overview
-
-```
-┌─ User Layer ──────────────────────────────────────────────────────┐
-│                                                                   │
-│  ┌─ Orchestration Design (one-time) ─┐  ┌─ Execution (live) ──┐  │
-│  │ Describe intent in chat           │  │ Message Stream panel │  │
-│  │ Review / adjust OrchestrationDraft│  │ [INFO] action log    │  │
-│  │ Configure autonomy sliders        │  │ [ASK]  confirmations │  │
-│  └───────────────────────────────────┘  │ [WARN] alerts        │  │
-│                                         └──────────────────────┘  │
-└───────────────────────────────────────────────────────────────────┘
-         ↑ Draft                              ↑↓ Messages
-┌─ Orchestration Layer ─────────────────────────────────────────────┐
-│                                                                   │
-│  OrchestrationDesigner          MessageStream                     │
-│  (meta-agent)                   + AutonomyGate                   │
-│    ├── intent parsing                                             │
-│    ├── constraint-aware graph gen                                 │
-│    └── tool set matching        ConstraintValidator               │
-│                                 (static analysis at load time)    │
-└───────────────────────────────────────────────────────────────────┘
-         ↑ ConstraintProfile              ↑ OrchestrationConfig
-┌─ Execution Layer ─────────────────────────────────────────────────┐
-│                                                                   │
-│  Agent Graph Runtime                                              │
-│    ├── Planner Agent                                              │
-│    ├── Executor Agent ──→ AutonomyGate ──→ MessageStream          │
-│    ├── Auditor Agent                                              │
-│    └── [user-defined nodes]                                       │
-│                                                                   │
-│  ToolRegistry (closed tool set)                                   │
-└───────────────────────────────────────────────────────────────────┘
-```
-
----
-
-## 8. Progressive Constraint Evolution
-
-Constraints are not permanent restrictions — they are staged guardrails backed by data.
-
-### Loosening Decision Framework
-
-```
-A constraint may be loosened when all of the following hold:
-
-1. Success rate data   N executions under this constraint, success rate > threshold
-2. Failure attribution Current failures are NOT caused by this constraint
-3. User benefit        Number / importance of use cases unlocked by loosening
-4. Rollback path       How to quickly reinstate the constraint if failure rate rises
-
-Metric: constraint value density = Δfailure rate / Δexpressible use cases
-        Prioritise loosening low-density constraints (restrict much, unlock little)
-```
-
-### Three-phase Evolution
-
-**v1: High guardrails (current)**
-- Allowed nodes: Planner / Executor / Auditor (three fixed types)
-- Allowed edges: two fixed edges + optional feedback loop
-- Parallel branches: forbidden
-- Exposed params: autonomy_behavior + tool toggles only
-- Goal: success rate > 90%, zero user learning curve
-
-**v2: Loosen topology**
-- Open parallel branches (max = 2)
-- Allow custom node display names
-- LLM can generate DAGs, not just sequential flows
-- Basis: v1 success rate data + failure attribution does not point to topology
-
-**v3: Loosen tools**
-- Allow custom tool integration (user provides Tool spec)
-- Open ToolRegistry to dynamic extension
-- Basis: most-requested "wish we had" tool types from user feedback
-
----
-
-## 9. Key Design Trade-offs
-
-### 9.1 Flexibility vs Success Rate
-
-Strict early constraints sacrifice flexibility for high success rates. This is an intentional choice, not a technical limitation. Loosening happens with data backing, not feature accumulation.
-
-### 9.2 User Control vs System Complexity
-
-Giving users control over interruption means the system must handle all "no response" timeout scenarios. The four `timeout_action` strategies cover the main cases at manageable complexity.
-
-### 9.3 LLM Generation vs Manual Configuration
-
-The main risk of conversation-driven generation is LLM misreading intent. Mitigations:
-- Displaying `rationale` so users can verify their intent was understood correctly
-- Using Patch rather than full regeneration — each change is small and reviewable
-- The final orchestration is fully visible and adjustable in the UI at all times
-
-### 9.4 Message Stream vs Traditional Interrupt
-
-The cost of the stream model: users must actively monitor the stream rather than being passively interrupted. Mitigations:
-- Push notifications for Actionable messages
-- Stream filtering (show only Actionable, hide Informational)
-- Quick-action buttons inline in stream messages
-
----
-
-## Appendix: Core Type Reference
-
-| Type | Responsibility |
-|------|---------------|
-| `AutonomyBehavior` | Defines agent autonomy: trigger condition + wait strategy |
-| `AutonomyGate` | Decision entry point before every agent action |
-| `AgentMessage` | A single message in the stream — Informational or Actionable |
-| `MessageStream` | Global stream; the sole collaboration channel between agents and user |
-| `ConstraintProfile` | The current version's orchestration constraint set, with rationale |
-| `OrchestrationDesigner` | Meta-agent that converts user intent to a valid OrchestrationDraft |
-| `OrchestrationDraft` | LLM-generated orchestration proposal: graph + node configs + rationale |
-| `DraftPatch` | Local modification triggered by user feedback; the minimal iteration unit |
-| `ToolRegistry` | Closed tool set; LLM selects, never creates |
-| `OrchestrationPreset` | Built-in best-practice template; user forks before modifying |
+The accepted direction says:
+
+- Router owns assignment strategy, not Task lifecycle;
+- TaskBus remains the Published Task lifecycle and assignment-fact authority;
+- Agent Manager creates/selects runtime instances without becoming another Task
+  store;
+- assignment refers to Agent identity/template/capability, not a temporary run;
+- the first design does not add a separate `assigned` status;
+- retry clears assignment and current-attempt runtime facts;
+- an initial implementation may use one Router loop and one Agent Manager loop
+  per TaskBus;
+- assigned-only claim, stale-pending sweep, audit, and UI projection must land
+  with assignment;
+- the first assignment UI should project state without manual reassignment.
+
+This is accepted design, not shipped behavior. Current source has no production
+`AssignmentCommand`, `assigned_agent_id`, `claim_assigned`, or Agent Manager.
+
+## 11. Minimum Preconditions For Dynamic Multi-Agent Execution
+
+1. Add auditable assignment facts and idempotent commands to TaskBus
+   model/store boundaries.
+2. Define stable relations between Agent descriptor, template identity, runtime
+   instance, and run id.
+3. Implement the Router observation/command loop with deterministic fallback.
+4. Implement Agent Manager health/lifecycle convergence and assigned-only claim
+   validation.
+5. Validate capability, tools, permissions, workspace scope, and Agent identity
+   together.
+6. Add lease, heartbeat, fencing, and stale recovery for remote or concurrent
+   execution.
+7. Define serial, isolated-branch, or merge behavior for workspace writers.
+8. Define delegation, result, failure, cancellation, and audit schemas between
+   Agents.
+9. Extend UI contracts to project assignment and health before adding manual
+   reassignment.
+10. Add cross-process race, duplicate delivery, worker crash, and recovery
+    tests.
+
+## 12. Current Non-Facts
+
+| Original concept or target | Current status |
+|---|---|
+| Running Planner -> Executor -> Auditor graph | Not implemented |
+| LLM Orchestration Designer producing a valid Agent DAG | Not implemented |
+| `OrchestrationDraft`, `ConstraintProfile`, `OrchestrationConfig` | No current source models |
+| Auto-pilot / Co-pilot / Manual / Audit-Focus orchestration presets | Not implemented; distinct from CLI autonomy presets |
+| No backend validation is needed because constraints are in the prompt | Not a current invariant; existing command/publish paths validate input |
+| Every Agent action passes through Main Page AutonomyGate | False |
+| Maximum autonomy makes every actionable non-blocking | False; explicit ASK/confirmation can wait |
+| MessageStream is the sole Agent/user collaboration channel | False; it is one user-facing surface among domain stores and commands |
+| ToolRegistry dynamically assigns tools to Agent node types | Not implemented |
+| Dynamic Agent assignment or reassignment | Not implemented |
+| Generic child Agent spawn, handoff, and result aggregation | Not implemented |
+| Parallel Agents write one workspace with conflict handling | Not implemented |
+| Remote multi-ExecutionEnv worker pool | Not implemented |
+| `Orchestrator` participates in runtime execution | False; placeholder only |
+| “v1 high guardrails” Planner/Executor/Auditor topology is current | False |
+
+## 13. Evidence Index
+
+Execution and TaskBus:
+
+- `src/taskweavn/task/execution.py`
+- `src/taskweavn/task/models.py`
+- `src/taskweavn/task/bus.py`
+- `src/taskweavn/task/sqlite_bus.py`
+- `src/taskweavn/server/main_page.py`
+- `src/taskweavn/server/main_page_agent.py`
+
+Specialized roles:
+
+- `src/taskweavn/task/collaborator.py`
+- `src/taskweavn/task/collaborator_loop.py`
+- `src/taskweavn/task/collaborator_profile_runner.py`
+- `src/taskweavn/task/collaborator_workspace_context.py`
+- `src/taskweavn/server/runtime_input_router.py`
+- `src/taskweavn/server/runtime_input_llm_router.py`
+- `src/taskweavn/server/read_only_inquiry.py`
+- `src/taskweavn/server/read_only_inquiry_answer_provider.py`
+- `src/taskweavn/llm/agent_config.py`
+
+Interaction and extension boundaries:
+
+- `src/taskweavn/interaction/message.py`
+- `src/taskweavn/interaction/bus.py`
+- `src/taskweavn/interaction/sqlite_message_stream.py`
+- `src/taskweavn/interaction/autonomy.py`
+- `src/taskweavn/interaction/gate.py`
+- `src/taskweavn/orchestration/protocol.py`
+- `src/taskweavn/execution_plane/models.py`
+- `src/taskweavn/execution_plane/env_registry.py`
+- `src/taskweavn/execution_plane/embedded_service.py`
+
+UI contracts:
+
+- `src/taskweavn/task/views.py`
+- `src/taskweavn/server/ui_contract/view_models.py`
+- `frontend/src/shared/api/types.ts`
+- `frontend/src/pages/main-page/TaskNodeCard.tsx`
+- `frontend/src/pages/main-page/MainPageDetailPanel.tsx`
+
+Targeted tests:
+
+- `tests/test_fixed_route_task_executor.py`
+- `tests/test_task_bus_lifecycle.py`
+- `tests/test_sqlite_task_bus.py`
+- `tests/test_collaborator_authoring_service.py`
+- `tests/test_collaborator_authoring_loop_contract.py`
+- `tests/test_runtime_input_router.py`
+- `tests/test_execution_plane_service.py`
+- `tests/test_main_page_sidecar_app.py`
+
+## 14. Calibration Rule
+
+Before promoting a future multi-Agent statement to current fact, verify:
+
+1. whether the named thing is a role/profile/metadata record or a Task-claiming
+   runtime Agent;
+2. whether model, store, command, service, assembly, UI, and tests form a
+   complete path;
+3. which authority owns assignment, claim, run, and result facts;
+4. whether parallel execution has workspace isolation, lease, and recovery;
+5. whether accepted ADR direction has actually landed in production source.
+
+Future design becomes current architecture only when that evidence chain exists.

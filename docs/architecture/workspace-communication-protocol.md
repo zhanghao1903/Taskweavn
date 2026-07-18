@@ -1,129 +1,399 @@
 # Workspace Communication Protocol
 
-> Status: architecture planning with implemented Product 1.1 slices
-> Last Updated: 2026-06-24
-> Related Architecture: [Tool Capability Layer](tool-capability-layer.md), [Task](task.md), [Agent](agent.md), [Interaction Layer](interaction-layer.md), [Authoring Command Protocol](authoring-command-protocol.md)
+> Status: implemented workspace inspection / precision-tool facts plus future
+> unification protocol
+> Last Updated: 2026-07-10
+> Scope: workspace inspection routes, workspace path policy, precision file
+> tools, read-only workspace evidence, and future WorkspaceRequest direction
+> Related Architecture: [Tool Capability Layer](tool-capability-layer.md),
+> [Task](task.md), [Agent](agent.md), [Authoring Command Protocol](authoring-command-protocol.md),
+> [Contract Revision And Execution Loops](contract-revision-and-execution-loops.md),
+> [TaskBus](bus.md)
 >
-> Product 1.1 alignment: the full Workspace Communication Protocol described here is not implemented as one unified protocol. Implemented slices are `workspace_inspection` status/diff/file/evidence routes, precision file tools with guarded path policy, read-only inquiry refs over file/diff evidence, and diagnostics-safe inspection summaries. Treat the remaining request/result protocol as a future unification layer.
+> 2026-07-10 fact calibration: current code has no production
+> `WorkspaceManifest`, `WorkspaceCapabilityDescriptor`, `WorkspaceRequest`,
+> `WorkspaceResult`, `WorkspaceDelta`, `WorkspaceEndpoint`, or
+> `WorkspaceGateway` implementation. The current implemented surface is:
+> Product 1.1 workspace inspection status/diff/file/evidence routes, safe
+> workspace-relative path policy, precision file read/search/replace/append
+> tools, inspection evidence storage, precision mutation idempotency storage,
+> read-only inquiry file/diff refs, and Collaborator read-only workspace
+> context. Treat the unified protocol objects in this document as future
+> design direction.
 
 ---
 
 ## 1. Purpose
 
-Current TaskWeavn uses `Tool` as the executable boundary between the Agent and the user workspace.
-
-That works for early implementation, but it makes `Tool` too hard as the long-term abstraction:
-
-- every new workspace ability must be implemented as a first-class Tool by TaskWeavn core;
-- tool selection and permission become fragmented across Tool classes;
-- third-party or user-supplied abilities are hard to introduce safely;
-- the system has no stable protocol-level way to ask "what can this workspace do?";
-- the ability boundary is scattered across concrete code instead of one communication contract.
-
-The higher-level abstraction should be a **Workspace Communication Protocol**:
+Workspace communication has two layers today:
 
 ```text
-TaskWeavn System
+Current implemented layer
+  -> concrete Tool classes
+  -> Workspace path resolver
+  -> workspace_inspection gateway
+  -> precision file service
+  -> HTTP inspection routes
+  -> EventStream / result / evidence projections
+
+Future unification layer
   -> WorkspaceRequest
-  -> WorkspaceEndpoint / WorkspaceGateway
+  -> WorkspaceGateway / WorkspaceEndpoint
+  -> WorkspaceResult / WorkspaceDelta
+  -> capability manifest and provider model
+```
+
+The current architecture should not pretend the future protocol already exists.
+It should document what is implemented and explain how the future protocol can
+unify it later.
+
+The main invariant remains:
+
+```text
+Authoring Commands change TaskWeavn internal state.
+Workspace tools and inspection services read or change user workspace state.
+```
+
+Do not route RawTask, Plan, TaskBus lifecycle, Settings, or MessageStream
+mutations through the future workspace protocol. Those remain command/service
+boundaries.
+
+---
+
+## 2. Current Fact Baseline
+
+### 2.1 Implemented workspace inspection
+
+`DefaultWorkspaceInspectionGateway` is current and read-only.
+
+It exposes:
+
+```text
+status(max_files=None)
+diff(path, base="head", context_lines=None, max_bytes=None)
+file_content(path, start_line=1, line_count=None, evidence_id=None)
+capture_evidence(request)
+```
+
+The gateway uses:
+
+- `ControlledGitCliInspectionProvider` for bounded git status/diff/file reads;
+- `WorkspaceInspectionPathPolicy` for safe path resolution;
+- `SqliteInspectionEvidenceStore` for captured inspection evidence.
+
+Supported evidence capture kinds:
+
+```text
+git_status_snapshot
+diff_snapshot
+file_snapshot
+```
+
+Supported capture reasons:
+
+```text
+task_result
+audit_record
+diagnostic_export
+manual_capture
+```
+
+### 2.2 Implemented HTTP routes
+
+Current sidecar routes include active-workspace and workspace-scoped aliases:
+
+```text
+GET  /api/v1/inspection/status
+GET  /api/v1/inspection/diff
+POST /api/v1/inspection/evidence
+GET  /api/v1/files/content
+
+GET  /api/v1/workspaces/{workspaceId}/inspection/status
+GET  /api/v1/workspaces/{workspaceId}/inspection/diff
+POST /api/v1/workspaces/{workspaceId}/inspection/evidence
+GET  /api/v1/workspaces/{workspaceId}/files/content
+```
+
+These routes return JSON envelopes with `ok`, `data`, and `error`. Input
+validation failures return product-error details with recovery actions.
+
+### 2.3 Implemented path policy
+
+`WorkspaceInspectionPathPolicy` accepts only safe workspace-relative POSIX
+paths.
+
+It rejects:
+
+- empty paths;
+- control characters;
+- backslash separators;
+- absolute paths;
+- `..` traversal;
+- protected metadata roots such as `.plato`, `.taskweavn`, and `.code-agent`.
+
+Successful paths are represented as labels:
+
+```text
+workspace://{workspaceId}/{relative_path}
+```
+
+This keeps API responses and read-only inquiry answers from leaking local
+absolute paths.
+
+### 2.4 Implemented git inspection provider
+
+`ControlledGitCliInspectionProvider` is a bounded read-only provider.
+
+It uses fixed git commands for:
+
+- repository status;
+- file-level diffs against `head` or `index`;
+- file content reads.
+
+Current behavior:
+
+- non-git workspaces return safe `not_git` status;
+- dirty/untracked status is summarized;
+- local noise such as `.DS_Store` is suppressed;
+- local tooling files such as `.idea/...` are categorized;
+- untracked text files can return synthetic new-file diffs;
+- binary, too-large, missing, unchanged, directory, and unsupported-encoding
+  cases return unavailable responses instead of unsafe raw reads;
+- payloads are bounded by `WorkspaceInspectionLimits`.
+
+### 2.5 Implemented precision file service
+
+`PrecisionFileService` is current.
+
+It backs these execution tools:
+
+```text
+read_file_range
+search_workspace
+replace_file_range
+append_file
+```
+
+Current precision read/search facts:
+
+- `read_range` returns bounded line ranges, content hash, range hash, and
+  truncation metadata;
+- `search` supports literal and filename modes;
+- search skips protected metadata, binary files, and large files;
+- search applies file and match limits.
+
+Current precision mutation facts:
+
+- `replace_range` and `append` require `operation_id`;
+- both require expected SHA-256 content hash;
+- stale hash raises `workspace.file_drift`;
+- operation ids are persisted in `SqlitePrecisionFileOperationStore`;
+- replaying the same completed operation id returns the original response with
+  `replayed=True`;
+- reusing an operation id with a different request is rejected;
+- mutation output includes changed line ranges, before/after hashes, bytes
+  written, and an inspection evidence ref;
+- writes are atomic through a temporary file replacement.
+
+### 2.6 Implemented workspace root resolver
+
+General filesystem tools use `taskweavn.tools.workspace.Workspace`.
+
+Current facts:
+
+- relative paths resolve under one workspace root;
+- absolute paths are allowed only when they still resolve inside that root;
+- protected metadata directories are blocked;
+- this is a defense-in-depth workspace boundary, not a full sandbox.
+
+### 2.7 Implemented file-change projection
+
+There is no `WorkspaceDelta` protocol object today.
+
+Current file-change projection is assembled from observed events:
+
+- `FileWriteObservation`;
+- `PrecisionFileMutationObservation`;
+- `CodeExecutionObservation` declared/undeclared file changes.
+
+`EventStreamFileChangeStore` projects those observations into
+`TaskFileChangeSummary` records. Recursive parent/child roll-up belongs to the
+Task projection layer, not to a workspace protocol delta model.
+
+### 2.8 Implemented read-only inquiry workspace refs
+
+Read-only inquiry can consume safe workspace refs:
+
+- file refs;
+- diff refs;
+- result refs;
+- audit record/evidence refs;
+- diagnostic refs.
+
+Current service and deterministic Router tests verify the inquiry path:
+
+- rejects unsafe file paths;
+- preserves safe file/diff hrefs with workspace id;
+- does not mutate files;
+- does not mutate TaskBus state;
+- avoids raw absolute path leakage in answers.
+
+The sidecar Runtime Input route also depends on the configured Router planner.
+Planner behavior is part of the Runtime Input boundary, not the workspace
+protocol itself.
+
+### 2.9 Implemented Collaborator read-only workspace context
+
+`LocalCollaboratorWorkspaceContextSource` is current.
+
+It supports:
+
+```text
+authoring_read_workspace
+authoring_search_workspace
+```
+
+Current facts:
+
+- reads return bounded snippets, content hashes, path labels, and authoring
+  evidence refs;
+- denied/omitted reads still create evidence records with policy decisions;
+- raw absolute request paths are redacted;
+- search is scoped to guidance paths by default;
+- full-workspace glob search is skipped;
+- it is read-only and does not write workspace files.
+
+---
+
+## 3. What Is Not Current
+
+These protocol objects remain future design vocabulary:
+
+| Not current | Current status |
+|-------------|----------------|
+| `WorkspaceManifest` | Not implemented. No endpoint-wide manifest API exists. |
+| `WorkspaceCapabilityDescriptor` | Not implemented. Capability descriptors exist for authoring, not workspace operation manifests. |
+| `WorkspaceRequest` | Not implemented. Tools still use typed Actions directly. |
+| `WorkspaceResult` | Not implemented. Tools and inspection gateways return tool/route-specific observations and dictionaries. |
+| `WorkspaceDelta` | Not implemented. File summaries are projections over observed events. |
+| `WorkspaceEndpoint` / `WorkspaceGateway` | Not implemented as a unified runtime boundary. |
+| Generic operation namespace enforcement | Not implemented. Current operations are tool names and route names. |
+| Third-party workspace providers | Not implemented. |
+| Remote workspace daemon / MCP workspace provider | Not implemented. |
+| Marketplace or user-supplied operations | Not implemented. |
+| Generic preview/dry-run layer | Not implemented. Some routes are read-only and precision mutations are hash-guarded, but no protocol-wide preview mode exists. |
+
+---
+
+## 4. Boundary With Authoring And Runtime Input
+
+Current mutation boundaries are:
+
+| Mutation target | Current boundary |
+|-----------------|------------------|
+| RawTask, DraftTaskTree, Plan, TaskNode proposals | Authoring commands and contract revision commands |
+| Published Task lifecycle | TaskBus and TaskPublisher |
+| Runtime input routing / read-only answers | Runtime Input Router and Read-Only Inquiry service |
+| Settings and runtime config | Settings/runtime config command services |
+| Workspace file edits | Execution tools such as precision file tools and legacy file tools |
+| Workspace status/diff/file reads | Workspace inspection gateway |
+| Collaborator planning context reads | Collaborator read-only workspace context source |
+
+This split matters because product-state commands and user workspace effects
+have different validation, idempotency, audit, and recovery requirements.
+
+---
+
+## 5. Current Operation Surfaces
+
+The current system does not enforce a generic operation namespace, but the
+implemented surfaces map cleanly to the future vocabulary:
+
+| Current surface | Current operation | Future protocol analogy |
+|-----------------|-------------------|-------------------------|
+| `ReadFileTool` | direct file read Action | `file.read` |
+| `WriteFileTool` | direct file write Action | `file.write` |
+| `ReadFileRangeTool` | precision line read Action | `file.read_range` |
+| `SearchWorkspaceTool` | precision literal/filename search Action | `workspace.search` |
+| `ReplaceFileRangeTool` | hash-checked line replacement Action | `file.replace_range` |
+| `AppendFileTool` | hash-checked append Action | `file.append` |
+| `RunCommandTool` | shell command Action | `process.run` |
+| inspection status route | read-only git status | `workspace.status` |
+| inspection diff route | read-only file diff | `workspace.diff` |
+| file content route | bounded file content read | `file.read` |
+| inspection evidence route | capture status/diff/file snapshot | `workspace.evidence.capture` |
+| Collaborator read/search | read-only authoring context | `workspace.authoring_context.read/search` |
+
+This table is descriptive. It is not an implemented dispatch map.
+
+---
+
+## 6. Policy And Safety Facts
+
+Current policy is distributed across several concrete boundaries:
+
+| Policy area | Current implementation |
+|-------------|------------------------|
+| Workspace path safety | `Workspace` and `WorkspaceInspectionPathPolicy` |
+| Inspection limits | `WorkspaceInspectionLimits` |
+| Precision write drift | expected content hashes and `workspace.file_drift` |
+| Precision idempotency | `SqlitePrecisionFileOperationStore` |
+| Metadata protection | protected roots in workspace layout policy |
+| Read-only inquiry no-mutation | inquiry service tests and route behavior |
+| Collaborator no-write authoring context | bounded read/search tools and forbidden execution tool names |
+| Tool visibility | Default Agent assembly and Context Manager `allowed_tools` |
+| Skill narrowing | skill governance can reduce allowed tools, not grant new ones |
+
+Future protocol policy should unify these inputs without weakening the current
+concrete checks.
+
+---
+
+## 7. Audit, Evidence, And UI Facts
+
+Current workspace evidence is not centralized in a protocol result object.
+
+Implemented evidence paths include:
+
+- session EventStream observations for tool actions;
+- `SqliteInspectionEvidenceStore` records for captured status/diff/file and
+  precision mutation snapshots;
+- precision mutation evidence refs on tool observations;
+- Task result/error summary refs;
+- Audit records/evidence refs;
+- read-only inquiry evidence refs and Activity related refs;
+- diagnostics-safe inspection summaries.
+
+The UI should continue to show stable summaries:
+
+- operation/file summary;
+- changed files;
+- safe workspace path labels;
+- diff/file refs;
+- diagnostics;
+- confirmation prompts where applicable;
+- result and evidence links.
+
+It should not parse arbitrary raw tool observations when a stable projection or
+evidence ref exists.
+
+---
+
+## 8. Future Unified Protocol Direction
+
+The original protocol idea remains useful as a future unification layer:
+
+```text
+Task / Agent intent
+  -> capability
+  -> policy/preflight
+  -> WorkspaceRequest
+  -> WorkspaceGateway / WorkspaceEndpoint
   -> WorkspaceResult
-  -> Task/Event/Message/Log facts
+  -> evidence, UI projection, audit, diagnostics
 ```
 
-In this model, `Tool` becomes one possible adapter over the protocol, not the protocol itself.
-
-This document is a planning document. It is not part of the current Collaborator/Authoring implementation package.
-
----
-
-## 2. Core Claim
-
-Most tool calls are a special case of:
-
-```text
-System requests a workspace operation.
-Workspace validates and performs the operation.
-Workspace returns result, diagnostics, and state delta.
-```
-
-Examples:
-
-| Current Tool Shape | Protocol Shape |
-|---|---|
-| `ReadFileTool` | `WorkspaceRequest(operation="file.read")` |
-| `WriteFileTool` | `WorkspaceRequest(operation="file.write")` |
-| `RunCommandTool` | `WorkspaceRequest(operation="process.run")` |
-| `CodeActionTool` | `WorkspaceRequest(operation="code.apply_patch" / "sandbox.run")` |
-| future image/project analyzer | `WorkspaceRequest(operation="domain.inspect", capability=...)` |
-
-The protocol defines what the system is allowed to ask the workspace to do. Concrete tools/adapters only implement that protocol.
-
----
-
-## 3. Boundary With Authoring Commands
-
-TaskWeavn now has two different mutation worlds:
-
-```text
-TaskWeavn internal state -> Authoring Commands / TaskBus / Config commands
-User workspace state     -> Workspace Communication Protocol
-```
-
-Do not blur these:
-
-| Mutation Target | Boundary |
-|---|---|
-| `RawTask`, `DraftTaskTree`, feasibility, asks, messages | Authoring Command Protocol |
-| published Task lifecycle | TaskBus / TaskPublisher |
-| configuration/logging control plane | Config/control commands |
-| files, repo, project process, generated artifacts | Workspace Communication Protocol |
-
-This split matters because authoring is exploratory system-state mutation, while workspace operations can change user-owned project state. They need different permission, audit, rollback, and extension models.
-
----
-
-## 4. Conceptual Model
-
-```text
-Task Node
-  required_capability
-        |
-        v
-Execution Agent
-        |
-        v
-WorkspaceCapabilityCatalog
-        |
-        v
-WorkspaceRequest
-        |
-        v
-WorkspaceGateway
-        |
-        +--> Built-in Tool Adapter
-        +--> Local Workspace Host
-        +--> Sandbox Runner
-        +--> Organization Provider
-        +--> User/Third-party Provider
-        |
-        v
-WorkspaceResult
-        |
-        v
-Observation / EventStream / MessageStream / Logs
-```
-
-The Agent does not need to know whether a capability is implemented by an in-process Python Tool, a sandbox runner, a local daemon, an MCP server, or a future extension provider.
-
-It only sees a capability and receives a structured result.
-
----
-
-## 5. Protocol Objects
-
-### 5.1 WorkspaceManifest
-
-The workspace endpoint should be able to describe its abilities.
+Future object shapes may include:
 
 ```python
 class WorkspaceManifest(BaseModel):
@@ -131,72 +401,19 @@ class WorkspaceManifest(BaseModel):
     workspace_id: str
     protocol_version: str
     capabilities: tuple[WorkspaceCapabilityDescriptor, ...]
-    limits: WorkspaceLimits
-    policy: WorkspacePolicySummary
-```
 
-`WorkspaceManifest` is the protocol-level answer to:
 
-```text
-What can this workspace do?
-Which operations are available?
-What are the risks, limits, and preconditions?
-```
-
-### 5.2 WorkspaceCapabilityDescriptor
-
-```python
-class WorkspaceCapabilityDescriptor(BaseModel):
-    capability_id: str
-    operation_kinds: tuple[str, ...]
-    display_name: str
-    summary: str
-    input_schema: dict[str, object]
-    result_schema: dict[str, object]
-    effect_profile: WorkspaceEffectProfile
-    preconditions: tuple[str, ...] = ()
-    risk_level: Literal["read", "low", "medium", "high"] = "low"
-    requires_confirmation: bool = False
-    supports_preview: bool = False
-    supports_dry_run: bool = False
-    supports_idempotency: bool = False
-```
-
-This is more general than `ToolDescriptor`. A descriptor can be implemented by one or many concrete adapters.
-
-### 5.3 WorkspaceRequest
-
-```python
 class WorkspaceRequest(BaseModel):
     request_id: str
     session_id: str
     task_id: str | None = None
-    actor: ActorRef
     operation: str
     capability_id: str
-    target: WorkspaceTarget | None = None
     payload: dict[str, object]
     mode: Literal["validate", "preview", "execute"] = "execute"
-    expected_state: WorkspaceExpectedState | None = None
     idempotency_key: str | None = None
-    timeout_seconds: float | None = None
-    policy_overrides: dict[str, object] = {}
-```
 
-Important fields:
 
-| Field | Reason |
-|---|---|
-| `operation` | Stable protocol verb, e.g. `file.write`, `process.run`, `code.patch`. |
-| `capability_id` | Semantic ability requested by the Task/Agent. |
-| `target` | File path, directory, project, process, or artifact target. |
-| `mode` | Allows validation/preview before execution. |
-| `expected_state` | Prevents stale writes and supports conflict detection. |
-| `idempotency_key` | Prevents duplicate effects during retries. |
-
-### 5.4 WorkspaceResult
-
-```python
 class WorkspaceResult(BaseModel):
     request_id: str
     ok: bool
@@ -204,75 +421,24 @@ class WorkspaceResult(BaseModel):
     capability_id: str
     summary: str
     output: dict[str, object] = {}
-    delta: WorkspaceDelta | None = None
-    artifacts: tuple[WorkspaceArtifactRef, ...] = ()
-    diagnostics: tuple[WorkspaceDiagnostic, ...] = ()
-    retryable: bool = False
-    error_code: str | None = None
+    diagnostics: tuple[object, ...] = ()
 ```
 
-The result must be useful to:
+Those are design examples, not current code contracts.
 
-- create an Observation for the Agent loop;
-- update Task result/state;
-- write audit events;
-- render UI summaries;
-- debug failures from logs.
+### 8.1 Future operation namespaces
 
-### 5.5 WorkspaceDelta
+Useful future namespaces:
 
-```python
-class WorkspaceDelta(BaseModel):
-    files_created: tuple[str, ...] = ()
-    files_modified: tuple[str, ...] = ()
-    files_deleted: tuple[str, ...] = ()
-    commands_run: tuple[str, ...] = ()
-    artifacts_created: tuple[WorkspaceArtifactRef, ...] = ()
-    summary: str
-```
+| Namespace | Examples |
+|-----------|----------|
+| `file.*` | `file.read`, `file.write`, `file.replace_range`, `file.append`, `file.delete` |
+| `workspace.*` | `workspace.status`, `workspace.diff`, `workspace.search`, `workspace.evidence.capture` |
+| `process.*` | `process.run`, `process.inspect`, `process.kill` |
+| `project.*` | `project.build`, `project.test`, `project.install_dependency` |
+| `artifact.*` | `artifact.create`, `artifact.read`, `artifact.publish` |
 
-This is the protocol-level source for File Change Summary.
-
-Important rule:
-
-```text
-Parent Task file summaries aggregate child Task deltas.
-Child Task deltas still belong directly to the child.
-```
-
-### 5.6 WorkspaceEndpoint
-
-```python
-class WorkspaceEndpoint(Protocol):
-    def manifest(self) -> WorkspaceManifest: ...
-
-    def validate(self, request: WorkspaceRequest) -> WorkspaceValidation: ...
-
-    def preview(self, request: WorkspaceRequest) -> WorkspacePreview: ...
-
-    def execute(self, request: WorkspaceRequest) -> WorkspaceResult: ...
-```
-
-The first real implementation can be a local in-process gateway over current Tools. Future implementations can be remote, user-provided, or organization-provided.
-
----
-
-## 6. Operation Namespaces
-
-Operation names should be stable strings.
-
-Suggested first namespaces:
-
-| Namespace | Examples | Effect |
-|---|---|---|
-| `file.*` | `file.read`, `file.write`, `file.patch`, `file.delete`, `file.list` | File system state. |
-| `process.*` | `process.run`, `process.kill`, `process.inspect` | Project/runtime process state. |
-| `project.*` | `project.build`, `project.test`, `project.install_dependency` | Project-level operations. |
-| `code.*` | `code.apply_patch`, `code.format`, `code.analyze` | Code-aware operations. |
-| `artifact.*` | `artifact.create`, `artifact.read`, `artifact.publish` | Generated artifacts. |
-| `workspace.*` | `workspace.snapshot`, `workspace.diff`, `workspace.search` | Workspace-level inspection. |
-
-Avoid one-off operation names such as:
+Avoid operation names that are really user tasks, such as:
 
 ```text
 fix_user_bug
@@ -280,209 +446,58 @@ make_website
 improve_code
 ```
 
-Those are Tasks, not workspace protocol operations.
+### 8.2 Future migration path
+
+A safe route is:
+
+1. keep current Tools and inspection routes stable;
+2. add descriptor metadata beside current Tool classes and inspection gateway
+   methods;
+3. introduce an internal `WorkspaceGateway` adapter over current precision file
+   tools and inspection gateway without changing AgentLoop behavior;
+4. normalize a small subset of observations into a `WorkspaceResult`-like
+   projection;
+5. route new features through the gateway only after tests prove parity with
+   current tools;
+6. add remote or organization providers only after local policy, evidence, and
+   idempotency are stable.
+
+No current implementation needs to be removed to get there.
 
 ---
 
-## 7. Capability Binding
+## 9. Non-Goals For Current Phase
 
-The protocol should support a two-stage binding:
-
-```text
-Task.required_capability
-  -> WorkspaceCapabilityDescriptor
-  -> WorkspaceRequest(operation=...)
-  -> concrete adapter
-```
-
-This keeps Task Nodes stable even when implementation changes.
-
-Example:
-
-```text
-required_capability = "code_editing"
-  -> descriptor supports:
-       code.apply_patch
-       code.format
-       project.test
-  -> gateway chooses built-in file/shell tools today
-  -> gateway may choose organization code-edit provider later
-```
-
-The Collaborator should reason over capabilities. Execution Agents or service code can translate capabilities into operation requests.
-
----
-
-## 8. Relationship To Current Tool Layer
-
-Current `Tool` should be reinterpreted as:
-
-```text
-Tool = in-process adapter for one or more Workspace operations.
-```
-
-Possible migration:
-
-| Current | Future Role |
-|---|---|
-| `Tool` class | Adapter implementation detail. |
-| `Action` | Serialized request or adapter-specific request body. |
-| `Observation` | Adapter-specific result, normalized into `WorkspaceResult`. |
-| `Runtime` | Execution host behind `WorkspaceGateway`. |
-| `Workspace` path resolver | Local workspace policy component. |
-
-No current implementation needs to be removed immediately. The protocol is a design target, not a rewrite mandate.
-
----
-
-## 9. Policy And Safety
-
-Workspace operations must pass policy checks before execution.
-
-Policy dimensions:
-
-| Dimension | Examples |
-|---|---|
-| Actor | user, execution Agent, system service. |
-| Task state | draft, pending, running, completed. |
-| Operation risk | read, write, delete, run process, network. |
-| Target scope | session project root, shared directory, external path. |
-| Confirmation | required, optional, already granted. |
-| Sandbox | local, docker, remote runner. |
-| Idempotency | required for retryable operations. |
-
-The protocol should make policy inputs explicit instead of hiding them in Tool code.
-
----
-
-## 10. Audit And Observability
-
-Every executed request should be traceable:
-
-```text
-WorkspaceRequest
-  -> validation/preflight result
-  -> WorkspaceResult
-  -> WorkspaceDelta
-  -> EventStream / logs / Task summary
-```
-
-Minimum audit fields:
-
-- `request_id`;
-- `session_id`;
-- `task_id`;
-- `actor`;
-- `operation`;
-- `capability_id`;
-- target summary;
-- policy decision;
-- result status;
-- delta summary;
-- error/diagnostic codes.
-
-Raw command output may be large or sensitive. Store compact structured summaries in default views, with full logs behind debug/archive access.
-
----
-
-## 11. Extension Strategy
-
-The reason to define this protocol is not to implement every ability ourselves.
-
-Future supply layers:
-
-| Supply Layer | Example | Governance |
-|---|---|---|
-| Built-in | local file/shell/code adapters | core tests, strict policy. |
-| Organization | team-specific build/deploy/test provider | org admin approval, secrets boundary, audit. |
-| User | custom workspace operation provider | sandbox, schema validation, disabled by default. |
-| Remote | remote runner or MCP-like endpoint | protocol handshake, capability manifest, policy gate. |
-
-The protocol allows TaskWeavn to ask:
-
-```text
-Can this workspace endpoint satisfy capability X?
-Can it preview the change?
-What will it modify?
-Can we trust and audit the result?
-```
-
-without hard-coding every operation as a first-party Tool.
-
----
-
-## 12. Relationship To UI
-
-The UI should not show raw protocol payloads by default.
-
-It can show:
-
-- operation summary;
-- changed files;
-- diagnostics;
-- preview/diff;
-- confirmation prompts;
-- artifact links;
-- task result summary.
-
-The protocol makes these UI facts available without making the UI parse arbitrary tool observations.
-
----
-
-## 13. Non-goals For Current Phase
-
-Do not implement this protocol in the current authoring package.
-
-Also do not do these yet:
+Do not treat this document as authorization to:
 
 - replace current Tools;
+- rewrite AgentLoop execution semantics;
+- bypass existing workspace path policy;
+- route authoring/system-state commands through workspace operations;
 - introduce third-party providers;
 - expose user-supplied workspace operations;
 - build a remote workspace daemon;
-- implement full marketplace/discovery;
-- change AgentLoop execution semantics.
+- add MCP workspace providers;
+- add marketplace/discovery.
 
-The goal is to reserve the architecture boundary now, so future Tool growth does not force a rewrite.
-
----
-
-## 14. Migration Path
-
-Recommended future phases:
-
-| Phase | Goal |
-|---|---|
-| W0 | Architecture only. Define protocol and keep current Tools. |
-| W1 | Add `WorkspaceCapabilityDescriptor` metadata beside current Tool descriptors. |
-| W2 | Add `WorkspaceGateway` that wraps current Runtime/Tools. |
-| W3 | Normalize key Tool observations into `WorkspaceResult` and `WorkspaceDelta`. |
-| W4 | Let TaskPublisher/Execution Agent bind `required_capability` to workspace operations. |
-| W5 | Add remote/user/org provider support behind the same gateway. |
-
-The first practical implementation should probably be W1 or W2, not a full protocol rewrite.
+Those require separate product/API/security decisions and tests.
 
 ---
 
-## 15. Open Questions
+## 10. Summary
 
-1. Should `WorkspaceRequest` replace `Action`, or should `Action` remain the LLM-facing envelope and be translated into requests? Current leaning: keep `Action` for compatibility, translate inside gateway.
-2. Should shell/process operations be first-class protocol operations or hidden behind project operations? Current leaning: both, with shell gated more strictly.
-3. Should external data retrieval be part of workspace protocol or a separate external communication protocol? Current leaning: separate later, but allow adapters that create workspace artifacts from external data.
-4. Should user-provided providers run in-process? Current leaning: no, require sandbox/remote boundary.
-5. Should workspace endpoint return full file diffs or only references to diff artifacts? Current leaning: references plus compact summaries by default.
-
----
-
-## 16. Summary
-
-The stable mental model:
+Current TaskWeavn workspace communication is concrete, not protocol-generic:
 
 ```text
-Authoring Commands change TaskWeavn state.
-Workspace Requests change user workspace state.
-Tools are adapters, not the top-level abstraction.
-Capabilities are the planning language.
-Workspace Protocol is the execution communication boundary.
+Tools execute typed Actions.
+Workspace path policies protect local roots and metadata.
+Inspection routes expose bounded status/diff/file/evidence reads.
+Precision file tools provide hash-checked, idempotent line/file mutations.
+Read-only inquiry and Collaborator consume safe workspace refs without writes.
+File summaries are projected from observed events, not WorkspaceDelta objects.
 ```
 
-This gives TaskWeavn room to grow beyond first-party Tools while preserving policy, audit, UI projection, Session conversation, and task execution semantics.
+The future Workspace Communication Protocol should unify these pieces only after
+it preserves the current safety properties: safe paths, bounded reads,
+idempotent mutations, evidence refs, no raw absolute path leakage, no authoring
+state mutation through workspace channels, and testable UI projections.

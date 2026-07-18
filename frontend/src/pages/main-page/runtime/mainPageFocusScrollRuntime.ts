@@ -190,15 +190,15 @@ export function mainPageFocusScrollRuntimeReducer(
       };
 
     case "runtime_input.submit_started":
-      return withScrollRequest(
+      return withOptionalBottomScrollRequest(
         {
           ...state,
           awaitingSubmitSettlement: true,
           pendingSubmitCommandId: action.commandId,
-          shouldFollowNextAppend: true,
+          shouldFollowNextAppend: shouldAutoFollowConversation(state),
         },
-        { kind: "bottom" },
         "submit_started",
+        shouldAutoFollowConversation(state),
       );
 
     case "runtime_input.submit_failed":
@@ -396,6 +396,9 @@ function shouldFollowCommandMessage(
   state: MainPageFocusScrollRuntimeState,
   message: SessionMessageView,
 ): boolean {
+  if (!shouldAutoFollowConversation(state)) {
+    return false;
+  }
   if (state.shouldFollowNextAppend) {
     return true;
   }
@@ -437,6 +440,20 @@ function withScrollRequest(
     },
     requestSequence,
   };
+}
+
+function withOptionalBottomScrollRequest(
+  state: MainPageFocusScrollRuntimeState,
+  reason: MainPageFocusScrollReason,
+  shouldScroll: boolean,
+): MainPageFocusScrollRuntimeState {
+  return shouldScroll ? withScrollRequest(state, { kind: "bottom" }, reason) : state;
+}
+
+function shouldAutoFollowConversation(
+  state: MainPageFocusScrollRuntimeState,
+): boolean {
+  return state.isPinnedToBottom && !state.manualScrollLock;
 }
 
 function withFocusRequest(

@@ -245,8 +245,14 @@ export function MainPageWorkbench({
     viewModel.taskWorkspace.taskTree?.title ?? viewModel.workspace.title;
   const collapsedPlanMeta =
     viewModel.taskWorkspace.taskTree !== null
-      ? `${viewModel.taskWorkspace.taskTree.nodes.length} tasks · ${viewModel.taskWorkspace.taskTree.status}`
-      : "Generating plan";
+      ? `${uiText.main.detail.messages.taskCount({
+          count: viewModel.taskWorkspace.taskTree.nodes.length,
+        })} · ${
+          uiText.main.detail.status.taskTree[
+            viewModel.taskWorkspace.taskTree.status
+          ]
+        }`
+      : uiText.main.plan.generatingTitle;
   const activePlan = viewModel.taskWorkspace.activePlan;
   const activeAskFocusIdentity =
     viewModel.mainWorkArea.kind === "authoringAsk"
@@ -269,7 +275,9 @@ export function MainPageWorkbench({
         size="sm"
         variant="secondary"
       >
-        {isArchivingPlan ? "Archiving..." : "Archive plan"}
+        {isArchivingPlan
+          ? uiText.main.detail.actions.archivingPlan
+          : uiText.main.detail.actions.archivePlan}
       </Button>
     ) : null;
 
@@ -636,18 +644,22 @@ export function MainPageWorkbench({
       onClick={() => setIsPlanLayerExpanded(false)}
       type="button"
     >
-      Collapse
+      {uiText.main.detail.actions.collapse}
     </button>
   );
   const collapsedPlanTopbarAction =
     hasPlanLayer && !isPlanLayerExpanded ? (
       <button
-        aria-label={`Open Plan & Progress: ${collapsedPlanTitle}`}
+        aria-label={uiText.main.detail.actions.openPlanProgress({
+          title: collapsedPlanTitle,
+        })}
         className={styles.collapsedPlanTopbarButton}
         onClick={() => setIsPlanLayerExpanded(true)}
         type="button"
       >
-        <span className={styles.collapsedPlanTopbarLabel}>Plan</span>
+        <span className={styles.collapsedPlanTopbarLabel}>
+          {uiText.main.detail.labels.plan}
+        </span>
         <span className={styles.collapsedPlanTopbarTitle}>
           {collapsedPlanTitle}
         </span>
@@ -661,12 +673,12 @@ export function MainPageWorkbench({
     archivedPlans.length > 0;
   const conversationPlanAction = showConversationPlanEntry ? (
     <Button
-      aria-label="Open archived plan from Conversation"
+      aria-label={uiText.main.detail.actions.openArchivedPlan}
       onClick={(event) => openArchivedPlans(event.currentTarget)}
       size="sm"
       variant="secondary"
     >
-      Plan
+      {uiText.main.detail.labels.plan}
     </Button>
   ) : null;
   const conversationAuditAction =
@@ -788,7 +800,7 @@ export function MainPageWorkbench({
         <Panel
           as="section"
           className={`${styles.workspace} ${styles.planWorkspace}`}
-          aria-label="Plan & Progress workspace"
+          aria-label={uiText.main.detail.labels.planProgressWorkspace}
         >
           {renderWorkspaceHeader(collapsePlanAction, archivePlanAction)}
           <div className={styles.planProgressWorkspaceBody}>
@@ -801,7 +813,7 @@ export function MainPageWorkbench({
         <Panel
           as="section"
           className={`${styles.workspace} ${styles.planWorkspace}`}
-          aria-label="Archived Plan & Progress workspace"
+          aria-label={uiText.main.detail.labels.archivedPlanProgressWorkspace}
         >
           {renderWorkspaceHeader(
             <button
@@ -809,10 +821,10 @@ export function MainPageWorkbench({
               onClick={closeArchivedPlanAndReturnFocus}
               type="button"
             >
-              Back to conversation
+              {uiText.main.detail.actions.backToConversation}
             </button>,
             null,
-            "Plan & Progress",
+            uiText.main.detail.labels.planProgress,
           )}
           <div className={styles.planProgressWorkspaceBody}>
             {archivedPlanProgressLayer ?? (
@@ -832,7 +844,7 @@ export function MainPageWorkbench({
 
       {hasDetailColumn ? (
         <button
-          aria-label="Resize details panel"
+          aria-label={uiText.main.detail.labels.resizeDetailsPanel}
           aria-orientation="vertical"
           aria-valuemax={MAX_DETAIL_WIDTH}
           aria-valuemin={MIN_DETAIL_WIDTH}

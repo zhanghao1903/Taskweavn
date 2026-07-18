@@ -4,7 +4,7 @@
 >
 > Baseline: `main` after `git pull --ff-only origin main`
 >
-> Last verified: 2026-06-25
+> Last verified: 2026-07-06
 >
 > Scope: Product 1.1 P1 open-work closure after P0 release evidence closure.
 > This document records the standalone owner PRs that were merged into `main`
@@ -59,10 +59,12 @@ repo release gate.
 
 The following are not new P1 gaps:
 
-- Optional LLM-rendered read-only inquiry smoke is already represented by
+- Optional LLM-rendered read-only inquiry smoke is represented by
   `npm run electron:smoke:read-only-inquiry-llm` and
-  `npm run electron:smoke:packaged-read-only-inquiry-llm`, and is tracked in
-  the accepted read-only inquiry docs.
+  `npm run electron:smoke:packaged-read-only-inquiry-llm`, but it is not green
+  evidence yet. The 2026-07-02 feature test report shows the deterministic LLM
+  answer renders, then the script fails later in stale retry recovery. Treat it
+  as beta-depth follow-up until the smoke is split or fixed.
 - Public visual assets and screenshots are tracked under
   `docs/product/public-exposure/` and the public repository draft PR.
 - Signed and notarized distribution is intentionally deferred until Apple
@@ -83,9 +85,9 @@ restart replay confidence with external release notes. Its scope is now split
 across PR #110 and PR #111.
 
 Product 1.1 P1 beta-readiness closure is accepted for this repository. The
-remaining visible work is not hidden P1 implementation: it is either signed /
-notarized distribution, external-publication execution, or later Product 1.1+
-hardening.
+remaining visible work is not hidden P1 implementation: it is optional LLM smoke
+hardening, signed / notarized distribution, external-publication execution, or
+later Product 1.1+ hardening.
 
 ## 6. Follow-Up Checklist
 
@@ -95,5 +97,8 @@ hardening.
 3. Treat signed/notarized distribution as credential-gated release work.
 4. Treat copying prepared public release notes into an external public
    repository as a publishing operation, not an internal Product 1.1 P1 blocker.
-5. Use this closure record plus `plato-1-1-open-work.md` as the accepted P1
+5. Treat optional LLM-rendered inquiry smoke as beta-depth follow-up until the
+   script has independent green evidence for LLM answer rendering and retry
+   recovery.
+6. Use this closure record plus `plato-1-1-open-work.md` as the accepted P1
    control-plane state.

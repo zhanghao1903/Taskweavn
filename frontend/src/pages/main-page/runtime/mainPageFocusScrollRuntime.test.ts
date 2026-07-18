@@ -61,6 +61,39 @@ describe("mainPageFocusScrollRuntime", () => {
     expect(changedState.pendingScrollRequest).toBeNull();
   });
 
+  it("does not force a submit or its related appended message to the bottom while reading history", () => {
+    const lockedState = mainPageFocusScrollRuntimeReducer(initialState(), {
+      isAtBottom: false,
+      source: "user",
+      type: "conversation.scrolled",
+    });
+    const submitState = mainPageFocusScrollRuntimeReducer(lockedState, {
+      commandId: "command-1",
+      type: "runtime_input.submit_started",
+    });
+
+    expect(submitState.manualScrollLock).toBe(true);
+    expect(submitState.pendingSubmitCommandId).toBe("command-1");
+    expect(submitState.pendingScrollRequest).toBeNull();
+    expect(submitState.shouldFollowNextAppend).toBe(false);
+
+    const appended = [
+      message({
+        id: "message-1",
+        relatedCommandId: "command-1",
+        title: "User input",
+      }),
+    ];
+    const changedState = mainPageFocusScrollRuntimeReducer(submitState, {
+      appendedMessages: appended,
+      messageListSignature: messageListSignature(appended),
+      type: "messages.changed",
+    });
+
+    expect(changedState.pendingScrollRequest).toBeNull();
+    expect(changedState.shouldFollowNextAppend).toBe(false);
+  });
+
   it("unlocks auto-scroll after the user returns to the bottom", () => {
     const lockedState = mainPageFocusScrollRuntimeReducer(initialState(), {
       isAtBottom: false,

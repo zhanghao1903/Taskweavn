@@ -3,6 +3,16 @@ import type {
   AuditCompleteness,
   AuditFilterKind,
   AuditVerdict,
+  ConfirmationStatus,
+  ExecutionStatus,
+  FileChangeItemView,
+  MessageKind,
+  PlanningState,
+  ResultSectionView,
+  SessionStatus,
+  TaskNodeReadiness,
+  TaskNodeStatus,
+  TaskTreeStatus,
 } from "../api/types";
 
 export type UiLocale = "en-US" | "zh-CN";
@@ -256,6 +266,104 @@ export type UiTextCatalog = {
         noEffect: string;
         resumeEffect: string;
         stateEffect: string;
+      };
+    };
+    detail: {
+      actions: {
+        archivePlan: string;
+        archivingPlan: string;
+        backToConversation: string;
+        backToSummary: string;
+        collapse: string;
+        openArchivedPlan: string;
+        openFile: string;
+        openPlanProgress: UiTextTemplate<{ title: string }>;
+        openSessionActivity: string;
+        openTaskUpdates: string;
+        retry: string;
+        retrying: string;
+        stop: string;
+        stopping: string;
+        viewDiff: string;
+        viewAudit: string;
+        viewFileChanges: string;
+        viewResult: string;
+      };
+      labels: {
+        acceptanceCriteria: string;
+        archivedPlanProgressWorkspace: string;
+        changedFiles: string;
+        conversation: string;
+        detailed: string;
+        details: string;
+        fileChanges: string;
+        fullResult: string;
+        includesChildTasks: string;
+        intent: string;
+        instructions: string;
+        latestActivity: string;
+        plan: string;
+        planInteraction: string;
+        planProgress: string;
+        planProgressWorkspace: string;
+        planTarget: string;
+        resultSummary: string;
+        resizeDetailsPanel: string;
+        routerDispatch: string;
+        routerIntent: string;
+        routerOutcome: string;
+        routerScope: string;
+        selectedTaskTarget: string;
+        sessionActivity: string;
+        sessionTarget: string;
+        summary: string;
+        taskActions: string;
+        taskActivity: string;
+        taskDetails: string;
+        taskInput: string;
+        taskTarget: UiTextTemplate<{ index: string | number }>;
+        userAction: string;
+        userLabel: string;
+        userYou: string;
+        workspaceChanges: string;
+      };
+      messages: {
+        answerPlaceholder: string;
+        conversationEmpty: string;
+        fileCount: UiTextTemplate<{ count: number }>;
+        fileCountChanged: UiTextTemplate<{ count: number }>;
+        confirmationResolution: Record<
+          "confirmed" | "revise" | "skipped",
+          string
+        >;
+        fullResultAvailable: string;
+        guidancePlaceholderPlan: string;
+        guidancePlaceholderSession: string;
+        guidancePlaceholderTask: string;
+        planInteractionBody: string;
+        sectionsAvailable: UiTextTemplate<{ count: number }>;
+        taskCount: UiTextTemplate<{ count: number }>;
+      };
+      fileChangeTypes: Record<FileChangeItemView["changeType"], string>;
+      resultSectionKinds: Record<
+        NonNullable<ResultSectionView["kind"]>,
+        string
+      >;
+      status: {
+        auditVerdict: Record<AuditVerdict, string>;
+        confirmation: Record<ConfirmationStatus, string>;
+        eventConnection: Record<"connected" | "disconnected" | "resyncing", string>;
+        execution: Record<ExecutionStatus, string>;
+        messageKind: Record<MessageKind, string>;
+        planning: Record<PlanningState, string>;
+        readiness: Record<TaskNodeReadiness, string>;
+        primaryExecutionRunning: string;
+        readOnly: string;
+        session: Record<SessionStatus, string>;
+        stale: string;
+        stopping: string;
+        taskNode: Record<TaskNodeStatus, string>;
+        taskTree: Record<TaskTreeStatus, string>;
       };
     };
     actions: {

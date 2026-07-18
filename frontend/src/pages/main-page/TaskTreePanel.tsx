@@ -67,7 +67,7 @@ export function TaskTreePanel({
               {planOverview.detail}
             </small>
           </span>
-          <Badge tone="blue">{taskTree.status}</Badge>
+          <Badge tone="blue">{uiText.main.detail.status.taskTree[taskTree.status]}</Badge>
         </button>
         {authoringDiagnostic ? (
           <div className={styles.authoringDiagnosticBanner} role="status">
@@ -101,6 +101,7 @@ export function TaskTreePanel({
               selectButtonRef={
                 node.id === selectedTaskNodeId ? selectedTaskRef : undefined
               }
+              uiText={uiText.main}
             />
           ))}
         </div>

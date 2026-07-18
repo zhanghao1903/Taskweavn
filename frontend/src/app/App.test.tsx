@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -620,13 +620,15 @@ describe("App", () => {
   it("refetches the snapshot when the event stream requests resync", async () => {
     let emitted = false;
     let loadCount = 0;
+    let releaseResyncRefetch!: () => void;
+    const resyncRefetchPending = new Promise<void>((resolve) => {
+      releaseResyncRefetch = resolve;
+    });
     const loadSnapshot = vi.fn<LoadMainPageSnapshot>(async (stateId) => {
       loadCount += 1;
 
       if (loadCount > 1) {
-        await new Promise((resolve) => {
-          window.setTimeout(resolve, 80);
-        });
+        await resyncRefetchPending;
       }
 
       return getMainPageMockSnapshot(stateId as MainPageStateId);
@@ -654,6 +656,9 @@ describe("App", () => {
     );
 
     expect(await screen.findByText("Resyncing")).toBeInTheDocument();
+    await act(async () => {
+      releaseResyncRefetch();
+    });
     await screen.findByText("Events live");
     expect(loadSnapshot).toHaveBeenCalledTimes(2);
   });

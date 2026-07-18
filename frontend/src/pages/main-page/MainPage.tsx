@@ -212,6 +212,7 @@ export function MainPage({
     snapshot,
     taskTreeCommandError,
     taskTreeCommandRecoveryActions,
+    uiText: uiText.main,
     uiNotice,
     workspaceId: activeWorkspaceId,
   });

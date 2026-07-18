@@ -100,6 +100,35 @@ describe("workspace entry store", () => {
     });
   });
 
+  it("preserves no current workspace in schema v3 with recent workspaces", async () => {
+    const userDataPath = await tempDir();
+    const recent = path.join(userDataPath, "Recent Only");
+    await writeFile(
+      workspaceEntryStorePath(userDataPath),
+      `${JSON.stringify({
+        currentPath: null,
+        preferences: {
+          initializeGitOnOpen: null,
+        },
+        schemaVersion: 3,
+        workspaces: [
+          {
+            archived: false,
+            path: recent,
+          },
+        ],
+      })}\n`,
+      "utf8",
+    );
+
+    await expect(readWorkspaceEntryStore(userDataPath)).resolves.toMatchObject({
+      currentPath: null,
+      recentPaths: [recent],
+      schemaVersion: 3,
+      workspaces: [expect.objectContaining({ archived: false, path: recent })],
+    });
+  });
+
   it("resolves a recent workspace by opaque id", async () => {
     const userDataPath = await tempDir();
     const workspacePath = path.join(userDataPath, "Selected");

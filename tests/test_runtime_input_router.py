@@ -22,6 +22,9 @@ from taskweavn.server.runtime_input_activity import (
     MessageBusRuntimeInputActivityPublisher,
 )
 from taskweavn.server.runtime_input_llm_router import (
+    RouterAskAnswerDraft,
+    RouterCommandDraft,
+    RouterConfirmationResponseDraft,
     RouterPlannerResult,
     RuntimeInputRouteProposal,
 )
@@ -343,12 +346,12 @@ def test_router_planner_can_dispatch_existing_stop_command() -> None:
             visible_reasoning_summary="Router skill mapped this to stop_task.",
             user_message="I will stop the selected task.",
             activated_skill_ids=("internal:router-control-commands",),
-            command_draft={
-                "commandKind": "stop_task",
-                "targetScopeKind": "task",
-                "targetTaskNodeId": "task-1",
-                "rationale": "User asked to stop the current task.",
-            },
+            command_draft=RouterCommandDraft(
+                command_kind="stop_task",
+                target_scope_kind="task",
+                target_task_node_id="task-1",
+                rationale="User asked to stop the current task.",
+            ),
         )
     )
     router = _router(query, commands, route_planner=planner)
@@ -384,12 +387,12 @@ def test_router_planner_can_dispatch_existing_retry_command() -> None:
             visible_reasoning_summary="Router skill mapped this to retry_task.",
             user_message="I will retry the selected task.",
             activated_skill_ids=("internal:router-control-commands",),
-            command_draft={
-                "commandKind": "retry_task",
-                "targetScopeKind": "task",
-                "targetTaskNodeId": "task-1",
-                "rationale": "User asked to retry the current task.",
-            },
+            command_draft=RouterCommandDraft(
+                command_kind="retry_task",
+                target_scope_kind="task",
+                target_task_node_id="task-1",
+                rationale="User asked to retry the current task.",
+            ),
         )
     )
     router = _router(query, commands, route_planner=planner)
@@ -425,10 +428,10 @@ def test_router_planner_can_dispatch_active_ask_answer() -> None:
             visible_reasoning_summary="Router mapped this to the active ASK answer.",
             user_message="I will answer the active ASK.",
             activated_skill_ids=("internal:router-control-commands",),
-            ask_answer_draft={
-                "askId": "ask-1",
-                "answerText": "Use Netlify.",
-            },
+            ask_answer_draft=RouterAskAnswerDraft(
+                ask_id="ask-1",
+                answer_text="Use Netlify.",
+            ),
         )
     )
     router = _router(query, commands, route_planner=planner)
@@ -484,10 +487,10 @@ def test_router_planner_can_dispatch_active_confirmation_response() -> None:
             visible_reasoning_summary="Router mapped this to confirmation rejection.",
             user_message="I will reject the active confirmation.",
             activated_skill_ids=("internal:router-control-commands",),
-            confirmation_response_draft={
-                "confirmationId": "confirm-1",
-                "resolution": "rejected",
-            },
+            confirmation_response_draft=RouterConfirmationResponseDraft(
+                confirmation_id="confirm-1",
+                resolution="rejected",
+            ),
         )
     )
     router = _router(query, commands, route_planner=planner)
@@ -812,10 +815,10 @@ def test_router_ask_answer_is_durable_conversation_answer(
             visible_reasoning_summary="Router mapped this to the active ASK answer.",
             user_message="I will answer the active ASK.",
             activated_skill_ids=("internal:router-control-commands",),
-            ask_answer_draft={
-                "askId": "ask-1",
-                "answerText": "Use Vercel.",
-            },
+            ask_answer_draft=RouterAskAnswerDraft(
+                ask_id="ask-1",
+                answer_text="Use Vercel.",
+            ),
         )
     )
     router = _router(
@@ -1087,10 +1090,18 @@ def test_router_change_mode_dispatches_execution_task_command() -> None:
     assert response.data.decision.intent == "execution_request"
     assert response.data.decision.dispatch_target == "execution_handoff"
     assert response.data.decision.side_effect == "state_effect"
+    assert response.data.decision.scope.kind == "session"
+    assert response.data.decision.scope.task_node_id is None
     assert response.data.outcome.status == "dispatched"
     assert response.data.activity is not None
     assert response.data.activity.kind == "task_created"
     assert response.data.activity.title == "Execution work created"
+    assert response.data.activity.scope_kind == "task"
+    assert response.data.activity.task_node_id == "task-exec-1"
+    assert [ref.id for ref in response.data.activity.related_refs] == [
+        "plan-1",
+        "task-exec-1",
+    ]
     assert response.data.command_response is None
     assert commands.calls == []
     assert task_node_handler.calls == [
@@ -1115,12 +1126,12 @@ def test_runtime_input_http_route_returns_contract_json() -> None:
             visible_reasoning_summary="Router skill mapped this to stop_task.",
             user_message="I will stop the selected task.",
             activated_skill_ids=("internal:router-control-commands",),
-            command_draft={
-                "commandKind": "stop_task",
-                "targetScopeKind": "task",
-                "targetTaskNodeId": "task-1",
-                "rationale": "User asked to stop the current task.",
-            },
+            command_draft=RouterCommandDraft(
+                command_kind="stop_task",
+                target_scope_kind="task",
+                target_task_node_id="task-1",
+                rationale="User asked to stop the current task.",
+            ),
         )
     )
     router = _router(query, commands, route_planner=planner)

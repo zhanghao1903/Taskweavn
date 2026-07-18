@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import type { TaskNodeCardView } from "../../shared/api/types";
+import { UiTextProvider } from "../../shared/ui-text";
 import { MainPageDetailPanel } from "./MainPageDetailPanel";
 import type { MainPageDetailView } from "./mainPageViewModel";
 
@@ -421,6 +422,41 @@ describe("MainPageDetailPanel", () => {
     );
   });
 
+  it("renders file change details with zh-CN UI text", () => {
+    render(
+      <UiTextProvider locale="zh-CN">
+        <MainPageDetailPanel
+          detail={fileChangesDetail}
+          onAnswerAsk={vi.fn()}
+          onCancelAsk={vi.fn()}
+          onConfirmationDecision={vi.fn()}
+          onDeferAsk={vi.fn()}
+          onRetryTask={vi.fn()}
+          onShowFileChanges={vi.fn()}
+          onShowResult={vi.fn()}
+          onStopTask={vi.fn()}
+          workspaceId="ws-a"
+        />
+      </UiTextProvider>,
+    );
+
+    expect(
+      screen.getByRole("complementary", { name: "详情" }),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText("变更文件")).toHaveLength(2);
+    expect(screen.getByText("1 个文件")).toBeInTheDocument();
+    expect(screen.getByText("包含子任务")).toBeInTheDocument();
+    expect(screen.getByText("修改")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "打开文件" })).toHaveAttribute(
+      "href",
+      expect.stringContaining("view=file"),
+    );
+    expect(screen.getByRole("link", { name: "查看 Diff" })).toHaveAttribute(
+      "href",
+      expect.stringContaining("view=diff"),
+    );
+  });
+
   it("hides generic state notes instead of repeating them in the detail panel", () => {
     render(
       <MainPageDetailPanel
@@ -470,6 +506,42 @@ describe("MainPageDetailPanel", () => {
       screen.getByText("The confirmation was accepted. Plato can continue from this task."),
     ).toBeInTheDocument();
     expect(screen.queryByText(/TaskNode/)).not.toBeInTheDocument();
+  });
+
+  it("renders resolved confirmation details with zh-CN UI text", () => {
+    render(
+      <UiTextProvider locale="zh-CN">
+        <MainPageDetailPanel
+          detail={{
+            decision: "revise",
+            header: {
+              body: "A revision request was captured.",
+              eyebrow: "Confirmation",
+              title: "Revision requested",
+            },
+            kind: "confirmationResolved",
+          }}
+          onAnswerAsk={vi.fn()}
+          onCancelAsk={vi.fn()}
+          onConfirmationDecision={vi.fn()}
+          onDeferAsk={vi.fn()}
+          onRetryTask={vi.fn()}
+          onShowFileChanges={vi.fn()}
+          onShowResult={vi.fn()}
+          onStopTask={vi.fn()}
+        />
+      </UiTextProvider>,
+    );
+
+    expect(screen.getByText("确认已处理")).toBeInTheDocument();
+    expect(
+      screen.getByText("已记录修订请求。任务范围输入现在会优化此任务。"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(
+        "A revision request was captured. Task-scoped input now refines this task.",
+      ),
+    ).not.toBeInTheDocument();
   });
 
   it("keeps result sections out of the default result card", () => {

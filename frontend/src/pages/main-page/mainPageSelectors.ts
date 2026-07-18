@@ -17,6 +17,7 @@ import type {
   TaskNodeStatus,
 } from "../../shared/api/types";
 import type { BadgeTone, ButtonVariant } from "../../shared/components";
+import type { UiTextCatalog } from "../../shared/ui-text";
 import type { EventConnectionStatus } from "./mainPageUiTypes";
 import type { MainPageStateMetadata } from "./runtime/adapter";
 
@@ -25,17 +26,41 @@ export type BadgePresentation = {
   tone: BadgeTone;
 };
 
+type MainPageUiText = UiTextCatalog["main"];
+
 export function selectSessionStatusPresentation(
   status: SessionStatus,
+  uiText?: MainPageUiText,
 ): BadgePresentation {
   const presentations: Record<SessionStatus, BadgePresentation> = {
-    completed: { label: "Completed", tone: "success" },
-    draft_ready: { label: "Draft ready", tone: "blue" },
-    failed: { label: "Failed", tone: "danger" },
-    new: { label: "New session", tone: "neutral" },
-    running: { label: "Running", tone: "blue" },
-    understanding: { label: "Understanding", tone: "blue" },
-    waiting_user: { label: "Waiting for user", tone: "warning" },
+    completed: {
+      label: uiText?.detail.status.session.completed ?? "Completed",
+      tone: "success",
+    },
+    draft_ready: {
+      label: uiText?.detail.status.session.draft_ready ?? "Draft ready",
+      tone: "blue",
+    },
+    failed: {
+      label: uiText?.detail.status.session.failed ?? "Failed",
+      tone: "danger",
+    },
+    new: {
+      label: uiText?.detail.status.session.new ?? "New session",
+      tone: "neutral",
+    },
+    running: {
+      label: uiText?.detail.status.session.running ?? "Running",
+      tone: "blue",
+    },
+    understanding: {
+      label: uiText?.detail.status.session.understanding ?? "Understanding",
+      tone: "blue",
+    },
+    waiting_user: {
+      label: uiText?.detail.status.session.waiting_user ?? "Waiting for user",
+      tone: "warning",
+    },
   };
 
   return presentations[status];
@@ -43,15 +68,37 @@ export function selectSessionStatusPresentation(
 
 export function selectTaskNodeStatusPresentation(
   status: TaskNodeStatus,
+  uiText?: MainPageUiText,
 ): BadgePresentation {
   const presentations: Record<TaskNodeStatus, BadgePresentation> = {
-    cancelled: { label: "Cancelled", tone: "danger" },
-    done: { label: "Done", tone: "success" },
-    draft: { label: "Draft", tone: "neutral" },
-    failed: { label: "Failed", tone: "danger" },
-    queued: { label: "Queued", tone: "neutral" },
-    running: { label: "Running", tone: "blue" },
-    waiting_user: { label: "Waiting", tone: "warning" },
+    cancelled: {
+      label: uiText?.detail.status.taskNode.cancelled ?? "Cancelled",
+      tone: "danger",
+    },
+    done: {
+      label: uiText?.detail.status.taskNode.done ?? "Done",
+      tone: "success",
+    },
+    draft: {
+      label: uiText?.detail.status.taskNode.draft ?? "Draft",
+      tone: "neutral",
+    },
+    failed: {
+      label: uiText?.detail.status.taskNode.failed ?? "Failed",
+      tone: "danger",
+    },
+    queued: {
+      label: uiText?.detail.status.taskNode.queued ?? "Queued",
+      tone: "neutral",
+    },
+    running: {
+      label: uiText?.detail.status.taskNode.running ?? "Running",
+      tone: "blue",
+    },
+    waiting_user: {
+      label: uiText?.detail.status.taskNode.waiting_user ?? "Waiting",
+      tone: "warning",
+    },
   };
 
   return presentations[status];
@@ -59,18 +106,49 @@ export function selectTaskNodeStatusPresentation(
 
 export function selectPlanningStatePresentation(
   state: PlanningState,
+  uiText?: MainPageUiText,
 ): BadgePresentation {
   const presentations: Record<PlanningState, BadgePresentation> = {
-    assessing: { label: "Understanding", tone: "blue" },
-    awaiting_user: { label: "Waiting for user", tone: "warning" },
-    cancelled: { label: "Cancelled", tone: "danger" },
-    capturing_input: { label: "Capturing input", tone: "blue" },
-    draft_ready: { label: "Draft ready", tone: "blue" },
-    empty: { label: "New session", tone: "neutral" },
-    published: { label: "Published", tone: "success" },
-    ready_to_plan: { label: "Ready to plan", tone: "blue" },
-    rejected: { label: "Rejected", tone: "danger" },
-    unknown: { label: "Unknown", tone: "neutral" },
+    assessing: {
+      label: uiText?.detail.status.planning.assessing ?? "Understanding",
+      tone: "blue",
+    },
+    awaiting_user: {
+      label: uiText?.detail.status.planning.awaiting_user ?? "Waiting for user",
+      tone: "warning",
+    },
+    cancelled: {
+      label: uiText?.detail.status.planning.cancelled ?? "Cancelled",
+      tone: "danger",
+    },
+    capturing_input: {
+      label: uiText?.detail.status.planning.capturing_input ?? "Capturing input",
+      tone: "blue",
+    },
+    draft_ready: {
+      label: uiText?.detail.status.planning.draft_ready ?? "Draft ready",
+      tone: "blue",
+    },
+    empty: {
+      label: uiText?.detail.status.planning.empty ?? "New session",
+      tone: "neutral",
+    },
+    published: {
+      label: uiText?.detail.status.planning.published ?? "Published",
+      tone: "success",
+    },
+    ready_to_plan: {
+      label: uiText?.detail.status.planning.ready_to_plan ?? "Ready to plan",
+      tone: "blue",
+    },
+    rejected: {
+      label: uiText?.detail.status.planning.rejected ?? "Rejected",
+      tone: "danger",
+    },
+    unknown: {
+      label: uiText?.detail.status.planning.unknown ?? "Unknown",
+      tone: "neutral",
+    },
   };
 
   return presentations[state];
@@ -78,13 +156,29 @@ export function selectPlanningStatePresentation(
 
 export function selectTaskReadinessPresentation(
   readiness: TaskNodeReadiness,
+  uiText?: MainPageUiText,
 ): BadgePresentation {
   const presentations: Record<TaskNodeReadiness, BadgePresentation> = {
-    accepted: { label: "Accepted", tone: "blue" },
-    cancelled: { label: "Cancelled", tone: "danger" },
-    draft: { label: "Draft", tone: "neutral" },
-    published: { label: "Published", tone: "blue" },
-    unknown: { label: "Unknown", tone: "neutral" },
+    accepted: {
+      label: uiText?.detail.status.readiness.accepted ?? "Accepted",
+      tone: "blue",
+    },
+    cancelled: {
+      label: uiText?.detail.status.readiness.cancelled ?? "Cancelled",
+      tone: "danger",
+    },
+    draft: {
+      label: uiText?.detail.status.readiness.draft ?? "Draft",
+      tone: "neutral",
+    },
+    published: {
+      label: uiText?.detail.status.readiness.published ?? "Published",
+      tone: "blue",
+    },
+    unknown: {
+      label: uiText?.detail.status.readiness.unknown ?? "Unknown",
+      tone: "neutral",
+    },
   };
 
   return presentations[readiness];
@@ -92,16 +186,41 @@ export function selectTaskReadinessPresentation(
 
 export function selectExecutionStatusPresentation(
   status: ExecutionStatus,
+  uiText?: MainPageUiText,
 ): BadgePresentation {
   const presentations: Record<ExecutionStatus, BadgePresentation> = {
-    cancelled: { label: "Cancelled", tone: "danger" },
-    done: { label: "Done", tone: "success" },
-    failed: { label: "Failed", tone: "danger" },
-    not_started: { label: "Not started", tone: "neutral" },
-    pending: { label: "Queued", tone: "neutral" },
-    running: { label: "Running", tone: "blue" },
-    waiting_for_user: { label: "Waiting", tone: "warning" },
-    unknown: { label: "Unknown", tone: "neutral" },
+    cancelled: {
+      label: uiText?.detail.status.execution.cancelled ?? "Cancelled",
+      tone: "danger",
+    },
+    done: {
+      label: uiText?.detail.status.execution.done ?? "Done",
+      tone: "success",
+    },
+    failed: {
+      label: uiText?.detail.status.execution.failed ?? "Failed",
+      tone: "danger",
+    },
+    not_started: {
+      label: uiText?.detail.status.execution.not_started ?? "Not started",
+      tone: "neutral",
+    },
+    pending: {
+      label: uiText?.detail.status.execution.pending ?? "Queued",
+      tone: "neutral",
+    },
+    running: {
+      label: uiText?.detail.status.execution.running ?? "Running",
+      tone: "blue",
+    },
+    waiting_for_user: {
+      label: uiText?.detail.status.execution.waiting_for_user ?? "Waiting",
+      tone: "warning",
+    },
+    unknown: {
+      label: uiText?.detail.status.execution.unknown ?? "Unknown",
+      tone: "neutral",
+    },
   };
 
   return presentations[status];
@@ -109,11 +228,21 @@ export function selectExecutionStatusPresentation(
 
 export function selectConfirmationStatusPresentation(
   status: ConfirmationStatus,
+  uiText?: MainPageUiText,
 ): BadgePresentation {
   const presentations: Record<ConfirmationStatus, BadgePresentation> = {
-    expired: { label: "Expired", tone: "danger" },
-    pending: { label: "Waiting", tone: "warning" },
-    resolved: { label: "Confirmed", tone: "success" },
+    expired: {
+      label: uiText?.detail.status.confirmation.expired ?? "Expired",
+      tone: "danger",
+    },
+    pending: {
+      label: uiText?.detail.status.confirmation.pending ?? "Waiting",
+      tone: "warning",
+    },
+    resolved: {
+      label: uiText?.detail.status.confirmation.resolved ?? "Confirmed",
+      tone: "success",
+    },
   };
 
   return presentations[status];
@@ -121,20 +250,24 @@ export function selectConfirmationStatusPresentation(
 
 export function selectTaskNodeDimensionPresentation(
   node: TaskNodeCardView,
+  uiText?: MainPageUiText,
 ): BadgePresentation {
   if (
     node.interruptionRequested &&
     (node.execution === "running" || node.status === "running")
   ) {
-    return { label: "stopping", tone: "warning" };
+    return {
+      label: uiText?.detail.status.stopping ?? "stopping",
+      tone: "warning",
+    };
   }
 
   if (node.readiness === "draft") {
-    return selectTaskReadinessPresentation(node.readiness);
+    return selectTaskReadinessPresentation(node.readiness, uiText);
   }
 
   if (node.confirmation) {
-    return selectConfirmationStatusPresentation(node.confirmation);
+    return selectConfirmationStatusPresentation(node.confirmation, uiText);
   }
 
   if (
@@ -142,24 +275,37 @@ export function selectTaskNodeDimensionPresentation(
     node.execution !== "not_started" &&
     node.execution !== "unknown"
   ) {
-    return selectExecutionStatusPresentation(node.execution);
+    return selectExecutionStatusPresentation(node.execution, uiText);
   }
 
   if (node.readiness) {
-    return selectTaskReadinessPresentation(node.readiness);
+    return selectTaskReadinessPresentation(node.readiness, uiText);
   }
 
-  return selectTaskNodeStatusPresentation(node.status);
+  return selectTaskNodeStatusPresentation(node.status, uiText);
 }
 
 export function selectMessageKindPresentation(
   kind: MessageKind,
+  uiText?: MainPageUiText,
 ): BadgePresentation {
   const presentations: Record<MessageKind, BadgePresentation> = {
-    actionable: { label: "Needs reply", tone: "warning" },
-    error: { label: "Error", tone: "danger" },
-    informational: { label: "Update", tone: "blue" },
-    response: { label: "Result", tone: "blue" },
+    actionable: {
+      label: uiText?.detail.status.messageKind.actionable ?? "Needs reply",
+      tone: "warning",
+    },
+    error: {
+      label: uiText?.detail.status.messageKind.error ?? "Error",
+      tone: "danger",
+    },
+    informational: {
+      label: uiText?.detail.status.messageKind.informational ?? "Update",
+      tone: "blue",
+    },
+    response: {
+      label: uiText?.detail.status.messageKind.response ?? "Result",
+      tone: "blue",
+    },
   };
 
   return presentations[kind];
@@ -167,11 +313,22 @@ export function selectMessageKindPresentation(
 
 export function selectEventConnectionStatusPresentation(
   status: EventConnectionStatus,
+  uiText?: MainPageUiText,
 ): BadgePresentation {
   const presentations: Record<EventConnectionStatus, BadgePresentation> = {
-    connected: { label: "Events live", tone: "success" },
-    disconnected: { label: "Events offline", tone: "neutral" },
-    resyncing: { label: "Resyncing", tone: "warning" },
+    connected: {
+      label: uiText?.detail.status.eventConnection.connected ?? "Events live",
+      tone: "success",
+    },
+    disconnected: {
+      label:
+        uiText?.detail.status.eventConnection.disconnected ?? "Events offline",
+      tone: "neutral",
+    },
+    resyncing: {
+      label: uiText?.detail.status.eventConnection.resyncing ?? "Resyncing",
+      tone: "warning",
+    },
   };
 
   return presentations[status];
@@ -179,31 +336,62 @@ export function selectEventConnectionStatusPresentation(
 
 export function selectFileChangeTypePresentation(
   changeType: FileChangeSummaryView["changedFiles"][number]["changeType"],
+  uiText?: MainPageUiText,
 ): BadgePresentation {
   if (changeType === "created") {
-    return { label: "Created", tone: "success" };
+    return {
+      label: uiText?.detail.fileChangeTypes.created ?? "Created",
+      tone: "success",
+    };
   }
 
   if (changeType === "deleted") {
-    return { label: "Deleted", tone: "danger" };
+    return {
+      label: uiText?.detail.fileChangeTypes.deleted ?? "Deleted",
+      tone: "danger",
+    };
   }
 
   if (changeType === "renamed") {
-    return { label: "Renamed", tone: "blue" };
+    return {
+      label: uiText?.detail.fileChangeTypes.renamed ?? "Renamed",
+      tone: "blue",
+    };
   }
 
-  return { label: "Modified", tone: "warning" };
+  return {
+    label: uiText?.detail.fileChangeTypes.modified ?? "Modified",
+    tone: "warning",
+  };
 }
 
 export function selectAuditVerdictPresentation(
   verdict: AuditVerdict,
+  uiText?: MainPageUiText,
 ): BadgePresentation {
   const presentations: Record<AuditVerdict, BadgePresentation> = {
-    failed: { label: "Failed", tone: "danger" },
-    inconclusive: { label: "Inconclusive", tone: "warning" },
-    not_available: { label: "Not available", tone: "neutral" },
-    passed: { label: "Passed", tone: "success" },
-    warning: { label: "Warning", tone: "warning" },
+    failed: {
+      label: uiText?.detail.status.auditVerdict.failed ?? "Failed",
+      tone: "danger",
+    },
+    inconclusive: {
+      label:
+        uiText?.detail.status.auditVerdict.inconclusive ?? "Inconclusive",
+      tone: "warning",
+    },
+    not_available: {
+      label:
+        uiText?.detail.status.auditVerdict.not_available ?? "Not available",
+      tone: "neutral",
+    },
+    passed: {
+      label: uiText?.detail.status.auditVerdict.passed ?? "Passed",
+      tone: "success",
+    },
+    warning: {
+      label: uiText?.detail.status.auditVerdict.warning ?? "Warning",
+      tone: "warning",
+    },
   };
 
   return presentations[verdict];
@@ -211,9 +399,11 @@ export function selectAuditVerdictPresentation(
 
 export function selectAuditSummaryPresentation(
   auditSummary: AuditSummaryView | null | undefined,
+  uiText?: MainPageUiText,
 ): BadgePresentation {
   return selectAuditVerdictPresentation(
     auditSummary?.verdict ?? "not_available",
+    uiText,
   );
 }
 
@@ -226,19 +416,23 @@ export function selectTopStatusPresentation(
 export function selectMainPagePrimaryStatusPresentation(
   snapshot: MainPageSnapshot,
   metadata: MainPageStateMetadata,
+  uiText?: MainPageUiText,
 ): BadgePresentation {
   const permissions = snapshot.permissions;
 
   if (permissions?.readonlyReason && !permissions.canAppendGuidance) {
     return permissions.readonlyReason.toLowerCase().includes("stale")
-      ? { label: "Stale", tone: "warning" }
-      : { label: "Read-only", tone: "danger" };
+      ? { label: uiText?.detail.status.stale ?? "Stale", tone: "warning" }
+      : {
+          label: uiText?.detail.status.readOnly ?? "Read-only",
+          tone: "danger",
+        };
   }
 
   const planningState = snapshot.planning?.state;
   const planningPresentation = planningState
-    ? selectPlanningStatePresentation(planningState)
-    : selectTopStatusPresentation(metadata);
+    ? selectPlanningStatePresentation(planningState, uiText)
+    : selectSessionStatusPresentation(snapshot.session.status, uiText);
 
   const executionRollup = snapshot.taskTree?.executionRollup;
   const hasStoppingTask =
@@ -249,13 +443,19 @@ export function selectMainPagePrimaryStatusPresentation(
     ) ?? false;
 
   if (hasStoppingTask) {
-    return { label: "Stopping", tone: "warning" };
+    return {
+      label: uiText?.detail.status.stopping ?? "Stopping",
+      tone: "warning",
+    };
   }
 
   if (executionRollup && executionRollup.failed > 0) {
     return metadata.topStatus === "Recoverable error"
       ? selectTopStatusPresentation(metadata)
-      : { label: "Failed", tone: "danger" };
+      : {
+          label: uiText?.detail.status.session.failed ?? "Failed",
+          tone: "danger",
+        };
   }
 
   if (planningState !== "published") {
@@ -276,7 +476,10 @@ export function selectMainPagePrimaryStatusPresentation(
     ) || (executionRollup?.blockedByConfirmation ?? 0) > 0;
 
   if (hasPendingConfirmation) {
-    return { label: "Waiting for user", tone: "warning" };
+    return {
+      label: uiText?.detail.status.session.waiting_user ?? "Waiting for user",
+      tone: "warning",
+    };
   }
 
   if (metadata.topStatus === "Syncing") {
@@ -284,7 +487,10 @@ export function selectMainPagePrimaryStatusPresentation(
   }
 
   if ((executionRollup?.running ?? 0) > 0) {
-    return { label: "Executing", tone: "blue" };
+    return {
+      label: uiText?.detail.status.primaryExecutionRunning ?? "Executing",
+      tone: "blue",
+    };
   }
 
   if (
@@ -294,11 +500,17 @@ export function selectMainPagePrimaryStatusPresentation(
   ) {
     return metadata.topStatus === "Review"
       ? selectTopStatusPresentation(metadata)
-      : { label: "Completed", tone: "success" };
+      : {
+          label: uiText?.detail.status.session.completed ?? "Completed",
+          tone: "success",
+        };
   }
 
   if ((executionRollup?.pending ?? 0) > 0) {
-    return { label: "Queued", tone: "neutral" };
+    return {
+      label: uiText?.detail.status.execution.pending ?? "Queued",
+      tone: "neutral",
+    };
   }
 
   return planningPresentation;

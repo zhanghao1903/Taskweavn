@@ -2,6 +2,7 @@ import type { ReactNode, RefObject, UIEventHandler } from "react";
 
 import type { SessionMessageView } from "../../shared/api/types";
 import { Button, Panel, Text } from "../../shared/components";
+import { useUiText } from "../../shared/ui-text";
 import { cx } from "../../shared/utils/cx";
 import { SessionMessageCard } from "./SessionMessageCard";
 import styles from "./MainPage.module.css";
@@ -29,11 +30,13 @@ export function ConversationLayer({
   rootRef,
   totalActivityCount,
 }: ConversationLayerProps) {
+  const uiText = useUiText();
+
   return (
     <Panel
       as="section"
       className={cx(styles.conversationLayer, className)}
-      aria-label="Conversation"
+      aria-label={uiText.main.detail.labels.conversation}
       ref={rootRef}
       tabIndex={-1}
       tone="surface"
@@ -41,7 +44,7 @@ export function ConversationLayer({
       <div className={styles.conversationHeader}>
         <div>
           <Text as="h2" variant="subheading">
-            Conversation
+            {uiText.main.detail.labels.conversation}
           </Text>
         </div>
         <div className={styles.conversationHeaderActions}>
@@ -52,7 +55,9 @@ export function ConversationLayer({
               size="sm"
               variant="secondary"
             >
-              Activity {totalActivityCount}
+              {uiText.main.activity.labels.activityCount({
+                count: totalActivityCount,
+              })}
             </Button>
           ) : null}
         </div>
@@ -78,7 +83,7 @@ export function ConversationLayer({
       ) : (
         <div className={styles.emptyState}>
           <Text as="h3" variant="subheading">
-            No conversation yet
+            {uiText.main.detail.messages.conversationEmpty}
           </Text>
         </div>
       )}
