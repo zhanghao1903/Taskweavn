@@ -14,8 +14,13 @@ from wechat_desktop_tool import (
     build_wechat_tool,
     draft_message_command,
     focus_contact_command,
+    inspect_window_command,
+    list_contacts_command,
+    list_conversations_command,
     observe_current_chat_command,
+    open_contact_command,
     open_wechat_command,
+    read_contact_messages_command,
     read_visible_messages_command,
     send_message_command,
     submit_draft_command,
@@ -76,9 +81,9 @@ class WeChatDesktopTool(Tool[WeChatDesktopAction, WeChatDesktopObservation]):
     name: ClassVar[str] = "wechat_desktop"
     description: ClassVar[str] = (
         "Operate WeChat Desktop through the approved app-control package tool. "
-        "Use granular operations: focus_contact, draft_message, request product "
-        "confirmation, then submit_draft only after authorization. Do not invent "
-        "contacts or message text."
+        "Use granular operations: inspect_window, open_contact, draft_message, "
+        "request product confirmation, then submit_draft only after authorization. "
+        "Do not invent contacts or message text."
     )
     action_type: ClassVar[type[BaseAction]] = WeChatDesktopAction
     observation_type: ClassVar[type[BaseObservation]] = WeChatDesktopObservation
@@ -185,6 +190,27 @@ def _action_to_command(action: WeChatDesktopAction) -> ToolCommand:
     common = _command_kwargs(action)
     if action.operation == "open_wechat":
         return open_wechat_command(**common)
+    if action.operation == "inspect_window":
+        return inspect_window_command(
+            include_raw=action.include_raw,
+            include_actionables=action.include_actionables,
+            **common,
+        )
+    if action.operation == "list_contacts":
+        return list_contacts_command(
+            limit=action.limit,
+            page_token=action.page_token,
+            **common,
+        )
+    if action.operation == "list_conversations":
+        return list_conversations_command(
+            limit=action.limit,
+            page_token=action.page_token,
+            **common,
+        )
+    if action.operation == "open_contact":
+        assert action.contact is not None
+        return open_contact_command(action.contact, **common)
     if action.operation == "focus_contact":
         assert action.contact is not None
         return focus_contact_command(action.contact, **common)
@@ -195,6 +221,13 @@ def _action_to_command(action: WeChatDesktopAction) -> ToolCommand:
         )
     if action.operation == "read_visible_messages":
         return read_visible_messages_command(limit=action.limit, **common)
+    if action.operation == "read_contact_messages":
+        assert action.contact is not None
+        return read_contact_messages_command(
+            action.contact,
+            limit=action.limit,
+            **common,
+        )
     if action.operation == "draft_message":
         assert action.message is not None
         return draft_message_command(action.message, **common)

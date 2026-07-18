@@ -10,9 +10,14 @@ from taskweavn.types.base import BaseAction, BaseObservation
 
 WeChatDesktopOperation = Literal[
     "open_wechat",
+    "inspect_window",
+    "list_contacts",
+    "list_conversations",
+    "open_contact",
     "focus_contact",
     "observe_current_chat",
     "read_visible_messages",
+    "read_contact_messages",
     "draft_message",
     "submit_draft",
     "send_message",
@@ -36,7 +41,10 @@ class WeChatDesktopAction(BaseAction):
     contact: str | None = Field(default=None, min_length=1, max_length=400)
     message: str | None = Field(default=None, min_length=1, max_length=4_000)
     include_visible_messages: bool = True
+    include_raw: bool = False
+    include_actionables: bool = True
     limit: int = Field(default=20, ge=1, le=100)
+    page_token: str | None = Field(default=None, min_length=1, max_length=400)
     method: str = Field(default="keyboard_return", min_length=1, max_length=100)
     verify_after_submit: bool = False
     verify_limit: int = Field(default=20, ge=1, le=100)
@@ -46,7 +54,11 @@ class WeChatDesktopAction(BaseAction):
 
     @model_validator(mode="after")
     def _validate_operation_payload(self) -> WeChatDesktopAction:
-        if self.operation in {"focus_contact", "send_message"} and self.contact is None:
+        if (
+            self.operation
+            in {"open_contact", "focus_contact", "read_contact_messages", "send_message"}
+            and self.contact is None
+        ):
             raise ValueError(f"{self.operation} requires contact")
         if self.operation in {"draft_message", "send_message"} and self.message is None:
             raise ValueError(f"{self.operation} requires message")

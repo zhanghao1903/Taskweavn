@@ -16,7 +16,9 @@ from typing import Any, Protocol, cast
 from app_control_protocol import AppControlClient, ToolCommand, ToolObservation
 from app_control_protocol.json_types import JsonValue, to_json_value
 from computer_use_macos import (
+    accessibility_query_command,
     click_command,
+    focus_app_command,
     hotkey_command,
     observe_command,
     open_app_command,
@@ -202,11 +204,31 @@ def _action_to_command(action: ComputerUseAction, *, max_text_chars: int) -> Too
             timeout_ms=timeout_ms,
             metadata=metadata,
         )
+    if action.operation == "focus_app":
+        assert action.target is not None
+        return focus_app_command(
+            action.target,
+            bundle_id=bundle_id,
+            command_id=command_id,
+            timeout_ms=timeout_ms,
+            metadata=metadata,
+        )
     if action.operation == "observe":
         return observe_command(
             target_app=target_app,
             bundle_id=bundle_id,
             include_visible_text=_bool_metadata(action, "include_visible_text"),
+            command_id=command_id,
+            timeout_ms=timeout_ms,
+            metadata=metadata,
+        )
+    if action.operation == "accessibility_query":
+        return accessibility_query_command(
+            target_app=target_app,
+            bundle_id=bundle_id,
+            root=_dict_metadata(action, "root"),
+            query=_dict_metadata(action, "query"),
+            include_raw=_bool_metadata(action, "include_raw"),
             command_id=command_id,
             timeout_ms=timeout_ms,
             metadata=metadata,
@@ -270,6 +292,9 @@ def _command_metadata(action: ComputerUseAction) -> dict[str, JsonValue]:
         if key in {
             "target_app",
             "bundle_id",
+            "root",
+            "query",
+            "include_raw",
             "selector",
             "snapshot_id",
             "include_visible_text",
@@ -281,7 +306,9 @@ def _command_metadata(action: ComputerUseAction) -> dict[str, JsonValue]:
 
 def _target_app(action: ComputerUseAction) -> str | None:
     return _string_metadata(action, "target_app") or (
-        action.target if action.operation in {"observe", "type_text"} else None
+        action.target
+        if action.operation in {"observe", "accessibility_query", "type_text"}
+        else None
     )
 
 

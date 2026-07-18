@@ -203,6 +203,29 @@ def test_macos_backend_builds_protocol_commands_for_core_operations() -> None:
     )
     backend.execute(
         ComputerUseAction(
+            operation="focus_app",
+            instruction="Focus WeChat.",
+            target="WeChat",
+            timeout_seconds=7,
+            metadata={"bundle_id": "com.tencent.xinWeChat"},
+        )
+    )
+    backend.execute(
+        ComputerUseAction(
+            operation="accessibility_query",
+            instruction="Query focused WeChat window.",
+            target="WeChat",
+            timeout_seconds=6,
+            metadata={
+                "bundle_id": "com.tencent.xinWeChat",
+                "root": {"kind": "focusedWindow"},
+                "query": {"scope": "children", "limit": 5},
+                "include_raw": False,
+            },
+        )
+    )
+    backend.execute(
+        ComputerUseAction(
             operation="type_text",
             instruction="Type text.",
             text="hello",
@@ -251,6 +274,22 @@ def test_macos_backend_builds_protocol_commands_for_core_operations() -> None:
             "open_app",
             {"app": "TextEdit", "bundleId": "com.apple.TextEdit"},
             7000,
+        ),
+        (
+            "focus_app",
+            {"app": "WeChat", "bundleId": "com.tencent.xinWeChat"},
+            7000,
+        ),
+        (
+            "accessibility_query",
+            {
+                "targetApp": "WeChat",
+                "bundleId": "com.tencent.xinWeChat",
+                "root": {"kind": "focusedWindow"},
+                "query": {"scope": "children", "limit": 5},
+                "includeRaw": False,
+            },
+            6000,
         ),
         ("type_text", {"text": "hello", "targetApp": "TextEdit"}, 3000),
         (

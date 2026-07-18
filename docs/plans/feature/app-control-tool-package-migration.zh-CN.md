@@ -18,9 +18,10 @@
 
 Plato should consume the new package suite as external tool capabilities:
 
-- `app-control-protocol>=0.1.0,<0.2.0`
-- `computer-use-macos>=0.1.0,<0.2.0; sys_platform == "darwin"`
-- `wechat-desktop-tool>=0.1.0,<0.2.0`
+- `app-control-protocol>=0.1.1,<0.2.0` (current lock: `0.1.1`)
+- `computer-use-macos[accessibility]>=0.1.1,<0.2.0; sys_platform == "darwin"`
+  (current lock: `0.1.1`)
+- `wechat-desktop-tool>=0.1.1,<0.2.0` (current lock: `0.1.1`)
 
 The old compatibility package `macos-computer-use` is not part of the active
 integration path.
@@ -75,6 +76,10 @@ External package docs:
 - `/Users/zhanghao/PycharmProjects/pythonProject/macos-computer-use/docs/protocol.md`
 - `/Users/zhanghao/PycharmProjects/pythonProject/macos-computer-use/docs/api.md`
 - `/Users/zhanghao/PycharmProjects/pythonProject/macos-computer-use/docs/wechat-desktop-tool.md`
+- `/Users/zhanghao/PycharmProjects/pythonProject/macos-computer-use/docs/agent-integration-guide.md`
+- `/Users/zhanghao/PycharmProjects/pythonProject/macos-computer-use/docs/wechat-window-data-model.md`
+- `/Users/zhanghao/PycharmProjects/pythonProject/macos-computer-use/docs/wechat-smoke.md`
+- `/Users/zhanghao/PycharmProjects/pythonProject/macos-computer-use/docs/manual-smoke.md`
 - `/Users/zhanghao/PycharmProjects/pythonProject/macos-computer-use/docs/migration-notes.md`
 - `/Users/zhanghao/PycharmProjects/pythonProject/macos-computer-use/docs/permissions.md`
 - `/Users/zhanghao/PycharmProjects/pythonProject/macos-computer-use/docs/helper-packaging.md`
@@ -131,6 +136,28 @@ final `ToolObservation` records are projected into runtime logs, diagnostic
 bundles, and first-class Audit log evidence records. The remaining proof gap is
 external macOS smoke evidence, tracked by
 `docs/plans/feature/app-control-tool-package-smoke-runbook.zh-CN.md`.
+
+2026-07-18 doc/API refresh:
+
+- `uv.lock` now resolves `app-control-protocol==0.1.1`,
+  `computer-use-macos==0.1.1`, and `wechat-desktop-tool==0.1.1` under the
+  active `<0.2.0` constraints.
+- The active macOS dependency uses the `computer-use-macos[accessibility]`
+  extra so `objc`, `ApplicationServices`, `Cocoa`, and `Quartz` are available
+  for real `accessibility_query` operations.
+- The installed `computer-use-macos==0.1.1` exposes
+  `accessibility_query_command`, but not `accessibility_action_command`.
+- The installed `wechat-desktop-tool==0.1.1` exposes the read-model builders:
+  `inspect_window_command`, `list_contacts_command`,
+  `list_conversations_command`, `open_contact_command`,
+  `read_visible_messages_command`, and `read_contact_messages_command`.
+  It does not expose `execute_action_command` yet.
+- The active Plato adapter now exposes `accessibility_query` on the generic
+  macOS tool and the read-model WeChat operations on `wechat_desktop`.
+- Manual WeChat smoke now requires package contact selection through
+  `--allow-focus-select`, which uses the package `open_contact` command. The
+  smoke path must not assume the current WeChat chat already matches the target
+  contact.
 
 ## 6. Target Package Boundaries
 
@@ -265,6 +292,7 @@ tool: app_control
   operations:
     readiness
     observe
+    accessibility_query
     open_app
     focus_app
     click
@@ -276,9 +304,14 @@ tool: app_control
 tool: wechat_desktop
   operations:
     open_wechat
+    inspect_window
+    list_contacts
+    list_conversations
+    open_contact
     focus_contact
     observe_current_chat
     read_visible_messages
+    read_contact_messages
     draft_message
     submit_draft
 ```
@@ -676,16 +709,21 @@ The migration is accepted when:
 
 ## 16. Verification Snapshot
 
-Date: 2026-06-30.
+Date: 2026-07-18.
 
 Verified in the current worktree:
 
-- `uv tree --depth 1` lists `app-control-protocol==0.1.0`,
-  `computer-use-macos==0.1.0`, and `wechat-desktop-tool==0.1.0`; it does not
+- `uv tree --depth 1` and `uv.lock` resolve `app-control-protocol==0.1.1`,
+  `computer-use-macos==0.1.1`, and `wechat-desktop-tool==0.1.1`; it does not
   list `macos-computer-use`.
-- `uv sync --frozen` pruned the stale local `.venv` install of
-  `macos-computer-use==0.1.0`.
-- `uv run python -c ...` confirms:
+- Package import probing confirms `computer-use-macos==0.1.1` exports
+  `accessibility_query_command`, and `wechat-desktop-tool==0.1.1` exports
+  `inspect_window_command`, `list_contacts_command`,
+  `list_conversations_command`, `open_contact_command`, and
+  `read_contact_messages_command`.
+- Earlier migration baseline used `uv sync --frozen` to prune the stale local
+  `.venv` install of `macos-computer-use==0.1.0`.
+- `uv run python ...` confirms:
   - new package imports are available;
   - `importlib.util.find_spec("macos_computer_use")` is false.
 - `rg` over `src/taskweavn tests scripts` finds no active imports or class
@@ -726,9 +764,9 @@ current-state evidence.
 | Preserve confirmation policy before intended submit | Router task draft requires `requiresHumanConfirmation=true`, `riskLevel=high`, and `communication.wechat_desktop_send`. Manual submit smoke requires `--allow-submit --confirm-submit SEND`. | Done |
 | Preserve package events / observations for debugging | `tests/test_wechat_desktop_tool.py` verifies redacted runtime log emission; diagnostic bundle tests cover app-control runtime evidence projection. | Done |
 | Package import / CLI contract smoke | Smoke A passed on 2026-06-30 with `uv run python scripts/manual_wechat_desktop_tool_smoke.py --help`, exit code `0`, without opening WeChat. | Done |
-| Full automated regression | `uv run pytest` passed on 2026-06-30 with `1515 passed, 10 skipped`; `uv run ruff check src scripts tests` passed; `git diff --check` passed. | Done |
-| Real package-backed focus / draft / observe | Smoke B passed on 2026-06-30 with direct backend. Evidence file: `/tmp/plato-wechat-package-draft-20260630-smoke-b-no-submit-001.json`; `submitted=false`; `open_wechat`, `focus_contact`, `draft_message`, and `observe_current_chat` all returned `ok` / `success=true`; 20 package events recorded. | Done |
-| Real controlled submit-once | First authorized Smoke C attempt ran on 2026-06-30 with direct backend and fresh key `plato-wechat-package-submit-20260630-smoke-c-submit-001`, but failed before submit: `focus_contact` returned `contact_not_found` because the verified chat title was `微信 (聊天)`. Evidence file: `/tmp/plato-wechat-package-submit-20260630-smoke-c-submit-001.json`. The run did not reach `draft_message` or `submit_draft`; no automatic retry was performed. | Failed before submit / missing send-once evidence |
+| Full automated regression | 2026-06-30 baseline: `uv run pytest` passed with `1515 passed, 10 skipped`; `uv run ruff check src scripts tests` passed; `git diff --check` passed. 2026-07-18 package refresh requires a focused rerun after adapter updates. | Needs current rerun |
+| Real package-backed focus / draft / observe | Smoke B passed on 2026-07-18 through the local app-control service, following the published SDK example. Evidence file: `/tmp/plato-wechat-service-draft-20260718-133314.json`; `readiness`, `open_wechat`, `open_contact`, `draft_message`, and `observe_current_chat` all succeeded; `submitted=false`. The prior direct-process run failed with `accessibility_query_timeout`, confirming the smoke caller must use the Accessibility-authorized service process. | Done |
+| Real controlled submit-once | First authorized Smoke C attempt ran on 2026-06-30 with direct backend and fresh key `plato-wechat-package-submit-20260630-smoke-c-submit-001`, but failed before submit: historical `focus_contact` returned `contact_not_found` because the verified chat title was `微信 (聊天)`. Evidence file: `/tmp/plato-wechat-package-submit-20260630-smoke-c-submit-001.json`. The run did not reach `draft_message` or `submit_draft`; no automatic retry was performed. Current 0.1.1 path must use `open_contact` through `--allow-focus-select`. | Failed before submit / missing send-once evidence |
 | Same-key replay / no duplicate | Not run. Must follow a known Smoke C outcome and verify no duplicate message appears. | Missing external evidence |
 
 Conclusion: implementation and old-code removal are complete for source,

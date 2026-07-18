@@ -83,6 +83,52 @@ def test_wechat_desktop_tool_builds_focus_contact_command() -> None:
     assert observation.metadata["tool_events"][0]["dataKeys"] == ["rawMessage"]
 
 
+def test_wechat_desktop_tool_builds_read_model_commands() -> None:
+    client = FakeWeChatPackageClient()
+    tool = WeChatDesktopTool(client=client)
+
+    tool.execute(
+        WeChatDesktopAction(
+            operation="inspect_window",
+            include_raw=False,
+            include_actionables=True,
+        )
+    )
+    tool.execute(
+        WeChatDesktopAction(
+            operation="list_contacts",
+            limit=10,
+            page_token="cursor-1",
+        )
+    )
+    tool.execute(WeChatDesktopAction(operation="list_conversations", limit=11))
+    tool.execute(
+        WeChatDesktopAction(
+            operation="open_contact",
+            contact="文件传输助手",
+        )
+    )
+    tool.execute(
+        WeChatDesktopAction(
+            operation="read_contact_messages",
+            contact="文件传输助手",
+            limit=12,
+        )
+    )
+
+    command_facts = [(command.operation, command.input) for command in client.commands]
+    assert command_facts == [
+        (
+            "inspect_window",
+            {"includeRaw": False, "includeActionables": True},
+        ),
+        ("list_contacts", {"limit": 10, "pageToken": "cursor-1"}),
+        ("list_conversations", {"limit": 11}),
+        ("open_contact", {"contact": "文件传输助手"}),
+        ("read_contact_messages", {"contact": "文件传输助手", "limit": 12}),
+    ]
+
+
 def test_wechat_desktop_tool_preserves_submit_unknown_failure() -> None:
     client = FakeWeChatPackageClient(
         ToolObservation(

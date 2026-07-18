@@ -16,8 +16,8 @@ WeChat desktop tool migration.
 The smoke sequence proves three things:
 
 1. Plato can import and invoke the published packages.
-2. The package path can open WeChat, focus `文件传输助手`, draft a message, and
-   observe the current chat without submitting.
+2. The package path can open WeChat, use an explicit contact-selection mode,
+   draft a message, and observe the current chat without submitting.
 3. A separately authorized submit path can send exactly once, and replay with
    the same idempotency key must not duplicate the message.
 
@@ -37,6 +37,10 @@ manual macOS evidence gate for the real desktop boundary.
 - If submit returns `unknown`, inspect WeChat manually before any retry.
 - Use a fresh idempotency key for every intended send-once smoke.
 - Reuse the same idempotency key only for the replay/no-duplicate check.
+- Every run must use `--allow-focus-select` so the script runs the package
+  contact-selection command. With `wechat-desktop-tool==0.1.1`, this uses
+  `open_contact`. Smoke evidence must not assume the current WeChat chat
+  already matches the target contact.
 
 ## 3. Preconditions
 
@@ -49,9 +53,10 @@ pwd
 
 Package/runtime prerequisites:
 
-- `app-control-protocol==0.1.0` is installed through `uv.lock`.
-- `computer-use-macos==0.1.0` is installed on macOS.
-- `wechat-desktop-tool==0.1.0` is installed.
+- `app-control-protocol==0.1.1` is installed through `uv.lock`.
+- `computer-use-macos[accessibility]==0.1.1` is installed on macOS; this
+  installs the PyObjC modules needed by `accessibility_query`.
+- `wechat-desktop-tool==0.1.1` is installed.
 - The old `macos-computer-use` compatibility package is not installed as a
   Plato dependency.
 
@@ -59,18 +64,24 @@ macOS prerequisites:
 
 - WeChat is installed and logged in.
 - The target contact `文件传输助手` exists.
-- Accessibility permission is granted to the actual process that will control
-  the UI:
-  - direct backend: the Python/uv process used by `uv run`;
-  - helper backend: the configured helper `.app`.
+- A local `computer-use-macos serve` process is running on a Unix socket.
+- Accessibility permission is granted to the process hosting that service.
+  The smoke process is only a protocol client and does not own the TCC grant.
 - Screen Recording is not required by this smoke unless the package
   configuration is changed to require it.
 
-Optional helper prerequisites:
+Start the service from the environment that contains the published packages:
 
-- A package helper app and manifest are available.
-- The helper manifest follows `app_control.helper.v1`.
-- Use `--backend helper` with either manifest/app path or endpoint/token.
+```bash
+computer-use-macos serve \
+  --config /path/to/app-control.toml \
+  --socket-path /tmp/app-control.sock \
+  --token-file /path/to/app-control.token
+```
+
+The service configuration owns direct/helper backend selection, app allowlists,
+timeouts, and the macOS permission identity. The smoke caller must not select a
+backend independently.
 
 ## 4. Evidence Location
 
@@ -89,8 +100,14 @@ Each evidence file must include:
 - `contact`
 - `messagePreview`
 - `messageHash`
+- `allowFocusSelect`
+- `contactSelectionMode`
+- `submitRequested`
+- `submitConfirmed`
+- `submitAttempted`
 - `submitted`
-- `config.backend`
+- `config.transport = unix_socket`
+- `config.socketPath`
 - package `events`
 - final `observations`
 
@@ -108,8 +125,9 @@ uv run python scripts/manual_wechat_desktop_tool_smoke.py --help
 Expected result:
 
 - command exits `0`;
-- help text includes `--backend`, `--contact`, `--message`,
-  `--allow-submit`, `--confirm-submit`, and `--evidence-output`;
+- help text includes `--config`, `--socket-path`, `--token-file`, `--contact`,
+  `--message`, `--allow-focus-select`, `--allow-submit`, `--confirm-submit`,
+  and `--evidence-output`;
 - no retired helper script is invoked.
 
 Current branch result:
@@ -117,14 +135,17 @@ Current branch result:
 - 2026-06-30: passed in the current worktree with
   `uv run python scripts/manual_wechat_desktop_tool_smoke.py --help`.
 - Exit code: `0`.
-- Verified help flags: `--backend`, `--contact`, `--message`,
-  `--allow-submit`, `--confirm-submit`, `--evidence-output`.
+- Historical help exposed `--backend`; the current service-backed smoke exposes
+  `--config`, `--socket-path`, and `--token-file` instead.
+- 2026-07-02 refresh: help also includes `--allow-focus-select`,
+  `--search-hotkey`, and `--search-clear-hotkey`.
 - No WeChat UI was opened and no JSON evidence file is expected for Smoke A.
 
-## 6. Smoke B: No-Submit Focus / Draft / Observe
+## 6. Smoke B: No-Submit Open / Draft / Observe
 
-This smoke opens WeChat, focuses `文件传输助手`, drafts a message, and observes.
-It must not submit.
+The script opens/focuses WeChat, resolves `文件传输助手` through package
+`open_contact`, drafts a message, and observes the selected chat. It must not
+submit.
 
 Choose values:
 
@@ -135,29 +156,18 @@ idempotency_key = plato-wechat-package-draft-<timestamp>
 message = Plato package-backed draft smoke <timestamp>
 ```
 
-Direct backend:
+Local service:
 
 ```bash
 uv run python scripts/manual_wechat_desktop_tool_smoke.py \
-  --backend direct \
+  --config /path/to/app-control.toml \
+  --socket-path /tmp/app-control.sock \
+  --token-file /path/to/app-control.token \
   --contact 文件传输助手 \
   --message 'Plato package-backed draft smoke <timestamp>' \
   --idempotency-key plato-wechat-package-draft-<timestamp> \
   --smoke-id plato-wechat-package-draft-<timestamp> \
-  --evidence-output /tmp/plato-wechat-package-draft-<timestamp>.json
-```
-
-Helper backend:
-
-```bash
-uv run python scripts/manual_wechat_desktop_tool_smoke.py \
-  --backend helper \
-  --helper-manifest-path /path/to/app-control-helper-manifest.json \
-  --helper-app-path "/path/to/Your App Control Helper.app" \
-  --contact 文件传输助手 \
-  --message 'Plato package-backed draft smoke <timestamp>' \
-  --idempotency-key plato-wechat-package-draft-<timestamp> \
-  --smoke-id plato-wechat-package-draft-<timestamp> \
+  --allow-focus-select \
   --evidence-output /tmp/plato-wechat-package-draft-<timestamp>.json
 ```
 
@@ -166,8 +176,9 @@ Expected result:
 - process exits `0`;
 - `submitted` is `false`;
 - observations include successful:
+  - `readiness`
   - `open_wechat`
-  - `focus_contact`
+  - `open_contact`
   - `draft_message`
   - `observe_current_chat`
 - WeChat input contains the draft message;
@@ -177,7 +188,19 @@ After recording evidence, manually clear the draft from WeChat.
 
 Current branch result:
 
-- 2026-06-30: passed with direct backend.
+- 2026-07-18: passed through the local app-control service, following the
+  published package SDK example. Evidence:
+  `/tmp/plato-wechat-service-draft-20260718-133314.json`.
+- The successful path was `readiness -> open_wechat -> open_contact ->
+  draft_message -> observe_current_chat`; `submitted=false` and no submit
+  command was attempted.
+- The immediately preceding direct-process smoke failed in
+  `accessibility_query_timeout`. This service-backed pass confirms that the
+  smoke caller must use the long-lived, Accessibility-authorized service
+  process rather than instantiate `ComputerUseClient` directly.
+- 2026-06-30: passed with direct backend using the previous default
+  `focus_contact` behavior. Current runs must pass `--allow-focus-select`.
+  After the 2026-07-18 package refresh, contact selection uses `open_contact`.
 - Command:
   `uv run python scripts/manual_wechat_desktop_tool_smoke.py --backend direct --contact 文件传输助手 --message 'Plato package-backed draft smoke 2026-06-30 smoke-b-no-submit-001' --idempotency-key plato-wechat-package-draft-20260630-smoke-b-no-submit-001 --smoke-id plato-wechat-package-draft-20260630-smoke-b-no-submit-001 --evidence-output /tmp/plato-wechat-package-draft-20260630-smoke-b-no-submit-001.json`
 - Evidence:
@@ -186,7 +209,8 @@ Current branch result:
 - Verified evidence:
   - `submitted=false`
   - `open_wechat`: `ok`, `success=true`
-  - `focus_contact`: `ok`, `success=true`
+  - `focus_contact`: `ok`, `success=true` in the historical run; current runs
+    use `open_contact`
   - `draft_message`: `ok`, `success=true`
   - `observe_current_chat`: `ok`, `success=true`
   - events recorded: `20`
@@ -210,17 +234,18 @@ Command:
 
 ```bash
 uv run python scripts/manual_wechat_desktop_tool_smoke.py \
-  --backend direct \
+  --config /path/to/app-control.toml \
+  --socket-path /tmp/app-control.sock \
+  --token-file /path/to/app-control.token \
   --contact 文件传输助手 \
   --message 'Plato package-backed submit smoke <timestamp>' \
   --idempotency-key plato-wechat-package-submit-<timestamp> \
   --smoke-id plato-wechat-package-submit-<timestamp> \
+  --allow-focus-select \
   --allow-submit \
   --confirm-submit SEND \
   --evidence-output /tmp/plato-wechat-package-submit-<timestamp>.json
 ```
-
-Use `--backend helper` and helper options if validating helper mode.
 
 Expected result:
 
@@ -228,7 +253,7 @@ Expected result:
 - `submitted` is `true`;
 - observations include successful:
   - `open_wechat`
-  - `focus_contact`
+  - `open_contact`
   - `draft_message`
   - `observe_current_chat`
   - `submit_draft`
@@ -248,7 +273,7 @@ Current branch result:
 - Exit code: `1`.
 - Verified evidence:
   - `open_wechat`: `ok`, `success=true`
-  - `focus_contact`: `not_found`, `success=false`
+  - `focus_contact`: `not_found`, `success=false` in the historical run
   - `failure_kind=contact_not_found`
   - message: `Verified WeChat chat title does not match requested contact: 微信 (聊天)`
   - reached operations: `open_wechat`, `focus_contact`
@@ -256,6 +281,9 @@ Current branch result:
 - The script evidence schema was corrected after this run because the previous
   top-level `submitted` field was computed from CLI flags instead of an actual
   successful `submit_draft` observation.
+- On 2026-07-18 the script was updated to remove the current-chat assumption
+  path. Current runs must use `--allow-focus-select` and package
+  `open_contact`.
 - No automatic retry was performed.
 
 ## 8. Smoke D: Replay / No Duplicate
@@ -267,11 +295,14 @@ Replay must reuse the same `idempotency_key` as Smoke C and should use a new
 
 ```bash
 uv run python scripts/manual_wechat_desktop_tool_smoke.py \
-  --backend direct \
+  --config /path/to/app-control.toml \
+  --socket-path /tmp/app-control.sock \
+  --token-file /path/to/app-control.token \
   --contact 文件传输助手 \
   --message 'Plato package-backed submit smoke <timestamp>' \
   --idempotency-key plato-wechat-package-submit-<timestamp> \
   --smoke-id plato-wechat-package-replay-<timestamp> \
+  --allow-focus-select \
   --allow-submit \
   --confirm-submit SEND \
   --evidence-output /tmp/plato-wechat-package-replay-<timestamp>.json
@@ -302,7 +333,7 @@ Use these labels when filing a failure:
 ## 10. Acceptance Checklist
 
 - [x] Smoke A passes.
-- [ ] Smoke B passes with `submitted=false`.
+- [x] Smoke B passes with `submitted=false` through the local service.
 - [ ] Smoke C is explicitly authorized and passes with one visible sent
       message.
 - [ ] Smoke D proves no duplicate send for the same idempotency key.
@@ -312,11 +343,13 @@ Use these labels when filing a failure:
 
 ## 11. Current Branch Status
 
-As of 2026-06-30:
+As of 2026-07-18:
 
 - package dependencies and source migration are implemented on branch;
 - Smoke A package import / CLI contract passed without opening WeChat;
+- Smoke B passed through the local app-control service with verified
+  `open_contact` and `submitted=false`;
 - old repo-local helper/runtime code is retired from active source/tests;
 - package event/observation projection is covered by tests;
-- real macOS Smoke B/C/D evidence remains pending and requires explicit
+- real macOS Smoke C/D evidence remains pending and requires separate explicit
   operator authorization.
