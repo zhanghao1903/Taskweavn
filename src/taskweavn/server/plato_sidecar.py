@@ -66,25 +66,23 @@ def _parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
         default=os.environ.get("PLATO_COMPUTER_USE_HELPER_MANIFEST"),
         help="Path to the helper endpoint manifest for helper backend.",
     )
-    parser.add_argument(
-        "--computer-use-helper-app-path",
-        default=os.environ.get("PLATO_COMPUTER_USE_HELPER_APP_PATH"),
-        help=(
-            "Path to the app-control helper .app provided by the computer-use "
-            "backend for opt-in auto-launch."
-        ),
+    parser.set_defaults(
+        computer_use_allow_coordinate_click=_env_bool(
+            "PLATO_COMPUTER_USE_ALLOW_COORDINATE_CLICK",
+            default=True,
+        )
     )
     parser.add_argument(
-        "--computer-use-helper-auto-launch",
+        "--computer-use-allow-coordinate-click",
+        dest="computer_use_allow_coordinate_click",
         action="store_true",
-        default=_env_bool("PLATO_COMPUTER_USE_HELPER_AUTO_LAUNCH", default=False),
-        help="Launch the configured helper app when its manifest is missing.",
+        help="Allow coordinate clicks in the private app-control Helper.",
     )
     parser.add_argument(
-        "--no-computer-use-helper-auto-launch",
-        dest="computer_use_helper_auto_launch",
+        "--disable-computer-use-coordinate-click",
+        dest="computer_use_allow_coordinate_click",
         action="store_false",
-        help="Disable helper app auto-launch.",
+        help="Disable coordinate clicks in the app-control Helper.",
     )
     parser.set_defaults(
         enable_read_only_inquiry_llm=_env_bool(
@@ -137,9 +135,9 @@ def _serve(args: argparse.Namespace) -> int:
     computer_use_runtime = build_computer_use_runtime(
         backend_name=args.computer_use_backend,
         allowed_apps=args.computer_use_allowed_apps,
+        allow_coordinate_click=args.computer_use_allow_coordinate_click,
         helper_manifest_path=args.computer_use_helper_manifest,
-        helper_app_path=args.computer_use_helper_app_path,
-        helper_auto_launch=args.computer_use_helper_auto_launch,
+        helper_startup_failure=_helper_startup_failure_from_env(),
     )
     sidecar = build_main_page_sidecar_app(
         MainPageSidecarConfig(
@@ -181,6 +179,23 @@ def _env_bool(name: str, *, default: bool) -> bool:
     if normalized in {"0", "false", "no", "off"}:
         return False
     return default
+
+
+def _helper_startup_failure_from_env() -> dict[str, str] | None:
+    raw = os.environ.get("PLATO_COMPUTER_USE_HELPER_STARTUP_FAILURE")
+    if not raw:
+        return None
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError:
+        return {"failureKind": "helper_start_failed", "message": raw}
+    if not isinstance(payload, dict):
+        return {"failureKind": "helper_start_failed", "message": raw}
+    return {
+        str(key): str(value)
+        for key, value in payload.items()
+        if isinstance(key, str) and isinstance(value, str)
+    }
 
 
 def _parse_workspace_registry_json(

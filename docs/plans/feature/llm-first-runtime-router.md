@@ -202,7 +202,7 @@ Execution-specific app operation skills are separate:
 
 | Skill | Used by | Purpose |
 |---|---|---|
-| `execution-wechat-desktop-send` | Execution Agent / WeChat runtime | Explains how to operate WeChat Desktop, not how Router parses user input. |
+| package `wechat-use` | Execution Agent | Loaded from `wechat-desktop-tool`; explains how to operate WeChat Desktop, not how Router parses user input. |
 
 Router skills help create a structured task. Execution skills help complete the
 task.
@@ -286,8 +286,8 @@ Implementation evidence:
 - `router-core`, `router-control-commands`, `router-read-only-inquiry`,
   `router-task-authoring`, and `router-wechat-send` include `SKILL.md` plus
   `manifest.json`.
-- `execution-wechat-desktop-send` exists as the execution-side app operation
-  skill for later Execution Agent use.
+- package `wechat-use` is adapted into Plato skill governance and activated by
+  the WeChat execution capability; Plato does not maintain a duplicate body.
 - `tests/test_runtime_router_skills.py` verifies stable skill ids, manifest
   alignment, and WeChat confirmation/slot constraints.
 

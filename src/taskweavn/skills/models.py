@@ -75,6 +75,7 @@ class SkillDescriptor(SkillModel):
     source_ref: str = Field(min_length=1)
     root_path: str | None = None
     skill_file_path: str | None = None
+    instruction_body: str | None = None
     content_hash: str = Field(min_length=1)
     enabled: bool = True
     implicit_invocation: bool = True

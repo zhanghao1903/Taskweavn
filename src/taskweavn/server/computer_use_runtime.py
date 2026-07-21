@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -38,13 +38,10 @@ def build_computer_use_runtime(
     *,
     backend_name: str | None,
     allowed_apps: str | Sequence[str] | None = None,
-    allow_coordinate_click: bool = False,
+    allow_coordinate_click: bool = True,
     screen_recording_required: bool = False,
     helper_manifest_path: str | None = None,
-    helper_endpoint: str | None = None,
-    helper_token: str | None = None,
-    helper_app_path: str | None = None,
-    helper_auto_launch: bool = False,
+    helper_startup_failure: Mapping[str, str] | None = None,
 ) -> ComputerUseRuntimeSelection:
     """Build the optional computer-use backend selected by runtime config."""
 
@@ -73,12 +70,7 @@ def build_computer_use_runtime(
         helper_manifest_path=(
             None if helper_manifest_path is None else Path(helper_manifest_path).expanduser()
         ),
-        helper_app_path=(
-            None if helper_app_path is None else Path(helper_app_path).expanduser()
-        ),
-        helper_endpoint=helper_endpoint,
-        helper_token=helper_token,
-        helper_auto_launch=helper_auto_launch,
+        helper_startup_failure=helper_startup_failure,
     )
     return ComputerUseRuntimeSelection(
         enabled=True,
@@ -89,10 +81,6 @@ def build_computer_use_runtime(
                 allow_coordinate_click=allow_coordinate_click,
                 screen_recording_required=screen_recording_required,
                 helper_manifest_path=app_control_config.helper_manifest_path,
-                helper_app_path=app_control_config.helper_app_path,
-                helper_endpoint=helper_endpoint,
-                helper_token=helper_token,
-                helper_auto_launch=helper_auto_launch,
             )
         ),
         backend_name=normalized,
@@ -133,6 +121,7 @@ def resolve_computer_use_runtime(
     resolved_app_control_config = app_control_config or AppControlClientFactoryConfig(
         backend="helper" if normalized_backend == "helper" else "direct",
         allowed_apps=computer_use_settings.allowed_apps,
+        allow_coordinate_click=computer_use_settings.allow_coordinate_click,
     )
     if computer_use_backend is not None:
         return ComputerUseRuntimeSelection(
@@ -145,6 +134,7 @@ def resolve_computer_use_runtime(
     return build_computer_use_runtime(
         backend_name=computer_use_settings.backend,
         allowed_apps=computer_use_settings.allowed_apps,
+        allow_coordinate_click=computer_use_settings.allow_coordinate_click,
     )
 
 

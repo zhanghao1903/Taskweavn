@@ -152,6 +152,10 @@ class WorkspaceLayout:
     def session_context_db(self, session_id: str) -> Path:
         return self.session_meta_dir(session_id) / "context.sqlite"
 
+    def session_tool_effects_db(self, session_id: str) -> Path:
+        """Session-scoped durable ledger for external tool side effects."""
+        return self.session_meta_dir(session_id) / "tool_effects.sqlite"
+
     def session_plan_path(self, session_id: str) -> Path:
         return self.session_meta_dir(session_id) / "plan.md"
 

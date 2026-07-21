@@ -66,11 +66,6 @@ class MacOSComputerUseBackendConfig:
     timeout_ms: int = 10_000
     allowed_app_bundle_ids: dict[str, str] | None = None
     helper_manifest_path: Path | None = None
-    helper_app_path: Path | None = None
-    helper_bundle_id: str | None = None
-    helper_endpoint: str | None = None
-    helper_token: str | None = None
-    helper_auto_launch: bool = False
 
 
 class MacOSComputerUseBackend(ComputerUseBackend):
@@ -99,11 +94,6 @@ class MacOSComputerUseBackend(ComputerUseBackend):
                     screen_recording_required=self._config.screen_recording_required,
                     timeout_ms=self._config.timeout_ms,
                     helper_manifest_path=self._config.helper_manifest_path,
-                    helper_app_path=self._config.helper_app_path,
-                    helper_bundle_id=self._config.helper_bundle_id,
-                    helper_endpoint=self._config.helper_endpoint,
-                    helper_token=self._config.helper_token,
-                    helper_auto_launch=self._config.helper_auto_launch,
                 )
             )
             return cast(MacOSComputerUseClientProtocol, factory.create_client())
@@ -172,6 +162,7 @@ class MacOSComputerUseBackend(ComputerUseBackend):
             operation=action.operation,
         )
         observation.metadata.setdefault("diagnostics", _diagnostics(self._client))
+        _project_helper_identity(observation, self._client, operation=action.operation)
         observation.metadata["tool_events"] = _tool_event_summaries(observer.events)
         _emit_computer_use_log(
             action=action,
@@ -346,6 +337,51 @@ def _diagnostics(client: AppControlClient | MacOSComputerUseClientProtocol) -> d
     if sys.argv:
         diagnostics["adapterArgv0"] = sys.argv[0][:500]
     return diagnostics
+
+
+def _project_helper_identity(
+    observation: ComputerUseObservation,
+    client: AppControlClient | MacOSComputerUseClientProtocol,
+    *,
+    operation: str,
+) -> None:
+    manifest = getattr(client, "manifest", None)
+    bundle_id = getattr(manifest, "bundle_id", None)
+    service_version = getattr(manifest, "service_version", None)
+    app_path = getattr(manifest, "app_path", None)
+    if not isinstance(bundle_id, str) or not bundle_id:
+        return
+    helper: dict[str, str] = {
+        "bundleId": bundle_id,
+        "apiVersion": str(getattr(manifest, "schema", "")),
+    }
+    if isinstance(service_version, str) and service_version:
+        helper["version"] = service_version
+    if isinstance(app_path, Path):
+        helper["path"] = str(app_path)
+    observation.metadata["helper"] = helper
+    if operation != "readiness":
+        return
+    raw_readiness = observation.metadata.get("observation")
+    if isinstance(raw_readiness, dict):
+        observation.metadata["readiness"] = raw_readiness
+    failure_kind = _metadata_string(observation.metadata, "failure_kind")
+    if failure_kind:
+        observation.metadata["helper_status"] = failure_kind
+    recovery_hint = _metadata_string(observation.metadata, "recovery_hint")
+    if recovery_hint:
+        observation.metadata["setup_hint"] = recovery_hint
+    if failure_kind == "missing_accessibility":
+        if isinstance(app_path, Path):
+            observation.metadata["setup_hint"] = (
+                "Grant or refresh macOS Accessibility permission for "
+                f"{app_path}, restart Plato, then recheck computer-use readiness."
+            )
+        observation.metadata["recovery_actions"] = [
+            "open_macos_privacy_accessibility",
+            "restart_helper",
+            "rerun_readiness_check",
+        ]
 
 
 def _emit_computer_use_log(

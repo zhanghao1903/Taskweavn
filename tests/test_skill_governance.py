@@ -212,6 +212,52 @@ def test_skill_context_source_blocks_activation_when_runtime_denies_required_too
     )
 
 
+def test_skill_context_source_reactivates_updated_skill_content() -> None:
+    original = precision_file_editing_descriptor()
+    updated = original.model_copy(
+        update={
+            "content_hash": "sha256:updated",
+            "instruction_body": "Use the updated package instructions.",
+        }
+    )
+    activation_store = InMemorySkillActivationStore()
+    request = ContextBuildRequest(
+        session_id="session-1",
+        task_id="task-1",
+        agent_run_id="run-1",
+    )
+    controls = ControlContextSource(
+        allowed_tools=(
+            "read_file_range",
+            "search_workspace",
+            "replace_file_range",
+            "append_file",
+        )
+    ).collect(request)
+
+    SkillContextSource(
+        SkillRegistry.from_descriptors((original,)),
+        activation_store,
+    ).collect(
+        request,
+        controls=controls,
+        required_capability="precision_file_tools",
+    )
+    result = SkillContextSource(
+        SkillRegistry.from_descriptors((updated,)),
+        activation_store,
+    ).collect(
+        request,
+        controls=controls,
+        required_capability="precision_file_tools",
+    )
+
+    assert result.segments[0].content_hash == "sha256:updated"
+    assert result.segments[0].rendered_instruction_excerpt == (
+        "Use the updated package instructions."
+    )
+
+
 def test_diagnostic_bundle_exports_skill_governance_summary(tmp_path: Path) -> None:
     layout = WorkspaceLayout(tmp_path / "workspace")
     layout.bootstrap()

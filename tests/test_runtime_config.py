@@ -114,6 +114,7 @@ def test_runtime_config_resolver_uses_built_in_defaults() -> None:
     assert config.values["context_manager.budget.max_file_snippet_chars"].value == 8000
     assert config.values["context_manager.budget.max_rendered_chars"].value == 60000
     assert config.values["computer_use.max_text_chars"].value == 4000
+    assert config.values["computer_use.allow_coordinate_click"].value is True
     assert config.values["debug.main_page_trace_enabled"].value is True
     assert config.values["runtime_input_router.mode"].value == "llm_first"
     assert config.values["runtime_input_router.llm_planner_required"].value is True

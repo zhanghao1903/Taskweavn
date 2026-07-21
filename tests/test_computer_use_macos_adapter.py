@@ -11,6 +11,7 @@ from app_control_protocol import ToolCommand, ToolEvent, ToolObservation
 
 from taskweavn.integrations.app_control import (
     AppControlClientFactoryConfig,
+    AppControlServiceManifest,
     build_app_control_config,
 )
 from taskweavn.observability import (
@@ -41,6 +42,7 @@ class FakeProtocolClient:
         )
     )
     commands: list[ToolCommand] = field(default_factory=list)
+    manifest: AppControlServiceManifest | None = None
 
     def run_command(
         self,
@@ -64,16 +66,14 @@ class FakeProtocolClient:
         return self.next_observation
 
 
-def test_build_app_control_config_maps_runtime_settings() -> None:
+def test_build_app_control_config_maps_runtime_settings(tmp_path: Path) -> None:
+    manifest_path = tmp_path / "app-control-service.json"
     config = build_app_control_config(
         AppControlClientFactoryConfig(
             backend="helper",
             allowed_apps=("WeChat",),
             allowed_app_bundle_ids={"WeChat": "com.tencent.xinWeChat"},
-            helper_bundle_id="com.taskweavn.plato.computer-use-helper",
-            helper_endpoint="/tmp/plato-helper.sock",
-            helper_token="token-1",
-            helper_auto_launch=True,
+            helper_manifest_path=manifest_path,
         )
     )
 
@@ -82,10 +82,8 @@ def test_build_app_control_config_maps_runtime_settings() -> None:
     assert config.computer_use.allowed_app_bundle_ids == {
         "WeChat": "com.tencent.xinWeChat"
     }
-    assert config.helper.bundle_id == "com.taskweavn.plato.computer-use-helper"
-    assert config.helper.endpoint == "/tmp/plato-helper.sock"
-    assert config.helper.token == "token-1"
-    assert config.helper.auto_launch is True
+    assert config.helper.manifest_path == str(manifest_path)
+    assert config.helper.auto_launch is False
 
 
 def test_macos_backend_reports_package_missing_as_not_available() -> None:
@@ -140,7 +138,7 @@ def test_macos_backend_maps_ready_readiness_to_ok_observation() -> None:
 
 def test_macos_backend_maps_permission_missing_to_needs_user() -> None:
     client = FakeProtocolClient(
-        ToolObservation(
+        next_observation=ToolObservation(
             command_id="cmd_ready",
             tool="macos.computer_use",
             operation="readiness",
@@ -151,7 +149,15 @@ def test_macos_backend_maps_permission_missing_to_needs_user() -> None:
             message="Accessibility permission is missing.",
             recovery_hint="Grant Accessibility to the helper app.",
             retryable=True,
-        )
+        ),
+        manifest=AppControlServiceManifest(
+            endpoint=Path("/tmp/app-control.sock"),
+            token_path=Path("/tmp/app-control.token"),
+            pid=123,
+            bundle_id="com.taskweavn.plato.computer-use-helper.dev",
+            service_version="0.3.0",
+            app_path=Path("/Applications/Plato Computer Use Helper Dev.app"),
+        ),
     )
     backend = MacOSComputerUseBackend(client=client)
 
@@ -162,6 +168,24 @@ def test_macos_backend_maps_permission_missing_to_needs_user() -> None:
     assert observation.metadata["failure_kind"] == "missing_accessibility"
     assert observation.metadata["recovery_hint"] == "Grant Accessibility to the helper app."
     assert observation.metadata["retryable"] is True
+    assert observation.metadata["helper"] == {
+        "bundleId": "com.taskweavn.plato.computer-use-helper.dev",
+        "apiVersion": "plato.app_control.service_manifest.v1",
+        "version": "0.3.0",
+        "path": "/Applications/Plato Computer Use Helper Dev.app",
+    }
+    assert observation.metadata["helper_status"] == "missing_accessibility"
+    assert observation.metadata["readiness"] == {}
+    assert observation.metadata["setup_hint"] == (
+        "Grant or refresh macOS Accessibility permission for "
+        "/Applications/Plato Computer Use Helper Dev.app, restart Plato, then "
+        "recheck computer-use readiness."
+    )
+    assert observation.metadata["recovery_actions"] == [
+        "open_macos_privacy_accessibility",
+        "restart_helper",
+        "rerun_readiness_check",
+    ]
 
 
 def test_macos_backend_maps_observe_result_metadata() -> None:

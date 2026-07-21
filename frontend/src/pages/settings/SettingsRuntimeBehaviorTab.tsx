@@ -48,6 +48,7 @@ const runtimeConfigGroups: RuntimeConfigDisplayGroup[] = [
       "computer_use.enabled",
       "computer_use.backend",
       "computer_use.allowed_apps",
+      "computer_use.allow_coordinate_click",
       "safety.high_risk_confirmation",
     ],
     title: "Computer use and safety",

@@ -179,6 +179,10 @@ def test_computer_use_readiness_degrades_when_enabled_backend_is_not_ready() -> 
     assert computer_use["status"] == "missing_accessibility"
     assert computer_use["helperStatus"] == "missing_accessibility"
     assert computer_use["failureKind"] == "missing_accessibility"
+    assert computer_use["summary"] == (
+        "macOS Accessibility permission is missing for "
+        "/Applications/Plato Computer Use Helper Dev.app."
+    )
     assert computer_use["setupHint"] == (
         "Enable Accessibility for Plato Computer Use Helper."
     )
@@ -230,7 +234,10 @@ def test_computer_use_readiness_degrades_when_enabled_backend_is_not_ready() -> 
         {
             "code": "computer_use.not_ready",
             "severity": "warning",
-            "message": "Accessibility permission is missing.",
+            "message": (
+                "macOS Accessibility permission is missing for "
+                "/Applications/Plato Computer Use Helper Dev.app."
+            ),
             "recoveryActions": [
                 "open_macos_privacy_accessibility",
                 "restart_helper",

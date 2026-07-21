@@ -5,6 +5,8 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { startPythonSidecar } from "./sidecarProcess.mjs";
 import { resolvePackagedSidecarLauncherPath } from "./sidecarLauncherPath.mjs";
+import { createComputerUseHelperManager } from "./computerUseHelperManager.mjs";
+import { installIdempotentShutdownSignalHandlers } from "./gracefulShutdown.mjs";
 import {
   buildStartupDiagnostics,
   createStartupId,
@@ -46,6 +48,7 @@ let lastStartupDiagnostics = null;
 let currentWorkspaceRoot = null;
 let isWorkspaceSidecarStarting = false;
 let currentRendererRuntimeConfig = {};
+const computerUseHelperManager = createComputerUseHelperManager({ app });
 
 markStartupTiming("electron_main_module_loaded", { startupId });
 
@@ -123,7 +126,14 @@ app.on("activate", () => {
 });
 
 app.on("before-quit", () => {
-  sidecarRuntime?.stop();
+  stopOwnedRuntimes();
+});
+
+installIdempotentShutdownSignalHandlers({
+  onShutdown() {
+    stopOwnedRuntimes();
+    app.quit();
+  },
 });
 
 app.on("window-all-closed", () => {
@@ -131,6 +141,16 @@ app.on("window-all-closed", () => {
     app.quit();
   }
 });
+
+function stopOwnedRuntimes() {
+  const runtime = sidecarRuntime;
+  sidecarRuntime = null;
+  try {
+    runtime?.stop();
+  } finally {
+    computerUseHelperManager.stop();
+  }
+}
 
 function createMainWindow() {
   markStartupTiming("electron_main_window_create_begin", { startupId });
@@ -282,6 +302,7 @@ async function startSidecarForWorkspace(workspaceRoot, { showStartupShell = true
     await showWorkspaceStartupShell(workspaceRoot);
   }
   try {
+    await computerUseHelperManager.ensureStarted();
     sidecarRuntime?.stop();
     sidecarRuntime = await resolveSidecarRuntime(workspaceRoot);
     markStartupTiming("electron_sidecar_ready", {
@@ -373,6 +394,7 @@ async function resolveSidecarRuntime(workspaceRoot) {
   return await startPythonSidecar({
     appVersion,
     electronVersion: process.versions.electron ?? "unknown",
+    env: computerUseHelperManager.buildSidecarEnv(),
     globalSettingsRoot: resolveGlobalSettingsRoot(),
     launcherPath: sidecarLauncherPath,
     repoRoot:

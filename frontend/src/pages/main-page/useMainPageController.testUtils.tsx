@@ -433,6 +433,41 @@ export function commandRejectedRuntimeInputResponse(
   };
 }
 
+export function missingAccessibilityRuntimeInputResponse(
+  request: RuntimeInputRouteRequest,
+): QueryResponse<RuntimeInputRouteResult> {
+  const response = commandRejectedRuntimeInputResponse(request);
+  const message =
+    "当前执行环境不支持微信发送能力。没有发送消息。 错误代码：wechat_not_ready 错误信息：macOS computer-use readiness: missing_accessibility. Plato Computer Use Helper 尚未获得辅助功能权限。";
+
+  if (response.data === null) {
+    throw new Error("runtime input test response must contain data");
+  }
+  return {
+    ...response,
+    data: {
+      ...response.data,
+      outcome: {
+        ...response.data.outcome,
+        userMessage: message,
+        recoveryActions: ["open_settings", "retry_command"],
+      },
+      activity:
+        response.data.activity === null || response.data.activity === undefined
+          ? null
+          : {
+              ...response.data.activity,
+              body: message,
+            },
+      commandResponse: rejectedCommandResponse({
+        commandId: request.commandId,
+        message,
+        recoveryActions: ["open_settings", "retry_command"],
+      }),
+    },
+  };
+}
+
 function createTestQueryClient() {
   return new QueryClient({
     defaultOptions: {

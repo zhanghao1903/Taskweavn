@@ -133,7 +133,12 @@ def _readiness_from_observation(
     base["operationStatus"] = observation.status
     base["ready"] = observation.success and observation.status == "ok"
     base["status"] = "ready" if base["ready"] else helper_status or observation.status
-    base["summary"] = observation.summary
+    base["summary"] = _product_readiness_summary(
+        base,
+        observation=observation,
+        failure_kind=failure_kind,
+        helper_identity=helper_identity,
+    )
     if helper_status:
         base["helperStatus"] = helper_status
     if failure_kind:
@@ -152,6 +157,23 @@ def _readiness_from_observation(
     elif recovery_actions:
         base["recoveryActions"] = list(recovery_actions)
     return base
+
+
+def _product_readiness_summary(
+    base: Mapping[str, Any],
+    *,
+    observation: ComputerUseObservation,
+    failure_kind: str | None,
+    helper_identity: Mapping[str, str],
+) -> str:
+    helper_path = helper_identity.get("path")
+    if (
+        base.get("backend") == "helper"
+        and failure_kind == "missing_accessibility"
+        and helper_path
+    ):
+        return f"macOS Accessibility permission is missing for {helper_path}."
+    return observation.summary
 
 
 def _computer_use_warning(computer_use: Mapping[str, Any]) -> dict[str, Any]:

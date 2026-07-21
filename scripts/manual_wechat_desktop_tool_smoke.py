@@ -1,10 +1,11 @@
-"""Manual package-backed WeChat Desktop smoke through the local service.
+"""Manual package-backed WeChat Desktop smoke through the local Helper service.
 
-The script follows the SDK package example: it connects to a local
-``computer-use-macos serve`` process, adapts that service to the app-control
-protocol, and then invokes ``WeChatDesktopTool``. It requires
-``--allow-focus-select`` for package contact selection and does not submit the
-draft unless both ``--allow-submit`` and ``--confirm-submit SEND`` are present.
+The script connects to the Unix socket service published by Plato Computer Use
+Helper and adapts it to the app-control protocol. No-submit mode follows the SDK
+granular contact/draft/observe flow. Submit mode invokes Plato's semantic
+``WeChatDesktopTool`` with its durable SQLite send-boundary guard. It requires
+``--allow-focus-select`` for contact selection and never submits unless both
+``--allow-submit`` and ``--confirm-submit SEND`` are present.
 """
 
 from __future__ import annotations
@@ -30,12 +31,32 @@ from app_control_protocol import (
 )
 from computer_use_macos import UnixSocketServiceClient, readiness_command
 from wechat_desktop_tool import (
-    WeChatDesktopTool,
+    WeChatDesktopTool as PackageWeChatDesktopTool,
+)
+from wechat_desktop_tool import (
     draft_message_command,
     observe_current_chat_command,
     open_contact_command,
     open_wechat_command,
-    submit_draft_command,
+)
+
+from taskweavn.integrations.app_control.service_manifest import (
+    AppControlServiceManifest,
+)
+from taskweavn.integrations.wechat_tool import (
+    SqliteSendBoundaryStore,
+    managed_send_boundary_key,
+)
+from taskweavn.tools import (
+    WeChatDesktopTool as PlatoWeChatDesktopTool,
+)
+from taskweavn.tools import (
+    WeChatDesktopToolClientProtocol,
+    WeChatDesktopToolConfig,
+)
+from taskweavn.types.wechat_desktop import (
+    WeChatDesktopAction,
+    WeChatDesktopObservation,
 )
 
 DEFAULT_CONFIG = "./app-control.toml"
@@ -103,7 +124,7 @@ class RecordingObserver:
 def main(argv: list[str] | None = None) -> int:
     args = _parse_args(argv)
     observer = RecordingObserver()
-    observations: list[ToolObservation] = []
+    observations: list[object] = []
     smoke_id = args.smoke_id or f"wechat-tool-smoke-{uuid.uuid4().hex[:12]}"
     metadata = {
         "smokeId": smoke_id,
@@ -119,7 +140,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         app_control = LocalServiceAppControlAdapter(service_client)
         tool_config = _tool_config(args)
-        tool = WeChatDesktopTool.from_config(app_control, tool_config)
+        tool = PackageWeChatDesktopTool.from_config(app_control, tool_config)
     except Exception as exc:
         print(f"wechat desktop smoke setup failed: {exc}", file=sys.stderr)
         return 2
@@ -129,6 +150,7 @@ def main(argv: list[str] | None = None) -> int:
     submit_confirmed = args.confirm_submit == "SEND"
     submit_attempted = False
     submit_succeeded = False
+    send_replayed = False
 
     if exit_code == 0:
         observation = app_control.run_command(
@@ -143,7 +165,59 @@ def main(argv: list[str] | None = None) -> int:
         if not observation.success:
             exit_code = 1
 
-    if exit_code == 0:
+    if exit_code == 0 and args.readiness_only:
+        pass
+    elif exit_code == 0 and args.allow_submit:
+        if not submit_confirmed:
+            observations.append(
+                _manual_failure(
+                    command_id=f"{smoke_id}:send",
+                    operation="send_message",
+                    summary="Submit blocked: --confirm-submit SEND is required.",
+                    failure_kind="submit_not_confirmed",
+                )
+            )
+            exit_code = 2
+        elif not args.allow_focus_select:
+            observations.append(
+                _manual_failure(
+                    command_id=f"{smoke_id}:contact-mode",
+                    operation="send_message",
+                    summary=(
+                        "Contact selection was not authorized. The smoke requires "
+                        "--allow-focus-select."
+                    ),
+                    failure_kind="contact_selection_not_authorized",
+                    recovery_hint="Pass --allow-focus-select for semantic send_message.",
+                )
+            )
+            exit_code = 2
+        else:
+            try:
+                managed_observation = _run_managed_send(
+                    args,
+                    package_tool=tool,
+                    metadata=metadata,
+                )
+            except ValueError as exc:
+                observations.append(
+                    _manual_failure(
+                        command_id=f"{smoke_id}:managed-send",
+                        operation="send_message",
+                        summary=str(exc),
+                        failure_kind="managed_send_precondition_failed",
+                        recovery_hint="Fix the managed send arguments; no send occurred.",
+                    )
+                )
+                exit_code = 2
+            else:
+                observations.append(managed_observation)
+                send_replayed = _plato_send_replayed(managed_observation)
+                submit_attempted = _plato_send_attempted(managed_observation)
+                submit_succeeded = _plato_send_submitted(managed_observation)
+                if not managed_observation.success:
+                    exit_code = 1
+    elif exit_code == 0:
         command = open_wechat_command(
             command_id=f"{smoke_id}:open",
             timeout_ms=args.timeout_ms,
@@ -154,68 +228,43 @@ def main(argv: list[str] | None = None) -> int:
         if not observation.success:
             exit_code = 1
 
-    if exit_code == 0:
-        if args.allow_focus_select:
-            observation = tool.run_command(
-                open_contact_command(
-                    args.contact,
-                    command_id=f"{smoke_id}:open-contact",
-                    timeout_ms=args.timeout_ms,
-                    metadata=metadata,
-                ),
-                observer=observer,
-            )
-            observations.append(observation)
-            if not observation.success:
-                exit_code = 1
-        else:
-            observations.append(
-                _manual_failure(
-                    command_id=f"{smoke_id}:contact-mode",
-                    operation="open_contact",
-                    summary=(
-                        "Contact selection was not authorized. The smoke requires "
-                        "--allow-focus-select."
-                    ),
-                    failure_kind="contact_selection_not_authorized",
-                    recovery_hint="Pass --allow-focus-select to run package contact selection.",
-                )
-            )
-            exit_code = 2
-
-    for command in _post_contact_steps(args, smoke_id=smoke_id, metadata=metadata):
-        if exit_code != 0:
-            break
-        observation = tool.run_command(command, observer=observer)
-        observations.append(observation)
-        if not observation.success:
-            exit_code = 1
-
-    if exit_code == 0 and args.allow_submit:
-        if not submit_confirmed:
-            observations.append(
-                _manual_failure(
-                    command_id=f"{smoke_id}:submit",
-                    summary="Submit blocked: --confirm-submit SEND is required.",
-                    failure_kind="submit_not_confirmed",
-                )
-            )
-            exit_code = 2
-        else:
-            submit_attempted = True
-            observations.append(
-                tool.run_command(
-                    submit_draft_command(
-                        command_id=f"{smoke_id}:submit",
+        if exit_code == 0:
+            if args.allow_focus_select:
+                observation = tool.run_command(
+                    open_contact_command(
+                        args.contact,
+                        command_id=f"{smoke_id}:open-contact",
                         timeout_ms=args.timeout_ms,
-                        idempotency_key=args.idempotency_key,
                         metadata=metadata,
                     ),
                     observer=observer,
                 )
-            )
-            submit_succeeded = observations[-1].success
-            if not submit_succeeded:
+                observations.append(observation)
+                if not observation.success:
+                    exit_code = 1
+            else:
+                observations.append(
+                    _manual_failure(
+                        command_id=f"{smoke_id}:contact-mode",
+                        operation="open_contact",
+                        summary=(
+                            "Contact selection was not authorized. The smoke requires "
+                            "--allow-focus-select."
+                        ),
+                        failure_kind="contact_selection_not_authorized",
+                        recovery_hint=(
+                            "Pass --allow-focus-select to run package contact selection."
+                        ),
+                    )
+                )
+                exit_code = 2
+
+        for command in _post_contact_steps(args, smoke_id=smoke_id, metadata=metadata):
+            if exit_code != 0:
+                break
+            observation = tool.run_command(command, observer=observer)
+            observations.append(observation)
+            if not observation.success:
                 exit_code = 1
 
     evidence = {
@@ -230,15 +279,29 @@ def main(argv: list[str] | None = None) -> int:
         "submitConfirmed": submit_confirmed,
         "submitAttempted": submit_attempted,
         "submitted": submit_succeeded,
+        "replayed": send_replayed,
+        "readinessOnly": args.readiness_only,
         "config": {
             "transport": "unix_socket",
             "socketPath": socket_path,
+            "manifestPath": str(Path(args.manifest_path).expanduser())
+            if args.manifest_path
+            else None,
             "configPath": str(_existing_config_or_none(args.config))
             if _existing_config_or_none(args.config)
             else None,
             "serviceTimeoutSeconds": service_timeout,
             "searchHotkey": _split_csv(args.search_hotkey),
             "searchClearHotkey": _split_csv(args.search_clear_hotkey),
+            "effectDb": str(args.effect_db) if args.effect_db else None,
+            "sessionId": args.session_id,
+            "taskId": args.task_id,
+            "managedSendKeyHash": (
+                None
+                if not args.session_id or not args.task_id
+                else _hash_text(managed_send_boundary_key(args.session_id, args.task_id))
+            ),
+            "replayOnly": args.replay_only,
         },
         "events": [_serialize_event(event) for event in observer.events],
         "observations": [_serialize(observation) for observation in observations],
@@ -264,10 +327,14 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--manifest-path",
+        default=os.environ.get("PLATO_COMPUTER_USE_HELPER_MANIFEST"),
+        help="Plato Helper endpoint manifest; replaces socket/token inputs.",
+    )
+    parser.add_argument(
         "--socket-path",
         default=(
-            os.environ.get("WECHAT_TOOL_SOCKET_PATH")
-            or os.environ.get("APP_CONTROL_SOCKET_PATH")
+            os.environ.get("WECHAT_TOOL_SOCKET_PATH") or os.environ.get("APP_CONTROL_SOCKET_PATH")
         ),
     )
     parser.add_argument("--token", default=os.environ.get("WECHAT_TOOL_TOKEN"))
@@ -277,7 +344,19 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser.add_argument("--contact", default="文件传输助手")
     parser.add_argument("--message", required=True)
     parser.add_argument("--timeout-ms", type=int, default=30000)
-    parser.add_argument("--idempotency-key")
+    parser.add_argument("--effect-db", type=Path)
+    parser.add_argument("--session-id")
+    parser.add_argument("--task-id")
+    parser.add_argument(
+        "--readiness-only",
+        action="store_true",
+        help="Run Helper readiness and exit without opening or operating WeChat.",
+    )
+    parser.add_argument(
+        "--replay-only",
+        action="store_true",
+        help="Refuse to execute unless the managed send record already exists.",
+    )
     parser.add_argument("--smoke-id")
     parser.add_argument("--allow-focus-select", action="store_true")
     parser.add_argument("--allow-submit", action="store_true")
@@ -294,7 +373,7 @@ def _tool_config(args: argparse.Namespace) -> str | Path | dict[str, Any] | None
         "computer_use": {
             "backend": "direct",
             "allowed_apps": ["WeChat"],
-            "allow_coordinate_click": False,
+            "allow_coordinate_click": True,
             "screen_recording_required": False,
             "timeout_ms": args.timeout_ms,
         },
@@ -311,6 +390,16 @@ def _tool_config(args: argparse.Namespace) -> str | Path | dict[str, Any] | None
 
 
 def _service_settings(args: argparse.Namespace) -> tuple[str, str | None, float]:
+    if args.manifest_path:
+        if args.socket_path or args.token or args.token_file:
+            raise ValueError("--manifest-path is mutually exclusive with socket/token inputs")
+        manifest = AppControlServiceManifest.load(Path(args.manifest_path).expanduser())
+        return (
+            str(manifest.endpoint),
+            manifest.read_token(),
+            args.timeout_ms / 1000.0,
+        )
+
     if args.token and args.token_file:
         raise ValueError("--token and --token-file are mutually exclusive")
 
@@ -350,7 +439,6 @@ def _post_contact_steps(
             args.message,
             command_id=f"{smoke_id}:draft",
             timeout_ms=args.timeout_ms,
-            idempotency_key=args.idempotency_key,
             metadata={**metadata, "messageHash": _hash_text(args.message)},
         ),
         observe_current_chat_command(
@@ -359,6 +447,81 @@ def _post_contact_steps(
             metadata=metadata,
         ),
     ]
+
+
+def _run_managed_send(
+    args: argparse.Namespace,
+    *,
+    package_tool: PackageWeChatDesktopTool,
+    metadata: dict[str, str],
+) -> WeChatDesktopObservation:
+    if args.effect_db is None or not args.session_id or not args.task_id:
+        raise ValueError("managed submit requires --effect-db, --session-id, and --task-id")
+    key = managed_send_boundary_key(args.session_id, args.task_id)
+    store = SqliteSendBoundaryStore(args.effect_db)
+    if (
+        args.replay_only
+        and store.get(
+            scope_id=args.session_id,
+            idempotency_key=key,
+        )
+        is None
+    ):
+        store.close()
+        raise ValueError("--replay-only refused because no managed send record exists")
+    product_tool = PlatoWeChatDesktopTool(
+        client=cast(WeChatDesktopToolClientProtocol, package_tool),
+        config=WeChatDesktopToolConfig(default_timeout_ms=args.timeout_ms),
+        send_boundary_store=store,
+        send_boundary_scope=args.session_id,
+        send_boundary_key=key,
+    )
+    try:
+        return product_tool.execute(
+            WeChatDesktopAction(
+                operation="send_message",
+                contact=args.contact,
+                message=args.message,
+                verify_after_submit=True,
+                timeout_ms=args.timeout_ms,
+                metadata={
+                    **metadata,
+                    "sessionId": args.session_id,
+                    "taskId": args.task_id,
+                    "taskType": "communication.wechat.send_message",
+                },
+            )
+        )
+    finally:
+        product_tool.shutdown()
+
+
+def _plato_send_attempted(observation: WeChatDesktopObservation) -> bool:
+    if _plato_send_replayed(observation):
+        return False
+    package_observation = observation.metadata.get("observation")
+    if not isinstance(package_observation, dict):
+        return False
+    return (
+        package_observation.get("sendAttempted") is True
+        or package_observation.get("submitted") is True
+    )
+
+
+def _plato_send_submitted(observation: WeChatDesktopObservation) -> bool:
+    if _plato_send_replayed(observation):
+        return False
+    package_observation = observation.metadata.get("observation")
+    if isinstance(package_observation, dict):
+        submitted = package_observation.get("submitted")
+        if isinstance(submitted, bool):
+            return submitted
+    return observation.success
+
+
+def _plato_send_replayed(observation: WeChatDesktopObservation) -> bool:
+    boundary = observation.metadata.get("send_boundary")
+    return isinstance(boundary, dict) and boundary.get("replayed") is True
 
 
 def _manual_failure(
@@ -389,6 +552,9 @@ def _manual_failure(
 
 
 def _serialize(value: object) -> object:
+    model_dump = getattr(value, "model_dump", None)
+    if callable(model_dump):
+        return _redact_evidence(model_dump(mode="json"))
     if dataclasses.is_dataclass(value):
         return _redact_evidence(dataclasses.asdict(cast(Any, value)))
     if isinstance(value, dict):
@@ -431,7 +597,7 @@ def _redact_evidence(value: object) -> object:
             normalized = key.replace("_", "").lower()
             if "token" in normalized:
                 redacted[key] = "[redacted]"
-            elif normalized in {"nodes", "visiblemessages", "textextract"}:
+            elif normalized in {"messages", "nodes", "visiblemessages", "textextract"}:
                 redacted[key] = {
                     "redacted": True,
                     "count": len(nested) if isinstance(nested, (list, tuple)) else None,

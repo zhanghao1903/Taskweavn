@@ -193,25 +193,6 @@ def plato_sidecar(
             help="Path to the helper endpoint manifest for helper backend.",
         ),
     ] = None,
-    computer_use_helper_app_path: Annotated[
-        Path | None,
-        typer.Option(
-            "--computer-use-helper-app-path",
-            envvar="PLATO_COMPUTER_USE_HELPER_APP_PATH",
-            help=(
-                "Path to the app-control helper .app provided by the "
-                "computer-use backend for opt-in auto-launch."
-            ),
-        ),
-    ] = None,
-    computer_use_helper_auto_launch: Annotated[
-        bool,
-        typer.Option(
-            "--computer-use-helper-auto-launch/--no-computer-use-helper-auto-launch",
-            envvar="PLATO_COMPUTER_USE_HELPER_AUTO_LAUNCH",
-            help="Launch the configured helper app when its manifest is missing.",
-        ),
-    ] = False,
 ) -> None:
     """Start the local Plato Main Page backend sidecar."""
 
@@ -220,8 +201,6 @@ def plato_sidecar(
         backend_name=computer_use_backend,
         allowed_apps=computer_use_allowed_apps,
         helper_manifest_path=computer_use_helper_manifest,
-        helper_app_path=computer_use_helper_app_path,
-        helper_auto_launch=computer_use_helper_auto_launch,
     )
     dependencies = (
         MainPageSidecarDependencies(
@@ -412,25 +391,6 @@ def plato_dev(
             help="Path to the helper endpoint manifest for helper backend.",
         ),
     ] = None,
-    computer_use_helper_app_path: Annotated[
-        Path | None,
-        typer.Option(
-            "--computer-use-helper-app-path",
-            envvar="PLATO_COMPUTER_USE_HELPER_APP_PATH",
-            help=(
-                "Path to the app-control helper .app provided by the "
-                "computer-use backend for opt-in auto-launch."
-            ),
-        ),
-    ] = None,
-    computer_use_helper_auto_launch: Annotated[
-        bool,
-        typer.Option(
-            "--computer-use-helper-auto-launch/--no-computer-use-helper-auto-launch",
-            envvar="PLATO_COMPUTER_USE_HELPER_AUTO_LAUNCH",
-            help="Launch the configured helper app when its manifest is missing.",
-        ),
-    ] = False,
 ) -> None:
     """Start Plato backend sidecar and frontend dev server together."""
 
@@ -450,8 +410,6 @@ def plato_dev(
         backend_name=computer_use_backend,
         allowed_apps=computer_use_allowed_apps,
         helper_manifest_path=computer_use_helper_manifest,
-        helper_app_path=computer_use_helper_app_path,
-        helper_auto_launch=computer_use_helper_auto_launch,
     )
     sidecar = build_main_page_sidecar_app(
         MainPageSidecarConfig(
@@ -994,8 +952,6 @@ def _build_cli_computer_use_runtime(
     backend_name: str,
     allowed_apps: str | None,
     helper_manifest_path: Path | None = None,
-    helper_app_path: Path | None = None,
-    helper_auto_launch: bool = False,
 ) -> ComputerUseRuntimeSelection:
     try:
         return build_computer_use_runtime(
@@ -1006,10 +962,7 @@ def _build_cli_computer_use_runtime(
                 if helper_manifest_path is None
                 else str(helper_manifest_path.expanduser())
             ),
-            helper_app_path=(
-                None if helper_app_path is None else str(helper_app_path.expanduser())
-            ),
-            helper_auto_launch=helper_auto_launch,
+            helper_startup_failure=_computer_use_helper_startup_failure_from_env(),
         )
     except ValueError as exc:
         raise typer.BadParameter(
@@ -1020,6 +973,23 @@ def _build_cli_computer_use_runtime(
 
 def _parse_computer_use_allowed_apps(value: str | None) -> tuple[str, ...]:
     return _parse_comma_separated(value)
+
+
+def _computer_use_helper_startup_failure_from_env() -> dict[str, str] | None:
+    raw = os.environ.get("PLATO_COMPUTER_USE_HELPER_STARTUP_FAILURE")
+    if not raw:
+        return None
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError:
+        return {"failureKind": "helper_start_failed", "message": raw}
+    if not isinstance(payload, dict):
+        return {"failureKind": "helper_start_failed", "message": raw}
+    return {
+        str(key): str(value)
+        for key, value in payload.items()
+        if isinstance(key, str) and isinstance(value, str)
+    }
 
 
 def _parse_comma_separated(value: str | None) -> tuple[str, ...]:

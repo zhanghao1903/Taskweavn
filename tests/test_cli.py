@@ -222,15 +222,14 @@ def test_plato_dev_help_does_not_expose_session_startup_flags() -> None:
     assert "--no-create-session" not in result.output
 
 
-def test_plato_sidecar_help_exposes_helper_launch_options() -> None:
+def test_plato_sidecar_help_exposes_manifest_but_not_helper_lifecycle_options() -> None:
     runner = CliRunner()
     result = runner.invoke(app, ["plato-sidecar", "--help"])
 
     assert result.exit_code == 0
     assert "endpoint manifest" in result.output
-    assert "app-control helper" in result.output
-    assert "auto-launch" in result.output
-    assert "manifest is missing" in result.output
+    assert "auto-launch" not in result.output
+    assert "helper app" not in result.output
 
 
 def test_plato_dev_rejects_missing_frontend_dir(tmp_path: Path) -> None:

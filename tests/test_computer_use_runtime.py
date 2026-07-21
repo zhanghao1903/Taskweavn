@@ -57,6 +57,7 @@ def test_resolve_computer_use_runtime_builds_backend_from_settings() -> None:
             enabled=True,
             backend="macos",
             allowed_apps=("WeChat",),
+            allow_coordinate_click=True,
             config_hash="hash-1",
         ),
         computer_use_backend=None,
@@ -66,14 +67,16 @@ def test_resolve_computer_use_runtime_builds_backend_from_settings() -> None:
     assert runtime.backend_name == "macos"
     assert runtime.allowed_apps == ("WeChat",)
     assert isinstance(runtime.backend, MacOSComputerUseBackend)
+    assert runtime.app_control_config is not None
+    assert runtime.app_control_config.allow_coordinate_click is True
 
 
 def test_build_computer_use_runtime_supports_helper_backend() -> None:
+    manifest_path = Path("/tmp/app-control-service.json")
     runtime = build_computer_use_runtime(
         backend_name="helper",
         allowed_apps="WeChat,TextEdit",
-        helper_endpoint="http://127.0.0.1:49321",
-        helper_token="test-token",
+        helper_manifest_path=str(manifest_path),
     )
 
     assert runtime.enabled is True
@@ -82,28 +85,22 @@ def test_build_computer_use_runtime_supports_helper_backend() -> None:
     assert isinstance(runtime.backend, MacOSComputerUseBackend)
     assert runtime.app_control_config is not None
     assert runtime.app_control_config.backend == "helper"
-    assert runtime.app_control_config.helper_endpoint == "http://127.0.0.1:49321"
-    assert runtime.app_control_config.helper_token == "test-token"
+    assert runtime.app_control_config.helper_manifest_path == manifest_path
 
 
-def test_build_computer_use_runtime_passes_helper_launch_config(
+def test_build_computer_use_runtime_passes_electron_owned_manifest(
     tmp_path: Path,
 ) -> None:
     manifest_path = tmp_path / "helper.json"
-    app_path = tmp_path / "Plato Computer Use Helper Dev.app"
 
     runtime = build_computer_use_runtime(
         backend_name="helper",
         helper_manifest_path=str(manifest_path),
-        helper_app_path=str(app_path),
-        helper_auto_launch=True,
     )
 
     assert isinstance(runtime.backend, MacOSComputerUseBackend)
     assert runtime.app_control_config is not None
     assert runtime.app_control_config.helper_manifest_path == manifest_path
-    assert runtime.app_control_config.helper_app_path == app_path
-    assert runtime.app_control_config.helper_auto_launch is True
 
 
 def test_build_computer_use_runtime_rejects_unknown_backend() -> None:
@@ -117,6 +114,7 @@ def test_build_execution_env_registry_uses_local_macos_app_control_when_enabled(
             enabled=True,
             backend="helper",
             allowed_apps=("WeChat",),
+            allow_coordinate_click=True,
             config_hash="hash-1",
         )
     )
@@ -136,6 +134,7 @@ def test_build_execution_env_registry_does_not_advertise_wechat_without_runtime(
             enabled=True,
             backend="helper",
             allowed_apps=("WeChat",),
+            allow_coordinate_click=True,
             config_hash="hash-1",
         ),
         computer_use_available=False,
@@ -155,6 +154,7 @@ def test_build_execution_env_registry_keeps_default_env_when_disabled() -> None:
             enabled=False,
             backend="disabled",
             allowed_apps=(),
+            allow_coordinate_click=False,
             config_hash="hash-1",
         )
     )

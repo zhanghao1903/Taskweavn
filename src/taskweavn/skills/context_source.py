@@ -105,9 +105,11 @@ class SkillContextSource:
     ) -> None:
         if not required_capability:
             return
-        existing_skill_ids = {activation.skill_id for activation in existing}
+        existing_skill_versions = {
+            (activation.skill_id, activation.content_hash) for activation in existing
+        }
         for descriptor in self.registry.find_candidates(required_capability):
-            if descriptor.skill_id in existing_skill_ids:
+            if (descriptor.skill_id, descriptor.content_hash) in existing_skill_versions:
                 continue
             activation = self._build_activation(
                 request,
@@ -209,6 +211,8 @@ def _summary_from_segment(segment: SkillContextSegment) -> SkillSummary:
 
 
 def _load_skill_instruction_body(descriptor: SkillDescriptor) -> str:
+    if descriptor.instruction_body:
+        return _strip_frontmatter(descriptor.instruction_body).strip()
     if descriptor.skill_file_path:
         path = Path(descriptor.skill_file_path)
         if path.exists() and path.is_file():

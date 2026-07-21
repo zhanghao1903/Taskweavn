@@ -4,6 +4,7 @@ import {
   cpSync,
   existsSync,
   lstatSync,
+  mkdtempSync,
   mkdirSync,
   readdirSync,
   readFileSync,
@@ -14,6 +15,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { execFileSync } from "node:child_process";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -35,6 +37,12 @@ const appName = "Plato";
 const appIconName = "plato.icns";
 const appIconSourcePath = path.join(frontendRoot, "assets", "icons", appIconName);
 const bundleIdentifier = "com.taskweavn.plato";
+const computerUseHelperName = "Plato Computer Use Helper.app";
+const computerUseHelperBuildScript = path.join(
+  repoRoot,
+  "scripts",
+  "build_plato_computer_use_helper_dev.py",
+);
 const frontendPackageJson = JSON.parse(
   readFileSync(path.join(frontendRoot, "package.json"), "utf8"),
 );
@@ -62,6 +70,7 @@ try {
   });
   preparePlatformBundle(target, options);
   copyAppPayload(target.appResourceDir, options);
+  const computerUseHelperAppPath = embedComputerUseHelper(target, options);
 
   const manifest = {
     appName,
@@ -69,6 +78,7 @@ try {
     appRoot: target.appRoot,
     bundleVersion: options.bundleVersion,
     bundleIdentifier,
+    computerUseHelperAppPath,
     createdAt: new Date().toISOString(),
     executablePath: target.executablePath,
     packageVersion: options.packageVersion,
@@ -269,6 +279,61 @@ function copyAppPayload(appResourceDir, options) {
   if (options.withLauncher) {
     copySidecarLauncher(appResourceDir);
   }
+}
+
+function embedComputerUseHelper(target, options) {
+  if (process.platform !== "darwin") {
+    return null;
+  }
+  const pythonExecutable =
+    process.env.PLATO_HELPER_BUILD_PYTHON ??
+    path.join(repoRoot, ".venv", "bin", "python");
+  if (!existsSync(pythonExecutable)) {
+    throw new Error(
+      `Helper build Python not found: ${pythonExecutable}. Run uv sync --group packaging.`,
+    );
+  }
+  if (!existsSync(computerUseHelperBuildScript)) {
+    throw new Error(`Helper build script not found: ${computerUseHelperBuildScript}`);
+  }
+
+  const helperAppPath = path.join(
+    target.appRoot,
+    "Contents",
+    "Library",
+    "LoginItems",
+    computerUseHelperName,
+  );
+  const buildRoot = mkdtempSync(
+    path.join(os.tmpdir(), "plato-computer-use-helper-release-"),
+  );
+  try {
+    execFileSync(
+      pythonExecutable,
+      [
+        computerUseHelperBuildScript,
+        "--variant",
+        "release",
+        "--build-root",
+        buildRoot,
+        "--app-path",
+        helperAppPath,
+        "--version",
+        options.packageVersion,
+      ],
+      {
+        cwd: repoRoot,
+        encoding: "utf8",
+        stdio: ["ignore", "inherit", "inherit"],
+      },
+    );
+  } finally {
+    rmSync(buildRoot, { force: true, recursive: true });
+  }
+  if (!existsSync(helperAppPath)) {
+    throw new Error(`Packaged Computer Use Helper is missing: ${helperAppPath}`);
+  }
+  return helperAppPath;
 }
 
 function copySidecarLauncher(appResourceDir) {

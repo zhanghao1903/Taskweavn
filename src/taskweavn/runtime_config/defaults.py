@@ -201,12 +201,15 @@ def default_runtime_config_keys() -> tuple[RuntimeConfigKey, ...]:
             key="computer_use.allow_coordinate_click",
             domain="computer_use",
             value_type="bool",
-            default_value=False,
+            default_value=True,
             scope_levels=("process", "workspace"),
             mutability="startup_only",
             source_hints=("built_in_default", "process_input"),
             restart_required=True,
-            description="Whether coordinate-based clicks are allowed.",
+            description=(
+                "Whether coordinate-based clicks are allowed for the private, "
+                "app-allowlisted computer-use Helper."
+            ),
         ),
         RuntimeConfigKey(
             key="computer_use.screen_recording_required",

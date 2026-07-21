@@ -121,7 +121,7 @@ without changing behavior.
 | Computer-use allowed apps | empty allowlist unless passed | `PLATO_COMPUTER_USE_ALLOWED_APPS` / sidecar args |
 | Computer-use helper launch timeout | `90` seconds | `PLATO_COMPUTER_USE_HELPER_LAUNCH_TIMEOUT_SECONDS` |
 | Computer-use helper launch poll interval | `0.2` seconds | `PLATO_COMPUTER_USE_HELPER_LAUNCH_POLL_INTERVAL_SECONDS` |
-| Computer-use coordinate click | `false` | `build_computer_use_runtime(... allow_coordinate_click=False)` |
+| Computer-use coordinate click | `true` | `computer_use.allow_coordinate_click`; Electron Helper and sidecar runtime assembly |
 | Computer-use screen recording requirement | `false` | `build_computer_use_runtime(... screen_recording_required=False)` |
 | Computer-use max text chars | `4000` | `MacOSComputerUseBackendConfig.max_text_chars` |
 | Context max prior messages | `200` | `SessionAgentLoopContextProvider.max_prior_messages` |
@@ -391,7 +391,7 @@ can observe.
 | `computer_use.enabled` | derived from backend/dependency | process/workspace | `startup_only` | Current default disabled. |
 | `computer_use.backend` | CLI/env `PLATO_COMPUTER_USE_BACKEND` | process | `startup_only` | `disabled`, `helper`, or `macos`. |
 | `computer_use.allowed_apps` | CLI/env `PLATO_COMPUTER_USE_ALLOWED_APPS` | process/workspace | `startup_only` initially | Example: `WeChat`. |
-| `computer_use.allow_coordinate_click` | backend assembly | process/workspace | `startup_only` initially | Default should remain false. |
+| `computer_use.allow_coordinate_click` | Electron Helper + backend assembly | process/workspace | `startup_only` initially | Defaults to true for the private app-allowlisted Helper; explicit false remains available. |
 | `computer_use.screen_recording_required` | backend assembly | process/workspace | `startup_only` initially | Default should remain false. |
 | `computer_use.max_text_chars` | `MacOSComputerUseBackendConfig.max_text_chars` | process/workspace | `startup_only` initially | Current value is 4000. |
 | `safety.high_risk_confirmation` | confirmation/handler policy | workspace/session/task | `next_action` | Required for send-like actions. |

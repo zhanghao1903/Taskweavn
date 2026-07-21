@@ -49,7 +49,6 @@ class WeChatDesktopAction(BaseAction):
     verify_after_submit: bool = False
     verify_limit: int = Field(default=20, ge=1, le=100)
     timeout_ms: int | None = Field(default=None, gt=0, le=120_000)
-    idempotency_key: str | None = Field(default=None, min_length=1, max_length=400)
     metadata: dict[str, Any] = Field(default_factory=dict)
 
     @model_validator(mode="after")

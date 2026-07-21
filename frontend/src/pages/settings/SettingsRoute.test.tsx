@@ -313,6 +313,9 @@ describe("SettingsRoute", () => {
     expect(screen.getAllByText("process input").length).toBeGreaterThan(0);
     expect(screen.getByText("pending next agent run")).toBeInTheDocument();
     expect(screen.getByText("computer_use.allowed_apps")).toBeInTheDocument();
+    expect(
+      screen.getByText("computer_use.allow_coordinate_click"),
+    ).toBeInTheDocument();
     expect(screen.getByText("TextEdit, WeChat")).toBeInTheDocument();
     expect(api.getRuntimeConfigEffective).toHaveBeenCalledTimes(1);
   });
@@ -642,6 +645,12 @@ function runtimeConfigEffective(): RuntimeConfigEffective {
         mutability: "startup_only",
         source: processSource,
         value: ["TextEdit", "WeChat"],
+      }),
+      "computer_use.allow_coordinate_click": runtimeConfigValue({
+        key: "computer_use.allow_coordinate_click",
+        mutability: "startup_only",
+        source: defaultSource,
+        value: true,
       }),
       "computer_use.backend": runtimeConfigValue({
         key: "computer_use.backend",
