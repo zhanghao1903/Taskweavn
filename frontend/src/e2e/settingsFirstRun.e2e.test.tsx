@@ -68,10 +68,12 @@ describeSidecarE2E("Settings first-run real sidecar E2E", () => {
     await waitFor(
       () => {
         expect(screen.getAllByText("Diagnostics smoke").length).toBeGreaterThan(0);
+        expect(
+          screen.getAllByText("Run diagnostic-export-task").length,
+        ).toBeGreaterThan(0);
       },
       { timeout: 10_000 },
     );
-    expect(screen.getAllByText("Run diagnostic-export-task").length).toBeGreaterThan(0);
     expect(document.body).not.toHaveTextContent(secret);
   });
 
@@ -93,11 +95,13 @@ describeSidecarE2E("Settings first-run real sidecar E2E", () => {
     await waitFor(
       () => {
         expect(screen.getAllByText("Diagnostics smoke").length).toBeGreaterThan(0);
+        expect(
+          screen.getAllByText("Run diagnostic-export-task").length,
+        ).toBeGreaterThan(0);
       },
       { timeout: 10_000 },
     );
     expect(screen.queryByRole("heading", { name: "Setup required" })).not.toBeInTheDocument();
-    expect(screen.getAllByText("Run diagnostic-export-task").length).toBeGreaterThan(0);
     expect(document.body).not.toHaveTextContent("test-sidecar-readiness-key");
   });
 });

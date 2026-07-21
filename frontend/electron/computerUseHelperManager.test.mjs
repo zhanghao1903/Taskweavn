@@ -27,6 +27,7 @@ it("starts the Dev Helper once and injects its manifest", async () => {
       PLATO_COMPUTER_USE_ALLOWED_APPS: "WeChat",
       PLATO_COMPUTER_USE_BACKEND: "helper",
     },
+    platform: "darwin",
     startHelper: async (config) => {
       starts.push(config);
       return {
@@ -63,6 +64,7 @@ it("keeps Plato bootable and injects failure diagnostics", async () => {
   const manager = createComputerUseHelperManager({
     app: fakeApp(),
     env: { PLATO_COMPUTER_USE_BACKEND: "helper" },
+    platform: "darwin",
     startHelper: async () => {
       const error = new Error("helper app is missing");
       error.diagnostics = { failureKind: "helper_app_missing" };
@@ -178,6 +180,7 @@ it("preserves an explicit coordinate-click opt-out", async () => {
       PLATO_COMPUTER_USE_ALLOW_COORDINATE_CLICK: "false",
       PLATO_COMPUTER_USE_BACKEND: "helper",
     },
+    platform: "darwin",
     startHelper: async (config) => {
       starts.push(config);
       return {
