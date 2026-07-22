@@ -12,10 +12,14 @@ dependencies = [
     "pydantic>=2.10",
     "docker>=7.0.0",
     "pyyaml>=6.0",
+    "app-control-protocol>=0.3.0,<0.4.0",
+    "computer-use-macos[accessibility]>=0.3.0,<0.4.0; sys_platform == 'darwin'",
+    "wechat-desktop-tool>=0.3.0,<0.4.0",
 ]
 
 [project.scripts]
 taskweavn = "taskweavn.cli.main:app"
+plato-computer-use-helper = "taskweavn.server.app_control_helper:main"
 
 [build-system]
 requires = ["hatchling"]
@@ -30,6 +34,9 @@ dev = [
     "pytest-asyncio>=0.23",
     "ruff>=0.6.0",
     "mypy>=1.10",
+]
+packaging = [
+    "pyinstaller>=6.0",
 ]
 
 [tool.ruff]

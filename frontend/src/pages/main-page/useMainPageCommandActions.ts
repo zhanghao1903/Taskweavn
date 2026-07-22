@@ -56,6 +56,7 @@ export type MainPageCommandPendingState = {
 
 export type UseMainPageCommandActionsOptions = {
   clearEventError: () => void;
+  clearPendingRuntimeClarification: () => void;
   commandMutations: MainPageCommandMutations;
   inputDraft: string;
   resetCommandErrorState: () => void;
@@ -76,6 +77,7 @@ export type UseMainPageCommandActionsOptions = {
 
 export function useMainPageCommandActions({
   clearEventError,
+  clearPendingRuntimeClarification,
   commandMutations,
   inputDraft,
   resetCommandErrorState,
@@ -115,6 +117,7 @@ export function useMainPageCommandActions({
     setStateId(nextStateId);
     resetSelection();
     resetInputDraft();
+    clearPendingRuntimeClarification();
     resetCommandErrorState();
     setUiNotice(null);
     resetSessionLifecycle();

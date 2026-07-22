@@ -28,6 +28,7 @@
     "outcome": {
       "status": "answered",
       "userMessage": "Session 'Session' is running.",
+      "pendingClarification": null,
       "recoveryActions": []
     },
     "activity": {

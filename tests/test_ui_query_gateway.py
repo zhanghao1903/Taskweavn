@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from collections.abc import Sequence
 from datetime import UTC, datetime
 from pathlib import Path
@@ -1920,13 +1921,48 @@ def test_audit_snapshot_includes_workspace_log_and_config_records(
         ),
         encoding="utf-8",
     )
+    (log_dir / "runtime.jsonl").write_text(
+        json.dumps(
+            {
+                "ts": NOW.isoformat(),
+                "level": "DEBUG",
+                "category": "runtime",
+                "event": "computer_use_api",
+                "message": "macOS computer-use type_text completed with status ok.",
+                "context": {"session_id": "session-1", "task_id": "root"},
+                "data": {
+                    "schema": "plato.runtime_observability.v1",
+                    "recordType": "computer_use_api",
+                    "operation": "type_text",
+                    "phase": "command.observe",
+                    "status": "ok",
+                    "success": True,
+                    "safeSummary": "macOS computer-use type_text completed with status ok.",
+                    "messageHash": "sha256:secret",
+                    "messageChars": 14,
+                    "metadata": {
+                        "packageEventCount": 1,
+                        "packageEvents": [
+                            {
+                                "commandId": "cmd-1",
+                                "phase": "type_text.test",
+                                "dataKeys": ["accessibilityTree"],
+                            }
+                        ],
+                    },
+                },
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
     manifest = LogArchiveManifest(
         session_id="session-1",
         created_at=NOW,
         config_hash="abc123",
         active_config_path="logging.json",
         archive_root=str(log_dir),
-        files={"frontend": "frontend-errors.jsonl"},
+        files={"frontend": "frontend-errors.jsonl", "runtime": "runtime.jsonl"},
     )
     (log_dir / "manifest.json").write_text(
         manifest.model_dump_json(),
@@ -1959,7 +1995,26 @@ def test_audit_snapshot_includes_workspace_log_and_config_records(
     assert [record.kind for record in config_response.data.records] == ["config_change"]
     assert logs_response.ok is True
     assert logs_response.data is not None
-    assert [record.kind for record in logs_response.data.records] == ["log_evidence"]
+    assert {record.kind for record in logs_response.data.records} == {"log_evidence"}
+    runtime_record = next(
+        record
+        for record in logs_response.data.records
+        if record.title == "Computer-use API type_text: ok"
+    )
+    assert runtime_record.task_node_id == "root"
+    assert runtime_record.source_label == "Runtime log"
+    assert runtime_record.evidence_refs[0].summary.endswith("packageEventCount=1.")
+    task_logs_response = gateway.list_audit_records(
+        "session-1",
+        task_node_id="root",
+        filter_kind="logs",
+    )
+    assert task_logs_response.ok is True
+    assert task_logs_response.data is not None
+    assert any(
+        record.title == "Computer-use API type_text: ok"
+        for record in task_logs_response.data.records
+    )
     assert snapshot.ok is True
     assert snapshot.data is not None
     assert snapshot.data.effective_config is not None

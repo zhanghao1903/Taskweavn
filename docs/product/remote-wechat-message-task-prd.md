@@ -178,7 +178,12 @@ In scope:
      - observe bounded UI state;
      - click/select safe UI target;
      - type text into focused editable field.
-   - Raw coordinate clicks are disabled by default.
+   - Coordinate clicks are enabled by default in Plato's private,
+     app-allowlisted Helper so a verified WeChat element frame can be used when
+     the row does not advertise `AXPress`.
+   - `computer_use.allow_coordinate_click=false` remains an app-level,
+     restart-required opt-out; disabling it can make contact resolution
+     unavailable on affected WeChat versions.
 5. **WeChat adapter behavior**
    - Open or focus WeChat Desktop.
    - Search the target contact.

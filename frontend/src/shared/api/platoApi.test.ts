@@ -922,6 +922,26 @@ describe("createHttpPlatoApi", () => {
         });
       }
 
+      if (
+        String(input).endsWith("/api/v1/settings/recovery-action") &&
+        init?.method === "POST"
+      ) {
+        return jsonResponse({
+          data: {
+            action: "open_macos_privacy_accessibility",
+            returnCode: 0,
+            schemaVersion: "plato.settings_recovery_action.v1",
+            status: "opened",
+            summary: "Opened macOS System Settings.",
+            url: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility",
+          },
+          error: null,
+          generatedAt: "2026-06-06T09:02:00Z",
+          ok: true,
+          requestId: "settings-recovery-action",
+        });
+      }
+
       return jsonResponse({
         data: settingsReadiness({ ready: true }),
         error: null,
@@ -976,6 +996,15 @@ describe("createHttpPlatoApi", () => {
       },
       ok: true,
     });
+    await expect(
+      api.executeSettingsRecoveryAction("open_macos_privacy_accessibility"),
+    ).resolves.toMatchObject({
+      data: {
+        action: "open_macos_privacy_accessibility",
+        status: "opened",
+      },
+      ok: true,
+    });
 
     expect(calls).toEqual([
       {
@@ -992,6 +1021,11 @@ describe("createHttpPlatoApi", () => {
         body: {},
         method: "POST",
         url: "https://plato.test/api/v1/settings/readiness/recheck",
+      },
+      {
+        body: { action: "open_macos_privacy_accessibility" },
+        method: "POST",
+        url: "https://plato.test/api/v1/settings/recovery-action",
       },
     ]);
   });

@@ -1,10 +1,13 @@
+import { productRecoveryActionText } from "../../shared/api/productErrors";
 import type {
   MainPageSnapshot,
+  RuntimeInputPendingClarification,
   RuntimeInputRouteRequest,
   RuntimeInputRouteResult,
   SessionActivityItemView,
   TaskNodeId,
 } from "../../shared/api/types";
+import { zhCN } from "../../shared/ui-text";
 import type { InputTarget } from "./mainPageUiTypes";
 import type { MainPageInputCommandMode } from "./mainPageViewModel";
 
@@ -12,6 +15,7 @@ export function buildRuntimeInputRouteRequest({
   commandId,
   content,
   mode,
+  pendingClarification,
   sessionId,
   snapshot,
   target,
@@ -20,6 +24,7 @@ export function buildRuntimeInputRouteRequest({
   commandId?: string;
   content: string;
   mode: RuntimeInputRouteRequest["mode"];
+  pendingClarification?: RuntimeInputPendingClarification | null;
   sessionId: string;
   snapshot: MainPageSnapshot | null;
   target: InputTarget;
@@ -47,6 +52,7 @@ export function buildRuntimeInputRouteRequest({
     clientState: {
       activeAskId: snapshot?.activeAsk?.id ?? null,
       activeConfirmationId: snapshot?.pendingConfirmations[0]?.id ?? null,
+      pendingClarification: pendingClarification ?? null,
     },
   };
 }
@@ -116,6 +122,66 @@ export function runtimeInputUserActivity(
     sourceId: request.commandId,
     disclosureLevel: "public",
   };
+}
+
+export function runtimeInputRouteActivities(
+  request: RuntimeInputRouteRequest,
+  result: RuntimeInputRouteResult,
+): SessionActivityItemView[] {
+  const runtimeActivity = runtimeInputActivity(result);
+  const routerReplyActivity = runtimeInputRouterReplyActivity(request, result);
+
+  return [
+    runtimeInputUserActivity(request, result),
+    ...(routerReplyActivity === null ? [] : [routerReplyActivity]),
+    ...(runtimeActivity === null ? [] : [runtimeActivity]),
+  ];
+}
+
+function runtimeInputRouterReplyActivity(
+  request: RuntimeInputRouteRequest,
+  result: RuntimeInputRouteResult,
+): SessionActivityItemView | null {
+  if (
+    result.outcome.status !== "rejected" &&
+    result.outcome.status !== "unsupported"
+  ) {
+    return null;
+  }
+
+  return {
+    id: `activity:runtime-input:${request.commandId}:router_reply`,
+    sessionId: request.sessionId,
+    kind: "recovery_note",
+    title: "Router reply",
+    body: runtimeInputRouterReplyBody(result),
+    occurredAt: result.generatedAt,
+    scopeKind: result.decision.scope.kind,
+    planId: result.decision.scope.planId ?? null,
+    taskNodeId: result.decision.scope.taskNodeId ?? null,
+    sideEffect: "state_effect",
+    relatedRefs: result.decision.relatedRefs,
+    sourceKind: "router",
+    sourceId: result.decision.id,
+    disclosureLevel: "public",
+  };
+}
+
+function runtimeInputRouterReplyBody(result: RuntimeInputRouteResult): string {
+  const suggestions = result.outcome.recoveryActions
+    .map((action) => productRecoveryActionText(action, zhCN).description)
+    .filter((description) => description.trim().length > 0);
+
+  if (suggestions.length === 0) {
+    return result.outcome.userMessage;
+  }
+
+  return [
+    result.outcome.userMessage,
+    "",
+    "建议的恢复操作：",
+    ...suggestions.map((suggestion) => `- ${suggestion}`),
+  ].join("\n");
 }
 
 export function prependRuntimeActivityItems(

@@ -630,6 +630,7 @@ export type RuntimeInputSelection = {
 export type RuntimeInputClientState = {
   activeAskId?: AskId | null;
   activeConfirmationId?: ConfirmationId | null;
+  pendingClarification?: RuntimeInputPendingClarification | null;
 };
 
 export type RuntimeInputRouteRequest = {
@@ -664,6 +665,16 @@ export type RuntimeInputOutcome = {
   status: RuntimeInputOutcomeStatus;
   userMessage: string;
   recoveryActions: ProductRecoveryAction[];
+  pendingClarification?: RuntimeInputPendingClarification | null;
+};
+
+export type RuntimeInputPendingClarification = {
+  kind: "wechat_send";
+  reasonCode: string;
+  contactDisplayName?: string | null;
+  messageText?: string | null;
+  missingSlots: Array<"contactDisplayName" | "messageText">;
+  originalContent: string;
 };
 
 export type RuntimeInputRouteResult = {

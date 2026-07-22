@@ -3,6 +3,7 @@ import type { Dispatch, SetStateAction } from "react";
 import type { ProductRecoveryAction } from "../../shared/api/platoApi";
 import type {
   RuntimeInputMode,
+  RuntimeInputPendingClarification,
   SessionActivityItemView,
   TaskNodeId,
   WorkspaceId,
@@ -60,6 +61,7 @@ export type UseMainPageCommandMutationsOptions = {
     message: string;
     recoveryActions: ProductRecoveryAction[];
   }) => void;
+  pendingRuntimeClarification: RuntimeInputPendingClarification | null;
   reconcileRuntimeInputSubmit: (commandId: string) => void;
   rejectRuntimeInputSubmit: (context: {
     commandId: string;
@@ -73,6 +75,9 @@ export type UseMainPageCommandMutationsOptions = {
   setExecutionAskCommandError: CommandErrorSetter;
   setInputCommandError: CommandErrorSetter;
   setInputDraft: (draft: string) => void;
+  setPendingRuntimeClarification: (
+    clarification: RuntimeInputPendingClarification | null,
+  ) => void;
   setRuntimeActivityItems: Dispatch<
     SetStateAction<SessionActivityItemView[]>
   >;
@@ -102,6 +107,7 @@ export function useMainPageCommandMutations({
   refetchSnapshot,
   acceptRuntimeInputSubmit,
   failRuntimeInputSubmit,
+  pendingRuntimeClarification,
   reconcileRuntimeInputSubmit,
   rejectRuntimeInputSubmit,
   setActiveRuntimeInputMode,
@@ -111,6 +117,7 @@ export function useMainPageCommandMutations({
   setExecutionAskCommandError,
   setInputCommandError,
   setInputDraft,
+  setPendingRuntimeClarification,
   setRuntimeActivityItems,
   setSelectedTaskNodeId,
   setSelectionTarget,
@@ -152,11 +159,13 @@ export function useMainPageCommandMutations({
     refetchSnapshot,
     acceptRuntimeInputSubmit,
     failRuntimeInputSubmit,
+    pendingRuntimeClarification,
     reconcileRuntimeInputSubmit,
     rejectRuntimeInputSubmit,
     setActiveRuntimeInputMode,
     setInputCommandError,
     setInputDraft,
+    setPendingRuntimeClarification,
     setRuntimeActivityItems,
     setUiNotice,
     startRuntimeInputSubmit,

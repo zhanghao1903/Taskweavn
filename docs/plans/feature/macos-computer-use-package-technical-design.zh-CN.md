@@ -1,6 +1,10 @@
 # macOS Computer-Use Capability Package 技术方案
 
-> Status: proposed / package-first planning
+> Status: Historical package technical design. The original single-package
+> `macos-computer-use` boundary was superseded by the published package suite:
+> `app-control-protocol`, `computer-use-macos`, and `wechat-desktop-tool`.
+> 当前 Plato 迁移方案见
+> [App-Control Tool Package Migration](app-control-tool-package-migration.zh-CN.md)。
 >
 > Last Updated: 2026-06-19
 >
@@ -19,6 +23,14 @@
 
 本方案把真实 macOS computer-use 能力定义为一个可独立发布的 Python 包，
 而不是 Taskweavn/Plato 内部模块。
+
+注意：本方案记录的是旧的单包设计。当前实现已拆分为：
+
+```text
+app-control-protocol  -> ToolCommand / ToolObservation / ToolEvent 协议
+computer-use-macos    -> macOS app-control primitives / helper transport
+wechat-desktop-tool   -> WeChat semantic desktop commands
+```
 
 核心目标：
 

@@ -40,6 +40,7 @@ class RuntimeComputerUseSettings:
     enabled: bool
     backend: str
     allowed_apps: tuple[str, ...]
+    allow_coordinate_click: bool
     config_hash: str
 
 
@@ -79,6 +80,10 @@ def runtime_computer_use_settings_from_config(
         enabled=_bool_value(config, "computer_use.enabled"),
         backend=_str_value(config, "computer_use.backend"),
         allowed_apps=_str_tuple_value(config, "computer_use.allowed_apps"),
+        allow_coordinate_click=_bool_value(
+            config,
+            "computer_use.allow_coordinate_click",
+        ),
         config_hash=config.config_hash,
     )
 

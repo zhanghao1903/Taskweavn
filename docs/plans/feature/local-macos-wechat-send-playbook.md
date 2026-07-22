@@ -1,8 +1,12 @@
 # Local macOS WeChat Send Playbook
 
-> Status: Accepted local smoke playbook
+> Status: Deprecated historical playbook. The repo-local
+> `WeChatSendRuntimeHandler`, helper HTTP protocol, and manual smoke scripts
+> referenced below were retired by
+> [App-Control Tool Package Migration](app-control-tool-package-migration.zh-CN.md).
+> Use the package-backed `wechat_desktop` Agent tool path instead.
 >
-> Last Updated: 2026-06-22
+> Last Updated: 2026-06-27
 >
 > Related:
 > [Local macOS WeChat Send MVP](local-macos-wechat-send-mvp.md),
@@ -13,14 +17,24 @@
 
 ## 1. Scope
 
-This playbook runs the local macOS WeChat send MVP through Plato's local
-Execution Plane path:
+This historical playbook ran the local macOS WeChat send MVP through Plato's
+retired local Execution Plane path:
 
 ```text
-local sidecar -> Task API -> WeChatSendRuntimeHandler
+local sidecar -> Task API -> retired deterministic WeChat runtime
   -> macOS computer-use adapter -> WeChat Desktop adapter
   -> draft -> confirmation -> keyboard Return submit
   -> result/evidence -> same-key terminal replay
+```
+
+Current smoke execution uses
+[App-Control Tool Package Smoke Runbook](app-control-tool-package-smoke-runbook.zh-CN.md):
+
+```text
+manual_wechat_desktop_tool_smoke.py
+  -> wechat-desktop-tool
+  -> computer-use-macos direct/helper backend
+  -> draft/observe or explicitly authorized submit
 ```
 
 It is only for controlled local smoke testing. It is not a bulk messaging,
@@ -39,7 +53,33 @@ workflow.
 
 ## 3. Start The Sidecar
 
-Use a Python environment that can import the local `macos-computer-use` package:
+Preferred helper-backed path:
+
+```bash
+uv run taskweavn plato-sidecar \
+  --workspace ./plato-workspace \
+  --port 0 \
+  --computer-use-backend helper \
+  --computer-use-allowed-apps WeChat \
+  --computer-use-helper-manifest "$HOME/Library/Application Support/PlatoDev/computer-use-helper.json"
+```
+
+If the helper app should be launched by Plato, add the explicit opt-in helper
+path and auto-launch flag:
+
+```bash
+uv run taskweavn plato-sidecar \
+  --workspace ./plato-workspace \
+  --port 0 \
+  --computer-use-backend helper \
+  --computer-use-allowed-apps WeChat \
+  --computer-use-helper-manifest "$HOME/Library/Application Support/PlatoDev/computer-use-helper.json" \
+  --computer-use-helper-app-path "/Applications/Plato Computer Use Helper Dev.app" \
+  --computer-use-helper-auto-launch
+```
+
+Legacy direct macOS backend path remains useful for package-level diagnosis
+only. It does not validate the helper TCC identity:
 
 ```bash
 uv run taskweavn plato-sidecar \
@@ -53,24 +93,85 @@ Record the printed local base URL.
 
 ## 4. Preflight
 
-Run preflight before any real WeChat task:
+Run preflight before any real WeChat task.
+
+First validate the stable helper app directly. This does not require a running
+sidecar and does not publish a task:
+
+```bash
+uv run python scripts/manual_computer_use_helper_preflight.py \
+  --helper-manifest "$HOME/Library/Application Support/PlatoDev/computer-use-helper.json" \
+  --helper-app-path "$HOME/Applications/Plato Computer Use Helper Dev.app" \
+  --evidence-output /tmp/plato-helper-preflight-<run>.json
+```
+
+Required helper-only result before continuing:
+
+- `helperReady=true`
+- `packageReadinessStatus="ready"`
+- `accessibilityTrusted=true`
+- `runtimeIdentity.mode="helper_owned_executable"`
+- `permissionSubject.effectiveExecutable` points to the stable helper executable
+- `ready=true`
+
+After helper-only readiness is ready, run sidecar preflight. The script reads the
+running sidecar's `/api/v1/settings/readiness` response, so it validates the
+configured runtime path (`helper` or `macos`) instead of checking an unrelated
+local Python process. For the preferred helper-backed path, pass the helper
+manifest as well; this performs an explicit WeChat app/window readiness probe
+through the helper and may open or focus WeChat:
 
 ```bash
 uv run python scripts/manual_wechat_send_smoke.py \
   --base-url http://127.0.0.1:<sidecar-port> \
   --preflight-only \
+  --helper-manifest "$HOME/Library/Application Support/PlatoDev/computer-use-helper.json" \
   --evidence-output /tmp/plato-wechat-preflight-<run>.json
 ```
 
 Required result:
 
 - `sidecarOk=true`
+- `computerUseBackend="helper"` for the preferred helper-backed path
 - `computerUseStatus="ok"`
 - `packageReadinessStatus="ready"`
-- `accessibilityTrusted=true`
+- `helperStatus="ready"` for helper-backed path
+- `wechatAppSuccess=true` for helper-backed WeChat send smoke
+- `wechatAppPhase="window_readiness"` for helper-backed WeChat send smoke
 - `ready=true`
 
 If preflight is not ready, do not run a send smoke.
+
+If helper-only preflight reports `missing_accessibility`, open the relevant
+macOS permission panes through the preflight script, grant permissions to the
+stable helper app, restart the helper, and rerun helper-only preflight:
+
+```bash
+uv run python scripts/manual_computer_use_helper_preflight.py \
+  --helper-manifest "$HOME/Library/Application Support/PlatoDev/computer-use-helper.json" \
+  --helper-app-path "$HOME/Applications/Plato Computer Use Helper Dev.app" \
+  --open-permission-settings \
+  --evidence-output /tmp/plato-helper-preflight-permission-recovery-<run>.json
+```
+
+This command may open System Settings. It does not publish a task and does not
+send a WeChat message.
+
+After granting permissions, rerun helper-only preflight with an explicit helper
+restart. This sends `SIGTERM` only to the PID recorded in the helper manifest
+and only if the manifest bundle id matches the expected stable helper bundle id:
+
+```bash
+uv run python scripts/manual_computer_use_helper_preflight.py \
+  --helper-manifest "$HOME/Library/Application Support/PlatoDev/computer-use-helper.json" \
+  --helper-app-path "$HOME/Applications/Plato Computer Use Helper Dev.app" \
+  --restart-helper \
+  --helper-restart-wait-seconds 10 \
+  --evidence-output /tmp/plato-helper-preflight-restart-<run>.json
+```
+
+This command may restart the local helper process. It still does not publish a
+task and does not send a WeChat message.
 
 ## 5. Controlled Confirm/Send Once
 
@@ -107,7 +208,9 @@ The smoke is accepted only if all are true:
 
 ## 6. Validated Smoke Record
 
-Validated on 2026-06-22:
+### 6.1 Direct macOS Backend Confirm/Send
+
+Validated on 2026-06-22 with the legacy direct `macos` backend:
 
 - contact: `文件传输助手`
 - idempotency key:
@@ -117,6 +220,804 @@ Validated on 2026-06-22:
 - result: `wechat_send_result`
 - send boundary: `sent`
 - replay: same execution, same `done` terminal status
+
+### 6.2 Helper-Backed Preflight
+
+Validated on 2026-06-27 with `computer-use-backend=helper`:
+
+- helper manifest:
+  `/tmp/plato-computer-use-smoke/computer-use-helper.json`
+- helper readiness:
+  - `status=ready`
+  - `success=true`
+  - `accessibility_trusted=true`
+  - `helper.bundleId=com.taskweavn.plato.computer-use-helper.dev`
+- sidecar preflight evidence:
+  `/tmp/plato-computer-use-smoke/helper-preflight.json`
+- preflight result:
+  - `sidecarOk=true`
+  - `computerUseBackend=helper`
+  - `computerUseStatus=ok`
+  - `packageReadinessStatus=ready`
+  - `computerUseReady=true`
+  - `helperStatus=ready`
+  - `ready=true`
+
+This validates the Plato sidecar -> helper backend readiness path. It does not
+validate WeChat contact resolution, draft insertion, or send.
+
+Validated helper-only restart recovery on 2026-06-27:
+
+- command:
+  `scripts/manual_computer_use_helper_preflight.py --restart-helper --helper-restart-wait-seconds 10`
+- evidence:
+  `/tmp/plato-helper-preflight-restart-wait-20260627.json`
+- restart result:
+  - previous manifest PID was stale: `process_not_found`
+  - helper backend auto-launched the stable helper app
+  - manifest refreshed to PID `39083`
+  - `runtimeIdentity.mode=helper_owned_executable`
+- readiness result:
+  - `packageReadinessStatus=missing_accessibility`
+  - `accessibilityTrusted=false`
+  - `permissionSubject.effectiveExecutable` points to
+    `~/Applications/Plato Computer Use Helper Dev.app/Contents/MacOS/PlatoComputerUseHelper`
+  - `ready=false`
+- conclusion: restart / stale-manifest recovery is working. The remaining
+  blocker is macOS Accessibility / Automation authorization for
+  `~/Applications/Plato Computer Use Helper Dev.app`.
+
+Validated permission-subject evidence on 2026-06-27:
+
+- evidence:
+  `/tmp/plato-helper-preflight-permission-subject-v2-20260627.json`
+- `permissionSubject` now exposes:
+  - `helperAppPath`
+  - `manifestBundleId`
+  - `helperBundleId`
+  - `runtimeMode`
+  - `effectiveExecutable`
+  - `packageReadinessStatus`
+  - `recoveryActions`
+- result remains `missing_accessibility`; no task was published and no WeChat
+  message was sent.
+- Settings readiness also projects the same safe summary as
+  `computerUse.permissionSubject`, so UI diagnostics can point to the exact
+  macOS permission subject without exposing helper tokens.
+- Settings readiness and the `computer_use.not_ready` warning now also reuse
+  helper-provided `recoveryActions` as top-level recovery actions, so the UI can
+  present specific next steps such as opening the macOS Accessibility pane,
+  restarting the helper, and rerunning helper preflight.
+- `scripts/manual_wechat_send_smoke.py --preflight-only` preserves the same
+  field as `computerUsePermissionSubject` in its evidence output.
+
+Validated failure-kind projection on 2026-06-27:
+
+- evidence:
+  `/tmp/plato-helper-preflight-failure-kind-20260627.json`
+- result remains no-send and not ready:
+  - `ready=false`
+  - `packageReadinessStatus=missing_accessibility`
+  - `failureKind=missing_accessibility`
+  - `helperObservation.metadata.failure_kind=missing_accessibility`
+- interpretation: the remaining blocker is still macOS TCC permission for the
+  stable helper app, but preflight evidence now has a stable structured
+  failure kind for UI recovery, logs, and operator triage.
+
+Validated sidecar Settings readiness projection on 2026-06-27:
+
+- sidecar command used the helper-backed runtime with the stable helper app:
+  `computer-use-backend=helper`, `computer-use-helper-auto-launch`, and
+  `computer-use-helper-manifest=$HOME/Library/Application Support/PlatoDev/computer-use-helper.json`
+- evidence:
+  `/tmp/plato-sidecar-settings-readiness-helper-20260627.json`
+- response highlights:
+  - `computerUse.backend=helper`
+  - `computerUse.ready=false`
+  - `computerUse.status=missing_accessibility`
+  - `computerUse.failureKind=missing_accessibility`
+  - `computerUse.permissionSubject.helperAppPath=~/Applications/Plato Computer Use Helper Dev.app`
+  - `computerUse.recoveryActions` and `computer_use.not_ready.recoveryActions`
+    both contain helper-specific recovery actions
+- interpretation: Settings/UI can now tell the operator exactly which helper
+  app needs permission refresh and which recovery actions are available. The
+  remaining blocker is macOS TCC authorization, not sidecar readiness
+  projection.
+
+### 6.2.1 Helper-Backed WeChat App Readiness Preflight
+
+Added on 2026-06-27:
+
+- `scripts/manual_wechat_send_smoke.py --preflight-only --helper-manifest ...`
+  now also calls helper `POST /v1/apps/wechat/readiness`.
+- The app readiness probe validates that WeChat can be opened/focused and that
+  its main window is automation-ready before publishing a task.
+- If `wechatAppSuccess=false`, the smoke exits before task creation. This keeps
+  known app/window blockers out of the send pipeline.
+
+Validated negative preflight on 2026-06-27:
+
+- helper manifest:
+  `/tmp/plato-computer-use-smoke/computer-use-helper.json`
+- evidence:
+  `/tmp/plato-computer-use-smoke/helper-app-readiness-preflight-20260627.json`
+- sidecar/helper readiness:
+  - `computerUseBackend=helper`
+  - `computerUseStatus=ok`
+  - `packageReadinessStatus=ready`
+  - `computerUseReady=true`
+  - `helperStatus=ready`
+- WeChat app readiness:
+  - `wechatAppStatus=needs_user`
+  - `wechatAppSuccess=false`
+  - `wechatAppPhase=window_readiness`
+  - `wechatAppSummary=WeChat main window is unavailable; open the main WeChat window before sending.`
+- result: `ready=false`, and no task was published.
+
+Validated recovery-action preflight on 2026-06-27:
+
+- evidence:
+  `/tmp/plato-computer-use-smoke/helper-app-readiness-preflight-recovery-actions-20260627.json`
+- result:
+  - `wechatAppSuccess=false`
+  - `wechatAppPhase=window_readiness`
+  - `wechatAppSetupHint=Open the WeChat main window or chat list, make sure WeChat is logged in and unlocked, then rerun helper-backed preflight before publishing a task.`
+  - `wechatAppRecoveryActions=["open_wechat_main_window", "unlock_or_login_wechat", "rerun_readiness_check"]`
+- result: `ready=false`, and no task was published.
+
+Validated structured window-count preflight on 2026-06-27:
+
+- evidence:
+  `/tmp/plato-computer-use-smoke/helper-app-readiness-preflight-window-count-20260627.json`
+- result:
+  - `wechatAppSuccess=false`
+  - `wechatAppPhase=window_readiness`
+  - `wechatAppDiagnostics.process_exists=true`
+  - `wechatAppDiagnostics.window_count=0`
+- interpretation: WeChat is running, but it has no automatable main window.
+  Open the WeChat main window or chat list, then rerun helper-backed preflight
+  before publishing a task.
+
+Fresh helper/sidecar preflight repeated the same blocker on 2026-06-27:
+
+- evidence:
+  `/tmp/plato-computer-use-smoke/helper-app-readiness-preflight-current-20260627.json`
+- helper/sidecar state:
+  - `sidecarOk=true`
+  - `computerUseBackend=helper`
+  - `computerUseStatus=ok`
+  - `packageReadinessStatus=ready`
+  - `helperStatus=ready`
+- WeChat app readiness:
+  - `wechatAppSuccess=false`
+  - `wechatAppFailureKind=needs_user`
+  - `wechatAppPhase=window_readiness`
+  - `wechatAppDiagnostics.process_exists=true`
+  - `wechatAppDiagnostics.window_count=0`
+- interpretation: this is not a Plato helper capability failure. The helper is
+  ready, but WeChat has no automatable main window. Do not publish a WeChat send
+  task until the operator opens/unlocks the main WeChat window and preflight
+  returns `ready=true`.
+
+Structured stale-helper-manifest preflight on 2026-06-27:
+
+- evidence:
+  `/tmp/plato-computer-use-smoke/helper-app-readiness-preflight-manifest-structured-20260627.json`
+- result:
+  - `sidecarOk=true`
+  - `computerUseBackend=helper`
+  - `computerUseStatus=failed`
+  - `helperManifest.endpoint=http://127.0.0.1:57319`
+  - `helperManifest.bundleId=com.taskweavn.plato.computer-use-helper.dev`
+  - `helperManifest.pid=27864`
+  - `wechatAppSuccess=false`
+  - `wechatAppPhase=helper_app_readiness`
+  - `wechatAppFailureKind=helper_app_unavailable`
+  - `wechatAppSummary=Request failed for POST /v1/apps/wechat/readiness: <urlopen error [Errno 61] Connection refused>`
+- interpretation: the sidecar can run, but the helper manifest points to a
+  dead helper endpoint. No task should be published. Relaunch the helper or
+  regenerate the manifest, then rerun helper-backed preflight. If the sidecar is
+  started with both `--computer-use-helper-app-path` and
+  `--computer-use-helper-auto-launch`, the helper backend can now relaunch the
+  helper, refresh the stale manifest endpoint, rebuild the helper client, and
+  retry the current helper request once. The preflight evidence preserves safe
+  helper manifest identity while excluding `tokenRef` and token values.
+
+Validated helper auto-launch preflight on 2026-06-27:
+
+- generated dev helper app:
+  `/tmp/plato-computer-use-autolaunch-20260627/Plato Computer Use Helper Dev.app`
+- manifest:
+  `/tmp/plato-computer-use-autolaunch-20260627/computer-use-helper.json`
+- evidence:
+  `/tmp/plato-computer-use-autolaunch-20260627/preflight-autolaunch-20260627.json`
+- sidecar/helper state:
+  - `sidecarOk=true`
+  - `computerUseBackend=helper`
+  - `computerUseStatus=ok`
+  - `packageReadinessStatus=ready`
+  - `computerUseReady=true`
+  - `helperStatus=ready`
+  - `computerUseHelper.path=/private/tmp/plato-computer-use-autolaunch-20260627/Plato Computer Use Helper Dev.app`
+  - `helperManifest.endpoint=http://127.0.0.1:60557`
+  - `helperManifest.pid=66418`
+- runtime identity:
+  - `computerUseDiagnostics.diagnostics.checkedByProcessPath=/Users/zhanghao/.codex/worktrees/e05a/Taskweavn/.venv/bin/python`
+  - `computerUseDiagnostics.diagnostics.adapterProcessExecutable=/Users/zhanghao/.codex/worktrees/e05a/Taskweavn/.venv/bin/python`
+- WeChat app readiness:
+  - `wechatAppSuccess=false`
+  - `wechatAppPhase=window_readiness`
+  - `wechatAppSummary=WeChat main window readiness AppleScript failed.`
+  - `wechatAppDiagnostics.stderr=osascript timed out after 10.0s`
+- interpretation: helper auto-launch and manifest publication work in the dev
+  path. The remaining blocker is WeChat window readiness, not helper discovery.
+  The dev scaffold still delegates the actual macOS backend to the configured
+  Python runtime; release packaging must replace this with a helper-owned
+  packaged/embedded executable before treating Helper.app as the final TCC
+  permission subject.
+
+Validated stale-manifest refresh and classified window-timeout evidence on
+2026-06-27:
+
+- generated dev helper app:
+  `/tmp/plato-computer-use-backend-20260627/Plato Computer Use Helper Dev.app`
+- manifest:
+  `/tmp/plato-computer-use-backend-20260627/computer-use-helper.json`
+- evidence:
+  `/tmp/plato-computer-use-backend-20260627c/preflight-window-phase-diagnostics-20260627.json`
+- sidecar/helper state:
+  - `sidecarOk=true`
+  - `computerUseBackend=helper`
+  - `computerUseStatus=ok`
+  - `packageReadinessStatus=ready`
+  - `computerUseReady=true`
+  - `helperStatus=ready`
+  - `helperManifest.endpoint=http://127.0.0.1:63596`
+  - `helperManifest.pid=95020`
+- WeChat app readiness:
+  - `wechatAppSuccess=false`
+  - `wechatAppPhase=window_readiness`
+  - `wechatAppSummary=WeChat main window readiness AppleScript timed out.`
+  - `wechatAppFailureKind=applescript_timeout`
+  - `wechatAppDiagnostics.failure_kind=applescript_timeout`
+  - `wechatAppDiagnostics.script_phase=window_geometry`
+  - `wechatAppDiagnostics.returncode=124`
+  - `wechatAppDiagnostics.timeout_seconds=10.0`
+- interpretation: helper auto-launch now refreshes a stale manifest instead of
+  reconnecting to a dead endpoint. Process lookup succeeds and the remaining
+  blocker is the WeChat window geometry AX query timing out. No task should be
+  published until preflight reaches `wechatAppSuccess=true`.
+
+Validated observe fallback classification on 2026-06-27:
+
+- generated dev helper app:
+  `/tmp/plato-computer-use-backend-20260627e/Plato Computer Use Helper Dev.app`
+- manifest:
+  `/tmp/plato-computer-use-backend-20260627e/computer-use-helper.json`
+- evidence:
+  `/tmp/plato-computer-use-backend-20260627e/preflight-observe-fallback-20260627.json`
+- sidecar/helper state:
+  - `sidecarOk=true`
+  - `computerUseBackend=helper`
+  - `computerUseStatus=ok`
+  - `packageReadinessStatus=ready`
+  - `computerUseReady=true`
+  - `helperStatus=ready`
+  - `helperManifest.endpoint=http://127.0.0.1:65144`
+  - `helperManifest.pid=8611`
+- WeChat app readiness:
+  - `wechatAppSuccess=false`
+  - `wechatAppPhase=window_readiness`
+  - `wechatAppFailureKind=applescript_timeout`
+  - `wechatAppDiagnostics.script_phase=window_geometry`
+  - `wechatAppDiagnostics.fallback=observe`
+  - `wechatAppDiagnostics.fallback_status=failed`
+  - `wechatAppDiagnostics.fallback_summary=macOS computer-use operation failed: TimeoutExpired`
+- interpretation: generic helper `observe` fallback now runs after the
+  WeChat-specific window geometry probe times out, but it also times out inside
+  the helper context. This means helper discovery, manifest refresh, HTTP
+  transport, package readiness, and WeChat process lookup are not the current
+  blockers. The remaining blocker is helper-context System Events / Apple
+  Events / AX access for window observation. Treat `computerUseReady=true` as
+  package-level readiness only; do not publish a WeChat send task until
+  `wechatAppSuccess=true`.
+
+Validated helper System Events probe gating on 2026-06-27:
+
+- generated dev helper app:
+  `/tmp/plato-computer-use-backend-20260627f/Plato Computer Use Helper Dev.app`
+- manifest:
+  `/tmp/plato-computer-use-backend-20260627f/computer-use-helper.json`
+- evidence:
+  `/tmp/plato-computer-use-backend-20260627f/preflight-helper-system-events-probe-skip-app-20260627.json`
+- sidecar/helper state:
+  - `sidecarOk=true`
+  - `computerUseBackend=helper`
+  - `computerUseStatus=not_available`
+  - `packageReadinessStatus=automation_not_authorized`
+  - `computerUseReady=false`
+  - `helperStatus=automation_not_authorized`
+  - `failureKind=helper_system_events_probe_failed`
+  - `helperManifest.endpoint=http://127.0.0.1:49963`
+  - `helperManifest.pid=20262`
+- helper System Events probe:
+  - `computerUseDiagnostics.diagnostics.systemEventsProbe.operation=observe`
+  - `computerUseDiagnostics.diagnostics.systemEventsProbe.status=failed`
+  - `computerUseDiagnostics.diagnostics.systemEventsProbe.summary=macOS computer-use operation failed: TimeoutExpired`
+  - `setupHint=Grant or refresh macOS Accessibility and Automation permissions for Plato Computer Use Helper, restart the helper, then rerun helper-backed preflight before publishing a computer-use task.`
+- WeChat app readiness:
+  - `wechatAppStatus=skipped`
+  - `wechatAppPhase=helper_package_readiness`
+  - `wechatAppFailureKind=helper_system_events_probe_failed`
+- interpretation: helper readiness now performs a generic System Events /
+  Accessibility `observe` probe before app-specific WeChat readiness. When the
+  helper cannot observe the frontmost window, preflight fails at package/helper
+  readiness and skips the WeChat app-level probe. This prevents a misleading
+  `computerUseReady=true` state and gives Settings / conversation a direct
+  recovery hint before any task is published.
+
+Validated runtime identity hint on 2026-06-27:
+
+- generated dev helper app:
+  `/tmp/plato-computer-use-backend-20260627g/Plato Computer Use Helper Dev.app`
+- manifest:
+  `/tmp/plato-computer-use-backend-20260627g/computer-use-helper.json`
+- evidence:
+  `/tmp/plato-computer-use-backend-20260627g/preflight-runtime-identity-hint-20260627.json`
+- sidecar/helper state:
+  - `computerUseStatus=not_available`
+  - `packageReadinessStatus=automation_not_authorized`
+  - `helperStatus=automation_not_authorized`
+  - `failureKind=helper_system_events_probe_failed`
+- runtime identity:
+  - `computerUseDiagnostics.diagnostics.runtimeIdentity.mode=external_python_for_app`
+  - `computerUseDiagnostics.diagnostics.runtimeIdentity.effectiveExecutable=/Users/zhanghao/.codex/worktrees/e05a/Taskweavn/.venv/bin/python`
+  - `computerUseDiagnostics.diagnostics.runtimeIdentity.declaredHelperPath=/private/tmp/plato-computer-use-backend-20260627g/Plato Computer Use Helper Dev.app`
+- setup hint:
+  - `Development helper is currently running computer-use through an external Python runtime. Grant or refresh macOS Accessibility and Automation permissions for that Python runtime, or use a packaged helper-owned executable, then restart the helper and rerun helper-backed preflight before publishing a computer-use task.`
+- interpretation: the dev `.app` scaffold is useful for loopback transport,
+  manifest identity, and launcher testing, but it still delegates computer-use
+  execution to the configured Python runtime. In development, macOS may require
+  granting permissions to that Python runtime. Product/release acceptance still
+  requires a packaged helper-owned executable so the permission subject is the
+  helper app itself.
+- packaging seam: `taskweavn computer-use-helper-app` now supports
+  `--packaged-executable-path /path/to/PlatoComputerUseHelper`. That mode copies
+  the provided helper-owned executable into `.app/Contents/MacOS` and records
+  `launcherMode=packaged-executable` in `helper-launch.json`. The command does
+  not build, sign, or notarize that executable; it only packages an already-built
+  binary into the helper app scaffold.
+- executable contract: the copied binary should use
+  `taskweavn.server.computer_use_helper_app_entrypoint` or equivalent logic to
+  read `.app/Contents/Resources/helper-launch.json` and launch the helper API
+  with the same arguments as the dev wrapper. This keeps packaged helper smoke
+  comparable with dev wrapper smoke.
+- local build command:
+  `uv run taskweavn computer-use-helper-executable`
+  produces `dist/computer-use-helper/PlatoComputerUseHelper` when PyInstaller is
+  installed in the selected Python runtime. The default command collects both
+  `taskweavn` and `macos_computer_use`; omitting the external macOS package
+  produces a helper-owned executable that starts but reports
+  `ModuleNotFoundError: No module named 'macos_computer_use'` on readiness.
+- 2026-06-27 packaged executable smoke:
+  - command:
+    `uv run --group packaging taskweavn computer-use-helper-executable`
+  - packaged into a temp helper `.app` with
+    `--packaged-executable-path`;
+  - direct executable launch published manifest and token;
+  - authenticated `/v1/readiness` returned
+    `runtimeIdentity.mode=helper_owned_executable`;
+  - backend was `disabled`, so no macOS UI operation or WeChat send occurred.
+- 2026-06-27 macOS backend readiness-only smoke:
+  - packaged the same helper-owned executable with `computer-use-backend=macos`
+    and `computer-use-allowed-apps=WeChat,TextEdit`;
+  - direct executable launch published manifest and token;
+  - authenticated `/v1/readiness` returned `status=ready`, `success=true`,
+    and `runtimeIdentity.mode=helper_owned_executable`;
+  - evidence:
+    `/tmp/plato-helper-macos-readiness/macos-readiness-evidence.json`;
+  - no WeChat send occurred.
+- 2026-06-27 sidecar auto-launch readiness-only smoke:
+  - rebuilt packaged executable:
+    `/tmp/plato-helper-executable-smoke-macos-v2/dist/PlatoComputerUseHelper`;
+  - generated a temp helper `.app` with `computer-use-backend=macos` and
+    `computer-use-allowed-apps=WeChat,TextEdit`;
+  - sidecar started with `computer-use-backend=helper`,
+    `--computer-use-helper-app-path`, and `--computer-use-helper-auto-launch`;
+  - helper backend now waits up to 90 seconds for manifest publication because
+    local PyInstaller onefile LaunchServices cold start measured about 55
+    seconds;
+  - Settings readiness projected
+    `runtimeIdentity.mode=helper_owned_executable`, manifest publication, and
+    helper-specific `missing_accessibility` recovery copy;
+  - evidence:
+    `/tmp/plato-sidecar-helper-autolaunch-macos-v2/sidecar-helper-autolaunch-readiness-evidence.json`;
+  - no WeChat send occurred.
+- 2026-06-27 stable dev helper install/readiness smoke:
+  - installed/updated helper app at the stable TCC path:
+    `~/Applications/Plato Computer Use Helper Dev.app`;
+  - configured stable manifest/token paths under:
+    `~/Library/Application Support/PlatoDev/`;
+  - packaged helper executable copied from:
+    `/tmp/plato-helper-executable-smoke-macos-v2/dist/PlatoComputerUseHelper`;
+  - helper app launch config uses `computer-use-backend=macos` and
+    `computer-use-allowed-apps=WeChat,TextEdit`;
+  - helper-backed readiness evidence:
+    `/tmp/plato-stable-helper-autolaunch-readiness-evidence.json`;
+  - readiness reached helper-owned executable identity:
+    `runtimeIdentity.mode=helper_owned_executable`;
+  - readiness currently returns `missing_accessibility`, which means the next
+    manual step is to grant Accessibility/Automation to the stable helper app
+    path above, restart the helper, and rerun helper-backed preflight;
+  - no WeChat send occurred.
+- 2026-06-27 stable helper-only preflight script:
+  - added `scripts/manual_computer_use_helper_preflight.py`;
+  - command:
+    `uv run python scripts/manual_computer_use_helper_preflight.py --helper-manifest "$HOME/Library/Application Support/PlatoDev/computer-use-helper.json" --helper-app-path "$HOME/Applications/Plato Computer Use Helper Dev.app" --evidence-output /tmp/plato-helper-preflight-stable-20260627.json`;
+  - evidence:
+    `/tmp/plato-helper-preflight-stable-20260627.json`;
+  - result:
+    `helperReady=false`,
+    `packageReadinessStatus=missing_accessibility`,
+    `runtimeIdentity.mode=helper_owned_executable`;
+  - interpretation: the helper-only preflight entrypoint is working; the
+    remaining local blocker is macOS Accessibility/Automation permission for the
+    stable helper app, not helper packaging, manifest publication, or helper
+    identity;
+  - no WeChat app readiness was requested and no WeChat send occurred.
+
+### 6.3 Helper-Backed Contact Resolution Progress
+
+Attempted on 2026-06-27 with `response=reject` and no `--allow-send`:
+
+- session id: `37272159`
+- idempotency key:
+  `manual-wechat-helper-reject-20260627-failure-evidence-01`
+- execution id: `exec_b2caa66958ea5142be2e175d9327e1cd`
+- failure evidence:
+  `/tmp/plato-computer-use-smoke/helper-reject-nosend-failure.json`
+- terminal status: `failed` before confirmation
+- error code: `wechat_contact_needs_user`
+- error message:
+  `Target app is not frontmost: expected WeChat, got Codex.`
+
+No message was sent. The task did not reach the confirmation boundary.
+
+Mitigation added on 2026-06-27:
+
+- When generic `observe` fails because the target app is not frontmost, the
+  WeChat adapter now gives the bounded macOS WeChat search driver one recovery
+  attempt before reporting contact resolution as blocked.
+- The driver window readiness script now activates WeChat and performs one
+  bounded window-readiness retry before returning `needs_user`.
+- The driver also sends a bounded macOS `reopen` event before activation so a
+  running app has a chance to restore its main window.
+- The helper-backed WeChat runtime now calls the helper generic `open_app`
+  operation during `open_or_focus`, so task evidence records the real helper
+  open/focus result instead of a fixed delegated placeholder.
+
+Validated checks:
+
+- `uv run pytest tests/test_wechat_macos_driver.py tests/test_wechat_desktop_adapter.py tests/test_wechat_send_execution.py tests/test_wechat_send_runtime.py tests/test_manual_wechat_send_smoke_script.py`
+- helper-backed preflight evidence:
+  `/tmp/plato-computer-use-smoke/helper-preflight-after-real-open.json`
+
+Current helper-backed reject/no-send blocker after mitigation:
+
+- session id: `38ddf4e3`
+- idempotency key:
+  `manual-wechat-helper-reject-20260627-real-open-01`
+- execution id: `exec_ed27daff35ba5f829bc69c699f1837a9`
+- failure evidence:
+  `/tmp/plato-computer-use-smoke/helper-reject-nosend-real-open.json`
+- terminal status: `failed` before confirmation
+- open/focus evidence: `Opened app: WeChat`, status `ok`
+- error code: `wechat_contact_needs_user`
+- error message:
+  `WeChat main window is unavailable; open the main WeChat window before sending.`
+- diagnostics:
+  `System Events` could not get `window 1 of process "WeChat"`.
+
+No message was sent. The task did not reach the confirmation boundary. Before
+the next reject/no-send attempt, manually open the WeChat main window and ensure
+it has a visible chat/search window, then use a fresh idempotency key.
+
+### 6.4 Helper-Owned Executable TCC Refresh And Current-Chat Fast Path
+
+Validated on 2026-06-27 after refreshing macOS Accessibility permission for the
+stable helper app:
+
+- helper-only preflight evidence:
+  `/tmp/plato-helper-preflight-after-tcc-refresh.json`;
+- result:
+  `helperReady=true`,
+  `packageReadinessStatus=ready`,
+  `accessibilityTrusted=true`,
+  `helperStatus=ready`,
+  `runtimeIdentity.mode=helper_owned_executable`;
+- permission subject:
+  `~/Applications/Plato Computer Use Helper Dev.app`;
+- no WeChat send occurred.
+
+Follow-up helper-backed preflight:
+
+- evidence:
+  `/tmp/plato-wechat-preflight-after-helper-timeout-fix.json`;
+- result:
+  `computerUseBackend=helper`,
+  `computerUseStatus=ok`,
+  `packageReadinessStatus=ready`,
+  `helperStatus=ready`,
+  `wechatAppStatus=ready`,
+  `wechatAppSuccess=true`,
+  `wechatAppPhase=window_readiness`;
+- no WeChat send occurred.
+
+Reject/no-send smoke after the Plato-side helper HTTP timeout fix:
+
+- session id: `dc9d3cad`;
+- idempotency key:
+  `reject-smoke-20260627-helper-timeout-fixed-01`;
+- evidence:
+  `/tmp/plato-wechat-reject-smoke-after-helper-timeout-fix.json`;
+- result:
+  the request no longer failed at the old 10 second helper HTTP timeout;
+- remaining failure:
+  `wechat_contact_needs_user`, contact resolution summary
+  `search focus not verified`;
+- diagnostics:
+  WeChat was already focused on the target chat input:
+  `AXTextArea 文件传输助手 文本输入区`;
+- interpretation:
+  the deterministic resolver needed a bounded fast path for "target chat is
+  already selected" before forcing the search-box workflow.
+
+Mitigation added on 2026-06-27:
+
+- Plato-side helper HTTP client now uses
+  `PLATO_COMPUTER_USE_HELPER_APP_OPERATION_TIMEOUT_SECONDS` for app-specific
+  helper APIs. WeChat draft/send defaults to 90 seconds; readiness and generic
+  single-operation calls keep the shorter helper timeout.
+- The macOS WeChat resolver now accepts the already-selected target chat input
+  before entering the search flow.
+- Focused tests pass, including helper timeout selection and current-chat
+  resolution.
+
+Packaging verification without overwriting the stable TCC path:
+
+- built current-source helper executable:
+  `/tmp/plato-helper-current-source-20260627/dist/PlatoComputerUseHelper`;
+- built temporary packaged helper app:
+  `/tmp/plato-helper-current-source-20260627/Plato Computer Use Helper Dev.app`;
+- static verification:
+  bundle id `com.taskweavn.plato.computer-use-helper.dev`, Mach-O arm64,
+  ad-hoc signed, `launcherMode=packaged-executable`,
+  `computerUseBackend=macos`, `computerUseAllowedApps=["WeChat"]`.
+
+Live validation gap:
+
+- the installed stable helper app at
+  `~/Applications/Plato Computer Use Helper Dev.app` was not overwritten during
+  this pass;
+- therefore the current-chat resolver fast path is implemented and packaged in
+  the temporary app, but not yet live-verified through the stable authorized
+  helper app;
+- before the next live reject/no-send attempt, rebuild/install the stable helper
+  app from the current source, refresh Accessibility if macOS invalidates the
+  ad-hoc identity, then rerun helper-only preflight, helper-backed WeChat
+  preflight, and reject/no-send with a fresh idempotency key.
+
+### 6.5 Stable Helper Rebuild With Bundled macOS Package
+
+Validated on 2026-06-27 while installing the current-source helper to the stable
+TCC path:
+
+- initial stable helper CDHash:
+  `14d22497420899b8968d01eeedb571a6cb21686c`;
+- current-source temporary helper CDHash:
+  `6db2e2290cb2d23e4b53ff43776292757d82bdde`;
+- interpretation:
+  the installed stable helper was stale and did not include the latest
+  current-chat resolver fast path.
+
+First stable reinstall attempt exposed a packaging gap:
+
+- evidence:
+  `/tmp/plato-helper-preflight-after-stable-reinstall.json`;
+- result:
+  `helperStatus=not_available`;
+- error:
+  `ModuleNotFoundError: No module named 'macos_computer_use'`;
+- root cause:
+  helper executable was built with only `--collect-submodules taskweavn`.
+
+Mitigation added:
+
+- `ComputerUseHelperExecutableBuildConfig.collect_submodules` now defaults to
+  `("taskweavn", "macos_computer_use")`;
+- CLI `taskweavn computer-use-helper-executable` now defaults to
+  `--collect-submodules taskweavn --collect-submodules macos_computer_use`;
+- focused tests cover the default PyInstaller command.
+
+Second stable reinstall used the corrected default build:
+
+```bash
+uv run taskweavn computer-use-helper-executable \
+  --output-dir /tmp/plato-helper-current-source-20260627b/dist \
+  --build-dir /tmp/plato-helper-current-source-20260627b/build \
+  --spec-dir /tmp/plato-helper-current-source-20260627b/spec
+
+uv run taskweavn computer-use-helper-app \
+  --app-path "$HOME/Applications/Plato Computer Use Helper Dev.app" \
+  --packaged-executable-path /tmp/plato-helper-current-source-20260627b/dist/PlatoComputerUseHelper \
+  --manifest-path "$HOME/Library/Application Support/PlatoDev/computer-use-helper.json" \
+  --token-path "$HOME/Library/Application Support/PlatoDev/computer-use-helper.token" \
+  --computer-use-backend macos \
+  --computer-use-allowed-apps WeChat
+```
+
+Post-reinstall helper-only preflight:
+
+- evidence:
+  `/tmp/plato-helper-preflight-after-bundled-macos-package.json`;
+- result:
+  `helperStatus=missing_accessibility`,
+  `packageReadinessStatus=missing_accessibility`,
+  `accessibilityTrusted=false`,
+  `runtimeIdentity.mode=helper_owned_executable`;
+- package import now succeeds:
+  `packageClientClass=macos_computer_use.client.MacOSComputerUseClient`;
+- current blocker:
+  macOS invalidated Accessibility trust after replacing the ad-hoc signed helper
+  executable. Toggle/refresh Accessibility for
+  `~/Applications/Plato Computer Use Helper Dev.app`, restart helper, then rerun
+  helper-only preflight before any helper-backed WeChat preflight.
+
+Repeated helper-only preflight after resume:
+
+- evidence:
+  `/tmp/plato-helper-preflight-after-tcc-resume.json`;
+- repeated evidence:
+  `/tmp/plato-helper-preflight-after-tcc-resume-2.json`;
+- result remains:
+  `helperStatus=missing_accessibility`,
+  `packageReadinessStatus=missing_accessibility`,
+  `accessibilityTrusted=false`;
+- positive evidence:
+  `runtimeIdentity.mode=helper_owned_executable`,
+  `packageClientClass=macos_computer_use.client.MacOSComputerUseClient`,
+  helper signature `status=ok`;
+- interpretation:
+  the current blocker is only the macOS TCC Accessibility grant for the replaced
+  helper executable. Do not proceed to helper-backed WeChat preflight or
+  reject/no-send until this preflight reports `helperReady=true`.
+
+Follow-up after TCC refresh and helper-backed reject/no-send attempt:
+
+- helper-only evidence after refresh:
+  `/tmp/plato-helper-preflight-after-tcc-resume-3.json`;
+- result:
+  `helperReady=true`,
+  `packageReadinessStatus=ready`,
+  `accessibilityTrusted=true`,
+  `runtimeIdentity.mode=helper_owned_executable`;
+- helper-backed WeChat preflight evidence:
+  `/tmp/plato-wechat-preflight-after-tcc-resume-3.json`;
+- result:
+  `computerUseBackend=helper`,
+  `computerUseStatus=ok`,
+  `wechatAppStatus=ready`,
+  `wechatAppSuccess=true`,
+  `wechatAppPhase=window_readiness`;
+- reject/no-send evidence:
+  `/tmp/plato-wechat-reject-smoke-after-tcc-resume-3.json`;
+- execution id:
+  `exec_065e8768a3185ece92b09308b5dd6953`;
+- result:
+  failed before confirmation with `wechat_contact_needs_user`;
+- contact-resolution evidence:
+  `summary=search focus not verified`,
+  `focus=AXTextArea 文件传输助手 文本输入区`;
+- interpretation:
+  WeChat was already focused on the requested target chat input, but the
+  current-chat fast path did not resolve because its AppleScript timeout was
+  capped at 3 seconds. Direct diagnostics showed the same script resolved at 12
+  seconds.
+
+Mitigation added:
+
+- current-chat fast path timeout increased to a bounded 12 seconds;
+- current-chat AppleScript failure/timeout diagnostics are merged into later
+  contact-resolution failures so future evidence can distinguish "fast path
+  timed out" from "search focus failed".
+
+Post-mitigation helper reinstall:
+
+- rebuilt helper executable:
+  `/tmp/plato-helper-current-source-20260627c/dist/PlatoComputerUseHelper`;
+- reinstalled stable helper app:
+  `~/Applications/Plato Computer Use Helper Dev.app`;
+- helper-only evidence:
+  `/tmp/plato-helper-preflight-after-current-chat-timeout-fix.json`;
+- result:
+  `helperStatus=missing_accessibility`,
+  `packageReadinessStatus=missing_accessibility`,
+  `accessibilityTrusted=false`;
+- interpretation:
+  macOS invalidated Accessibility trust again after the ad-hoc signed helper
+  executable changed. Refresh TCC for the stable helper app, then rerun
+  helper-only preflight before helper-backed WeChat preflight.
+
+Post-TCC-refresh validation after current-chat timeout fix:
+
+- helper-only evidence:
+  `/tmp/plato-helper-preflight-after-current-chat-timeout-fix-resume.json`;
+- result:
+  `helperReady=true`,
+  `packageReadinessStatus=ready`,
+  `accessibilityTrusted=true`,
+  `runtimeIdentity.mode=helper_owned_executable`;
+- helper-backed WeChat preflight evidence:
+  `/tmp/plato-wechat-preflight-after-current-chat-timeout-fix.json`;
+- result:
+  `computerUseBackend=helper`,
+  `helperStatus=ready`,
+  `wechatAppStatus=ready`,
+  `wechatAppPhase=window_readiness`;
+- reject/no-send evidence:
+  `/tmp/plato-wechat-reject-smoke-after-current-chat-timeout-fix.json`;
+- execution id:
+  `exec_9cff6365d18159f5af9d639dac07cdcb`;
+- result:
+  `finalStatus=failed`,
+  `errorCode=wechat_send_rejected`,
+  `terminalReplayStatus=failed`,
+  `terminalReplaySameExecution=true`;
+- contact-resolution evidence:
+  `summary=WeChat contact resolved: 文件传输助手.`,
+  `observationRef=wechat-current-chat-focus`,
+  `focus=AXTextArea 文件传输助手 文本输入区`;
+- draft/confirmation evidence:
+  `summary=WeChat message was drafted without sending.`,
+  `confirmationId=ac83899225474aacae74a4ccb0d50f4a`;
+- send-boundary evidence:
+  `sendBoundaryStatus=not_sent`;
+- interpretation:
+  the helper-backed current-chat path is now validated through the confirmation
+  gate. No message was sent because the smoke intentionally rejected the
+  confirmation and did not use `--allow-send`.
+
+Controlled confirm/send-once validation:
+
+- preflight evidence:
+  `/tmp/plato-wechat-preflight-before-confirm-send-20260627.json`;
+- session id:
+  `c68b344f`;
+- idempotency key:
+  `confirm-send-20260627-current-chat-timeout-fixed-c68b344f-01`;
+- confirm/send evidence:
+  `/tmp/plato-wechat-confirm-smoke-after-current-chat-timeout-fix-20260627.json`;
+- execution id:
+  `exec_574f99f681895441b68b6aa40476f411`;
+- confirmation id:
+  `2d83d1b8008645328e361c51d4a36518`;
+- result:
+  `finalStatus=done`,
+  `resultKind=wechat_send_result`,
+  `terminalReplayStatus=done`,
+  `terminalReplaySameExecution=true`;
+- send evidence:
+  `sendBoundaryStatus=sent`,
+  `send_method=keyboard_return`,
+  `send_attempted=true`,
+  `confirmed_by_user=true`;
+- result summary:
+  `WeChat message sent after confirmation to 文件传输助手.`;
+- note:
+  contact-resolution diagnostics recorded the previously focused chat input
+  contents before the draft phase. The later draft/send evidence references the
+  current message hash and confirms the submitted message was the current
+  confirm-send smoke text.
 
 ## 7. Implementation Invariants
 
@@ -133,6 +1034,10 @@ Validated on 2026-06-22:
 | Failure | Meaning | Rule |
 |---|---|---|
 | preflight not ready | Runtime or permissions unavailable. | Fix setup before any task. |
+| helper reports missing package modules | Helper executable was built without the required package-backed app-control dependencies. | Rebuild the helper with the package suite dependencies available: `app-control-protocol`, `computer-use-macos`, and `wechat-desktop-tool`. |
+| helper preflight ready but WeChat not frontmost | Helper/TCC path is ready, but generic observe lost the focus race. | The adapter falls back to the bounded WeChat driver. If it still fails, inspect contact-resolution evidence. |
+| WeChat process has no window 1 | WeChat is running, but no automatable main window is visible. | Manually open the WeChat main window/chat list and rerun reject/no-send with a fresh key. |
+| Stable helper app is stale | Source code changed after the app was installed, so live helper behavior does not include the latest driver fixes. | Rebuild/install the stable helper app, refresh Accessibility if required, then rerun helper-only and helper-backed preflight before another task. |
 | contact resolution failed | Controlled contact was not selected. | Open WeChat main window and rerun reject/no-send first. |
 | draft failed | Input was not safely written. | Do not confirm; inspect evidence. |
 | `wechat_send_unknown` | Send boundary may have side effects. | No automatic retry; manual review only. |

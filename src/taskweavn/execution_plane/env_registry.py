@@ -8,6 +8,8 @@ from typing import Protocol, runtime_checkable
 
 from taskweavn.execution_plane.models import CapabilityPolicy, ExecutionEnv, utcnow
 
+LOCAL_MACOS_APP_CONTROL_ENV_ID = "local_macos_app_control"
+
 
 @runtime_checkable
 class ExecutionEnvRegistry(Protocol):
@@ -67,4 +69,19 @@ def default_local_execution_env(
         capabilities=capabilities,
         tool_pool=tool_pool,
         runtime_version="local",
+    )
+
+
+def local_macos_app_control_execution_env(
+    *,
+    capabilities: tuple[str, ...],
+    tool_pool: tuple[str, ...],
+) -> ExecutionEnv:
+    return ExecutionEnv(
+        env_id=LOCAL_MACOS_APP_CONTROL_ENV_ID,
+        display_name="Local macOS App Control",
+        status="online",
+        capabilities=capabilities,
+        tool_pool=tool_pool,
+        runtime_version="local-macos-app-control",
     )

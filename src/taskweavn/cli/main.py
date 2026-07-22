@@ -170,7 +170,7 @@ def plato_sidecar(
             envvar="PLATO_COMPUTER_USE_BACKEND",
             help=(
                 "Optional computer-use backend for execution tools. "
-                "Valid values: disabled, macos."
+                "Valid values: disabled, helper, macos."
             ),
         ),
     ] = "disabled",
@@ -185,6 +185,14 @@ def plato_sidecar(
             ),
         ),
     ] = None,
+    computer_use_helper_manifest: Annotated[
+        Path | None,
+        typer.Option(
+            "--computer-use-helper-manifest",
+            envvar="PLATO_COMPUTER_USE_HELPER_MANIFEST",
+            help="Path to the helper endpoint manifest for helper backend.",
+        ),
+    ] = None,
 ) -> None:
     """Start the local Plato Main Page backend sidecar."""
 
@@ -192,6 +200,7 @@ def plato_sidecar(
     computer_use_runtime = _build_cli_computer_use_runtime(
         backend_name=computer_use_backend,
         allowed_apps=computer_use_allowed_apps,
+        helper_manifest_path=computer_use_helper_manifest,
     )
     dependencies = (
         MainPageSidecarDependencies(
@@ -200,11 +209,13 @@ def plato_sidecar(
                 global_settings_root=global_settings_root,
             ),
             computer_use_backend=computer_use_runtime.backend,
+            app_control_config=computer_use_runtime.app_control_config,
         )
         if model is None
         else MainPageSidecarDependencies(
             llm=LLMClient(model=model),
             computer_use_backend=computer_use_runtime.backend,
+            app_control_config=computer_use_runtime.app_control_config,
         )
     )
     sidecar = build_main_page_sidecar_app(
@@ -357,7 +368,7 @@ def plato_dev(
             envvar="PLATO_COMPUTER_USE_BACKEND",
             help=(
                 "Optional computer-use backend for execution tools. "
-                "Valid values: disabled, macos."
+                "Valid values: disabled, helper, macos."
             ),
         ),
     ] = "disabled",
@@ -370,6 +381,14 @@ def plato_dev(
                 "Comma-separated macOS app allowlist for computer-use, "
                 "for example: WeChat,TextEdit."
             ),
+        ),
+    ] = None,
+    computer_use_helper_manifest: Annotated[
+        Path | None,
+        typer.Option(
+            "--computer-use-helper-manifest",
+            envvar="PLATO_COMPUTER_USE_HELPER_MANIFEST",
+            help="Path to the helper endpoint manifest for helper backend.",
         ),
     ] = None,
 ) -> None:
@@ -390,6 +409,7 @@ def plato_dev(
     computer_use_runtime = _build_cli_computer_use_runtime(
         backend_name=computer_use_backend,
         allowed_apps=computer_use_allowed_apps,
+        helper_manifest_path=computer_use_helper_manifest,
     )
     sidecar = build_main_page_sidecar_app(
         MainPageSidecarConfig(
@@ -404,6 +424,7 @@ def plato_dev(
         MainPageSidecarDependencies(
             llm=llm,
             computer_use_backend=computer_use_runtime.backend,
+            app_control_config=computer_use_runtime.app_control_config,
         ),
     )
     frontend_process: subprocess.Popen[str] | None = None
@@ -930,17 +951,51 @@ def _build_cli_computer_use_runtime(
     *,
     backend_name: str,
     allowed_apps: str | None,
+    helper_manifest_path: Path | None = None,
 ) -> ComputerUseRuntimeSelection:
     try:
         return build_computer_use_runtime(
             backend_name=backend_name,
             allowed_apps=allowed_apps,
+            helper_manifest_path=(
+                None
+                if helper_manifest_path is None
+                else str(helper_manifest_path.expanduser())
+            ),
+            helper_startup_failure=_computer_use_helper_startup_failure_from_env(),
         )
     except ValueError as exc:
         raise typer.BadParameter(
             str(exc),
             param_hint="--computer-use-backend",
         ) from exc
+
+
+def _parse_computer_use_allowed_apps(value: str | None) -> tuple[str, ...]:
+    return _parse_comma_separated(value)
+
+
+def _computer_use_helper_startup_failure_from_env() -> dict[str, str] | None:
+    raw = os.environ.get("PLATO_COMPUTER_USE_HELPER_STARTUP_FAILURE")
+    if not raw:
+        return None
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError:
+        return {"failureKind": "helper_start_failed", "message": raw}
+    if not isinstance(payload, dict):
+        return {"failureKind": "helper_start_failed", "message": raw}
+    return {
+        str(key): str(value)
+        for key, value in payload.items()
+        if isinstance(key, str) and isinstance(value, str)
+    }
+
+
+def _parse_comma_separated(value: str | None) -> tuple[str, ...]:
+    if value is None:
+        return ()
+    return tuple(part.strip() for part in value.split(",") if part.strip())
 
 
 def _plato_frontend_env(*, base_url: str) -> dict[str, str]:

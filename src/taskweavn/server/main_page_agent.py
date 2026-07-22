@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import os
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from taskweavn.context import (
@@ -31,6 +31,11 @@ from taskweavn.core import (
     SqliteEventStream,
     WorkspaceLayout,
 )
+from taskweavn.integrations.wechat_tool.send_boundary import (
+    SqliteSendBoundaryStore,
+    managed_send_boundary_key,
+)
+from taskweavn.integrations.wechat_tool.skill import wechat_use_skill_descriptor
 from taskweavn.interaction import AskStore, MessageBus
 from taskweavn.runtime import LocalRuntime
 from taskweavn.server.main_page_audit_events import (
@@ -42,6 +47,11 @@ from taskweavn.server.settings_config import (
     effective_web_search_settings,
 )
 from taskweavn.server.ui_events import UiEventStore
+from taskweavn.skills import (
+    InMemorySkillActivationStore,
+    SkillContextSource,
+    SkillRegistry,
+)
 from taskweavn.task import (
     AgentLoopResidentDefaultAgent,
     TaskBus,
@@ -63,6 +73,8 @@ from taskweavn.tools import (
     Tool,
     WebFetchTool,
     WebSearchTool,
+    WeChatDesktopTool,
+    WeChatDesktopToolConfig,
     Workspace,
     WriteFileTool,
 )
@@ -91,10 +103,16 @@ def build_agent_loop_resident_default_agent(
     web_fetch_provider: WebFetchProvider | None = None,
     enable_computer_use_tool: bool = False,
     computer_use_backend: ComputerUseBackend | None = None,
+    wechat_desktop_tool_config: WeChatDesktopToolConfig | None = None,
     contract_guidance_store: GuidanceFactStore | None = None,
 ) -> AgentLoopResidentDefaultAgent:
     """Build the resident Default Agent used by the fixed-route sidecar bridge."""
 
+    execution_skill_registry = (
+        SkillRegistry.from_descriptors((wechat_use_skill_descriptor(),))
+        if enable_computer_use_tool
+        else None
+    )
     context_builder_factory: Callable[[TaskDomain], _SessionContextBuilder] | None = None
     if task_bus is not None:
 
@@ -109,6 +127,7 @@ def build_agent_loop_resident_default_agent(
                 settings_store=settings_store,
                 settings_env=settings_env,
                 contract_guidance_store=contract_guidance_store,
+                skill_registry=execution_skill_registry,
             )
 
         context_builder_factory = build_context_builder
@@ -133,6 +152,7 @@ def build_agent_loop_resident_default_agent(
             web_fetch_provider=web_fetch_provider,
             enable_computer_use_tool=enable_computer_use_tool,
             computer_use_backend=computer_use_backend,
+            wechat_desktop_tool_config=wechat_desktop_tool_config,
         ),
         context_builder_factory=context_builder_factory,
         result_summary_store=result_summary_store,
@@ -152,6 +172,10 @@ class _SessionContextBuilder:
     settings_store: FileSettingsConfigStore | None = None
     settings_env: Mapping[str, str] | None = None
     contract_guidance_store: GuidanceFactStore | None = None
+    skill_registry: SkillRegistry | None = None
+    skill_activation_store: InMemorySkillActivationStore = field(
+        default_factory=InMemorySkillActivationStore
+    )
 
     def build(self, request: ContextBuildRequest) -> ContextBuildResult:
         self.layout.bootstrap_session(self.session_id)
@@ -208,6 +232,14 @@ class _SessionContextBuilder:
                     ),
                 ),
                 guidance_source=guidance_source,
+                skill_source=(
+                    None
+                    if self.skill_registry is None
+                    else SkillContextSource(
+                        self.skill_registry,
+                        self.skill_activation_store,
+                    )
+                ),
                 store=context_store,
             )
             return manager.build(request)
@@ -233,6 +265,7 @@ class _SessionAgentLoopRunner:
     web_fetch_provider: WebFetchProvider | None = None
     enable_computer_use_tool: bool = False
     computer_use_backend: ComputerUseBackend | None = None
+    wechat_desktop_tool_config: WeChatDesktopToolConfig | None = None
 
     def run(self, task: str, *, task_id: str | None = None) -> LoopResult:
         from taskweavn.core.loop import AgentLoop
@@ -282,6 +315,20 @@ class _SessionAgentLoopRunner:
             tools.append(web_fetch_tool)
         if self.enable_computer_use_tool:
             tools.append(ComputerUseTool(self.computer_use_backend))
+            tools.append(
+                WeChatDesktopTool(
+                    config=self.wechat_desktop_tool_config,
+                    send_boundary_store=SqliteSendBoundaryStore(
+                        self.layout.session_tool_effects_db(self.session_id)
+                    ),
+                    send_boundary_scope=self.session_id,
+                    send_boundary_key=(
+                        None
+                        if task_id is None
+                        else managed_send_boundary_key(self.session_id, task_id)
+                    ),
+                )
+            )
         if self.ask_store is not None and self.task_bus is not None and task_id is not None:
             tools.append(
                 AskUserTool(
@@ -519,6 +566,8 @@ def _execution_guidance(
             "Do not send external messages, click irreversible controls, or expose "
             "private screen contents unless task policy and user confirmation allow it.",
             "Prefer observe/wait before mutation-like computer_use operations.",
+            "For WeChat Desktop tasks, follow the activated package skill and use "
+            "only the semantic wechat_desktop tool.",
         )
     return ExecutionGuidance(project_rules=rules)
 
@@ -546,7 +595,7 @@ def _allowed_tools(
     if include_web_fetch:
         tools = (*tools, "web_fetch")
     if include_computer_use:
-        tools = (*tools, "computer_use")
+        tools = (*tools, "computer_use", "wechat_desktop")
     if include_ask_user:
         tools = (*tools, "ask_user")
     if include_request_confirmation:

@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 
+import type { RuntimeInputPendingClarification } from "../../shared/api/types";
 import type {
   MainPageController,
   UseMainPageControllerOptions,
@@ -44,6 +45,13 @@ export function useMainPageController({
   initialTaskNodeId = null,
 }: UseMainPageControllerOptions): MainPageController {
   const [stateId, setStateId] = useState(initialStateId);
+  const [
+    pendingRuntimeClarification,
+    setPendingRuntimeClarification,
+  ] = useState<RuntimeInputPendingClarification | null>(null);
+  const clearPendingRuntimeClarification = useCallback(() => {
+    setPendingRuntimeClarification(null);
+  }, []);
   const { clearUiNotice, setUiNotice, uiNotice } = useMainPageUiNoticeState();
   const {
     authoringAskError,
@@ -148,6 +156,7 @@ export function useMainPageController({
     refetchSnapshot,
     acceptRuntimeInputSubmit,
     failRuntimeInputSubmit,
+    pendingRuntimeClarification,
     reconcileRuntimeInputSubmit,
     rejectRuntimeInputSubmit,
     setActiveRuntimeInputMode,
@@ -157,6 +166,7 @@ export function useMainPageController({
     setExecutionAskCommandError,
     setInputCommandError,
     setInputDraft: changeInputDraft,
+    setPendingRuntimeClarification,
     setRuntimeActivityItems,
     setSelectedTaskNodeId,
     setSelectionTarget,
@@ -181,6 +191,7 @@ export function useMainPageController({
   } = sessionLifecycle;
   const commandActions = useMainPageCommandActions({
     clearEventError,
+    clearPendingRuntimeClarification,
     commandMutations,
     inputDraft,
     resetCommandErrorState,
@@ -202,6 +213,7 @@ export function useMainPageController({
   useMainPageSnapshotEffects({
     activeWorkspaceId,
     clearEventError,
+    clearPendingRuntimeClarification,
     hydrateRuntimeInputSnapshot,
     initialTaskNodeIdRef,
     resetCommandErrorState,

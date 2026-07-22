@@ -56,6 +56,11 @@ from taskweavn.tools.web_search import (
     WebSearchObservation,
     WebSearchTool,
 )
+from taskweavn.tools.wechat_desktop import (
+    WeChatDesktopTool,
+    WeChatDesktopToolClientProtocol,
+    WeChatDesktopToolConfig,
+)
 from taskweavn.tools.workspace import (
     PathOutsideWorkspaceError,
     PathProtectedWorkspaceError,
@@ -101,6 +106,9 @@ __all__ = [
     "WebFetchAction",
     "WebFetchObservation",
     "WebFetchTool",
+    "WeChatDesktopTool",
+    "WeChatDesktopToolClientProtocol",
+    "WeChatDesktopToolConfig",
     "WebSearchAction",
     "WebSearchObservation",
     "WebSearchTool",

@@ -6,6 +6,8 @@ import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 
+import { installIdempotentShutdownSignalHandlers } from "../electron/gracefulShutdown.mjs";
+
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const frontendRoot = path.resolve(scriptDir, "..");
 const repoRoot = path.resolve(frontendRoot, "..");
@@ -19,13 +21,12 @@ const options = parseArgs(process.argv.slice(2));
 let viteChild = null;
 let electronChild = null;
 
-for (const signal of ["SIGINT", "SIGTERM"]) {
-  process.once(signal, () => {
+installIdempotentShutdownSignalHandlers({
+  onShutdown() {
     stopChild(electronChild);
     stopChild(viteChild);
-    process.kill(process.pid, signal);
-  });
-}
+  },
+});
 
 try {
   if (!existsSync(electronBin)) {
@@ -51,6 +52,9 @@ function parseArgs(args) {
   let rendererPort = null;
   let sidecarTimeoutMs = null;
   let workspace = path.join(repoRoot, "plato-workspace");
+  let computerUseBackend = null;
+  let computerUseAllowedApps = null;
+  let computerUseHelperAppPath = null;
 
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
@@ -89,6 +93,33 @@ function parseArgs(args) {
       index += 1;
       continue;
     }
+    if (arg === "--computer-use-backend") {
+      const value = args[index + 1];
+      if (!value) {
+        throw new Error("--computer-use-backend requires a backend name");
+      }
+      computerUseBackend = value;
+      index += 1;
+      continue;
+    }
+    if (arg === "--computer-use-allowed-apps") {
+      const value = args[index + 1];
+      if (!value) {
+        throw new Error("--computer-use-allowed-apps requires a comma-separated value");
+      }
+      computerUseAllowedApps = value;
+      index += 1;
+      continue;
+    }
+    if (arg === "--computer-use-helper-app-path") {
+      const value = args[index + 1];
+      if (!value) {
+        throw new Error("--computer-use-helper-app-path requires a path");
+      }
+      computerUseHelperAppPath = path.resolve(value);
+      index += 1;
+      continue;
+    }
     throw new Error(`unknown option for electron:dev: ${arg}`);
   }
 
@@ -98,12 +129,24 @@ function parseArgs(args) {
   if (sidecarTimeoutMs !== null && !Number.isInteger(sidecarTimeoutMs)) {
     throw new Error("--sidecar-timeout-ms must be an integer");
   }
+  if (
+    computerUseBackend !== null &&
+    !["disabled", "helper"].includes(computerUseBackend.trim().toLowerCase())
+  ) {
+    throw new Error("--computer-use-backend must be disabled or helper");
+  }
+  if (computerUseBackend !== null) {
+    computerUseBackend = computerUseBackend.trim().toLowerCase();
+  }
 
   return {
     openDevtools,
     rendererPort,
     sidecarTimeoutMs,
     workspace,
+    computerUseBackend,
+    computerUseAllowedApps,
+    computerUseHelperAppPath,
   };
 }
 
@@ -120,6 +163,11 @@ Options:
   --renderer-port <number>    Vite dev-server port. Defaults to a free port.
   --sidecar-timeout-ms <n>    Sidecar health timeout. Defaults to 20000.
   --open-devtools             Open detached Electron devtools.
+  --computer-use-backend <n>  Optional product backend: disabled or helper.
+  --computer-use-allowed-apps <csv>
+                              Comma-separated app allowlist, e.g. WeChat,TextEdit.
+  --computer-use-helper-app-path <path>
+                              Override the stable Dev Helper app path.
   --help                      Show this help.`);
 }
 
@@ -158,9 +206,23 @@ function startElectron(rendererUrl) {
   if (options.sidecarTimeoutMs !== null) {
     env.PLATO_ELECTRON_SIDECAR_TIMEOUT_MS = String(options.sidecarTimeoutMs);
   }
+  if (options.computerUseBackend !== null) {
+    env.PLATO_COMPUTER_USE_BACKEND = options.computerUseBackend;
+  }
+  if (options.computerUseAllowedApps !== null) {
+    env.PLATO_COMPUTER_USE_ALLOWED_APPS = options.computerUseAllowedApps;
+  }
+  if (options.computerUseHelperAppPath !== null) {
+    env.PLATO_COMPUTER_USE_HELPER_APP_PATH = options.computerUseHelperAppPath;
+  }
 
   console.log(`[plato-electron-dev] renderer=${rendererUrl}`);
   console.log(`[plato-electron-dev] workspace=${options.workspace}`);
+  if (options.computerUseBackend !== null) {
+    console.log(
+      `[plato-electron-dev] computerUseBackend=${options.computerUseBackend}`,
+    );
+  }
   console.log("[plato-electron-dev] launching Electron");
 
   return spawn(electronBin, [path.join(frontendRoot, "electron", "main.mjs")], {

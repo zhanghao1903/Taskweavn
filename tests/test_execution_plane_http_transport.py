@@ -2,28 +2,18 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Any, cast
 
 from taskweavn.execution_plane import (
-    WECHAT_SEND_CAPABILITY,
-    WECHAT_SEND_TASK_TYPE,
     EmbeddedTaskApiService,
     InMemoryExecutionEnvRegistry,
     InMemoryExecutionPlaneStore,
-    SqliteWeChatSendBoundaryStore,
     TaskResult,
-    WeChatSendRuntimeHandler,
     default_local_execution_env,
 )
-from taskweavn.integrations.wechat_desktop import (
-    FakeWeChatDesktopAdapter,
-    WeChatContactCandidate,
-    WeChatContactResolution,
-)
-from taskweavn.interaction import AgentMessage, InProcessMessageBus, SqliteMessageStream
 from taskweavn.server import HttpApiRequest, PlatoUiHttpTransport
 from taskweavn.task import InMemoryTaskBus
+from taskweavn.wechat_task_types import WECHAT_SEND_CAPABILITY, WECHAT_SEND_TASK_TYPE
 
 
 def test_http_task_api_publish_get_events_and_result() -> None:
@@ -123,15 +113,9 @@ def test_workspace_prefixed_task_api_injects_workspace_metadata() -> None:
     assert _dict_body(response.body)["data"]["executionId"].startswith("exec_")
 
 
-def test_http_wechat_send_route_waits_for_confirmation_then_projects_result(
-    tmp_path: Path,
-) -> None:
+def test_http_wechat_send_route_publishes_pending_task() -> None:
     bus = InMemoryTaskBus()
-    stream = SqliteMessageStream(tmp_path / "messages.sqlite")
-    message_bus = InProcessMessageBus(stream)
     execution_store = InMemoryExecutionPlaneStore()
-    boundary_store = SqliteWeChatSendBoundaryStore(tmp_path / "wechat-send.sqlite")
-    adapter = FakeWeChatDesktopAdapter(contact_resolution=_resolved_contact())
     service = EmbeddedTaskApiService(
         task_bus=bus,
         store=execution_store,
@@ -143,63 +127,34 @@ def test_http_wechat_send_route_waits_for_confirmation_then_projects_result(
                 ),
             )
         ),
-        runtime_handlers=(
-            WeChatSendRuntimeHandler(
-                task_bus=bus,
-                message_bus=message_bus,
-                message_stream=stream,
-                execution_store=execution_store,
-                boundary_store=boundary_store,
-                adapter=adapter,
-            ),
-        ),
     )
     transport = _transport(service=service)
 
-    first = transport.handle(
+    response = transport.handle(
         HttpApiRequest(
             method="POST",
             path="/api/v1/tasks",
             body=_wechat_request_body(),
         )
     )
-    first_body = _dict_body(first.body)
-    execution_id = first_body["data"]["executionId"]
-    task_id = first_body["data"]["taskId"]
+    body = _dict_body(response.body)
+    execution_id = body["data"]["executionId"]
+    task_id = body["data"]["taskId"]
     task = bus.get("session-1", task_id)
+
+    assert response.status_code == 200
+    assert body["data"]["status"] == "pending"
     assert task is not None
-    assert task.waiting_for_confirmation_id is not None
-    message_bus.publish(
-        AgentMessage(
-            session_id="session-1",
-            task_id=task_id,
-            agent_id="user",
-            parent_message_id=task.waiting_for_confirmation_id,
-            message_type="response",
-            content="confirm",
-            response_source="user",
-            response_value="confirm",
-        )
+    assert task.waiting_for_confirmation_id is None
+    assert task.dispatch_constraints is not None
+    assert task.dispatch_constraints.metadata["execution_plane_allowed_tools"] == [
+        "computer_use",
+        "wechat_desktop",
+    ]
+    fetched = transport.handle(
+        HttpApiRequest(method="GET", path=f"/api/v1/tasks/{execution_id}")
     )
-
-    second = transport.handle(
-        HttpApiRequest(
-            method="POST",
-            path="/api/v1/tasks",
-            body=_wechat_request_body(),
-        )
-    )
-    result = transport.handle(
-        HttpApiRequest(method="GET", path=f"/api/v1/tasks/{execution_id}/result")
-    )
-
-    assert first.status_code == 200
-    assert first_body["data"]["status"] == "waiting_for_user"
-    assert second.status_code == 200
-    assert _dict_body(second.body)["data"]["status"] == "done"
-    assert _dict_body(result.body)["data"]["structuredPayload"]["kind"] == (
-        "wechat_send_result"
-    )
+    assert _dict_body(fetched.body)["data"]["status"] == "pending"
 
 
 def _transport(
@@ -257,17 +212,6 @@ def _wechat_request_body() -> dict[str, Any]:
         },
         "metadata": {"sessionId": "session-1"},
     }
-
-
-def _resolved_contact() -> WeChatContactResolution:
-    return WeChatContactResolution(
-        status="resolved",
-        selected=WeChatContactCandidate(
-            display_name="张三",
-            subtitle="测试联系人",
-            confidence=0.96,
-        ),
-    )
 
 
 def _dict_body(body: Any) -> dict[str, Any]:

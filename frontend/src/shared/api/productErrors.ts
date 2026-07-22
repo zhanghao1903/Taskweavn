@@ -12,6 +12,10 @@ export const PRODUCT_RECOVERY_ACTIONS = [
   "wait_for_events",
   "open_audit",
   "open_settings",
+  "open_macos_privacy_accessibility",
+  "open_macos_privacy_automation",
+  "restart_helper",
+  "rerun_readiness_check",
   "export_diagnostics",
   "none",
 ] as const satisfies readonly ProductRecoveryAction[];
@@ -66,12 +70,13 @@ export function normalizeProductRecoveryActions(
   const normalized: ProductRecoveryAction[] = [];
 
   for (const action of actions) {
-    if (!isProductRecoveryAction(action)) {
+    const normalizedAction = normalizeProductRecoveryAction(action);
+    if (normalizedAction === null) {
       continue;
     }
 
-    if (!normalized.includes(action)) {
-      normalized.push(action);
+    if (!normalized.includes(normalizedAction)) {
+      normalized.push(normalizedAction);
     }
   }
 
@@ -124,6 +129,12 @@ function isProductRecoveryAction(
   value: unknown,
 ): value is ProductRecoveryAction {
   return typeof value === "string" && PRODUCT_RECOVERY_ACTION_SET.has(value);
+}
+
+function normalizeProductRecoveryAction(
+  value: unknown,
+): ProductRecoveryAction | null {
+  return isProductRecoveryAction(value) ? value : null;
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {

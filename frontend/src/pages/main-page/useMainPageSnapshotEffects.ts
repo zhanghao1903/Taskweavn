@@ -8,6 +8,7 @@ import type { RuntimeInputSnapshotContext } from "./useMainPageInputRuntimeState
 export type UseMainPageSnapshotEffectsOptions = {
   activeWorkspaceId: WorkspaceId | null;
   clearEventError: () => void;
+  clearPendingRuntimeClarification: () => void;
   hydrateRuntimeInputSnapshot: (context: RuntimeInputSnapshotContext) => void;
   initialTaskNodeIdRef: MutableRefObject<TaskNodeId | null>;
   resetCommandErrorState: () => void;
@@ -23,6 +24,7 @@ export type UseMainPageSnapshotEffectsOptions = {
 export function useMainPageSnapshotEffects({
   activeWorkspaceId,
   clearEventError,
+  clearPendingRuntimeClarification,
   hydrateRuntimeInputSnapshot,
   initialTaskNodeIdRef,
   resetCommandErrorState,
@@ -52,12 +54,14 @@ export function useMainPageSnapshotEffects({
     initialTaskNodeIdRef.current = null;
     resetSelection(nextSelectedTaskNodeId);
     resetInputDraft();
+    clearPendingRuntimeClarification();
     resetCommandErrorState();
     setUiNotice(null);
     resetSessionDialog();
     clearEventError();
   }, [
     clearEventError,
+    clearPendingRuntimeClarification,
     initialTaskNodeIdRef,
     resetCommandErrorState,
     resetInputDraft,

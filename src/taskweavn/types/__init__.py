@@ -32,6 +32,10 @@ from taskweavn.types.confirmation import (
     RequestConfirmationObservation,
 )
 from taskweavn.types.registry import ActionRegistry, ObservationRegistry
+from taskweavn.types.wechat_desktop import (
+    WeChatDesktopAction,
+    WeChatDesktopObservation,
+)
 
 __all__ = [
     "ActionRegistry",
@@ -53,4 +57,6 @@ __all__ = [
     "RequestConfirmationAction",
     "RequestConfirmationObservation",
     "TrackingConfig",
+    "WeChatDesktopAction",
+    "WeChatDesktopObservation",
 ]

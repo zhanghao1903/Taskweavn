@@ -205,6 +205,10 @@ function parseArgs(args) {
       kind = "workspace-git-init";
       continue;
     }
+    if (arg === "--runtime-input-wechat") {
+      kind = "runtime-input-wechat";
+      continue;
+    }
     if (arg === "--read-only-inquiry-llm") {
       readOnlyInquiryLlm = true;
       continue;
@@ -238,9 +242,13 @@ function parseArgs(args) {
   }
   if (
     readOnlyInquiryLlm &&
-    ["first-run", "startup-diagnostics", "workspace-entry", "workspace-git-init"].includes(
-      kind,
-    )
+    [
+      "first-run",
+      "startup-diagnostics",
+      "workspace-entry",
+      "workspace-git-init",
+      "runtime-input-wechat",
+    ].includes(kind)
   ) {
     throw new Error(
       "--read-only-inquiry-llm currently supports the configured seeded sidecar smoke only",
@@ -267,6 +275,7 @@ function printUsage() {
   npm run electron:smoke -- --packaged --startup-diagnostics
   npm run electron:smoke -- --workspace-entry
   npm run electron:smoke -- --workspace-git-init
+  npm run electron:smoke -- --runtime-input-wechat
   npm run electron:smoke -- --renderer-port 5174
 
 Starts a seeded sidecar fixture, opens Electron in smoke mode, and verifies
@@ -282,6 +291,7 @@ Options:
   --startup-diagnostics      Run packaged sidecar startup-failure diagnostics smoke.
   --workspace-entry          Run Workspace Picker -> selected workspace smoke.
   --workspace-git-init       Run Settings preference -> Workspace Picker Git init smoke.
+  --runtime-input-wechat     Run Main Page input -> WeChat runtime-input route smoke.
   --read-only-inquiry-llm    Enable guarded LLM-rendered Read-Only Inquiry fixture answers.
   --launcher                 Use the launcher-backed package directory.
   --packaged                 Launch the unsigned packaged app directory.

@@ -307,6 +307,56 @@ export type SettingsReadinessDiagnostics = {
   cliCommandTemplate: string;
 };
 
+export type SettingsReadinessComputerUseHelper = {
+  apiVersion?: string | null;
+  bundleId?: string | null;
+  path?: string | null;
+  signingMode?: string | null;
+  version?: string | null;
+};
+
+export type SettingsReadinessComputerUsePermissionSubject = {
+  accessibilityTrusted?: boolean | null;
+  effectiveExecutable?: string | null;
+  helperAppPath?: string | null;
+  helperBundleId?: string | null;
+  helperStatus?: string | null;
+  operatorInstruction?: string | null;
+  packageReadinessStatus?: string | null;
+  recoveryActions?: ProductRecoveryAction[];
+  runtimeMode?: string | null;
+  signature?: {
+    appPath?: string | null;
+    checked?: boolean | null;
+    expectedBundleId?: string | null;
+    identifier?: string | null;
+    identifierMatchesExpected?: boolean | null;
+    infoPlistBound?: boolean | null;
+    reason?: string | null;
+    sealedResources?: boolean | null;
+    signature?: string | null;
+    status?: string | null;
+    teamIdentifier?: string | null;
+  } | null;
+};
+
+export type SettingsReadinessComputerUse = {
+  allowedApps: string[];
+  backend: string;
+  configured: boolean;
+  enabled: boolean;
+  failureKind?: string | null;
+  helper?: SettingsReadinessComputerUseHelper | null;
+  helperStatus?: string | null;
+  operationStatus?: string | null;
+  permissionSubject?: SettingsReadinessComputerUsePermissionSubject | null;
+  ready: boolean;
+  recoveryActions: ProductRecoveryAction[];
+  setupHint?: string | null;
+  status: string;
+  summary: string;
+};
+
 export type SettingsReadinessReport = {
   schemaVersion: "plato.settings_readiness.v1";
   generatedAt: string;
@@ -316,6 +366,7 @@ export type SettingsReadinessReport = {
   llm: SettingsReadinessLlm;
   logging: SettingsReadinessLogging;
   diagnostics: SettingsReadinessDiagnostics;
+  computerUse?: SettingsReadinessComputerUse | null;
   blockingIssues: SettingsReadinessIssue[];
   warnings: SettingsReadinessIssue[];
 };
@@ -419,6 +470,21 @@ export type SettingsConfigUpdateResult = {
   readiness: SettingsReadinessReport;
 };
 
+export type SettingsRecoveryActionResult = {
+  action: ProductRecoveryAction;
+  bundleId?: string | null;
+  manifestPath?: string | null;
+  pid?: number | null;
+  reason?: string | null;
+  returnCode?: number | null;
+  schemaVersion: "plato.settings_recovery_action.v1";
+  status: "opened" | "restarted";
+  summary: string;
+  terminated?: boolean | null;
+  url?: string | null;
+  waitedForExit?: boolean | null;
+};
+
 export type RuntimeConfigScope = {
   level: "global" | "workspace" | "session" | "task" | "agent_run" | "process";
   workspaceId?: string | null;
@@ -486,6 +552,9 @@ export type RuntimeConfigEffective = {
 export type PlatoApi = {
   getSettingsReadiness(): Promise<QueryResponse<SettingsReadinessReport>>;
   recheckSettingsReadiness(): Promise<QueryResponse<SettingsReadinessReport>>;
+  executeSettingsRecoveryAction(
+    action: ProductRecoveryAction,
+  ): Promise<QueryResponse<SettingsRecoveryActionResult>>;
   getSettingsConfig(): Promise<QueryResponse<SettingsConfigSummary>>;
   getRuntimeConfigEffective(): Promise<QueryResponse<RuntimeConfigEffective>>;
   updateSettingsConfig(
@@ -682,6 +751,12 @@ export function createHttpPlatoApi(options: HttpPlatoApiOptions): PlatoApi {
       return client.postJson<QueryResponse<SettingsReadinessReport>>(
         "/api/v1/settings/readiness/recheck",
         {},
+      );
+    },
+    executeSettingsRecoveryAction(action) {
+      return client.postJson<QueryResponse<SettingsRecoveryActionResult>>(
+        "/api/v1/settings/recovery-action",
+        { action },
       );
     },
     getSettingsConfig() {

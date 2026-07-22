@@ -9,6 +9,11 @@ from taskweavn.server.settings_config import (
     SettingsConfigStorageError,
     SettingsConfigValidationError,
 )
+from taskweavn.server.settings_recovery_actions import (
+    SettingsRecoveryActionFailed,
+    SettingsRecoveryActionUnsupported,
+    execute_settings_recovery_action,
+)
 from taskweavn.server.transport import HttpApiRequest, HttpApiResponse
 from taskweavn.server.ui_contract import ApiError
 from taskweavn.server.ui_http_responses import (
@@ -132,6 +137,64 @@ def _settings_config_response(
     )
 
 
+def _settings_recovery_action_response(request: HttpApiRequest) -> HttpApiResponse:
+    if request.body is None or not isinstance(request.body, Mapping):
+        return _error_response(
+            400,
+            ApiError(
+                code="bad_request",
+                message="settings recovery action requires a JSON object body",
+            ),
+            request_id=_request_id_hint(request),
+        )
+
+    action = request.body.get("action")
+    if not isinstance(action, str) or not action:
+        return _error_response(
+            400,
+            ApiError(
+                code="bad_request",
+                message="settings recovery action requires an action string",
+            ),
+            request_id=_request_id_hint(request),
+        )
+
+    try:
+        data = execute_settings_recovery_action(action)
+    except SettingsRecoveryActionUnsupported as exc:
+        return _error_response(
+            400,
+            ApiError(
+                code="bad_request",
+                message=str(exc),
+                details={"action": action},
+            ),
+            request_id=_request_id_hint(request),
+        )
+    except SettingsRecoveryActionFailed as exc:
+        return _error_response(
+            500,
+            ApiError(
+                code="internal_error",
+                message=str(exc),
+                retryable=True,
+                details={
+                    "action": action,
+                    "recoveryActions": ["open_settings", "export_diagnostics"],
+                },
+            ),
+            request_id=_request_id_hint(request),
+        )
+
+    return _json_response(
+        {
+            "ok": True,
+            "data": data,
+            "error": None,
+        }
+    )
+
+
 def _missing_gateway_response(
     request: HttpApiRequest,
     *,
@@ -152,6 +215,7 @@ __all__ = [
     "SettingsConfigGateway",
     "SettingsReadinessGateway",
     "_settings_config_response",
+    "_settings_recovery_action_response",
     "_settings_readiness_recheck_response",
     "_settings_readiness_response",
 ]

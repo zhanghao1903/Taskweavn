@@ -28,6 +28,7 @@ from taskweavn.execution_plane import (
     EmbeddedTaskApiService,
     SqliteExecutionPlaneStore,
 )
+from taskweavn.integrations.app_control import AppControlClientFactoryConfig
 from taskweavn.interaction import (
     AskStore,
     InProcessMessageBus,
@@ -47,7 +48,10 @@ from taskweavn.server.ask_recovery import DefaultAskRecoveryService
 from taskweavn.server.client_logs import FileClientErrorLogSink
 from taskweavn.server.computer_use_runtime import (
     build_execution_env_registry,
-    build_execution_plane_runtime_handlers,
+    resolve_computer_use_runtime,
+)
+from taskweavn.server.computer_use_settings_readiness import (
+    ComputerUseSettingsReadinessGateway,
 )
 from taskweavn.server.diagnostics_export import DefaultDiagnosticExportGateway
 from taskweavn.server.main_page_agent import build_agent_loop_resident_default_agent
@@ -174,7 +178,7 @@ from taskweavn.task import (
     TaskExecutionSummaryViewStore,
     TaskExecutionTickResult,
 )
-from taskweavn.tools import ComputerUseBackend
+from taskweavn.tools import ComputerUseBackend, WeChatDesktopToolConfig
 from taskweavn.usage import SqliteTokenUsageStore
 from taskweavn.workspace_inspection import DefaultWorkspaceInspectionGateway
 
@@ -233,6 +237,7 @@ class MainPageSidecarDependencies:
     default_agent: ResidentDefaultAgent | None = None
     ask_store: AskStore | None = None
     computer_use_backend: ComputerUseBackend | None = None
+    app_control_config: AppControlClientFactoryConfig | None = None
     guidance_store: GuidanceFactStore | None = None
 
 
@@ -486,8 +491,23 @@ def build_main_page_workspace_runtime(
         runtime_computer_use_settings = runtime_computer_use_settings_from_config(
             runtime_config
         )
+        computer_use_runtime = resolve_computer_use_runtime(
+            computer_use_settings=runtime_computer_use_settings,
+            computer_use_backend=dependencies.computer_use_backend,
+            app_control_config=dependencies.app_control_config,
+        )
         runtime_read_only_inquiry_settings = (
             runtime_read_only_inquiry_settings_from_config(runtime_config)
+        )
+        settings_readiness_gateway: SettingsReadinessGateway = (
+            dependencies.settings_readiness_gateway or settings_config_gateway
+        )
+        settings_readiness_gateway = ComputerUseSettingsReadinessGateway(
+            inner=settings_readiness_gateway,
+            enabled=runtime_computer_use_settings.enabled,
+            backend_name=runtime_computer_use_settings.backend,
+            allowed_apps=runtime_computer_use_settings.allowed_apps,
+            backend=computer_use_runtime.backend,
         )
         recover_interrupted_running_tasks_on_startup(
             task_bus=task_bus,
@@ -510,8 +530,15 @@ def build_main_page_workspace_runtime(
                 result_summary_store=result_summary_store,
                 ui_event_store=event_store,
                 settings_store=settings_store,
-                enable_computer_use_tool=runtime_computer_use_settings.enabled,
-                computer_use_backend=dependencies.computer_use_backend,
+                enable_computer_use_tool=computer_use_runtime.enabled,
+                computer_use_backend=computer_use_runtime.backend,
+                wechat_desktop_tool_config=(
+                    None
+                    if computer_use_runtime.app_control_config is None
+                    else WeChatDesktopToolConfig(
+                        app_control=computer_use_runtime.app_control_config
+                    )
+                ),
                 contract_guidance_store=guidance_store,
             )
         execution_dispatcher = FixedRouteExecutionDispatcher(
@@ -531,24 +558,15 @@ def build_main_page_workspace_runtime(
         execution_plane_store = SqliteExecutionPlaneStore(
             layout.meta_dir / "execution_plane.sqlite"
         )
-        execution_plane_runtime_handlers = build_execution_plane_runtime_handlers(
-            layout=layout,
-            task_bus=task_bus,
-            message_bus=message_bus,
-            message_stream=message_stream,
-            execution_plane_store=execution_plane_store,
-            computer_use_settings=runtime_computer_use_settings,
-            computer_use_backend=dependencies.computer_use_backend,
-        )
         execution_plane_service = EmbeddedTaskApiService(
             task_bus=task_bus,
             store=execution_plane_store,
             env_registry=build_execution_env_registry(
                 computer_use_settings=runtime_computer_use_settings,
+                computer_use_available=computer_use_runtime.enabled,
             ),
             summary_store=result_summary_store,
             default_session_id=session.id if session is not None else "execution-plane",
-            runtime_handlers=execution_plane_runtime_handlers,
         )
         context_builder = DefaultAuthoringContextBuilder(
             raw_task_store=raw_task_store,
@@ -728,9 +746,7 @@ def build_main_page_workspace_runtime(
                 ask_recovery,
                 task_stop_recovery,
             ),
-            settings_readiness_gateway=(
-                dependencies.settings_readiness_gateway or settings_config_gateway
-            ),
+            settings_readiness_gateway=settings_readiness_gateway,
             settings_config_gateway=settings_config_gateway,
             diagnostic_export_gateway=DefaultDiagnosticExportGateway(
                 workspace_root=config.workspace_root,
@@ -753,6 +769,7 @@ def build_main_page_workspace_runtime(
                     message_bus
                 ),
                 contract_revision_service=contract_revision_service,
+                execution_plane_service=execution_plane_service,
                 route_planner=LLMRuntimeInputRoutePlanner(agent_llms.router),
             ),
             execution_plane_service=execution_plane_service,

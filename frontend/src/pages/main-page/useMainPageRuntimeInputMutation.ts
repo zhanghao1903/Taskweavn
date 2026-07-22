@@ -5,6 +5,7 @@ import { productRecoveryActionsFromApiError } from "../../shared/api/productErro
 import type { ProductRecoveryAction } from "../../shared/api/platoApi";
 import type {
   RuntimeInputMode,
+  RuntimeInputPendingClarification,
   SessionActivityItemView,
   TaskNodeId,
   WorkspaceId,
@@ -13,9 +14,8 @@ import type { InputTarget } from "./mainPageUiTypes";
 import {
   buildRuntimeInputRouteRequest,
   prependRuntimeActivityItems,
-  runtimeInputActivity,
   runtimeInputNotice,
-  runtimeInputUserActivity,
+  runtimeInputRouteActivities,
 } from "./mainPageRuntimeInput";
 import { handleCommandResponse } from "./runtime/commandRefresh";
 import type {
@@ -53,6 +53,7 @@ export type UseMainPageRuntimeInputMutationOptions = {
     message: string;
     recoveryActions: ProductRecoveryAction[];
   }) => void;
+  pendingRuntimeClarification: RuntimeInputPendingClarification | null;
   reconcileRuntimeInputSubmit: (commandId: string) => void;
   rejectRuntimeInputSubmit: (context: {
     commandId: string;
@@ -62,6 +63,9 @@ export type UseMainPageRuntimeInputMutationOptions = {
   setActiveRuntimeInputMode: (mode: RuntimeInputMode | null) => void;
   setInputCommandError: CommandErrorSetter;
   setInputDraft: (draft: string) => void;
+  setPendingRuntimeClarification: (
+    clarification: RuntimeInputPendingClarification | null,
+  ) => void;
   setRuntimeActivityItems: Dispatch<
     SetStateAction<SessionActivityItemView[]>
   >;
@@ -87,11 +91,13 @@ export function useMainPageRuntimeInputMutation({
   refetchSnapshot,
   acceptRuntimeInputSubmit,
   failRuntimeInputSubmit,
+  pendingRuntimeClarification,
   reconcileRuntimeInputSubmit,
   rejectRuntimeInputSubmit,
   setActiveRuntimeInputMode,
   setInputCommandError,
   setInputDraft,
+  setPendingRuntimeClarification,
   setRuntimeActivityItems,
   setUiNotice,
   startRuntimeInputSubmit,
@@ -113,6 +119,7 @@ export function useMainPageRuntimeInputMutation({
         commandId,
         content,
         mode: routeMode,
+        pendingClarification: pendingRuntimeClarification,
         sessionId,
         snapshot: getSnapshotData()?.snapshot ?? null,
         target,
@@ -145,6 +152,7 @@ export function useMainPageRuntimeInputMutation({
         commandId,
         content,
         mode: routeMode,
+        pendingClarification: pendingRuntimeClarification,
         sessionId,
         snapshot: getSnapshotData()?.snapshot ?? null,
         target,
@@ -163,6 +171,7 @@ export function useMainPageRuntimeInputMutation({
         sessionId: request.sessionId,
         workspaceId: activeWorkspaceId,
       });
+      setInputDraft("");
     },
     onSettled: () => {
       setActiveRuntimeInputMode(null);
@@ -191,12 +200,23 @@ export function useMainPageRuntimeInputMutation({
         routeResult.commandResponse !== null &&
         routeResult.commandResponse !== undefined
       ) {
+        setPendingRuntimeClarification(null);
         const commandResult = handleCommandResponse(
           routeResult.commandResponse,
           "Runtime input command was rejected.",
         );
 
         if (commandResult.errorMessage) {
+          const runtimeActivities = runtimeInputRouteActivities(
+            request,
+            routeResult,
+          );
+          if (runtimeActivities.length > 0) {
+            reconcileRuntimeInputSubmit(request.commandId);
+            setRuntimeActivityItems((items) =>
+              prependRuntimeActivityItems(items, runtimeActivities),
+            );
+          }
           rejectRuntimeInputSubmit({
             commandId: request.commandId,
             message: commandResult.errorMessage,
@@ -224,11 +244,8 @@ export function useMainPageRuntimeInputMutation({
         routeResult.outcome.status === "answered" ||
         routeResult.outcome.status === "dispatched"
       ) {
-        const runtimeActivity = runtimeInputActivity(routeResult);
-        const runtimeActivities = [
-          runtimeInputUserActivity(request, routeResult),
-          ...(runtimeActivity === null ? [] : [runtimeActivity]),
-        ];
+        setPendingRuntimeClarification(null);
+        const runtimeActivities = runtimeInputRouteActivities(request, routeResult);
         if (runtimeActivities.length > 0) {
           reconcileRuntimeInputSubmit(request.commandId);
           setRuntimeActivityItems((items) =>
@@ -251,6 +268,17 @@ export function useMainPageRuntimeInputMutation({
         routeResult.outcome.userMessage,
         routeResult.outcome.recoveryActions,
       );
+      setPendingRuntimeClarification(
+        routeResult.outcome.pendingClarification ?? null,
+      );
+      const runtimeActivities = runtimeInputRouteActivities(request, routeResult);
+      if (runtimeActivities.length > 0) {
+        reconcileRuntimeInputSubmit(request.commandId);
+        setRuntimeActivityItems((items) =>
+          prependRuntimeActivityItems(items, runtimeActivities),
+        );
+      }
+      void refetchSnapshot();
     },
   });
 }

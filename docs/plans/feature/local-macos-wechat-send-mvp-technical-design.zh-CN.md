@@ -1,6 +1,9 @@
 # Local macOS WeChat Send MVP 技术方案
 
-> Status: Accepted local MVP / controlled real smoke passed
+> Status: Historical design. The deterministic repo-local WeChat runtime,
+> helper HTTP protocol, and manual smoke scripts described here were retired by
+> [App-Control Tool Package Migration](app-control-tool-package-migration.zh-CN.md).
+> The active implementation uses the package-backed `wechat_desktop` Agent tool.
 >
 > Last Updated: 2026-06-22
 >
@@ -27,14 +30,14 @@
 Local Task API
   -> TaskApiService
   -> TaskBus / AgentLoop
+  -> runtime skill
+  -> wechat_desktop tool
+  -> app-control-protocol ToolCommand
   -> computer_use tool
-  -> PlatoMacOSComputerUseAdapter
-  -> macos-computer-use package
-  -> WeChatDesktopAdapter
-  -> draft message
-  -> request_confirmation
-  -> send after confirmed
-  -> send-boundary store
+  -> computer-use-macos package
+  -> ToolObservation / ToolEvent evidence
+  -> product-level confirmation policy when submit is requested
+  -> idempotency key / result projection
   -> TaskResult / TaskError / EvidenceRef
 ```
 
@@ -64,52 +67,23 @@ Local Task API
 
 ## 3. 模块边界
 
-当前实现状态：
+当前活跃实现状态：
 
-- 已实现 `src/taskweavn/tools/computer_use_macos_adapter.py`，负责
-  package client 加载、readiness/result 映射和基础操作转发。
-- 已实现 `src/taskweavn/server/computer_use_runtime.py`，负责 runtime
-  选择、allowlisted apps 解析和 disabled/macOS backend 构建。
-- 已接入 `taskweavn plato-sidecar`、`taskweavn plato-dev` 和 packaged
-  `plato_sidecar` 启动路径；默认仍为 disabled，需显式配置
-  `PLATO_COMPUTER_USE_BACKEND=macos` 才启用。
-- 已实现 `src/taskweavn/integrations/wechat_desktop/` 的 draft-only
-  WeChat Desktop adapter、模型和 fake adapter，覆盖 readiness、联系人解析、
-  草稿写入和 no-send 边界。
-- 已实现 WeChat send confirmation boundary：`RequestConfirmationAction`
-  支持结构化 context，WeChat send action fingerprint、confirmation payload
-  builder 和 message-stream authorizer 已覆盖 pending/reject/approve/mismatch/
-  expired/invalid 测试。
-- 已实现 `src/taskweavn/execution_plane/wechat_send_boundary.py`：SQLite
-  send-boundary store 持久化 execution/idempotency/fingerprint/status/
-  confirmation/observation/result/error refs，并覆盖重复 key、防重启丢失和
-  安全状态迁移测试。
-- 已实现 `src/taskweavn/execution_plane/wechat_send_execution.py`：
-  `WeChatSendExecutionService` 串联 W3 confirmation authorizer 与 W4
-  send-boundary store，批准且 fingerprint 匹配后才调用 WeChat adapter 的
-  send boundary，并写入安全 `TaskResult` / `TaskError` 与 `EvidenceRef`。
-- 已实现真实 adapter 的确认后发送边界：
-  `WeChatDesktopAdapter.send_after_confirmation()` 使用已验证输入框 +
-  keyboard Return submit，不依赖微信聊天窗口中的“发送”按钮；fake adapter 覆盖
-  approved、rejected、mismatch、duplicate、unknown、failed send 路径。
-- 已实现 `src/taskweavn/execution_plane/wechat_send_runtime.py`：
-  `WeChatSendRuntimeHandler` 把 `communication.wechat.send_message` 串到 W1-W5
-  链路，负责校验 high-risk confirmation policy、校验
-  `communication.wechat_desktop_send` capability、readiness/open/contact/draft
-  evidence、confirmation request、同 idempotency key replay 后 resume、调用 W5
-  send service，并投影 result/error/evidence refs。
-- 已扩展 `EmbeddedTaskApiService` 的 runtime handler seam：普通 task type
-  维持原行为，WeChat send task type 在新 publish 与 idempotent replay 时进入
-  handler。
-- 已在 local sidecar assembly 中按显式 macOS computer-use runtime 配置创建
-  WeChat send handler；未启用 real backend 时不会注册真实发送能力。
-- 已执行受控本机微信 smoke：preflight、联系人解析、清空旧草稿、草稿写入、
-  confirmation、keyboard Return submit、result/evidence query 与同 key terminal
-  replay 均通过。验收联系人为 `文件传输助手`，验收 execution id 为
-  `exec_c47432a39d1b5a0da94d15d16dd1827e`。W7 最终采用 verified input +
-  keyboard submit，而不是继续依赖微信“发送”按钮 lookup。
+- 旧 deterministic WeChat runtime、repo-local WeChat adapter、send-boundary
+  store、helper HTTP protocol 和旧 manual smoke scripts 已删除，不再作为活跃
+  实现路径。
+- Plato 现在通过 `app-control-protocol`、`computer-use-macos` 和
+  `wechat-desktop-tool` 三个外部包接入桌面能力。
+- 活跃模块是 `src/taskweavn/integrations/app_control/`、
+  `src/taskweavn/integrations/wechat_tool/`、
+  `src/taskweavn/tools/computer_use_macos_adapter.py`、
+  `src/taskweavn/tools/wechat_desktop.py` 和 TaskBus / Agent loop。
+- 真实 macOS 验收证据已迁移到
+  [App-Control Tool Package Smoke Runbook](app-control-tool-package-smoke-runbook.zh-CN.md)；
+  旧的 2026-06-22 deterministic-runtime smoke 只作为历史背景，不再证明当前
+  package-backed 路径。
 
-### 3.1 Package 层：`macos-computer-use`
+### 3.1 Package 层：`computer-use-macos` / `wechat-desktop-tool`
 
 职责：
 
@@ -146,45 +120,35 @@ src/taskweavn/tools/computer_use_macos_adapter.py
 - 对 high-risk package metadata 生成 blocked observation；
 - 不包含 WeChat 专用流程。
 
-### 3.3 WeChat adapter 层
+### 3.3 WeChat tool 层
 
-建议模块：
+已实现模块：
 
 ```text
-src/taskweavn/integrations/wechat_desktop/
-  __init__.py
-  models.py
-  adapter.py
-  policy.py
-  fake_adapter.py
+src/taskweavn/tools/wechat_desktop.py
+src/taskweavn/integrations/wechat_tool/
+src/taskweavn/types/wechat_desktop.py
 ```
 
 职责：
 
-- 微信 app identity；
-- 打开/聚焦微信；
-- 检查登录/锁定/可观察状态；
-- 搜索联系人；
-- 解析联系人候选；
-- 选择唯一联系人；
-- 写入草稿；
-- 定义 send action；
-- 将发送前风险交给 confirmation。
+- 将 Agent loop 的工具调用映射为 `wechat-desktop-tool` command builder；
+- 暴露 open/focus/draft/observe/submit 等命令化能力；
+- 返回 `ToolObservation` / `ToolEvent`，包含 status、failure_kind、safe
+  metadata 和 evidence；
+- 不判断“是否应该发送”，只执行上层已授权的命令。
 
-### 3.4 Send-boundary store
+### 3.4 Product policy / idempotency 层
 
-建议模块：
-
-```text
-src/taskweavn/execution_plane/wechat_send_boundary.py
-```
+当前 package-backed 路径不再使用 repo-local `wechat_send_boundary.py`。
 
 职责：
 
-- 持久化发送边界状态；
-- 根据 idempotency key / execution id / action fingerprint 防重；
-- 支持重启恢复；
-- 阻止 unknown 状态自动重试。
+- 由 TaskBus / Router / Agent loop 持有任务状态；
+- 由产品层确认机制决定 submit 是否被允许；
+- 由 API / task input 提供 idempotency key；
+- 由结果和 evidence projection 保存安全观测，不持久化原始聊天记录；
+- unknown / timeout / failure_kind 进入结构化错误和人工恢复路径。
 
 ## 4. 配置设计
 
@@ -669,46 +633,25 @@ Evidence refs：
 
 手动 smoke：
 
-1. 开启 macOS Accessibility。
-2. 启动 Plato sidecar。
-3. 确认 real macOS computer-use readiness。
-4. 微信已登录。
-5. 使用测试联系人和安全测试消息。
-6. 任务执行到草稿后停止。
-7. UI 弹出确认。
-8. 拒绝路径验证 `not_sent`。
-9. 再跑一次批准路径。
-10. 验证发送一次、result/evidence 可见。
+旧 `scripts/manual_wechat_send_smoke.py` 已删除。当前 package-backed smoke
+使用 [App-Control Tool Package Smoke Runbook](app-control-tool-package-smoke-runbook.zh-CN.md)
+和 `scripts/manual_wechat_desktop_tool_smoke.py`：
 
-推荐使用 `scripts/manual_wechat_send_smoke.py` 执行本地 HTTP smoke。默认命令只
-验证草稿和拒绝路径，不发送微信消息：
+1. Smoke A：只验证 package import / CLI contract，不打开微信。
+2. Smoke B：打开微信、聚焦 `文件传输助手`、写入草稿、observe；不得提交。
+3. Smoke C：在单独授权后，使用 fresh idempotency key 执行一次
+   `--allow-submit --confirm-submit SEND`。
+4. Smoke D：复用同一个 idempotency key 验证不会重复发送。
 
-```bash
-python scripts/manual_wechat_send_smoke.py \
-  --base-url http://127.0.0.1:<sidecar-port> \
-  --session-id <session-id> \
-  --contact "<controlled-test-contact>" \
-  --message "Plato Local WeChat smoke test" \
-  --response reject
-```
+真实发送 smoke 仍需人工确认微信窗口中的联系人、草稿内容和最终聊天记录。
 
-真实发送路径必须显式同时传入 `--response confirm` 和 `--allow-send`：
+## 13. 历史实施顺序
 
-```bash
-python scripts/manual_wechat_send_smoke.py \
-  --base-url http://127.0.0.1:<sidecar-port> \
-  --session-id <session-id> \
-  --contact "<controlled-test-contact>" \
-  --message "Plato Local WeChat smoke test" \
-  --response confirm \
-  --allow-send
-```
-
-该脚本会复用同一个 idempotency key 完成 publish -> confirmation response ->
-replay/resume，并查询 result/error/evidence surface。真实发送 smoke 仍需人工确认
-微信窗口中的联系人和草稿内容。
-
-## 13. 实施顺序
+以下 W1-W7 是旧 deterministic runtime 的实施顺序，仅作为历史背景。
+当前实现和验收以
+[App-Control Tool Package Migration](app-control-tool-package-migration.zh-CN.md)
+和 [App-Control Tool Package Smoke Runbook](app-control-tool-package-smoke-runbook.zh-CN.md)
+为准。
 
 推荐顺序：
 
@@ -758,126 +701,38 @@ replay/resume，并查询 result/error/evidence surface。真实发送 smoke 仍
 - Screenshot evidence is intentionally blocked until redaction exists.
 - Business use needs security and abuse policy beyond this MVP.
 
-## 15. W6 Runtime Wiring Notes
+## 15. 当前 Runtime Wiring Notes
 
-当前 W6 是 runtime 接线，不是远程 ExecutionEnv 实现：
+当前 package-backed 路径不再使用专用 `WeChatSendRuntimeHandler`。
 
-- `EmbeddedTaskApiService.publish_task()` 在写入 TaskBus/ExecutionPlane store 前
-  调用 matching runtime handler 做 request validation。
-- 新请求写入 idempotency record 后，handler 立即进入 draft/confirmation path。
-- 同 idempotency key replay 时，handler 复用同一个 execution 和
-  send-boundary；如果 confirmation 仍 pending，返回 `waiting_for_user`；如果
-  confirmation 已 resolved，则 resume TaskBus waiting task 并继续发送。
-- `sent` / `not_sent` / `unknown` terminal boundary 不会再次触发发送；已完成的
-  execution replay 直接返回现有结果。
-- sidecar 只有在 computer-use backend 启用且可构建真实 macOS backend 时才注册
-  WeChat send runtime handler；否则 Task API 会按 capability unavailable 或普通
-  runtime path 处理，不会伪装发送能力。
-
-Fake path 覆盖：
-
-- 首次 POST -> draft -> confirmation requested -> `waiting_for_user`；
-- 用户 approve 后同 key POST -> send once -> `TaskResult` / evidence refs；
-- 用户 reject 后同 key POST -> no send -> failed/error projection；
-- not-ready readiness -> safe failure；
-- invalid policy/capability -> request rejected before runtime side effect。
-- `scripts/manual_wechat_send_smoke.py` 的 fake HTTP sidecar 覆盖已补充：
-  - reject path 通过真实 urllib HTTP 调用验证 `wechat_send_rejected` 且不调用
-    send boundary；
-  - confirm path 通过真实 urllib HTTP 调用验证 `wechat_send_result` 且 fake send
-    boundary 只调用一次；
-  - 脚本会在终态后自动再 POST 同一个 idempotency key，并要求 replay 返回同一个
-    execution 与相同终态，否则 smoke 失败。
-- 2026-06-20 已完成 non-destructive local sidecar preflight：
-  - 临时 sidecar 使用 `--computer-use-backend macos` 与
-    `--computer-use-allowed-apps WeChat` 启动；
-  - `uv run python scripts/manual_wechat_send_smoke.py --base-url
-    http://127.0.0.1:<sidecar-port> --preflight-only` 返回
-    `sidecarOk=true`、`computerUseStatus="ok"`、
-    `packageReadinessStatus="ready"`、`accessibilityTrusted=true`、
-    `ready=true`；
-  - 该验证没有 publish task、没有打开微信、没有写草稿、没有发送消息。
-- 2026-06-20 已补充 smoke evidence JSON 输出能力：
-  - `scripts/manual_wechat_send_smoke.py --evidence-output <path>` 可保存
-    preflight、reject、confirm 的结构化验收结果；
-  - evidence JSON 只记录 contact/message 是否提供与 message 字符数，不写入原始
-    联系人或原始消息正文；
-  - 已使用本地 sidecar 生成 `/tmp/plato-wechat-preflight.json`，结果为
-    `ready=true`，且 contact/message 均按预期脱敏；
-- 2026-06-22 已完成 controlled confirm/send-once smoke：
-  - contact：`文件传输助手`；
-  - idempotency key：
-    `manual-wechat-smoke-20260622-keyboard-submit-e05a-03`；
-  - execution id：`exec_c47432a39d1b5a0da94d15d16dd1827e`；
-  - result：`wechat_send_result`，`sendBoundaryStatus=sent`；
-  - evidence：`phase=keyboard_submit`、`send_method=keyboard_return`、
-    `send_attempted=true`；
-  - same-key terminal replay 返回同一 execution 与 `done` 终态。
+- `communication.wechat.send_message` 由 Router/Task API 发布到 TaskBus。
+- ExecutionEnv 只描述本地 app-control capability，不是 app-specific runtime。
+- Agent loop 根据 runtime skill 使用 `wechat_desktop` 和 `computer_use` 工具。
+- `wechat_desktop` 工具通过 `wechat-desktop-tool` package 发出
+  `ToolCommand`，并接收 `ToolObservation` / `ToolEvent`。
+- `computer_use` macOS backend 通过 `computer-use-macos` package 执行 direct 或
+  helper-backed app-control 操作。
+- submit 仍必须由产品层策略或人工授权控制；package 工具只执行命令，不决定业务
+  是否应该发送。
+- 旧 deterministic runtime 的 2026-06-22 smoke 已被三包路径取代，不能作为当前
+  package-backed 验收证据。
 
 ## 16. Manual Smoke Checklist
 
-真实微信 smoke 必须单独执行和记录。推荐使用
-`scripts/manual_wechat_send_smoke.py`，默认 reject/no-send，只有显式
-`--response confirm --allow-send` 才会进入真实发送路径：
+真实微信 smoke 必须单独执行和记录。当前检查清单以
+[App-Control Tool Package Smoke Runbook](app-control-tool-package-smoke-runbook.zh-CN.md)
+为准，使用 `scripts/manual_wechat_desktop_tool_smoke.py` 和三包路径：
 
-1. 使用能 import `macos-computer-use` 的 Python 环境启动 sidecar/dev runtime。
-2. 设置：
-   - `PLATO_COMPUTER_USE_BACKEND=macos`；
-   - `PLATO_COMPUTER_USE_ALLOWED_APPS=WeChat`。
-3. 确认 macOS Accessibility 已授权给实际 Python/Terminal/Electron runtime。
+1. 确认 `app-control-protocol`、`computer-use-macos` 和
+   `wechat-desktop-tool` 来自当前 `uv.lock`。
+2. 确认旧 `macos-computer-use` compatibility package 不是 Plato dependency。
+3. 确认 macOS Accessibility 已授权给实际控制 UI 的进程或 helper app。
 4. 确认微信已安装、已登录、未锁定。
-5. 使用受控测试联系人和非敏感测试消息。
-6. 发布 task 时必须带：
-   - `taskType=communication.wechat.send_message`；
-   - `policy.requiresHumanConfirmation=true`；
-   - `policy.riskLevel=high`；
-   - `policy.requiredCapability=communication.wechat_desktop_send`；
-   - stable idempotency key。
-7. 真实操作微信前，先执行 sidecar + package/adapter readiness preflight：
-
-   ```bash
-   python scripts/manual_wechat_send_smoke.py \
-     --base-url http://127.0.0.1:<sidecar-port> \
-     --preflight-only \
-     --evidence-output /tmp/plato-wechat-preflight.json
-   ```
-
-   该命令必须返回 `ready=true`、`computerUseStatus="ok"`、
-   `packageReadinessStatus="ready"`、`accessibilityTrusted=true`。如果不是 ready，
-   不得进入真实微信 smoke。
-8. 先执行 reject path：
-
-   ```bash
-   python scripts/manual_wechat_send_smoke.py \
-     --base-url http://127.0.0.1:<sidecar-port> \
-     --session-id <session-id> \
-     --contact "<controlled-test-contact>" \
-     --message "Plato Local WeChat smoke test" \
-     --response reject \
-     --evidence-output /tmp/plato-wechat-reject-smoke.json
-   ```
-
-9. 验证 reject path：草稿生成、confirmation 出现、拒绝后不发送且 boundary 为
-   `not_sent`。
-10. 再执行 approve path：
-
-   ```bash
-   python scripts/manual_wechat_send_smoke.py \
-     --base-url http://127.0.0.1:<sidecar-port> \
-     --session-id <session-id> \
-     --contact "<controlled-test-contact>" \
-     --message "Plato Local WeChat smoke test" \
-     --response confirm \
-     --allow-send \
-     --evidence-output /tmp/plato-wechat-confirm-smoke.json
-   ```
-
-11. 验证 approve path：新 idempotency key、批准后只发送一次，终态 replay 同 key
-    不二次发送。
-12. 验证 result/error/evidence query surfaces 能读取安全摘要。
-13. 若发送后状态不可判断，必须记录为 `unknown/manual review`，不得自动重试。
-14. 将 preflight、reject、confirm 三份 JSON evidence 作为本机 smoke 验收记录；
-    reject/confirm evidence 必须包含 `terminalReplaySameExecution=true`。
+5. 使用受控测试联系人 `文件传输助手` 和非敏感唯一测试消息。
+6. 先执行 no-submit focus/draft/observe smoke，并人工确认没有发送。
+7. 只有获得单独授权后，才执行带 `--allow-submit --confirm-submit SEND`
+   的 submit-once smoke。
+8. 使用同一 idempotency key 执行 replay/no-duplicate 检查。
 
 ## 17. 下一步任务 Prompt
 
@@ -885,31 +740,29 @@ Fake path 覆盖：
 Use the product-workflow-gate skill first.
 
 Task:
-Run the manual Local macOS WeChat Send MVP smoke and close the release
-limitations note.
+Run the package-backed Local macOS WeChat smoke and archive evidence.
 
 Do not change frontend UI.
-Do not bypass confirmation.
-Do not auto-retry unknown or send_attempted boundaries.
+Do not use retired scripts or repo-local helper/runtime endpoints.
+Do not run submit without explicit authorization for that run.
+Do not auto-retry unknown submit or send_attempted boundaries.
 Do not add remote ExecutionEnv, LAN auth, Windows, or screenshot evidence.
 
 Required work:
-1. Read local-macos-wechat-send-mvp.md and technical design.
-2. Start Plato sidecar/dev runtime with `PLATO_COMPUTER_USE_BACKEND=macos` and
-   `PLATO_COMPUTER_USE_ALLOWED_APPS=WeChat`.
-3. Verify macOS Accessibility readiness and WeChat logged-in readiness.
-4. Publish one controlled `communication.wechat.send_message` task against a
-   test contact.
-5. Verify draft-before-confirmation, reject/no-send, approve/send-once, same-key
-   replay/no-second-send, and result/evidence query behavior.
-6. Update the plan/release note with the actual smoke result and any blocker.
+1. Read app-control-tool-package-smoke-runbook.zh-CN.md.
+2. Run Smoke A.
+3. Run Smoke B against `文件传输助手` and archive evidence JSON.
+4. After explicit authorization, run Smoke C with a fresh idempotency key.
+5. Run Smoke D with the same idempotency key and verify no duplicate message.
+6. Update the migration plan/runbook with the actual evidence paths and any
+   blocker.
 
 Output:
 - files changed
-- manual smoke result
-- reject-path result
-- approve-path result
-- idempotency replay result
+- Smoke A result
+- Smoke B result
+- Smoke C result
+- Smoke D result
 - tests run
 - remaining blockers
 ```

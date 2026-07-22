@@ -11,6 +11,7 @@ import type {
   RuntimeConfigEffective,
   SettingsConfigSummary,
   SettingsConfigUpdateResult,
+  SettingsRecoveryActionResult,
   SettingsReadinessReport,
 } from "../../shared/api/platoApi";
 import type {
@@ -47,6 +48,63 @@ describe("SettingsRoute", () => {
     expect(screen.getByText("configured")).toBeInTheDocument();
     expect(screen.getByText(/Configured via stored/)).toBeInTheDocument();
     expect(document.body).not.toHaveTextContent("sk-existing-secret");
+  });
+
+  it("shows computer-use helper readiness and recovery details", async () => {
+    const user = userEvent.setup();
+    const api = settingsApi({
+      readiness: settingsReadiness({
+        computerUse: computerUseReadiness(),
+        ready: true,
+      }),
+    });
+
+    renderWithQueryClient(
+      <SettingsRoute
+        api={api}
+        runtimeEnv={{ VITE_PLATO_API_MODE: "http" }}
+      />,
+    );
+
+    await user.click(await screen.findByRole("button", { name: "Retry check" }));
+
+    const readiness = await screen.findByRole("region", {
+      name: "Computer-use readiness",
+    });
+
+    expect(readiness).toHaveTextContent("Plato Computer Use Helper is not ready.");
+    expect(readiness).toHaveTextContent("helper");
+    expect(readiness).toHaveTextContent("missing_accessibility");
+    expect(readiness).toHaveTextContent(
+      "/Users/zhanghao/Applications/Plato Computer Use Helper Dev.app",
+    );
+    expect(readiness).toHaveTextContent(
+      "/Users/zhanghao/Applications/Plato Computer Use Helper Dev.app/Contents/MacOS/PlatoComputerUseHelper",
+    );
+    expect(readiness).toHaveTextContent("false");
+    expect(readiness).toHaveTextContent(
+      "status=ok identifier=com.taskweavn.plato.computer-use-helper.dev infoPlistBound=true sealedResources=true",
+    );
+    await user.click(
+      within(readiness).getByRole("button", {
+        name: "Open macOS Accessibility permissions for the helper.",
+      }),
+    );
+    expect(api.executeSettingsRecoveryAction).toHaveBeenCalledWith(
+      "open_macos_privacy_accessibility",
+    );
+    await user.click(
+      within(readiness).getByRole("button", {
+        name: "Restart Plato Computer Use Helper.",
+      }),
+    );
+    expect(api.executeSettingsRecoveryAction).toHaveBeenCalledWith("restart_helper");
+    await user.click(
+      within(readiness).getByRole("button", {
+        name: "Recheck local computer-use readiness.",
+      }),
+    );
+    expect(api.recheckSettingsReadiness).toHaveBeenCalledTimes(2);
   });
 
   it("renders as a dismissible modal when requested", async () => {
@@ -255,6 +313,9 @@ describe("SettingsRoute", () => {
     expect(screen.getAllByText("process input").length).toBeGreaterThan(0);
     expect(screen.getByText("pending next agent run")).toBeInTheDocument();
     expect(screen.getByText("computer_use.allowed_apps")).toBeInTheDocument();
+    expect(
+      screen.getByText("computer_use.allow_coordinate_click"),
+    ).toBeInTheDocument();
     expect(screen.getByText("TextEdit, WeChat")).toBeInTheDocument();
     expect(api.getRuntimeConfigEffective).toHaveBeenCalledTimes(1);
   });
@@ -504,6 +565,16 @@ function settingsApi({
   updateError?: Error;
 } = {}): SettingsRouteApi {
   return {
+    executeSettingsRecoveryAction: vi.fn(async (action) =>
+      okResponse({
+        action,
+        returnCode: 0,
+        schemaVersion: "plato.settings_recovery_action.v1",
+        status: "opened",
+        summary: "Opened macOS System Settings.",
+        url: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility",
+      } satisfies SettingsRecoveryActionResult),
+    ),
     exportDiagnosticBundle: vi.fn(async () => okResponse(diagnosticExport())),
     getRuntimeConfigEffective: vi.fn(async () => okResponse(runtimeConfig)),
     getSettingsConfig: vi.fn(async () => okResponse(config)),
@@ -574,6 +645,12 @@ function runtimeConfigEffective(): RuntimeConfigEffective {
         mutability: "startup_only",
         source: processSource,
         value: ["TextEdit", "WeChat"],
+      }),
+      "computer_use.allow_coordinate_click": runtimeConfigValue({
+        key: "computer_use.allow_coordinate_click",
+        mutability: "startup_only",
+        source: defaultSource,
+        value: true,
       }),
       "computer_use.backend": runtimeConfigValue({
         key: "computer_use.backend",
@@ -813,8 +890,10 @@ function settingsConfig({
 }
 
 function settingsReadiness({
+  computerUse,
   ready,
 }: {
+  computerUse?: SettingsReadinessReport["computerUse"];
   ready: boolean;
 }): SettingsReadinessReport {
   return {
@@ -864,10 +943,64 @@ function settingsReadiness({
       selectedProfile: null,
       selectedProfileKnown: true,
     },
+    computerUse: computerUse ?? null,
     schemaVersion: "plato.settings_readiness.v1",
     status: ready ? "ready" : "needs_configuration",
     warnings: [],
     workspaceRootLabel: "workspace://current",
+  };
+}
+
+function computerUseReadiness(): NonNullable<SettingsReadinessReport["computerUse"]> {
+  return {
+    allowedApps: ["WeChat"],
+    backend: "helper",
+    configured: true,
+    enabled: true,
+    failureKind: "missing_accessibility",
+    helper: {
+      apiVersion: "v1",
+      bundleId: "com.taskweavn.plato.ComputerUseHelper.dev",
+      path: "/Users/zhanghao/Applications/Plato Computer Use Helper Dev.app",
+      signingMode: "ad-hoc",
+      version: "0.1.0",
+    },
+    helperStatus: "missing_accessibility",
+    operationStatus: "not_available",
+    permissionSubject: {
+      accessibilityTrusted: false,
+      effectiveExecutable:
+        "/Users/zhanghao/Applications/Plato Computer Use Helper Dev.app/Contents/MacOS/PlatoComputerUseHelper",
+      helperAppPath: "/Users/zhanghao/Applications/Plato Computer Use Helper Dev.app",
+      helperBundleId: "com.taskweavn.plato.ComputerUseHelper.dev",
+      helperStatus: "missing_accessibility",
+      operatorInstruction:
+        "Grant or refresh macOS Accessibility and Automation permissions for /Users/zhanghao/Applications/Plato Computer Use Helper Dev.app, restart the helper, then recheck local computer-use readiness before publishing a computer-use task.",
+      packageReadinessStatus: "missing_accessibility",
+      recoveryActions: [
+        "open_macos_privacy_accessibility",
+        "restart_helper",
+        "rerun_readiness_check",
+      ],
+      runtimeMode: "helper_owned_executable",
+      signature: {
+        checked: true,
+        identifier: "com.taskweavn.plato.computer-use-helper.dev",
+        identifierMatchesExpected: true,
+        infoPlistBound: true,
+        sealedResources: true,
+        status: "ok",
+      },
+    },
+    ready: false,
+    recoveryActions: [
+      "open_macos_privacy_accessibility",
+      "restart_helper",
+      "rerun_readiness_check",
+    ],
+    setupHint: null,
+    status: "missing_accessibility",
+    summary: "Plato Computer Use Helper is not ready.",
   };
 }
 

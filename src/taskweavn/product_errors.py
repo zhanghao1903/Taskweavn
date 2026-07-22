@@ -29,6 +29,10 @@ ProductRecoveryAction = Literal[
     "wait_for_events",
     "open_audit",
     "open_settings",
+    "open_macos_privacy_accessibility",
+    "open_macos_privacy_automation",
+    "restart_helper",
+    "rerun_readiness_check",
     "export_diagnostics",
     "none",
 ]

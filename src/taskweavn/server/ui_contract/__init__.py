@@ -5,9 +5,9 @@ from taskweavn.server.ui_contract.commands import (
     AnswerAskPayload,
     AnswerAuthoringAskBatchPayload,
     AnswerAuthoringAskItemPayload,
-    ArchivePlanPayload,
     AppendSessionInputPayload,
     AppendTaskInputPayload,
+    ArchivePlanPayload,
     CancelAskPayload,
     DeferAskPayload,
     DispatchExecutionPayload,
@@ -107,14 +107,6 @@ from taskweavn.server.ui_contract.product_errors import (
     product_error_details_for_llm_classification,
     product_error_details_for_task_failure,
 )
-from taskweavn.server.ui_contract.refs import (
-    AffectedObjectImpact,
-    AffectedObjectRef,
-    AffectedScope,
-    AffectedScopeKind,
-    ObjectRef,
-    ObjectRefKind,
-)
 from taskweavn.server.ui_contract.read_only_inquiry import (
     ReadOnlyInquiryAnswer,
     ReadOnlyInquiryConfidence,
@@ -132,6 +124,14 @@ from taskweavn.server.ui_contract.read_only_inquiry import (
     ReadOnlyInquiryWarning,
     ReadOnlyInquiryWarningCode,
 )
+from taskweavn.server.ui_contract.refs import (
+    AffectedObjectImpact,
+    AffectedObjectRef,
+    AffectedScope,
+    AffectedScopeKind,
+    ObjectRef,
+    ObjectRefKind,
+)
 from taskweavn.server.ui_contract.runtime_input import (
     RuntimeInputClientState,
     RuntimeInputConfidence,
@@ -141,6 +141,9 @@ from taskweavn.server.ui_contract.runtime_input import (
     RuntimeInputMode,
     RuntimeInputOutcome,
     RuntimeInputOutcomeStatus,
+    RuntimeInputPendingClarification,
+    RuntimeInputPendingClarificationKind,
+    RuntimeInputPendingClarificationSlot,
     RuntimeInputRouteDecision,
     RuntimeInputRouteRequest,
     RuntimeInputRouteResult,
@@ -402,6 +405,9 @@ __all__ = [
     "RuntimeInputMode",
     "RuntimeInputOutcome",
     "RuntimeInputOutcomeStatus",
+    "RuntimeInputPendingClarification",
+    "RuntimeInputPendingClarificationKind",
+    "RuntimeInputPendingClarificationSlot",
     "RuntimeInputRouteDecision",
     "RuntimeInputRouteRequest",
     "RuntimeInputRouteResult",

@@ -413,6 +413,8 @@ def _task_for_request(
         "execution_plane_requester": request.requester.model_dump(mode="json", by_alias=True),
         "execution_plane_task_type": request.task_type,
         "execution_plane_idempotency_key": request.idempotency_key,
+        "execution_plane_allowed_tools": list(request.policy.allowed_tools),
+        "execution_plane_denied_tools": list(request.policy.denied_tools),
     }
     if request.external_ref is not None:
         metadata["execution_plane_external_ref"] = request.external_ref.model_dump(

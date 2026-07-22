@@ -40,6 +40,15 @@ from taskweavn.observability.models import (
     LogSinkConfig,
     RotationConfig,
 )
+from taskweavn.observability.runtime import (
+    DEFAULT_APP_CONTROL_ENV_ID,
+    RUNTIME_OBSERVABILITY_SCHEMA,
+    emit_computer_use_api,
+    emit_runtime_action,
+    emit_runtime_observation,
+    hash_text,
+    monotonic_ms,
+)
 from taskweavn.observability.runtime_config_consumer import (
     LoggingLevelApplier,
     RuntimeConfigLoggingConsumer,
@@ -56,6 +65,7 @@ from taskweavn.observability.setup import (
 
 __all__ = [
     "CHANNELS",
+    "DEFAULT_APP_CONTROL_ENV_ID",
     "EffectiveLogRule",
     "LOGGER_PREFIX",
     "LOG_EVENTS_BY_CATEGORY",
@@ -80,19 +90,25 @@ __all__ = [
     "ObjectLogger",
     "RuntimeConfigLoggingConsumer",
     "RotationConfig",
+    "RUNTIME_OBSERVABILITY_SCHEMA",
     "build_disabled_logging_config",
     "build_legacy_logging_config",
     "build_session_logging_config",
     "configure_logging",
     "configure_session_logging",
+    "emit_computer_use_api",
+    "emit_runtime_action",
+    "emit_runtime_observation",
     "get_channel_logger",
     "get_log_context",
     "get_logging_manager",
     "get_object_logger",
+    "hash_text",
     "is_known_log_event",
     "known_log_events",
     "load_logging_config",
     "merge_log_context",
+    "monotonic_ms",
     "subscribe_runtime_config_logging_consumer",
     "use_log_context",
 ]

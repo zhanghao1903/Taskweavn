@@ -2,30 +2,25 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from pathlib import Path
 
-from taskweavn.core import WorkspaceLayout
 from taskweavn.execution_plane import (
-    WECHAT_SEND_CAPABILITY,
     InMemoryExecutionEnvRegistry,
-    SqliteExecutionPlaneStore,
-    SqliteWeChatSendBoundaryStore,
-    WeChatSendRuntimeHandler,
     default_local_execution_env,
+    local_macos_app_control_execution_env,
 )
-from taskweavn.integrations.wechat_desktop import (
-    MacOSWeChatSearchDriver,
-    WeChatDesktopAdapter,
+from taskweavn.integrations.app_control import (
+    AppControlClientFactoryConfig,
 )
-from taskweavn.interaction import InProcessMessageBus, SqliteMessageStream
 from taskweavn.server.runtime_config_consumers import RuntimeComputerUseSettings
-from taskweavn.task import SqliteTaskBus
 from taskweavn.tools import (
     ComputerUseBackend,
     MacOSComputerUseBackend,
     MacOSComputerUseBackendConfig,
 )
+from taskweavn.wechat_task_types import WECHAT_SEND_CAPABILITY
 
 
 @dataclass(frozen=True)
@@ -36,14 +31,17 @@ class ComputerUseRuntimeSelection:
     backend: ComputerUseBackend | None
     backend_name: str
     allowed_apps: tuple[str, ...] = ()
+    app_control_config: AppControlClientFactoryConfig | None = None
 
 
 def build_computer_use_runtime(
     *,
     backend_name: str | None,
     allowed_apps: str | Sequence[str] | None = None,
-    allow_coordinate_click: bool = False,
+    allow_coordinate_click: bool = True,
     screen_recording_required: bool = False,
+    helper_manifest_path: str | None = None,
+    helper_startup_failure: Mapping[str, str] | None = None,
 ) -> ComputerUseRuntimeSelection:
     """Build the optional computer-use backend selected by runtime config."""
 
@@ -55,24 +53,39 @@ def build_computer_use_runtime(
             backend=None,
             backend_name="disabled",
             allowed_apps=parsed_allowed_apps,
+            app_control_config=None,
         )
-    if normalized != "macos":
+    if normalized not in {"helper", "macos"}:
         raise ValueError(
             "unsupported computer-use backend "
-            f"{backend_name!r}; valid values: disabled, macos"
+            f"{backend_name!r}; valid values: disabled, helper, macos"
         )
 
+    app_control_backend = "helper" if normalized == "helper" else "direct"
+    app_control_config = AppControlClientFactoryConfig(
+        backend=app_control_backend,
+        allowed_apps=parsed_allowed_apps,
+        allow_coordinate_click=allow_coordinate_click,
+        screen_recording_required=screen_recording_required,
+        helper_manifest_path=(
+            None if helper_manifest_path is None else Path(helper_manifest_path).expanduser()
+        ),
+        helper_startup_failure=helper_startup_failure,
+    )
     return ComputerUseRuntimeSelection(
         enabled=True,
         backend=MacOSComputerUseBackend(
             config=MacOSComputerUseBackendConfig(
+                backend=app_control_backend,
                 allowed_apps=parsed_allowed_apps,
                 allow_coordinate_click=allow_coordinate_click,
                 screen_recording_required=screen_recording_required,
+                helper_manifest_path=app_control_config.helper_manifest_path,
             )
         ),
-        backend_name="macos",
+        backend_name=normalized,
         allowed_apps=parsed_allowed_apps,
+        app_control_config=app_control_config,
     )
 
 
@@ -88,63 +101,75 @@ def parse_computer_use_allowed_apps(
     return tuple(app.strip() for app in raw if app.strip())
 
 
+def resolve_computer_use_runtime(
+    *,
+    computer_use_settings: RuntimeComputerUseSettings,
+    computer_use_backend: ComputerUseBackend | None,
+    app_control_config: AppControlClientFactoryConfig | None = None,
+) -> ComputerUseRuntimeSelection:
+    """Resolve the runtime config snapshot into one concrete backend selection."""
+
+    if not computer_use_settings.enabled:
+        return ComputerUseRuntimeSelection(
+            enabled=False,
+            backend=None,
+            backend_name="disabled",
+            allowed_apps=computer_use_settings.allowed_apps,
+            app_control_config=None,
+        )
+    normalized_backend = computer_use_settings.backend.strip().lower()
+    resolved_app_control_config = app_control_config or AppControlClientFactoryConfig(
+        backend="helper" if normalized_backend == "helper" else "direct",
+        allowed_apps=computer_use_settings.allowed_apps,
+        allow_coordinate_click=computer_use_settings.allow_coordinate_click,
+    )
+    if computer_use_backend is not None:
+        return ComputerUseRuntimeSelection(
+            enabled=True,
+            backend=computer_use_backend,
+            backend_name=computer_use_settings.backend,
+            allowed_apps=computer_use_settings.allowed_apps,
+            app_control_config=resolved_app_control_config,
+        )
+    return build_computer_use_runtime(
+        backend_name=computer_use_settings.backend,
+        allowed_apps=computer_use_settings.allowed_apps,
+        allow_coordinate_click=computer_use_settings.allow_coordinate_click,
+    )
+
+
 def build_execution_env_registry(
     *,
     computer_use_settings: RuntimeComputerUseSettings,
+    computer_use_available: bool | None = None,
 ) -> InMemoryExecutionEnvRegistry:
     """Build the execution environment registry for the local sidecar."""
 
+    resolved_computer_use_enabled = (
+        computer_use_settings.enabled
+        if computer_use_available is None
+        else computer_use_settings.enabled and computer_use_available
+    )
     capabilities: tuple[str, ...] = ("execute", "testing")
     tool_pool: tuple[str, ...] = ()
-    if computer_use_settings.enabled:
+    if resolved_computer_use_enabled:
         capabilities = (*capabilities, "computer_use", WECHAT_SEND_CAPABILITY)
         tool_pool = (*tool_pool, "computer_use", "wechat_desktop")
-    return InMemoryExecutionEnvRegistry(
-        (
-            default_local_execution_env(
-                capabilities=capabilities,
-                tool_pool=tool_pool,
-            ),
+    env = (
+        local_macos_app_control_execution_env(
+            capabilities=capabilities,
+            tool_pool=tool_pool,
         )
+        if resolved_computer_use_enabled
+        else default_local_execution_env(capabilities=capabilities, tool_pool=tool_pool)
     )
-
-
-def build_execution_plane_runtime_handlers(
-    *,
-    layout: WorkspaceLayout,
-    task_bus: SqliteTaskBus,
-    message_bus: InProcessMessageBus,
-    message_stream: SqliteMessageStream,
-    execution_plane_store: SqliteExecutionPlaneStore,
-    computer_use_settings: RuntimeComputerUseSettings,
-    computer_use_backend: ComputerUseBackend | None,
-) -> tuple[WeChatSendRuntimeHandler, ...]:
-    """Build optional execution-plane runtime handlers for computer-use tools."""
-
-    if not computer_use_settings.enabled or computer_use_backend is None:
-        return ()
-    wechat_boundary_store = SqliteWeChatSendBoundaryStore(
-        layout.meta_dir / "wechat_send_boundaries.sqlite"
-    )
-    return (
-        WeChatSendRuntimeHandler(
-            task_bus=task_bus,
-            message_bus=message_bus,
-            message_stream=message_stream,
-            execution_store=execution_plane_store,
-            boundary_store=wechat_boundary_store,
-            adapter=WeChatDesktopAdapter(
-                computer_use_backend,
-                contact_search_driver=MacOSWeChatSearchDriver(),
-            ),
-        ),
-    )
+    return InMemoryExecutionEnvRegistry((env,))
 
 
 __all__ = [
     "ComputerUseRuntimeSelection",
     "build_execution_env_registry",
-    "build_execution_plane_runtime_handlers",
     "build_computer_use_runtime",
     "parse_computer_use_allowed_apps",
+    "resolve_computer_use_runtime",
 ]

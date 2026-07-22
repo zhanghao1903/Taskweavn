@@ -2,7 +2,7 @@
 
 > Status: C1-C7.5 implemented control-plane foundation
 > Type: Runtime control plane / configuration governance
-> Last Updated: 2026-06-24
+> Last Updated: 2026-06-25
 > Owner/Session: computer-use hardening discussion
 > Target Implementation Session: runtime-config Settings read-only behavior complete
 > Related Docs: [Configuration Guide](../../configuration.md), [Settings, Logs, And Audit Boundary](../../product/plato-settings-logs-audit-boundary.md), [Runtime Config Change Store](../../engineering/runtime-config-change-store.md), [Runtime Config Write API](../../engineering/runtime-config-write-api-contract.md), [Configurable Logging System](configurable-logging-system.md), [LLM Provider Plan](llm-provider-retry-thinking.md), [Execution Plane Service Task API](execution-plane-service-task-api.md), [Context Manager 1.0](context-manager-1-0.md), [Skill Governance](product-1-1-skill-governance.md)
@@ -102,6 +102,7 @@ plane that explains the current expected behavior of the system.
 | Web search/fetch | Settings + env | provider, enablement, fetch limits | Behavior-changing config is feature-local. |
 | Safety/confirmation | autonomy/gate defaults and task handlers | risk thresholds, confirmation requirements | Not yet centralized. |
 | Main Page trace | env | `PLATO_MAIN_PAGE_TRACE`, `PLATO_MAIN_PAGE_TRACE_FILE` | Debug behavior is environment-only. |
+| Runtime Input Router | runtime config registry + Router LLM assembly | `llm_first`; planner required; fail-closed no-mutation policy; builtin runtime skills | Effective Router behavior keys are projected for diagnostics. Workspace/session Router override entry points remain future work. |
 
 ### 4.2 Current Hardcoded / Distributed Defaults
 
@@ -118,7 +119,9 @@ without changing behavior.
 | Read-only inquiry LLM | enabled | `MainPageSidecarConfig.enable_read_only_inquiry_llm`, `PLATO_ENABLE_READ_ONLY_INQUIRY_LLM` |
 | Computer-use backend | `disabled` | CLI/packaged sidecar `--computer-use-backend`, `PLATO_COMPUTER_USE_BACKEND` |
 | Computer-use allowed apps | empty allowlist unless passed | `PLATO_COMPUTER_USE_ALLOWED_APPS` / sidecar args |
-| Computer-use coordinate click | `false` | `build_computer_use_runtime(... allow_coordinate_click=False)` |
+| Computer-use helper launch timeout | `90` seconds | `PLATO_COMPUTER_USE_HELPER_LAUNCH_TIMEOUT_SECONDS` |
+| Computer-use helper launch poll interval | `0.2` seconds | `PLATO_COMPUTER_USE_HELPER_LAUNCH_POLL_INTERVAL_SECONDS` |
+| Computer-use coordinate click | `true` | `computer_use.allow_coordinate_click`; Electron Helper and sidecar runtime assembly |
 | Computer-use screen recording requirement | `false` | `build_computer_use_runtime(... screen_recording_required=False)` |
 | Computer-use max text chars | `4000` | `MacOSComputerUseBackendConfig.max_text_chars` |
 | Context max prior messages | `200` | `SessionAgentLoopContextProvider.max_prior_messages` |
@@ -136,6 +139,7 @@ without changing behavior.
 | Web fetch limits | Settings/env-derived | `PLATO_WEB_FETCH_MAX_*` |
 | Structured logging level | `INFO` | CLI / `MainPageSidecarConfig.logging_level` |
 | Main Page trace | enabled by default | `PLATO_MAIN_PAGE_TRACE`, `PLATO_MAIN_PAGE_TRACE_PRINT`, `PLATO_MAIN_PAGE_TRACE_FILE` |
+| Runtime Input Router mode | `llm_first` in Main Page runtime | `DefaultRuntimeInputRouter(route_planner=LLMRuntimeInputRoutePlanner(...))` |
 
 ### 4.3 Existing Plan Status
 
@@ -192,6 +196,24 @@ current effective config, source attribution, mutability, and effective status.
 C7.5 projects runtime config snapshot/change facts into Audit config evidence
 through the existing Audit config provider seam. Editable Settings controls and
 broader runtime consumers remain deferred.
+
+### 4.4 Current Product UI Scope Boundary
+
+The current Product 1.1 Settings surface is app-level only.
+
+This is a product boundary, not only an implementation detail:
+
+- Settings changes affect the whole local app/runtime process.
+- There is no workspace-level configuration entry point yet.
+- There is no session-level configuration entry point yet.
+- The effective config model may represent global/workspace/session/task
+  scopes, but the UI must not imply that users can edit workspace/session
+  overrides today.
+- Future workspace/session config requires a separate product entry, effective
+  config explanation, audit evidence, and conflict/override semantics.
+
+Until those entry points exist, Settings copy, runtime config diagnostics, and
+Router logs should label editable Settings values as `app` or `global` scope.
 
 ---
 
@@ -367,9 +389,9 @@ can observe.
 | `task_api.enabled` | sidecar route/service assembly | process/workspace | `startup_only` | Needs explicit surface. |
 | `task_api.require_valid_session` | planned hardening | workspace | `next_task` | Should prevent orphan external tasks. |
 | `computer_use.enabled` | derived from backend/dependency | process/workspace | `startup_only` | Current default disabled. |
-| `computer_use.backend` | CLI/env `PLATO_COMPUTER_USE_BACKEND` | process | `startup_only` | `disabled` or `macos`. |
+| `computer_use.backend` | CLI/env `PLATO_COMPUTER_USE_BACKEND` | process | `startup_only` | `disabled`, `helper`, or `macos`. |
 | `computer_use.allowed_apps` | CLI/env `PLATO_COMPUTER_USE_ALLOWED_APPS` | process/workspace | `startup_only` initially | Example: `WeChat`. |
-| `computer_use.allow_coordinate_click` | backend assembly | process/workspace | `startup_only` initially | Default should remain false. |
+| `computer_use.allow_coordinate_click` | Electron Helper + backend assembly | process/workspace | `startup_only` initially | Defaults to true for the private app-allowlisted Helper; explicit false remains available. |
 | `computer_use.screen_recording_required` | backend assembly | process/workspace | `startup_only` initially | Default should remain false. |
 | `computer_use.max_text_chars` | `MacOSComputerUseBackendConfig.max_text_chars` | process/workspace | `startup_only` initially | Current value is 4000. |
 | `safety.high_risk_confirmation` | confirmation/handler policy | workspace/session/task | `next_action` | Required for send-like actions. |

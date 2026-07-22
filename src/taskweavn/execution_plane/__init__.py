@@ -2,9 +2,11 @@
 
 from taskweavn.execution_plane.embedded_service import EmbeddedTaskApiService
 from taskweavn.execution_plane.env_registry import (
+    LOCAL_MACOS_APP_CONTROL_ENV_ID,
     ExecutionEnvRegistry,
     InMemoryExecutionEnvRegistry,
     default_local_execution_env,
+    local_macos_app_control_execution_env,
 )
 from taskweavn.execution_plane.errors import ExecutionPlaneError
 from taskweavn.execution_plane.models import (
@@ -35,28 +37,9 @@ from taskweavn.execution_plane.store import (
     request_hash,
     scoped_idempotency_key,
 )
-from taskweavn.execution_plane.wechat_send_boundary import (
-    SqliteWeChatSendBoundaryStore,
-    WeChatSendBoundary,
-    WeChatSendBoundaryConflictError,
-    WeChatSendBoundaryStatus,
-    WeChatSendBoundaryStore,
-    WeChatSendBoundaryStoreError,
-    WeChatSendBoundaryTransitionError,
-)
-from taskweavn.execution_plane.wechat_send_execution import (
-    WeChatSendAdapter,
-    WeChatSendExecutionOutcome,
-    WeChatSendExecutionRequest,
-    WeChatSendExecutionService,
-    WeChatSendExecutionStatus,
-)
-from taskweavn.execution_plane.wechat_send_runtime import (
+from taskweavn.execution_plane.wechat_task_types import (
     WECHAT_SEND_CAPABILITY,
     WECHAT_SEND_TASK_TYPE,
-    WeChatSendRuntimeAdapter,
-    WeChatSendRuntimeConfig,
-    WeChatSendRuntimeHandler,
 )
 
 __all__ = [
@@ -74,9 +57,9 @@ __all__ = [
     "ExternalRef",
     "InMemoryExecutionEnvRegistry",
     "InMemoryExecutionPlaneStore",
+    "LOCAL_MACOS_APP_CONTROL_ENV_ID",
     "RetryTaskCommand",
     "SqliteExecutionPlaneStore",
-    "SqliteWeChatSendBoundaryStore",
     "TaskApiService",
     "TaskError",
     "TaskEvent",
@@ -87,23 +70,10 @@ __all__ = [
     "TaskRequestIdempotencyRecord",
     "TaskRequester",
     "TaskResult",
-    "WeChatSendBoundary",
-    "WeChatSendBoundaryConflictError",
-    "WeChatSendBoundaryStatus",
-    "WeChatSendBoundaryStore",
-    "WeChatSendBoundaryStoreError",
-    "WeChatSendBoundaryTransitionError",
-    "WeChatSendAdapter",
-    "WeChatSendExecutionOutcome",
-    "WeChatSendExecutionRequest",
-    "WeChatSendExecutionService",
-    "WeChatSendExecutionStatus",
     "WECHAT_SEND_CAPABILITY",
     "WECHAT_SEND_TASK_TYPE",
-    "WeChatSendRuntimeAdapter",
-    "WeChatSendRuntimeConfig",
-    "WeChatSendRuntimeHandler",
     "default_local_execution_env",
+    "local_macos_app_control_execution_env",
     "request_hash",
     "scoped_idempotency_key",
 ]

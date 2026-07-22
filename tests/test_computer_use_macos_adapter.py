@@ -1,144 +1,89 @@
-"""Tests for the Plato adapter over the optional macOS computer-use package."""
+"""Tests for the Plato adapter over the published app-control package suite."""
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
+from app_control_protocol import ToolCommand, ToolEvent, ToolObservation
+
+from taskweavn.integrations.app_control import (
+    AppControlClientFactoryConfig,
+    AppControlServiceManifest,
+    build_app_control_config,
+)
+from taskweavn.observability import (
+    build_disabled_logging_config,
+    build_session_logging_config,
+    get_logging_manager,
+)
 from taskweavn.tools import MacOSComputerUseBackend
 from taskweavn.types import ComputerUseAction
 
 
-@dataclass(frozen=True)
-class FakeReadiness:
-    status: str
-    setup_hint: str | None = None
-
-    def to_dict(self) -> dict[str, Any]:
-        return {"status": self.status, "setup_hint": self.setup_hint}
-
-
-@dataclass(frozen=True)
-class FakeRisk:
-    level: str = "high"
-    requires_confirmation: bool = True
-    reason: str = "external message"
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "level": self.level,
-            "requires_confirmation": self.requires_confirmation,
-            "reason": self.reason,
-        }
-
-
-@dataclass(frozen=True)
-class FakeResult:
-    operation: str
-    status: str
-    success: bool
-    summary: str
-    text_extract: str | None = None
-    snapshot_id: str | None = None
-    risk: FakeRisk | None = None
-    metadata: dict[str, Any] = field(default_factory=dict)
-
-
-class FakeMacOSClient:
-    def __init__(self, *, readiness_status: str = "ready") -> None:
-        self.readiness_status = readiness_status
-        self.calls: list[tuple[str, dict[str, Any]]] = []
-        self.next_result = FakeResult(
+@dataclass
+class FakeProtocolClient:
+    next_observation: ToolObservation = field(
+        default_factory=lambda: ToolObservation(
+            command_id="cmd_default",
+            tool="macos.computer_use",
             operation="observe",
             status="ok",
             success=True,
             summary="Observed frontmost app.",
-            text_extract="Frontmost app: TextEdit.",
-            snapshot_id="frontmost:TextEdit:Untitled",
+            observation={
+                "textExtract": "Frontmost app: TextEdit.",
+                "snapshotId": "frontmost:TextEdit:Untitled",
+                "frontmostApp": "TextEdit",
+            },
             metadata={"frontmost_app": "TextEdit"},
         )
+    )
+    commands: list[ToolCommand] = field(default_factory=list)
+    manifest: AppControlServiceManifest | None = None
 
-    def readiness(self) -> FakeReadiness:
-        self.calls.append(("readiness", {}))
-        return FakeReadiness(self.readiness_status, "setup needed")
-
-    def open_app(self, app: str, *, timeout: float = 10.0) -> FakeResult:
-        self.calls.append(("open_app", {"app": app, "timeout": timeout}))
-        return self.next_result
-
-    def observe(
+    def run_command(
         self,
+        command: ToolCommand | dict[str, Any],
         *,
-        target_app: str | None = None,
-        timeout: float = 5.0,
-    ) -> FakeResult:
-        self.calls.append(("observe", {"target_app": target_app, "timeout": timeout}))
-        return self.next_result
-
-    def type_text(
-        self,
-        text: str,
-        *,
-        target_app: str | None = None,
-        timeout: float = 5.0,
-    ) -> FakeResult:
-        self.calls.append(
-            ("type_text", {"text": text, "target_app": target_app, "timeout": timeout})
-        )
-        return self.next_result
-
-    def click(
-        self,
-        target: str,
-        *,
-        target_app: str | None = None,
-        snapshot_id: str | None = None,
-        timeout: float = 5.0,
-        confirmed: bool = False,
-        role_hints: tuple[str, ...] = ("AXButton",),
-        aliases: tuple[str, ...] = (),
-        max_nodes: int = 200,
-        max_depth: int = 6,
-        lookup_timeout: float | None = None,
-        click_timeout: float | None = None,
-        post_click_observe: bool = True,
-    ) -> FakeResult:
-        self.calls.append(
-            (
-                "click",
-                {
-                    "target": target,
-                    "target_app": target_app,
-                    "snapshot_id": snapshot_id,
-                    "timeout": timeout,
-                    "confirmed": confirmed,
-                    "role_hints": role_hints,
-                    "aliases": aliases,
-                    "max_nodes": max_nodes,
-                    "max_depth": max_depth,
-                    "lookup_timeout": lookup_timeout,
-                    "click_timeout": click_timeout,
-                    "post_click_observe": post_click_observe,
-                },
+        observer: object | None = None,
+    ) -> ToolObservation:
+        assert isinstance(command, ToolCommand)
+        self.commands.append(command)
+        if observer is not None and hasattr(observer, "on_event"):
+            observer.on_event(
+                ToolEvent(
+                    command_id=command.command_id,
+                    seq=1,
+                    event_type="progress",
+                    phase=f"{command.operation}.test",
+                    summary="progress",
+                    data={"accessibilityTree": "raw tree should stay out of logs"},
+                )
             )
-        )
-        return self.next_result
+        return self.next_observation
 
-    def press_key(
-        self,
-        keys: tuple[str, ...],
-        *,
-        target_app: str | None = None,
-        timeout: float = 5.0,
-    ) -> FakeResult:
-        self.calls.append(
-            ("press_key", {"keys": keys, "target_app": target_app, "timeout": timeout})
-        )
-        return self.next_result
 
-    def wait(self, *, seconds: float = 1.0) -> FakeResult:
-        self.calls.append(("wait", {"seconds": seconds}))
-        return self.next_result
+def test_build_app_control_config_maps_runtime_settings(tmp_path: Path) -> None:
+    manifest_path = tmp_path / "app-control-service.json"
+    config = build_app_control_config(
+        AppControlClientFactoryConfig(
+            backend="helper",
+            allowed_apps=("WeChat",),
+            allowed_app_bundle_ids={"WeChat": "com.tencent.xinWeChat"},
+            helper_manifest_path=manifest_path,
+        )
+    )
+
+    assert config.computer_use.backend == "helper"
+    assert config.computer_use.allowed_apps == ("WeChat",)
+    assert config.computer_use.allowed_app_bundle_ids == {
+        "WeChat": "com.tencent.xinWeChat"
+    }
+    assert config.helper.manifest_path == str(manifest_path)
+    assert config.helper.auto_launch is False
 
 
 def test_macos_backend_reports_package_missing_as_not_available() -> None:
@@ -157,7 +102,21 @@ def test_macos_backend_reports_package_missing_as_not_available() -> None:
 
 
 def test_macos_backend_maps_ready_readiness_to_ok_observation() -> None:
-    client = FakeMacOSClient(readiness_status="ready")
+    client = FakeProtocolClient(
+        ToolObservation(
+            command_id="cmd_ready",
+            tool="macos.computer_use",
+            operation="readiness",
+            status="ok",
+            success=True,
+            summary="ready",
+            observation={
+                "status": "ready",
+                "permissions": {"accessibility": True},
+                "enabledOperations": ["observe", "open_app"],
+            },
+        )
+    )
     backend = MacOSComputerUseBackend(client=client)
 
     observation = backend.execute(
@@ -167,22 +126,70 @@ def test_macos_backend_maps_ready_readiness_to_ok_observation() -> None:
     assert observation.success is True
     assert observation.status == "ok"
     assert observation.operation == "readiness"
-    assert observation.metadata["readiness"]["status"] == "ready"
+    assert observation.metadata["observation"]["status"] == "ready"
+    assert observation.metadata["protocol"]["tool"] == "macos.computer_use"
+    diagnostics = observation.metadata["diagnostics"]
+    assert diagnostics["checkedByProcessPath"]
+    assert diagnostics["adapterProcessExecutable"]
+    assert diagnostics["adapterArgv0"]
+    assert diagnostics["packageClientClass"].endswith(".FakeProtocolClient")
+    assert client.commands[0].operation == "readiness"
 
 
-def test_macos_backend_maps_missing_accessibility_to_not_available() -> None:
-    client = FakeMacOSClient(readiness_status="missing_accessibility")
+def test_macos_backend_maps_permission_missing_to_needs_user() -> None:
+    client = FakeProtocolClient(
+        next_observation=ToolObservation(
+            command_id="cmd_ready",
+            tool="macos.computer_use",
+            operation="readiness",
+            status="permission_missing",
+            success=False,
+            summary="Accessibility permission is missing.",
+            failure_kind="missing_accessibility",
+            message="Accessibility permission is missing.",
+            recovery_hint="Grant Accessibility to the helper app.",
+            retryable=True,
+        ),
+        manifest=AppControlServiceManifest(
+            endpoint=Path("/tmp/app-control.sock"),
+            token_path=Path("/tmp/app-control.token"),
+            pid=123,
+            bundle_id="com.taskweavn.plato.computer-use-helper.dev",
+            service_version="0.3.0",
+            app_path=Path("/Applications/Plato Computer Use Helper Dev.app"),
+        ),
+    )
     backend = MacOSComputerUseBackend(client=client)
 
     observation = backend.readiness()
 
     assert observation.success is False
-    assert observation.status == "not_available"
-    assert "missing_accessibility" in observation.summary
+    assert observation.status == "needs_user"
+    assert observation.metadata["failure_kind"] == "missing_accessibility"
+    assert observation.metadata["recovery_hint"] == "Grant Accessibility to the helper app."
+    assert observation.metadata["retryable"] is True
+    assert observation.metadata["helper"] == {
+        "bundleId": "com.taskweavn.plato.computer-use-helper.dev",
+        "apiVersion": "plato.app_control.service_manifest.v1",
+        "version": "0.3.0",
+        "path": "/Applications/Plato Computer Use Helper Dev.app",
+    }
+    assert observation.metadata["helper_status"] == "missing_accessibility"
+    assert observation.metadata["readiness"] == {}
+    assert observation.metadata["setup_hint"] == (
+        "Grant or refresh macOS Accessibility permission for "
+        "/Applications/Plato Computer Use Helper Dev.app, restart Plato, then "
+        "recheck computer-use readiness."
+    )
+    assert observation.metadata["recovery_actions"] == [
+        "open_macos_privacy_accessibility",
+        "restart_helper",
+        "rerun_readiness_check",
+    ]
 
 
 def test_macos_backend_maps_observe_result_metadata() -> None:
-    client = FakeMacOSClient()
+    client = FakeProtocolClient()
     backend = MacOSComputerUseBackend(client=client)
     action = ComputerUseAction(
         operation="observe",
@@ -192,17 +199,21 @@ def test_macos_backend_maps_observe_result_metadata() -> None:
 
     observation = backend.execute(action)
 
-    assert client.calls == [("observe", {"target_app": "TextEdit", "timeout": 5.0})]
+    command = client.commands[0]
+    assert command.operation == "observe"
+    assert command.input == {"targetApp": "TextEdit"}
     assert observation.action_id == action.event_id
     assert observation.success is True
     assert observation.status == "ok"
     assert observation.text_extract == "Frontmost app: TextEdit."
     assert observation.metadata["snapshot_id"] == "frontmost:TextEdit:Untitled"
-    assert observation.metadata["frontmost_app"] == "TextEdit"
+    assert observation.metadata["package_metadata"]["frontmost_app"] == "TextEdit"
+    assert observation.metadata["tool_events"][0]["phase"] == "observe.test"
+    assert observation.metadata["tool_events"][0]["dataKeys"] == ["accessibilityTree"]
 
 
-def test_macos_backend_maps_open_type_click_and_wait_arguments() -> None:
-    client = FakeMacOSClient()
+def test_macos_backend_builds_protocol_commands_for_core_operations() -> None:
+    client = FakeProtocolClient()
     backend = MacOSComputerUseBackend(client=client)
 
     backend.execute(
@@ -211,6 +222,30 @@ def test_macos_backend_maps_open_type_click_and_wait_arguments() -> None:
             instruction="Open TextEdit.",
             target="TextEdit",
             timeout_seconds=7,
+            metadata={"bundle_id": "com.apple.TextEdit"},
+        )
+    )
+    backend.execute(
+        ComputerUseAction(
+            operation="focus_app",
+            instruction="Focus WeChat.",
+            target="WeChat",
+            timeout_seconds=7,
+            metadata={"bundle_id": "com.tencent.xinWeChat"},
+        )
+    )
+    backend.execute(
+        ComputerUseAction(
+            operation="accessibility_query",
+            instruction="Query focused WeChat window.",
+            target="WeChat",
+            timeout_seconds=6,
+            metadata={
+                "bundle_id": "com.tencent.xinWeChat",
+                "root": {"kind": "focusedWindow"},
+                "query": {"scope": "children", "limit": 5},
+                "include_raw": False,
+            },
         )
     )
     backend.execute(
@@ -227,7 +262,13 @@ def test_macos_backend_maps_open_type_click_and_wait_arguments() -> None:
             operation="click",
             instruction="Click OK.",
             target="OK",
-            metadata={"target_app": "TextEdit", "snapshot_id": "snap-1"},
+            x=1,
+            y=2,
+            metadata={
+                "target_app": "TextEdit",
+                "snapshot_id": "snap-1",
+                "selector": {"role": "button", "name": "OK"},
+            },
             timeout_seconds=4,
         )
     )
@@ -248,112 +289,70 @@ def test_macos_backend_maps_open_type_click_and_wait_arguments() -> None:
         )
     )
 
-    assert client.calls == [
-        ("open_app", {"app": "TextEdit", "timeout": 7}),
-        ("type_text", {"text": "hello", "target_app": "TextEdit", "timeout": 3}),
+    command_facts = [
+        (command.operation, command.input, command.timeout_ms)
+        for command in client.commands
+    ]
+    assert command_facts == [
         (
-            "click",
-                {
-                    "target": "OK",
-                    "target_app": "TextEdit",
-                    "snapshot_id": "snap-1",
-                    "timeout": 4,
-                    "confirmed": False,
-                    "role_hints": ("AXButton",),
-                    "aliases": (),
-                    "max_nodes": 200,
-                    "max_depth": 6,
-                    "lookup_timeout": None,
-                    "click_timeout": None,
-                    "post_click_observe": True,
-                },
-            ),
-        (
-            "press_key",
-            {"keys": ("command", "f"), "target_app": "TextEdit", "timeout": 4},
+            "open_app",
+            {"app": "TextEdit", "bundleId": "com.apple.TextEdit"},
+            7000,
         ),
-        ("wait", {"seconds": 2}),
-    ]
-
-
-def test_macos_backend_preserves_blocked_risk_metadata() -> None:
-    client = FakeMacOSClient()
-    client.next_result = FakeResult(
-        operation="click",
-        status="blocked",
-        success=False,
-        summary="computer-use action requires confirmation",
-        risk=FakeRisk(),
-        metadata={"confirmation_required": True},
-    )
-    backend = MacOSComputerUseBackend(client=client)
-
-    observation = backend.execute(
-        ComputerUseAction(
-            operation="click",
-            instruction="Click Send.",
-            target="Send",
-            metadata={"target_app": "WeChat"},
-        )
-    )
-
-    assert observation.success is False
-    assert observation.status == "blocked"
-    assert observation.metadata["confirmation_required"] is True
-    assert observation.metadata["risk"]["requires_confirmation"] is True
-
-
-def test_macos_backend_passes_confirmed_click_after_product_confirmation() -> None:
-    client = FakeMacOSClient()
-    backend = MacOSComputerUseBackend(client=client)
-
-    observation = backend.execute(
-        ComputerUseAction(
-            operation="click",
-            instruction="Click Send after product confirmation.",
-            target="发送",
-            metadata={"target_app": "WeChat", "confirmed_by_user": True},
-        )
-    )
-
-    assert observation.status == "ok"
-    assert client.calls == [
+        (
+            "focus_app",
+            {"app": "WeChat", "bundleId": "com.tencent.xinWeChat"},
+            7000,
+        ),
+        (
+            "accessibility_query",
+            {
+                "targetApp": "WeChat",
+                "bundleId": "com.tencent.xinWeChat",
+                "root": {"kind": "focusedWindow"},
+                "query": {"scope": "children", "limit": 5},
+                "includeRaw": False,
+            },
+            6000,
+        ),
+        ("type_text", {"text": "hello", "targetApp": "TextEdit"}, 3000),
         (
             "click",
-                {
-                    "target": "发送",
-                    "target_app": "WeChat",
-                    "snapshot_id": None,
-                    "timeout": 5.0,
-                    "confirmed": True,
-                    "role_hints": ("AXButton",),
-                    "aliases": (),
-                    "max_nodes": 200,
-                    "max_depth": 6,
-                    "lookup_timeout": None,
-                    "click_timeout": None,
-                    "post_click_observe": True,
-                },
-            )
+            {
+                "target": "OK",
+                "targetApp": "TextEdit",
+                "selector": {"role": "button", "name": "OK"},
+                "coordinates": [1, 2],
+                "snapshotId": "snap-1",
+            },
+            4000,
+        ),
+        ("hotkey", {"keys": ["command", "f"], "targetApp": "TextEdit"}, 4000),
+        ("wait", {"seconds": 2}, 2000),
     ]
 
 
-def test_macos_backend_passes_semantic_click_options_and_preserves_w7_metadata() -> None:
-    client = FakeMacOSClient()
-    client.next_result = FakeResult(
-        operation="click",
-        status="failed",
-        success=False,
-        summary="Timed out while clicking semantic target.",
-        metadata={
-            "failure_kind": "click_timeout",
-            "phase": "click",
-            "lookup_attempted": True,
-            "target_resolved": True,
-            "click_attempted": True,
-            "post_click_observed": False,
-            "matched_count": 1,
-        },
+def test_macos_backend_preserves_structured_failure_metadata() -> None:
+    client = FakeProtocolClient(
+        ToolObservation(
+            command_id="cmd_click",
+            tool="macos.computer_use",
+            operation="click",
+            status="timeout",
+            success=False,
+            summary="Timed out while clicking semantic target.",
+            failure_kind="click_timeout",
+            message="Timed out while clicking semantic target.",
+            recovery_hint="Observe the target app before retrying.",
+            retryable=True,
+            evidence={
+                "phase": "click",
+                "lookupAttempted": True,
+                "targetResolved": True,
+                "clickAttempted": True,
+                "postClickObserved": False,
+            },
+        )
     )
     backend = MacOSComputerUseBackend(client=client)
 
@@ -366,37 +365,77 @@ def test_macos_backend_passes_semantic_click_options_and_preserves_w7_metadata()
                 "target_app": "WeChat",
                 "confirmed_by_user": True,
                 "aliases": ["发送", "Send"],
-                "role_hints": ["AXButton"],
-                "max_nodes": 120,
-                "max_depth": 5,
-                "lookup_timeout": 4.0,
-                "click_timeout": 2.0,
-                "post_click_observe": False,
             },
         )
     )
 
     assert observation.status == "failed"
     assert observation.metadata["failure_kind"] == "click_timeout"
-    assert observation.metadata["phase"] == "click"
-    assert observation.metadata["click_attempted"] is True
-    assert observation.metadata["target_resolved"] is True
-    assert client.calls == [
-        (
-            "click",
-            {
-                "target": "发送",
-                "target_app": "WeChat",
-                "snapshot_id": None,
-                "timeout": 5.0,
-                "confirmed": True,
-                "role_hints": ("AXButton",),
-                "aliases": ("发送", "Send"),
-                "max_nodes": 120,
-                "max_depth": 5,
-                "lookup_timeout": 4.0,
-                "click_timeout": 2.0,
-                "post_click_observe": False,
-            },
+    assert observation.metadata["message"] == "Timed out while clicking semantic target."
+    assert observation.metadata["recovery_hint"] == "Observe the target app before retrying."
+    assert observation.metadata["retryable"] is True
+    assert observation.metadata["evidence"]["clickAttempted"] is True
+    command = client.commands[0]
+    assert command.operation == "click"
+    assert command.input["target"] == "发送"
+    assert command.input["targetApp"] == "WeChat"
+    assert command.metadata["confirmed_by_user"] is True
+    assert command.metadata["aliases"] == ["发送", "Send"]
+
+
+def test_macos_backend_emits_computer_use_api_logs_without_raw_text(
+    tmp_path: Path,
+) -> None:
+    session_id = "session-computer-use-log"
+    log_root = tmp_path / "logs"
+    manager = get_logging_manager()
+    manager.apply_config(build_session_logging_config(log_root, level="DEBUG"))
+    try:
+        client = FakeProtocolClient(
+            ToolObservation(
+                command_id="cmd_type",
+                tool="macos.computer_use",
+                operation="type_text",
+                status="ok",
+                success=True,
+                summary="Typed text.",
+                observation={},
+            )
         )
-    ]
+        backend = MacOSComputerUseBackend(client=client)
+
+        backend.execute(
+            ComputerUseAction(
+                operation="type_text",
+                instruction="Type text.",
+                text="secret message",
+                metadata={
+                    "sessionId": session_id,
+                    "taskId": "task-1",
+                    "executionId": "exec-1",
+                    "target_app": "TextEdit",
+                },
+            )
+        )
+
+        runtime_log = log_root / "sessions" / session_id / "runtime.jsonl"
+        rows = [
+            json.loads(line)
+            for line in runtime_log.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+        row = next(item for item in rows if item["event"] == "computer_use_api")
+        assert row["context"]["task_id"] == "task-1"
+        data = row["data"]
+        assert data["schema"] == "plato.runtime_observability.v1"
+        assert data["operation"] == "type_text"
+        assert data["messageHash"].startswith("sha256:")
+        assert data["messageChars"] == 14
+        assert data["metadata"]["packageEventCount"] == 1
+        assert data["metadata"]["packageEvents"][0]["dataKeys"] == ["accessibilityTree"]
+        assert "secret message" not in runtime_log.read_text(encoding="utf-8")
+        assert "raw tree should stay out of logs" not in runtime_log.read_text(
+            encoding="utf-8"
+        )
+    finally:
+        manager.apply_config(build_disabled_logging_config(tmp_path / "disabled-logs"))

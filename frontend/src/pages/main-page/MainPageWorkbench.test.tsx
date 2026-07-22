@@ -16,6 +16,7 @@ import type {
 } from "../../shared/api/types";
 import type {
   DiagnosticBundleExportResult,
+  ProductRecoveryAction,
   WorkspaceCatalogResult,
 } from "../../shared/api/platoApi";
 import { writeWorkspaceGitInitializeOnOpenPreference } from "../../shared/workspace/workspaceGitPreference";
@@ -74,6 +75,30 @@ describe("MainPageWorkbench layout", () => {
     expect(inputForm).not.toBeNull();
     expect(inputForm).toHaveClass(styles.contextInput);
     expect(inputForm).not.toHaveClass(styles.floatingContextInput);
+  });
+
+  it("routes helper recovery actions from the input error to Settings", async () => {
+    const user = userEvent.setup();
+    const viewModel = buildViewModel("s1-empty");
+
+    renderWorkbench(viewModel, buildActions(), {
+      inputError: "Computer-use helper needs Accessibility permission.",
+      inputRecoveryActions: ["open_macos_privacy_accessibility", "edit_input"],
+    });
+
+    expect(
+      screen.getByText("Computer-use helper needs Accessibility permission."),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Edit input")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Edit input" }),
+    ).not.toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole("button", { name: "Open Accessibility settings" }),
+    );
+
+    expect(globalThis.location.pathname).toBe("/settings");
   });
 
   it("returns focus to the composer after submitting runtime input", async () => {
@@ -1021,9 +1046,10 @@ function renderWorkbench(
   options: {
     activeWorkspaceId?: MainPageController["activeWorkspaceId"];
     exportDiagnosticBundle?: ExportDiagnosticBundle;
+    inputError?: string | null;
+    inputRecoveryActions?: ProductRecoveryAction[];
     loadSessionActivity?: LoadSessionActivity;
     inputDraft?: string;
-    inputError?: string | null;
     isInputSubmitting?: boolean;
     runtimeActivityItems?: readonly SessionActivityItemView[];
     workspaceCatalog?: WorkspaceCatalogResult | null;
@@ -1037,7 +1063,7 @@ function renderWorkbench(
       activeWorkspaceId={options.activeWorkspaceId ?? null}
       inputDraft={options.inputDraft ?? ""}
       inputError={options.inputError ?? null}
-      inputRecoveryActions={[]}
+      inputRecoveryActions={options.inputRecoveryActions ?? []}
       isArchivingPlan={false}
       isCreatingSession={false}
       isDeletingSession={false}

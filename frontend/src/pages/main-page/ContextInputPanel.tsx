@@ -15,7 +15,9 @@ export type ContextInputPanelProps = {
   inputRef?: Ref<HTMLInputElement>;
   isFloating?: boolean;
   isSubmitting?: boolean;
+  isRecoveryActionEnabled?: (action: ProductRecoveryAction) => boolean;
   onDraftChange: (draft: string) => void;
+  onRecoveryAction?: (action: ProductRecoveryAction) => void;
   onSubmit: () => void;
   recoveryActions: ProductRecoveryAction[];
 };
@@ -27,7 +29,9 @@ export function ContextInputPanel({
   inputRef,
   isFloating = false,
   isSubmitting = false,
+  isRecoveryActionEnabled,
   onDraftChange,
+  onRecoveryAction,
   onSubmit,
   recoveryActions,
 }: ContextInputPanelProps) {
@@ -65,7 +69,11 @@ export function ContextInputPanel({
           <Text as="span" variant="body">
             {error}
           </Text>
-          <ProductRecoveryActions actions={recoveryActions} />
+          <ProductRecoveryActions
+            actions={recoveryActions}
+            isActionEnabled={isRecoveryActionEnabled}
+            onAction={onRecoveryAction}
+          />
         </div>
       ) : null}
       <div className={styles.contextInputScope}>

@@ -1,5 +1,7 @@
 """Execution context governance primitives."""
 
+from typing import TYPE_CHECKING, Any
+
 from taskweavn.context.agent_loop_provider import (
     AgentLoopContextCallResult,
     AgentLoopContextProvider,
@@ -11,7 +13,6 @@ from taskweavn.context.agent_loop_provider import (
     ContextTriggerEvaluator,
     SessionAgentLoopContextProvider,
 )
-from taskweavn.context.manager import SessionContextManager
 from taskweavn.context.models import (
     ApprovalSummary,
     AskFact,
@@ -58,6 +59,18 @@ from taskweavn.context.sources import (
 )
 from taskweavn.context.sqlite_store import SqliteContextStore
 from taskweavn.context.store import ContextStore, InMemoryContextStore
+
+if TYPE_CHECKING:
+    from taskweavn.context.manager import SessionContextManager
+
+
+def __getattr__(name: str) -> Any:
+    if name == "SessionContextManager":
+        from taskweavn.context.manager import SessionContextManager
+
+        globals()[name] = SessionContextManager
+        return SessionContextManager
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 __all__ = [
     "ApprovalSummary",

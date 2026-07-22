@@ -131,7 +131,7 @@ function parseArgs(args) {
   return {
     allowSmokeAssets,
     json,
-    packageDir: path.resolve(packageDir),
+    packageDir: canonicalExistingPath(packageDir),
   };
 }
 
@@ -192,6 +192,14 @@ function checkPackage() {
     "app_executable_missing",
     "package manifest executablePath is missing",
   );
+  const computerUseHelperAppPath =
+    packageManifest.platform === "darwin"
+      ? requireExistingPath(
+          packageManifest.computerUseHelperAppPath,
+          "computer_use_helper_missing",
+          "package manifest Computer Use Helper app is missing",
+        )
+      : null;
   const launcherPath = requireExistingPath(
     packageManifest.sidecarLauncherPath,
     "launcher_missing",
@@ -210,6 +218,13 @@ function checkPackage() {
   if (executablePath !== null) {
     assertInside(appRoot, executablePath, "app_executable_outside_app");
     assertExecutable(executablePath, "app_executable_not_executable");
+  }
+  if (computerUseHelperAppPath !== null) {
+    assertInside(
+      appRoot,
+      computerUseHelperAppPath,
+      "computer_use_helper_outside_app",
+    );
   }
   if (launcherPath !== null) {
     assertInside(appRoot, launcherPath, "launcher_outside_app");
@@ -645,7 +660,12 @@ function requireExistingPath(value, rule, message) {
     addFailure(rule, resolved, message);
     return null;
   }
-  return resolved;
+  return realpathSync(resolved);
+}
+
+function canonicalExistingPath(value) {
+  const resolved = path.resolve(value);
+  return existsSync(resolved) ? realpathSync(resolved) : resolved;
 }
 
 function assertInside(parent, child, rule) {

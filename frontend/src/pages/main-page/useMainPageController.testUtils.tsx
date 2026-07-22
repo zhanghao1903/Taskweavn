@@ -267,6 +267,207 @@ export function dispatchedRuntimeInputResponse(
   };
 }
 
+export function needsClarificationRuntimeInputResponse(
+  request: RuntimeInputRouteRequest,
+): QueryResponse<RuntimeInputRouteResult> {
+  const now = "2026-06-14T00:00:00Z";
+
+  return {
+    requestId: `request-${request.commandId}`,
+    ok: true,
+    data: {
+      sessionId: request.sessionId,
+      decision: {
+        id: `decision-${request.commandId}`,
+        intent: "clarification",
+        scope: {
+          kind: request.selection.scopeKind,
+          planId: request.selection.planId ?? null,
+          taskNodeId: request.selection.taskNodeId ?? null,
+        },
+        confidence: "high",
+        sideEffect: "no_effect",
+        dispatchTarget: "clarification",
+        explanation: "The input is missing the WeChat message text.",
+        relatedRefs: [],
+      },
+      outcome: {
+        status: "needs_clarification",
+        userMessage: "要发送给文件传输助手的消息内容是什么？没有创建发送任务。",
+        recoveryActions: ["edit_input"],
+        pendingClarification: {
+          kind: "wechat_send",
+          reasonCode: "missing_message",
+          contactDisplayName: "文件传输助手",
+          messageText: null,
+          missingSlots: ["messageText"],
+          originalContent: request.content,
+        },
+      },
+      activity: null,
+      commandResponse: null,
+      inquiryResult: null,
+      generatedAt: now,
+    },
+    error: null,
+    cursor: null,
+    generatedAt: now,
+  };
+}
+
+export function rejectedRuntimeInputResponse(
+  request: RuntimeInputRouteRequest,
+): QueryResponse<RuntimeInputRouteResult> {
+  const now = "2026-06-14T00:00:00Z";
+
+  return {
+    requestId: `request-${request.commandId}`,
+    ok: true,
+    data: {
+      sessionId: request.sessionId,
+      decision: {
+        id: `decision-${request.commandId}`,
+        intent: "execution_request",
+        scope: {
+          kind: request.selection.scopeKind,
+          planId: request.selection.planId ?? null,
+          taskNodeId: request.selection.taskNodeId ?? null,
+        },
+        confidence: "high",
+        sideEffect: "execution_request",
+        dispatchTarget: "execution_handoff",
+        explanation:
+          "Input published a bounded, confirmation-gated WeChat send task through Execution Plane.",
+        relatedRefs: [],
+      },
+      outcome: {
+        status: "rejected",
+        userMessage: "当前执行环境不支持微信发送能力。没有发送消息。",
+        recoveryActions: ["retry_command"],
+      },
+      activity: {
+        id: `activity-${request.commandId}`,
+        sessionId: request.sessionId,
+        kind: "recovery_note",
+        title: "Runtime input routed",
+        body: "当前执行环境不支持微信发送能力。没有发送消息。",
+        occurredAt: now,
+        scopeKind: request.selection.scopeKind,
+        planId: request.selection.planId ?? null,
+        taskNodeId: request.selection.taskNodeId ?? null,
+        sideEffect: "state_effect",
+        relatedRefs: [],
+        sourceKind: "router",
+        sourceId: `decision-${request.commandId}`,
+        disclosureLevel: "public",
+      },
+      commandResponse: null,
+      inquiryResult: null,
+      generatedAt: now,
+    },
+    error: null,
+    cursor: null,
+    generatedAt: now,
+  };
+}
+
+export function commandRejectedRuntimeInputResponse(
+  request: RuntimeInputRouteRequest,
+): QueryResponse<RuntimeInputRouteResult> {
+  const now = "2026-06-14T00:00:00Z";
+  const message =
+    "当前执行环境不支持微信发送能力。没有发送消息。 错误代码：capability_not_available 错误信息：no execution environment can satisfy the requested capability";
+
+  return {
+    requestId: `request-${request.commandId}`,
+    ok: true,
+    data: {
+      sessionId: request.sessionId,
+      decision: {
+        id: `decision-${request.commandId}`,
+        intent: "execution_request",
+        scope: {
+          kind: request.selection.scopeKind,
+          planId: request.selection.planId ?? null,
+          taskNodeId: request.selection.taskNodeId ?? null,
+        },
+        confidence: "high",
+        sideEffect: "execution_request",
+        dispatchTarget: "execution_handoff",
+        explanation:
+          "Input published a bounded, confirmation-gated WeChat send task through Execution Plane.",
+        relatedRefs: [],
+      },
+      outcome: {
+        status: "rejected",
+        userMessage: message,
+        recoveryActions: ["open_settings", "retry_command"],
+      },
+      activity: {
+        id: `activity-${request.commandId}`,
+        sessionId: request.sessionId,
+        kind: "recovery_note",
+        title: "Runtime input routed",
+        body: message,
+        occurredAt: now,
+        scopeKind: request.selection.scopeKind,
+        planId: request.selection.planId ?? null,
+        taskNodeId: request.selection.taskNodeId ?? null,
+        sideEffect: "state_effect",
+        relatedRefs: [],
+        sourceKind: "router",
+        sourceId: `decision-${request.commandId}`,
+        disclosureLevel: "public",
+      },
+      commandResponse: rejectedCommandResponse({
+        commandId: request.commandId,
+        message,
+        recoveryActions: ["open_settings", "retry_command"],
+      }),
+      inquiryResult: null,
+      generatedAt: now,
+    },
+    error: null,
+    cursor: null,
+    generatedAt: now,
+  };
+}
+
+export function missingAccessibilityRuntimeInputResponse(
+  request: RuntimeInputRouteRequest,
+): QueryResponse<RuntimeInputRouteResult> {
+  const response = commandRejectedRuntimeInputResponse(request);
+  const message =
+    "当前执行环境不支持微信发送能力。没有发送消息。 错误代码：wechat_not_ready 错误信息：macOS computer-use readiness: missing_accessibility. Plato Computer Use Helper 尚未获得辅助功能权限。";
+
+  if (response.data === null) {
+    throw new Error("runtime input test response must contain data");
+  }
+  return {
+    ...response,
+    data: {
+      ...response.data,
+      outcome: {
+        ...response.data.outcome,
+        userMessage: message,
+        recoveryActions: ["open_settings", "retry_command"],
+      },
+      activity:
+        response.data.activity === null || response.data.activity === undefined
+          ? null
+          : {
+              ...response.data.activity,
+              body: message,
+            },
+      commandResponse: rejectedCommandResponse({
+        commandId: request.commandId,
+        message,
+        recoveryActions: ["open_settings", "retry_command"],
+      }),
+    },
+  };
+}
+
 function createTestQueryClient() {
   return new QueryClient({
     defaultOptions: {

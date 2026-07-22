@@ -65,6 +65,10 @@ def test_session_paths(tmp_path: Path) -> None:
         == tmp_path / ".plato" / "sessions" / sid / "thoughts.sqlite"
     )
     assert (
+        layout.session_tool_effects_db(sid)
+        == tmp_path / ".plato" / "sessions" / sid / "tool_effects.sqlite"
+    )
+    assert (
         layout.session_plan_path(sid)
         == tmp_path / ".plato" / "sessions" / sid / "plan.md"
     )

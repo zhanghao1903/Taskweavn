@@ -2,7 +2,7 @@
 
 > Status: active program index
 >
-> Last Updated: 2026-06-14
+> Last Updated: 2026-06-24
 >
 > Owner: Product / Backend UI Gateway / Frontend / TaskBus
 >
@@ -14,7 +14,8 @@
 > [Read-Only Inquiry Context](read-only-inquiry-context.md),
 > [Read-Only Inquiry Context Technical Design](read-only-inquiry-context-technical-design.md),
 > [Contract Revision Command Skills](contract-revision-command-skills.md),
-> [Session Conversation / Activity Timeline](session-conversation-activity-timeline.md)
+> [Session Conversation / Activity Timeline](session-conversation-activity-timeline.md),
+> [UI Natural-Language WeChat Send Task](ui-natural-language-wechat-send-task.md)
 
 ---
 
@@ -71,7 +72,7 @@ TaskBus execution under an accepted contract.
 | Read-only inquiry | Users need answer-only questions over files, diffs, results, Audit, diagnostics, and status. | [Read-Only Inquiry Context](read-only-inquiry-context.md), [technical design](read-only-inquiry-context-technical-design.md) | accepted for Product 1.1 local runtime: transient Main Page Activity display, durable answered-question replay preserving safe evidence refs, safe planning diagnostic refs, diagnostic bundle support descriptor, explicit Inquiry refs including result refs, workspace-scoped file/diff/audit href context, Audit evidence `recordId + evidenceId` focused route wiring, Activity ref actions including redacted diagnostic export, real sidecar no-mutation acceptance, configured Electron smoke, guarded LLM provider/seam tests, default sidecar LLM runtime wiring with explicit deterministic fallback controls, `npm run electron:smoke:read-only-inquiry-llm`, `npm run electron:smoke:packaged-read-only-inquiry-llm`, and `npm run electron:smoke:launcher`; richer bundle section descriptors, optional result/detail deep links, localization polish, and signed installer no-mutation hardening are non-blocking follow-ups | Evidence display and acceptance |
 | Guidance command | User guidance must become typed context, not hidden chat. | [Contract Revision Command Skills](contract-revision-command-skills.md) | planned; technical design needed | RIR guidance route |
 | Plan/TaskNode command skills | Contract-changing input needs versioned, auditable commands. | [Contract Revision Command Skills](contract-revision-command-skills.md) | planned; technical design needed | RIR command routes |
-| Execution request handoff | Workspace-changing text must create executable contract work, not run tools directly. | [Contract Revision Command Skills](contract-revision-command-skills.md) | planned; technical design needed | RIR execution request route |
+| Execution request handoff | Workspace-changing text must create executable contract work, not run tools directly. | [Contract Revision Command Skills](contract-revision-command-skills.md), [UI Natural-Language WeChat Send Task](ui-natural-language-wechat-send-task.md) | general handoff remains planned; bounded UI WeChat-send handoff foundation is in progress through Execution Plane service and keeps confirmation mandatory | RIR execution request route |
 | Durable Router session content | Router decisions and outcomes need durable replay beyond route-result metadata. | [Plato Session Content Model](../../product/plato-session-content-model.md), this program | planned; store/projection design needed | Conversation replay, diagnostics |
 | Ambiguous intent classifier | Natural language needs more than deterministic command phrases. | [Plato Runtime Input Model](../../product/plato-runtime-input-model.md), [Runtime Input Router Technical Design](runtime-input-router-contract-technical-design.md) | planned; classifier design needed | Broad `auto` mode |
 | Router audit/diagnostic linkage | Users and support need to inspect why a route happened and what side effect occurred. | Audit/diagnostic plans plus this program | planned; Router-specific linkage design needed | Product-complete acceptance |
@@ -93,6 +94,8 @@ TaskBus execution under an accepted contract.
    capabilities.
 5. Add command-backed Plan/TaskNode patch/create/delete and
    `create_execution_task` handoff.
+   The bounded UI natural-language WeChat send path is a narrow execution
+   handoff proof and must not be generalized into free-form tool execution.
 6. Persist Router decisions/outcomes as durable Session content and Activity.
 7. Migrate Main Page submit to Runtime Input Router by default.
 8. Add bounded ambiguous-intent classification.

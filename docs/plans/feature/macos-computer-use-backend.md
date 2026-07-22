@@ -1,13 +1,18 @@
 # macOS Computer-Use Backend
 
-> Status: proposed / pending implementation
+> Status: Historical backend plan. Repo-local helper provider/client and dev
+> launcher work were retired by
+> [App-Control Tool Package Migration](app-control-tool-package-migration.zh-CN.md).
+> The active backend consumes the published `computer-use-macos` package through
+> `MacOSComputerUseBackend` and optional package helper configuration.
 >
 > Last Updated: 2026-06-19
 >
 > Related:
 > [Local Computer-Use Tool Foundation](local-computer-use-tool.md),
-> [macOS Computer-Use Capability Package](macos-computer-use-package.md),
-> [Technical Design](macos-computer-use-backend-technical-design.zh-CN.md),
+> [App-Control Tool Package Migration](app-control-tool-package-migration.zh-CN.md),
+> [App-Control Tool Package Smoke Runbook](app-control-tool-package-smoke-runbook.zh-CN.md),
+> [Historical Technical Design](macos-computer-use-backend-technical-design.zh-CN.md),
 > [Remote WeChat Message Task PRD](../../product/remote-wechat-message-task-prd.md),
 > [Tool Capability Layer](../../architecture/tool-capability-layer.md),
 > [Confirmation UI Spec](../../ux/confirmation-ui-spec.md),
@@ -38,13 +43,20 @@ distribution work.
 ## 2. Product Decision
 
 Build the real macOS capability as an opt-in, permission-gated standalone
-package first. The Taskweavn/Plato macOS backend is a consumer adapter over
-that package, not the source of the OS automation implementation.
+package first. This section records the original single-package backend plan.
+The active implementation consumes the published `computer-use-macos` package,
+not repo-local helper/runtime code.
 
-Working package name:
+Historical package name:
 
 ```text
 macos-computer-use
+```
+
+Current package name:
+
+```text
+computer-use-macos
 ```
 
 Plato should later depend on the released package and map package results into
@@ -252,6 +264,117 @@ requires a later scoped approval design with TTL, task type, app, target, and
 message-class constraints.
 
 ## 7. Implementation Slices
+
+Implementation status as of 2026-06-27:
+
+- Plato now supports `computer_use.backend=helper` as a runtime selection.
+- The helper provider currently forwards generic `computer_use` operations to a
+  configured local helper HTTP endpoint and maps helper readiness/errors back to
+  `ComputerUseObservation`.
+- A repo-local helper HTTP prototype server now exposes `/healthz`, `/v1/info`,
+  `/v1/readiness`, and bounded generic operation endpoints over loopback.
+- A dev helper launcher now generates a startup token, writes a tokenRef-based
+  owner-only manifest, and serves the helper API over loopback.
+- A dev helper `.app` scaffold builder now writes `Info.plist`, fixed dev
+  bundle id, launcher config, and `Contents/MacOS/PlatoComputerUseHelper` via
+  `taskweavn computer-use-helper-app`.
+- The dev helper `.app` scaffold builder can now copy an existing
+  helper-owned executable into `Contents/MacOS/PlatoComputerUseHelper` with
+  `--packaged-executable-path`. Without that option it still generates the
+  external Python wrapper. This creates the packaging seam for a later
+  PyInstaller/embedded-runtime helper build, but does not itself build or sign
+  the executable.
+- A packaged helper executable now has a shared Python entrypoint contract:
+  `taskweavn.server.computer_use_helper_app_entrypoint` reads
+  `.app/Contents/Resources/helper-launch.json` from its executable path and
+  launches the helper CLI with the same arguments as the dev wrapper.
+- A PyInstaller build seam is now available through
+  `taskweavn computer-use-helper-executable`. It builds the shared helper app
+  entrypoint into `PlatoComputerUseHelper` when PyInstaller is installed in the
+  selected Python runtime, and fails with an explicit missing-PyInstaller error
+  otherwise. This is the first concrete helper-owned executable build path; it
+  still does not sign, notarize, or run a real helper smoke by itself.
+- PyInstaller is now tracked in the `packaging` dependency group. Local smoke
+  built `PlatoComputerUseHelper` with
+  `--collect-submodules taskweavn,macos_computer_use`, packaged it into a temp
+  helper `.app`, launched the executable directly, authenticated against the
+  helper API, and verified readiness diagnostics report
+  `runtimeIdentity.mode=helper_owned_executable` with `effectiveExecutable`
+  pointing at `.app/Contents/MacOS/PlatoComputerUseHelper`.
+- A follow-up readiness-only smoke packaged the same helper-owned executable
+  with `computer-use-backend=macos` and `WeChat,TextEdit` allowlist, launched
+  it directly, authenticated against `/v1/readiness`, and received
+  `status=ready`, `success=true`, `summary="macOS computer-use readiness:
+  ready."`, and `runtimeIdentity.mode=helper_owned_executable`. This verifies
+  the helper-owned executable can satisfy the real macOS backend readiness path
+  on the current machine. Evidence was written outside the repo at
+  `/tmp/plato-helper-macos-readiness/macos-readiness-evidence.json`.
+- Sidecar auto-launch now waits up to 90 seconds for a helper app manifest by
+  default, with env overrides for launch timeout and poll interval. This is
+  required for PyInstaller onefile cold starts: local LaunchServices smoke
+  measured about 55 seconds before the rebuilt helper published its manifest.
+- A sidecar readiness-only smoke with a rebuilt packaged helper executable
+  verified the full Plato-side auto-launch path: sidecar started with
+  `computer-use-backend=helper`, auto-launched a helper `.app` packaged with
+  `computer-use-backend=macos`, observed a published helper manifest, and
+  projected `runtimeIdentity.mode=helper_owned_executable` through Settings
+  readiness. The current temporary helper app is not granted Accessibility, so
+  the final readiness status is correctly `missing_accessibility` with a
+  helper-specific recovery hint. Evidence was written outside the repo at
+  `/tmp/plato-sidecar-helper-autolaunch-macos-v2/sidecar-helper-autolaunch-readiness-evidence.json`.
+- Helper backend now supports explicit opt-in auto-launch from a configured
+  helper app path, waits for the helper manifest before connecting, and waits
+  for a refreshed manifest when recovering from a stale endpoint. This is
+  disabled by default and does not grant macOS permissions.
+- Dev helper app identity propagation now reports the `.app` path and
+  `development-app` signing mode through readiness/manifest metadata. Local
+  non-send preflight verified generated app auto-launch, stale manifest refresh,
+  helper readiness, and WeChat readiness failure classification through
+  `wechatAppFailureKind=applescript_timeout`. A later no-send preflight verified
+  that the generic helper `observe` fallback runs after WeChat window geometry
+  timeout, but the fallback also times out in the helper context. For now,
+  helper readiness performs that generic System Events / Accessibility probe
+  directly and degrades to `packageReadinessStatus=automation_not_authorized`
+  with `failureKind=helper_system_events_probe_failed` before running
+  app-specific WeChat readiness. App-specific readiness such as
+  `wechatAppSuccess=true` remains required before publishing a WeChat task.
+- Settings readiness now exposes a `computerUse` section sourced from the
+  selected backend. Enabled-but-not-ready computer-use degrades readiness with
+  a `computer_use.not_ready` warning and safe recovery actions.
+- Helper readiness now reports runtime identity diagnostics. Current dev helper
+  evidence shows `runtimeIdentity.mode=external_python_for_app`, with the
+  effective executable set to the workspace `.venv/bin/python` while the
+  declared helper path is the generated `.app`. This makes the live TCC subject
+  gap explicit: development can grant the external Python runtime, but release
+  acceptance requires a packaged helper-owned executable.
+- Helper manifests now include `apiVersion`, and the Plato-side helper adapter
+  validates configured expected bundle id / API version before trusting helper
+  readiness or operation responses. Mismatches surface as `helper_untrusted` or
+  `helper_version_mismatch` evidence.
+- Release-grade `Plato Computer Use Helper.app`, stable TCC identity validation
+  from a helper-owned packaged/embedded executable, Settings UI details, and
+  release packaging are still pending.
+
+Dev helper launch configuration:
+
+```bash
+uv run taskweavn plato-dev \
+  --computer-use-backend helper \
+  --computer-use-helper-manifest "$HOME/Library/Application Support/PlatoDev/computer-use-helper.json" \
+  --computer-use-helper-app-path "$HOME/Applications/Plato Computer Use Helper Dev.app" \
+  --computer-use-helper-auto-launch \
+  --computer-use-allowed-apps WeChat,TextEdit
+```
+
+Equivalent environment variables:
+
+```text
+PLATO_COMPUTER_USE_BACKEND=helper
+PLATO_COMPUTER_USE_HELPER_MANIFEST=~/Library/Application Support/PlatoDev/computer-use-helper.json
+PLATO_COMPUTER_USE_HELPER_APP_PATH=~/Applications/Plato Computer Use Helper Dev.app
+PLATO_COMPUTER_USE_HELPER_AUTO_LAUNCH=1
+PLATO_COMPUTER_USE_ALLOWED_APPS=WeChat,TextEdit
+```
 
 ### M0. Package Boundary And Skeleton
 

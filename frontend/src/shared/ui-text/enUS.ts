@@ -677,9 +677,27 @@ export const enUS: UiTextCatalog = {
         description: "Open local provider settings.",
         label: "Open settings",
       },
+      open_macos_privacy_accessibility: {
+        description:
+          "Open macOS Privacy & Security settings and grant Accessibility permission to the helper.",
+        label: "Open Accessibility settings",
+      },
+      open_macos_privacy_automation: {
+        description:
+          "Open macOS Privacy & Security settings and grant Automation permission to the helper.",
+        label: "Open Automation settings",
+      },
       refresh_snapshot: {
         description: "Refresh the session view to get the latest state.",
         label: "Refresh session",
+      },
+      rerun_readiness_check: {
+        description: "Run the local computer-use readiness check again.",
+        label: "Recheck readiness",
+      },
+      restart_helper: {
+        description: "Restart Plato Computer Use Helper after changing permissions.",
+        label: "Restart helper",
       },
       retry_command: {
         description: "Run the command again after resolving the issue.",
@@ -784,6 +802,15 @@ export const enUS: UiTextCatalog = {
       blockingIssues: "Blocking issues",
       checkingSetup: "Checking setup",
       completeFirstRunSetup: "Complete first-run setup",
+      computerUseAccessibility: "Accessibility trusted",
+      computerUseBackend: "Backend",
+      computerUseExecutable: "Effective executable",
+      computerUseFailureKind: "Failure kind",
+      computerUseHelperApp: "Helper app",
+      computerUseReadiness: "Computer-use readiness",
+      computerUseRecoveryActions: "Recovery actions",
+      computerUseSignature: "Helper signature",
+      computerUseStatus: "Status",
       configured: "configured",
       degradedReady: "Global setup is ready with warnings.",
       diagnosticsAvailable: "bundle export available",
@@ -870,7 +897,13 @@ export const enUS: UiTextCatalog = {
       none: "No recovery action is available.",
       open_audit: "Inspect Audit evidence.",
       open_settings: "Configure local provider settings.",
+      open_macos_privacy_accessibility:
+        "Open macOS Accessibility permissions for the helper.",
+      open_macos_privacy_automation:
+        "Open macOS Automation permissions for the helper.",
       refresh_snapshot: "Retry after configuration changes.",
+      rerun_readiness_check: "Recheck local computer-use readiness.",
+      restart_helper: "Restart Plato Computer Use Helper.",
       retry_command: "Retry after configuration changes.",
       retry_task: "Retry the affected Task.",
       wait_for_events: "Wait for sidecar events before retrying.",

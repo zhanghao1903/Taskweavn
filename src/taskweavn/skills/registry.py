@@ -197,7 +197,9 @@ def _descriptor_from_skill_file(
     trust_level = root.trust_level
     if trust_level == "untrusted" and not allow_untrusted:
         raise SkillRegistryError("skill_untrusted")
-    skill_id = f"{root.source_scope}:{_slug(name)}:{_short_hash(str(skill_file))}"
+    skill_id = _optional_str(frontmatter, "skill_id") or (
+        f"{root.source_scope}:{_slug(name)}:{_short_hash(str(skill_file))}"
+    )
     content_hash = _hash_files((skill_file, *tuple(_metadata_files(skill_file.parent))))
     resource_refs = _resource_refs(skill_file.parent, skill_id=skill_id)
     return SkillDescriptor(

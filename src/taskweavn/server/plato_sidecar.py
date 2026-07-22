@@ -50,7 +50,7 @@ def _parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
         default=os.environ.get("PLATO_COMPUTER_USE_BACKEND", "disabled"),
         help=(
             "Optional computer-use backend for execution tools. "
-            "Valid values: disabled, macos."
+            "Valid values: disabled, helper, macos."
         ),
     )
     parser.add_argument(
@@ -60,6 +60,29 @@ def _parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
             "Comma-separated macOS app allowlist for computer-use, "
             "for example: WeChat,TextEdit."
         ),
+    )
+    parser.add_argument(
+        "--computer-use-helper-manifest",
+        default=os.environ.get("PLATO_COMPUTER_USE_HELPER_MANIFEST"),
+        help="Path to the helper endpoint manifest for helper backend.",
+    )
+    parser.set_defaults(
+        computer_use_allow_coordinate_click=_env_bool(
+            "PLATO_COMPUTER_USE_ALLOW_COORDINATE_CLICK",
+            default=True,
+        )
+    )
+    parser.add_argument(
+        "--computer-use-allow-coordinate-click",
+        dest="computer_use_allow_coordinate_click",
+        action="store_true",
+        help="Allow coordinate clicks in the private app-control Helper.",
+    )
+    parser.add_argument(
+        "--disable-computer-use-coordinate-click",
+        dest="computer_use_allow_coordinate_click",
+        action="store_false",
+        help="Disable coordinate clicks in the app-control Helper.",
     )
     parser.set_defaults(
         enable_read_only_inquiry_llm=_env_bool(
@@ -112,6 +135,9 @@ def _serve(args: argparse.Namespace) -> int:
     computer_use_runtime = build_computer_use_runtime(
         backend_name=args.computer_use_backend,
         allowed_apps=args.computer_use_allowed_apps,
+        allow_coordinate_click=args.computer_use_allow_coordinate_click,
+        helper_manifest_path=args.computer_use_helper_manifest,
+        helper_startup_failure=_helper_startup_failure_from_env(),
     )
     sidecar = build_main_page_sidecar_app(
         MainPageSidecarConfig(
@@ -127,6 +153,7 @@ def _serve(args: argparse.Namespace) -> int:
         ),
         MainPageSidecarDependencies(
             computer_use_backend=computer_use_runtime.backend,
+            app_control_config=computer_use_runtime.app_control_config,
         ),
     )
     try:
@@ -152,6 +179,23 @@ def _env_bool(name: str, *, default: bool) -> bool:
     if normalized in {"0", "false", "no", "off"}:
         return False
     return default
+
+
+def _helper_startup_failure_from_env() -> dict[str, str] | None:
+    raw = os.environ.get("PLATO_COMPUTER_USE_HELPER_STARTUP_FAILURE")
+    if not raw:
+        return None
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError:
+        return {"failureKind": "helper_start_failed", "message": raw}
+    if not isinstance(payload, dict):
+        return {"failureKind": "helper_start_failed", "message": raw}
+    return {
+        str(key): str(value)
+        for key, value in payload.items()
+        if isinstance(key, str) and isinstance(value, str)
+    }
 
 
 def _parse_workspace_registry_json(

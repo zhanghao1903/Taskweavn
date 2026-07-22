@@ -25,9 +25,12 @@ import type {
 import {
   acceptedCommandResponse,
   answeredRuntimeInputResponse,
+  commandRejectedRuntimeInputResponse,
   dispatchedRuntimeInputResponse,
   loadImmediateSnapshot,
+  needsClarificationRuntimeInputResponse,
   rejectedCommandResponse,
+  rejectedRuntimeInputResponse,
   renderMainPageController,
   testAdapter,
 } from "./useMainPageController.testUtils";
@@ -253,6 +256,7 @@ describe("useMainPageController", () => {
       expect(routeRuntimeInput).toHaveBeenCalledTimes(1);
     });
     expect(result.current.activeRuntimeInputMode).toBe("ask");
+    expect(result.current.inputDraft).toBe("");
     expect(result.current.runtimeActivityItems).toHaveLength(2);
     expect(result.current.runtimeActivityItems[0]).toMatchObject({
       body: "明天世界杯有哪些比赛？",
@@ -343,6 +347,194 @@ describe("useMainPageController", () => {
     });
     expect(result.current.inputDraft).toBe("");
     expect(result.current.inputError).toBe(null);
+  });
+
+  it("keeps pending runtime clarification and sends it with the follow-up input", async () => {
+    let routeCallCount = 0;
+    const routeRuntimeInput = vi.fn<RouteRuntimeInputCommand>(
+      async (request) => {
+        routeCallCount += 1;
+        return routeCallCount === 1
+          ? needsClarificationRuntimeInputResponse(request)
+          : dispatchedRuntimeInputResponse(request);
+      },
+    );
+
+    const { result } = renderMainPageController({
+      adapter: testAdapter({
+        routeRuntimeInput,
+      }),
+      initialStateId: "s3-draft-ready",
+    });
+
+    await waitFor(() => {
+      expect(result.current.snapshotData?.metadata.id).toBe("s3-draft-ready");
+    });
+
+    act(() => {
+      result.current.actions.changeInputDraft("给微信文件传输助手发消息");
+    });
+    act(() => {
+      result.current.actions.submitInput({
+        mode: "append_session_input",
+        sessionId: "session-website-plan",
+        target: "session",
+        taskNodeId: null,
+      });
+    });
+
+    await waitFor(() => {
+      expect(result.current.inputError).toBe(
+        "要发送给文件传输助手的消息内容是什么？没有创建发送任务。",
+      );
+    });
+
+    act(() => {
+      result.current.actions.changeInputDraft("Plato 补全消息");
+    });
+    act(() => {
+      result.current.actions.submitInput({
+        mode: "append_session_input",
+        sessionId: "session-website-plan",
+        target: "session",
+        taskNodeId: null,
+      });
+    });
+
+    await waitFor(() => {
+      expect(routeRuntimeInput).toHaveBeenCalledTimes(2);
+    });
+    expect(routeRuntimeInput.mock.calls[1]?.[0]).toMatchObject({
+      clientState: {
+        pendingClarification: {
+          contactDisplayName: "文件传输助手",
+          kind: "wechat_send",
+          missingSlots: ["messageText"],
+        },
+      },
+      content: "Plato 补全消息",
+    });
+    await waitFor(() => {
+      expect(result.current.uiNotice).toBe("Guidance was recorded.");
+    });
+    expect(result.current.inputError).toBe(null);
+  });
+
+  it("surfaces rejected runtime input as conversation-visible Router reply", async () => {
+    const routeRuntimeInput = vi.fn<RouteRuntimeInputCommand>(
+      async (request) => rejectedRuntimeInputResponse(request),
+    );
+    const loadSnapshot = vi.fn<LoadMainPageSnapshot>(loadImmediateSnapshot);
+
+    const { result } = renderMainPageController({
+      adapter: testAdapter({
+        loadSnapshot,
+        routeRuntimeInput,
+      }),
+      initialStateId: "s3-draft-ready",
+    });
+
+    await waitFor(() => {
+      expect(result.current.snapshotData?.metadata.id).toBe("s3-draft-ready");
+    });
+
+    act(() => {
+      result.current.actions.changeInputDraft("给微信的文件传输助手发送“你好”");
+    });
+    act(() => {
+      result.current.actions.submitInput({
+        mode: "append_session_input",
+        sessionId: "session-website-plan",
+        target: "session",
+        taskNodeId: null,
+      });
+    });
+
+    await waitFor(() => {
+      expect(result.current.inputError).toBe(
+        "当前执行环境不支持微信发送能力。没有发送消息。",
+      );
+    });
+    expect(result.current.inputDraft).toBe("");
+
+    expect(result.current.runtimeActivityItems).toMatchObject([
+      {
+        body: "给微信的文件传输助手发送“你好”",
+        kind: "user_input",
+        title: "User input",
+      },
+      {
+        body: expect.stringContaining("建议的恢复操作"),
+        kind: "recovery_note",
+        sourceId: expect.stringContaining("decision-route-input-"),
+        title: "Router reply",
+      },
+      {
+        body: "当前执行环境不支持微信发送能力。没有发送消息。",
+        kind: "recovery_note",
+        title: "Runtime input routed",
+      },
+    ]);
+    expect(result.current.runtimeActivityItems[1]?.body).toContain(
+      "解决问题后再次运行命令。",
+    );
+    expect(result.current.inputRecoveryActions).toEqual(["retry_command"]);
+    expect(loadSnapshot).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps command-response rejections visible as user input and Router reply", async () => {
+    const routeRuntimeInput = vi.fn<RouteRuntimeInputCommand>(
+      async (request) => commandRejectedRuntimeInputResponse(request),
+    );
+
+    const { result } = renderMainPageController({
+      adapter: testAdapter({
+        routeRuntimeInput,
+      }),
+      initialStateId: "s3-draft-ready",
+    });
+
+    await waitFor(() => {
+      expect(result.current.snapshotData?.metadata.id).toBe("s3-draft-ready");
+    });
+
+    act(() => {
+      result.current.actions.changeInputDraft("给微信的文件传输助手发送“你好”");
+    });
+    act(() => {
+      result.current.actions.submitInput({
+        mode: "append_session_input",
+        sessionId: "session-website-plan",
+        target: "session",
+        taskNodeId: null,
+      });
+    });
+
+    await waitFor(() => {
+      expect(result.current.inputError).toContain("capability_not_available");
+    });
+
+    expect(result.current.runtimeActivityItems).toMatchObject([
+      {
+        body: "给微信的文件传输助手发送“你好”",
+        kind: "user_input",
+        title: "User input",
+      },
+      {
+        body: expect.stringContaining("当前执行环境不支持微信发送能力"),
+        kind: "recovery_note",
+        title: "Router reply",
+      },
+      {
+        body: expect.stringContaining("当前执行环境不支持微信发送能力"),
+        kind: "recovery_note",
+        title: "Runtime input routed",
+      },
+    ]);
+    expect(result.current.inputRecoveryActions).toEqual([
+      "open_settings",
+      "retry_command",
+    ]);
   });
 
   it("submits a manual retry command for the selected failed task", async () => {

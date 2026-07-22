@@ -11,7 +11,9 @@ from taskweavn.types.base import BaseAction, BaseObservation
 ComputerUseOperation = Literal[
     "readiness",
     "observe",
+    "accessibility_query",
     "open_app",
+    "focus_app",
     "click",
     "type_text",
     "press_key",
@@ -49,8 +51,8 @@ class ComputerUseAction(BaseAction):
 
     @model_validator(mode="after")
     def _validate_operation_payload(self) -> ComputerUseAction:
-        if self.operation == "open_app" and self.target is None:
-            raise ValueError("open_app requires target")
+        if self.operation in {"open_app", "focus_app"} and self.target is None:
+            raise ValueError(f"{self.operation} requires target")
         if self.operation == "type_text" and self.text is None:
             raise ValueError("type_text requires text")
         if self.operation == "press_key" and not self.keys:

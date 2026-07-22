@@ -8,6 +8,8 @@ import {
   type ReactNode,
 } from "react";
 
+import { navigateApp } from "../../app/navigation";
+import { buildSettingsRoute } from "../settings/settingsRouteModel";
 import type { ProductRecoveryAction } from "../../shared/api/platoApi";
 import type {
   PlanView,
@@ -53,6 +55,13 @@ const DEFAULT_DETAIL_WIDTH = 380;
 const MIN_DETAIL_WIDTH = 320;
 const MAX_DETAIL_WIDTH = 680;
 const DETAIL_RESIZE_STEP = 24;
+const SETTINGS_RECOVERY_ACTIONS = new Set<ProductRecoveryAction>([
+  "open_settings",
+  "open_macos_privacy_accessibility",
+  "open_macos_privacy_automation",
+  "restart_helper",
+  "rerun_readiness_check",
+]);
 
 export type MainPageWorkbenchProps = {
   actions: MainPageController["actions"];
@@ -1035,8 +1044,10 @@ export function MainPageWorkbench({
         input={viewModel.input}
         inputRef={contextInputRef}
         isSubmitting={isInputSubmitting}
+        isRecoveryActionEnabled={isSettingsRecoveryAction}
         recoveryActions={inputRecoveryActions}
         onDraftChange={actions.changeInputDraft}
+        onRecoveryAction={handleInputRecoveryAction}
         onSubmit={() => {
           const commandId = actions.submitInput({
             mode: viewModel.input.mode,
@@ -1051,6 +1062,17 @@ export function MainPageWorkbench({
       />
     </main>
   );
+}
+
+function handleInputRecoveryAction(action: ProductRecoveryAction) {
+  if (!isSettingsRecoveryAction(action)) {
+    return;
+  }
+  navigateApp(buildSettingsRoute());
+}
+
+function isSettingsRecoveryAction(action: ProductRecoveryAction): boolean {
+  return SETTINGS_RECOVERY_ACTIONS.has(action);
 }
 
 function mergeActivityItems(
