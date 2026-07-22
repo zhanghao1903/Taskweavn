@@ -2,7 +2,7 @@
 
 > Source document: `docs/architecture/multi-agent-collaboration_en.md`
 > Preserved original:
-> `docs/architecture/multi-agent-collaboration_en.original.md`
+> `docs/architecture/archive/original/multi-agent-collaboration_en.original.md`
 > Calibration date: 2026-07-10
 > Scope: independent calibration of the English multi-Agent architecture
 > document against current source, tests, UI contracts, and accepted ADRs.
@@ -55,7 +55,7 @@
 - Original Git blob:
   `c7c260077cf03f04c1b99901e2a1fa432b2bbb82`.
 - Preserved path:
-  `docs/architecture/multi-agent-collaboration_en.original.md`.
+  `docs/architecture/archive/original/multi-agent-collaboration_en.original.md`.
 - The pre-calibration working-tree hash matched the `HEAD` blob.
 - The original contained 510 lines.
 - It was related to, but not line-for-line identical with, the Chinese original:
@@ -272,7 +272,7 @@ embedded Execution Plane behavior, and real sidecar assembly.
 Validation completed on 2026-07-10:
 
 - Original preservation:
-  - `git hash-object docs/architecture/multi-agent-collaboration_en.original.md`
+  - `git hash-object docs/architecture/archive/original/multi-agent-collaboration_en.original.md`
     returned `c7c260077cf03f04c1b99901e2a1fa432b2bbb82`.
   - `git rev-parse HEAD:docs/architecture/multi-agent-collaboration_en.md`
     returned the same blob id.

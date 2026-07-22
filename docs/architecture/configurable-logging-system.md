@@ -5,7 +5,7 @@
 > Last verified: 2026-07-10
 >
 > Original document:
-> [configurable-logging-system.original.md](configurable-logging-system.original.md)
+> [configurable-logging-system.original.md](archive/original/configurable-logging-system.original.md)
 >
 > Verification record:
 > [fix-log/configurable-logging-system.md](fix-log/configurable-logging-system.md)

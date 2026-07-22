@@ -7,7 +7,7 @@
 > External protocol check: 2026-07-10
 >
 > Original historical document:
-> [llm-provider-reliability.original.md](llm-provider-reliability.original.md)
+> [llm-provider-reliability.original.md](archive/original/llm-provider-reliability.original.md)
 >
 > Calibration record:
 > [fix-log/llm-provider-reliability.md](fix-log/llm-provider-reliability.md)

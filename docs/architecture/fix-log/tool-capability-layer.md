@@ -1,7 +1,7 @@
 # Tool Capability Layer Fact Calibration Fix Log
 
 > Target document: `docs/architecture/tool-capability-layer.md`
-> Original preserved as: `docs/architecture/tool-capability-layer.original.md`
+> Original preserved as: `docs/architecture/archive/original/tool-capability-layer.original.md`
 > Calibration date: 2026-07-10
 
 ## Workflow Gate

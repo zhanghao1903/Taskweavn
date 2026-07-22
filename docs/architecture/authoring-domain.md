@@ -2,7 +2,7 @@
 
 > Status: fact-calibrated current implementation / Plan migration compatibility
 > Last Updated: 2026-07-11
-> Original preserved as: `docs/architecture/authoring-domain.original.md`
+> Original preserved as: `docs/architecture/archive/original/authoring-domain.original.md`
 > Related ADR: [ADR-0008](../decisions/ADR-0008-authoring-domain-execution-boundary.md)
 > Related Plans:
 > [Collaborator Agent](../plans/feature/collaborator-agent-task-authoring.md),

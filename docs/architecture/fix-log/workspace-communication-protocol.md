@@ -1,7 +1,7 @@
 # Workspace Communication Protocol Fact Calibration Fix Log
 
 > Target document: `docs/architecture/workspace-communication-protocol.md`
-> Original preserved as: `docs/architecture/workspace-communication-protocol.original.md`
+> Original preserved as: `docs/architecture/archive/original/workspace-communication-protocol.original.md`
 > Calibration date: 2026-07-10
 
 ## Workflow Gate

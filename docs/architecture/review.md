@@ -3,7 +3,7 @@
 > Status: fact-calibrated architecture review
 > Last Updated: 2026-07-11
 > Original historical review:
-> `docs/architecture/review.original.md`
+> `docs/architecture/archive/original/review.original.md`
 > Verification record:
 > [fix-log/review.md](fix-log/review.md)
 > Scope: local-first Product 1.1 architecture, implementation closure,

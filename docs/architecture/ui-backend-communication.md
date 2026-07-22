@@ -5,7 +5,7 @@
 > Last verified: 2026-07-10
 >
 > Original document:
-> [ui-backend-communication.original.md](ui-backend-communication.original.md)
+> [ui-backend-communication.original.md](archive/original/ui-backend-communication.original.md)
 >
 > Verification record:
 > [fix-log/ui-backend-communication.md](fix-log/ui-backend-communication.md)

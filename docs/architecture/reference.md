@@ -3,7 +3,7 @@
 > Status: fact-calibrated current implementation reference
 > Last Updated: 2026-07-10
 > Original preserved as:
-> `docs/architecture/reference.original.md`
+> `docs/architecture/archive/original/reference.original.md`
 > Verification record:
 > [fix-log/reference.md](fix-log/reference.md)
 > Related:

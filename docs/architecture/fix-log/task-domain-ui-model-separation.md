@@ -4,7 +4,7 @@
 > [../task-domain-ui-model-separation.md](../task-domain-ui-model-separation.md)
 >
 > Original:
-> [../task-domain-ui-model-separation.original.md](../task-domain-ui-model-separation.original.md)
+> [task-domain-ui-model-separation.original.md](../archive/original/task-domain-ui-model-separation.original.md)
 >
 > Calibration date: 2026-07-10
 

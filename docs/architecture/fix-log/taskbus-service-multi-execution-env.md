@@ -1,7 +1,7 @@
 # Execution Plane / Multi-Execution-Env Memo Fact Calibration Fix Log
 
 > Target document: `docs/architecture/taskbus-service-multi-execution-env.md`
-> Original preserved as: `docs/architecture/taskbus-service-multi-execution-env.original.md`
+> Original preserved as: `docs/architecture/archive/original/taskbus-service-multi-execution-env.original.md`
 > Calibration date: 2026-07-10
 
 ## Workflow Gate

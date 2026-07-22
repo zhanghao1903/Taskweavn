@@ -2,7 +2,7 @@
 
 > 校准对象：`docs/architecture/README.md`
 >
-> 原文保留：`docs/architecture/README.original.md`
+> 原文保留：`docs/architecture/archive/original/README.original.md`
 >
 > 校准日期：2026-07-10
 >
@@ -210,7 +210,7 @@ remote registration、distributed lease/heartbeat 和 separated service 仍是 f
 
 ~~~text
 active document
-matching <stem>.original.md
+matching archive/original/<stem>.original.md
 matching fix-log/<basename>.md
 ~~~
 
@@ -346,7 +346,7 @@ frontend: 33 passed across 4 files in 1.56s
 
 | 文件 | 处理 |
 |---|---|
-| `docs/architecture/README.original.md` | 保留 2026-06-24 原索引 |
+| `docs/architecture/archive/original/README.original.md` | 保留 2026-06-24 原索引 |
 | `docs/architecture/README.md` | 重建为 24 篇 active 文档的事实索引 |
 | `docs/architecture/fix-log/README.md` | 新增校准依据和完整性检查 |
 
@@ -423,7 +423,7 @@ path 的 Git blob 与 preserved original 的 SHA-256 固定下来；单篇 fix l
 - `git rev-parse <source-revision>:docs/architecture/<name>.md` 必须等于表中
   source blob；
 - `git diff --quiet <source-revision>:docs/architecture/<name>.md
-  HEAD:docs/architecture/<name>.original.md` 必须成功；
+  HEAD:docs/architecture/archive/original/<name>.original.md` 必须成功；
 - preserved original 的 `shasum -a 256` 必须等于表中 SHA-256。
 
 ---

@@ -5,7 +5,7 @@
 > Chinese counterpart:
 > [multi-agent-collaboration.md](multi-agent-collaboration.md)
 > Original preserved as:
-> `docs/architecture/multi-agent-collaboration_en.original.md`
+> `docs/architecture/archive/original/multi-agent-collaboration_en.original.md`
 > Related:
 > [Overview](overview.md),
 > [Agent](agent.md),

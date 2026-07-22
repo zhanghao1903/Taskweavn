@@ -1,7 +1,7 @@
 # TaskBus v2 Architecture Fact Calibration Fix Log
 
 > Target document: `docs/architecture/bus-v2.md`
-> Original preserved as: `docs/architecture/bus-v2.original.md`
+> Original preserved as: `docs/architecture/archive/original/bus-v2.original.md`
 > Calibration date: 2026-07-10
 
 ## Workflow Gate

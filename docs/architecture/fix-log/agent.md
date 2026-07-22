@@ -1,7 +1,7 @@
 # Agent Architecture Fact Calibration Log
 
 > Source document: `docs/architecture/agent.md`
-> Preserved original: `docs/architecture/agent.original.md`
+> Preserved original: `docs/architecture/archive/original/agent.original.md`
 > Calibrated document version: v1.5 · 2026-07-10
 > Calibration scope: verify current Agent architecture claims against code and
 > related architecture / decision / feature documents.

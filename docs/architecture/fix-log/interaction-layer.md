@@ -4,7 +4,7 @@
 > [../interaction-layer.md](../interaction-layer.md)
 >
 > Original:
-> [../interaction-layer.original.md](../interaction-layer.original.md)
+> [interaction-layer.original.md](../archive/original/interaction-layer.original.md)
 >
 > Calibration date: 2026-07-10
 
