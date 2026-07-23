@@ -2,7 +2,7 @@
 
 > Source document: `docs/architecture/multi-agent-collaboration.md`
 > Preserved original:
-> `docs/architecture/multi-agent-collaboration.original.md`
+> `docs/architecture/archive/original/multi-agent-collaboration.original.md`
 > Calibration date: 2026-07-10
 > Scope: current multi-Agent-related runtime, authoring, routing, interaction,
 > Execution Plane, UI, and accepted future assignment direction.
@@ -57,7 +57,7 @@
 
 - Original path: `docs/architecture/multi-agent-collaboration.md`
 - Preserved path:
-  `docs/architecture/multi-agent-collaboration.original.md`
+  `docs/architecture/archive/original/multi-agent-collaboration.original.md`
 - Original Git blob:
   `46b6bf5afe84b93c92998b8a5c3aec18b68ac2b9`
 - The pre-calibration working-tree hash matched the `HEAD` blob.
@@ -290,7 +290,7 @@ boundaries:
 Validation completed on 2026-07-10:
 
 - Original preservation:
-  - `git hash-object docs/architecture/multi-agent-collaboration.original.md`
+  - `git hash-object docs/architecture/archive/original/multi-agent-collaboration.original.md`
     returned `46b6bf5afe84b93c92998b8a5c3aec18b68ac2b9`.
   - `git rev-parse HEAD:docs/architecture/multi-agent-collaboration.md`
     returned the same blob id.

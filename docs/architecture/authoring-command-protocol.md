@@ -2,7 +2,7 @@
 
 > Status: fact-calibrated current implementation / high-change area
 > Last Updated: 2026-07-10
-> Original preserved as: `docs/architecture/authoring-command-protocol.original.md`
+> Original preserved as: `docs/architecture/archive/original/authoring-command-protocol.original.md`
 > Related Architecture:
 > [Authoring Domain](authoring-domain.md),
 > [Collaborator Agent](collaborator-agent-task-authoring.md),

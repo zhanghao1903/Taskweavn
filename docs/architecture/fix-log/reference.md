@@ -1,7 +1,7 @@
 # Core Architecture Reference Fact Calibration Log
 
 > Source document: `docs/architecture/reference.md`
-> Preserved original: `docs/architecture/reference.original.md`
+> Preserved original: `docs/architecture/archive/original/reference.original.md`
 > Calibration date: 2026-07-10
 > Scope: current typed-event/runtime/tool/AgentLoop substrate, CLI and Main Page
 > assembly, workspace/session layout, upper-domain boundaries, and protocol
@@ -53,7 +53,7 @@
 ## 2. Original Preservation
 
 - Original path: `docs/architecture/reference.md`
-- Preserved path: `docs/architecture/reference.original.md`
+- Preserved path: `docs/architecture/archive/original/reference.original.md`
 - Original Git blob: `e0b793e919365dd4d3df61aaf61d934cf3ecadd7`
 - The pre-calibration working-tree hash matched `HEAD`.
 - The original contained 864 lines.
@@ -281,7 +281,7 @@ Core validation covers:
 Validation completed on 2026-07-10:
 
 - Original preservation:
-  - `git hash-object docs/architecture/reference.original.md` returned
+  - `git hash-object docs/architecture/archive/original/reference.original.md` returned
     `e0b793e919365dd4d3df61aaf61d934cf3ecadd7`.
   - `git rev-parse HEAD:docs/architecture/reference.md` returned the same blob
     id.

@@ -1,7 +1,7 @@
 # Architecture Review Fact Calibration Log
 
 > Source document: `docs/architecture/review.md`
-> Preserved original: `docs/architecture/review.original.md`
+> Preserved original: `docs/architecture/archive/original/review.original.md`
 > Calibration date: 2026-07-10
 > Scope: replace the 2026-05-09 concept-era self-review with an evidence-based
 > review of the current local-first Product 1.1 architecture.
@@ -53,7 +53,7 @@
 ## 2. Original Preservation
 
 - Original Git blob: `2958e6603fa35609ca9deaace8da26ee910c7d72`.
-- Preserved path: `docs/architecture/review.original.md`.
+- Preserved path: `docs/architecture/archive/original/review.original.md`.
 - Pre-calibration working-tree hash matched `HEAD`.
 - Original length: 151 lines.
 - Original review date: 2026-05-09.
@@ -207,7 +207,7 @@
 Validation completed on 2026-07-10:
 
 - Original preservation:
-  - `git hash-object docs/architecture/review.original.md` returned
+  - `git hash-object docs/architecture/archive/original/review.original.md` returned
     `2958e6603fa35609ca9deaace8da26ee910c7d72`.
   - `git rev-parse HEAD:docs/architecture/review.md` returned the same blob id.
 - Backend inventory:

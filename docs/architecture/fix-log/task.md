@@ -1,7 +1,7 @@
 # Task Architecture Fact Calibration Log
 
 > Source document: `docs/architecture/task.md`
-> Preserved original: `docs/architecture/task.original.md`
+> Preserved original: `docs/architecture/archive/original/task.original.md`
 > Calibrated document version: v1.6 · 2026-07-10
 > Calibration scope: verify current Task architecture claims against Task domain
 > models, TaskBus implementations, publisher/authoring boundaries, Execution

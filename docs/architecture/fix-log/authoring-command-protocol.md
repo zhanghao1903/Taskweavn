@@ -2,7 +2,7 @@
 
 > Target document: `docs/architecture/authoring-command-protocol.md`
 > Original preserved as:
-> `docs/architecture/authoring-command-protocol.original.md`
+> `docs/architecture/archive/original/authoring-command-protocol.original.md`
 > Calibration date: 2026-07-10
 
 ## Workflow Gate

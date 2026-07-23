@@ -4,7 +4,7 @@
 > [../context-manager.md](../context-manager.md)
 >
 > Original:
-> [../context-manager.original.md](../context-manager.original.md)
+> [context-manager.original.md](../archive/original/context-manager.original.md)
 >
 > Calibration date: 2026-07-10
 

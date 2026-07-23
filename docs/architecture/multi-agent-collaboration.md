@@ -3,7 +3,7 @@
 > Status: fact-calibrated current architecture baseline
 > Last Updated: 2026-07-10
 > Original preserved as:
-> `docs/architecture/multi-agent-collaboration.original.md`
+> `docs/architecture/archive/original/multi-agent-collaboration.original.md`
 > Related:
 > [Overview](overview.md),
 > [Agent](agent.md),

@@ -2,7 +2,7 @@
 
 > 校准对象：`docs/architecture/session.md`
 >
-> 原文保留：`docs/architecture/session.original.md`
+> 原文保留：`docs/architecture/archive/original/session.original.md`
 >
 > 校准日期：2026-07-10
 >
@@ -411,7 +411,7 @@ Duration   1.56s
 
 | 文件 | 处理 |
 |---|---|
-| `docs/architecture/session.original.md` | 原文 byte-for-byte 保留 |
+| `docs/architecture/archive/original/session.original.md` | 原文 byte-for-byte 保留 |
 | `docs/architecture/session.md` | 按当前源码/测试完全改写 |
 | `docs/architecture/fix-log/session.md` | 新增本事实、纠正和验证记录 |
 

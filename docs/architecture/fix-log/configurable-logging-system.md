@@ -4,7 +4,7 @@
 > [../configurable-logging-system.md](../configurable-logging-system.md)
 >
 > Original:
-> [../configurable-logging-system.original.md](../configurable-logging-system.original.md)
+> [configurable-logging-system.original.md](../archive/original/configurable-logging-system.original.md)
 >
 > Calibration date: 2026-07-10
 

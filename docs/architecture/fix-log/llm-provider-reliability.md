@@ -4,7 +4,7 @@
 > [../llm-provider-reliability.md](../llm-provider-reliability.md)
 >
 > Original:
-> [../llm-provider-reliability.original.md](../llm-provider-reliability.original.md)
+> [llm-provider-reliability.original.md](../archive/original/llm-provider-reliability.original.md)
 >
 > Calibration date: 2026-07-10
 >

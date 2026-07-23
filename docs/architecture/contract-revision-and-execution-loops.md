@@ -3,7 +3,7 @@
 > Status: fact-calibrated Product 1.1 P0 runtime input baseline
 > Last Updated: 2026-07-10
 > Original preserved as:
-> `docs/architecture/contract-revision-and-execution-loops.original.md`
+> `docs/architecture/archive/original/contract-revision-and-execution-loops.original.md`
 > Related Product Model:
 > [Plato Contract Loop Product Model](../product/plato-contract-loop-model.md),
 > [Plato Runtime Input Model](../product/plato-runtime-input-model.md),

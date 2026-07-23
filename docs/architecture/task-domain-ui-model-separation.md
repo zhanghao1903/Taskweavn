@@ -5,7 +5,7 @@
 > Last Updated: 2026-07-10
 >
 > Original preserved at:
-> [task-domain-ui-model-separation.original.md](task-domain-ui-model-separation.original.md)
+> [task-domain-ui-model-separation.original.md](archive/original/task-domain-ui-model-separation.original.md)
 >
 > Fix log:
 > [fix-log/task-domain-ui-model-separation.md](fix-log/task-domain-ui-model-separation.md)

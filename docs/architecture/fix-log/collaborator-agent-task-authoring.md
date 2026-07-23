@@ -2,7 +2,7 @@
 
 > Target document: `docs/architecture/collaborator-agent-task-authoring.md`
 > Original preserved as:
-> `docs/architecture/collaborator-agent-task-authoring.original.md`
+> `docs/architecture/archive/original/collaborator-agent-task-authoring.original.md`
 > Calibration date: 2026-07-10
 
 ## Workflow Gate

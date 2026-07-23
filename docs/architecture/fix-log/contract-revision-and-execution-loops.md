@@ -3,7 +3,7 @@
 > Target document:
 > `docs/architecture/contract-revision-and-execution-loops.md`
 > Original preserved as:
-> `docs/architecture/contract-revision-and-execution-loops.original.md`
+> `docs/architecture/archive/original/contract-revision-and-execution-loops.original.md`
 > Calibration date: 2026-07-10
 
 ## Workflow Gate

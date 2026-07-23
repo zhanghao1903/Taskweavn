@@ -5,7 +5,7 @@
 > Calibrated: 2026-07-10
 >
 > Original historical document:
-> [interaction-layer.original.md](interaction-layer.original.md)
+> [interaction-layer.original.md](archive/original/interaction-layer.original.md)
 >
 > Calibration record:
 > [fix-log/interaction-layer.md](fix-log/interaction-layer.md)

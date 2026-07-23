@@ -1,7 +1,7 @@
 # Fact Calibration Log: overview.md
 
 > Calibrated document: [../overview.md](../overview.md)
-> Preserved original: [../overview.original.md](../overview.original.md)
+> Preserved original: [overview.original.md](../archive/original/overview.original.md)
 > Calibration date: 2026-07-10
 > Scope: first document in the architecture fact-calibration pass.
 

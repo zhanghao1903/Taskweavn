@@ -5,7 +5,7 @@
 > Work Stream: Product 1.1 authoring, Plan proposal, and workspace-informed
 > Collaborator loop
 > Original preserved as:
-> `docs/architecture/collaborator-agent-task-authoring.original.md`
+> `docs/architecture/archive/original/collaborator-agent-task-authoring.original.md`
 > Related Plan:
 > [Collaborator Agent](../plans/feature/collaborator-agent-task-authoring.md),
 > [Collaborator Workspace-Informed Authoring](../plans/feature/collaborator-workspace-informed-authoring.md),

@@ -1,7 +1,7 @@
 # Authoring Domain Fact Calibration Fix Log
 
 > Target document: `docs/architecture/authoring-domain.md`
-> Original preserved as: `docs/architecture/authoring-domain.original.md`
+> Original preserved as: `docs/architecture/archive/original/authoring-domain.original.md`
 > Calibration date: 2026-07-10
 
 ## Workflow Gate

@@ -4,7 +4,7 @@
 > [../ui-backend-communication.md](../ui-backend-communication.md)
 >
 > Original:
-> [../ui-backend-communication.original.md](../ui-backend-communication.original.md)
+> [ui-backend-communication.original.md](../archive/original/ui-backend-communication.original.md)
 >
 > Calibration date: 2026-07-10
 

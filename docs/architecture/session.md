@@ -4,7 +4,7 @@
 >
 > 事实校准日期：2026-07-10
 >
-> 原始版本：[session.original.md](session.original.md)
+> 原始版本：[session.original.md](archive/original/session.original.md)
 >
 > 修复记录：[fix-log/session.md](fix-log/session.md)
 >

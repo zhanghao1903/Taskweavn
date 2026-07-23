@@ -5,7 +5,7 @@
 > Last verified: 2026-07-10
 >
 > Original document:
-> [context-manager.original.md](context-manager.original.md)
+> [context-manager.original.md](archive/original/context-manager.original.md)
 >
 > Verification record:
 > [fix-log/context-manager.md](fix-log/context-manager.md)
