@@ -121,7 +121,17 @@ SessionActivitySourceKind = Literal[
     "system",
 ]
 SessionActivityDisclosureLevel = Literal["public", "partial", "hidden"]
-ConversationRenderKind = Literal["text", "router_trace", "question_card"]
+ConversationRenderKind = Literal["text", "router_trace", "question_card", "ask_card"]
+ConversationVisibility = Literal["visible", "activity_only"]
+ConversationAskDomain = Literal["authoring", "execution"]
+ConversationAskStatus = Literal[
+    "pending",
+    "answered",
+    "deferred",
+    "cancelled",
+    "expired",
+    "superseded",
+]
 ConversationQuestionCardKind = Literal["clarification", "ask", "confirmation"]
 ConversationQuestionCardStatus = Literal["pending", "answered", "cancelled", "expired"]
 ConversationQuestionAnswerMode = Literal[
@@ -375,6 +385,52 @@ class ConversationQuestionCardView(UiContractModel):
     target_ref: SessionActivityRefView | None = None
 
 
+class ConversationAskOptionView(UiContractModel):
+    id: str = Field(min_length=1)
+    value: str = Field(min_length=1)
+    label: str = Field(min_length=1)
+    description: str | None = None
+    selected: bool = False
+
+
+class ConversationAskQuestionView(UiContractModel):
+    id: str = Field(min_length=1)
+    prompt: str = Field(min_length=1)
+    reason: str | None = None
+    required: bool = True
+    answer_type: AskAnswerType
+    allow_free_text: bool
+    options: tuple[ConversationAskOptionView, ...] = ()
+    answer_text: str | None = None
+
+
+class ConversationAskCardView(UiContractModel):
+    card_id: str = Field(min_length=1)
+    domain: ConversationAskDomain
+    status: ConversationAskStatus
+    title: str = Field(min_length=1)
+    body: str | None = None
+    raw_task_id: str | None = Field(default=None, min_length=1)
+    ask_id: str | None = Field(default=None, min_length=1)
+    task_node_id: str | None = Field(default=None, min_length=1)
+    questions: tuple[ConversationAskQuestionView, ...] = ()
+    answer_text: str | None = None
+    created_at: datetime
+    resolved_at: datetime | None = None
+    can_answer: bool = False
+    can_defer: bool = False
+    can_cancel: bool = False
+    readonly_reason: str | None = None
+
+    @model_validator(mode="after")
+    def _validate_domain_identity(self) -> ConversationAskCardView:
+        if self.domain == "authoring" and self.raw_task_id is None:
+            raise ValueError("authoring Conversation ASK requires raw_task_id")
+        if self.domain == "execution" and self.ask_id is None:
+            raise ValueError("execution Conversation ASK requires ask_id")
+        return self
+
+
 class ConversationRenderView(UiContractModel):
     protocol_version: Literal["plato.conversation.render.v1"] = (
         "plato.conversation.render.v1"
@@ -383,6 +439,7 @@ class ConversationRenderView(UiContractModel):
     text: ConversationTextView | None = None
     router_trace: ConversationRouterTraceView | None = None
     question_card: ConversationQuestionCardView | None = None
+    ask_card: ConversationAskCardView | None = None
 
 
 class SessionMessageView(UiContractModel):
@@ -398,6 +455,7 @@ class SessionMessageView(UiContractModel):
     related_command_id: str | None = None
     activity_related_refs: tuple[SessionActivityRefView, ...] = ()
     conversation_render: ConversationRenderView | None = None
+    conversation_visibility: ConversationVisibility = "visible"
 
 
 class SessionActivityItemView(UiContractModel):
@@ -504,6 +562,13 @@ class AskQuestionView(UiContractModel):
     required: bool = True
 
 
+class AskAnswerView(UiContractModel):
+    id: str = Field(min_length=1)
+    selected_option_ids: tuple[str, ...] = ()
+    text: str | None = None
+    created_at: datetime
+
+
 class AskRequestView(UiContractModel):
     id: str = Field(min_length=1)
     session_id: str = Field(min_length=1)
@@ -520,6 +585,7 @@ class AskRequestView(UiContractModel):
     attachments_supported: Literal[False] = False
     status: AskRequestStatus
     answer_id: str | None = Field(default=None, min_length=1)
+    answer: AskAnswerView | None = None
     resume_hint: str | None = Field(default=None, min_length=1)
     created_at: datetime
     answered_at: datetime | None = None

@@ -1,6 +1,6 @@
 # 会话内原位 ASK 渲染需求
 
-> 状态：F1 需求已确认
+> 状态：已实现，等待 PR 验收
 >
 > 分支：`codex/session-inline-ask-rendering`
 >
@@ -105,17 +105,16 @@
 两类 ASK 可以共享会话卡片语义与视觉原语，但必须继续使用各自的命令和后端
 权威，不能因为 UI 统一而合并领域生命周期。
 
-### 4.2 建议的首个垂直切片
+### 4.2 交付切片
 
-建议先实现截图直接暴露的 Authoring ASK 批量问答：
+本特性同时交付截图直接暴露的 Authoring ASK 批量问答与 Execution ASK：
 
 1. Conversation 展示原始问题与选项；
 2. 用户在该卡片中完成选择；
 3. 批量提交后原位显示已选结果；
 4. 抑制同一批回答对应的独立 `User answer` Conversation 卡片；
 5. 保留原消息、Answer 记录、Activity 和 Audit 事实用于追踪。
-
-Execution ASK 随后复用同一产品契约，避免一次同时改动两个后端权威边界。
+6. Execution ASK 复用同一会话卡片语义，同时继续走独立 AskStore 命令边界。
 
 ## 5. 状态与行为
 
@@ -209,7 +208,7 @@ type ConversationAskCard = {
 };
 ```
 
-该结构仅用于确认产品语义。API Contract 与兼容策略在 F2/F3 后再定稿。
+该结构用于确认产品语义；实际 additive UI Contract 与兼容策略记录在对应技术设计中。
 
 ## 8. 非目标
 
@@ -219,7 +218,7 @@ type ConversationAskCard = {
 - 不新增页面、路由、模态流程或独立答案详情页。
 - 不在本需求阶段实现附件、图片选项或复杂表单。
 - 不以 Conversation 取代 AskStore、RawTask store、Task 状态或 Audit。
-- 本轮不修改生产代码、数据库结构或 API。
+- 不修改数据库结构，不合并 Authoring / Execution 的领域权威。
 
 ## 9. 验收标准
 
@@ -267,9 +266,9 @@ Activity / Audit 证据；普通 Answer 和普通用户输入不受影响。
 
 Activity 中继续显示一条“ASK 已回答”的动作摘要。
 
-## 11. 后续依赖
+## 11. 交付记录
 
-进入 F2/F3 后需要修订：
+F2-F5 已完成以下修订：
 
 - `docs/engineering/ask-lifecycle-contract.md`
 - `docs/interaction-model/ask-user-interaction.md`
@@ -280,6 +279,14 @@ Activity 中继续显示一条“ASK 已回答”的动作摘要。
 - UI ViewModel / Conversation render protocol
 - Authoring 与 Execution ASK 的投影和兼容策略
 
-涉及超过 800 / 1200 行的现有前端文件时，实施前必须运行仓库
-Maintainability Gate，并优先把新行为放入有明确边界的 Conversation ASK
-组件与投影模块中。
+Maintainability Gate 已执行。新增行为放入独立 Conversation ASK 组件、交互适配器
+和后端纯投影模块；`MainPageWorkbench.tsx` 只保留接线，并从 1314 行降至
+1282 行。
+
+验收证据：
+
+- Authoring / Execution ASK 投影、提交、终态和 Activity-only 去重均有自动化测试；
+- frontend lint、全量测试与 production build 通过；
+- backend scoped ruff / mypy 与全量 pytest 通过；
+- 真实浏览器完成桌面、平板、手机视口检查，验证无横向溢出、选项可操作、
+  Plan 定位入口可回到 Conversation，且 console 无 warning/error。

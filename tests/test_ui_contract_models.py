@@ -17,6 +17,9 @@ from taskweavn.server.ui_contract import (
     CommandResult,
     ConfirmationActionView,
     ConfirmationOptionView,
+    ConversationAskCardView,
+    ConversationAskQuestionView,
+    ConversationRenderView,
     GenerateTaskTreePayload,
     MainPageSnapshot,
     ObjectRef,
@@ -181,6 +184,47 @@ def test_camel_case_json_serialization_and_alias_input() -> None:
     assert "projectId" in payload
     assert "project_id" not in payload
     assert payload["createdAt"] == "2026-05-20T10:30:00Z"
+
+
+def test_conversation_ask_card_serializes_with_visibility_and_stable_identity() -> None:
+    message = SessionMessageView(
+        id="conversation-ask:execution:ask-1",
+        session_id="session-1",
+        task_node_id="task-1",
+        kind="actionable",
+        title="Plato question",
+        body="Where should Plato deploy?",
+        created_at=NOW,
+        conversation_render=ConversationRenderView(
+            render_kind="ask_card",
+            ask_card=ConversationAskCardView(
+                card_id="conversation-ask:execution:ask-1",
+                domain="execution",
+                status="pending",
+                title="Task needs input",
+                ask_id="ask-1",
+                task_node_id="task-1",
+                questions=(
+                    ConversationAskQuestionView(
+                        id="ask-1",
+                        prompt="Where should Plato deploy?",
+                        required=True,
+                        answer_type="free_text",
+                        allow_free_text=True,
+                    ),
+                ),
+                created_at=NOW,
+                can_answer=True,
+            ),
+        ),
+        conversation_visibility="visible",
+    )
+
+    payload = message.model_dump(mode="json")
+
+    assert payload["conversationVisibility"] == "visible"
+    assert payload["conversationRender"]["renderKind"] == "ask_card"
+    assert payload["conversationRender"]["askCard"]["askId"] == "ask-1"
 
 
 def test_query_response_success_and_error_invariants() -> None:

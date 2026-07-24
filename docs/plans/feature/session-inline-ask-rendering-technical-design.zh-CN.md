@@ -1,6 +1,6 @@
 # 会话内原位 ASK 渲染技术设计
 
-> 状态：F2/F3 已接受设计，待实现
+> 状态：F2-F5 已实现，等待 PR 验收
 >
 > 分支：`codex/session-inline-ask-rendering`
 >
@@ -426,3 +426,30 @@ conversationVisibility = "activity_only"
 4. 历史 RawTask 可能有不匹配当前 options 的答案，需要 answerText fallback。
 5. Execution batch questions 只有一个 Answer.text；首版按卡片级文本保留，不能
    伪造逐问题结构化答案。
+
+## 13. 实施与验证结果
+
+### 已完成
+
+- additive `ask_card`、`conversationVisibility` 与 `AskAnswerView` UI contract；
+- Authoring RawTask 与 Execution AskStore 的确定性 Conversation 投影；
+- ASK 专用答案消息保留为 Activity / Audit 证据并从 Conversation 隐藏；
+- Conversation 内 Authoring 批量回答，以及 Execution answer/defer/cancel；
+- Detail Panel 退化为状态和“在会话中查看”入口；
+- 旧 Authoring Work Area 与 Execution Detail Panel 回答表单移除；
+- Plan 打开时定位 Conversation ASK 会折叠 Plan，避免覆盖卡片；
+- 响应式与可访问性交互测试。
+
+### 验证证据
+
+- `uv run pytest -q`：1566 passed，10 skipped；
+- changed backend scope `uv run ruff check`：通过；
+- changed backend scope `uv run mypy`：通过；
+- `npm test`：569 passed，6 skipped；
+- `npm run build`：通过；
+- `npm run lint`：0 error，保留 2 条既有 Fast Refresh warning；
+- 浏览器桌面、768px 平板与 390px 手机视口：无横向溢出，选择、提交可用，
+  定位入口正确，console 无 warning/error。
+
+仓库全量 `ruff check .` 与 `mypy src` 仍包含本特性范围外的既有历史问题；
+相关文件未在本特性中修改，详见 PR 验证说明。

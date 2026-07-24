@@ -4,10 +4,14 @@ import type { SessionMessageView } from "../../shared/api/types";
 import { Button, Panel, Text } from "../../shared/components";
 import { useUiText } from "../../shared/ui-text";
 import { cx } from "../../shared/utils/cx";
+import type { ConversationAskInteraction } from "./conversation-ask/conversationAskInteraction";
 import { SessionMessageCard } from "./SessionMessageCard";
 import styles from "./MainPage.module.css";
 
 export type ConversationLayerProps = {
+  activeAskIdentity?: string | null;
+  askCardRef?: RefObject<HTMLElement | null>;
+  askInteraction?: ConversationAskInteraction;
   bottomSentinelRef?: RefObject<HTMLDivElement | null>;
   className?: string;
   headerActions?: ReactNode;
@@ -20,6 +24,9 @@ export type ConversationLayerProps = {
 };
 
 export function ConversationLayer({
+  activeAskIdentity = null,
+  askCardRef,
+  askInteraction,
   bottomSentinelRef,
   className,
   headerActions = null,
@@ -71,7 +78,16 @@ export function ConversationLayer({
           ref={messageListRef}
         >
           {messages.map((message) => (
-            <SessionMessageCard key={message.id} message={message} />
+            <SessionMessageCard
+              askInteraction={askInteraction}
+              focusRef={
+                conversationAskIdentity(message) === activeAskIdentity
+                  ? askCardRef
+                  : undefined
+              }
+              key={message.id}
+              message={message}
+            />
           ))}
           <div
             aria-hidden="true"
@@ -89,4 +105,20 @@ export function ConversationLayer({
       )}
     </Panel>
   );
+}
+
+function conversationAskIdentity(
+  message: SessionMessageView,
+): string | null {
+  const card = message.conversationRender?.askCard;
+  if (message.conversationRender?.renderKind !== "ask_card" || !card) {
+    return null;
+  }
+  if (card.domain === "authoring" && card.rawTaskId) {
+    return `authoring:${card.rawTaskId}`;
+  }
+  if (card.domain === "execution" && card.askId) {
+    return `execution:${card.askId}`;
+  }
+  return null;
 }

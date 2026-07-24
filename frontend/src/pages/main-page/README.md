@@ -11,7 +11,7 @@ The typed source of truth is `mainPageStateCatalog.ts`. The fixture data in
 | State | Lifecycle | User situation | Page focus | Expected user action |
 | --- | --- | --- | --- | --- |
 | S1 Empty | empty | The user opened a workspace but has not entered a goal. | Show the workspace entry point and make natural-language input obvious. | Describe the goal they want Plato to plan. |
-| S2 Authoring ASK | understanding | Plato needs structured answers before a TaskTree exists. | Replace the work area with batch ASK questions and keep the input disabled. | Select answers and submit them together. |
+| S2 Authoring ASK | understanding | Plato needs structured answers before a TaskTree exists. | Keep Conversation visible and render one grouped ASK card in its timeline. | Select answers and submit them together inside Conversation. |
 | S3 Draft Ready | planning | A draft TaskTree exists and needs review before publication. | Present the generated TaskTree as the main object of interaction. | Review the draft, select a TaskNode, or refine the plan. |
 | S4 Task Selected | task_focus | The user selected a TaskNode while reviewing the TaskTree. | Narrow the interaction scope from the session to a single TaskNode. | Inspect the TaskNode or add guidance that only applies to it. |
 | S5 Editing | task_focus | The user is actively refining a selected TaskNode. | Show that task-scoped input changes the TaskNode, not the whole plan. | Provide task-specific instructions or corrections. |
@@ -23,7 +23,7 @@ The typed source of truth is `mainPageStateCatalog.ts`. The fixture data in
 | S11 Stale Snapshot | recovery | The visible session state is stale and needs refresh. | Disable interaction controls and make refresh the recovery path. | Refresh the session before acting. |
 | S12 Backend Busy | recovery | A command was accepted but the durable event has not arrived yet. | Keep current facts visible while preventing repeated actions. | Wait for the event or retry after timeout policy. |
 | S13 Command Failed | recovery | A recoverable command failure occurred before canonical facts changed. | Show the error and keep the TaskTree available for retry or revision. | Retry or revise the task instruction. |
-| S14 Execution ASK | execution | A running TaskNode is waiting for user input. | Keep TaskTree context and place ASK actions in the detail panel. | Answer, defer, or cancel the ASK. |
+| S14 Execution ASK | execution | A running TaskNode is waiting for user input. | Keep TaskTree context and render the ASK at its stable Conversation position; the detail panel only links to it. | Answer, defer, or cancel the ASK inside Conversation. |
 
 ## Surface Rules
 
@@ -31,7 +31,7 @@ The typed source of truth is `mainPageStateCatalog.ts`. The fixture data in
 - The Main Page shows only a Latest Activity strip by default; full message
   history belongs in the Activity Overlay once that surface is implemented.
 - The Detail Panel is contextual: Workspace/session before planning, TaskNode during planning/execution, execution ASK and confirmation during gates, and Result/File Change during review.
-- Authoring ASK uses the main work area and submits answers in a batch; execution ASK uses the detail panel and targets one concrete ASK.
+- Authoring and execution ASK cards render and accept answers inside Conversation. Authoring submits one grouped batch; execution targets one concrete ASK. The detail panel only links back to the active Conversation card.
 - Local command pending state is temporary. `command.completed` and `command.failed` events invalidate the snapshot, and the refreshed MainPageSnapshot remains the durable convergence source.
 - The bottom input always has an explicit scope. When a TaskNode is selected, input is task-scoped unless the current state deliberately pins a broader session/review scope.
 - File Change Summary is recursive: parent TaskNodes may summarize all child TaskNode changes.

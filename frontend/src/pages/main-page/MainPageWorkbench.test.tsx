@@ -77,6 +77,86 @@ describe("MainPageWorkbench layout", () => {
     expect(inputForm).not.toHaveClass(styles.floatingContextInput);
   });
 
+  it("renders and answers Authoring ASK questions inside Conversation", async () => {
+    const user = userEvent.setup();
+    const actions = buildActions();
+    const viewModel = buildViewModel("s2-understanding");
+
+    expect(viewModel.mainWorkArea.kind).toBe("authoringAsk");
+
+    renderWorkbench(viewModel, actions);
+
+    expect(screen.getByLabelText("Conversation")).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", {
+        name: "What kind of website should Plato plan first?",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Submit all answers" }),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Portfolio" }));
+    await user.click(screen.getByRole("button", { name: "Quiet editorial" }));
+    await user.click(
+      screen.getByRole("button", { name: "Submit all answers" }),
+    );
+
+    expect(actions.answerAuthoringAskBatch).toHaveBeenCalledWith({
+      answers: [
+        {
+          askId: "authoring-ask-site-type",
+          value: "portfolio",
+        },
+        {
+          askId: "authoring-ask-style",
+          value: "quiet_editorial",
+        },
+      ],
+      rawTaskId: "raw-task-website-goal",
+      sessionId: viewModel.sessionId,
+    });
+  });
+
+  it("keeps Activity-only ASK events out of Conversation", () => {
+    const runtime = getMainPageMockSnapshot("s1-empty");
+    const snapshot: MainPageSnapshot = {
+      ...runtime.snapshot,
+      messages: [
+        {
+          id: "visible-message",
+          sessionId: runtime.snapshot.session.id,
+          taskNodeId: null,
+          kind: "informational",
+          title: "Visible update",
+          body: "Visible in Conversation.",
+          createdAt: "2026-07-24T10:00:00Z",
+          conversationVisibility: "visible",
+        },
+        {
+          id: "ask-answer-event",
+          sessionId: runtime.snapshot.session.id,
+          taskNodeId: null,
+          kind: "informational",
+          title: "ASK answered",
+          body: "Retained only in Activity.",
+          createdAt: "2026-07-24T10:01:00Z",
+          conversationVisibility: "activity_only",
+        },
+      ],
+    };
+
+    renderWorkbench(buildViewModel("s1-empty", { snapshot }));
+
+    expect(screen.getByText("Visible in Conversation.")).toBeInTheDocument();
+    expect(
+      screen.queryByText("Retained only in Activity."),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Activity 2" }),
+    ).toBeInTheDocument();
+  });
+
   it("routes helper recovery actions from the input error to Settings", async () => {
     const user = userEvent.setup();
     const viewModel = buildViewModel("s1-empty");
@@ -197,7 +277,7 @@ describe("MainPageWorkbench layout", () => {
     renderWorkbench(viewModel);
 
     const askCard = document.querySelector<HTMLElement>(
-      "[data-ask-id='ask-deployment-target']",
+      "[data-conversation-ask-id='ask-deployment-target']",
     );
 
     expect(askCard).not.toBeNull();
@@ -205,6 +285,29 @@ describe("MainPageWorkbench layout", () => {
       const activeElement = document.activeElement;
       expect(activeElement).toBeInstanceOf(HTMLElement);
       expect(askCard).toContainElement(activeElement as HTMLElement);
+    });
+  });
+
+  it("answers an Execution ASK from its Conversation card", async () => {
+    const user = userEvent.setup();
+    const actions = buildActions();
+    const viewModel = buildViewModel("s14-execution-ask", {
+      selectedTaskNodeId: "task-implementation",
+    });
+
+    renderWorkbench(viewModel, actions);
+
+    expect(
+      screen.queryByLabelText("Plan & progress workspace"),
+    ).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /Vercel/ }));
+    await user.click(screen.getByRole("button", { name: "Answer" }));
+
+    expect(actions.answerAsk).toHaveBeenCalledWith({
+      askId: "ask-deployment-target",
+      selectedOptionIds: ["vercel"],
+      sessionId: viewModel.sessionId,
+      text: null,
     });
   });
 

@@ -5,8 +5,9 @@ from __future__ import annotations
 from collections.abc import Iterable
 from typing import Protocol, runtime_checkable
 
-from taskweavn.interaction import AskRequest, AskStatus, AskStore
+from taskweavn.interaction import AskAnswer, AskRequest, AskStatus, AskStore
 from taskweavn.server.ui_contract.view_models import (
+    AskAnswerView,
     AskListResult,
     AskOptionView,
     AskQuestionView,
@@ -56,7 +57,10 @@ class DefaultAskProjectionService:
     ) -> AskListResult:
         task_ids = _task_ids_for_filter(task_id, task_tree=task_tree)
         asks = tuple(
-            map_ask_request_view(request)
+            map_ask_request_view(
+                request,
+                answer=self._ask_store.get_answer(session_id, request.ask_id),
+            )
             for request in self._ask_store.list_for_session(
                 session_id,
                 statuses=statuses,
@@ -72,7 +76,14 @@ class DefaultAskProjectionService:
 
     def get_ask(self, session_id: str, ask_id: str) -> AskRequestView | None:
         request = self._ask_store.get(session_id, ask_id)
-        return None if request is None else map_ask_request_view(request)
+        return (
+            None
+            if request is None
+            else map_ask_request_view(
+                request,
+                answer=self._ask_store.get_answer(session_id, ask_id),
+            )
+        )
 
     def pending_asks(self, session_id: str) -> tuple[AskRequestView, ...]:
         return self.list_asks(session_id, statuses=("pending",)).asks
@@ -87,7 +98,11 @@ class DefaultAskProjectionService:
         return select_active_ask(pending, task_tree=task_tree)
 
 
-def map_ask_request_view(request: AskRequest) -> AskRequestView:
+def map_ask_request_view(
+    request: AskRequest,
+    *,
+    answer: AskAnswer | None = None,
+) -> AskRequestView:
     task_ref = None if request.task_id is None else TaskRef.published(request.task_id)
     return AskRequestView(
         id=request.ask_id,
@@ -120,6 +135,16 @@ def map_ask_request_view(request: AskRequest) -> AskRequestView:
         attachments_supported=request.attachments_supported,
         status=request.status,
         answer_id=request.answer_id,
+        answer=(
+            None
+            if answer is None
+            else AskAnswerView(
+                id=answer.answer_id,
+                selected_option_ids=answer.selected_option_ids,
+                text=answer.text,
+                created_at=answer.created_at,
+            )
+        ),
         resume_hint=request.resume_hint,
         created_at=request.created_at,
         answered_at=request.answered_at,

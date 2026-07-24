@@ -10,6 +10,62 @@ import { MainPageDetailPanel } from "./MainPageDetailPanel";
 import type { MainPageDetailView } from "./mainPageViewModel";
 
 describe("MainPageDetailPanel", () => {
+  it("keeps Execution ASK controls in Conversation and shows only a detail link", async () => {
+    const user = userEvent.setup();
+    const onFocusExecutionAsk = vi.fn();
+
+    render(
+      <MainPageDetailPanel
+        detail={{
+          ask: {
+            id: "ask-deployment",
+            sessionId: "session-website-plan",
+            taskNodeId: "task-implementation",
+            question: "Where should Plato deploy?",
+            reason: "Deployment needs a target.",
+            suggestedOptions: [
+              {
+                id: "vercel",
+                label: "Vercel",
+              },
+            ],
+            answerType: "single_choice",
+            allowFreeText: true,
+            allowNoOptionWithText: false,
+            blocking: true,
+            attachmentsSupported: false,
+            status: "pending",
+            createdAt: "2026-07-24T10:00:00Z",
+          },
+          commandError: null,
+          commandRecoveryActions: [],
+          header: {
+            body: "The task is waiting for input.",
+            eyebrow: "Task input",
+            title: "Input required",
+          },
+          isAnsweringAsk: false,
+          isCancellingAsk: false,
+          isDeferringAsk: false,
+          kind: "executionAsk",
+        }}
+        onConfirmationDecision={vi.fn()}
+        onFocusExecutionAsk={onFocusExecutionAsk}
+        onRetryTask={vi.fn()}
+        onShowFileChanges={vi.fn()}
+        onShowResult={vi.fn()}
+        onStopTask={vi.fn()}
+      />,
+    );
+
+    expect(screen.queryByRole("button", { name: "Answer" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Defer" })).not.toBeInTheDocument();
+    await user.click(
+      screen.getByRole("button", { name: "View in Conversation" }),
+    );
+    expect(onFocusExecutionAsk).toHaveBeenCalledWith("ask-deployment");
+  });
+
   it("shows whole-plan interaction details", () => {
     render(
       <MainPageDetailPanel
@@ -36,10 +92,8 @@ describe("MainPageDetailPanel", () => {
             version: 1,
           },
         }}
-        onAnswerAsk={vi.fn()}
-        onCancelAsk={vi.fn()}
         onConfirmationDecision={vi.fn()}
-        onDeferAsk={vi.fn()}
+        onFocusExecutionAsk={vi.fn()}
         onRetryTask={vi.fn()}
         onShowFileChanges={vi.fn()}
         onShowResult={vi.fn()}
@@ -88,10 +142,8 @@ describe("MainPageDetailPanel", () => {
             title,
           }),
         }}
-        onAnswerAsk={vi.fn()}
-        onCancelAsk={vi.fn()}
         onConfirmationDecision={vi.fn()}
-        onDeferAsk={vi.fn()}
+        onFocusExecutionAsk={vi.fn()}
         onRetryTask={vi.fn()}
         onShowFileChanges={vi.fn()}
         onShowResult={vi.fn()}
@@ -164,10 +216,8 @@ describe("MainPageDetailPanel", () => {
           }),
         }}
         loadTokenUsageSummary={loadTokenUsageSummary}
-        onAnswerAsk={vi.fn()}
-        onCancelAsk={vi.fn()}
         onConfirmationDecision={vi.fn()}
-        onDeferAsk={vi.fn()}
+        onFocusExecutionAsk={vi.fn()}
         onRetryTask={vi.fn()}
         onShowFileChanges={vi.fn()}
         onShowResult={vi.fn()}
@@ -243,10 +293,8 @@ describe("MainPageDetailPanel", () => {
           }),
         }}
         loadTokenUsageSummary={loadTokenUsageSummary}
-        onAnswerAsk={vi.fn()}
-        onCancelAsk={vi.fn()}
         onConfirmationDecision={vi.fn()}
-        onDeferAsk={vi.fn()}
+        onFocusExecutionAsk={vi.fn()}
         onRetryTask={vi.fn()}
         onShowFileChanges={vi.fn()}
         onShowResult={vi.fn()}
@@ -320,10 +368,8 @@ describe("MainPageDetailPanel", () => {
           }),
         }}
         loadTokenUsageSummary={loadTokenUsageSummary}
-        onAnswerAsk={vi.fn()}
-        onCancelAsk={vi.fn()}
         onConfirmationDecision={vi.fn()}
-        onDeferAsk={vi.fn()}
+        onFocusExecutionAsk={vi.fn()}
         onRetryTask={vi.fn()}
         onShowFileChanges={vi.fn()}
         onShowResult={vi.fn()}
@@ -372,10 +418,8 @@ describe("MainPageDetailPanel", () => {
             title: "Completed implementation",
           }),
         }}
-        onAnswerAsk={vi.fn()}
-        onCancelAsk={vi.fn()}
         onConfirmationDecision={vi.fn()}
-        onDeferAsk={vi.fn()}
+        onFocusExecutionAsk={vi.fn()}
         onRetryTask={vi.fn()}
         onShowFileChanges={vi.fn()}
         onShowResult={vi.fn()}
@@ -392,10 +436,8 @@ describe("MainPageDetailPanel", () => {
     render(
       <MainPageDetailPanel
         detail={fileChangesDetail}
-        onAnswerAsk={vi.fn()}
-        onCancelAsk={vi.fn()}
         onConfirmationDecision={vi.fn()}
-        onDeferAsk={vi.fn()}
+        onFocusExecutionAsk={vi.fn()}
         onRetryTask={vi.fn()}
         onShowFileChanges={vi.fn()}
         onShowResult={vi.fn()}
@@ -427,10 +469,8 @@ describe("MainPageDetailPanel", () => {
       <UiTextProvider locale="zh-CN">
         <MainPageDetailPanel
           detail={fileChangesDetail}
-          onAnswerAsk={vi.fn()}
-          onCancelAsk={vi.fn()}
           onConfirmationDecision={vi.fn()}
-          onDeferAsk={vi.fn()}
+        onFocusExecutionAsk={vi.fn()}
           onRetryTask={vi.fn()}
           onShowFileChanges={vi.fn()}
           onShowResult={vi.fn()}
@@ -461,10 +501,8 @@ describe("MainPageDetailPanel", () => {
     render(
       <MainPageDetailPanel
         detail={stateNoteDetail}
-        onAnswerAsk={vi.fn()}
-        onCancelAsk={vi.fn()}
         onConfirmationDecision={vi.fn()}
-        onDeferAsk={vi.fn()}
+        onFocusExecutionAsk={vi.fn()}
         onRetryTask={vi.fn()}
         onShowFileChanges={vi.fn()}
         onShowResult={vi.fn()}
@@ -491,10 +529,8 @@ describe("MainPageDetailPanel", () => {
           },
           kind: "confirmationResolved",
         }}
-        onAnswerAsk={vi.fn()}
-        onCancelAsk={vi.fn()}
         onConfirmationDecision={vi.fn()}
-        onDeferAsk={vi.fn()}
+        onFocusExecutionAsk={vi.fn()}
         onRetryTask={vi.fn()}
         onShowFileChanges={vi.fn()}
         onShowResult={vi.fn()}
@@ -521,10 +557,8 @@ describe("MainPageDetailPanel", () => {
             },
             kind: "confirmationResolved",
           }}
-          onAnswerAsk={vi.fn()}
-          onCancelAsk={vi.fn()}
           onConfirmationDecision={vi.fn()}
-          onDeferAsk={vi.fn()}
+        onFocusExecutionAsk={vi.fn()}
           onRetryTask={vi.fn()}
           onShowFileChanges={vi.fn()}
           onShowResult={vi.fn()}
@@ -548,10 +582,8 @@ describe("MainPageDetailPanel", () => {
     render(
       <MainPageDetailPanel
         detail={resultDetail}
-        onAnswerAsk={vi.fn()}
-        onCancelAsk={vi.fn()}
         onConfirmationDecision={vi.fn()}
-        onDeferAsk={vi.fn()}
+        onFocusExecutionAsk={vi.fn()}
         onRetryTask={vi.fn()}
         onShowFileChanges={vi.fn()}
         onShowResult={vi.fn()}
@@ -588,10 +620,8 @@ describe("MainPageDetailPanel", () => {
     render(
       <MainPageDetailPanel
         detail={detail}
-        onAnswerAsk={vi.fn()}
-        onCancelAsk={vi.fn()}
         onConfirmationDecision={vi.fn()}
-        onDeferAsk={vi.fn()}
+        onFocusExecutionAsk={vi.fn()}
         onRetryTask={vi.fn()}
         onShowFileChanges={vi.fn()}
         onShowResult={vi.fn()}
@@ -614,10 +644,8 @@ describe("MainPageDetailPanel", () => {
     render(
       <MainPageDetailPanel
         detail={resultWithFileChangesDetail}
-        onAnswerAsk={vi.fn()}
-        onCancelAsk={vi.fn()}
         onConfirmationDecision={vi.fn()}
-        onDeferAsk={vi.fn()}
+        onFocusExecutionAsk={vi.fn()}
         onRetryTask={vi.fn()}
         onShowFileChanges={vi.fn()}
         onShowResult={vi.fn()}
@@ -645,10 +673,8 @@ describe("MainPageDetailPanel", () => {
     render(
       <MainPageDetailPanel
         detail={resultDetail}
-        onAnswerAsk={vi.fn()}
-        onCancelAsk={vi.fn()}
         onConfirmationDecision={vi.fn()}
-        onDeferAsk={vi.fn()}
+        onFocusExecutionAsk={vi.fn()}
         onRetryTask={vi.fn()}
         onShowFileChanges={vi.fn()}
         onShowResult={vi.fn()}
@@ -678,10 +704,8 @@ describe("MainPageDetailPanel", () => {
     render(
       <MainPageDetailPanel
         detail={longSummaryResultDetail}
-        onAnswerAsk={vi.fn()}
-        onCancelAsk={vi.fn()}
         onConfirmationDecision={vi.fn()}
-        onDeferAsk={vi.fn()}
+        onFocusExecutionAsk={vi.fn()}
         onRetryTask={vi.fn()}
         onShowFileChanges={vi.fn()}
         onShowResult={vi.fn()}

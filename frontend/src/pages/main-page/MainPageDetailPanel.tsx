@@ -3,11 +3,6 @@ import { useState } from "react";
 import { CircleStop, RotateCcw } from "lucide-react";
 
 import type {
-  AnswerAskPayload,
-  CancelAskPayload,
-  DeferAskPayload,
-} from "../../shared/api/platoApi";
-import type {
   FileChangeSummaryView,
   SessionId,
   TaskNodeId,
@@ -23,8 +18,8 @@ import {
 } from "../../shared/components";
 import { useUiText, type UiTextCatalog } from "../../shared/ui-text";
 import { buildWorkspaceInspectionRoute } from "../../app/routes";
+import { ExecutionAskStatusPanel } from "./conversation-ask/ExecutionAskStatusPanel";
 import { ConfirmationDetailPanel } from "./interaction/ConfirmationDetailPanel";
-import { ExecutionAskDetailPanel } from "./interaction/ExecutionAskDetailPanel";
 import { selectFileChangeTypePresentation } from "./mainPageSelectors";
 import type { MainPageDetailView } from "./mainPageViewModel";
 import { MainPageTokenUsageSummaryCard } from "./MainPageTokenUsageSummaryCard";
@@ -34,12 +29,9 @@ import styles from "./MainPage.module.css";
 export type MainPageDetailPanelProps = {
   detail: MainPageDetailView;
   detailFocusRef?: Ref<HTMLElement>;
-  executionAskFocusRef?: Ref<HTMLElement>;
   fileChangesFocusRef?: Ref<HTMLElement>;
-  onAnswerAsk: (payload: AnswerAskPayload) => void;
-  onCancelAsk: (payload: CancelAskPayload) => void;
   onConfirmationDecision: (decision: string) => void;
-  onDeferAsk: (payload: DeferAskPayload) => void;
+  onFocusExecutionAsk: (askId: string) => void;
   onRetryTask: (taskNodeId: TaskNodeId) => void;
   onStopTask: (taskNodeId: TaskNodeId) => void;
   onShowFileChanges: () => void;
@@ -111,12 +103,9 @@ function localizedDetailHeader(
 export function MainPageDetailPanel({
   detail,
   detailFocusRef,
-  executionAskFocusRef,
   fileChangesFocusRef,
-  onAnswerAsk,
-  onCancelAsk,
   onConfirmationDecision,
-  onDeferAsk,
+  onFocusExecutionAsk,
   onRetryTask,
   onStopTask,
   onShowFileChanges,
@@ -150,12 +139,9 @@ export function MainPageDetailPanel({
       </Text>
       <DetailContent
         detail={detail}
-        executionAskFocusRef={executionAskFocusRef}
         fileChangesFocusRef={fileChangesFocusRef}
-        onAnswerAsk={onAnswerAsk}
-        onCancelAsk={onCancelAsk}
         onConfirmationDecision={onConfirmationDecision}
-        onDeferAsk={onDeferAsk}
+        onFocusExecutionAsk={onFocusExecutionAsk}
         onRetryTask={onRetryTask}
         onStopTask={onStopTask}
         onShowFileChanges={onShowFileChanges}
@@ -170,12 +156,9 @@ export function MainPageDetailPanel({
 
 type DetailContentProps = {
   detail: MainPageDetailView;
-  executionAskFocusRef?: Ref<HTMLElement>;
   fileChangesFocusRef?: Ref<HTMLElement>;
-  onAnswerAsk: (payload: AnswerAskPayload) => void;
-  onCancelAsk: (payload: CancelAskPayload) => void;
   onConfirmationDecision: (decision: string) => void;
-  onDeferAsk: (payload: DeferAskPayload) => void;
+  onFocusExecutionAsk: (askId: string) => void;
   onRetryTask: (taskNodeId: TaskNodeId) => void;
   onStopTask: (taskNodeId: TaskNodeId) => void;
   onShowFileChanges: () => void;
@@ -187,12 +170,9 @@ type DetailContentProps = {
 
 function DetailContent({
   detail,
-  executionAskFocusRef,
   fileChangesFocusRef,
-  onAnswerAsk,
-  onCancelAsk,
   onConfirmationDecision,
-  onDeferAsk,
+  onFocusExecutionAsk,
   onRetryTask,
   onStopTask,
   onShowFileChanges,
@@ -204,12 +184,9 @@ function DetailContent({
   switch (detail.kind) {
     case "executionAsk":
       return (
-        <ExecutionAskDetailPanel
-          detail={detail}
-          focusRef={executionAskFocusRef}
-          onAnswer={onAnswerAsk}
-          onCancel={onCancelAsk}
-          onDefer={onDeferAsk}
+        <ExecutionAskStatusPanel
+          ask={detail.ask}
+          onViewInConversation={() => onFocusExecutionAsk(detail.ask.id)}
         />
       );
     case "confirmation":

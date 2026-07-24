@@ -59,8 +59,20 @@ class MessageBusRuntimeInputActivityPublisher:
         decision: RuntimeInputRouteDecision,
         outcome: RuntimeInputOutcome,
     ) -> None:
-        self._publish(_user_input_message(request))
-        self._publish(_router_trace_message(request, decision, outcome))
+        visibility = (
+            "activity_only"
+            if decision.intent == "ask_answer" and outcome.status == "dispatched"
+            else "visible"
+        )
+        self._publish(_user_input_message(request, visibility=visibility))
+        self._publish(
+            _router_trace_message(
+                request,
+                decision,
+                outcome,
+                visibility=visibility,
+            )
+        )
         reply_message = _router_reply_message(request, decision, outcome)
         if reply_message is not None:
             self._publish(reply_message)
@@ -99,6 +111,11 @@ class MessageBusRuntimeInputActivityPublisher:
                 "runtime_input_scope_kind": activity.scope_kind,
                 "runtime_input_plan_id": activity.plan_id,
                 "runtime_input_task_node_id": activity.task_node_id,
+                "conversation_visibility": (
+                    "activity_only"
+                    if activity.kind == "ask_answered"
+                    else "visible"
+                ),
                 "conversation_render": _text_render(
                     title=title,
                     body=activity.body,
@@ -127,7 +144,11 @@ class MessageBusRuntimeInputActivityPublisher:
                 raise
 
 
-def _user_input_message(request: RuntimeInputRouteRequest) -> AgentMessage:
+def _user_input_message(
+    request: RuntimeInputRouteRequest,
+    *,
+    visibility: str = "visible",
+) -> AgentMessage:
     return AgentMessage(
         message_id=f"runtime-input-user-{request.command_id}",
         session_id=request.session_id,
@@ -137,6 +158,7 @@ def _user_input_message(request: RuntimeInputRouteRequest) -> AgentMessage:
         content=request.content,
         context={
             "title": USER_INPUT_TITLE,
+            "conversation_visibility": visibility,
             "conversation_render": _text_render(
                 title=USER_INPUT_TITLE,
                 body=request.content,
@@ -150,6 +172,8 @@ def _router_trace_message(
     request: RuntimeInputRouteRequest,
     decision: RuntimeInputRouteDecision,
     outcome: RuntimeInputOutcome,
+    *,
+    visibility: str = "visible",
 ) -> AgentMessage:
     body = (
         f"{decision.explanation} Outcome: {outcome.status}. "
@@ -167,6 +191,7 @@ def _router_trace_message(
             "activity_related_refs": [
                 ref.to_contract_dict() for ref in decision.related_refs
             ],
+            "conversation_visibility": visibility,
             "conversation_render": {
                 "protocolVersion": "plato.conversation.render.v1",
                 "renderKind": "router_trace",
