@@ -1,6 +1,6 @@
 # 会话内原位 ASK 渲染需求
 
-> 状态：F1 需求草案，等待用户确认
+> 状态：F1 需求已确认
 >
 > 分支：`codex/session-inline-ask-rendering`
 >
@@ -8,7 +8,7 @@
 >
 > 类型：产品契约 / UX 流程 / Conversation 投影修订
 >
-> 本文档只确认需求，不授权生产代码实现。
+> 用户确认：Authoring ASK 与 Execution ASK 均在范围内，D2-D5 采用推荐方案。
 
 ## 1. 用户场景
 
@@ -238,47 +238,38 @@ type ConversationAskCard = {
 12. 手机、平板和桌面视口均能阅读问题、操作选项并看到终态选择。
 13. 键盘和读屏用户可以识别问题、选择状态、提交状态和错误信息。
 
-## 10. 待用户确认的产品决策
+## 10. 已确认的产品决策
 
 ### D1. 领域范围
 
-建议：产品契约覆盖 Authoring ASK 和 Execution ASK；首个实现切片只做
-Authoring ASK。
-
-待确认：是否本特性只要求 Authoring ASK，还是最终应覆盖两类 ASK。
+决定：产品契约与本特性验收覆盖 Authoring ASK 和 Execution ASK。实施可以按
+Authoring、Execution 两个垂直切片推进，但两者都必须在同一特性中闭环。
 
 ### D2. 多问题分组
 
-建议：一次 Authoring 澄清批次显示为一张 ASK 组卡片，内部包含多个问题块；
-不要为三个问题创建三张互相分离的会话卡片。
-
-待确认：是否接受该分组方式。
+决定：一次 Authoring 澄清批次显示为一张 ASK 组卡片，内部包含多个问题块；
+不为同一批次的多个问题创建互相分离的会话卡片。
 
 ### D3. 其他区域的 ASK
 
-建议：Conversation 成为唯一主要回答面；Main Work Area、Detail Panel、
+决定：Conversation 成为唯一主要回答面；Main Work Area、Detail Panel、
 Top Bar 和 TaskTree 只显示等待状态、任务上下文或“定位到问题”入口，不重复
 完整回答控件。
 
-待确认：是否完全移除现有 Authoring Ask Work Area / Execution Ask Detail
-Panel 的主要回答表单。
-
 ### D4. 自由文本
 
-建议：自由文本显示在原问题块的“你的回答”区域，不生成新的用户消息。
-
-待确认：是否所有 ASK 自由文本都遵循该规则。
+决定：自由文本显示在原问题块的“你的回答”区域，不生成新的用户消息。
 
 ### D5. 历史 `User answer` 消息
 
-建议：Conversation 投影抑制 ASK 专用的独立答案消息，但保留底层消息与
+决定：Conversation 投影抑制 ASK 专用的独立答案消息，但保留底层消息与
 Activity / Audit 证据；普通 Answer 和普通用户输入不受影响。
 
-待确认：是否需要在 Activity 中继续显示一条“ASK 已回答”的动作摘要。
+Activity 中继续显示一条“ASK 已回答”的动作摘要。
 
 ## 11. 后续依赖
 
-用户确认 D1-D5 后，进入 F2/F3 前需要修订：
+进入 F2/F3 后需要修订：
 
 - `docs/engineering/ask-lifecycle-contract.md`
 - `docs/interaction-model/ask-user-interaction.md`

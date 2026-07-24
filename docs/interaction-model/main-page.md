@@ -98,6 +98,8 @@ Project
 | `MP-MSG-003` | `target` | 点击 confirmation 消息中的操作入口。 | Confirmation pending。 | Detail Panel 切到确认卡；操作按钮可用。 | 无立即调用。 | 用户选择后 `EXT-C-007`。 | 确认动作必须挂具体 TaskNode。 |
 | `MP-MSG-004` | `target` | 过滤到当前 Task 的消息。 | 已选中 TaskNode。 | 展示 Session Message Stream 的 task scoped projection。 | 可用 `EXT-Q-005?taskNodeId=...` 或本地过滤 snapshot。 | `message.appended` 后刷新。 | 不创建第二条 Task Message Stream。 |
 | `MP-MSG-005` | `disabled` | 用户直接编辑历史消息。 | 所有状态。 | 不显示编辑入口。 | 无。 | 无。 | 历史消息是可追溯事实。 |
+| `MP-MSG-006` | `target` | Authoring 或 Execution ASK 出现。 | Snapshot 投影包含结构化 ASK card。 | 在 Conversation 原时间位置展示问题、选项和回答控件。 | 无立即调用。 | ASK/RawTask 事件或 snapshot refetch。 | Conversation 是唯一主要 ASK 回答面。 |
+| `MP-MSG-007` | `target` | 用户回答/延后/取消 ASK。 | ASK pending 且命令允许。 | 原卡片进入 pending，随后原位显示终态选择；不新增 Answer 卡片。 | Authoring batch 或 Execution ASK command。 | `ask.answered` / task/plan refresh。 | Activity/Audit 保留动作证据。 |
 
 ## 9. Detail Panel
 
@@ -110,6 +112,7 @@ Project
 | `MP-DETAIL-005` | `target` | 点击“结果”。 | Session 或 Task 有 result。 | Detail Panel 展示 result card。 | Snapshot 或 `EXT-Q-010`。 | `result.updated`。 | Result 是信息流回答的结构化展示入口。 |
 | `MP-DETAIL-006` | `target` | 点击“文件变更”。 | Task 有 file changes。 | 展示 File Change Summary。 | `EXT-Q-009` 或 snapshot。 | `file_changes.updated`。 | 父节点必须汇总所有子节点变更。 |
 | `MP-DETAIL-007` | `disabled` | 修改已完成 TaskNode。 | completed。 | 编辑控件不可用；显示只读说明。 | 无。 | 无。 | 防止完成事实被静默改写。 |
+| `MP-DETAIL-008` | `target` | 选中等待 ASK 的 TaskNode。 | Execution ASK pending。 | 展示任务上下文、等待状态和“定位到会话问题”；不重复 ASK 表单。 | 无。 | ASK/task 事件后刷新。 | 主操作位于 Conversation。 |
 
 ## 10. Confirmation Actions
 

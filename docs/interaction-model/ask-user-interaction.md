@@ -1,255 +1,260 @@
 # ASK User Interaction Model
 
-> Status: draft interaction model
-> Last Updated: 2026-06-04
-> Scope: Main Page ASK placement, active ASK cards, answer input behavior, and
-> visible task/session signals.
+> Status: accepted interaction model
+>
+> Last Updated: 2026-07-24
+>
+> Scope: Conversation-native Authoring and Execution ASK placement, in-place
+> answer behavior, task/session signals, and recovery states.
+>
 > Related: [ASK Lifecycle Contract](../engineering/ask-lifecycle-contract.md),
 > [Main Page Interaction Model](main-page.md),
 > [ASK UI Spec](../ux/ask-ui-spec.md),
-> [External Calls Registry](external-calls.md),
-> [ADR-0014 Interaction Control Taxonomy](../decisions/ADR-0014-interaction-control-taxonomy-for-product-1-0.md).
+> [Session Inline ASK Requirements](../plans/feature/session-inline-ask-rendering.zh-CN.md).
 
 ## 1. Purpose
 
-ASK is a high-signal user interaction. It appears when the Agent needs user
-input before it can safely continue a task.
+ASK appears when Plato needs user-owned information before work can continue.
+It is a durable interaction object, not an ordinary text message.
 
-ASK must be visually and behaviorally distinct from ordinary messages:
+The user must be able to understand one complete interaction in one place:
 
-- ordinary messages are history;
-- ASK is an active required-response surface;
-- the user should see which task is blocked and how to answer;
-- the user should be able to answer with suggested options, free text, or both.
-
-ASK is also distinct from interruption and confirmation. The ASK Dock does not
-own stop/cancel controls; cooperative interruption remains the task-control
-path. Confirmation cards may share UI primitives with ASK, but they authorize a
-known action rather than collect missing information.
+- what Plato asked;
+- why it asked;
+- which options were available;
+- what the user selected or typed;
+- whether the answer is pending, submitting, accepted, deferred, cancelled,
+  expired, or superseded.
 
 ## 2. Source Of Truth
 
-| Source | Responsibility |
-|---|---|
-| [ASK Lifecycle Contract](../engineering/ask-lifecycle-contract.md) | ASK object, answer object, lifecycle, events, API candidates, persistence and resume rules. |
-| [Main Page Interaction Model](main-page.md) | Main Page component inventory and existing interaction conventions. |
-| [External Calls Registry](external-calls.md) | API and navigation calls that the frontend may perform. |
+| Domain | Durable authority | Command authority |
+|---|---|---|
+| Authoring ASK | RawTask / RawTaskAsk / RawTaskAnswer | Authoring batch answer command |
+| Execution ASK | AskStore / AskRequest / AskAnswer | Execution answer/defer/cancel commands |
 
-This document defines frontend interaction behavior only. It must not redefine
-ASK lifecycle enums or backend object semantics.
+Conversation is the product presentation and interaction surface. It does not
+replace these stores or infer ASK state from message prose.
 
 ## 3. UX Decision
 
-Product 1.0 uses domain-specific ASK placement:
-
-- Authoring ASK appears in the Main Work Area while planning clarification is
-  required.
-- Execution ASK appears in the selected TaskNode Detail Panel while execution
-  is waiting for user input.
-
-The older generic ASK Dock shape is reserved for future exploration or for
-queue summaries after multiple simultaneous ASK surfaces become a real product
-need. It is not the Product 1.0 default implementation target.
-
-Detailed component structure and state tables are defined in
-`docs/ux/ask-ui-spec.md`.
-
-Reserved ASK Dock shape:
+Conversation is the single primary ASK answer surface for Product 1.1.
 
 ```text
-Main Page workspace
-  TaskTree / MessageStream / DetailPanel
-
-Sticky interaction layer
-  AskDock
-    ActiveAskCard
-    AskQueueSummary
-  ContextInputBar
+Main Page
+  Conversation
+    ordinary typed conversation items
+    ConversationAskCard[]
+      AuthoringAskGroupCard
+      ExecutionAskCard
+  Plan / Task progress
+  Context / Detail inspector
+  Context Input
 ```
 
-ASK should not default to a modal because the user often needs workspace, task,
-message, and detail context to answer correctly.
+The previous Authoring ASK Main Work Area and Execution ASK Detail Panel forms
+are no longer primary answer surfaces. They may show:
 
-Modal usage is allowed only for:
+- waiting-for-user state;
+- related RawTask / TaskNode context;
+- a control that scrolls/focuses the Conversation ASK card.
 
-- leaving the page with an unsent ASK answer draft;
-- cancelling or discarding an ASK answer draft;
-- dangerous actions where unresolved ASK state would be lost or hidden.
+They must not duplicate the full question/options/submit controls.
 
-## 4. Reserved Dock Component Model
+ASK is not a modal. Modal use remains limited to destructive draft discard or
+navigation-loss warnings.
 
-This component model is not the Product 1.0 placement target. It remains useful
-as a generic interaction vocabulary and future queue-summary reference.
-Product 1.0 implementation must use the placement-specific component trees in
-`docs/ux/ask-ui-spec.md`.
+## 4. Component Model
 
 | Component | Responsibility |
 |---|---|
-| `AskDock` | Sticky interaction region above Context Input Bar. Owns active ASK display and queue summary. |
-| `ActiveAskCard` | Expanded answer surface for one ASK. Shows question, reason, options, free text input, and actions. |
-| `AskQueueSummary` | Compact indicator for additional pending ASK objects. |
-| `CollapsedAskItem` | One-line representation of a pending ASK not currently active. |
-| `AskAnswerInput` | Free text input area scoped to the active ASK. |
-| `AskOptionGroup` | Suggested options; supports single/multi/boolean modes from contract. |
-| `TaskNeedsAnswerBadge` | TaskTree badge indicating that a task is waiting for user input. |
-| `TopBarWaitingForUserStatus` | Session-level status chip when current execution is blocked on user input. |
+| `ConversationAskCard` | Stable Conversation item for one Authoring batch or one Execution ASK. |
+| `ConversationAskHeader` | Domain, status, created/resolved time, and concise reason. |
+| `ConversationAskQuestionBlock` | One original question, its options, free text, validation, and final answer. |
+| `ConversationAskOptionGroup` | Single/multi/boolean options with selected state. |
+| `ConversationAskFreeText` | Allowed custom answer or historical answer text. |
+| `ConversationAskActions` | Authoring submit-all or Execution answer/defer/cancel. |
+| `ConversationAskError` | Recoverable command/stale/permission feedback on the same card. |
+| `TaskNeedsAnswerBadge` | Passive TaskTree signal linked to the active card. |
+| `TopBarWaitingForUserStatus` | Passive session status linked to the active card. |
 
-## 5. Layout Rules
+## 5. Authoring ASK Group
 
-1. `AskDock` is visually stronger than MessageStream cards.
-2. `AskDock` stays above the Context Input Bar, not inside MessageStream.
-3. `AskDock` should not cover the main workspace content when there is enough
-   vertical room; it pushes or reserves space in the sticky interaction layer.
-4. The active card may be compact by default and expanded on focus.
-5. Long `reason` text is truncated to a short summary with optional detail link
-   when needed.
-6. The input layer must remain usable at supported desktop width.
-7. More than one pending ASK must not create stacked large cards by default.
-
-## 6. Active ASK Card Content
-
-Minimum visible content:
-
-- label: `Needs your input`;
-- question;
-- short reason;
-- task/session scope;
-- suggested options if present;
-- free text input if `allowFreeText=true`;
-- submit action;
-- later/defer action when allowed;
-- unsupported file note: `Files are not supported in this version`;
-- status and validation feedback.
-
-Recommended answer layout:
+All questions belonging to one RawTask clarification batch render inside one
+card, in original order.
 
 ```text
-Needs your input
-Question
-Reason
-
-[option] [option] [option] [option]
-
-Add your own answer or constraints
-[textarea]
-
-Submit answer   Later
-Files are not supported in this version.
+Planning questions
+  Question 1
+    option A
+    option B
+  Question 2
+    option A
+    option B
+  Question 3
+    option A
+    option B
+  Submit all answers
 ```
 
-## 7. Answer Rules
+Rules:
 
-| User input | Allowed | Notes |
-|---|---|---|
-| Select option only | yes | Valid when at least one option is selected. |
-| Free text only | yes, if `allowNoOptionWithText=true` | Critical because model options are suggestions, not full answer space. |
-| Option plus free text | yes, if `allowFreeText=true` | Preferred for constrained-but-nuanced answers. |
-| Empty submit | no | Submit disabled or validation shown. |
-| File attachment | no for Product 1.0 | Show unsupported note; do not expose upload affordance. |
+1. Draft state is keyed by `rawTaskId + askId`.
+2. Already answered questions are read-only if a partial historical batch
+   exists.
+3. Batch submit is all-or-nothing for currently pending required questions.
+4. After backend confirmation, the same card becomes answered.
+5. Selected options remain visible inside each original question.
+6. A free-text value that does not match an option appears as `Your answer`.
+7. The answer message remains Activity/Audit evidence but is not a separate
+   Conversation card.
 
-The UI must not force users to choose one of the suggested options when a free
-text answer is allowed.
+## 6. Execution ASK
 
-## 8. Multiple ASK Behavior
+Each durable AskRequest renders as one Conversation card.
 
-Product 1.0 default:
+Rules:
 
-- show one expanded active ASK;
-- show additional pending ASK objects in a compact queue summary;
-- prefer the ASK for the currently selected or running task;
-- keep other ASK objects collapsed unless the user explicitly switches.
+1. The active pending card owns answer/defer/cancel controls.
+2. Options submit their stable option ids.
+3. Free text is available only when the ASK contract allows it.
+4. Answer accepted is not final truth; controls remain pending until snapshot
+   or event facts confirm the result.
+5. `answered`, `deferred`, `cancelled`, and `expired` are read-only on the same
+   card.
+6. The selected TaskNode Detail Panel may show context and a focus link, but no
+   duplicate answer form.
 
-Priority order:
+## 7. In-Place Resolution
 
-1. ASK scoped to selected task.
-2. Blocking ASK for current running task.
-3. Oldest blocking session-level ASK.
-4. Non-blocking or deferred ASK.
-
-When multiple ASK objects exist:
+ASK cards have stable identities and chronological positions.
 
 ```text
-AskDock
-  ActiveAskCard: current blocking task ASK
-  AskQueueSummary: "2 more questions pending"
-    CollapsedAskItem: "Choose deployment target"
-    CollapsedAskItem: "Confirm content source"
+pending
+  -> local draft
+  -> submitting
+  -> answered
 ```
 
-Switching active ASK should preserve unsent local draft text per ASK id.
+or:
 
-## 9. Main Page Signals
+```text
+pending
+  -> defer/cancel
+  -> deferred/cancelled
+```
 
-ASK must be visible in more than one place without duplicating answer controls.
+In all cases:
 
-| Surface | Required behavior |
+- card id does not change;
+- created time and Conversation ordering do not change;
+- resolved time may be added;
+- no independent `User answer` / `Answer` Conversation item is appended;
+- Activity may append an `ASK answered` state-change summary.
+
+## 8. Answer Rules
+
+| Input | Validity |
 |---|---|
-| Top Bar | Show session-level `Waiting for User` or equivalent status when a blocking ASK is active. |
-| TaskTree | Show `needs answer` badge on the blocked task. |
-| MessageStream | Append passive history entry such as `Agent asked: ...`; do not embed the main answer form there. |
-| DetailPanel | Show selected task context and that execution is waiting for user input. |
-| ContextInputBar | Switch mode to `ask_answer` or show answer scope while ASK is active. |
+| Option only | Valid when the answer type and required rules allow it. |
+| Free text only | Valid only when free text without an option is allowed. |
+| Option plus free text | Valid when free text is allowed. |
+| Empty | Invalid for required questions. |
+| Attachment | Unsupported in Product 1.1 ASK. |
 
-## 10. Interaction Table
+Single-choice selects at most one option. Multi-choice can select multiple.
+Boolean uses explicit yes/no semantics. The final selected state must not rely
+on color alone.
 
-| ID | Status | User action / trigger | Availability | UI change | Backend / external call | Event / refresh | Notes |
-|---|---|---|---|---|---|---|---|
-| `ASK-UI-001` | `target` | `ask.created` arrives or snapshot contains active ASK. | ASK status is `pending`. | Show `AskDock`, expand active ASK, show task/session waiting signal. | None immediately; optional snapshot refetch if event incomplete. | `ask.created`, snapshot refresh. | MessageStream also shows passive history entry. |
-| `ASK-UI-002` | `target` | User selects suggested option. | Active ASK has options and allows selection. | Option visual state toggles according to answer type. | None until submit. | None. | Single choice allows one selected option. |
-| `ASK-UI-003` | `target` | User types free text. | `allowFreeText=true`. | Local draft text updates; submit enabled if valid. | None until submit. | None. | Draft is frontend-local until submitted. |
-| `ASK-UI-004` | `target` | User submits answer. | At least one option selected or non-empty text. | Submit enters pending; options/input disabled. | `EXT-C-010`. | `ask.answered`, `task.node.changed`, `message.appended`, snapshot refresh. | Command accepted is not final truth. |
-| `ASK-UI-005` | `target` | Answer command rejected. | API returns error. | Keep active ASK open; show recoverable error; re-enable controls when safe. | Retry same answer with same idempotency key or new key according to command policy. | Refresh from API hint. | Do not mark ASK answered locally. |
-| `ASK-UI-006` | `target` | User chooses Later / defer. | ASK permits defer. | Active ASK collapses or remains queued; task/session still shows waiting or deferred policy state. | `EXT-C-011`. | `ask.deferred`, snapshot refresh. | Defer is not an empty answer. |
-| `ASK-UI-007` | `target` | User switches to another pending ASK. | More than one pending ASK. | Preserve current draft by ASK id; expand selected ASK. | None. | None. | Queue order remains deterministic. |
-| `ASK-UI-008` | `target` | ASK is answered by current or another client. | Event or refetch returns `answered`. | Close active card if it matches; show answered history. | None. | `ask.answered`, snapshot refresh. | Restore workspace focus to task. |
-| `ASK-UI-009` | `target` | ASK expires or is cancelled. | Event or refetch returns terminal ASK state. | Remove answer controls; show terminal reason/history. | None. | `ask.expired` / `ask.cancelled`. | Task state follows backend fact. |
-| `ASK-UI-010` | `disabled` | User attempts file attachment. | Product 1.0. | No upload affordance; show unsupported note. | None. | None. | Contract reserves `attachmentsSupported=false`. |
+## 9. Multiple ASK Behavior
 
-## 11. UI States
+Conversation may contain multiple ASK cards at their historical positions.
+
+Active focus priority:
+
+1. pending ASK for the selected TaskNode;
+2. blocking ASK for the running TaskNode;
+3. pending Authoring ASK before a TaskTree exists;
+4. oldest blocking session ASK;
+5. deferred/read-only historical ASK.
+
+Only the active pending card receives automatic focus. Other cards remain
+readable. Drafts are preserved by card/question identity when focus changes.
+
+## 10. Main Page Signals
+
+| Surface | Requirement |
+|---|---|
+| Conversation | Full ASK question/options/actions and final selected state. |
+| Top Bar | Waiting-for-user status; optional focus action. |
+| TaskTree | `needs answer` badge on blocked task; optional focus action. |
+| Main Work Area | Normal Conversation/Plan layout; no Authoring ASK replacement page. |
+| Detail Panel | Passive task/ASK status and context; no duplicate answer controls. |
+| Context Input | May be disabled or route to active ASK, but does not replace the structured card. |
+| Activity | ASK asked/answered/deferred/cancelled summary and refs. |
+| Audit | Durable command, answer, resume, and failure evidence. |
+
+## 11. Interaction Table
+
+| ID | Trigger | Required behavior |
+|---|---|---|
+| `ASK-UI-001` | ASK appears in snapshot | Insert/update one stable Conversation ASK card and focus it if active. |
+| `ASK-UI-002` | User selects an option | Update local card draft; do not append a message. |
+| `ASK-UI-003` | User types allowed free text | Update local card draft; do not append a message. |
+| `ASK-UI-004` | User submits | Keep selections visible, disable duplicate submit, wait for backend facts. |
+| `ASK-UI-005` | Command rejected | Preserve draft and show recoverable error on the same card. |
+| `ASK-UI-006` | User defers | Show pending action, then update the same card to deferred. |
+| `ASK-UI-007` | User cancels | Show pending action, then update the same card to cancelled. |
+| `ASK-UI-008` | Another client answers | Refetch and update the same card to answered. |
+| `ASK-UI-009` | ASK expires/supersedes | Remove controls and show terminal reason on the same card. |
+| `ASK-UI-010` | User clicks a passive task/status signal | Scroll and focus the related Conversation card. |
+
+## 12. UI States
 
 | State | Required UI |
 |---|---|
-| No pending ASK | `AskDock` hidden; ContextInputBar uses normal mode. |
-| Pending active ASK | `AskDock` visible with active card and answer controls. |
-| Submitting answer | Controls disabled; pending indicator visible; no local answered fact yet. |
-| Submit failed | Error text shown in card; answer draft preserved. |
-| Multiple pending ASK | Active card plus compact queue summary. |
-| Permission denied | Card visible read-only; submit disabled with reason. |
-| Stale snapshot | Disable submit; show resync state; refetch snapshot. |
-| Answered | Card closes or becomes compact history; task resumes by backend fact. |
-| Expired/cancelled | Card shows terminal state and no answer controls. |
+| loading | Stable card position with loading affordance. |
+| pending | Question, options, allowed text, and actions. |
+| dirty draft | Unsaved state; preserve by card/question id. |
+| submitting | Controls disabled; current selection remains visible. |
+| failed | Inline error; draft preserved and retry available. |
+| permission denied | Readable card, disabled controls, reason visible. |
+| stale/resync | Controls disabled; refresh state visible. |
+| answered | Read-only original questions and selected answers. |
+| deferred | Read-only or policy-allowed follow-up state. |
+| cancelled/expired/superseded | Read-only terminal state and reason. |
 
-## 12. Accessibility And Keyboard
+## 13. Accessibility And Responsive Rules
 
-- ASK Dock receives programmatic focus when a blocking ASK appears, unless the
-  user is actively typing elsewhere.
-- `Submit answer` must be reachable by keyboard.
-- Option chips must expose selected state.
-- Free text area must have a visible label.
-- Validation error must be announced near the submit control.
-- Esc must not silently dismiss a blocking ASK.
+- Use fieldset/legend or equivalent question semantics.
+- Native radio/checkbox semantics are preferred.
+- Expose selected/checked state programmatically.
+- Announce validation and command errors near the card actions.
+- Keep visible focus for card, option, text, and submit controls.
+- Esc must not dismiss a blocking ASK.
+- Mobile uses one column without horizontal overflow.
+- Tablet and desktop may use denser option layouts.
+- Long bilingual question/option text wraps without truncating required meaning.
 
-## 13. Non-Goals
+## 14. Non-Goals
 
-- ASK modal as default interaction.
-- File upload or file selection.
-- Full custom form builder.
-- Editing historical ASK answers.
-- Treating MessageStream as the primary ASK answer surface.
-- Combining Confirmation and ASK into one generic component.
+- Replacing Confirmation with ASK.
+- Making MessageStream storage the ASK authority.
+- Editing a historical answer that already resumed work.
+- File/image/attachment answers.
+- A new page, route, modal, or independent answer detail.
+- Removing ordinary Read-only Inquiry answers.
 
-## 14. Acceptance Criteria
+## 15. Acceptance Criteria
 
-ASK interaction is acceptable for Product 1.0 when:
-
-1. Active ASK is visually distinct from ordinary messages.
-2. The answer surface is above the Context Input Bar.
-3. Users can answer with options, free text, or both.
-4. Users can answer with free text only when allowed.
-5. File input is clearly unsupported.
-6. Multiple pending ASK objects use one active card plus a compact queue.
-7. TaskTree and TopBar both show waiting-for-user signals.
-8. MessageStream records ASK history without owning the answer form.
-9. Submit pending, failure, permission, stale, answered, expired, and cancelled
-   states are represented.
-10. No ASK answer is treated as final until backend facts confirm it.
+1. Authoring and Execution ASK both render inside Conversation.
+2. One Authoring batch uses one card with multiple question blocks.
+3. The same card owns pending interaction and terminal history.
+4. Answered options and text appear with their original questions.
+5. No ASK-specific independent Answer card appears after submission.
+6. Ordinary Read-only Inquiry Answer remains visible.
+7. Activity/Audit retain answer evidence.
+8. Pending, submitting, failed, permission, stale, answered, deferred,
+   cancelled, expired, and superseded states are represented.
+9. Reload/restart restores the same cards from durable facts.
+10. Mobile, tablet, desktop, keyboard, and screen-reader behavior are covered.

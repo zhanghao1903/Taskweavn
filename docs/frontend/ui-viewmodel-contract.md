@@ -197,7 +197,7 @@ The snapshot must expose only one active domain for Main Page interaction.
 
 | Condition | Active domain | UI target |
 |---|---|---|
-| `taskTree === null` and planning has pending asks | Authoring | RawTask / authoring ASK |
+| `taskTree === null` and planning has pending asks | Authoring | Conversation Authoring ASK card |
 | `taskTree !== null` and no task is selected | Task plan | Whole plan |
 | `taskTree !== null` and a task is selected | Task node | Selected TaskNode |
 
@@ -231,9 +231,9 @@ type PlanningAskView = {
 };
 ```
 
-`superseded` asks are read-only history. They must not render as answerable ASK
-controls on the Main Page once `taskTree` exists. If shown at all, they belong
-to history/audit/recovery affordances.
+`superseded` asks are read-only Conversation history. They must not render
+answer controls once `taskTree` exists, but they retain original questions,
+options, and any durable answers.
 
 ### 5.3 PlanView
 
@@ -435,10 +435,68 @@ type SessionMessageView = {
   createdAt: string;
   relatedConfirmationId?: string | null;
   relatedCommandId?: string | null;
+  conversationVisibility: "visible" | "activity_only";
+  conversationRender?: ConversationRenderView | null;
+};
+
+type ConversationRenderView = {
+  protocolVersion: "plato.conversation.render.v1";
+  renderKind: "text" | "router_trace" | "question_card" | "ask_card";
+  askCard?: ConversationAskCardView | null;
+  // existing text/routerTrace/questionCard fields remain additive.
+};
+
+type ConversationAskCardView = {
+  cardId: string;
+  domain: "authoring" | "execution";
+  status:
+    | "pending"
+    | "answered"
+    | "deferred"
+    | "cancelled"
+    | "expired"
+    | "superseded";
+  title: string;
+  body?: string | null;
+  rawTaskId?: string | null;
+  askId?: string | null;
+  taskNodeId?: TaskNodeId | null;
+  questions: ConversationAskQuestionView[];
+  createdAt: string;
+  resolvedAt?: string | null;
+  canAnswer: boolean;
+  canDefer: boolean;
+  canCancel: boolean;
+  readonlyReason?: string | null;
+};
+
+type ConversationAskQuestionView = {
+  id: string;
+  prompt: string;
+  reason?: string | null;
+  required: boolean;
+  answerType: "free_text" | "single_choice" | "multi_choice" | "boolean";
+  allowFreeText: boolean;
+  options: Array<{
+    id: string;
+    value: string;
+    label: string;
+    description?: string | null;
+    selected: boolean;
+  }>;
+  answerText?: string | null;
 };
 ```
 
 Internal ids should not be primary message copy. They may appear in dev/debug affordances or Audit Page detail.
+
+`activity_only` messages still participate in Activity/Audit projection but
+must not render in the main Conversation. ASK-specific user-answer messages use
+this visibility; ordinary Read-only Inquiry answers remain `visible`.
+
+Conversation ASK card identity and ordering remain stable across pending and
+terminal states. Frontend components must not infer selected options from
+message title/body.
 
 ### 5.10 SessionActivityTimelineResult
 

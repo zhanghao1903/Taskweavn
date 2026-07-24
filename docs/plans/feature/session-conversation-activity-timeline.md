@@ -47,6 +47,12 @@ Main Page remains work-first. It exposes:
 
 The timeline is not raw MessageStream rendering.
 
+Structured ASK is a primary Conversation interaction item. Its question,
+options, local submit state, and terminal answer stay on one stable card.
+Answer actions may also produce Activity/Audit evidence, but they do not append
+a separate Conversation answer card. Ordinary Read-only Inquiry answers remain
+normal Conversation messages.
+
 ---
 
 ## 3. Activity Item Classes
