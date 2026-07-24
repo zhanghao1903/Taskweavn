@@ -34,7 +34,13 @@ import { MainPageSessionSidebar } from "./MainPageSessionSidebar";
 import type { MainPageWorkspaceRuntime } from "./MainPageWorkspaceSwitcher";
 import { MainPageWorkspaceHeader } from "./MainPageWorkspaceHeader";
 import { TaskTreePanel } from "./TaskTreePanel";
-import { AuthoringAskWorkArea } from "./interaction/AuthoringAskWorkArea";
+import { buildConversationAskInteraction } from "./conversation-ask/buildConversationAskInteraction";
+import type { ExecutionAskConversationCommandState } from "./conversation-ask/conversationAskInteraction";
+import { useConversationAskDraftStore } from "./conversation-ask/useConversationAskDraftStore";
+import {
+  isActivitySourceMessage,
+  isConversationVisible,
+} from "./conversationMessageVisibility";
 import { activityItemsFromMessages } from "./mainPageActivityProjection";
 import { newestActivityItemId } from "./useMainPageOverlayRuntime";
 import type {
@@ -69,6 +75,9 @@ export type MainPageWorkbenchProps = {
   inputDraft: string;
   inputError: string | null;
   inputRecoveryActions: ProductRecoveryAction[];
+  executionAskCommandStates?: Readonly<
+    Record<string, ExecutionAskConversationCommandState>
+  >;
   isArchivingPlan: boolean;
   isCreatingSession: boolean;
   isDeletingSession: boolean;
@@ -93,6 +102,7 @@ export function MainPageWorkbench({
   inputDraft,
   inputError,
   inputRecoveryActions,
+  executionAskCommandStates = {},
   isArchivingPlan,
   isCreatingSession,
   isDeletingSession,
@@ -111,6 +121,7 @@ export function MainPageWorkbench({
   routeFocusTarget = null,
 }: MainPageWorkbenchProps) {
   const uiText = useUiText();
+  const askDraftStore = useConversationAskDraftStore(viewModel.sessionId);
   const [isActivityOverlayOpen, setIsActivityOverlayOpen] = useState(false);
   const [isArchivedPlansPanelOpen, setIsArchivedPlansPanelOpen] =
     useState(false);
@@ -127,8 +138,14 @@ export function MainPageWorkbench({
   const hasPlanLayer =
     viewModel.taskWorkspace.taskTree !== null ||
     viewModel.taskWorkspace.isGeneratingTaskPlan;
+  const activeAskFocusIdentity =
+    viewModel.mainWorkArea.kind === "authoringAsk"
+      ? `authoring:${viewModel.mainWorkArea.authoringAsk.rawTaskId}`
+      : viewModel.detail.kind === "executionAsk"
+        ? `execution:${viewModel.detail.ask.id}`
+        : null;
   const [isPlanLayerExpanded, setIsPlanLayerExpanded] =
-    useState(hasPlanLayer);
+    useState(hasPlanLayer && activeAskFocusIdentity === null);
   const [activityStatusMessage, setActivityStatusMessage] =
     useState<ActivityOverlayStatusMessage | null>(null);
   const [isExportingActivityDiagnostic, setIsExportingActivityDiagnostic] =
@@ -136,13 +153,15 @@ export function MainPageWorkbench({
   const [detailWidth, setDetailWidth] = useState(DEFAULT_DETAIL_WIDTH);
   const contextInputRef = useRef<HTMLInputElement>(null);
   const hasActivity =
-    viewModel.mainWorkArea.kind !== "authoringAsk" &&
-    (viewModel.taskWorkspace.allMessages.length > 0 ||
-      runtimeActivityItems.length > 0 ||
-      loadSessionActivity !== undefined);
+    viewModel.taskWorkspace.allMessages.length > 0 ||
+    runtimeActivityItems.length > 0 ||
+    loadSessionActivity !== undefined;
   const showsActivityPanel = isActivityOverlayOpen && hasActivity;
   const fallbackActivityItems = useMemo(
-    () => activityItemsFromMessages(viewModel.taskWorkspace.allMessages),
+    () =>
+      activityItemsFromMessages(
+        viewModel.taskWorkspace.allMessages.filter(isActivitySourceMessage),
+      ),
     [viewModel.taskWorkspace.allMessages],
   );
   const archivedPlans = viewModel.taskWorkspace.archivedPlans;
@@ -181,19 +200,18 @@ export function MainPageWorkbench({
     () => runtimeActivityItems.map(messageFromActivityItem),
     [runtimeActivityItems],
   );
-  const visibleTransientMessages = useMemo(
+  const scopedTransientMessages = useMemo(
     () =>
       transientMessages.filter((message) =>
-        viewModel.taskWorkspace.selectedTask
+        (viewModel.taskWorkspace.selectedTask
           ? message.taskNodeId === viewModel.taskWorkspace.selectedTask.id
-          : true,
+          : true),
       ),
     [transientMessages, viewModel.taskWorkspace.selectedTask],
   );
   const hasVisibleActivity =
-    viewModel.mainWorkArea.kind !== "authoringAsk" &&
-    (viewModel.taskWorkspace.messages.length > 0 ||
-      visibleTransientMessages.length > 0);
+    viewModel.taskWorkspace.messages.some(isActivitySourceMessage) ||
+    scopedTransientMessages.length > 0;
   const resolvedWorkspaceId =
     viewModel.workspace.workspaceId ??
     viewModel.sidebar.activeSession.workspaceId ??
@@ -207,13 +225,17 @@ export function MainPageWorkbench({
     overlayActivityItems,
     viewModel.taskWorkspace.selectedTask?.id ?? null,
   );
-  const conversationMessages = useMemo(
+  const allConversationMessages = useMemo(
     () =>
       mergeMessages(
         viewModel.taskWorkspace.allMessages,
         transientMessages,
       ),
     [transientMessages, viewModel.taskWorkspace.allMessages],
+  );
+  const conversationMessages = useMemo(
+    () => allConversationMessages.filter(isConversationVisible),
+    [allConversationMessages],
   );
   const focusScrollRuntime = useMainPageFocusScrollRuntime({
     inputDisabled: viewModel.input.disabled,
@@ -234,12 +256,16 @@ export function MainPageWorkbench({
   const latestActivityMessages = useMemo(
     () =>
       mergeMessages(
-        viewModel.taskWorkspace.messages,
-        visibleTransientMessages,
+        viewModel.taskWorkspace.messages.filter(
+          isActivitySourceMessage,
+        ),
+        scopedTransientMessages,
       ),
-    [viewModel.taskWorkspace.messages, visibleTransientMessages],
+    [viewModel.taskWorkspace.messages, scopedTransientMessages],
   );
-  const totalActivityCount = conversationMessages.length;
+  const totalActivityCount = allConversationMessages.filter(
+    isActivitySourceMessage,
+  ).length;
   const visibleActivityCount = latestActivityMessages.length;
   const collapsedPlanTitle =
     viewModel.taskWorkspace.taskTree?.title ?? viewModel.workspace.title;
@@ -254,12 +280,10 @@ export function MainPageWorkbench({
         }`
       : uiText.main.plan.generatingTitle;
   const activePlan = viewModel.taskWorkspace.activePlan;
-  const activeAskFocusIdentity =
-    viewModel.mainWorkArea.kind === "authoringAsk"
-      ? `authoring:${viewModel.mainWorkArea.authoringAsk.rawTaskId}`
-      : viewModel.detail.kind === "executionAsk"
-        ? `execution:${viewModel.detail.ask.id}`
-        : null;
+  const askInteraction = buildConversationAskInteraction(actions, viewModel, {
+    draftStore: askDraftStore,
+    executionByAskId: executionAskCommandStates,
+  });
   const showArchivePlan = activePlan != null && canArchivePlan(activePlan);
   const archivePlanAction =
     showArchivePlan && activePlan != null ? (
@@ -282,12 +306,14 @@ export function MainPageWorkbench({
     ) : null;
 
   useEffect(() => {
-    setIsPlanLayerExpanded(hasPlanLayer);
+    setIsPlanLayerExpanded(
+      hasPlanLayer && activeAskFocusIdentity === null,
+    );
     setIsActivityOverlayOpen(false);
     setIsArchivedPlansPanelOpen(false);
     setSelectedArchivedPlanId(null);
     setSelectedArchivedPlanTaskNodeId(null);
-  }, [hasPlanLayer, viewModel.sessionId]);
+  }, [activeAskFocusIdentity, hasPlanLayer, viewModel.sessionId]);
 
   useEffect(() => {
     if (
@@ -763,40 +789,22 @@ export function MainPageWorkbench({
         workspaceRuntime={workspaceRuntime}
       />
 
-      {viewModel.mainWorkArea.kind !== "authoringAsk" ? (
-        <ConversationLayer
-          bottomSentinelRef={focusScrollRuntime.bottomSentinelRef}
-          className={styles.conversationWorkspace}
-          headerActions={conversationHeaderActions}
-          messageListRef={focusScrollRuntime.messageListRef}
-          messages={conversationMessages}
-          onMessageListScroll={focusScrollRuntime.onMessageListScroll}
-          onOpenActivity={hasActivity ? openActivityOverlay : undefined}
-          rootRef={focusScrollRuntime.conversationRootRef}
-          totalActivityCount={totalActivityCount}
-        />
-      ) : null}
+      <ConversationLayer
+        activeAskIdentity={activeAskFocusIdentity}
+        askCardRef={focusScrollRuntime.askCardRef}
+        askInteraction={askInteraction}
+        bottomSentinelRef={focusScrollRuntime.bottomSentinelRef}
+        className={styles.conversationWorkspace}
+        headerActions={conversationHeaderActions}
+        messageListRef={focusScrollRuntime.messageListRef}
+        messages={conversationMessages}
+        onMessageListScroll={focusScrollRuntime.onMessageListScroll}
+        onOpenActivity={hasActivity ? openActivityOverlay : undefined}
+        rootRef={focusScrollRuntime.conversationRootRef}
+        totalActivityCount={totalActivityCount}
+      />
 
-      {viewModel.mainWorkArea.kind === "authoringAsk" ? (
-        <Panel
-          as="section"
-          className={styles.workspace}
-          aria-label={uiText.main.labels.taskWorkspace}
-        >
-          {renderWorkspaceHeader()}
-          <AuthoringAskWorkArea
-            focusRef={focusScrollRuntime.askCardRef}
-            onSubmit={({ answers, rawTaskId }) =>
-              actions.answerAuthoringAskBatch({
-                answers,
-                rawTaskId,
-                sessionId: viewModel.sessionId,
-              })
-            }
-            view={viewModel.mainWorkArea.authoringAsk}
-          />
-        </Panel>
-      ) : isPlanLayerExpanded && planProgressLayer ? (
+      {isPlanLayerExpanded && planProgressLayer ? (
         <Panel
           as="section"
           className={`${styles.workspace} ${styles.planWorkspace}`}
@@ -878,31 +886,7 @@ export function MainPageWorkbench({
         <MainPageDetailPanel
           detail={viewModel.detail}
           detailFocusRef={focusScrollRuntime.detailPanelRef}
-          executionAskFocusRef={focusScrollRuntime.askCardRef}
           fileChangesFocusRef={focusScrollRuntime.fileChangesRef}
-          onAnswerAsk={(payload) => {
-            if (viewModel.detail.kind !== "executionAsk") {
-              return;
-            }
-
-            actions.answerAsk({
-              askId: viewModel.detail.ask.id,
-              selectedOptionIds: payload.selectedOptionIds,
-              sessionId: viewModel.sessionId,
-              text: payload.text,
-            });
-          }}
-          onCancelAsk={(payload) => {
-            if (viewModel.detail.kind !== "executionAsk") {
-              return;
-            }
-
-            actions.cancelAsk({
-              askId: viewModel.detail.ask.id,
-              reason: payload.reason,
-              sessionId: viewModel.sessionId,
-            });
-          }}
           onConfirmationDecision={(decision) =>
             actions.resolveConfirmation({
               confirmation:
@@ -913,16 +897,12 @@ export function MainPageWorkbench({
               sessionId: viewModel.sessionId,
             })
           }
-          onDeferAsk={(payload) => {
-            if (viewModel.detail.kind !== "executionAsk") {
-              return;
-            }
-
-            actions.deferAsk({
-              askId: viewModel.detail.ask.id,
-              reason: payload.reason,
-              sessionId: viewModel.sessionId,
-            });
+          onFocusExecutionAsk={() => {
+            setIsPlanLayerExpanded(false);
+            window.setTimeout(() => {
+              scrollTargetIntoView("ask_card", "route_restored");
+              focusTarget("ask_card", "route_restored");
+            }, 0);
           }}
           onRetryTask={(taskNodeId) =>
             actions.retryTask({
@@ -949,10 +929,8 @@ export function MainPageWorkbench({
           detail={archivedPlanDetail}
           detailFocusRef={focusScrollRuntime.detailPanelRef}
           fileChangesFocusRef={focusScrollRuntime.fileChangesRef}
-          onAnswerAsk={() => undefined}
-          onCancelAsk={() => undefined}
           onConfirmationDecision={() => undefined}
-          onDeferAsk={() => undefined}
+          onFocusExecutionAsk={() => undefined}
           onRetryTask={() => undefined}
           onStopTask={() => undefined}
           onShowFileChanges={actions.showFileChanges}

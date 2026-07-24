@@ -87,12 +87,12 @@ describe("buildMainPageViewModel", () => {
     expect(viewModel.workspace.title).toBe("Plan & Progress");
   });
 
-  it("replaces the main work area when authoring ASK is pending", () => {
+  it("exposes pending Authoring ASK interaction state for Conversation", () => {
     const viewModel = buildViewModel("s2-understanding");
 
     expect(viewModel.mainWorkArea.kind).toBe("authoringAsk");
     if (viewModel.mainWorkArea.kind !== "authoringAsk") {
-      throw new Error(`Expected authoring ASK work area.`);
+      throw new Error(`Expected Authoring ASK interaction state.`);
     }
     expect(viewModel.mainWorkArea.authoringAsk).toMatchObject({
       rawTaskId: "raw-task-website-goal",
@@ -101,7 +101,7 @@ describe("buildMainPageViewModel", () => {
     expect(viewModel.mainWorkArea.authoringAsk.asks).toHaveLength(2);
     expect(viewModel.input.disabled).toBe(true);
     expect(viewModel.input.disabledReason).toBe(
-      "Answer the planning questions in the main work area.",
+      "Answer the planning questions in Conversation.",
     );
     expect(viewModel.workspace.showPublishTaskTree).toBe(false);
   });

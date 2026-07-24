@@ -38,10 +38,11 @@ closed-loop trust, DFX, restart recovery, and task-level accountability.
 2. ASK is created by an Agent/runtime tool call and owned by the backend.
 3. A blocking ASK pauses the current task until answered, cancelled, expired, or
    otherwise resolved.
-4. The frontend displays ASK as a high-signal interaction surface and records it
-   separately from ordinary messages.
-5. The MessageStream may contain an ASK history entry, but the answer UI is not
-   embedded as a normal message card.
+4. The frontend displays ASK as a high-signal, structured Conversation card
+   projected from durable ASK facts.
+5. The Conversation ASK card is the primary answer surface. Answer, defer,
+   cancel, and terminal state update that same card instead of appending a
+   separate answer card.
 6. Users may select suggested options, provide free text, or do both.
 7. For Product 1.0, files are not supported as ASK answers.
 8. ASK and Confirmation may share UI primitives, but their domain semantics must
@@ -262,9 +263,10 @@ Agent running task
   -> backend persists AskRequest
   -> task execution status becomes waiting_for_user
   -> MessageStream records an ask-created entry
-  -> UI shows ASK Dock
+  -> UI shows a structured ASK card in Conversation
   -> user submits AskAnswer
   -> backend persists AskAnswer
+  -> the same Conversation card becomes answered
   -> runtime resumes task with answer in task context
 ```
 
@@ -317,17 +319,18 @@ Required durable records:
 - `AskRequest`
 - `AskAnswer`
 - task status transition into `waiting_for_user`
-- MessageStream ask-created / ask-answered entries
+- Conversation ASK projection identity
+- MessageStream / Activity ask-created and ask-answered evidence
 - answer-to-task resume trace
 
 Restart behavior:
 
 | State before restart | Required recovery |
 |---|---|
-| ASK pending, task waiting for user | Snapshot shows pending ASK and task remains `waiting_for_user`. |
-| User answered, resume not yet started | Answer remains durable; dispatcher may resume the task idempotently. |
-| Task resumed, execution running | Snapshot shows resumed task state; ASK remains answered history. |
-| ASK expired/cancelled | Snapshot shows resolved ASK history and task follows policy-defined next state. |
+| ASK pending, task waiting for user | Snapshot shows the pending Conversation ASK card and task remains `waiting_for_user`. |
+| User answered, resume not yet started | Answer remains durable; the same card shows answered while dispatcher may resume idempotently. |
+| Task resumed, execution running | Snapshot shows resumed task state; the same ASK card remains answered history. |
+| ASK expired/cancelled | The original card shows terminal state and task follows policy-defined next state. |
 
 The runtime must not silently discard pending ASK objects during restart.
 
@@ -376,7 +379,7 @@ Event handling rules:
 
 | Event | Reducer behavior |
 |---|---|
-| `ask.created` | Add or refresh pending ASK; if it blocks current task, activate ASK Dock and refresh snapshot. |
+| `ask.created` | Add or refresh the pending Conversation ASK card; if it blocks current task, focus it and refresh snapshot. |
 | `ask.answered` | Mark ASK answered, clear local answer pending, refresh task/message snapshot. |
 | `ask.deferred` | Mark ASK deferred and keep task/session policy-visible. |
 | `ask.cancelled` | Mark ASK cancelled and refresh task state. |
@@ -412,9 +415,21 @@ type AskRequestView = {
   blocking: boolean;
   attachmentsSupported: false;
   status: "pending" | "answered" | "deferred" | "cancelled" | "expired";
+  answer?: {
+    id: string;
+    selectedOptionIds: string[];
+    text?: string | null;
+    createdAt: string;
+  } | null;
   createdAt: string;
 };
 ```
+
+Snapshot `messages` also carries a structured Conversation ASK card projection.
+The card identity is stable across status changes. Authoring ASK answer messages
+and Runtime Input ASK-answer messages may remain available to Activity/Audit,
+but must be marked `activity_only` so Conversation does not render a duplicate
+answer card.
 
 ## 10. Multiple ASK Rules
 
@@ -428,7 +443,8 @@ Product 1.0 policy:
    - blocking before non-blocking;
    - oldest created time;
    - session-level ASK after task-scoped ASK.
-4. UI shows one active ASK and a compact queue for the rest.
+4. Conversation shows each ASK at its chronological position; the active card
+   is focused and additional pending cards remain compact/readable.
 5. A later task should not execute past a dependency that is waiting for user
    input.
 
@@ -463,7 +479,7 @@ Before implementation, update or create:
 - UI ViewModel contract: add `AskRequestView` / `AskAnswer`;
 - event reducer contract: add ASK events and resync behavior;
 - API/UI mapping: add ASK API errors and UI boundary states;
-- Main Page interaction model: add ASK Dock interactions;
+- Main Page interaction model: make Conversation ASK cards the primary answer surface;
 - storage design: add durable ASK request/answer store;
 - Agent runtime: register `ask_user` tool and enforce pause/resume behavior.
 
@@ -476,8 +492,11 @@ Product 1.0 ASK lifecycle is acceptable when:
 3. Main Page snapshot exposes pending/active ASK directly.
 4. User can answer using options, free text, or both.
 5. Files are explicitly unsupported.
-6. MessageStream records ASK history without being the primary answer UI.
+6. Conversation renders one stable ASK card that owns the answer UI and
+   terminal history.
 7. Answer submission is idempotent and recoverable.
 8. Task resumes with the answer in context.
 9. Unknown/malformed ASK events trigger resync.
 10. Confirmation remains a separate lifecycle.
+11. ASK answer actions remain visible in Activity/Audit without producing a
+    duplicate Conversation answer card.

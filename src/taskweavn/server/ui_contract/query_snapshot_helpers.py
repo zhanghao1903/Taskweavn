@@ -8,6 +8,9 @@ from typing import Literal, cast
 from taskweavn.core.session import Session
 from taskweavn.interaction import AskStatus
 from taskweavn.server.ui_contract.ask_projection import AskProjectionService
+from taskweavn.server.ui_contract.conversation_ask_projection import (
+    project_conversation_ask_messages,
+)
 from taskweavn.server.ui_contract.envelopes import QueryResponse
 from taskweavn.server.ui_contract.errors import internal_error, not_found
 from taskweavn.server.ui_contract.gateway_protocols import (
@@ -117,9 +120,24 @@ def get_session_snapshot_query(
             plan_store=plan_store,
             plan_projection=plan_projection,
         )
+        raw_tasks = (
+            ()
+            if raw_task_store is None
+            else tuple(raw_task_store.list_for_session(session.id))
+        )
+        ask_list = (
+            None
+            if ask_projection is None
+            else ask_projection.list_asks(session.id, task_tree=task_tree)
+        )
         messages = _merge_messages(
             _messages_from_tree(source_tree),
             session_messages(session.id),
+            project_conversation_ask_messages(
+                raw_tasks=raw_tasks,
+                execution_asks=() if ask_list is None else ask_list.asks,
+                task_tree=task_tree,
+            ),
             _archived_plan_messages(archived_plans),
         )
         confirmations = _confirmations_from_tree(source_tree, session_id=session.id)
@@ -130,13 +148,11 @@ def get_session_snapshot_query(
             raw_task_store=raw_task_store,
         )
         pending_asks = (
-            () if ask_projection is None else ask_projection.pending_asks(session.id)
+            ()
+            if ask_list is None
+            else tuple(ask for ask in ask_list.asks if ask.status == "pending")
         )
-        active_ask = (
-            None
-            if ask_projection is None
-            else ask_projection.active_ask(session.id, task_tree=task_tree)
-        )
+        active_ask = None if ask_list is None else ask_list.active_ask
         result = (
             result_from_plan_nodes(
                 plan_context.stored_plan_nodes,

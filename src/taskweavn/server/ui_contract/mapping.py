@@ -163,6 +163,9 @@ def map_agent_message_view(message: AgentMessage) -> ContractSessionMessageView:
         related_command_id=message.related_action_id,
         activity_related_refs=_activity_related_refs_from_context(message.context),
         conversation_render=_conversation_render_from_context(message.context),
+        conversation_visibility=_conversation_visibility_from_context(
+            message.context
+        ),
     )
 
 
@@ -407,6 +410,15 @@ def _conversation_render_from_context(
         return ContractConversationRenderView.model_validate(raw_render)
     except ValidationError:
         return None
+
+
+def _conversation_visibility_from_context(
+    context: dict[str, Any],
+) -> Literal["visible", "activity_only"]:
+    visibility = context.get("conversation_visibility")
+    if visibility == "activity_only":
+        return "activity_only"
+    return "visible"
 
 
 def _default_option_value(

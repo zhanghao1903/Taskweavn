@@ -29,6 +29,7 @@ export type ChoiceGroupProps = Omit<
   mode?: ChoiceGroupMode;
   onChange: (selectedValues: string[]) => void;
   options: ChoiceOption[];
+  selectedIndicator?: string;
   selectedValues: string[];
 };
 
@@ -43,6 +44,7 @@ export function ChoiceGroup({
   mode = "single",
   onChange,
   options,
+  selectedIndicator,
   selectedValues,
   ...props
 }: ChoiceGroupProps) {
@@ -86,6 +88,11 @@ export function ChoiceGroup({
               type="button"
             >
               <span className={styles.optionLabel}>{option.label}</span>
+              {isSelected && selectedIndicator ? (
+                <span className={styles.selectedIndicator}>
+                  ✓ {selectedIndicator}
+                </span>
+              ) : null}
               {option.description && (
                 <span className={styles.optionDescription}>
                   {option.description}

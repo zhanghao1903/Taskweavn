@@ -1308,6 +1308,11 @@
   gap: var(--plato-space-2);
 }
 
+.askConversationMessage {
+  width: min(100%, 760px);
+  max-width: min(100%, 760px);
+}
+
 .conversationMessage:focus-visible {
   border-radius: 8px;
   outline: none;

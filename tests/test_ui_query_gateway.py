@@ -1012,8 +1012,20 @@ def test_get_session_snapshot_projects_authoring_ask_answer_messages() -> None:
 
     assert response.ok is True
     assert response.data is not None
-    assert response.data.messages[0].title == "User answer"
-    assert response.data.messages[0].body == "1. Static site\n2. Minimal style"
+    answer_message = next(
+        message for message in response.data.messages if message.id == "message-answer"
+    )
+    ask_message = next(
+        message
+        for message in response.data.messages
+        if message.id == "conversation-ask:authoring:raw-1"
+    )
+    assert answer_message.title == "ASK answered"
+    assert answer_message.body == "1. Static site\n2. Minimal style"
+    assert answer_message.conversation_visibility == "activity_only"
+    assert ask_message.conversation_render is not None
+    assert ask_message.conversation_render.ask_card is not None
+    assert ask_message.conversation_render.ask_card.status == "pending"
 
 
 def test_get_session_snapshot_prefers_rich_session_message_over_tree_latest() -> None:

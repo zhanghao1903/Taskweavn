@@ -1,0 +1,19 @@
+.root {
+  display: grid;
+  min-width: 0;
+  gap: var(--plato-space-3);
+  margin-top: var(--plato-space-5);
+  border: 1px solid var(--plato-color-line);
+  border-radius: var(--plato-radius-lg);
+  padding: var(--plato-space-4);
+  background: var(--plato-color-classic-cream);
+}
+
+.statusRow {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--plato-space-2);
+}

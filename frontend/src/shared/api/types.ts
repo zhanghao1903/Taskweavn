@@ -326,7 +326,20 @@ export type PlanView = {
 
 export type MessageKind = "informational" | "actionable" | "response" | "error";
 
-export type ConversationRenderKind = "text" | "router_trace" | "question_card";
+export type ConversationRenderKind =
+  | "text"
+  | "router_trace"
+  | "question_card"
+  | "ask_card";
+export type ConversationVisibility = "visible" | "activity_only";
+export type ConversationAskDomain = "authoring" | "execution";
+export type ConversationAskStatus =
+  | "pending"
+  | "answered"
+  | "deferred"
+  | "cancelled"
+  | "expired"
+  | "superseded";
 
 export type ConversationTextView = {
   title?: string | null;
@@ -368,12 +381,52 @@ export type ConversationQuestionCardView = {
   targetRef?: SessionActivityRefView | null;
 };
 
+export type ConversationAskOptionView = {
+  id: string;
+  value: string;
+  label: string;
+  description?: string | null;
+  selected: boolean;
+};
+
+export type ConversationAskQuestionView = {
+  id: string;
+  prompt: string;
+  reason?: string | null;
+  required: boolean;
+  answered: boolean;
+  answerType: AskAnswerType;
+  allowFreeText: boolean;
+  options: ConversationAskOptionView[];
+  answerText?: string | null;
+};
+
+export type ConversationAskCardView = {
+  cardId: string;
+  domain: ConversationAskDomain;
+  status: ConversationAskStatus;
+  title: string;
+  body?: string | null;
+  rawTaskId?: string | null;
+  askId?: AskId | null;
+  taskNodeId?: TaskNodeId | null;
+  questions: ConversationAskQuestionView[];
+  answerText?: string | null;
+  createdAt: string;
+  resolvedAt?: string | null;
+  canAnswer: boolean;
+  canDefer: boolean;
+  canCancel: boolean;
+  readonlyReason?: string | null;
+};
+
 export type ConversationRenderView = {
   protocolVersion: "plato.conversation.render.v1";
   renderKind: ConversationRenderKind;
   text?: ConversationTextView | null;
   routerTrace?: ConversationRouterTraceView | null;
   questionCard?: ConversationQuestionCardView | null;
+  askCard?: ConversationAskCardView | null;
 };
 
 export type SessionMessageView = {
@@ -389,6 +442,7 @@ export type SessionMessageView = {
   relatedCommandId?: CommandId | null;
   activityRelatedRefs?: SessionActivityRefView[];
   conversationRender?: ConversationRenderView | null;
+  conversationVisibility?: ConversationVisibility;
 };
 
 export type SessionActivityItemKind =
@@ -766,6 +820,13 @@ export type AskQuestionView = {
   required: boolean;
 };
 
+export type AskAnswerView = {
+  id: string;
+  selectedOptionIds: string[];
+  text?: string | null;
+  createdAt: string;
+};
+
 export type AskRequestView = {
   id: AskId;
   sessionId: SessionId;
@@ -782,6 +843,7 @@ export type AskRequestView = {
   attachmentsSupported: false;
   status: AskRequestStatus;
   answerId?: string | null;
+  answer?: AskAnswerView | null;
   resumeHint?: string | null;
   createdAt: string;
   answeredAt?: string | null;

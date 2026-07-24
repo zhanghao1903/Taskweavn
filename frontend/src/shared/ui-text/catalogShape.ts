@@ -397,10 +397,17 @@ export type UiTextCatalog = {
           cancelling: string;
           defer: string;
           deferring: string;
+          submitAllAnswers: string;
+          submittingAllAnswers: string;
+          viewInConversation: string;
         };
         labels: {
           answerText: string;
           optional: string;
+          planningQuestions: string;
+          question: UiTextTemplate<{ index: number }>;
+          selectedAnswer: string;
+          selectedOption: string;
           task: UiTextTemplate<{ title: string }>;
           taskInputRequired: string;
         };
@@ -420,7 +427,12 @@ export type UiTextCatalog = {
           staleAsk: string;
         };
         statuses: Record<
-          "answered" | "cancelled" | "deferred" | "expired" | "pending",
+          | "answered"
+          | "cancelled"
+          | "deferred"
+          | "expired"
+          | "pending"
+          | "superseded",
           string
         >;
       };

@@ -94,6 +94,11 @@ Main Page 输入不再是“聊天框 + 若干隐式命令分支”，而是 Run
 
 Conversation 不是 raw chat transcript。它是 typed conversation content。每个可见项都必须带有 render 协议或可安全降级为纯文本。
 
+结构化 ASK 是 Conversation 的主要交互项：问题、选项、草稿、提交和终态都
+属于同一个稳定卡片。ASK 的回答动作可以另行投影为 Activity / Audit，但不再
+追加独立 Conversation Answer 卡片。普通 Read-only Inquiry Answer 不受此规则
+影响。
+
 ### 3.2 Router Trace 显示内容
 
 每次 Router 处理输入后，conversation 中应追加一条 Router trace。Trace 至少包含：
@@ -223,11 +228,12 @@ Router 发起提问时，Conversation 中至少出现三类 durable item：
 2. Router trace；
 3. 问题卡片。
 
-用户回答问题后，Conversation 中追加：
+用户回答结构化 ASK 后：
 
-1. 用户回答内容；
-2. Router/command 处理结果；
-3. Activity 摘要更新或相关 refs。
+1. 原问题卡片原位显示已选项或自由文本；
+2. Router/command 处理结果进入 Activity / Audit；
+3. ASK 专用用户输入和 `ask_answered` 摘要不新增 Conversation 卡片；
+4. 普通 clarification 和 Read-only Inquiry 仍可按各自协议追加文本结果。
 
 用户刷新后必须能看到完整问答上下文，而不是只看到最新状态或错误 toast。
 

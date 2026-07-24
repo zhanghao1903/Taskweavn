@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
-from taskweavn.interaction import AskRequest, InMemoryAskStore
+from taskweavn.interaction import AskAnswer, AskRequest, InMemoryAskStore
 from taskweavn.server.ui_contract.ask_projection import (
     DefaultAskProjectionService,
     select_active_ask,
@@ -91,6 +91,36 @@ def test_projection_get_ask_returns_view() -> None:
     assert view.id == "ask-1"
     assert view.task_node_id == "task-1"
     assert view.status == "pending"
+
+
+def test_projection_includes_durable_answer_content() -> None:
+    request = _ask("ask-1", task_id="task-1").model_copy(
+        update={
+            "status": "answered",
+            "answer_id": "answer-1",
+            "answered_at": NOW + timedelta(minutes=1),
+        }
+    )
+    answer = AskAnswer(
+        answer_id="answer-1",
+        ask_id="ask-1",
+        session_id="s1",
+        task_id="task-1",
+        selected_option_ids=("vercel",),
+        text="Use the production project.",
+        created_at=NOW + timedelta(minutes=1),
+    )
+    service = DefaultAskProjectionService(
+        InMemoryAskStore([request], answers=[answer])
+    )
+
+    view = service.get_ask("s1", "ask-1")
+
+    assert view is not None
+    assert view.answer is not None
+    assert view.answer.id == "answer-1"
+    assert view.answer.selected_option_ids == ("vercel",)
+    assert view.answer.text == "Use the production project."
 
 
 def test_select_active_ask_falls_back_to_oldest_blocking_pending() -> None:

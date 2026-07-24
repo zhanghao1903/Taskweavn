@@ -849,7 +849,15 @@ def test_router_ask_answer_is_durable_conversation_answer(
     assert user_answer.conversation_render is not None
     assert user_answer.conversation_render.text is not None
     assert user_answer.conversation_render.text.body == "Use Vercel."
-    assert any(message.title == "ASK answered" for message in messages)
+    assert user_answer.conversation_visibility == "activity_only"
+    router_trace = next(
+        message for message in messages if message.title == "Router interpretation"
+    )
+    assert router_trace.conversation_visibility == "activity_only"
+    ask_answered = next(
+        message for message in messages if message.title == "ASK answered"
+    )
+    assert ask_answered.conversation_visibility == "activity_only"
     assert commands.calls == [("answer_ask", "ask-1", "Use Vercel.")]
 
     bus.close()

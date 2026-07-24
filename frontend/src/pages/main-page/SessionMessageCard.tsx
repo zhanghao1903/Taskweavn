@@ -1,3 +1,4 @@
+import type { Ref } from "react";
 import type {
   ConversationQuestionCardView,
   ConversationRouterTraceView,
@@ -10,20 +11,31 @@ import {
 } from "../../shared/components";
 import { useUiText, type UiTextCatalog } from "../../shared/ui-text";
 import { cx } from "../../shared/utils/cx";
+import { ConversationAskCard } from "./conversation-ask/ConversationAskCard";
+import type { ConversationAskInteraction } from "./conversation-ask/conversationAskInteraction";
 import { selectMessageKindPresentation } from "./mainPageSelectors";
 import styles from "./MainPage.module.css";
 
 export type SessionMessageCardProps = {
+  askInteraction?: ConversationAskInteraction;
+  focusRef?: Ref<HTMLElement>;
   message: SessionMessageView;
 };
 
-export function SessionMessageCard({ message }: SessionMessageCardProps) {
+export function SessionMessageCard({
+  askInteraction,
+  focusRef,
+  message,
+}: SessionMessageCardProps) {
   const uiText = useUiText();
   const kindPresentation = selectMessageKindPresentation(
     message.kind,
     uiText.main,
   );
   const isUserMessage = isUserAuthoredMessage(message);
+  const isAskCard =
+    message.conversationRender?.renderKind === "ask_card" &&
+    message.conversationRender.askCard != null;
   const userIntent = isUserMessage
     ? selectUserMessageIntent(message, uiText)
     : null;
@@ -35,9 +47,11 @@ export function SessionMessageCard({ message }: SessionMessageCardProps) {
         isUserMessage
           ? styles.userConversationMessage
           : styles.systemConversationMessage,
+        isAskCard && styles.askConversationMessage,
         userIntent?.className,
       )}
       data-session-message-id={message.id}
+      ref={focusRef}
       tabIndex={-1}
     >
       <div className={styles.conversationMessageMeta}>
@@ -66,7 +80,7 @@ export function SessionMessageCard({ message }: SessionMessageCardProps) {
           {formatConversationTime(message.createdAt)}
         </time>
       </div>
-      {renderConversationContent(message, uiText)}
+      {renderConversationContent(message, uiText, askInteraction)}
     </article>
   );
 }
@@ -74,6 +88,7 @@ export function SessionMessageCard({ message }: SessionMessageCardProps) {
 function renderConversationContent(
   message: SessionMessageView,
   uiText: UiTextCatalog,
+  askInteraction?: ConversationAskInteraction,
 ) {
   const render = message.conversationRender;
   if (
@@ -90,6 +105,15 @@ function renderConversationContent(
 
   if (render.renderKind === "question_card" && render.questionCard) {
     return <QuestionCard card={render.questionCard} uiText={uiText} />;
+  }
+
+  if (render.renderKind === "ask_card" && render.askCard) {
+    return (
+      <ConversationAskCard
+        card={render.askCard}
+        interaction={askInteraction}
+      />
+    );
   }
 
   if (render.renderKind === "text" && render.text) {

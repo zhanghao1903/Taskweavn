@@ -922,7 +922,7 @@ function inputAvailabilityFor({
   if (hasAuthoringAsk) {
     return {
       disabled: true,
-      disabledReason: "Answer the planning questions in the main work area.",
+      disabledReason: "Answer the planning questions in Conversation.",
     };
   }
 

@@ -19,7 +19,13 @@ def project_authoring_ask_answer_message_view(
     if not _is_authoring_ask_answer_message(message):
         return view
     body = _authoring_ask_answer_body(message, raw_task_store=raw_task_store)
-    return view.model_copy(update={"title": "User answer", "body": body})
+    return view.model_copy(
+        update={
+            "title": "ASK answered",
+            "body": body,
+            "conversation_visibility": "activity_only",
+        }
+    )
 
 
 def _is_authoring_ask_answer_message(message: AgentMessage) -> bool:

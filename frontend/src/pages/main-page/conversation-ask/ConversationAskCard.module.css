@@ -2,36 +2,48 @@
   display: grid;
   min-width: 0;
   gap: var(--plato-space-4);
-  margin-top: var(--plato-space-5);
+  margin-top: var(--plato-space-3);
+  border: 1px solid var(--plato-color-line);
   border-radius: var(--plato-radius-lg);
   padding: var(--plato-space-4);
   background: var(--plato-color-classic-cream);
 }
 
-.titleRow,
-.actionRow {
+.header,
+.questionMeta,
+.footer,
+.secondaryActions {
   display: flex;
   min-width: 0;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
   gap: var(--plato-space-2);
 }
 
-.questionBlock {
+.header,
+.footer {
+  justify-content: space-between;
+}
+
+.titleGroup,
+.questionList,
+.question,
+.answerSummary,
+.commandErrorBlock {
   display: grid;
   min-width: 0;
+  gap: var(--plato-space-2);
+}
+
+.questionList {
   gap: var(--plato-space-3);
+}
+
+.question {
   border: 1px solid var(--plato-color-line);
   border-radius: var(--plato-radius-md);
   padding: var(--plato-space-3);
   background: var(--plato-color-panel);
-}
-
-.batchQuestionList {
-  display: grid;
-  min-width: 0;
-  gap: var(--plato-space-3);
 }
 
 .textAnswer {
@@ -67,30 +79,44 @@
 .textAnswer textarea:disabled {
   color: var(--plato-color-muted);
   cursor: not-allowed;
-  opacity: 0.56;
+  opacity: 0.8;
 }
 
-.commandErrorBlock {
-  display: grid;
-  min-width: 0;
-  gap: var(--plato-space-2);
+.answerSummary {
+  border-left: 3px solid var(--plato-color-success-text);
+  padding-left: var(--plato-space-3);
+}
+
+.readonlyReason {
+  margin: 0;
 }
 
 .error {
   color: var(--plato-color-danger-text);
 }
 
-.submitButtonPending:disabled {
-  cursor: wait;
-  opacity: 1;
-}
-
 .pendingSpinner {
-  animation: platoExecutionAskSpin 0.85s linear infinite;
+  animation: platoConversationAskSpin 0.85s linear infinite;
 }
 
-@keyframes platoExecutionAskSpin {
+@keyframes platoConversationAskSpin {
   to {
     transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 720px) {
+  .root {
+    padding: var(--plato-space-3);
+  }
+
+  .footer {
+    align-items: stretch;
+  }
+
+  .footer > button,
+  .secondaryActions,
+  .secondaryActions > button {
+    width: 100%;
   }
 }

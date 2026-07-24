@@ -25,6 +25,7 @@ import type {
   ResultCardView,
   RuntimeInputRouteResult,
   SessionId,
+  SessionMessageView,
   SessionStatus,
   SessionSummary,
   TaskNodeCardView,
@@ -160,7 +161,23 @@ export function getMainPageMockSnapshot(
             fixture.id,
           )
         : null,
-      messages: fixture.messages,
+      messages: [
+        ...fixture.messages.map((message) =>
+          fixture.id === "s14-execution-ask" &&
+          message.id === "message-execution-ask"
+            ? {
+                ...message,
+                conversationVisibility: "activity_only" as const,
+                title: "ASK requested",
+              }
+            : message,
+        ),
+        ...conversationAskMessagesForFixture(
+          fixture.id,
+          fixture.session.id,
+          activeAsk,
+        ),
+      ],
       pendingConfirmations: toPendingConfirmations(fixture),
       pendingAsks: activeAsk ? [activeAsk] : [],
       activeAsk,
@@ -808,6 +825,125 @@ function activeAskForFixture(
     cancelledAt: null,
     expiredAt: null,
   };
+}
+
+function conversationAskMessagesForFixture(
+  stateId: MainPageStateId,
+  sessionId: SessionId,
+  activeAsk: MainPageRuntimeSnapshot["snapshot"]["activeAsk"],
+): SessionMessageView[] {
+  if (stateId === "s2-understanding") {
+    const questions = planningAsksForFixture(stateId);
+    return [
+      {
+        id: "conversation-ask:authoring:raw-task-website-goal",
+        sessionId,
+        taskNodeId: null,
+        kind: "actionable",
+        title: "Plato question",
+        body: "Clarify the website goal before Plato drafts the plan.",
+        createdAt: "2026-05-17T10:10:00+08:00",
+        conversationRender: {
+          protocolVersion: "plato.conversation.render.v1",
+          renderKind: "ask_card",
+          askCard: {
+            cardId: "conversation-ask:authoring:raw-task-website-goal",
+            domain: "authoring",
+            status: "pending",
+            title: "Planning questions",
+            body: "Clarify the website goal before Plato drafts the plan.",
+            rawTaskId: "raw-task-website-goal",
+            questions: questions.map((question) => ({
+              id: question.id,
+              prompt: question.question,
+              reason: question.reason,
+              required: question.required,
+              answered: false,
+              answerType:
+                question.options.length > 0
+                  ? ("single_choice" as const)
+                  : ("free_text" as const),
+              allowFreeText: question.options.length === 0,
+              options: question.options.map((option) => ({
+                id: option.value,
+                value: option.value,
+                label: option.label,
+                selected: false,
+              })),
+              answerText: null,
+            })),
+            answerText: null,
+            createdAt: "2026-05-17T10:10:00+08:00",
+            resolvedAt: null,
+            canAnswer: true,
+            canDefer: false,
+            canCancel: false,
+            readonlyReason: null,
+          },
+        },
+        conversationVisibility: "visible",
+      },
+    ];
+  }
+
+  if (stateId !== "s14-execution-ask" || activeAsk == null) {
+    return [];
+  }
+
+  return [
+    {
+      id: `conversation-ask:execution:${activeAsk.id}`,
+      sessionId,
+      taskNodeId: activeAsk.taskNodeId ?? null,
+      taskRef: activeAsk.taskRef,
+      kind: "actionable",
+      title: "Plato question",
+      body: activeAsk.question,
+      createdAt: activeAsk.createdAt,
+      conversationRender: {
+        protocolVersion: "plato.conversation.render.v1",
+        renderKind: "ask_card",
+        askCard: {
+          cardId: `conversation-ask:execution:${activeAsk.id}`,
+          domain: "execution",
+          status: activeAsk.status,
+          title: "Task needs input",
+          body: activeAsk.reason,
+          askId: activeAsk.id,
+          taskNodeId: activeAsk.taskNodeId,
+          questions: [
+            {
+              id: activeAsk.id,
+              prompt: activeAsk.question,
+              reason: activeAsk.reason,
+              required: true,
+              answered: false,
+              answerType: activeAsk.answerType,
+              allowFreeText:
+                activeAsk.allowFreeText ||
+                activeAsk.allowNoOptionWithText,
+              options: activeAsk.suggestedOptions.map((option) => ({
+                id: option.id,
+                value: option.id,
+                label: option.label,
+                description: option.description,
+                selected: false,
+              })),
+              answerText: null,
+            },
+          ],
+          answerText: null,
+          createdAt: activeAsk.createdAt,
+          resolvedAt: null,
+          canAnswer: true,
+          canDefer: true,
+          canCancel: true,
+          readonlyReason: null,
+        },
+      },
+      conversationVisibility: "visible",
+    },
+  ];
 }
 
 function permissionsForFixture(

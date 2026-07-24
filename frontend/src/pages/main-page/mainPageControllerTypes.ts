@@ -14,6 +14,7 @@ import type {
   EventConnectionStatus,
   MainPageSelectionTarget,
 } from "./mainPageUiTypes";
+import type { ExecutionAskConversationCommandState } from "./conversation-ask/conversationAskInteraction";
 import type { MainPageStateId } from "./mockPlatoApi";
 import type {
   MainPageAdapter,
@@ -38,6 +39,9 @@ export type MainPageController = {
   isCreatingSession: boolean;
   isDeletingSession: boolean;
   isAnsweringAuthoringAsk: boolean;
+  executionAskCommandStates: Readonly<
+    Record<string, ExecutionAskConversationCommandState>
+  >;
   executionAskError: string | null;
   executionAskRecoveryActions: ProductRecoveryAction[];
   isAnsweringAsk: boolean;
