@@ -225,6 +225,7 @@ def test_conversation_ask_card_serializes_with_visibility_and_stable_identity() 
     assert payload["conversationVisibility"] == "visible"
     assert payload["conversationRender"]["renderKind"] == "ask_card"
     assert payload["conversationRender"]["askCard"]["askId"] == "ask-1"
+    assert payload["conversationRender"]["askCard"]["questions"][0]["answered"] is False
 
 
 def test_query_response_success_and_error_invariants() -> None:

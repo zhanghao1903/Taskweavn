@@ -550,6 +550,7 @@ export const enUS: UiTextCatalog = {
           planningQuestions: "Planning questions",
           question: ({ index }) => `Question ${index}`,
           selectedAnswer: "Selected answer",
+          selectedOption: "Selected",
           task: ({ title }) => `Task: ${title}`,
           taskInputRequired: "Task input required",
         },

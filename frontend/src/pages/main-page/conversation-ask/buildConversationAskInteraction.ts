@@ -1,10 +1,23 @@
 import type { MainPageViewModel } from "../mainPageViewModel";
 import type { MainPageController } from "../useMainPageController";
-import type { ConversationAskInteraction } from "./conversationAskInteraction";
+import type {
+  ConversationAskDraftStore,
+  ConversationAskInteraction,
+  ExecutionAskConversationCommandState,
+} from "./conversationAskInteraction";
 
 export function buildConversationAskInteraction(
   actions: MainPageController["actions"],
   viewModel: MainPageViewModel,
+  {
+    draftStore,
+    executionByAskId = {},
+  }: {
+    draftStore?: ConversationAskDraftStore;
+    executionByAskId?: Readonly<
+      Record<string, ExecutionAskConversationCommandState>
+    >;
+  } = {},
 ): ConversationAskInteraction {
   return {
     authoring:
@@ -17,17 +30,12 @@ export function buildConversationAskInteraction(
             rawTaskId: viewModel.mainWorkArea.authoringAsk.rawTaskId,
           }
         : null,
-    execution:
-      viewModel.detail.kind === "executionAsk"
-        ? {
-            askId: viewModel.detail.ask.id,
-            commandError: viewModel.detail.commandError,
-            commandRecoveryActions: viewModel.detail.commandRecoveryActions,
-            isAnswering: viewModel.detail.isAnsweringAsk,
-            isCancelling: viewModel.detail.isCancellingAsk,
-            isDeferring: viewModel.detail.isDeferringAsk,
-          }
-        : null,
+    draftStore,
+    executionByAskId,
+    hasExecutionCommandPending: Object.values(executionByAskId).some(
+      (state) =>
+        state.isAnswering || state.isCancelling || state.isDeferring,
+    ),
     onAnswerExecution: (askId, payload) =>
       actions.answerAsk({
         askId,

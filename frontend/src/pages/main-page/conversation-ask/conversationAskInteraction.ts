@@ -20,9 +20,34 @@ export type ExecutionAskConversationCommandState = {
   isDeferring: boolean;
 };
 
+export type ConversationAskQuestionDraft = {
+  selectedOptionIds: string[];
+  text: string;
+  touched: boolean;
+};
+
+export type ConversationAskQuestionDrafts = Record<
+  string,
+  ConversationAskQuestionDraft
+>;
+
+export type ConversationAskDraftStore = {
+  draftsByCardId: Readonly<
+    Record<string, ConversationAskQuestionDrafts>
+  >;
+  onDraftsChange: (
+    cardId: string,
+    drafts: ConversationAskQuestionDrafts | null,
+  ) => void;
+};
+
 export type ConversationAskInteraction = {
   authoring?: AuthoringAskConversationCommandState | null;
-  execution?: ExecutionAskConversationCommandState | null;
+  draftStore?: ConversationAskDraftStore;
+  executionByAskId?: Readonly<
+    Record<string, ExecutionAskConversationCommandState>
+  >;
+  hasExecutionCommandPending?: boolean;
   onAnswerExecution: (askId: string, payload: AnswerAskPayload) => void;
   onCancelExecution: (askId: string) => void;
   onDeferExecution: (askId: string) => void;

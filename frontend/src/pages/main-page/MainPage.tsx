@@ -61,6 +61,7 @@ export function MainPage({
     isCreatingSession,
     isDeletingSession,
     isAnsweringAuthoringAsk,
+    executionAskCommandStates,
     executionAskError,
     executionAskRecoveryActions,
     isAnsweringAsk,
@@ -220,6 +221,7 @@ export function MainPage({
   return (
     <MainPageWorkbench
       actions={actions}
+      executionAskCommandStates={executionAskCommandStates}
       inputDraft={inputDraft}
       inputError={inputError}
       inputRecoveryActions={inputRecoveryActions}

@@ -12,6 +12,7 @@ import type {
   DetailOverride,
   MainPageSelectionTarget,
 } from "./mainPageUiTypes";
+import type { ExecutionAskCommandErrorSetter } from "./useMainPageCommandErrorState";
 import type {
   MainPageAdapter,
   MainPageRuntimeSnapshot,
@@ -72,7 +73,7 @@ export type UseMainPageCommandMutationsOptions = {
   setAuthoringAskCommandError: CommandErrorSetter;
   setConfirmationCommandError: CommandErrorSetter;
   setDetailOverride: (override: DetailOverride) => void;
-  setExecutionAskCommandError: CommandErrorSetter;
+  setExecutionAskCommandError: ExecutionAskCommandErrorSetter;
   setInputCommandError: CommandErrorSetter;
   setInputDraft: (draft: string) => void;
   setPendingRuntimeClarification: (

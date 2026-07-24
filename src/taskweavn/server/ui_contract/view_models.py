@@ -398,6 +398,7 @@ class ConversationAskQuestionView(UiContractModel):
     prompt: str = Field(min_length=1)
     reason: str | None = None
     required: bool = True
+    answered: bool = False
     answer_type: AskAnswerType
     allow_free_text: bool
     options: tuple[ConversationAskOptionView, ...] = ()

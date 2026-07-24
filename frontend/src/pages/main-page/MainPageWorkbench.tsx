@@ -35,6 +35,8 @@ import type { MainPageWorkspaceRuntime } from "./MainPageWorkspaceSwitcher";
 import { MainPageWorkspaceHeader } from "./MainPageWorkspaceHeader";
 import { TaskTreePanel } from "./TaskTreePanel";
 import { buildConversationAskInteraction } from "./conversation-ask/buildConversationAskInteraction";
+import type { ExecutionAskConversationCommandState } from "./conversation-ask/conversationAskInteraction";
+import { useConversationAskDraftStore } from "./conversation-ask/useConversationAskDraftStore";
 import {
   isActivitySourceMessage,
   isConversationVisible,
@@ -73,6 +75,9 @@ export type MainPageWorkbenchProps = {
   inputDraft: string;
   inputError: string | null;
   inputRecoveryActions: ProductRecoveryAction[];
+  executionAskCommandStates?: Readonly<
+    Record<string, ExecutionAskConversationCommandState>
+  >;
   isArchivingPlan: boolean;
   isCreatingSession: boolean;
   isDeletingSession: boolean;
@@ -97,6 +102,7 @@ export function MainPageWorkbench({
   inputDraft,
   inputError,
   inputRecoveryActions,
+  executionAskCommandStates = {},
   isArchivingPlan,
   isCreatingSession,
   isDeletingSession,
@@ -115,6 +121,7 @@ export function MainPageWorkbench({
   routeFocusTarget = null,
 }: MainPageWorkbenchProps) {
   const uiText = useUiText();
+  const askDraftStore = useConversationAskDraftStore(viewModel.sessionId);
   const [isActivityOverlayOpen, setIsActivityOverlayOpen] = useState(false);
   const [isArchivedPlansPanelOpen, setIsArchivedPlansPanelOpen] =
     useState(false);
@@ -273,7 +280,10 @@ export function MainPageWorkbench({
         }`
       : uiText.main.plan.generatingTitle;
   const activePlan = viewModel.taskWorkspace.activePlan;
-  const askInteraction = buildConversationAskInteraction(actions, viewModel);
+  const askInteraction = buildConversationAskInteraction(actions, viewModel, {
+    draftStore: askDraftStore,
+    executionByAskId: executionAskCommandStates,
+  });
   const showArchivePlan = activePlan != null && canArchivePlan(activePlan);
   const archivePlanAction =
     showArchivePlan && activePlan != null ? (

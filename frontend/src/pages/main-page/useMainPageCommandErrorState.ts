@@ -7,13 +7,28 @@ type CommandErrorSetter = (
   recoveryActions?: ProductRecoveryAction[],
 ) => void;
 
+export type ExecutionAskCommandErrorEntry = {
+  message: string;
+  recoveryActions: ProductRecoveryAction[];
+};
+
+export type ExecutionAskCommandErrorsById = Record<
+  string,
+  ExecutionAskCommandErrorEntry
+>;
+
+export type ExecutionAskCommandErrorSetter = (
+  askId: string,
+  message: string | null,
+  recoveryActions?: ProductRecoveryAction[],
+) => void;
+
 export type MainPageCommandErrorState = {
   authoringAskError: string | null;
   authoringAskRecoveryActions: ProductRecoveryAction[];
   confirmationError: string | null;
   confirmationRecoveryActions: ProductRecoveryAction[];
-  executionAskError: string | null;
-  executionAskRecoveryActions: ProductRecoveryAction[];
+  executionAskErrorsById: ExecutionAskCommandErrorsById;
   inputError: string | null;
   inputRecoveryActions: ProductRecoveryAction[];
   taskTreeCommandError: string | null;
@@ -21,7 +36,7 @@ export type MainPageCommandErrorState = {
   resetCommandErrorState: () => void;
   setAuthoringAskCommandError: CommandErrorSetter;
   setConfirmationCommandError: CommandErrorSetter;
-  setExecutionAskCommandError: CommandErrorSetter;
+  setExecutionAskCommandError: ExecutionAskCommandErrorSetter;
   setInputCommandError: CommandErrorSetter;
   setTaskTreeCommandError: (message: string | null) => void;
   setTaskTreeCommandFailure: CommandErrorSetter;
@@ -38,11 +53,8 @@ export function useMainPageCommandErrorState(): MainPageCommandErrorState {
   );
   const [authoringAskRecoveryActions, setAuthoringAskRecoveryActions] =
     useState<ProductRecoveryAction[]>([]);
-  const [executionAskError, setExecutionAskError] = useState<string | null>(
-    null,
-  );
-  const [executionAskRecoveryActions, setExecutionAskRecoveryActions] =
-    useState<ProductRecoveryAction[]>([]);
+  const [executionAskErrorsById, setExecutionAskErrorsById] =
+    useState<ExecutionAskCommandErrorsById>({});
   const [inputError, setInputError] = useState<string | null>(null);
   const [inputRecoveryActions, setInputRecoveryActions] = useState<
     ProductRecoveryAction[]
@@ -71,13 +83,29 @@ export function useMainPageCommandErrorState(): MainPageCommandErrorState {
     [],
   );
 
-  const setExecutionAskCommandError = useCallback<CommandErrorSetter>(
-    (message, recoveryActions = []) => {
-      setExecutionAskError(message);
-      setExecutionAskRecoveryActions(message === null ? [] : recoveryActions);
-    },
-    [],
-  );
+  const setExecutionAskCommandError =
+    useCallback<ExecutionAskCommandErrorSetter>(
+      (askId, message, recoveryActions = []) => {
+        setExecutionAskErrorsById((current) => {
+          if (message === null) {
+            if (!(askId in current)) {
+              return current;
+            }
+            const next = { ...current };
+            delete next[askId];
+            return next;
+          }
+          return {
+            ...current,
+            [askId]: {
+              message,
+              recoveryActions,
+            },
+          };
+        });
+      },
+      [],
+    );
 
   const setInputCommandError = useCallback<CommandErrorSetter>(
     (message, recoveryActions = []) => {
@@ -102,8 +130,7 @@ export function useMainPageCommandErrorState(): MainPageCommandErrorState {
     setAuthoringAskRecoveryActions([]);
     setConfirmationError(null);
     setConfirmationRecoveryActions([]);
-    setExecutionAskError(null);
-    setExecutionAskRecoveryActions([]);
+    setExecutionAskErrorsById({});
     setInputError(null);
     setInputRecoveryActions([]);
     setTaskTreeCommandError(null);
@@ -115,8 +142,7 @@ export function useMainPageCommandErrorState(): MainPageCommandErrorState {
     authoringAskRecoveryActions,
     confirmationError,
     confirmationRecoveryActions,
-    executionAskError,
-    executionAskRecoveryActions,
+    executionAskErrorsById,
     inputError,
     inputRecoveryActions,
     taskTreeCommandError,

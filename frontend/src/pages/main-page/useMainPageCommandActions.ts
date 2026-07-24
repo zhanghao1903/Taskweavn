@@ -19,6 +19,7 @@ import type {
   RetryTaskContext,
   StopTaskContext,
 } from "./useMainPageCommandMutations";
+import type { ExecutionAskCommandErrorSetter } from "./useMainPageCommandErrorState";
 
 type CommandErrorSetter = (
   message: string | null,
@@ -41,6 +42,9 @@ export type MainPageCommandActions = {
 };
 
 export type MainPageCommandPendingState = {
+  answeringAskId: string | null;
+  cancellingAskId: string | null;
+  deferringAskId: string | null;
   isAnsweringAuthoringAsk: boolean;
   isAnsweringAsk: boolean;
   isArchivingPlan: boolean;
@@ -67,7 +71,7 @@ export type UseMainPageCommandActionsOptions = {
   setActiveRuntimeInputMode: (mode: RuntimeInputMode | null) => void;
   setAuthoringAskCommandError: CommandErrorSetter;
   setConfirmationCommandError: CommandErrorSetter;
-  setExecutionAskCommandError: CommandErrorSetter;
+  setExecutionAskCommandError: ExecutionAskCommandErrorSetter;
   setInputCommandError: CommandErrorSetter;
   setStateId: (stateId: MainPageStateId) => void;
   setTaskTreeCommandError: (message: string | null) => void;
@@ -249,11 +253,14 @@ export function useMainPageCommandActions({
     text,
   }: AnswerExecutionAskContext) {
     if (selectedOptionIds.length === 0 && !text?.trim()) {
-      setExecutionAskCommandError("Answer the question before submitting.");
+      setExecutionAskCommandError(
+        askId,
+        "Answer the question before submitting.",
+      );
       return;
     }
 
-    setExecutionAskCommandError(null);
+    setExecutionAskCommandError(askId, null);
     setUiNotice(null);
     answerAskMutation.mutate({
       askId,
@@ -264,7 +271,7 @@ export function useMainPageCommandActions({
   }
 
   function handleDeferAsk({ askId, reason, sessionId }: DeferExecutionAskContext) {
-    setExecutionAskCommandError(null);
+    setExecutionAskCommandError(askId, null);
     setUiNotice(null);
     deferAskMutation.mutate({
       askId,
@@ -274,7 +281,7 @@ export function useMainPageCommandActions({
   }
 
   function handleCancelAsk({ askId, reason, sessionId }: CancelExecutionAskContext) {
-    setExecutionAskCommandError(null);
+    setExecutionAskCommandError(askId, null);
     setUiNotice(null);
     cancelAskMutation.mutate({
       askId,
@@ -317,6 +324,18 @@ export function useMainPageCommandActions({
       submitInput: handleInputSubmit,
     },
     pending: {
+      answeringAskId:
+        answerAskMutation.isPending
+          ? answerAskMutation.variables?.askId ?? null
+          : null,
+      cancellingAskId:
+        cancelAskMutation.isPending
+          ? cancelAskMutation.variables?.askId ?? null
+          : null,
+      deferringAskId:
+        deferAskMutation.isPending
+          ? deferAskMutation.variables?.askId ?? null
+          : null,
       isAnsweringAuthoringAsk: answerAuthoringAskBatchMutation.isPending,
       isAnsweringAsk: answerAskMutation.isPending,
       isArchivingPlan: archivePlanMutation.isPending,

@@ -118,6 +118,109 @@ describe("MainPageWorkbench layout", () => {
     });
   });
 
+  it("completes a partially answered Authoring ASK group without resubmitting its completed question", async () => {
+    const user = userEvent.setup();
+    const actions = buildActions();
+    const runtime = getMainPageMockSnapshot("s2-understanding");
+    const snapshot: MainPageSnapshot = {
+      ...runtime.snapshot,
+      planning: runtime.snapshot.planning
+        ? {
+            ...runtime.snapshot.planning,
+            asks: runtime.snapshot.planning.asks.map((ask, index) => ({
+              ...ask,
+              status: index === 0 ? "answered" : ask.status,
+            })),
+          }
+        : undefined,
+      messages: runtime.snapshot.messages.map((message) => {
+        const card = message.conversationRender?.askCard;
+        if (
+          message.conversationRender?.renderKind !== "ask_card" ||
+          card?.domain !== "authoring"
+        ) {
+          return message;
+        }
+        return {
+          ...message,
+          conversationRender: {
+            ...message.conversationRender,
+            askCard: {
+              ...card,
+              questions: card.questions.map((question, index) => ({
+                ...question,
+                answered: index === 0,
+                options: question.options.map((option) => ({
+                  ...option,
+                  selected: index === 0 && option.value === "portfolio",
+                })),
+              })),
+            },
+          },
+        };
+      }),
+    };
+    const viewModel = buildViewModel("s2-understanding", { snapshot });
+
+    renderWorkbench(viewModel, actions);
+
+    expect(
+      screen.getByRole("button", { name: /Portfolio.*Selected/ }),
+    ).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: "Quiet editorial" }));
+    await user.click(
+      screen.getByRole("button", { name: "Submit all answers" }),
+    );
+
+    expect(actions.answerAuthoringAskBatch).toHaveBeenCalledWith({
+      answers: [
+        {
+          askId: "authoring-ask-style",
+          value: "quiet_editorial",
+        },
+      ],
+      rawTaskId: "raw-task-website-goal",
+      sessionId: viewModel.sessionId,
+    });
+  });
+
+  it("restores a pending ASK draft after switching sessions and returning", async () => {
+    const user = userEvent.setup();
+    const actions = buildActions();
+    const authoringViewModel = buildViewModel("s2-understanding");
+    const otherBase = buildViewModel("s1-empty");
+    const otherViewModel: MainPageViewModel = {
+      ...otherBase,
+      sessionId: "session-other",
+      sidebar: {
+        ...otherBase.sidebar,
+        activeSession: {
+          ...otherBase.sidebar.activeSession,
+          id: "session-other",
+          name: "Other session",
+        },
+      },
+    };
+    const rendered = renderWorkbench(authoringViewModel, actions);
+
+    await user.click(screen.getByRole("button", { name: "Portfolio" }));
+    expect(
+      screen.getByRole("button", { name: /Portfolio.*Selected/ }),
+    ).toHaveAttribute("aria-pressed", "true");
+
+    rendered.rerender(workbenchElement(otherViewModel, actions));
+    expect(
+      screen.queryByRole("heading", {
+        name: "What kind of website should Plato plan first?",
+      }),
+    ).not.toBeInTheDocument();
+
+    rendered.rerender(workbenchElement(authoringViewModel, actions));
+    expect(
+      screen.getByRole("button", { name: /Portfolio.*Selected/ }),
+    ).toHaveAttribute("aria-pressed", "true");
+  });
+
   it("keeps Activity-only ASK events out of Conversation", () => {
     const runtime = getMainPageMockSnapshot("s1-empty");
     const snapshot: MainPageSnapshot = {
@@ -1160,7 +1263,27 @@ function renderWorkbench(
     routeFocusTarget?: MainPageRouteFocusTarget | null;
   } = {},
 ) {
-  render(
+  return render(workbenchElement(viewModel, actions, options));
+}
+
+function workbenchElement(
+  viewModel: MainPageViewModel,
+  actions: MainPageController["actions"] = buildActions(),
+  options: {
+    activeWorkspaceId?: MainPageController["activeWorkspaceId"];
+    exportDiagnosticBundle?: ExportDiagnosticBundle;
+    inputError?: string | null;
+    inputRecoveryActions?: ProductRecoveryAction[];
+    loadSessionActivity?: LoadSessionActivity;
+    inputDraft?: string;
+    isInputSubmitting?: boolean;
+    runtimeActivityItems?: readonly SessionActivityItemView[];
+    workspaceCatalog?: WorkspaceCatalogResult | null;
+    workspaceRuntime?: MainPageWorkspaceRuntime | null;
+    routeFocusTarget?: MainPageRouteFocusTarget | null;
+  } = {},
+) {
+  return (
     <MainPageWorkbench
       actions={actions}
       activeWorkspaceId={options.activeWorkspaceId ?? null}
@@ -1181,7 +1304,7 @@ function renderWorkbench(
       routeFocusTarget={options.routeFocusTarget}
       workspaceCatalog={options.workspaceCatalog ?? null}
       workspaceRuntime={options.workspaceRuntime ?? null}
-    />,
+    />
   );
 }
 

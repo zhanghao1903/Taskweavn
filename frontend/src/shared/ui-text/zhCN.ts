@@ -533,6 +533,7 @@ export const zhCN: UiTextCatalog = {
           planningQuestions: "规划问题",
           question: ({ index }) => `问题 ${index}`,
           selectedAnswer: "已选回答",
+          selectedOption: "已选择",
           task: ({ title }) => `任务：${title}`,
           taskInputRequired: "任务需要输入",
         },

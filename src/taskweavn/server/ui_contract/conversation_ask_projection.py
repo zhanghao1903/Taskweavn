@@ -113,6 +113,7 @@ def _authoring_question_view(
         prompt=ask.question,
         reason=ask.reason,
         required=ask.required,
+        answered=answer is not None,
         answer_type="single_choice" if ask.options else "free_text",
         allow_free_text=not ask.options,
         options=tuple(
@@ -220,6 +221,7 @@ def _execution_question_views(
                 prompt=question.question,
                 reason=ask.reason,
                 required=question.required,
+                answered=ask.answer is not None,
                 answer_type="free_text",
                 allow_free_text=True,
                 answer_text=(
@@ -236,6 +238,7 @@ def _execution_question_views(
             prompt=ask.question,
             reason=ask.reason,
             required=True,
+            answered=ask.answer is not None,
             answer_type=ask.answer_type,
             allow_free_text=ask.allow_free_text or ask.allow_no_option_with_text,
             options=tuple(

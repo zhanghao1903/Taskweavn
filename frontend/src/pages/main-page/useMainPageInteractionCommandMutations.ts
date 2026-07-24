@@ -14,6 +14,7 @@ import type {
   MainPageAdapter,
   MainPageRuntimeSnapshot,
 } from "./runtime/adapter";
+import type { ExecutionAskCommandErrorSetter } from "./useMainPageCommandErrorState";
 
 type SnapshotRefetchResult = {
   data?: MainPageRuntimeSnapshot;
@@ -66,7 +67,7 @@ export type UseMainPageInteractionCommandMutationsOptions = {
   refetchSnapshot: () => Promise<SnapshotRefetchResult>;
   setAuthoringAskCommandError: CommandErrorSetter;
   setConfirmationCommandError: CommandErrorSetter;
-  setExecutionAskCommandError: CommandErrorSetter;
+  setExecutionAskCommandError: ExecutionAskCommandErrorSetter;
   setTaskTreeCommandError: (message: string | null) => void;
   setUiNotice: (notice: string | null) => void;
 };
@@ -224,10 +225,13 @@ export function useMainPageInteractionCommandMutations({
         },
         activeWorkspaceId,
       ),
-    onError: () => {
-      setExecutionAskCommandError("Answer submission failed. Please retry.");
+    onError: (_error, variables) => {
+      setExecutionAskCommandError(
+        variables.askId,
+        "Answer submission failed. Please retry.",
+      );
     },
-    onSuccess: (response) => {
+    onSuccess: (response, variables) => {
       const result = handleCommandResponse(
         response,
         "Answer submission was rejected.",
@@ -235,6 +239,7 @@ export function useMainPageInteractionCommandMutations({
 
       if (result.errorMessage) {
         setExecutionAskCommandError(
+          variables.askId,
           result.errorMessage,
           result.recoveryActions,
         );
@@ -244,7 +249,7 @@ export function useMainPageInteractionCommandMutations({
         return;
       }
 
-      setExecutionAskCommandError(null);
+      setExecutionAskCommandError(variables.askId, null);
       setUiNotice("Answer submitted.");
       if (result.shouldRefetch) {
         void refetchSnapshot();
@@ -266,21 +271,25 @@ export function useMainPageInteractionCommandMutations({
         },
         activeWorkspaceId,
       ),
-    onError: () => {
-      setExecutionAskCommandError("Defer failed. Please retry.");
+    onError: (_error, variables) => {
+      setExecutionAskCommandError(
+        variables.askId,
+        "Defer failed. Please retry.",
+      );
     },
-    onSuccess: (response) => {
+    onSuccess: (response, variables) => {
       const result = handleCommandResponse(response, "Defer was rejected.");
 
       if (result.errorMessage) {
         setExecutionAskCommandError(
+          variables.askId,
           result.errorMessage,
           result.recoveryActions,
         );
         return;
       }
 
-      setExecutionAskCommandError(null);
+      setExecutionAskCommandError(variables.askId, null);
       setUiNotice("Question deferred.");
       if (result.shouldRefetch) {
         void refetchSnapshot();
@@ -302,21 +311,25 @@ export function useMainPageInteractionCommandMutations({
         },
         activeWorkspaceId,
       ),
-    onError: () => {
-      setExecutionAskCommandError("Cancel failed. Please retry.");
+    onError: (_error, variables) => {
+      setExecutionAskCommandError(
+        variables.askId,
+        "Cancel failed. Please retry.",
+      );
     },
-    onSuccess: (response) => {
+    onSuccess: (response, variables) => {
       const result = handleCommandResponse(response, "Cancel was rejected.");
 
       if (result.errorMessage) {
         setExecutionAskCommandError(
+          variables.askId,
           result.errorMessage,
           result.recoveryActions,
         );
         return;
       }
 
-      setExecutionAskCommandError(null);
+      setExecutionAskCommandError(variables.askId, null);
       setUiNotice("Question cancelled.");
       if (result.shouldRefetch) {
         void refetchSnapshot();

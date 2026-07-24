@@ -475,6 +475,7 @@ type ConversationAskQuestionView = {
   prompt: string;
   reason?: string | null;
   required: boolean;
+  answered: boolean;
   answerType: "free_text" | "single_choice" | "multi_choice" | "boolean";
   allowFreeText: boolean;
   options: Array<{
@@ -496,7 +497,9 @@ this visibility; ordinary Read-only Inquiry answers remain `visible`.
 
 Conversation ASK card identity and ordering remain stable across pending and
 terminal states. Frontend components must not infer selected options from
-message title/body.
+message title/body. In a partially answered Authoring group, `answered=true`
+questions are authoritative and read-only; batch submission includes only
+questions where `answered=false`.
 
 ### 5.10 SessionActivityTimelineResult
 

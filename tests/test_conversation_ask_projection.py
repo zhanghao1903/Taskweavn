@@ -93,8 +93,67 @@ def test_authoring_ask_projects_one_stable_group_card_with_selected_answers() ->
     assert card.domain == "authoring"
     assert card.status == "answered"
     assert card.can_answer is False
+    assert card.questions[0].answered is True
+    assert card.questions[1].answered is True
     assert card.questions[0].options[0].selected is True
     assert card.questions[1].answer_text == "Playful"
+
+
+def test_partial_authoring_ask_marks_only_completed_questions_answered() -> None:
+    raw_task = RawTask(
+        raw_task_id="raw-partial",
+        session_id="session-1",
+        source_message_id="source-1",
+        user_input="Build a student courseware.",
+        status="awaiting_user",
+        asks=(
+            RawTaskAsk(
+                ask_id="audience",
+                raw_task_id="raw-partial",
+                question="Who is the audience?",
+                reason="The audience controls the tone.",
+                options=(
+                    RawTaskAnswerOption(
+                        option_id="grade-seven",
+                        value="grade-7",
+                        label="Grade seven",
+                    ),
+                ),
+                created_at=NOW,
+            ),
+            RawTaskAsk(
+                ask_id="style",
+                raw_task_id="raw-partial",
+                question="What visual style?",
+                reason="The style controls the presentation.",
+                created_at=NOW + timedelta(seconds=1),
+            ),
+        ),
+        answers=(
+            RawTaskAnswer(
+                answer_id="answer-audience",
+                raw_task_id="raw-partial",
+                ask_id="audience",
+                value="grade-7",
+                source_message_id="answer-message",
+                created_at=NOW + timedelta(minutes=1),
+            ),
+        ),
+        created_at=NOW,
+        updated_at=NOW + timedelta(minutes=1),
+    )
+
+    message = project_conversation_ask_messages(raw_tasks=(raw_task,))[0]
+
+    assert message.conversation_render is not None
+    card = message.conversation_render.ask_card
+    assert card is not None
+    assert card.status == "pending"
+    assert card.can_answer is True
+    assert card.questions[0].answered is True
+    assert card.questions[0].options[0].selected is True
+    assert card.questions[1].answered is False
+    assert card.questions[1].answer_text is None
 
 
 def test_execution_ask_card_uses_ask_id_and_preserves_answer_selection() -> None:
@@ -136,6 +195,7 @@ def test_execution_ask_card_uses_ask_id_and_preserves_answer_selection() -> None
     assert card.domain == "execution"
     assert card.status == "answered"
     assert card.ask_id == "ask-1"
+    assert card.questions[0].answered is True
     assert card.questions[0].options[0].selected is True
     assert card.questions[0].options[1].selected is False
 

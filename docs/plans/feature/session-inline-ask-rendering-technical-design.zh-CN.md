@@ -167,6 +167,7 @@ type ConversationAskQuestionView = {
   prompt: string;
   reason: string | null;
   required: boolean;
+  answered: boolean;
   answerType: "free_text" | "single_choice" | "multi_choice" | "boolean";
   allowFreeText: boolean;
   options: ConversationAskOptionView[];
@@ -230,6 +231,8 @@ createdAt = min(ask.createdAt)
 
 - Answer.value 匹配 option id/value/label 时，对应 option.selected=true；
 - 未匹配选项时，将 Answer.value 投影为 `answerText`；
+- 每个问题以 `answered` 明确表达是否已有持久答案；pending 组卡片中已回答问题只读，
+  提交 payload 只包含尚未回答的问题；
 - answered 卡片的 `resolvedAt` 为最后一个 Answer.createdAt；
 - pending 卡片仅允许未回答问题编辑，已回答问题只读。
 
@@ -440,16 +443,28 @@ conversationVisibility = "activity_only"
 - Plan 打开时定位 Conversation ASK 会折叠 Plan，避免覆盖卡片；
 - 响应式与可访问性交互测试。
 
+### 评审整改闭环
+
+- `FINDING-001`：问题投影新增 `answered`；部分已回答 Authoring 组中已完成问题
+  保持只读，批量命令只提交未回答问题，并增加真实 Authoring 服务链路回归；
+- `FINDING-002`：Execution answer/defer/cancel 的 pending、error 和 recovery 状态按
+  `askId` 管理；任一命令执行中全局锁定其他 Execution ASK，避免重复命令；
+- `FINDING-003`：pending 草稿提升到 Workbench 会话状态，以
+  `sessionId/cardId/questionId` 隔离，切换会话后返回仍能恢复；
+- `FINDING-004`：已选项显示 `✓ 已选择/Selected` 非颜色标记，并通过
+  `aria-labelledby` 将 choice group 关联到原始问题，保留 `aria-pressed` 语义。
+
 ### 验证证据
 
-- `uv run pytest -q`：1566 passed，10 skipped；
+- `uv run pytest -q`：1568 passed，10 skipped；
 - changed backend scope `uv run ruff check`：通过；
 - changed backend scope `uv run mypy`：通过；
-- `npm test`：569 passed，6 skipped；
+- `npm test`：573 passed，6 skipped；
 - `npm run build`：通过；
 - `npm run lint`：0 error，保留 2 条既有 Fast Refresh warning；
-- 浏览器桌面、768px 平板与 390px 手机视口：无横向溢出，选择、提交可用，
-  定位入口正确，console 无 warning/error。
+- 浏览器桌面、768px 平板与 390px 手机视口：Authoring 与 Execution ASK 均在
+  Conversation 内显示，问题标签关联正确，非颜色已选标记可见，无横向溢出，
+  console 无 error。
 
 仓库全量 `ruff check .` 与 `mypy src` 仍包含本特性范围外的既有历史问题；
 相关文件未在本特性中修改，详见 PR 验证说明。

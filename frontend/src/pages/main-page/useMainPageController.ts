@@ -1,12 +1,19 @@
 import { useCallback, useState } from "react";
 
 import type { RuntimeInputPendingClarification } from "../../shared/api/types";
+import type { ExecutionAskConversationCommandState } from "./conversation-ask/conversationAskInteraction";
 import type {
   MainPageController,
   UseMainPageControllerOptions,
 } from "./mainPageControllerTypes";
-import { useMainPageCommandActions } from "./useMainPageCommandActions";
-import { useMainPageCommandErrorState } from "./useMainPageCommandErrorState";
+import {
+  useMainPageCommandActions,
+  type MainPageCommandPendingState,
+} from "./useMainPageCommandActions";
+import {
+  useMainPageCommandErrorState,
+  type ExecutionAskCommandErrorsById,
+} from "./useMainPageCommandErrorState";
 import { useMainPageInputRuntimeState } from "./useMainPageInputRuntimeState";
 import {
   useMainPageSessionIdentityAdoption,
@@ -58,8 +65,7 @@ export function useMainPageController({
     authoringAskRecoveryActions,
     confirmationError,
     confirmationRecoveryActions,
-    executionAskError,
-    executionAskRecoveryActions,
+    executionAskErrorsById,
     inputError,
     inputRecoveryActions,
     resetCommandErrorState,
@@ -225,6 +231,16 @@ export function useMainPageController({
     snapshotDataRef,
     snapshotIdentity,
   });
+  const executionAskCommandStates = buildExecutionAskCommandStates(
+    executionAskErrorsById,
+    commandActions.pending,
+  );
+  const activeExecutionAskId =
+    snapshotData?.snapshot.activeAsk?.id ?? null;
+  const activeExecutionAskState =
+    activeExecutionAskId === null
+      ? null
+      : executionAskCommandStates[activeExecutionAskId] ?? null;
 
   return {
     activeSessionId,
@@ -243,11 +259,13 @@ export function useMainPageController({
     isDeletingSession: sessionLifecycle.isDeletingSession,
     isAnsweringAuthoringAsk:
       commandActions.pending.isAnsweringAuthoringAsk,
-    executionAskError,
-    executionAskRecoveryActions,
-    isAnsweringAsk: commandActions.pending.isAnsweringAsk,
-    isCancellingAsk: commandActions.pending.isCancellingAsk,
-    isDeferringAsk: commandActions.pending.isDeferringAsk,
+    executionAskCommandStates,
+    executionAskError: activeExecutionAskState?.commandError ?? null,
+    executionAskRecoveryActions:
+      activeExecutionAskState?.commandRecoveryActions ?? [],
+    isAnsweringAsk: activeExecutionAskState?.isAnswering ?? false,
+    isCancellingAsk: activeExecutionAskState?.isCancelling ?? false,
+    isDeferringAsk: activeExecutionAskState?.isDeferring ?? false,
     isInputSubmitting: commandActions.pending.isInputSubmitting,
     isPublishingTaskTree: commandActions.pending.isPublishingTaskTree,
     isArchivingPlan: commandActions.pending.isArchivingPlan,
@@ -300,4 +318,37 @@ export function useMainPageController({
       publishTaskTree: commandActions.actions.publishTaskTree,
     },
   };
+}
+
+function buildExecutionAskCommandStates(
+  errorsByAskId: ExecutionAskCommandErrorsById,
+  pending: MainPageCommandPendingState,
+): Record<string, ExecutionAskConversationCommandState> {
+  const askIds = new Set(Object.keys(errorsByAskId));
+  for (const askId of [
+    pending.answeringAskId,
+    pending.cancellingAskId,
+    pending.deferringAskId,
+  ]) {
+    if (askId !== null) {
+      askIds.add(askId);
+    }
+  }
+
+  return Object.fromEntries(
+    [...askIds].map((askId) => {
+      const error = errorsByAskId[askId];
+      return [
+        askId,
+        {
+          askId,
+          commandError: error?.message ?? null,
+          commandRecoveryActions: error?.recoveryActions ?? [],
+          isAnswering: pending.answeringAskId === askId,
+          isCancelling: pending.cancellingAskId === askId,
+          isDeferring: pending.deferringAskId === askId,
+        },
+      ];
+    }),
+  );
 }

@@ -884,6 +884,14 @@ describe("useMainPageController", () => {
       "answer_ask",
       "refresh_snapshot",
     ]);
+    expect(
+      result.current.executionAskCommandStates["ask-deployment-target"],
+    ).toMatchObject({
+      askId: "ask-deployment-target",
+      commandError: "Choose an option or enter text, not both.",
+      commandRecoveryActions: ["answer_ask", "refresh_snapshot"],
+      isAnswering: false,
+    });
     await waitFor(() => {
       expect(loadSnapshot).toHaveBeenCalledTimes(2);
     });

@@ -141,6 +141,13 @@
   overflow-wrap: anywhere;
 }
 
+.selectedIndicator {
+  flex: none;
+  font-size: var(--plato-type-caption-size);
+  font-weight: var(--plato-type-label-weight);
+  line-height: var(--plato-type-caption-line-height);
+}
+
 .optionDescription {
   color: var(--plato-color-muted);
   font-size: var(--plato-type-caption-size);

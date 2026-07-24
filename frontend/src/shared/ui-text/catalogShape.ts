@@ -407,6 +407,7 @@ export type UiTextCatalog = {
           planningQuestions: string;
           question: UiTextTemplate<{ index: number }>;
           selectedAnswer: string;
+          selectedOption: string;
           task: UiTextTemplate<{ title: string }>;
           taskInputRequired: string;
         };

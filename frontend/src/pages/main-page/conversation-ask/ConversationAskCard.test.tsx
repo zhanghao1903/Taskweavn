@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -37,16 +37,53 @@ describe("ConversationAskCard", () => {
     ]);
   });
 
+  it("keeps completed Authoring questions read-only and submits only unanswered questions", async () => {
+    const user = userEvent.setup();
+    const interaction = buildInteraction({
+      authoring: {
+        commandError: null,
+        commandRecoveryActions: [],
+        isSubmitting: false,
+        rawTaskId: "raw-1",
+      },
+    });
+    const card = authoringCard();
+    card.questions[0] = {
+      ...card.questions[0],
+      answered: true,
+      options: card.questions[0].options.map((option) => ({
+        ...option,
+        selected: option.id === "grade-seven",
+      })),
+    };
+
+    render(<ConversationAskCard card={card} interaction={interaction} />);
+
+    expect(
+      screen.getByRole("button", { name: /Grade seven.*Selected/ }),
+    ).toBeDisabled();
+    await user.type(screen.getByPlaceholderText("Add your answer."), "Playful");
+    await user.click(
+      screen.getByRole("button", { name: "Submit all answers" }),
+    );
+
+    expect(interaction.onSubmitAuthoring).toHaveBeenCalledWith("raw-1", [
+      { askId: "style", value: "Playful" },
+    ]);
+  });
+
   it("answers, defers, and cancels an Execution ASK from Conversation", async () => {
     const user = userEvent.setup();
     const interaction = buildInteraction({
-      execution: {
-        askId: "ask-1",
-        commandError: null,
-        commandRecoveryActions: [],
-        isAnswering: false,
-        isCancelling: false,
-        isDeferring: false,
+      executionByAskId: {
+        "ask-1": {
+          askId: "ask-1",
+          commandError: null,
+          commandRecoveryActions: [],
+          isAnswering: false,
+          isCancelling: false,
+          isDeferring: false,
+        },
       },
     });
 
@@ -80,6 +117,7 @@ describe("ConversationAskCard", () => {
       questions: [
         {
           ...executionCard().questions[0],
+          answered: true,
           options: executionCard().questions[0].options.map((option) => ({
             ...option,
             selected: option.id === "vercel",
@@ -95,12 +133,89 @@ describe("ConversationAskCard", () => {
         name: "Where should Plato deploy?",
       }),
     ).toBeInTheDocument();
-    expect(screen.getByText("Answered")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Vercel/ })).toHaveAttribute(
+    expect(screen.getAllByText("Answered")).toHaveLength(2);
+    const choiceGroup = screen.getByRole("group", {
+      name: "Where should Plato deploy?",
+    });
+    expect(
+      within(choiceGroup).getByRole("button", {
+        name: /Vercel.*Selected/,
+      }),
+    ).toHaveAttribute(
       "aria-pressed",
       "true",
     );
+    expect(within(choiceGroup).getByText("✓ Selected")).toBeVisible();
     expect(screen.queryByRole("button", { name: "Answer" })).not.toBeInTheDocument();
+  });
+
+  it("places pending and error state on the matching Execution ASK cards", async () => {
+    const user = userEvent.setup();
+    const firstCard = executionCard({
+      askId: "ask-1",
+      cardId: "conversation-ask:execution:ask-1",
+      title: "First ASK",
+    });
+    const secondCard = executionCard({
+      askId: "ask-2",
+      cardId: "conversation-ask:execution:ask-2",
+      title: "Second ASK",
+      questions: [
+        {
+          ...executionCard().questions[0],
+          id: "ask-2",
+          prompt: "Which fallback should Plato use?",
+          options: executionCard().questions[0].options.map((option) => ({
+            ...option,
+            selected: option.id === "vercel",
+          })),
+        },
+      ],
+    });
+    const interaction = buildInteraction({
+      executionByAskId: {
+        "ask-1": {
+          askId: "ask-1",
+          commandError: null,
+          commandRecoveryActions: [],
+          isAnswering: true,
+          isCancelling: false,
+          isDeferring: false,
+        },
+        "ask-2": {
+          askId: "ask-2",
+          commandError: "Second ASK failed.",
+          commandRecoveryActions: [],
+          isAnswering: false,
+          isCancelling: false,
+          isDeferring: false,
+        },
+      },
+      hasExecutionCommandPending: true,
+    });
+
+    render(
+      <>
+        <ConversationAskCard card={firstCard} interaction={interaction} />
+        <ConversationAskCard card={secondCard} interaction={interaction} />
+      </>,
+    );
+
+    const firstForm = screen.getByRole("form", { name: "First ASK" });
+    const secondForm = screen.getByRole("form", { name: "Second ASK" });
+    expect(within(firstForm).queryByText("Second ASK failed.")).toBeNull();
+    expect(within(secondForm).getByText("Second ASK failed.")).toBeVisible();
+    expect(
+      within(firstForm).getByRole("button", { name: "Answering" }),
+    ).toBeDisabled();
+    expect(
+      within(secondForm).getByRole("button", { name: "Answer" }),
+    ).toBeDisabled();
+
+    await user.click(
+      within(secondForm).getByRole("button", { name: "Answer" }),
+    );
+    expect(interaction.onAnswerExecution).not.toHaveBeenCalled();
   });
 });
 
@@ -118,6 +233,7 @@ function authoringCard(): ConversationAskCardView {
         prompt: "Who is the audience?",
         reason: "The audience controls the tone.",
         required: true,
+        answered: false,
         answerType: "single_choice",
         allowFreeText: false,
         options: [
@@ -140,6 +256,7 @@ function authoringCard(): ConversationAskCardView {
         prompt: "What visual style?",
         reason: "The style controls the presentation.",
         required: true,
+        answered: false,
         answerType: "free_text",
         allowFreeText: true,
         options: [],
@@ -169,6 +286,7 @@ function executionCard(
         prompt: "Where should Plato deploy?",
         reason: "Deployment needs a target.",
         required: true,
+        answered: false,
         answerType: "single_choice",
         allowFreeText: true,
         options: [
@@ -201,7 +319,8 @@ function buildInteraction(
 ): ConversationAskInteraction {
   return {
     authoring: null,
-    execution: null,
+    executionByAskId: {},
+    hasExecutionCommandPending: false,
     onAnswerExecution: vi.fn(),
     onCancelExecution: vi.fn(),
     onDeferExecution: vi.fn(),

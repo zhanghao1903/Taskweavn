@@ -858,6 +858,7 @@ function conversationAskMessagesForFixture(
               prompt: question.question,
               reason: question.reason,
               required: question.required,
+              answered: false,
               answerType:
                 question.options.length > 0
                   ? ("single_choice" as const)
@@ -916,6 +917,7 @@ function conversationAskMessagesForFixture(
               prompt: activeAsk.question,
               reason: activeAsk.reason,
               required: true,
+              answered: false,
               answerType: activeAsk.answerType,
               allowFreeText:
                 activeAsk.allowFreeText ||

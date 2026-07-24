@@ -300,6 +300,66 @@ def test_answer_raw_task_asks_records_batch_answers_and_user_message(
     assert messages[-1].context["ask_ids"] == [ask.ask_id for ask in raw.asks]
 
 
+def test_answer_raw_task_asks_completes_partially_answered_group(
+    tmp_path: Any,
+) -> None:
+    harness = _adapter(
+        tmp_path,
+        _StubLLM(
+            [
+                """
+                {
+                  "intent_summary": "Build a website",
+                  "feasibility": {
+                    "status": "needs_clarification",
+                    "confidence": 0.5,
+                    "missing_inputs": ["audience", "sections"]
+                  },
+                  "asks": [
+                    {"question": "Who is the audience?", "reason": "Need scope"},
+                    {"question": "Which sections are required?", "reason": "Need scope"}
+                  ]
+                }
+                """
+            ]
+        ),
+    )
+    harness.adapter.append_session_message(session_id="s1", content="Build a website")
+    raw = harness.raw_store.list_for_session("s1")[0]
+
+    first_result = harness.adapter.answer_raw_task_ask(
+        session_id="s1",
+        raw_task_id=raw.raw_task_id,
+        ask_id=raw.asks[0].ask_id,
+        value="Developers",
+        idempotency_key="answer-first",
+    )
+    completion_result = harness.adapter.answer_raw_task_asks(
+        session_id="s1",
+        raw_task_id=raw.raw_task_id,
+        answers=(
+            RawTaskAskAnswerSubmission(
+                ask_id=raw.asks[1].ask_id,
+                value="Portfolio and contact",
+            ),
+        ),
+        idempotency_key="answer-remaining",
+    )
+    updated = harness.raw_store.get("s1", raw.raw_task_id)
+
+    assert first_result.accepted
+    assert completion_result.accepted
+    assert updated is not None
+    assert updated.status == "assessing"
+    assert [(answer.ask_id, answer.value) for answer in updated.answers] == [
+        (raw.asks[0].ask_id, "Developers"),
+        (raw.asks[1].ask_id, "Portfolio and contact"),
+    ]
+    messages = list(harness.stream.list_for_session("s1"))
+    assert messages[-1].content == "Portfolio and contact"
+    assert messages[-1].context["ask_ids"] == [raw.asks[1].ask_id]
+
+
 def test_answer_raw_task_asks_projects_option_labels_to_user_message(
     tmp_path: Any,
 ) -> None:

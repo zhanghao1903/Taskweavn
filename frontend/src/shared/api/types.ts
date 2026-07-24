@@ -394,6 +394,7 @@ export type ConversationAskQuestionView = {
   prompt: string;
   reason?: string | null;
   required: boolean;
+  answered: boolean;
   answerType: AskAnswerType;
   allowFreeText: boolean;
   options: ConversationAskOptionView[];
